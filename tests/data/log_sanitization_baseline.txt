@@ -40,7 +40,7 @@ backend/common/portfolio.py:117
 backend/common/portfolio_loader.py:240
 backend/common/portfolio_loader.py:253
 backend/common/portfolio_loader.py:260
-backend/common/portfolio_utils.py:1934
+backend/common/portfolio_utils.py:1973
 backend/common/portfolio_utils.py:300
 backend/common/portfolio_utils.py:306
 backend/common/prices.py:405
@@ -135,9 +135,9 @@ backend/agent/trading_agent.py:66
 # load_and_compute_metrics() from the agent's own trade log -- not
 # attacker/user-controlled input.
 backend/agent/trading_agent.py:596
-backend/common/portfolio_utils.py:1329
-backend/common/portfolio_utils.py:1358
-backend/common/portfolio_utils.py:1944
+backend/common/portfolio_utils.py:1337
+backend/common/portfolio_utils.py:1366
+backend/common/portfolio_utils.py:1983
 backend/common/portfolio_utils.py:228
 backend/common/portfolio_utils.py:245
 backend/common/portfolio_utils.py:256

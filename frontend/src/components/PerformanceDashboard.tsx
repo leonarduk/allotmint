@@ -15,6 +15,10 @@ import {
   getAlphaVsBenchmark,
   getTrackingError,
   getMaxDrawdown,
+  getGroupPerformance,
+  getGroupAlphaVsBenchmark,
+  getGroupTrackingError,
+  getGroupMaxDrawdown,
 } from "../api";
 import type { PerformancePoint } from "../types";
 import { percent, percentOrNa } from "../lib/money";
@@ -23,10 +27,17 @@ import type { DrawdownExtrema, DrawdownSeriesPoint } from "../types";
 
 type Props = {
   owner: string | null;
+  /**
+   * Group slug (e.g. "all") to view combined household performance instead
+   * of a single owner's. When set, `owner` is ignored and owner-only UI
+   * (the diagnostics deep link) is hidden -- diagnostics stay owner-scoped
+   * only (#7228).
+   */
+  group?: string | null;
   asOf?: string | null;
 };
 
-export function PerformanceDashboard({ owner, asOf }: Props) {
+export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [data, setData] = useState<PerformancePoint[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [days, setDays] = useState<number>(365);
@@ -46,8 +57,11 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
   const [previousDate, setPreviousDate] = useState<string | null>(null);
   const { t, i18n } = useTranslation();
 
+  const activeGroup = group || null;
+  const activeOwner = activeGroup ? null : owner || null;
+
   useEffect(() => {
-    if (!owner) return;
+    if (!activeGroup && !activeOwner) return;
     setErr(null);
     setData([]);
     setReportingDate(null);
@@ -58,12 +72,20 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
     setShowDrawdownDetails(false);
     const reqDays = days === 0 ? 36500 : days;
     const opts = asOf ? { asOf } : undefined;
-    Promise.all([
-      getAlphaVsBenchmark(owner, "VWRL.L", reqDays, opts),
-      getTrackingError(owner, "VWRL.L", reqDays, opts),
-      getMaxDrawdown(owner, reqDays, opts),
-      getPerformance(owner, reqDays, excludeCash, opts),
-    ])
+    const fetches = activeGroup
+      ? Promise.all([
+          getGroupAlphaVsBenchmark(activeGroup, "VWRL.L", reqDays),
+          getGroupTrackingError(activeGroup, "VWRL.L", reqDays),
+          getGroupMaxDrawdown(activeGroup, reqDays),
+          getGroupPerformance(activeGroup, reqDays, excludeCash, opts),
+        ])
+      : Promise.all([
+          getAlphaVsBenchmark(activeOwner as string, "VWRL.L", reqDays, opts),
+          getTrackingError(activeOwner as string, "VWRL.L", reqDays, opts),
+          getMaxDrawdown(activeOwner as string, reqDays, opts),
+          getPerformance(activeOwner as string, reqDays, excludeCash, opts),
+        ]);
+    fetches
       .then(([alphaRes, teRes, mdRes, perf]) => {
         setData(perf.history);
         setAlpha(alphaRes.alpha_vs_benchmark);
@@ -88,9 +110,9 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
         }
       })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
-  }, [owner, days, excludeCash, asOf]);
+  }, [activeGroup, activeOwner, days, excludeCash, asOf]);
 
-  if (!owner) return <p>{t("dashboard.selectMember")}</p>;
+  if (!activeGroup && !activeOwner) return <p>{t("dashboard.selectMember")}</p>;
   if (err) return <p style={{ color: "red" }}>{err}</p>;
   if (!data.length) return <p>{t("common.loading")}</p>;
 
@@ -152,8 +174,8 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
         })
       : t("dashboard.drawdownRangeUnknown");
 
-  const diagnosticsHref = owner
-    ? `/performance/${encodeURIComponent(owner)}/diagnostics`
+  const diagnosticsHref = activeOwner
+    ? `/performance/${encodeURIComponent(activeOwner)}/diagnostics`
     : "#";
 
   const drawdownDetailsAvailable = drawdownSeries.length > 0;
@@ -350,7 +372,7 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
               marginTop: "0.75rem",
             }}
           >
-            {owner && (
+            {activeOwner && (
               <Link
                 to={diagnosticsHref}
                 style={{
@@ -403,7 +425,7 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
           />
         </LineChart>
       </ResponsiveContainer>
-      {owner && (
+      {activeOwner && (
         <div style={{ marginTop: "1rem" }}>
           <Link
             to={diagnosticsHref}

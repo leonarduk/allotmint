@@ -913,6 +913,56 @@ export const getGroupMaxDrawdown = (slug: string, days = 365) =>
     `${API_BASE}/performance-group/${slug}/max-drawdown?days=${days}`,
   );
 
+/** Fetch combined performance metrics for a group (mirrors getPerformance). */
+export const getGroupPerformance = (
+  slug: string,
+  days = 365,
+  excludeCash = false,
+  opts: { asOf?: string | null } = {},
+): Promise<PerformanceResponse> => {
+  const params = new URLSearchParams({ days: String(days) });
+  if (excludeCash) params.set("exclude_cash", "1");
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  const base = fetchJson<{
+    group: string;
+    history: PerformancePoint[];
+    reporting_date?: string | null;
+    previous_date?: string | null;
+    data_quality_issues?: {
+      date: string;
+      value: number;
+      previous_value: number;
+      next_value: number;
+    }[];
+  }>(
+    `${API_BASE}/performance-group/${slug}?${params.toString()}`,
+  );
+  const twr = fetchJson<{ group: string; time_weighted_return: number | null }>(
+    `${API_BASE}/performance-group/${slug}/twr?days=${days}${
+      opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
+    }`,
+  );
+  const xirr = fetchJson<{ group: string; xirr: number | null }>(
+    `${API_BASE}/performance-group/${slug}/xirr?days=${days}${
+      opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
+    }`,
+  );
+  return Promise.all([base, twr, xirr]).then(([p, t, x]) => ({
+    history: p.history,
+    time_weighted_return: t.time_weighted_return,
+    xirr: x.xirr,
+    reportingDate: p.reporting_date ?? null,
+    previousDate: p.previous_date ?? null,
+    dataQualityIssues:
+      p.data_quality_issues?.map((issue) => ({
+        date: issue.date,
+        value: issue.value,
+        previousValue: issue.previous_value,
+        nextValue: issue.next_value,
+      })) ?? [],
+  }));
+};
+
 /** Run a simple fundamentals screen across a list of tickers. */
 export const getScreener = (
   tickers: string[],

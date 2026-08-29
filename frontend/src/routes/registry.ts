@@ -146,8 +146,15 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     menuCategory: 'dashboard',
     priority: 40,
     defaultPath: (context) => {
-      const { owner } = routeContext(context);
-      return owner ? `/performance/${owner}` : '/performance';
+      const { owner, group } = routeContext(context);
+      // Owner scope keeps its existing path-segment form (and with it the
+      // /performance/:owner/diagnostics deep link). Group scope carries a
+      // `group` query param instead -- there's no separate path form for it,
+      // so a bare owner-less group slug never collides with an owner slug in
+      // the same position (#7228).
+      if (owner) return `/performance/${owner}`;
+      if (group) return `/performance?group=${group}`;
+      return '/performance';
     },
   },
   {

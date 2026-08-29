@@ -9,6 +9,10 @@ import {
   getAlphaVsBenchmark,
   getTrackingError,
   getMaxDrawdown,
+  getGroupPerformance,
+  getGroupAlphaVsBenchmark,
+  getGroupTrackingError,
+  getGroupMaxDrawdown,
 } from "@/api";
 
 vi.mock("@/api", () => ({
@@ -16,6 +20,10 @@ vi.mock("@/api", () => ({
   getAlphaVsBenchmark: vi.fn(),
   getTrackingError: vi.fn(),
   getMaxDrawdown: vi.fn(),
+  getGroupPerformance: vi.fn(),
+  getGroupAlphaVsBenchmark: vi.fn(),
+  getGroupTrackingError: vi.fn(),
+  getGroupMaxDrawdown: vi.fn(),
 }));
 
 describe("PerformanceDashboard", () => {
@@ -132,5 +140,73 @@ describe("PerformanceDashboard", () => {
     expect(
       await screen.findByText(/Drops larger than 90%/i),
     ).toBeInTheDocument();
+  });
+
+  describe("group scope (#7228)", () => {
+    beforeEach(() => {
+      vi.mocked(getGroupAlphaVsBenchmark).mockResolvedValue({
+        alpha_vs_benchmark: 0.03,
+      });
+      vi.mocked(getGroupTrackingError).mockResolvedValue({
+        tracking_error: 0.04,
+      });
+      vi.mocked(getGroupMaxDrawdown).mockResolvedValue({
+        max_drawdown: -0.2,
+        peak: null,
+        trough: null,
+        series: [],
+      });
+      vi.mocked(getGroupPerformance).mockResolvedValue({
+        history: [{ date: "2024-03-01", value: 5000 }],
+        time_weighted_return: 0.06,
+        xirr: 0.07,
+        reportingDate: "2024-03-31",
+        previousDate: "2024-02-29",
+      });
+    });
+
+    it("fetches the combined group series instead of an owner's when group is set", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("reporting-date-summary"),
+      ).toHaveTextContent("Reporting date: 2024-03-31");
+
+      expect(getGroupPerformance).toHaveBeenCalledWith("all", 365, false, undefined);
+      expect(getGroupAlphaVsBenchmark).toHaveBeenCalledWith("all", "VWRL.L", 365);
+      expect(getGroupTrackingError).toHaveBeenCalledWith("all", "VWRL.L", 365);
+      expect(getGroupMaxDrawdown).toHaveBeenCalledWith("all", 365);
+      expect(getPerformance).not.toHaveBeenCalled();
+      expect(getAlphaVsBenchmark).not.toHaveBeenCalled();
+    });
+
+    it("hides the owner-only diagnostics link in group scope", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      await screen.findByTestId("reporting-date-summary");
+      expect(
+        screen.queryByRole("link", { name: /Open diagnostics/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("prefers group scope over a stale owner value", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" group="all" />
+        </MemoryRouter>,
+      );
+
+      await screen.findByTestId("reporting-date-summary");
+      expect(getGroupPerformance).toHaveBeenCalledWith("all", 365, false, undefined);
+      expect(getPerformance).not.toHaveBeenCalled();
+    });
   });
 });

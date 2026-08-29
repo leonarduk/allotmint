@@ -17,6 +17,8 @@ import type {
 } from './types';
 
 import { OwnerSelector } from './components/OwnerSelector';
+import { PerformanceScopeSelector } from './components/PerformanceScopeSelector';
+import type { PerformanceScope } from './components/PerformanceScopeSelector';
 import { GroupPortfolioView } from './components/GroupPortfolioView';
 import { InstrumentTable } from './components/InstrumentTable';
 import { TransactionsPage } from './components/TransactionsPage';
@@ -108,13 +110,17 @@ export function getOwnerRootRedirectPath(
   pathname: string,
   selectedOwner: string,
   owners: OwnerSummary[],
-  user?: UserProfile | null
+  user?: UserProfile | null,
+  search = ''
 ): string | null {
   if (selectedOwner || owners.length === 0) return null;
   const segs = pathname.split('/').filter(Boolean);
   const atPortfolioRoot = segs[0] === 'portfolio' && segs.length === 1;
   const atPerformanceRoot = segs[0] === 'performance' && segs.length === 1;
   if (!atPortfolioRoot && !atPerformanceRoot) return null;
+  // A bare `/performance?group=<slug>` is a deliberate group-scope landing
+  // (#7228), not an unscoped root that should be forced onto an owner.
+  if (atPerformanceRoot && readRouteScopeQuery(search).group) return null;
   const owner = findOwnerForUser(owners, user)?.owner ?? owners[0].owner;
   const encodedOwner = encodePathSegment(owner);
   return atPerformanceRoot
@@ -214,9 +220,31 @@ export default function App({ onLogout }: AppProps) {
     (owner: string) => {
       const trimmedOwner = owner.trim();
       setSelectedOwner(trimmedOwner);
+      setSelectedGroup('');
       navigate(`/performance/${encodePathSegment(trimmedOwner)}`);
     },
     [navigate]
+  );
+
+  const handleGroupSelectPerformance = useCallback(
+    (slug: string) => {
+      const trimmedSlug = slug.trim();
+      setSelectedGroup(trimmedSlug);
+      setSelectedOwner('');
+      navigate(`/performance?group=${encodeURIComponent(trimmedSlug)}`);
+    },
+    [navigate]
+  );
+
+  const handleScopeSelectPerformance = useCallback(
+    (scope: PerformanceScope) => {
+      if (scope.kind === 'group') {
+        handleGroupSelectPerformance(scope.slug);
+      } else {
+        handleOwnerSelectPerformance(scope.owner);
+      }
+    },
+    [handleGroupSelectPerformance, handleOwnerSelectPerformance]
   );
 
   const handleOwnerSelectPortfolio = useCallback(
@@ -302,11 +330,22 @@ export default function App({ onLogout }: AppProps) {
     setMode(newMode);
     if (newMode === 'owner' || newMode === 'performance') {
       const queryOwner = newMode === 'owner' ? scopeQuery.owner : null;
-      if (segs[1] || queryOwner) {
+      // Performance also accepts a `?group=` scope (#7228), carried as a
+      // query param rather than a path segment so it never collides with an
+      // owner slug in /performance/:owner. It takes priority: a group query
+      // param means the user deliberately chose the household view, so it
+      // must not be clobbered by the owner auto-selection below.
+      const queryGroup = newMode === 'performance' ? scopeQuery.group : null;
+      if (queryGroup) {
+        setSelectedGroup(normaliseGroupSlug(queryGroup));
+        setSelectedOwner('');
+      } else if (segs[1] || queryOwner) {
+        if (newMode === 'performance') setSelectedGroup('');
         setSelectedOwner(
           segs[1] ? decodePathSegment(segs[1]) : queryOwner ?? ''
         );
       } else if (owners.length > 0) {
+        if (newMode === 'performance') setSelectedGroup('');
         // URL redirect is handled by the render-time <Navigate> in renderMainContent.
         setSelectedOwner(findOwnerForUser(owners, user)?.owner ?? owners[0].owner);
       }
@@ -408,7 +447,8 @@ export default function App({ onLogout }: AppProps) {
       location.pathname,
       selectedOwner,
       owners,
-      user
+      user,
+      location.search
     );
     if (nextPath) {
       navigate(nextPath, { replace: true });
@@ -532,6 +572,15 @@ export default function App({ onLogout }: AppProps) {
     const redirectSegs = location.pathname.split('/').filter(Boolean);
     const redirectMode = deriveModeFromPathname(location.pathname);
     const redirectScope = readRouteScopeQuery(location.search);
+    // Derived straight from the current URL (not the shared `selectedGroup`
+    // state, which defaults to "all" for unrelated modes like the merged
+    // Dashboard) so a bare /performance or /performance/:owner never gets
+    // misread as group scope before the location-sync effect below has run
+    // (#7228).
+    const performanceGroupSlug =
+      redirectMode === 'performance' && redirectScope.group
+        ? normaliseGroupSlug(redirectScope.group)
+        : null;
     if (
       configLoaded &&
       redirectSegs[0] === 'portfolio' &&
@@ -556,7 +605,10 @@ export default function App({ onLogout }: AppProps) {
       !getFamilyMvpRedirectPath(location.pathname, location.search, familyMvpEnabled, familyMvpEntryPath) &&
       (redirectMode === 'owner' || redirectMode === 'performance') &&
       !redirectSegs[1] &&
-      owners.length > 0
+      owners.length > 0 &&
+      // A bare /performance?group=<slug> is a deliberate group-scope landing
+      // (#7228) -- don't force it onto an owner.
+      !(redirectMode === 'performance' && redirectScope.group)
     ) {
       const owner = findOwnerForUser(owners, user)?.owner ?? owners[0].owner;
       const destPath = redirectMode === 'performance'
@@ -646,13 +698,23 @@ export default function App({ onLogout }: AppProps) {
         {/* PERFORMANCE VIEW */}
         {mode === 'performance' && (
           <>
-            <OwnerSelector
+            <PerformanceScopeSelector
               owners={owners}
-              selected={selectedOwner}
-              onSelect={handleOwnerSelectPerformance}
+              groups={groups}
+              value={
+                performanceGroupSlug
+                  ? { kind: 'group', slug: performanceGroupSlug }
+                  : selectedOwner
+                    ? { kind: 'owner', owner: selectedOwner }
+                    : null
+              }
+              onSelect={handleScopeSelectPerformance}
             />
             <Suspense fallback={<PortfolioDashboardSkeleton />}>
-              <PerformanceDashboard owner={selectedOwner} />
+              <PerformanceDashboard
+                owner={performanceGroupSlug ? null : selectedOwner}
+                group={performanceGroupSlug}
+              />
             </Suspense>
           </>
         )}

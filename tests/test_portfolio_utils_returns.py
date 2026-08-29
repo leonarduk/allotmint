@@ -560,3 +560,123 @@ def test_cash_flow_signs_treat_dividend_singular_same_as_plural():
 
     assert "DIVIDEND" in pu._CASH_FLOW_SIGNS
     assert pu._CASH_FLOW_SIGNS["DIVIDEND"] == pu._CASH_FLOW_SIGNS["DIVIDENDS"]
+
+
+def test_group_transactions_merges_members_and_skips_missing(monkeypatch):
+    """#7228: group TWR/XIRR need cash flows pooled across every member,
+    the same way the group portfolio pools holdings.
+    """
+
+    monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "lucy", "ghost"])
+
+    per_owner_txs = {
+        "steve": [{"date": "2024-01-02", "type": "deposit", "amount_minor": 1000}],
+        "lucy": [{"date": "2024-01-03", "type": "withdrawal", "amount_minor": 200}],
+    }
+
+    def fake_load_transactions(owner, *, scaffold_missing=False):
+        if owner not in per_owner_txs:
+            raise FileNotFoundError(owner)
+        return per_owner_txs[owner]
+
+    monkeypatch.setattr(pu, "load_transactions", fake_load_transactions)
+
+    merged = pu._group_transactions("all")
+
+    assert merged == per_owner_txs["steve"] + per_owner_txs["lucy"]
+
+
+def test_compute_owner_performance_group_uses_group_portfolio(monkeypatch):
+    """#7228: with group=True the group aggregation helper (the same one
+    /portfolio-group/{slug} uses) supplies the combined holdings instead of
+    a single owner's holdings -- the owner-scoped path must be untouched.
+    """
+
+    group_portfolio_dict = {
+        "accounts": [{"holdings": [{"ticker": "NORM.L", "units": 3}]}],
+    }
+
+    def unexpected_owner_lookup(owner, *, pricing_date=None, **_):
+        raise AssertionError("group=True must not call build_owner_portfolio")
+
+    monkeypatch.setattr(pu.portfolio_mod, "build_owner_portfolio", unexpected_owner_lookup)
+    monkeypatch.setattr(
+        pu.group_portfolio,
+        "build_group_portfolio",
+        lambda slug, *, pricing_date=None: group_portfolio_dict if slug == "all" else {},
+    )
+    monkeypatch.setattr(
+        instrument_api,
+        "_resolve_full_ticker",
+        lambda ticker, snapshot: tuple(ticker.split(".", 1)) if "." in ticker else (ticker, None),
+    )
+
+    dates = pd.date_range("2024-01-01", periods=2, freq="D")
+    frame = pd.DataFrame({"Date": dates, "Close": [10.0, 11.0]})
+    monkeypatch.setattr(pu, "load_meta_timeseries", lambda ticker, exchange, days: frame.copy())
+
+    result = pu.compute_owner_performance("all", days=10, group=True)
+
+    assert [row["value"] for row in result["history"]] == [30.0, 33.0]
+
+
+def test_compute_owner_performance_group_unknown_slug_raises(monkeypatch):
+    def raise_unknown(slug, *, pricing_date=None):
+        raise ValueError(f"Unknown group slug: {slug!r}")
+
+    monkeypatch.setattr(pu.group_portfolio, "build_group_portfolio", raise_unknown)
+
+    with pytest.raises(ValueError):
+        pu.compute_owner_performance("bogus", group=True)
+
+
+def test_compute_time_weighted_return_group_pools_member_cashflows(monkeypatch, portfolio_series):
+    def fake_series(name, days=365, *, group=False, pricing_date=None):
+        assert name == "all"
+        assert group is True
+        return portfolio_series
+
+    monkeypatch.setattr(pu, "_portfolio_value_series", fake_series)
+    monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "lucy"])
+
+    per_owner_txs = {
+        "steve": [{"date": "2024-01-02", "type": "deposit", "amount_minor": 1000}],
+        "lucy": [{"date": "2024-01-02", "type": "deposit", "amount_minor": 1000}],
+    }
+    monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: per_owner_txs[owner])
+
+    # Same series with double the single-owner deposit pooled across both
+    # members on the same day should differ from the single-owner result.
+    group_result = pu.compute_time_weighted_return("all", group=True)
+
+    monkeypatch.setattr(
+        pu,
+        "_portfolio_value_series",
+        lambda name, days=365, *, group=False, pricing_date=None: portfolio_series,
+    )
+    monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: per_owner_txs["steve"])
+    owner_result = pu.compute_time_weighted_return("steve")
+
+    assert group_result is not None
+    assert owner_result is not None
+    assert group_result != owner_result
+
+
+def test_compute_xirr_group_pools_member_cashflows(monkeypatch, one_year_series):
+    def fake_series(name, days=365, *, group=False, pricing_date=None):
+        assert name == "all"
+        assert group is True
+        return one_year_series
+
+    monkeypatch.setattr(pu, "_portfolio_value_series", fake_series)
+    monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "lucy"])
+
+    per_owner_txs = {
+        "steve": [{"date": "2024-01-01", "type": "DEPOSIT", "amount_minor": 50000}],
+        "lucy": [{"date": "2024-01-01", "type": "DEPOSIT", "amount_minor": 50000}],
+    }
+    monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: per_owner_txs[owner])
+
+    result = pu.compute_xirr("all", group=True)
+
+    assert result == pytest.approx(0.10, abs=1e-3)

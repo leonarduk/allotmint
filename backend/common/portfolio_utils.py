@@ -1026,6 +1026,7 @@ def compute_owner_performance(
     include_cash: bool = True,
     *,
     pricing_date: date | None = None,
+    group: bool = False,
 ) -> Dict[str, Any]:
     """Return daily portfolio values and returns for an ``owner``.
 
@@ -1047,11 +1048,18 @@ def compute_owner_performance(
 
     Returns ``{"history": [], "max_drawdown": None}`` if the owner or
     timeseries data is missing.
+
+    Set ``group=True`` to treat ``owner`` as a group slug (see
+    ``backend.common.group_portfolio``) and aggregate holdings across every
+    member of that group instead of a single owner's holdings.
     """
 
     calc = PricingDateCalculator(reporting_date=pricing_date)
     try:
-        pf = portfolio_mod.build_owner_portfolio(owner, pricing_date=calc.reporting_date)
+        if group:
+            pf = group_portfolio.build_group_portfolio(owner, pricing_date=calc.reporting_date)
+        else:
+            pf = portfolio_mod.build_owner_portfolio(owner, pricing_date=calc.reporting_date)
     except FileNotFoundError:
         raise
 
@@ -1677,22 +1685,43 @@ _CASH_FLOW_SIGNS = {
 _MAX_PRICE_GAP_FILL_DAYS = 5
 
 
+def _group_transactions(slug: str) -> List[Dict[str, Any]]:
+    """Merge transactions across every member of group ``slug``.
+
+    A member with no transactions on disk yet is skipped rather than
+    treated as an error, matching how ``compute_owner_performance`` folds
+    together per-owner holdings for a group.
+    """
+    merged: List[Dict[str, Any]] = []
+    for member in group_portfolio.group_members(slug):
+        try:
+            merged.extend(load_transactions(member))
+        except FileNotFoundError:
+            continue
+    return merged
+
+
 def compute_time_weighted_return(
     owner: str,
     days: int = 365,
     *,
     pricing_date: date | None = None,
+    group: bool = False,
 ) -> float | None:
-    """Compute time-weighted return for ``owner`` over ``days``."""
+    """Compute time-weighted return for ``owner`` over ``days``.
 
-    total = _portfolio_value_series(owner, days, pricing_date=pricing_date)
+    Set ``group=True`` to treat ``owner`` as a group slug and compute the
+    combined time-weighted return across every member's cash flows.
+    """
+
+    total = _portfolio_value_series(owner, days, group=group, pricing_date=pricing_date)
     if total.empty or len(total) < 2:
         return None
 
     start = total.index.min()
     end = total.index.max()
 
-    txs = load_transactions(owner)
+    txs = _group_transactions(owner) if group else load_transactions(owner)
     flows: defaultdict[date, float] = defaultdict(float)
     for t in txs:
         d = _parse_date(t.get("date"))
@@ -1718,17 +1747,27 @@ def compute_time_weighted_return(
     return float(twr - 1.0)
 
 
-def compute_xirr(owner: str, days: int = 365, *, pricing_date: date | None = None) -> float | None:
-    """Compute XIRR for ``owner`` over ``days`` using cash flows."""
+def compute_xirr(
+    owner: str,
+    days: int = 365,
+    *,
+    pricing_date: date | None = None,
+    group: bool = False,
+) -> float | None:
+    """Compute XIRR for ``owner`` over ``days`` using cash flows.
 
-    total = _portfolio_value_series(owner, days, pricing_date=pricing_date)
+    Set ``group=True`` to treat ``owner`` as a group slug and compute the
+    combined XIRR across every member's cash flows.
+    """
+
+    total = _portfolio_value_series(owner, days, group=group, pricing_date=pricing_date)
     if total.empty:
         return None
 
     start = total.index.min()
     end = total.index.max()
 
-    txs = load_transactions(owner)
+    txs = _group_transactions(owner) if group else load_transactions(owner)
     flows: list[tuple[date, float]] = []
     for t in txs:
         d = _parse_date(t.get("date"))

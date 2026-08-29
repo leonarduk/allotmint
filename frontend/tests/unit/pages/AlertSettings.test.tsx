@@ -160,6 +160,34 @@ describe("AlertSettings identity resolution", () => {
     );
   });
 
+  it("ignores the `?owner=` scope hint entirely: it must never name the wrong person as who this setting is for", async () => {
+    // ?owner= is a portfolio-scope hint left over from wherever the user
+    // navigated from -- it has no relationship to the resolved identity.
+    // Regression check for review round 3: the API call and the on-screen
+    // "Managing this setting for X" label must both key off `identity`
+    // ("demo" here), never off this query param, even though a real owner
+    // named "lucy" exists and would otherwise look like a plausible match.
+    mockGetOwners.mockResolvedValue([
+      { owner: "lucy", full_name: "Lucy Leonard", accounts: [] },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={["/alert-settings?owner=lucy"]}>
+        <AlertSettings />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(mockGetAlertThreshold).toHaveBeenCalledWith("demo"));
+    expect(
+      screen.getByText(i18n.t("alertSettings.managingFor", { owner: "demo" })),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        i18n.t("alertSettings.managingFor", { owner: "Lucy Leonard" }),
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the sign-in notice and disables Save when auth is enabled and nobody is signed in", async () => {
     mockGetConfig.mockResolvedValue({
       disable_auth: false,

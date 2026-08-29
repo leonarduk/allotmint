@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import AppHeader from "../components/AppHeader";
 import {
   getAlertThreshold,
@@ -39,7 +39,6 @@ export default function AlertSettings() {
   const { t } = useTranslation();
   const { profile } = useUser();
   const { lastRefresh } = usePriceRefresh();
-  const location = useLocation();
 
   // /alert-thresholds/{user} (backend/routes/alert_settings.py) is scoped to
   // a single resolved IDENTITY, not to whichever owner's portfolio happens
@@ -75,10 +74,6 @@ export default function AlertSettings() {
     };
   }, []);
 
-  const queryOwner = useMemo(
-    () => new URLSearchParams(location.search).get("owner")?.trim() ?? "",
-    [location.search],
-  );
   const [ownersLoaded, setOwnersLoaded] = useState(false);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   useEffect(() => {
@@ -114,15 +109,19 @@ export default function AlertSettings() {
 
   // Display-only: which owner's portfolio this identity corresponds to, if
   // any, so the page can say whose alerts are being edited (never sent to
-  // the API -- see `identity` above).
+  // the API -- see `identity` above). Matched strictly by the resolved
+  // identity's email -- NOT by the `?owner=` scope hint some pages append to
+  // the nav link, which names whichever owner's portfolio the user was
+  // *looking at*, not who the alert threshold will actually be saved for.
+  // Falling back to that hint here would show one person's name while
+  // silently writing to a different (usually shared/demo) identity's
+  // threshold (#7225 review round 3).
   const displayOwner = useMemo(() => {
     if (!identity) return "";
-    const matched =
-      findOwnerForUser(owners, { email: identity }) ??
-      (queryOwner ? owners.find((o) => o.owner === queryOwner) : undefined);
+    const matched = findOwnerForUser(owners, { email: identity });
     if (!matched) return identity;
     return getOwnerDisplayName(createOwnerDisplayLookup(owners), matched.owner, identity);
-  }, [identity, owners, queryOwner]);
+  }, [identity, owners]);
 
   const [threshold, setThreshold] = useState<number | "">("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(

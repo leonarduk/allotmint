@@ -278,14 +278,12 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     section: 'user',
     menuCategory: 'preferences',
     priority: 104,
-    // Carries the currently-selected owner so AlertSettings -- which is
-    // routed outside <RouteProvider> as a standalone page and so can't call
-    // useRoute() -- can still resolve scope the way in-context pages do
-    // (#7225). See AlertSettings.tsx for the read side.
-    defaultPath: (context) => {
-      const { owner } = routeContext(context);
-      return owner ? `/alert-settings?owner=${encodeURIComponent(owner)}` : '/alert-settings';
-    },
+    // No `?owner=` here: AlertSettings resolves its own scope from a single
+    // signed-in identity (profile email, else local_login_email/
+    // demo_identity when auth is disabled), never from the portfolio owner
+    // selected elsewhere in the UI -- a `?owner=` hint would only be
+    // misleading (#7225 review round 3). See AlertSettings.tsx.
+    defaultPath: () => '/alert-settings',
     routePath: '/alert-settings',
     lazyComponent: lazyPage(() => import('../pages/AlertSettings')),
   },

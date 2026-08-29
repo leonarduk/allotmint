@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { TopMoversPage } from "@/components/TopMoversPage";
+import { TopMoversPage, computeMoversLoading } from "@/components/TopMoversPage";
 import type { OpportunityEntry, TradingSignal } from "@/types";
 import enTranslation from "@/locales/en/translation.json";
 
@@ -366,6 +366,45 @@ describe("TopMoversPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows page-shaped skeletons instead of a bare loading message while the fetch is pending (#7229)", async () => {
+    // getGroupInstruments still resolves normally (fast, default mock); it's
+    // the slow /opportunities call that never settles here, which is enough
+    // to keep the whole page in its loading state.
+    mockGetOpportunities.mockImplementation(() => new Promise(() => {}));
+
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    // Controls render immediately, independent of the slow /opportunities call.
+    expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0);
+
+    // The old bare "Loading…" paragraph is gone, replaced by qualified,
+    // screen-reader-announced skeletons.
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
+    });
+    expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
+
+    // Exactly one live region for the whole loading page, not one per
+    // skeleton placeholder (regression guard: multiple skeleton instances
+    // each carrying the same label produces a screen-reader barrage).
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+
+    // A coarser regression guard: the loading gate must not be dropped
+    // entirely while a fetch is genuinely pending. This does NOT exercise
+    // the pre-effect `loading:false, data:null, error:null` frame that
+    // `computeMoversLoading` exists to cover -- RTL's `render` is
+    // act()-wrapped, so React has already flushed the effect and `loading`
+    // is `true` by the time this assertion runs. See the
+    // `computeMoversLoading` unit tests below for the guard that actually
+    // pins that frame.
+    expect(screen.queryByText("No signals.")).not.toBeInTheDocument();
+  });
+
   it("does not tell mobile users (who have no hover) to hover for signal context (#7231)", () => {
     expect(enTranslation.movers.windowNote.toLowerCase()).not.toContain("hover");
     expect(enTranslation.movers.signalWindowNote.toLowerCase()).not.toContain("hover");
@@ -471,5 +510,31 @@ describe("TopMoversPage", () => {
     );
     expect(keyWarnings).toEqual([]);
     errorSpy.mockRestore();
+  });
+});
+
+describe("computeMoversLoading (#7229)", () => {
+  // `useFetch` initialises `loading` to `false` and only flips it to `true`
+  // inside a `useEffect`, so the very first render commits with
+  // `loading:false, data:null, error:null`. This is the exact case a
+  // JSX-level test (RTL's act()-wrapped `render`) cannot observe, because by
+  // the time an assertion runs the effect has already flushed and `loading`
+  // is `true` on its own -- so it's pinned directly against the pure
+  // function instead.
+  it("treats the pre-effect frame (loading=false, data=null, error=null) as still loading", () => {
+    expect(computeMoversLoading(false, null, null)).toBe(true);
+  });
+
+  it("is loading whenever `loading` is true, regardless of data/error", () => {
+    expect(computeMoversLoading(true, null, null)).toBe(true);
+    expect(computeMoversLoading(true, { entries: [], signals: [] }, null)).toBe(true);
+  });
+
+  it("is not loading once data has resolved", () => {
+    expect(computeMoversLoading(false, { entries: [], signals: [] }, null)).toBe(false);
+  });
+
+  it("is not loading once an error is present, even with no data yet", () => {
+    expect(computeMoversLoading(false, null, new Error("boom"))).toBe(false);
   });
 });

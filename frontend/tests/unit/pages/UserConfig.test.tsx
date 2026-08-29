@@ -168,6 +168,21 @@ describe("UserConfig page", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
+  it("does not show the owner prompt when a sole owner auto-selects (#7206, #7224)", async () => {
+    // Owner resolution and ownerResolutionAttempted are set in the same
+    // effect run, so a sole owner must never observably pass through a
+    // "resolution attempted, still no owner" state that would flash the
+    // selectOwnerPrompt alongside (or instead of) the auto-selected form.
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    await screen.findByLabelText(/min hold days/i);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("does not show the owner prompt while owners are still loading (#7224)", async () => {
     let resolveOwners: (value: unknown) => void = () => {};
     mockGetOwners.mockReturnValue(

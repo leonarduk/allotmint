@@ -342,13 +342,17 @@
     "sectorPerformance": "Rendimiento por sector"
   },
   "movers": {
+    "deltaGbpHeader": "Cambio de valor (£, {{period}})",
     "excludeSmall": "Excluir posiciones <{{min}}%",
     "loadFailed": "Error al cargar los movers{{status}}",
     "loginPrompt": "Inicia sesión para ver los movers basados en el portafolio.",
+    "pctChangeHeader": "Cambio de precio (%, {{period}})",
     "pctPortfolio": "% del portafolio",
     "period": "Período:",
     "signal": "Señal",
-    "watchlist": "Lista de seguimiento:"
+    "signalWindowNote": "Cada señal usa su propia ventana de referencia, que puede diferir del período de cambio de % y valor mostrado en esta fila. Selecciona la señal para ver el motivo.",
+    "watchlist": "Lista de seguimiento:",
+    "windowNote": "Las columnas de % y valor muestran el movimiento del período seleccionado. Cada señal usa su propia ventana de referencia — selecciona una señal de compra o venta para ver su motivo y confianza."
   },
   "owner": {
     "label": "Propietario",

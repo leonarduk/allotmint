@@ -411,13 +411,17 @@
     "title": "Performancekennzahlen erklärt"
   },
   "movers": {
+    "deltaGbpHeader": "Wertänderung (£, {{period}})",
     "excludeSmall": "Positionen <{{min}}% ausschließen",
     "loadFailed": "Laden der Movers fehlgeschlagen{{status}}",
     "loginPrompt": "Bitte melden Sie sich an, um portfolio-basierte Movers zu sehen.",
+    "pctChangeHeader": "Kursänderung (%, {{period}})",
     "pctPortfolio": "% des Portfolios",
     "period": "Zeitraum:",
     "signal": "Signal",
-    "watchlist": "Beobachtungsliste:"
+    "signalWindowNote": "Jedes Signal verwendet sein eigenes Zeitfenster, das vom hier angezeigten Zeitraum für % und Wertänderung abweichen kann. Signal auswählen, um den Grund zu sehen.",
+    "watchlist": "Beobachtungsliste:",
+    "windowNote": "Die Spalten % und Wertänderung zeigen die Bewegung im gewählten Zeitraum. Jedes Signal verwendet sein eigenes Zeitfenster — wählen Sie ein Kauf- oder Verkaufssignal aus, um Grund und Konfidenz zu sehen."
   },
   "owner": {
     "label": "Besitzer",

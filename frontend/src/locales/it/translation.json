@@ -342,13 +342,17 @@
     "sectorPerformance": "Rendimento dei settori"
   },
   "movers": {
+    "deltaGbpHeader": "Variazione di valore (£, {{period}})",
     "excludeSmall": "Escludere le posizioni <{{min}}%",
     "loadFailed": "Impossibile caricare i motori {{status}}",
     "loginPrompt": "Accedi per visualizzare i traslochi basati sul portafoglio.",
+    "pctChangeHeader": "Variazione di prezzo (%, {{period}})",
     "pctPortfolio": "% del portafoglio",
     "period": "Periodo:",
     "signal": "Segnale",
-    "watchlist": "Watchlist:"
+    "signalWindowNote": "Ogni segnale usa la propria finestra temporale, che può differire dal periodo di variazione % e valore mostrato in questa riga. Seleziona il segnale per vedere il motivo.",
+    "watchlist": "Watchlist:",
+    "windowNote": "Le colonne % e valore mostrano il movimento nel periodo selezionato. Ogni segnale usa la propria finestra temporale — seleziona un segnale di acquisto o vendita per vedere il motivo e la confidenza."
   },
   "owner": {
     "label": "Proprietario",

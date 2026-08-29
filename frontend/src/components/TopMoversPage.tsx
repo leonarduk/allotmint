@@ -163,13 +163,26 @@ export function TopMoversPage() {
   const colSpan = watchlist === "Portfolio" ? 6 : 4;
   const visibleSignals = data?.signals.slice(0, MAX_TRADING_SIGNAL_ROWS) ?? [];
 
-  if (loading) return <p>{t("common.loading")}</p>;
+  const disclaimer = (
+    <p style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+      {t("trading.description")}
+    </p>
+  );
+
+  if (loading)
+    return (
+      <>
+        {disclaimer}
+        <p>{t("common.loading")}</p>
+      </>
+    );
   if (error != null) {
     const match = error?.message.match(/^HTTP (\d+)\s+[–-]\s+(.*)$/);
     const status = match?.[1];
     const msg = match?.[2] ?? error?.message;
     return (
       <div>
+        {disclaimer}
         <p role="alert" style={{ color: "red" }}>
           {t("movers.loadFailed", {
             status: status ? ` (HTTP ${status})` : "",
@@ -203,6 +216,13 @@ export function TopMoversPage() {
   return (
     <>
       {errorBanner}
+      {disclaimer}
+      <p
+        id="movers-window-note"
+        style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "0.5rem" }}
+      >
+        {t("movers.windowNote")}
+      </p>
       <div style={{ marginBottom: "0.5rem" }}>
         <label style={{ marginRight: "0.5rem" }}>
           {t("movers.watchlist")}
@@ -268,16 +288,31 @@ export function TopMoversPage() {
             >
               {t("common.name")}
             </th>
-            <th className={tableStyles.cell}>{t("movers.signal")}</th>
+            <th className={tableStyles.cell} aria-describedby="movers-window-note">
+              {t("movers.signal")}{" "}
+              <span
+                aria-hidden="true"
+                title={t("movers.signalWindowNote")}
+                style={{ cursor: "help", fontWeight: "normal" }}
+              >
+                ⓘ
+              </span>
+            </th>
             <th
               className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
               onClick={() => handleSort("change_pct")}
+              title={t("movers.pctChangeHeader", { period })}
             >
-              %
+              {t("movers.pctChangeHeader", { period })}
             </th>
             {watchlist === "Portfolio" && (
               <>
-                <th className={`${tableStyles.cell} ${tableStyles.right}`}>Δ £</th>
+                <th
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  title={t("movers.deltaGbpHeader", { period })}
+                >
+                  {t("movers.deltaGbpHeader", { period })}
+                </th>
                 <th className={`${tableStyles.cell} ${tableStyles.right}`}>
                   {t("movers.pctPortfolio")}
                 </th>

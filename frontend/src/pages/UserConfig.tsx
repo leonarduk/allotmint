@@ -41,6 +41,13 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(true);
   const [owner, setOwner] = useState('');
+  // #7206 follow-up: owner resolution runs in an effect, one commit after the
+  // render that first shows a populated owner list. Gating the "choose an
+  // owner" prompt on `!owner` alone let it flash for a frame whenever the
+  // owner was about to auto-resolve (selectedOwner match or
+  // findOwnerForUser match). Only show the prompt once resolution has
+  // actually been attempted and still came up empty.
+  const [ownerResolutionAttempted, setOwnerResolutionAttempted] = useState(false);
   const [cfg, setCfg] = useState<UserConfig>({});
   const [status, setStatus] = useState<string | null>(null);
   const [approvals, setApprovals] = useState<Approval[]>([]);
@@ -67,8 +74,15 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
       if (selectedOwner && owners.some((o) => o.owner === selectedOwner)) {
         return selectedOwner;
       }
-      return findOwnerForUser(owners, user)?.owner || '';
+      const matched = findOwnerForUser(owners, user)?.owner;
+      if (matched) return matched;
+      // #7206: "Consider defaulting to the first owner when there is
+      // exactly one plausible match" -- a single-owner deployment
+      // shouldn't force an explicit pick from a one-item dropdown.
+      if (owners.length === 1) return owners[0].owner;
+      return '';
     });
+    setOwnerResolutionAttempted(true);
   }, [owners, user, selectedOwner]);
 
   useEffect(() => {
@@ -202,7 +216,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
            * hint that the dropdown below was the way forward. Show an
            * explicit prompt whenever no owner is selected yet, without
            * changing how owner resolution itself works. */}
-          {!owner && (
+          {ownerResolutionAttempted && !owner && (
             <p className="text-gray-800 dark:text-gray-200">
               {t('userConfig.chooseOwnerPrompt', 'Choose whose settings to edit.')}
             </p>
@@ -225,18 +239,23 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
         <>
           <form onSubmit={save} className="space-y-2">
             <div>
-              <label className="block text-sm">
+              <label className="block text-sm" htmlFor="userConfig-hold-days">
                 {t('userConfig.holdDays', 'Min Hold Days')}
               </label>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p
+                id="userConfig-hold-days-help"
+                className="text-xs text-gray-600 dark:text-gray-400"
+              >
                 {t(
                   'userConfig.holdDaysHelp',
                   'The number of days a holding must be kept before it can be sold. Measured in calendar days.'
                 )}
               </p>
               <input
+                id="userConfig-hold-days"
                 type="number"
                 className="w-full border p-1"
+                aria-describedby="userConfig-hold-days-help"
                 value={cfg.hold_days_min ?? ''}
                 onChange={(e) =>
                   setCfg({
@@ -249,18 +268,23 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               />
             </div>
             <div>
-              <label className="block text-sm">
+              <label className="block text-sm" htmlFor="userConfig-max-trades">
                 {t('userConfig.maxTrades', 'Max Trades / Month')}
               </label>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p
+                id="userConfig-max-trades-help"
+                className="text-xs text-gray-600 dark:text-gray-400"
+              >
                 {t(
                   'userConfig.maxTradesHelp',
                   'The most trades this account can make in a calendar month. Once reached, further trades need approval.'
                 )}
               </p>
               <input
+                id="userConfig-max-trades"
                 type="number"
                 className="w-full border p-1"
+                aria-describedby="userConfig-max-trades-help"
                 value={cfg.max_trades_per_month ?? ''}
                 onChange={(e) =>
                   setCfg({
@@ -273,18 +297,23 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               />
             </div>
             <div>
-              <label className="block text-sm">
+              <label className="block text-sm" htmlFor="userConfig-exempt-tickers">
                 {t('userConfig.exemptTickers', 'Approval Exempt Tickers')}
               </label>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p
+                id="userConfig-exempt-tickers-help"
+                className="text-xs text-gray-600 dark:text-gray-400"
+              >
                 {t(
                   'userConfig.exemptTickersHelp',
                   'Comma-separated tickers that can always be traded without needing an approval.'
                 )}
               </p>
               <input
+                id="userConfig-exempt-tickers"
                 type="text"
                 className="w-full border p-1"
+                aria-describedby="userConfig-exempt-tickers-help"
                 value={(Array.isArray(cfg.approval_exempt_tickers)
                   ? cfg.approval_exempt_tickers
                   : []
@@ -300,18 +329,23 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               />
             </div>
             <div>
-              <label className="block text-sm">
+              <label className="block text-sm" htmlFor="userConfig-exempt-types">
                 {t('userConfig.exemptTypes', 'Approval Exempt Types')}
               </label>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p
+                id="userConfig-exempt-types-help"
+                className="text-xs text-gray-600 dark:text-gray-400"
+              >
                 {t(
                   'userConfig.exemptTypesHelp',
                   'Comma-separated instrument types (e.g. ETF, Fund) that can always be traded without needing an approval.'
                 )}
               </p>
               <input
+                id="userConfig-exempt-types"
                 type="text"
                 className="w-full border p-1"
+                aria-describedby="userConfig-exempt-types-help"
                 value={(Array.isArray(cfg.approval_exempt_types)
                   ? cfg.approval_exempt_types
                   : []
@@ -357,14 +391,24 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
             {/* #7206: the table previously had no empty-state row, so a
              * fresh account (the common case -- most accounts never need
              * an approval) showed a header with nothing under it and no
-             * explanation of what an approval even is. */}
-            {approvals.length === 0 && !approvalsError ? (
-              <p className="text-gray-800 dark:text-gray-200">
-                {t(
-                  'userConfig.approvalsEmpty',
-                  'No approvals yet. Add one below if a trade needs to go ahead outside the rules above.'
-                )}
-              </p>
+             * explanation of what an approval even is.
+             *
+             * This must key off approvals.length alone, not
+             * `approvals.length === 0 && !approvalsError` -- a load failure
+             * (401/403/etc.) also leaves approvals at [], and gating the
+             * empty state behind "no error" reintroduced the exact bare
+             * header row the issue complained about, just on the error path
+             * instead of the no-owner path. The error message below always
+             * renders on its own, regardless of which branch this picks. */}
+            {approvals.length === 0 ? (
+              !approvalsError && (
+                <p className="text-gray-800 dark:text-gray-200">
+                  {t(
+                    'userConfig.approvalsEmpty',
+                    'No approvals yet. Add one below if a trade needs to go ahead outside the rules above.'
+                  )}
+                </p>
+              )
             ) : (
               <table className="w-full border">
                 <thead>

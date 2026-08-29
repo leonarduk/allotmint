@@ -176,11 +176,89 @@ describe('UserConfigPage', () => {
     ).toBeInTheDocument();
   });
 
+  // Follow-up fix: `approvals.length === 0 && !approvalsError` previously
+  // fell through to the bare <table> (header row, no body) whenever a load
+  // failed, since a failed load also leaves approvals at []. That's exactly
+  // the "empty table with no explanation" bug the issue reported, just
+  // triggered by an error instead of a fresh account. Assert both wrong
+  // outcomes are avoided: no bare table, and no "No approvals yet" text
+  // (which would be misleading -- the state is unknown, not confirmed empty).
+  it('does not render a bare Approvals table or the empty-state text on a load error', async () => {
+    getApprovalsMock.mockRejectedValue({ status: 403 });
+
+    render(<UserConfigPage selectedOwner="alex" />);
+
+    await screen.findByText(
+      "You don't have permission to view or manage approvals for this account."
+    );
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        'No approvals yet. Add one below if a trade needs to go ahead outside the rules above.'
+      )
+    ).not.toBeInTheDocument();
+  });
+
   it('uses the page heading "Trading Rules" rather than "User Settings"', async () => {
     render(<UserConfigPage selectedOwner="alex" />);
 
     expect(
       await screen.findByRole('heading', { name: 'Trading Rules' })
     ).toBeInTheDocument();
+  });
+
+  // Issue's "How" section: "Consider defaulting to the first owner when
+  // there is exactly one plausible match." A single-owner deployment
+  // shouldn't force an explicit pick from a one-item dropdown.
+  it('defaults to the sole owner when there is exactly one, without needing a manual pick', async () => {
+    getOwnersMock.mockResolvedValue([
+      { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+    ]);
+
+    render(<UserConfigPage />);
+
+    expect(await screen.findByText('Min Hold Days')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Choose whose settings to edit.')
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toHaveValue('alex');
+  });
+
+  // Follow-up fix: the "choose an owner" prompt was gated on `!owner` alone,
+  // which could flash for a frame between owners loading and the
+  // owner-resolution effect running, even when the owner was about to
+  // auto-resolve from `selectedOwner`. It's now gated on
+  // `ownerResolutionAttempted && !owner`, so the prompt and the resolved
+  // form should never both be reachable states in the same render pass.
+  it('never shows the choose-owner prompt when selectedOwner auto-resolves', async () => {
+    render(<UserConfigPage selectedOwner="sam" />);
+
+    await screen.findByText('Min Hold Days');
+    expect(
+      screen.queryByText('Choose whose settings to edit.')
+    ).not.toBeInTheDocument();
+  });
+
+  it('wires each field label and helper text together for assistive tech (htmlFor/id/aria-describedby)', async () => {
+    render(<UserConfigPage selectedOwner="alex" />);
+
+    await screen.findByText('Min Hold Days');
+
+    const holdDays = screen.getByLabelText('Min Hold Days');
+    expect(holdDays).toHaveAttribute(
+      'aria-describedby',
+      'userConfig-hold-days-help'
+    );
+    expect(
+      document.getElementById('userConfig-hold-days-help')
+    ).toHaveTextContent(
+      'The number of days a holding must be kept before it can be sold. Measured in calendar days.'
+    );
+
+    const maxTrades = screen.getByLabelText('Max Trades / Month');
+    expect(maxTrades).toHaveAttribute(
+      'aria-describedby',
+      'userConfig-max-trades-help'
+    );
   });
 });

@@ -10,6 +10,7 @@ import {
   reconcileHoldingsCsv,
   type ReconcileHoldingsCsvResponse,
 } from '../api';
+import { useDemoReadOnly } from '../hooks/useDemoReadOnly';
 
 /** Provider keys supported by `backend/importers`, excluding the `test` stub. */
 const PROVIDERS = [{ value: 'hargreaves', label: 'Hargreaves Lansdown' }];
@@ -140,6 +141,7 @@ function ReconciliationPreview({
 
 /** Upload and safely preview or import a CSV of holdings/transactions. */
 export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
+  const { demoReadOnly, reason } = useDemoReadOnly();
   const [account, setAccount] = useState(accountTypes[0] ?? '');
   const [provider, setProvider] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -291,7 +293,8 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
         <button
           type="submit"
           value="import"
-          disabled={!canSubmit}
+          disabled={!canSubmit || demoReadOnly}
+          title={reason()}
           className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status.kind === 'submitting' && status.action === 'import'

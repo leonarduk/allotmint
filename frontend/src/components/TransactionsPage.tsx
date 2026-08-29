@@ -14,6 +14,7 @@ import { useConfig } from '../ConfigContext';
 import { useTranslation } from 'react-i18next';
 import { createOwnerDisplayLookup, findOwnerForUser } from '../utils/owners';
 import { useAuth } from '../AuthContext';
+import { useDemoReadOnly } from '../hooks/useDemoReadOnly';
 import { TransactionEditorForm } from './transactions/TransactionEditorForm';
 import { TransactionsFilters } from './transactions/TransactionsFilters';
 import {
@@ -64,6 +65,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
   const { t } = useTranslation();
   const { baseCurrency } = useConfig();
   const { user } = useAuth();
+  const { demoReadOnly, reason } = useDemoReadOnly();
   const pageSizeOptions = [10, 20, 50, 100];
   const ownerLookup = useMemo(() => createOwnerDisplayLookup(owners), [owners]);
 
@@ -556,7 +558,8 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
         <button
           type="button"
           className="rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
-          disabled={manualSubmitting}
+          disabled={manualSubmitting || demoReadOnly}
+          title={reason()}
           onClick={() => void handleSaveManualHolding()}
         >
           {manualSubmitting ? 'Saving...' : 'Save holding'}

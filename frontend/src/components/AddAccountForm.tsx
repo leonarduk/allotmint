@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { createAccount } from "../api";
+import { useDemoReadOnly } from "../hooks/useDemoReadOnly";
 
 const ACCOUNT_TYPES = ["isa", "sipp", "brokerage", "savings"] as const;
 const ACCOUNT_TYPE_PATTERN = /^[a-z0-9_-]+$/;
@@ -12,6 +13,7 @@ type Props = {
 };
 
 export function AddAccountForm({ owner, onCreated, onCancel }: Props) {
+  const { demoReadOnly, reason } = useDemoReadOnly();
   const [accountType, setAccountType] = useState<string>(ACCOUNT_TYPES[0]);
   const [customType, setCustomType] = useState("");
   const [currency, setCurrency] = useState("GBP");
@@ -113,7 +115,8 @@ export function AddAccountForm({ owner, onCreated, onCancel }: Props) {
       <div className="flex gap-2">
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || demoReadOnly}
+          title={reason()}
           className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 disabled:opacity-60"
         >
           {submitting ? "Creating…" : "Add account"}

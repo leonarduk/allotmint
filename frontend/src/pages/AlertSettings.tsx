@@ -7,11 +7,13 @@ import {
 } from "../api";
 import { useUser } from "../UserContext";
 import { usePriceRefresh } from "../PriceRefreshContext";
+import { useDemoReadOnly } from "../hooks/useDemoReadOnly";
 
 export default function AlertSettings() {
   const { t } = useTranslation();
   const { profile } = useUser();
   const { lastRefresh } = usePriceRefresh();
+  const { demoReadOnly, reason } = useDemoReadOnly();
   // Owner is determined from the authenticated user's profile
   const owner = profile?.email;
   const [threshold, setThreshold] = useState<number | "">("");
@@ -63,7 +65,8 @@ export default function AlertSettings() {
           <button
             onClick={save}
             style={{ marginLeft: "0.5rem" }}
-            disabled={!owner}
+            disabled={!owner || demoReadOnly}
+            title={reason()}
           >
             {t("alertSettings.save")}
           </button>

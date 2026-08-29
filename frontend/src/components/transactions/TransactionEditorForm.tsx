@@ -1,5 +1,6 @@
 import type { ChangeEventHandler, FormEventHandler } from "react";
 import type { TransactionFormValues } from "./transactionForm";
+import { useDemoReadOnly } from "../../hooks/useDemoReadOnly";
 
 interface TransactionEditorFormProps {
   values: TransactionFormValues;
@@ -30,6 +31,7 @@ export function TransactionEditorForm({
   onCancelEdit,
   onApplyToSelected,
 }: TransactionEditorFormProps) {
+  const { demoReadOnly, reason } = useDemoReadOnly();
   const ownerAndAccountSelected = Boolean(activeOwner && activeAccount);
 
   return (
@@ -114,7 +116,8 @@ export function TransactionEditorForm({
       </label>
       <button
         type="submit"
-        disabled={submitting || !ownerAndAccountSelected}
+        disabled={submitting || !ownerAndAccountSelected || demoReadOnly}
+        title={reason()}
         style={{ height: "2.3rem" }}
       >
         {submitting
@@ -138,7 +141,8 @@ export function TransactionEditorForm({
       <button
         type="button"
         onClick={onApplyToSelected}
-        disabled={!hasSelection || submitting}
+        disabled={!hasSelection || submitting || demoReadOnly}
+        title={reason()}
         style={{ height: "2.3rem" }}
       >
         Apply to selected{hasSelection ? ` (${selectedCount})` : ""}

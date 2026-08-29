@@ -2,6 +2,7 @@ import { formatDateISO } from "@/lib/date";
 import tableStyles from "@/styles/table.module.css";
 import type { Transaction } from "@/types";
 import { getOwnerDisplayName } from "@/utils/owners";
+import { useDemoReadOnly } from "@/hooks/useDemoReadOnly";
 import {
   formatTransactionAmount,
   getTransactionRowKey,
@@ -58,6 +59,7 @@ export function TransactionsTable({
   onEdit,
   onDelete,
 }: TransactionsTableProps) {
+  const { demoReadOnly, reason } = useDemoReadOnly();
   return (
     <>
       <div
@@ -84,7 +86,12 @@ export function TransactionsTable({
             ))}
           </select>
         </label>
-        <button type="button" onClick={onBulkDelete} disabled={!hasSelection}>
+        <button
+          type="button"
+          onClick={onBulkDelete}
+          disabled={!hasSelection || demoReadOnly}
+          title={reason()}
+        >
           Delete selected{hasSelection ? ` (${selectedCount})` : ""}
         </button>
         <div
@@ -174,13 +181,19 @@ export function TransactionsTable({
                   </td>
                   <td className={tableStyles.cell}>
                     <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <button type="button" onClick={() => onEdit(transaction)} disabled={!transaction.id}>
+                      <button
+                        type="button"
+                        onClick={() => onEdit(transaction)}
+                        disabled={!transaction.id || demoReadOnly}
+                        title={reason()}
+                      >
                         Edit
                       </button>
                       <button
                         type="button"
                         onClick={() => onDelete(transaction)}
-                        disabled={!transaction.id}
+                        disabled={!transaction.id || demoReadOnly}
+                        title={reason()}
                       >
                         Delete
                       </button>

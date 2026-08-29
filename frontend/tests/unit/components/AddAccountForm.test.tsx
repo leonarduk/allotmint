@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AddAccountForm } from "@/components/AddAccountForm";
 import { createAccount } from "@/api";
+import { AuthContext } from "@/AuthContext";
 
 vi.mock("@/api", () => ({
   createAccount: vi.fn(),
@@ -106,5 +107,30 @@ describe("AddAccountForm", () => {
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
     expect(onCancel).toHaveBeenCalled();
+  });
+
+  // Issue #7411: mutating controls must disable themselves for a
+  // demo-scoped session so a visitor isn't shown a button that will 403.
+  it("disables the submit button during a demo-readonly session (issue #7411)", () => {
+    render(
+      <AuthContext.Provider
+        value={{
+          user: null,
+          setUser: vi.fn(),
+          logout: null,
+          setLogout: vi.fn(),
+          demoReadOnly: true,
+          setDemoReadOnly: vi.fn(),
+        }}
+      >
+        <AddAccountForm owner="alice" onCreated={vi.fn()} />
+      </AuthContext.Provider>,
+    );
+
+    const submit = screen.getByRole("button", { name: /add account/i });
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("title");
+    fireEvent.click(submit);
+    expect(createAccount).not.toHaveBeenCalled();
   });
 });

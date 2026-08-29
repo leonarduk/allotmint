@@ -651,6 +651,7 @@
     "metricMarketValueGbp": "Market value (£)",
     "metrics": "Metrics",
     "noResults": "No results.",
+    "noTickers": "No tickers found in your holdings.",
     "owners": "Owners",
     "run": "Run",
     "running": "Running…",

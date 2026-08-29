@@ -152,6 +152,12 @@ describe('Trading page', () => {
     expect(screen.getByText(/backend unavailable/i)).toBeInTheDocument();
     expect(screen.queryByText('No signals right now')).not.toBeInTheDocument();
 
+    // The header's signal count must not claim a value while the backend
+    // is unreachable -- `data` is null here (not "0 signals"), and showing
+    // "0 active signals" next to "Backend unavailable" would tell a user
+    // with live signals that there are none (#7229 regression).
+    expect(screen.queryByText(/active signals/)).not.toBeInTheDocument();
+
     fireEvent.click(retryButton);
     expect(mockUseFetchWithRetry).toHaveBeenLastCalledWith(
       expect.any(Function),
@@ -175,8 +181,18 @@ describe('Trading page', () => {
     // The old bare "Loading…" paragraph that used to replace the whole page
     // is gone, replaced by qualified, screen-reader-announced skeletons.
     expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
     expect(document.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0);
+
+    // Exactly one live region per loading section (header count, settings,
+    // signals) -- not one per skeleton placeholder. Regression guard for a
+    // reviewed defect where 9 threshold rows x 2 skeletons each produced 18
+    // simultaneous "polite" announcements of the same sentence.
+    expect(screen.getAllByRole('status')).toHaveLength(3);
+
+    // Threshold LABELS are static copy and render immediately; only the
+    // values wait behind the fetch.
+    expect(screen.getByText('RSI buy below')).toBeInTheDocument();
+    expect(screen.getByText('Maximum volatility')).toBeInTheDocument();
 
     // Threshold values and real signal rows must not render prematurely --
     // only their skeleton placeholders.

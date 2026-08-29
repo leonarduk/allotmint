@@ -1002,26 +1002,25 @@ describe("GroupPortfolioView", () => {
     expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
   });
 
-  it.each(locales)(
-    "shows a qualified loading skeleton instead of a bare loading message in %s (#7229)",
-    async (lng) => {
-      await act(async () => {
-        await i18n.changeLanguage(lng);
-      });
-      vi.spyOn(global, "fetch").mockImplementation(
-        () => new Promise(() => {})
-      );
-      renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+  it("shows a qualified loading skeleton instead of a bare loading message (#7229)", async () => {
+    vi.spyOn(global, "fetch").mockImplementation(
+      () => new Promise(() => {})
+    );
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
-      // The old bare, unqualified "Loading…" string is gone -- replaced by a
-      // qualified, screen-reader-announced status plus page-shaped skeletons
-      // (see #7229). Other locales fall back to the English copy since it is
-      // only translated in en/translation.json so far.
-      expect(screen.queryByText(i18n.t("common.loading"))).not.toBeInTheDocument();
-      expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
-      expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
-    },
-  );
+    // The old bare, unqualified "Loading…" string is gone -- replaced by a
+    // qualified, screen-reader-announced status plus page-shaped skeletons.
+    expect(screen.queryByText(i18n.t("common.loading"))).not.toBeInTheDocument();
+    expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
+
+    // Exactly one live region for the whole loading page, not one per
+    // skeleton placeholder (regression guard: the KPI tiles alone render 5
+    // skeleton instances; only one may carry the accessible announcement).
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(
+      screen.getAllByText(i18n.t("group.loadingPortfolio")).length,
+    ).toBeGreaterThan(0);
+  });
 
   it("renders metrics error message", async () => {
     const mockPortfolio = {

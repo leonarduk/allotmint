@@ -9,6 +9,7 @@ import { InstrumentDetail } from "./InstrumentDetail";
 import { SignalBadge } from "./SignalBadge";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
+import LoadingStatus from "./skeletons/LoadingStatus";
 
 import { useFetch } from "../hooks/useFetch";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -164,10 +165,13 @@ export function TopMoversPage() {
     : sorted.map((_, index) => ({ index, start: index * 40, end: (index + 1) * 40 }));
   const colSpan = watchlist === "Portfolio" ? 6 : 4;
   const visibleSignals = data?.signals.slice(0, MAX_TRADING_SIGNAL_ROWS) ?? [];
-  const loadingLabel = t("movers.loading", {
-    defaultValue:
-      "Loading movers — this can take a little while for larger watchlists.",
-  });
+  const loadingLabel = t("movers.loading");
+  // `useFetch` initialises `loading` to `false` and only flips it to `true`
+  // inside a `useEffect`, so the very first render (before that effect
+  // flushes) has `loading === false` and `data === null`. Without the
+  // `!data && !error` fallback that first frame would fall through to the
+  // "no signals" empty state instead of the loading skeleton.
+  const isLoading = loading || (!data && error == null);
 
   const disclaimer = (
     <p style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
@@ -268,6 +272,12 @@ export function TopMoversPage() {
         <p style={{ color: "red" }}>{t("movers.loginPrompt")}</p>
       )}
 
+      {isLoading && (
+        <LoadingStatus label={loadingLabel}>
+          <span aria-hidden="true" />
+        </LoadingStatus>
+      )}
+
       <div
         ref={tableContainerRef}
         style={{ maxHeight: "60vh", overflowY: "auto", overflowX: "auto" }}
@@ -320,11 +330,11 @@ export function TopMoversPage() {
           </tr>
         </thead>
         <tbody>
-          {loading ? (
+          {isLoading ? (
             <TableRowsSkeleton
               rows={8}
               colSpan={colSpan}
-              label={loadingLabel}
+              label=""
               cellClassName={tableStyles.cell}
             />
           ) : (
@@ -398,9 +408,9 @@ export function TopMoversPage() {
         </tbody>
       </table>
       </div>
-      {loading ? (
-        <p style={{ marginTop: "0.5rem" }}>
-          <TextSkeleton width="12rem" label={loadingLabel} />
+      {isLoading ? (
+        <p style={{ marginTop: "0.5rem" }} aria-hidden="true">
+          <TextSkeleton width="12rem" label="" />
         </p>
       ) : !data || data.signals.length === 0 ? (
         <p>{t("trading.noSignals")}</p>

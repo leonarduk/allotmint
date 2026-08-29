@@ -1,18 +1,37 @@
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTradingPageData } from '../api';
-import type { TradingSignal } from '../types';
+import type { TradingAgentSettings, TradingSignal } from '../types';
 import { InstrumentDetail } from '../components/InstrumentDetail';
 import BackendUnavailableCard from '../components/BackendUnavailableCard';
 import useFetchWithRetry from '../hooks/useFetchWithRetry';
 import TableRowsSkeleton from '../components/skeletons/TableRowsSkeleton';
 import TextSkeleton from '../components/skeletons/TextSkeleton';
+import LoadingStatus from '../components/skeletons/LoadingStatus';
 import tableStyles from '../styles/table.module.css';
 import { MAX_TRADING_SIGNAL_ROWS } from '../constants/renderLimits';
 import styles from './Trading.module.css';
 
-const SETTINGS_COUNT = 9;
 const SIGNAL_COLUMN_COUNT = 5;
+
+// Threshold labels are static copy, not data -- they render immediately
+// regardless of loading state (see below), so only the value column needs a
+// skeleton while `getTradingPageData` is in flight.
+const THRESHOLDS: {
+  label: string;
+  key: keyof TradingAgentSettings;
+  suffix?: string;
+}[] = [
+  { label: 'RSI buy below', key: 'rsi_buy' },
+  { label: 'RSI sell above', key: 'rsi_sell' },
+  { label: 'RSI lookback', key: 'rsi_window', suffix: ' days' },
+  { label: 'Short moving average', key: 'ma_short_window', suffix: ' days' },
+  { label: 'Long moving average', key: 'ma_long_window', suffix: ' days' },
+  { label: 'Maximum P/E', key: 'pe_max' },
+  { label: 'Maximum debt/equity', key: 'de_max' },
+  { label: 'Minimum Sharpe ratio', key: 'min_sharpe' },
+  { label: 'Maximum volatility', key: 'max_volatility' },
+];
 
 export default function Trading() {
   const { t } = useTranslation();
@@ -31,10 +50,7 @@ export default function Trading() {
     retryNonce
   );
 
-  const loadingLabel = t('trading.loading', {
-    defaultValue:
-      'Loading trading signals — this can take a little while for the full universe.',
-  });
+  const loadingLabel = t('trading.loading');
 
   const signals = data?.signals ?? [];
   const visibleSignals = signals.slice(0, MAX_TRADING_SIGNAL_ROWS);
@@ -113,8 +129,12 @@ export default function Trading() {
         </div>
         <span className={styles.signalCount}>
           {loading ? (
-            <TextSkeleton width="6rem" label={loadingLabel} />
-          ) : (
+            <LoadingStatus label={loadingLabel}>
+              <span aria-hidden="true">
+                <TextSkeleton width="6rem" label="" />
+              </span>
+            </LoadingStatus>
+          ) : error ? null : (
             t('trading.signalCount', '{{count}} active signals', {
               count: signals.length,
             })
@@ -146,60 +166,30 @@ export default function Trading() {
                 {t('trading.settings.readOnly', 'Read only')}
               </span>
             </div>
+            {loading && (
+              <LoadingStatus label={loadingLabel}>
+                <span aria-hidden="true" />
+              </LoadingStatus>
+            )}
             <dl className={styles.thresholdGrid}>
-              {loading ? (
-                Array.from({ length: SETTINGS_COUNT }).map((_, i) => (
-                  <div key={i} className={styles.threshold}>
-                    <dt>
-                      <TextSkeleton width="6rem" label={loadingLabel} />
-                    </dt>
-                    <dd>
-                      <TextSkeleton width="3rem" label={loadingLabel} />
-                    </dd>
-                  </div>
-                ))
-              ) : (
-                <>
-                  <Threshold
-                    label="RSI buy below"
-                    value={data?.settings.rsi_buy}
-                    suffix=""
-                  />
-                  <Threshold
-                    label="RSI sell above"
-                    value={data?.settings.rsi_sell}
-                    suffix=""
-                  />
-                  <Threshold
-                    label="RSI lookback"
-                    value={data?.settings.rsi_window}
-                    suffix=" days"
-                  />
-                  <Threshold
-                    label="Short moving average"
-                    value={data?.settings.ma_short_window}
-                    suffix=" days"
-                  />
-                  <Threshold
-                    label="Long moving average"
-                    value={data?.settings.ma_long_window}
-                    suffix=" days"
-                  />
-                  <Threshold label="Maximum P/E" value={data?.settings.pe_max} />
-                  <Threshold
-                    label="Maximum debt/equity"
-                    value={data?.settings.de_max}
-                  />
-                  <Threshold
-                    label="Minimum Sharpe ratio"
-                    value={data?.settings.min_sharpe}
-                  />
-                  <Threshold
-                    label="Maximum volatility"
-                    value={data?.settings.max_volatility}
-                  />
-                </>
-              )}
+              {THRESHOLDS.map(({ label, key, suffix }) => (
+                <div key={key} className={styles.threshold}>
+                  {/* The label is static copy, not data -- it renders
+                      immediately instead of waiting behind the fetch. */}
+                  <dt>{label}</dt>
+                  <dd>
+                    {loading ? (
+                      <span aria-hidden="true">
+                        <TextSkeleton width="3rem" label="" />
+                      </span>
+                    ) : data?.settings[key] == null ? (
+                      'Not enabled'
+                    ) : (
+                      `${data.settings[key]}${suffix ?? ''}`
+                    )}
+                  </dd>
+                </div>
+              ))}
             </dl>
           </section>
 
@@ -208,30 +198,32 @@ export default function Trading() {
               {t('trading.signalsTitle', 'Current signals')}
             </h2>
             {loading ? (
-              <div className={tableStyles.scrollContainer}>
-                <table className={tableStyles.table}>
-                  <caption>
-                    {t('trading.signalsTableCaption', 'Trading signals')}
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th className={tableStyles.cell}>Ticker</th>
-                      <th className={tableStyles.cell}>Action</th>
-                      <th className={tableStyles.cell}>Strength</th>
-                      <th className={tableStyles.cell}>Summary</th>
-                      <th className={tableStyles.cell}>Why</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <TableRowsSkeleton
-                      rows={5}
-                      colSpan={SIGNAL_COLUMN_COUNT}
-                      label={loadingLabel}
-                      cellClassName={tableStyles.cell}
-                    />
-                  </tbody>
-                </table>
-              </div>
+              <LoadingStatus label={loadingLabel}>
+                <div className={tableStyles.scrollContainer} aria-hidden="true">
+                  <table className={tableStyles.table}>
+                    <caption>
+                      {t('trading.signalsTableCaption', 'Trading signals')}
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th className={tableStyles.cell}>Ticker</th>
+                        <th className={tableStyles.cell}>Action</th>
+                        <th className={tableStyles.cell}>Strength</th>
+                        <th className={tableStyles.cell}>Summary</th>
+                        <th className={tableStyles.cell}>Why</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <TableRowsSkeleton
+                        rows={5}
+                        colSpan={SIGNAL_COLUMN_COUNT}
+                        label=""
+                        cellClassName={tableStyles.cell}
+                      />
+                    </tbody>
+                  </table>
+                </div>
+              </LoadingStatus>
             ) : !signals.length ? (
               <div className={styles.emptyState}>
                 <h3>{t('trading.noSignalsTitle', 'No signals right now')}</h3>
@@ -306,22 +298,5 @@ export default function Trading() {
         </>
       )}
     </main>
-  );
-}
-
-function Threshold({
-  label,
-  value,
-  suffix = '',
-}: {
-  label: string;
-  value?: number | null;
-  suffix?: string;
-}) {
-  return (
-    <div className={styles.threshold}>
-      <dt>{label}</dt>
-      <dd>{value == null ? 'Not enabled' : `${value}${suffix}`}</dd>
-    </div>
   );
 }

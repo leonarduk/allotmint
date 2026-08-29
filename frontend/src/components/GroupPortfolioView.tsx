@@ -33,6 +33,7 @@ import { InstrumentDetail } from "./InstrumentDetail";
 import { TopMoversSummary } from "./TopMoversSummary";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
+import LoadingStatus from "./skeletons/LoadingStatus";
 import { money, percent, percentOrNa } from "../lib/money";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
 import { translateInstrumentType } from "../lib/instrumentType";
@@ -813,10 +814,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   // hostage by the portfolio call, so they render below regardless of
   // `portfolioLoading`.
   const portfolioLoading = loading || !portfolio;
-  const loadingLabel = t("group.loadingPortfolio", {
-    defaultValue:
-      "Loading your portfolio — this can take a little while for larger accounts.",
-  });
+  const loadingLabel = t("group.loadingPortfolio");
 
   const safeAlpha =
     alpha != null && Math.abs(alpha) > 1 ? alpha / 100 : alpha;
@@ -838,24 +836,35 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const showResetDate = Boolean(asOfOverride);
   const dateInputId = `group-pricing-date-${slug || "group"}`;
 
+  // Each of these is purely a visual placeholder -- the single LoadingStatus
+  // rendered at the top of the loading state below is the one screen-reader
+  // announcement for the whole page, so the individual skeleton pieces here
+  // carry a blank label instead of each re-announcing the same sentence.
   const kpiTilesSkeleton = (
-    <div className="grid grid-cols-2 gap-4 p-4 mb-4 bg-gray-900 border border-gray-700 rounded sm:grid-cols-3 md:grid-cols-5">
+    <div
+      className="grid grid-cols-2 gap-4 p-4 mb-4 bg-gray-900 border border-gray-700 rounded sm:grid-cols-3 md:grid-cols-5"
+      aria-hidden="true"
+    >
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="flex flex-col">
-          <TextSkeleton width="4rem" label={loadingLabel} />
+          <TextSkeleton width="4rem" label="" />
         </div>
       ))}
     </div>
   );
 
   const ownerTableSkeleton = (
-    <div className={tableStyles.scrollContainer} style={{ marginBottom: "1rem" }}>
+    <div
+      className={tableStyles.scrollContainer}
+      style={{ marginBottom: "1rem" }}
+      aria-hidden="true"
+    >
       <table className={tableStyles.table}>
         <tbody>
           <TableRowsSkeleton
             rows={4}
             colSpan={7}
-            label={loadingLabel}
+            label=""
             cellClassName={tableStyles.cell}
           />
         </tbody>
@@ -864,13 +873,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   );
 
   const holdingsTableSkeleton = (
-    <div className={tableStyles.scrollContainer}>
+    <div className={tableStyles.scrollContainer} aria-hidden="true">
       <table className={tableStyles.table}>
         <tbody>
           <TableRowsSkeleton
             rows={6}
             colSpan={8}
-            label={loadingLabel}
+            label=""
             cellClassName={tableStyles.cell}
           />
         </tbody>
@@ -890,8 +899,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       >
         <div>
           {portfolioLoading ? (
-            <h2>
-              <TextSkeleton width="10rem" label={loadingLabel} />
+            <h2 aria-hidden="true">
+              <TextSkeleton width="10rem" label="" />
             </h2>
           ) : (
             <h2>{getGroupDisplayName(slug, portfolio.name, t)}</h2>
@@ -977,13 +986,14 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       </div>
 
       {portfolioLoading && (
-        <p
-          role="status"
-          aria-live="polite"
-          style={{ color: "#aaa", fontSize: "0.85rem", margin: "0 0 0.75rem" }}
-        >
-          {loadingLabel}
-        </p>
+        <LoadingStatus label={loadingLabel}>
+          <p
+            aria-hidden="true"
+            style={{ color: "#aaa", fontSize: "0.85rem", margin: "0 0 0.75rem" }}
+          >
+            {loadingLabel}
+          </p>
+        </LoadingStatus>
       )}
 
       {portfolioLoading && kpiTilesSkeleton}
@@ -1546,9 +1556,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             <p style={{ marginTop: "0.5rem" }}>
               <TextSkeleton
                 width="12rem"
-                label={t("group.loadingHoldingsDetail", {
-                  defaultValue: "Loading enriched holdings detail…",
-                })}
+                label={t("group.loadingHoldingsDetail")}
               />
             </p>
           )}

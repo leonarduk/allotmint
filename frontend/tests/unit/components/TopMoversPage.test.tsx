@@ -388,6 +388,17 @@ describe("TopMoversPage", () => {
       expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
     });
     expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
+
+    // Exactly one live region for the whole loading page, not one per
+    // skeleton placeholder (regression guard: multiple skeleton instances
+    // each carrying the same label produces a screen-reader barrage).
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+
+    // `useFetch` starts with `loading === false` before its effect flips it,
+    // so a naive `loading`-only gate briefly falls through to the "no
+    // signals" empty state on mount. Must never show that claim while a
+    // fetch is genuinely still pending (#7229 regression).
+    expect(screen.queryByText("No signals.")).not.toBeInTheDocument();
   });
 
   it("does not tell mobile users (who have no hover) to hover for signal context (#7231)", () => {

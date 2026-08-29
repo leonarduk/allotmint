@@ -161,6 +161,29 @@ describe('Trading page', () => {
     );
   });
 
+  it('shows page-shaped skeletons instead of a bare loading message while the fetch is pending (#7229)', async () => {
+    mockFetchState({ loading: true });
+
+    render(<Trading />);
+
+    // The static header renders immediately -- it doesn't depend on the
+    // slow /trading endpoint and shouldn't wait behind it.
+    expect(
+      screen.getByRole('heading', { name: 'Trading signals' })
+    ).toBeInTheDocument();
+
+    // The old bare "Loading…" paragraph that used to replace the whole page
+    // is gone, replaced by qualified, screen-reader-announced skeletons.
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0);
+
+    // Threshold values and real signal rows must not render prematurely --
+    // only their skeleton placeholders.
+    expect(screen.queryByText('Not enabled')).not.toBeInTheDocument();
+    expect(screen.queryByText('No signals right now')).not.toBeInTheDocument();
+  });
+
   it('does not emit duplicate-key warnings when the same ticker appears twice (#6505)', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockFetchState({

@@ -31,6 +31,8 @@ import * as api from "../api";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { TopMoversSummary } from "./TopMoversSummary";
+import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
+import TextSkeleton from "./skeletons/TextSkeleton";
 import { money, percent, percentOrNa } from "../lib/money";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
 import { translateInstrumentType } from "../lib/instrumentType";
@@ -802,7 +804,19 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </button>
       </div>
     );
-  if (loading || !portfolio) return <p>{t("common.loading")}</p>;
+  // `portfolio` (the /portfolio-group/all payload) is the single slowest call on
+  // this page (measured ~10.7s server-side, see #7229/#3424). The summary
+  // tiles, owner table and holdings table below are all derived from that one
+  // payload, so they genuinely can't render before it resolves — but the
+  // sector/region contribution section and TopMoversSummary each fetch their
+  // own, independent data (see their `useFetch` calls) and must not be held
+  // hostage by the portfolio call, so they render below regardless of
+  // `portfolioLoading`.
+  const portfolioLoading = loading || !portfolio;
+  const loadingLabel = t("group.loadingPortfolio", {
+    defaultValue:
+      "Loading your portfolio — this can take a little while for larger accounts.",
+  });
 
   const safeAlpha =
     alpha != null && Math.abs(alpha) > 1 ? alpha / 100 : alpha;
@@ -816,13 +830,53 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       : maxDrawdown;
 
   /* ── render ────────────────────────────────────────────── */
-  const pricingDate = portfolio.as_of
+  const pricingDate = portfolio?.as_of
     ? formatDateISO(new Date(portfolio.as_of))
     : null;
   const dateInputValue = asOfOverride ?? (pricingDate ?? "");
   const todayIso = formatDateISO(new Date());
   const showResetDate = Boolean(asOfOverride);
   const dateInputId = `group-pricing-date-${slug || "group"}`;
+
+  const kpiTilesSkeleton = (
+    <div className="grid grid-cols-2 gap-4 p-4 mb-4 bg-gray-900 border border-gray-700 rounded sm:grid-cols-3 md:grid-cols-5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex flex-col">
+          <TextSkeleton width="4rem" label={loadingLabel} />
+        </div>
+      ))}
+    </div>
+  );
+
+  const ownerTableSkeleton = (
+    <div className={tableStyles.scrollContainer} style={{ marginBottom: "1rem" }}>
+      <table className={tableStyles.table}>
+        <tbody>
+          <TableRowsSkeleton
+            rows={4}
+            colSpan={7}
+            label={loadingLabel}
+            cellClassName={tableStyles.cell}
+          />
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const holdingsTableSkeleton = (
+    <div className={tableStyles.scrollContainer}>
+      <table className={tableStyles.table}>
+        <tbody>
+          <TableRowsSkeleton
+            rows={6}
+            colSpan={8}
+            label={loadingLabel}
+            cellClassName={tableStyles.cell}
+          />
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <div style={{ marginTop: "1rem" }}>
@@ -835,7 +889,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         }}
       >
         <div>
-          <h2>{getGroupDisplayName(slug, portfolio.name, t)}</h2>
+          {portfolioLoading ? (
+            <h2>
+              <TextSkeleton width="10rem" label={loadingLabel} />
+            </h2>
+          ) : (
+            <h2>{getGroupDisplayName(slug, portfolio.name, t)}</h2>
+          )}
           {pricingDate && (
             <div
               style={{
@@ -916,11 +976,23 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </div>
       </div>
 
-      {!relativeViewEnabled && hasFilteredAccounts && (
+      {portfolioLoading && (
+        <p
+          role="status"
+          aria-live="polite"
+          style={{ color: "#aaa", fontSize: "0.85rem", margin: "0 0 0.75rem" }}
+        >
+          {loadingLabel}
+        </p>
+      )}
+
+      {portfolioLoading && kpiTilesSkeleton}
+
+      {!portfolioLoading && !relativeViewEnabled && hasFilteredAccounts && (
         <PortfolioSummary totals={totals} />
       )}
 
-      {isAllPositions && enableAdvancedAnalytics && (
+      {!portfolioLoading && isAllPositions && enableAdvancedAnalytics && (
         <div
           className="flex-wrap-row"
           style={{
@@ -989,7 +1061,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </div>
       )}
 
-      {isAllPositions && enableAdvancedAnalytics && (
+      {!portfolioLoading && isAllPositions && enableAdvancedAnalytics && (
         <div style={{ marginBottom: "1rem" }}>
           <a
             href="/metrics-explained"
@@ -1004,13 +1076,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </div>
       )}
 
-      {isAllPositions && enableAdvancedAnalytics && error && (
+      {!portfolioLoading && isAllPositions && enableAdvancedAnalytics && error && (
         <p style={{ color: "red" }}>
           {t("common.error")}: {error.message}
         </p>
       )}
 
-      {typeRows.length > 0 && (
+      {!portfolioLoading && typeRows.length > 0 && (
         <div style={{ width: "100%", height: 240, margin: "1rem 0" }}>
           <ResponsiveContainer
             width="100%"
@@ -1115,7 +1187,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
       {isAllPositions && enableAdvancedAnalytics && <TopMoversSummary slug={slug} />}
 
-      {ownerRows.length > 0 && (
+      {portfolioLoading && ownerTableSkeleton}
+
+      {!portfolioLoading && ownerRows.length > 0 && (
         <div className={tableStyles.scrollContainer} style={{ marginBottom: "1rem" }}>
           <table className={tableStyles.table}>
           <thead>
@@ -1282,6 +1356,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </div>
       )}
 
+      {portfolioLoading && holdingsTableSkeleton}
+
+      {!portfolioLoading && (
       <div
         role="tablist"
         aria-label="Owners"
@@ -1329,8 +1406,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           </button>
         ))}
       </div>
+      )}
 
-      {activeOwner && portfolio && (
+      {!portfolioLoading && activeOwner && portfolio && (
         <div
           role="tablist"
           aria-label={`${activeOwner} accounts`}
@@ -1383,7 +1461,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </div>
       )}
 
-      {!familyMvpEnabled && (
+      {!portfolioLoading && !familyMvpEnabled && (
         <fieldset
           style={{
             display: "flex",
@@ -1408,7 +1486,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           ))}
         </fieldset>
       )}
-      {activeOwner && portfolio && (
+      {!portfolioLoading && activeOwner && portfolio && (
         <OwnerPortfolioActions
           owner={activeOwner}
           asOf={portfolio.as_of}
@@ -1422,12 +1500,12 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         />
       )}
 
-      {displayMode !== "flat" && instrumentError && (
+      {!portfolioLoading && displayMode !== "flat" && instrumentError && (
         <p style={{ color: "red" }}>
           {t("common.error")}: {instrumentError.message}
         </p>
       )}
-      {hasFilteredAccounts && (
+      {!portfolioLoading && hasFilteredAccounts && (
         <div
           style={{
             display: "flex",
@@ -1465,7 +1543,14 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             selectedTicker={selectedInstrument?.ticker}
           />
           {displayMode !== "flat" && instrumentLoading && !instrumentRows && (
-            <p>{t("common.loading")}</p>
+            <p style={{ marginTop: "0.5rem" }}>
+              <TextSkeleton
+                width="12rem"
+                label={t("group.loadingHoldingsDetail", {
+                  defaultValue: "Loading enriched holdings detail…",
+                })}
+              />
+            </p>
           )}
           {selectedInstrument && (
             <InstrumentDetail

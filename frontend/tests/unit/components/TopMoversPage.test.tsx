@@ -366,6 +366,30 @@ describe("TopMoversPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows page-shaped skeletons instead of a bare loading message while the fetch is pending (#7229)", async () => {
+    // getGroupInstruments still resolves normally (fast, default mock); it's
+    // the slow /opportunities call that never settles here, which is enough
+    // to keep the whole page in its loading state.
+    mockGetOpportunities.mockImplementation(() => new Promise(() => {}));
+
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    // Controls render immediately, independent of the slow /opportunities call.
+    expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0);
+
+    // The old bare "Loading…" paragraph is gone, replaced by qualified,
+    // screen-reader-announced skeletons.
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
+    });
+    expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
+  });
+
   it("does not tell mobile users (who have no hover) to hover for signal context (#7231)", () => {
     expect(enTranslation.movers.windowNote.toLowerCase()).not.toContain("hover");
     expect(enTranslation.movers.signalWindowNote.toLowerCase()).not.toContain("hover");

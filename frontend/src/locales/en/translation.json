@@ -302,6 +302,8 @@
   },
   "group": {
     "loadError": "We couldn’t load your portfolio. Please try again later.",
+    "loadingHoldingsDetail": "Loading enriched holdings detail…",
+    "loadingPortfolio": "Loading your portfolio — this can take a little while for larger accounts.",
     "atAGlance": "At a glance",
     "pricingAsOf": "Pricing as of {{date}}",
     "pricingDatePickerLabel": "Change pricing date",
@@ -578,6 +580,7 @@
     "deltaGbpHeader": "Value change (£, {{period}})",
     "excludeSmall": "Exclude positions <{{min}}%",
     "loadFailed": "Failed to load movers{{status}}",
+    "loading": "Loading movers — this can take a little while for larger watchlists.",
     "loginPrompt": "Please log in to view portfolio-based movers.",
     "pctChangeHeader": "Price change (%, {{period}})",
     "pctPortfolio": "% of portfolio",
@@ -890,6 +893,7 @@
   "trading": {
     "noPositions": "No positions.",
     "noSignals": "No signals.",
+    "loading": "Loading trading signals — this can take a little while for the full universe.",
     "eyebrow": "Decision support",
     "title": "Trading signals",
     "description": "Review signals generated from momentum, trend and optional risk filters. Signals are informational and are not trade instructions.",

@@ -8,8 +8,51 @@ vi.mock("@/api");
 const mockGetScreener = vi.mocked(api.getScreener);
 
 describe("Screener", () => {
+  it("has a heading matching its menu label (#7199)", async () => {
+    mockGetScreener.mockResolvedValue([]);
+    render(<Screener />);
+    expect(
+      await screen.findByRole("heading", { name: "Screener" }),
+    ).toBeInTheDocument();
+  });
+
+  it("gates the form up front, in plain language, when screening isn't available (#7199)", async () => {
+    const gatedError = Object.assign(new Error("HTTP 402 - Payment Required"), {
+      status: 402,
+    });
+    mockGetScreener.mockRejectedValueOnce(gatedError);
+
+    render(<Screener />);
+
+    const gate = await screen.findByText("Screening unavailable");
+    expect(gate).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Screening isn't available in this deployment. Contact your administrator to enable this feature.",
+      ),
+    ).toBeInTheDocument();
+
+    // The full filter form must not render at all in this state — the whole
+    // point is to not let the user fill in two dozen fields for a Run that
+    // will always 402.
+    expect(screen.queryByLabelText("Watchlist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Run" })).not.toBeInTheDocument();
+  });
+
+  it("renders the form as normal when screening is available", async () => {
+    mockGetScreener.mockResolvedValue([]);
+    render(<Screener />);
+
+    expect(await screen.findByLabelText("Watchlist")).toBeInTheDocument();
+    expect(screen.queryByText("Screening unavailable")).not.toBeInTheDocument();
+  });
+
   it("renders new ratio columns", async () => {
-    mockGetScreener.mockResolvedValueOnce([
+    // #7199: Screener now probes capability with a cheap getScreener([], {})
+    // call on mount before it renders the filter form, so the mock here
+    // must serve both that probe and the real submitted query — a `*Once`
+    // mock would be consumed by the probe and leave the Run call unmocked.
+    mockGetScreener.mockResolvedValue([
       {
         rank: 1,
         ticker: "AAA",
@@ -44,7 +87,8 @@ describe("Screener", () => {
 
     render(<Screener />);
 
-    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "AAA" } });
+    // Form only renders once the mount-time capability probe resolves.
+    fireEvent.change(await screen.findByLabelText(/Tickers/i), { target: { value: "AAA" } });
     fireEvent.change(screen.getByLabelText(/Max LT D\/E/i), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText(/Min Interest Coverage/i), { target: { value: "5" } });
     fireEvent.change(screen.getByLabelText(/Min Current Ratio/i), { target: { value: "1" } });
@@ -76,7 +120,9 @@ describe("Screener", () => {
 
   it("does not emit duplicate-key warnings when the same ticker appears twice (#6505)", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    mockGetScreener.mockResolvedValueOnce([
+    // See the note above: `mockResolvedValue` (not `*Once`) so the mount-time
+    // capability probe and the real Run call both get a response.
+    mockGetScreener.mockResolvedValue([
       {
         rank: 1,
         ticker: "CASH",
@@ -140,7 +186,7 @@ describe("Screener", () => {
     ]);
 
     render(<Screener />);
-    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "CASH" } });
+    fireEvent.change(await screen.findByLabelText(/Tickers/i), { target: { value: "CASH" } });
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
 
     expect(await screen.findAllByText("CASH")).toHaveLength(2);

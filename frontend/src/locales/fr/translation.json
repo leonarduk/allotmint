@@ -260,6 +260,7 @@
     "bollingerBands": "Bandes de Bollinger",
     "change30d": "30j",
     "change7d": "7j",
+    "chooseTicker": "Choisissez un titre depuis la recherche pour ouvrir la recherche.",
     "columns": {
       "account": "Compte",
       "gain": "Gain £",
@@ -268,6 +269,8 @@
       "units": "Unités"
     },
     "edit": "Modifier",
+    "fundamentalsLoadError": "Impossible de charger les fondamentaux : {{message}}",
+    "fundamentalsUnavailable": "Les données fondamentales ne sont pas disponibles dans cet environnement. Contactez votre administrateur pour activer cette fonctionnalité.",
     "intraday": "Intraday",
     "intradayUnavailable": "Données intraday indisponibles",
     "ma20": "20d MA",
@@ -293,6 +296,7 @@
     "recentPrices": "Prix récents",
     "rsi": "RSI",
     "searchInstruments": "Rechercher des instruments",
+    "searchToggleLabel": "Ouvrir la recherche d'instruments",
     "showInstrumentSearch": "Afficher la recherche d'instruments"
   },
   "instrumentTable": {
@@ -464,6 +468,8 @@
     "downloadsDisabled": "Sélectionnez un propriétaire et un modèle pour activer les téléchargements."
   },
   "screener": {
+    "checkingAvailability": "Vérification de la disponibilité…",
+    "heading": "Screener",
     "loading": "Chargement…",
     "max52WeekHigh": "Plus haut 52 sem. max",
     "max52WeekLow": "Plus bas 52 sem. max",
@@ -493,6 +499,8 @@
     "minSharesOutstanding": "Actions en circulation min",
     "run": "Exécuter",
     "tickers": "Tickers",
+    "unavailableMessage": "Le screener n'est pas disponible dans cet environnement. Contactez votre administrateur pour activer cette fonctionnalité.",
+    "unavailableTitle": "Screener indisponible",
     "watchlist": "Liste de suivi :"
   },
   "support": {

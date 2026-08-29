@@ -2122,16 +2122,17 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
-    // Use a case-insensitive regex to find the research button robustly,
-    // avoiding dependency on i18n key resolution order in CI. The toggle is
-    // labelled "Show instrument search" (#7223) to distinguish it from the
-    // search inputs it reveals.
-    const researchButton = screen.getByRole("button", {
-      name: /instrument search/i,
+    // #7205: this toggle's accessible name changed from the "Research" menu
+    // label to a dedicated search label, since "Research" didn't read as a
+    // search control. It's also distinct from the "Search instruments" label
+    // on the input the toggle reveals (#7223). Match case-insensitively on
+    // "search" to avoid depending on exact i18n key resolution order in CI.
+    const searchToggle = screen.getByRole("button", {
+      name: /search/i,
     });
-    expect(researchButton).toHaveAttribute("aria-expanded", "false");
+    expect(searchToggle).toHaveAttribute("aria-expanded", "false");
 
-    await user.click(researchButton);
+    await user.click(searchToggle);
 
     const searchInput = await screen.findByLabelText(/Search instruments/i);
     await user.type(searchInput, "AA");
@@ -2150,7 +2151,7 @@ describe("App", () => {
     await user.click(result);
 
     await waitFor(() => {
-      expect(researchButton).toHaveAttribute("aria-expanded", "false");
+      expect(searchToggle).toHaveAttribute("aria-expanded", "false");
     });
 
     await waitFor(() => {

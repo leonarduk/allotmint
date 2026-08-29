@@ -260,6 +260,7 @@
     "bollingerBands": "Bandas de Bollinger",
     "change30d": "30d",
     "change7d": "7d",
+    "chooseTicker": "Escolha um ticker na pesquisa para abrir a pesquisa.",
     "columns": {
       "account": "Conta",
       "gain": "Ganho £",
@@ -268,6 +269,8 @@
       "units": "Unidades"
     },
     "edit": "Editar",
+    "fundamentalsLoadError": "Não foi possível carregar os fundamentos: {{message}}",
+    "fundamentalsUnavailable": "Os fundamentos não estão disponíveis nesta implantação. Contate o administrador para ativar este recurso.",
     "intraday": "Intraday",
     "intradayUnavailable": "Dados intraday indisponíveis",
     "ma20": "20d MA",
@@ -293,6 +296,7 @@
     "recentPrices": "Preços recentes",
     "rsi": "RSI",
     "searchInstruments": "Pesquisar instrumentos",
+    "searchToggleLabel": "Abrir pesquisa de instrumentos",
     "showInstrumentSearch": "Mostrar pesquisa de instrumentos"
   },
   "instrumentTable": {
@@ -463,6 +467,8 @@
     "downloadsDisabled": "Selecione um proprietário e um modelo para habilitar os downloads."
   },
   "screener": {
+    "checkingAvailability": "Verificando disponibilidade…",
+    "heading": "Screener",
     "loading": "Carregando…",
     "max52WeekHigh": "Alta 52S máx",
     "max52WeekLow": "Baixa 52S máx",
@@ -492,6 +498,8 @@
     "minSharesOutstanding": "Ações em circulação mín",
     "run": "Executar",
     "tickers": "Tickers",
+    "unavailableMessage": "O screener não está disponível nesta implantação. Contate o administrador para ativar este recurso.",
+    "unavailableTitle": "Screener indisponível",
     "watchlist": "Lista de observação:"
   },
   "support": {

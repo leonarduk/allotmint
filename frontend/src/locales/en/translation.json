@@ -402,6 +402,7 @@
     "cancel": "Cancel",
     "change30d": "30d",
     "change7d": "7d",
+    "chooseTicker": "Choose a ticker from search to open research.",
     "columns": {
       "account": "Account",
       "gain": "Gain £",
@@ -415,6 +416,8 @@
     "currencyPlaceholder": "Select a currency",
     "declaredCurrencyLabel": "Declared currency (metadata)",
     "edit": "Edit",
+    "fundamentalsLoadError": "Unable to load fundamentals: {{message}}",
+    "fundamentalsUnavailable": "Fundamentals aren't available in this deployment. Contact your administrator to enable this feature.",
     "infoHeading": "Instrument info",
     "intraday": "Intraday",
     "intradayUnavailable": "Intraday data unavailable",
@@ -456,6 +459,7 @@
     "rsi": "RSI",
     "save": "Save",
     "searchInstruments": "Search instruments",
+    "searchToggleLabel": "Open instrument search",
     "sectorLabel": "Sector",
     "showInstrumentSearch": "Show instrument search"
   },
@@ -755,6 +759,8 @@
     }
   },
   "screener": {
+    "checkingAvailability": "Checking availability…",
+    "heading": "Screener",
     "loading": "Loading…",
     "max52WeekHigh": "Max 52W High",
     "max52WeekLow": "Max 52W Low",
@@ -784,6 +790,8 @@
     "minSharesOutstanding": "Min Shares Outstanding",
     "run": "Run",
     "tickers": "Tickers",
+    "unavailableMessage": "Screening isn't available in this deployment. Contact your administrator to enable this feature.",
+    "unavailableTitle": "Screening unavailable",
     "watchlist": "Watchlist:"
   },
   "dataadmin": {

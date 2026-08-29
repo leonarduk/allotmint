@@ -224,12 +224,15 @@ export function InstrumentSearchBarToggle() {
   const [open, setOpen] = useState(false);
   const contentId = useId();
   const { t } = useTranslation();
-  // Distinct from the "Search instruments" label on the input this toggle
-  // reveals — with the panel open, a screen reader would otherwise meet a
-  // button and two inputs all sharing one accessible name (#7223).
-  const showSearchLabel = t("instrumentDetail.showInstrumentSearch", {
-    defaultValue: "Show instrument search",
-  });
+  // #7205: this was previously labelled with the "Research" menu-entry
+  // string (app.research), which reads as a page name, not a search
+  // control — a screen reader user had no way to tell this icon opens a
+  // search box. Use a dedicated, search-specific label instead.
+  // It also needs to be distinct from the "Search instruments" label on the
+  // input this toggle reveals — with the panel open, a screen reader would
+  // otherwise meet a button and two inputs all sharing one accessible name
+  // (#7223).
+  const searchLabel = t("instrumentDetail.searchToggleLabel");
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} style={{ marginLeft: "1rem" }}>
@@ -237,7 +240,7 @@ export function InstrumentSearchBarToggle() {
         type="button"
         aria-controls={contentId}
         aria-expanded={open}
-        aria-label={showSearchLabel}
+        aria-label={searchLabel}
         style={{
           padding: "0.25rem",
           borderRadius: "0.25rem",

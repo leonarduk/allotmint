@@ -421,7 +421,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         if (matched) {
           const name = normaliseOptional(matched.name) ?? matched.name;
           const sector = normaliseOptional(matched.sector);
-          const currency = normaliseUppercase(matched.currency);
           const metaInstrumentType = normaliseInstrumentType(
             (matched as { instrumentType?: unknown }).instrumentType ??
               (matched as { instrument_type?: unknown }).instrument_type,
@@ -431,7 +430,18 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           const hasSector = typeof sector === "string" && sector.length > 0;
           const hasInstrumentType =
             typeof metaInstrumentType === "string" && metaInstrumentType.length > 0;
-          const hasCurrency = typeof currency === "string" && currency.length > 0;
+          // #7193: deliberately NOT populating `currency` from the instrument
+          // catalogue here. The catalogue's currency is metadata that can go
+          // stale or disagree with the price series (e.g. AZN.L recorded as
+          // GBX in the catalogue while its stored prices are GBP), and this
+          // effect used to let that value silently overwrite (and lock, via
+          // metadataOverrides) whatever currency the price series itself
+          // reported. The `detail` effect above already derives `currency`
+          // from the price series (`detail.currency`/`detail.base_currency`),
+          // which is the value actually paired with the rendered price, so
+          // it stays authoritative here. Explicit user actions (Save, and
+          // the Refresh/Confirm flow) still set `metadata.currency` and lock
+          // it via metadataOverrides, so manual corrections keep working.
           let nextMetadata: MetadataState | null = null;
           setMetadata((prev) => {
             const next: MetadataState = {
@@ -446,11 +456,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                 : hasInstrumentType
                   ? metaInstrumentType
                   : prev.instrumentType || "",
-              currency: overrides.currency
-                ? prev.currency
-                : hasCurrency
-                  ? currency
-                  : prev.currency || "",
+              currency: prev.currency,
             };
             nextMetadata = next;
             return next;
@@ -459,7 +465,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             name: prev.name || hasName,
             sector: prev.sector || hasSector,
             instrumentType: prev.instrumentType || hasInstrumentType,
-            currency: prev.currency || hasCurrency,
+            currency: prev.currency,
           }));
           if (!isEditingMetadataRef.current && nextMetadata) {
             setFormValues(nextMetadata);
@@ -755,11 +761,24 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           }) ?? results?.[0] ?? null;
         setFundamentals(entry ?? null);
       } catch (err) {
-        const error = err as { name?: string } | null | undefined;
+        const error = err as { name?: string; status?: number } | null | undefined;
         if (error?.name === "AbortError") return;
         if (!cancelled) {
-          const message = err instanceof Error ? err.message : String(err);
-          setFundamentalsError(`Unable to load fundamentals: ${message}`);
+          // #7199: the backend answers 402 when fundamentals/screening needs
+          // the pro add-on this deployment doesn't have. Previously that
+          // surfaced as the raw backend `detail` string (package name and a
+          // GitHub URL included) glued onto "Unable to load fundamentals:".
+          // Show plain, user-facing copy for that case instead, and keep the
+          // existing generic message (with the real error text) for anything
+          // else that goes wrong.
+          if (error?.status === 402) {
+            setFundamentalsError(t("instrumentDetail.fundamentalsUnavailable"));
+          } else {
+            const message = err instanceof Error ? err.message : String(err);
+            setFundamentalsError(
+              t("instrumentDetail.fundamentalsLoadError", { message }),
+            );
+          }
         }
       } finally {
         if (!cancelled) {
@@ -774,7 +793,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       cancelled = true;
       controller.abort();
     };
-  }, [tkr, activeTab]);
+  }, [tkr, activeTab, t]);
 
   function toggleWatchlist() {
     const list = (localStorage.getItem("watchlistSymbols") || "")
@@ -883,16 +902,27 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   };
 
   if (!hasTickerInput) {
+    // #7205: the empty state used to tell the user to "choose a ticker from
+    // search" with no search control anywhere on the page — the only search
+    // was an unlabelled icon button buried in the header. Render the same
+    // search bar inline here so the instruction is immediately actionable.
+    // It's a separate instance from the header's (InstrumentSearchBarToggle
+    // renders its own), so there's no double-up: this one is only mounted
+    // while /research has no ticker, and picking a result navigates away
+    // from this branch entirely.
     return (
-      <EmptyState
-        message={t("instrumentDetail.chooseTicker", {
-          defaultValue: "Choose a ticker from search to open research.",
-        })}
-      >
-        <div style={{ maxWidth: "28rem", margin: "1rem auto 0" }}>
-          <InstrumentSearchBar />
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+        <EmptyState
+          message={t("instrumentDetail.chooseTicker", {
+            defaultValue: "Choose a ticker from search to open research.",
+          })}
+        />
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <div style={{ maxWidth: "28rem", width: "100%", marginTop: "1rem" }}>
+            <InstrumentSearchBar />
+          </div>
         </div>
-      </EmptyState>
+      </div>
     );
   }
   if (!tkr) return <div>Invalid ticker</div>;

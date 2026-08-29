@@ -260,6 +260,7 @@
     "bollingerBands": "Bollinger-Bänder",
     "change30d": "30T",
     "change7d": "7T",
+    "chooseTicker": "Wählen Sie über die Suche einen Ticker aus, um die Recherche zu öffnen.",
     "columns": {
       "account": "Konto",
       "gain": "Gewinn £",
@@ -268,6 +269,8 @@
       "units": "Einheiten"
     },
     "edit": "Bearbeiten",
+    "fundamentalsLoadError": "Fundamentaldaten konnten nicht geladen werden: {{message}}",
+    "fundamentalsUnavailable": "Fundamentaldaten sind in dieser Umgebung nicht verfügbar. Wenden Sie sich an Ihren Administrator, um diese Funktion zu aktivieren.",
     "intraday": "Intraday",
     "intradayUnavailable": "Keine Intraday-Daten",
     "ma20": "20d MA",
@@ -293,6 +296,7 @@
     "recentPrices": "Aktuelle Preise",
     "rsi": "RSI",
     "searchInstruments": "Instrumente suchen",
+    "searchToggleLabel": "Instrumentensuche öffnen",
     "showInstrumentSearch": "Instrumentensuche anzeigen"
   },
   "instrumentTable": {
@@ -532,6 +536,8 @@
     "downloadsDisabled": "Wählen Sie einen Eigentümer und eine Vorlage, um Downloads zu aktivieren."
   },
   "screener": {
+    "checkingAvailability": "Verfügbarkeit wird geprüft…",
+    "heading": "Screener",
     "loading": "Laden…",
     "max52WeekHigh": "Max 52W High",
     "max52WeekLow": "Max 52W Low",
@@ -561,6 +567,8 @@
     "minSharesOutstanding": "Min Shares Outstanding",
     "run": "Ausführen",
     "tickers": "Ticker",
+    "unavailableMessage": "Der Screener ist in dieser Umgebung nicht verfügbar. Wenden Sie sich an Ihren Administrator, um diese Funktion zu aktivieren.",
+    "unavailableTitle": "Screener nicht verfügbar",
     "watchlist": "Beobachtungsliste:"
   },
   "support": {

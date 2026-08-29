@@ -150,7 +150,9 @@ describe("Screener & Query page", () => {
     getScreener.mockResolvedValue(mockScreenerData);
     renderWithI18n(<ScreenerQuery />);
 
-    fireEvent.change(screen.getByLabelText(en.screener.tickers), {
+    // Screener now probes capability (a getScreener([], {}) call) on mount
+    // before rendering its filter form (#7199), so wait for that to resolve.
+    fireEvent.change(await screen.findByLabelText(en.screener.tickers), {
       target: { value: "AAA" },
     });
     fireEvent.change(screen.getByLabelText(en.screener.maxPeg), {

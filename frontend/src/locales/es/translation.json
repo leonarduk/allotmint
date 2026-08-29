@@ -260,6 +260,7 @@
     "bollingerBands": "Bandas de Bollinger",
     "change30d": "30d",
     "change7d": "7d",
+    "chooseTicker": "Elige un valor desde la búsqueda para abrir la investigación.",
     "columns": {
       "account": "Cuenta",
       "gain": "Ganancia £",
@@ -268,6 +269,8 @@
       "units": "Unidades"
     },
     "edit": "Editar",
+    "fundamentalsLoadError": "No se pudieron cargar los fundamentales: {{message}}",
+    "fundamentalsUnavailable": "Los fundamentales no están disponibles en este entorno. Contacta con tu administrador para habilitar esta función.",
     "intraday": "Intradía",
     "intradayUnavailable": "Datos intradía no disponibles",
     "ma20": "20d MA",
@@ -293,6 +296,7 @@
     "recentPrices": "Precios recientes",
     "rsi": "RSI",
     "searchInstruments": "Buscar instrumentos",
+    "searchToggleLabel": "Abrir búsqueda de instrumentos",
     "showInstrumentSearch": "Mostrar búsqueda de instrumentos"
   },
   "instrumentTable": {
@@ -463,6 +467,8 @@
     "downloadsDisabled": "Selecciona un propietario y una plantilla para habilitar las descargas."
   },
   "screener": {
+    "checkingAvailability": "Comprobando disponibilidad…",
+    "heading": "Screener",
     "loading": "Cargando…",
     "max52WeekHigh": "Max 52W High",
     "max52WeekLow": "Max 52W Low",
@@ -492,6 +498,8 @@
     "minSharesOutstanding": "Min Shares Outstanding",
     "run": "Ejecutar",
     "tickers": "Tickers",
+    "unavailableMessage": "El screener no está disponible en este entorno. Contacta con tu administrador para habilitar esta función.",
+    "unavailableTitle": "Screener no disponible",
     "watchlist": "Lista de seguimiento:"
   },
   "support": {

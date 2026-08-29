@@ -14,9 +14,11 @@ vi.mock("@/api", () => ({
   getScreener: vi.fn(),
   getInstrumentDetail: vi.fn(),
   getInstrumentIntraday: vi.fn(),
+  // #7205: the /research empty state now renders InstrumentSearchBar inline,
+  // which imports searchInstruments from this module.
   searchInstruments: vi.fn(),
 }));
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
 import InstrumentResearch from "@/pages/InstrumentResearch";
@@ -138,6 +140,8 @@ describe("InstrumentResearch page", () => {
     mockSearchInstruments.mockReset();
     mockGetNews.mockReset();
     mockGetNews.mockResolvedValue([]);
+    mockSearchInstruments.mockReset();
+    mockSearchInstruments.mockResolvedValue([]);
     mockGetInstrumentDetail.mockResolvedValue({
       prices: [
         { date: "2024-01-01", close_gbp: 100 },
@@ -360,6 +364,33 @@ describe("InstrumentResearch page", () => {
     expect(navigateSpy).toHaveBeenCalledWith("/research/BBB");
   });
 
+  it("renders an actionable search box in the /research empty state (#7205)", async () => {
+    render(
+      <configContext.Provider value={defaultConfig}>
+        <MemoryRouter initialEntries={["/research"]}>
+          <Routes>
+            <Route path="/research" element={<InstrumentResearch />} />
+          </Routes>
+        </MemoryRouter>
+      </configContext.Provider>,
+    );
+
+    expect(
+      await screen.findByText("Choose a ticker from search to open research."),
+    ).toBeInTheDocument();
+    // The instruction used to point at a search that wasn't on the page;
+    // it must now be right there, ready to type into and get real results.
+    const searchInput = screen.getByLabelText("Search instruments");
+    expect(searchInput).toBeInTheDocument();
+
+    mockSearchInstruments.mockResolvedValueOnce([
+      { ticker: "AAA", name: "Acme Corp" },
+    ]);
+    fireEvent.change(searchInput, { target: { value: "AA" } });
+    await new Promise((r) => setTimeout(r, 350));
+    expect(await screen.findByText("AAA — Acme Corp")).toBeInTheDocument();
+  });
+
   it("loads fundamentals when tab is selected", async () => {
     renderPage();
     const fundamentalsTab = screen.getByRole("button", {
@@ -538,13 +569,13 @@ describe("InstrumentResearch page", () => {
     expect(lastCloseRow).not.toHaveTextContent("£0.06");
   });
 
-  it("prefers the price-series currency over stale GBX metadata (#7219)", async () => {
-    // Regression for #7219: the instrument metadata catalogue can say a
-    // ticker is GBX (pence) while the /instrument/ price series it is
-    // actually quoted from is GBP-magnitude (close === close_gbp, not
-    // scaled by 100). The header, Key Facts currency and Last Close must
-    // all agree with the price series (GBP), not silently adopt the stale
-    // catalogue currency and mislabel a GBP number as GBX.
+  it("labels a GBP price series correctly even when the instrument catalogue says GBX (#7193, #7219)", async () => {
+    // Reproduces the AZN.L bug (#7193): the catalogue/metadata record for
+    // the instrument says GBX, but the price series returned by
+    // /instrument/ (what the page actually renders as "Last Close") is GBP.
+    // The header, the Instrument info panel, and Key Facts must all agree
+    // with the price series, not silently adopt the stale catalogue
+    // currency and mislabel a GBP number as GBX (#7219).
     mockListInstrumentMetadata.mockResolvedValueOnce([
       {
         ticker: "AAA.L",
@@ -581,6 +612,8 @@ describe("InstrumentResearch page", () => {
       level: 1,
       name: /AAA - Acme Corp/,
     });
+    // Not GBX: the price series (GBP) is authoritative for the currency
+    // shown beside a price, not the (stale) catalogue metadata.
     expect(heading).toHaveTextContent("GBP");
     expect(heading).not.toHaveTextContent("GBX");
 
@@ -590,6 +623,8 @@ describe("InstrumentResearch page", () => {
 
     const lastCloseRow = screen.getByText("Last Close").closest("div");
     expect(lastCloseRow).not.toBeNull();
+    // £121.10, not £1.21 and not "121.10 GBX" — same figure the Dashboard
+    // shows for this holding, unscaled.
     expect(within(lastCloseRow as HTMLElement).getByText(/£121\.10/)).toBeInTheDocument();
     expect(lastCloseRow).not.toHaveTextContent("GBX");
 
@@ -616,6 +651,27 @@ describe("InstrumentResearch page", () => {
     expect(
       await screen.findByText(/Unable to load fundamentals: fundamentals fail/),
     ).toBeInTheDocument();
+  });
+
+  it("shows plain-language copy (no package names or URLs) when fundamentals are pro-gated (#7199)", async () => {
+    const gatedError = Object.assign(
+      new Error(
+        "Screener is not available: This feature requires the allotmint-pro package, which is not installed in this deployment. See https://github.com/leonarduk/allotmint-pro for upgrade options.",
+      ),
+      { status: 402 },
+    );
+    mockGetScreener.mockRejectedValueOnce(gatedError);
+
+    renderPage();
+
+    const tab = screen.getByRole("button", { name: /Fundamentals/i });
+    await userEvent.click(tab);
+
+    const message = await screen.findByText(
+      /Fundamentals aren't available in this deployment/,
+    );
+    expect(message).toBeInTheDocument();
+    expect(message.textContent).not.toMatch(/allotmint-pro|github\.com/i);
   });
 
   it("renders error messages when requests fail", async () => {

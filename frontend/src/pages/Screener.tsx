@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getScreener } from "../api";
 import type { ScreenerResult } from "../types";
@@ -7,7 +7,16 @@ import { InstrumentDetail } from "../components/InstrumentDetail";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import i18n from "../i18n";
 
+// #7199: the backend returns 402 for the whole /screener/ endpoint when the
+// pro package that powers screening isn't installed in this deployment.
+// Rather than let a user fill in the (large) filter form and only discover
+// that on submit, we probe capability once on mount with a cheap, criteria-
+// free request and gate the form up front on the result. "unknown" is the
+// brief in-between state while that probe is in flight.
+type ScreenerCapability = "unknown" | "available" | "unavailable";
+
 export function Screener() {
+  const [capability, setCapability] = useState<ScreenerCapability>("unknown");
   const [watchlist, setWatchlist] = useState<WatchlistName | "Custom">(
     "Custom",
   );
@@ -48,6 +57,27 @@ export function Screener() {
 
   const cell = { padding: "4px 6px" } as const;
   const right = { ...cell, textAlign: "right", cursor: "pointer" } as const;
+
+  // #7199: probe once on mount, before the user has touched anything, so an
+  // unavailable deployment shows the gate immediately instead of after a
+  // wasted Run. An empty ticker list keeps the probe cheap; the backend
+  // checks capability before it looks at ticker-specific data, so a 402
+  // here means Run would 402 too.
+  useEffect(() => {
+    let cancelled = false;
+    getScreener([], {})
+      .then(() => {
+        if (!cancelled) setCapability("available");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const status = (err as { status?: number } | null | undefined)?.status;
+        setCapability(status === 402 ? "unavailable" : "available");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -123,6 +153,23 @@ export function Screener() {
 
   return (
     <div className="container mx-auto p-4">
+      <h1 className="mb-4 text-xl font-semibold">{t("screener.heading")}</h1>
+      {capability === "unavailable" ? (
+        // #7199: an explained "needs Pro" state up front, instead of a full
+        // filter form that always 402s on Run. No package names or repo
+        // links in this copy — it's aimed at the end user, not a developer.
+        <div
+          role="status"
+          className="mb-4 rounded border border-gray-300 bg-gray-50 p-4"
+        >
+          <p className="font-semibold">{t("screener.unavailableTitle")}</p>
+          <p className="m-0">{t("screener.unavailableMessage")}</p>
+        </div>
+      ) : null}
+      {capability === "unknown" && (
+        <p className="mb-4">{t("screener.checkingAvailability")}</p>
+      )}
+      {capability === "available" && (
       <form
         onSubmit={handleSubmit}
         className="mb-4 flex flex-wrap items-center gap-2"
@@ -437,6 +484,7 @@ export function Screener() {
           {loading ? t("screener.loading") : t("screener.run")}
         </button>
       </form>
+      )}
 
       {error && <p style={{ color: "red" }}>{error}</p>}
       {loading && <p>{t("screener.loading")}</p>}

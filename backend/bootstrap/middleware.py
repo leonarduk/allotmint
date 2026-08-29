@@ -11,13 +11,16 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security.utils import get_authorization_scheme_param
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
+from backend.auth import decode_demo_token
 from backend.common.errors import AppError, log_app_error
 from backend.config import Config
+from backend.logging_setup import sanitise_log_value
 
 _CORS_ALLOW_METHODS = ["DELETE", "GET", "OPTIONS", "PATCH", "POST", "PUT"]
 _CORS_ALLOW_HEADERS = [
@@ -27,6 +30,15 @@ _CORS_ALLOW_HEADERS = [
     "Origin",
     "X-Requested-With",
 ]
+
+logger = logging.getLogger(__name__)
+
+# Safelist, never denylist (#7407): only these methods may ever be served to a
+# demo-scoped request. Any other verb -- present or added in the future -- is
+# rejected by this gate regardless of which router handles it.
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+_DEMO_WRITE_BLOCKED_DETAIL = "Demo access is read-only"
 
 
 def normalize(obj: Any) -> Any:
@@ -70,6 +82,49 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
         allow_credentials=True,
     )
     app.add_middleware(SlowAPIMiddleware)
+
+    @app.middleware("http")
+    async def demo_write_gate(request: Request, call_next):
+        """Reject any non-safe HTTP method carried by a demo-scoped token.
+
+        This is the global, deny-by-default enforcement point for #7402's
+        read-only demo link (#7407): per-route authorization in this app is
+        not uniform -- several routers (``transactions_router`` among them,
+        see ``backend/bootstrap/routers.py``) are registered with no
+        router-level ``Depends(auth.get_current_user)`` at all, so a demo
+        token could otherwise reach a mutating handler with no gate
+        whatsoever. A single method-based check here is verifiable by
+        inspection and cannot be skipped by a future route author.
+
+        The demo marker ContextVar set by ``get_current_user``/
+        ``get_active_user`` (#7406) is populated during dependency
+        resolution, which FastAPI runs *after* middleware has already
+        dispatched the request -- so it cannot be read from here. Instead
+        this middleware independently decodes the raw ``Authorization``
+        bearer token with :func:`backend.auth.decode_demo_token`, exactly as
+        those dependencies do, to determine whether the request carries a
+        demo-scoped token. This check is intentionally independent of both
+        ``config.demo_link_enabled`` (the mint/accept kill switch) and
+        ``config.disable_auth`` -- a syntactically valid demo-scoped token
+        (one signed with this process's own ``SECRET_KEY``) must never be
+        able to reach a mutating handler under any configuration.
+        """
+
+        if request.method not in _SAFE_METHODS:
+            auth_header = request.headers.get("Authorization")
+            scheme, token = get_authorization_scheme_param(auth_header)
+            if token and scheme.lower() == "bearer" and decode_demo_token(token) is not None:
+                logger.warning(
+                    "Blocked non-safe method on demo-scoped request: method=%s path=%s",
+                    sanitise_log_value(request.method),
+                    sanitise_log_value(request.url.path),
+                )
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": _DEMO_WRITE_BLOCKED_DETAIL},
+                )
+
+        return await call_next(request)
 
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError):

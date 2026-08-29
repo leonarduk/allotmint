@@ -340,12 +340,17 @@ export default function App({ onLogout }: AppProps) {
         setSelectedGroup(normaliseGroupSlug(queryGroup));
         setSelectedOwner('');
       } else if (segs[1] || queryOwner) {
-        if (newMode === 'performance') setSelectedGroup('');
+        // Deliberately NOT clearing selectedGroup here: Performance's own
+        // render already derives its group/owner split straight from the
+        // URL (performanceGroupSlug/performanceOwner in renderMainContent),
+        // not from this shared state, so clearing it would only have a
+        // side effect elsewhere -- e.g. transiently pointing the Instrument
+        // nav link at a bare /instrument instead of /instrument/all while
+        // browsing an owner-scoped performance route (#7228 review nit).
         setSelectedOwner(
           segs[1] ? decodePathSegment(segs[1]) : queryOwner ?? ''
         );
       } else if (owners.length > 0) {
-        if (newMode === 'performance') setSelectedGroup('');
         // URL redirect is handled by the render-time <Navigate> in renderMainContent.
         setSelectedOwner(findOwnerForUser(owners, user)?.owner ?? owners[0].owner);
       }
@@ -581,6 +586,19 @@ export default function App({ onLogout }: AppProps) {
       redirectMode === 'performance' && redirectScope.group
         ? normaliseGroupSlug(redirectScope.group)
         : null;
+    // Same reasoning, for the owner id: read it straight off the URL when
+    // present rather than only `selectedOwner` state. On browser Back from
+    // a group-scoped /performance?group=all to an owner-scoped
+    // /performance/:owner, handleGroupSelectPerformance already cleared
+    // selectedOwner to '', so relying on state alone flashes "Select a
+    // member" for one paint before the location-sync effect repopulates it
+    // (#7228 review).
+    const performanceOwner =
+      redirectMode === 'performance' && !performanceGroupSlug
+        ? redirectSegs[1]
+          ? decodePathSegment(redirectSegs[1])
+          : selectedOwner
+        : null;
     if (
       configLoaded &&
       redirectSegs[0] === 'portfolio' &&
@@ -704,15 +722,15 @@ export default function App({ onLogout }: AppProps) {
               value={
                 performanceGroupSlug
                   ? { kind: 'group', slug: performanceGroupSlug }
-                  : selectedOwner
-                    ? { kind: 'owner', owner: selectedOwner }
+                  : performanceOwner
+                    ? { kind: 'owner', owner: performanceOwner }
                     : null
               }
               onSelect={handleScopeSelectPerformance}
             />
             <Suspense fallback={<PortfolioDashboardSkeleton />}>
               <PerformanceDashboard
-                owner={performanceGroupSlug ? null : selectedOwner}
+                owner={performanceOwner}
                 group={performanceGroupSlug}
               />
             </Suspense>

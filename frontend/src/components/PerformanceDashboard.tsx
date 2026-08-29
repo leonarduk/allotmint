@@ -55,6 +55,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [excludeCash, setExcludeCash] = useState<boolean>(false);
   const [reportingDate, setReportingDate] = useState<string | null>(null);
   const [previousDate, setPreviousDate] = useState<string | null>(null);
+  const [partialMembers, setPartialMembers] = useState<string[]>([]);
   const { t, i18n } = useTranslation();
 
   const activeGroup = group || null;
@@ -66,6 +67,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     setData([]);
     setReportingDate(null);
     setPreviousDate(null);
+    setPartialMembers([]);
     setDrawdownSeries([]);
     setDrawdownPeak(null);
     setDrawdownTrough(null);
@@ -98,6 +100,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         setXirr(perf.xirr ?? null);
         setReportingDate(perf.reportingDate ?? null);
         setPreviousDate(perf.previousDate ?? null);
+        setPartialMembers(perf.partial ? perf.missingMembers ?? [] : []);
         const normalizedDrawdown =
           mdRes.max_drawdown != null && Math.abs(mdRes.max_drawdown) > 1
             ? mdRes.max_drawdown / 100
@@ -230,6 +233,20 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           {formatSummaryDate(previousDate)}
         </div>
       </div>
+      {partialMembers.length > 0 && (
+        <p
+          data-testid="performance-partial-warning"
+          style={{
+            fontSize: "0.85rem",
+            color: "#facc15",
+            marginBottom: "0.75rem",
+          }}
+        >
+          {t("dashboard.performancePartialMembers", {
+            members: partialMembers.join(", "),
+          })}
+        </p>
+      )}
       <div
         className="flex-wrap-row"
         style={{

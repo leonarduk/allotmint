@@ -175,6 +175,15 @@ export interface PerformanceResponse {
   reportingDate?: string | null;
   previousDate?: string | null;
   dataQualityIssues?: DataQualityIssue[];
+  /**
+   * Group scope only (#7228): true when at least one member's transaction
+   * ledger was missing, so time_weighted_return/xirr are computed from an
+   * incomplete cash-flow picture (their holdings still count toward the
+   * combined value series) and should be presented as unreliable rather
+   * than an exact figure.
+   */
+  partial?: boolean;
+  missingMembers?: string[];
 }
 
 export interface HoldingValue {

@@ -62,4 +62,22 @@ describe("PerformanceScopeSelector (#7228)", () => {
 
     expect(screen.getByRole("combobox")).toHaveValue("group:adults");
   });
+
+  it("groups household and individual entries under separate optgroups", () => {
+    const { container } = render(
+      <PerformanceScopeSelector
+        owners={owners}
+        groups={groups}
+        value={null}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const optgroups = container.querySelectorAll("optgroup");
+    expect(optgroups).toHaveLength(2);
+    expect(optgroups[0]).toHaveAttribute("label", "Household");
+    expect(optgroups[0].querySelectorAll("option")).toHaveLength(2);
+    expect(optgroups[1]).toHaveAttribute("label", "Individuals");
+    expect(optgroups[1].querySelectorAll("option")).toHaveLength(2);
+  });
 });

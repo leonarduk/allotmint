@@ -208,5 +208,40 @@ describe("PerformanceDashboard", () => {
       expect(getGroupPerformance).toHaveBeenCalledWith("all", 365, false, undefined);
       expect(getPerformance).not.toHaveBeenCalled();
     });
+
+    it("warns when TWR/XIRR are partial because a member's ledger is missing (#7228)", async () => {
+      vi.mocked(getGroupPerformance).mockResolvedValueOnce({
+        history: [{ date: "2024-03-01", value: 5000 }],
+        time_weighted_return: 0.06,
+        xirr: 0.07,
+        reportingDate: "2024-03-31",
+        previousDate: "2024-02-29",
+        partial: true,
+        missingMembers: ["joe"],
+      });
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("performance-partial-warning"),
+      ).toHaveTextContent("joe");
+    });
+
+    it("shows no partial warning when group data is complete", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      await screen.findByTestId("reporting-date-summary");
+      expect(
+        screen.queryByTestId("performance-partial-warning"),
+      ).not.toBeInTheDocument();
+    });
   });
 });

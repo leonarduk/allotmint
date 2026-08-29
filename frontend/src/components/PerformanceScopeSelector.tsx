@@ -1,5 +1,4 @@
 import type { OwnerSummary, GroupSummary } from "../types";
-import { Selector } from "./Selector";
 import { useTranslation } from "react-i18next";
 import { useCallback, memo } from "react";
 import type { ChangeEventHandler } from "react";
@@ -28,6 +27,11 @@ const groupOptionValue = (slug: string) => `${GROUP_PREFIX}${slug}`;
  * individual owner -- the household ("All"/`all`) as well as each member --
  * in one dropdown so combined performance is reachable, not just
  * per-owner performance.
+ *
+ * Renders its own <select> (rather than the shared Selector primitive) so
+ * groups and owners can sit under distinct <optgroup> labels instead of
+ * being concatenated flat, which would otherwise put "At a glance" /
+ * "Adults" / "Children" indistinguishably above four people's names.
  */
 export const PerformanceScopeSelector = memo(function PerformanceScopeSelector({
   owners,
@@ -49,15 +53,6 @@ export const PerformanceScopeSelector = memo(function PerformanceScopeSelector({
     [onSelect],
   );
 
-  const groupOptions = groups.map((g) => ({
-    value: groupOptionValue(g.slug),
-    label: g.name,
-  }));
-  const ownerOptions = owners.map((o) => ({
-    value: ownerOptionValue(o.owner),
-    label: o.full_name?.trim() ? o.full_name : o.owner,
-  }));
-
   const selectedValue = value
     ? value.kind === "group"
       ? groupOptionValue(value.slug)
@@ -65,11 +60,38 @@ export const PerformanceScopeSelector = memo(function PerformanceScopeSelector({
     : "";
 
   return (
-    <Selector
-      label={t("owner.label")}
-      value={selectedValue}
-      onChange={handleChange}
-      options={[...groupOptions, ...ownerOptions]}
-    />
+    <label
+      style={{
+        display: "inline-block",
+        marginRight: "0.5rem",
+        marginBottom: "1rem",
+      }}
+    >
+      {t("dashboard.performanceScopeLabel")}:
+      <select
+        value={selectedValue}
+        onChange={handleChange}
+        style={{ marginLeft: "0.5rem" }}
+      >
+        {groups.length > 0 && (
+          <optgroup label={t("dashboard.performanceScopeGroups")}>
+            {groups.map((g) => (
+              <option key={groupOptionValue(g.slug)} value={groupOptionValue(g.slug)}>
+                {g.name}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {owners.length > 0 && (
+          <optgroup label={t("dashboard.performanceScopeOwners")}>
+            {owners.map((o) => (
+              <option key={ownerOptionValue(o.owner)} value={ownerOptionValue(o.owner)}>
+                {o.full_name?.trim() ? o.full_name : o.owner}
+              </option>
+            ))}
+          </optgroup>
+        )}
+      </select>
+    </label>
   );
 });

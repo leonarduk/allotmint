@@ -74,6 +74,43 @@ describe('page manifest', () => {
     expect(buildPathForMode('pension')).toBe('/pension/forecast');
   });
 
+  it('scopes the performance default path to owner, then group, then unscoped (#7228)', () => {
+    // Owner scope wins whenever an owner is selected -- this preserves the
+    // path-segment form (and with it /performance/:owner/diagnostics)
+    // exactly as it worked before group scope existed.
+    expect(buildPathForMode('performance', { owner: 'alice' })).toBe(
+      '/performance/alice'
+    );
+
+    // No owner selected but a group is (e.g. navigating the Performance nav
+    // link while viewing the merged household Dashboard, where
+    // selectedOwner is '' and selectedGroup defaults to 'all'): this is a
+    // DELIBERATE choice to land on the household's combined performance
+    // rather than silently narrowing to "my own" performance, matching the
+    // Dashboard's own group-first default (`/?group=all`). Before #7228 this
+    // returned a bare '/performance', which the owner-root redirect then
+    // forced onto the signed-in user's own performance -- so this is an
+    // intentional behaviour change, not an oversight.
+    expect(buildPathForMode('performance', { group: 'all' })).toBe(
+      '/performance?group=all'
+    );
+    expect(buildPathForMode('performance', { group: 'adults' })).toBe(
+      '/performance?group=adults'
+    );
+
+    // Both present: owner still wins (e.g. a stale selectedGroup left over
+    // from browsing another group-scoped mode must not hijack an explicit
+    // owner selection).
+    expect(
+      buildPathForMode('performance', { owner: 'alice', group: 'all' })
+    ).toBe('/performance/alice');
+
+    // Neither present: falls through to the bare route, which the
+    // owner-root redirect (getOwnerRootRedirectPath) then resolves once
+    // owners have loaded.
+    expect(buildPathForMode('performance')).toBe('/performance');
+  });
+
   it('keeps menu metadata and default paths consistent for navigable pages', () => {
     for (const page of pageManifest) {
       if (page.section === 'standalone' && !page.menuCategory) {

@@ -255,6 +255,9 @@
     }
   },
   "dashboard": {
+    "performanceScopeLabel": "View",
+    "performanceScopeGroups": "Household",
+    "performanceScopeOwners": "Individuals",
     "alphaVsBenchmark": "Alpha vs Benchmark",
     "cumulativeReturn": "Cumulative Return",
     "excludeCash": "Exclude cash",
@@ -270,6 +273,7 @@
     "drawdownSuspicious": "Drops larger than 90% usually indicate missing or incorrect prices. Check the highlighted period for gaps or stale data.",
     "drawdownChartDescription": "Drawdown is computed from the daily portfolio value curve. The shaded region shows the peak-to-trough span of the max drawdown.",
     "drawdownSeriesUnavailable": "We couldn't load drawdown history for this period.",
+    "performancePartialMembers": "Time-weighted return and XIRR are incomplete: no transaction history was found for {{members}}, so these figures likely read higher than the household's real return.",
     "openDiagnostics": "Open diagnostics",
     "viewMetricsExplanation": "Read the full explanation",
     "portfolioValue": "Portfolio Value",

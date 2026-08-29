@@ -581,9 +581,28 @@ def test_group_transactions_merges_members_and_skips_missing(monkeypatch):
 
     monkeypatch.setattr(pu, "load_transactions", fake_load_transactions)
 
-    merged = pu._group_transactions("all")
+    merged, missing = pu._group_transactions("all")
 
     assert merged == per_owner_txs["steve"] + per_owner_txs["lucy"]
+    assert missing == ["ghost"]
+
+
+def test_group_transactions_missing_member_logs_warning(monkeypatch, caplog):
+    """#7228 review MUST FIX 1: a missing ledger must not be silent -- their
+    holdings still count toward the combined value series (via
+    build_group_portfolio), so dropping their cash flows here would inflate
+    TWR/XIRR with no signal to the user. At minimum this must be logged.
+    """
+
+    monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "ghost"])
+    monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: [] if owner == "steve" else (_ for _ in ()).throw(FileNotFoundError(owner)))
+
+    with caplog.at_level("WARNING", logger=pu.logger.name):
+        merged, missing = pu._group_transactions("all")
+
+    assert missing == ["ghost"]
+    assert merged == []
+    assert any("ghost" in record.getMessage() for record in caplog.records)
 
 
 def test_compute_owner_performance_group_uses_group_portfolio(monkeypatch):
@@ -631,6 +650,12 @@ def test_compute_owner_performance_group_unknown_slug_raises(monkeypatch):
 
 
 def test_compute_time_weighted_return_group_pools_member_cashflows(monkeypatch, portfolio_series):
+    """#7228 review MUST FIX 3: pin the exact combined figure (not just
+    "differs from the single-owner result") -- hand-computed below by
+    replaying the same day-by-day chain-linking compute_time_weighted_return
+    itself uses, with the two members' deposits pooled on the same day.
+    """
+
     def fake_series(name, days=365, *, group=False, pricing_date=None):
         assert name == "all"
         assert group is True
@@ -645,9 +670,15 @@ def test_compute_time_weighted_return_group_pools_member_cashflows(monkeypatch, 
     }
     monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: per_owner_txs[owner])
 
-    # Same series with double the single-owner deposit pooled across both
-    # members on the same day should differ from the single-owner result.
     group_result = pu.compute_time_weighted_return("all", group=True)
+
+    # portfolio_series is [1000, 1050, 1100] on 2024-01-01/02/03.
+    # amount_minor is pence, so each 1000-minor deposit is £10; pooled across
+    # both members that's a £20 same-day flow on day 2, day 3 has no flow.
+    # Chain-linking those two daily returns by hand:
+    #   r1 = (1050 - 20) / 1000 - 1 = 0.03; r2 = 1100 / 1050 - 1 = 1/21
+    #   twr = (1 + r1) * (1 + r2) - 1 = 1.03 * 22/21 - 1
+    assert group_result == pytest.approx(0.07904761904761903)
 
     monkeypatch.setattr(
         pu,
@@ -657,9 +688,40 @@ def test_compute_time_weighted_return_group_pools_member_cashflows(monkeypatch, 
     monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: per_owner_txs["steve"])
     owner_result = pu.compute_time_weighted_return("steve")
 
-    assert group_result is not None
-    assert owner_result is not None
+    # Single-owner: only £10 flows on day 2, so
+    #   r1 = (1050 - 10) / 1000 - 1 = 0.04; r2 unchanged;
+    #   twr = 1.04 * 22/21 - 1.
+    assert owner_result == pytest.approx(0.08952380952380956)
     assert group_result != owner_result
+
+
+def test_compute_time_weighted_return_group_reports_missing_members(monkeypatch, portfolio_series):
+    """#7228 review MUST FIX 1: a missing member ledger must be surfaced,
+    not silently folded into the figure -- their holdings still count via
+    build_group_portfolio, so the caller needs to know the flows are
+    incomplete.
+    """
+
+    monkeypatch.setattr(
+        pu,
+        "_portfolio_value_series",
+        lambda name, days=365, *, group=False, pricing_date=None: portfolio_series,
+    )
+    monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "ghost"])
+    monkeypatch.setattr(
+        pu,
+        "load_transactions",
+        lambda owner, *, scaffold_missing=False: [
+            {"date": "2024-01-02", "type": "deposit", "amount_minor": 1000}
+        ]
+        if owner == "steve"
+        else (_ for _ in ()).throw(FileNotFoundError(owner)),
+    )
+
+    value, missing = pu.compute_time_weighted_return("all", group=True, include_missing_members=True)
+
+    assert missing == ["ghost"]
+    assert value is not None
 
 
 def test_compute_xirr_group_pools_member_cashflows(monkeypatch, one_year_series):
@@ -680,3 +742,28 @@ def test_compute_xirr_group_pools_member_cashflows(monkeypatch, one_year_series)
     result = pu.compute_xirr("all", group=True)
 
     assert result == pytest.approx(0.10, abs=1e-3)
+
+
+def test_compute_xirr_group_reports_missing_members(monkeypatch, one_year_series):
+    """#7228 review MUST FIX 1: same partial-data signal as TWR."""
+
+    monkeypatch.setattr(
+        pu,
+        "_portfolio_value_series",
+        lambda name, days=365, *, group=False, pricing_date=None: one_year_series,
+    )
+    monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "ghost"])
+    monkeypatch.setattr(
+        pu,
+        "load_transactions",
+        lambda owner, *, scaffold_missing=False: [
+            {"date": "2024-01-01", "type": "DEPOSIT", "amount_minor": 100000}
+        ]
+        if owner == "steve"
+        else (_ for _ in ()).throw(FileNotFoundError(owner)),
+    )
+
+    value, missing = pu.compute_xirr("all", group=True, include_missing_members=True)
+
+    assert missing == ["ghost"]
+    assert value is not None

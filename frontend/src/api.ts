@@ -937,30 +937,50 @@ export const getGroupPerformance = (
   }>(
     `${API_BASE}/performance-group/${slug}?${params.toString()}`,
   );
-  const twr = fetchJson<{ group: string; time_weighted_return: number | null }>(
+  const twr = fetchJson<{
+    group: string;
+    time_weighted_return: number | null;
+    partial?: boolean;
+    missing_members?: string[];
+  }>(
     `${API_BASE}/performance-group/${slug}/twr?days=${days}${
       opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
     }`,
   );
-  const xirr = fetchJson<{ group: string; xirr: number | null }>(
+  const xirr = fetchJson<{
+    group: string;
+    xirr: number | null;
+    partial?: boolean;
+    missing_members?: string[];
+  }>(
     `${API_BASE}/performance-group/${slug}/xirr?days=${days}${
       opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
     }`,
   );
-  return Promise.all([base, twr, xirr]).then(([p, t, x]) => ({
-    history: p.history,
-    time_weighted_return: t.time_weighted_return,
-    xirr: x.xirr,
-    reportingDate: p.reporting_date ?? null,
-    previousDate: p.previous_date ?? null,
-    dataQualityIssues:
-      p.data_quality_issues?.map((issue) => ({
-        date: issue.date,
-        value: issue.value,
-        previousValue: issue.previous_value,
-        nextValue: issue.next_value,
-      })) ?? [],
-  }));
+  return Promise.all([base, twr, xirr]).then(([p, t, x]) => {
+    // #7228: a missing member ledger means TWR/XIRR were computed from an
+    // incomplete cash-flow picture -- surface that rather than presenting
+    // either figure as an exact number (MUST FIX 1, review round 2).
+    const missingMembers = Array.from(
+      new Set([...(t.missing_members ?? []), ...(x.missing_members ?? [])]),
+    );
+    return {
+      history: p.history,
+      time_weighted_return: t.time_weighted_return,
+      xirr: x.xirr,
+      reportingDate: p.reporting_date ?? null,
+      previousDate: p.previous_date ?? null,
+      dataQualityIssues:
+        p.data_quality_issues?.map((issue) => ({
+          date: issue.date,
+          value: issue.value,
+          previousValue: issue.previous_value,
+          nextValue: issue.next_value,
+        })) ?? [],
+      partial: Boolean(t.partial || x.partial),
+      missingMembers,
+    };
+  });
 };
 
 /** Run a simple fundamentals screen across a list of tickers. */

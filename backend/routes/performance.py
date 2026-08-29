@@ -248,22 +248,56 @@ async def group_performance(
 
 @router.get("/performance-group/{slug}/twr")
 async def group_twr(slug: str, days: int = 365, as_of: str | None = None):
-    """Return the combined time-weighted return for a group portfolio."""
+    """Return the combined time-weighted return for a group portfolio.
+
+    ``partial`` is true, and ``missing_members`` lists who, when at least
+    one member's transaction ledger could not be found -- their holdings
+    still count toward the combined value series, so the returned figure
+    understates contributions and reads high (#7228).
+    """
     slug = _validate_owner_slug(slug, "slug")
     try:
-        val = portfolio_utils.compute_time_weighted_return(slug, days, pricing_date=_resolve_as_of(as_of), group=True)
-        return {"group": slug, "time_weighted_return": val}
+        val, missing_members = portfolio_utils.compute_time_weighted_return(
+            slug,
+            days,
+            pricing_date=_resolve_as_of(as_of),
+            group=True,
+            include_missing_members=True,
+        )
+        return {
+            "group": slug,
+            "time_weighted_return": val,
+            "partial": bool(missing_members),
+            "missing_members": missing_members,
+        }
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
 
 
 @router.get("/performance-group/{slug}/xirr")
 async def group_xirr(slug: str, days: int = 365, as_of: str | None = None):
-    """Return the combined XIRR for a group portfolio."""
+    """Return the combined XIRR for a group portfolio.
+
+    ``partial`` is true, and ``missing_members`` lists who, when at least
+    one member's transaction ledger could not be found -- their holdings
+    still count toward the combined value series, so the returned figure
+    understates contributions and reads high (#7228).
+    """
     slug = _validate_owner_slug(slug, "slug")
     try:
-        val = portfolio_utils.compute_xirr(slug, days, pricing_date=_resolve_as_of(as_of), group=True)
-        return {"group": slug, "xirr": val}
+        val, missing_members = portfolio_utils.compute_xirr(
+            slug,
+            days,
+            pricing_date=_resolve_as_of(as_of),
+            group=True,
+            include_missing_members=True,
+        )
+        return {
+            "group": slug,
+            "xirr": val,
+            "partial": bool(missing_members),
+            "missing_members": missing_members,
+        }
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
 

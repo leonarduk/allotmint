@@ -2,11 +2,11 @@ backend/alerts.py:104
 backend/alerts.py:152
 backend/alerts.py:194
 backend/alerts.py:93
-backend/auth.py:178
+backend/auth.py:201
 # provider is always a hardcoded literal ("Google"/"Cognito") passed by the
 # caller, never attacker-controlled; email/token on the same call are already
 # wrapped in sanitise_log_value.
-backend/auth.py:612
+backend/auth.py:775
 backend/common/accounts_store.py:283
 backend/common/accounts_store.py:291
 backend/common/accounts_store.py:410

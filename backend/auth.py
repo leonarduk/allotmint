@@ -65,6 +65,28 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 # every function call.
 current_user: ContextVar[str | None] = ContextVar("current_user", default=None)
 
+# Request-scoped marker set alongside ``current_user`` whenever the resolved
+# identity came from a demo-scoped token (see decode_demo_token/DEMO_SCOPE
+# below) rather than a real Google/Cognito/backend-JWT login. Downstream
+# enforcement (the write-blocking gate and the owner-scoping gate, #7407/
+# #7408) reads this via is_demo_request() to decide whether the current
+# request is allowed to mutate anything or reach any owner other than the
+# configured demo owner.
+#
+# It is explicitly reset to False at the top of both get_current_user() and
+# get_active_user() on *every* request, demo or not -- never left to the
+# ContextVar default. A Lambda execution environment can be reused across
+# invocations, so relying on the default here would risk a previous demo
+# request's ``True`` leaking into a later, unrelated request (fail-open);
+# resetting on every entry keeps this fail-closed instead (#7406).
+demo_readonly: ContextVar[bool] = ContextVar("demo_readonly", default=False)
+
+
+def is_demo_request() -> bool:
+    """Return whether the current request resolved via a demo-scoped token."""
+
+    return demo_readonly.get()
+
 
 def _emails_for_person_meta(meta: Any) -> Set[str]:
     """Return the lower-cased owner email plus any viewer emails from ``meta``.
@@ -451,8 +473,56 @@ def _resolve_identity_when_auth_disabled(token: str | None) -> str | None:
     return identity
 
 
+def _resolve_demo_request(token: str | None) -> str | None:
+    """If ``token`` is a demo-scoped token, validate and resolve it.
+
+    Returns the configured demo owner id (having already set ``current_user``
+    and ``demo_readonly``) when ``token`` is a valid demo-scoped token for the
+    configured demo owner. Returns ``None`` -- without touching either
+    ContextVar -- when ``token`` is simply not a demo token at all, so callers
+    fall through to their normal resolution path unchanged.
+
+    Raises ``HTTPException(401)`` for a demo token that is well-formed but
+    unusable: the demo link is disabled (``config.demo_link_enabled`` is
+    false, the real kill switch -- not just a mint-side toggle), or the
+    token's ``owner`` claim does not match ``config.demo_link_owner`` (e.g. a
+    token minted for a different owner, or minted before the config changed).
+    This is a sibling code path to :func:`_resolve_identity_when_auth_disabled`,
+    not a variant of it -- ``disable_auth``/``DISABLE_AUTH_STUB_EMAIL``
+    semantics are untouched here.
+    """
+
+    if not token:
+        return None
+    claims = decode_demo_token(token)
+    if claims is None:
+        return None
+    if not config.demo_link_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+        )
+    if claims.owner != config.demo_link_owner:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+        )
+    current_user.set(claims.owner)
+    demo_readonly.set(True)
+    return claims.owner
+
+
 async def get_current_user(token: str | None = Depends(oauth2_scheme)) -> str:
     """Return the authenticated user extracted from the bearer token."""
+
+    # Reset on every request, demo or not -- see the demo_readonly ContextVar
+    # docstring above for why this must not rely on the ContextVar default.
+    demo_readonly.set(False)
+
+    token_str = token if isinstance(token, str) else None
+    demo_identity = _resolve_demo_request(token_str)
+    if demo_identity is not None:
+        return demo_identity
 
     if config.disable_auth:
         identity = _resolve_identity_when_auth_disabled(token)
@@ -478,7 +548,6 @@ async def get_current_user(token: str | None = Depends(oauth2_scheme)) -> str:
                 "Local login override and select a user to continue in local/demo mode."
             ),
         )
-    token_str = token if isinstance(token, str) else None
     return _user_from_token(token_str)
 
 
@@ -661,17 +730,25 @@ async def get_active_user(request: Request, token: str | None = Depends(oauth2_s
     router can be exercised easily in unit tests.
     """
 
+    # Reset on every request, demo or not -- see the demo_readonly ContextVar
+    # docstring above for why this must not rely on the ContextVar default.
+    demo_readonly.set(False)
+
     has_override, override_result = await resolve_current_user_override(request, token=token)
     if has_override:
         current_user.set(override_result)
         return override_result
+
+    token_str = token if isinstance(token, str) else None
+    demo_identity = _resolve_demo_request(token_str)
+    if demo_identity is not None:
+        return demo_identity
 
     if config.disable_auth:
         identity = _resolve_identity_when_auth_disabled(token)
         current_user.set(identity)
         return identity
 
-    token_str = token if isinstance(token, str) else None
     user = _user_from_token(token_str)
     current_user.set(user)
     return user

@@ -14,6 +14,15 @@ export type PortfolioTotals = {
   totalCost: number;
   totalGainPct: number;
   totalDayChangePct: number;
+  /** Non-cash holdings whose gain is excluded from totalGain/totalCost
+   * because cost_basis_source === "unknown" (no acquisition date and no
+   * booked cost on record, per #7220). Market value from these holdings
+   * still counts toward totalValue/totalStockValue/totalCash -- only the
+   * *gain* figures, which the app cannot honestly compute, are excluded. */
+  unknownCostBasisCount: number;
+  /** Non-cash holdings considered for gain at all (denominator for the
+   * "excludes N of M" wording). */
+  gainEligibleHoldingCount: number;
 };
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -24,19 +33,13 @@ export function computePortfolioTotals(accounts: Account[]): PortfolioTotals {
   let totalGain = 0;
   let totalDayChange = 0;
   let totalCost = 0;
+  let unknownCostBasisCount = 0;
+  let gainEligibleHoldingCount = 0;
 
   for (const acct of accounts) {
     totalValue += acct.value_estimate_gbp ?? 0;
     for (const h of acct.holdings ?? []) {
-      const cost =
-        h.cost_basis_gbp && h.cost_basis_gbp > 0
-          ? h.cost_basis_gbp
-          : h.effective_cost_basis_gbp ?? 0;
       const market = h.market_value_gbp ?? 0;
-      const gain =
-        h.gain_gbp !== undefined && h.gain_gbp !== null && h.gain_gbp !== 0
-          ? h.gain_gbp
-          : market - cost;
       const dayChg = h.day_change_gbp ?? 0;
 
       if (isCashInstrument({
@@ -47,10 +50,32 @@ export function computePortfolioTotals(accounts: Account[]): PortfolioTotals {
       } else {
         totalStockValue += market;
       }
+      totalDayChange += dayChg;
+      gainEligibleHoldingCount += 1;
+
+      // A holding with no acquisition date and no booked cost has its cost
+      // basis fabricated to equal market value (see backend/common/
+      // holding_utils.py), which makes gain read as a confident £0.00 --
+      // indistinguishable from "you broke even". Excluding it from the
+      // gain/cost totals (rather than summing that fabricated zero) keeps
+      // the headline figure honest; the per-row cells already render N/A
+      // for the same reason (HoldingsTable.tsx).
+      if (h.cost_basis_source === "unknown") {
+        unknownCostBasisCount += 1;
+        continue;
+      }
+
+      const cost =
+        h.cost_basis_gbp && h.cost_basis_gbp > 0
+          ? h.cost_basis_gbp
+          : h.effective_cost_basis_gbp ?? 0;
+      const gain =
+        h.gain_gbp !== undefined && h.gain_gbp !== null && h.gain_gbp !== 0
+          ? h.gain_gbp
+          : market - cost;
 
       totalCost += cost;
       totalGain += gain;
-      totalDayChange += dayChg;
     }
   }
 
@@ -69,6 +94,8 @@ export function computePortfolioTotals(accounts: Account[]): PortfolioTotals {
     totalCost,
     totalGainPct,
     totalDayChangePct,
+    unknownCostBasisCount,
+    gainEligibleHoldingCount,
   };
 }
 
@@ -83,8 +110,22 @@ export function PortfolioSummary({ totals }: Props) {
     totalCash,
     totalGain,
     totalGainPct,
+    unknownCostBasisCount,
+    gainEligibleHoldingCount,
   } = totals;
   const { baseCurrency } = useConfig();
+
+  // When every holding's cost basis is unknown, totalCost/totalGain are both
+  // zero -- not because the portfolio broke even, but because there is
+  // nothing to compute from. Say so rather than showing a confident £0.00.
+  const allGainUnknown =
+    gainEligibleHoldingCount > 0 &&
+    unknownCostBasisCount === gainEligibleHoldingCount;
+  const gainNote = allGainUnknown
+    ? `Gain unavailable for all ${gainEligibleHoldingCount} holdings (no cost basis on record)`
+    : unknownCostBasisCount > 0
+      ? `Excludes ${unknownCostBasisCount} of ${gainEligibleHoldingCount} holdings with no cost basis on record`
+      : undefined;
 
   return (
     <div
@@ -117,9 +158,12 @@ export function PortfolioSummary({ totals }: Props) {
       <SummaryCard
         label="Gain/loss"
         icon={<TrendingUp size={20} />}
-        value={money(totalGain, baseCurrency)}
-        accentColor={totalGain >= 0 ? "lightgreen" : "red"}
-        secondary={`(${percent(totalGainPct)})`}
+        value={allGainUnknown ? "—" : money(totalGain, baseCurrency)}
+        accentColor={
+          allGainUnknown ? undefined : totalGain >= 0 ? "lightgreen" : "red"
+        }
+        secondary={allGainUnknown ? undefined : `(${percent(totalGainPct)})`}
+        note={gainNote}
       />
     </div>
   );
@@ -133,9 +177,17 @@ type SummaryCardProps = {
   value: string;
   secondary?: string;
   accentColor?: string;
+  note?: string;
 };
 
-function SummaryCard({ label, icon, value, secondary, accentColor }: SummaryCardProps) {
+function SummaryCard({
+  label,
+  icon,
+  value,
+  secondary,
+  accentColor,
+  note,
+}: SummaryCardProps) {
   return (
     <div style={{ minWidth: "12rem", flex: "1 1 12rem" }}>
       <div
@@ -173,6 +225,14 @@ function SummaryCard({ label, icon, value, secondary, accentColor }: SummaryCard
           </span>
         )}
       </div>
+      {note && (
+        <div
+          role="status"
+          style={{ fontSize: "0.75rem", color: "#aaa", marginTop: "0.25rem" }}
+        >
+          {note}
+        </div>
+      )}
     </div>
   );
 }

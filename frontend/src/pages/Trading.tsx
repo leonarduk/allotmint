@@ -189,7 +189,7 @@ export default function Trading() {
                       <span aria-hidden="true">
                         <TextSkeleton width="3rem" label="" />
                       </span>
-                    ) : data?.settings[key] == null ? (
+                    ) : data?.settings?.[key] == null ? (
                       'Not enabled'
                     ) : (
                       `${data.settings[key]}${suffix ?? ''}`

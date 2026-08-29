@@ -583,12 +583,16 @@ describe('Plot mode season track', () => {
     expect(
       await screen.findByRole('heading', { name: /Grow the plot \(2\/4\)/ })
     ).toBeInTheDocument();
-    expect(screen.getByText('Next: £50.0k')).toBeInTheDocument();
+    // The goal description renders instead of a unit-less "Next: £50.0k"
+    // (#7194) — the row now states what the tier is actually asking for.
+    expect(screen.getByText('Grow the plot to £50.0k')).toBeInTheDocument();
     // £5,000 of allowance used clears the first tier only.
     expect(
       screen.getByRole('heading', { name: /Feed the beds \(2\/4\)/ })
     ).toBeInTheDocument();
-    expect(screen.getByText('Next: £10.0k')).toBeInTheDocument();
+    expect(
+      screen.getByText("Use £10.0k of this season's allowances")
+    ).toBeInTheDocument();
   });
 
   it('says so when the backend reports no tax year', async () => {

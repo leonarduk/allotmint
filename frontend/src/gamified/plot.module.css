@@ -1578,3 +1578,15 @@
   );
   background-color: rgba(255, 255, 255, 0.09);
 }
+
+/* ── Streak path: missed vs untracked days (#7204) ──────────────────────
+   `.stamp` on its own (dashed, translucent) already reads as "nothing here"
+   and is now reserved for a day the Trail has no record for at all. This
+   block gives a day that *was* tracked but not finished a visually distinct,
+   solid-but-empty look, so a new user's untracked history before their first
+   day doesn't read as a string of misses. Appended here rather than edited
+   in above — another change is in flight against the rest of this file. */
+.stampMissed {
+  background: rgba(226, 100, 63, 0.08);
+  border: 2px solid rgba(226, 100, 63, 0.45);
+}

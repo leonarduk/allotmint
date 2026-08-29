@@ -1,23 +1,36 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { getQuotes } from "../api";
 import type { QuoteRow } from "../types";
 
 const DEFAULT_SYMBOLS =
   "^FTSE,^NDX,^GSPC,^RUT,^NYA,^VIX,^GDAXI,^N225,USDGBP=X,EURGBP=X,BTC-USD,GC=F,SI=F,VUSA.L,IWDA.AS";
 
-function formatPrice(symbol: string, val: number | null): string {
-  if (val == null) return "—";
-  if (symbol.endsWith("=X")) return val.toFixed(5);
-  if (symbol === "^TNX") return val.toFixed(3);
-  if (symbol.includes("-USD") && val < 1) return val.toFixed(5);
-  if (val > 10000) return val.toFixed(0);
-  return val.toFixed(2);
+// Decimal precision for a price-like value, keyed off the symbol (and, for
+// crypto, the magnitude of the value itself). This used to be duplicated
+// between formatValue and formatChange with two different rule sets --
+// formatChange was hardcoded to toFixed(2), so an EURGBP=X move that
+// formatValue correctly rendered to 5 decimal places (0.85721) showed up as
+// "+0.00" in the Chg column even though Chg % reported it correctly. Both
+// formatters now call this single function so the rules can't drift apart
+// again (#7218).
+function pricePrecision(symbol: string, val: number): number {
+  if (symbol.endsWith("=X")) return 5;
+  if (symbol === "^TNX") return 3;
+  if (symbol.includes("-USD") && val < 1) return 5;
+  if (val > 10000) return 0;
+  return 2;
 }
 
-function formatChange(val: number | null): string {
+function formatValue(symbol: string, val: number | null): string {
   if (val == null) return "—";
-  const num = val.toFixed(2);
+  return val.toFixed(pricePrecision(symbol, val));
+}
+
+function formatChange(symbol: string, val: number | null): string {
+  if (val == null) return "—";
+  const num = val.toFixed(pricePrecision(symbol, val));
   return val > 0 ? `+${num}` : num;
 }
 
@@ -27,14 +40,66 @@ function formatPct(val: number | null): string {
   return (val > 0 ? "+" : "") + num + "%";
 }
 
-function formatVol(val: number | null): string {
+// ^-prefixed indices (^FTSE, ^VIX, ...) and =X FX rate pairs don't have a
+// meaningful traded volume, but the feed reports literal 0 for them rather
+// than null. Rendered as "0" that reads as "nothing traded today", which is
+// false -- treat it as unavailable instead. A genuine 0 volume on an equity
+// or ETF row is left alone: we have no way to distinguish "no trades yet
+// today" from "not applicable" there, so we only special-case the symbol
+// shapes that structurally never report volume (#7218).
+function isVolumelessSymbolType(symbol: string): boolean {
+  return symbol.startsWith("^") || symbol.endsWith("=X");
+}
+
+function formatVol(symbol: string, val: number | null): string {
   if (val == null) return "—";
+  if (val === 0 && isVolumelessSymbolType(symbol)) return "—";
   return val.toLocaleString("en-GB");
 }
 
 function formatTime(val: string | null): string {
   if (!val) return "—";
   return new Date(val).toLocaleString("en-GB", { timeZone: "Europe/London" });
+}
+
+// The quote payload (backend/routes/quotes.py -> getQuotes in api.ts) does
+// not currently carry a currency/unit field, so derive it from the symbol
+// shape the same way pricePrecision() does for its special cases (#7218).
+// This is deliberately a small, explicit table rather than an exhaustive
+// exchange-suffix list -- it covers the default watchlist symbols plus the
+// common exchange suffixes a user is likely to add, and falls back to USD
+// (the yfinance default) for anything else.
+function symbolUnit(symbol: string): string {
+  if (symbol.endsWith("=X")) {
+    // FX rate, e.g. EURGBP=X -> "EUR/GBP": a ratio, not a currency amount.
+    const pair = symbol.slice(0, -2);
+    return pair.length === 6 ? `${pair.slice(0, 3)}/${pair.slice(3)}` : "rate";
+  }
+  if (symbol === "^TNX") return "%"; // CBOE 10-Year Treasury yield index
+  if (symbol.startsWith("^")) return "pts"; // index points
+  if (symbol.includes("-USD")) return "USD"; // crypto pairs, e.g. BTC-USD
+  if (symbol.endsWith("=F")) return "USD"; // commodity futures, e.g. GC=F
+  if (symbol.endsWith(".L")) return "GBp"; // LSE listings are quoted in pence
+  if (
+    symbol.endsWith(".AS") ||
+    symbol.endsWith(".PA") ||
+    symbol.endsWith(".DE") ||
+    symbol.endsWith(".MI")
+  )
+    return "EUR";
+  if (symbol.endsWith(".SW")) return "CHF";
+  if (symbol.endsWith(".TO")) return "CAD";
+  if (symbol.endsWith(".HK")) return "HKD";
+  return "USD";
+}
+
+// InstrumentResearch (the /instrument/:ticker page) only accepts tickers
+// matching this shape -- indices (^FTSE) and FX pairs (EURGBP=X) fail it and
+// have no instrument page. Reuse the same rule here so a watchlist row only
+// links through when the symbol actually resolves to a known instrument
+// (#7218).
+function isLinkableSymbol(symbol: string): boolean {
+  return /^[A-Za-z0-9.-]{1,10}$/.test(symbol);
 }
 
 export function Watchlist() {
@@ -246,23 +311,37 @@ export function Watchlist() {
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              {[
-                { k: "name", l: "Name" },
-                { k: "symbol", l: "Symbol" },
-                { k: "last", l: "Last" },
-                { k: "open", l: "Open" },
-                { k: "high", l: "High" },
-                { k: "low", l: "Low" },
-                { k: "change", l: "Chg" },
-                { k: "changePct", l: "Chg %" },
-                { k: "volume", l: "Vol" },
-                { k: "marketTime", l: "Time", minWidth: 88 },
-              ].map((c) => (
+              {([
+                { k: "name", l: t("watchlist.columnName", { defaultValue: "Name" }) },
+                { k: "symbol", l: t("watchlist.columnSymbol", { defaultValue: "Symbol" }) },
+                // Not a sortable QuoteRow field -- it's derived per-row from
+                // the symbol (#7218) -- so it isn't given a sort key below.
+                { k: "unit", l: t("watchlist.columnUnit", { defaultValue: "Unit" }), unsortable: true },
+                { k: "last", l: t("watchlist.columnLast", { defaultValue: "Last" }) },
+                { k: "open", l: t("watchlist.columnOpen", { defaultValue: "Open" }) },
+                { k: "high", l: t("watchlist.columnHigh", { defaultValue: "High" }) },
+                { k: "low", l: t("watchlist.columnLow", { defaultValue: "Low" }) },
+                { k: "change", l: t("watchlist.columnChange", { defaultValue: "Chg" }) },
+                { k: "changePct", l: t("watchlist.columnChangePct", { defaultValue: "Chg %" }) },
+                { k: "volume", l: t("watchlist.columnVolume", { defaultValue: "Vol" }) },
+                {
+                  k: "marketTime",
+                  l: t("watchlist.columnTime", { defaultValue: "Time (Europe/London)" }),
+                  minWidth: 88,
+                },
+              ] satisfies {
+                k: keyof QuoteRow | "unit";
+                l: string;
+                minWidth?: number;
+                unsortable?: boolean;
+              }[]).map((c) => (
                 <th
                   key={c.k}
-                  onClick={() => toggleSort(c.k as keyof QuoteRow)}
+                  onClick={
+                    c.unsortable ? undefined : () => toggleSort(c.k as keyof QuoteRow)
+                  }
                   style={{
-                    cursor: "pointer",
+                    cursor: c.unsortable ? "default" : "pointer",
                     textAlign: c.k === "name" || c.k === "symbol" ? "left" : "right",
                     borderBottom: "1px solid #ccc",
                     padding: "4px 6px",
@@ -284,32 +363,65 @@ export function Watchlist() {
                     ? `rgba(0,128,0,${Math.min(Math.abs(r.changePct) / 5, 0.5)})`
                     : `rgba(255,0,0,${Math.min(Math.abs(r.changePct) / 5, 0.5)})`
                   : undefined;
+              const linkable = isLinkableSymbol(r.symbol);
+              // The instrument-page link and the row's own hover title both
+              // want the full instrument name; keeping the anchor's text
+              // untruncated (with only the surrounding <td> clipped by CSS)
+              // means the browser's own tooltip and screen readers still see
+              // the whole thing even where our title attribute doesn't apply
+              // (#7218).
+              const nameCell = (
+                <span title={r.name || undefined}>{r.name || "—"}</span>
+              );
               return (
                 <tr key={r.symbol}>
                   <td
-                    title={r.name || undefined}
                     style={{
-                      maxWidth: 160,
+                      // Widened from 160 -- with the full name now shown via
+                      // title (#7218), a bit more room means fewer of the
+                      // very common ETF names need the ellipsis at all. The
+                      // remaining truncation for very long names such as
+                      // "iShares Core MSCI World UCITS ETF..." is a CSS
+                      // ellipsis, not a data truncation: the yfinance
+                      // shortName/longName fields returned by
+                      // backend/routes/quotes.py already carry the full
+                      // name, it's just this column's width that clips it.
+                      maxWidth: 220,
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
                       padding: "4px 6px",
                     }}
                   >
-                    {r.name || "—"}
+                    {linkable ? (
+                      <Link to={`/instrument/${r.symbol}`} title={r.name || undefined}>
+                        {r.name || "—"}
+                      </Link>
+                    ) : (
+                      nameCell
+                    )}
                   </td>
-                  <td style={{ padding: "4px 6px" }}>{r.symbol}</td>
-                  <td style={{ textAlign: "right", padding: "4px 6px" }}>
-                    {formatPrice(r.symbol, r.last)}
+                  <td style={{ padding: "4px 6px" }}>
+                    {linkable ? (
+                      <Link to={`/instrument/${r.symbol}`}>{r.symbol}</Link>
+                    ) : (
+                      r.symbol
+                    )}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
-                    {formatPrice(r.symbol, r.open)}
+                    {symbolUnit(r.symbol)}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
-                    {formatPrice(r.symbol, r.high)}
+                    {formatValue(r.symbol, r.last)}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
-                    {formatPrice(r.symbol, r.low)}
+                    {formatValue(r.symbol, r.open)}
+                  </td>
+                  <td style={{ textAlign: "right", padding: "4px 6px" }}>
+                    {formatValue(r.symbol, r.high)}
+                  </td>
+                  <td style={{ textAlign: "right", padding: "4px 6px" }}>
+                    {formatValue(r.symbol, r.low)}
                   </td>
                   <td
                     style={{
@@ -318,7 +430,7 @@ export function Watchlist() {
                       padding: "4px 6px",
                     }}
                   >
-                    {formatChange(r.change)}
+                    {formatChange(r.symbol, r.change)}
                   </td>
                   <td
                     style={{
@@ -331,7 +443,7 @@ export function Watchlist() {
                     {formatPct(r.changePct)}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
-                    {formatVol(r.volume)}
+                    {formatVol(r.symbol, r.volume)}
                   </td>
                   <td style={{ minWidth: 88, padding: "4px 6px" }}>{formatTime(r.marketTime)}</td>
                 </tr>

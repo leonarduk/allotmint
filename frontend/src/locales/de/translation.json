@@ -653,6 +653,17 @@
     "title": "Value at Risk"
   },
   "watchlist": {
-    "refresh": "Aktualisieren"
+    "refresh": "Aktualisieren",
+    "columnName": "Name",
+    "columnSymbol": "Symbol",
+    "columnUnit": "Einheit",
+    "columnLast": "Letzter",
+    "columnOpen": "Eröffnung",
+    "columnHigh": "Hoch",
+    "columnLow": "Tief",
+    "columnChange": "Änd.",
+    "columnChangePct": "Änd. %",
+    "columnVolume": "Vol.",
+    "columnTime": "Zeit (Europe/London)"
   }
 }

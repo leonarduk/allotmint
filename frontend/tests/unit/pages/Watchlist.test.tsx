@@ -1,5 +1,6 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { act } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/api", () => ({
@@ -9,6 +10,16 @@ vi.mock("@/api", () => ({
 import { Watchlist } from "@/pages/Watchlist";
 import { getQuotes } from "@/api";
 import type { QuoteRow } from "@/types";
+
+// Watchlist rows link to /instrument/:symbol (#7218), so every render needs
+// a Router in scope.
+function renderWatchlist() {
+  return render(
+    <MemoryRouter>
+      <Watchlist />
+    </MemoryRouter>,
+  );
+}
 
 const sampleRows: QuoteRow[] = [
   {
@@ -45,6 +56,21 @@ async function flushPromises() {
   await vi.advanceTimersByTimeAsync(0);
 }
 
+// The symbol also appears in the "Watched tickers" chip list above the
+// table, so a plain findByText("SYMBOL") is ambiguous. Table rows (and only
+// table rows) have an implicit "row" accessible role, so search there.
+async function findRow(symbol: string) {
+  // findAllByRole resolves as soon as the (always-present) header row
+  // exists, not once the fetched data has rendered -- wait until a matching
+  // data row actually shows up.
+  return waitFor(() => {
+    const rows = screen.getAllByRole("row");
+    const row = rows.find((r) => r.textContent?.includes(symbol));
+    if (!row) throw new Error(`No table row found for ${symbol}`);
+    return row;
+  });
+}
+
 describe("Watchlist page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -55,7 +81,7 @@ describe("Watchlist page", () => {
     (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(sampleRows);
     localStorage.setItem("watchlistSymbols", "AAA,BBB");
 
-    render(<Watchlist />);
+    renderWatchlist();
 
     expect(await screen.findByText("Alpha")).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledWith(["AAA", "BBB"]);
@@ -77,7 +103,7 @@ describe("Watchlist page", () => {
     (getQuotes as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
     localStorage.setItem("watchlistSymbols", "AAA");
 
-    const { unmount } = render(<Watchlist />);
+    const { unmount } = renderWatchlist();
 
     expect(await screen.findByText("boom")).toBeInTheDocument();
 
@@ -88,7 +114,7 @@ describe("Watchlist page", () => {
     vi.useFakeTimers();
     (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([sampleRows[0]]);
     localStorage.setItem("watchlistSymbols", "AAA");
-    const { unmount } = render(<Watchlist />);
+    const { unmount } = renderWatchlist();
 
     await flushPromises();
     expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
@@ -114,7 +140,7 @@ describe("Watchlist page", () => {
     (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([sampleRows[0]]);
     localStorage.setItem("watchlistSymbols", "AAA");
 
-    const { unmount } = render(<Watchlist />);
+    const { unmount } = renderWatchlist();
 
     await flushPromises();
     expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
@@ -132,7 +158,7 @@ describe("Watchlist page", () => {
     (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([sampleRows[0]]);
     localStorage.setItem("watchlistSymbols", "AAA");
 
-    const { unmount } = render(<Watchlist />);
+    const { unmount } = renderWatchlist();
 
     await flushPromises();
     expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
@@ -165,7 +191,7 @@ describe("Watchlist page", () => {
     (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(closed);
     localStorage.setItem("watchlistSymbols", "AAA");
 
-    const { unmount } = render(<Watchlist />);
+    const { unmount } = renderWatchlist();
 
     await flushPromises();
     expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
@@ -191,7 +217,7 @@ describe("Watchlist page", () => {
     });
 
     it("gives the add field an accessible name and renders a chip per symbol", async () => {
-      render(<Watchlist />);
+      renderWatchlist();
 
       expect(
         await screen.findByLabelText("Watched tickers"),
@@ -201,7 +227,7 @@ describe("Watchlist page", () => {
     });
 
     it("adds a typed ticker on Enter, uppercased, and clears the field", async () => {
-      render(<Watchlist />);
+      renderWatchlist();
 
       const input = (await screen.findByLabelText(
         "Watched tickers",
@@ -215,7 +241,7 @@ describe("Watchlist page", () => {
     });
 
     it("removes a symbol via its chip button", async () => {
-      render(<Watchlist />);
+      renderWatchlist();
 
       fireEvent.click(await screen.findByLabelText("Remove AAA"));
 
@@ -224,7 +250,7 @@ describe("Watchlist page", () => {
     });
 
     it("ignores a duplicate regardless of case", async () => {
-      render(<Watchlist />);
+      renderWatchlist();
 
       const input = (await screen.findByLabelText(
         "Watched tickers",
@@ -237,7 +263,7 @@ describe("Watchlist page", () => {
     });
 
     it("splits a pasted comma-separated list instead of storing it as one symbol", async () => {
-      render(<Watchlist />);
+      renderWatchlist();
 
       const input = (await screen.findByLabelText(
         "Watched tickers",
@@ -248,6 +274,178 @@ describe("Watchlist page", () => {
       expect(localStorage.getItem("watchlistSymbols")).toBe("AAA,BBB,CCC,DDD");
       expect(screen.getByLabelText("Remove CCC")).toBeInTheDocument();
       expect(screen.getByLabelText("Remove DDD")).toBeInTheDocument();
+    });
+  });
+
+  describe("table formatting (#7218)", () => {
+    it("shows a non-zero EURGBP=X Chg consistent with Chg %, matching Last's precision", async () => {
+      // Reproduces the bug exactly: formatValue already rendered Last to 5
+      // decimal places for =X symbols, but formatChange was hardcoded to
+      // toFixed(2), so a real 0.0018 move rounded away to "+0.00" while
+      // Chg % correctly showed "+0.21%". Both formatters now derive their
+      // precision from the same pricePrecision(symbol, val) helper.
+      const fxRow: QuoteRow = {
+        name: "EUR/GBP",
+        symbol: "EURGBP=X",
+        last: 0.85721,
+        open: 0.85541,
+        high: 0.85801,
+        low: 0.85501,
+        change: 0.0018,
+        changePct: 0.21,
+        volume: 0,
+        marketTime: "2024-01-01T00:00:00Z",
+        marketState: "REGULAR",
+      };
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([fxRow]);
+      localStorage.setItem("watchlistSymbols", "EURGBP=X");
+
+      renderWatchlist();
+
+      const row = await findRow("EURGBP=X");
+      expect(row).toHaveTextContent("0.85721"); // Last, 5dp
+      expect(row).toHaveTextContent("+0.00180"); // Chg, same 5dp -- not "+0.00"
+      expect(row).toHaveTextContent("+0.21%"); // Chg % (unaffected, already correct)
+    });
+
+    it("renders — for volume on index/FX rows but a genuine 0 for an equity row", async () => {
+      // The feed sends literal 0 (not null) for index/FX volume because
+      // those symbol types never have a traded volume at all -- rendering
+      // "0" reads as "nothing traded today", which is false, so it's masked
+      // to "—". An equity/ETF genuinely reporting 0 volume (e.g. a very
+      // thinly traded row with no prints yet today) is left as "0": there is
+      // no field in the feed that distinguishes "not applicable" from "no
+      // trades so far" for that symbol type, so masking it would hide real
+      // (if unusual) information. This is a deliberate judgment call, not a
+      // limitation we could resolve with more data from this payload.
+      const indexRow: QuoteRow = {
+        name: "FTSE 100",
+        symbol: "^FTSE",
+        last: 10878,
+        open: 10870,
+        high: 10890,
+        low: 10860,
+        change: -8.04,
+        changePct: -0.07,
+        volume: 0,
+        marketTime: "2024-01-01T00:00:00Z",
+        marketState: "REGULAR",
+      };
+      const equityRow: QuoteRow = {
+        name: "Thinly Traded Co",
+        symbol: "TTC.L",
+        last: 100,
+        open: 100,
+        high: 100,
+        low: 100,
+        change: 0,
+        changePct: 0,
+        volume: 0,
+        marketTime: "2024-01-01T00:00:00Z",
+        marketState: "REGULAR",
+      };
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([indexRow, equityRow]);
+      localStorage.setItem("watchlistSymbols", "^FTSE,TTC.L");
+
+      renderWatchlist();
+
+      const indexRowEl = await findRow("^FTSE");
+      const equityRowEl = await findRow("TTC.L");
+      // "—" appears elsewhere too (e.g. no data yet), so scope to the Vol cell.
+      expect(indexRowEl.querySelectorAll("td")[9]).toHaveTextContent("—");
+      expect(equityRowEl.querySelectorAll("td")[9]).toHaveTextContent("0");
+    });
+
+    it("labels the unit for each symbol type: index, crypto (USD), EUR, GBp and an FX rate", async () => {
+      const rows: QuoteRow[] = [
+        {
+          name: "FTSE 100",
+          symbol: "^FTSE",
+          last: 10878,
+          open: null,
+          high: null,
+          low: null,
+          change: -8.04,
+          changePct: -0.07,
+          volume: 0,
+          marketTime: null,
+          marketState: "REGULAR",
+        },
+        {
+          name: "Bitcoin USD",
+          symbol: "BTC-USD",
+          last: 78404,
+          open: null,
+          high: null,
+          low: null,
+          change: -124,
+          changePct: -0.16,
+          volume: 30282878976,
+          marketTime: null,
+          marketState: "REGULAR",
+        },
+        {
+          name: "iShares Core MSCI World",
+          symbol: "IWDA.AS",
+          last: 126.67,
+          open: null,
+          high: null,
+          low: null,
+          change: 0.14,
+          changePct: 0.11,
+          volume: 65442,
+          marketTime: null,
+          marketState: "REGULAR",
+        },
+        {
+          name: "Vanguard S&P 500",
+          symbol: "VUSA.L",
+          last: 107.02,
+          open: null,
+          high: null,
+          low: null,
+          change: 0.36,
+          changePct: 0.34,
+          volume: 211086,
+          marketTime: null,
+          marketState: "REGULAR",
+        },
+        {
+          name: "USD/GBP",
+          symbol: "USDGBP=X",
+          last: 0.73559,
+          open: null,
+          high: null,
+          low: null,
+          change: 0.003,
+          changePct: 0.41,
+          volume: 0,
+          marketTime: null,
+          marketState: "REGULAR",
+        },
+      ];
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(rows);
+      localStorage.setItem(
+        "watchlistSymbols",
+        "^FTSE,BTC-USD,IWDA.AS,VUSA.L,USDGBP=X",
+      );
+
+      renderWatchlist();
+
+      const unitCell = async (symbol: string) => {
+        const row = await findRow(symbol);
+        return row.querySelectorAll("td")[2]; // Unit column
+      };
+
+      expect(await unitCell("^FTSE")).toHaveTextContent("pts");
+      expect(await unitCell("BTC-USD")).toHaveTextContent("USD");
+      expect(await unitCell("IWDA.AS")).toHaveTextContent("EUR");
+      expect(await unitCell("VUSA.L")).toHaveTextContent("GBp");
+      // USDGBP=X's unit is rendered as the pair itself (USD/GBP) rather than
+      // a bare "GBP", since a bare currency code wouldn't say which pair the
+      // rate belongs to -- this is the "FX rate" / "GBP-denominated" case
+      // from #7218 called out together.
+      expect(await unitCell("USDGBP=X")).toHaveTextContent("USD/GBP");
     });
   });
 });

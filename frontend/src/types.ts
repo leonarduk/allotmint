@@ -29,7 +29,7 @@ export interface Holding {
   /** Timestamp of the last known price for this holding */
   last_price_time?: string | null;
   /** Whether the current price may be stale */
-  is_stale?: boolean;
+  is_stale?: boolean | null;
   latest_source?: string | null;
   day_change_gbp?: number | null;
   day_change_currency?: string | null;

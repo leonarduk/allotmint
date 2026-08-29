@@ -39,7 +39,9 @@ def test_instrument_path_generates_expected_locations(monkeypatch, tmp_path) -> 
 
 
 @pytest.mark.parametrize("ticker", ["BP.", "AV.", "SN.", "bp."])
-def test_instrument_path_treats_trailing_dot_as_no_exchange(monkeypatch, tmp_path, ticker: str) -> None:
+def test_instrument_path_treats_trailing_dot_as_no_exchange(
+    monkeypatch, tmp_path, ticker: str
+) -> None:
     """Real LSE tickers like "BP." split into an empty (not None) exchange
     part; that must resolve the same as the bare symbol, not raise (#6266).
     """
@@ -122,7 +124,9 @@ def test_get_instrument_meta_falls_back_to_local_on_s3_error(monkeypatch, tmp_pa
     assert "falling back to local file" in caplog.text
 
 
-def test_save_instrument_meta_writes_uploads_and_clears_cache(monkeypatch, tmp_path, caplog) -> None:
+def test_save_instrument_meta_writes_uploads_and_clears_cache(
+    monkeypatch, tmp_path, caplog
+) -> None:
     monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
     monkeypatch.setenv(instruments.METADATA_BUCKET_ENV, "bucket")
     monkeypatch.setenv(instruments.METADATA_PREFIX_ENV, "prefix")
@@ -396,7 +400,9 @@ def test_fetch_metadata_from_yahoo_builds_normalized_payload(monkeypatch) -> Non
 
 
 @pytest.mark.parametrize("fast_info_kind", ["object", "dict"])
-def test_fetch_metadata_from_yahoo_falls_back_to_info_and_fast_info(monkeypatch, fast_info_kind: str) -> None:
+def test_fetch_metadata_from_yahoo_falls_back_to_info_and_fast_info(
+    monkeypatch, fast_info_kind: str
+) -> None:
     def build_fast_info():
         if fast_info_kind == "object":
             return SimpleNamespace(currency="usd")
@@ -472,7 +478,9 @@ def test_auto_create_respects_offline_and_failure_cache(monkeypatch) -> None:
     monkeypatch.delenv("TESTING", raising=False)
     monkeypatch.setattr(instruments, "_AUTO_CREATE_FAILURES", set())
     monkeypatch.setattr(instruments.config, "offline_mode", True)
-    monkeypatch.setattr(instruments, "_fetch_metadata_from_yahoo", instruments._ORIGINAL_FETCH_METADATA)
+    monkeypatch.setattr(
+        instruments, "_fetch_metadata_from_yahoo", instruments._ORIGINAL_FETCH_METADATA
+    )
 
     assert instruments._auto_create_instrument_meta("YYY.L") is None
 
@@ -581,3 +589,111 @@ def test_yahoo_suffix_for_exchange_unknown() -> None:
 )
 def test_build_yahoo_symbol(symbol, exchange, expected) -> None:
     assert instruments._build_yahoo_symbol(symbol, exchange) == expected
+
+
+# --- #7216: instrument names ingested from an HTML source keep raw entities ---
+
+
+def test_decode_html_entities_decodes_numeric_and_named_entities() -> None:
+    assert (
+        instruments._decode_html_entities(
+            "United Parcel Service Class &#39;B&#39; Com Stock US$0.01 (CDI) *R"
+        )
+        == "United Parcel Service Class 'B' Com Stock US$0.01 (CDI) *R"
+    )
+
+
+def test_decode_html_entities_leaves_legitimate_ampersand_untouched() -> None:
+    """A bare '&' that isn't part of a recognised entity (e.g. "B&M") must
+    survive unchanged -- this is a real holding name in the portfolio data.
+    """
+    name = "B&M European Value Retail SA"
+    assert instruments._decode_html_entities(name) == name
+
+
+def test_decode_html_entities_is_idempotent() -> None:
+    clean = "United Parcel Service Class 'B' Com Stock US$0.01 (CDI) *R"
+    once = instruments._decode_html_entities(clean)
+    twice = instruments._decode_html_entities(once)
+    assert once == clean
+    assert twice == clean
+
+
+def test_has_undecoded_html_entities_flags_encoded_name() -> None:
+    assert instruments._has_undecoded_html_entities(
+        "United Parcel Service Class &#39;B&#39; Com Stock"
+    )
+    assert instruments._has_undecoded_html_entities("Some &amp; Co")
+
+
+def test_has_undecoded_html_entities_ignores_clean_names() -> None:
+    assert not instruments._has_undecoded_html_entities("United Parcel Service Class 'B' Com Stock")
+    assert not instruments._has_undecoded_html_entities("B&M European Value Retail SA")
+
+
+def test_get_instrument_meta_decodes_html_entities_on_read(monkeypatch, tmp_path) -> None:
+    """A bad record already on disk (e.g. UPS.json, see #7216) must be
+    decoded on read even though it was never re-ingested."""
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    monkeypatch.delenv(instruments.METADATA_BUCKET_ENV, raising=False)
+    monkeypatch.delenv(instruments.METADATA_PREFIX_ENV, raising=False)
+
+    data = {
+        "ticker": "UPS.N",
+        "name": "United Parcel Service Class &#39;B&#39; Com Stock US$0.01 (CDI) *R",
+    }
+    path = tmp_path / "N" / "UPS.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data))
+
+    instruments.get_instrument_meta.cache_clear()
+    result = instruments.get_instrument_meta("UPS.N")
+    assert result["name"] == "United Parcel Service Class 'B' Com Stock US$0.01 (CDI) *R"
+
+
+def test_get_instrument_meta_preserves_legitimate_ampersand_on_read(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    monkeypatch.delenv(instruments.METADATA_BUCKET_ENV, raising=False)
+    monkeypatch.delenv(instruments.METADATA_PREFIX_ENV, raising=False)
+
+    data = {"ticker": "MRO.L", "name": "B&M European Value Retail SA"}
+    path = tmp_path / "L" / "MRO.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data))
+
+    instruments.get_instrument_meta.cache_clear()
+    result = instruments.get_instrument_meta("MRO.L")
+    assert result["name"] == "B&M European Value Retail SA"
+
+
+def test_save_instrument_meta_decodes_html_entities_at_ingest(monkeypatch, tmp_path) -> None:
+    """The ingest/write path (#7216) should persist decoded text, not just
+    decode defensively on read."""
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    monkeypatch.delenv(instruments.METADATA_BUCKET_ENV, raising=False)
+    monkeypatch.delenv(instruments.METADATA_PREFIX_ENV, raising=False)
+
+    path = instruments.save_instrument_meta(
+        "UPS",
+        "N",
+        {
+            "ticker": "UPS.N",
+            "name": "United Parcel Service Class &#39;B&#39; Com Stock US$0.01 (CDI) *R",
+        },
+    )
+    assert path is not None
+    stored = json.loads(path.read_text())
+    assert stored["name"] == "United Parcel Service Class 'B' Com Stock US$0.01 (CDI) *R"
+
+
+def test_list_instruments_decodes_html_entities(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+
+    data = {"ticker": "UPS.N", "name": "United Parcel Service Class &#39;B&#39; Com Stock"}
+    path = tmp_path / "N" / "UPS.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data))
+
+    result = instruments.list_instruments()
+    names = {item["ticker"]: item["name"] for item in result}
+    assert names["UPS.N"] == "United Parcel Service Class 'B' Com Stock"

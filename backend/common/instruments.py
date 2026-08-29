@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import os
@@ -14,6 +15,60 @@ from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
+
+# Matches a raw, still-encoded HTML entity such as ``&#39;`` or ``&amp;`` --
+# but not a literal ``&`` on its own (e.g. "B&M European Value Retail SA").
+# See #7216: instrument names ingested from an HTML source (e.g. a broker's
+# webpage) can carry entities like ``&#39;`` that were never decoded.
+_HTML_ENTITY_RE = re.compile(r"&[a-zA-Z]+;|&#\d+;")
+
+
+def _decode_html_entities(value: Optional[str]) -> Optional[str]:
+    """Decode HTML entities such as ``&#39;`` into their literal characters.
+
+    Used on instrument names so text scraped from an HTML source (see
+    #7216) is stored/served as plain text rather than raw markup. This is
+    idempotent -- decoding an already-clean string is a no-op -- and it does
+    not touch a bare ``&`` that is not part of a recognised entity, so
+    legitimate names like "B&M European Value Retail SA" are unaffected.
+    """
+    if not isinstance(value, str) or not value:
+        return value
+    return html.unescape(value)
+
+
+def _has_undecoded_html_entities(value: Optional[str]) -> bool:
+    """Defensive guard for #7216.
+
+    Flags a name that still matches a raw HTML entity pattern after
+    decoding, e.g. if a bad record reaches this path without having gone
+    through ``save_instrument_meta``/ingest first (a stale file synced from
+    S3, or written by a tool that bypasses this module).
+    """
+    return isinstance(value, str) and bool(_HTML_ENTITY_RE.search(value))
+
+
+def _decode_metadata_name(data: Dict[str, Any], *, source: str) -> Dict[str, Any]:
+    """Return ``data`` with its ``name`` field HTML-entity-decoded.
+
+    Applied on every metadata read (disk and S3) so a bad record already on
+    disk -- or written by a path that bypasses ``save_instrument_meta`` --
+    still renders as plain text. See #7216.
+    """
+    name = data.get("name") if isinstance(data, dict) else None
+    if not isinstance(name, str):
+        return data
+    decoded = _decode_html_entities(name)
+    if _has_undecoded_html_entities(decoded):
+        logger.warning(
+            "Instrument name from %s still contains an HTML entity after decoding: %s",
+            sanitise_log_value(source),
+            sanitise_log_value(decoded),
+        )
+    if decoded != name:
+        data = dict(data)
+        data["name"] = decoded
+    return data
 
 
 def _resolve_instruments_dir() -> Path:
@@ -33,11 +88,17 @@ def _resolve_instruments_dir() -> Path:
 
     fallback_dir = Path(__file__).resolve().parents[2] / "data" / "instruments"
     if fallback_dir.is_dir():
-        logger.debug("Configured instruments directory %s missing; falling back to %s", configured_dir, fallback_dir)
+        logger.debug(
+            "Configured instruments directory %s missing; falling back to %s",
+            configured_dir,
+            fallback_dir,
+        )
         return fallback_dir
 
     logger.warning(
-        "Configured instruments directory %s missing and fallback %s not found", configured_dir, fallback_dir
+        "Configured instruments directory %s missing and fallback %s not found",
+        configured_dir,
+        fallback_dir,
     )
     return configured_dir
 
@@ -179,7 +240,9 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
         key = _instrument_key(ticker, prefix)
         try:
             obj = _s3_client().get_object(Bucket=bucket, Key=key)
-            return json.loads(obj["Body"].read())
+            return _decode_metadata_name(
+                json.loads(obj["Body"].read()), source=f"s3://{bucket}/{key}"
+            )
         except Exception as exc:
             logger.warning(
                 "S3 load failed for %s/%s: %s; falling back to local file",
@@ -190,7 +253,7 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
     try:
         path = _instrument_path(ticker)
         with path.open("r", encoding="utf-8") as f:
-            return json.load(f)
+            return _decode_metadata_name(json.load(f), source=str(path))
     except FileNotFoundError:
         # Do not fall back to a live Yahoo Finance lookup here: this is the
         # normal read path (portfolio/report rendering, etc.) and every
@@ -200,13 +263,17 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
         # route — that callers must invoke deliberately, not on every read.
         return {}
     except json.JSONDecodeError as exc:
-        logger.warning("Invalid instrument JSON %s: %s", sanitise_log_value(path), sanitise_log_value(exc))
+        logger.warning(
+            "Invalid instrument JSON %s: %s", sanitise_log_value(path), sanitise_log_value(exc)
+        )
         return {}
     except ValueError:
         logger.warning("Invalid ticker format: %s", sanitise_log_value(ticker))
         return {}
     except Exception:
-        logger.exception("Unexpected error loading instrument metadata for %s", sanitise_log_value(ticker))
+        logger.exception(
+            "Unexpected error loading instrument metadata for %s", sanitise_log_value(ticker)
+        )
         raise
 
 
@@ -244,6 +311,16 @@ def save_instrument_meta(
     else:
         if not isinstance(data, dict):
             raise TypeError("data must be a dict")
+
+    # Decode HTML entities in the name at ingest time so it is persisted as
+    # plain text -- the read-side decode in get_instrument_meta is a
+    # defensive backstop, not a substitute for storing clean data. #7216
+    raw_name = data.get("name")
+    if isinstance(raw_name, str):
+        decoded_name = _decode_html_entities(raw_name)
+        if decoded_name != raw_name:
+            data = dict(data)
+            data["name"] = decoded_name
 
     path = instrument_meta_path(ticker, exchange)  # type: ignore[arg-type]
     try:
@@ -395,7 +472,11 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
         if isinstance(fetched, dict):
             info = fetched
     except Exception as exc:  # pragma: no cover - best effort fallback
-        logger.debug("yfinance get_info failed for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(exc))
+        logger.debug(
+            "yfinance get_info failed for %s: %s",
+            sanitise_log_value(full_ticker),
+            sanitise_log_value(exc),
+        )
         try:
             fetched_attr = getattr(stock, "info", None)
             if isinstance(fetched_attr, dict):
@@ -408,7 +489,11 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
             )
 
     name = _clean_str(
-        info.get("shortName") or info.get("longName") or info.get("displayName") or info.get("name") or full_ticker,
+        info.get("shortName")
+        or info.get("longName")
+        or info.get("displayName")
+        or info.get("name")
+        or full_ticker,
     )
 
     currency = _clean_str(info.get("currency"), upper=True)
@@ -489,7 +574,9 @@ def _auto_create_instrument_meta(ticker: str) -> Optional[Dict[str, Any]]:
             sanitise_log_value(exc),
         )
     else:
-        logger.info("Auto-created instrument metadata for %s from Yahoo Finance", sanitise_log_value(full))
+        logger.info(
+            "Auto-created instrument metadata for %s from Yahoo Finance", sanitise_log_value(full)
+        )
 
     return payload
 
@@ -514,7 +601,9 @@ def _persisted_metadata_exchanges(symbol: str) -> tuple[str, ...]:
     directory once per row.
     """
     try:
-        return tuple(sorted(p.parent.name for p in _active_instruments_dir().glob(f"*/{symbol}.json")))
+        return tuple(
+            sorted(p.parent.name for p in _active_instruments_dir().glob(f"*/{symbol}.json"))
+        )
     except OSError:
         return ()
 
@@ -608,6 +697,7 @@ def list_instruments() -> List[Dict[str, Any]]:
         try:
             with p.open("r", encoding="utf-8") as f:
                 data = json.load(f)
+            data = _decode_metadata_name(data, source=str(p))
             for field in ("asset_class", "industry", "region", "grouping"):
                 data.setdefault(field, None)
             instruments.append(data)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import html
 import json
 from pathlib import Path
 from typing import Dict, Tuple
@@ -36,6 +37,19 @@ def best_name(a: str | None, b: str | None) -> str | None:
     if not b:
         return a
     return a if len(a) >= len(b) else b
+
+
+def decode_name(name: str | None) -> str | None:
+    """Decode HTML entities (e.g. ``&#39;`` -> ``'``) picked up when a
+    holding's name is sourced from an HTML export/scrape (see #7216).
+
+    ``html.unescape`` is idempotent and leaves a bare ``&`` (as in "B&M
+    European Value Retail SA") untouched since it is not a recognised
+    entity sequence.
+    """
+    if not isinstance(name, str) or not name:
+        return name
+    return html.unescape(name)
 
 
 def load_scaling() -> Dict[str, Dict[str, float]]:
@@ -112,7 +126,9 @@ def build_instruments() -> Dict[str, dict]:
                 sym, exch = split_ticker(tkr)
                 entry = instruments.get(tkr, {"ticker": tkr})
                 existing_meta = existing.get(tkr, {})
-                entry["name"] = best_name(entry.get("name"), h.get("name") or existing_meta.get("name"))
+                entry["name"] = decode_name(
+                    best_name(entry.get("name"), h.get("name") or existing_meta.get("name"))
+                )
                 entry["exchange"] = exch
                 ccy = infer_currency(sym, exch, scaling) or existing_meta.get("currency")
                 if ccy:

@@ -11,7 +11,7 @@ import { Watchlist } from "@/pages/Watchlist";
 import { getQuotes } from "@/api";
 import type { QuoteRow } from "@/types";
 
-// Watchlist rows link to /instrument/:symbol (#7218), so every render needs
+// Watchlist rows link to /research/:symbol (#7218), so every render needs
 // a Router in scope.
 function renderWatchlist() {
   return render(
@@ -278,6 +278,124 @@ describe("Watchlist page", () => {
   });
 
   describe("table formatting (#7218)", () => {
+    it("links a known-instrument row to /research/:symbol, not /instrument/:symbol", async () => {
+      // Caught in review: /instrument/:group is the catalogue editor
+      // filtered by group slug, not the research page -- linking there sent
+      // "VUSA.L" in as an unknown group. Assert the actual href, not just
+      // that *a* link exists, since that weaker assertion is exactly what
+      // let the wrong route ship originally.
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([sampleRows[0]]);
+      localStorage.setItem("watchlistSymbols", "AAA");
+
+      renderWatchlist();
+
+      const row = await findRow("AAA");
+      const links = row.querySelectorAll("a");
+      expect(links.length).toBeGreaterThan(0);
+      links.forEach((a) => {
+        expect(a.getAttribute("href")).toBe("/research/AAA");
+      });
+    });
+
+    it("does not link an index/FX row that has no research page", async () => {
+      const fxRow: QuoteRow = {
+        ...sampleRows[0],
+        name: "EUR/GBP",
+        symbol: "EURGBP=X",
+      };
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([fxRow]);
+      localStorage.setItem("watchlistSymbols", "EURGBP=X");
+
+      renderWatchlist();
+
+      const row = await findRow("EURGBP=X");
+      expect(row.querySelectorAll("a").length).toBe(0);
+    });
+
+    it("keeps toFixed precision sign-independent for crypto Chg (regression)", async () => {
+      // pricePrecision's sub-$1 crypto clause used to be evaluated against
+      // whatever value was currently being formatted. Fed the *change*
+      // value, every negative change is "< 1", so a real BTC-USD move of
+      // -124 (last 78404, well over $1) rendered as "-124.00000" (5dp)
+      // while the same-sized "+124" rendered "+124.00" (2dp). Precision must
+      // depend on the instrument's price level (Last), not the change's own
+      // sign or magnitude.
+      const btcRow: QuoteRow = {
+        name: "Bitcoin USD",
+        symbol: "BTC-USD",
+        last: 78404,
+        open: 78528,
+        high: 78600,
+        low: 78300,
+        change: -124,
+        changePct: -0.16,
+        volume: 30282878976,
+        marketTime: "2024-01-01T00:00:00Z",
+        marketState: "REGULAR",
+      };
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([btcRow]);
+      localStorage.setItem("watchlistSymbols", "BTC-USD");
+
+      renderWatchlist();
+
+      const row = await findRow("BTC-USD");
+      expect(row).toHaveTextContent("-124.00");
+      expect(row).not.toHaveTextContent("-124.00000");
+    });
+
+    it("still uses 5dp for a genuinely sub-$1 crypto's negative change", async () => {
+      const dogeRow: QuoteRow = {
+        name: "Dogecoin USD",
+        symbol: "DOGE-USD",
+        last: 0.15234,
+        open: 0.15789,
+        high: 0.15900,
+        low: 0.15100,
+        change: -0.00555,
+        changePct: -3.6,
+        volume: 12345678,
+        marketTime: "2024-01-01T00:00:00Z",
+        marketState: "REGULAR",
+      };
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([dogeRow]);
+      localStorage.setItem("watchlistSymbols", "DOGE-USD");
+
+      renderWatchlist();
+
+      const row = await findRow("DOGE-USD");
+      expect(row).toHaveTextContent("-0.00555");
+    });
+
+    it("prefers a currency reported by the quote payload over the symbol-suffix guess", async () => {
+      const row: QuoteRow = {
+        ...sampleRows[0],
+        symbol: "IWDA.AS",
+        currency: "GBP", // deliberately not what the .AS fallback would guess
+      };
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([row]);
+      localStorage.setItem("watchlistSymbols", "IWDA.AS");
+
+      renderWatchlist();
+
+      const tr = await findRow("IWDA.AS");
+      expect(tr.querySelectorAll("td")[2]).toHaveTextContent("GBP");
+    });
+
+    it("shows — rather than guessing when neither a currency nor a recognised suffix is available", async () => {
+      const row: QuoteRow = {
+        ...sampleRows[0],
+        symbol: "7203.T", // Tokyo-listed; not in the suffix fallback table
+        currency: null,
+      };
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([row]);
+      localStorage.setItem("watchlistSymbols", "7203.T");
+
+      renderWatchlist();
+
+      const tr = await findRow("7203.T");
+      expect(tr.querySelectorAll("td")[2]).toHaveTextContent("—");
+    });
+
     it("shows a non-zero EURGBP=X Chg consistent with Chg %, matching Last's precision", async () => {
       // Reproduces the bug exactly: formatValue already rendered Last to 5
       // decimal places for =X symbols, but formatChange was hardcoded to

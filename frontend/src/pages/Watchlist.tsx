@@ -7,18 +7,40 @@ import type { QuoteRow } from "../types";
 const DEFAULT_SYMBOLS =
   "^FTSE,^NDX,^GSPC,^RUT,^NYA,^VIX,^GDAXI,^N225,USDGBP=X,EURGBP=X,BTC-USD,GC=F,SI=F,VUSA.L,IWDA.AS";
 
-// Decimal precision for a price-like value, keyed off the symbol (and, for
-// crypto, the magnitude of the value itself). This used to be duplicated
+// Decimal precision for a price-like value. This used to be duplicated
 // between formatValue and formatChange with two different rule sets --
 // formatChange was hardcoded to toFixed(2), so an EURGBP=X move that
 // formatValue correctly rendered to 5 decimal places (0.85721) showed up as
 // "+0.00" in the Chg column even though Chg % reported it correctly. Both
 // formatters now call this single function so the rules can't drift apart
 // again (#7218).
-function pricePrecision(symbol: string, val: number): number {
+//
+// `val` is the value actually being formatted (Last/Open/High/Low, or the
+// day's Change) and drives the ">10000" 0dp rule, exactly as before.
+// `refPrice` is the instrument's own price level and is used *only* for the
+// sub-$1-crypto check: a day's Change can be small, negative or zero
+// regardless of whether the instrument itself trades under $1, so that one
+// decision can't be made from `val` alone the way ">10000" can. It defaults
+// to `val` so formatValue's behaviour (call site passes no third argument)
+// is completely unchanged.
+function pricePrecision(
+  symbol: string,
+  val: number,
+  refPrice: number = val,
+): number {
   if (symbol.endsWith("=X")) return 5;
   if (symbol === "^TNX") return 3;
-  if (symbol.includes("-USD") && val < 1) return 5;
+  // Math.abs(refPrice), not "val < 1": a *sign* on the value being
+  // formatted shouldn't change decimal precision, and using the change's
+  // own (possibly negative, possibly large) value here was a regression
+  // caught in review -- every negative crypto change is "< 1" under the
+  // literal comparison, so BTC-USD's "-124" change rendered as "-124.00000"
+  // (5dp) while a "+124" change rendered "+124.00" (2dp), same symbol and
+  // column. Keying off the instrument's Last price instead fixes that while
+  // leaving the ">10000" rule keyed off `val` itself, since that rule is
+  // about the value being displayed, not the instrument's price level
+  // (#7218).
+  if (symbol.includes("-USD") && Math.abs(refPrice) < 1) return 5;
   if (val > 10000) return 0;
   return 2;
 }
@@ -28,9 +50,13 @@ function formatValue(symbol: string, val: number | null): string {
   return val.toFixed(pricePrecision(symbol, val));
 }
 
-function formatChange(symbol: string, val: number | null): string {
+function formatChange(
+  symbol: string,
+  val: number | null,
+  refPrice: number | null,
+): string {
   if (val == null) return "—";
-  const num = val.toFixed(pricePrecision(symbol, val));
+  const num = val.toFixed(pricePrecision(symbol, val, refPrice ?? val));
   return val > 0 ? `+${num}` : num;
 }
 
@@ -62,42 +88,64 @@ function formatTime(val: string | null): string {
   return new Date(val).toLocaleString("en-GB", { timeZone: "Europe/London" });
 }
 
-// The quote payload (backend/routes/quotes.py -> getQuotes in api.ts) does
-// not currently carry a currency/unit field, so derive it from the symbol
-// shape the same way pricePrecision() does for its special cases (#7218).
-// This is deliberately a small, explicit table rather than an exhaustive
-// exchange-suffix list -- it covers the default watchlist symbols plus the
-// common exchange suffixes a user is likely to add, and falls back to USD
-// (the yfinance default) for anything else.
-function symbolUnit(symbol: string): string {
+// CBOE Treasury-yield indices: their "price" is a yield in percent, not a
+// currency amount or a raw index-points level.
+const YIELD_INDEX_SYMBOLS = new Set(["^TNX", "^TYX", "^FVX", "^IRX"]);
+
+// Fallback used only when the quote payload doesn't carry a currency
+// (see symbolUnit below). Deliberately a small, explicit table rather than
+// an exhaustive exchange-suffix list, and deliberately *not* a confident
+// guess for anything it doesn't recognise: mislabelling a real currency is
+// worse than admitting we don't know, since the whole point of this column
+// is telling a beginner what's real (#7218). In particular this table does
+// NOT assume every ".L"/".DE"/".SW" listing uses that market's home
+// currency -- LSE, Xetra and SIX all list plenty of USD- and
+// EUR-denominated lines too, which is exactly why the live `currency` field
+// (added to backend/routes/quotes.py) is preferred whenever it's present.
+function symbolUnitFallback(symbol: string): string {
   if (symbol.endsWith("=X")) {
     // FX rate, e.g. EURGBP=X -> "EUR/GBP": a ratio, not a currency amount.
     const pair = symbol.slice(0, -2);
     return pair.length === 6 ? `${pair.slice(0, 3)}/${pair.slice(3)}` : "rate";
   }
-  if (symbol === "^TNX") return "%"; // CBOE 10-Year Treasury yield index
+  if (YIELD_INDEX_SYMBOLS.has(symbol)) return "%";
   if (symbol.startsWith("^")) return "pts"; // index points
   if (symbol.includes("-USD")) return "USD"; // crypto pairs, e.g. BTC-USD
   if (symbol.endsWith("=F")) return "USD"; // commodity futures, e.g. GC=F
-  if (symbol.endsWith(".L")) return "GBp"; // LSE listings are quoted in pence
+  // Below this point we're guessing at an exchange's *typical* currency,
+  // not reading it off the symbol the way the cases above do -- kept only
+  // as a best-effort label for the common default-watchlist exchanges.
+  if (symbol.endsWith(".L")) return "GBp"; // most LSE main-market listings
   if (
     symbol.endsWith(".AS") ||
     symbol.endsWith(".PA") ||
-    symbol.endsWith(".DE") ||
     symbol.endsWith(".MI")
   )
     return "EUR";
-  if (symbol.endsWith(".SW")) return "CHF";
-  if (symbol.endsWith(".TO")) return "CAD";
-  if (symbol.endsWith(".HK")) return "HKD";
-  return "USD";
+  return "—"; // unknown -- do not guess (#7218)
 }
 
-// InstrumentResearch (the /instrument/:ticker page) only accepts tickers
-// matching this shape -- indices (^FTSE) and FX pairs (EURGBP=X) fail it and
-// have no instrument page. Reuse the same rule here so a watchlist row only
-// links through when the symbol actually resolves to a known instrument
-// (#7218).
+// Prefer the currency the quote payload actually reports; only fall back to
+// guessing from the symbol shape when the feed didn't send one (#7218).
+function symbolUnit(symbol: string, currency: string | null | undefined): string {
+  if (currency) return currency;
+  return symbolUnitFallback(symbol);
+}
+
+// Row links go to /research/:ticker (InstrumentResearch), NOT
+// /instrument/:group -- that second route is the instrument *catalogue
+// editor* filtered by group slug (routes/registry.ts, InstrumentTable.tsx)
+// and would treat a ticker like "VUSA.L" as an unknown group, firing a
+// pointless getGroupInstruments("VUSA.L") call and showing an empty/error
+// catalogue instead of the research page. Confirmed via routes/registry.ts
+// (mode: 'research', routeSegment: 'research') and App.tsx's route for
+// InstrumentResearch (#7218).
+const INSTRUMENT_ROUTE_PREFIX = "/research/";
+
+// InstrumentResearch only accepts tickers matching this shape -- indices
+// (^FTSE) and FX pairs (EURGBP=X) fail it and have no research page. Reuse
+// the same rule here so a watchlist row only links through when the symbol
+// actually resolves to a known instrument (#7218).
 function isLinkableSymbol(symbol: string): boolean {
   return /^[A-Za-z0-9.-]{1,10}$/.test(symbol);
 }
@@ -380,12 +428,10 @@ export function Watchlist() {
                       // Widened from 160 -- with the full name now shown via
                       // title (#7218), a bit more room means fewer of the
                       // very common ETF names need the ellipsis at all. The
-                      // remaining truncation for very long names such as
-                      // "iShares Core MSCI World UCITS ETF..." is a CSS
-                      // ellipsis, not a data truncation: the yfinance
-                      // shortName/longName fields returned by
-                      // backend/routes/quotes.py already carry the full
-                      // name, it's just this column's width that clips it.
+                      // backend now prefers yfinance's longName over its
+                      // (frequently truncated) shortName, so what remains
+                      // clipped here is genuinely a CSS ellipsis, not a data
+                      // truncation.
                       maxWidth: 220,
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -394,7 +440,10 @@ export function Watchlist() {
                     }}
                   >
                     {linkable ? (
-                      <Link to={`/instrument/${r.symbol}`} title={r.name || undefined}>
+                      <Link
+                        to={`${INSTRUMENT_ROUTE_PREFIX}${r.symbol}`}
+                        title={r.name || undefined}
+                      >
                         {r.name || "—"}
                       </Link>
                     ) : (
@@ -403,13 +452,15 @@ export function Watchlist() {
                   </td>
                   <td style={{ padding: "4px 6px" }}>
                     {linkable ? (
-                      <Link to={`/instrument/${r.symbol}`}>{r.symbol}</Link>
+                      <Link to={`${INSTRUMENT_ROUTE_PREFIX}${r.symbol}`}>
+                        {r.symbol}
+                      </Link>
                     ) : (
                       r.symbol
                     )}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
-                    {symbolUnit(r.symbol)}
+                    {symbolUnit(r.symbol, r.currency)}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
                     {formatValue(r.symbol, r.last)}
@@ -430,7 +481,7 @@ export function Watchlist() {
                       padding: "4px 6px",
                     }}
                   >
-                    {formatChange(r.symbol, r.change)}
+                    {formatChange(r.symbol, r.change, r.last)}
                   </td>
                   <td
                     style={{

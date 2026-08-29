@@ -467,6 +467,8 @@ export interface QuoteRow {
   volume: number | null;
   marketTime: string | null;
   marketState: string;
+  /** ISO currency code from the quote provider, when available (#7218). */
+  currency?: string | null;
 }
 
 export interface MoverRow {

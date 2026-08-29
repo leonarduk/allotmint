@@ -147,8 +147,14 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
   return (
     <div className="container mx-auto max-w-xl space-y-4 p-4">
       <h1 className="text-2xl md:text-4xl">
-        {t('userConfig.title', 'User Settings')}
+        {t('userConfig.title', 'Trading Rules')}
       </h1>
+      <p className="text-gray-800 dark:text-gray-200">
+        {t(
+          'userConfig.pageDescription',
+          'Rules that control which trades this account can make without extra approval.'
+        )}
+      </p>
       {user && (
         <section className="flex flex-col items-center space-y-4 rounded-lg border p-4">
           {user.picture ? (
@@ -189,18 +195,31 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
           )}
         </p>
       ) : (
-        <select
-          className="w-full border p-2"
-          value={owner}
-          onChange={(e) => setOwner(e.target.value)}
-        >
-          <option value="">{t('userConfig.selectOwner', 'Select owner')}</option>
-          {owners.map((o) => (
-            <option key={o.owner} value={o.owner}>
-              {o.full_name?.trim() ? o.full_name : o.owner}
-            </option>
-          ))}
-        </select>
+        <>
+          {/* #7206: previously the page rendered nothing at all until an
+           * owner was resolved (either passed in via selectedOwner or
+           * matched from the logged-in user), leaving a blank page with no
+           * hint that the dropdown below was the way forward. Show an
+           * explicit prompt whenever no owner is selected yet, without
+           * changing how owner resolution itself works. */}
+          {!owner && (
+            <p className="text-gray-800 dark:text-gray-200">
+              {t('userConfig.chooseOwnerPrompt', 'Choose whose settings to edit.')}
+            </p>
+          )}
+          <select
+            className="w-full border p-2"
+            value={owner}
+            onChange={(e) => setOwner(e.target.value)}
+          >
+            <option value="">{t('userConfig.selectOwner', 'Select owner')}</option>
+            {owners.map((o) => (
+              <option key={o.owner} value={o.owner}>
+                {o.full_name?.trim() ? o.full_name : o.owner}
+              </option>
+            ))}
+          </select>
+        </>
       )}
       {owner && (
         <>
@@ -209,6 +228,12 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               <label className="block text-sm">
                 {t('userConfig.holdDays', 'Min Hold Days')}
               </label>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {t(
+                  'userConfig.holdDaysHelp',
+                  'The number of days a holding must be kept before it can be sold. Measured in calendar days.'
+                )}
+              </p>
               <input
                 type="number"
                 className="w-full border p-1"
@@ -227,6 +252,12 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               <label className="block text-sm">
                 {t('userConfig.maxTrades', 'Max Trades / Month')}
               </label>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {t(
+                  'userConfig.maxTradesHelp',
+                  'The most trades this account can make in a calendar month. Once reached, further trades need approval.'
+                )}
+              </p>
               <input
                 type="number"
                 className="w-full border p-1"
@@ -245,6 +276,12 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               <label className="block text-sm">
                 {t('userConfig.exemptTickers', 'Approval Exempt Tickers')}
               </label>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {t(
+                  'userConfig.exemptTickersHelp',
+                  'Comma-separated tickers that can always be traded without needing an approval.'
+                )}
+              </p>
               <input
                 type="text"
                 className="w-full border p-1"
@@ -266,6 +303,12 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               <label className="block text-sm">
                 {t('userConfig.exemptTypes', 'Approval Exempt Types')}
               </label>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {t(
+                  'userConfig.exemptTypesHelp',
+                  'Comma-separated instrument types (e.g. ETF, Fund) that can always be traded without needing an approval.'
+                )}
+              </p>
               <input
                 type="text"
                 className="w-full border p-1"
@@ -305,32 +348,51 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
             <h2 className="text-xl">
               {t('userConfig.approvals', 'Approvals')}
             </h2>
-            <table className="w-full border">
-              <thead>
-                <tr>
-                  <th className="border px-2 text-left">Ticker</th>
-                  <th className="border px-2 text-left">Date</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {approvals.map((a, index) => (
-                  <tr key={`${a.ticker}-${index}`}>
-                    <td className="border px-2">{a.ticker}</td>
-                    <td className="border px-2">{a.approved_on}</td>
-                    <td className="border px-2 text-right">
-                      <button
-                        type="button"
-                        className="text-red-500"
-                        onClick={() => remove(a.ticker)}
-                      >
-                        {t('userConfig.remove', 'Remove')}
-                      </button>
-                    </td>
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              {t(
+                'userConfig.approvalsHelp',
+                'An approval lets a specific ticker be traded on a specific date even though it would otherwise be blocked by the rules above (for example, because Min Hold Days has not elapsed or the Max Trades / Month cap has been reached).'
+              )}
+            </p>
+            {/* #7206: the table previously had no empty-state row, so a
+             * fresh account (the common case -- most accounts never need
+             * an approval) showed a header with nothing under it and no
+             * explanation of what an approval even is. */}
+            {approvals.length === 0 && !approvalsError ? (
+              <p className="text-gray-800 dark:text-gray-200">
+                {t(
+                  'userConfig.approvalsEmpty',
+                  'No approvals yet. Add one below if a trade needs to go ahead outside the rules above.'
+                )}
+              </p>
+            ) : (
+              <table className="w-full border">
+                <thead>
+                  <tr>
+                    <th className="border px-2 text-left">Ticker</th>
+                    <th className="border px-2 text-left">Date</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {approvals.map((a, index) => (
+                    <tr key={`${a.ticker}-${index}`}>
+                      <td className="border px-2">{a.ticker}</td>
+                      <td className="border px-2">{a.approved_on}</td>
+                      <td className="border px-2 text-right">
+                        <button
+                          type="button"
+                          className="text-red-500"
+                          onClick={() => remove(a.ticker)}
+                        >
+                          {t('userConfig.remove', 'Remove')}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
             {approvalsError && (
               <div className="text-red-500">{approvalsError}</div>
             )}

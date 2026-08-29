@@ -24,7 +24,7 @@
     "collapseShort": "Recolher"
   },
   "alertSettings": {
-    "description": "Configure quando receber alertas. Os alertas aparecem na página de alertas e nas notificações push.",
+    "description": "Este limite ainda não está ligado à geração de alertas neste ambiente. Os alertas atuais vêm de uma verificação fixa, válida para toda a conta, executada durante a atualização diária de preços: qualquer posição que se desvie mais de 10% do seu preço de custo é sinalizada, em todas as carteiras.",
     "push": {
       "denied": "Permissão de push negada.",
       "disable": "Desativar alertas push",

@@ -24,7 +24,7 @@
     "collapseShort": "Réduire"
   },
   "alertSettings": {
-    "description": "Configurez quand vous recevrez des alertes. Les alertes apparaissent sur la page des alertes et dans les notifications push.",
+    "description": "Ce seuil n'est pas encore relié à la génération des alertes dans cet environnement. Les alertes actuelles proviennent d'une vérification fixe, appliquée à l'ensemble du compte, exécutée lors de l'actualisation quotidienne des prix : toute position s'écartant de plus de 10 % de son prix de revient est signalée, pour tous les portefeuilles.",
     "push": {
       "denied": "Permission de push refusée.",
       "disable": "Désactiver les alertes Push",

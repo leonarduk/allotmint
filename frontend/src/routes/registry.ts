@@ -278,6 +278,11 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     section: 'user',
     menuCategory: 'preferences',
     priority: 104,
+    // No `?owner=` here: AlertSettings resolves its own scope from a single
+    // signed-in identity (profile email, else local_login_email/
+    // demo_identity when auth is disabled), never from the portfolio owner
+    // selected elsewhere in the UI -- a `?owner=` hint would only be
+    // misleading (#7225 review round 3). See AlertSettings.tsx.
     defaultPath: () => '/alert-settings',
     routePath: '/alert-settings',
     lazyComponent: lazyPage(() => import('../pages/AlertSettings')),

@@ -24,7 +24,7 @@
     "collapseShort": "Comprimi"
   },
   "alertSettings": {
-    "description": "Configura quando riceverai avvisi. Gli avvisi compaiono nella pagina degli avvisi e nelle notifiche push.",
+    "description": "Questa soglia non è ancora collegata alla generazione degli avvisi in questo ambiente. Gli avvisi attuali derivano da un controllo fisso, valido per l'intero account, eseguito durante l'aggiornamento giornaliero dei prezzi: qualsiasi posizione che si discosti di oltre il 10% dal proprio prezzo di carico viene segnalata, in tutti i portafogli.",
     "push": {
       "denied": "Autorizzazione push negata.",
       "disable": "Disattiva avvisi push",

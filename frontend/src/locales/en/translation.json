@@ -24,7 +24,9 @@
     "collapseShort": "Collapse"
   },
   "alertSettings": {
-    "description": "Configure when you'll receive alerts. Alerts appear on the Alerts page and in push notifications.",
+    "description": "This threshold isn't wired into alert generation yet in this deployment. Today's alerts come from a fixed, account-wide check that runs during the daily price refresh: any holding more than 10% away from its cost basis is flagged, across every portfolio.",
+    "forbiddenNotice": "Alerts are scoped to a single signed-in identity and can't be changed for {{owner}} from here.",
+    "managingFor": "Managing this setting for {{owner}}.",
     "push": {
       "denied": "Push permission denied.",
       "disable": "Disable Push Alerts",
@@ -33,6 +35,7 @@
       "notSupported": "Push not supported",
       "title": "Push Notifications"
     },
+    "resolving": "Checking who you're signed in as…",
     "save": "Save",
     "signInNotice": "Sign in to configure alerts",
     "status": {
@@ -40,7 +43,8 @@
       "saved": "Saved"
     },
     "threshold": "Threshold %:",
-    "title": "Alert Settings"
+    "title": "Alert Settings",
+    "viewAlertsLink": "View recent alerts"
   },
   "allocation": {
     "allocationDescription": "Allocation shows how current portfolio value is distributed.",

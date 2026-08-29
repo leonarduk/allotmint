@@ -15,52 +15,52 @@
     "last_price_date": "2026-05-16"
   },
   "AAPL.N": {
-    "last_price": 288.75,
+    "last_price": 228.11,
     "price_currency": "GBP",
     "last_price_date": "2026-08-14"
   },
   "AXP.N": {
-    "last_price": 337.55,
+    "last_price": 266.66,
     "price_currency": "GBP",
     "last_price_date": "2026-08-14"
   },
   "KO.N": {
-    "last_price": 81.55,
+    "last_price": 64.42,
     "price_currency": "GBP",
     "last_price_date": "2026-08-14"
   },
   "GOOGL.N": {
-    "last_price": 357.05,
+    "last_price": 282.07,
     "price_currency": "GBP",
     "last_price_date": "2026-08-14"
   },
   "GOOG.N": {
-    "last_price": 351.93,
+    "last_price": 278.02,
     "price_currency": "GBP",
     "last_price_date": "2026-08-14"
   },
   "BAC.N": {
-    "last_price": 57.16,
+    "last_price": 45.16,
     "price_currency": "GBP",
     "last_price_date": "2026-08-14"
   },
   "CVX.N": {
-    "last_price": 167.44,
+    "last_price": 132.28,
     "price_currency": "GBP",
     "last_price_date": "2026-08-14"
   },
   "OXY.N": {
-    "last_price": 48.56,
+    "last_price": 38.36,
     "price_currency": "GBP",
     "last_price_date": "2026-08-14"
   },
   "CB.N": {
-    "last_price": 340.76,
+    "last_price": 269.2,
     "price_currency": "GBP",
     "last_price_date": "2026-08-14"
   },
   "MCO.N": {
-    "last_price": 450.10,
+    "last_price": 355.58,
     "price_currency": "GBP",
     "last_price_date": "2026-08-14"
   }

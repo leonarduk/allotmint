@@ -21,9 +21,7 @@ def validate_google_auth(enabled: Optional[bool], client_id: Optional[str]) -> N
     """Ensure Google auth is configured correctly."""
     if enabled:
         if not client_id or not client_id.strip():
-            raise ConfigValidationError(
-                "google_auth_enabled is true but google_client_id is missing"
-            )
+            raise ConfigValidationError("google_auth_enabled is true but google_client_id is missing")
 
 
 def validate_tabs(tabs_raw: Any) -> TabsConfig:
@@ -337,9 +335,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
     if env_data_root:
         data_root_raw = env_data_root
     data_root_path = Path(data_root_raw)
-    data_root = (
-        data_root_path if data_root_path.is_absolute() else (repo_root / data_root_path)
-    ).resolve()
+    data_root = (data_root_path if data_root_path.is_absolute() else (repo_root / data_root_path)).resolve()
 
     accounts_root_raw = data.get("accounts_root")
     accounts_root = (data_root / accounts_root_raw).resolve() if accounts_root_raw else None
@@ -442,9 +438,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
 
     env_allowed_emails = os.getenv("ALLOWED_EMAILS")
     if env_allowed_emails is not None:
-        env_allowed = [
-            item.strip().lower() for item in env_allowed_emails.split(",") if item.strip()
-        ]
+        env_allowed = [item.strip().lower() for item in env_allowed_emails.split(",") if item.strip()]
         allowed_emails = env_allowed or []
 
     # Only validate Google auth in non-test environments

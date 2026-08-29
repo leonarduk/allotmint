@@ -222,3 +222,112 @@ def test_enrich_holding_monday_fallback_reaches_previous_friday(monkeypatch):
     assert result["current_price_gbp"] == pytest.approx(42.0)
     assert result["market_value_gbp"] == pytest.approx(420.0)
     assert result["is_stale"] is True
+
+
+def test_enrich_holding_no_acquired_date_stays_null(monkeypatch):
+    """Regression for #7220: a holding with no real transaction/lot date must
+    not have its acquired_date fabricated from the price-history start date
+    (today - 365 days). The field, days_held, eligible_on, and
+    next_eligible_sell_date must stay genuinely null, and sell_eligible must
+    be null (unknown) rather than a confident False, so the frontend can
+    render an explicit "unknown" state instead of a fake verdict.
+    """
+    import backend.common.instrument_api as instrument_api
+    import backend.common.portfolio_utils as pu
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda *_: ("FOO", "L"))
+    monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(hu, "get_instrument_meta", lambda *_: {})
+    monkeypatch.setattr(hu, "_get_price_for_date_scaled", lambda *a, **k: (1.0, "mock"))
+    monkeypatch.setattr(hu, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
+
+    holding = {TICKER: "FOO.L", UNITS: 1, COST_BASIS_GBP: 0.0}
+    today = dt.date(2026, 8, 27)
+
+    out = hu.enrich_holding(holding, today, price_cache={}, approvals={})
+
+    assert out[ACQUIRED_DATE] is None
+    assert out["days_held"] is None
+    assert out["eligible_on"] is None
+    assert out["next_eligible_sell_date"] is None
+    assert out["days_until_eligible"] is None
+    assert out["sell_eligible"] is None
+
+
+def test_get_effective_cost_basis_gbp_falls_back_to_price_hint_when_unknown(monkeypatch):
+    """Direct unit test for the price_hint fallback added alongside #7220.
+
+    No booked cost_basis_gbp, no acquired_date, and an empty price_cache: the
+    only value left to derive a cost from is the current price (price_hint).
+    Exercises get_effective_cost_basis_gbp() itself -- not through
+    enrich_holding() with the helper monkeypatched away -- so the actual
+    fallback line is what's under test, not a stand-in.
+
+    This path moves real portfolios' reported gain/gain% toward 0 (cost is
+    set equal to market value) wherever a holding has neither a booked cost
+    nor an acquisition date; see the #7220 review follow-up for measured
+    real-data impact. get_effective_cost_basis_gbp() must also tag
+    h["cost_basis_source"] = "unknown" in this branch (distinct from a real
+    historical "derived" price) so callers/UI can tell a guess from a fact.
+    """
+    import backend.common.instrument_api as instrument_api
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda *_: ("FOO", "L"))
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *args, **kwargs: None)
+
+    holding = {TICKER: "FOO.L", UNITS: 5}  # no COST_BASIS_GBP, no ACQUIRED_DATE
+
+    result = hu.get_effective_cost_basis_gbp(holding, price_cache={}, price_hint=8.0)
+
+    assert result == pytest.approx(40.0)  # 5 units * 8.0 price_hint
+    assert holding["cost_basis_source"] == "unknown"
+
+
+def test_get_effective_cost_basis_gbp_returns_zero_with_no_price_hint_either(monkeypatch):
+    """No booked cost, no acquired date, empty cache, and no price_hint at
+    all: there is truly nothing to derive a cost from, so this still returns
+    0.0 (existing behaviour) rather than raising, and does not fabricate a
+    cost_basis_source tag since no fallback value was actually produced.
+    """
+    import backend.common.instrument_api as instrument_api
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda *_: ("FOO", "L"))
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *args, **kwargs: None)
+
+    holding = {TICKER: "FOO.L", UNITS: 5}
+
+    result = hu.get_effective_cost_basis_gbp(holding, price_cache={}, price_hint=None)
+
+    assert result == 0.0
+    assert "cost_basis_source" not in holding
+
+
+def test_enrich_holding_no_acquired_date_tags_cost_basis_source_unknown(monkeypatch):
+    """End-to-end regression for the #7220 review follow-up: when
+    enrich_holding() actually runs the real get_effective_cost_basis_gbp()
+    (not a monkeypatched stand-in returning 0.0), a holding with no booked
+    cost and no acquired date must report cost_basis_source == "unknown"
+    rather than the generic "derived" a real historical derivation gets, and
+    gain_gbp/gain_pct must reflect the resulting break-even (0.0), not a
+    fabricated large gain and not a crash.
+    """
+    import backend.common.instrument_api as instrument_api
+    import backend.common.portfolio_utils as pu
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda *_: ("FOO", "L"))
+    monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(hu, "get_instrument_meta", lambda *_: {})
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *args, **kwargs: None)
+    monkeypatch.setattr(hu, "_get_price_for_date_scaled", lambda *a, **k: (8.0, "mock"))
+
+    holding = {TICKER: "FOO.L", UNITS: 5}  # no cost_basis_gbp, no acquired_date
+    today = dt.date(2026, 8, 27)
+
+    out = hu.enrich_holding(holding, today, price_cache={}, approvals={})
+
+    assert out[ACQUIRED_DATE] is None
+    assert out[EFFECTIVE_COST_BASIS_GBP] == pytest.approx(40.0)
+    assert out["market_value_gbp"] == pytest.approx(40.0)
+    assert out["gain_gbp"] == pytest.approx(0.0)
+    assert out["gain_pct"] == pytest.approx(0.0)
+    assert out["cost_basis_source"] == "unknown"

@@ -211,6 +211,8 @@
       "yes": "Sim"
     },
     "inferredCost": "Inferido do preço na data de aquisição",
+    "costBasisUnknown": "Nenhuma data de aquisição ou custo registrado — o custo é considerado igual ao valor atual",
+    "gainNotAvailable": "Ganho desconhecido — nenhuma data de aquisição ou custo registrado",
     "minimumGainPrompt": "Ganho mínimo %",
     "notApplicable": "N/A",
     "acquiredNotAvailable": "Nenhuma data de aquisição registrada",

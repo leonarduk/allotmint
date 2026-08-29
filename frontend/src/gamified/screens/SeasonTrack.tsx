@@ -32,7 +32,7 @@ function GroupRow({ group }: { group: SeasonGroupProgress }) {
             ? group.group
             : group.complete
               ? `Every ${group.group} tier earned`
-              : `Next: ${group.next?.displayTarget}`}
+              : group.next?.title}
         </div>
 
         {group.unavailable ? (
@@ -48,9 +48,6 @@ function GroupRow({ group }: { group: SeasonGroupProgress }) {
                 {group.currentDisplay} / {group.next.displayTarget}
               </span>
             </div>
-            <p className={styles.groupCurrent}>
-              Currently at <strong>{group.currentDisplay}</strong>.
-            </p>
           </div>
         ) : (
           <p className={styles.groupComplete}>

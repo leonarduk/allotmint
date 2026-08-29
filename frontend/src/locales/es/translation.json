@@ -211,6 +211,8 @@
       "yes": "Sí"
     },
     "inferredCost": "Inferido del precio en la fecha de adquisición",
+    "costBasisUnknown": "No hay fecha de adquisición ni coste registrado — se asume que el coste es igual al valor actual",
+    "gainNotAvailable": "Ganancia desconocida — no hay fecha de adquisición ni coste registrado",
     "minimumGainPrompt": "Ganancia mínima %",
     "notApplicable": "N/A",
     "acquiredNotAvailable": "No hay fecha de adquisición registrada",

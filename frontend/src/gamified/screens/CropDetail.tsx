@@ -8,6 +8,7 @@ import {
   formatPct,
   growthLevelFor,
   growthStageMeta,
+  hasKnownHoldPeriodCountdown,
   isStillInPropagator,
   type Crop,
 } from '../plotModel';
@@ -36,7 +37,13 @@ function abilitiesFor(crop: Crop) {
     {
       icon: '💚',
       name: 'Vigour',
-      detail: `${formatPct(crop.dayChangePct)} today${crop.stale ? ' · price data is stale' : ''}`,
+      detail: `${formatPct(crop.dayChangePct)} today${
+        crop.stale
+          ? ' · price data is stale'
+          : crop.freshness === 'unknown'
+            ? ' · price freshness unverified'
+            : ''
+      }`,
       level: Math.round(crop.vigour / 20),
       max: 5,
     },
@@ -57,7 +64,12 @@ function abilitiesFor(crop: Crop) {
           ? 'Holding age unknown'
           : `Held ${crop.daysHeld} day${crop.daysHeld === 1 ? '' : 's'}${
               isStillInPropagator(crop)
-                ? crop.nextEligibleSellDate
+                ? // A known countdown gets a specific date; `sell_eligible:
+                  // false` on its own (#7184) — no positive
+                  // `days_until_eligible` — only ever reads as "not yet
+                  // liftable", never a stale or fabricated ready date.
+                  hasKnownHoldPeriodCountdown(crop) &&
+                  crop.nextEligibleSellDate
                   ? ` · in the propagator until ${crop.nextEligibleSellDate}`
                   : ' · not yet liftable'
                 : crop.nextEligibleSellDate
@@ -126,6 +138,9 @@ export default function CropDetail({ basePath }: { basePath: string }) {
           <li className={styles.trait}>{crop.region}</li>
           <li className={styles.trait}>{crop.instrumentType}</li>
           {crop.stale && <li className={styles.trait}>Stale price</li>}
+          {crop.freshness === 'unknown' && (
+            <li className={styles.trait}>Unverified price</li>
+          )}
         </ul>
       </section>
 

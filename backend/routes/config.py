@@ -248,6 +248,27 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     else:
         persisted_auth_section["google_client_id"] = persisted_google_client_id
 
+    # Validate *before* writing. reload_config() below is what actually runs
+    # validate_tabs()/the rest of the config validation, so writing first meant
+    # an invalid document (an unknown ``ui.tabs`` key, a non-boolean feature
+    # flag, ...) was persisted and only *then* rejected with a 400. Because
+    # backend/config.py calls load_config() at import time, that left
+    # config.yaml in a state where every subsequent backend start -- local dev
+    # and docker, where the file is writable -- died with a
+    # ConfigValidationError. Pre-validating the merged document keeps a bad
+    # payload from ever reaching disk. Google auth is excluded because this
+    # handler does its own (more permissive) check above.
+    try:
+        config_module.validate_config_data(persisted_data)
+    except ConfigValidationError as exc:
+        logger.error("Rejected invalid config update: %s", sanitise_log_value(exc))
+        raise HTTPException(status_code=400, detail=str(exc))
+    except TypeError as exc:
+        # e.g. an unknown key in the ``trading_agent`` section, which reaches
+        # TradingAgentConfig(**...) as an unexpected keyword argument.
+        logger.error("Rejected invalid config update: %s", sanitise_log_value(exc))
+        raise HTTPException(status_code=400, detail=f"Invalid configuration: {exc}")
+
     if has_changes:
         try:
             with path.open("w", encoding="utf-8") as fh:

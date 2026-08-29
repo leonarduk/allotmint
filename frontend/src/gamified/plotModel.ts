@@ -110,6 +110,16 @@ export function starsFor(shareOfPlot: number): number {
  * Vigour (0–100) is a *freshness and momentum* read, not a performance one:
  * today's move mapped from ±5% onto the full bar, with a penalty when the
  * price feed is stale so neglected crops visibly droop.
+ *
+ * This intentionally reads `is_stale` directly rather than going through
+ * `freshnessFor`'s fresh/stale/unknown split (#7186): SUNLIGHT's job is to
+ * report data *confidence* to the user, so it must not count an unflagged
+ * holding as fresh. Vigour is a per-crop momentum flourish, not a
+ * confidence signal, and most deployments simply never send `is_stale` for
+ * every holding — penalising "no flag sent" the same as "confirmed stale"
+ * would droop every crop's Vigour on exactly the data shape #7186 says
+ * must not be treated as bad news. So: a *confirmed* stale price still
+ * penalises Vigour; an absent flag does not.
  */
 export function vigourFor(
   holding: Pick<Holding, 'day_change_gbp' | 'market_value_gbp' | 'is_stale'>
@@ -180,6 +190,14 @@ export function growerRank(level: number): string {
   return 'Seedling Sower';
 }
 
+/**
+ * How confident we are in a crop's price freshness.
+ *
+ * `is_stale` is only sometimes sent by the backend; when it's absent, the
+ * honest answer is "we don't know" rather than defaulting to "fresh" (#7186).
+ */
+export type PriceFreshness = 'fresh' | 'stale' | 'unknown';
+
 export interface Crop {
   /**
    * Unique per holding row, not per ticker: the same instrument legitimately
@@ -206,11 +224,16 @@ export interface Crop {
   sector: string;
   region: string;
   instrumentType: string;
+  /** True only for a *confirmed* stale price (`freshness === 'stale'`). */
   stale: boolean;
+  /** Fresh / stale / unknown — see `PriceFreshness`. Feeds the SUNLIGHT meter. */
+  freshness: PriceFreshness;
   lastPriceDate: string | null;
   /** Days held, when the API knows — drives the "ready to lift" hint. */
   daysHeld: number | null;
-  sellEligible: boolean;
+  /** Null when the acquisition date is unknown (#7220) -- eligibility
+   * genuinely can't be determined, distinct from a confirmed "not eligible". */
+  sellEligible: boolean | null;
   /** Days until the minimum holding period is served, when the API knows. */
   daysUntilEligible: number | null;
   nextEligibleSellDate: string | null;
@@ -273,6 +296,25 @@ export function bedFromAccount(account: Account, index: number): Bed {
   };
 }
 
+/**
+ * Fresh / stale / unknown for one holding's price.
+ *
+ * `is_stale` is the backend's own verdict and wins whenever it's present
+ * (`true` or `false`). When it's absent altogether, we deliberately do NOT
+ * fall back to comparing `last_price_date` against today: legitimate
+ * end-of-day pricing is routinely a day "behind" without being stale, and
+ * guessing wrong in that direction reproduces the exact failure #7186 warns
+ * against — a deployment with perfectly good data permanently drooping the
+ * SUNLIGHT meter. With no flag to go on, "unknown" is the only honest
+ * answer, whether or not a `last_price_date` happens to be present.
+ */
+function freshnessFor(holding: Pick<Holding, 'is_stale'>): PriceFreshness {
+  if (typeof holding.is_stale === 'boolean') {
+    return holding.is_stale ? 'stale' : 'fresh';
+  }
+  return 'unknown';
+}
+
 function cropFromHolding(
   holding: Holding,
   bed: Bed,
@@ -288,6 +330,7 @@ function cropFromHolding(
     holding.gain_pct ?? (costGbp > 0 ? (gainGbp / costGbp) * 100 : 0);
   const share = plotValue > 0 ? valueGbp / plotValue : 0;
   const dayChangeGbp = holding.day_change_gbp ?? 0;
+  const freshness = freshnessFor(holding);
   return {
     id: `${bedIndex}-${holdingIndex}-${holding.ticker}`,
     ticker: holding.ticker,
@@ -307,10 +350,14 @@ function cropFromHolding(
     sector: holding.sector || 'Unclassified',
     region: holding.region || 'Unknown',
     instrumentType: holding.instrument_type || 'Unknown',
-    stale: Boolean(holding.is_stale),
+    stale: freshness === 'stale',
+    freshness,
     lastPriceDate: holding.last_price_date ?? null,
     daysHeld: holding.days_held ?? null,
-    sellEligible: holding.sell_eligible !== false,
+    // #7220 review follow-up: previously `!== false`, which coerced
+    // sell_eligible: null (unknown) into `true`. Passing the tri-state
+    // through as-is keeps "unknown" distinct from a confirmed "eligible".
+    sellEligible: holding.sell_eligible ?? null,
     daysUntilEligible: holding.days_until_eligible ?? null,
     nextEligibleSellDate: holding.next_eligible_sell_date ?? null,
   };
@@ -372,7 +419,9 @@ export function resourcesFromPlot(
     0
   );
 
-  const fresh = crops.filter((crop) => !crop.stale).length;
+  const fresh = crops.filter((crop) => crop.freshness === 'fresh').length;
+  const stale = crops.filter((crop) => crop.freshness === 'stale').length;
+  const unknown = crops.filter((crop) => crop.freshness === 'unknown').length;
 
   return [
     {
@@ -409,10 +458,35 @@ export function resourcesFromPlot(
       current: fresh,
       max: crops.length,
       display: `${fresh} / ${crops.length}`,
+      // Only a *confirmed* fresh price fills the meter — unknown freshness
+      // is not fresh, so it does not inflate the bar (#7186). A deployment
+      // that never sends `is_stale` now shows an honest 0%, not 100%.
       pct: crops.length > 0 ? clamp((fresh / crops.length) * 100, 0, 100) : 0,
-      hint: `${fresh} of ${crops.length} crops priced from fresh data`,
+      hint: sunlightHint(fresh, stale, unknown, crops.length),
     },
   ];
+}
+
+/**
+ * SUNLIGHT's caption. When every crop's freshness is confirmed one way or
+ * the other, this reads the way it always has ("N of M crops priced from
+ * fresh data"). As soon as any crop's freshness is unverifiable, the
+ * caption switches to a three-way breakdown so "unknown" can't hide inside
+ * a number that reads like "stale" or "fresh" (#7186).
+ */
+function sunlightHint(
+  fresh: number,
+  stale: number,
+  unknown: number,
+  total: number
+): string {
+  if (unknown === 0) {
+    return `${fresh} of ${total} crops priced from fresh data`;
+  }
+  const parts = [`${fresh} fresh`];
+  if (stale > 0) parts.push(`${stale} stale`);
+  parts.push(`${unknown} unknown`);
+  return `${parts.join(', ')} of ${total} crops`;
 }
 
 export interface PlotSnapshot {
@@ -487,11 +561,36 @@ export function buildPlotSnapshot({
 
 export interface GerminatingCrop {
   crop: Crop;
-  /** 0–100 through the minimum holding period. */
+  /** 0–100 through the minimum holding period, or 0 when `indeterminate`. */
   pct: number;
   daysHeld: number;
   daysRemaining: number;
   readyOn: string | null;
+  /**
+   * True when the crop is in the propagator on `sell_eligible: false` alone,
+   * with no positive `days_until_eligible` to measure progress against
+   * (#7184). `pct`/`daysRemaining`/`readyOn` are all zeroed/nulled rather
+   * than fabricated — a 100%-full bar here would read as "about to clear",
+   * which is the opposite of what "not sellable" means.
+   */
+  indeterminate: boolean;
+}
+
+/**
+ * True when the backend's countdown (`days_until_eligible`) is a real,
+ * positive number of days rather than absent or already at/past zero.
+ *
+ * The backend doesn't always populate this field for every reason a holding
+ * can be blocked from selling — `sell_eligible: false` with
+ * `days_until_eligible: 0` shows up in production data (#7184). This is
+ * NOT used to decide propagator *membership* (see `isStillInPropagator`) —
+ * only to decide whether `germinatingCrops` has real progress/a real ready
+ * date to show, versus an indeterminate "not yet liftable" tray.
+ */
+export function hasKnownHoldPeriodCountdown(
+  crop: Pick<Crop, 'daysUntilEligible'>
+): boolean {
+  return crop.daysUntilEligible !== null && crop.daysUntilEligible > 0;
 }
 
 /**
@@ -501,13 +600,37 @@ export interface GerminatingCrop {
  * hub's Propagator widget and the crop detail screen's Hardiness trait both
  * read it, so they can't disagree about whether a holding has cleared its
  * hold period (see #7010).
+ *
+ * `sell_eligible` is authoritative in **both** directions (#7184): `false`
+ * always means "still in the propagator", `true` always means "not in the
+ * propagator", full stop. `days_until_eligible` is never a *reason* to be
+ * (or not be) in the propagator — it only feeds `germinatingCrops`' bar and
+ * ready date once membership is already decided.
+ *
+ * The issue that motivated this is internally inconsistent about that: its
+ * "How" section describes a known, positive countdown as "an additional
+ * reason to be in the propagator, not a precondition" (which reads as an
+ * OR), but its own "Failure looks like" section calls exactly that
+ * outcome — "the fix inverts the bug and puts freely sellable crops in the
+ * propagator" — a failure. A `sell_eligible: true` holding with a stale,
+ * not-yet-cleared `days_until_eligible` (e.g. the backend recalculated
+ * eligibility but hasn't refreshed the countdown) is precisely a freely
+ * sellable crop under an OR reading. Making `sell_eligible` authoritative
+ * both ways is the only reading that satisfies the issue's own failure
+ * criterion, so that's what this implements.
+ *
+ * `sellEligible: null` (#7220 -- an unknown acquisition date, so eligibility
+ * genuinely can't be determined) is deliberately its own case, not folded
+ * into either direction: only a *confirmed* `false` puts a crop in the
+ * propagator. `!crop.sellEligible` would have coerced `null` to `true` and
+ * flooded the propagator with every unknown-date holding -- on real data
+ * that's the majority of a portfolio (#7220), not the rare confirmed-false
+ * case #7184 was written for. `true` and `null` are therefore both "not
+ * confirmed still growing"; the crop simply doesn't render in this tray
+ * rather than making a confident claim either way.
  */
 export function isStillInPropagator(crop: Crop): boolean {
-  return (
-    !crop.sellEligible &&
-    crop.daysUntilEligible !== null &&
-    crop.daysUntilEligible > 0
-  );
+  return crop.sellEligible === false;
 }
 
 /**
@@ -522,18 +645,32 @@ export function germinatingCrops(crops: readonly Crop[]): GerminatingCrop[] {
   return crops
     .filter(isStillInPropagator)
     .map((crop) => {
-      const remaining = crop.daysUntilEligible ?? 0;
+      // Narrowed locally (rather than cast) so `remaining` is a plain
+      // number without asserting past the null check.
+      const countdown = crop.daysUntilEligible;
+      const known = countdown !== null && countdown > 0;
+      const remaining = known ? countdown : 0;
       const held = Math.max(0, crop.daysHeld ?? 0);
       const total = held + remaining;
       return {
         crop,
-        pct: total > 0 ? clamp((held / total) * 100, 0, 100) : 0,
+        // Without a known countdown there's nothing real to measure
+        // progress against — an empty bar, not a fabricated 100%.
+        pct: known && total > 0 ? clamp((held / total) * 100, 0, 100) : 0,
         daysHeld: held,
         daysRemaining: remaining,
-        readyOn: crop.nextEligibleSellDate,
+        readyOn: known ? crop.nextEligibleSellDate : null,
+        indeterminate: !known,
       };
     })
-    .sort((left, right) => left.daysRemaining - right.daysRemaining);
+    .sort((left, right) => {
+      // Entries with a real countdown lead, soonest-ready first; the
+      // indeterminate ones (no known wait) trail behind them.
+      if (left.indeterminate !== right.indeterminate) {
+        return left.indeterminate ? 1 : -1;
+      }
+      return left.daysRemaining - right.daysRemaining;
+    });
 }
 
 /**

@@ -115,10 +115,29 @@ interface GoalGroup {
   current: number;
   title: (target: number) => string;
   format: (value: number) => string;
+  /**
+   * Bare, unit-less variant of `format` for the compact tier-chip row
+   * (`✓ 5  ✓ 10  25  50`). Defaults to `format`. Chips carry the unit unless
+   * repeating it four times in one row is the actual problem: money
+   * ("£1.0k") and level ("Level 4") labels are already compact there, and
+   * the streak group's "3 days / 7 days / 14 days / 30 days" was never
+   * complained about. Only "tend" overrides this — its bare-number chips
+   * (`5  10  25  50`) were the one row that visibly wrapped once its goal
+   * line picked up a unit (#7194).
+   */
+  chipFormat?: (value: number) => string;
   unavailable?: boolean;
 }
 
-const countFormat = (value: number) => String(Math.round(value));
+/**
+ * Round `value` and pluralise `unit` against it, e.g. `1 day` / `3 days`.
+ * Shared by every group whose figure is a plain count rather than money or a
+ * level, so a goal never renders as a bare, unit-less number (#7194).
+ */
+const pluralize = (value: number, unit: string): string => {
+  const rounded = Math.round(value);
+  return `${rounded} ${unit}${rounded === 1 ? '' : 's'}`;
+};
 
 /**
  * The shared per-category ladder both `buildSeasonGoals` (one row per tier,
@@ -146,7 +165,8 @@ function buildGoalGroups(
       tiers: [5, 10, 25, 50],
       current: snapshot.crops.length,
       title: (target) => `Tend ${target} crops at once`,
-      format: countFormat,
+      format: (value) => pluralize(value, 'crop'),
+      chipFormat: (value) => String(Math.round(value)),
     },
     {
       id: 'grow',
@@ -177,7 +197,7 @@ function buildGoalGroups(
       tiers: [3, 7, 14, 30],
       current: snapshot.streak,
       title: (target) => `Hold a ${target}-day chore streak`,
-      format: (value) => `${Math.round(value)} days`,
+      format: (value) => pluralize(value, 'day'),
     },
     {
       id: 'rank',
@@ -225,7 +245,11 @@ export function buildSeasonGoals(
 
 export interface SeasonTierBadge {
   target: number;
-  /** The tier's target formatted for its unit, e.g. "£10.0k" or "25 days". */
+  /**
+   * The tier's target formatted for the compact chip row, e.g. "£10.0k" or
+   * "25" — bare for groups whose full format spells out a unit word, so six
+   * repeats of "crops"/"days" don't wrap the row (#7194).
+   */
   displayTarget: string;
   complete: boolean;
 }
@@ -242,8 +266,15 @@ export interface SeasonGroupProgress {
   /**
    * Progress toward the first tier not yet earned. `null` once every tier in
    * the group is cleared — there is no "next" goal left to show a bar for.
+   * `title` is the human description of that tier, e.g. "Tend 25 crops at
+   * once" — the thing the screen should actually say the goal is (#7194).
    */
-  next: { target: number; displayTarget: string; pct: number } | null;
+  next: {
+    target: number;
+    displayTarget: string;
+    pct: number;
+    title: string;
+  } | null;
   /** True once every tier in the group has been earned. */
   complete: boolean;
   /**
@@ -268,9 +299,10 @@ export function buildSeasonGroups(
   const groups = buildGoalGroups(snapshot, allowances, allowancesUnavailable);
 
   return groups.map((group) => {
+    const chipFormat = group.chipFormat ?? group.format;
     const tiers = group.tiers.map((target) => ({
       target,
-      displayTarget: group.format(target),
+      displayTarget: chipFormat(target),
       complete: group.current >= target,
     }));
     const nextTarget = group.tiers.find((target) => group.current < target);
@@ -281,6 +313,7 @@ export function buildSeasonGroups(
             target: nextTarget,
             displayTarget: group.format(nextTarget),
             pct: clamp((group.current / nextTarget) * 100, 0, 100),
+            title: group.title(nextTarget),
           };
 
     return {

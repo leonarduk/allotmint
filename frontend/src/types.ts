@@ -17,6 +17,14 @@ export interface Holding {
   cost_basis_currency?: string | null;
   effective_cost_basis_gbp?: number | null;
   effective_cost_basis_currency?: string | null;
+  /**
+   * How cost_basis/effective_cost_basis_gbp were derived: "book" (a real
+   * booked cost), "derived" (a real historical price near a known
+   * acquisition date), "unknown" (no booked cost and no acquisition date --
+   * cost was set equal to current market value as a last resort and the
+   * resulting gain/gain_pct is not a fact, see #7220), "cash", or "none".
+   */
+  cost_basis_source?: string | null;
   market_value_gbp?: number | null;
   market_value_currency?: string | null;
   gain_gbp?: number | null;
@@ -29,7 +37,7 @@ export interface Holding {
   /** Timestamp of the last known price for this holding */
   last_price_time?: string | null;
   /** Whether the current price may be stale */
-  is_stale?: boolean;
+  is_stale?: boolean | null;
   latest_source?: string | null;
   day_change_gbp?: number | null;
   day_change_currency?: string | null;
@@ -40,7 +48,7 @@ export interface Holding {
   forward_30d_change_pct?: number | null;
 
   days_held?: number | null;
-  sell_eligible?: boolean;
+  sell_eligible?: boolean | null;
   days_until_eligible?: number | null;
   next_eligible_sell_date?: string | null;
 }

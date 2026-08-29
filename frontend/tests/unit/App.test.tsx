@@ -2123,9 +2123,11 @@ describe("App", () => {
     );
 
     // Use a case-insensitive regex to find the research button robustly,
-    // avoiding dependency on i18n key resolution order in CI.
+    // avoiding dependency on i18n key resolution order in CI. The toggle is
+    // labelled "Show instrument search" (#7223) to distinguish it from the
+    // search inputs it reveals.
     const researchButton = screen.getByRole("button", {
-      name: /research/i,
+      name: /instrument search/i,
     });
     expect(researchButton).toHaveAttribute("aria-expanded", "false");
 

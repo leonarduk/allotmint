@@ -124,3 +124,41 @@ def test_list_saved_queries_excludes_seeded_demo_fixture(
         direct_resp = client.get(f"/custom-query/{demo_slug}")
         assert direct_resp.status_code == 200
         assert direct_resp.json()["tickers"] == ["PFE"]
+
+
+def test_list_saved_queries_excludes_demo_slug_under_documented_default_identity(
+    monkeypatch, temp_queries_dir
+):
+    """Regression test for #7222 review feedback: config.example.yaml
+    documents ``demo_identity: steve`` alongside ``data_root: data``, so
+    anyone following the documented setup has demo_identity() == "steve",
+    NOT "demo" -- yet the checked-in fixture is statically named
+    data/queries/demo-slug.json regardless of demo_identity. A filter that
+    only excludes ``f"{demo_identity()}-slug"`` would compute "steve-slug"
+    here and miss the actual "demo-slug" fixture entirely, in exactly the
+    configuration where the leak occurs. This pins demo_identity to the
+    documented default and asserts the literal "demo-slug" fixture is still
+    excluded.
+    """
+    monkeypatch.setattr(config, "app_env", None)
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "demo_identity", "steve")
+
+    (temp_queries_dir / "demo-slug.json").write_text(
+        json.dumps({"tickers": ["PFE"], "name": None})
+    )
+    (temp_queries_dir / "alpha.json").write_text(json.dumps({"name": "Alpha"}))
+
+    app = create_app()
+
+    with TestClient(app) as client:
+        resp = client.get("/custom-query/saved")
+        assert resp.status_code == 200
+        ids = [entry["id"] for entry in resp.json()]
+        assert "demo-slug" not in ids
+        assert ids == ["alpha"]
+
+        # Still directly loadable by slug — only the listing hides it.
+        direct_resp = client.get("/custom-query/demo-slug")
+        assert direct_resp.status_code == 200
+        assert direct_resp.json()["tickers"] == ["PFE"]

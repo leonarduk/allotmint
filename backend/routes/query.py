@@ -49,6 +49,18 @@ def _slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
+# The literal slug of the fixture checked in at data/queries/demo-slug.json.
+# Pinned explicitly (not just derived from demo_identity()) because
+# config.example.yaml documents demo_identity: steve alongside the
+# repo-relative data_root: data default -- i.e. the DOCUMENTED setup
+# computes a demo_identity()-derived slug of "steve-slug", which does not
+# match this file at all, in exactly the configuration where QUERIES_DIR
+# and REPO_QUERIES_DIR coincide and the leak occurs. Filtering only the
+# dynamic slug would silently fail to hide the fixture for anyone following
+# the documented setup.
+_DEMO_SLUG_FIXTURE_FILENAME = "demo-slug"
+
+
 def _seeded_fixture_slugs() -> set[str]:
     """Slugs for demo/seed query fixtures shipped in the repo (e.g.
     ``data/queries/demo-slug.json``) that must never surface in the
@@ -60,8 +72,14 @@ def _seeded_fixture_slugs() -> set[str]:
     below excludes them from the *listing*; they remain loadable by slug via
     ``_load_query_local``'s REPO_QUERIES_DIR fallback, which
     ``test_custom_query_routes_fallback_to_local`` exercises directly.
+
+    Includes both the pinned literal filename (see
+    ``_DEMO_SLUG_FIXTURE_FILENAME`` above) and the slug computed from the
+    *configured* demo_identity (lower-cased, matching ``_slugify``'s
+    normalisation), so a deployment that renames the identity but keeps
+    seeding a matching fixture is still covered.
     """
-    return {f"{demo_identity()}-slug"}
+    return {_DEMO_SLUG_FIXTURE_FILENAME, f"{demo_identity().lower()}-slug"}
 
 
 def _resolve_tickers(q: CustomQuery) -> List[str]:

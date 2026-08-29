@@ -24,7 +24,7 @@
     "collapseShort": "Einklappen"
   },
   "alertSettings": {
-    "description": "Konfigurieren Sie, wann Sie Benachrichtigungen erhalten. Die Alarme erscheinen auf der Alerts-Seite und als Push-Benachrichtigungen.",
+    "description": "Dieser Schwellenwert ist in dieser Umgebung noch nicht mit der Alarmerzeugung verbunden. Die heutigen Alarme stammen aus einer festen, kontoübergreifenden Prüfung, die während der täglichen Kursaktualisierung läuft: Jede Position, die mehr als 10 % von ihrem Einstandspreis abweicht, wird über alle Portfolios hinweg markiert.",
     "push": {
       "denied": "Push-Berechtigung verweigert.",
       "disable": "Push-Alerts deaktivieren",

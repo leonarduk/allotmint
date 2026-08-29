@@ -24,7 +24,7 @@
     "collapseShort": "Contraer"
   },
   "alertSettings": {
-    "description": "Configura cuándo recibirás alertas. Las alertas aparecen en la página de alertas y en las notificaciones push.",
+    "description": "Este umbral aún no está conectado a la generación de alertas en este entorno. Las alertas actuales provienen de una comprobación fija que se ejecuta en toda la cuenta durante la actualización diaria de precios: cualquier posición que se desvíe más del 10 % de su precio de coste se marca en todas las carteras.",
     "push": {
       "denied": "Permiso de push denegado.",
       "disable": "Desactivar alertas push",

@@ -4,15 +4,36 @@ import { Link, useLocation } from "react-router-dom";
 import AppHeader from "../components/AppHeader";
 import {
   getAlertThreshold,
+  getConfig,
   getOwners,
   setAlertThreshold,
 } from "../api";
 import { useUser } from "../UserContext";
 import { usePriceRefresh } from "../PriceRefreshContext";
-import { sanitizeOwners } from "../utils/owners";
+import {
+  createOwnerDisplayLookup,
+  findOwnerForUser,
+  getOwnerDisplayName,
+  sanitizeOwners,
+} from "../utils/owners";
 import type { OwnerSummary } from "../types";
 
 const HTTP_FORBIDDEN = 403;
+
+/**
+ * The subset of GET /config this page needs. `disable_auth` and
+ * `local_login_email` are part of the typed contract already;
+ * `demo_identity` is a real field on the backend response (see
+ * backend/routes/config.py -- it isn't in the SPA's secret-redaction list)
+ * but isn't declared on configContractSchema, so it survives the schema's
+ * `.passthrough()` at runtime without being typed. Cast for it explicitly
+ * rather than widening the shared contract for one caller.
+ */
+interface AlertIdentityConfig {
+  disable_auth: boolean;
+  local_login_email: string | null;
+  demo_identity?: string;
+}
 
 export default function AlertSettings() {
   const { t } = useTranslation();
@@ -20,57 +41,106 @@ export default function AlertSettings() {
   const { lastRefresh } = usePriceRefresh();
   const location = useLocation();
 
-  // AlertSettings is mounted as a standalone route (see routes/registry.ts)
-  // outside <RouteProvider>, so it can't call useRoute() like most other
-  // pages do. It resolves the acting owner the same way the rest of the app
-  // scopes requests instead of depending on an authenticated profile:
-  //   1. the `?owner=` query param the nav link now carries (mirrors the
-  //      owner/group scoping useRouteMode derives for in-context pages);
-  //   2. the first owner from /owners, so the page works the same way
-  //      PensionForecast etc. do on a direct visit with nothing selected yet
-  //      -- this is what makes it usable in the local/demo deployment, where
-  //      every other page already shows all owners without a signed-in
-  //      profile;
-  //   3. profile?.email as a last resort.
-  const queryOwner = useMemo(
-    () => new URLSearchParams(location.search).get("owner")?.trim() ?? "",
-    [location.search],
-  );
-  const [owners, setOwners] = useState<OwnerSummary[]>([]);
+  // /alert-thresholds/{user} (backend/routes/alert_settings.py) is scoped to
+  // a single resolved IDENTITY, not to whichever owner's portfolio happens
+  // to be selected in the UI: an authenticated caller's identity is their
+  // own email; otherwise (auth disabled, as in the local/demo deployment)
+  // the backend falls back to `local_login_email` if configured, else the
+  // shared `demo_identity` -- see backend/auth.py
+  // `_resolve_identity_when_auth_disabled` and backend/config.py
+  // `demo_identity()`. A portfolio owner slug (e.g. "alice") is never a
+  // valid identity: /owners intentionally excludes "demo" from its list
+  // (see sanitizeOwners), so sending an owner slug here 403s unconditionally
+  // in this deployment's config (disable_auth=true, demo_identity="demo").
+  // `identity` (sent to the API) and `displayOwner` (shown on screen, for
+  // context) are therefore resolved separately (#7225 review).
+  const [configLoaded, setConfigLoaded] = useState(false);
+  const [identityConfig, setIdentityConfig] =
+    useState<AlertIdentityConfig | null>(null);
   useEffect(() => {
-    if (queryOwner) return;
     let cancelled = false;
-    getOwners()
-      .then((os) => {
-        if (!cancelled) setOwners(sanitizeOwners(os));
+    getConfig()
+      .then((cfg) => {
+        if (cancelled) return;
+        setIdentityConfig(cfg as unknown as AlertIdentityConfig);
+        setConfigLoaded(true);
       })
       .catch(() => {
-        if (!cancelled) setOwners([]);
+        if (cancelled) return;
+        setIdentityConfig(null);
+        setConfigLoaded(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [queryOwner]);
-  const owner = queryOwner || owners[0]?.owner || profile?.email || "";
+  }, []);
+
+  const queryOwner = useMemo(
+    () => new URLSearchParams(location.search).get("owner")?.trim() ?? "",
+    [location.search],
+  );
+  const [ownersLoaded, setOwnersLoaded] = useState(false);
+  const [owners, setOwners] = useState<OwnerSummary[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    getOwners()
+      .then((os) => {
+        if (cancelled) return;
+        setOwners(sanitizeOwners(os));
+        setOwnersLoaded(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setOwners([]);
+        setOwnersLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Resolving is true until both fetches above have settled, so the page
+  // doesn't flash the sign-in notice on first paint before it knows whether
+  // an identity is actually available (#7225 review).
+  const resolving = !configLoaded || !ownersLoaded;
+
+  const identity = useMemo(() => {
+    if (profile?.email) return profile.email;
+    if (identityConfig?.disable_auth) {
+      return identityConfig.local_login_email || identityConfig.demo_identity || "";
+    }
+    return "";
+  }, [profile?.email, identityConfig]);
+
+  // Display-only: which owner's portfolio this identity corresponds to, if
+  // any, so the page can say whose alerts are being edited (never sent to
+  // the API -- see `identity` above).
+  const displayOwner = useMemo(() => {
+    if (!identity) return "";
+    const matched =
+      findOwnerForUser(owners, { email: identity }) ??
+      (queryOwner ? owners.find((o) => o.owner === queryOwner) : undefined);
+    if (!matched) return identity;
+    return getOwnerDisplayName(createOwnerDisplayLookup(owners), matched.owner, identity);
+  }, [identity, owners, queryOwner]);
 
   const [threshold, setThreshold] = useState<number | "">("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
-  // Set when the backend rejects this owner as an authorisation mismatch
-  // (alert thresholds are scoped to a single signed-in identity, unlike
-  // portfolio data). Kept distinct from `status` so the UI can explain the
-  // real reason Save is unavailable instead of a generic sign-in notice.
+  // Set when the backend rejects this identity as an authorisation mismatch.
+  // Kept distinct from `status` so the UI can explain the real reason Save
+  // is unavailable instead of a generic sign-in notice.
   const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
     setForbidden(false);
-    if (!owner) {
+    if (!identity) {
       setThreshold("");
       return;
     }
     let cancelled = false;
-    getAlertThreshold(owner)
+    getAlertThreshold(identity)
       .then((r) => {
         if (cancelled) return;
         setThreshold(r.threshold);
@@ -85,13 +155,13 @@ export default function AlertSettings() {
     return () => {
       cancelled = true;
     };
-  }, [owner]);
+  }, [identity]);
 
   async function save() {
-    if (threshold === "" || !owner || forbidden) return;
+    if (threshold === "" || !identity || forbidden) return;
     setStatus("saving");
     try {
-      await setAlertThreshold(owner, Number(threshold));
+      await setAlertThreshold(identity, Number(threshold));
       setStatus("saved");
     } catch (err) {
       if ((err as { status?: number })?.status === HTTP_FORBIDDEN) {
@@ -103,7 +173,7 @@ export default function AlertSettings() {
     }
   }
 
-  const saveDisabled = !owner || forbidden;
+  const saveDisabled = resolving || !identity || forbidden;
 
   return (
     <div style={{ padding: "1rem" }}>
@@ -114,13 +184,17 @@ export default function AlertSettings() {
         <p>
           <Link to="/alerts">{t("alertSettings.viewAlertsLink")}</Link>
         </p>
-        {!owner && <p>{t("alertSettings.signInNotice")}</p>}
-        {owner && forbidden && (
-          <p>{t("alertSettings.forbiddenNotice", { owner })}</p>
+        {resolving && <p>{t("alertSettings.resolving")}</p>}
+        {!resolving && !identity && <p>{t("alertSettings.signInNotice")}</p>}
+        {!resolving && identity && !forbidden && (
+          <p>{t("alertSettings.managingFor", { owner: displayOwner })}</p>
+        )}
+        {!resolving && identity && forbidden && (
+          <p>{t("alertSettings.forbiddenNotice", { owner: identity })}</p>
         )}
         <div style={{ marginTop: "1rem" }}>
           <label>
-            {t("alertSettings.threshold.prefix")}{" "}
+            {t("alertSettings.threshold")}{" "}
             <input
               type="number"
               value={threshold}
@@ -131,8 +205,7 @@ export default function AlertSettings() {
               }
               style={{ width: "4rem" }}
               disabled={saveDisabled}
-            />{" "}
-            {t("alertSettings.threshold.suffix")}
+            />
           </label>
           <button
             onClick={save}

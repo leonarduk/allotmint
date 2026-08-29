@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -266,31 +267,27 @@ def _load_cors_origins(data: Dict[str, Any]) -> Optional[List[str]]:
     return cors_origins
 
 
-@lru_cache(maxsize=None)
-def load_config() -> Config:
-    """Load configuration from config.yaml with optional env overrides.
+def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Config:
+    """Build a :class:`Config` from an already-flattened config document.
 
-    This function is cached so repeated calls avoid re-parsing configuration
-    files. Tests and callers that need a fresh configuration can clear the
-    cache via ``load_config.cache_clear()``.
+    ``data`` is the shape produced by :func:`_flatten_dict` over the parsed
+    ``config.yaml`` -- i.e. section maps such as ``ui``/``auth`` already
+    collapsed into top-level keys. Environment overrides are applied here, so
+    this is the single place where raw config data becomes a validated
+    ``Config``, whether it came from disk (:func:`load_config`) or from an
+    in-flight update that has not been persisted yet
+    (:func:`validate_config_data`).
+
+    Set ``check_google_auth`` to ``False`` to skip the ``GOOGLE_AUTH_ENABLED``
+    environment resolution and :func:`validate_google_auth` entirely, leaving
+    ``google_auth_enabled`` as the document supplies it. ``PUT /config`` needs
+    this: it does its own Google-auth handling, and deliberately tolerates
+    cases this function rejects (a blank ``GOOGLE_AUTH_ENABLED``, or an
+    env-forced one with no client id, which it downgrades to a warning). Those
+    are environment problems rather than defects in the document being saved,
+    so they must not block persisting an otherwise valid config.
     """
-    path = _project_config_path()
-    data: Dict[str, Any] = {}
-
-    if path.exists():
-        try:
-            with path.open("r", encoding="utf-8") as f:
-                file_data = yaml.safe_load(f) or {}
-                if isinstance(file_data, dict):
-                    _flatten_dict(file_data, data)
-        except yaml.YAMLError as exc:
-            logger.exception("Failed to parse config file %s", path)
-            raise ConfigValidationError(f"Error parsing config file '{path}': {exc}") from exc
-        except OSError as exc:
-            logger.exception("Failed to read config file %s", path)
-            raise ConfigValidationError(f"Error reading config file '{path}': {exc}") from exc
-
-    base_dir = path.parent
+    base_dir = _project_config_path().parent
 
     app_env_env = os.getenv("APP_ENV")
     if app_env_env:
@@ -400,7 +397,7 @@ def load_config() -> Config:
 
     google_auth_enabled = data.get("google_auth_enabled")
     env_google_auth = os.getenv("GOOGLE_AUTH_ENABLED")
-    if env_google_auth is not None:
+    if check_google_auth and env_google_auth is not None:
         env_val = env_google_auth.strip().lower()
         if env_val in {"1", "true", "yes"}:
             google_auth_enabled = True
@@ -435,7 +432,7 @@ def load_config() -> Config:
 
     # Only validate Google auth in non-test environments
     environment = os.getenv("ENVIRONMENT", "").lower()
-    if environment not in ("test", "testing"):
+    if check_google_auth and environment not in ("test", "testing"):
         validate_google_auth(google_auth_enabled, google_client_id)
 
     ui_auth_domain = os.getenv("UI_AUTH_DOMAIN", "").strip() or None
@@ -543,6 +540,51 @@ def load_config() -> Config:
     )
 
     return cfg
+
+
+@lru_cache(maxsize=None)
+def load_config() -> Config:
+    """Load configuration from config.yaml with optional env overrides.
+
+    This function is cached so repeated calls avoid re-parsing configuration
+    files. Tests and callers that need a fresh configuration can clear the
+    cache via ``load_config.cache_clear()``.
+    """
+    path = _project_config_path()
+    data: Dict[str, Any] = {}
+
+    if path.exists():
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                file_data = yaml.safe_load(f) or {}
+                if isinstance(file_data, dict):
+                    _flatten_dict(file_data, data)
+        except yaml.YAMLError as exc:
+            logger.exception("Failed to parse config file %s", path)
+            raise ConfigValidationError(f"Error parsing config file '{path}': {exc}") from exc
+        except OSError as exc:
+            logger.exception("Failed to read config file %s", path)
+            raise ConfigValidationError(f"Error reading config file '{path}': {exc}") from exc
+
+    return build_config(data)
+
+
+def validate_config_data(raw: Dict[str, Any], *, check_google_auth: bool = False) -> Config:
+    """Validate a config *document* without reading or writing ``config.yaml``.
+
+    ``raw`` is the nested form that would be written to ``config.yaml`` (with
+    ``ui``/``auth`` sections intact). It is flattened and built exactly as
+    :func:`load_config` would, so anything that would make a later
+    :func:`reload_config` fail -- an unknown ``ui.tabs`` key, a non-boolean
+    feature flag, an out-of-tree ``audit_dir`` -- raises here instead.
+
+    Callers use this to reject an invalid update *before* persisting it: a bad
+    document written to disk would otherwise break every subsequent process
+    start, because :func:`load_config` runs at import time.
+    """
+    data: Dict[str, Any] = {}
+    _flatten_dict(deepcopy(raw), data)
+    return build_config(data, check_google_auth=check_google_auth)
 
 
 settings = load_config()

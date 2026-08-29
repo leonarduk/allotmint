@@ -479,6 +479,46 @@ describe("HoldingsTable", () => {
         expect(within(row).getByText(/Eligible/)).toBeInTheDocument();
     });
 
+    it("renders Gain £/Gain % as an explicit N/A (not a confident £0.00) when cost_basis_source is unknown (#7220 review follow-up)", async () => {
+        // Regression guard: a holding with no booked cost and no acquisition
+        // date has its cost set equal to market value as a last resort
+        // (backend/common/holding_utils.py), so gain_gbp/gain_pct arrive as
+        // real 0s -- but that 0 is a guess, not a fact. cost_basis_source is
+        // tagged "unknown" for exactly this case so the UI can render an
+        // honest N/A here instead of a misleading "you broke even".
+        const unknownCostHolding: Holding = {
+            ticker: "UNKC",
+            name: "Unknown Cost Co",
+            units: 5,
+            acquired_date: null,
+            price: 8,
+            cost_basis_gbp: null,
+            effective_cost_basis_gbp: 40,
+            market_value_gbp: 40,
+            gain_gbp: 0,
+            gain_pct: 0,
+            current_price_gbp: 8,
+            cost_basis_source: "unknown",
+        };
+
+        renderWithConfig(<HoldingsTable holdings={[unknownCostHolding]} />);
+
+        const row = (await screen.findByText("Unknown Cost Co")).closest("tr")!;
+        const naCells = within(row).getAllByText("N/A");
+        // Gain £ and Gain % both render N/A; other unrelated null fields on
+        // this holding (acquired/days-held/stage/eligible) also render N/A,
+        // so assert on the specific tooltips rather than an exact count.
+        expect(naCells.length).toBeGreaterThanOrEqual(2);
+        expect(within(row).getAllByTitle("Gain unknown — no acquisition date or booked cost on record").length).toBe(2);
+        expect(
+            within(row).getByTitle("No acquisition date or booked cost on record — cost assumed equal to current value"),
+        ).toBeInTheDocument();
+        // The cost cell still shows a real (non-N/A) number, equal to market
+        // value (£40.00 appears for both Mkt £ and Cost £) -- it is the gain
+        // that must be hidden, not the cost.
+        expect(within(row).getAllByText("£40.00")).toHaveLength(2);
+    });
+
     it("keeps footer columns aligned with the header in relative view", async () => {
         const TestProviderRelative = ({ children }: { children: React.ReactNode }) => (
             <configContext.Provider
@@ -618,6 +658,41 @@ describe("HoldingsTable", () => {
         await userEvent.selectOptions(select, "true");
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.queryByText("Test Holding")).toBeNull();
+    });
+
+    it("excludes holdings with unknown (null) sell_eligible from both eligibility filter options (#7220 review follow-up)", async () => {
+        // Regression guard: `!!h.sell_eligible !== expect` coerces
+        // sell_eligible: null to false, which previously swept every
+        // UNKNOWN-eligibility holding into the "No" filter result --
+        // reporting "unknown" as a confident "not eligible", the exact class
+        // of fabricated-certainty bug #7220 exists to remove. Unknown must
+        // match neither "Yes" nor "No".
+        const holdingsWithUnknown: Holding[] = [
+            ...holdings,
+            {
+                ticker: "UNKN",
+                name: "Unknown Eligibility",
+                units: 3,
+                acquired_date: null,
+                days_held: null,
+                sell_eligible: null,
+                days_until_eligible: null,
+            },
+        ];
+
+        render(<HoldingsTable holdings={holdingsWithUnknown} />);
+        await screen.findByText("AAA");
+        expect(screen.getByText("Unknown Eligibility")).toBeInTheDocument();
+
+        const select = await screen.findByLabelText("Sell eligible");
+
+        await userEvent.selectOptions(select, "true");
+        expect(screen.getByText("AAA")).toBeInTheDocument();
+        expect(screen.queryByText("Unknown Eligibility")).toBeNull();
+
+        await userEvent.selectOptions(select, "false");
+        expect(screen.getByText("Test Holding")).toBeInTheDocument();
+        expect(screen.queryByText("Unknown Eligibility")).toBeNull();
     });
 
     it("suppresses lot-only eligibility controls without changing the column count in rollup mode", async () => {

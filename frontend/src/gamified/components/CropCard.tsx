@@ -59,6 +59,12 @@ export default function CropCard({
         <StarRating value={crop.stars} />
         <span className={styles.cropTicker}>{crop.ticker}</span>
         <span className={styles.cropName}>{crop.name}</span>
+        {/* The same instrument can legitimately sit in more than one bed
+            (ISA and SIPP both holding ERNS.L, for example); without this the
+            two cards are visually identical and there's no way to tell them
+            apart on the roster or hub (#7212, bed-label half only — no
+            cross-bed aggregation here, see the issue for why). */}
+        <span className={styles.cropBed}>{crop.bedName}</span>
         <span className={styles.cropStageChip}>{stage.label}</span>
         <span className={styles.cropValue}>{formatGbp(crop.valueGbp)}</span>
         <span className={crop.gainPct >= 0 ? styles.gain : styles.loss}>

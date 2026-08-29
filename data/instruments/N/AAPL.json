@@ -1,0 +1,10 @@
+{
+  "name": "Apple Inc.",
+  "ticker": "AAPL.N",
+  "exchange": "N",
+  "asset_class": "Equity",
+  "sector": "Technology",
+  "industry": "Consumer Electronics",
+  "region": "North America",
+  "currency": "USD"
+}

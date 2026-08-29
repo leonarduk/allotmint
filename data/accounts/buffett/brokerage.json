@@ -1,0 +1,58 @@
+{
+  "owner": "buffett",
+  "account_type": "brokerage",
+  "currency": "USD",
+  "last_updated": "2026-08-14",
+  "holdings": [
+    {
+      "ticker": "AAPL.N",
+      "units": 228000000,
+      "cost_basis_gbp": 52010268075.55
+    },
+    {
+      "ticker": "AXP.N",
+      "units": 151600000,
+      "cost_basis_gbp": 40426162913.28
+    },
+    {
+      "ticker": "KO.N",
+      "units": 400000000,
+      "cost_basis_gbp": 25768723728.50
+    },
+    {
+      "ticker": "GOOGL.N",
+      "units": 78790000,
+      "cost_basis_gbp": 22222569086.83
+    },
+    {
+      "ticker": "BAC.N",
+      "units": 481664406,
+      "cost_basis_gbp": 21749748468.00
+    },
+    {
+      "ticker": "CVX.N",
+      "units": 84000000,
+      "cost_basis_gbp": 11111284543.41
+    },
+    {
+      "ticker": "OXY.N",
+      "units": 265000000,
+      "cost_basis_gbp": 10165643305.68
+    },
+    {
+      "ticker": "CB.N",
+      "units": 34249183,
+      "cost_basis_gbp": 9220002067.94
+    },
+    {
+      "ticker": "MCO.N",
+      "units": 24600000,
+      "cost_basis_gbp": 8747181449.07
+    },
+    {
+      "ticker": "GOOG.N",
+      "units": 27210000,
+      "cost_basis_gbp": 7565129901.90
+    }
+  ]
+}

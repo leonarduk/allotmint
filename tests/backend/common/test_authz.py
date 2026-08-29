@@ -123,3 +123,96 @@ def test_ensure_owner_access_denial_log_reports_identity_present_when_unauthoriz
             authz.ensure_owner_access("bob", "alice")
 
     assert "identity_present=True" in caplog.records[0].getMessage()
+
+
+# ---------------------------------------------------------------------------
+# Demo-scoped owner access (#7408)
+# ---------------------------------------------------------------------------
+
+
+def _fail_load_person_meta(owner, root=None):
+    """A demo request must never consult person.json metadata (#7408)."""
+
+    raise AssertionError("demo-scoped ensure_owner_access must not load person metadata")
+
+
+def test_ensure_owner_access_demo_request_allows_configured_owner(monkeypatch):
+    monkeypatch.setattr(authz, "is_demo_request", lambda: True)
+    monkeypatch.setattr(config, "demo_link_owner", "demo")
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr(authz, "load_person_meta", _fail_load_person_meta)
+
+    authz.ensure_owner_access("demo", "demo")
+
+
+def test_ensure_owner_access_demo_request_denies_other_owner(monkeypatch):
+    monkeypatch.setattr(authz, "is_demo_request", lambda: True)
+    monkeypatch.setattr(config, "demo_link_owner", "demo")
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr(authz, "load_person_meta", _fail_load_person_meta)
+
+    with pytest.raises(PermissionDeniedError):
+        authz.ensure_owner_access("demo", "alice")
+
+
+def test_ensure_owner_access_demo_request_denied_even_with_disable_auth_true(monkeypatch):
+    """The deployed Lambda runs with disable_auth=True; the demo case must
+    not inherit that no-op (#7408)."""
+
+    monkeypatch.setattr(authz, "is_demo_request", lambda: True)
+    monkeypatch.setattr(config, "demo_link_owner", "demo")
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(authz, "load_person_meta", _fail_load_person_meta)
+
+    with pytest.raises(PermissionDeniedError):
+        authz.ensure_owner_access("demo", "alice")
+
+
+def test_ensure_owner_access_demo_request_not_widened_by_viewers(monkeypatch):
+    """A viewers entry equal to the demo owner id on some other owner's
+    person.json must not widen demo access -- the demo decision comes from
+    config alone (#7408)."""
+
+    monkeypatch.setattr(authz, "is_demo_request", lambda: True)
+    monkeypatch.setattr(config, "demo_link_owner", "demo")
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr(authz, "load_person_meta", _fail_load_person_meta)
+
+    with pytest.raises(PermissionDeniedError):
+        authz.ensure_owner_access("demo", "alice")
+
+
+def test_ensure_owner_access_demo_request_denied_when_owner_not_configured(monkeypatch):
+    """A demo request is denied for every owner when demo_link_owner is unset
+    (fail closed rather than matching a blank/None owner)."""
+
+    monkeypatch.setattr(authz, "is_demo_request", lambda: True)
+    monkeypatch.setattr(config, "demo_link_owner", None)
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr(authz, "load_person_meta", _fail_load_person_meta)
+
+    with pytest.raises(PermissionDeniedError):
+        authz.ensure_owner_access("demo", "demo")
+
+
+def test_ensure_owner_access_demo_request_owner_match_case_insensitive(monkeypatch):
+    monkeypatch.setattr(authz, "is_demo_request", lambda: True)
+    monkeypatch.setattr(config, "demo_link_owner", "Demo")
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr(authz, "load_person_meta", _fail_load_person_meta)
+
+    authz.ensure_owner_access("demo", "  DEMO  ")
+
+
+def test_ensure_owner_access_non_demo_request_unaffected(monkeypatch):
+    """Normal (non-demo) requests are unaffected by the demo branch."""
+
+    monkeypatch.setattr(authz, "is_demo_request", lambda: False)
+    monkeypatch.setattr(config, "demo_link_owner", "demo")
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr(authz, "load_person_meta", lambda owner, root=None: {"email": "alice@example.com"})
+
+    authz.ensure_owner_access("alice@example.com", "alice")
+
+    with pytest.raises(PermissionDeniedError):
+        authz.ensure_owner_access("bob", "alice")

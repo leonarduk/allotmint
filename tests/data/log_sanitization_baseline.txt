@@ -14,7 +14,10 @@ backend/common/alerts.py:44
 backend/common/approvals.py:40
 backend/common/approvals.py:88
 # (always int) can't carry attacker-controlled input.
-backend/common/authz.py:82
+backend/common/authz.py:113
+# identity_present is `identity is not None` (always bool), not the raw
+# identity value -- can't carry attacker-controlled input (#7408).
+backend/common/authz.py:101
 backend/common/dividends.py:74
 # Issue #5879: do not double-sanitise values prepared by the diagnostic helper.
 backend/common/errors.py:102

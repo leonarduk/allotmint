@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   LineChart,
@@ -27,6 +27,20 @@ export default function PensionForecast() {
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const { selectedOwner, setSelectedOwner } = useRoute();
   const [owner, setOwner] = useState("");
+  // Tracks the last owner the portfolio-pot effect ran for, so it can tell
+  // "the initial async '' -> first-owner resolution on mount" apart from
+  // "the user actually switched owners" -- see that effect below. A forecast
+  // (and the seeded pot) belongs to the owner it was produced for, and must
+  // never linger under a different owner while their own portfolio request
+  // is in flight (ported from #7227's owner-switch-staleness fix).
+  const previousOwnerRef = useRef("");
+  // Distinguishes "portfolio still loading" and "portfolio failed to load"
+  // from "loaded, owner has no pension accounts" -- without this the pot
+  // stat and forecast-error banner have no way to tell a fetch that simply
+  // hasn't resolved yet from a genuine zero, both of which would otherwise
+  // silently read as "Shown after you run a forecast" (ported from #7227).
+  const [portfolioLoading, setPortfolioLoading] = useState(true);
+  const [portfolioError, setPortfolioError] = useState(false);
   const [deathAge, setDeathAge] = useState(90);
   // Defaults to "0" (not blank) so the field always shows a concrete starting
   // value per #7211. This intentionally reproduces the *existing* behaviour:
@@ -120,12 +134,46 @@ export default function PensionForecast() {
   // backend's own `dc_pension_pot_gbp` classification exactly, so this
   // figure is the same number a real forecast run would report for the same
   // accounts (verified in accountTypes.test.ts and PensionForecast.test.tsx).
+  //
+  // Also clears any previous owner's forecast result on a genuine owner
+  // switch, and tracks loading/error state for this fetch, so a slow or
+  // failed portfolio request can't leave a stale or misleading pot value on
+  // screen under a different owner (ported from #7227's follow-up commits).
   useEffect(() => {
+    // Only reset on a genuine switch between two already-resolved owners --
+    // not on the initial "" -> first-owner resolution that happens once on
+    // mount, which would otherwise race a forecast the user submits before
+    // that (asynchronous) resolution has settled and wipe the result they
+    // just saw.
+    const isRealOwnerSwitch =
+      previousOwnerRef.current !== "" && previousOwnerRef.current !== owner;
+    previousOwnerRef.current = owner;
+    if (isRealOwnerSwitch) {
+      setData([]);
+      setProjectedPot(null);
+      setPensionPot(null);
+      setCurrentAge(null);
+      setRetirementAge(null);
+      setDob(null);
+      setEarliestRetirementAge(null);
+      setRetirementIncomeBreakdown(null);
+      setRetirementIncomeTotal(null);
+      setDesiredIncomeUsed(null);
+      setErr(null);
+    }
+
     if (!owner) {
+      // No owner resolved yet (e.g. still waiting on the owners list): the
+      // portfolio is genuinely unknown, not empty, so stay in "loading"
+      // rather than asserting there is no pension pot.
       setPortfolioPensionPot(null);
+      setPortfolioLoading(true);
+      setPortfolioError(false);
       return;
     }
     let cancelled = false;
+    setPortfolioLoading(true);
+    setPortfolioError(false);
     getPortfolio(owner)
       .then((portfolio) => {
         if (cancelled) return;
@@ -143,9 +191,15 @@ export default function PensionForecast() {
         setPortfolioPensionPot(total);
       })
       .catch(() => {
-        // Portfolio fetch failing shouldn't break the page -- the snapshot
-        // card just falls back to its "run a forecast" copy.
-        if (!cancelled) setPortfolioPensionPot(null);
+        // Portfolio fetch failing shouldn't break the page, but it must be
+        // reported as a load failure rather than silently reading as "no
+        // pension accounts" or "run a forecast to see this".
+        if (cancelled) return;
+        setPortfolioPensionPot(null);
+        setPortfolioError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setPortfolioLoading(false);
       });
     return () => {
       cancelled = true;
@@ -222,8 +276,12 @@ export default function PensionForecast() {
   );
 
   // The forecast's own response (`pensionPot`) always wins once it exists;
-  // until then, fall back to the portfolio-derived figure (#7211).
-  const displayedPensionPot = pensionPot ?? portfolioPensionPot;
+  // until then, fall back to the portfolio-derived figure (#7211). Stays
+  // null while that load is in flight or failed, so the UI can tell
+  // "loading" / "unavailable" apart from a genuine (possibly zero) pot
+  // value (ported from #7227's loading/error-state follow-up).
+  const displayedPensionPot =
+    pensionPot ?? (portfolioLoading || portfolioError ? null : portfolioPensionPot);
 
   const humanizeForecastError = (
     rawMessage: string,
@@ -233,10 +291,15 @@ export default function PensionForecast() {
       string,
       (ctx: typeof context) => string
     > = {
+      // Worded "Plan until age" (not "Death age") to match the relabelled
+      // field (#7211) -- the error a user sees should name the field they
+      // actually see (ported from #7227's label/error consistency fix). The
+      // underlying param name (`deathAge`) is unchanged, so this still
+      // matches the backend's literal message text above.
       "death_age must exceed retirement_age": (ctx) =>
         ctx.retirementAge != null
-          ? `Death age (${ctx.deathAge}) must be after your retirement age (${ctx.retirementAge}).`
-          : `Death age (${ctx.deathAge}) must be after your retirement age.`,
+          ? `Plan until age (${ctx.deathAge}) must be after your retirement age (${ctx.retirementAge}).`
+          : `Plan until age (${ctx.deathAge}) must be after your retirement age.`,
       "missing or invalid dob": () =>
         "We couldn't determine this owner's date of birth. Please check their profile details and try again.",
     };
@@ -506,7 +569,11 @@ export default function PensionForecast() {
             value={
               displayedPensionPot != null
                 ? currencyFormatter.format(displayedPensionPot)
-                : t("pensionForecast.header.notAvailable")
+                : portfolioLoading
+                  ? t("common.loading")
+                  : portfolioError
+                    ? t("pensionForecast.header.loadError")
+                    : t("pensionForecast.header.notAvailable")
             }
             helper={
               displayedPensionPot != null && pensionPot == null

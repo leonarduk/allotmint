@@ -411,7 +411,7 @@ describe("PensionForecast page", () => {
     await userEvent.click(btn);
 
     await screen.findByText(
-      "Death age (50) must be after your retirement age.",
+      "Plan until age (50) must be after your retirement age.",
     );
     expect(
       screen.queryByText(/death_age must exceed retirement_age/i),
@@ -453,7 +453,7 @@ describe("PensionForecast page", () => {
     await userEvent.click(btn);
 
     await screen.findByText(
-      "Death age (50) must be after your retirement age (67).",
+      "Plan until age (50) must be after your retirement age (67).",
     );
   });
 
@@ -755,6 +755,116 @@ describe("PensionForecast page", () => {
         expect.objectContaining({ statePensionAnnual: 0 }),
       ),
     );
+  });
+
+  // Ported from #7227's follow-up: the pot stat must distinguish "the
+  // portfolio fetch is still in flight" from "loaded, no pension accounts" --
+  // both previously fell through to the same "not available" copy.
+  it("shows a loading state for the pension pot while the portfolio fetch is in flight", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: ["sipp"] },
+    ]);
+    let resolvePortfolio: (value: unknown) => void = () => {};
+    mockGetPortfolio.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePortfolio = resolve;
+        }),
+    );
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const snapshot = await screen.findByRole("region", {
+      name: en.pensionForecast.header.heading,
+    });
+    await within(snapshot).findByText(en.common.loading);
+    expect(
+      within(snapshot).queryByText(en.pensionForecast.header.notAvailable),
+    ).not.toBeInTheDocument();
+
+    // The pot effect only calls getPortfolio once the owner has actually
+    // resolved (async, via getOwners) -- wait for that real call before
+    // resolving it, otherwise this resolves a promise from a call that
+    // hasn't happened yet and the later real call is left pending forever.
+    await vi.waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
+
+    resolvePortfolio({
+      owner: "alex",
+      as_of: "2026-01-01",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 4200,
+      accounts: [
+        { account_type: "sipp", currency: "GBP", value_estimate_gbp: 4200, holdings: [] },
+      ],
+    });
+
+    await within(snapshot).findByText("£4,200.00");
+  });
+
+  // Ported from #7227's follow-up: a genuine fetch failure must be reported
+  // as a load error, not silently misread as "no pension accounts".
+  it("shows a load-error message for the pension pot when the portfolio fetch fails", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: ["sipp"] },
+    ]);
+    mockGetPortfolio.mockRejectedValue(new Error("network error"));
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const snapshot = await screen.findByRole("region", {
+      name: en.pensionForecast.header.heading,
+    });
+    await within(snapshot).findByText(en.pensionForecast.header.loadError);
+    expect(
+      within(snapshot).queryByText(en.pensionForecast.header.notAvailable),
+    ).not.toBeInTheDocument();
+  });
+
+  // Ported from #7227's follow-up: a forecast run for one owner must not
+  // linger under a different owner selected afterwards.
+  it("clears a previous owner's forecast result on a genuine owner switch", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+      { owner: "beth", full_name: "Beth Example", accounts: [] },
+    ]);
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 100,
+      pension_pot_gbp: 999,
+      current_age: 30,
+      retirement_age: 65,
+      dob: "1990-01-01",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: null,
+      retirement_income_total_annual: null,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const form = document.querySelector("form")!;
+    const ownerSelect = await within(form).findByLabelText(/owner/i);
+    await vi.waitFor(() => expect(ownerSelect).toHaveValue("alex"));
+
+    const btn = screen.getByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+    await vi.waitFor(() =>
+      expect(screen.getAllByText("£999.00").length).toBeGreaterThan(0),
+    );
+
+    fireEvent.change(ownerSelect, { target: { value: "beth" } });
+
+    await vi.waitFor(() =>
+      expect(screen.queryAllByText("£999.00")).toHaveLength(0),
+    );
+    expect(screen.queryByText(/birth date: 1990-01-01/i)).not.toBeInTheDocument();
   });
 });
 

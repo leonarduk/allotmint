@@ -373,6 +373,7 @@
       "includedAccountsHeading": "Utilizzati in questa previsione",
       "includedAccountsHelper": "Solo i conti pensionistici (SIPP e simili) contribuiscono alle cifre di questa pagina. Gli altri conti sono mostrati sotto come riferimento e non le influenzano.",
       "kicker": "Panoramica della tua pensione",
+      "loadError": "Impossibile caricare i dati del fondo pensione. Riprova.",
       "noLinkedPots": "Nessun conto trovato per questo titolare.",
       "noPensionAccounts": "Nessun conto pensionistico collegato per questo titolare.",
       "notAvailable": "Mostrato dopo aver eseguito una previsione",

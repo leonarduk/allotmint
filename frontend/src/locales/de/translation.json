@@ -442,6 +442,7 @@
       "includedAccountsHeading": "In dieser Prognose verwendet",
       "includedAccountsHelper": "Nur Rentenkonten (SIPP und Ähnliches) zählen zu den Zahlen auf dieser Seite. Andere Konten werden unten zur Information angezeigt und wirken sich nicht darauf aus.",
       "kicker": "Ihr Rentenüberblick",
+      "loadError": "Ihre Rentendaten konnten nicht geladen werden. Bitte versuchen Sie es erneut.",
       "noLinkedPots": "Für diese Person wurden keine Konten gefunden.",
       "noPensionAccounts": "Für diese Person sind noch keine Rentenkonten verknüpft.",
       "notAvailable": "Wird nach der Prognose angezeigt",

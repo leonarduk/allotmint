@@ -373,6 +373,7 @@
       "includedAccountsHeading": "Utilisés dans cette projection",
       "includedAccountsHelper": "Seuls les comptes de pension (SIPP et similaires) comptent pour les chiffres de cette page. Les autres comptes sont affichés ci-dessous à titre indicatif et n'ont aucune incidence sur eux.",
       "kicker": "Aperçu de votre pension",
+      "loadError": "Impossible de charger les données de votre pension. Veuillez réessayer.",
       "noLinkedPots": "Aucun compte trouvé pour ce titulaire.",
       "noPensionAccounts": "Aucun compte de pension associé pour ce titulaire pour le moment.",
       "notAvailable": "Affiché après avoir lancé une projection",

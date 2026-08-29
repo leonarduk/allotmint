@@ -609,6 +609,7 @@
       "includedAccountsHeading": "Used in this forecast",
       "includedAccountsHelper": "Only pension accounts (SIPP and similar) count toward the figures on this page. Other accounts are shown below for context and don't affect them.",
       "kicker": "Your pension snapshot",
+      "loadError": "We couldn't load your pension pot data. Please try again.",
       "noLinkedPots": "No accounts found for this owner yet.",
       "noPensionAccounts": "No pension accounts linked for this owner yet.",
       "notAvailable": "Shown after you run a forecast",

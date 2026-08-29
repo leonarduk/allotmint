@@ -373,6 +373,7 @@
       "includedAccountsHeading": "Usadas en esta previsión",
       "includedAccountsHelper": "Solo las cuentas de pensión (SIPP y similares) cuentan para las cifras de esta página. Otras cuentas se muestran abajo como referencia y no las afectan.",
       "kicker": "Resumen de tu pensión",
+      "loadError": "No se pudieron cargar los datos de tu fondo de pensión. Inténtalo de nuevo.",
       "noLinkedPots": "No se encontraron cuentas para este titular.",
       "noPensionAccounts": "Aún no hay cuentas de pensión vinculadas para este titular.",
       "notAvailable": "Se muestra tras ejecutar una previsión",

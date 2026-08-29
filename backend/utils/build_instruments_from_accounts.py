@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import html
 import json
 from pathlib import Path
 from typing import Dict, Tuple
+
+from backend.common.instruments import decode_html_entities
 
 # === CONFIG ===
 REPO_ROOT = Path(__file__).resolve().parents[2]  # adjust if needed
@@ -43,13 +44,12 @@ def decode_name(name: str | None) -> str | None:
     """Decode HTML entities (e.g. ``&#39;`` -> ``'``) picked up when a
     holding's name is sourced from an HTML export/scrape (see #7216).
 
-    ``html.unescape`` is idempotent and leaves a bare ``&`` (as in "B&M
-    European Value Retail SA") untouched since it is not a recognised
-    entity sequence.
+    Thin wrapper around ``backend.common.instruments.decode_html_entities``
+    -- kept as a single shared implementation rather than a second
+    hand-written copy, so a future fix to the decoding/guard logic can't
+    land in one module and silently drift from the other.
     """
-    if not isinstance(name, str) or not name:
-        return name
-    return html.unescape(name)
+    return decode_html_entities(name)
 
 
 def load_scaling() -> Dict[str, Dict[str, float]]:
@@ -126,8 +126,14 @@ def build_instruments() -> Dict[str, dict]:
                 sym, exch = split_ticker(tkr)
                 entry = instruments.get(tkr, {"ticker": tkr})
                 existing_meta = existing.get(tkr, {})
-                entry["name"] = decode_name(
-                    best_name(entry.get("name"), h.get("name") or existing_meta.get("name"))
+                # Decode each candidate *before* comparing lengths (#7216 review):
+                # an HTML-encoded name is artificially inflated (`&#39;` is 5
+                # chars for 1 real character), so deciding on raw length first
+                # would let an encoded candidate beat a legitimately longer,
+                # already-clean one purely on entity bloat.
+                entry["name"] = best_name(
+                    decode_name(entry.get("name")),
+                    decode_name(h.get("name") or existing_meta.get("name")),
                 )
                 entry["exchange"] = exch
                 ccy = infer_currency(sym, exch, scaling) or existing_meta.get("currency")

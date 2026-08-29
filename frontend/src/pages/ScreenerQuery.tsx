@@ -23,6 +23,12 @@ import {
 // existing snake_case identifiers (they round-trip through the
 // `?metrics=...` query string and the custom-query API contract) — only the
 // human-facing label changes, via the i18n keys below.
+//
+// Separately (filed as issue #7380): the backend's `/custom-query/run`
+// route only ever accepts `metrics: ["var", "meta"]` via a Pydantic enum —
+// neither of these two values is currently valid there, so submitting
+// either one is rejected with a 422 today. That's a pre-existing backend
+// contract gap, independent of this UI change, which only touches labels.
 const METRIC_OPTIONS: { value: string; labelKey: string }[] = [
   { value: "market_value_gbp", labelKey: "query.metricMarketValueGbp" },
   { value: "gain_gbp", labelKey: "query.metricGainGbp" },
@@ -75,37 +81,73 @@ function QuerySection() {
   // owners the Owners checkboxes above are scoped to — all owners when none
   // are selected, matching the "no owner filter" semantics used elsewhere on
   // this page — and derive them from those owners' real holdings.
+  //
+  // Deliberately no test-only fallback list here (there was one; PR #7323
+  // review caught that it made the derivation itself untestable — the
+  // fallback was byte-identical to the test fixtures, so the suite stayed
+  // green even with the derivation logic gutted). Tests mock `getPortfolio`
+  // instead.
   const scopeOwners = useMemo(
     () =>
       selectedOwners.length ? selectedOwners : ownerList.map((o) => o.owner),
     [selectedOwners, ownerList],
   );
-  const fetchTickers = useCallback(async () => {
-    if (scopeOwners.length === 0) return [];
-    const portfolios = await Promise.allSettled(
+  const fetchTickerData = useCallback(async () => {
+    if (scopeOwners.length === 0) {
+      return { tickers: [] as string[], failedOwners: [] as string[] };
+    }
+    const settled = await Promise.allSettled(
       scopeOwners.map((owner) => getPortfolio(owner)),
     );
     const tickers = new Set<string>();
-    for (const result of portfolios) {
-      if (result.status !== "fulfilled") continue;
-      for (const account of result.value.accounts) {
-        for (const holding of account.holdings) {
-          if (holding.ticker) tickers.add(holding.ticker);
+    const failedOwners: string[] = [];
+    settled.forEach((result, idx) => {
+      if (result.status !== "fulfilled") {
+        // One owner's portfolio failing to load (e.g. a 404) shouldn't blank
+        // out the whole ticker list for the rest — but it must not fail
+        // silently either, so we track it and surface it below.
+        failedOwners.push(scopeOwners[idx]);
+        return;
+      }
+      // Defensive, matching the `Array.isArray(owners)` guard above: an
+      // unexpected/malformed portfolio shape should degrade this control
+      // quietly rather than throw and surface as an error toast.
+      const accounts = Array.isArray(result.value?.accounts)
+        ? result.value.accounts
+        : [];
+      for (const account of accounts) {
+        const holdings = Array.isArray(account?.holdings)
+          ? account.holdings
+          : [];
+        for (const holding of holdings) {
+          if (holding?.ticker) tickers.add(holding.ticker);
         }
       }
-    }
-    return Array.from(tickers).sort();
+    });
+    return { tickers: Array.from(tickers).sort(), failedOwners };
   }, [scopeOwners]);
-  const { data: tickerData } = useFetch(fetchTickers, [scopeOwners]);
-  const tickerOptions = useMemo(
-    () =>
-      Array.isArray(tickerData) && tickerData.length
-        ? tickerData
-        : isTest
-        ? ["AAA", "BBB"]
-        : [],
-    [tickerData, isTest],
+  const { data: tickerData, loading: tickersLoading } = useFetch(
+    fetchTickerData,
+    [scopeOwners],
   );
+  const heldTickers = useMemo(() => tickerData?.tickers ?? [], [tickerData]);
+  const tickerFetchFailures = useMemo(
+    () => tickerData?.failedOwners ?? [],
+    [tickerData],
+  );
+  // Issue #7202 follow-up: a ticker restored from a saved query or the URL
+  // (e.g. the shipped `demo-slug` example, which carries tickers=["PFE"])
+  // may not belong to any currently in-scope owner. Previously it would
+  // still be submitted/exported/copied into the share link while having no
+  // checkbox at all — invisible but active. Keep it visible, just marked.
+  const tickerOptions = useMemo(() => {
+    const held = new Set(heldTickers);
+    const notHeld = selectedTickers.filter((tkr) => !held.has(tkr));
+    return [
+      ...heldTickers.map((ticker) => ({ ticker, held: true })),
+      ...notHeld.map((ticker) => ({ ticker, held: false })),
+    ];
+  }, [heldTickers, selectedTickers]);
 
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
@@ -300,15 +342,27 @@ function QuerySection() {
         </fieldset>
         <fieldset className="mb-4">
           <legend>{t("query.tickers")}</legend>
-          {tickerOptions.map((tkr) => (
-            <label key={tkr} className="mr-2">
+          {tickersLoading && <p role="status">{t("query.tickersLoading")}</p>}
+          {!tickersLoading && tickerOptions.length === 0 && (
+            <p>{t("query.tickersEmpty")}</p>
+          )}
+          {tickerFetchFailures.length > 0 && (
+            <p role="status" className="text-red-500">
+              {t("query.tickersPartialError", {
+                owners: tickerFetchFailures.join(", "),
+              })}
+            </p>
+          )}
+          {tickerOptions.map(({ ticker, held }) => (
+            <label key={ticker} className="mr-2">
               <input
                 type="checkbox"
-                aria-label={tkr}
-                checked={selectedTickers.includes(tkr)}
-                onChange={() => toggle(selectedTickers, tkr, setSelectedTickers)}
+                aria-label={ticker}
+                checked={selectedTickers.includes(ticker)}
+                onChange={() => toggle(selectedTickers, ticker, setSelectedTickers)}
               />
-              {tkr}
+              {ticker}
+              {!held && ` (${t("query.tickerNotHeld")})`}
             </label>
           ))}
         </fieldset>

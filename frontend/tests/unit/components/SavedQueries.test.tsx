@@ -1,6 +1,10 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
+// Side-effect import: initializes the global i18next instance so
+// useTranslation() inside SavedQueries resolves without wrapping every
+// render in an I18nextProvider (same pattern as HoldingsTable.test.tsx).
+import "@/i18n";
 
 vi.mock("@/api", () => ({
   listSavedQueries: vi.fn(),

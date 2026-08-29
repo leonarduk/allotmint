@@ -86,7 +86,7 @@ vi.mock("@/api", () => ({
         start: "2024-01-01",
         end: "2024-01-31",
         owners: ["bob"],
-        tickers: ["BBB"],
+        tickers: ["ZZZ"],
         metrics: ["market_value_gbp"],
       },
     },
@@ -118,9 +118,14 @@ describe("Screener & Query page", () => {
       { owner: "alice", full_name: "Alice Example", accounts: [] },
       { owner: "bob", full_name: "Bob Example", accounts: [] },
     ]);
+    // Deliberately NOT "AAA"/"BBB"/"CCC" — those are exactly the strings the
+    // hardcoded fallback that issue #7202 removed used to render, so a test
+    // fixture reusing them couldn't tell a working derivation from a gutted
+    // one. See "PR #7323 review" comment above the fallback's old location
+    // in ScreenerQuery.tsx.
     getPortfolio.mockImplementation((owner: string) =>
       Promise.resolve(
-        makePortfolio(owner, owner === "alice" ? ["AAA"] : ["BBB"]),
+        makePortfolio(owner, owner === "alice" ? ["VOD"] : ["PFE"]),
       ),
     );
     listSavedQueries.mockResolvedValue([
@@ -131,7 +136,11 @@ describe("Screener & Query page", () => {
           start: "2024-01-01",
           end: "2024-01-31",
           owners: ["bob"],
-          tickers: ["BBB"],
+          // Deliberately a ticker neither mocked owner holds, to exercise
+          // the "selected but not in scope" rendering path (issue #7202
+          // follow-up #4): it must still render — greyed/labeled — and stay
+          // selected, not silently vanish.
+          tickers: ["ZZZ"],
           metrics: ["market_value_gbp"],
         },
       },
@@ -180,7 +189,7 @@ describe("Screener & Query page", () => {
     const { i18n } = renderWithI18n(<ScreenerQuery />);
 
     await screen.findByLabelText("Alice Example");
-    await screen.findByLabelText("AAA");
+    await screen.findByLabelText("VOD");
 
     fireEvent.change(screen.getByLabelText(i18n.t("query.start")), {
       target: { value: "2024-01-01" },
@@ -190,7 +199,12 @@ describe("Screener & Query page", () => {
     });
 
     fireEvent.click(screen.getByLabelText("Alice Example"));
-    fireEvent.click(screen.getByLabelText("AAA"));
+    // Narrowing owners re-scopes and re-fetches the ticker list (it briefly
+    // shows the loading state — see the "shows a loading state" behaviour
+    // covered elsewhere), so wait for VOD to be present again before
+    // clicking it.
+    await screen.findByLabelText("VOD");
+    fireEvent.click(screen.getByLabelText("VOD"));
     fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
 
     fireEvent.click(screen.getAllByRole("button", { name: i18n.t("query.run") })[1]);
@@ -199,7 +213,7 @@ describe("Screener & Query page", () => {
       start: "2024-01-01",
       end: "2024-02-01",
       owners: ["alice"],
-      tickers: ["AAA"],
+      tickers: ["VOD"],
       metrics: ["market_value_gbp"],
     });
 
@@ -219,7 +233,7 @@ describe("Screener & Query page", () => {
     const { i18n } = renderWithI18n(<ScreenerQuery />);
 
     await screen.findByLabelText("Alice Example");
-    await screen.findByLabelText("AAA");
+    await screen.findByLabelText("VOD");
 
     fireEvent.change(screen.getByLabelText(i18n.t("query.start")), {
       target: { value: "2024-01-01" },
@@ -229,7 +243,12 @@ describe("Screener & Query page", () => {
     });
 
     fireEvent.click(screen.getByLabelText("Alice Example"));
-    fireEvent.click(screen.getByLabelText("AAA"));
+    // Narrowing owners re-scopes and re-fetches the ticker list (it briefly
+    // shows the loading state — see the "shows a loading state" behaviour
+    // covered elsewhere), so wait for VOD to be present again before
+    // clicking it.
+    await screen.findByLabelText("VOD");
+    fireEvent.click(screen.getByLabelText("VOD"));
     fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
 
     fireEvent.click(
@@ -241,7 +260,7 @@ describe("Screener & Query page", () => {
     expect(href).toContain("start=2024-01-01");
     expect(href).toContain("end=2024-02-01");
     expect(href).toContain("owners=alice");
-    expect(href).toContain("tickers=AAA");
+    expect(href).toContain("tickers=VOD");
     expect(href).toContain("metrics=market_value_gbp");
   });
 
@@ -250,6 +269,74 @@ describe("Screener & Query page", () => {
     const btn = await screen.findByText("Saved1");
     fireEvent.click(btn);
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue("2024-01-01");
+
+    // Issue #7202 follow-up #4: Saved1's ticker ("ZZZ") isn't held by either
+    // mocked owner, so it must still render — checked, and marked as not
+    // currently held — rather than becoming an invisible-but-active value
+    // that's still submitted/exported/copied into the share link.
+    const zzz = await screen.findByLabelText("ZZZ");
+    expect(zzz).toBeChecked();
+    expect(screen.getByText(new RegExp(i18n.t("query.tickerNotHeld")))).toBeInTheDocument();
+  });
+
+  it("derives the ticker list from real per-owner holdings, not a hardcoded list", async () => {
+    renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText("Alice Example");
+
+    // Both mocked owners' tickers show up (no owner selected == all owners
+    // in scope, same semantics as the Owners checkboxes elsewhere).
+    expect(await screen.findByLabelText("VOD")).toBeInTheDocument();
+    expect(await screen.findByLabelText("PFE")).toBeInTheDocument();
+    expect(getPortfolio).toHaveBeenCalledWith("alice");
+    expect(getPortfolio).toHaveBeenCalledWith("bob");
+
+    // The old hardcoded placeholder list must never render, regardless of
+    // what holdings come back.
+    expect(screen.queryByLabelText("AAA")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("BBB")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("CCC")).not.toBeInTheDocument();
+  });
+
+  it("narrows the ticker list to the selected owner's holdings", async () => {
+    renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText("VOD");
+    await screen.findByLabelText("PFE");
+
+    fireEvent.click(screen.getByLabelText("Alice Example"));
+
+    // Bob's ticker must disappear once only Alice is in scope; re-fetching
+    // is scoped by the getPortfolio call arguments, not just by what's shown.
+    await screen.findByLabelText("VOD");
+    expect(screen.queryByLabelText("PFE")).not.toBeInTheDocument();
+  });
+
+  it("shows an empty state when the in-scope owner has no holdings", async () => {
+    getPortfolio.mockResolvedValue(makePortfolio("alice", []));
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText("Alice Example");
+
+    expect(
+      await screen.findByText(i18n.t("query.tickersEmpty")),
+    ).toBeInTheDocument();
+  });
+
+  it("surfaces which owners' holdings failed to load without hiding the rest", async () => {
+    getPortfolio.mockImplementation((owner: string) =>
+      owner === "bob"
+        ? Promise.reject(new Error("portfolio down"))
+        : Promise.resolve(makePortfolio(owner, ["VOD"])),
+    );
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText("Alice Example");
+
+    // Alice's ticker still renders...
+    expect(await screen.findByLabelText("VOD")).toBeInTheDocument();
+    // ...but the failure for bob is surfaced, not swallowed.
+    expect(
+      await screen.findByText(
+        new RegExp(i18n.t("query.tickersPartialError", { owners: "bob" })),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("renders wrapper and marker even when owner and saved query fetches fail", async () => {
@@ -268,16 +355,16 @@ describe("Screener & Query page", () => {
     window.history.pushState(
       {},
       "",
-      "/?start=2024-01-01&owners=alice&tickers=AAA&metrics=market_value_gbp",
+      "/?start=2024-01-01&owners=alice&tickers=VOD&metrics=market_value_gbp",
     );
     const { i18n } = renderWithI18n(<ScreenerQuery />);
     await screen.findByLabelText("Alice Example");
-    await screen.findByLabelText("AAA");
+    await screen.findByLabelText("VOD");
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
       "2024-01-01",
     );
     expect(screen.getByLabelText("Alice Example")).toBeChecked();
-    expect(screen.getByLabelText("AAA")).toBeChecked();
+    expect(screen.getByLabelText("VOD")).toBeChecked();
     expect(
       screen.getByLabelText(i18n.t("query.metricMarketValueGbp")),
     ).toBeChecked();
@@ -301,9 +388,14 @@ describe("Screener & Query page", () => {
     Object.assign(navigator, { clipboard: { writeText } });
     const { i18n } = renderWithI18n(<ScreenerQuery />);
     await screen.findByLabelText("Alice Example");
-    await screen.findByLabelText("AAA");
+    await screen.findByLabelText("VOD");
     fireEvent.click(screen.getByLabelText("Alice Example"));
-    fireEvent.click(screen.getByLabelText("AAA"));
+    // Narrowing owners re-scopes and re-fetches the ticker list (it briefly
+    // shows the loading state — see the "shows a loading state" behaviour
+    // covered elsewhere), so wait for VOD to be present again before
+    // clicking it.
+    await screen.findByLabelText("VOD");
+    fireEvent.click(screen.getByLabelText("VOD"));
     fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
     fireEvent.click(
       screen.getByRole("button", { name: i18n.t("query.copyLink") }),

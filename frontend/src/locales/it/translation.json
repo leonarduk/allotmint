@@ -405,8 +405,14 @@
     "run": "Correre",
     "running": "Corsa…",
     "save": "Salva",
+    "savedQueriesLoading": "Caricamento query salvate…",
+    "savedQueriesTitle": "Query salvate",
     "start": "Inizio",
-    "tickers": "Ticker"
+    "tickerNotHeld": "non attualmente detenuto",
+    "tickers": "Ticker",
+    "tickersEmpty": "Nessuna posizione trovata per i proprietari selezionati.",
+    "tickersLoading": "Caricamento ticker…",
+    "tickersPartialError": "Impossibile caricare le posizioni per: {{owners}}"
   },
   "reports": {
     "csv": "Scarica CSV",

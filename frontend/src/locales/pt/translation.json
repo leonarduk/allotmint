@@ -404,8 +404,14 @@
     "run": "Executar",
     "running": "Executando…",
     "save": "Salvar",
+    "savedQueriesLoading": "Carregando consultas salvas…",
+    "savedQueriesTitle": "Consultas salvas",
     "start": "Início",
-    "tickers": "Tickers"
+    "tickerNotHeld": "não detido atualmente",
+    "tickers": "Tickers",
+    "tickersEmpty": "Nenhuma posição encontrada para os proprietários selecionados.",
+    "tickersLoading": "Carregando tickers…",
+    "tickersPartialError": "Não foi possível carregar as posições de: {{owners}}"
   },
   "reports": {
     "csv": "Baixar CSV",

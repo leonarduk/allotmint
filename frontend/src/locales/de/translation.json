@@ -473,8 +473,14 @@
     "run": "Ausführen",
     "running": "Wird ausgeführt…",
     "save": "Speichern",
+    "savedQueriesLoading": "Gespeicherte Abfragen werden geladen…",
+    "savedQueriesTitle": "Gespeicherte Abfragen",
     "start": "Start",
-    "tickers": "Ticker"
+    "tickerNotHeld": "derzeit nicht gehalten",
+    "tickers": "Ticker",
+    "tickersEmpty": "Keine Bestände für die ausgewählten Eigentümer gefunden.",
+    "tickersLoading": "Ticker werden geladen…",
+    "tickersPartialError": "Bestände konnten nicht geladen werden für: {{owners}}"
   },
   "reports": {
     "csv": "CSV herunterladen",

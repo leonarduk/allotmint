@@ -348,6 +348,8 @@
       "yes": "Yes"
     },
     "inferredCost": "Inferred from price on acquisition date",
+    "costBasisUnknown": "No acquisition date or booked cost on record — cost assumed equal to current value",
+    "gainNotAvailable": "Gain unknown — no acquisition date or booked cost on record",
     "minimumGainPrompt": "Min Gain %",
     "notApplicable": "N/A",
     "acquiredNotAvailable": "No acquisition date recorded",

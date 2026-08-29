@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { usePlotData, type Chore } from '../PlotDataContext';
@@ -41,11 +42,17 @@ const CHORE_LINKS: Record<
 function ChoreRow({
   chore,
   owner,
+  pending,
+  error,
   onComplete,
   onNavigate,
 }: {
   chore: Chore;
   owner: string;
+  /** True while this chore's completion POST is in flight (#7188). */
+  pending: boolean;
+  /** Message from the most recent failed completion attempt, if any (#7188). */
+  error: string | null;
   onComplete: (id: string) => void;
   onNavigate: (path: string) => void;
 }) {
@@ -59,6 +66,18 @@ function ChoreRow({
     }
     onComplete(chore.id);
   };
+
+  const buttonLabel = chore.completed
+    ? 'Done'
+    : pending
+      ? 'Completing…'
+      : link
+        ? 'Go'
+        : error
+          ? 'Try again'
+          : 'Do it';
+  const errorId = `chore-error-${chore.id}`;
+  const showError = Boolean(error) && !chore.completed;
 
   return (
     <li
@@ -81,12 +100,42 @@ function ChoreRow({
       )}
       <button
         type="button"
-        className={styles.goButton}
+        className={
+          pending ? `${styles.goButton} ${styles.goButtonPending}` : styles.goButton
+        }
+        // #7188 finding 1: only `chore.completed` disables the button.
+        // Disabling on `pending` too used to blur focus the instant the
+        // user activated it (browsers blur an element that becomes
+        // disabled), dumping keyboard/screen-reader focus on <body> right
+        // as a failure needed to be seen. Re-entry while pending is guarded
+        // in `handleComplete` instead, so the click is a no-op rather than
+        // a second request, without moving focus anywhere.
         disabled={chore.completed}
+        aria-busy={pending}
+        aria-describedby={showError ? errorId : undefined}
         onClick={handleClick}
       >
-        {chore.completed ? 'Done' : link ? 'Go' : 'Do it'}
+        {buttonLabel}
       </button>
+      {/* #7188 finding 2: `aria-busy` is an element state, not an
+          announcement, and it would only be spoken if focus were still on
+          the button — which the fix above preserves, but relying on that
+          alone is fragile (e.g. focus already moved for another reason).
+          An always-mounted sr-only status region makes the pending/settled
+          transition audible regardless, matching the .srOnly + role="status"
+          pattern already used elsewhere (see PlotApp.tsx, SeedCatalogue.tsx). */}
+      <span className={styles.srOnly} role="status">
+        {pending ? `${chore.title}: completing…` : ''}
+      </span>
+      {/* #7188 finding 4: the error used to be an unassociated sibling —
+          announced once via role="alert" but with nothing tying it to the
+          "Try again" button for a user who tabs back to it later.
+          aria-describedby above links the two. */}
+      {showError && (
+        <p id={errorId} className={styles.choreError} role="alert">
+          {error}
+        </p>
+      )}
     </li>
   );
 }
@@ -99,6 +148,56 @@ export default function ChoresScreen() {
   const { chores, choresAvailable, completeChore, snapshot, owner } =
     usePlotData();
   const navigate = useNavigate();
+
+  // Per-chore pending/error UI state for #7188. Keyed by chore id rather
+  // than living in PlotDataContext because this is purely presentational —
+  // PlotDataContext's `completeChore` already tracks the single in-flight
+  // completion chain for correctness; this just reflects that back per row.
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const handleComplete = useCallback(
+    (id: string) => {
+      // #7188 finding 1: the button is no longer natively `disabled` while
+      // pending (that used to blur focus on click), so a second Enter/click
+      // on the same row while its request is still in flight has to be
+      // guarded here instead — a no-op, not a second POST.
+      if (pendingIds.has(id)) return;
+      setErrors((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setPendingIds((prev) => new Set(prev).add(id));
+      completeChore(id)
+        .catch((cause: unknown) => {
+          // #7188 finding 5: log the actual cause instead of discarding it —
+          // otherwise an expired session (401), a stale chore id (404) and a
+          // dropped connection are all indistinguishable, and the row's
+          // generic copy is all anyone has to go on when reporting a bug.
+          console.error(`Failed to complete chore "${id}"`, cause);
+          const status = (cause as { status?: number } | null | undefined)
+            ?.status;
+          const message =
+            status === 401
+              ? 'Your session has expired. Sign in again to complete this chore.'
+              : cause instanceof Error && cause.message
+                ? cause.message
+                : 'Could not complete this chore. Try again.';
+          setErrors((prev) => ({ ...prev, [id]: message }));
+        })
+        .finally(() => {
+          setPendingIds((prev) => {
+            if (!prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        });
+    },
+    [completeChore, pendingIds]
+  );
 
   const daily = chores.filter((chore) => chore.kind === 'daily');
   const once = chores.filter((chore) => chore.kind === 'once');
@@ -173,7 +272,9 @@ export default function ChoresScreen() {
                 key={chore.id}
                 chore={chore}
                 owner={owner}
-                onComplete={completeChore}
+                pending={pendingIds.has(chore.id)}
+                error={errors[chore.id] ?? null}
+                onComplete={handleComplete}
                 onNavigate={navigate}
               />
             ))}
@@ -190,7 +291,9 @@ export default function ChoresScreen() {
                 key={chore.id}
                 chore={chore}
                 owner={owner}
-                onComplete={completeChore}
+                pending={pendingIds.has(chore.id)}
+                error={errors[chore.id] ?? null}
+                onComplete={handleComplete}
                 onNavigate={navigate}
               />
             ))}

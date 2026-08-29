@@ -72,6 +72,21 @@ describe("API contract fixtures", () => {
     expect(parsed.accounts[0].holdings[0].days_held).toBeNull();
   });
 
+  it("accepts holdings with null sell_eligible (#7220: unknown acquisition date)", () => {
+    // Regression guard: backend/common/holding_utils.py returns
+    // sell_eligible: null (not false) when a holding has no acquisition
+    // date on record, since "unknown" must stay distinct from a confident
+    // "not eligible". A schema that only allowed boolean|undefined here
+    // rejected every such holding and broke portfolio/group-portfolio
+    // parsing entirely (#7220 review follow-up).
+    const payload = structuredClone(portfolioFixture);
+    payload.accounts[0].holdings[0].sell_eligible = null;
+
+    const parsed = portfolioContractSchema.parse(payload);
+
+    expect(parsed.accounts[0].holdings[0].sell_eligible).toBeNull();
+  });
+
   it("validates the group portfolio fixture", () => {
     const parsed = groupPortfolioContractSchema.parse(groupPortfolioFixture);
 

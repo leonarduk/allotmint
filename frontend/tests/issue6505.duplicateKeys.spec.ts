@@ -94,6 +94,9 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     });
 
     await page.goto(`${baseUrl}/data-quality`);
+    // The timeseries quality data now lives under the "Series" tab (the page
+    // defaults to "Issues"); switch tabs before asserting on its contents.
+    await page.getByRole('tab', { name: 'Series' }).click();
     // Both CASH and PFE entries (one per exchange) must render.
     await expect(page.getByText('CASH', { exact: true })).toHaveCount(2);
     await expect(page.getByText('PFE', { exact: true })).toHaveCount(2);

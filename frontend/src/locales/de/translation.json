@@ -211,6 +211,8 @@
       "yes": "Ja"
     },
     "inferredCost": "Abgeleitet vom Preis am Erwerbsdatum",
+    "costBasisUnknown": "Kein Erwerbsdatum oder gebuchte Kosten erfasst — Kosten werden gleich dem aktuellen Wert angenommen",
+    "gainNotAvailable": "Gewinn unbekannt — kein Erwerbsdatum oder gebuchte Kosten erfasst",
     "minimumGainPrompt": "Minimaler Gewinn %",
     "notApplicable": "N/A",
     "acquiredNotAvailable": "Kein Erwerbsdatum erfasst",

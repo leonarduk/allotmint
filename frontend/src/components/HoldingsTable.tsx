@@ -234,8 +234,15 @@ export function HoldingsTable({
       if (!Number.isNaN(minGain) && (h.gain_pct ?? 0) < minGain) return false;
     }
     if (!rollupMode && filters.sell_eligible) {
+      // sell_eligible is null when the acquisition date is unknown (#7220):
+      // that is neither "eligible" nor "not eligible", so it must not match
+      // either filter option. `!!null === false` previously coerced every
+      // unknown holding into matching the "No" filter, which reported
+      // unknown holdings as a confident "not eligible" -- exactly the
+      // fabricated-certainty bug this fix exists to remove.
+      if (h.sell_eligible == null) return false;
       const expect = filters.sell_eligible === "true";
-      if (!!h.sell_eligible !== expect) return false;
+      if (h.sell_eligible !== expect) return false;
     }
     return true;
   });
@@ -776,13 +783,35 @@ export function HoldingsTable({
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (
-                  <td className={`${tableStyles.cell} ${tableStyles.right} ${getPerformanceClass(h.gain)}`}>
-                    {money(h.gain, h.gain_currency || baseCurrency)}
+                  <td
+                    className={`${tableStyles.cell} ${tableStyles.right} ${h.cost_basis_source === "unknown" ? "" : getPerformanceClass(h.gain)}`}
+                  >
+                    {h.cost_basis_source === "unknown" ? (
+                      <span
+                        className={tableStyles.notApplicable}
+                        title={t("holdingsTable.gainNotAvailable")}
+                      >
+                        {t("holdingsTable.notApplicable")}
+                      </span>
+                    ) : (
+                      money(h.gain, h.gain_currency || baseCurrency)
+                    )}
                   </td>
                 )}
                 {visibleColumns.gain_pct && (
-                  <td className={`${tableStyles.cell} ${tableStyles.right} ${getPerformanceClass(h.gain_pct)}`}>
-                    {percent(h.gain_pct, 1)}
+                  <td
+                    className={`${tableStyles.cell} ${tableStyles.right} ${h.cost_basis_source === "unknown" ? "" : getPerformanceClass(h.gain_pct)}`}
+                  >
+                    {h.cost_basis_source === "unknown" ? (
+                      <span
+                        className={tableStyles.notApplicable}
+                        title={t("holdingsTable.gainNotAvailable")}
+                      >
+                        {t("holdingsTable.notApplicable")}
+                      </span>
+                    ) : (
+                      percent(h.gain_pct, 1)
+                    )}
                   </td>
                 )}
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
@@ -812,7 +841,13 @@ export function HoldingsTable({
                 {!relativeViewEnabled && visibleColumns.cost && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}
-                    title={(h.cost_basis_gbp ?? 0) > 0 ? t("holdingsTable.actualPurchaseCost") : t("holdingsTable.inferredCost")}
+                    title={
+                      h.cost_basis_source === "unknown"
+                        ? t("holdingsTable.costBasisUnknown")
+                        : (h.cost_basis_gbp ?? 0) > 0
+                          ? t("holdingsTable.actualPurchaseCost")
+                          : t("holdingsTable.inferredCost")
+                    }
                   >
                     {money(
                       h.cost,

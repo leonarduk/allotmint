@@ -60,7 +60,9 @@ export const holdingContractSchema = z
     ticker: z.string(),
     name: z.string(),
     units: z.number(),
-    acquired_date: z.string(),
+    // None when no real transaction/lot date is on record -- must stay
+    // genuinely absent rather than a fabricated fallback date (#7220).
+    acquired_date: nullableString,
     currency: nullableString,
     price: nullableNumber,
     cost_basis_gbp: nullableNumber,

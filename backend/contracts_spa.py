@@ -126,7 +126,9 @@ class HoldingContract(SpaContractBase):
     ticker: str
     name: str
     units: float
-    acquired_date: str
+    # None when no real transaction/lot date is on record -- must stay
+    # genuinely absent rather than a fabricated fallback date (#7220).
+    acquired_date: str | None = None
     currency: str | None = None
     price: float | None = None
     cost_basis_gbp: float | None = None

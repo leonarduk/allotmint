@@ -661,6 +661,49 @@
   cursor: default;
 }
 
+/*
+ * #7188: while a completion POST is in flight the button is deliberately
+ * *not* natively disabled (see ChoresScreen.tsx — disabling on click blurs
+ * focus, which is exactly wrong for the failure path this state exists to
+ * surface), so it pulses instead so a slow request still reads as "working"
+ * rather than "dead". Turned off under reduced-motion below.
+ *
+ * Compounded with `.goButton` this is (0,2,0), matching `.goButton:disabled`
+ * — written this way rather than relying on source order to win a
+ * same-specificity tie, since the button is no longer disabled while
+ * pending anyway and the two states should never both apply.
+ */
+.goButton.goButtonPending {
+  cursor: progress;
+  animation: pendingPulse 1.1s ease-in-out infinite;
+}
+
+@keyframes pendingPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/*
+ * #7188: inline per-row failure notice, styled after .errorBanner (same
+ * colour language) but sized to sit inside a chore row instead of at the
+ * top of a whole panel.
+ */
+.choreError {
+  flex: 1 1 100%;
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.76rem;
+  color: #ffd9cf;
+  background: rgba(226, 100, 63, 0.16);
+  border: 1px solid rgba(226, 100, 63, 0.45);
+  border-radius: 4px;
+}
+
 /* ── Crop roster ────────────────────────────────────────────────────── */
 
 .cropGrid {
@@ -1080,12 +1123,19 @@
   gap: 0.7rem;
 }
 
+/* #7187: `.tray` is itself the `.trayGrid` item (no wrapper element the way
+   `.cropCardWrap` wraps `.cropCard`). Its current children (`.trayTicker`,
+   `.trayDays`, `.trayReady`) all wrap rather than forcing width the way
+   `.cropName`'s `white-space: nowrap` did, so this hasn't been observed to
+   overflow — this is precautionary, so the same default `min-width: auto`
+   grid-item trap can't quietly reappear here later. */
 .tray {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.35rem;
   padding: 0.75rem 0.6rem;
+  min-width: 0;
   text-align: center;
   text-decoration: none;
   color: var(--plot-ink);
@@ -1250,13 +1300,27 @@
   outline-offset: 1px;
 }
 
+/*
+ * #7187: `.cropCardWrap` is the grid item inside `.cropGrid`'s
+ * `minmax(min(150px, 100%), 1fr)` tracks, and `.cropCard` is a nested flex
+ * item inside it. Both default to `min-width: auto`, which means each one's
+ * shrink-to-fit width is clamped to its content's min-content width — here
+ * that's `.cropName`'s un-wrapped text (`white-space: nowrap`) — rather than
+ * the grid track. That let the card balloon past its column and get clipped
+ * off phone-width viewports instead of the ellipsis in `.cropName` ever
+ * kicking in. `min-width: 0` on both lets them actually shrink to the track,
+ * at which point `.cropName`'s stretch-to-fill width (the flex column's
+ * default cross-axis sizing) is finally constrained and the ellipsis works.
+ */
 .cropCardWrap {
   position: relative;
   display: flex;
+  min-width: 0;
 }
 
 .cropCardWrap > .cropCard {
   flex: 1 1 auto;
+  min-width: 0;
 }
 
 .favouriteToggle {
@@ -1396,6 +1460,10 @@
   .railButton {
     transition: none;
   }
+
+  .goButtonPending {
+    animation: none;
+  }
 }
 
 /* ── Info tip ("what does this mean?") ─────────────────────────────────
@@ -1472,4 +1540,53 @@
   .infoTipPopover {
     transition: none;
   }
+}
+
+/* ── Crop card bed label (#7212) ───────────────────────────────────────
+   The same instrument can sit in more than one bed (ISA and SIPP both
+   holding the same ticker), and until this the roster/hub rendered two
+   otherwise-identical cards with no way to tell which bed either was in. */
+
+.cropBed {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--plot-sky);
+  /* Same overflow guard as .cropName: the card sits in a
+     minmax(150px, 1fr) grid cell, and a long bed name (e.g. "Stocks Isa")
+     next to a wide ticker can overflow the card without this. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Indeterminate resource meter (#7186) ────────────────────────────────
+   When SUNLIGHT can't confirm every crop's freshness, an empty/low bar
+   must not read as a flat verdict ("empty" = "everything's stale") — a
+   hatched fill makes "we don't know" visually distinct from "we know and
+   it's bad". Scoped to the pill wrapper (set conditionally in PlotHub) so
+   this doesn't touch the shared Meter component or its other tones. */
+
+.pillIndeterminate .meterFill {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.22) 0px,
+    rgba(255, 255, 255, 0.22) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  background-color: rgba(255, 255, 255, 0.09);
+}
+
+/* ── Streak path: missed vs untracked days (#7204) ──────────────────────
+   `.stamp` on its own (dashed, translucent) already reads as "nothing here"
+   and is now reserved for a day the Trail has no record for at all. This
+   block gives a day that *was* tracked but not finished a visually distinct,
+   solid-but-empty look, so a new user's untracked history before their first
+   day doesn't read as a string of misses. Appended here rather than edited
+   in above — another change is in flight against the rest of this file. */
+.stampMissed {
+  background: rgba(226, 100, 63, 0.08);
+  border: 2px solid rgba(226, 100, 63, 0.45);
 }

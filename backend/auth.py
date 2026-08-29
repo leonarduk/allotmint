@@ -8,6 +8,7 @@ import os
 import secrets
 from collections.abc import Mapping
 from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional, Set, Tuple, cast
@@ -219,6 +220,18 @@ def decode_token(token: str) -> Optional[str]:
             algorithms=[ALGORITHM],
             options={"require": ["exp"]},
         )
+        # A demo-scoped token (see create_demo_access_token/DEMO_SCOPE below) is
+        # signed with the same SECRET_KEY/ALGORITHM as a normal backend JWT, so
+        # it verifies successfully here. Without this check its (deliberately
+        # absent, but not guaranteed-absent-forever) ``sub`` claim would be
+        # handed straight back to callers such as _user_from_token and
+        # _resolve_identity_when_auth_disabled, which treat any non-empty
+        # return value as a fully authenticated real user. Rejecting every
+        # demo-scoped token here — regardless of what else it carries — is the
+        # single control that keeps the demo-link primitive from becoming an
+        # authentication bypass (#7402, #7405).
+        if payload.get("scope") == DEMO_SCOPE:
+            return None
         return payload.get("sub")
     except jwt.ExpiredSignatureError as exc:
         raise HTTPException(
@@ -227,6 +240,79 @@ def decode_token(token: str) -> Optional[str]:
         ) from exc
     except jwt.PyJWTError:
         return None
+
+
+# --- Demo-scoped read-only token (#7402) -----------------------------------
+#
+# A distinct token "kind" that grants read-only access to a single, explicitly
+# designated demo owner without going through Google/Cognito login. Minting
+# and verifying it is entirely self-contained in this section: nothing here
+# is wired into get_current_user, ensure_owner_access, or any route yet (see
+# #7406+). The one cross-cutting change is the DEMO_SCOPE guard added to
+# decode_token() above, which ensures a demo token can never be mistaken for
+# a normal authenticated user by any pre-existing code path.
+
+DEMO_SCOPE = "demo-readonly"
+
+DEFAULT_DEMO_TOKEN_EXPIRE_HOURS = 72
+
+
+@dataclass(frozen=True)
+class DemoTokenClaims:
+    """Verified claims carried by a demo-scoped token."""
+
+    owner: str
+    scope: str
+
+
+def create_demo_access_token(owner: str, expires_delta: timedelta | None = None) -> str:
+    """Sign a short-lived, read-only demo token scoped to ``owner``.
+
+    Deliberately does not emit a ``sub`` claim (or any other claim a normal
+    identity-resolution path treats as an email/username) — see the
+    DEMO_SCOPE guard in decode_token(). Signed with the same SECRET_KEY/
+    ALGORITHM as backend/auth.py's other JWTs so it can be verified the same
+    way, but it is only ever accepted by decode_demo_token().
+    """
+
+    if not isinstance(owner, str) or not owner.strip():
+        raise ValueError("owner must be a non-empty string")
+
+    expire = datetime.now(timezone.utc) + (
+        expires_delta if expires_delta is not None else timedelta(hours=DEFAULT_DEMO_TOKEN_EXPIRE_HOURS)
+    )
+    payload = {"scope": DEMO_SCOPE, "owner": owner.strip(), "exp": expire}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_demo_token(token: str) -> DemoTokenClaims | None:
+    """Verify ``token`` as a demo-scoped token, or return ``None``.
+
+    Returns ``None`` — never raises — for a token that is simply not a demo
+    token (wrong scope, wrong/missing owner, bad signature, or expired), so
+    callers can chain this after/alongside decode_token() without a
+    try/except. An expired demo token is rejected explicitly rather than
+    left to work forever.
+    """
+
+    try:
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+            options={"require": ["exp"]},
+        )
+    except jwt.PyJWTError:
+        return None
+
+    if payload.get("scope") != DEMO_SCOPE:
+        return None
+
+    owner = payload.get("owner")
+    if not isinstance(owner, str) or not owner.strip():
+        return None
+
+    return DemoTokenClaims(owner=owner.strip(), scope=DEMO_SCOPE)
 
 
 # Claim names surfaced by the admin /whoami debug endpoint. Deliberately a

@@ -88,19 +88,26 @@ export function Screener() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ScreenerResult | null>(null);
-  // Optimistic default: assume the screener is available until the cheap
-  // probe below says otherwise, so the form still renders synchronously
-  // (no flash of a loading state) when the feature is actually enabled.
-  const [screenerAvailable, setScreenerAvailable] = useState(true);
+  // Tri-state, not a boolean: `null` means "still checking" and must not
+  // render the form. Defaulting optimistically to `true` would flash the
+  // full 24-filter form (fully interactive) for one round-trip even to a
+  // gated user -- exactly the "unexplained work first" complaint this
+  // issue is about. A brief, correct loading state is the right trade
+  // for everyone, including deployments where the screener *is* enabled.
+  const [screenerAvailable, setScreenerAvailable] = useState<boolean | null>(
+    null,
+  );
   const { t } = useTranslation();
 
   useEffect(() => {
     let cancelled = false;
-    checkScreenerAvailable().then((available) => {
-      if (!cancelled && available === false) setScreenerAvailable(false);
+    const controller = new AbortController();
+    checkScreenerAvailable(controller.signal).then((available) => {
+      if (!cancelled) setScreenerAvailable(available);
     });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, []);
 
@@ -179,10 +186,12 @@ export function Screener() {
       if (status === 402) {
         // Genuinely unavailable in this deployment -- never surface the raw
         // backend detail (it names an internal package and a repo URL).
-        // Keep the technical detail in the console only (#7221).
+        // Keep the technical detail in the console only (#7221). The
+        // `!screenerAvailable` banner below now owns this message, so no
+        // `setError` here -- that would only create a dead, unreachable
+        // second copy of the same text.
         console.error("Screener request rejected (feature unavailable):", e);
         setScreenerAvailable(false);
-        setError(t("screener.unavailableBody"));
       } else {
         setError(e instanceof Error ? e.message : String(e));
       }
@@ -191,27 +200,41 @@ export function Screener() {
     }
   }
 
+  // A single, always-mounted `role="status"` node rather than one that
+  // mounts/unmounts with the gate state: some screen readers only announce
+  // a live region's *content changing*, not a region appearing for the
+  // first time, so the container has to already exist before its text is
+  // set (a11y follow-up on #7221).
+  const statusMessage =
+    screenerAvailable === false
+      ? t("screener.unavailableBody")
+      : screenerAvailable === null
+        ? t("screener.checking")
+        : "";
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-1 text-2xl">{t("screener.title")}</h1>
       <p className="mb-4">{t("screener.description")}</p>
 
-      {!screenerAvailable && (
-        <p
-          role="status"
-          style={{
-            background: "#fff4e5",
-            border: "1px solid #f0ad4e",
-            color: "#333",
-            padding: "0.5rem 1rem",
-            marginBottom: "1rem",
-          }}
-        >
-          {t("screener.unavailableBody")}
-        </p>
-      )}
+      <p
+        role="status"
+        style={
+          statusMessage
+            ? {
+                background: "#fff4e5",
+                border: "1px solid #f0ad4e",
+                color: "#333",
+                padding: "0.5rem 1rem",
+                marginBottom: "1rem",
+              }
+            : undefined
+        }
+      >
+        {statusMessage}
+      </p>
 
-      {screenerAvailable && (
+      {screenerAvailable === true && (
         <form
           onSubmit={handleSubmit}
           className="mb-4 flex flex-wrap items-center gap-2"
@@ -528,7 +551,9 @@ export function Screener() {
         </form>
       )}
 
-      {screenerAvailable && error && <p style={{ color: "red" }}>{error}</p>}
+      {screenerAvailable === true && error && (
+        <p style={{ color: "red" }}>{error}</p>
+      )}
       {loading && <p>{t("screener.loading")}</p>}
 
       {rows.length > 0 && !loading && (

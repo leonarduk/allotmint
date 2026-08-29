@@ -22,7 +22,25 @@ describe("Screener", () => {
     expect(
       screen.getByRole("heading", { name: /screener/i }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText(/Tickers/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/filter a watchlist or a custom list of tickers/i),
+    ).toBeInTheDocument();
+  });
+
+  it("does not render the interactive form while the gate check is still in flight (#7221)", () => {
+    // A probe that never resolves during this test -- simulates the
+    // in-flight window between mount and the gate check settling.
+    mockCheckScreenerAvailable.mockReturnValue(new Promise(() => {}));
+
+    render(<Screener />);
+
+    // Success bullet 2: unavailability (or, here, "don't know yet") must be
+    // stated before any input is requested -- the 24-filter form must not
+    // flash on screen, fully interactive, before the probe settles.
+    expect(screen.queryByLabelText(/Tickers/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/checking screener availability/i),
+    ).toBeInTheDocument();
   });
 
   it("hides the filter form and shows an honest message when the screener is gated (#7221)", async () => {
@@ -39,6 +57,12 @@ describe("Screener", () => {
     expect(screen.queryByText(/github\.com/i)).not.toBeInTheDocument();
   });
 
+  it("renders the form once the gate check resolves available", async () => {
+    render(<Screener />);
+
+    expect(await screen.findByLabelText(/Tickers/i)).toBeInTheDocument();
+  });
+
   it("sanitizes a 402 raised mid-submit instead of showing the raw backend detail", async () => {
     mockGetScreener.mockRejectedValueOnce(
       Object.assign(
@@ -51,7 +75,9 @@ describe("Screener", () => {
 
     render(<Screener />);
 
-    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "AAA" } });
+    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
+      target: { value: "AAA" },
+    });
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
 
     expect(
@@ -97,7 +123,9 @@ describe("Screener", () => {
 
     render(<Screener />);
 
-    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "AAA" } });
+    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
+      target: { value: "AAA" },
+    });
     fireEvent.change(screen.getByLabelText(/Max LT D\/E/i), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText(/Min Interest Coverage/i), { target: { value: "5" } });
     fireEvent.change(screen.getByLabelText(/Min Current Ratio/i), { target: { value: "1" } });
@@ -241,7 +269,9 @@ describe("Screener", () => {
     ]);
 
     render(<Screener />);
-    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "CASH" } });
+    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
+      target: { value: "CASH" },
+    });
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
 
     expect(await screen.findAllByText("CASH")).toHaveLength(2);

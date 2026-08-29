@@ -159,7 +159,7 @@ describe("Screener & Query page", () => {
     getScreener.mockResolvedValue(mockScreenerData);
     renderWithI18n(<ScreenerQuery />);
 
-    fireEvent.change(screen.getByLabelText(en.screener.tickers), {
+    fireEvent.change(await screen.findByLabelText(en.screener.tickers), {
       target: { value: "AAA" },
     });
     fireEvent.change(screen.getByLabelText(en.screener.maxPeg), {

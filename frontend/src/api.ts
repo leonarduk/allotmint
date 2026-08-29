@@ -1107,9 +1107,11 @@ export const getScreener = (
  * returns when the feature *is* available -- means it can be used. Used to
  * gate the screener UI before the user fills in any filters (#7221).
  */
-export const checkScreenerAvailable = async (): Promise<boolean> => {
+export const checkScreenerAvailable = async (
+  signal?: AbortSignal,
+): Promise<boolean> => {
   try {
-    await getScreener([]);
+    await getScreener([], {}, signal);
     return true;
   } catch (e) {
     return (e as { status?: number } | undefined)?.status !== 402;

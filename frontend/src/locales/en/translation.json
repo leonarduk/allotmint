@@ -766,6 +766,7 @@
     }
   },
   "screener": {
+    "checking": "Checking screener availability…",
     "description": "Filter a watchlist or a custom list of tickers by valuation, profitability, and risk ratios (P/E, debt levels, margins, returns, and more) to shortlist companies worth a closer look.",
     "loading": "Loading…",
     "max52WeekHigh": "Max 52W High",

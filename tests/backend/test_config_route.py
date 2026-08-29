@@ -9,9 +9,7 @@ from fastapi.testclient import TestClient
 from backend.routes import config as routes_config
 
 
-def _setup_config(
-    monkeypatch, tmp_path: Path, content: str = "auth:\n  google_auth_enabled: false\n"
-) -> Path:
+def _setup_config(monkeypatch, tmp_path: Path, content: str = "auth:\n  google_auth_enabled: false\n") -> Path:
     config_path = tmp_path / "config.yaml"
     config_path.write_text(content)
     monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
@@ -62,9 +60,7 @@ def _client() -> TestClient:
 # where config.yaml is writable (local dev, docker). The fix validates the
 # merged document before writing, so these assert both halves: a 400 *and* an
 # untouched config.yaml that the backend can still boot from.
-_VALID_CONFIG = (
-    "ui:\n  tabs:\n    market: true\n    reports: false\nauth:\n  google_auth_enabled: false\n"
-)
+_VALID_CONFIG = "ui:\n  tabs:\n    market: true\n    reports: false\nauth:\n  google_auth_enabled: false\n"
 
 
 def test_put_config_rejects_unknown_tab_without_writing(monkeypatch, tmp_path):

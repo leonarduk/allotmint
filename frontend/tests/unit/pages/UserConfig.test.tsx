@@ -230,7 +230,7 @@ describe("UserConfig page", () => {
       screen.getByLabelText(/approval exempt types \(comma-separated\)/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/newly bought position must be held before it can be sold/i),
+      screen.getByText(/newly bought position must be held before it is marked sell-eligible/i),
     ).toBeInTheDocument();
     // Max Trades / Month must describe the calendar-month reset the backend
     // actually implements (backend/common/portfolio.py: d.month == today.month),

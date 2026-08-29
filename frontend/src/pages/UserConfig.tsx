@@ -227,7 +227,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               >
                 {t(
                   'userConfig.holdDaysHelp',
-                  'The number of days a newly bought position must be held before it can be sold.'
+                  'The number of days a newly bought position must be held before it is marked sell-eligible.'
                 )}
               </p>
               <input

@@ -1,6 +1,8 @@
+from copy import deepcopy
+
 import pytest
 
-from backend.config import ConfigValidationError, TabsConfig, validate_tabs
+from backend.config import ConfigValidationError, TabsConfig, validate_config_data, validate_tabs
 
 
 def test_validate_tabs_accepts_new_keys():
@@ -53,3 +55,41 @@ def test_validate_tabs_supports_trade_compliance_aliases():
 
     legacy = validate_tabs({"tradecompliance": False})
     assert legacy.trade_compliance is False
+
+
+def test_validate_config_data_rejects_unknown_tab():
+    # validate_config_data() is what PUT /config runs *before* writing, so it
+    # must apply the same validation load_config() would apply to the file.
+    with pytest.raises(ConfigValidationError, match="not_a_real_tab"):
+        validate_config_data({"ui": {"tabs": {"not_a_real_tab": True}}})
+
+
+def test_validate_config_data_accepts_valid_document():
+    cfg = validate_config_data({"ui": {"tabs": {"market": False}}})
+    assert cfg.tabs.market is False
+    assert cfg.tabs.instrument is True
+
+
+def test_validate_config_data_does_not_mutate_input():
+    # The caller writes the very dict it passes in, so validation must not
+    # leave env overrides or normalisation artefacts behind in it.
+    raw = {"ui": {"tabs": {"market": False}}, "auth": {"google_auth_enabled": False}}
+    snapshot = deepcopy(raw)
+
+    validate_config_data(raw)
+
+    assert raw == snapshot
+
+
+def test_validate_config_data_skips_google_auth_by_default(monkeypatch):
+    # PUT /config does its own, deliberately more permissive Google-auth
+    # handling; pre-validation must not reject a document over an environment
+    # problem it already tolerates.
+    monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "   ")
+
+    cfg = validate_config_data({"auth": {"google_auth_enabled": True}})
+
+    assert cfg.tabs.market is True
+
+    with pytest.raises(ConfigValidationError):
+        validate_config_data({"auth": {"google_auth_enabled": True}}, check_google_auth=True)

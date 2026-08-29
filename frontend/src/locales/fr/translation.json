@@ -211,6 +211,8 @@
       "yes": "Oui"
     },
     "inferredCost": "Déduit du prix à la date d'acquisition",
+    "costBasisUnknown": "Aucune date d'acquisition ni coût enregistré — le coût est supposé égal à la valeur actuelle",
+    "gainNotAvailable": "Gain inconnu — aucune date d'acquisition ni coût enregistré",
     "minimumGainPrompt": "Gain minimal %",
     "notApplicable": "N/A",
     "acquiredNotAvailable": "Aucune date d'acquisition enregistrée",

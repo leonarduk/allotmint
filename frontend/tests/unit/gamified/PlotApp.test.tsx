@@ -37,6 +37,9 @@ const portfolio: Portfolio = {
           days_held: 500,
           sell_eligible: true,
           last_price_date: '2026-08-24',
+          // `is_stale` deliberately omitted (#7186): the backend doesn't
+          // always send it, and that must read as "unknown" freshness, not
+          // silently "fresh" — see the SUNLIGHT assertion below.
         },
         {
           ticker: 'WILT.L',
@@ -54,6 +57,9 @@ const portfolio: Portfolio = {
           sell_eligible: false,
           days_until_eligible: 26,
           next_eligible_sell_date: '2026-09-19',
+          // Explicit `is_stale: false`: this one *is* backend-confirmed
+          // fresh, so the fixture has one of each freshness state.
+          is_stale: false,
         },
       ],
     },
@@ -90,6 +96,7 @@ const trailPayload = {
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     getOwners: vi.fn(),
+    getGroups: vi.fn(),
     getPortfolio: vi.fn(),
     getAllowances: vi.fn(),
     getTrailTasks: vi.fn(),
@@ -122,6 +129,9 @@ beforeEach(() => {
   mocks.getOwners.mockResolvedValue([
     { owner: 'steve', accounts: ['stocks-isa'] },
   ]);
+  // Empty by default so pickerOwners falls back to the full owners list,
+  // matching pre-#7189 test expectations unless a test overrides it.
+  mocks.getGroups.mockResolvedValue([]);
   mocks.getPortfolio.mockResolvedValue(portfolio);
   mocks.getAllowances.mockResolvedValue({
     owner: 'steve',
@@ -175,8 +185,11 @@ describe('Plot mode hub', () => {
     expect(
       screen.getByText('£15.0k of tax allowance headroom left')
     ).toBeInTheDocument();
+    // VUSA.L sends no is_stale flag at all (unknown) and WILT.L is
+    // backend-confirmed fresh — the caption must count them separately
+    // rather than defaulting the unflagged one to "fresh" (#7186).
     expect(
-      screen.getByText('2 of 2 crops priced from fresh data')
+      screen.getByText('1 fresh, 1 unknown of 2 crops')
     ).toBeInTheDocument();
   });
 
@@ -507,6 +520,46 @@ describe('Plot mode propagator', () => {
       await screen.findByText(/in the propagator until 2026-09-19/)
     ).toBeInTheDocument();
   });
+
+  it('keeps a sell_eligible: false holding in the propagator with no known countdown, as indeterminate not fabricated-ready (#7184)', async () => {
+    // The exact alex-fixture shape from #7184: sell_eligible: false with
+    // days_until_eligible: 0 and no is_stale flag at all.
+    const notYetLiftable: Portfolio = {
+      owner: 'alex',
+      as_of: '2026-08-25',
+      trades_this_month: 0,
+      trades_remaining: 5,
+      total_value_estimate_gbp: 300,
+      accounts: [
+        {
+          account_type: 'gia',
+          currency: 'GBP',
+          owner: 'alex',
+          value_estimate_gbp: 300,
+          holdings: [
+            {
+              ticker: 'HFEL.L',
+              name: 'HFEL',
+              units: 10,
+              market_value_gbp: 300,
+              days_held: 364,
+              sell_eligible: false,
+              days_until_eligible: 0,
+            },
+          ],
+        },
+      ],
+    };
+    mocks.getPortfolio.mockResolvedValue(notYetLiftable);
+
+    renderPlot();
+
+    expect(await screen.findByText('Propagator (1)')).toBeInTheDocument();
+    expect(screen.getByText('Not yet liftable')).toBeInTheDocument();
+    // Never a fabricated ready date, and never "cleared"/"can be lifted".
+    expect(screen.queryByText(/^Ready /)).toBeNull();
+    expect(screen.queryByText(/cleared the propagator/)).toBeNull();
+  });
 });
 
 describe('Plot mode season track', () => {
@@ -530,12 +583,16 @@ describe('Plot mode season track', () => {
     expect(
       await screen.findByRole('heading', { name: /Grow the plot \(2\/4\)/ })
     ).toBeInTheDocument();
-    expect(screen.getByText('Next: £50.0k')).toBeInTheDocument();
+    // The goal description renders instead of a unit-less "Next: £50.0k"
+    // (#7194) — the row now states what the tier is actually asking for.
+    expect(screen.getByText('Grow the plot to £50.0k')).toBeInTheDocument();
     // £5,000 of allowance used clears the first tier only.
     expect(
       screen.getByRole('heading', { name: /Feed the beds \(2\/4\)/ })
     ).toBeInTheDocument();
-    expect(screen.getByText('Next: £10.0k')).toBeInTheDocument();
+    expect(
+      screen.getByText("Use £10.0k of this season's allowances")
+    ).toBeInTheDocument();
   });
 
   it('says so when the backend reports no tax year', async () => {
@@ -668,14 +725,32 @@ describe('Plot mode provider hardening', () => {
   it('keeps at most one chore completion in flight', async () => {
     // Each reply is a whole server snapshot, so two in flight resolve
     // last-write-wins and an out-of-order pair can un-tick a done chore.
-    // Serialising is the mechanism that prevents that, so it is what is tested.
-    const trailWith = (done: string[]) => ({
+    // Serialising is the mechanism that prevents that, so it is what is
+    // tested here — across two different rows, since #7188 gave each row
+    // its own pending/disabled state, so a second click on the *same*
+    // still-in-flight button is now a UI no-op rather than something that
+    // reaches PlotDataContext at all.
+    const twoOutstanding = {
       ...trailPayload,
-      tasks: trailPayload.tasks.map((task) => ({
+      tasks: [
+        { ...trailPayload.tasks[0], id: 'water-beds', completed: false },
+        {
+          ...trailPayload.tasks[1],
+          id: 'weed-the-path',
+          title: 'Weed the path',
+          type: 'daily' as const,
+          completed: false,
+        },
+      ],
+    };
+    const trailWith = (done: string[]) => ({
+      ...twoOutstanding,
+      tasks: twoOutstanding.tasks.map((task) => ({
         ...task,
         completed: done.includes(task.id),
       })),
     });
+    mocks.getTrailTasks.mockResolvedValue(twoOutstanding);
 
     let resolveFirst: (value: unknown) => void = () => {};
     mocks.completeTrailTask
@@ -686,24 +761,90 @@ describe('Plot mode provider hardening', () => {
           })
       )
       .mockImplementationOnce(async () =>
-        trailWith(['water-beds', 'set-alerts'])
+        trailWith(['water-beds', 'weed-the-path'])
       );
 
     renderPlot('/plot/chores');
 
-    const doIt = await screen.findByRole('button', { name: 'Do it' });
-    fireEvent.click(doIt);
-    fireEvent.click(doIt);
+    const [firstDoIt, secondDoIt] = await screen.findAllByRole('button', {
+      name: 'Do it',
+    });
+    fireEvent.click(firstDoIt);
+    fireEvent.click(secondDoIt);
 
     await waitFor(() =>
       expect(mocks.completeTrailTask).toHaveBeenCalledTimes(1)
     );
-    // The second click stays queued while the first is unresolved.
+    // The second row's completion stays queued in the chain while the
+    // first request is unresolved.
     expect(mocks.completeTrailTask).toHaveBeenCalledTimes(1);
 
     resolveFirst(trailWith(['water-beds']));
     await waitFor(() =>
       expect(mocks.completeTrailTask).toHaveBeenCalledTimes(2)
     );
+  });
+
+  it('still fires a queued completion after the one ahead of it in the chain fails', async () => {
+    // completionChain.current is reassigned via `.catch(() => {})` so it
+    // always resolves regardless of an individual attempt's outcome
+    // (PlotDataContext.tsx) — this is what stops one row's failed POST from
+    // wedging every completion queued behind it. The earlier "keeps at most
+    // one completion in flight" test only covers the chain surviving an
+    // attempt that already settled *successfully*; this covers the failure
+    // case explicitly.
+    const twoOutstanding = {
+      ...trailPayload,
+      tasks: [
+        { ...trailPayload.tasks[0], id: 'water-beds', completed: false },
+        {
+          ...trailPayload.tasks[1],
+          id: 'weed-the-path',
+          title: 'Weed the path',
+          type: 'daily' as const,
+          completed: false,
+        },
+      ],
+    };
+    mocks.getTrailTasks.mockResolvedValue(twoOutstanding);
+
+    let rejectFirst: (reason?: unknown) => void = () => {};
+    mocks.completeTrailTask
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectFirst = reject;
+          })
+      )
+      .mockImplementationOnce(async () => ({
+        ...twoOutstanding,
+        tasks: twoOutstanding.tasks.map((task) => ({
+          ...task,
+          completed: task.id === 'weed-the-path',
+        })),
+      }));
+
+    renderPlot('/plot/chores');
+
+    const [firstDoIt, secondDoIt] = await screen.findAllByRole('button', {
+      name: 'Do it',
+    });
+    fireEvent.click(firstDoIt);
+    fireEvent.click(secondDoIt);
+
+    await waitFor(() =>
+      expect(mocks.completeTrailTask).toHaveBeenCalledTimes(1)
+    );
+
+    rejectFirst(new Error('water-beds completion failed'));
+
+    // The second row's queued completion still reaches the network despite
+    // the first one ahead of it in the chain rejecting.
+    await waitFor(() =>
+      expect(mocks.completeTrailTask).toHaveBeenCalledTimes(2)
+    );
+    expect(
+      await screen.findByRole('button', { name: 'Done' })
+    ).toBeInTheDocument();
   });
 });

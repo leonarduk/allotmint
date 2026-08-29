@@ -26,11 +26,19 @@ const mockAppShell = async (page: Page, theme: 'dark' | 'light' | 'system') => {
 const readRootTheme = (page: Page) =>
   page.evaluate(() => {
     const styles = getComputedStyle(document.documentElement);
+    // Production builds minify CSS, which can shorten 6-digit hex colors
+    // (#ffffff) to their 3-digit shorthand (#fff) inside custom-property
+    // values; expand back to 6 digits so this assertion is stable across
+    // dev and preview/production builds.
+    const expandHex = (value: string) => {
+      const match = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(value);
+      return match ? `#${match[1]}${match[1]}${match[2]}${match[2]}${match[3]}${match[3]}` : value;
+    };
     return {
       attribute: document.documentElement.getAttribute('data-theme'),
       backgroundColor: styles.backgroundColor,
       colorScheme: styles.colorScheme,
-      drawerBackground: styles.getPropertyValue('--drawer-bg').trim(),
+      drawerBackground: expandHex(styles.getPropertyValue('--drawer-bg').trim().toLowerCase()),
     };
   });
 

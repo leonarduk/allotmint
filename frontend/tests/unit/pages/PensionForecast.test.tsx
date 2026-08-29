@@ -550,12 +550,23 @@ describe("PensionForecast page", () => {
     ).toBeInTheDocument();
   });
 
-  // #7211: an ISA is not a pension. The fix relabels/distinguishes rather
-  // than filtering (the issue's own guidance -- filtering would change what
-  // the forecast models, which is out of scope for an automated fix).
-  it("renders account types as ISA/SIPP (not raw slugs) and keeps every account visible, tagged by whether it's a pension", async () => {
+  // #7211 + review follow-up: an ISA is not a pension, but nor is every
+  // SIPP-shaped label backend-included -- "Accounts included in this
+  // forecast" as a single heading over every account was itself a false
+  // claim, since no account list is ever sent to the forecast endpoint and
+  // the backend only counts accounts whose account_type contains "sipp"
+  // (DEFINED_CONTRIBUTION_ACCOUNT_MARKERS in backend/common/pension.py).
+  // The fix splits into two honest groups instead of tagging a single list,
+  // and does not filter any account off the page.
+  it("renders account types as ISA/SIPP (not raw slugs) and groups accounts by whether the backend actually counts them", async () => {
     mockGetOwners.mockResolvedValue([
-      { owner: "alex", full_name: "Alex Example", accounts: ["isa", "sipp", "gia"] },
+      {
+        owner: "alex",
+        full_name: "Alex Example",
+        // "workplace-sipp" is not an exact "sipp" match but the backend's
+        // substring rule counts it -- this is the finding 2 regression case.
+        accounts: ["isa", "sipp", "gia", "workplace-sipp"],
+      },
     ]);
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
@@ -579,25 +590,36 @@ describe("PensionForecast page", () => {
     });
     const snapshotWithin = within(snapshot);
 
-    // Section is renamed away from implying every account is a pension.
+    // Two honest groups instead of one implying every account is used. The
+    // "region" is present from the very first render (static markup), so
+    // wait for the owner -> accounts effect chain to actually settle before
+    // asserting on anything that depends on it.
+    await snapshotWithin.findByText("Used in this forecast");
     expect(
-      snapshotWithin.getByText("Accounts included in this forecast"),
+      snapshotWithin.getByText(
+        "Other accounts (for reference -- not included in this forecast)",
+      ),
     ).toBeInTheDocument();
 
-    // Every account type is still present -- none filtered out. The
-    // heading text above is static and renders before the owner ->
-    // accounts effect chain settles, so wait for the account chips
-    // themselves rather than asserting synchronously.
-    await snapshotWithin.findByText("ISA");
-    expect(snapshotWithin.getByText("SIPP")).toBeInTheDocument();
-    expect(snapshotWithin.getByText("GIA")).toBeInTheDocument();
+    // Every account type is still present -- none filtered out.
+    const sippChip = snapshotWithin.getByText("SIPP");
+    const workplaceSippChip = await snapshotWithin.findByText("Workplace Sipp");
+    const isaChip = snapshotWithin.getByText("ISA");
+    const giaChip = snapshotWithin.getByText("GIA");
     expect(snapshotWithin.queryByText("isa")).not.toBeInTheDocument();
     expect(snapshotWithin.queryByText("sipp")).not.toBeInTheDocument();
     expect(snapshotWithin.queryByText("gia")).not.toBeInTheDocument();
 
-    // Pension vs non-pension is distinguished.
-    expect(snapshotWithin.getAllByText("Pension")).toHaveLength(1);
-    expect(snapshotWithin.getAllByText("Not a pension")).toHaveLength(2);
+    // SIPP and workplace-sipp (substring match, like the backend) land in
+    // the "used" group; ISA and GIA land in "other".
+    const usedGroup = sippChip.closest("div")!;
+    const otherGroup = isaChip.closest("div")!;
+    expect(within(usedGroup).getByText("SIPP")).toBeInTheDocument();
+    expect(within(usedGroup).getByText("Workplace Sipp")).toBeInTheDocument();
+    expect(within(otherGroup).getByText("ISA")).toBeInTheDocument();
+    expect(within(otherGroup).getByText("GIA")).toBeInTheDocument();
+    expect(workplaceSippChip.closest("div")).toBe(usedGroup);
+    expect(giaChip.closest("div")).toBe(otherGroup);
   });
 
   it("seeds the current pension pot from portfolio data before a forecast is run (#7211)", async () => {
@@ -696,7 +718,15 @@ describe("PensionForecast page", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("sends the same forecast request whether state pension is left at its default or the field is left blank (calculation unchanged, #7211)", async () => {
+  // This only exercises the default-submit case -- it does NOT render the
+  // blank-field case or compare two requests, so it can't by itself prove
+  // "unchanged behaviour". What it does prove: the field's new default of
+  // "0" is sent as an explicit statePensionAnnual: 0. The None-vs-0
+  // equivalence on the wire is a backend fact, not something the frontend
+  // can observe -- it's covered directly by
+  // test_forecast_pension_none_state_pension_matches_explicit_zero in
+  // tests/backend/common/test_pension.py (#7211 review follow-up).
+  it("submits the default state pension value ('0') as an explicit statePensionAnnual: 0", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alex", full_name: "Alex Example", accounts: [] },
     ]);
@@ -720,10 +750,6 @@ describe("PensionForecast page", () => {
     const btn = screen.getByRole("button", { name: /forecast/i });
     await userEvent.click(btn);
 
-    // The backend treats an omitted state_pension_annual the same as 0 (see
-    // backend/routes/pension.py: `state_income = float(state_pension_annual
-    // or 0.0)`), so defaulting the field to "0" instead of blank sends an
-    // explicit 0 -- not a new/different value -- for a first-time user.
     await vi.waitFor(() =>
       expect(mockGetPensionForecast).toHaveBeenCalledWith(
         expect.objectContaining({ statePensionAnnual: 0 }),

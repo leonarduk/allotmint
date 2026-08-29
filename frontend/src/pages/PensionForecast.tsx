@@ -18,7 +18,10 @@ import type { OwnerSummary } from "../types";
 import { useTranslation } from "react-i18next";
 import { useRoute } from "../RouteContext";
 import { sanitizeOwners } from "../utils/owners";
-import { accountTypeLabel, isPensionAccountType } from "../utils/accountTypes";
+import {
+  accountTypeLabel,
+  countsTowardPensionForecast,
+} from "../utils/accountTypes";
 
 export default function PensionForecast() {
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -113,7 +116,10 @@ export default function PensionForecast() {
   // instead of "Not available" -- see #7211. This never overwrites
   // `pensionPot`, which only comes from an actual forecast response, so it
   // cannot change what a forecast calculates -- it only fills the gap before
-  // the first Forecast run.
+  // the first Forecast run. `countsTowardPensionForecast` mirrors the
+  // backend's own `dc_pension_pot_gbp` classification exactly, so this
+  // figure is the same number a real forecast run would report for the same
+  // accounts (verified in accountTypes.test.ts and PensionForecast.test.tsx).
   useEffect(() => {
     if (!owner) {
       setPortfolioPensionPot(null);
@@ -124,7 +130,7 @@ export default function PensionForecast() {
       .then((portfolio) => {
         if (cancelled) return;
         const pensionAccounts = portfolio.accounts.filter((account) =>
-          isPensionAccountType(account.account_type),
+          countsTowardPensionForecast(account.account_type),
         );
         if (pensionAccounts.length === 0) {
           setPortfolioPensionPot(null);
@@ -181,19 +187,38 @@ export default function PensionForecast() {
   }, [owners, owner]);
 
   // Every account type on the owner is still listed here (we deliberately do
-  // NOT filter ISAs out, per the issue's own guidance -- filtering would
-  // change which accounts are presented as part of the forecast, which is a
-  // modelling decision, not a display one, #7211). Each entry carries its
-  // display label and whether it's a pension wrapper so the list can be
-  // relabelled and visually distinguished instead.
+  // NOT filter ISAs -- or anything else -- out of the page, per the issue's
+  // own guidance: filtering would change which accounts are *presented*,
+  // which is fine, but the original bug was implying every account was
+  // *used in the calculation*, which is a modelling claim this component
+  // has no business making or breaking, #7211).
+  //
+  // Split into two groups instead of one undifferentiated list, using the
+  // same `countsTowardPensionForecast` check that decides the seeded pot
+  // above -- this is what makes the split *true*: an account only lands in
+  // "used in this forecast" if the backend's own dc_pension_pot_gbp would
+  // actually include it, rather than the frontend guessing which accounts
+  // "look like" pensions (see review follow-up on #7211: "Accounts included
+  // in this forecast" was itself a false claim for non-SIPP-matching
+  // accounts, since no account list is ever sent to the forecast endpoint --
+  // it's the backend's own portfolio lookup, via this same classifier, that
+  // decides what counts).
   const ownerAccountDetails = useMemo(
     () =>
       ownerAccounts.map((accountType) => ({
         accountType,
         label: accountTypeLabel(accountType),
-        isPension: isPensionAccountType(accountType),
+        countsTowardForecast: countsTowardPensionForecast(accountType),
       })),
     [ownerAccounts],
+  );
+  const includedAccounts = useMemo(
+    () => ownerAccountDetails.filter((account) => account.countsTowardForecast),
+    [ownerAccountDetails],
+  );
+  const otherAccounts = useMemo(
+    () => ownerAccountDetails.filter((account) => !account.countsTowardForecast),
+    [ownerAccountDetails],
   );
 
   // The forecast's own response (`pensionPot`) always wins once it exists;
@@ -414,44 +439,65 @@ export default function PensionForecast() {
             </select>
           </div>
         </div>
-        <div className="mt-6">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-200">
-            {t("pensionForecast.header.linkedPotsHeading")}
-          </p>
-          {/* Renamed from "Linked pension pots" and every account type is
-              still shown (see ownerAccountDetails above) -- ISAs are not
-              pensions, so each chip is labelled with its real account type
-              and tagged to show whether it's a pension, rather than being
-              filtered out or implied to be one (#7211). */}
-          <p className="mt-1 text-xs text-blue-100">
-            {t("pensionForecast.header.accountsHelper")}
-          </p>
-          {ownerAccountDetails.length > 0 ? (
-            <ul className="mt-3 flex flex-wrap gap-2">
-              {ownerAccountDetails.map(({ accountType, label, isPension }) => (
-                <li
-                  key={accountType}
-                  className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white"
-                >
-                  <span>{label}</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                      isPension
-                        ? "bg-emerald-400/20 text-emerald-200"
-                        : "bg-white/10 text-blue-200"
-                    }`}
-                  >
-                    {isPension
-                      ? t("pensionForecast.header.pensionBadge")
-                      : t("pensionForecast.header.notPensionBadge")}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-3 text-sm text-blue-100">
+        <div className="mt-6 space-y-5">
+          {/* Two separate groups instead of one undifferentiated list, per
+              #7211 review follow-up: a single "Accounts included in this
+              forecast" heading over everything was still a false claim,
+              since no account list is ever sent to the forecast endpoint --
+              the backend derives pension_pot_gbp itself via
+              dc_pension_pot_gbp, which only recognises SIPP-family
+              account_types. Grouping by countsTowardPensionForecast (the
+              same check used to seed the pot above) keeps this honest: an
+              account only appears in "used" if the backend would actually
+              use it. Nothing is filtered off the page either way. */}
+          {ownerAccounts.length === 0 ? (
+            <p className="text-sm text-blue-100">
               {t("pensionForecast.header.noLinkedPots")}
             </p>
+          ) : (
+            <>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-200">
+                  {t("pensionForecast.header.includedAccountsHeading")}
+                </p>
+                <p className="mt-1 text-xs text-blue-100">
+                  {t("pensionForecast.header.includedAccountsHelper")}
+                </p>
+                {includedAccounts.length > 0 ? (
+                  <ul className="mt-3 flex flex-wrap gap-2">
+                    {includedAccounts.map(({ accountType, label }) => (
+                      <li
+                        key={accountType}
+                        className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-medium text-emerald-100"
+                      >
+                        {label}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-sm text-blue-100">
+                    {t("pensionForecast.header.noPensionAccounts")}
+                  </p>
+                )}
+              </div>
+              {otherAccounts.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-200">
+                    {t("pensionForecast.header.otherAccountsHeading")}
+                  </p>
+                  <ul className="mt-3 flex flex-wrap gap-2">
+                    {otherAccounts.map(({ accountType, label }) => (
+                      <li
+                        key={accountType}
+                        className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white"
+                      >
+                        {label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
           )}
         </div>
         <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

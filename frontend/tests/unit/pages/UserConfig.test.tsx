@@ -185,7 +185,13 @@ describe("UserConfig page", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
 
     await act(async () => {
-      resolveOwners([{ owner: "alex", accounts: [] }]);
+      // Two owners, neither matching the signed-in user, so no owner
+      // auto-resolves and the status prompt is expected to appear. A single
+      // owner would auto-select (#7206) and never show the prompt at all.
+      resolveOwners([
+        { owner: "alex", accounts: [] },
+        { owner: "jamie", accounts: [] },
+      ]);
     });
 
     expect(await screen.findByRole("status")).toBeInTheDocument();

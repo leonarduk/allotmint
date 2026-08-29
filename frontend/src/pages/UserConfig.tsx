@@ -423,26 +423,9 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
                       </button>
                     </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {approvals.map((a, index) => (
-                    <tr key={`${a.ticker}-${index}`}>
-                      <td className="border px-2">{a.ticker}</td>
-                      <td className="border px-2">{a.approved_on}</td>
-                      <td className="border px-2 text-right">
-                        <button
-                          type="button"
-                          className="text-red-500"
-                          onClick={() => remove(a.ticker)}
-                        >
-                          {t('userConfig.remove', 'Remove')}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                ))}
+              </tbody>
+            </table>
             {approvalsError && (
               <div className="text-red-500">{approvalsError}</div>
             )}

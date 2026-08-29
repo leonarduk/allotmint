@@ -41,7 +41,7 @@ export default function Menu({
 }: MenuProps) {
   const location = useLocation();
   const { t } = useTranslation();
-  const { tabs, disabledTabs } = useConfig();
+  const { tabs, disabledTabs, familyMvpEnabled } = useConfig();
   const { logout: contextLogout } = useAuth();
   // Fall back to the app-wide logout registered in AuthContext when the
   // caller doesn't thread one through explicitly, so the control stays
@@ -70,14 +70,16 @@ export default function Menu({
     [disabledTabs, isSupportMode, tabs]
   );
 
-  // Whether the operations menu (Data Admin/Data Quality/Timeseries/Support/
-  // ...) has anything to show at all -- i.e. whether the gateway link into it
-  // (below) would land on an empty category. Computed independently of
-  // `availableTabs`/`isSupportMode` because the gateway itself is only ever
-  // rendered from the *user*-section menu (#7226).
-  const operationsAvailable = useMemo(
+  // The first enabled operations entry (by priority, e.g. Timeseries before
+  // Data Admin before ... before Support) -- i.e. what the gateway link
+  // below actually targets. Computed independently of `availableTabs`/
+  // `isSupportMode` because the gateway itself is only ever rendered from
+  // the *user*-section menu (#7226). Targeting the first enabled entry
+  // (rather than always /support) means the gateway still lands somewhere
+  // real when Support specifically is disabled but e.g. Data Admin isn't.
+  const firstOperationsEntry = useMemo(
     () =>
-      getMenuEntries('support').some(
+      getMenuEntries('support').find(
         (entry) =>
           entry.menuCategory === 'operations' &&
           tabs[entry.mode] === true &&
@@ -85,6 +87,12 @@ export default function Menu({
       ),
     [disabledTabs, tabs]
   );
+  // Family MVP keeps the operations surface out of the simplified
+  // experience -- the same gate the old bespoke "Support" link used to
+  // apply (`!familyMvpEnabled`), preserved here for the gateway that
+  // replaces it (#7226).
+  const operationsGatewayVisible =
+    !familyMvpEnabled && Boolean(firstOperationsEntry);
 
   const categoriesToRender = useMemo<CategorizedMenu[]>(
     () =>
@@ -278,17 +286,23 @@ export default function Menu({
                   )}
                   {category.id === 'preferences' &&
                     !isSupportMode &&
-                    operationsAvailable && (
+                    operationsGatewayVisible && (
                       // The only way into the operations menu (Data Admin,
                       // Data Quality, Timeseries, the Support console, ...)
                       // from the end-user menu. Deliberately generic --
                       // unlike the old "Support" link this replaces, it
-                      // doesn't claim to be end-user help (#7226).
+                      // doesn't claim to be end-user help (#7226). Targets
+                      // the first *enabled* operations entry rather than
+                      // always /support, so it never lands on a disabled
+                      // route (<DisabledFeature />) when Support itself is
+                      // turned off but a sibling like Data Admin isn't.
                       <li key="operations-gateway">
                         <Link
                           ref={assignFirstFocusable}
                           role="menuitem"
-                          to={buildPathForMode('support')}
+                          to={buildPathForMode(
+                            firstOperationsEntry?.mode ?? 'support'
+                          )}
                           className="block min-h-11 w-full rounded px-3 py-2 text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
                         >
                           {t('app.operationsLink', 'Operations')}

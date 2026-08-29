@@ -1,8 +1,70 @@
+import re
 from copy import deepcopy
+from dataclasses import fields
+from pathlib import Path
 
 import pytest
 
 from backend.config import ConfigValidationError, TabsConfig, validate_config_data, validate_tabs
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+REGISTRY_TS_PATH = REPO_ROOT / "frontend" / "src" / "routes" / "registry.ts"
+
+_ARRAY_RE = re.compile(
+    r"export const ROUTE_REGISTRY: RouteRegistryEntry\[\] = \[(.*?)\n\];",
+    re.DOTALL,
+)
+_MODE_RE = re.compile(r"mode:\s*'([^']+)'")
+_SECTION_RE = re.compile(r"section:\s*'([^']+)'")
+_PRIORITY_RE = re.compile(r"priority:\s*(-?\d+)")
+
+
+def _frontend_tab_ids() -> list[str]:
+    """Derive, by parsing registry.ts, the ids of every ROUTE_REGISTRY entry
+    with `section: 'user'` or `section: 'support'` and a numeric `priority`
+    -- i.e. every id frontend/src/tabPlugins.ts's `orderedTabPlugins`
+    exposes, which is what Support.tsx's Configuration tab toggles and
+    saves via `PUT /config`.
+
+    This mirrors orderedTabPlugins' own filter:
+        (page.section === 'user' || page.section === 'support') &&
+        typeof page.priority === 'number'
+    but is implemented independently in Python (regex over the .ts source,
+    like tests/test_styles_snapshot.py already does for index.css) so that
+    it is a real regression guard and not a second, hand-maintained copy of
+    the same list that can silently go stale. A hand-maintained list is
+    exactly how #5871 (dataquality) and the "help" case above both slipped
+    through: it's accurate the day it's written and wrong the day someone
+    adds a mode to registry.ts without touching this file.
+    """
+    source = REGISTRY_TS_PATH.read_text(encoding="utf-8")
+    array_match = _ARRAY_RE.search(source)
+    if not array_match:
+        raise AssertionError(
+            f"Could not locate 'export const ROUTE_REGISTRY: RouteRegistryEntry[] = [' "
+            f"...'];' in {REGISTRY_TS_PATH}. The parser regex is stale (the array was "
+            "renamed/reformatted) -- fix _ARRAY_RE, don't let this test pass on an "
+            "empty/partial match."
+        )
+    body = array_match.group(1)
+
+    # Split into individual object entries on the '  {' that opens each one
+    # at the array's own indentation level (two spaces). This only breaks on
+    # object boundaries, not on nested braces/strings within a value.
+    blocks = re.split(r"\n  \{\n", body)[1:]
+
+    ids: list[str] = []
+    for block in blocks:
+        mode_match = _MODE_RE.search(block)
+        section_match = _SECTION_RE.search(block)
+        priority_match = _PRIORITY_RE.search(block)
+        if not (mode_match and section_match and priority_match):
+            continue
+        if section_match.group(1) not in ("user", "support"):
+            continue
+        ids.append(mode_match.group(1))
+
+    return ids
 
 
 def test_validate_tabs_accepts_new_keys():
@@ -108,57 +170,48 @@ def test_validate_config_data_skips_google_auth_by_default(monkeypatch):
         validate_config_data({"auth": {"google_auth_enabled": True}}, check_google_auth=True)
 
 
-# The ids of every frontend route registry entry (frontend/src/routes/registry.ts)
-# with `section: 'user'` or `section: 'support'` and a numeric `priority` -- i.e.
-# every id `frontend/src/tabPlugins.ts`'s `orderedTabPlugins` exposes, which is
-# what `Support.tsx`'s Configuration tab toggles and saves via `PUT /config`.
-# This list must be kept in sync with registry.ts by hand: there's no shared
-# schema between the TS registry and this Python dataclass, so a new frontend
-# mode with a `priority` needs both a registry.ts entry AND a TabsConfig field.
-#
-# This is a *third* regression of the same class as #5871 (dataquality) and
-# the "help" case above: `PUT /config` writes `ui.tabs` to config.yaml BEFORE
-# `validate_tabs` runs (backend/routes/config.py), and `load_config()` runs
-# at backend import time (backend/config.py) -- so an unknown tab key doesn't
-# just 400 the save request, it corrupts config.yaml and the backend then
-# fails to boot on every subsequent start (local/docker; Lambda's read-only
-# config.yaml just 500s the write instead). See PR review on #7226.
-_FRONTEND_TAB_IDS = [
-    "group",
-    "plot",
-    "market",
-    "movers",
-    "instrument",
-    "owner",
-    "performance",
-    "transactions",
-    "trading",
-    "screener",
-    "timeseries",
-    "watchlist",
-    "allocation",
-    "instrumentadmin",
-    "rebalance",
-    "dataadmin",
-    "dataquality",
-    "dataexplorer",
-    "reports",
-    "trail",
-    "alertsettings",
-    "settings",
-    "pension",
-    "taxtools",
-    "trade-compliance",
-    "support",
-    "help",
-    "scenario",
-    "research",
-]
-
-
 def test_validate_tabs_accepts_all_frontend_tab_ids():
-    tabs = validate_tabs({tab_id: False for tab_id in _FRONTEND_TAB_IDS})
+    # This is a *third* regression of the same class as #5871 (dataquality)
+    # and the "help" case above: `PUT /config` writes `ui.tabs` to
+    # config.yaml BEFORE `validate_tabs` runs (backend/routes/config.py),
+    # and `load_config()` runs at backend import time (backend/config.py) --
+    # so an unknown tab key doesn't just 400 the save request, it corrupts
+    # config.yaml and the backend then fails to boot on every subsequent
+    # start (local/docker; Lambda's read-only config.yaml just 500s the
+    # write instead). See PR review on #7226.
+    #
+    # `_frontend_tab_ids()` parses registry.ts directly rather than
+    # comparing against a hand-maintained list here, specifically so a
+    # *future* addition to registry.ts is caught even if nobody remembers to
+    # touch this file -- a hand-maintained list is accurate the day it's
+    # written and is exactly the failure mode this test exists to catch.
+    tab_ids = _frontend_tab_ids()
+
+    # Fail loudly if the parser found nothing (or an implausibly small set):
+    # a silently-empty/partial match would make every assertion below pass
+    # vacuously, which is worse than no test at all.
+    assert len(tab_ids) >= 20, (
+        f"Only parsed {len(tab_ids)} tab id(s) from {REGISTRY_TS_PATH}; the "
+        "registry has ~30 user/support entries with a priority, so this "
+        "almost certainly means the parser broke (registry.ts's format "
+        "changed) rather than the registry actually shrinking this much. "
+        "Fix _frontend_tab_ids()/its regexes before trusting this test again."
+    )
+
+    known_fields = {f.name for f in fields(TabsConfig)}
+    expected_fields = {tab_id.replace("-", "_") for tab_id in tab_ids}
+    missing = expected_fields - known_fields
+    assert missing == set(), (
+        f"backend.config.TabsConfig has no field for frontend tab id(s): "
+        f"{sorted(missing)}. Add them to TabsConfig (backend/config.py) and "
+        "ConfigTabsContract (backend/contracts_spa.py), or PUT /config will "
+        "400 with \"Unknown tab '...'\" and corrupt config.yaml on the way."
+    )
+
+    # Also exercise the real validation path end-to-end, not just field
+    # presence, mirroring exactly what Support.tsx's Configuration tab sends.
+    tabs = validate_tabs({tab_id: False for tab_id in tab_ids})
     assert isinstance(tabs, TabsConfig)
-    for tab_id in _FRONTEND_TAB_IDS:
+    for tab_id in tab_ids:
         field_name = tab_id.replace("-", "_")
         assert getattr(tabs, field_name) is False, tab_id

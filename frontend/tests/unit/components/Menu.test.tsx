@@ -231,7 +231,95 @@ describe('Menu', () => {
     const gateway = screen.getByRole('menuitem', {
       name: i18n.t('app.operationsLink', 'Operations'),
     });
-    expect(gateway).toHaveAttribute('href', '/support');
+    // Targets the first *enabled* operations entry by priority (Timeseries,
+    // priority 70) rather than always /support -- see the "renders when
+    // Support itself is disabled" test below for why that matters.
+    expect(gateway).toHaveAttribute('href', '/timeseries');
+  });
+
+  it('targets the first enabled operations entry, not always /support (#7226)', () => {
+    // If Support specifically is disabled but a sibling like Data Admin
+    // isn't, the gateway must not still point at /support -- that would
+    // land on <DisabledFeature /> instead of the operations menu the user
+    // was trying to reach.
+    const config: ConfigContextValue = {
+      ...configWithTransactions,
+      disabledTabs: ['support'],
+      tabs: {
+        ...configWithTransactions.tabs,
+        timeseries: false,
+        support: false,
+      },
+    };
+    render(
+      <configContext.Provider value={config}>
+        <MemoryRouter initialEntries={['/']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    const gateway = screen.getByRole('menuitem', {
+      name: i18n.t('app.operationsLink', 'Operations'),
+    });
+    expect(gateway).toHaveAttribute('href', '/instrumentadmin');
+  });
+
+  it('hides the operations gateway link in Family MVP mode, matching the old Support link (#7226)', () => {
+    // The link this gateway replaces was gated on `!familyMvpEnabled`
+    // ("Family MVP keeps that surface out of the simplified experience").
+    // The gateway restores that same parity rather than silently loosening
+    // it: a Family MVP deployment must not gain a new menu-reachable
+    // entry point into the operations console.
+    const config: ConfigContextValue = {
+      ...configWithTransactions,
+      familyMvpEnabled: true,
+    };
+    render(
+      <configContext.Provider value={config}>
+        <MemoryRouter initialEntries={['/']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    expect(
+      screen.queryByRole('menuitem', {
+        name: i18n.t('app.operationsLink', 'Operations'),
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it('still offers a way back to the main app from an operations page in Family MVP mode (#7226)', () => {
+    // The forward gateway is intentionally hidden in Family MVP mode (see
+    // above), but the reciprocal "back to the app" link is an unconditional
+    // safety net: a maintainer can still reach an operations page by typing
+    // its URL directly regardless of Family MVP, and must not be stranded
+    // there without navigation once they do.
+    const config: ConfigContextValue = {
+      ...configWithTransactions,
+      familyMvpEnabled: true,
+    };
+    render(
+      <configContext.Provider value={config}>
+        <MemoryRouter initialEntries={['/dataadmin']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.userLink') })
+    ).toBeInTheDocument();
   });
 
   it('hides the operations gateway link when no operations tab is enabled (#7226)', () => {

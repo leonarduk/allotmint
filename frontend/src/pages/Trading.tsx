@@ -62,7 +62,7 @@ export default function Trading() {
           label: t('trading.tips.rsiInfoLabel', 'What does RSI mean?'),
           text: t(
             'trading.tips.rsiInfo',
-            'RSI (Relative Strength Index) is a momentum indicator, scored 0-100, derived from recent price changes. A signal is a buy candidate when RSI falls below this threshold.'
+            'RSI (Relative Strength Index) is a momentum indicator, scored 0-100, derived from recent price changes. A signal is a buy candidate when RSI is at or below this threshold.'
           ),
           to: '/metrics-explained#rsi',
         };
@@ -71,7 +71,7 @@ export default function Trading() {
           label: t('trading.tips.rsiInfoLabel', 'What does RSI mean?'),
           text: t(
             'trading.tips.rsiSellInfo',
-            'A signal is a sell candidate when RSI rises above this threshold.'
+            'A signal is a sell candidate when RSI is at or above this threshold.'
           ),
           to: '/metrics-explained#rsi',
         };
@@ -97,6 +97,15 @@ export default function Trading() {
           ),
           to: '/metrics-explained#moving-average',
         };
+      case 'pe_max':
+        return {
+          label: t('trading.tips.peInfoLabel', 'What does P/E mean?'),
+          text: t(
+            'trading.tips.peInfo',
+            'P/E (price/earnings) divides share price by earnings per share.'
+          ),
+          to: '/metrics-explained#pe-ratio',
+        };
       case 'de_max':
         return {
           label: t('trading.tips.debtEquityInfoLabel', 'What does debt/equity mean?'),
@@ -111,7 +120,7 @@ export default function Trading() {
           label: t('trading.tips.sharpeInfoLabel', 'What does Sharpe ratio mean?'),
           text: t(
             'trading.tips.sharpeInfo',
-            'The Sharpe ratio is a risk-adjusted return measure: return earned per unit of volatility.'
+            "The Sharpe ratio here is the portfolio's annualised excess return over the configured risk-free rate, divided by its daily volatility."
           ),
           to: '/metrics-explained#sharpe-ratio',
         };
@@ -120,7 +129,7 @@ export default function Trading() {
           label: t('trading.tips.volatilityInfoLabel', 'What does volatility mean?'),
           text: t(
             'trading.tips.volatilityInfo',
-            'Volatility is the standard deviation of returns over a period — how much a price fluctuates.'
+            'Volatility here is the day-to-day (daily, not annualised) standard deviation of returns — how much the price has fluctuated from one day to the next.'
           ),
           to: '/metrics-explained#volatility',
         };
@@ -162,20 +171,24 @@ export default function Trading() {
     }
 
     return (
-      <span
-        className={styles.checksSkippedBadge}
-        title={t('trading.checksSkippedTitle', 'Skipped checks: {{checks}}', {
-          checks: checksSkipped.join(', '),
-        })}
-      >
-        {t('trading.checksSkippedBadge', 'Checks skipped')}
+      <span className={styles.checksSkippedBadge}>
+        {/* `title` is scoped to just this inner span, not the InfoTip below,
+            so hovering the "i" button doesn't also trigger a native browser
+            tooltip on top of the InfoTip popover. */}
+        <span
+          title={t('trading.checksSkippedTitle', 'Skipped checks: {{checks}}', {
+            checks: checksSkipped.join(', '),
+          })}
+        >
+          {t('trading.checksSkippedBadge', 'Checks skipped')}
+        </span>
         <InfoTip
           label={t('trading.checksSkippedInfoLabel', "What does 'Checks skipped' mean?")}
           to="/metrics-explained#checks-skipped"
         >
           {t(
             'trading.checksSkippedInfo',
-            'One or more optional valuation or risk filters (P/E, debt/equity, Sharpe ratio, volatility) could not be evaluated for this signal, usually because the underlying data was unavailable.'
+            "An optional check that needs the allotmint-pro add-on could not run. “compliance” means the trade was not checked against your compliance rules; “fundamental_screen” means the P/E and debt/equity filters were not applied to this buy candidate."
           )}
         </InfoTip>
       </span>

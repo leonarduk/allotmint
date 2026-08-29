@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link, useInRouterContext } from 'react-router-dom';
 import styles from './InfoTip.module.css';
 
 interface InfoTipProps {
@@ -9,9 +10,9 @@ interface InfoTipProps {
   children: string;
   /**
    * Optional path to a fuller explanation, e.g. "/metrics-explained#max-drawdown".
-   * Rendered as a "Learn more" link inside the popover. Uses a plain anchor
-   * (not react-router's Link) so InfoTip works the same whether or not its
-   * caller happens to be rendered inside a Router.
+   * Rendered as a "Learn more" link inside the popover, via react-router's
+   * Link when a Router is present (avoids a full page reload) and a plain
+   * anchor otherwise (e.g. component tests rendered without a Router).
    */
   to?: string;
 }
@@ -29,6 +30,7 @@ export default function InfoTip({ label, children, to }: InfoTipProps) {
   const popoverId = useId();
   const rootRef = useRef<HTMLSpanElement>(null);
   const { t } = useTranslation();
+  const inRouterContext = useInRouterContext();
 
   useEffect(() => {
     if (!open) return undefined;
@@ -78,7 +80,18 @@ export default function InfoTip({ label, children, to }: InfoTipProps) {
         }`}
       >
         {children}
-        {to && (
+        {to && inRouterContext && (
+          <Link
+            to={to}
+            className={styles.infoTipLink}
+            onClick={(event: MouseEvent<HTMLAnchorElement>) =>
+              event.stopPropagation()
+            }
+          >
+            {t('common.learnMore', 'Learn more')}
+          </Link>
+        )}
+        {to && !inRouterContext && (
           <a
             href={to}
             className={styles.infoTipLink}

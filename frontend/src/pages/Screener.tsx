@@ -8,40 +8,47 @@ import InfoTip from "../components/InfoTip";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import i18n from "../i18n";
 
-const RATIO_COLUMN_TIPS: Record<string, { text: string; anchor: string }> = {
-  PEG: { text: "P/E ratio divided by the expected earnings growth rate.", anchor: "peg-ratio" },
-  "P/E": { text: "Share price divided by earnings per share.", anchor: "pe-ratio" },
-  "D/E": { text: "Total debt divided by shareholders' equity — a measure of financial leverage.", anchor: "debt-equity" },
-  "LT D/E": { text: "Long-term debt divided by shareholders' equity.", anchor: "lt-debt-equity" },
-  IntCov: { text: "Operating earnings (EBIT) divided by interest expense.", anchor: "interest-coverage" },
-  Curr: { text: "Current assets divided by current liabilities.", anchor: "current-ratio" },
-  Quick: { text: "Liquid assets, excluding inventory, divided by current liabilities.", anchor: "quick-ratio" },
-  FCF: { text: "Cash generated from operations minus capital expenditure.", anchor: "free-cash-flow" },
-  EPS: { text: "Net income divided by the number of shares outstanding.", anchor: "eps" },
-  "Gross Margin": { text: "Gross profit divided by revenue.", anchor: "gross-margin" },
-  "Op Margin": { text: "Operating income divided by revenue.", anchor: "operating-margin" },
-  "Net Margin": { text: "Net income divided by revenue.", anchor: "net-margin" },
-  "EBITDA Margin": { text: "EBITDA divided by revenue.", anchor: "ebitda-margin" },
-  ROA: { text: "Net income divided by total assets.", anchor: "roa" },
-  ROE: { text: "Net income divided by shareholders' equity.", anchor: "roe" },
-  ROI: { text: "The gain from an investment divided by its cost.", anchor: "roi" },
-  "Div%": { text: "Annual dividend per share divided by share price.", anchor: "dividend-yield" },
-  Payout: { text: "Dividends paid divided by net income.", anchor: "dividend-payout-ratio" },
-  Beta: { text: "A measure of how sensitive a stock's price is to overall market movements.", anchor: "beta" },
-  Shares: { text: "The total number of a company's shares currently held by all shareholders.", anchor: "shares-outstanding" },
-  Float: { text: "Shares outstanding that are freely tradable, excluding closely held or restricted shares.", anchor: "float-shares" },
-  MktCap: { text: "Share price multiplied by shares outstanding.", anchor: "market-cap" },
-  "52wH": { text: "The highest trading price over the past 52 weeks.", anchor: "week-52-high" },
-  "52wL": { text: "The lowest trading price over the past 52 weeks.", anchor: "week-52-low" },
-  AvgVol: { text: "The average number of shares traded per day over a recent period.", anchor: "avg-volume" },
+const RATIO_COLUMN_TIPS: Record<
+  string,
+  { key: string; defaultText: string; anchor: string }
+> = {
+  PEG: { key: "peg", defaultText: "P/E ratio divided by the expected earnings growth rate.", anchor: "peg-ratio" },
+  "P/E": { key: "pe", defaultText: "Share price divided by earnings per share.", anchor: "pe-ratio" },
+  "D/E": { key: "de", defaultText: "Total debt divided by shareholders' equity — a measure of financial leverage.", anchor: "debt-equity" },
+  "LT D/E": { key: "ltDe", defaultText: "Long-term debt divided by shareholders' equity.", anchor: "lt-debt-equity" },
+  IntCov: { key: "interestCoverage", defaultText: "Operating earnings (EBIT) divided by interest expense.", anchor: "interest-coverage" },
+  Curr: { key: "currentRatio", defaultText: "Current assets divided by current liabilities.", anchor: "current-ratio" },
+  Quick: { key: "quickRatio", defaultText: "Liquid assets, excluding inventory, divided by current liabilities.", anchor: "quick-ratio" },
+  FCF: { key: "fcf", defaultText: "Cash generated from operations minus capital expenditure.", anchor: "free-cash-flow" },
+  EPS: { key: "eps", defaultText: "Net income divided by the number of shares outstanding.", anchor: "eps" },
+  "Gross Margin": { key: "grossMargin", defaultText: "Gross profit divided by revenue.", anchor: "gross-margin" },
+  "Op Margin": { key: "operatingMargin", defaultText: "Operating income divided by revenue.", anchor: "operating-margin" },
+  "Net Margin": { key: "netMargin", defaultText: "Net income divided by revenue.", anchor: "net-margin" },
+  "EBITDA Margin": { key: "ebitdaMargin", defaultText: "EBITDA divided by revenue.", anchor: "ebitda-margin" },
+  ROA: { key: "roa", defaultText: "Net income divided by total assets.", anchor: "roa" },
+  ROE: { key: "roe", defaultText: "Net income divided by shareholders' equity.", anchor: "roe" },
+  ROI: { key: "roi", defaultText: "The gain from an investment divided by its cost.", anchor: "roi" },
+  "Div%": { key: "dividendYield", defaultText: "Annual dividend per share divided by share price.", anchor: "dividend-yield" },
+  Payout: { key: "dividendPayoutRatio", defaultText: "Dividends paid divided by net income.", anchor: "dividend-payout-ratio" },
+  Beta: { key: "beta", defaultText: "A measure of how sensitive a stock's price is to overall market movements.", anchor: "beta" },
+  Shares: { key: "sharesOutstanding", defaultText: "The total number of a company's shares currently held by all shareholders.", anchor: "shares-outstanding" },
+  Float: { key: "floatShares", defaultText: "Shares outstanding that are freely tradable, excluding closely held or restricted shares.", anchor: "float-shares" },
+  MktCap: { key: "marketCap", defaultText: "Share price multiplied by shares outstanding.", anchor: "market-cap" },
+  "52wH": { key: "high52w", defaultText: "The highest trading price over the past 52 weeks.", anchor: "week-52-high" },
+  "52wL": { key: "low52w", defaultText: "The lowest trading price over the past 52 weeks.", anchor: "week-52-low" },
+  AvgVol: { key: "avgVolume", defaultText: "The average number of shares traded per day over a recent period.", anchor: "avg-volume" },
 };
 
 function RatioHeaderInfoTip({ column }: { column: string }) {
+  const { t } = useTranslation();
   const tip = RATIO_COLUMN_TIPS[column];
   if (!tip) return null;
   return (
-    <InfoTip label={`What does ${column} mean?`} to={`/metrics-explained#${tip.anchor}`}>
-      {tip.text}
+    <InfoTip
+      label={t("screener.tips.infoLabel", "What does {{column}} mean?", { column })}
+      to={`/metrics-explained#${tip.anchor}`}
+    >
+      {t(`screener.tips.${tip.key}`, tip.defaultText)}
     </InfoTip>
   );
 }

@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, it, expect } from 'vitest';
 import { axe } from 'jest-axe';
 import InfoTip from '@/components/InfoTip';
@@ -50,6 +51,38 @@ describe('InfoTip', () => {
 
     const link = screen.getByRole('link', { name: 'Learn more' });
     expect(link).toHaveAttribute('href', '/metrics-explained#rsi');
+  });
+
+  it('navigates client-side via router Link (no full page reload) inside a Router', () => {
+    // Outside a Router, InfoTip falls back to a plain <a> (see the test
+    // above) so it still works in component tests rendered without one.
+    // Inside a Router — which the real app always is — it must use
+    // react-router's Link so "Learn more" navigates client-side instead of
+    // reloading the page. Proven here by asserting the click actually swaps
+    // the rendered route within the same MemoryRouter, which only happens
+    // for a router Link — a plain <a> click is a real navigation that jsdom
+    // does not implement and cannot change the rendered route.
+    render(
+      <MemoryRouter initialEntries={['/somewhere']}>
+        <Routes>
+          <Route
+            path="/somewhere"
+            element={
+              <InfoTip label="What does RSI mean?" to="/metrics-explained">
+                RSI measures momentum.
+              </InfoTip>
+            }
+          />
+          <Route
+            path="/metrics-explained"
+            element={<div>glossary page</div>}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: 'Learn more' }));
+    expect(screen.getByText('glossary page')).toBeInTheDocument();
   });
 
   it('stops a click on the trigger from reaching an ancestor click handler', () => {

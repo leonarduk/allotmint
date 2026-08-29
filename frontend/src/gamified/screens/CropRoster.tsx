@@ -126,7 +126,10 @@ export default function CropRoster({ basePath }: { basePath: string }) {
       <section className={`${styles.panel} ${styles.panelGlow}`}>
         <h2 className={styles.panelTitle}>
           Growth stages
-          <InfoTip label="What do growth stages mean?">
+          <InfoTip
+            label="What do growth stages mean?"
+            to="/metrics-explained#growth-stages"
+          >
             A crop&apos;s stage is its total gain since purchase, not its day
             change — Sown/Sprouting means little or no profit yet, Fruiting
             and Bumper crop mean it has gained a lot.

@@ -50,6 +50,14 @@ const RESOURCE_EXPLANATION: Record<string, string> = {
 const SUNLIGHT_EXPLANATION_WITH_UNKNOWN =
   'Sunlight is how much of your portfolio has a *confirmed* fresh price today. A price with no freshness signal at all counts as unknown, not stale — it just has not been vouched for yet.';
 
+// The glossary's Plot section (see #7230) uses "sunlight" as the anchor for
+// the "sun" resource, matching its display label rather than its internal id.
+const RESOURCE_GLOSSARY_ANCHOR: Record<string, string> = {
+  water: 'water',
+  feed: 'feed',
+  sun: 'sunlight',
+};
+
 function Champion({
   crop,
   role,
@@ -179,7 +187,10 @@ export default function PlotHub({ basePath }: { basePath: string }) {
                   <span aria-hidden="true">{resource.icon}</span>{' '}
                   {resource.label}
                   {explanation && (
-                    <InfoTip label={`What does ${resource.label} mean?`}>
+                    <InfoTip
+                      label={`What does ${resource.label} mean?`}
+                      to={`/metrics-explained#${RESOURCE_GLOSSARY_ANCHOR[resource.id] ?? resource.id}`}
+                    >
                       {explanation}
                     </InfoTip>
                   )}
@@ -251,12 +262,27 @@ export default function PlotHub({ basePath }: { basePath: string }) {
       </section>
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>
-        <h2 className={styles.panelTitle}>Propagator ({germinating.length})</h2>
+        <h2 className={styles.panelTitle}>
+          Propagator ({germinating.length})
+          <InfoTip
+            label="What does Propagator mean?"
+            to="/metrics-explained#propagator"
+          >
+            Crops still inside their minimum holding period, counting down to
+            the date each one becomes eligible to sell.
+          </InfoTip>
+        </h2>
         <Propagator entries={germinating} basePath={basePath} />
       </section>
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>
-        <h2 className={styles.panelTitle}>Beds</h2>
+        <h2 className={styles.panelTitle}>
+          Beds
+          <InfoTip label="What does Beds mean?" to="/metrics-explained#beds">
+            Each investment account is shown as a bed, with its holdings
+            planted in it as crops.
+          </InfoTip>
+        </h2>
         {beds.length === 0 ? (
           <p className={styles.sectionNote}>
             No accounts found for this grower.

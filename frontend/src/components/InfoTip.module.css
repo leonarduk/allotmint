@@ -16,7 +16,12 @@
   font-weight: 800;
   font-style: italic;
   line-height: 1;
-  color: var(--surface-card-bg);
+  /* Fixed dark ink, not a theme token: the button's own background (#60a5fa)
+     doesn't flip with the theme, so the glyph color must stay fixed too —
+     var(--surface-card-bg) here resolved to light grey in light mode against
+     this light-blue background, ~2.6:1 contrast. #0b1220 keeps ~7:1 in both
+     themes, matching the original Plot-skin button this replaced. */
+  color: #0b1220;
   background: #60a5fa;
   border: none;
   border-radius: 50%;

@@ -149,7 +149,7 @@ export default function MetricsExplanation() {
       </header>
 
       {!hasContext && (
-        <p className="rounded border border-yellow-500 bg-yellow-950/40 p-4 text-sm text-yellow-200">
+        <p className="rounded border border-slate-700 bg-slate-900/60 p-4 text-sm text-gray-300">
           {t("metricsExplanation.missingContext")}
         </p>
       )}
@@ -440,7 +440,7 @@ export default function MetricsExplanation() {
             <p className="text-sm text-gray-300">
               {t(
                 "metricsExplanation.sections.trading.rsi.detail",
-                "RSI is a momentum indicator, scored 0-100, derived from recent price changes. “RSI buy below” and “RSI sell above” are the thresholds a signal's RSI value must cross to be considered a buy or sell candidate. “RSI lookback” is the number of days of price history used to calculate it."
+                "RSI is a momentum indicator, scored 0-100, derived from recent price changes. “RSI buy below” and “RSI sell above” are the thresholds a signal's RSI value must reach — at or below the buy threshold, at or above the sell threshold — to be considered a buy or sell candidate. “RSI lookback” is the number of days of price history used to calculate it."
               )}
             </p>
           </div>
@@ -462,7 +462,7 @@ export default function MetricsExplanation() {
             <p className="text-sm text-gray-300">
               {t(
                 "metricsExplanation.sections.trading.sharpe.detail",
-                "The Sharpe ratio is a risk-adjusted return measure: return earned per unit of volatility (standard deviation of returns). “Minimum Sharpe ratio” is an optional filter threshold a signal's Sharpe ratio must meet, when that filter is enabled."
+                "Here, the Sharpe ratio is the annualised excess return over the configured risk-free rate, divided by the daily volatility of returns. “Minimum Sharpe ratio” is an optional filter threshold a signal's Sharpe ratio must meet, when that filter is enabled."
               )}
             </p>
           </div>
@@ -484,7 +484,7 @@ export default function MetricsExplanation() {
             <p className="text-sm text-gray-300">
               {t(
                 "metricsExplanation.sections.trading.volatility.detail",
-                "Volatility is the standard deviation of returns over a period — how much a price fluctuates. “Maximum volatility” is an optional filter threshold, when enabled."
+                "Here, volatility is the day-to-day (daily, not annualised) standard deviation of returns — how much the price has fluctuated from one day to the next. “Maximum volatility” is an optional filter threshold, when enabled."
               )}
             </p>
           </div>
@@ -495,7 +495,7 @@ export default function MetricsExplanation() {
             <p className="text-sm text-gray-300">
               {t(
                 "metricsExplanation.sections.trading.checksSkipped.detail",
-                "This badge appears when one or more of the optional valuation or risk filters above (P/E, debt/equity, Sharpe ratio, volatility) could not be evaluated for a signal — usually because the underlying data wasn't available — so that filter was not applied when the signal was generated."
+                "This badge appears when an optional check that needs the allotmint-pro add-on could not run, because that add-on isn't installed. “compliance” means the trade was not checked against your compliance rules at all. “fundamental_screen” means the P/E and debt/equity filters (configured above) were not applied to this buy candidate."
               )}
             </p>
           </div>
@@ -653,7 +653,7 @@ export default function MetricsExplanation() {
               )}
             </p>
           </div>
-          <div>
+          <div id="growth-stages">
             <h3 className="text-lg font-semibold">
               {t("metricsExplanation.sections.plot.growthStages.title", "Growth stages (Wilting → Sown → Sprouting → Leafing → Budding → Flowering → Fruiting → Bumper crop)")}
             </h3>

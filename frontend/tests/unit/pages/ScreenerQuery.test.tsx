@@ -43,12 +43,39 @@ vi.mock("@/utils/errorToast", () => ({
   default: vi.fn(),
 }));
 
+// Portfolios backing the Custom Query "Tickers" control (issue #7202): the
+// UI now derives its ticker checkboxes from each in-scope owner's real
+// holdings rather than a hardcoded AAA/BBB/CCC list, so tests need a
+// getPortfolio mock that returns holdings per owner.
+function makePortfolio(owner: string, tickers: string[]) {
+  return {
+    owner,
+    as_of: "2024-01-01",
+    trades_this_month: 0,
+    trades_remaining: 0,
+    total_value_estimate_gbp: 0,
+    accounts: [
+      {
+        account_type: "ISA",
+        currency: "GBP",
+        value_estimate_gbp: 0,
+        holdings: tickers.map((ticker) => ({
+          ticker,
+          name: ticker,
+          units: 1,
+        })),
+      },
+    ],
+  };
+}
+
 vi.mock("@/api", () => ({
   API_BASE: "http://api",
   getOwners: vi.fn().mockResolvedValue([
     { owner: "alice", full_name: "Alice Example", accounts: [] },
     { owner: "bob", full_name: "Bob Example", accounts: [] },
   ]),
+  getPortfolio: vi.fn(),
   runCustomQuery: vi.fn(),
   saveCustomQuery: vi.fn().mockResolvedValue({}),
   listSavedQueries: vi.fn().mockResolvedValue([
@@ -67,7 +94,7 @@ vi.mock("@/api", () => ({
   getScreener: vi.fn(),
 }));
 
-import { getOwners, getScreener, listSavedQueries, runCustomQuery } from "@/api";
+import { getOwners, getPortfolio, getScreener, listSavedQueries, runCustomQuery } from "@/api";
 import { ScreenerQuery } from "@/pages/ScreenerQuery";
 
 function renderWithI18n(ui: ReactElement) {
@@ -91,6 +118,11 @@ describe("Screener & Query page", () => {
       { owner: "alice", full_name: "Alice Example", accounts: [] },
       { owner: "bob", full_name: "Bob Example", accounts: [] },
     ]);
+    getPortfolio.mockImplementation((owner: string) =>
+      Promise.resolve(
+        makePortfolio(owner, owner === "alice" ? ["AAA"] : ["BBB"]),
+      ),
+    );
     listSavedQueries.mockResolvedValue([
       {
         id: "1",
@@ -148,6 +180,7 @@ describe("Screener & Query page", () => {
     const { i18n } = renderWithI18n(<ScreenerQuery />);
 
     await screen.findByLabelText("Alice Example");
+    await screen.findByLabelText("AAA");
 
     fireEvent.change(screen.getByLabelText(i18n.t("query.start")), {
       target: { value: "2024-01-01" },
@@ -158,7 +191,7 @@ describe("Screener & Query page", () => {
 
     fireEvent.click(screen.getByLabelText("Alice Example"));
     fireEvent.click(screen.getByLabelText("AAA"));
-    fireEvent.click(screen.getByLabelText("market_value_gbp"));
+    fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
 
     fireEvent.click(screen.getAllByRole("button", { name: i18n.t("query.run") })[1]);
 
@@ -186,6 +219,7 @@ describe("Screener & Query page", () => {
     const { i18n } = renderWithI18n(<ScreenerQuery />);
 
     await screen.findByLabelText("Alice Example");
+    await screen.findByLabelText("AAA");
 
     fireEvent.change(screen.getByLabelText(i18n.t("query.start")), {
       target: { value: "2024-01-01" },
@@ -196,7 +230,7 @@ describe("Screener & Query page", () => {
 
     fireEvent.click(screen.getByLabelText("Alice Example"));
     fireEvent.click(screen.getByLabelText("AAA"));
-    fireEvent.click(screen.getByLabelText("market_value_gbp"));
+    fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
 
     fireEvent.click(
       screen.getAllByRole("button", { name: i18n.t("query.run") })[1],
@@ -238,12 +272,15 @@ describe("Screener & Query page", () => {
     );
     const { i18n } = renderWithI18n(<ScreenerQuery />);
     await screen.findByLabelText("Alice Example");
+    await screen.findByLabelText("AAA");
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
       "2024-01-01",
     );
     expect(screen.getByLabelText("Alice Example")).toBeChecked();
     expect(screen.getByLabelText("AAA")).toBeChecked();
-    expect(screen.getByLabelText("market_value_gbp")).toBeChecked();
+    expect(
+      screen.getByLabelText(i18n.t("query.metricMarketValueGbp")),
+    ).toBeChecked();
   });
 
   it("sanitizes malicious query parameters", async () => {
@@ -264,9 +301,10 @@ describe("Screener & Query page", () => {
     Object.assign(navigator, { clipboard: { writeText } });
     const { i18n } = renderWithI18n(<ScreenerQuery />);
     await screen.findByLabelText("Alice Example");
+    await screen.findByLabelText("AAA");
     fireEvent.click(screen.getByLabelText("Alice Example"));
     fireEvent.click(screen.getByLabelText("AAA"));
-    fireEvent.click(screen.getByLabelText("market_value_gbp"));
+    fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
     fireEvent.click(
       screen.getByRole("button", { name: i18n.t("query.copyLink") }),
     );

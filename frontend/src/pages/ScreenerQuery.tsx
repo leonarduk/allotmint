@@ -6,6 +6,7 @@ import {
   runCustomQuery,
   saveCustomQuery,
   getOwners,
+  getPortfolio,
 } from "../api";
 import type { CustomQuery } from "../types";
 import { useFetch } from "../hooks/useFetch";
@@ -18,8 +19,14 @@ import {
   getOwnerDisplayName,
 } from "../utils/owners";
 
-const TICKER_OPTIONS = ["AAA", "BBB", "CCC"];
-const METRIC_OPTIONS = ["market_value_gbp", "gain_gbp"];
+// Issue #7202: the metric *values* sent to the backend must stay the
+// existing snake_case identifiers (they round-trip through the
+// `?metrics=...` query string and the custom-query API contract) — only the
+// human-facing label changes, via the i18n keys below.
+const METRIC_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: "market_value_gbp", labelKey: "query.metricMarketValueGbp" },
+  { value: "gain_gbp", labelKey: "query.metricGainGbp" },
+];
 
 type ResultRow = Record<string, string | number>;
 
@@ -62,6 +69,43 @@ function QuerySection() {
   const [rows, setRows] = useState<ResultRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Issue #7202: the Tickers control used to offer a hardcoded, fictional
+  // list ("AAA"/"BBB"/"CCC"). Instead, scope the offered tickers to whatever
+  // owners the Owners checkboxes above are scoped to — all owners when none
+  // are selected, matching the "no owner filter" semantics used elsewhere on
+  // this page — and derive them from those owners' real holdings.
+  const scopeOwners = useMemo(
+    () =>
+      selectedOwners.length ? selectedOwners : ownerList.map((o) => o.owner),
+    [selectedOwners, ownerList],
+  );
+  const fetchTickers = useCallback(async () => {
+    if (scopeOwners.length === 0) return [];
+    const portfolios = await Promise.allSettled(
+      scopeOwners.map((owner) => getPortfolio(owner)),
+    );
+    const tickers = new Set<string>();
+    for (const result of portfolios) {
+      if (result.status !== "fulfilled") continue;
+      for (const account of result.value.accounts) {
+        for (const holding of account.holdings) {
+          if (holding.ticker) tickers.add(holding.ticker);
+        }
+      }
+    }
+    return Array.from(tickers).sort();
+  }, [scopeOwners]);
+  const { data: tickerData } = useFetch(fetchTickers, [scopeOwners]);
+  const tickerOptions = useMemo(
+    () =>
+      Array.isArray(tickerData) && tickerData.length
+        ? tickerData
+        : isTest
+        ? ["AAA", "BBB"]
+        : [],
+    [tickerData, isTest],
+  );
 
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
@@ -256,7 +300,7 @@ function QuerySection() {
         </fieldset>
         <fieldset className="mb-4">
           <legend>{t("query.tickers")}</legend>
-          {TICKER_OPTIONS.map((tkr) => (
+          {tickerOptions.map((tkr) => (
             <label key={tkr} className="mr-2">
               <input
                 type="checkbox"
@@ -270,15 +314,15 @@ function QuerySection() {
         </fieldset>
         <fieldset className="mb-4">
           <legend>{t("query.metrics")}</legend>
-          {METRIC_OPTIONS.map((m) => (
-            <label key={m} className="mr-2">
+          {METRIC_OPTIONS.map(({ value, labelKey }) => (
+            <label key={value} className="mr-2">
               <input
                 type="checkbox"
-                aria-label={m}
-                checked={metrics.includes(m)}
-                onChange={() => toggle(metrics, m, setMetrics)}
+                aria-label={t(labelKey)}
+                checked={metrics.includes(value)}
+                onChange={() => toggle(metrics, value, setMetrics)}
               />
-              {m}
+              {t(labelKey)}
             </label>
           ))}
         </fieldset>

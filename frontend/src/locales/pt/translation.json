@@ -397,6 +397,8 @@
     "end": "Fim",
     "exportCsv": "Exportar CSV",
     "exportXlsx": "Exportar XLSX",
+    "metricGainGbp": "Ganho (£)",
+    "metricMarketValueGbp": "Valor de mercado (£)",
     "metrics": "Métricas",
     "owners": "Proprietários",
     "run": "Executar",

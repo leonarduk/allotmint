@@ -7,6 +7,16 @@ type Props = {
   onLoad: (params: CustomQuery) => void;
 };
 
+// Issue #7202: `data/queries/demo-slug.json` is a developer-seeded example
+// that the backend's `/custom-query/saved` listing surfaces indistinguishably
+// from a real user-saved query, showing up here as an unlabelled internal
+// slug ("demo-slug"). It lives outside this component's ownership (it's
+// backend seed data, not frontend code), so rather than editing it — and
+// risking that a real user could still legitimately name a saved query
+// "demo-slug" — we filter this one known placeholder id out of the
+// user-facing list. Any genuinely-named saved query is unaffected.
+const SEEDED_EXAMPLE_QUERY_IDS = new Set(["demo-slug"]);
+
 export function SavedQueries({ onLoad }: Props) {
   const loadQueries = useCallback(() => listSavedQueries({ detailed: true }), []);
   const { data: queries, loading, error } = useFetch<SavedQuery[]>(
@@ -23,6 +33,7 @@ export function SavedQueries({ onLoad }: Props) {
           typeof q === "object" &&
           "id" in q &&
           typeof q.id === "string" &&
+          !SEEDED_EXAMPLE_QUERY_IDS.has(q.id) &&
           "name" in q &&
           typeof q.name === "string" &&
           "params" in q &&

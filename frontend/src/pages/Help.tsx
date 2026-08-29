@@ -1,11 +1,19 @@
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import SectionCard from "../components/SectionCard";
+import { useConfig } from "../ConfigContext";
+import { isModeEnabled } from "../pageManifest";
+import type { Mode } from "../modes";
 
 const ISSUES_URL = "https://github.com/leonarduk/allotmint/issues/new";
 
 interface HelpPageEntry {
   path: string;
+  // The registry mode gating this page (frontend/src/routes/registry.ts).
+  // Entries are filtered through isModeEnabled() below so a deployment that
+  // disables a tab (e.g. this repo's own config.yaml disables transactions/
+  // reports/taxtools) never shows a dead link here (#7226).
+  mode: Mode;
   titleKey: string;
   titleDefault: string;
   descriptionKey: string;
@@ -15,7 +23,11 @@ interface HelpPageEntry {
 const HELP_PAGES: HelpPageEntry[] = [
   {
     path: "/",
-    titleKey: "app.modes.group",
+    mode: "group",
+    // Not app.modes.group ("Group") -- this page is titled "Dashboard" in
+    // its own right, so it needs a dedicated key rather than one that
+    // already resolves to different text.
+    titleKey: "help.pages.dashboardTitle",
     titleDefault: "Dashboard",
     descriptionKey: "help.pages.group",
     descriptionDefault:
@@ -23,6 +35,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/market",
+    mode: "market",
     titleKey: "app.modes.market",
     titleDefault: "Market Overview",
     descriptionKey: "help.pages.market",
@@ -30,6 +43,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/movers",
+    mode: "movers",
     titleKey: "app.modes.movers",
     titleDefault: "Movers",
     descriptionKey: "help.pages.movers",
@@ -37,6 +51,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/instrument",
+    mode: "instrument",
     titleKey: "app.modes.instrument",
     titleDefault: "Instrument",
     descriptionKey: "help.pages.instrument",
@@ -44,6 +59,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/performance",
+    mode: "performance",
     titleKey: "app.modes.performance",
     titleDefault: "Performance",
     descriptionKey: "help.pages.performance",
@@ -51,6 +67,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/input",
+    mode: "transactions",
     titleKey: "app.modes.transactions",
     titleDefault: "Transactions",
     descriptionKey: "help.pages.transactions",
@@ -58,6 +75,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/trading",
+    mode: "trading",
     titleKey: "app.modes.trading",
     titleDefault: "Trading",
     descriptionKey: "help.pages.trading",
@@ -65,6 +83,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/screener",
+    mode: "screener",
     titleKey: "app.modes.screener",
     titleDefault: "Screener & Query",
     descriptionKey: "help.pages.screener",
@@ -72,6 +91,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/watchlist",
+    mode: "watchlist",
     titleKey: "app.modes.watchlist",
     titleDefault: "Watchlist",
     descriptionKey: "help.pages.watchlist",
@@ -79,6 +99,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/allocation",
+    mode: "allocation",
     titleKey: "app.modes.allocation",
     titleDefault: "Allocation",
     descriptionKey: "help.pages.allocation",
@@ -86,6 +107,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/rebalance",
+    mode: "rebalance",
     titleKey: "app.modes.rebalance",
     titleDefault: "Rebalance",
     descriptionKey: "help.pages.rebalance",
@@ -93,6 +115,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/reports",
+    mode: "reports",
     titleKey: "app.modes.reports",
     titleDefault: "Reports",
     descriptionKey: "help.pages.reports",
@@ -100,6 +123,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/pension/forecast",
+    mode: "pension",
     titleKey: "app.modes.pension",
     titleDefault: "Pension Forecast",
     descriptionKey: "help.pages.pension",
@@ -107,6 +131,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/tax-tools",
+    mode: "taxtools",
     titleKey: "app.modes.taxtools",
     titleDefault: "Tax Tools",
     descriptionKey: "help.pages.taxtools",
@@ -114,6 +139,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/research",
+    mode: "research",
     titleKey: "app.modes.research",
     titleDefault: "Research",
     descriptionKey: "help.pages.research",
@@ -121,6 +147,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/settings",
+    mode: "settings",
     titleKey: "app.modes.settings",
     titleDefault: "User Settings",
     descriptionKey: "help.pages.settings",
@@ -128,6 +155,7 @@ const HELP_PAGES: HelpPageEntry[] = [
   },
   {
     path: "/alert-settings",
+    mode: "alertsettings",
     titleKey: "app.modes.alertsettings",
     titleDefault: "Alert Settings",
     descriptionKey: "help.pages.alertsettings",
@@ -137,6 +165,10 @@ const HELP_PAGES: HelpPageEntry[] = [
 
 export default function Help() {
   const { t } = useTranslation();
+  const { tabs, disabledTabs } = useConfig();
+  const visiblePages = HELP_PAGES.filter((entry) =>
+    isModeEnabled(entry.mode, tabs, disabledTabs),
+  );
 
   return (
     <div className="container mx-auto max-w-3xl space-y-8 p-4">
@@ -157,7 +189,7 @@ export default function Help() {
         defaultOpen
       >
         <dl className="space-y-3">
-          {HELP_PAGES.map((entry) => (
+          {visiblePages.map((entry) => (
             <div key={entry.path}>
               <dt>
                 <Link

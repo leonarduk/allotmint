@@ -102,6 +102,7 @@
       "transactions": "Transactions",
       "watchlist": "Watchlist"
     },
+    "operationsLink": "Operations",
     "refreshing": "Refreshing…",
     "refreshPrices": "Refresh Prices",
     "relativeView": "Relative view",

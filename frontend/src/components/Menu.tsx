@@ -18,8 +18,6 @@ import {
   MENU_CATEGORY_ORDER,
 } from '../pageManifest';
 
-const SUPPORT_ONLY_TABS: TabPluginId[] = [];
-
 interface MenuProps {
   selectedOwner?: string;
   selectedGroup?: string;
@@ -51,7 +49,6 @@ export default function Menu({
   const effectiveLogout = onLogout ?? contextLogout ?? undefined;
   const mode = deriveModeFromLocation(location.pathname, location.search) as TabPluginId;
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode);
-  const inSupport = mode === 'support';
 
   const categoryDefinitions = useMemo<MenuCategoryDefinition[]>(() => {
     const section = isSupportMode ? 'support' : 'user';
@@ -63,20 +60,30 @@ export default function Menu({
 
   const availableTabs = useMemo(
     () =>
-      getMenuEntries(isSupportMode ? 'support' : 'user').filter((entry) => {
-        if (
-          !inSupport &&
-          SUPPORT_ONLY_TABS.includes(entry.mode as TabPluginId)
-        ) {
-          return false;
-        }
+      getMenuEntries(isSupportMode ? 'support' : 'user').filter(
+        (entry) =>
+          // Family MVP no longer restricts which tabs appear (#4641): every
+          // tab enabled in config is navigable from the menu. Visibility is
+          // driven purely by the config tab gating below.
+          tabs[entry.mode] === true && !disabledTabs?.includes(entry.mode)
+      ),
+    [disabledTabs, isSupportMode, tabs]
+  );
 
-        // Family MVP no longer restricts which tabs appear (#4641): every tab
-        // enabled in config is navigable from the menu. Visibility is driven
-        // purely by the config tab gating below.
-        return tabs[entry.mode] === true && !disabledTabs?.includes(entry.mode);
-      }),
-    [disabledTabs, inSupport, isSupportMode, tabs]
+  // Whether the operations menu (Data Admin/Data Quality/Timeseries/Support/
+  // ...) has anything to show at all -- i.e. whether the gateway link into it
+  // (below) would land on an empty category. Computed independently of
+  // `availableTabs`/`isSupportMode` because the gateway itself is only ever
+  // rendered from the *user*-section menu (#7226).
+  const operationsAvailable = useMemo(
+    () =>
+      getMenuEntries('support').some(
+        (entry) =>
+          entry.menuCategory === 'operations' &&
+          tabs[entry.mode] === true &&
+          !disabledTabs?.includes(entry.mode)
+      ),
+    [disabledTabs, tabs]
   );
 
   const categoriesToRender = useMemo<CategorizedMenu[]>(
@@ -266,6 +273,41 @@ export default function Menu({
                         }`}
                       >
                         {t('app.glossaryLink', 'Glossary')}
+                      </Link>
+                    </li>
+                  )}
+                  {category.id === 'preferences' &&
+                    !isSupportMode &&
+                    operationsAvailable && (
+                      // The only way into the operations menu (Data Admin,
+                      // Data Quality, Timeseries, the Support console, ...)
+                      // from the end-user menu. Deliberately generic --
+                      // unlike the old "Support" link this replaces, it
+                      // doesn't claim to be end-user help (#7226).
+                      <li key="operations-gateway">
+                        <Link
+                          ref={assignFirstFocusable}
+                          role="menuitem"
+                          to={buildPathForMode('support')}
+                          className="block min-h-11 w-full rounded px-3 py-2 text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
+                        >
+                          {t('app.operationsLink', 'Operations')}
+                        </Link>
+                      </li>
+                    )}
+                  {category.id === 'preferences' && isSupportMode && (
+                    // The way back to the main app from any operations page
+                    // -- without it, the operations menu (which replaces the
+                    // dashboard/insights/goals categories while here) would
+                    // strand the user with no nav path home (#7226).
+                    <li key="back-to-app">
+                      <Link
+                        ref={assignFirstFocusable}
+                        role="menuitem"
+                        to={buildPathForMode('group', { group: selectedGroup })}
+                        className="block min-h-11 w-full rounded px-3 py-2 text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
+                      >
+                        {t('app.userLink')}
                       </Link>
                     </li>
                   )}

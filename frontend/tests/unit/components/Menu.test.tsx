@@ -211,6 +211,88 @@ describe('Menu', () => {
     ).toBeInTheDocument();
   });
 
+  it('offers a reachable gateway into the operations menu from a cold start (#7226)', () => {
+    // Regression coverage for the CHANGES REQUESTED finding that deleting
+    // the old bespoke "Support" link left the entire operations section
+    // (Data Admin/Data Quality/Timeseries/Support/...) unreachable from the
+    // menu: this mounts at '/' (a genuine cold start, not already inside
+    // support mode) and must find a way in.
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter initialEntries={['/']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    const gateway = screen.getByRole('menuitem', {
+      name: i18n.t('app.operationsLink', 'Operations'),
+    });
+    expect(gateway).toHaveAttribute('href', '/support');
+  });
+
+  it('hides the operations gateway link when no operations tab is enabled (#7226)', () => {
+    const config: ConfigContextValue = {
+      ...configWithTransactions,
+      tabs: {
+        ...configWithTransactions.tabs,
+        timeseries: false,
+        instrumentadmin: false,
+        dataadmin: false,
+        support: false,
+      },
+    };
+    render(
+      <configContext.Provider value={config}>
+        <MemoryRouter initialEntries={['/']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    expect(
+      screen.queryByRole('menuitem', {
+        name: i18n.t('app.operationsLink', 'Operations'),
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it('offers a way back to the main app from an operations page (#7226)', () => {
+    // The reciprocal half of the same finding: once on a support-section
+    // page (not just literally /support -- any of them, here /dataadmin),
+    // the dashboard/insights/goals categories are replaced by
+    // operations/preferences, so without an explicit link back the user is
+    // stranded except for logout/the avatar.
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter initialEntries={['/dataadmin']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    const backLink = screen.getByRole('menuitem', {
+      name: i18n.t('app.userLink'),
+    });
+    expect(backLink).toHaveAttribute('href', '/?group=all');
+    // The forward gateway link doesn't also show up while already inside
+    // the operations menu -- that would be a redundant self-link.
+    expect(
+      screen.queryByRole('menuitem', {
+        name: i18n.t('app.operationsLink', 'Operations'),
+      })
+    ).not.toBeInTheDocument();
+  });
+
   it('renders logout button when callback provided', async () => {
     const onLogout = vi.fn();
     i18n.changeLanguage('fr');

@@ -44,6 +44,19 @@ def test_validate_tabs_accepts_plot():
     assert tabs.plot is False
 
 
+def test_validate_tabs_accepts_help():
+    # Regression test for #7226: the frontend route registry's "help" page
+    # (frontend/src/routes/registry.ts) has a `priority`, so it's picked up
+    # by orderedTabPlugins and rendered as a toggle on the Support page's
+    # Configuration tab. Saving that toggle must not fail with
+    # "Unknown tab 'help'" -- see test_validate_tabs_accepts_all_frontend_tab_ids
+    # below for the general regression guard this is a specific instance of.
+    assert TabsConfig().help is True
+    tabs = validate_tabs({"help": False})
+    assert isinstance(tabs, TabsConfig)
+    assert tabs.help is False
+
+
 def test_validate_tabs_rejects_unknown_key():
     with pytest.raises(ConfigValidationError):
         validate_tabs({"unknown": True})
@@ -93,3 +106,59 @@ def test_validate_config_data_skips_google_auth_by_default(monkeypatch):
 
     with pytest.raises(ConfigValidationError):
         validate_config_data({"auth": {"google_auth_enabled": True}}, check_google_auth=True)
+
+
+# The ids of every frontend route registry entry (frontend/src/routes/registry.ts)
+# with `section: 'user'` or `section: 'support'` and a numeric `priority` -- i.e.
+# every id `frontend/src/tabPlugins.ts`'s `orderedTabPlugins` exposes, which is
+# what `Support.tsx`'s Configuration tab toggles and saves via `PUT /config`.
+# This list must be kept in sync with registry.ts by hand: there's no shared
+# schema between the TS registry and this Python dataclass, so a new frontend
+# mode with a `priority` needs both a registry.ts entry AND a TabsConfig field.
+#
+# This is a *third* regression of the same class as #5871 (dataquality) and
+# the "help" case above: `PUT /config` writes `ui.tabs` to config.yaml BEFORE
+# `validate_tabs` runs (backend/routes/config.py), and `load_config()` runs
+# at backend import time (backend/config.py) -- so an unknown tab key doesn't
+# just 400 the save request, it corrupts config.yaml and the backend then
+# fails to boot on every subsequent start (local/docker; Lambda's read-only
+# config.yaml just 500s the write instead). See PR review on #7226.
+_FRONTEND_TAB_IDS = [
+    "group",
+    "plot",
+    "market",
+    "movers",
+    "instrument",
+    "owner",
+    "performance",
+    "transactions",
+    "trading",
+    "screener",
+    "timeseries",
+    "watchlist",
+    "allocation",
+    "instrumentadmin",
+    "rebalance",
+    "dataadmin",
+    "dataquality",
+    "dataexplorer",
+    "reports",
+    "trail",
+    "alertsettings",
+    "settings",
+    "pension",
+    "taxtools",
+    "trade-compliance",
+    "support",
+    "help",
+    "scenario",
+    "research",
+]
+
+
+def test_validate_tabs_accepts_all_frontend_tab_ids():
+    tabs = validate_tabs({tab_id: False for tab_id in _FRONTEND_TAB_IDS})
+    assert isinstance(tabs, TabsConfig)
+    for tab_id in _FRONTEND_TAB_IDS:
+        field_name = tab_id.replace("-", "_")
+        assert getattr(tabs, field_name) is False, tab_id

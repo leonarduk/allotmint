@@ -409,13 +409,21 @@
     "end": "Fin",
     "exportCsv": "Exportar CSV",
     "exportXlsx": "Exportar XLSX",
+    "metricGainGbp": "Ganancia (£)",
+    "metricMarketValueGbp": "Valor de mercado (£)",
     "metrics": "Métricas",
     "owners": "Propietarios",
     "run": "Ejecutar",
     "running": "Ejecutando…",
     "save": "Guardar",
+    "savedQueriesLoading": "Cargando consultas guardadas…",
+    "savedQueriesTitle": "Consultas guardadas",
     "start": "Inicio",
-    "tickers": "Tickers"
+    "tickerNotHeld": "no en cartera actualmente",
+    "tickers": "Tickers",
+    "tickersEmpty": "No se encontraron posiciones para los propietarios seleccionados.",
+    "tickersLoading": "Cargando tickers…",
+    "tickersPartialError": "No se pudieron cargar las posiciones de: {{owners}}"
   },
   "reports": {
     "csv": "Descargar CSV",

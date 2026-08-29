@@ -637,14 +637,22 @@
     "end": "End",
     "exportCsv": "Export CSV",
     "exportXlsx": "Export XLSX",
+    "metricGainGbp": "Gain (£)",
+    "metricMarketValueGbp": "Market value (£)",
     "metrics": "Metrics",
     "noResults": "No results.",
     "owners": "Owners",
     "run": "Run",
     "running": "Running…",
     "save": "Save",
+    "savedQueriesLoading": "Loading saved queries…",
+    "savedQueriesTitle": "Saved Queries",
     "start": "Start",
-    "tickers": "Tickers"
+    "tickerNotHeld": "not currently held",
+    "tickers": "Tickers",
+    "tickersEmpty": "No holdings found for the selected owner(s).",
+    "tickersLoading": "Loading tickers…",
+    "tickersPartialError": "Could not load holdings for: {{owners}}"
   },
   "reports": {
     "csv": "Download CSV",

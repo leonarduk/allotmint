@@ -331,14 +331,21 @@ def test_backend_lambda_has_log_group_name_env_var(template):
 
 
 def test_backend_lambda_timeout_is_at_least_30s(template):
-    """BackendLambda must have a timeout > the 3 s default to survive cold starts."""
+    """BackendLambda must have a timeout > the 3 s default to survive cold starts.
+
+    Identified by JWT_SECRET *and* GOOGLE_CLIENT_ID together (matching
+    test_backend_lambda_has_jwt_and_google_env_vars's own criteria): JWT_SECRET
+    alone is no longer unique to BackendLambda since GatewayAuthorizerLambda
+    (#7522) also needs it to verify demo-scoped tokens, but only BackendLambda
+    also carries GOOGLE_CLIENT_ID.
+    """
     functions = template.find_resources("AWS::Lambda::Function")
     backend_timeouts = [
         resource["Properties"].get("Timeout", 3)
         for resource in functions.values()
         if resource.get("Properties", {}).get("PackageType") == "Image"
-        and "JWT_SECRET"
-        in resource.get("Properties", {}).get("Environment", {}).get("Variables", {})
+        and {"JWT_SECRET", "GOOGLE_CLIENT_ID"}
+        <= resource.get("Properties", {}).get("Environment", {}).get("Variables", {}).keys()
     ]
     assert backend_timeouts, "BackendLambda not found in synthesised template"
     assert all(t >= 30 for t in backend_timeouts), (
@@ -637,81 +644,92 @@ def test_backend_lambda_disables_app_jwt_decode_for_cognito_authorizer(template)
     )
 
 
-def test_backend_api_has_cognito_jwt_authorizer(template):
-    """API Gateway must validate Cognito JWTs before invoking the backend Lambda."""
+def test_backend_api_has_gateway_lambda_authorizer(template):
+    """API Gateway must run the demo/Cognito Lambda authorizer (#7522) before
+    invoking the backend Lambda on the ANY / and ANY /{proxy+} routes.
+
+    This replaces the old native Cognito HttpUserPoolAuthorizer (AuthorizerType
+    JWT) with a REQUEST-type Lambda authorizer using payload format 2.0
+    "simple" responses (EnableSimpleResponses), so it can accept either a
+    valid Cognito ID token or a valid demo-scoped token
+    (backend/lambda_api/demo_authorizer.py).
+    """
     template.has_resource_properties(
         "AWS::ApiGatewayV2::Authorizer",
         {
-            "AuthorizerType": "JWT",
+            "AuthorizerType": "REQUEST",
+            "AuthorizerPayloadFormatVersion": "2.0",
+            "EnableSimpleResponses": True,
             "IdentitySource": ["$request.header.Authorization"],
-            "JwtConfiguration": {
-                # Audience is conditionally built (Fn::If) so an empty
-                # SmokeTestUserPoolClientId never adds an empty-string audience
-                # entry — see test_backend_api_authorizer_audience_excludes_empty_smoke_test_client.
-                "Audience": assertions.Match.object_like(
-                    {"Fn::If": assertions.Match.any_value()}
-                ),
-                # Issuer must be a CloudFormation expression (Fn::Join), not a
-                # literal synth-time token like "${Token[...]}".
-                "Issuer": assertions.Match.object_like(
-                    {"Fn::Join": assertions.Match.any_value()}
-                ),
-            },
         },
     )
 
 
-def test_backend_api_authorizer_audience_excludes_empty_smoke_test_client(template):
-    """When SmokeTestUserPoolClientId is empty (the default), the authorizer's
-    JWT audience must fall back to only UiAuthUserPoolClientId. Otherwise an
-    empty-string entry would be added to the audience list, which API Gateway
-    would treat as a valid (if useless) audience value (#4027 review)."""
-    json_template = template.to_json()
+def test_gateway_authorizer_caching_is_disabled(template):
+    """The gateway authorizer must not cache its decision (#7522).
 
-    conditions = json_template.get("Conditions", {})
-    assert "HasSmokeTestUserPoolClientId" in conditions
-    assert conditions["HasSmokeTestUserPoolClientId"] == {
-        "Fn::Not": [{"Fn::Equals": [{"Ref": "SmokeTestUserPoolClientId"}, ""]}]
-    }
-
+    A cached "authorized" decision could keep admitting requests bearing a
+    Cognito ID token past its real `exp` for up to the cache TTL, because
+    BackendLambda itself trusts the gateway authorizer's decision for a
+    Cognito token rather than independently re-checking its signature/expiry
+    (see docs/AUTH.md). AuthorizerResultTtlInSeconds=0 keeps every request
+    re-invoking this Lambda, matching the no-caching behaviour of the native
+    Cognito JWT authorizer it replaced.
+    """
     resources = template.find_resources("AWS::ApiGatewayV2::Authorizer")
     authorizer = next(iter(resources.values()))
-    audience = authorizer["Properties"]["JwtConfiguration"]["Audience"]
+    assert authorizer["Properties"]["AuthorizerResultTtlInSeconds"] == 0
 
-    condition_name, with_smoke_client, without_smoke_client = audience["Fn::If"]
-    assert condition_name == "HasSmokeTestUserPoolClientId"
-    assert with_smoke_client == [
-        {"Ref": "UiAuthUserPoolClientId"},
-        {"Ref": "SmokeTestUserPoolClientId"},
+
+def test_gateway_authorizer_invokes_dedicated_lambda(template):
+    """The authorizer's AuthorizerUri must reference a Lambda function whose
+    logical ID starts with GatewayAuthorizerLambda, not BackendLambda itself
+    (this authorizer must be able to reject a request before BackendLambda
+    ever runs, #7522)."""
+    resources = template.find_resources("AWS::ApiGatewayV2::Authorizer")
+    authorizer = next(iter(resources.values()))
+    authorizer_uri = authorizer["Properties"]["AuthorizerUri"]
+
+    join_parts = authorizer_uri["Fn::Join"][1]
+    get_att_entries = [
+        part["Fn::GetAtt"][0]
+        for part in join_parts
+        if isinstance(part, dict) and "Fn::GetAtt" in part
     ]
-    assert without_smoke_client == [{"Ref": "UiAuthUserPoolClientId"}]
+    assert any(logical_id.startswith("GatewayAuthorizerLambda") for logical_id in get_att_entries), (
+        f"Expected AuthorizerUri to reference a GatewayAuthorizerLambda* function ARN, "
+        f"found: {get_att_entries}"
+    )
 
 
-def test_backend_api_authorizer_accepts_cognito_id_token_contract(template):
-    """The authorizer audience is the UI app client ID, taken from the
-    Authorization header. This is the contract the deployed frontend now relies
-    on: frontend/src/main.tsx applyCognitoIdToken sends the Cognito ID token
-    (whose `aud` claim equals the UI client ID) as `Authorization: Bearer`, so
-    the gateway authorizer admits it before invoking the Lambda (#4256). If the
-    audience ever stopped including UiAuthUserPoolClientId, the ID token would be
-    rejected with 401 and this test would catch the regression."""
-    resources = template.find_resources("AWS::ApiGatewayV2::Authorizer")
-    authorizer = next(iter(resources.values()))
-    properties = authorizer["Properties"]
+def test_gateway_authorizer_lambda_has_cognito_audience_and_jwt_secret_env_vars(template):
+    """GatewayAuthorizerLambda must receive the same JWT_SECRET BackendLambda
+    uses (so backend.auth.decode_demo_token can verify a demo token's HS256
+    signature) and both configured Cognito app client IDs to check a Cognito
+    ID token's audience against (#7522)."""
+    resources = template.find_resources("AWS::Lambda::Function")
+    matches = {
+        logical_id: resource
+        for logical_id, resource in resources.items()
+        if logical_id.startswith("GatewayAuthorizerLambda")
+    }
+    assert matches, "Expected a GatewayAuthorizerLambda function in the synthesised template"
 
-    assert properties["IdentitySource"] == ["$request.header.Authorization"]
-
-    audience = properties["JwtConfiguration"]["Audience"]
-    _, with_smoke_client, without_smoke_client = audience["Fn::If"]
-    # The UI client ID (the ID token's `aud`) must be present in both branches.
-    assert {"Ref": "UiAuthUserPoolClientId"} in with_smoke_client
-    assert {"Ref": "UiAuthUserPoolClientId"} in without_smoke_client
+    for logical_id, resource in matches.items():
+        env_vars = resource["Properties"].get("Environment", {}).get("Variables", {})
+        assert "JWT_SECRET" in env_vars, f"{logical_id} is missing JWT_SECRET"
+        assert env_vars.get("UI_AUTH_USER_POOL_CLIENT_ID") == {
+            "Ref": "UiAuthUserPoolClientId"
+        }, f"{logical_id} UI_AUTH_USER_POOL_CLIENT_ID must reference UiAuthUserPoolClientId"
+        assert env_vars.get("SMOKE_TEST_USER_POOL_CLIENT_ID") == {
+            "Ref": "SmokeTestUserPoolClientId"
+        }, f"{logical_id} SMOKE_TEST_USER_POOL_CLIENT_ID must reference SmokeTestUserPoolClientId"
 
 
 def _route_authorizer_map(template: dict) -> dict[str, dict]:
     """Return ``{route_key: properties}`` for every API Gateway route in ``template``.
 
-    Shared by test_backend_api_routes_require_cognito_authorizer and
+    Shared by test_backend_api_routes_require_gateway_authorizer and
     test_signup_routes_use_http_none_authorizer, which both need the same
     RouteKey -> {AuthorizationType, AuthorizerId, ...} mapping (#4982). A pure
     function with no fixture dependencies, so it stays trivially reusable.
@@ -748,7 +766,7 @@ def _assert_routes_use_http_none_authorizer(
     (#5329 follow-up) so each just states which routes it expects instead of
     repeating the set-equality + per-route AuthorizationType/AuthorizerId
     assertions. A route being unauthenticated only proves it is *absent*
-    from the Cognito-JWT set (see test_backend_api_routes_require_cognito_authorizer
+    from the Cognito-JWT set (see test_backend_api_routes_require_gateway_authorizer
     below); this positively confirms the specific authorizer used instead.
     """
     matched = {
@@ -769,32 +787,34 @@ def _assert_routes_use_http_none_authorizer(
         )
 
 
-def test_backend_api_routes_require_cognito_authorizer(template):
-    """All API Gateway routes must require Cognito JWT authorization except
-    /health, GET /config, POST /token, POST /token/google, the public
-    /signup/* routes, and the CORS preflight OPTIONS routes.
+def test_backend_api_routes_require_gateway_authorizer(template):
+    """All API Gateway routes must require the demo/Cognito gateway authorizer
+    (#7522) except /health, GET /config, POST /token, POST /token/google, the
+    public /signup/* routes, and the CORS preflight OPTIONS routes.
 
     /health is intentionally unauthenticated so that post-deploy probes and
     smoke tests can confirm Lambda is reachable without needing a Cognito token.
     GET /config is intentionally unauthenticated because it is the frontend's
     pre-auth bootstrap endpoint (frontend/src/main.tsx Root.fetchConfig) used
     to determine whether auth is required at all; PUT /config remains
-    JWT-protected via the /{proxy+} catch-all.
+    protected via the /{proxy+} catch-all.
     POST /token is intentionally unauthenticated: it is the Google-login
     exchange endpoint documented in docs/AUTH.md and called directly by
     mobile/App.tsx. The caller presents a Google ID token (or, in local/dev
-    branches, a username) with no Authorization header at all, so
-    backend_authorizer would reject it with 401 before backend/app.py's
-    login() ever runs — the same class of bug as POST /token/google below
-    (audit follow-up from #4798, issue #4800).
+    branches, a username) with no Authorization header at all, so the gateway
+    authorizer would reject it with 401 before backend/app.py's login() ever
+    runs — the same class of bug as POST /token/google below (audit
+    follow-up from #4798, issue #4800).
     POST /token/google is intentionally unauthenticated because it exchanges a
     Google ID token (frontend/src/LoginPage.tsx, sent with no Authorization
-    header) for an app JWT — backend_authorizer would reject it with 401 before
-    backend.auth.verify_google_token ever runs (#4240). POST /token/cognito is
-    NOT in this set: it stays behind backend_authorizer via the /{proxy+}
-    catch-all. The deployed frontend no longer calls it — frontend/src/main.tsx
-    applyCognitoIdToken sends the Cognito ID token directly as the Bearer header,
-    which backend_authorizer validates against the same user pool (#4256).
+    header) for an app JWT — the gateway authorizer would reject it with 401
+    before backend.auth.verify_google_token ever runs (#4240). POST
+    /token/cognito is NOT in this set: it stays behind the gateway authorizer
+    via the /{proxy+} catch-all. The deployed frontend no longer calls it —
+    frontend/src/main.tsx applyCognitoIdToken sends the Cognito ID token
+    directly as the Bearer header, which the gateway authorizer validates via
+    backend.auth.is_cognito_id_token against the same client audience (#4256,
+    #7522).
     POST /signup/request and the GET+POST /signup/approve and /signup/reject
     pairs are intentionally unauthenticated: the requesting visitor has no
     Cognito session yet, and the admin approval flow authorises via an
@@ -811,18 +831,21 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     assert route_authorizer_map, "Expected at least one API Gateway route"
 
     actual_none_routes = set()
+    actual_custom_routes = set()
     for route_key, properties in route_authorizer_map.items():
         auth_type = properties.get("AuthorizationType")
         if auth_type == "NONE":
             actual_none_routes.add(route_key)
-        elif auth_type == "JWT":
+        elif auth_type == "CUSTOM":
             assert "AuthorizerId" in properties, (
-                f"Route {route_key} must reference the JWT authorizer"
+                f"Route {route_key} must reference the gateway authorizer"
             )
+            actual_custom_routes.add(route_key)
         else:
             raise AssertionError(
                 f"Route {route_key} has unexpected AuthorizationType {auth_type!r}; "
-                "every route must be JWT-protected or listed in UNAUTHENTICATED_ROUTES"
+                "every route must be gateway-authorizer-protected (CUSTOM) or "
+                "listed in UNAUTHENTICATED_ROUTES"
             )
 
     assert actual_none_routes == UNAUTHENTICATED_ROUTES, (
@@ -833,8 +856,14 @@ def test_backend_api_routes_require_cognito_authorizer(template):
         "GET /health route key not found in synthesized template — "
         "CDK may have changed the RouteKey format; update UNAUTHENTICATED_ROUTES to match"
     )
+    # Only the ANY / and ANY /{proxy+} catch-alls are CUSTOM-authorizer routes
+    # (#7522) — every other protected path reaches them via /{proxy+}.
+    assert actual_custom_routes == {"ANY /", "ANY /{proxy+}"}, (
+        f"Expected exactly ANY / and ANY /{{proxy+}} behind the gateway authorizer, "
+        f"found: {actual_custom_routes}"
+    )
     # Explicit regression guard (#4248): POST /token/cognito is the deprecated
-    # backend HS256 exchange (#4256) and must stay behind the Cognito JWT
+    # backend HS256 exchange (#4256) and must stay behind the gateway
     # authorizer via the /{proxy+} catch-all, unlike POST /token/google above.
     # The set-equality assert above would already catch this if /token/cognito
     # had its own explicit NONE route, but it says nothing about a route that
@@ -849,7 +878,7 @@ def test_signup_routes_use_http_none_authorizer(template):
     HttpNoneAuthorizer (AuthorizationType NONE), rather than only checking
     that they are absent from the Cognito-authorizer set.
 
-    test_backend_api_routes_require_cognito_authorizer above already proves
+    test_backend_api_routes_require_gateway_authorizer above already proves
     these routes are unauthenticated via a negative check (not in the JWT
     set). That alone would also pass if a future change accidentally moved
     them to a different non-JWT authorizer (e.g. IAM). This test documents
@@ -876,7 +905,7 @@ def test_token_route_uses_http_none_authorizer(template):
     HttpNoneAuthorizer (AuthorizationType NONE), not just absent from the
     Cognito-authorizer set.
 
-    test_backend_api_routes_require_cognito_authorizer above already proves
+    test_backend_api_routes_require_gateway_authorizer above already proves
     this route is unauthenticated via a negative check (not in the JWT set).
     This test documents and enforces the specific intended authorizer,
     mirroring test_signup_routes_use_http_none_authorizer (audit follow-up
@@ -904,7 +933,7 @@ def test_options_proxy_route_uses_http_none_authorizer(template):
     was even sent — a failure mode that only shows up as a broken frontend,
     not as an API Gateway error on the "real" route itself.
 
-    test_backend_api_routes_require_cognito_authorizer above already proves
+    test_backend_api_routes_require_gateway_authorizer above already proves
     OPTIONS /{proxy+} is unauthenticated via a negative check (it is part of
     the UNAUTHENTICATED_ROUTES set). This test documents and enforces the
     specific intended authorizer directly, mirroring
@@ -1050,25 +1079,6 @@ def test_backend_api_access_log_group_has_one_week_retention(template):
         assert resource["DeletionPolicy"] == "Delete", (
             f"{logical_id} must be destroyed with the stack"
         )
-
-
-# ---------------------------------------------------------------------------
-# CfnAuthorizer count guard (issue #4057)
-# ---------------------------------------------------------------------------
-
-
-def test_require_single_cfn_authorizer_returns_sole_authorizer():
-    sentinel = object()
-    assert BackendLambdaStack._require_single_cfn_authorizer([sentinel]) is sentinel
-
-
-@pytest.mark.parametrize("candidates", [[], [object(), object()]])
-def test_require_single_cfn_authorizer_raises_value_error_when_not_exactly_one(candidates):
-    """A missing or duplicated CfnAuthorizer must raise an explicit ValueError
-    (not a bare assert, which is stripped under `python -O`) so a future change
-    that adds a second authorizer to backend_api fails synthesis loudly."""
-    with pytest.raises(ValueError, match="Expected exactly one CfnAuthorizer"):
-        BackendLambdaStack._require_single_cfn_authorizer(candidates)
 
 
 # ---------------------------------------------------------------------------

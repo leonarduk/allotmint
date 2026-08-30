@@ -602,3 +602,78 @@ def test_verify_cognito_token_rejects_unsupported_issuer(monkeypatch):
         auth.verify_cognito_token("token", "client")
 
     assert exc.value.status_code == 401
+
+
+def test_is_cognito_id_token_accepts_valid_token_without_checking_allowed_emails(monkeypatch):
+    """is_cognito_id_token must not call _authorize_email/_allowed_emails --
+    unlike verify_cognito_token, it only checks structural token validity
+    (#7522). Failing _allowed_emails on purpose here proves it is never
+    reached."""
+
+    class FakeSigningKey:
+        key = "public-key"
+
+    class FakeJwksClient:
+        def __init__(self, url):
+            assert url == "https://cognito-idp.eu-west-2.amazonaws.com/pool/.well-known/jwks.json"
+
+        def get_signing_key_from_jwt(self, token):
+            return FakeSigningKey()
+
+    def fake_decode(token, *args, **kwargs):
+        if kwargs.get("options") == {"verify_signature": False}:
+            return {"iss": "https://cognito-idp.eu-west-2.amazonaws.com/pool"}
+        assert kwargs["audience"] == "client"
+        return {
+            "aud": "client",
+            "email": "user@example.com",
+            "email_verified": False,
+            "iss": kwargs["issuer"],
+            "token_use": "id",
+        }
+
+    def _fail_allowed_emails():
+        raise AssertionError("is_cognito_id_token must not consult _allowed_emails()")
+
+    monkeypatch.setattr(auth, "_jwks_clients", {})
+    monkeypatch.setattr(auth.jwt, "PyJWKClient", FakeJwksClient)
+    monkeypatch.setattr(auth.jwt, "decode", fake_decode)
+    monkeypatch.setattr(auth, "_allowed_emails", _fail_allowed_emails)
+
+    assert auth.is_cognito_id_token("token", ["client"]) is True
+
+
+def test_is_cognito_id_token_tries_each_candidate_client_id(monkeypatch):
+    """A token whose aud matches the second candidate (e.g. the smoke-test
+    client) must still be admitted."""
+
+    def fake_verify_claims(token, client_id):
+        if client_id != "smoke-client":
+            raise HTTPException(status_code=401, detail="Invalid Cognito token")
+        return {"aud": client_id}
+
+    monkeypatch.setattr(auth, "_verify_cognito_claims", fake_verify_claims)
+
+    assert auth.is_cognito_id_token("token", ["ui-client", "smoke-client"]) is True
+
+
+def test_is_cognito_id_token_skips_blank_client_ids(monkeypatch):
+    calls: list[str] = []
+
+    def fake_verify_claims(token, client_id):
+        calls.append(client_id)
+        raise HTTPException(status_code=401, detail="Invalid Cognito token")
+
+    monkeypatch.setattr(auth, "_verify_cognito_claims", fake_verify_claims)
+
+    assert auth.is_cognito_id_token("token", ["", "ui-client", ""]) is False
+    assert calls == ["ui-client"]
+
+
+def test_is_cognito_id_token_rejects_when_no_candidate_matches(monkeypatch):
+    def fake_verify_claims(token, client_id):
+        raise HTTPException(status_code=401, detail="Invalid Cognito token")
+
+    monkeypatch.setattr(auth, "_verify_cognito_claims", fake_verify_claims)
+
+    assert auth.is_cognito_id_token("token", ["ui-client"]) is False

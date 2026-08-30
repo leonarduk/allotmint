@@ -6,7 +6,7 @@ import inspect
 import logging
 import os
 import secrets
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -844,7 +844,15 @@ def _get_jwks_client(issuer: str) -> jwt.PyJWKClient:
     return _jwks_clients[issuer]
 
 
-def verify_cognito_token(token: str, client_id: str) -> str:
+def _verify_cognito_claims(token: str, client_id: str) -> dict[str, Any]:
+    """Verify ``token``'s signature/issuer/expiry/audience/token_use for ``client_id``.
+
+    Extracted from :func:`verify_cognito_token` so callers that only need to
+    know whether a token is a *structurally* valid Cognito ID token -- not
+    whether its email is on the allowed-emails list -- can call this directly
+    instead. See :func:`is_cognito_id_token`, used by the API Gateway Lambda
+    authorizer (``backend/lambda_api/demo_authorizer.py``, #7522).
+    """
     if not client_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -874,6 +882,45 @@ def verify_cognito_token(token: str, client_id: str) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Cognito token use",
         )
+    return payload
+
+
+def verify_cognito_token(token: str, client_id: str) -> str:
+    payload = _verify_cognito_claims(token, client_id)
     if not _email_verified(payload.get("email_verified")):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email not verified")
     return _authorize_email(payload.get("email"), token, "Cognito")
+
+
+def is_cognito_id_token(token: str, client_ids: Sequence[str]) -> bool:
+    """Return whether ``token`` is a structurally valid Cognito ID token for
+    any candidate audience in ``client_ids``.
+
+    Checks signature, issuer, expiry, audience, and ``token_use`` -- exactly
+    what API Gateway's native Cognito JWT (``HttpUserPoolAuthorizer``)
+    authorizer already checked before invoking the Lambda. Deliberately does
+    **not** check ``email_verified`` or run :func:`_authorize_email` (the
+    allowed-emails allowlist, which is backed by an S3 listing in the AWS
+    deployment): that check already runs exactly once, downstream, in
+    :func:`get_current_user`/:func:`_resolve_identity_when_auth_disabled` on
+    every request regardless of this function's result (see docs/AUTH.md).
+    Running it again here would double that S3-backed lookup's cost on every
+    single API request without adding a security guarantee.
+
+    Used by the API Gateway Lambda authorizer
+    (``backend/lambda_api/demo_authorizer.py``, #7522) that replaced
+    ``backend_authorizer`` (the CDK-side ``HttpUserPoolAuthorizer``) on the
+    ``ANY /`` and ``ANY /{proxy+}`` routes, so it can admit either a Cognito
+    ID token or a demo-scoped token (:func:`decode_demo_token`) at the
+    gateway. Blank entries in ``client_ids`` (e.g. an unconfigured
+    smoke-test client) are skipped rather than treated as a wildcard match.
+    """
+    for client_id in client_ids:
+        if not client_id:
+            continue
+        try:
+            _verify_cognito_claims(token, client_id)
+        except HTTPException:
+            continue
+        return True
+    return False

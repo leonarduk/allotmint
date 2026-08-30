@@ -3,11 +3,9 @@ import os
 from collections.abc import Sequence
 
 from aws_cdk import (
-    CfnCondition,
     CfnOutput,
     CfnParameter,
     Duration,
-    Fn,
     RemovalPolicy,
     Stack,
     triggers,
@@ -18,7 +16,6 @@ from aws_cdk import aws_apigatewayv2_integrations as apigwv2_integrations
 from aws_cdk import aws_budgets as budgets
 from aws_cdk import aws_cloudwatch as cloudwatch
 from aws_cdk import aws_cloudwatch_actions as cloudwatch_actions
-from aws_cdk import aws_cognito as cognito
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
 from aws_cdk import aws_iam as iam
@@ -205,23 +202,6 @@ class BackendLambdaStack(Stack):
                     conditions={"StringLike": {"s3:prefix": prefix_conditions}},
                 )
             )
-
-    @staticmethod
-    def _require_single_cfn_authorizer(
-        cfn_authorizers: Sequence[apigwv2.CfnAuthorizer],
-    ) -> apigwv2.CfnAuthorizer:
-        """Return the sole entry in ``cfn_authorizers`` or raise ``ValueError``.
-
-        Guards against silently overriding the wrong resource if a second
-        authorizer is ever added to backend_api (#4057).
-        """
-
-        if len(cfn_authorizers) != 1:
-            raise ValueError(
-                "Expected exactly one CfnAuthorizer under BackendApi, found "
-                f"{len(cfn_authorizers)}"
-            )
-        return cfn_authorizers[0]
 
     @staticmethod
     def _grant_timeseries_cache_access(
@@ -440,10 +420,16 @@ class BackendLambdaStack(Stack):
 
         backend_env = {
             "GOOGLE_AUTH_ENABLED": "true",
-            # API Gateway enforces Cognito JWT auth before Lambda is invoked, so the
-            # Lambda must not attempt its own JWT decode (DISABLE_AUTH="true"). Auth is
-            # still enforced — API Gateway rejects unauthenticated requests before they
-            # reach Lambda.
+            # API Gateway's gateway authorizer (demo_or_cognito_authorizer,
+            # below -- either a valid Cognito ID token or a valid demo-scoped
+            # token, #7522) runs before Lambda is invoked, so the Lambda must
+            # not attempt its own Cognito JWT decode (DISABLE_AUTH="true").
+            # Auth is still enforced — API Gateway rejects unauthenticated
+            # requests before they reach Lambda. Demo-scoped tokens are the
+            # one exception: backend.auth._resolve_demo_request independently
+            # re-decodes and re-validates those regardless of DISABLE_AUTH,
+            # since they carry read-only/owner-scoping semantics the gateway
+            # authorizer does not itself enforce (see docs/AUTH.md).
             "DISABLE_AUTH": "true",
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
@@ -560,7 +546,15 @@ class BackendLambdaStack(Stack):
         }
         if ui_auth_user_pool_id_default:
             ui_auth_user_pool_id_param_kwargs["default"] = ui_auth_user_pool_id_default
-        ui_auth_user_pool_id_param = CfnParameter(
+        # Declared but intentionally not read below: the demo/Cognito Lambda
+        # authorizer (#7522, further down in this method) verifies a Cognito
+        # ID token's signature via the issuer/JWKS URL embedded in the token
+        # itself (backend.auth._verify_cognito_claims), not the user pool ID.
+        # The parameter is kept as a required, no-op input purely because
+        # .github/workflows/deploy-lambda.yml already passes
+        # BackendLambdaStack:UiAuthUserPoolId= on every deploy; removing it
+        # here would also require updating that workflow.
+        CfnParameter(
             self,
             "UiAuthUserPoolId",
             **ui_auth_user_pool_id_param_kwargs,
@@ -607,10 +601,12 @@ class BackendLambdaStack(Stack):
 
         # SmokeTestClient (static_site_stack.py) is a separate Cognito app client
         # used only by the deploy workflow's post-deploy smoke tests. Its tokens
-        # must also pass backend_authorizer's audience check, otherwise every
-        # Cognito-protected route (e.g. /groups) returns 401 for the smoke test
-        # token even though /config and /health succeed (#4027). Optional with an
-        # empty default so synths without a configured smoke-test client still work.
+        # must also pass the gateway authorizer's audience check (#7522's
+        # GatewayAuthorizer below, formerly backend_authorizer's JWT audience),
+        # otherwise every Cognito-protected route (e.g. /groups) returns 401
+        # for the smoke test token even though /config and /health succeed
+        # (#4027). Optional with an empty default so synths without a
+        # configured smoke-test client still work.
         smoke_test_client_id_default = self.node.try_get_context(
             "smoke_test_user_pool_client_id"
         ) or os.getenv("SMOKE_TEST_USER_POOL_CLIENT_ID")
@@ -626,38 +622,83 @@ class BackendLambdaStack(Stack):
                 "run unauthenticated."
             ),
         )
-        # An empty SmokeTestUserPoolClientId (the default, and what the deploy
-        # workflow passes if StaticSiteStack has no such output) must NOT become
-        # an empty-string entry in the authorizer's JWT audience list below —
-        # that would silently accept tokens with an empty `aud` claim. Gate the
-        # smoke-test client with a condition so it's only added when non-empty.
-        has_smoke_test_client = CfnCondition(
-            self,
-            "HasSmokeTestUserPoolClientId",
-            expression=Fn.condition_not(
-                Fn.condition_equals(smoke_test_client_id_param.value_as_string, "")
-            ),
+        # Lambda authorizer for the ANY / and ANY /{proxy+} routes (#7522):
+        # accepts EITHER a valid Cognito ID token (matching the UI/smoke-test
+        # app client audience) OR a valid demo-scoped token minted by
+        # backend.auth.create_demo_access_token, replacing the Cognito
+        # HttpUserPoolAuthorizer this stack used to register for those two
+        # routes. A demo token is signed with this app's own JWT_SECRET
+        # (HS256), never issued by Cognito, so the native Cognito JWT
+        # authorizer rejected it at the gateway before the Lambda ever ran --
+        # see docs/AUTH.md ("Demo link (scoped read-only token)" -> "Known
+        # deployment caveat") for the gap this closes.
+        #
+        # Reuses BackendLambda's own Docker image (this authorizer calls
+        # backend.auth.decode_demo_token/is_cognito_id_token directly) with a
+        # distinct entry point, mirroring PriceRefreshLambda/TradingAgentLambda/
+        # DividendRefreshLambda/PensionReportLambda below, rather than
+        # re-implementing JWT verification in a second codebase.
+        #
+        # results_cache_ttl=Duration.seconds(0) disables API Gateway's
+        # authorizer-result caching. With a nonzero TTL, a Cognito ID token
+        # presented just before its `exp` could still be admitted by a cached
+        # "authorized" decision for up to the TTL window afterward, because
+        # (per docs/AUTH.md) BackendLambda itself does not independently
+        # re-check a Cognito token's signature/expiry when DISABLE_AUTH=true —
+        # it trusts the gateway authorizer to have already done so. Disabling
+        # the cache keeps that trust valid: every request re-invokes this
+        # Lambda, so a token's exp is re-checked on every call, matching the
+        # no-caching behaviour of the HttpUserPoolAuthorizer it replaces. The
+        # cost is one extra Lambda invocation of latency per API request — the
+        # trade-off issue #7522 itself calls out for keeping API Gateway (not
+        # just the app layer) as the auth boundary for these routes.
+        authorizer_code = _lambda.DockerImageCode.from_image_asset(
+            str(project_root),
+            file="backend/Dockerfile.lambda",
+            cmd=["backend.lambda_api.demo_authorizer.lambda_handler"],
         )
+        authorizer_env = {
+            "APP_ENV": env,
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            "JWT_SECRET": jwt_secret,
+            "UI_AUTH_USER_POOL_CLIENT_ID": ui_auth_client_id_param.value_as_string,
+            "SMOKE_TEST_USER_POOL_CLIENT_ID": smoke_test_client_id_param.value_as_string,
+        }
+        if data_repo:
+            authorizer_env["DATA_REPO"] = data_repo
 
-        ui_auth_user_pool = cognito.UserPool.from_user_pool_id(
-            self, "ImportedUiAuthUserPool", ui_auth_user_pool_id_param.value_as_string
+        authorizer_log_group = self._lambda_log_group(self, "GatewayAuthorizerLambdaLogGroup")
+        authorizer_fn = _lambda.DockerImageFunction(
+            self,
+            "GatewayAuthorizerLambda",
+            code=authorizer_code,
+            environment=authorizer_env,
+            log_group=authorizer_log_group,
+            # 29s, not e.g. 10s: this is a Docker-image cold start (pulling
+            # the image, importing the shared backend package) invoked
+            # synchronously in front of every single API request, so it needs
+            # real headroom -- just under HTTP APIs' 30s integration timeout
+            # ceiling, which also bounds how long API Gateway will wait on a
+            # Lambda authorizer.
+            timeout=Duration.seconds(29),
+            memory_size=512,
         )
-        # SmokeTestUserPoolClient is deliberately NOT added to user_pool_clients
-        # here: HttpUserPoolAuthorizer synthesises every entry in that list into
-        # JwtConfiguration.Audience unconditionally, which would put an
-        # empty-string audience entry into the CloudFormation template before
-        # the add_property_override below ever runs. The smoke-test client is
-        # added to the audience solely via that conditional override (#4047
-        # review).
-        backend_authorizer = apigwv2_authorizers.HttpUserPoolAuthorizer(
-            "BackendCognitoAuthorizer",
-            ui_auth_user_pool,
-            user_pool_clients=[
-                cognito.UserPoolClient.from_user_pool_client_id(
-                    self, "ImportedUiAuthUserPoolClient", ui_auth_client_id_param.value_as_string
-                ),
-            ],
+        # Deliberately no S3 grants here: unlike BackendLambda's own
+        # trusted-gateway path (which independently re-checks the
+        # allowed-emails allowlist against S3 -- see docs/AUTH.md), this
+        # authorizer only checks structural token validity (signature/issuer/
+        # expiry/audience for Cognito, signature/scope/owner-claim-shape/
+        # expiry for demo) so it does not duplicate that S3-backed lookup on
+        # every single API request. See backend.auth.is_cognito_id_token's
+        # docstring.
+        demo_or_cognito_authorizer = apigwv2_authorizers.HttpLambdaAuthorizer(
+            "GatewayAuthorizer",
+            authorizer_fn,
+            response_types=[apigwv2_authorizers.HttpLambdaResponseType.SIMPLE],
             identity_source=["$request.header.Authorization"],
+            results_cache_ttl=Duration.seconds(0),
         )
         backend_api = apigwv2.HttpApi(
             self,
@@ -719,29 +760,28 @@ class BackendLambdaStack(Stack):
         # standalone Google Identity Services sign-in, frontend/src/LoginPage.tsx)
         # for an app JWT. The caller authenticates with Google, not Cognito, and
         # frontend/src/LoginPage.tsx sends this request with no Authorization
-        # header at all — backend_authorizer (Cognito JWT) would reject it with
-        # 401 before backend.auth.verify_google_token ever runs, the same class
-        # of bug fixed for GET /config in #3873.
+        # header at all — the gateway authorizer on the ANY /{proxy+} catch-all
+        # would reject it with 401 before backend.auth.verify_google_token ever
+        # runs, the same class of bug fixed for GET /config in #3873.
         #
-        # POST /token/cognito is NOT listed here: it stays behind the Cognito
+        # POST /token/cognito is NOT listed here: it stays behind the gateway
         # authorizer via the /{proxy+} catch-all. The deployed frontend no longer
         # calls it — frontend/src/main.tsx applyCognitoIdToken now sends the
         # Cognito ID token directly as the Bearer header on every protected route,
-        # which backend_authorizer validates (the ID token's `aud` matches the
-        # configured JwtConfiguration.Audience) — see issue #4256. Leaving
-        # /token/cognito authorizer-protected is correct: it requires the same
-        # valid Cognito token, and the route's pool/client match by construction.
-        # ui_auth_user_pool_id_param and
-        # ui_auth_client_id_param (above) are documented as values exported by
-        # StaticSiteStack's UiAuthUserPool/UiAuthClient (see
-        # cdk/stacks/static_site_stack.py CfnOutputs UiAuthUserPoolId and
-        # UiAuthUserPoolClientId). That same UiAuthClient.user_pool_client_id is
-        # embedded in config.json's awsUiAuth.clientId (static_site_stack.py,
-        # DeployRuntimeConfig), which is what the frontend uses to sign in via
-        # Cognito and is also the ID token's `aud`. So backend_authorizer and the
-        # frontend's Cognito sign-in resolve to the same UiAuthUserPool /
-        # UiAuthClient — there is only one Cognito user pool in this stack
-        # pairing, not two.
+        # which demo_or_cognito_authorizer (below) validates via
+        # backend.auth.is_cognito_id_token against the same client audience —
+        # see issue #4256 and #7522. Leaving /token/cognito authorizer-protected
+        # is correct: it requires the same valid Cognito token, and the route's
+        # pool/client match by construction.
+        # ui_auth_client_id_param (above) is documented as a value exported by
+        # StaticSiteStack's UiAuthClient (see cdk/stacks/static_site_stack.py
+        # CfnOutput UiAuthUserPoolClientId). That same
+        # UiAuthClient.user_pool_client_id is embedded in config.json's
+        # awsUiAuth.clientId (static_site_stack.py, DeployRuntimeConfig), which
+        # is what the frontend uses to sign in via Cognito and is also the ID
+        # token's `aud`. So demo_or_cognito_authorizer and the frontend's
+        # Cognito sign-in resolve to the same UiAuthClient — there is only one
+        # Cognito user pool in this stack pairing, not two.
         backend_api.add_routes(
             path="/token/google",
             methods=[apigwv2.HttpMethod.POST],
@@ -754,7 +794,7 @@ class BackendLambdaStack(Stack):
         # caller has no Cognito/app token yet — they are presenting a Google ID
         # token (or, in local/dev-only branches, a username) to obtain a backend
         # JWT. Without an explicit route here it falls through to the
-        # /{proxy+} ANY catch-all and backend_authorizer rejects it with 401
+        # /{proxy+} ANY catch-all and the gateway authorizer rejects it with 401
         # before backend/app.py's login() ever runs — the same class of bug
         # already fixed for GET /config, POST /token/google, and POST
         # /signup/* (audit follow-up from #4798, issue #4800).
@@ -799,12 +839,12 @@ class BackendLambdaStack(Stack):
         # "matches all methods that you haven't defined for a route" - so
         # without an explicit OPTIONS route, an incoming OPTIONS request
         # would be caught by those ANY routes (not by the automatic CORS
-        # response) and sent to backend_authorizer. Browsers send preflight
-        # OPTIONS without an Authorization header, so the JWT authorizer
+        # response) and sent to the gateway authorizer. Browsers send preflight
+        # OPTIONS without an Authorization header, so the authorizer
         # would reject it with 401 before CORS headers are ever returned -
         # reproducing #3945. Registering OPTIONS explicitly, with
         # HttpNoneAuthorizer(), is what gives it priority (exact method
-        # match) over the ANY routes and keeps it off backend_authorizer.
+        # match) over the ANY routes and keeps it off the gateway authorizer.
         backend_api.add_routes(
             path="/",
             methods=[apigwv2.HttpMethod.OPTIONS],
@@ -821,38 +861,13 @@ class BackendLambdaStack(Stack):
             path="/",
             methods=[apigwv2.HttpMethod.ANY],
             integration=backend_integration,
-            authorizer=backend_authorizer,
+            authorizer=demo_or_cognito_authorizer,
         )
         backend_api.add_routes(
             path="/{proxy+}",
             methods=[apigwv2.HttpMethod.ANY],
             integration=backend_integration,
-            authorizer=backend_authorizer,
-        )
-
-        # Override the synthesized audience so the smoke-test client ID is
-        # included only when the parameter is actually set (#4027 review).
-        # HttpUserPoolAuthorizer is not a Construct (no .node), so the
-        # underlying CfnAuthorizer can only be located via backend_api's
-        # construct tree. Assert exactly one CfnAuthorizer exists so that, if
-        # a second authorizer is ever added to backend_api, synthesis fails
-        # loudly instead of silently overriding the wrong resource.
-        backend_cfn_authorizers = [
-            child
-            for child in backend_api.node.find_all()
-            if isinstance(child, apigwv2.CfnAuthorizer)
-        ]
-        backend_cfn_authorizer = self._require_single_cfn_authorizer(backend_cfn_authorizers)
-        backend_cfn_authorizer.add_property_override(
-            "JwtConfiguration.Audience",
-            Fn.condition_if(
-                has_smoke_test_client.logical_id,
-                [
-                    ui_auth_client_id_param.value_as_string,
-                    smoke_test_client_id_param.value_as_string,
-                ],
-                [ui_auth_client_id_param.value_as_string],
-            ),
+            authorizer=demo_or_cognito_authorizer,
         )
 
         # Scheduled function to refresh prices daily

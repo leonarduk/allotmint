@@ -1,4 +1,5 @@
 import datetime as dt
+import time
 
 import pytest
 
@@ -120,3 +121,35 @@ def test_top_movers_anomaly(monkeypatch):
     assert res["gainers"] == []
     assert res["losers"] == []
     assert "AAA.L" in res["anomalies"]
+
+
+def test_top_movers_fetches_prices_concurrently(monkeypatch):
+    """Regression test: top_movers must fetch each ticker's price_change_pct
+    concurrently, not one at a time -- see the matching test in
+    tests/common/test_instrument_api_core.py for why (confirmed live:
+    ~1s+/ticker of S3-backed I/O, ~6-12s sequential for a 10-ticker group)."""
+
+    monkeypatch.setattr(
+        ia,
+        "_resolve_full_ticker",
+        lambda t, latest: (t.split(".", 1)[0], t.split(".", 1)[1] if "." in t else "L"),
+    )
+    monkeypatch.setattr(ia, "_LATEST_PRICES", {})
+    monkeypatch.setattr(ia, "_close_on", lambda sym, ex, d: 100.0)
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: {"name": t})
+
+    tickers = [f"T{i}.L" for i in range(6)]
+    SLEEP_SECONDS = 0.2
+
+    def slow_price_change_pct(t, days):
+        time.sleep(SLEEP_SECONDS)
+        return 1.0
+
+    monkeypatch.setattr(ia, "price_change_pct", slow_price_change_pct)
+
+    started = time.monotonic()
+    res = ia.top_movers(tickers, 7, limit=len(tickers))
+    elapsed = time.monotonic() - started
+
+    assert {r["ticker"] for r in res["gainers"]} == set(tickers)
+    assert elapsed < len(tickers) * SLEEP_SECONDS * 0.75

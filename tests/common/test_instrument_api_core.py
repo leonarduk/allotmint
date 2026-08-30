@@ -1,3 +1,5 @@
+import time
+
 from backend.common import instrument_api as ia
 
 
@@ -181,3 +183,54 @@ def test_instrument_summaries_populate_grouping(monkeypatch):
     assert by_ticker["AAA.L"]["grouping"] == "Explicit"
     assert by_ticker["BBB.L"]["grouping"] == "Sector B"
     assert by_ticker["CCC.L"]["grouping"] == "Region C"
+
+
+def test_instrument_summaries_fetches_prices_concurrently(monkeypatch):
+    """Regression test: per-ticker price/change fetches must run concurrently,
+    not one at a time.
+
+    price_change_pct/_close_on (behind _price_and_changes) are I/O-bound S3
+    reads -- confirmed live in production to cost ~1s+ per ticker, making a
+    10-ticker group ~6-12s sequential. A sleep-based fake stands in for that
+    I/O cost here: if the tickers were still fetched sequentially this test
+    would take num_tickers * SLEEP_SECONDS; run concurrently it takes about
+    one SLEEP_SECONDS regardless of ticker count.
+    """
+
+    tickers = [f"T{i}.L" for i in range(6)]
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": t, "name": t, "units": 1.0, "market_value_gbp": 10.0, "gain_gbp": 1.0} for t in tickers
+                ]
+            }
+        ]
+    }
+    monkeypatch.setattr(ia, "build_group_portfolio", lambda slug, **_: portfolio)
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: {})
+
+    SLEEP_SECONDS = 0.2
+
+    def slow_price_and_changes(ticker: str) -> dict:
+        time.sleep(SLEEP_SECONDS)
+        return {
+            "last_price_gbp": 1.0,
+            "last_price_date": "2024-01-01",
+            "last_price_time": None,
+            "is_stale": False,
+            "change_7d_pct": None,
+            "change_30d_pct": None,
+        }
+
+    monkeypatch.setattr(ia, "_price_and_changes", slow_price_and_changes)
+
+    started = time.monotonic()
+    summaries = ia.instrument_summaries_for_group("demo")
+    elapsed = time.monotonic() - started
+
+    assert {row["ticker"] for row in summaries} == set(tickers)
+    # Sequential would take len(tickers) * SLEEP_SECONDS (1.2s here); allow
+    # generous headroom for scheduling/thread-pool overhead in CI while still
+    # clearly failing if this regresses to one-ticker-at-a-time.
+    assert elapsed < len(tickers) * SLEEP_SECONDS * 0.75

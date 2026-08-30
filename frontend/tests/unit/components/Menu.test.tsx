@@ -111,45 +111,13 @@ describe('Menu', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('hides the support link when the support tab is disabled', () => {
-    // The preferences category still renders (settings, logout) — but the
-    // Support link inside it must be absent when the support tab is disabled.
+  it('never surfaces the operations console link in the end-user preferences menu (#7226)', () => {
+    // The Support/operations-console entry must never appear in the
+    // end-user Settings menu, even when its tab is enabled — it now lives
+    // in the operations category instead (see the tests below).
     const onLogout = vi.fn();
-    const config: ConfigContextValue = {
-      relativeViewEnabled: false,
-      disabledTabs: ['support'],
-      tabs: {
-        group: true,
-        market: true,
-        owner: true,
-        instrument: true,
-        performance: true,
-        transactions: true,
-        screener: true,
-        trading: true,
-        timeseries: true,
-        watchlist: true,
-        allocation: true,
-        rebalance: true,
-        movers: true,
-        instrumentadmin: true,
-        dataadmin: true,
-        virtual: true,
-        support: false,
-        settings: true,
-        pension: true,
-        reports: true,
-        scenario: true,
-      },
-      familyMvpEnabled: true,
-      theme: 'system',
-      baseCurrency: 'GBP',
-      refreshConfig: async () => {},
-      setRelativeViewEnabled: () => {},
-      setBaseCurrency: () => {},
-    };
     render(
-      <configContext.Provider value={config}>
+      <configContext.Provider value={configWithTransactions}>
         <MemoryRouter>
           <Menu onLogout={onLogout} />
         </MemoryRouter>
@@ -160,9 +128,12 @@ describe('Menu', () => {
     });
     fireEvent.click(preferencesToggle);
     expect(
-      screen.queryByRole('menuitem', { name: i18n.t('app.supportLink') })
+      screen.queryByRole('menuitem', { name: i18n.t('app.modes.support') })
     ).not.toBeInTheDocument();
-    // Logout remains available in the same category.
+    // Settings and Logout remain available in the same category.
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.settings') })
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('menuitem', { name: i18n.t('app.logout') })
     ).toBeInTheDocument();
@@ -183,6 +154,231 @@ describe('Menu', () => {
 
     const glossaryLink = await screen.findByRole('menuitem', { name: 'Glossary' });
     expect(glossaryLink).toHaveAttribute('href', '/metrics-explained');
+  });
+
+  it('shows the operations console alongside Data Admin/Timeseries once already in the operations menu (#7226)', () => {
+    // Once the user is already on a support-section page, the operations
+    // category lists Support next to the other operations routes — it
+    // just never acts as the *entry point* into that area any more.
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter initialEntries={['/support']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const operationsToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.operations'),
+    });
+    fireEvent.click(operationsToggle);
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.support') })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.dataadmin') })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.timeseries') })
+    ).toBeInTheDocument();
+  });
+
+  it('hides the operations console link from the operations menu when its tab is disabled (#7226)', () => {
+    // Same config-driven gate the other operations routes already use
+    // (tabs[mode] === true && !disabledTabs.includes(mode)) — no bespoke
+    // gate reintroduced for Support.
+    const config: ConfigContextValue = {
+      ...configWithTransactions,
+      disabledTabs: ['support'],
+      tabs: { ...configWithTransactions.tabs, support: false },
+    };
+    render(
+      <configContext.Provider value={config}>
+        <MemoryRouter initialEntries={['/support']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const operationsToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.operations'),
+    });
+    fireEvent.click(operationsToggle);
+    expect(
+      screen.queryByRole('menuitem', { name: i18n.t('app.modes.support') })
+    ).not.toBeInTheDocument();
+    // Peer operations routes stay unaffected.
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.dataadmin') })
+    ).toBeInTheDocument();
+  });
+
+  it('offers a reachable gateway into the operations menu from a cold start (#7226)', () => {
+    // Regression coverage for the CHANGES REQUESTED finding that deleting
+    // the old bespoke "Support" link left the entire operations section
+    // (Data Admin/Data Quality/Timeseries/Support/...) unreachable from the
+    // menu: this mounts at '/' (a genuine cold start, not already inside
+    // support mode) and must find a way in.
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter initialEntries={['/']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    const gateway = screen.getByRole('menuitem', {
+      name: i18n.t('app.operationsLink', 'Operations'),
+    });
+    // Targets the first *enabled* operations entry by priority (Timeseries,
+    // priority 70) rather than always /support -- see the "renders when
+    // Support itself is disabled" test below for why that matters.
+    expect(gateway).toHaveAttribute('href', '/timeseries');
+  });
+
+  it('targets the first enabled operations entry, not always /support (#7226)', () => {
+    // If Support specifically is disabled but a sibling like Data Admin
+    // isn't, the gateway must not still point at /support -- that would
+    // land on <DisabledFeature /> instead of the operations menu the user
+    // was trying to reach.
+    const config: ConfigContextValue = {
+      ...configWithTransactions,
+      disabledTabs: ['support'],
+      tabs: {
+        ...configWithTransactions.tabs,
+        timeseries: false,
+        support: false,
+      },
+    };
+    render(
+      <configContext.Provider value={config}>
+        <MemoryRouter initialEntries={['/']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    const gateway = screen.getByRole('menuitem', {
+      name: i18n.t('app.operationsLink', 'Operations'),
+    });
+    expect(gateway).toHaveAttribute('href', '/instrumentadmin');
+  });
+
+  it('hides the operations gateway link in Family MVP mode, matching the old Support link (#7226)', () => {
+    // The link this gateway replaces was gated on `!familyMvpEnabled`
+    // ("Family MVP keeps that surface out of the simplified experience").
+    // The gateway restores that same parity rather than silently loosening
+    // it: a Family MVP deployment must not gain a new menu-reachable
+    // entry point into the operations console.
+    const config: ConfigContextValue = {
+      ...configWithTransactions,
+      familyMvpEnabled: true,
+    };
+    render(
+      <configContext.Provider value={config}>
+        <MemoryRouter initialEntries={['/']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    expect(
+      screen.queryByRole('menuitem', {
+        name: i18n.t('app.operationsLink', 'Operations'),
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it('still offers a way back to the main app from an operations page in Family MVP mode (#7226)', () => {
+    // The forward gateway is intentionally hidden in Family MVP mode (see
+    // above), but the reciprocal "back to the app" link is an unconditional
+    // safety net: a maintainer can still reach an operations page by typing
+    // its URL directly regardless of Family MVP, and must not be stranded
+    // there without navigation once they do.
+    const config: ConfigContextValue = {
+      ...configWithTransactions,
+      familyMvpEnabled: true,
+    };
+    render(
+      <configContext.Provider value={config}>
+        <MemoryRouter initialEntries={['/dataadmin']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.userLink') })
+    ).toBeInTheDocument();
+  });
+
+  it('hides the operations gateway link when no operations tab is enabled (#7226)', () => {
+    const config: ConfigContextValue = {
+      ...configWithTransactions,
+      tabs: {
+        ...configWithTransactions.tabs,
+        timeseries: false,
+        instrumentadmin: false,
+        dataadmin: false,
+        support: false,
+      },
+    };
+    render(
+      <configContext.Provider value={config}>
+        <MemoryRouter initialEntries={['/']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    expect(
+      screen.queryByRole('menuitem', {
+        name: i18n.t('app.operationsLink', 'Operations'),
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it('offers a way back to the main app from an operations page (#7226)', () => {
+    // The reciprocal half of the same finding: once on a support-section
+    // page (not just literally /support -- any of them, here /dataadmin),
+    // the dashboard/insights/goals categories are replaced by
+    // operations/preferences, so without an explicit link back the user is
+    // stranded except for logout/the avatar.
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter initialEntries={['/dataadmin']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    const backLink = screen.getByRole('menuitem', {
+      name: i18n.t('app.userLink'),
+    });
+    expect(backLink).toHaveAttribute('href', '/?group=all');
+    // The forward gateway link doesn't also show up while already inside
+    // the operations menu -- that would be a redundant self-link.
+    expect(
+      screen.queryByRole('menuitem', {
+        name: i18n.t('app.operationsLink', 'Operations'),
+      })
+    ).not.toBeInTheDocument();
   });
 
   it('renders logout button when callback provided', async () => {

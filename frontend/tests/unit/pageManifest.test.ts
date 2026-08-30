@@ -204,19 +204,49 @@ describe('page manifest', () => {
     );
   });
 
-  it('wraps standalone routes in AppHeader except the excluded trio (#6725)', () => {
+  it('wraps standalone routes in AppHeader except a small excluded set (#6725, #7226)', () => {
     // Every standalone-routed page gets nav chrome when mounted directly...
     expect(standaloneRouteNeedsChrome('/data-quality')).toBe(true);
     expect(standaloneRouteNeedsChrome('/data-explorer')).toBe(true);
     expect(standaloneRouteNeedsChrome('/trail')).toBe(true);
     expect(standaloneRouteNeedsChrome('/trade-compliance')).toBe(true);
     expect(standaloneRouteNeedsChrome('/virtual')).toBe(true);
-    // ...except /alert-settings (self-renders AppHeader with lastRefresh),
-    // and the public pre-login routes that must stay chrome-free.
+    expect(standaloneRouteNeedsChrome('/help')).toBe(true);
+    // /support now gets the shared AppHeader too (#7226): it's reachable
+    // pre-login, but that's no reason to strand whoever lands there without
+    // navigation.
+    expect(standaloneRouteNeedsChrome('/support')).toBe(true);
+    // ...except /alert-settings (self-renders AppHeader with lastRefresh)
+    // and /create-account, the public pre-login route that must stay
+    // chrome-free.
     expect(standaloneRouteNeedsChrome('/alert-settings')).toBe(false);
-    expect(standaloneRouteNeedsChrome('/support')).toBe(false);
     expect(standaloneRouteNeedsChrome('/create-account')).toBe(false);
     // A route with no path (never mounted standalone) is not chrome-bearing.
     expect(standaloneRouteNeedsChrome(undefined)).toBe(false);
+  });
+
+  it('keeps the operations console out of the end-user menu and gives Help its place instead (#7226)', () => {
+    // Support is section: 'support' like its operations siblings and now
+    // shares their 'operations' menuCategory, so getMenuEntries('user')
+    // never returns it and it only ever shows up alongside Data Admin /
+    // Data Quality / Timeseries in getMenuEntries('support').
+    expect(pageManifestByMode.support.section).toBe('support');
+    expect(pageManifestByMode.support.menuCategory).toBe('operations');
+    expect(
+      getMenuEntries('user').some((entry) => entry.mode === 'support')
+    ).toBe(false);
+    expect(
+      getMenuEntries('support').some((entry) => entry.mode === 'support')
+    ).toBe(true);
+    // Deep link stays intact for whoever retains access.
+    expect(buildPathForMode('support')).toBe('/support');
+
+    // A real, end-user-facing Help entry takes its old spot in Settings.
+    expect(pageManifestByMode.help.section).toBe('user');
+    expect(pageManifestByMode.help.menuCategory).toBe('preferences');
+    expect(
+      getMenuEntries('user').some((entry) => entry.mode === 'help')
+    ).toBe(true);
+    expect(buildPathForMode('help')).toBe('/help');
   });
 });

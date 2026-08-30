@@ -50,6 +50,7 @@ class ConfigTabsContract(SpaContractBase):
     logs: bool
     research: bool
     plot: bool
+    help: bool
 
 
 class ConfigContract(SpaContractBase):

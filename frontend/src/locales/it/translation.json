@@ -76,6 +76,7 @@
       "dataexplorer": "Esplora file",
       "dataquality": "Qualità dei dati",
       "group": "Gruppo",
+      "help": "Aiuto",
       "instrument": "Strumento",
       "instrumentadmin": "Amministrazione strumenti",
       "market": "Panoramica del mercato",
@@ -99,6 +100,7 @@
       "transactions": "Transazioni",
       "watchlist": "Lista di osservazione"
     },
+    "operationsLink": "Operazioni",
     "refreshing": "Rinfrescante…",
     "refreshPrices": "Aggiorna i prezzi",
     "relativeView": "Vista relativa",

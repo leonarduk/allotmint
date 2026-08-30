@@ -4,6 +4,7 @@ import { getTradingPageData } from '../api';
 import type { TradingAgentSettings, TradingSignal } from '../types';
 import { InstrumentDetail } from '../components/InstrumentDetail';
 import BackendUnavailableCard from '../components/BackendUnavailableCard';
+import InfoTip from '../components/InfoTip';
 import useFetchWithRetry from '../hooks/useFetchWithRetry';
 import TableRowsSkeleton from '../components/skeletons/TableRowsSkeleton';
 import TextSkeleton from '../components/skeletons/TextSkeleton';
@@ -33,6 +34,8 @@ const THRESHOLDS: {
   { label: 'Maximum volatility', key: 'max_volatility' },
 ];
 
+type ThresholdTip = { label: string; text: string; to: string };
+
 export default function Trading() {
   const { t } = useTranslation();
   const [selected, setSelected] = useState<TradingSignal | null>(null);
@@ -51,6 +54,89 @@ export default function Trading() {
   );
 
   const loadingLabel = t('trading.loading');
+
+  const getThresholdTip = (key: keyof TradingAgentSettings): ThresholdTip | null => {
+    switch (key) {
+      case 'rsi_buy':
+        return {
+          label: t('trading.tips.rsiInfoLabel', 'What does RSI mean?'),
+          text: t(
+            'trading.tips.rsiInfo',
+            'RSI (Relative Strength Index) is a momentum indicator, scored 0-100, derived from recent price changes. A signal is a buy candidate when RSI is at or below this threshold.'
+          ),
+          to: '/metrics-explained#rsi',
+        };
+      case 'rsi_sell':
+        return {
+          label: t('trading.tips.rsiInfoLabel', 'What does RSI mean?'),
+          text: t(
+            'trading.tips.rsiSellInfo',
+            'A signal is a sell candidate when RSI is at or above this threshold.'
+          ),
+          to: '/metrics-explained#rsi',
+        };
+      case 'rsi_window':
+        return {
+          label: t('trading.tips.rsiInfoLabel', 'What does RSI mean?'),
+          text: t(
+            'trading.tips.rsiLookbackInfo',
+            'The number of days of price history used to calculate RSI.'
+          ),
+          to: '/metrics-explained#rsi',
+        };
+      case 'ma_short_window':
+      case 'ma_long_window':
+        return {
+          label: t(
+            'trading.tips.movingAverageInfoLabel',
+            'What does moving average mean?'
+          ),
+          text: t(
+            'trading.tips.movingAverageInfo',
+            'A moving average is the average closing price over a fixed number of days. Signals compare the short-window average against the long-window one.'
+          ),
+          to: '/metrics-explained#moving-average',
+        };
+      case 'pe_max':
+        return {
+          label: t('trading.tips.peInfoLabel', 'What does P/E mean?'),
+          text: t(
+            'trading.tips.peInfo',
+            'P/E (price/earnings) divides share price by earnings per share.'
+          ),
+          to: '/metrics-explained#pe-ratio',
+        };
+      case 'de_max':
+        return {
+          label: t('trading.tips.debtEquityInfoLabel', 'What does debt/equity mean?'),
+          text: t(
+            'trading.tips.debtEquityInfo',
+            "Debt/equity divides a company's total debt by its shareholders' equity — a measure of financial leverage."
+          ),
+          to: '/metrics-explained#debt-equity',
+        };
+      case 'min_sharpe':
+        return {
+          label: t('trading.tips.sharpeInfoLabel', 'What does Sharpe ratio mean?'),
+          text: t(
+            'trading.tips.sharpeInfo',
+            "The Sharpe ratio here is the portfolio's excess return over the configured risk-free rate per unit of daily volatility, annualised (× √252)."
+          ),
+          to: '/metrics-explained#sharpe-ratio',
+        };
+      case 'max_volatility':
+        return {
+          label: t('trading.tips.volatilityInfoLabel', 'What does volatility mean?'),
+          text: t(
+            'trading.tips.volatilityInfo',
+            'Volatility here is the day-to-day (daily, not annualised) standard deviation of returns — how much the price has fluctuated from one day to the next.'
+          ),
+          to: '/metrics-explained#volatility',
+        };
+      default:
+        return null;
+    }
+  };
 
   const signals = data?.signals ?? [];
   const visibleSignals = signals.slice(0, MAX_TRADING_SIGNAL_ROWS);
@@ -85,13 +171,26 @@ export default function Trading() {
     }
 
     return (
-      <span
-        className={styles.checksSkippedBadge}
-        title={t('trading.checksSkippedTitle', 'Skipped checks: {{checks}}', {
-          checks: checksSkipped.join(', '),
-        })}
-      >
-        {t('trading.checksSkippedBadge', 'Checks skipped')}
+      <span className={styles.checksSkippedBadge}>
+        {/* `title` is scoped to just this inner span, not the InfoTip below,
+            so hovering the "i" button doesn't also trigger a native browser
+            tooltip on top of the InfoTip popover. */}
+        <span
+          title={t('trading.checksSkippedTitle', 'Skipped checks: {{checks}}', {
+            checks: checksSkipped.join(', '),
+          })}
+        >
+          {t('trading.checksSkippedBadge', 'Checks skipped')}
+        </span>
+        <InfoTip
+          label={t('trading.checksSkippedInfoLabel', "What does 'Checks skipped' mean?")}
+          to="/metrics-explained#checks-skipped"
+        >
+          {t(
+            'trading.checksSkippedInfo',
+            "An optional check that needs the allotmint-pro add-on could not run. “compliance” means the trade was not checked against your compliance rules; “fundamental_screen” means the P/E and debt/equity filters above (whichever are configured) were not applied to this buy candidate."
+          )}
+        </InfoTip>
       </span>
     );
   };
@@ -179,24 +278,34 @@ export default function Trading() {
               </LoadingStatus>
             )}
             <dl className={styles.thresholdGrid}>
-              {THRESHOLDS.map(({ label, key, suffix }) => (
-                <div key={key} className={styles.threshold}>
-                  {/* The label is static copy, not data -- it renders
-                      immediately instead of waiting behind the fetch. */}
-                  <dt>{label}</dt>
-                  <dd>
-                    {loading ? (
-                      <span aria-hidden="true">
-                        <TextSkeleton width="3rem" label="" />
-                      </span>
-                    ) : data?.settings?.[key] == null ? (
-                      'Not enabled'
-                    ) : (
-                      `${data.settings[key]}${suffix ?? ''}`
-                    )}
-                  </dd>
-                </div>
-              ))}
+              {THRESHOLDS.map(({ label, key, suffix }) => {
+                const tip = getThresholdTip(key);
+                return (
+                  <div key={key} className={styles.threshold}>
+                    {/* The label is static copy, not data -- it renders
+                        immediately instead of waiting behind the fetch. */}
+                    <dt>
+                      {label}
+                      {tip && (
+                        <InfoTip label={tip.label} to={tip.to}>
+                          {tip.text}
+                        </InfoTip>
+                      )}
+                    </dt>
+                    <dd>
+                      {loading ? (
+                        <span aria-hidden="true">
+                          <TextSkeleton width="3rem" label="" />
+                        </span>
+                      ) : data?.settings?.[key] == null ? (
+                        'Not enabled'
+                      ) : (
+                        `${data.settings[key]}${suffix ?? ''}`
+                      )}
+                    </dd>
+                  </div>
+                );
+              })}
             </dl>
           </section>
 

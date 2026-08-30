@@ -168,6 +168,23 @@ describe('Menu', () => {
     ).toBeInTheDocument();
   });
 
+  it('exposes a Glossary link to /metrics-explained from the preferences category (#7230)', async () => {
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+
+    const glossaryLink = await screen.findByRole('menuitem', { name: 'Glossary' });
+    expect(glossaryLink).toHaveAttribute('href', '/metrics-explained');
+  });
+
   it('renders logout button when callback provided', async () => {
     const onLogout = vi.fn();
     i18n.changeLanguage('fr');

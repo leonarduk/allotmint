@@ -1002,15 +1002,24 @@ describe("GroupPortfolioView", () => {
     expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
   });
 
-  it.each(locales)("renders loading message in %s", async (lng) => {
-    await act(async () => {
-      await i18n.changeLanguage(lng);
-    });
+  it("shows a qualified loading skeleton instead of a bare loading message (#7229)", async () => {
     vi.spyOn(global, "fetch").mockImplementation(
       () => new Promise(() => {})
     );
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
-    expect(screen.getByText(i18n.t("common.loading"))).toBeInTheDocument();
+
+    // The old bare, unqualified "Loading…" string is gone -- replaced by a
+    // qualified, screen-reader-announced status plus page-shaped skeletons.
+    expect(screen.queryByText(i18n.t("common.loading"))).not.toBeInTheDocument();
+    expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
+
+    // Exactly one live region for the whole loading page, not one per
+    // skeleton placeholder (regression guard: the KPI tiles alone render 5
+    // skeleton instances; only one may carry the accessible announcement).
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(
+      screen.getAllByText(i18n.t("group.loadingPortfolio")).length,
+    ).toBeGreaterThan(0);
   });
 
   it("renders metrics error message", async () => {
@@ -1406,8 +1415,12 @@ describe("GroupPortfolioView", () => {
       </MemoryRouter>,
     );
 
+    // TopMoversSummary fetches its own data independently of the portfolio
+    // call (see #7229) and can resolve before or after it, so it is no
+    // longer a reliable signal that the portfolio-derived tiles below have
+    // also finished loading -- each assertion waits for its own content.
     expect(await screen.findByTestId("top-movers-summary")).toBeInTheDocument();
-    expect(screen.getByText("Alpha vs Benchmark")).toBeInTheDocument();
+    expect(await screen.findByText("Alpha vs Benchmark")).toBeInTheDocument();
     expect(screen.getByText("Tracking Error")).toBeInTheDocument();
 
     unmount();

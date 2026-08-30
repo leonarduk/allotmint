@@ -7,6 +7,9 @@ import type { OpportunityEntry } from "../types";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { SignalBadge } from "./SignalBadge";
+import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
+import TextSkeleton from "./skeletons/TextSkeleton";
+import LoadingStatus from "./skeletons/LoadingStatus";
 
 import { useFetch } from "../hooks/useFetch";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -22,6 +25,27 @@ const WATCHLIST_OPTIONS: WatchlistOption[] = [
   ...(Object.keys(WATCHLISTS) as WatchlistName[]),
   "Portfolio",
 ];
+
+/**
+ * `useFetch` initialises `loading` to `false` and only flips it to `true`
+ * inside a `useEffect`, so the very first render (before that effect
+ * flushes) has `loading === false` and `data === null`. A bare `loading`
+ * check would fall through to the "no signals" empty state for that frame
+ * (#7229). Extracted as a pure, exported function and unit tested directly
+ * (see TopMoversPage.test.tsx) because that pre-effect frame is not
+ * independently observable through RTL's act()-wrapped `render`: by the
+ * time any assertion runs against the rendered component, React has already
+ * flushed the effect and `loading` is true on its own, so a JSX-level test
+ * cannot tell this derivation apart from a bare `loading` check.
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export function computeMoversLoading(
+  loading: boolean,
+  data: unknown,
+  error: unknown,
+): boolean {
+  return loading || (data == null && error == null);
+}
 
 export function TopMoversPage() {
   const [watchlist, setWatchlist] = useState<WatchlistOption>(() =>
@@ -162,6 +186,10 @@ export function TopMoversPage() {
     : sorted.map((_, index) => ({ index, start: index * 40, end: (index + 1) * 40 }));
   const colSpan = watchlist === "Portfolio" ? 6 : 4;
   const visibleSignals = data?.signals.slice(0, MAX_TRADING_SIGNAL_ROWS) ?? [];
+  const loadingLabel = t("movers.loading");
+  // See `computeMoversLoading` above for why this can't be a bare `loading`
+  // check.
+  const isLoading = computeMoversLoading(loading, data, error);
 
   const disclaimer = (
     <p style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
@@ -169,13 +197,6 @@ export function TopMoversPage() {
     </p>
   );
 
-  if (loading)
-    return (
-      <>
-        {disclaimer}
-        <p>{t("common.loading")}</p>
-      </>
-    );
   if (error != null) {
     const match = error?.message.match(/^HTTP (\d+)\s+[–-]\s+(.*)$/);
     const status = match?.[1];
@@ -269,6 +290,12 @@ export function TopMoversPage() {
         <p style={{ color: "red" }}>{t("movers.loginPrompt")}</p>
       )}
 
+      {isLoading && (
+        <LoadingStatus label={loadingLabel}>
+          <span aria-hidden="true" />
+        </LoadingStatus>
+      )}
+
       <div
         ref={tableContainerRef}
         style={{ maxHeight: "60vh", overflowY: "auto", overflowX: "auto" }}
@@ -321,76 +348,89 @@ export function TopMoversPage() {
           </tr>
         </thead>
         <tbody>
-          {paddingTop > 0 && (
-            <tr style={{ height: paddingTop }}>
-              <td colSpan={colSpan} style={{ padding: 0, border: 0 }} />
-            </tr>
-          )}
-          {items.map((virtualRow) => {
-            const r = sorted[virtualRow.index];
-            return (
-              <tr key={`${r.ticker}-${virtualRow.index}`}>
-                <td className={tableStyles.cell}>
-                  <button
-                    type="button"
-                    onClick={() => setSelected({ row: r })}
-                    style={{
-                      color: "dodgerblue",
-                      textDecoration: "underline",
-                      background: "none",
-                      border: "none",
-                      padding: 0,
-                      font: "inherit",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {r.ticker}
-                  </button>
-                </td>
-                <td className={tableStyles.cell}>{r.name}</td>
-                <td className={tableStyles.cell}>
-                  {r.signal ? (
-                    <SignalBadge
-                      action={r.signal.action}
-                      reason={r.signal.reason}
-                      confidence={r.signal.confidence}
-                      rationale={r.signal.rationale}
-                      onClick={() => setSelected({ row: r })}
-                    />
-                  ) : null}
-                </td>
-                <td
-                  className={`${tableStyles.cell} ${tableStyles.right}`}
-                  style={{ color: r.change_pct >= 0 ? "green" : "red" }}
-                >
-                  {r.change_pct.toFixed(2)}
-                </td>
-                {watchlist === "Portfolio" && (
-                  <>
-                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                      {r.delta_gbp != null ? r.delta_gbp.toFixed(2) : ""}
+          {isLoading ? (
+            <TableRowsSkeleton
+              rows={8}
+              colSpan={colSpan}
+              label=""
+              cellClassName={tableStyles.cell}
+            />
+          ) : (
+            <>
+              {paddingTop > 0 && (
+                <tr style={{ height: paddingTop }}>
+                  <td colSpan={colSpan} style={{ padding: 0, border: 0 }} />
+                </tr>
+              )}
+              {items.map((virtualRow) => {
+                const r = sorted[virtualRow.index];
+                return (
+                  <tr key={`${r.ticker}-${virtualRow.index}`}>
+                    <td className={tableStyles.cell}>
+                      <button
+                        type="button"
+                        onClick={() => setSelected({ row: r })}
+                        style={{
+                          color: "dodgerblue",
+                          textDecoration: "underline",
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                          font: "inherit",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {r.ticker}
+                      </button>
                     </td>
-                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                      {r.pct_portfolio != null
-                        ? r.pct_portfolio.toFixed(2)
-                        : ""}
+                    <td className={tableStyles.cell}>{r.name}</td>
+                    <td className={tableStyles.cell}>
+                      {r.signal ? (
+                        <SignalBadge
+                          action={r.signal.action}
+                          reason={r.signal.reason}
+                          confidence={r.signal.confidence}
+                          rationale={r.signal.rationale}
+                          onClick={() => setSelected({ row: r })}
+                        />
+                      ) : null}
                     </td>
-                  </>
-                )}
-              </tr>
-            );
-          })}
-          {paddingBottom > 0 && (
-            <tr style={{ height: paddingBottom }}>
-              <td colSpan={colSpan} style={{ padding: 0, border: 0 }} />
-            </tr>
+                    <td
+                      className={`${tableStyles.cell} ${tableStyles.right}`}
+                      style={{ color: r.change_pct >= 0 ? "green" : "red" }}
+                    >
+                      {r.change_pct.toFixed(2)}
+                    </td>
+                    {watchlist === "Portfolio" && (
+                      <>
+                        <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                          {r.delta_gbp != null ? r.delta_gbp.toFixed(2) : ""}
+                        </td>
+                        <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                          {r.pct_portfolio != null
+                            ? r.pct_portfolio.toFixed(2)
+                            : ""}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
+              {paddingBottom > 0 && (
+                <tr style={{ height: paddingBottom }}>
+                  <td colSpan={colSpan} style={{ padding: 0, border: 0 }} />
+                </tr>
+              )}
+            </>
           )}
         </tbody>
       </table>
       </div>
-      {!data ? (
-        <p>{t("common.loading")}</p>
-      ) : data.signals.length === 0 ? (
+      {isLoading ? (
+        <p style={{ marginTop: "0.5rem" }} aria-hidden="true">
+          <TextSkeleton width="12rem" label="" />
+        </p>
+      ) : !data || data.signals.length === 0 ? (
         <p>{t("trading.noSignals")}</p>
       ) : (
         <>

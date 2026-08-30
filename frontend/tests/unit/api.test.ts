@@ -20,6 +20,8 @@ import {
   reconcileHoldingsCsv,
   importHoldingsCsv,
   runCustomQuery,
+  getCachedGroupInstruments,
+  clearGroupInstrumentCache,
 } from "@/api";
 
 const csvFile = new File(["ticker,units"], "holdings.csv", {
@@ -309,6 +311,53 @@ describe("transient backend failures (issue #6193)", () => {
       "temporarily unavailable",
     );
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("getCachedGroupInstruments cache eviction on rejection (issue #7222)", () => {
+  // Regression test: getCachedGroupInstruments memoizes its promise by cache
+  // key BEFORE the request settles. If a request fails and the rejected
+  // promise is left cached, every subsequent caller (including a user
+  // clicking "Retry" in ScreenerQuery) replays the SAME rejection forever,
+  // with no new network request — only a full page reload (which resets the
+  // module-level cache) recovers. This exercises the real cache in @/api
+  // directly, not a mocked module, so it fails if the eviction-on-error path
+  // regresses even though a caller-side test with a mocked "@/api" module
+  // would stay green.
+  beforeEach(() => {
+    setApiBase(DEFAULT_API_BASE);
+    clearGroupInstrumentCache();
+  });
+
+  afterEach(() => {
+    clearGroupInstrumentCache();
+  });
+
+  it("evicts a rejected entry so a second call issues a new request instead of replaying the failure", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network down"))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve([
+            { ticker: "PFE", name: "Pfizer", units: 1, market_value_gbp: 1, gain_gbp: 1 },
+          ]),
+      });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(getCachedGroupInstruments("all")).rejects.toThrow("network down");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // A second call after the failure must hit the network again, not
+    // replay the cached rejection.
+    const rows = await getCachedGroupInstruments("all");
+    expect(rows).toEqual([
+      { ticker: "PFE", name: "Pfizer", units: 1, market_value_gbp: 1, gain_gbp: 1 },
+    ]);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });
 

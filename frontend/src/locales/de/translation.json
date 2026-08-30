@@ -49,6 +49,7 @@
   },
   "app": {
     "close": "Schließen",
+    "glossaryLink": "Glossar",
     "last": "Zuletzt:",
     "loading": "Laden…",
     "logout": "Abmelden",
@@ -357,7 +358,7 @@
     "intro": "Diese Kennzahlen fassen zusammen, wie sich das kombinierte Portfolio im Vergleich zu seinem Benchmark entwickelt. Jede Zahl basiert auf denselben täglichen Renditereihen wie die Kacheln im Dashboard.",
     "loadError": "Die Kennzahlen konnten nicht geladen werden: {{message}}",
     "loading": "Kennzahlen werden geladen…",
-    "missingContext": "Es wurde kein Portfolio oder keine Gruppe angegeben. Kehren Sie zum Dashboard zurück und folgen Sie dort dem Link aus dem gewünschten Portfolio.",
+    "missingContext": "Diese Seite erklärt die in der gesamten App verwendeten Kennzahlen und Fachbegriffe. Sie zeigt auch Live-Zahlen an, wenn sie von einem bestimmten Portfolio oder einer Gruppe aus geöffnet wird — öffnen Sie sie von der Performance-Seite aus (oder über einen „Mehr erfahren“-Link an anderer Stelle in der App), um Ihre eigenen Zahlen unten angezeigt zu bekommen.",
     "noContext": "Öffnen Sie diese Seite aus einem Portfolio oder einer Gruppe, um aktuelle Werte zu sehen.",
     "notAvailable": "k. A.",
     "notesHeading": "Wissenswertes",
@@ -408,7 +409,7 @@
         "title": "Tracking Error"
       }
     },
-    "title": "Performancekennzahlen erklärt"
+    "title": "Glossar"
   },
   "movers": {
     "deltaGbpHeader": "Wertänderung (£, {{period}})",

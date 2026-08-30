@@ -4,8 +4,54 @@ import { getScreener } from "../api";
 import type { ScreenerResult } from "../types";
 import { useSortableTable } from "../hooks/useSortableTable";
 import { InstrumentDetail } from "../components/InstrumentDetail";
+import InfoTip from "../components/InfoTip";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import i18n from "../i18n";
+
+const RATIO_COLUMN_TIPS: Record<
+  string,
+  { key: string; defaultText: string; anchor: string }
+> = {
+  PEG: { key: "peg", defaultText: "P/E ratio divided by the expected earnings growth rate.", anchor: "peg-ratio" },
+  "P/E": { key: "pe", defaultText: "Share price divided by earnings per share.", anchor: "pe-ratio" },
+  "D/E": { key: "de", defaultText: "Total debt divided by shareholders' equity — a measure of financial leverage.", anchor: "debt-equity" },
+  "LT D/E": { key: "ltDe", defaultText: "Long-term debt divided by shareholders' equity.", anchor: "lt-debt-equity" },
+  IntCov: { key: "interestCoverage", defaultText: "Operating earnings (EBIT) divided by interest expense.", anchor: "interest-coverage" },
+  Curr: { key: "currentRatio", defaultText: "Current assets divided by current liabilities.", anchor: "current-ratio" },
+  Quick: { key: "quickRatio", defaultText: "Liquid assets, excluding inventory, divided by current liabilities.", anchor: "quick-ratio" },
+  FCF: { key: "fcf", defaultText: "Cash generated from operations minus capital expenditure.", anchor: "free-cash-flow" },
+  EPS: { key: "eps", defaultText: "Net income divided by the number of shares outstanding.", anchor: "eps" },
+  "Gross Margin": { key: "grossMargin", defaultText: "Gross profit divided by revenue.", anchor: "gross-margin" },
+  "Op Margin": { key: "operatingMargin", defaultText: "Operating income divided by revenue.", anchor: "operating-margin" },
+  "Net Margin": { key: "netMargin", defaultText: "Net income divided by revenue.", anchor: "net-margin" },
+  "EBITDA Margin": { key: "ebitdaMargin", defaultText: "EBITDA divided by revenue.", anchor: "ebitda-margin" },
+  ROA: { key: "roa", defaultText: "Net income divided by total assets.", anchor: "roa" },
+  ROE: { key: "roe", defaultText: "Net income divided by shareholders' equity.", anchor: "roe" },
+  ROI: { key: "roi", defaultText: "The gain from an investment divided by its cost.", anchor: "roi" },
+  "Div%": { key: "dividendYield", defaultText: "Annual dividend per share divided by share price.", anchor: "dividend-yield" },
+  Payout: { key: "dividendPayoutRatio", defaultText: "Dividends paid divided by net income.", anchor: "dividend-payout-ratio" },
+  Beta: { key: "beta", defaultText: "A measure of how sensitive a stock's price is to overall market movements.", anchor: "beta" },
+  Shares: { key: "sharesOutstanding", defaultText: "The total number of a company's shares currently held by all shareholders.", anchor: "shares-outstanding" },
+  Float: { key: "floatShares", defaultText: "Shares outstanding that are freely tradable, excluding closely held or restricted shares.", anchor: "float-shares" },
+  MktCap: { key: "marketCap", defaultText: "Share price multiplied by shares outstanding.", anchor: "market-cap" },
+  "52wH": { key: "high52w", defaultText: "The highest trading price over the past 52 weeks.", anchor: "week-52-high" },
+  "52wL": { key: "low52w", defaultText: "The lowest trading price over the past 52 weeks.", anchor: "week-52-low" },
+  AvgVol: { key: "avgVolume", defaultText: "The average number of shares traded per day over a recent period.", anchor: "avg-volume" },
+};
+
+function RatioHeaderInfoTip({ column }: { column: string }) {
+  const { t } = useTranslation();
+  const tip = RATIO_COLUMN_TIPS[column];
+  if (!tip) return null;
+  return (
+    <InfoTip
+      label={t("screener.tips.infoLabel", "What does {{column}} mean?", { column })}
+      to={`/metrics-explained#${tip.anchor}`}
+    >
+      {t(`screener.tips.${tip.key}`, tip.defaultText)}
+    </InfoTip>
+  );
+}
 
 export function Screener() {
   const [watchlist, setWatchlist] = useState<WatchlistName | "Custom">(
@@ -452,63 +498,114 @@ export function Screener() {
               >
                 Ticker
               </th>
-              <th style={right} onClick={() => handleSort("peg_ratio")}>PEG</th>
-              <th style={right} onClick={() => handleSort("pe_ratio")}>P/E</th>
-              <th style={right} onClick={() => handleSort("de_ratio")}>D/E</th>
-              <th style={right} onClick={() => handleSort("lt_de_ratio")}>LT D/E</th>
-              <th style={right} onClick={() => handleSort("interest_coverage")}>IntCov</th>
-              <th style={right} onClick={() => handleSort("current_ratio")}>Curr</th>
-              <th style={right} onClick={() => handleSort("quick_ratio")}>Quick</th>
-              <th style={right} onClick={() => handleSort("fcf")}>FCF</th>
-              <th style={right} onClick={() => handleSort("eps")}>EPS</th>
+              <th style={right} onClick={() => handleSort("peg_ratio")}>
+                PEG
+                <RatioHeaderInfoTip column="PEG" />
+              </th>
+              <th style={right} onClick={() => handleSort("pe_ratio")}>
+                P/E
+                <RatioHeaderInfoTip column="P/E" />
+              </th>
+              <th style={right} onClick={() => handleSort("de_ratio")}>
+                D/E
+                <RatioHeaderInfoTip column="D/E" />
+              </th>
+              <th style={right} onClick={() => handleSort("lt_de_ratio")}>
+                LT D/E
+                <RatioHeaderInfoTip column="LT D/E" />
+              </th>
+              <th style={right} onClick={() => handleSort("interest_coverage")}>
+                IntCov
+                <RatioHeaderInfoTip column="IntCov" />
+              </th>
+              <th style={right} onClick={() => handleSort("current_ratio")}>
+                Curr
+                <RatioHeaderInfoTip column="Curr" />
+              </th>
+              <th style={right} onClick={() => handleSort("quick_ratio")}>
+                Quick
+                <RatioHeaderInfoTip column="Quick" />
+              </th>
+              <th style={right} onClick={() => handleSort("fcf")}>
+                FCF
+                <RatioHeaderInfoTip column="FCF" />
+              </th>
+              <th style={right} onClick={() => handleSort("eps")}>
+                EPS
+                <RatioHeaderInfoTip column="EPS" />
+              </th>
               <th style={right} onClick={() => handleSort("gross_margin")}>
                 Gross Margin
+                <RatioHeaderInfoTip column="Gross Margin" />
               </th>
               <th style={right} onClick={() => handleSort("operating_margin")}>
                 Op Margin
+                <RatioHeaderInfoTip column="Op Margin" />
               </th>
               <th style={right} onClick={() => handleSort("net_margin")}>
                 Net Margin
+                <RatioHeaderInfoTip column="Net Margin" />
               </th>
               <th style={right} onClick={() => handleSort("ebitda_margin")}>
                 EBITDA Margin
+                <RatioHeaderInfoTip column="EBITDA Margin" />
               </th>
-              <th style={right} onClick={() => handleSort("roa")}>ROA</th>
-              <th style={right} onClick={() => handleSort("roe")}>ROE</th>
-              <th style={right} onClick={() => handleSort("roi")}>ROI</th>
+              <th style={right} onClick={() => handleSort("roa")}>
+                ROA
+                <RatioHeaderInfoTip column="ROA" />
+              </th>
+              <th style={right} onClick={() => handleSort("roe")}>
+                ROE
+                <RatioHeaderInfoTip column="ROE" />
+              </th>
+              <th style={right} onClick={() => handleSort("roi")}>
+                ROI
+                <RatioHeaderInfoTip column="ROI" />
+              </th>
               <th style={right} onClick={() => handleSort("dividend_yield")}>
                 Div%
+                <RatioHeaderInfoTip column="Div%" />
               </th>
               <th
                 style={right}
                 onClick={() => handleSort("dividend_payout_ratio")}
               >
                 Payout
+                <RatioHeaderInfoTip column="Payout" />
               </th>
-              <th style={right} onClick={() => handleSort("beta")}>Beta</th>
+              <th style={right} onClick={() => handleSort("beta")}>
+                Beta
+                <RatioHeaderInfoTip column="Beta" />
+              </th>
               <th
                 style={right}
                 onClick={() => handleSort("shares_outstanding")}
               >
                 Shares
+                <RatioHeaderInfoTip column="Shares" />
               </th>
               <th
                 style={right}
                 onClick={() => handleSort("float_shares")}
               >
                 Float
+                <RatioHeaderInfoTip column="Float" />
               </th>
               <th style={right} onClick={() => handleSort("market_cap")}>
                 MktCap
+                <RatioHeaderInfoTip column="MktCap" />
               </th>
               <th style={right} onClick={() => handleSort("high_52w")}>
                 52wH
+                <RatioHeaderInfoTip column="52wH" />
               </th>
               <th style={right} onClick={() => handleSort("low_52w")}>
                 52wL
+                <RatioHeaderInfoTip column="52wL" />
               </th>
               <th style={right} onClick={() => handleSort("avg_volume")}>
                 AvgVol
+                <RatioHeaderInfoTip column="AvgVol" />
               </th>
             </tr>
           </thead>

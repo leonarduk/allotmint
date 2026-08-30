@@ -855,6 +855,13 @@ class BackendLambdaStack(Stack):
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
             "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            # backend.lambda_api.price_refresh imports backend.common.portfolio_utils
+            # -> ... -> backend.common.authz -> backend.auth, whose module-level
+            # SECRET_KEY check raises RuntimeError when JWT_SECRET is unset and
+            # APP_ENV is "aws" (backend/auth.py:39-51). Without this, the price-warm
+            # invocation the deploy workflow runs after every deploy crashes at
+            # Lambda cold start (issue: PriceRefreshLambda missing JWT_SECRET).
+            "JWT_SECRET": jwt_secret,
         }
         if data_repo:
             refresh_env["DATA_REPO"] = data_repo
@@ -994,6 +1001,10 @@ class BackendLambdaStack(Stack):
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
             "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            # See the matching comment on refresh_env above: this function's
+            # import chain reaches backend.auth's module-level SECRET_KEY check
+            # via backend.common.authz too.
+            "JWT_SECRET": jwt_secret,
         }
         if data_repo:
             agent_env["DATA_REPO"] = data_repo
@@ -1047,6 +1058,10 @@ class BackendLambdaStack(Stack):
             # refresh_dividends() reads/writes via AccountsStore, which reads
             # this env var at import time (backend/common/accounts_store.py).
             "WRITABLE_ACCOUNTS_PREFIX": WRITABLE_ACCOUNTS_PREFIX,
+            # See the matching comment on refresh_env above: this function's
+            # import chain reaches backend.auth's module-level SECRET_KEY check
+            # via backend.common.authz too.
+            "JWT_SECRET": jwt_secret,
         }
         if data_repo:
             dividend_env["DATA_REPO"] = data_repo
@@ -1102,6 +1117,10 @@ class BackendLambdaStack(Stack):
             # (backend/common/pension_snapshots.py), stored in the same data
             # bucket rather than a dedicated resource.
             "PENSION_SNAPSHOTS_URI": f"s3://{bucket_name}/pension-reports/pension_snapshots.json",
+            # See the matching comment on refresh_env above: this function's
+            # import chain reaches backend.auth's module-level SECRET_KEY check
+            # via backend.common.authz too.
+            "JWT_SECRET": jwt_secret,
         }
         if data_repo:
             pension_report_env["DATA_REPO"] = data_repo

@@ -333,19 +333,13 @@ if ($Backend) {
     & $cdkCmd.Path deploy StaticSiteStack -c "data_bucket=$effectiveBucket" -c "prod=$prodContext" --require-approval never
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     Write-Host 'Querying CloudFormation outputs from StaticSiteStack...' -ForegroundColor Cyan
-    $uiAuthUserPoolId = Get-CfnOutput -StackName 'StaticSiteStack' -OutputKey 'UiAuthUserPoolId'
-    if (-not $uiAuthUserPoolId) {
-      Write-Host 'UiAuthUserPoolId output is missing from StaticSiteStack after retries.' -ForegroundColor Red
-      exit 1
-    }
     $uiAuthClientId = Get-CfnOutput -StackName 'StaticSiteStack' -OutputKey 'UiAuthUserPoolClientId'
     if (-not $uiAuthClientId) {
       Write-Host 'UiAuthUserPoolClientId output is missing from StaticSiteStack after retries.' -ForegroundColor Red
       exit 1
     }
-    Write-Host "Retrieved UiAuthUserPoolId: $uiAuthUserPoolId" -ForegroundColor Green
     Write-Host "Retrieved UiAuthUserPoolClientId: $uiAuthClientId" -ForegroundColor Green
-    & $cdkCmd.Path deploy BackendLambdaStack -c "data_bucket=$effectiveBucket" -c "prod=$prodContext" --require-approval never --parameters "BackendLambdaStack:UiAuthUserPoolId=$uiAuthUserPoolId" --parameters "BackendLambdaStack:UiAuthUserPoolClientId=$uiAuthClientId"
+    & $cdkCmd.Path deploy BackendLambdaStack -c "data_bucket=$effectiveBucket" -c "prod=$prodContext" --require-approval never --parameters "BackendLambdaStack:UiAuthUserPoolClientId=$uiAuthClientId"
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     Write-Host 'Querying CloudFormation outputs from BackendLambdaStack...' -ForegroundColor Cyan
     $backendUrl = Get-CfnOutput -StackName 'BackendLambdaStack' -OutputKey 'BackendApiUrl'

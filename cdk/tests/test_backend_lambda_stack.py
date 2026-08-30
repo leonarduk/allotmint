@@ -29,7 +29,6 @@ def template():
     # Also remove FRONTEND_ORIGIN/CORS_ORIGINS so the CORS allow_origins list
     # synthesises to its hardcoded default (see test_backend_api_cors_allow_origins_default).
     _auth_env_vars = (
-        "UI_AUTH_USER_POOL_ID",
         "UI_AUTH_USER_POOL_CLIENT_ID",
         "UI_AUTH_DOMAIN",
         "FRONTEND_ORIGIN",
@@ -601,13 +600,6 @@ def test_monthly_budget_exists(template):
 
 def test_backend_api_auth_parameters_exist(template):
     template.has_parameter(
-        "UiAuthUserPoolId",
-        {
-            "Type": "String",
-            "AllowedPattern": ".+",
-        },
-    )
-    template.has_parameter(
         "UiAuthUserPoolClientId",
         {
             "Type": "String",
@@ -615,8 +607,17 @@ def test_backend_api_auth_parameters_exist(template):
         },
     )
     params = template.to_json()["Parameters"]
-    assert "Default" not in params["UiAuthUserPoolId"]
     assert "Default" not in params["UiAuthUserPoolClientId"]
+
+
+def test_backend_api_has_no_unused_ui_auth_user_pool_id_parameter(template):
+    """UiAuthUserPoolId was removed as dead input (#7525): the gateway/Cognito
+    Lambda authorizer (#7522) verifies a Cognito ID token's signature via the
+    issuer/JWKS URL embedded in the token itself, not the user pool ID, so
+    nothing in this stack has read this parameter since PR #7523. Guards
+    against it being silently reintroduced."""
+    params = template.to_json().get("Parameters", {})
+    assert "UiAuthUserPoolId" not in params
 
 
 def test_smoke_test_user_pool_client_id_parameter_is_optional(template):

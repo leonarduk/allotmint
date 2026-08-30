@@ -1,5 +1,19 @@
 name: Auto-format backend Python
 
+# Requires:
+#   - repo secret AUTOFORMAT_PUSH_TOKEN: a fine-grained PAT scoped to this
+#     repo only, with Contents: Read and write. A push authenticated with the
+#     default GITHUB_TOKEN is attributed to actor `github-actions[bot]`, and
+#     GitHub's "Bot-created pull requests can run workflows if approved"
+#     change (github.blog changelog, 2026-06-11) put that actor under the
+#     same "Fork pull request workflows" approval gate as external
+#     contributors -- even for same-repo branches. Every pull_request
+#     workflow triggered by this bot's own push then lands in
+#     action_required with zero jobs until a human approves each one by
+#     hand. Pushing with a PAT instead attributes the resulting
+#     pull_request:synchronize event to the PAT's owner (an established
+#     collaborator), which the gate doesn't apply to. See #7548.
+
 on:
   pull_request:
     branches: [main]
@@ -10,7 +24,9 @@ on:
       - 'requirements*.txt'
 
 permissions:
-  contents: write
+  # read only: the push below authenticates with AUTOFORMAT_PUSH_TOKEN, not
+  # GITHUB_TOKEN, so the default token no longer needs write access.
+  contents: read
 
 concurrency:
   group: auto-format-${{ github.event.pull_request.number }}
@@ -18,14 +34,25 @@ concurrency:
 
 jobs:
   format:
-    # Same-repo PR branches only: GITHUB_TOKEN cannot push to fork head branches.
+    # Same-repo PR branches only. AUTOFORMAT_PUSH_TOKEN must never reach a
+    # fork-originated run -- see BRANCH_PROTECTION_READ_TOKEN's identical
+    # warning in branch-protection-drift.yml.
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
+      - name: Verify push token is configured
+        env:
+          PUSH_TOKEN: ${{ secrets.AUTOFORMAT_PUSH_TOKEN }}
+        run: |
+          if [ -z "$PUSH_TOKEN" ]; then
+            echo "::error::AUTOFORMAT_PUSH_TOKEN is not set. Add a fine-grained PAT scoped to this repo with Contents: Read and write -- see #7548." >&2
+            exit 1
+          fi
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
+          token: ${{ secrets.AUTOFORMAT_PUSH_TOKEN }}
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'

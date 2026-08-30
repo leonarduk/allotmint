@@ -383,6 +383,12 @@ describe("InstrumentResearch page", () => {
   });
 
   it("shows native GBX close values instead of GBP-normalized close_gbp", async () => {
+    // detail.currency is set to "GBP" here, not "GBX", because the backend
+    // forces the JSON payload's top-level `currency` field to the reporting
+    // currency whenever a close_gbp column exists (routes/instrument.py
+    // ~502-515) -- which is nearly always. It can never actually say "GBX"
+    // for a scaled series; the metadata catalogue is the only source for a
+    // genuinely native GBX label (#7219).
     mockListInstrumentMetadata.mockResolvedValueOnce([
       {
         ticker: "AAA.L",
@@ -398,7 +404,7 @@ describe("InstrumentResearch page", () => {
         positions: [],
         ticker: "AAA.L",
         name: "Acme Corp",
-        currency: "GBX",
+        currency: "GBP",
         base_currency: "GBP",
         prices: [
           { date: "2024-01-01", close: 245, close_gbp: 2.45 },
@@ -417,6 +423,186 @@ describe("InstrumentResearch page", () => {
     const lastCloseRow = await screen.findByText("Last Close");
     expect(lastCloseRow.closest("div")).toHaveTextContent("250.00 GBX");
     expect(lastCloseRow.closest("div")).not.toHaveTextContent("£2.50");
+  });
+
+  it("keeps native USD close values instead of GBP-converted close_gbp (#7219)", async () => {
+    // Regression for the review of #7219: detail.currency/base_currency
+    // ("GBP") is the backend's REPORTING currency, not what `close` is
+    // quoted in -- trusting it for a USD instrument would silently relabel
+    // (and unit-convert) a native USD price as GBP. close (250) and
+    // close_gbp (197) genuinely differ here, so the native value must win
+    // and be labelled with the instrument's declared currency (USD), the
+    // same way a genuinely GBX-quoted instrument keeps its native pence
+    // value (see the test above).
+    mockListInstrumentMetadata.mockResolvedValueOnce([
+      {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp",
+        sector: "Tech",
+        currency: "USD",
+      } as InstrumentMetadata,
+    ]);
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        ticker: "AAA.L",
+        name: "Acme Corp",
+        sector: "Tech",
+        currency: "GBP",
+        base_currency: "GBP",
+        prices: [
+          { date: "2024-01-01", close: 245, close_gbp: 193 },
+          { date: "2024-01-02", close: 250, close_gbp: 197 },
+        ],
+        rows: 2,
+        from: "2024-01-01",
+        to: "2024-01-02",
+      },
+      loading: false,
+      error: null,
+    } as any);
+
+    renderPage();
+
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: /AAA - Acme Corp/,
+    });
+    expect(heading).toHaveTextContent("USD");
+    expect(heading).not.toHaveTextContent("Tech · GBP");
+
+    const currencyRow = screen.getByText("Currency").closest("div");
+    expect(currencyRow).not.toBeNull();
+    expect(within(currencyRow as HTMLElement).getByText("USD")).toBeInTheDocument();
+
+    const lastCloseRow = screen.getByText("Last Close").closest("div");
+    expect(lastCloseRow).not.toBeNull();
+    expect(lastCloseRow).toHaveTextContent("250.00 USD");
+    expect(lastCloseRow).not.toHaveTextContent("£197.00");
+  });
+
+  it("keeps a sub-unit EUR close native instead of misreading it as already-GBP (#7219)", async () => {
+    // Regression for a false-positive band in an earlier fix-up: a fixed
+    // absolute tolerance (e.g. 0.005) for "close already equals close_gbp"
+    // misfires whenever |close| * |1 - rate| falls under it. At an ordinary
+    // EUR/GBP rate of ~0.92, that band covers any EUR instrument priced
+    // under ~6 cents -- close 0.06 (EUR) vs close_gbp 0.0552 (GBP, a
+    // genuine ~8% FX conversion) differ by only 0.0048, which a 0.005
+    // absolute epsilon would wrongly call "the same value" and render as
+    // "£0.06". The comparison must be relative, not absolute, so a small
+    // but real conversion is never mistaken for an unconverted value.
+    mockListInstrumentMetadata.mockResolvedValueOnce([
+      {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp",
+        sector: "Tech",
+        currency: "EUR",
+      } as InstrumentMetadata,
+    ]);
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        ticker: "AAA.L",
+        name: "Acme Corp",
+        sector: "Tech",
+        currency: "GBP",
+        base_currency: "GBP",
+        prices: [
+          { date: "2024-01-01", close: 0.06, close_gbp: 0.0552 },
+          { date: "2024-01-02", close: 0.06, close_gbp: 0.0552 },
+        ],
+        rows: 2,
+        from: "2024-01-01",
+        to: "2024-01-02",
+      },
+      loading: false,
+      error: null,
+    } as any);
+
+    renderPage();
+
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: /AAA - Acme Corp/,
+    });
+    expect(heading).toHaveTextContent("EUR");
+    expect(heading).not.toHaveTextContent("Tech · GBP");
+
+    const lastCloseRow = screen.getByText("Last Close").closest("div");
+    expect(lastCloseRow).not.toBeNull();
+    expect(lastCloseRow).toHaveTextContent("0.06 EUR");
+    expect(lastCloseRow).not.toHaveTextContent("£0.06");
+  });
+
+  it("prefers the price-series currency over stale GBX metadata (#7219)", async () => {
+    // Regression for #7219: the instrument metadata catalogue can say a
+    // ticker is GBX (pence) while the /instrument/ price series it is
+    // actually quoted from is GBP-magnitude (close === close_gbp, not
+    // scaled by 100). The header, Key Facts currency and Last Close must
+    // all agree with the price series (GBP), not silently adopt the stale
+    // catalogue currency and mislabel a GBP number as GBX.
+    mockListInstrumentMetadata.mockResolvedValueOnce([
+      {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp",
+        sector: "Health Care",
+        currency: "GBX",
+      } as InstrumentMetadata,
+    ]);
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        ticker: "AAA.L",
+        name: "Acme Corp",
+        sector: "Health Care",
+        currency: "GBP",
+        base_currency: "GBP",
+        prices: [
+          { date: "2024-01-01", close: 120.5, close_gbp: 120.5 },
+          { date: "2024-01-02", close: 121.1, close_gbp: 121.1 },
+        ],
+        rows: 2,
+        from: "2024-01-01",
+        to: "2024-01-02",
+      },
+      loading: false,
+      error: null,
+    } as any);
+
+    renderPage();
+
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: /AAA - Acme Corp/,
+    });
+    expect(heading).toHaveTextContent("GBP");
+    expect(heading).not.toHaveTextContent("GBX");
+
+    const currencyRow = screen.getByText("Currency").closest("div");
+    expect(currencyRow).not.toBeNull();
+    expect(within(currencyRow as HTMLElement).getByText("GBP")).toBeInTheDocument();
+
+    const lastCloseRow = screen.getByText("Last Close").closest("div");
+    expect(lastCloseRow).not.toBeNull();
+    expect(within(lastCloseRow as HTMLElement).getByText(/£121\.10/)).toBeInTheDocument();
+    expect(lastCloseRow).not.toHaveTextContent("GBX");
+
+    // The declared/metadata currency is still shown (GBX, as the catalogue
+    // says) but explicitly labelled as such -- distinct from the resolved
+    // price currency above -- with a data-quality note surfacing the
+    // disagreement instead of silently picking one (#7219).
+    expect(
+      screen.getByText(/Declared currency \(metadata\):/),
+    ).toHaveTextContent("Declared currency (metadata): GBX");
+    expect(
+      screen.getByText(/Catalogue says GBX; price feed is GBP/),
+    ).toBeInTheDocument();
   });
 
   it("shows fundamentals error messages", async () => {
@@ -612,7 +798,9 @@ describe("InstrumentResearch page", () => {
     expect(screen.getByText(/Instrument info/i)).toBeInTheDocument();
     expect(screen.getByText(/Name:/)).toHaveTextContent("Name: Acme Corp");
     expect(screen.getByText(/Sector:/)).toHaveTextContent("Sector: Tech");
-    expect(screen.getByText(/Currency:/)).toHaveTextContent("Currency: USD");
+    expect(
+      screen.getByText(/Declared currency \(metadata\):/),
+    ).toHaveTextContent("Declared currency (metadata): USD");
   });
 
   it("allows editing instrument metadata", async () => {
@@ -651,7 +839,9 @@ describe("InstrumentResearch page", () => {
     );
     expect(screen.getByText(/Name:/)).toHaveTextContent("Name: Acme Updated");
     expect(screen.getByText(/Sector:/)).toHaveTextContent("Sector: Healthcare");
-    expect(screen.getByText(/Currency:/)).toHaveTextContent("Currency: EUR");
+    expect(
+      screen.getByText(/Declared currency \(metadata\):/),
+    ).toHaveTextContent("Declared currency (metadata): EUR");
   });
 
   it("validates currency before saving metadata", async () => {

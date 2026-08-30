@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { Screener } from "@/pages/Screener";
 import * as api from "@/api";
@@ -72,6 +72,54 @@ describe("Screener", () => {
     expect(screen.getAllByText("10")).toHaveLength(2);
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByText("1.5")).toBeInTheDocument();
+  });
+
+  it("attaches an InfoTip to ratio column headers linking to the glossary (#7230)", async () => {
+    mockGetScreener.mockResolvedValueOnce([
+      {
+        rank: 1,
+        ticker: "AAA",
+        name: "AAA Corp",
+        peg_ratio: 1,
+        pe_ratio: 10,
+        de_ratio: 0.5,
+        lt_de_ratio: 0.3,
+        interest_coverage: 10,
+        current_ratio: 2,
+        quick_ratio: 1.5,
+        fcf: 1000,
+        eps: null,
+        gross_margin: null,
+        operating_margin: null,
+        net_margin: null,
+        ebitda_margin: null,
+        roa: null,
+        roe: null,
+        roi: null,
+        dividend_yield: null,
+        dividend_payout_ratio: null,
+        beta: null,
+        shares_outstanding: null,
+        float_shares: null,
+        market_cap: null,
+        high_52w: null,
+        low_52w: null,
+        avg_volume: null,
+      },
+    ]);
+
+    render(<Screener />);
+    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "AAA" } });
+    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
+
+    const tip = await screen.findByRole("button", { name: "What does PEG mean?" });
+    expect(tip).toBeInTheDocument();
+
+    fireEvent.click(tip);
+    const link = within(tip.parentElement as HTMLElement).getByRole("link", {
+      name: "Learn more",
+    });
+    expect(link).toHaveAttribute("href", "/metrics-explained#peg-ratio");
   });
 
   it("does not emit duplicate-key warnings when the same ticker appears twice (#6505)", async () => {

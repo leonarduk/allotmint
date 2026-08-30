@@ -220,7 +220,7 @@ const ROUTES: RouteConfig[] = [
   { path: '/smoke-test', assertion: { kind: 'heading', name: 'Smoke test' } },
   {
     path: '/metrics-explained',
-    assertion: { kind: 'heading', name: 'Performance Metrics Explained' },
+    assertion: { kind: 'heading', name: 'Glossary' },
   },
   {
     path: '/returns/compare',

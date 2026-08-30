@@ -149,6 +149,39 @@ def test_forecast_pension_scenario() -> None:
     assert result["annuity_multiple_used"] == pytest.approx(20)
 
 
+def test_forecast_pension_none_state_pension_matches_explicit_zero() -> None:
+    """`state_pension_annual=None` and `=0` must produce byte-identical output.
+
+    The frontend Pension Forecast page (#7211 follow-up review) now defaults
+    its "State pension" field to an explicit "0" instead of leaving it
+    blank/undefined, on the assumption that the backend already treats an
+    omitted value as £0 income -- see `state_income = float(state_pension_annual
+    or 0.0)` below. That assumption was previously untested on this side of
+    the stack (existing tests only ever pass 9000 or None, never compared).
+    This pins the equivalence so a future refactor that tightens the
+    `or 0.0` into a `None`-rejecting check can't silently change what a
+    real user's forecast returns.
+    """
+    today = dt.date(2020, 1, 2)
+    kwargs = dict(
+        dob="1990-01-01",
+        retirement_age=32,
+        death_age=35,
+        db_pensions=[{"annual_income_gbp": 5000, "normal_retirement_age": 31}],
+        contribution_annual=2000,
+        investment_growth_pct=4.0,
+        desired_income_annual=800,
+        annuity_multiple=20,
+        initial_pot=10000,
+        today=today,
+    )
+
+    result_none = forecast_pension(state_pension_annual=None, **kwargs)
+    result_zero = forecast_pension(state_pension_annual=0, **kwargs)
+
+    assert result_none == result_zero
+
+
 def test_dc_pension_pot_gbp_sums_sipp_accounts_only() -> None:
     accounts = [
         {"account_type": "isa", "value_estimate_gbp": 1000},

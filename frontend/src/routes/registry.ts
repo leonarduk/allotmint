@@ -146,8 +146,15 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     menuCategory: 'dashboard',
     priority: 40,
     defaultPath: (context) => {
-      const { owner } = routeContext(context);
-      return owner ? `/performance/${owner}` : '/performance';
+      const { owner, group } = routeContext(context);
+      // Owner scope keeps its existing path-segment form (and with it the
+      // /performance/:owner/diagnostics deep link). Group scope carries a
+      // `group` query param instead -- there's no separate path form for it,
+      // so a bare owner-less group slug never collides with an owner slug in
+      // the same position (#7228).
+      if (owner) return `/performance/${owner}`;
+      if (group) return `/performance?group=${group}`;
+      return '/performance';
     },
   },
   {
@@ -278,6 +285,11 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     section: 'user',
     menuCategory: 'preferences',
     priority: 104,
+    // No `?owner=` here: AlertSettings resolves its own scope from a single
+    // signed-in identity (profile email, else local_login_email/
+    // demo_identity when auth is disabled), never from the portfolio owner
+    // selected elsewhere in the UI -- a `?owner=` hint would only be
+    // misleading (#7225 review round 3). See AlertSettings.tsx.
     defaultPath: () => '/alert-settings',
     routePath: '/alert-settings',
     lazyComponent: lazyPage(() => import('../pages/AlertSettings')),

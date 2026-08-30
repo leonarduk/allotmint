@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import os
@@ -14,6 +15,76 @@ from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
+
+
+_HTML_ENTITY_RE = re.compile(r"&[a-zA-Z]+;|&#\d+;")
+_MAX_ENTITY_DECODE_PASSES = 5
+
+
+def decode_html_entities(value: Optional[str]) -> Optional[str]:
+    """Decode semicolon-terminated HTML entities such as ``&#39;`` or ``&amp;``.
+
+    Instrument names ingested from an HTML source (see #7216) can carry
+    entities like ``&#39;`` that were never decoded. Only entities matched by
+    ``_HTML_ENTITY_RE`` -- i.e. ones ending in ``;`` -- are ever touched:
+    unlike a bare ``html.unescape()`` call, this never decodes a legacy
+    semicolon-less entity (``&copy``, ``&reg``, ``&times`` ...), so it cannot
+    silently mangle a real name that happens to contain one of those letter
+    sequences. A bare ``&`` that is not part of a recognised entity (e.g.
+    "B&M European Value Retail SA") is always left untouched.
+
+    Decoding loops to a fixed point, bounded by ``_MAX_ENTITY_DECODE_PASSES``,
+    so a double- or triple-encoded value (``&amp;amp;`` -> ``&amp;`` ->
+    ``&``) is fully resolved in one call. That also makes this genuinely
+    idempotent: once a value is fully decoded there are no more matches left,
+    so calling this again on the result is a true no-op.
+    """
+    if not isinstance(value, str) or not value:
+        return value
+    decoded = value
+    for _ in range(_MAX_ENTITY_DECODE_PASSES):
+        next_decoded = _HTML_ENTITY_RE.sub(lambda m: html.unescape(m.group(0)), decoded)
+        if next_decoded == decoded:
+            break
+        decoded = next_decoded
+    return decoded
+
+
+def has_undecoded_html_entities(value: Optional[str]) -> bool:
+    """Defensive guard for #7216.
+
+    True if ``value`` still matches a raw, semicolon-terminated HTML entity
+    pattern after decoding -- e.g. a record that reached this path without
+    going through ``save_instrument_meta``/ingest (a stale S3-synced file, or
+    a tool that bypasses this module), or one nested deeper than
+    ``_MAX_ENTITY_DECODE_PASSES`` resolves.
+    """
+    return isinstance(value, str) and bool(_HTML_ENTITY_RE.search(value))
+
+
+def _decode_metadata_name(data: Dict[str, Any], *, source: str) -> Dict[str, Any]:
+    """Return ``data`` with its ``name`` field HTML-entity-decoded.
+
+    Shared by the write path (``save_instrument_meta``) and every read path
+    (``get_instrument_meta``, ``list_instruments``) so ingest-time and
+    defensive-read decoding can never drift apart, and the guard warning
+    fires the same way regardless of which path a bad record reaches this
+    from. See #7216.
+    """
+    name = data.get("name") if isinstance(data, dict) else None
+    if not isinstance(name, str):
+        return data
+    decoded = decode_html_entities(name)
+    if has_undecoded_html_entities(decoded):
+        logger.warning(
+            "Instrument name from %s still contains an HTML entity after decoding: %s",
+            sanitise_log_value(source),
+            sanitise_log_value(decoded),
+        )
+    if decoded != name:
+        data = dict(data)
+        data["name"] = decoded
+    return data
 
 
 def _resolve_instruments_dir() -> Path:
@@ -179,7 +250,7 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
         key = _instrument_key(ticker, prefix)
         try:
             obj = _s3_client().get_object(Bucket=bucket, Key=key)
-            return json.loads(obj["Body"].read())
+            return _decode_metadata_name(json.loads(obj["Body"].read()), source=f"s3://{bucket}/{key}")
         except Exception as exc:
             logger.warning(
                 "S3 load failed for %s/%s: %s; falling back to local file",
@@ -190,7 +261,7 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
     try:
         path = _instrument_path(ticker)
         with path.open("r", encoding="utf-8") as f:
-            return json.load(f)
+            return _decode_metadata_name(json.load(f), source=str(path))
     except FileNotFoundError:
         # Do not fall back to a live Yahoo Finance lookup here: this is the
         # normal read path (portfolio/report rendering, etc.) and every
@@ -244,6 +315,11 @@ def save_instrument_meta(
     else:
         if not isinstance(data, dict):
             raise TypeError("data must be a dict")
+
+    # Decode HTML entities in the name at ingest time so it is persisted as
+    # plain text; get_instrument_meta's read-side decode is a defensive
+    # backstop, not a substitute for storing clean data. #7216
+    data = _decode_metadata_name(data, source=f"save_instrument_meta:{ticker}.{exchange}")
 
     path = instrument_meta_path(ticker, exchange)  # type: ignore[arg-type]
     try:
@@ -608,6 +684,7 @@ def list_instruments() -> List[Dict[str, Any]]:
         try:
             with p.open("r", encoding="utf-8") as f:
                 data = json.load(f)
+                data = _decode_metadata_name(data, source=str(p))
             for field in ("asset_class", "industry", "region", "grouping"):
                 data.setdefault(field, None)
             instruments.append(data)

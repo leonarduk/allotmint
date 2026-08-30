@@ -28,6 +28,7 @@ from backend.common.account_scaffold import load_transactions
 from backend.common.data_loader import DATA_BUCKET_ENV
 from backend.common.holding_utils import _get_price_for_date_scaled
 from backend.common.instruments import (
+    decode_html_entities,
     get_instrument_meta,
     instrument_meta_path,
     resolve_instrument_ticker,
@@ -464,9 +465,16 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                 if not tkr:
                     continue
                 file_meta = _meta_from_file(tkr) or {}
+                # The raw holding's own "name" (from account-holdings JSON) wins
+                # over the instrument-file name below, and can itself be sourced
+                # from an HTML export/scrape -- exactly the #7216 scenario. Decode
+                # it here too so a bad holding name doesn't reach top_movers/
+                # /opportunities untouched just because it has no instrument-file
+                # override.
+                holding_name = decode_html_entities(h.get("name"))
                 securities[tkr] = {
                     "ticker": tkr,
-                    "name": h.get("name") or file_meta.get("name", tkr),
+                    "name": holding_name or file_meta.get("name", tkr),
                     "exchange": h.get("exchange"),
                     "isin": h.get("isin"),
                     "sector": h.get("sector") or file_meta.get("sector"),
@@ -1018,6 +1026,7 @@ def compute_owner_performance(
     include_cash: bool = True,
     *,
     pricing_date: date | None = None,
+    group: bool = False,
 ) -> Dict[str, Any]:
     """Return daily portfolio values and returns for an ``owner``.
 
@@ -1039,11 +1048,18 @@ def compute_owner_performance(
 
     Returns ``{"history": [], "max_drawdown": None}`` if the owner or
     timeseries data is missing.
+
+    Set ``group=True`` to treat ``owner`` as a group slug (see
+    ``backend.common.group_portfolio``) and aggregate holdings across every
+    member of that group instead of a single owner's holdings.
     """
 
     calc = PricingDateCalculator(reporting_date=pricing_date)
     try:
-        pf = portfolio_mod.build_owner_portfolio(owner, pricing_date=calc.reporting_date)
+        if group:
+            pf = group_portfolio.build_group_portfolio(owner, pricing_date=calc.reporting_date)
+        else:
+            pf = portfolio_mod.build_owner_portfolio(owner, pricing_date=calc.reporting_date)
     except FileNotFoundError:
         raise
 
@@ -1669,22 +1685,73 @@ _CASH_FLOW_SIGNS = {
 _MAX_PRICE_GAP_FILL_DAYS = 5
 
 
+def _group_transactions(slug: str) -> tuple[List[Dict[str, Any]], List[str]]:
+    """Merge transactions across every member of group ``slug``.
+
+    Returns ``(transactions, missing_members)``. A member whose account
+    directory does not exist yet is skipped rather than treated as a hard
+    error -- but unlike holdings (where a missing owner simply contributes
+    nothing to the merged portfolio), skipping a member's cash flows here
+    while their holdings still flow into the combined value series via
+    ``group_portfolio.build_group_portfolio`` would inflate TWR/XIRR: the
+    terminal value would include assets the caller can't explain by any
+    recorded contribution. Callers MUST surface ``missing_members`` to the
+    user (see the ``/performance-group`` routes) rather than silently
+    returning a number that looks precise but isn't (#7228 review).
+    """
+    merged: List[Dict[str, Any]] = []
+    missing: List[str] = []
+    for member in group_portfolio.group_members(slug):
+        try:
+            merged.extend(load_transactions(member))
+        except FileNotFoundError:
+            missing.append(member)
+            logger.warning(
+                "Group %s: no transaction ledger for member %s -- their holdings "
+                "still count toward the combined value series, so TWR/XIRR for "
+                "this group is understated in contributions and will read high.",
+                sanitise_log_value(slug),
+                sanitise_log_value(member),
+            )
+    return merged, missing
+
+
 def compute_time_weighted_return(
     owner: str,
     days: int = 365,
     *,
     pricing_date: date | None = None,
-) -> float | None:
-    """Compute time-weighted return for ``owner`` over ``days``."""
+    group: bool = False,
+    include_missing_members: bool = False,
+) -> float | None | tuple[float | None, List[str]]:
+    """Compute time-weighted return for ``owner`` over ``days``.
 
-    total = _portfolio_value_series(owner, days, pricing_date=pricing_date)
+    Set ``group=True`` to treat ``owner`` as a group slug and compute the
+    combined time-weighted return across every member's cash flows. Set
+    ``include_missing_members=True`` to get back ``(value, missing_members)``
+    -- the group members whose transaction ledger was missing and therefore
+    excluded from the cash-flow reconstruction, even though their holdings
+    still count toward the value series. A non-empty list means the
+    returned figure is understated in contributions (and so reads high);
+    callers must not present it as exact without surfacing this (#7228).
+    """
+
+    missing_members: List[str] = []
+
+    def _ret(value: float | None):
+        return (value, missing_members) if include_missing_members else value
+
+    total = _portfolio_value_series(owner, days, group=group, pricing_date=pricing_date)
     if total.empty or len(total) < 2:
-        return None
+        return _ret(None)
 
     start = total.index.min()
     end = total.index.max()
 
-    txs = load_transactions(owner)
+    if group:
+        txs, missing_members = _group_transactions(owner)
+    else:
+        txs = load_transactions(owner)
     flows: defaultdict[date, float] = defaultdict(float)
     for t in txs:
         d = _parse_date(t.get("date"))
@@ -1707,20 +1774,42 @@ def compute_time_weighted_return(
             twr *= 1.0 + r
         prev_val = val
 
-    return float(twr - 1.0)
+    return _ret(float(twr - 1.0))
 
 
-def compute_xirr(owner: str, days: int = 365, *, pricing_date: date | None = None) -> float | None:
-    """Compute XIRR for ``owner`` over ``days`` using cash flows."""
+def compute_xirr(
+    owner: str,
+    days: int = 365,
+    *,
+    pricing_date: date | None = None,
+    group: bool = False,
+    include_missing_members: bool = False,
+) -> float | None | tuple[float | None, List[str]]:
+    """Compute XIRR for ``owner`` over ``days`` using cash flows.
 
-    total = _portfolio_value_series(owner, days, pricing_date=pricing_date)
+    Set ``group=True`` to treat ``owner`` as a group slug and compute the
+    combined XIRR across every member's cash flows. Set
+    ``include_missing_members=True`` to get back ``(value, missing_members)``
+    -- see ``compute_time_weighted_return`` for why a non-empty list means
+    the returned figure is unreliable (#7228).
+    """
+
+    missing_members: List[str] = []
+
+    def _ret(value: float | None):
+        return (value, missing_members) if include_missing_members else value
+
+    total = _portfolio_value_series(owner, days, group=group, pricing_date=pricing_date)
     if total.empty:
-        return None
+        return _ret(None)
 
     start = total.index.min()
     end = total.index.max()
 
-    txs = load_transactions(owner)
+    if group:
+        txs, missing_members = _group_transactions(owner)
+    else:
+        txs = load_transactions(owner)
     flows: list[tuple[date, float]] = []
     for t in txs:
         d = _parse_date(t.get("date"))
@@ -1737,7 +1826,7 @@ def compute_xirr(owner: str, days: int = 365, *, pricing_date: date | None = Non
 
     flows.append((end, float(total.iloc[-1])))
     if len(flows) < 2:
-        return None
+        return _ret(None)
 
     flows.sort(key=lambda x: x[0])
     start = flows[0][0]
@@ -1751,7 +1840,7 @@ def compute_xirr(owner: str, days: int = 365, *, pricing_date: date | None = Non
         try:
             f = float(xnpv(rate))
         except (OverflowError, ValueError, TypeError):
-            return None
+            return _ret(None)
         if abs(f) < 1e-6:
             converged = True
             break
@@ -1763,12 +1852,12 @@ def compute_xirr(owner: str, days: int = 365, *, pricing_date: date | None = Non
                 )
             )
         except (OverflowError, ValueError, TypeError):
-            return None
+            return _ret(None)
         if df == 0 or not math.isfinite(df):
-            return None
+            return _ret(None)
         rate_new = rate - f / df
         if not math.isfinite(rate_new) or rate_new <= -1:
-            return None
+            return _ret(None)
         if abs(rate_new - rate) < 1e-7:
             rate = rate_new
             converged = True
@@ -1776,8 +1865,8 @@ def compute_xirr(owner: str, days: int = 365, *, pricing_date: date | None = Non
         rate = rate_new
 
     if not converged or not math.isfinite(rate):
-        return None
-    return float(rate)
+        return _ret(None)
+    return _ret(float(rate))
 
 
 def compute_cagr(owner: str, days: int = 365) -> float | None:

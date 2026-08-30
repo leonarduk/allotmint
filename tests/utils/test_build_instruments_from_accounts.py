@@ -4,6 +4,7 @@ import pytest
 
 from backend.utils.build_instruments_from_accounts import (
     best_name,
+    decode_name,
     infer_currency,
     split_ticker,
 )
@@ -46,6 +47,25 @@ def test_best_name(a, b, expected):
 )
 def test_infer_currency(sym, exch, scaling, expected):
     assert infer_currency(sym, exch, scaling) == expected
+
+
+def test_decode_name_decodes_html_entities():
+    """#7216: a name sourced from an HTML export/scrape may carry raw
+    entities like &#39; that must be decoded before storage."""
+    assert (
+        decode_name("United Parcel Service Class &#39;B&#39; Com Stock US$0.01 (CDI) *R")
+        == "United Parcel Service Class 'B' Com Stock US$0.01 (CDI) *R"
+    )
+
+
+def test_decode_name_leaves_legitimate_ampersand_untouched():
+    name = "B&M European Value Retail SA"
+    assert decode_name(name) == name
+
+
+def test_decode_name_is_idempotent():
+    clean = "United Parcel Service Class 'B' Com Stock"
+    assert decode_name(decode_name(clean)) == clean
 
 
 def test_build_and_write_instruments(monkeypatch, tmp_path):

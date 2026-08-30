@@ -120,6 +120,20 @@ def list_groups() -> List[Dict[str, Any]]:
     return groups
 
 
+def group_members(slug: str) -> List[str]:
+    """Return the member owner slugs for group ``slug``.
+
+    Raises ``ValueError`` if ``slug`` does not match a known group -- the
+    same failure mode :func:`build_group_portfolio` uses for an unknown
+    slug, so callers can treat the two interchangeably.
+    """
+    groups = {g["slug"]: g for g in list_groups()}
+    grp = groups.get(slug)
+    if not grp:
+        raise ValueError(f"Unknown group slug: {slug!r}")
+    return list(grp.get("members", []))
+
+
 # ───────────────────────── core builder ─────────────────────────
 def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dict[str, Any]:
     groups = {g["slug"]: g for g in list_groups()}

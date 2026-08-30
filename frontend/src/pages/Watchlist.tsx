@@ -1,23 +1,62 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { getQuotes } from "../api";
 import type { QuoteRow } from "../types";
 
 const DEFAULT_SYMBOLS =
   "^FTSE,^NDX,^GSPC,^RUT,^NYA,^VIX,^GDAXI,^N225,USDGBP=X,EURGBP=X,BTC-USD,GC=F,SI=F,VUSA.L,IWDA.AS";
 
-function formatPrice(symbol: string, val: number | null): string {
-  if (val == null) return "—";
-  if (symbol.endsWith("=X")) return val.toFixed(5);
-  if (symbol === "^TNX") return val.toFixed(3);
-  if (symbol.includes("-USD") && val < 1) return val.toFixed(5);
-  if (val > 10000) return val.toFixed(0);
-  return val.toFixed(2);
+// Decimal precision for a price-like value. This used to be duplicated
+// between formatValue and formatChange with two different rule sets --
+// formatChange was hardcoded to toFixed(2), so an EURGBP=X move that
+// formatValue correctly rendered to 5 decimal places (0.85721) showed up as
+// "+0.00" in the Chg column even though Chg % reported it correctly. Both
+// formatters now call this single function so the rules can't drift apart
+// again (#7218).
+//
+// `val` is the value actually being formatted (Last/Open/High/Low, or the
+// day's Change) and drives the ">10000" 0dp rule, exactly as before.
+// `refPrice` is the instrument's own price level and is used *only* for the
+// sub-$1-crypto check: a day's Change can be small, negative or zero
+// regardless of whether the instrument itself trades under $1, so that one
+// decision can't be made from `val` alone the way ">10000" can. It defaults
+// to `val` so formatValue's behaviour (call site passes no third argument)
+// is completely unchanged.
+function pricePrecision(
+  symbol: string,
+  val: number,
+  refPrice: number = val,
+): number {
+  if (symbol.endsWith("=X")) return 5;
+  if (symbol === "^TNX") return 3;
+  // Math.abs(refPrice), not "val < 1": a *sign* on the value being
+  // formatted shouldn't change decimal precision, and using the change's
+  // own (possibly negative, possibly large) value here was a regression
+  // caught in review -- every negative crypto change is "< 1" under the
+  // literal comparison, so BTC-USD's "-124" change rendered as "-124.00000"
+  // (5dp) while a "+124" change rendered "+124.00" (2dp), same symbol and
+  // column. Keying off the instrument's Last price instead fixes that while
+  // leaving the ">10000" rule keyed off `val` itself, since that rule is
+  // about the value being displayed, not the instrument's price level
+  // (#7218).
+  if (symbol.includes("-USD") && Math.abs(refPrice) < 1) return 5;
+  if (val > 10000) return 0;
+  return 2;
 }
 
-function formatChange(val: number | null): string {
+function formatValue(symbol: string, val: number | null): string {
   if (val == null) return "—";
-  const num = val.toFixed(2);
+  return val.toFixed(pricePrecision(symbol, val));
+}
+
+function formatChange(
+  symbol: string,
+  val: number | null,
+  refPrice: number | null,
+): string {
+  if (val == null) return "—";
+  const num = val.toFixed(pricePrecision(symbol, val, refPrice ?? val));
   return val > 0 ? `+${num}` : num;
 }
 
@@ -27,14 +66,88 @@ function formatPct(val: number | null): string {
   return (val > 0 ? "+" : "") + num + "%";
 }
 
-function formatVol(val: number | null): string {
+// ^-prefixed indices (^FTSE, ^VIX, ...) and =X FX rate pairs don't have a
+// meaningful traded volume, but the feed reports literal 0 for them rather
+// than null. Rendered as "0" that reads as "nothing traded today", which is
+// false -- treat it as unavailable instead. A genuine 0 volume on an equity
+// or ETF row is left alone: we have no way to distinguish "no trades yet
+// today" from "not applicable" there, so we only special-case the symbol
+// shapes that structurally never report volume (#7218).
+function isVolumelessSymbolType(symbol: string): boolean {
+  return symbol.startsWith("^") || symbol.endsWith("=X");
+}
+
+function formatVol(symbol: string, val: number | null): string {
   if (val == null) return "—";
+  if (val === 0 && isVolumelessSymbolType(symbol)) return "—";
   return val.toLocaleString("en-GB");
 }
 
 function formatTime(val: string | null): string {
   if (!val) return "—";
   return new Date(val).toLocaleString("en-GB", { timeZone: "Europe/London" });
+}
+
+// CBOE Treasury-yield indices: their "price" is a yield in percent, not a
+// currency amount or a raw index-points level.
+const YIELD_INDEX_SYMBOLS = new Set(["^TNX", "^TYX", "^FVX", "^IRX"]);
+
+// Fallback used only when the quote payload doesn't carry a currency
+// (see symbolUnit below). Deliberately a small, explicit table rather than
+// an exhaustive exchange-suffix list, and deliberately *not* a confident
+// guess for anything it doesn't recognise: mislabelling a real currency is
+// worse than admitting we don't know, since the whole point of this column
+// is telling a beginner what's real (#7218). In particular this table does
+// NOT assume every ".L"/".DE"/".SW" listing uses that market's home
+// currency -- LSE, Xetra and SIX all list plenty of USD- and
+// EUR-denominated lines too, which is exactly why the live `currency` field
+// (added to backend/routes/quotes.py) is preferred whenever it's present.
+function symbolUnitFallback(symbol: string): string {
+  if (symbol.endsWith("=X")) {
+    // FX rate, e.g. EURGBP=X -> "EUR/GBP": a ratio, not a currency amount.
+    const pair = symbol.slice(0, -2);
+    return pair.length === 6 ? `${pair.slice(0, 3)}/${pair.slice(3)}` : "rate";
+  }
+  if (YIELD_INDEX_SYMBOLS.has(symbol)) return "%";
+  if (symbol.startsWith("^")) return "pts"; // index points
+  if (symbol.includes("-USD")) return "USD"; // crypto pairs, e.g. BTC-USD
+  if (symbol.endsWith("=F")) return "USD"; // commodity futures, e.g. GC=F
+  // Below this point we're guessing at an exchange's *typical* currency,
+  // not reading it off the symbol the way the cases above do -- kept only
+  // as a best-effort label for the common default-watchlist exchanges.
+  if (symbol.endsWith(".L")) return "GBp"; // most LSE main-market listings
+  if (
+    symbol.endsWith(".AS") ||
+    symbol.endsWith(".PA") ||
+    symbol.endsWith(".MI")
+  )
+    return "EUR";
+  return "—"; // unknown -- do not guess (#7218)
+}
+
+// Prefer the currency the quote payload actually reports; only fall back to
+// guessing from the symbol shape when the feed didn't send one (#7218).
+function symbolUnit(symbol: string, currency: string | null | undefined): string {
+  if (currency) return currency;
+  return symbolUnitFallback(symbol);
+}
+
+// Row links go to /research/:ticker (InstrumentResearch), NOT
+// /instrument/:group -- that second route is the instrument *catalogue
+// editor* filtered by group slug (routes/registry.ts, InstrumentTable.tsx)
+// and would treat a ticker like "VUSA.L" as an unknown group, firing a
+// pointless getGroupInstruments("VUSA.L") call and showing an empty/error
+// catalogue instead of the research page. Confirmed via routes/registry.ts
+// (mode: 'research', routeSegment: 'research') and App.tsx's route for
+// InstrumentResearch (#7218).
+const INSTRUMENT_ROUTE_PREFIX = "/research/";
+
+// InstrumentResearch only accepts tickers matching this shape -- indices
+// (^FTSE) and FX pairs (EURGBP=X) fail it and have no research page. Reuse
+// the same rule here so a watchlist row only links through when the symbol
+// actually resolves to a known instrument (#7218).
+function isLinkableSymbol(symbol: string): boolean {
+  return /^[A-Za-z0-9.-]{1,10}$/.test(symbol);
 }
 
 export function Watchlist() {
@@ -246,23 +359,37 @@ export function Watchlist() {
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              {[
-                { k: "name", l: "Name" },
-                { k: "symbol", l: "Symbol" },
-                { k: "last", l: "Last" },
-                { k: "open", l: "Open" },
-                { k: "high", l: "High" },
-                { k: "low", l: "Low" },
-                { k: "change", l: "Chg" },
-                { k: "changePct", l: "Chg %" },
-                { k: "volume", l: "Vol" },
-                { k: "marketTime", l: "Time", minWidth: 88 },
-              ].map((c) => (
+              {([
+                { k: "name", l: t("watchlist.columnName", { defaultValue: "Name" }) },
+                { k: "symbol", l: t("watchlist.columnSymbol", { defaultValue: "Symbol" }) },
+                // Not a sortable QuoteRow field -- it's derived per-row from
+                // the symbol (#7218) -- so it isn't given a sort key below.
+                { k: "unit", l: t("watchlist.columnUnit", { defaultValue: "Unit" }), unsortable: true },
+                { k: "last", l: t("watchlist.columnLast", { defaultValue: "Last" }) },
+                { k: "open", l: t("watchlist.columnOpen", { defaultValue: "Open" }) },
+                { k: "high", l: t("watchlist.columnHigh", { defaultValue: "High" }) },
+                { k: "low", l: t("watchlist.columnLow", { defaultValue: "Low" }) },
+                { k: "change", l: t("watchlist.columnChange", { defaultValue: "Chg" }) },
+                { k: "changePct", l: t("watchlist.columnChangePct", { defaultValue: "Chg %" }) },
+                { k: "volume", l: t("watchlist.columnVolume", { defaultValue: "Vol" }) },
+                {
+                  k: "marketTime",
+                  l: t("watchlist.columnTime", { defaultValue: "Time (Europe/London)" }),
+                  minWidth: 88,
+                },
+              ] satisfies {
+                k: keyof QuoteRow | "unit";
+                l: string;
+                minWidth?: number;
+                unsortable?: boolean;
+              }[]).map((c) => (
                 <th
                   key={c.k}
-                  onClick={() => toggleSort(c.k as keyof QuoteRow)}
+                  onClick={
+                    c.unsortable ? undefined : () => toggleSort(c.k as keyof QuoteRow)
+                  }
                   style={{
-                    cursor: "pointer",
+                    cursor: c.unsortable ? "default" : "pointer",
                     textAlign: c.k === "name" || c.k === "symbol" ? "left" : "right",
                     borderBottom: "1px solid #ccc",
                     padding: "4px 6px",
@@ -284,32 +411,68 @@ export function Watchlist() {
                     ? `rgba(0,128,0,${Math.min(Math.abs(r.changePct) / 5, 0.5)})`
                     : `rgba(255,0,0,${Math.min(Math.abs(r.changePct) / 5, 0.5)})`
                   : undefined;
+              const linkable = isLinkableSymbol(r.symbol);
+              // The instrument-page link and the row's own hover title both
+              // want the full instrument name; keeping the anchor's text
+              // untruncated (with only the surrounding <td> clipped by CSS)
+              // means the browser's own tooltip and screen readers still see
+              // the whole thing even where our title attribute doesn't apply
+              // (#7218).
+              const nameCell = (
+                <span title={r.name || undefined}>{r.name || "—"}</span>
+              );
               return (
                 <tr key={r.symbol}>
                   <td
-                    title={r.name || undefined}
                     style={{
-                      maxWidth: 160,
+                      // Widened from 160 -- with the full name now shown via
+                      // title (#7218), a bit more room means fewer of the
+                      // very common ETF names need the ellipsis at all. The
+                      // backend now prefers yfinance's longName over its
+                      // (frequently truncated) shortName, so what remains
+                      // clipped here is genuinely a CSS ellipsis, not a data
+                      // truncation.
+                      maxWidth: 220,
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
                       padding: "4px 6px",
                     }}
                   >
-                    {r.name || "—"}
+                    {linkable ? (
+                      <Link
+                        to={`${INSTRUMENT_ROUTE_PREFIX}${r.symbol}`}
+                        title={r.name || undefined}
+                      >
+                        {r.name || "—"}
+                      </Link>
+                    ) : (
+                      nameCell
+                    )}
                   </td>
-                  <td style={{ padding: "4px 6px" }}>{r.symbol}</td>
-                  <td style={{ textAlign: "right", padding: "4px 6px" }}>
-                    {formatPrice(r.symbol, r.last)}
+                  <td style={{ padding: "4px 6px" }}>
+                    {linkable ? (
+                      <Link to={`${INSTRUMENT_ROUTE_PREFIX}${r.symbol}`}>
+                        {r.symbol}
+                      </Link>
+                    ) : (
+                      r.symbol
+                    )}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
-                    {formatPrice(r.symbol, r.open)}
+                    {symbolUnit(r.symbol, r.currency)}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
-                    {formatPrice(r.symbol, r.high)}
+                    {formatValue(r.symbol, r.last)}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
-                    {formatPrice(r.symbol, r.low)}
+                    {formatValue(r.symbol, r.open)}
+                  </td>
+                  <td style={{ textAlign: "right", padding: "4px 6px" }}>
+                    {formatValue(r.symbol, r.high)}
+                  </td>
+                  <td style={{ textAlign: "right", padding: "4px 6px" }}>
+                    {formatValue(r.symbol, r.low)}
                   </td>
                   <td
                     style={{
@@ -318,7 +481,7 @@ export function Watchlist() {
                       padding: "4px 6px",
                     }}
                   >
-                    {formatChange(r.change)}
+                    {formatChange(r.symbol, r.change, r.last)}
                   </td>
                   <td
                     style={{
@@ -331,7 +494,7 @@ export function Watchlist() {
                     {formatPct(r.changePct)}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
-                    {formatVol(r.volume)}
+                    {formatVol(r.symbol, r.volume)}
                   </td>
                   <td style={{ minWidth: 88, padding: "4px 6px" }}>{formatTime(r.marketTime)}</td>
                 </tr>

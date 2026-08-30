@@ -62,8 +62,8 @@ backend/common/signup_requests.py:373
 # len(adjustments) is always an int (a count of synthetic transactions just
 # built in this function) and can't carry attacker-controlled string content.
 backend/common/transaction_reconciliation.py:180
-backend/config.py:597
-backend/config.py:600
+backend/config.py:599
+backend/config.py:602
 # len(lines)/len(data) are always ints (row counts produced by the CSV
 # parser in this function) and can't carry attacker-controlled string content.
 backend/importers/hargreaves.py:139

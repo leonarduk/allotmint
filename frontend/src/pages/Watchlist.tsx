@@ -127,7 +127,16 @@ function symbolUnitFallback(symbol: string): string {
 
 // Prefer the currency the quote payload actually reports; only fall back to
 // guessing from the symbol shape when the feed didn't send one (#7218).
-function symbolUnit(symbol: string, currency: string | null | undefined): string {
+// `quoteType` (from the provider, see backend/routes/quotes.py) takes
+// priority over a reported currency for indices: an index level is a points
+// figure, not a currency amount, even when the feed also sends a currency
+// code alongside it (#7232).
+function symbolUnit(
+  symbol: string,
+  currency: string | null | undefined,
+  quoteType?: string | null,
+): string {
+  if (quoteType === "INDEX") return "pts";
   if (currency) return currency;
   return symbolUnitFallback(symbol);
 }
@@ -425,17 +434,16 @@ export function Watchlist() {
                 <tr key={r.symbol}>
                   <td
                     style={{
-                      // Widened from 160 -- with the full name now shown via
-                      // title (#7218), a bit more room means fewer of the
-                      // very common ETF names need the ellipsis at all. The
-                      // backend now prefers yfinance's longName over its
-                      // (frequently truncated) shortName, so what remains
-                      // clipped here is genuinely a CSS ellipsis, not a data
-                      // truncation.
+                      // The backend now prefers yfinance's longName over its
+                      // hard-truncated (31-char) shortName (#7218/#7232), so
+                      // the name reaching here is already the real, full
+                      // instrument name -- an ellipsis/nowrap clip would just
+                      // re-introduce the truncation at the CSS layer instead
+                      // of the data layer. Wrap it instead so the full name
+                      // stays visible.
                       maxWidth: 220,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
+                      whiteSpace: "normal",
+                      wordBreak: "break-word",
                       padding: "4px 6px",
                     }}
                   >
@@ -460,7 +468,7 @@ export function Watchlist() {
                     )}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
-                    {symbolUnit(r.symbol, r.currency)}
+                    {symbolUnit(r.symbol, r.currency, r.quoteType)}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
                     {formatValue(r.symbol, r.last)}

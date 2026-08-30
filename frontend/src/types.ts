@@ -486,6 +486,8 @@ export interface QuoteRow {
   marketState: string;
   /** ISO currency code from the quote provider, when available (#7218). */
   currency?: string | null;
+  /** Provider instrument classification, e.g. "INDEX", "EQUITY", "ETF". */
+  quoteType?: string | null;
 }
 
 export interface MoverRow {

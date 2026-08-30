@@ -30,7 +30,7 @@
       "disable": "Push-Alerts deaktivieren",
       "enable": "Push-Alerts aktivieren",
       "error": "Fehler bei der Verarbeitung der Push-Anmeldung.",
-      "notSupported": "Push wird nicht unterstützt",
+      "notSupported": "Push-Benachrichtigungen sind in dieser Umgebung noch nicht verfügbar — sieh stattdessen oben auf der Alarmseite nach.",
       "title": "Push-Benachrichtigungen"
     },
     "save": "Speichern",
@@ -77,6 +77,7 @@
       "dataexplorer": "Datei-Explorer",
       "dataquality": "Datenqualität",
       "group": "Gruppe",
+      "help": "Hilfe",
       "instrument": "Instrument",
       "instrumentadmin": "Instrumentverwaltung",
       "market": "Marktübersicht",
@@ -100,6 +101,7 @@
       "transactions": "Transaktionen",
       "watchlist": "Beobachtungsliste"
     },
+    "operationsLink": "Betrieb",
     "refreshing": "Aktualisierung…",
     "refreshPrices": "Preise aktualisieren",
     "relativeView": "Relative Ansicht",
@@ -269,6 +271,7 @@
       "units": "Einheiten"
     },
     "edit": "Bearbeiten",
+    "fundamentalsUnavailable": "Fundamentaldaten sind in diesem Deployment nicht verfügbar.",
     "intraday": "Intraday",
     "intradayUnavailable": "Keine Intraday-Daten",
     "ma20": "20d MA",
@@ -534,6 +537,8 @@
     "downloadsDisabled": "Wählen Sie einen Eigentümer und eine Vorlage, um Downloads zu aktivieren."
   },
   "screener": {
+    "checking": "Prüfe Verfügbarkeit des Screeners…",
+    "description": "Filtern Sie eine Watchlist oder eine eigene Tickerliste nach Bewertungs-, Rentabilitäts- und Risikokennzahlen (KGV, Verschuldung, Margen, Renditen u.a.), um Unternehmen für eine genauere Prüfung vorzuselektieren.",
     "loading": "Laden…",
     "max52WeekHigh": "Max 52W High",
     "max52WeekLow": "Max 52W Low",
@@ -563,6 +568,8 @@
     "minSharesOutstanding": "Min Shares Outstanding",
     "run": "Ausführen",
     "tickers": "Ticker",
+    "title": "Screener",
+    "unavailableBody": "Dieses Deployment enthält den Fundamentaldaten-Screener nicht, daher ist eine Filterung nach Finanzkennzahlen hier nicht möglich.",
     "watchlist": "Beobachtungsliste:"
   },
   "support": {

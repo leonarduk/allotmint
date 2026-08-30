@@ -113,6 +113,10 @@ const defaultTabs: TabsConfig = {
   scenario: true,
   dataquality: true,
   plot: true,
+  // Not a named TabsConfig property (falls back to the string index
+  // signature) so existing config fixtures that omit it don't need updating;
+  // it just needs to default to enabled like every other user-facing tab.
+  help: true,
 };
 
 export interface ConfigContextValue extends AppConfig {

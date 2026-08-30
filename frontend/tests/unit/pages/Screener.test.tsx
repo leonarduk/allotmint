@@ -1,13 +1,92 @@
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Screener } from "@/pages/Screener";
 import * as api from "@/api";
 
 vi.mock("@/api");
 
 const mockGetScreener = vi.mocked(api.getScreener);
+const mockCheckScreenerAvailable = vi.mocked(api.checkScreenerAvailable);
 
 describe("Screener", () => {
+  beforeEach(() => {
+    // Default every test to an available screener unless a test overrides
+    // this -- the gate probe (#7221) must not affect existing form-render
+    // and submit tests.
+    mockCheckScreenerAvailable.mockResolvedValue(true);
+  });
+
+  it("renders a page heading and description before the form", () => {
+    render(<Screener />);
+
+    expect(
+      screen.getByRole("heading", { name: /screener/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/filter a watchlist or a custom list of tickers/i),
+    ).toBeInTheDocument();
+  });
+
+  it("does not render the interactive form while the gate check is still in flight (#7221)", () => {
+    // A probe that never resolves during this test -- simulates the
+    // in-flight window between mount and the gate check settling.
+    mockCheckScreenerAvailable.mockReturnValue(new Promise(() => {}));
+
+    render(<Screener />);
+
+    // Success bullet 2: unavailability (or, here, "don't know yet") must be
+    // stated before any input is requested -- the 24-filter form must not
+    // flash on screen, fully interactive, before the probe settles.
+    expect(screen.queryByLabelText(/Tickers/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/checking screener availability/i),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the filter form and shows an honest message when the screener is gated (#7221)", async () => {
+    mockCheckScreenerAvailable.mockResolvedValue(false);
+
+    render(<Screener />);
+
+    expect(
+      await screen.findByText(/doesn't include the fundamentals screener/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Tickers/i)).not.toBeInTheDocument();
+    // The gate copy must never leak the internal package name or repo URL.
+    expect(screen.queryByText(/allotmint-pro/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("github.com", { exact: false })).not.toBeInTheDocument();
+  });
+
+  it("renders the form once the gate check resolves available", async () => {
+    render(<Screener />);
+
+    expect(await screen.findByLabelText(/Tickers/i)).toBeInTheDocument();
+  });
+
+  it("sanitizes a 402 raised mid-submit instead of showing the raw backend detail", async () => {
+    mockGetScreener.mockRejectedValueOnce(
+      Object.assign(
+        new Error(
+          "Screener is not available: This feature requires the allotmint-pro package, which is not installed in this deployment. See https://github.com/leonarduk/allotmint-pro for upgrade options.",
+        ),
+        { status: 402 },
+      ),
+    );
+
+    render(<Screener />);
+
+    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
+      target: { value: "AAA" },
+    });
+    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
+
+    expect(
+      await screen.findByText(/doesn't include the fundamentals screener/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/allotmint-pro/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("github.com", { exact: false })).not.toBeInTheDocument();
+  });
+
   it("renders new ratio columns", async () => {
     mockGetScreener.mockResolvedValueOnce([
       {
@@ -44,7 +123,9 @@ describe("Screener", () => {
 
     render(<Screener />);
 
-    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "AAA" } });
+    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
+      target: { value: "AAA" },
+    });
     fireEvent.change(screen.getByLabelText(/Max LT D\/E/i), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText(/Min Interest Coverage/i), { target: { value: "5" } });
     fireEvent.change(screen.getByLabelText(/Min Current Ratio/i), { target: { value: "1" } });
@@ -109,7 +190,9 @@ describe("Screener", () => {
     ]);
 
     render(<Screener />);
-    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "AAA" } });
+    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
+      target: { value: "AAA" },
+    });
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
 
     const tip = await screen.findByRole("button", { name: "What does PEG mean?" });
@@ -188,7 +271,9 @@ describe("Screener", () => {
     ]);
 
     render(<Screener />);
-    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "CASH" } });
+    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
+      target: { value: "CASH" },
+    });
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
 
     expect(await screen.findAllByText("CASH")).toHaveLength(2);

@@ -15,6 +15,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Query
 
+from backend.common.currency import CurrencyNormaliser
 from backend.common.errors import ProviderFailure
 from backend.utils.lazy_import import lazy_import
 
@@ -55,6 +56,19 @@ async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
         price = info.get("regularMarketPrice")
         if price is None:
             continue
+
+        # Yahoo's "currency" field uses the exact-case token "GBp" for
+        # LSE pence quotes, which is easy to misread as GBP -- a 100x
+        # magnitude error (see #7219). Route it through the repo's single
+        # source of truth for pence detection so it renders as the
+        # visually distinct "GBX" instead, WITHOUT scaling the price
+        # itself (CurrencyNormaliser.canonical only relabels; the raw
+        # `price` above is passed through untouched). Leave currency
+        # unset (None) rather than defaulting to GBP when the provider
+        # gave us nothing at all -- see #7232.
+        raw_currency = info.get("currency")
+        currency = CurrencyNormaliser.from_raw(raw_currency).canonical if raw_currency else None
+
         results.append(
             {
                 "symbol": sym,
@@ -68,11 +82,19 @@ async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
                 "timezone": info.get("exchangeTimezoneName"),
                 "market_state": info.get("marketState"),
                 # longName preferred over shortName: shortName is yfinance's
-                # own abbreviated field (frequently truncated mid-word, e.g.
-                # "iShares Core MSCI World UCITS E") and was being sent to
-                # the frontend as if it were the full name -- #7218.
+                # own abbreviated field (frequently hard-truncated mid-word
+                # at 31 chars, e.g. "iShares Core MSCI World UCITS E" or
+                # "VANGUARD FUNDS PLC VANGUARD S&P") and was being sent to
+                # the frontend as if it were the full name -- #7218/#7232.
+                # longName is missing for some instruments (e.g. GC=F
+                # futures), hence the shortName fallback.
                 "name": info.get("longName") or info.get("shortName"),
-                "currency": info.get("currency"),
+                # Currency/unit the price is quoted in, straight from the
+                # provider -- never inferred from the symbol. "quote_type"
+                # lets the frontend mark index levels as points rather than
+                # a currency (see #7232).
+                "currency": currency,
+                "quote_type": info.get("quoteType"),
             }
         )
 

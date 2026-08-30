@@ -75,6 +75,8 @@ class TabsConfig:
     research: bool = True
     # Plot mode: the optional gamified skin served at /plot in the SPA.
     plot: bool = True
+    # Help page: static end-user help at /help (#7226).
+    help: bool = True
 
 
 @dataclass

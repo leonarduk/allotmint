@@ -538,6 +538,7 @@ export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
     timezone?: string | null;
     market_state?: string | null;
     currency?: string | null;
+    quote_type?: string | null;
   }[]>(`${API_BASE}/api/quotes?${params.toString()}`, { signal })
     .then((rows) =>
       rows.map((r) => {
@@ -564,6 +565,7 @@ export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
             : null,
           marketState: r.market_state ?? "UNKNOWN",
           currency: r.currency ?? null,
+          quoteType: r.quote_type ?? null,
         } as QuoteRow;
       }),
     );
@@ -1094,6 +1096,28 @@ export const getScreener = (
   if (criteria.avg_volume_min != null)
     params.set("avg_volume_min", String(criteria.avg_volume_min));
   return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`, { signal });
+};
+
+/**
+ * Cheap up-front probe for whether the screener is available in this
+ * deployment (i.e. the paid screener package is installed), without running
+ * a real screen. The backend rejects an unavailable screener with HTTP 402
+ * before it even validates the ticker list (see require_core() in
+ * backend/routes/screener.py), so probing with an empty ticker list is
+ * enough to tell the two cases apart: a 402 means the feature is gated,
+ * anything else -- including the 400 "no tickers supplied" the backend
+ * returns when the feature *is* available -- means it can be used. Used to
+ * gate the screener UI before the user fills in any filters (#7221).
+ */
+export const checkScreenerAvailable = async (
+  signal?: AbortSignal,
+): Promise<boolean> => {
+  try {
+    await getScreener([], {}, signal);
+    return true;
+  } catch (e) {
+    return (e as { status?: number } | undefined)?.status !== 402;
+  }
 };
 
 export const searchInstruments = (

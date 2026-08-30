@@ -81,7 +81,7 @@ export default function RightRail({ owner }: RightRailProps) {
         <a href="/api-console" className="text-blue-600 hover:underline">
           API Console
         </a>
-        <a href="/support" className="text-blue-600 hover:underline">
+        <a href="/help" className="text-blue-600 hover:underline">
           Help
         </a>
       </div>

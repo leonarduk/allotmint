@@ -618,6 +618,30 @@ describe("InstrumentResearch page", () => {
     ).toBeInTheDocument();
   });
 
+  it("sanitizes a 402 (screener not available) instead of showing the raw backend detail (#7221)", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockGetScreener.mockRejectedValueOnce(
+      Object.assign(
+        new Error(
+          "Screener is not available: This feature requires the allotmint-pro package, which is not installed in this deployment. See https://github.com/leonarduk/allotmint-pro for upgrade options.",
+        ),
+        { status: 402 },
+      ),
+    );
+
+    renderPage();
+
+    const tab = screen.getByRole("button", { name: /Fundamentals/i });
+    await userEvent.click(tab);
+
+    expect(
+      await screen.findByText(/Fundamentals aren't available in this deployment\./),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/allotmint-pro/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("github.com", { exact: false })).not.toBeInTheDocument();
+    consoleErrorSpy.mockRestore();
+  });
+
   it("renders error messages when requests fail", async () => {
     mockUseInstrumentHistory.mockReturnValue({
       data: null,

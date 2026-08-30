@@ -548,6 +548,18 @@ def _list_local_plots(
     demo_lower = demo_aliases[0].lower() if demo_aliases else "demo"
 
     def _is_authorized(owner: str, meta: Dict[str, Any]) -> bool:
+        # Demo-scoped requests are checked first, independently of
+        # disable_auth: a demo request may see exactly the configured demo
+        # owner and nothing else. This must not fall through to the
+        # disable_auth branch below (which would expose every owner) nor to
+        # the viewers-based checks further down (which read person.json data
+        # a demo token must never widen access via). See #7408.
+        from backend.auth import is_demo_request
+
+        if is_demo_request():
+            demo_owner = config.demo_link_owner
+            return isinstance(demo_owner, str) and owner.strip().lower() == demo_owner.strip().lower()
+
         if config.disable_auth:
             if user is None:
                 return True
@@ -845,6 +857,19 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
         owners.pop(skip_owner, None)
 
     user = current_user.get(None) if hasattr(current_user, "get") else current_user
+
+    # Demo-scoped requests (the deployed AWS Lambda's own /owners path) may
+    # see exactly the configured demo owner and nothing else, checked before
+    # -- and independently of -- the disable_auth/current_user filtering
+    # below. See #7408.
+    from backend.auth import is_demo_request
+
+    if is_demo_request():
+        demo_owner = config.demo_link_owner
+        if not isinstance(demo_owner, str) or demo_owner not in owners:
+            return []
+        return [_build_owner_summary(demo_owner, owners[demo_owner], load_person_meta(demo_owner))]
+
     results: List[Dict[str, Any]] = []
     for owner, accounts in sorted(owners.items()):
         # When authentication is enabled (``disable_auth`` explicitly ``False``)

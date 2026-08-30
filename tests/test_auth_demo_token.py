@@ -1,9 +1,13 @@
-"""Tests for the demo-scoped token helpers (backend/auth.py, #7405).
+"""Tests for the demo-scoped token helpers (backend/auth.py, #7405) and their
+identity-resolution wiring in get_current_user/get_active_user (#7406).
 
-These cover only the mint/verify primitives and the decode_token() hardening
-that keeps a demo token from ever resolving as a normal authenticated user.
-Nothing here exercises get_current_user or any route -- that wiring is out of
-scope for this PR (see #7402 breakdown, steps 3+).
+The first section covers only the mint/verify primitives and the
+decode_token() hardening that keeps a demo token from ever resolving as a
+normal authenticated user. The second section (below) exercises
+get_current_user/get_active_user's demo-token handling: resolving to the
+synthetic demo owner identity, the demo_link_enabled kill switch, the
+owner-claim/config match check, and that the demo_readonly marker is reset
+every request rather than leaking across requests (#7406).
 """
 
 import asyncio

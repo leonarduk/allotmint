@@ -1,5 +1,6 @@
 import json
 
+import backend.auth as auth
 import backend.common.data_loader as dl
 
 
@@ -59,3 +60,25 @@ def test_list_local_plots_authenticated(tmp_path, monkeypatch):
         {"owner": "bob", "accounts": ["gia"]},
     ]
     assert all("full_name" not in entry for entry in owners)
+
+
+def test_list_local_plots_demo_request_sees_only_demo_owner(tmp_path, monkeypatch):
+    """A demo-scoped request must see only config.demo_link_owner, never an
+    enumeration of every owner -- even one whose viewers list happens to
+    include the demo owner id, and even with disable_auth=True (#7408)."""
+
+    alice = tmp_path / "alice"
+    alice.mkdir()
+    (alice / "isa.json").write_text("{}")
+    (alice / "person.json").write_text(json.dumps({"viewers": ["demo-owner"]}))
+
+    demo_owner = tmp_path / "demo-owner"
+    demo_owner.mkdir()
+    (demo_owner / "gia.json").write_text("{}")
+
+    monkeypatch.setattr(dl.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(dl.config, "demo_link_owner", "demo-owner", raising=False)
+    monkeypatch.setattr(auth, "is_demo_request", lambda: True)
+
+    owners = dl._list_local_plots(data_root=tmp_path, current_user=None)
+    assert owners == [{"owner": "demo-owner", "accounts": ["gia"]}]

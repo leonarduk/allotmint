@@ -146,6 +146,7 @@ describe("Screener & Query page", () => {
       },
     ]);
   });
+
   it("runs screener and displays results", async () => {
     getScreener.mockResolvedValue(mockScreenerData);
     renderWithI18n(<ScreenerQuery />);
@@ -351,7 +352,7 @@ describe("Screener & Query page", () => {
     ).toBeInTheDocument();
   });
 
-  it("initializes form from query string", async () => {
+  it("initializes form from query string, including a ticker no longer in the fetched options", async () => {
     window.history.pushState(
       {},
       "",

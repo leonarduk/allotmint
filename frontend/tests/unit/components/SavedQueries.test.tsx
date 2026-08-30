@@ -18,29 +18,14 @@ describe("SavedQueries", () => {
     vi.resetAllMocks();
   });
 
-  // Issue #7202: the backend's `/custom-query/saved` listing surfaces the
-  // developer-seeded `data/queries/demo-slug.json` example indistinguishably
-  // from a real saved query. It should never render in the user-facing list.
-  it("hides the seeded demo-slug example query", async () => {
-    listSavedQueries.mockResolvedValue([
-      {
-        id: "demo-slug",
-        name: "demo-slug",
-        params: { tickers: ["PFE"], metrics: [] },
-      },
-      {
-        id: "real-query",
-        name: "My real query",
-        params: { tickers: ["VOD"], metrics: [] },
-      },
-    ]);
-    const onLoad = vi.fn();
-    render(<SavedQueries onLoad={onLoad} />);
-
-    expect(await screen.findByText("My real query")).toBeInTheDocument();
-    expect(screen.queryByText("demo-slug")).not.toBeInTheDocument();
-  });
-
+  // Issue #7222/#7202: the developer-seeded `data/queries/demo-slug.json`
+  // fixture used to leak into the user-facing "saved queries" list. That's
+  // now fixed server-side — GET /custom-query/saved excludes seeded fixture
+  // slugs before this component ever sees them (see
+  // backend/routes/query.py::list_saved_queries and its regression coverage
+  // in tests/backend/test_custom_query_route.py) — so this component can
+  // trust every entry it receives is a real saved query and doesn't need its
+  // own blocklist.
   it("loads a real saved query's params on click", async () => {
     listSavedQueries.mockResolvedValue([
       {

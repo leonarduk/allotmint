@@ -9,6 +9,10 @@ import {
   getAlphaVsBenchmark,
   getTrackingError,
   getMaxDrawdown,
+  getGroupPerformance,
+  getGroupAlphaVsBenchmark,
+  getGroupTrackingError,
+  getGroupMaxDrawdown,
 } from "@/api";
 
 vi.mock("@/api", () => ({
@@ -16,6 +20,10 @@ vi.mock("@/api", () => ({
   getAlphaVsBenchmark: vi.fn(),
   getTrackingError: vi.fn(),
   getMaxDrawdown: vi.fn(),
+  getGroupPerformance: vi.fn(),
+  getGroupAlphaVsBenchmark: vi.fn(),
+  getGroupTrackingError: vi.fn(),
+  getGroupMaxDrawdown: vi.fn(),
 }));
 
 describe("PerformanceDashboard", () => {
@@ -145,5 +153,188 @@ describe("PerformanceDashboard", () => {
     expect(
       await screen.findByText(/Drops larger than 90%/i),
     ).toBeInTheDocument();
+  });
+
+  describe("group scope (#7228)", () => {
+    beforeEach(() => {
+      vi.mocked(getGroupAlphaVsBenchmark).mockResolvedValue({
+        alpha_vs_benchmark: 0.03,
+      });
+      vi.mocked(getGroupTrackingError).mockResolvedValue({
+        tracking_error: 0.04,
+      });
+      vi.mocked(getGroupMaxDrawdown).mockResolvedValue({
+        max_drawdown: -0.2,
+        peak: null,
+        trough: null,
+        series: [],
+      });
+      vi.mocked(getGroupPerformance).mockResolvedValue({
+        history: [{ date: "2024-03-01", value: 5000 }],
+        time_weighted_return: 0.06,
+        xirr: 0.07,
+        reportingDate: "2024-03-31",
+        previousDate: "2024-02-29",
+      });
+    });
+
+    it("fetches the combined group series instead of an owner's when group is set", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("reporting-date-summary"),
+      ).toHaveTextContent("Reporting date: 2024-03-31");
+
+      expect(getGroupPerformance).toHaveBeenCalledWith("all", 365, false, undefined);
+      expect(getGroupAlphaVsBenchmark).toHaveBeenCalledWith("all", "VWRL.L", 365);
+      expect(getGroupTrackingError).toHaveBeenCalledWith("all", "VWRL.L", 365);
+      expect(getGroupMaxDrawdown).toHaveBeenCalledWith("all", 365);
+      expect(getPerformance).not.toHaveBeenCalled();
+      expect(getAlphaVsBenchmark).not.toHaveBeenCalled();
+    });
+
+    it("hides the owner-only diagnostics link in group scope", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      await screen.findByTestId("reporting-date-summary");
+      expect(
+        screen.queryByRole("link", { name: /Open diagnostics/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("prefers group scope over a stale owner value", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" group="all" />
+        </MemoryRouter>,
+      );
+
+      await screen.findByTestId("reporting-date-summary");
+      expect(getGroupPerformance).toHaveBeenCalledWith("all", 365, false, undefined);
+      expect(getPerformance).not.toHaveBeenCalled();
+    });
+
+    it("warns when TWR/XIRR are partial because a member's ledger is missing (#7228)", async () => {
+      vi.mocked(getGroupPerformance).mockResolvedValueOnce({
+        history: [{ date: "2024-03-01", value: 5000 }],
+        time_weighted_return: 0.06,
+        xirr: 0.07,
+        reportingDate: "2024-03-31",
+        previousDate: "2024-02-29",
+        partial: true,
+        missingMembers: ["joe"],
+      });
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("performance-partial-warning"),
+      ).toHaveTextContent("joe");
+    });
+
+    it("shows no partial warning when group data is complete", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      await screen.findByTestId("reporting-date-summary");
+      expect(
+        screen.queryByTestId("performance-partial-warning"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("computes group alpha and tracking error against the benchmark when both endpoints succeed", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      await screen.findByTestId("reporting-date-summary");
+      expect(screen.getByText("Alpha vs Benchmark")).toBeInTheDocument();
+      expect(screen.getByText("3.00%")).toBeInTheDocument();
+      expect(screen.getByText("Tracking Error")).toBeInTheDocument();
+      expect(screen.getByText("4.00%")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("performance-metrics-unavailable-warning"),
+      ).not.toBeInTheDocument();
+    });
+
+    // DeepSeek review round 2 (#7228): a single failing group metric
+    // endpoint used to blank the entire dashboard via Promise.all. These
+    // cases confirm each metric degrades to "unavailable" independently
+    // instead, and that the rest of the page still renders.
+    it("renders group alpha as unavailable, without blanking the dashboard, when its endpoint fails", async () => {
+      vi.mocked(getGroupAlphaVsBenchmark).mockRejectedValueOnce(
+        new Error("HTTP 404 - Not Found"),
+      );
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("performance-metrics-unavailable-warning"),
+      ).toHaveTextContent("Alpha vs Benchmark");
+      // The chart data and other metrics still loaded successfully.
+      expect(
+        await screen.findByTestId("reporting-date-summary"),
+      ).toHaveTextContent("Reporting date: 2024-03-31");
+      expect(screen.getByText("Tracking Error")).toBeInTheDocument();
+      expect(screen.getByText("4.00%")).toBeInTheDocument();
+    });
+
+    it("renders group tracking error as unavailable, without blanking the dashboard, when its endpoint fails", async () => {
+      vi.mocked(getGroupTrackingError).mockRejectedValueOnce(
+        new Error("HTTP 500 - Internal Server Error"),
+      );
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("performance-metrics-unavailable-warning"),
+      ).toHaveTextContent("Tracking Error");
+      expect(
+        await screen.findByTestId("reporting-date-summary"),
+      ).toHaveTextContent("Reporting date: 2024-03-31");
+      expect(screen.getByText("Alpha vs Benchmark")).toBeInTheDocument();
+      expect(screen.getByText("3.00%")).toBeInTheDocument();
+    });
+
+    it("shows a chart-unavailable message, without losing alpha/tracking-error, when getGroupPerformance fails entirely", async () => {
+      vi.mocked(getGroupPerformance).mockRejectedValueOnce(
+        new Error("HTTP 503 - Service Unavailable"),
+      );
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("performance-chart-unavailable"),
+      ).toBeInTheDocument();
+    });
   });
 });

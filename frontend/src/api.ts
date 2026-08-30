@@ -926,6 +926,91 @@ export const getGroupMaxDrawdown = (slug: string, days = 365) =>
     `${API_BASE}/performance-group/${slug}/max-drawdown?days=${days}`,
   );
 
+/** Fetch combined performance metrics for a group (mirrors getPerformance). */
+export const getGroupPerformance = (
+  slug: string,
+  days = 365,
+  excludeCash = false,
+  opts: { asOf?: string | null } = {},
+): Promise<PerformanceResponse> => {
+  const params = new URLSearchParams({ days: String(days) });
+  if (excludeCash) params.set("exclude_cash", "1");
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  const base = fetchJson<{
+    group: string;
+    history: PerformancePoint[];
+    reporting_date?: string | null;
+    previous_date?: string | null;
+    data_quality_issues?: {
+      date: string;
+      value: number;
+      previous_value: number;
+      next_value: number;
+    }[];
+  }>(
+    `${API_BASE}/performance-group/${slug}?${params.toString()}`,
+  );
+  const twr = fetchJson<{
+    group: string;
+    time_weighted_return: number | null;
+    partial?: boolean;
+    missing_members?: string[];
+  }>(
+    `${API_BASE}/performance-group/${slug}/twr?days=${days}${
+      opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
+    }`,
+  );
+  const xirr = fetchJson<{
+    group: string;
+    xirr: number | null;
+    partial?: boolean;
+    missing_members?: string[];
+  }>(
+    `${API_BASE}/performance-group/${slug}/xirr?days=${days}${
+      opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
+    }`,
+  );
+  // #7228 (DeepSeek review round 2): a Promise.all here meant a single
+  // failing metric endpoint (e.g. twr or xirr timing out) would reject the
+  // whole call and blank the group performance dashboard, even though the
+  // base history request succeeded. Settle the three requests independently
+  // -- the base history is still required (without it there is nothing to
+  // chart, so its rejection propagates), but a failed twr/xirr degrades to
+  // `null` (rendered as "unavailable" by the caller) instead of taking the
+  // whole response down with it.
+  return Promise.allSettled([base, twr, xirr]).then(([pResult, tResult, xResult]) => {
+    if (pResult.status === "rejected") {
+      throw pResult.reason;
+    }
+    const p = pResult.value;
+    const t = tResult.status === "fulfilled" ? tResult.value : null;
+    const x = xResult.status === "fulfilled" ? xResult.value : null;
+
+    // #7228: a missing member ledger means TWR/XIRR were computed from an
+    // incomplete cash-flow picture -- surface that rather than presenting
+    // either figure as an exact number (MUST FIX 1, review round 2).
+    const missingMembers = Array.from(
+      new Set([...(t?.missing_members ?? []), ...(x?.missing_members ?? [])]),
+    );
+    return {
+      history: p.history,
+      time_weighted_return: t?.time_weighted_return ?? null,
+      xirr: x?.xirr ?? null,
+      reportingDate: p.reporting_date ?? null,
+      previousDate: p.previous_date ?? null,
+      dataQualityIssues:
+        p.data_quality_issues?.map((issue) => ({
+          date: issue.date,
+          value: issue.value,
+          previousValue: issue.previous_value,
+          nextValue: issue.next_value,
+        })) ?? [],
+      partial: Boolean(t?.partial || x?.partial),
+      missingMembers,
+    };
+  });
+};
+
 /** Run a simple fundamentals screen across a list of tickers. */
 export const getScreener = (
   tickers: string[],

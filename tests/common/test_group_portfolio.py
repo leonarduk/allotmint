@@ -44,6 +44,29 @@ def test_list_groups_does_not_load_portfolio_contents():
     assert elapsed < 2
 
 
+def test_group_members_returns_slug_members():
+    owner_rows = [
+        OwnerSummaryRecord(owner="Lucy"),
+        OwnerSummaryRecord(owner="Steve"),
+        OwnerSummaryRecord(owner="Alex"),
+        OwnerSummaryRecord(owner="Joe"),
+    ]
+    with patch("backend.common.group_portfolio.data_loader.list_plots", return_value=owner_rows):
+        assert group_portfolio.group_members("adults") == ["Lucy", "Steve"]
+        assert group_portfolio.group_members("all") == ["Alex", "Joe", "Lucy", "Steve"]
+
+
+def test_group_members_unknown_slug_raises_value_error():
+    owner_rows = [OwnerSummaryRecord(owner="Lucy")]
+    with patch("backend.common.group_portfolio.data_loader.list_plots", return_value=owner_rows):
+        try:
+            group_portfolio.group_members("does-not-exist")
+        except ValueError as exc:
+            assert "does-not-exist" in str(exc)
+        else:
+            raise AssertionError("expected ValueError for unknown group slug")
+
+
 def test_build_group_portfolio_merges_accounts_and_totals():
     mock_portfolios = [
         {

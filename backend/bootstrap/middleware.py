@@ -7,7 +7,7 @@ import os
 from typing import Any
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -17,7 +17,8 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
-from backend.auth import decode_demo_token
+from backend.auth import _resolve_demo_request, decode_demo_token
+from backend.auth import demo_readonly as demo_readonly_var
 from backend.common.errors import AppError, log_app_error
 from backend.config import Config
 from backend.logging_setup import sanitise_log_value
@@ -84,45 +85,97 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
     app.add_middleware(SlowAPIMiddleware)
 
     @app.middleware("http")
-    async def demo_write_gate(request: Request, call_next):
-        """Reject any non-safe HTTP method carried by a demo-scoped token.
+    async def demo_scope_gate(request: Request, call_next):
+        """Resolve a demo-scoped token's identity, and reject any non-safe
+        HTTP method it carries.
 
         This is the global, deny-by-default enforcement point for #7402's
-        read-only demo link (#7407): per-route authorization in this app is
-        not uniform -- several routers (``transactions_router`` among them,
-        see ``backend/bootstrap/routers.py``) are registered with no
-        router-level ``Depends(auth.get_current_user)`` at all, so a demo
-        token could otherwise reach a mutating handler with no gate
-        whatsoever. A single method-based check here is verifiable by
-        inspection and cannot be skipped by a future route author.
+        read-only demo link. It has two jobs:
 
-        The demo marker ContextVar set by ``get_current_user``/
-        ``get_active_user`` (#7406) is populated during dependency
-        resolution, which FastAPI runs *after* middleware has already
-        dispatched the request -- so it cannot be read from here. Instead
-        this middleware independently decodes the raw ``Authorization``
-        bearer token with :func:`backend.auth.decode_demo_token`, exactly as
-        those dependencies do, to determine whether the request carries a
-        demo-scoped token. This check is intentionally independent of both
-        ``config.demo_link_enabled`` (the mint/accept kill switch) and
-        ``config.disable_auth`` -- a syntactically valid demo-scoped token
-        (one signed with this process's own ``SECRET_KEY``) must never be
-        able to reach a mutating handler under any configuration.
+        1. **Resolve demo identity for every request (regression fix).**
+           ``get_current_user``/``get_active_user`` (#7406) are what normally
+           call ``_resolve_demo_request`` to set the ``current_user``/
+           ``demo_readonly`` ContextVars that ``is_demo_request()`` (used by
+           ``ensure_owner_access`` (#7408) and ``_list_aws_plots``/
+           ``_list_local_plots``) depend on. But per-route authorization in
+           this app is **not uniform**: many routers are registered with no
+           router-level ``Depends(auth.get_current_user)`` at all when
+           ``config.disable_auth`` is true (``protected = []`` in
+           ``backend/bootstrap/routers.py`` -- true on every real AWS
+           deployment, since API Gateway is the auth boundary there), and
+           several route handlers -- e.g. ``GET /owners`` in its
+           ``disable_auth`` branch, and everything behind
+           ``GET /portfolio-group/{slug}`` -- never declare
+           ``Depends(get_current_user)``/``get_active_user`` themselves
+           either. For any such route, ``_resolve_demo_request`` was never
+           being called at all, so ``is_demo_request()`` stayed ``False``
+           and every owner-scoping check built on top of it was silently a
+           no-op -- confirmed live: a minted demo-link token could read
+           every real owner's full portfolio (including holdings) via the
+           default "all owners" group dashboard and via ``GET /owners``,
+           not just the configured demo owner. Resolving the identity here,
+           unconditionally, closes that gap for every route regardless of
+           its own dependency wiring, because middleware runs before FastAPI
+           dispatches to any handler.
+        2. **Block writes (#7407).** A single global method safelist check
+           here is verifiable by inspection and cannot be skipped by a
+           future route author, unlike per-route checks.
+
+        Ordering and reset: ``demo_readonly`` is reset to ``False`` at the
+        very top of *every* request, demo or not -- mirroring the same reset
+        in ``get_current_user``/``get_active_user`` (see the ContextVar's
+        docstring in ``backend/auth.py``) -- because a Lambda execution
+        environment can be reused across invocations, and this middleware is
+        now the only place guaranteed to run for every request. Leaving a
+        previous request's ``True`` in place would leak a demo-scoped
+        identity into a later, unrelated request that also happens not to
+        invoke ``get_current_user``/``get_active_user``.
+
+        This independently decodes the raw ``Authorization`` bearer token
+        with :func:`backend.auth.decode_demo_token` / calls
+        :func:`backend.auth._resolve_demo_request` directly, exactly as
+        ``get_current_user``/``get_active_user`` do, rather than waiting for
+        FastAPI's dependency resolution (which runs *after* middleware and,
+        per above, may not run at all for a given route). Both checks below
+        are intentionally independent of ``config.disable_auth`` -- a
+        syntactically valid demo-scoped token (one signed with this
+        process's own ``SECRET_KEY``) must be identified and confined under
+        any configuration. ``_resolve_demo_request`` itself still separately
+        enforces ``config.demo_link_enabled`` and the ``demo_link_owner``
+        match, raising 401 for a disabled or mismatched token.
         """
 
-        if request.method not in _SAFE_METHODS:
-            auth_header = request.headers.get("Authorization")
-            scheme, token = get_authorization_scheme_param(auth_header)
-            if token and scheme.lower() == "bearer" and decode_demo_token(token) is not None:
-                logger.warning(
-                    "Blocked non-safe method on demo-scoped request: method=%s path=%s",
-                    sanitise_log_value(request.method),
-                    sanitise_log_value(request.url.path),
-                )
-                return JSONResponse(
-                    status_code=403,
-                    content={"detail": _DEMO_WRITE_BLOCKED_DETAIL},
-                )
+        demo_readonly_var.set(False)
+
+        auth_header = request.headers.get("Authorization")
+        scheme, token = get_authorization_scheme_param(auth_header)
+        is_demo_token = bool(
+            token and scheme.lower() == "bearer" and decode_demo_token(token) is not None
+        )
+
+        if is_demo_token and request.method not in _SAFE_METHODS:
+            logger.warning(
+                "Blocked non-safe method on demo-scoped request: method=%s path=%s",
+                sanitise_log_value(request.method),
+                sanitise_log_value(request.url.path),
+            )
+            return JSONResponse(
+                status_code=403,
+                content={"detail": _DEMO_WRITE_BLOCKED_DETAIL},
+            )
+
+        # OPTIONS (CORS preflight) is deliberately excluded from identity
+        # resolution, not just the write-block above: browsers never attach
+        # real credentials to a preflight, and API Gateway's own OPTIONS
+        # routes are unauthenticated for the same reason (see
+        # cdk/stacks/backend_lambda_stack.py). Resolving -- and potentially
+        # 401-ing -- a preflight based on demo_link_enabled/owner state would
+        # break CORS for reasons entirely unrelated to the real request.
+        if is_demo_token and request.method != "OPTIONS":
+            try:
+                _resolve_demo_request(token)
+            except HTTPException as exc:
+                return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
         return await call_next(request)
 

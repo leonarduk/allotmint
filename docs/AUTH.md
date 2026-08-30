@@ -176,32 +176,79 @@ by both `get_current_user` (`backend/auth.py:515`) and `get_active_user`
 `is_demo_request()` (`backend/auth.py:85`) is the read used by every
 downstream enforcement point below.
 
-### Enforcement gate 1 — the global write-blocking middleware
+### Enforcement gate 1 — the global scope/write-blocking middleware
 
-`demo_write_gate` (`backend/bootstrap/middleware.py:86`), registered for
-every request, rejects any non-safe HTTP method carried by a demo-scoped
-token with `403 "Demo access is read-only"`. `_SAFE_METHODS`
-(`backend/bootstrap/middleware.py:39`) is `{GET, HEAD, OPTIONS}` — a
-safelist, not a denylist, so a future new mutating verb is rejected by
-default instead of accidentally allowed.
+`demo_scope_gate` (`backend/bootstrap/middleware.py:86`, named
+`demo_write_gate` before a same-day production incident forced a redesign —
+see below), registered for every request, has two jobs:
 
-It exists as a *global* gate rather than a per-route dependency because
+1. **Resolve demo identity for every request.** Sets the `current_user`/
+   `demo_readonly` ContextVars from a valid demo-scoped token, exactly as
+   `get_current_user`/`get_active_user` do — but unconditionally, before
+   FastAPI dispatches to any handler.
+2. Rejects any non-safe HTTP method carried by a demo-scoped token with
+   `403 "Demo access is read-only"`. `_SAFE_METHODS`
+   (`backend/bootstrap/middleware.py:39`) is `{GET, HEAD, OPTIONS}` — a
+   safelist, not a denylist, so a future new mutating verb is rejected by
+   default instead of accidentally allowed.
+
+Both exist as *global* gate logic rather than a per-route dependency because
 router registration in this app is not uniform:
 `backend/bootstrap/routers.py:56-109` registers several routers (e.g.
 `transactions_router`) with no router-level `Depends(auth.get_current_user)`
-at all, and `ensure_owner_access` (below) is called from only four modules.
-A single method check here is enforced regardless of which router or handler
-the request eventually reaches.
+at all, and `ensure_owner_access` (below) is called from only a handful of
+modules. A single check here is enforced regardless of which router or
+handler the request eventually reaches.
 
 Because this runs as HTTP middleware, it executes *before* FastAPI resolves
 dependencies — so the `demo_readonly` ContextVar set by
-`get_current_user`/`get_active_user` isn't populated yet. The middleware
-therefore independently decodes the raw `Authorization` bearer header with
-`decode_demo_token` itself, and does so **regardless of
-`config.demo_link_enabled` or `config.disable_auth`** — a syntactically valid
-demo token (one signed with this process's own `SECRET_KEY`) must never
-reach a mutating handler under any configuration, including one where the
-feature has since been disabled.
+`get_current_user`/`get_active_user` isn't populated yet when this runs. The
+middleware therefore independently decodes the raw `Authorization` bearer
+header with `decode_demo_token` itself, and does so **regardless of
+`config.disable_auth`** — a syntactically valid demo token (one signed with
+this process's own `SECRET_KEY`) must never reach a mutating handler under
+any configuration, including one where the feature has since been disabled.
+(`decode_demo_token` itself is scope-only; the identity-resolution half below
+still separately enforces `config.demo_link_enabled` and the owner match via
+`_resolve_demo_request`, and does 401 once the feature is disabled — only the
+raw-token *decode* used for the write-block ignores that flag, since a
+disabled deployment must still block a leaked token from writing.)
+
+**Why identity resolution moved into this middleware (#7522 follow-up,
+same-day incident).** The gate originally (this section, before the
+incident) only performed job 2 above — the write-block — reasoning that
+"the demo_readonly ContextVar isn't populated yet" here so identity
+resolution had to stay in `get_current_user`/`get_active_user`. That
+reasoning covered the write-block correctly (middleware can independently
+decode the token for that one check) but missed a bigger structural problem:
+**many GET routes never invoke `get_current_user`/`get_active_user` as a
+dependency at all**, on the actual deployed Lambda. Router-level
+`dependencies=protected` in `backend/bootstrap/routers.py:56-109` is `[]`
+whenever `config.disable_auth` is true (`protected = [] if
+cfg.disable_auth else [Depends(auth.get_current_user)]`) — and it is true on
+every real AWS deployment, since API Gateway is the auth boundary there
+(`DISABLE_AUTH=true` is set on the Lambda for exactly that reason — see
+"Deployed-gateway auth" below). Several individual handlers don't declare the
+dependency themselves either: `GET /owners`'s `disable_auth` branch
+(`backend/routes/portfolio.py:503-509`) takes no `current_user` parameter,
+and every route under `GET /portfolio-group/{slug}` (the default "all
+owners" landing dashboard) never resolves identity at all. For any of these,
+`_resolve_demo_request` was simply never called, so `is_demo_request()`
+stayed `False`, and every check built on it downstream — `ensure_owner_access`
+(gate 2, below), `_list_aws_plots`/`_list_local_plots`'s demo filtering — was
+a silent no-op. Confirmed live, the day this shipped: a minted demo-link
+token could read every real owner's full portfolio (holdings included) via
+the default landing dashboard and via `GET /owners`, not just the configured
+demo owner. Moving identity resolution into this middleware — which,
+unlike a FastAPI dependency, is guaranteed to run for literally every
+request regardless of a route's own wiring — closes the gap at its root
+instead of chasing individual routes. `get_current_user`/`get_active_user`
+still call `_resolve_demo_request` themselves too (harmless and idempotent
+for an already-valid token); they remain the *only* path for two flows
+that never pass through this middleware's demo-token branch in the same
+way — Google-token identity resolution, and the `disable_auth`-with-no-token
+local-dev fallback — neither of which this middleware's demo-specific
+branch touches.
 
 ### Enforcement gate 2 — per-owner scoping
 
@@ -294,12 +341,12 @@ Admin (Cognito)          Backend                     Browser (visitor)          
      │                      │      URL rewritten to /       │                          │
      │                      │                             │                          │
      │                      │      GET /owners  Authorization: Bearer <demo-token> ───►│
-     │                      │                             │      _resolve_demo_request() │
+     │                      │                             │      demo_scope_gate (middleware, resolves identity) │
      │                      │                             │      ensure_owner_access()   │
      │                      │◄──────────────── 200: demo owner only ────────────────────│
      │                      │                             │                          │
      │                      │      POST /transactions  Authorization: Bearer <demo-token> ►│
-     │                      │                             │      demo_write_gate (middleware) │
+     │                      │                             │      demo_scope_gate (middleware, blocks the write) │
      │                      │◄──────────────── 403 Demo access is read-only ────────────────│
 ```
 
@@ -330,7 +377,7 @@ a real deployment beyond the six bypassed routes (issue #7522).
 `apigwv2.HttpLambdaAuthorizer` (`GatewayAuthorizerLambda`, backed by
 `backend/lambda_api/demo_authorizer.py`). Two options were on the table (see
 the issue): widen the no-auth bypass list and rely solely on the app-layer
-`demo_write_gate`/`ensure_owner_access` checks, or add a Lambda authorizer
+`demo_scope_gate`/`ensure_owner_access` checks, or add a Lambda authorizer
 that keeps API Gateway itself as the trust boundary. The Lambda-authorizer
 option was chosen — it does not widen the set of routes API Gateway lets
 through unauthenticated, so a request still needs *some* valid, signed
@@ -402,9 +449,10 @@ is exercised.
 - Short TTL by default (72h), deliberately shorter-lived than a persistent
   session: this is meant to be shared for a demo, not to be a durable login.
 - Scoped to exactly one owner (`config.demo_link_owner`), enforced
-  independently at two points (`_resolve_demo_request`,
+  independently at two points (`_resolve_demo_request`, called
+  unconditionally from `demo_scope_gate` middleware for every request, and
   `ensure_owner_access`) plus the `/owners` listing.
-- Read-only, enforced by a global method safelist (`demo_write_gate`), not
+- Read-only, enforced by a global method safelist (`demo_scope_gate`), not
   per-route — see Enforcement gate 1 above.
 - Never satisfies `_allowed_emails()` — `decode_token` returns `None` for a
   demo token, so it can never be treated as a normal authenticated identity

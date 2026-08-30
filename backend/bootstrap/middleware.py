@@ -149,9 +149,7 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
 
         auth_header = request.headers.get("Authorization")
         scheme, token = get_authorization_scheme_param(auth_header)
-        is_demo_token = bool(
-            token and scheme.lower() == "bearer" and decode_demo_token(token) is not None
-        )
+        is_demo_token = bool(token and scheme.lower() == "bearer" and decode_demo_token(token) is not None)
 
         if is_demo_token and request.method not in _SAFE_METHODS:
             logger.warning(

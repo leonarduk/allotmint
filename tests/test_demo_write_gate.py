@@ -109,9 +109,7 @@ def test_put_with_demo_token_is_rejected(client: TestClient, demo_token: str) ->
 # --- Safe methods: never write-blocked, but still identity-resolved --------
 
 
-def test_get_with_demo_token_returns_401_when_demo_link_disabled(
-    client: TestClient, demo_token: str
-) -> None:
+def test_get_with_demo_token_returns_401_when_demo_link_disabled(client: TestClient, demo_token: str) -> None:
     """A GET is never rejected by the *write* gate (never 403/DEMO_BLOCKED_DETAIL)
     -- but it is no longer waved through unconditionally either. With
     demo_link_enabled left at its default False, the gate's own
@@ -293,9 +291,7 @@ def _no_dependency_app() -> FastAPI:
     return app
 
 
-def test_demo_identity_resolves_without_any_route_dependency(
-    monkeypatch: pytest.MonkeyPatch, demo_token: str
-) -> None:
+def test_demo_identity_resolves_without_any_route_dependency(monkeypatch: pytest.MonkeyPatch, demo_token: str) -> None:
     """The core regression test: is_demo_request()/current_user must be
     correctly populated for a GET route that declares no auth dependency at
     all, once demo_link is enabled and the token's owner matches. Before this

@@ -1,0 +1,10 @@
+{
+  "name": "Bank of America Corporation",
+  "ticker": "BAC.N",
+  "exchange": "N",
+  "asset_class": "Equity",
+  "sector": "Financial Services",
+  "industry": "Banks - Diversified",
+  "region": "North America",
+  "currency": "USD"
+}

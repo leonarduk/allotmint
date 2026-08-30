@@ -1,0 +1,10 @@
+{
+  "name": "American Express Company",
+  "ticker": "AXP.N",
+  "exchange": "N",
+  "asset_class": "Equity",
+  "sector": "Financial Services",
+  "industry": "Credit Services",
+  "region": "North America",
+  "currency": "USD"
+}

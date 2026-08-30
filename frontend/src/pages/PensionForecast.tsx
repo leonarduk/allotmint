@@ -11,19 +11,29 @@ import {
 import {
   getOwners,
   getPensionForecast,
+  getPortfolio,
   type PensionIncomeBreakdown,
 } from "../api";
 import type { OwnerSummary } from "../types";
 import { useTranslation } from "react-i18next";
 import { useRoute } from "../RouteContext";
 import { sanitizeOwners } from "../utils/owners";
+import {
+  accountTypeLabel,
+  countsTowardPensionForecast,
+} from "../utils/accountTypes";
 
 export default function PensionForecast() {
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const { selectedOwner, setSelectedOwner } = useRoute();
   const [owner, setOwner] = useState("");
   const [deathAge, setDeathAge] = useState(90);
-  const [statePension, setStatePension] = useState<string>("");
+  // Defaults to "0" (not blank) so the field always shows a concrete starting
+  // value per #7211. This intentionally reproduces the *existing* behaviour:
+  // an empty field was already sent as `undefined`, which the backend treats
+  // as 0 income from state pension (see backend/routes/pension.py). Making
+  // that explicit doesn't change what a first-time user's forecast computes.
+  const [statePension, setStatePension] = useState<string>("0");
   const [monthlySavings, setMonthlySavings] = useState(250);
   const [monthlySpending, setMonthlySpending] = useState(2000);
   const [employerContributionMonthly, setEmployerContributionMonthly] =
@@ -32,6 +42,13 @@ export default function PensionForecast() {
   const [data, setData] = useState<{ age: number; income: number }[]>([]);
   const [projectedPot, setProjectedPot] = useState<number | null>(null);
   const [pensionPot, setPensionPot] = useState<number | null>(null);
+  // Seeded from the owner's portfolio on mount/owner change so the snapshot
+  // card shows a real figure before the user runs a forecast (#7211) --
+  // separate from `pensionPot`, which is only ever set from a forecast
+  // response and takes priority once populated.
+  const [portfolioPensionPot, setPortfolioPensionPot] = useState<
+    number | null
+  >(null);
   const [currentAge, setCurrentAge] = useState<number | null>(null);
   const [retirementAge, setRetirementAge] = useState<number | null>(null);
   const [dob, setDob] = useState<string | null>(null);
@@ -94,6 +111,47 @@ export default function PensionForecast() {
     setSelectedOwner(fallbackOwner.owner);
   }, [owners, selectedOwner, setSelectedOwner]);
 
+  // Seed the "Current pension pot" snapshot from the owner's portfolio (the
+  // same data the Dashboard already shows) so it reads a real figure on load
+  // instead of "Not available" -- see #7211. This never overwrites
+  // `pensionPot`, which only comes from an actual forecast response, so it
+  // cannot change what a forecast calculates -- it only fills the gap before
+  // the first Forecast run. `countsTowardPensionForecast` mirrors the
+  // backend's own `dc_pension_pot_gbp` classification exactly, so this
+  // figure is the same number a real forecast run would report for the same
+  // accounts (verified in accountTypes.test.ts and PensionForecast.test.tsx).
+  useEffect(() => {
+    if (!owner) {
+      setPortfolioPensionPot(null);
+      return;
+    }
+    let cancelled = false;
+    getPortfolio(owner)
+      .then((portfolio) => {
+        if (cancelled) return;
+        const pensionAccounts = portfolio.accounts.filter((account) =>
+          countsTowardPensionForecast(account.account_type),
+        );
+        if (pensionAccounts.length === 0) {
+          setPortfolioPensionPot(null);
+          return;
+        }
+        const total = pensionAccounts.reduce(
+          (sum, account) => sum + (account.value_estimate_gbp ?? 0),
+          0,
+        );
+        setPortfolioPensionPot(total);
+      })
+      .catch(() => {
+        // Portfolio fetch failing shouldn't break the page -- the snapshot
+        // card just falls back to its "run a forecast" copy.
+        if (!cancelled) setPortfolioPensionPot(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [owner]);
+
   const careerPathOptions = [
     {
       id: "steady",
@@ -127,6 +185,45 @@ export default function PensionForecast() {
     const ownerSummary = owners.find((o) => o.owner === owner);
     return ownerSummary?.accounts ?? [];
   }, [owners, owner]);
+
+  // Every account type on the owner is still listed here (we deliberately do
+  // NOT filter ISAs -- or anything else -- out of the page, per the issue's
+  // own guidance: filtering would change which accounts are *presented*,
+  // which is fine, but the original bug was implying every account was
+  // *used in the calculation*, which is a modelling claim this component
+  // has no business making or breaking, #7211).
+  //
+  // Split into two groups instead of one undifferentiated list, using the
+  // same `countsTowardPensionForecast` check that decides the seeded pot
+  // above -- this is what makes the split *true*: an account only lands in
+  // "used in this forecast" if the backend's own dc_pension_pot_gbp would
+  // actually include it, rather than the frontend guessing which accounts
+  // "look like" pensions (see review follow-up on #7211: "Accounts included
+  // in this forecast" was itself a false claim for non-SIPP-matching
+  // accounts, since no account list is ever sent to the forecast endpoint --
+  // it's the backend's own portfolio lookup, via this same classifier, that
+  // decides what counts).
+  const ownerAccountDetails = useMemo(
+    () =>
+      ownerAccounts.map((accountType) => ({
+        accountType,
+        label: accountTypeLabel(accountType),
+        countsTowardForecast: countsTowardPensionForecast(accountType),
+      })),
+    [ownerAccounts],
+  );
+  const includedAccounts = useMemo(
+    () => ownerAccountDetails.filter((account) => account.countsTowardForecast),
+    [ownerAccountDetails],
+  );
+  const otherAccounts = useMemo(
+    () => ownerAccountDetails.filter((account) => !account.countsTowardForecast),
+    [ownerAccountDetails],
+  );
+
+  // The forecast's own response (`pensionPot`) always wins once it exists;
+  // until then, fall back to the portfolio-derived figure (#7211).
+  const displayedPensionPot = pensionPot ?? portfolioPensionPot;
 
   const humanizeForecastError = (
     rawMessage: string,
@@ -342,34 +439,79 @@ export default function PensionForecast() {
             </select>
           </div>
         </div>
-        <div className="mt-6">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-200">
-            {t("pensionForecast.header.linkedPotsHeading")}
-          </p>
-          {ownerAccounts.length > 0 ? (
-            <ul className="mt-3 flex flex-wrap gap-2">
-              {ownerAccounts.map((account) => (
-                <li
-                  key={account}
-                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white"
-                >
-                  {account}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-3 text-sm text-blue-100">
+        <div className="mt-6 space-y-5">
+          {/* Two separate groups instead of one undifferentiated list, per
+              #7211 review follow-up: a single "Accounts included in this
+              forecast" heading over everything was still a false claim,
+              since no account list is ever sent to the forecast endpoint --
+              the backend derives pension_pot_gbp itself via
+              dc_pension_pot_gbp, which only recognises SIPP-family
+              account_types. Grouping by countsTowardPensionForecast (the
+              same check used to seed the pot above) keeps this honest: an
+              account only appears in "used" if the backend would actually
+              use it. Nothing is filtered off the page either way. */}
+          {ownerAccounts.length === 0 ? (
+            <p className="text-sm text-blue-100">
               {t("pensionForecast.header.noLinkedPots")}
             </p>
+          ) : (
+            <>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-200">
+                  {t("pensionForecast.header.includedAccountsHeading")}
+                </p>
+                <p className="mt-1 text-xs text-blue-100">
+                  {t("pensionForecast.header.includedAccountsHelper")}
+                </p>
+                {includedAccounts.length > 0 ? (
+                  <ul className="mt-3 flex flex-wrap gap-2">
+                    {includedAccounts.map(({ accountType, label }) => (
+                      <li
+                        key={accountType}
+                        className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-medium text-emerald-100"
+                      >
+                        {label}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-sm text-blue-100">
+                    {t("pensionForecast.header.noPensionAccounts")}
+                  </p>
+                )}
+              </div>
+              {otherAccounts.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-200">
+                    {t("pensionForecast.header.otherAccountsHeading")}
+                  </p>
+                  <ul className="mt-3 flex flex-wrap gap-2">
+                    {otherAccounts.map(({ accountType, label }) => (
+                      <li
+                        key={accountType}
+                        className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white"
+                      >
+                        {label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
           )}
         </div>
         <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <SnapshotStat
             label={t("pensionForecast.header.pensionPot")}
             value={
-              pensionPot != null
-                ? currencyFormatter.format(pensionPot)
+              displayedPensionPot != null
+                ? currencyFormatter.format(displayedPensionPot)
                 : t("pensionForecast.header.notAvailable")
+            }
+            helper={
+              displayedPensionPot != null && pensionPot == null
+                ? t("pensionForecast.header.pensionPotFromPortfolio")
+                : undefined
             }
           />
           <SnapshotStat
@@ -433,6 +575,11 @@ export default function PensionForecast() {
               onChange={(value) => setMonthlySavings(value)}
               formatValue={(value) => currencyFormatter.format(value)}
               getValueText={(value) => currencyFormatter.format(value)}
+              // £250/£150 starting values below aren't derived from this
+              // owner's actual contributions (not currently available to this
+              // page) -- say so explicitly rather than implying they're the
+              // owner's real numbers (#7211).
+              helper={t("pensionForecast.header.contributionDefaultHelper")}
             />
             <SliderControl
               id="employer-contribution"
@@ -444,6 +591,7 @@ export default function PensionForecast() {
               onChange={(value) => setEmployerContributionMonthly(value)}
               formatValue={(value) => currencyFormatter.format(value)}
               getValueText={(value) => currencyFormatter.format(value)}
+              helper={t("pensionForecast.header.contributionDefaultHelper")}
             />
             <SliderControl
               id="monthly-spending"
@@ -458,8 +606,12 @@ export default function PensionForecast() {
             />
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
+                {/* Relabelled from "Death age" -- blunt phrasing for this
+                    audience -- to "Plan until age" (#7211). The underlying
+                    field/param name (`deathAge`) is unchanged, so error
+                    messages that already reference it (#7134) still work. */}
                 <label className="block text-sm font-medium text-slate-700" htmlFor="death-age">
-                  Death age
+                  {t("pensionForecast.header.deathAgeLabel")}
                 </label>
                 <input
                   id="death-age"
@@ -470,7 +622,11 @@ export default function PensionForecast() {
                   required
                   min={50}
                   max={120}
+                  aria-describedby="death-age-description"
                 />
+                <p id="death-age-description" className="text-xs text-slate-500">
+                  {t("pensionForecast.header.deathAgeHelper")}
+                </p>
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700" htmlFor="state-pension">
@@ -483,7 +639,11 @@ export default function PensionForecast() {
                   value={statePension}
                   onChange={(e) => setStatePension(e.target.value)}
                   min={0}
+                  aria-describedby="state-pension-description"
                 />
+                <p id="state-pension-description" className="text-xs text-slate-500">
+                  {t("pensionForecast.header.statePensionHelper")}
+                </p>
               </div>
             </div>
           </div>

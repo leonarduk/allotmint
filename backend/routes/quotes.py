@@ -67,7 +67,12 @@ async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
                 "timestamp": info.get("regularMarketTime"),
                 "timezone": info.get("exchangeTimezoneName"),
                 "market_state": info.get("marketState"),
-                "name": info.get("shortName") or info.get("longName"),
+                # longName preferred over shortName: shortName is yfinance's
+                # own abbreviated field (frequently truncated mid-word, e.g.
+                # "iShares Core MSCI World UCITS E") and was being sent to
+                # the frontend as if it were the full name -- #7218.
+                "name": info.get("longName") or info.get("shortName"),
+                "currency": info.get("currency"),
             }
         )
 

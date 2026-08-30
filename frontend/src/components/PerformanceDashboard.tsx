@@ -61,6 +61,13 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [reportingDate, setReportingDate] = useState<string | null>(null);
   const [previousDate, setPreviousDate] = useState<string | null>(null);
   const [partialMembers, setPartialMembers] = useState<string[]>([]);
+  // A metric endpoint failing must not blank the whole dashboard -- each of
+  // the four performance-metric fetches below is settled independently
+  // (Promise.allSettled) so the rest of the page still renders with the
+  // failed metric(s) shown as unavailable rather than losing everything
+  // (DeepSeek review round 2, #7228).
+  const [unavailableMetrics, setUnavailableMetrics] = useState<string[]>([]);
+  const [perfUnavailable, setPerfUnavailable] = useState<boolean>(false);
   const { t, i18n } = useTranslation();
 
   const activeGroup = group || null;
@@ -77,35 +84,57 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     setDrawdownPeak(null);
     setDrawdownTrough(null);
     setShowDrawdownDetails(false);
+    setAlpha(null);
+    setTrackingError(null);
+    setMaxDrawdown(null);
+    setTimeWeightedReturn(null);
+    setXirr(null);
+    setUnavailableMetrics([]);
+    setPerfUnavailable(false);
     const reqDays = days === 0 ? 36500 : days;
     const opts = asOf ? { asOf } : undefined;
-    const fetches = activeGroup
-      ? Promise.all([
-          getGroupAlphaVsBenchmark(activeGroup, BENCHMARK_TICKER, reqDays),
-          getGroupTrackingError(activeGroup, BENCHMARK_TICKER, reqDays),
-          getGroupMaxDrawdown(activeGroup, reqDays),
-          getGroupPerformance(activeGroup, reqDays, excludeCash, opts),
-        ])
-      : Promise.all([
-          getAlphaVsBenchmark(activeOwner as string, BENCHMARK_TICKER, reqDays, opts),
-          getTrackingError(activeOwner as string, BENCHMARK_TICKER, reqDays, opts),
-          getMaxDrawdown(activeOwner as string, reqDays, opts),
-          getPerformance(activeOwner as string, reqDays, excludeCash, opts),
-        ]);
-    fetches
-      .then(([alphaRes, teRes, mdRes, perf]) => {
-        setData(perf.history);
-        setAlpha(alphaRes.alpha_vs_benchmark);
-        setTrackingError(teRes.tracking_error);
+    const alphaPromise = activeGroup
+      ? getGroupAlphaVsBenchmark(activeGroup, BENCHMARK_TICKER, reqDays)
+      : getAlphaVsBenchmark(activeOwner as string, BENCHMARK_TICKER, reqDays, opts);
+    const trackingErrorPromise = activeGroup
+      ? getGroupTrackingError(activeGroup, BENCHMARK_TICKER, reqDays)
+      : getTrackingError(activeOwner as string, BENCHMARK_TICKER, reqDays, opts);
+    const maxDrawdownPromise = activeGroup
+      ? getGroupMaxDrawdown(activeGroup, reqDays)
+      : getMaxDrawdown(activeOwner as string, reqDays, opts);
+    const perfPromise = activeGroup
+      ? getGroupPerformance(activeGroup, reqDays, excludeCash, opts)
+      : getPerformance(activeOwner as string, reqDays, excludeCash, opts);
+
+    let cancelled = false;
+
+    Promise.allSettled([
+      alphaPromise,
+      trackingErrorPromise,
+      maxDrawdownPromise,
+      perfPromise,
+    ]).then(([alphaResult, teResult, mdResult, perfResult]) => {
+      if (cancelled) return;
+      const unavailable: string[] = [];
+
+      if (alphaResult.status === "fulfilled") {
+        setAlpha(alphaResult.value.alpha_vs_benchmark);
+      } else {
+        unavailable.push(t("dashboard.alphaVsBenchmark"));
+      }
+
+      if (teResult.status === "fulfilled") {
+        setTrackingError(teResult.value.tracking_error);
+      } else {
+        unavailable.push(t("dashboard.trackingError"));
+      }
+
+      if (mdResult.status === "fulfilled") {
+        const mdRes = mdResult.value;
         setMaxDrawdown(mdRes.max_drawdown);
         setDrawdownSeries(mdRes.series ?? []);
         setDrawdownPeak(mdRes.peak ?? null);
         setDrawdownTrough(mdRes.trough ?? null);
-        setTimeWeightedReturn(perf.time_weighted_return ?? null);
-        setXirr(perf.xirr ?? null);
-        setReportingDate(perf.reportingDate ?? null);
-        setPreviousDate(perf.previousDate ?? null);
-        setPartialMembers(perf.partial ? perf.missingMembers ?? [] : []);
         const normalizedDrawdown =
           mdRes.max_drawdown != null && Math.abs(mdRes.max_drawdown) > 1
             ? mdRes.max_drawdown / 100
@@ -116,13 +145,43 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         ) {
           setShowDrawdownDetails(true);
         }
-      })
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
-  }, [activeGroup, activeOwner, days, excludeCash, asOf]);
+      } else {
+        unavailable.push(t("dashboard.maxDrawdown"));
+      }
+
+      if (perfResult.status === "fulfilled") {
+        const perf = perfResult.value;
+        setData(perf.history);
+        setTimeWeightedReturn(perf.time_weighted_return ?? null);
+        setXirr(perf.xirr ?? null);
+        setReportingDate(perf.reportingDate ?? null);
+        setPreviousDate(perf.previousDate ?? null);
+        setPartialMembers(perf.partial ? perf.missingMembers ?? [] : []);
+      } else {
+        setPerfUnavailable(true);
+        unavailable.push(t("dashboard.portfolioValue"));
+      }
+
+      setUnavailableMetrics(unavailable);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeGroup, activeOwner, days, excludeCash, asOf, t]);
 
   if (!activeGroup && !activeOwner) return <p>{t("dashboard.selectMember")}</p>;
   if (err) return <p style={{ color: "red" }}>{err}</p>;
-  if (!data.length) return <p>{t("common.loading")}</p>;
+  if (!data.length) {
+    if (perfUnavailable) {
+      return (
+        <p data-testid="performance-chart-unavailable">
+          {t("dashboard.performanceUnavailable")}
+        </p>
+      );
+    }
+    return <p>{t("common.loading")}</p>;
+  }
 
   const safeAlpha =
     alpha != null && Math.abs(alpha) > 1 ? alpha / 100 : alpha;
@@ -249,6 +308,20 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         >
           {t("dashboard.performancePartialMembers", {
             members: partialMembers.join(", "),
+          })}
+        </p>
+      )}
+      {unavailableMetrics.length > 0 && (
+        <p
+          data-testid="performance-metrics-unavailable-warning"
+          style={{
+            fontSize: "0.85rem",
+            color: "#facc15",
+            marginBottom: "0.75rem",
+          }}
+        >
+          {t("dashboard.performanceMetricsUnavailable", {
+            metrics: unavailableMetrics.join(", "),
           })}
         </p>
       )}

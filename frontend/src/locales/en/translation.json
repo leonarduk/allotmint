@@ -274,6 +274,8 @@
     "drawdownChartDescription": "Drawdown is computed from the daily portfolio value curve. The shaded region shows the peak-to-trough span of the max drawdown.",
     "drawdownSeriesUnavailable": "We couldn't load drawdown history for this period.",
     "performancePartialMembers": "Time-weighted return and XIRR are incomplete: no transaction history was found for {{members}}, so these figures likely read higher than the household's real return.",
+    "performanceMetricsUnavailable": "Some metrics could not be loaded and are shown as unavailable: {{metrics}}.",
+    "performanceUnavailable": "We couldn't load the portfolio value chart for this period. Other metrics on this page may still be available.",
     "openDiagnostics": "Open diagnostics",
     "viewMetricsExplanation": "Read the full explanation",
     "portfolioValue": "Portfolio Value",

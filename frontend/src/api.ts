@@ -970,17 +970,32 @@ export const getGroupPerformance = (
       opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
     }`,
   );
-  return Promise.all([base, twr, xirr]).then(([p, t, x]) => {
+  // #7228 (DeepSeek review round 2): a Promise.all here meant a single
+  // failing metric endpoint (e.g. twr or xirr timing out) would reject the
+  // whole call and blank the group performance dashboard, even though the
+  // base history request succeeded. Settle the three requests independently
+  // -- the base history is still required (without it there is nothing to
+  // chart, so its rejection propagates), but a failed twr/xirr degrades to
+  // `null` (rendered as "unavailable" by the caller) instead of taking the
+  // whole response down with it.
+  return Promise.allSettled([base, twr, xirr]).then(([pResult, tResult, xResult]) => {
+    if (pResult.status === "rejected") {
+      throw pResult.reason;
+    }
+    const p = pResult.value;
+    const t = tResult.status === "fulfilled" ? tResult.value : null;
+    const x = xResult.status === "fulfilled" ? xResult.value : null;
+
     // #7228: a missing member ledger means TWR/XIRR were computed from an
     // incomplete cash-flow picture -- surface that rather than presenting
     // either figure as an exact number (MUST FIX 1, review round 2).
     const missingMembers = Array.from(
-      new Set([...(t.missing_members ?? []), ...(x.missing_members ?? [])]),
+      new Set([...(t?.missing_members ?? []), ...(x?.missing_members ?? [])]),
     );
     return {
       history: p.history,
-      time_weighted_return: t.time_weighted_return,
-      xirr: x.xirr,
+      time_weighted_return: t?.time_weighted_return ?? null,
+      xirr: x?.xirr ?? null,
       reportingDate: p.reporting_date ?? null,
       previousDate: p.previous_date ?? null,
       dataQualityIssues:
@@ -990,7 +1005,7 @@ export const getGroupPerformance = (
           previousValue: issue.previous_value,
           nextValue: issue.next_value,
         })) ?? [],
-      partial: Boolean(t.partial || x.partial),
+      partial: Boolean(t?.partial || x?.partial),
       missingMembers,
     };
   });

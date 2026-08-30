@@ -256,5 +256,85 @@ describe("PerformanceDashboard", () => {
         screen.queryByTestId("performance-partial-warning"),
       ).not.toBeInTheDocument();
     });
+
+    it("computes group alpha and tracking error against the benchmark when both endpoints succeed", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      await screen.findByTestId("reporting-date-summary");
+      expect(screen.getByText("Alpha vs Benchmark")).toBeInTheDocument();
+      expect(screen.getByText("3.00%")).toBeInTheDocument();
+      expect(screen.getByText("Tracking Error")).toBeInTheDocument();
+      expect(screen.getByText("4.00%")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("performance-metrics-unavailable-warning"),
+      ).not.toBeInTheDocument();
+    });
+
+    // DeepSeek review round 2 (#7228): a single failing group metric
+    // endpoint used to blank the entire dashboard via Promise.all. These
+    // cases confirm each metric degrades to "unavailable" independently
+    // instead, and that the rest of the page still renders.
+    it("renders group alpha as unavailable, without blanking the dashboard, when its endpoint fails", async () => {
+      vi.mocked(getGroupAlphaVsBenchmark).mockRejectedValueOnce(
+        new Error("HTTP 404 - Not Found"),
+      );
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("performance-metrics-unavailable-warning"),
+      ).toHaveTextContent("Alpha vs Benchmark");
+      // The chart data and other metrics still loaded successfully.
+      expect(
+        await screen.findByTestId("reporting-date-summary"),
+      ).toHaveTextContent("Reporting date: 2024-03-31");
+      expect(screen.getByText("Tracking Error")).toBeInTheDocument();
+      expect(screen.getByText("4.00%")).toBeInTheDocument();
+    });
+
+    it("renders group tracking error as unavailable, without blanking the dashboard, when its endpoint fails", async () => {
+      vi.mocked(getGroupTrackingError).mockRejectedValueOnce(
+        new Error("HTTP 500 - Internal Server Error"),
+      );
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("performance-metrics-unavailable-warning"),
+      ).toHaveTextContent("Tracking Error");
+      expect(
+        await screen.findByTestId("reporting-date-summary"),
+      ).toHaveTextContent("Reporting date: 2024-03-31");
+      expect(screen.getByText("Alpha vs Benchmark")).toBeInTheDocument();
+      expect(screen.getByText("3.00%")).toBeInTheDocument();
+    });
+
+    it("shows a chart-unavailable message, without losing alpha/tracking-error, when getGroupPerformance fails entirely", async () => {
+      vi.mocked(getGroupPerformance).mockRejectedValueOnce(
+        new Error("HTTP 503 - Service Unavailable"),
+      );
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("performance-chart-unavailable"),
+      ).toBeInTheDocument();
+    });
   });
 });

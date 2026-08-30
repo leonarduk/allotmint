@@ -140,6 +140,43 @@ def test_group_rejects_invalid_token(monkeypatch, client):
     assert response.json()["detail"] == "Invalid authentication credentials"
 
 
+def test_group_allowed_for_demo_request_regardless_of_token(monkeypatch, client):
+    """A demo-scoped request must be let through even when it carries no
+    token decode_token() would ever accept.
+
+    Regression test: backend.bootstrap.middleware.demo_scope_gate resolves
+    demo identity (is_demo_request()) unconditionally, for every request,
+    before any route handler runs -- but this endpoint's own auth check
+    (added before the demo-link feature existed) called decode_token(token)
+    directly. decode_token() deliberately returns None for a demo-scoped
+    token (backend/auth.py:255-256, the control that keeps a demo token from
+    ever being mistaken for a real login), so a valid, already-authorized
+    demo request was rejected here with 401 -- confirmed live: it broke the
+    Movers page ("Portfolio" watchlist) for the buffett demo account and
+    logged the whole demo session out (the frontend treats any 401 as
+    "session expired", see api.ts's UNAUTHORIZED_EVENT). Checking
+    is_demo_request() first, mirroring ensure_owner_access, fixes it without
+    weakening the real-token path below (test_group_rejects_invalid_token
+    still covers that with is_demo_request left False)."""
+
+    monkeypatch.setattr(opportunities_mod, "_PORTFOLIO_ALLOWED_DAYS", {1})
+    monkeypatch.setattr(opportunities_mod.config, "disable_auth", False, raising=False)
+    monkeypatch.setattr(opportunities_mod, "is_demo_request", lambda: True)
+    # No Authorization header at all, and decode_token would reject anything
+    # presented -- is_demo_request() alone must be enough to authorize this.
+    monkeypatch.setattr(opportunities_mod, "decode_token", lambda token: None)
+    monkeypatch.setattr(
+        opportunities_mod,
+        "_group_opportunities",
+        lambda slug, *, days, limit, min_weight: {"gainers": [], "losers": [], "anomalies": []},
+    )
+
+    response = client.get("/opportunities", params={"group": "all", "days": 1})
+
+    assert response.status_code == 200
+    assert response.json()["context"]["group"] == "all"
+
+
 def test_group_success_decorates_signals(monkeypatch, client):
     """Successful group calls should decorate entries with trading signals."""
 

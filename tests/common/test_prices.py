@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from typing import Dict, List
@@ -301,6 +302,40 @@ def test_load_prices_for_tickers_combines_frames(
 
     assert list(frame["Ticker"]) == ["AAA.L", "CCC.L"]
     assert "Failed to fetch prices for BBB.L" in caplog.text
+
+
+def test_load_prices_for_tickers_fetches_concurrently(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression test: each ticker's load_meta_timeseries_range call must run
+    concurrently, not one at a time (confirmed live: ~1s+/ticker of
+    S3-backed I/O, ~6-12s sequential for a 10-ticker portfolio). Also checks
+    that Executor.map still returns frames in input order despite the
+    concurrent fetch, matching test_load_prices_for_tickers_combines_frames
+    above."""
+
+    start = date(2024, 1, 1)
+    end = date(2024, 1, 10)
+    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: end if forward else start)
+    monkeypatch.setattr(
+        prices.instrument_api,
+        "_resolve_full_ticker",
+        lambda full, cache: (full.split(".", 1)[0], "L"),
+    )
+
+    tickers = [f"T{i}.L" for i in range(6)]
+    SLEEP_SECONDS = 0.2
+
+    def slow_load(sym: str, exch: str, start_date: date, end_date: date) -> pd.DataFrame:
+        time.sleep(SLEEP_SECONDS)
+        return pd.DataFrame({"close": [1.0]})
+
+    monkeypatch.setattr(prices, "load_meta_timeseries_range", slow_load)
+
+    started = time.monotonic()
+    frame = prices.load_prices_for_tickers(tickers)
+    elapsed = time.monotonic() - started
+
+    assert list(frame["Ticker"]) == tickers
+    assert elapsed < len(tickers) * SLEEP_SECONDS * 0.75
 
 
 def test_build_securities_from_portfolios(monkeypatch: pytest.MonkeyPatch) -> None:

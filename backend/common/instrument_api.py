@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -45,6 +46,20 @@ from backend.utils.timeseries_helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Per-ticker price/history lookups (price_change_pct, _close_on,
+# _price_and_changes) are I/O-bound (S3 reads through backend.timeseries.cache,
+# occasionally a live provider fetch on a cache miss) and independent across
+# tickers, so functions that loop over a portfolio's tickers fan them out
+# across a small thread pool instead of fetching one ticker at a time -- for
+# a 10-ticker group that was ~6-12s sequential (each of the S3 mtime-check +
+# read pair adds up), confirmed live against production. The underlying cache
+# layer already uses locks around its shared LRU/mtime state (see
+# backend/timeseries/cache.py's _S3_MTIME_CACHE_LOCK etc.), so this is safe
+# to parallelize without further changes there. Bounded rather than
+# one-thread-per-ticker to avoid overwhelming a small Lambda's CPU/network
+# allocation on a large portfolio.
+_PRICE_FETCH_MAX_WORKERS = 8
 
 
 def _build_exchange_map(tickers: List[str]) -> Dict[str, str]:
@@ -551,21 +566,24 @@ def top_movers(
     rows: List[Dict[str, Any]] = []
     anomalies: List[str] = []
 
-    for t in tickers:
-        if min_weight and weights and weights.get(t, 0.0) < min_weight:
-            continue
+    candidates = [t for t in tickers if not (min_weight and weights and weights.get(t, 0.0) < min_weight)]
+
+    def _row_or_anomaly(t: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        """Return (row, None) on success, (None, ticker) as an anomaly, or
+        (None, None) when the ticker doesn't resolve at all (silently
+        skipped, matching the original sequential loop's behaviour)."""
+
         change = price_change_pct(t, days)
         if change is None:
-            anomalies.append(t)
-            continue
+            return None, t
         resolved = _resolve_full_ticker(t, _LATEST_PRICES)
         if not resolved:
-            continue
+            return None, None
         sym, ex = resolved
         full = f"{sym}.{ex}" if ex else sym
         last_px = _close_on(sym, ex, last_price_date)
         meta = get_security_meta(full) or {}
-        rows.append(
+        return (
             {
                 "ticker": full,
                 "name": meta.get("name", full),
@@ -573,8 +591,20 @@ def top_movers(
                 "last_price_gbp": last_px,
                 "last_price_date": last_price_date.isoformat(),
                 "instrument_type": meta.get("instrument_type"),
-            }
+            },
+            None,
         )
+
+    # See _PRICE_FETCH_MAX_WORKERS above: price_change_pct/_close_on are the
+    # slow, I/O-bound part, and independent per ticker, so fetch them
+    # concurrently rather than one ticker at a time.
+    if candidates:
+        with ThreadPoolExecutor(max_workers=min(_PRICE_FETCH_MAX_WORKERS, len(candidates))) as pool:
+            for row, anomaly in pool.map(_row_or_anomaly, candidates):
+                if row is not None:
+                    rows.append(row)
+                elif anomaly is not None:
+                    anomalies.append(anomaly)
 
     pos = sorted(
         [r for r in rows if r["change_pct"] > 0],
@@ -705,7 +735,15 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
             entry["market_value_gbp"] += float(h.get("market_value_gbp") or 0.0)
             entry["gain_gbp"] += float(h.get("gain_gbp") or 0.0)
 
-    # Decorate with last price + changes
+    # Decorate with last price + changes. _price_and_changes is the slow,
+    # I/O-bound part (see _PRICE_FETCH_MAX_WORKERS above) -- fetch it for
+    # every ticker concurrently rather than one at a time.
+    price_tickers = [tkr for tkr in by_ticker if tkr]
+    price_and_changes: Dict[str, Dict[str, Any]] = {}
+    if price_tickers:
+        with ThreadPoolExecutor(max_workers=min(_PRICE_FETCH_MAX_WORKERS, len(price_tickers))) as pool:
+            price_and_changes = dict(zip(price_tickers, pool.map(_price_and_changes, price_tickers)))
+
     for tkr, entry in by_ticker.items():
         if not tkr:
             continue
@@ -719,7 +757,7 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
             entry["grouping_id"] = grouping_id
         if grouping_name:
             entry["grouping"] = grouping_name
-        entry.update(_price_and_changes(tkr))
+        entry.update(price_and_changes[tkr])
         cost = entry["market_value_gbp"] - entry["gain_gbp"]
         entry["gain_pct"] = (entry["gain_gbp"] / cost * 100.0) if cost else None
 

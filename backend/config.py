@@ -136,6 +136,17 @@ class Config:
     disable_auth: Optional[bool] = None
     demo_identity: str = "demo"
     smoke_identity: str = "demo"
+    # Shareable read-only demo link (#7402 breakdown). Config-only for now:
+    # `demo_link_enabled` is the master kill switch (defaults off),
+    # `demo_link_owner` is the single owner id a demo-scoped token may read,
+    # and `demo_link_ttl_hours` is the TTL applied when minting a demo
+    # token. Distinct from `demo_identity` (a display/local-mode identity,
+    # see `demo_identity()` below) -- do not conflate the two. Nothing reads
+    # these values yet; later steps of #7402 add the token/identity/auth
+    # code paths that consume them.
+    demo_link_enabled: bool = False
+    demo_link_owner: Optional[str] = None
+    demo_link_ttl_hours: int = 72
     google_client_id: Optional[str] = None
     allowed_emails: Optional[List[str]] = None
     local_login_email: Optional[str] = None
@@ -460,6 +471,19 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
     if not smoke_identity:
         smoke_identity = demo_identity
 
+    demo_link_owner = data.get("demo_link_owner")
+    if isinstance(demo_link_owner, str):
+        demo_link_owner = demo_link_owner.strip()
+    if not demo_link_owner:
+        demo_link_owner = None
+
+    demo_link_enabled = _coerce_bool_with_default(
+        data.get("demo_link_enabled"),
+        key="demo_link_enabled",
+        default=False,
+    )
+    demo_link_ttl_hours = data.get("demo_link_ttl_hours", 72)
+
     cfg = Config(
         app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),
@@ -487,6 +511,9 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         local_login_email=local_login_email,
         demo_identity=demo_identity,
         smoke_identity=smoke_identity,
+        demo_link_enabled=demo_link_enabled,
+        demo_link_owner=demo_link_owner,
+        demo_link_ttl_hours=demo_link_ttl_hours,
         relative_view_enabled=data.get("relative_view_enabled"),
         enable_family_mvp=_coerce_bool_with_default(
             data.get("enable_family_mvp"),

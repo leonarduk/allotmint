@@ -15,6 +15,10 @@ import {
   getAlphaVsBenchmark,
   getTrackingError,
   getMaxDrawdown,
+  getGroupPerformance,
+  getGroupAlphaVsBenchmark,
+  getGroupTrackingError,
+  getGroupMaxDrawdown,
 } from "../api";
 import type { PerformancePoint } from "../types";
 import { percent, percentOrNa } from "../lib/money";
@@ -24,6 +28,13 @@ import InfoTip from "./InfoTip";
 
 type Props = {
   owner: string | null;
+  /**
+   * Group slug (e.g. "all") to view combined household performance instead
+   * of a single owner's. When set, `owner` is ignored and owner-only UI
+   * (the diagnostics deep link) is hidden -- diagnostics stay owner-scoped
+   * only (#7228).
+   */
+  group?: string | null;
   asOf?: string | null;
 };
 
@@ -31,7 +42,7 @@ type Props = {
 // (see #7230) because "Alpha vs Benchmark" is not interpretable without it.
 const BENCHMARK_TICKER = "VWRL.L";
 
-export function PerformanceDashboard({ owner, asOf }: Props) {
+export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [data, setData] = useState<PerformancePoint[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [days, setDays] = useState<number>(365);
@@ -49,38 +60,81 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
   const [excludeCash, setExcludeCash] = useState<boolean>(false);
   const [reportingDate, setReportingDate] = useState<string | null>(null);
   const [previousDate, setPreviousDate] = useState<string | null>(null);
+  const [partialMembers, setPartialMembers] = useState<string[]>([]);
+  // A metric endpoint failing must not blank the whole dashboard -- each of
+  // the four performance-metric fetches below is settled independently
+  // (Promise.allSettled) so the rest of the page still renders with the
+  // failed metric(s) shown as unavailable rather than losing everything
+  // (DeepSeek review round 2, #7228).
+  const [unavailableMetrics, setUnavailableMetrics] = useState<string[]>([]);
+  const [perfUnavailable, setPerfUnavailable] = useState<boolean>(false);
   const { t, i18n } = useTranslation();
 
+  const activeGroup = group || null;
+  const activeOwner = activeGroup ? null : owner || null;
+
   useEffect(() => {
-    if (!owner) return;
+    if (!activeGroup && !activeOwner) return;
     setErr(null);
     setData([]);
     setReportingDate(null);
     setPreviousDate(null);
+    setPartialMembers([]);
     setDrawdownSeries([]);
     setDrawdownPeak(null);
     setDrawdownTrough(null);
     setShowDrawdownDetails(false);
+    setAlpha(null);
+    setTrackingError(null);
+    setMaxDrawdown(null);
+    setTimeWeightedReturn(null);
+    setXirr(null);
+    setUnavailableMetrics([]);
+    setPerfUnavailable(false);
     const reqDays = days === 0 ? 36500 : days;
     const opts = asOf ? { asOf } : undefined;
-    Promise.all([
-      getAlphaVsBenchmark(owner, BENCHMARK_TICKER, reqDays, opts),
-      getTrackingError(owner, BENCHMARK_TICKER, reqDays, opts),
-      getMaxDrawdown(owner, reqDays, opts),
-      getPerformance(owner, reqDays, excludeCash, opts),
-    ])
-      .then(([alphaRes, teRes, mdRes, perf]) => {
-        setData(perf.history);
-        setAlpha(alphaRes.alpha_vs_benchmark);
-        setTrackingError(teRes.tracking_error);
+    const alphaPromise = activeGroup
+      ? getGroupAlphaVsBenchmark(activeGroup, BENCHMARK_TICKER, reqDays)
+      : getAlphaVsBenchmark(activeOwner as string, BENCHMARK_TICKER, reqDays, opts);
+    const trackingErrorPromise = activeGroup
+      ? getGroupTrackingError(activeGroup, BENCHMARK_TICKER, reqDays)
+      : getTrackingError(activeOwner as string, BENCHMARK_TICKER, reqDays, opts);
+    const maxDrawdownPromise = activeGroup
+      ? getGroupMaxDrawdown(activeGroup, reqDays)
+      : getMaxDrawdown(activeOwner as string, reqDays, opts);
+    const perfPromise = activeGroup
+      ? getGroupPerformance(activeGroup, reqDays, excludeCash, opts)
+      : getPerformance(activeOwner as string, reqDays, excludeCash, opts);
+
+    let cancelled = false;
+
+    Promise.allSettled([
+      alphaPromise,
+      trackingErrorPromise,
+      maxDrawdownPromise,
+      perfPromise,
+    ]).then(([alphaResult, teResult, mdResult, perfResult]) => {
+      if (cancelled) return;
+      const unavailable: string[] = [];
+
+      if (alphaResult.status === "fulfilled") {
+        setAlpha(alphaResult.value.alpha_vs_benchmark);
+      } else {
+        unavailable.push(t("dashboard.alphaVsBenchmark"));
+      }
+
+      if (teResult.status === "fulfilled") {
+        setTrackingError(teResult.value.tracking_error);
+      } else {
+        unavailable.push(t("dashboard.trackingError"));
+      }
+
+      if (mdResult.status === "fulfilled") {
+        const mdRes = mdResult.value;
         setMaxDrawdown(mdRes.max_drawdown);
         setDrawdownSeries(mdRes.series ?? []);
         setDrawdownPeak(mdRes.peak ?? null);
         setDrawdownTrough(mdRes.trough ?? null);
-        setTimeWeightedReturn(perf.time_weighted_return ?? null);
-        setXirr(perf.xirr ?? null);
-        setReportingDate(perf.reportingDate ?? null);
-        setPreviousDate(perf.previousDate ?? null);
         const normalizedDrawdown =
           mdRes.max_drawdown != null && Math.abs(mdRes.max_drawdown) > 1
             ? mdRes.max_drawdown / 100
@@ -91,13 +145,43 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
         ) {
           setShowDrawdownDetails(true);
         }
-      })
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
-  }, [owner, days, excludeCash, asOf]);
+      } else {
+        unavailable.push(t("dashboard.maxDrawdown"));
+      }
 
-  if (!owner) return <p>{t("dashboard.selectMember")}</p>;
+      if (perfResult.status === "fulfilled") {
+        const perf = perfResult.value;
+        setData(perf.history);
+        setTimeWeightedReturn(perf.time_weighted_return ?? null);
+        setXirr(perf.xirr ?? null);
+        setReportingDate(perf.reportingDate ?? null);
+        setPreviousDate(perf.previousDate ?? null);
+        setPartialMembers(perf.partial ? perf.missingMembers ?? [] : []);
+      } else {
+        setPerfUnavailable(true);
+        unavailable.push(t("dashboard.portfolioValue"));
+      }
+
+      setUnavailableMetrics(unavailable);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeGroup, activeOwner, days, excludeCash, asOf, t]);
+
+  if (!activeGroup && !activeOwner) return <p>{t("dashboard.selectMember")}</p>;
   if (err) return <p style={{ color: "red" }}>{err}</p>;
-  if (!data.length) return <p>{t("common.loading")}</p>;
+  if (!data.length) {
+    if (perfUnavailable) {
+      return (
+        <p data-testid="performance-chart-unavailable">
+          {t("dashboard.performanceUnavailable")}
+        </p>
+      );
+    }
+    return <p>{t("common.loading")}</p>;
+  }
 
   const safeAlpha =
     alpha != null && Math.abs(alpha) > 1 ? alpha / 100 : alpha;
@@ -157,8 +241,8 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
         })
       : t("dashboard.drawdownRangeUnknown");
 
-  const diagnosticsHref = owner
-    ? `/performance/${encodeURIComponent(owner)}/diagnostics`
+  const diagnosticsHref = activeOwner
+    ? `/performance/${encodeURIComponent(activeOwner)}/diagnostics`
     : "#";
 
   const drawdownDetailsAvailable = drawdownSeries.length > 0;
@@ -213,6 +297,34 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
           {formatSummaryDate(previousDate)}
         </div>
       </div>
+      {partialMembers.length > 0 && (
+        <p
+          data-testid="performance-partial-warning"
+          style={{
+            fontSize: "0.85rem",
+            color: "#facc15",
+            marginBottom: "0.75rem",
+          }}
+        >
+          {t("dashboard.performancePartialMembers", {
+            members: partialMembers.join(", "),
+          })}
+        </p>
+      )}
+      {unavailableMetrics.length > 0 && (
+        <p
+          data-testid="performance-metrics-unavailable-warning"
+          style={{
+            fontSize: "0.85rem",
+            color: "#facc15",
+            marginBottom: "0.75rem",
+          }}
+        >
+          {t("dashboard.performanceMetricsUnavailable", {
+            metrics: unavailableMetrics.join(", "),
+          })}
+        </p>
+      )}
       <div
         className="flex-wrap-row"
         style={{
@@ -418,7 +530,7 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
               marginTop: "0.75rem",
             }}
           >
-            {owner && (
+            {activeOwner && (
               <Link
                 to={diagnosticsHref}
                 style={{
@@ -471,7 +583,7 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
           />
         </LineChart>
       </ResponsiveContainer>
-      {owner && (
+      {activeOwner && (
         <div style={{ marginTop: "1rem" }}>
           <Link
             to={diagnosticsHref}

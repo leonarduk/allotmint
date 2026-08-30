@@ -2,11 +2,11 @@ backend/alerts.py:104
 backend/alerts.py:152
 backend/alerts.py:194
 backend/alerts.py:93
-backend/auth.py:178
+backend/auth.py:179
 # provider is always a hardcoded literal ("Google"/"Cognito") passed by the
 # caller, never attacker-controlled; email/token on the same call are already
 # wrapped in sanitise_log_value.
-backend/auth.py:612
+backend/auth.py:698
 backend/common/accounts_store.py:283
 backend/common/accounts_store.py:291
 backend/common/accounts_store.py:410
@@ -40,7 +40,7 @@ backend/common/portfolio.py:117
 backend/common/portfolio_loader.py:240
 backend/common/portfolio_loader.py:253
 backend/common/portfolio_loader.py:260
-backend/common/portfolio_utils.py:1934
+backend/common/portfolio_utils.py:2015
 backend/common/portfolio_utils.py:300
 backend/common/portfolio_utils.py:306
 backend/common/prices.py:405
@@ -59,8 +59,8 @@ backend/common/signup_requests.py:373
 # len(adjustments) is always an int (a count of synthetic transactions just
 # built in this function) and can't carry attacker-controlled string content.
 backend/common/transaction_reconciliation.py:180
-backend/config.py:563
-backend/config.py:566
+backend/config.py:590
+backend/config.py:593
 # len(lines)/len(data) are always ints (row counts produced by the CSV
 # parser in this function) and can't carry attacker-controlled string content.
 backend/importers/hargreaves.py:139
@@ -135,9 +135,9 @@ backend/agent/trading_agent.py:66
 # load_and_compute_metrics() from the agent's own trade log -- not
 # attacker/user-controlled input.
 backend/agent/trading_agent.py:596
-backend/common/portfolio_utils.py:1329
-backend/common/portfolio_utils.py:1358
-backend/common/portfolio_utils.py:1944
+backend/common/portfolio_utils.py:1337
+backend/common/portfolio_utils.py:1366
+backend/common/portfolio_utils.py:2025
 backend/common/portfolio_utils.py:228
 backend/common/portfolio_utils.py:245
 backend/common/portfolio_utils.py:256

@@ -218,6 +218,90 @@ async def group_max_drawdown(slug: str, days: int = 365):
         raise HTTPException(status_code=404, detail="Group not found") from exc
 
 
+@router.get("/performance-group/{slug}")
+async def group_performance(
+    slug: str,
+    days: int = 365,
+    exclude_cash: bool = False,
+    as_of: str | None = None,
+):
+    """Return combined portfolio performance metrics for a group of owners.
+
+    Mirrors ``/performance/{owner}`` but aggregates holdings across every
+    member of the ``slug`` group (see ``/groups``) instead of a single
+    owner. Set ``exclude_cash`` to true to ignore cash holdings when
+    reconstructing the return series.
+    """
+    slug = _validate_owner_slug(slug, "slug")
+    try:
+        result = portfolio_utils.compute_owner_performance(
+            slug,
+            days=days,
+            include_cash=not exclude_cash,
+            pricing_date=_resolve_as_of(as_of),
+            group=True,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="Group not found") from exc
+    return {"group": slug, **result}
+
+
+@router.get("/performance-group/{slug}/twr")
+async def group_twr(slug: str, days: int = 365, as_of: str | None = None):
+    """Return the combined time-weighted return for a group portfolio.
+
+    ``partial`` is true, and ``missing_members`` lists who, when at least
+    one member's transaction ledger could not be found -- their holdings
+    still count toward the combined value series, so the returned figure
+    understates contributions and reads high (#7228).
+    """
+    slug = _validate_owner_slug(slug, "slug")
+    try:
+        val, missing_members = portfolio_utils.compute_time_weighted_return(
+            slug,
+            days,
+            pricing_date=_resolve_as_of(as_of),
+            group=True,
+            include_missing_members=True,
+        )
+        return {
+            "group": slug,
+            "time_weighted_return": val,
+            "partial": bool(missing_members),
+            "missing_members": missing_members,
+        }
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="Group not found") from exc
+
+
+@router.get("/performance-group/{slug}/xirr")
+async def group_xirr(slug: str, days: int = 365, as_of: str | None = None):
+    """Return the combined XIRR for a group portfolio.
+
+    ``partial`` is true, and ``missing_members`` lists who, when at least
+    one member's transaction ledger could not be found -- their holdings
+    still count toward the combined value series, so the returned figure
+    understates contributions and reads high (#7228).
+    """
+    slug = _validate_owner_slug(slug, "slug")
+    try:
+        val, missing_members = portfolio_utils.compute_xirr(
+            slug,
+            days,
+            pricing_date=_resolve_as_of(as_of),
+            group=True,
+            include_missing_members=True,
+        )
+        return {
+            "group": slug,
+            "xirr": val,
+            "partial": bool(missing_members),
+            "missing_members": missing_members,
+        }
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="Group not found") from exc
+
+
 @router.get("/performance/{owner}")
 @handle_owner_not_found
 async def performance(

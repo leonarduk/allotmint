@@ -18,6 +18,13 @@ auth:
   google_client_id: ""                # OAuth client id for Google auth (GOOGLE_CLIENT_ID)
   allowed_emails:                     # Whitelisted emails (ALLOWED_EMAILS)
     - user@example.com
+  # Shareable read-only demo link (#7402 breakdown) - config only for now,
+  # nothing reads these yet. Leave disabled until the enforcement pieces
+  # (token minting/verification, identity resolution, read-only authz gate)
+  # have merged.
+  demo_link_enabled: false            # Master kill switch for the demo link, defaults to false
+  demo_link_owner: demo                # Single owner id a demo-scoped token may read
+  demo_link_ttl_hours: 72              # TTL (hours) applied when minting a demo token
 
 server:
   app_env: local                      # Runtime environment (APP_ENV)

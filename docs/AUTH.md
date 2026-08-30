@@ -32,9 +32,10 @@ The Cognito flow uses PKCE to avoid exposing client secrets in the browser. It i
 ### Flow
 
 The Cognito ID token is sent **directly** to API Gateway. There is no backend
-JWT exchange on this path — the gateway's Cognito JWT authorizer validates the
-ID token's `aud` claim against the UI app client ID, so the token issued by
-Cognito is exactly what the authorizer expects.
+JWT exchange on this path — the gateway authorizer (`GatewayAuthorizerLambda`,
+see "Deployed-gateway auth: the demo/Cognito Lambda authorizer" below) checks
+the ID token's signature and `aud` claim against the UI app client ID, so the
+token issued by Cognito is exactly what the authorizer expects.
 
 ```
 Browser                        Cognito Hosted UI          API Gateway + Lambda
@@ -55,12 +56,13 @@ Browser                        Cognito Hosted UI          API Gateway + Lambda
   │      (gateway authorizer validates aud == UI client ID, then invokes Lambda) │
 ```
 
-> **Why the ID token, not the access token?** The HTTP API JWT authorizer matches
-> the token's `aud` claim against the configured audience
-> (`cdk/stacks/backend_lambda_stack.py` → `JwtConfiguration.Audience` =
-> `UiAuthUserPoolClientId`). Cognito sets `aud` on the **ID token**; access tokens
-> carry `client_id` instead and have no `aud`, so sending the access token here
-> would fail authorization.
+> **Why the ID token, not the access token?** The gateway authorizer
+> (`backend.auth.is_cognito_id_token`) matches the token's `aud` claim against
+> the configured UI app client ID (`UiAuthUserPoolClientId`, passed through as
+> the `UI_AUTH_USER_POOL_CLIENT_ID` env var — see
+> `cdk/stacks/backend_lambda_stack.py`). Cognito sets `aud` on the **ID
+> token**; access tokens carry `client_id` instead and have no `aud`, so
+> sending the access token here would fail authorization.
 
 ### Token expiry / refresh
 
@@ -301,25 +303,79 @@ Admin (Cognito)          Backend                     Browser (visitor)          
      │                      │◄──────────────── 403 Demo access is read-only ────────────────│
 ```
 
-### Known deployment caveat (documented here, not fixed — see PR description)
+### Deployed-gateway auth: the demo/Cognito Lambda authorizer (#7522)
+
+The rest of this section walks through why a demo-scoped token needed a
+gateway-level fix at all, and how that fix works.
 
 `cdk/stacks/backend_lambda_stack.py` puts every route except an explicit
 bypass list (`/health`, `GET /config`, `POST /token`, `POST /token/google`,
-`/signup/*`, and `OPTIONS`) behind `backend_authorizer`, API Gateway's
-**Cognito** JWT authorizer (`cdk/stacks/backend_lambda_stack.py:820-829`).
-Neither `POST /demo-link` nor the routes a demo token is used against
-afterward (`GET /owners`, portfolio reads, etc.) are in that bypass list. A
-demo-scoped token is signed with the backend's own `SECRET_KEY` via HS256 —
-it is not issued by Cognito — so on a deployment that puts API Gateway's
-Cognito authorizer in front of the backend (the architecture described
-earlier in this document and in `README.md`), a request bearing a demo token
-would be rejected by the authorizer *before it ever reaches the Lambda*
-where all of the logic described above runs. This repo's test suite
-(`tests/test_demo_link_mint.py`, `tests/test_auth_demo_token.py`,
-`tests/test_demo_write_gate.py`) exercises the flow through FastAPI's
-`TestClient` directly, which bypasses API Gateway entirely, so it does not
-catch this. Noted here as a likely follow-up rather than fixed in this
-documentation-only change.
+`/signup/*`, and `OPTIONS`) behind a gateway authorizer on the `ANY /` and
+`ANY /{proxy+}` catch-alls. Neither `POST /demo-link` nor the routes a demo
+token is used against afterward (`GET /owners`, portfolio reads, etc.) are in
+that bypass list — by design, since those routes must still require *some*
+authentication. A demo-scoped token is signed with the backend's own
+`SECRET_KEY` via HS256 — it is not issued by Cognito — so API Gateway's
+*native* Cognito JWT authorizer (the architecture originally described
+earlier in this document and in `README.md`) rejected a request bearing a
+demo token *before it ever reached the Lambda* where all of the logic
+described above runs. This repo's test suite (`tests/test_demo_link_mint.py`,
+`tests/test_auth_demo_token.py`, `tests/test_demo_write_gate.py`) exercises
+the flow through FastAPI's `TestClient` directly, which bypasses API Gateway
+entirely, so it did not catch this — the feature was fully non-functional on
+a real deployment beyond the six bypassed routes (issue #7522).
+
+**The fix**: `cdk/stacks/backend_lambda_stack.py` replaces the native Cognito
+`HttpUserPoolAuthorizer` on `ANY /` and `ANY /{proxy+}` with a custom
+`apigwv2.HttpLambdaAuthorizer` (`GatewayAuthorizerLambda`, backed by
+`backend/lambda_api/demo_authorizer.py`). Two options were on the table (see
+the issue): widen the no-auth bypass list and rely solely on the app-layer
+`demo_write_gate`/`ensure_owner_access` checks, or add a Lambda authorizer
+that keeps API Gateway itself as the trust boundary. The Lambda-authorizer
+option was chosen — it does not widen the set of routes API Gateway lets
+through unauthenticated, so a request still needs *some* valid, signed
+credential before the backend Lambda ever runs.
+
+`GatewayAuthorizerLambda` admits a request when its `Authorization: Bearer
+<token>` header carries **either**:
+
+- a demo-scoped token — verified with `backend.auth.decode_demo_token`
+  (signature + `scope`/`owner` claim shape + expiry); or
+- a Cognito ID token — verified with `backend.auth.is_cognito_id_token`
+  (signature via the issuer's JWKS endpoint, `iss`/`aud`/`token_use`/expiry)
+  against the UI app client ID and, if configured, the deploy workflow's
+  smoke-test client ID.
+
+It deliberately checks only *structural* token validity. It does **not**
+re-run `_authorize_email`/`_allowed_emails()` (the S3-backed allowed-emails
+allowlist) for a Cognito token, nor `_resolve_demo_request`'s
+`demo_link_enabled`/`demo_link_owner` checks for a demo token — both already
+run, exactly once, downstream in the backend Lambda's own
+`get_current_user`/`_resolve_demo_request` regardless of what the authorizer
+decides (`DISABLE_AUTH=true` only skips the backend's own *Cognito* JWT
+decode, never the demo-token path — see the enforcement gates documented
+above). Re-running the S3-backed allowlist check in the authorizer too would
+double that cost on every single API request without adding a security
+guarantee. This is also why the authorizer's result caching is disabled
+(`AuthorizerResultTtlInSeconds: 0`): a cached "authorized" decision could
+otherwise admit a Cognito token past its real `exp` for up to the cache TTL,
+since the backend Lambda trusts the gateway authorizer's decision for a
+Cognito token rather than independently re-verifying its signature/expiry.
+
+`GatewayAuthorizerLambda` reuses the same Docker image as the backend Lambda
+(a distinct entry point, `backend.lambda_api.demo_authorizer.lambda_handler`,
+mirroring `PriceRefreshLambda`/`TradingAgentLambda`/etc.) so it can call
+`backend.auth` directly rather than re-implementing JWT verification in a
+second codebase. It receives its own `JWT_SECRET` (to verify a demo token's
+HS256 signature) and the same Cognito app client ID(s) the old
+`HttpUserPoolAuthorizer` validated against, but no S3 permissions — it never
+calls the allowed-emails allowlist.
+
+`POST /demo-link` itself stays exactly as before: admin-gated
+(`Depends(require_admin)`) and additionally gated on
+`config.demo_link_enabled`, reached via the same `ANY /{proxy+}` catch-all
+and therefore the same gateway authorizer — an admin's Cognito ID token
+satisfies it like any other Cognito-authenticated route.
 
 ### Revocation and blast radius
 
@@ -394,25 +450,29 @@ Implemented in `backend/auth.py` (`describe_token`) and `backend/app.py`
 
 ### Gateway authorizer rejections — API Gateway access logs (CloudWatch)
 
-A request rejected by the Cognito JWT authorizer at API Gateway (for example the
-`/owners` 401 in issue #4256) is returned **before** the backend Lambda runs, so
-it appears in neither the Lambda logs nor `/whoami`. The HTTP API `$default`
-stage is configured (in `cdk/stacks/backend_lambda_stack.py`) to write access
-logs to a CloudWatch log group (`BackendApiAccessLogGroup`). Each entry is JSON
-including:
+A request rejected by the gateway authorizer (`GatewayAuthorizerLambda`, see
+above) on `ANY /`/`ANY /{proxy+}` — for example the `/owners` 401 in issue
+#4256, or an invalid demo token — is returned **before** the backend Lambda
+runs, so it appears in neither the Lambda logs nor `/whoami`. The HTTP API
+`$default` stage is configured (in `cdk/stacks/backend_lambda_stack.py`) to
+write access logs to a CloudWatch log group (`BackendApiAccessLogGroup`).
+Each entry is JSON including:
 
 | Field | `$context` source | Use |
 |---|---|---|
 | `status` | `$context.status` | HTTP status returned to the client |
 | `routeKey` | `$context.routeKey` | Which route was hit (e.g. `GET /owners`) |
-| `authorizerError` | `$context.authorizer.error` | Why the JWT authorizer rejected the request |
+| `authorizerError` | `$context.authorizer.error` | Populated for an authorizer *error* (e.g. the old JWT authorizer's own rejections); a clean `isAuthorized: false` from GatewayAuthorizerLambda is a valid deny decision, not an error, so this field is typically empty for a gateway-authorizer 403 — `status`/`routeKey` are what to check instead |
 | `errorMessage` | `$context.error.message` | Gateway-level error detail |
 | `integrationStatus` | `$context.integrationStatus` | Status from the Lambda integration |
 
-To investigate a gateway 401: open the `BackendApiAccessLogGroup` log group in
-CloudWatch, filter to the failing `routeKey`, and read `authorizerError`. The
-format deliberately logs claims/status only — the raw `Authorization` header /
-bearer token is never logged.
+To investigate a gateway rejection: open the `BackendApiAccessLogGroup` log
+group in CloudWatch and filter to the failing `routeKey`/`status` (403 from
+`GatewayAuthorizerLambda`, or check `GatewayAuthorizerLambdaLogGroup` itself
+for the authorizer's own CloudWatch logs — it logs an exception, never the
+raw token, if it fails closed). The access-log format deliberately logs
+claims/status only — the raw `Authorization` header / bearer token is never
+logged.
 
 ## Account creation
 

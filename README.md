@@ -90,7 +90,7 @@ flowchart TD
     TradingLambda -.image.-> ECR
 ```
 
-`/health`, `/config` (GET), `/token/google`, and `/signup/*` bypass the Cognito authorizer (public or self-authenticating routes); every other route requires a valid Cognito ID token.
+`/health`, `/config` (GET), `/token/google`, and `/signup/*` bypass the Cognito authorizer (public or self-authenticating routes); every other route requires a valid Cognito ID token. A separate, additive scoped read-only "demo link" also exists for sharing a read-only view without Cognito sign-in — but neither `/demo-link` nor the routes it's used against are in this bypass list, so it is only reachable where API Gateway's Cognito authorizer isn't in front of the backend (see [docs/AUTH.md § Demo link (scoped read-only token)](docs/AUTH.md#demo-link-scoped-read-only-token) for the flow and this known caveat).
 
 ### CDK deployment pipeline
 

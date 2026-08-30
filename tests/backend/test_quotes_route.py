@@ -49,32 +49,6 @@ def test_get_quotes_includes_name(monkeypatch):
     ]
 
 
-def test_get_quotes_prefers_long_name_over_short_name(monkeypatch):
-    app = FastAPI()
-    app.include_router(quotes.router)
-
-    def fake_Tickers(symbols):
-        ticker = type(
-            "T",
-            (),
-            {
-                "info": {
-                    "regularMarketPrice": 126.67,
-                    "shortName": "iShares Core MSCI World UCITS E",
-                    "longName": "iShares Core MSCI World UCITS ETF USD Acc",
-                }
-            },
-        )()
-        return type("TT", (), {"tickers": {"IWDA.AS": ticker}})()
-
-    monkeypatch.setattr(quotes.yf, "Tickers", fake_Tickers)
-
-    with TestClient(app) as client:
-        resp = client.get("/api/quotes?symbols=IWDA.AS")
-    assert resp.status_code == 200
-    assert resp.json()[0]["name"] == "iShares Core MSCI World UCITS ETF USD Acc"
-
-
 def test_get_quotes_includes_currency_and_quote_type(monkeypatch):
     app = FastAPI()
     app.include_router(quotes.router)

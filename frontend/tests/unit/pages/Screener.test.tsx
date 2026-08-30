@@ -190,7 +190,9 @@ describe("Screener", () => {
     ]);
 
     render(<Screener />);
-    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "AAA" } });
+    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
+      target: { value: "AAA" },
+    });
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
 
     const tip = await screen.findByRole("button", { name: "What does PEG mean?" });

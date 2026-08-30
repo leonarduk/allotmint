@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AddPositionForm } from "@/components/AddPositionForm";
 import { createManualHolding } from "@/api";
+import { AuthContext } from "@/AuthContext";
 
 vi.mock("@/api", () => ({
   createManualHolding: vi.fn(),
@@ -151,5 +152,51 @@ describe("AddPositionForm", () => {
       "id",
       "add-position-form",
     );
+  });
+
+  // Issue #7411: mutating controls must disable themselves for a
+  // demo-scoped session so a visitor isn't shown a button that will 403.
+  describe("demoReadOnly (issue #7411)", () => {
+    it("disables the submit button with an explanatory title", () => {
+      render(
+        <AuthContext.Provider
+          value={{
+            user: null,
+            setUser: vi.fn(),
+            logout: null,
+            setLogout: vi.fn(),
+            demoReadOnly: true,
+            setDemoReadOnly: vi.fn(),
+          }}
+        >
+          <AddPositionForm owner="alice" accounts={["ISA"]} />
+        </AuthContext.Provider>,
+      );
+
+      const submit = screen.getByRole("button", { name: "Add position" });
+      expect(submit).toBeDisabled();
+      expect(submit).toHaveAttribute("title");
+    });
+
+    it("does not block submission when demoReadOnly is false (default)", async () => {
+      vi.mocked(createManualHolding).mockResolvedValue({
+        status: "saved",
+        owner: "alice",
+        account: "isa",
+        holding: { ticker: "AAA.L" },
+      });
+
+      render(<AddPositionForm owner="alice" accounts={["ISA"]} />);
+
+      const submit = screen.getByRole("button", { name: "Add position" });
+      expect(submit).not.toBeDisabled();
+
+      await userEvent.type(screen.getByLabelText("Ticker"), "AAA.L");
+      await userEvent.type(screen.getByLabelText("Units"), "10");
+      await userEvent.type(screen.getByLabelText("Price (GBP)"), "100");
+      await userEvent.click(submit);
+
+      expect(createManualHolding).toHaveBeenCalled();
+    });
   });
 });

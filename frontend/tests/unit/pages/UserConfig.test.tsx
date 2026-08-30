@@ -597,5 +597,48 @@ describe("UserConfig page", () => {
     expect(keyWarnings).toEqual([]);
     errorSpy.mockRestore();
   });
+
+  // Issue #7411: mutating controls must disable themselves for a
+  // demo-scoped session so a visitor isn't shown a button that will 403.
+  it("disables save/add/remove controls during a demo-readonly session (issue #7411)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({
+      approvals: [{ ticker: "ABC", approved_on: "2024-01-01" }],
+    });
+
+    render(
+      <AuthContext.Provider
+        value={{
+          user: null,
+          setUser: vi.fn(),
+          logout: null,
+          setLogout: vi.fn(),
+          demoReadOnly: true,
+          setDemoReadOnly: vi.fn(),
+        }}
+      >
+        <UserConfig />
+      </AuthContext.Provider>,
+    );
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    const saveButton = screen.getByRole("button", { name: /save/i });
+    const addButton = screen.getByRole("button", { name: /^add$/i });
+    const removeButton = await screen.findByRole("button", { name: /remove/i });
+
+    expect(saveButton).toBeDisabled();
+    expect(addButton).toBeDisabled();
+    expect(removeButton).toBeDisabled();
+
+    await act(async () => {
+      await userEvent.click(saveButton);
+    });
+    expect(mockUpdateUserConfig).not.toHaveBeenCalled();
+  });
 });
 

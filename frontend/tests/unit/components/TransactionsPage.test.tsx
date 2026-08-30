@@ -369,4 +369,62 @@ describe('TransactionsPage', () => {
     const manualOwnerInput = screen.getByLabelText('Owner') as HTMLInputElement;
     await waitFor(() => expect(manualOwnerInput.value).toBe('alex'));
   });
+
+  // Issue #7411: mutating controls must disable themselves for a
+  // demo-scoped session so a visitor isn't shown a control that will 403.
+  describe('demoReadOnly (issue #7411)', () => {
+    const demoAuthValue = {
+      user: null,
+      setUser: vi.fn(),
+      logout: null,
+      setLogout: vi.fn(),
+      demoReadOnly: true,
+      setDemoReadOnly: vi.fn(),
+    };
+
+    it('disables the transaction editor submit and the bulk actions', async () => {
+      render(
+        <AuthContext.Provider value={demoAuthValue}>
+          <TransactionsPage
+            owners={[
+              { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+            ]}
+          />
+        </AuthContext.Provider>
+      );
+
+      await screen.findByText('PFE');
+      expect(
+        screen.getByRole('button', { name: /add transaction/i })
+      ).toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: /apply to selected/i })
+      ).toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: /delete selected/i })
+      ).toBeDisabled();
+      expect(getEditButtonForTicker('PFE')).toBeDisabled();
+      const row = screen.getByText('PFE').closest('tr');
+      if (!row) throw new Error('row not found');
+      expect(within(row).getByRole('button', { name: 'Delete' })).toBeDisabled();
+    });
+
+    it('disables the manual "Save holding" button', async () => {
+      render(
+        <AuthContext.Provider value={demoAuthValue}>
+          <TransactionsPage
+            owners={[
+              { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+            ]}
+            inputOnly
+          />
+        </AuthContext.Provider>
+      );
+
+      await screen.findByText('Account + Holdings Input');
+      expect(
+        screen.getByRole('button', { name: /save holding/i })
+      ).toBeDisabled();
+    });
+  });
 });

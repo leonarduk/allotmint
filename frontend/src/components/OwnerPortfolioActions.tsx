@@ -9,12 +9,14 @@ import { AddAccountForm } from "./AddAccountForm";
 import { AddPositionForm } from "./AddPositionForm";
 import { CsvImportForm } from "./CsvImportForm";
 import { ValueAtRisk } from "./ValueAtRisk";
+import { useDemoReadOnly } from "../hooks/useDemoReadOnly";
 
 const FORM_ID = "group-add-position-form";
 type Props = { owner: string; asOf: string; accounts: Account[]; activeAccountType: string | null; onDateChange: (date: string | null) => void; onMutated: () => void };
 
 export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType, onDateChange, onMutated }: Props) {
   const { t } = useTranslation();
+  const { demoReadOnly, reason } = useDemoReadOnly();
   const { familyMvpEnabled, enableAdvancedAnalytics = true, tabs, disabledTabs } = useConfig();
   const complianceEnabled = tabs["trade-compliance"] && !(disabledTabs ?? []).includes("trade-compliance");
   const [hasWarnings, setHasWarnings] = useState(false);
@@ -49,7 +51,7 @@ export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType
 
   const finishMutation = () => { setShowAccount(false); setShowImport(false); collapsePosition(); onMutated(); };
   const openPosition = () => { setShowPosition(true); positionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); };
-  const buttonClass = "rounded border border-gray-700 px-3 py-1.5 text-sm text-white hover:bg-gray-800";
+  const buttonClass = "rounded border border-gray-700 px-3 py-1.5 text-sm text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent";
 
   return <section className="mb-6 rounded-lg border border-gray-800 bg-gray-900/70 p-4">
     {accounts.length > 0 && <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -57,9 +59,9 @@ export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType
         <button type="button" onClick={() => downloadPortfolioCsv(portfolio)} aria-label="Export portfolio as CSV" className={buttonClass}>Export CSV</button>
         <button type="button" onClick={() => printPortfolioPdf(portfolio)} aria-label="Export portfolio as PDF" className={buttonClass}>Export PDF</button>
       </>}
-      {!showPosition && <button type="button" onClick={openPosition} aria-expanded="false" aria-controls={FORM_ID} className={buttonClass}>+ {t("addPosition.title")}</button>}
-      {!showImport && <button type="button" onClick={() => setShowImport(true)} className={buttonClass}>+ Import CSV</button>}
-      {!showAccount && <button type="button" onClick={() => setShowAccount(true)} className={buttonClass}>Add account</button>}
+      {!showPosition && <button type="button" onClick={openPosition} aria-expanded="false" aria-controls={FORM_ID} disabled={demoReadOnly} title={reason()} className={buttonClass}>+ {t("addPosition.title")}</button>}
+      {!showImport && <button type="button" onClick={() => setShowImport(true)} disabled={demoReadOnly} title={reason()} className={buttonClass}>+ Import CSV</button>}
+      {!showAccount && <button type="button" onClick={() => setShowAccount(true)} disabled={demoReadOnly} title={reason()} className={buttonClass}>Add account</button>}
     </div>}
     <div ref={positionRef}>{showPosition && <AddPositionForm owner={owner} accounts={accountTypes} defaultAccount={activeAccountType && accountTypes.includes(activeAccountType) ? activeAccountType : undefined} onAdded={finishMutation} onCollapse={collapsePosition} controlsId={FORM_ID} />}</div>
     {showImport && accounts.length > 0 && <div className="mb-6"><CsvImportForm owner={owner} accountTypes={accountTypes} onImported={finishMutation} /><button type="button" onClick={() => setShowImport(false)} className="mt-2 text-xs text-gray-400 underline">Cancel import</button></div>}

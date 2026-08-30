@@ -10,6 +10,7 @@ import {
 } from '../api';
 import type { Approval, OwnerSummary, UserConfig } from '../types';
 import { useAuth } from '../AuthContext';
+import { useDemoReadOnly } from '../hooks/useDemoReadOnly';
 import { findOwnerForUser, sanitizeOwners } from '../utils/owners';
 
 /**
@@ -36,6 +37,7 @@ type UserConfigPageProps = {
 export default function UserConfigPage({ selectedOwner = '' }: UserConfigPageProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { demoReadOnly, reason } = useDemoReadOnly();
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(true);
   const [owner, setOwner] = useState('');
@@ -375,7 +377,8 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
             <button
               type="submit"
               className="bg-blue-500 px-4 py-2 text-white"
-              disabled={status === 'saving'}
+              disabled={status === 'saving' || demoReadOnly}
+              title={reason()}
             >
               {status === 'saving'
                 ? t('userConfig.saving', 'Saving...')
@@ -440,6 +443,8 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
                           type="button"
                           className="text-red-500"
                           onClick={() => remove(a.ticker)}
+                          disabled={demoReadOnly}
+                          title={reason()}
                         >
                           {t('userConfig.remove', 'Remove')}
                         </button>
@@ -471,7 +476,12 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
                 value={newDate}
                 onChange={(e) => setNewDate(e.target.value)}
               />
-              <button type="submit" className="bg-blue-500 px-2 text-white">
+              <button
+                type="submit"
+                className="bg-blue-500 px-2 text-white"
+                disabled={demoReadOnly}
+                title={reason()}
+              >
                 {t('userConfig.add', 'Add')}
               </button>
             </form>

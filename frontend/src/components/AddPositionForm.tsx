@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { createManualHolding } from "../api";
+import { useDemoReadOnly } from "../hooks/useDemoReadOnly";
 
 type AmountMode = "unitsPrice" | "value";
 
@@ -23,6 +24,7 @@ export function AddPositionForm({
   controlsId,
 }: Props) {
   const { t } = useTranslation();
+  const { demoReadOnly, reason } = useDemoReadOnly();
   const [account, setAccount] = useState(defaultAccount ?? accounts[0] ?? "");
   const [ticker, setTicker] = useState("");
   const [mode, setMode] = useState<AmountMode>("unitsPrice");
@@ -188,7 +190,8 @@ export function AddPositionForm({
       <div className="mt-3 flex items-center gap-3">
         <button
           type="submit"
-          disabled={submitting || !account}
+          disabled={submitting || !account || demoReadOnly}
+          title={reason()}
           className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
         >
           {submitting ? t("addPosition.submitting") : t("addPosition.submit")}

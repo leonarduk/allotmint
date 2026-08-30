@@ -10,6 +10,7 @@ import {
 } from "../api";
 import { useUser } from "../UserContext";
 import { usePriceRefresh } from "../PriceRefreshContext";
+import { useDemoReadOnly } from "../hooks/useDemoReadOnly";
 import {
   createOwnerDisplayLookup,
   findOwnerForUser,
@@ -39,6 +40,7 @@ export default function AlertSettings() {
   const { t } = useTranslation();
   const { profile } = useUser();
   const { lastRefresh } = usePriceRefresh();
+  const { demoReadOnly, reason } = useDemoReadOnly();
 
   // /alert-thresholds/{user} (backend/routes/alert_settings.py) is scoped to
   // a single resolved IDENTITY, not to whichever owner's portfolio happens
@@ -209,7 +211,8 @@ export default function AlertSettings() {
           <button
             onClick={save}
             style={{ marginLeft: "0.5rem" }}
-            disabled={saveDisabled}
+            disabled={saveDisabled || demoReadOnly}
+            title={reason()}
           >
             {t("alertSettings.save")}
           </button>

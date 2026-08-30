@@ -5,6 +5,7 @@ import i18n from "@/i18n";
 import Menu from "@/components/Menu";
 import AlertSettings from "@/pages/AlertSettings";
 import en from "@/locales/en/translation.json";
+import { AuthContext } from "@/AuthContext";
 import type { OwnerSummary } from "@/types";
 
 const mockGetOwners = vi.hoisted(() => vi.fn());
@@ -322,5 +323,36 @@ describe("AlertSettings authorisation errors", () => {
     ).not.toBeInTheDocument();
     // A 500 isn't an authorisation problem, so Save stays usable.
     expect(saveButton).toBeEnabled();
+  });
+});
+
+describe("AlertSettings demoReadOnly (issue #7411)", () => {
+  it("disables the save button during a demo-readonly session even with a profile", async () => {
+    mockUseUser.mockReturnValue({ profile: { email: "alex@example.com" } });
+
+    render(
+      <AuthContext.Provider
+        value={{
+          user: null,
+          setUser: vi.fn(),
+          logout: null,
+          setLogout: vi.fn(),
+          demoReadOnly: true,
+          setDemoReadOnly: vi.fn(),
+        }}
+      >
+        <MemoryRouter>
+          <AlertSettings />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+
+    const saveButton = await screen.findByRole("button", {
+      name: en.alertSettings.save,
+    });
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute("title");
+
+    mockUseUser.mockReturnValue({ profile: undefined });
   });
 });

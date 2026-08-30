@@ -83,6 +83,12 @@ generalisation to per-area gating.
 | Smoke mode | End-to-end checks against a running stack | Existing backend/frontend deployment or local stack | Existing backend/frontend deployment or local stack | Optional token depending on target | Uses configured smoke identity and available account data |
 | AWS / deployment checks | Validate packaging and deploy-specific assumptions | CDK/deploy scripts | frontend build/deploy scripts | Enabled in production-style environments | S3-backed data and deployment env vars |
 
+There is also a third, additive auth path — a scoped, read-only demo link
+(`demo_link_enabled` / `demo_link_owner` / `demo_link_ttl_hours` in
+`config.example.yaml`, ships off by default) that is not one of the modes
+above and does not change any of them. See [docs/AUTH.md § Demo link (scoped
+read-only token)](AUTH.md#demo-link-scoped-read-only-token).
+
 ## 2. Install dependencies
 
 From the repository root:

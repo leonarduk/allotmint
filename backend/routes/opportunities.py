@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from backend.agent import trading_agent
 from backend.agent.models import TradingSignal
-from backend.auth import decode_token
+from backend.auth import decode_token, is_demo_request
 from backend.common import instrument_api
 from backend.config import config
 from backend.routes.portfolio import _ALLOWED_DAYS as _PORTFOLIO_ALLOWED_DAYS
@@ -129,7 +129,19 @@ async def get_opportunities(
 
     context: OpportunitiesContext
     if has_group:
-        if token:
+        # A demo-scoped token is already authorized at this point --
+        # backend.bootstrap.middleware.demo_scope_gate resolves it
+        # unconditionally, for every request, before this handler ever runs.
+        # decode_token() below is the ordinary backend-JWT decoder and
+        # deliberately returns None for a demo token (backend/auth.py:255-256)
+        # so it can never be mistaken for a real login; check is_demo_request()
+        # first, exactly as ensure_owner_access does, or a demo token here
+        # falls straight into the "not user" 401 instead (found live: it broke
+        # the Movers page for the buffett demo account, since "Portfolio"
+        # watchlist routes through GET /opportunities?group=...).
+        if is_demo_request():
+            pass
+        elif token:
             user = decode_token(token)
             if not user:
                 raise HTTPException(

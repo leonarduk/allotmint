@@ -416,6 +416,7 @@
     "metricGainGbp": "Ganho (£)",
     "metricMarketValueGbp": "Valor de mercado (£)",
     "metrics": "Métricas",
+    "noTickers": "Nenhum ticker encontrado nas suas posições.",
     "owners": "Proprietários",
     "run": "Executar",
     "running": "Executando…",

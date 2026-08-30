@@ -110,6 +110,19 @@ describe("PerformanceDashboard", () => {
     expect(diagLinks[0]).toBeInTheDocument();
   });
 
+  it("names the benchmark used for alpha and tracking error (#7230)", async () => {
+    render(
+      <MemoryRouter>
+        <PerformanceDashboard owner="jane" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findAllByText("vs VWRL.L")).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: "What does Alpha vs Benchmark mean?" }),
+    ).toBeInTheDocument();
+  });
+
   it("auto-expands suspicious drawdowns", async () => {
     vi.mocked(getMaxDrawdown).mockResolvedValueOnce({
       max_drawdown: -0.95,

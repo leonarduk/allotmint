@@ -10,6 +10,7 @@ import { SignalBadge } from "./SignalBadge";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
 import LoadingStatus from "./skeletons/LoadingStatus";
+import InfoTip from "./InfoTip";
 
 import { useFetch } from "../hooks/useFetch";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -316,14 +317,16 @@ export function TopMoversPage() {
               {t("common.name")}
             </th>
             <th className={tableStyles.cell} aria-describedby="movers-window-note">
-              {t("movers.signal")}{" "}
-              <span
-                aria-hidden="true"
-                title={t("movers.signalWindowNote")}
-                style={{ cursor: "help", fontWeight: "normal" }}
+              {t("movers.signal")}
+              <InfoTip
+                label={t("movers.signalInfoLabel", "What does the Signal column mean?")}
+                to="/metrics-explained#buy-sell-signal"
               >
-                ⓘ
-              </span>
+                {t(
+                  "movers.signalInfo",
+                  "Shows whether the latest signal generated for that instrument, using the same strategy thresholds as the Trading page, was a buy or sell candidate."
+                )}
+              </InfoTip>
             </th>
             <th
               className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}

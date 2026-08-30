@@ -527,7 +527,7 @@
     "intro": "These metrics summarise how the combined portfolio performs relative to its benchmark. Each value is derived from the same daily return series that powers the dashboard tiles.",
     "loadError": "We couldn’t load the latest metrics: {{message}}",
     "loading": "Loading latest metrics…",
-    "missingContext": "No portfolio or group was specified. Return to the dashboard and follow the metrics explanation link from a specific portfolio.",
+    "missingContext": "This page explains the metrics and jargon used across the app. It also shows live numbers when opened from a specific portfolio or group — open it from the Performance page (or a “Learn more” link elsewhere in the app) to see your own figures filled in below.",
     "noContext": "Open this page from a portfolio or group to see live numbers.",
     "notAvailable": "n/a",
     "notesHeading": "Things to know",
@@ -578,7 +578,7 @@
         "title": "Tracking Error"
       }
     },
-    "title": "Performance Metrics Explained"
+    "title": "Glossary"
   },
   "movers": {
     "deltaGbpHeader": "Value change (£, {{period}})",
@@ -658,6 +658,7 @@
     "metricMarketValueGbp": "Market value (£)",
     "metrics": "Metrics",
     "noResults": "No results.",
+    "noTickers": "No tickers found in your holdings.",
     "owners": "Owners",
     "run": "Run",
     "running": "Running…",

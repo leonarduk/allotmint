@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { axe } from 'jest-axe';
@@ -198,6 +200,56 @@ describe('Trading page', () => {
     // only their skeleton placeholders.
     expect(screen.queryByText('Not enabled')).not.toBeInTheDocument();
     expect(screen.queryByText('No signals right now')).not.toBeInTheDocument();
+  });
+
+  it('attaches an InfoTip to jargon thresholds and the checks-skipped badge (#7230)', async () => {
+    // 'compliance' and 'fundamental_screen' are the only two values the
+    // backend ever emits (backend/agent/trading_agent.py:574-578) — see the
+    // vocabulary-pinning test below.
+    mockFetchState({
+      data: [{ ...sampleSignal, checks_skipped: ['compliance', 'fundamental_screen'] }],
+    });
+
+    render(<Trading />);
+    await screen.findByText('AAA');
+
+    expect(
+      screen.getAllByRole('button', { name: 'What does RSI mean?' }).length
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByRole('button', { name: "What does 'Checks skipped' mean?" })
+    ).toBeInTheDocument();
+  });
+
+  it('pins the "Checks skipped" copy to the backend\'s actual checks_skipped vocabulary (#7230)', () => {
+    // Guards against the copy drifting from what the backend can actually
+    // emit — this is exactly how a previous review round caught the
+    // explanation describing checks (P/E, Sharpe ratio, volatility) the
+    // backend never tags as skipped, and omitting 'compliance' (the
+    // consequential one) entirely. Checks both places that carry the same
+    // claim (Trading.tsx's inline tooltip and MetricsExplanation.tsx's
+    // glossary entry) since either can drift independently.
+    const backendSource = readFileSync(
+      resolve(__dirname, '../../../../backend/agent/trading_agent.py'),
+      'utf-8'
+    );
+    const emitted = new Set(
+      Array.from(
+        backendSource.matchAll(/checks_skipped\.append\("([a-z_]+)"\)/g)
+      ).map((match) => match[1])
+    );
+    expect(emitted).toEqual(new Set(['compliance', 'fundamental_screen']));
+
+    const copySources = [
+      resolve(__dirname, '../../../src/pages/Trading.tsx'),
+      resolve(__dirname, '../../../src/pages/MetricsExplanation.tsx'),
+    ].map((path) => readFileSync(path, 'utf-8'));
+
+    for (const source of copySources) {
+      for (const value of emitted) {
+        expect(source).toContain(value);
+      }
+    }
   });
 
   it('does not emit duplicate-key warnings when the same ticker appears twice (#6505)', async () => {

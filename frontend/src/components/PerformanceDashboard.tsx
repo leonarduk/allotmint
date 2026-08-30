@@ -24,6 +24,7 @@ import type { PerformancePoint } from "../types";
 import { percent, percentOrNa } from "../lib/money";
 import { formatDateISO } from "../lib/date";
 import type { DrawdownExtrema, DrawdownSeriesPoint } from "../types";
+import InfoTip from "./InfoTip";
 
 type Props = {
   owner: string | null;
@@ -36,6 +37,10 @@ type Props = {
   group?: string | null;
   asOf?: string | null;
 };
+
+// The benchmark alpha/tracking-error are measured against. Named on screen
+// (see #7230) because "Alpha vs Benchmark" is not interpretable without it.
+const BENCHMARK_TICKER = "VWRL.L";
 
 export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [data, setData] = useState<PerformancePoint[]>([]);
@@ -76,14 +81,14 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     const opts = asOf ? { asOf } : undefined;
     const fetches = activeGroup
       ? Promise.all([
-          getGroupAlphaVsBenchmark(activeGroup, "VWRL.L", reqDays),
-          getGroupTrackingError(activeGroup, "VWRL.L", reqDays),
+          getGroupAlphaVsBenchmark(activeGroup, BENCHMARK_TICKER, reqDays),
+          getGroupTrackingError(activeGroup, BENCHMARK_TICKER, reqDays),
           getGroupMaxDrawdown(activeGroup, reqDays),
           getGroupPerformance(activeGroup, reqDays, excludeCash, opts),
         ])
       : Promise.all([
-          getAlphaVsBenchmark(activeOwner as string, "VWRL.L", reqDays, opts),
-          getTrackingError(activeOwner as string, "VWRL.L", reqDays, opts),
+          getAlphaVsBenchmark(activeOwner as string, BENCHMARK_TICKER, reqDays, opts),
+          getTrackingError(activeOwner as string, BENCHMARK_TICKER, reqDays, opts),
           getMaxDrawdown(activeOwner as string, reqDays, opts),
           getPerformance(activeOwner as string, reqDays, excludeCash, opts),
         ]);
@@ -255,19 +260,60 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         }}
       >
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.alphaVsBenchmark")}</div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+            {t("dashboard.alphaVsBenchmark")}
+            <InfoTip
+              label={t("dashboard.alphaVsBenchmarkInfoLabel", "What does Alpha vs Benchmark mean?")}
+              to="/metrics-explained#alpha-vs-benchmark"
+            >
+              {t(
+                "dashboard.alphaVsBenchmarkInfo",
+                "Alpha measures how much the portfolio's return differed from {{ticker}} over the selected period.",
+                { ticker: BENCHMARK_TICKER },
+              )}
+            </InfoTip>
+          </div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
             {percentOrNa(safeAlpha)}
           </div>
-        </div>
-        <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.trackingError")}</div>
-          <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-            {percentOrNa(safeTrackingError)}
+          <div style={{ fontSize: "0.75rem", color: "#777" }}>
+            {t("dashboard.vsBenchmark", "vs {{ticker}}", { ticker: BENCHMARK_TICKER })}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.maxDrawdown")}</div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+            {t("dashboard.trackingError")}
+            <InfoTip
+              label={t("dashboard.trackingErrorInfoLabel", "What does Tracking Error mean?")}
+              to="/metrics-explained#tracking-error"
+            >
+              {t(
+                "dashboard.trackingErrorInfo",
+                "Tracking error measures how much the portfolio's daily returns varied from {{ticker}}'s, annualised.",
+                { ticker: BENCHMARK_TICKER },
+              )}
+            </InfoTip>
+          </div>
+          <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
+            {percentOrNa(safeTrackingError)}
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "#777" }}>
+            {t("dashboard.vsBenchmark", "vs {{ticker}}", { ticker: BENCHMARK_TICKER })}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+            {t("dashboard.maxDrawdown")}
+            <InfoTip
+              label={t("dashboard.maxDrawdownInfoLabel", "What does Max Drawdown mean?")}
+              to="/metrics-explained#max-drawdown"
+            >
+              {t(
+                "dashboard.maxDrawdownInfo",
+                "Max drawdown is the largest peak-to-trough fall in portfolio value over the selected period.",
+              )}
+            </InfoTip>
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
             <span style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
               {percentOrNa(safeMaxDrawdown)}
@@ -295,13 +341,35 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.timeWeightedReturn")}</div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+            {t("dashboard.timeWeightedReturn")}
+            <InfoTip
+              label={t("dashboard.timeWeightedReturnInfoLabel", "What does Time-Weighted Return mean?")}
+              to="/metrics-explained#time-weighted-return"
+            >
+              {t(
+                "dashboard.timeWeightedReturnInfo",
+                "Time-weighted return measures the portfolio's compounded growth rate, independent of the timing and size of deposits and withdrawals.",
+              )}
+            </InfoTip>
+          </div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
             {percentOrNa(safeTwr)}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.xirr")}</div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+            {t("dashboard.xirr")}
+            <InfoTip
+              label={t("dashboard.xirrInfoLabel", "What does XIRR mean?")}
+              to="/metrics-explained#xirr"
+            >
+              {t(
+                "dashboard.xirrInfo",
+                "XIRR is the annualised internal rate of return calculated from the portfolio's actual dated cash flows.",
+              )}
+            </InfoTip>
+          </div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
             {percentOrNa(safeXirr)}
           </div>

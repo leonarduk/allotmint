@@ -620,6 +620,39 @@ def test_backend_api_has_no_unused_ui_auth_user_pool_id_parameter(template):
     assert "UiAuthUserPoolId" not in params
 
 
+def _contains_ref(node, logical_id: str) -> bool:
+    """Return whether ``node`` contains a ``{"Ref": logical_id}`` anywhere,
+    searched recursively through nested dicts/lists (e.g. Fn::Join arguments,
+    a Lambda's Environment.Variables)."""
+    if isinstance(node, dict):
+        if node.get("Ref") == logical_id:
+            return True
+        return any(_contains_ref(value, logical_id) for value in node.values())
+    if isinstance(node, list):
+        return any(_contains_ref(item, logical_id) for item in node)
+    return False
+
+
+def test_backend_api_ui_auth_user_pool_client_id_parameter_is_used(template):
+    """UiAuthUserPoolClientId must actually be referenced by some resource in
+    the synthesised template, not just declared as a CfnParameter.
+
+    Mirrors test_backend_api_has_no_unused_ui_auth_user_pool_id_parameter's
+    guard on its sibling parameter, which went unused for a while before
+    being noticed and removed as dead code in #7525. This test exists so a
+    future refactor that stops reading UiAuthUserPoolClientId (e.g. changing
+    how the gateway authorizer validates a Cognito ID token's audience)
+    can't repeat that silently (#7530).
+    """
+    resources = template.to_json().get("Resources", {})
+    assert _contains_ref(resources, "UiAuthUserPoolClientId"), (
+        "UiAuthUserPoolClientId is declared as a CfnParameter but no resource "
+        "in the synthesised template references it -- see "
+        "test_backend_api_has_no_unused_ui_auth_user_pool_id_parameter for "
+        "what happened to its sibling parameter when this went unnoticed"
+    )
+
+
 def test_smoke_test_user_pool_client_id_parameter_is_optional(template):
     """SmokeTestUserPoolClientId must be optional so synths without a configured
     smoke-test client (e.g. local/non-prod) still work."""

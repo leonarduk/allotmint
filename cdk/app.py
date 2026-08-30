@@ -20,7 +20,10 @@ backend_stack = BackendLambdaStack(app, "BackendLambdaStack")
 static_stack = StaticSiteStack(app, "StaticSiteStack")
 # Deployment order is managed explicitly by deploy-lambda.yml:
 # 1. StaticSiteStack → creates Cognito User Pool, exposes UiAuthUserPoolId / UiAuthUserPoolClientId
-# 2. BackendLambdaStack → uses those IDs as CfnParameters, exposes BackendApiUrl
+# 2. BackendLambdaStack → uses UiAuthUserPoolClientId as a CfnParameter (the
+#    gateway/Cognito Lambda authorizer, #7522/#7523, verifies a Cognito ID
+#    token's signature via the issuer/JWKS URL embedded in the token itself,
+#    so UiAuthUserPoolId is not needed here -- #7525), exposes BackendApiUrl
 # 3. StaticSiteStack (redeploy) → injects BackendApiUrl into the runtime config
 # A CDK add_dependency here would force BackendLambdaStack to deploy before
 # StaticSiteStack, which is the opposite of the required order and causes the

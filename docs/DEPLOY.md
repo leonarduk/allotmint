@@ -451,12 +451,9 @@ stack with the protected API URL in `/config.json`:
 cd cdk
 npx cdk bootstrap   # once per account/region
 npx cdk deploy StaticSiteStack --require-approval never -c prod=true
-UI_AUTH_USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name StaticSiteStack \
-  --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolId'].OutputValue" --output text)
 UI_AUTH_USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name StaticSiteStack \
   --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" --output text)
 DATA_BUCKET=my-data-bucket npx cdk deploy BackendLambdaStack --require-approval never \
-  --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID" \
   --parameters BackendLambdaStack:UiAuthUserPoolClientId="$UI_AUTH_USER_POOL_CLIENT_ID"
 BACKEND_URL=$(aws cloudformation describe-stacks --stack-name BackendLambdaStack \
   --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" --output text)
@@ -466,10 +463,10 @@ npx cdk deploy StaticSiteStack --require-approval never -c prod=true \
 
 When manually validating drift before a deploy, run `npx cdk diff --all -c prod=true` from
 `cdk/`, but do **not** use `npx cdk deploy --all` for a fresh
-Cognito-enabled environment. The backend stack needs the user-pool outputs from
-the first static deploy, and the static stack needs the backend URL from the
-backend deploy, so deployments must follow the static/backend/static sequence
-above.
+Cognito-enabled environment. The backend stack needs the user-pool client-id
+output from the first static deploy, and the static stack needs the backend
+URL from the backend deploy, so deployments must follow the static/backend/
+static sequence above.
 
 Omit `-c prod=true` only for disposable development stacks where `cdk destroy`
 should remove the demo Cognito user pool.

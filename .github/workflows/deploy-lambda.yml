@@ -376,14 +376,14 @@ jobs:
 
       - name: CDK diff
         # Use --method=template: a direct template comparison that creates no
-        # CloudFormation change set. BackendLambdaStack declares UiAuthUserPoolId
-        # and UiAuthUserPoolClientId as required parameters with no default
-        # (backend_lambda_stack.py); their values are produced by StaticSiteStack
+        # CloudFormation change set. BackendLambdaStack declares
+        # UiAuthUserPoolClientId as a required parameter with no default
+        # (backend_lambda_stack.py); its value is produced by StaticSiteStack
         # and only fetched in the "Get Cognito UI auth outputs" step *below*, so
-        # they are unavailable at diff time. The "change-set"/"auto" methods try
+        # it is unavailable at diff time. The "change-set"/"auto" methods try
         # to create a change set, which fails here because cdk diff has no
         # --parameters flag and does not send UsePreviousValue, so CloudFormation
-        # reports UiAuthUserPoolId/UiAuthUserPoolClientId as missing a value
+        # reports UiAuthUserPoolClientId as missing a value
         # (see issue #3287). The diff is informational only; the real cdk deploy
         # steps below still pass the actual parameter values.
         env:
@@ -416,10 +416,6 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
         run: |
           set -euo pipefail
-          UI_AUTH_USER_POOL_ID="$(aws cloudformation describe-stacks \
-            --stack-name StaticSiteStack \
-            --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolId'].OutputValue" \
-            --output text)"
           UI_AUTH_USER_POOL_CLIENT_ID="$(aws cloudformation describe-stacks \
             --stack-name StaticSiteStack \
             --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" \
@@ -468,10 +464,6 @@ jobs:
           if [ "$UI_AUTH_DOMAIN" = "None" ]; then
             UI_AUTH_DOMAIN=""
           fi
-          if [ -z "$UI_AUTH_USER_POOL_ID" ] || [ "$UI_AUTH_USER_POOL_ID" = "None" ]; then
-            echo "UiAuthUserPoolId output is missing from StaticSiteStack" >&2
-            exit 1
-          fi
           if [ -z "$UI_AUTH_USER_POOL_CLIENT_ID" ] || [ "$UI_AUTH_USER_POOL_CLIENT_ID" = "None" ]; then
             echo "UiAuthUserPoolClientId output is missing from StaticSiteStack" >&2
             exit 1
@@ -481,7 +473,6 @@ jobs:
             exit 1
           fi
           {
-            echo "UI_AUTH_USER_POOL_ID=$UI_AUTH_USER_POOL_ID"
             echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID"
             echo "SMOKE_TEST_USER_POOL_CLIENT_ID=$SMOKE_TEST_USER_POOL_CLIENT_ID"
             echo "UI_AUTH_DOMAIN=${UI_AUTH_DOMAIN}"
@@ -512,7 +503,6 @@ jobs:
           ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}
         run: >
           npx cdk deploy BackendLambdaStack --require-approval never
-          --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID"
           --parameters BackendLambdaStack:UiAuthUserPoolClientId="$UI_AUTH_USER_POOL_CLIENT_ID"
           --parameters BackendLambdaStack:SmokeTestUserPoolClientId="$SMOKE_TEST_USER_POOL_CLIENT_ID"
           --parameters BackendLambdaStack:UiAuthDomain="${UI_AUTH_DOMAIN}"

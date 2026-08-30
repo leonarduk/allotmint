@@ -534,32 +534,6 @@ class BackendLambdaStack(Stack):
             )
         )
 
-        ui_auth_user_pool_id_default = self.node.try_get_context(
-            "ui_auth_user_pool_id"
-        ) or os.getenv("UI_AUTH_USER_POOL_ID")
-        ui_auth_user_pool_id_param_kwargs = {
-            "type": "String",
-            "allowed_pattern": ".+",
-            "description": (
-                "Cognito user pool ID exported by StaticSiteStack for API JWT authorization."
-            ),
-        }
-        if ui_auth_user_pool_id_default:
-            ui_auth_user_pool_id_param_kwargs["default"] = ui_auth_user_pool_id_default
-        # Declared but intentionally not read below: the demo/Cognito Lambda
-        # authorizer (#7522, further down in this method) verifies a Cognito
-        # ID token's signature via the issuer/JWKS URL embedded in the token
-        # itself (backend.auth._verify_cognito_claims), not the user pool ID.
-        # The parameter is kept as a required, no-op input purely because
-        # .github/workflows/deploy-lambda.yml already passes
-        # BackendLambdaStack:UiAuthUserPoolId= on every deploy; removing it
-        # here would also require updating that workflow.
-        CfnParameter(
-            self,
-            "UiAuthUserPoolId",
-            **ui_auth_user_pool_id_param_kwargs,
-        )
-
         ui_auth_client_id_default = self.node.try_get_context(
             "ui_auth_user_pool_client_id"
         ) or os.getenv("UI_AUTH_USER_POOL_CLIENT_ID")

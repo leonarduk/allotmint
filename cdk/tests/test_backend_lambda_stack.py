@@ -219,6 +219,37 @@ def test_all_lambda_functions_have_data_bucket_env_var(template):
         )
 
 
+def test_all_lambda_functions_have_jwt_secret_env_var(template):
+    """Every Lambda function must receive JWT_SECRET.
+
+    backend/auth.py raises RuntimeError at *module import time* when
+    JWT_SECRET is unset, APP_ENV is "aws"/"production", and disable_auth is
+    falsy (backend/auth.py:39-51). Any function whose entry point transitively
+    imports backend.auth (directly, or via backend.common.authz ->
+    backend.auth.is_demo_request, pulled in by backend.common.portfolio and
+    several of its callers) crashes at cold start without it -- which is
+    exactly what happened to PriceRefreshLambda when the demo-link work added
+    that import chain without updating refresh_env (caught live during a
+    production deploy, not by this test suite -- see the regression this test
+    guards against). Rather than tracking which functions currently happen to
+    import that chain (an implementation detail that can silently change),
+    every Lambda function gets JWT_SECRET unconditionally: it is cheap to set
+    and removes this entire class of bug going forward.
+    """
+    lambda_functions = template.find_resources("AWS::Lambda::Function")
+    for logical_id, resource in lambda_functions.items():
+        properties = resource.get("Properties", {})
+        if properties.get("PackageType") != "Image":
+            # Skip CDK-generated helper Lambdas (e.g. log retention provider).
+            continue
+        env_vars = properties.get("Environment", {}).get("Variables", {})
+        assert "JWT_SECRET" in env_vars, (
+            f"Lambda function {logical_id} is missing the JWT_SECRET environment "
+            "variable -- it will crash at cold start if its import chain reaches "
+            "backend.auth (see backend/auth.py:39-51)"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Observability, secrets, and cost guardrails
 # ---------------------------------------------------------------------------

@@ -77,6 +77,8 @@ DISABLED_WORKFLOW_FILES = {
     "dependency-review.yml",
     "siteplan.yml",
     "super-linter.yml",
+    "claude-pr-review.yml",
+    "gpt-pr-review.yml",
 }
 
 

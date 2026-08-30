@@ -268,6 +268,7 @@
       "units": "Unités"
     },
     "edit": "Modifier",
+    "fundamentalsUnavailable": "Les données fondamentales ne sont pas disponibles dans ce déploiement.",
     "intraday": "Intraday",
     "intradayUnavailable": "Données intraday indisponibles",
     "ma20": "20d MA",
@@ -465,6 +466,8 @@
     "downloadsDisabled": "Sélectionnez un propriétaire et un modèle pour activer les téléchargements."
   },
   "screener": {
+    "checking": "Vérification de la disponibilité du filtre…",
+    "description": "Filtrez une liste de suivi ou une liste personnalisée de tickers selon des ratios de valorisation, de rentabilité et de risque (P/E, niveau d'endettement, marges, rendements, etc.) pour présélectionner des sociétés à examiner de plus près.",
     "loading": "Chargement…",
     "max52WeekHigh": "Plus haut 52 sem. max",
     "max52WeekLow": "Plus bas 52 sem. max",
@@ -494,6 +497,8 @@
     "minSharesOutstanding": "Actions en circulation min",
     "run": "Exécuter",
     "tickers": "Tickers",
+    "title": "Filtre",
+    "unavailableBody": "Ce déploiement n'inclut pas le filtre fondamental ; le filtrage par ratios financiers n'est donc pas possible ici.",
     "watchlist": "Liste de suivi :"
   },
   "support": {

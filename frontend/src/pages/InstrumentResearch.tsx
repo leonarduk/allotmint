@@ -755,11 +755,19 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           }) ?? results?.[0] ?? null;
         setFundamentals(entry ?? null);
       } catch (err) {
-        const error = err as { name?: string } | null | undefined;
+        const error = err as { name?: string; status?: number } | null | undefined;
         if (error?.name === "AbortError") return;
         if (!cancelled) {
-          const message = err instanceof Error ? err.message : String(err);
-          setFundamentalsError(`Unable to load fundamentals: ${message}`);
+          if (error?.status === 402) {
+            // Genuinely unavailable in this deployment -- never surface the
+            // raw backend detail (it names an internal package and a repo
+            // URL). Keep the technical detail in the console only (#7221).
+            console.error("Unable to load fundamentals (feature unavailable):", err);
+            setFundamentalsError(t("instrumentDetail.fundamentalsUnavailable"));
+          } else {
+            const message = err instanceof Error ? err.message : String(err);
+            setFundamentalsError(`Unable to load fundamentals: ${message}`);
+          }
         }
       } finally {
         if (!cancelled) {
@@ -774,7 +782,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       cancelled = true;
       controller.abort();
     };
-  }, [tkr, activeTab]);
+  }, [tkr, activeTab, t]);
 
   function toggleWatchlist() {
     const list = (localStorage.getItem("watchlistSymbols") || "")

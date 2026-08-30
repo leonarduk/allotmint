@@ -268,6 +268,7 @@
       "units": "Unidades"
     },
     "edit": "Editar",
+    "fundamentalsUnavailable": "Os fundamentos não estão disponíveis nesta implantação.",
     "intraday": "Intraday",
     "intradayUnavailable": "Dados intraday indisponíveis",
     "ma20": "20d MA",
@@ -464,6 +465,8 @@
     "downloadsDisabled": "Selecione um proprietário e um modelo para habilitar os downloads."
   },
   "screener": {
+    "checking": "Verificando a disponibilidade do screener…",
+    "description": "Filtre uma lista de observação ou uma lista personalizada de tickers por índices de avaliação, rentabilidade e risco (P/L, níveis de dívida, margens, retornos e mais) para pré-selecionar empresas que mereçam uma análise mais detalhada.",
     "loading": "Carregando…",
     "max52WeekHigh": "Alta 52S máx",
     "max52WeekLow": "Baixa 52S máx",
@@ -493,6 +496,8 @@
     "minSharesOutstanding": "Ações em circulação mín",
     "run": "Executar",
     "tickers": "Tickers",
+    "title": "Screener",
+    "unavailableBody": "Esta implantação não inclui o screener de fundamentos, portanto não é possível filtrar por índices financeiros aqui.",
     "watchlist": "Lista de observação:"
   },
   "support": {

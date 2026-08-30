@@ -29,6 +29,13 @@ auth:
   # ALLOWED_EMAILS env var if set (see backend/config.py).
   allowed_emails:
     - steveleonard11@gmail.com
+  # Shareable read-only demo link (#7402 breakdown). Off by default -- the
+  # enforcement pieces (token minting/verification, identity resolution,
+  # the read-only authz gate) from the rest of the breakdown must be merged
+  # and reviewed before this is ever flipped to true in a deployed config.
+  demo_link_enabled: false
+  demo_link_owner: demo
+  demo_link_ttl_hours: 72
 
 server:
   app_env: aws                      # overridden by APP_ENV env var

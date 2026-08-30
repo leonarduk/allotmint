@@ -741,11 +741,24 @@ export const getCachedGroupInstruments = (
     });
   }
 
-  const promise = getGroupInstruments(slug, filters, opts).then((rows) => {
-    const entry = groupInstrumentCache.get(key);
-    if (entry) entry.value = rows;
-    return rows;
-  });
+  const promise = getGroupInstruments(slug, filters, opts)
+    .then((rows) => {
+      const entry = groupInstrumentCache.get(key);
+      if (entry) entry.value = rows;
+      return rows;
+    })
+    .catch((err) => {
+      // A failed request must not poison the cache: leaving the rejected
+      // promise cached would make every subsequent caller (e.g. a user
+      // clicking "Retry") replay the same failure forever with no new
+      // network request, recoverable only by a full page reload. Evict the
+      // entry so the next call issues a fresh request instead.
+      const entry = groupInstrumentCache.get(key);
+      if (entry && entry.promise === promise) {
+        groupInstrumentCache.delete(key);
+      }
+      throw err;
+    });
 
   groupInstrumentCache.set(key, { promise });
   return promise;

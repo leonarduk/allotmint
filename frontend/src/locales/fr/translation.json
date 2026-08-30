@@ -30,7 +30,7 @@
       "disable": "Désactiver les alertes Push",
       "enable": "Activer les alertes Push",
       "error": "Erreur lors de la gestion de l'abonnement push.",
-      "notSupported": "Push non supporté",
+      "notSupported": "Les notifications push ne sont pas encore disponibles dans cet environnement — consultez la page des alertes ci-dessus.",
       "title": "Notifications push"
     },
     "save": "Enregistrer",

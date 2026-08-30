@@ -90,6 +90,11 @@ describe("AlertSettings navigation", () => {
     expect(
       screen.getByRole("heading", { name: en.alertSettings.push.title })
     ).toBeInTheDocument();
+    // Push has no implementation anywhere in this app -- the copy must say
+    // so plainly rather than implying a browser-capability check (#7207).
+    expect(
+      screen.getByText(en.alertSettings.push.notSupported),
+    ).toBeInTheDocument();
 
     // No profile and no owner in this deployment's /owners list has an email
     // matching the resolved identity, so the backend call -- and the API path

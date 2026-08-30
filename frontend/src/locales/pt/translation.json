@@ -30,7 +30,7 @@
       "disable": "Desativar alertas push",
       "enable": "Ativar alertas push",
       "error": "Erro ao lidar com a assinatura de push.",
-      "notSupported": "Push não suportado",
+      "notSupported": "As notificações push ainda não estão disponíveis neste ambiente — consulte a página de alertas acima.",
       "title": "Notificações push"
     },
     "save": "Salvar",

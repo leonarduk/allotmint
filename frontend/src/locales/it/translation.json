@@ -30,7 +30,7 @@
       "disable": "Disattiva avvisi push",
       "enable": "Attiva avvisi push",
       "error": "Errore nella gestione dell'iscrizione push.",
-      "notSupported": "Push non supportato",
+      "notSupported": "Le notifiche push non sono ancora disponibili in questo ambiente — consulta la pagina degli avvisi qui sopra.",
       "title": "Notifiche push"
     },
     "save": "Salva",

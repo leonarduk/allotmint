@@ -226,6 +226,11 @@ export default function AlertSettings() {
         </div>
         <div style={{ marginTop: "2rem" }}>
           <h2>{t("alertSettings.push.title")}</h2>
+          {/* Push notifications have no implementation anywhere in this app
+              (no PushManager/service-worker subscription code exists) -- this
+              is not a browser capability check, so the copy says so plainly
+              rather than implying an unsupported-browser state. Alerts remain
+              reachable via the "View recent alerts" link above (#7207). */}
           <p>{t("alertSettings.push.notSupported")}</p>
         </div>
       </div>

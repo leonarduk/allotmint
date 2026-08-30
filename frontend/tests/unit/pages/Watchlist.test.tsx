@@ -566,4 +566,114 @@ describe("Watchlist page", () => {
       expect(await unitCell("USDGBP=X")).toHaveTextContent("USD/GBP");
     });
   });
+
+  describe("currency/unit labelling and full names (#7232)", () => {
+    it("marks an index level as points rather than a currency, even when the feed also sends one", async () => {
+      // quoteType "INDEX" takes priority over a reported currency: an index
+      // level is a points figure, not a currency amount, even when the feed
+      // sends a currency code (e.g. "GBP") alongside it.
+      const rows: QuoteRow[] = [
+        {
+          name: "FTSE 100",
+          symbol: "^FTSE",
+          last: 10878,
+          open: null,
+          high: null,
+          low: null,
+          change: -8.04,
+          changePct: -0.07,
+          volume: null,
+          marketTime: null,
+          marketState: "REGULAR",
+          currency: "GBP",
+          quoteType: "INDEX",
+        },
+      ];
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(rows);
+      localStorage.setItem("watchlistSymbols", "^FTSE");
+
+      renderWatchlist();
+
+      const row = await findRow("^FTSE");
+      expect(row).toHaveTextContent("pts");
+      expect(row).not.toHaveTextContent("GBP");
+    });
+
+    it("keeps a pence-quoted row's GBX label and its unscaled magnitude (#7219)", async () => {
+      // The backend canonicalises yfinance's exact-case "GBp" pence token
+      // to the visually distinct "GBX" before this ever reaches the
+      // frontend (backend/routes/quotes.py), so QuoteRow.currency here is
+      // already "GBX" -- but nothing in the frontend must scale the price
+      // by 100 to "convert" it. BP.L trades around 517p, not GBP 5.17.
+      const rows: QuoteRow[] = [
+        {
+          name: "BP p.l.c.",
+          symbol: "BP.L",
+          last: 517.05,
+          open: null,
+          high: null,
+          low: null,
+          change: 2.5,
+          changePct: 0.49,
+          volume: null,
+          marketTime: null,
+          marketState: "REGULAR",
+          currency: "GBX",
+          quoteType: "EQUITY",
+        },
+      ];
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(rows);
+      localStorage.setItem("watchlistSymbols", "BP.L");
+
+      renderWatchlist();
+
+      const row = await findRow("BP.L");
+      expect(row).toHaveTextContent("517.05");
+      expect(row).toHaveTextContent("GBX");
+      expect(row).not.toHaveTextContent("5.17");
+      expect(row).not.toHaveTextContent("GBP");
+    });
+
+    it("renders the untruncated name the API now sends and doesn't clip it with CSS", async () => {
+      // Yahoo hard-truncates yfinance's `shortName` at 31 characters --
+      // the un-truncated `longName` for this instrument is "Vanguard S&P
+      // 500 UCITS ETF" and, per #7232 MUST FIX 1, the backend now prefers
+      // longName. This fixture is that real API value, not a hand-written
+      // stand-in, so this test only proves the frontend correctly renders
+      // and doesn't re-truncate whatever full name it is given.
+      const fullName = "Vanguard S&P 500 UCITS ETF";
+      const rows: QuoteRow[] = [
+        {
+          name: fullName,
+          symbol: "VUSA.L",
+          last: 107.02,
+          open: null,
+          high: null,
+          low: null,
+          change: 0.36,
+          changePct: 0.34,
+          volume: null,
+          marketTime: null,
+          marketState: "REGULAR",
+          currency: "GBX",
+          quoteType: "ETF",
+        },
+      ];
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(rows);
+      localStorage.setItem("watchlistSymbols", "VUSA.L");
+
+      renderWatchlist();
+
+      const nameCell = await screen.findByText(fullName);
+      expect(nameCell).toBeInTheDocument();
+      expect(nameCell).toHaveAttribute("title", fullName);
+      // Regression guard for the CSS fix itself: reverting to
+      // `white-space: nowrap; text-overflow: ellipsis` would leave the
+      // full name in the DOM (jsdom doesn't lay out text, so a plain
+      // text-content assertion can't catch that revert) but would flip
+      // these inline style properties back.
+      expect(nameCell.style.whiteSpace).not.toBe("nowrap");
+      expect(nameCell.style.textOverflow).not.toBe("ellipsis");
+    });
+  });
 });

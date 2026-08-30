@@ -638,7 +638,7 @@ describe("InstrumentResearch page", () => {
       await screen.findByText(/Fundamentals aren't available in this deployment\./),
     ).toBeInTheDocument();
     expect(screen.queryByText(/allotmint-pro/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/github\.com/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("github.com", { exact: false })).not.toBeInTheDocument();
     consoleErrorSpy.mockRestore();
   });
 

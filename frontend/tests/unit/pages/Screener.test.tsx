@@ -54,7 +54,7 @@ describe("Screener", () => {
     expect(screen.queryByLabelText(/Tickers/i)).not.toBeInTheDocument();
     // The gate copy must never leak the internal package name or repo URL.
     expect(screen.queryByText(/allotmint-pro/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/github\.com/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("github.com", { exact: false })).not.toBeInTheDocument();
   });
 
   it("renders the form once the gate check resolves available", async () => {
@@ -84,7 +84,7 @@ describe("Screener", () => {
       await screen.findByText(/doesn't include the fundamentals screener/i),
     ).toBeInTheDocument();
     expect(screen.queryByText(/allotmint-pro/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/github\.com/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("github.com", { exact: false })).not.toBeInTheDocument();
   });
 
   it("renders new ratio columns", async () => {

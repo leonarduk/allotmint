@@ -147,6 +147,12 @@ class Config:
     demo_link_enabled: bool = False
     demo_link_owner: Optional[str] = None
     demo_link_ttl_hours: int = 72
+    # Per-IP rate limit applied to POST /demo-link (backend/app.py, #7409) --
+    # tight for the same reason signup_rate_limit is tight: it mints
+    # something (here, a bearer token an unauthenticated visitor can later
+    # use), so it should not be refreshable at an unbounded rate even by an
+    # authenticated admin caller.
+    demo_link_mint_rate_limit: str = "5/minute"
     google_client_id: Optional[str] = None
     allowed_emails: Optional[List[str]] = None
     local_login_email: Optional[str] = None
@@ -514,6 +520,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         demo_link_enabled=demo_link_enabled,
         demo_link_owner=demo_link_owner,
         demo_link_ttl_hours=demo_link_ttl_hours,
+        demo_link_mint_rate_limit=data.get("demo_link_mint_rate_limit", "5/minute"),
         relative_view_enabled=data.get("relative_view_enabled"),
         enable_family_mvp=_coerce_bool_with_default(
             data.get("enable_family_mvp"),

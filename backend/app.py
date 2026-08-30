@@ -12,8 +12,10 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from json import JSONDecodeError
 
+import jwt
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -38,6 +40,12 @@ logger = logging.getLogger(__name__)
 class CognitoTokenRequest(BaseModel):
     id_token: str
     client_id: str
+
+
+class DemoLinkResponse(BaseModel):
+    token: str
+    expires_at: datetime
+    owner: str
 
 
 async def moneyhub_not_configured_handler(_request: Request, exc: MoneyhubNotConfiguredError) -> JSONResponse:
@@ -273,6 +281,84 @@ def create_app() -> FastAPI:
             "never reach this endpoint; see API Gateway access logs in CloudWatch."
         )
         return result
+
+    @app.post("/demo-link", response_model=DemoLinkResponse)
+    @app.state.limiter.limit(cfg.demo_link_mint_rate_limit)
+    async def mint_demo_link(
+        request: Request,
+        _: str | None = Depends(require_admin),
+    ) -> DemoLinkResponse:
+        """Mint a short-lived, read-only demo-scoped token (#7402, step 6/9).
+
+        Gated by **two independent checks**, both required:
+
+        1. ``Depends(require_admin)`` -- exactly as ``/whoami`` and
+           ``/api-console`` above. Note its documented local-dev quirk: with
+           no ``ADMIN_EMAILS`` configured and ``disable_auth`` true it lets
+           the request through with ``current_user is None``. That is
+           acceptable for a read-only debug view but is not acceptable for a
+           token mint on a deployed box, so this endpoint *additionally*
+           requires (2) below -- a deployment that has not explicitly opted
+           into the demo link stays refused regardless of the admin-gate's
+           local-dev behaviour.
+        2. ``config.demo_link_enabled`` -- the same master kill switch
+           ``auth._resolve_demo_request``/``ensure_owner_access`` already
+           enforce when a demo token is *used* (#7406/#7408). When it is
+           false this endpoint returns 404 rather than minting anyway, so a
+           deployment that has not turned the feature on does not even
+           reveal that a mint endpoint exists.
+
+        Returns 503 when ``config.demo_link_owner`` is unset -- rather than
+        minting a token scoped to an empty owner -- since an operator must
+        designate exactly one demo owner before this endpoint is usable.
+
+        Rate-limited per ``config.demo_link_mint_rate_limit`` (default
+        ``5/minute``, mirroring ``config.signup_rate_limit``'s pattern):
+        minting produces something an unauthenticated visitor can later use,
+        so even an authenticated admin should not be able to refresh it at
+        an unbounded rate.
+
+        Revocation: there is no per-token revocation. A minted token stays
+        valid until it either (a) reaches its own ``exp``
+        (``config.demo_link_ttl_hours`` after minting), (b) is refused going
+        forward because ``config.demo_link_enabled`` was flipped to false
+        (an already-issued, unexpired token then fails the
+        ``demo_link_enabled``/owner checks in ``get_current_user``/
+        ``get_active_user`` and ``ensure_owner_access``), or (c)
+        ``JWT_SECRET`` is rotated -- which also invalidates every real
+        user's backend JWT. There is no narrower way to kill one specific
+        leaked link short of one of those three; an operator relying on
+        this endpoint should know that going in.
+        """
+
+        if not cfg.demo_link_enabled:
+            raise HTTPException(status_code=404, detail="Not Found")
+
+        owner = cfg.demo_link_owner
+        if not isinstance(owner, str) or not owner.strip():
+            raise HTTPException(status_code=503, detail="Demo link owner is not configured")
+        owner = owner.strip()
+
+        token = auth.create_demo_access_token(owner, timedelta(hours=cfg.demo_link_ttl_hours))
+        # Decode the freshly-minted token's own `exp` (rather than
+        # independently recomputing `now + ttl`) so the returned expiry is
+        # exactly what the token itself carries -- never logged, never
+        # echoed anywhere but this response body.
+        claims = jwt.decode(
+            token,
+            auth.SECRET_KEY,
+            algorithms=[auth.ALGORITHM],
+            options={"require": ["exp"]},
+        )
+        expires_at = datetime.fromtimestamp(claims["exp"], tz=timezone.utc)
+
+        logger.info(
+            "Minted demo-link token for owner=%s ttl_hours=%s",
+            sanitise_log_value(owner),
+            sanitise_log_value(cfg.demo_link_ttl_hours),
+        )
+
+        return DemoLinkResponse(token=token, expires_at=expires_at, owner=owner)
 
     @app.get("/api-console", response_class=HTMLResponse, include_in_schema=False)
     async def api_console(_: str = Depends(require_admin)):

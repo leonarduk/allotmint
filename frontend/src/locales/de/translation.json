@@ -30,7 +30,7 @@
       "disable": "Push-Alerts deaktivieren",
       "enable": "Push-Alerts aktivieren",
       "error": "Fehler bei der Verarbeitung der Push-Anmeldung.",
-      "notSupported": "Push wird nicht unterstützt",
+      "notSupported": "Push-Benachrichtigungen sind in dieser Umgebung noch nicht verfügbar — sieh stattdessen oben auf der Alarmseite nach.",
       "title": "Push-Benachrichtigungen"
     },
     "save": "Speichern",

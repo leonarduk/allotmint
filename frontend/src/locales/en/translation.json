@@ -32,7 +32,7 @@
       "disable": "Disable Push Alerts",
       "enable": "Enable Push Alerts",
       "error": "Error handling push subscription.",
-      "notSupported": "Push not supported",
+      "notSupported": "Push notifications aren't available in this deployment yet — check the alerts page above instead.",
       "title": "Push Notifications"
     },
     "resolving": "Checking who you're signed in as…",

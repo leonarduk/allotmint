@@ -130,6 +130,11 @@ AREA_PATH_RULES: tuple[tuple[str, frozenset[str]], ...] = (
     # scripts/check_contract_version_sync.py, so this one module is a
     # frontend concern too.
     ("backend/contracts_spa.py", frozenset({"backend", "frontend"})),
+    # trading_agent.py's checks_skipped vocabulary is asserted against
+    # frontend copy by frontend/tests/unit/pages/Trading.test.tsx (#7230) --
+    # a backend-only PR that changes it must still run the frontend suite,
+    # or the drift-detecting test only fires later on an unrelated PR.
+    ("backend/agent/trading_agent.py", frozenset({"backend", "frontend"})),
     ("backend/**", frozenset({"backend"})),
     ("tests/**", frozenset({"backend"})),
     ("data/**", frozenset({"backend"})),

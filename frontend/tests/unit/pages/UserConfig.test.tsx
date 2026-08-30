@@ -148,6 +148,163 @@ describe("UserConfig page", () => {
     expect((select as HTMLSelectElement).value).toBe("");
   });
 
+  it("prompts the user to pick an owner instead of showing empty space when none resolves (#7224)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", accounts: [], email: "alex@example.com" },
+      { owner: "jamie", accounts: [], email: "jamie@example.com" },
+    ]);
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    await screen.findByRole("combobox");
+    const prompt = await screen.findByRole("status");
+    expect(prompt).toHaveTextContent(
+      /select an account holder to view their settings/i,
+    );
+    // The trading-rule fields and Approvals table must stay hidden until an
+    // owner is chosen -- the prompt replaces empty space, not the fields.
+    expect(screen.queryByText(/min hold days/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("does not show the owner prompt when a sole owner auto-selects (#7206, #7224)", async () => {
+    // Owner resolution and ownerResolutionAttempted are set in the same
+    // effect run, so a sole owner must never observably pass through a
+    // "resolution attempted, still no owner" state that would flash the
+    // selectOwnerPrompt alongside (or instead of) the auto-selected form.
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    await screen.findByLabelText(/min hold days/i);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("does not show the owner prompt while owners are still loading (#7224)", async () => {
+    let resolveOwners: (value: unknown) => void = () => {};
+    mockGetOwners.mockReturnValue(
+      new Promise((resolve) => {
+        resolveOwners = resolve;
+      }),
+    );
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    // While owners are still in flight there is no owner list to prompt
+    // against yet -- the loading message owns this state, not the prompt.
+    expect(screen.getByText(/loading owners/i)).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    await act(async () => {
+      // Two owners, neither matching the signed-in user, so no owner
+      // auto-resolves and the status prompt is expected to appear. A single
+      // owner would auto-select (#7206) and never show the prompt at all.
+      resolveOwners([
+        { owner: "alex", accounts: [] },
+        { owner: "jamie", accounts: [] },
+      ]);
+    });
+
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+  });
+
+  it("renders the Trading Rules title instead of the stale User Settings name (#7224)", async () => {
+    mockGetOwners.mockResolvedValue([]);
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /trading rules/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the owner prompt once an owner is selected and labels fields with units (#7224)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    // getByLabelText (not getByText) proves the <label> is actually
+    // associated with its <input> via htmlFor/id, not just visually adjacent.
+    expect(
+      screen.getByLabelText(/min hold days \(days\)/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/max trades \/ month \(trades\)/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/approval exempt tickers \(comma-separated\)/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/approval exempt types \(comma-separated\)/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/newly bought position must be held before it is marked sell-eligible/i),
+    ).toBeInTheDocument();
+    // Max Trades / Month must describe the calendar-month reset the backend
+    // actually implements (backend/common/portfolio.py: d.month == today.month),
+    // not a rolling window -- and must not claim the limit blocks trading:
+    // trades_remaining is purely informational (rendered in
+    // ComplianceWarnings.tsx / gamified/plotModel.ts); the only enforcement
+    // is a non-blocking warning in the private allotmint-pro compliance
+    // engine (compliance.py: `if cnt > max: warnings.append(...)`).
+    expect(
+      screen.getByText(/current calendar month; resets on the 1st/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/does not block trading/i),
+    ).toBeInTheDocument();
+    // Exempt types must carry the commodity-ETF carve-out from
+    // backend/common/holding_utils.py (is_etf and is_commodity forces
+    // exempt_type back to False) without overstating it: the ticker-based
+    // exemptions (approval_exempt_tickers) are OR'd in independently, so a
+    // commodity ETF listed there is still exempt.
+    expect(
+      screen.getByText(/don't get the type exemption/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/always require approval/i),
+    ).not.toBeInTheDocument();
+    // Approvals must explain expiry (backend/common/approvals.py:
+    // is_approval_valid) unambiguously -- "valid only on" the grant date,
+    // not phrasing ("expires the same day") that reads as already expired.
+    expect(
+      screen.getByText(/valid only on the day it's granted/i),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show a stale theme preference readout under the Trading Rules heading (#7224)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(
+      <AuthContext.Provider
+        value={{ user: { email: "alex@example.com" }, setUser: vi.fn() }}
+      >
+        <UserConfig />
+      </AuthContext.Provider>,
+    );
+
+    // The identity strip gets its own heading now, and no longer carries a
+    // preference readout that belongs to a different page.
+    expect(
+      await screen.findByRole("heading", { level: 2, name: /signed in as/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/preferred theme/i)).not.toBeInTheDocument();
+  });
+
   it("shows a loading indicator while the authorized owners are being fetched", async () => {
     let resolveOwners: (value: unknown) => void = () => {};
     mockGetOwners.mockReturnValue(
@@ -178,6 +335,70 @@ describe("UserConfig page", () => {
 
     expect(await screen.findByText(/no accounts are available/i)).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  it("shows an empty state for the Approvals table instead of a bare header (#7206)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    expect(
+      await screen.findByText(
+        /no approvals yet\. add one below if a trade needs to go ahead/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("renders the Approvals table once an approval exists, and drops the empty state (#7206)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({
+      approvals: [{ ticker: "VUSA.L", approved_on: "2024-01-01" }],
+    });
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    expect(await screen.findByRole("table")).toBeInTheDocument();
+    expect(screen.getByText("VUSA.L")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/no approvals yet\. add one below/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not render a bare Approvals table or the empty-state text on a load error (#7206)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    const forbidden = new Error("HTTP 403 - Forbidden (/accounts/alex/approvals)");
+    (forbidden as any).status = 403;
+    mockGetApprovals.mockRejectedValue(forbidden);
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    await screen.findByText(
+      /don't have permission to view or manage approvals/i,
+    );
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/no approvals yet\. add one below/i),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a permission-specific message when loading approvals 403s (#5215)", async () => {

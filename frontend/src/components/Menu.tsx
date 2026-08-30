@@ -18,8 +18,6 @@ import {
   MENU_CATEGORY_ORDER,
 } from '../pageManifest';
 
-const SUPPORT_ONLY_TABS: TabPluginId[] = [];
-
 interface MenuProps {
   selectedOwner?: string;
   selectedGroup?: string;
@@ -51,15 +49,6 @@ export default function Menu({
   const effectiveLogout = onLogout ?? contextLogout ?? undefined;
   const mode = deriveModeFromLocation(location.pathname, location.search) as TabPluginId;
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode);
-  const inSupport = mode === 'support';
-  // Support link is shown whenever the support tab is enabled. It stays gated on
-  // !familyMvpEnabled because the support section is a distinct operations surface
-  // (not a normal config tab); Family MVP keeps that surface out of the simplified
-  // experience. Tab navigability itself is governed purely by config (#4641).
-  const supportEnabled =
-    !familyMvpEnabled &&
-    tabs.support !== false &&
-    !disabledTabs?.includes('support');
 
   const categoryDefinitions = useMemo<MenuCategoryDefinition[]>(() => {
     const section = isSupportMode ? 'support' : 'user';
@@ -71,22 +60,39 @@ export default function Menu({
 
   const availableTabs = useMemo(
     () =>
-      getMenuEntries(isSupportMode ? 'support' : 'user').filter((entry) => {
-        if (entry.mode === 'support') return false;
-        if (
-          !inSupport &&
-          SUPPORT_ONLY_TABS.includes(entry.mode as TabPluginId)
-        ) {
-          return false;
-        }
-
-        // Family MVP no longer restricts which tabs appear (#4641): every tab
-        // enabled in config is navigable from the menu. Visibility is driven
-        // purely by the config tab gating below.
-        return tabs[entry.mode] === true && !disabledTabs?.includes(entry.mode);
-      }),
-    [disabledTabs, inSupport, isSupportMode, tabs]
+      getMenuEntries(isSupportMode ? 'support' : 'user').filter(
+        (entry) =>
+          // Family MVP no longer restricts which tabs appear (#4641): every
+          // tab enabled in config is navigable from the menu. Visibility is
+          // driven purely by the config tab gating below.
+          tabs[entry.mode] === true && !disabledTabs?.includes(entry.mode)
+      ),
+    [disabledTabs, isSupportMode, tabs]
   );
+
+  // The first enabled operations entry (by priority, e.g. Timeseries before
+  // Data Admin before ... before Support) -- i.e. what the gateway link
+  // below actually targets. Computed independently of `availableTabs`/
+  // `isSupportMode` because the gateway itself is only ever rendered from
+  // the *user*-section menu (#7226). Targeting the first enabled entry
+  // (rather than always /support) means the gateway still lands somewhere
+  // real when Support specifically is disabled but e.g. Data Admin isn't.
+  const firstOperationsEntry = useMemo(
+    () =>
+      getMenuEntries('support').find(
+        (entry) =>
+          entry.menuCategory === 'operations' &&
+          tabs[entry.mode] === true &&
+          !disabledTabs?.includes(entry.mode)
+      ),
+    [disabledTabs, tabs]
+  );
+  // Family MVP keeps the operations surface out of the simplified
+  // experience -- the same gate the old bespoke "Support" link used to
+  // apply (`!familyMvpEnabled`), preserved here for the gateway that
+  // replaces it (#7226).
+  const operationsGatewayVisible =
+    !familyMvpEnabled && Boolean(firstOperationsEntry);
 
   const categoriesToRender = useMemo<CategorizedMenu[]>(
     () =>
@@ -97,12 +103,13 @@ export default function Menu({
         }))
         .filter((category) => {
           if (category.tabs.length > 0) return true;
-          return (
-            category.id === 'preferences' &&
-            (supportEnabled || Boolean(effectiveLogout))
-          );
+          // The Glossary link (below) always renders in 'preferences', so
+          // that category is never actually empty — but keep the explicit
+          // check so this stays readable if the Glossary link ever becomes
+          // conditional again.
+          return category.id === 'preferences';
         }),
-    [availableTabs, categoryDefinitions, effectiveLogout, supportEnabled]
+    [availableTabs, categoryDefinitions]
   );
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
@@ -261,25 +268,60 @@ export default function Menu({
                       </Link>
                     </li>
                   ))}
-                  {category.id === 'preferences' && supportEnabled && (
-                    <li key="support">
+                  {category.id === 'preferences' && (
+                    <li key="glossary">
                       <Link
                         ref={assignFirstFocusable}
                         role="menuitem"
-                        to={
-                          inSupport
-                            ? buildPathForMode('group', {
-                                group: selectedGroup,
-                              })
-                            : buildPathForMode('support')
-                        }
+                        to="/metrics-explained"
                         className={`block min-h-11 w-full rounded px-3 py-2 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
-                          inSupport
+                          location.pathname === '/metrics-explained'
                             ? 'font-semibold text-gray-900'
                             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                         }`}
                       >
-                        {t('app.supportLink')}
+                        {t('app.glossaryLink', 'Glossary')}
+                      </Link>
+                    </li>
+                  )}
+                  {category.id === 'preferences' &&
+                    !isSupportMode &&
+                    operationsGatewayVisible && (
+                      // The only way into the operations menu (Data Admin,
+                      // Data Quality, Timeseries, the Support console, ...)
+                      // from the end-user menu. Deliberately generic --
+                      // unlike the old "Support" link this replaces, it
+                      // doesn't claim to be end-user help (#7226). Targets
+                      // the first *enabled* operations entry rather than
+                      // always /support, so it never lands on a disabled
+                      // route (<DisabledFeature />) when Support itself is
+                      // turned off but a sibling like Data Admin isn't.
+                      <li key="operations-gateway">
+                        <Link
+                          ref={assignFirstFocusable}
+                          role="menuitem"
+                          to={buildPathForMode(
+                            firstOperationsEntry?.mode ?? 'support'
+                          )}
+                          className="block min-h-11 w-full rounded px-3 py-2 text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
+                        >
+                          {t('app.operationsLink', 'Operations')}
+                        </Link>
+                      </li>
+                    )}
+                  {category.id === 'preferences' && isSupportMode && (
+                    // The way back to the main app from any operations page
+                    // -- without it, the operations menu (which replaces the
+                    // dashboard/insights/goals categories while here) would
+                    // strand the user with no nav path home (#7226).
+                    <li key="back-to-app">
+                      <Link
+                        ref={assignFirstFocusable}
+                        role="menuitem"
+                        to={buildPathForMode('group', { group: selectedGroup })}
+                        className="block min-h-11 w-full rounded px-3 py-2 text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
+                      >
+                        {t('app.userLink')}
                       </Link>
                     </li>
                   )}

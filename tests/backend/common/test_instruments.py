@@ -581,3 +581,206 @@ def test_yahoo_suffix_for_exchange_unknown() -> None:
 )
 def test_build_yahoo_symbol(symbol, exchange, expected) -> None:
     assert instruments._build_yahoo_symbol(symbol, exchange) == expected
+
+
+# --- #7216: instrument names ingested from an HTML source keep raw entities ---
+
+
+def test_decode_html_entities_decodes_numeric_and_named_entities() -> None:
+    assert (
+        instruments.decode_html_entities("United Parcel Service Class &#39;B&#39; Com Stock US$0.01 (CDI) *R")
+        == "United Parcel Service Class 'B' Com Stock US$0.01 (CDI) *R"
+    )
+
+
+def test_decode_html_entities_leaves_legitimate_ampersand_untouched() -> None:
+    """A bare '&' that isn't part of a recognised entity (e.g. "B&M") must
+    survive unchanged -- this is a real holding name in the portfolio data.
+    """
+    name = "B&M European Value Retail SA"
+    assert instruments.decode_html_entities(name) == name
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "AT&T Inc",
+        "S&P 500 ETF",
+        "P&O Cruises",
+        "Marks &amp Spencer Group PLC",  # legacy semicolon-less &amp
+    ],
+)
+def test_decode_html_entities_leaves_other_real_ampersand_names_untouched(name: str) -> None:
+    assert instruments.decode_html_entities(name) == name
+
+
+@pytest.mark.parametrize(
+    "encoded,expected",
+    [
+        ("Foo &times Bar", "Foo &times Bar"),
+        ("A &copy B", "A &copy B"),
+        ("&sect 5 Fund", "&sect 5 Fund"),
+        ("ABC &REG plc", "ABC &REG plc"),
+    ],
+)
+def test_decode_html_entities_ignores_semicolon_less_legacy_entities(encoded: str, expected: str) -> None:
+    """`html.unescape` alone would decode these legacy entities even without a
+    trailing ';' (e.g. "&copy" -> "(c)"), which could mangle a real name that
+    happens to contain one of these letter sequences. Decoding must only ever
+    touch what the #7216 guard regex itself would flag -- i.e. entities that
+    end in ';' -- so decoder and guard can never disagree (#7216 review)."""
+    assert instruments.decode_html_entities(encoded) == expected
+
+
+def test_decode_html_entities_is_idempotent() -> None:
+    clean = "United Parcel Service Class 'B' Com Stock US$0.01 (CDI) *R"
+    once = instruments.decode_html_entities(clean)
+    twice = instruments.decode_html_entities(once)
+    assert once == clean
+    assert twice == clean
+
+
+def test_decode_html_entities_fully_resolves_double_encoded_input() -> None:
+    """A double-escaped broker export (#7216 review): a single html.unescape()
+    call only peels off one layer, turning "&amp;amp;" into "&amp;" rather
+    than "&". Decoding must resolve to a genuine fixed point -- calling it a
+    second time on the result must be a true no-op, not a further mutation.
+    """
+    double_encoded = "Marks &amp;amp; Spencer"
+    once = instruments.decode_html_entities(double_encoded)
+    assert once == "Marks & Spencer"
+
+    twice = instruments.decode_html_entities(once)
+    assert twice == once
+
+
+def test_decode_html_entities_idempotent_on_admin_round_trip_input() -> None:
+    """Regression for the admin read-modify-write path (routes/instrument_admin.py
+    _load_meta_for_update -> get_instrument_meta -> save_instrument_meta):
+    once a name has been decoded once, re-decoding it on a subsequent save
+    must not ratchet it down another level."""
+    name = "AT&amp;T"
+    decoded_once = instruments.decode_html_entities(name)
+    assert decoded_once == "AT&T"
+    decoded_twice = instruments.decode_html_entities(decoded_once)
+    assert decoded_twice == "AT&T"
+
+
+def test_has_undecoded_html_entities_flags_encoded_name() -> None:
+    assert instruments.has_undecoded_html_entities("United Parcel Service Class &#39;B&#39; Com Stock")
+    assert instruments.has_undecoded_html_entities("Some &amp; Co")
+
+
+def test_has_undecoded_html_entities_ignores_clean_names() -> None:
+    assert not instruments.has_undecoded_html_entities("United Parcel Service Class 'B' Com Stock")
+    assert not instruments.has_undecoded_html_entities("B&M European Value Retail SA")
+
+
+def test_has_undecoded_html_entities_ignores_semicolon_less_legacy_entities() -> None:
+    """The guard must agree with the decoder (see #7216 review): neither one
+    treats a semicolon-less legacy entity as something to act on."""
+    assert not instruments.has_undecoded_html_entities("Foo &times Bar")
+    assert not instruments.has_undecoded_html_entities("ABC &REG plc")
+
+
+def test_get_instrument_meta_decodes_html_entities_on_read(monkeypatch, tmp_path) -> None:
+    """A bad record already on disk (e.g. UPS.json, see #7216) must be
+    decoded on read even though it was never re-ingested."""
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    monkeypatch.delenv(instruments.METADATA_BUCKET_ENV, raising=False)
+    monkeypatch.delenv(instruments.METADATA_PREFIX_ENV, raising=False)
+
+    data = {
+        "ticker": "UPS.N",
+        "name": "United Parcel Service Class &#39;B&#39; Com Stock US$0.01 (CDI) *R",
+    }
+    path = tmp_path / "N" / "UPS.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data))
+
+    instruments.get_instrument_meta.cache_clear()
+    result = instruments.get_instrument_meta("UPS.N")
+    assert result["name"] == "United Parcel Service Class 'B' Com Stock US$0.01 (CDI) *R"
+
+
+def test_get_instrument_meta_preserves_legitimate_ampersand_on_read(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    monkeypatch.delenv(instruments.METADATA_BUCKET_ENV, raising=False)
+    monkeypatch.delenv(instruments.METADATA_PREFIX_ENV, raising=False)
+
+    data = {"ticker": "MRO.L", "name": "B&M European Value Retail SA"}
+    path = tmp_path / "L" / "MRO.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data))
+
+    instruments.get_instrument_meta.cache_clear()
+    result = instruments.get_instrument_meta("MRO.L")
+    assert result["name"] == "B&M European Value Retail SA"
+
+
+def test_save_instrument_meta_decodes_html_entities_at_ingest(monkeypatch, tmp_path) -> None:
+    """The ingest/write path (#7216) should persist decoded text, not just
+    decode defensively on read."""
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    monkeypatch.delenv(instruments.METADATA_BUCKET_ENV, raising=False)
+    monkeypatch.delenv(instruments.METADATA_PREFIX_ENV, raising=False)
+
+    path = instruments.save_instrument_meta(
+        "UPS",
+        "N",
+        {
+            "ticker": "UPS.N",
+            "name": "United Parcel Service Class &#39;B&#39; Com Stock US$0.01 (CDI) *R",
+        },
+    )
+    assert path is not None
+    stored = json.loads(path.read_text())
+    assert stored["name"] == "United Parcel Service Class 'B' Com Stock US$0.01 (CDI) *R"
+
+
+def test_list_instruments_decodes_html_entities(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+
+    data = {"ticker": "UPS.N", "name": "United Parcel Service Class &#39;B&#39; Com Stock"}
+    path = tmp_path / "N" / "UPS.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data))
+
+    result = instruments.list_instruments()
+    names = {item["ticker"]: item["name"] for item in result}
+    assert names["UPS.N"] == "United Parcel Service Class 'B' Com Stock"
+
+
+def test_get_then_save_round_trip_does_not_ratchet_double_encoded_name(monkeypatch, tmp_path) -> None:
+    """Regression for the admin read-modify-write path (#7216 review):
+    ``backend/routes/instrument_admin.py``'s ``_load_meta_for_update`` reads
+    via ``get_instrument_meta`` and then ``assign_group``/``assign_type``
+    write the result straight back via ``save_instrument_meta``. Before the
+    decode was made a genuine fixed point, repeating that round trip on a
+    double-encoded name (e.g. "AT&amp;amp;T") would decode it one more level
+    on every save, silently corrupting the stored name over time. A single
+    round trip must already be fully decoded, and a second round trip must
+    leave it unchanged.
+    """
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    monkeypatch.delenv(instruments.METADATA_BUCKET_ENV, raising=False)
+    monkeypatch.delenv(instruments.METADATA_PREFIX_ENV, raising=False)
+
+    data = {"ticker": "ATT.N", "name": "AT&amp;amp;T"}
+    path = tmp_path / "N" / "ATT.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data))
+
+    instruments.get_instrument_meta.cache_clear()
+    first_read = dict(instruments.get_instrument_meta("ATT.N"))
+    assert first_read["name"] == "AT&T"
+
+    instruments.save_instrument_meta("ATT", "N", first_read)
+    instruments.get_instrument_meta.cache_clear()
+
+    second_read = dict(instruments.get_instrument_meta("ATT.N"))
+    assert second_read["name"] == "AT&T"
+
+    instruments.save_instrument_meta("ATT", "N", second_read)
+    instruments.get_instrument_meta.cache_clear()
+    assert instruments.get_instrument_meta("ATT.N")["name"] == "AT&T"

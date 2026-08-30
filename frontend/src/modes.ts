@@ -29,7 +29,8 @@ export type Mode =
   | "scenario"
   | "createaccount"
   | "dataquality"
-  | "plot";
+  | "plot"
+  | "help";
 
 export const MODES: Mode[] = [
   "group",
@@ -63,4 +64,5 @@ export const MODES: Mode[] = [
   "createaccount",
   "dataquality",
   "plot",
+  "help",
 ];

@@ -146,8 +146,15 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     menuCategory: 'dashboard',
     priority: 40,
     defaultPath: (context) => {
-      const { owner } = routeContext(context);
-      return owner ? `/performance/${owner}` : '/performance';
+      const { owner, group } = routeContext(context);
+      // Owner scope keeps its existing path-segment form (and with it the
+      // /performance/:owner/diagnostics deep link). Group scope carries a
+      // `group` query param instead -- there's no separate path form for it,
+      // so a bare owner-less group slug never collides with an owner slug in
+      // the same position (#7228).
+      if (owner) return `/performance/${owner}`;
+      if (group) return `/performance?group=${group}`;
+      return '/performance';
     },
   },
   {
@@ -278,6 +285,11 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     section: 'user',
     menuCategory: 'preferences',
     priority: 104,
+    // No `?owner=` here: AlertSettings resolves its own scope from a single
+    // signed-in identity (profile email, else local_login_email/
+    // demo_identity when auth is disabled), never from the portfolio owner
+    // selected elsewhere in the UI -- a `?owner=` hint would only be
+    // misleading (#7225 review round 3). See AlertSettings.tsx.
     defaultPath: () => '/alert-settings',
     routePath: '/alert-settings',
     lazyComponent: lazyPage(() => import('../pages/AlertSettings')),
@@ -317,14 +329,34 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     lazyComponent: lazyPage(() => import('../pages/TradeCompliance')),
   },
   {
+    // Internal operations console (login override, data explorer, logs,
+    // config, Telegram messaging, ...). It is `section: 'support'` like the
+    // other operations routes (timeseries, instrumentadmin, dataadmin,
+    // dataquality, dataexplorer) and shares their 'operations' menuCategory
+    // so it only ever surfaces alongside them once already in the
+    // operations menu, never in the end-user Settings/preferences menu
+    // (#7226). It stays deep-linkable at /support for maintainers.
     mode: 'support',
     routeSegment: 'support',
     section: 'support',
-    menuCategory: 'preferences',
+    menuCategory: 'operations',
     priority: 110,
     defaultPath: () => '/support',
     routePath: '/support',
     lazyComponent: lazyPage(() => import('../pages/Support')),
+  },
+  {
+    // Real end-user help: what each main page does, a link to the metrics
+    // glossary, and how to report a problem. Replaces the operations
+    // console as the "Support" entry in the Settings menu (#7226).
+    mode: 'help',
+    routeSegment: 'help',
+    section: 'user',
+    menuCategory: 'preferences',
+    priority: 106,
+    defaultPath: () => '/help',
+    routePath: '/help',
+    lazyComponent: lazyPage(() => import('../pages/Help')),
   },
   {
     mode: 'scenario',
@@ -520,13 +552,16 @@ export const standalonePageRoutes = ROUTE_REGISTRY.filter((entry) =>
 /**
  * Routes mounted via standalonePageRoutes that must NOT get the shared
  * AppHeader wrapper: /alert-settings already renders AppHeader itself (with
- * the price-refresh timestamp), /support + /create-account are public
- * pre-login routes that stay chrome-free (#6725), and /plot/* is the gamified
- * skin, which supplies its own full-screen HUD.
+ * the price-refresh timestamp), /create-account is a public pre-login route
+ * that stays chrome-free, and /plot/* is the gamified skin, which supplies
+ * its own full-screen HUD. /support DOES get the shared AppHeader (#7226):
+ * it's reachable pre-login (see main.tsx's isPublicSupportRoute) but that is
+ * no reason to strand whoever lands there without navigation (#6725 added
+ * the exclusion; #7226 restores it once the menu no longer surfaces the
+ * operations console to end users).
  */
 export const STANDALONE_ROUTES_WITHOUT_APP_HEADER = new Set([
   '/alert-settings',
-  '/support',
   '/create-account',
   // Plot mode renders its own full-screen HUD (with a "Classic view" link
   // back), so the shared nav chrome would sit awkwardly on top of it.

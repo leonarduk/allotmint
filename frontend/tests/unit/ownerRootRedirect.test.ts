@@ -25,6 +25,32 @@ describe("getOwnerRootRedirectPath", () => {
     expect(getOwnerRootRedirectPath("/performance/alice", "alice", owners)).toBeNull();
   });
 
+  describe("performance group scope (#7228)", () => {
+    it("does not redirect /performance?group=all onto an owner", () => {
+      expect(
+        getOwnerRootRedirectPath("/performance", "", owners, undefined, "?group=all"),
+      ).toBeNull();
+    });
+
+    it("still redirects a bare /performance with no group query", () => {
+      expect(getOwnerRootRedirectPath("/performance", "", owners, undefined, "")).toBe(
+        "/performance/alice",
+      );
+    });
+
+    it("does not treat an unrelated query param as group scope", () => {
+      expect(
+        getOwnerRootRedirectPath("/performance", "", owners, undefined, "?owner=alice"),
+      ).toBe("/performance/alice");
+    });
+
+    it("leaves /portfolio root redirects unaffected by a group query", () => {
+      expect(
+        getOwnerRootRedirectPath("/portfolio", "", owners, undefined, "?group=all"),
+      ).toBe("/portfolio/alice");
+    });
+  });
+
   describe("with a logged-in user", () => {
     const multiOwners = [
       { owner: "alice", accounts: [], email: "alice@example.com" },

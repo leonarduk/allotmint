@@ -145,6 +145,140 @@ def test_group_metrics_not_found(client, monkeypatch, path, func):
     assert resp.json()["detail"] == "Group not found"
 
 
+def test_group_performance_summary_success(client, monkeypatch):
+    result = {
+        "history": [{"date": "2024-01-01", "cumulative_return": 0.07}],
+        "max_drawdown": -0.4,
+        "reporting_date": "2024-01-01",
+        "previous_date": "2023-12-29",
+    }
+
+    def fake(slug, *args, **kwargs):
+        assert slug == "test-group"
+        assert kwargs == {
+            "days": 365,
+            "include_cash": True,
+            "pricing_date": None,
+            "group": True,
+        }
+        return result
+
+    monkeypatch.setattr(portfolio_utils, "compute_owner_performance", fake)
+    resp = client.get("/performance-group/test-group")
+    assert resp.status_code == 200
+    assert resp.json() == {"group": "test-group", **result}
+
+
+def test_group_performance_summary_not_found(client, monkeypatch):
+    def fake(*args, **kwargs):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(portfolio_utils, "compute_owner_performance", fake)
+    resp = client.get("/performance-group/missing")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Group not found"
+
+
+def test_group_performance_summary_unknown_slug_raises_value_error(client, monkeypatch):
+    def fake(*args, **kwargs):
+        raise ValueError("Unknown group slug: 'missing'")
+
+    monkeypatch.setattr(portfolio_utils, "compute_owner_performance", fake)
+    resp = client.get("/performance-group/missing")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Group not found"
+
+
+def test_group_twr_success(client, monkeypatch):
+    def fake(slug, days, *, pricing_date=None, group=False, include_missing_members=False):
+        assert slug == "test-group"
+        assert days == 365
+        assert group is True
+        assert include_missing_members is True
+        return 0.042, []
+
+    monkeypatch.setattr(portfolio_utils, "compute_time_weighted_return", fake)
+    resp = client.get("/performance-group/test-group/twr")
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "group": "test-group",
+        "time_weighted_return": 0.042,
+        "partial": False,
+        "missing_members": [],
+    }
+
+
+def test_group_twr_not_found(client, monkeypatch):
+    def fake(*args, **kwargs):
+        raise ValueError("Unknown group slug: 'missing'")
+
+    monkeypatch.setattr(portfolio_utils, "compute_time_weighted_return", fake)
+    resp = client.get("/performance-group/missing/twr")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Group not found"
+
+
+def test_group_twr_reports_partial_when_a_member_ledger_is_missing(client, monkeypatch):
+    """#7228 review MUST FIX 1: a missing member's transaction ledger must be
+    surfaced to the caller, not silently dropped from the figure.
+    """
+
+    def fake(slug, days, *, pricing_date=None, group=False, include_missing_members=False):
+        assert include_missing_members is True
+        return 0.042, ["ghost"]
+
+    monkeypatch.setattr(portfolio_utils, "compute_time_weighted_return", fake)
+    resp = client.get("/performance-group/test-group/twr")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["partial"] is True
+    assert body["missing_members"] == ["ghost"]
+
+
+def test_group_xirr_success(client, monkeypatch):
+    def fake(slug, days, *, pricing_date=None, group=False, include_missing_members=False):
+        assert slug == "test-group"
+        assert days == 365
+        assert group is True
+        assert include_missing_members is True
+        return 0.055, []
+
+    monkeypatch.setattr(portfolio_utils, "compute_xirr", fake)
+    resp = client.get("/performance-group/test-group/xirr")
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "group": "test-group",
+        "xirr": 0.055,
+        "partial": False,
+        "missing_members": [],
+    }
+
+
+def test_group_xirr_not_found(client, monkeypatch):
+    def fake(*args, **kwargs):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(portfolio_utils, "compute_xirr", fake)
+    resp = client.get("/performance-group/missing/xirr")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Group not found"
+
+
+def test_group_xirr_reports_partial_when_a_member_ledger_is_missing(client, monkeypatch):
+    """#7228 review MUST FIX 1: same partial-data signal as TWR."""
+
+    def fake(slug, days, *, pricing_date=None, group=False, include_missing_members=False):
+        assert include_missing_members is True
+        return 0.11, ["ghost"]
+
+    monkeypatch.setattr(portfolio_utils, "compute_xirr", fake)
+    resp = client.get("/performance-group/test-group/xirr")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["partial"] is True
+    assert body["missing_members"] == ["ghost"]
+
+
 def test_performance_summary_success(client, monkeypatch):
     result = {
         "history": [{"date": "2024-01-01", "cumulative_return": 0.07}],

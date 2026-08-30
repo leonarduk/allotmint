@@ -1871,6 +1871,76 @@ describe("App", () => {
     expect(locationUpdates).not.toContain("/performance/alice");
   });
 
+  it("scopes /performance?group=all to the group instead of redirecting to an owner (#7228)", async () => {
+    window.history.pushState({}, "", "/performance?group=all");
+    const locationUpdates: string[] = [];
+
+    function LocationListener() {
+      const location = useLocation();
+      useEffect(() => {
+        locationUpdates.push(`${location.pathname}${location.search}`);
+      }, [location.pathname, location.search]);
+      return null;
+    }
+
+    vi.doMock("@/components/PerformanceDashboard", () => ({
+      __esModule: true,
+      default: ({ owner, group }: { owner: string | null; group: string | null }) => (
+        <div data-testid="performance-dashboard">{`owner:${owner ?? ""}|group:${group ?? ""}`}</div>
+      ),
+    }));
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([
+          { owner: "alice", accounts: [] },
+          { owner: "bob", accounts: [] },
+        ]),
+        getGroups: vi.fn().mockResolvedValue([
+          { slug: "all", name: "At a glance", members: ["alice", "bob"] },
+        ]),
+        getPortfolio: vi.fn(),
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        complianceForOwner: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+    const { configContext } = await import("@/ConfigContext");
+
+    render(
+      <MemoryRouter initialEntries={["/performance?group=all"]}>
+        <LocationListener />
+        <configContext.Provider value={makeConfigValue()}>
+          <App />
+        </configContext.Provider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("performance-dashboard")).toHaveTextContent(
+        "owner:|group:all",
+      ),
+    );
+    // Never redirected onto an owner-scoped path.
+    expect(locationUpdates.every((path) => !path.startsWith("/performance/"))).toBe(
+      true,
+    );
+    expect(locationUpdates).toContain("/performance?group=all");
+  });
+
   it("allows navigation to enabled tabs", async () => {
     window.history.pushState({}, "", "/movers");
 
@@ -2075,7 +2145,12 @@ describe("App", () => {
     // The owner-scoped portfolio is reachable via the dashboard's owner tabs
     // (it renders the same merged view), so the duplicate nav entry is gone.
     expect(within(nav).queryByText("Portfolio")).not.toBeInTheDocument();
-    expect(within(nav).getByText("Support")).toBeInTheDocument();
+    // The operations console ("Support") no longer surfaces in the
+    // end-user nav — it moved to the operations menu category, reachable
+    // only once already on a support-section page. A real Help entry takes
+    // its old spot instead (#7226).
+    expect(within(nav).queryByText("Support")).not.toBeInTheDocument();
+    expect(within(nav).getByText("Help")).toBeInTheDocument();
   });
 
   it("opens the research search bar and closes after navigating to a result", async () => {

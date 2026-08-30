@@ -24,13 +24,13 @@
     "collapseShort": "Réduire"
   },
   "alertSettings": {
-    "description": "Configurez quand vous recevrez des alertes. Les alertes apparaissent sur la page des alertes et dans les notifications push.",
+    "description": "Ce seuil n'est pas encore relié à la génération des alertes dans cet environnement. Les alertes actuelles proviennent d'une vérification fixe, appliquée à l'ensemble du compte, exécutée lors de l'actualisation quotidienne des prix : toute position s'écartant de plus de 10 % de son prix de revient est signalée, pour tous les portefeuilles.",
     "push": {
       "denied": "Permission de push refusée.",
       "disable": "Désactiver les alertes Push",
       "enable": "Activer les alertes Push",
       "error": "Erreur lors de la gestion de l'abonnement push.",
-      "notSupported": "Push non supporté",
+      "notSupported": "Les notifications push ne sont pas encore disponibles dans cet environnement — consultez la page des alertes ci-dessus.",
       "title": "Notifications push"
     },
     "save": "Enregistrer",
@@ -76,6 +76,7 @@
       "dataexplorer": "Explorateur de fichiers",
       "dataquality": "Qualité des données",
       "group": "Groupe",
+      "help": "Aide",
       "instrument": "Instrument",
       "instrumentadmin": "Administration des instruments",
       "market": "Aperçu du marché",
@@ -89,7 +90,7 @@
       "research": "Recherche",
       "scenario": "Testeur de Scénario",
       "screener": "Filtre & Requête",
-      "settings": "Paramètres utilisateur",
+      "settings": "Règles de négociation",
       "support": "Assistance",
       "taxtools": "Outils fiscaux",
       "timeseries": "Séries temporelles",
@@ -99,6 +100,7 @@
       "transactions": "Transactions",
       "watchlist": "Liste de suivi"
     },
+    "operationsLink": "Opérations",
     "refreshing": "Rafraîchissement…",
     "refreshPrices": "Rafraîchir les prix",
     "relativeView": "Vue relative",
@@ -268,6 +270,7 @@
       "units": "Unités"
     },
     "edit": "Modifier",
+    "fundamentalsUnavailable": "Les données fondamentales ne sont pas disponibles dans ce déploiement.",
     "intraday": "Intraday",
     "intradayUnavailable": "Données intraday indisponibles",
     "ma20": "20d MA",
@@ -342,13 +345,17 @@
     "sectorPerformance": "Performance des secteurs"
   },
   "movers": {
+    "deltaGbpHeader": "Variation de valeur (£, {{period}})",
     "excludeSmall": "Exclure les positions <{{min}} %",
     "loadFailed": "Échec du chargement des mouvements{{status}}",
     "loginPrompt": "Veuillez vous connecter pour afficher les mouvements basés sur le portefeuille.",
+    "pctChangeHeader": "Variation de prix (%, {{period}})",
     "pctPortfolio": "% du portefeuille",
     "period": "Période :",
     "signal": "Signal",
-    "watchlist": "Liste de suivi :"
+    "signalWindowNote": "Chaque signal utilise sa propre fenêtre de référence, qui peut différer de la période de variation en % et en valeur affichée sur cette ligne. Sélectionnez le signal pour voir le motif.",
+    "watchlist": "Liste de suivi :",
+    "windowNote": "Les colonnes % et valeur indiquent le mouvement sur la période sélectionnée. Chaque signal utilise sa propre fenêtre de référence — sélectionnez un signal d'achat ou de vente pour voir son motif et sa confiance."
   },
   "owner": {
     "label": "Propriétaire",
@@ -360,14 +367,22 @@
     "employerContributionLabel": "Contribution de l'employeur",
     "growthAssumption": "Hypothèse de croissance (%) :",
     "header": {
+      "contributionDefaultHelper": "Valeur de départ à titre d'exemple -- ajustez le curseur selon votre propre cotisation.",
+      "deathAgeHelper": "Jusqu'à quel âge planifier la retraite. Par défaut : 90.",
+      "deathAgeLabel": "Planifier jusqu'à l'âge de",
       "employeeContribution": "Votre cotisation mensuelle",
       "employerContribution": "Contribution de l'employeur",
       "heading": "Suivez vos cotisations en un coup d’œil",
+      "includedAccountsHeading": "Utilisés dans cette projection",
+      "includedAccountsHelper": "Seuls les comptes de pension (SIPP et similaires) comptent pour les chiffres de cette page. Les autres comptes sont affichés ci-dessous à titre indicatif et n'ont aucune incidence sur eux.",
       "kicker": "Aperçu de votre pension",
-      "linkedPotsHeading": "Pots de pension associés",
-      "noLinkedPots": "Aucun pot de pension associé pour ce titulaire pour le moment.",
-      "notAvailable": "Non disponible",
+      "noLinkedPots": "Aucun compte trouvé pour ce titulaire.",
+      "noPensionAccounts": "Aucun compte de pension associé pour ce titulaire pour le moment.",
+      "notAvailable": "Affiché après avoir lancé une projection",
+      "otherAccountsHeading": "Autres comptes (à titre indicatif -- non inclus dans cette projection)",
       "pensionPot": "Épargne retraite actuelle",
+      "pensionPotFromPortfolio": "D'après les données actuelles de votre portefeuille",
+      "statePensionHelper": "Votre pension publique annuelle estimée. Par défaut : 0 £ (exclue) ; indiquez votre propre estimation pour l'inclure.",
       "totalContribution": "Cotisations mensuelles totales : {{total}}"
     },
     "incomeBreakdownHeading": "Répartition du revenu de retraite",
@@ -402,13 +417,22 @@
     "end": "Fin",
     "exportCsv": "Exporter CSV",
     "exportXlsx": "Exporter XLSX",
+    "metricGainGbp": "Gain (£)",
+    "metricMarketValueGbp": "Valeur de marché (£)",
     "metrics": "Métriques",
+    "noTickers": "Aucun titre trouvé dans vos positions.",
     "owners": "Propriétaires",
     "run": "Exécuter",
     "running": "Exécution…",
     "save": "Enregistrer",
+    "savedQueriesLoading": "Chargement des requêtes enregistrées…",
+    "savedQueriesTitle": "Requêtes enregistrées",
     "start": "Début",
-    "tickers": "Tickers"
+    "tickerNotHeld": "non détenu actuellement",
+    "tickers": "Tickers",
+    "tickersEmpty": "Aucune position trouvée pour les propriétaires sélectionnés.",
+    "tickersLoading": "Chargement des tickers…",
+    "tickersPartialError": "Impossible de charger les positions pour : {{owners}}"
   },
   "reports": {
     "csv": "Télécharger CSV",
@@ -444,6 +468,8 @@
     "downloadsDisabled": "Sélectionnez un propriétaire et un modèle pour activer les téléchargements."
   },
   "screener": {
+    "checking": "Vérification de la disponibilité du filtre…",
+    "description": "Filtrez une liste de suivi ou une liste personnalisée de tickers selon des ratios de valorisation, de rentabilité et de risque (P/E, niveau d'endettement, marges, rendements, etc.) pour présélectionner des sociétés à examiner de plus près.",
     "loading": "Chargement…",
     "max52WeekHigh": "Plus haut 52 sem. max",
     "max52WeekLow": "Plus bas 52 sem. max",
@@ -473,6 +499,8 @@
     "minSharesOutstanding": "Actions en circulation min",
     "run": "Exécuter",
     "tickers": "Tickers",
+    "title": "Filtre",
+    "unavailableBody": "Ce déploiement n'inclut pas le filtre fondamental ; le filtrage par ratios financiers n'est donc pas possible ici.",
     "watchlist": "Liste de suivi :"
   },
   "support": {
@@ -583,12 +611,48 @@
     "title": "Progression du Trail",
     "xpLabel": "XP : {{xp}}"
   },
+  "userConfig": {
+    "title": "Règles de négociation",
+    "pageDescription": "Règles qui déterminent quelles opérations ce compte peut effectuer sans approbation supplémentaire.",
+    "loadingOwners": "Chargement des titulaires...",
+    "noOwners": "Aucun compte n'est disponible pour votre utilisateur. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur.",
+    "chooseOwnerPrompt": "Choisissez pour qui modifier les paramètres.",
+    "selectOwner": "Sélectionner un titulaire",
+    "holdDays": "Durée minimale de détention (jours)",
+    "holdDaysHelp": "Le nombre de jours pendant lesquels une position doit être conservée avant de pouvoir être vendue. Exprimé en jours calendaires.",
+    "maxTrades": "Nombre max. d'opérations / mois",
+    "maxTradesHelp": "Le nombre maximal d'opérations que ce compte peut effectuer au cours d'un mois calendaire. Une fois ce plafond atteint, toute opération supplémentaire nécessite une approbation.",
+    "exemptTickers": "Tickers exemptés d'approbation",
+    "exemptTickersHelp": "Tickers séparés par des virgules qui peuvent toujours être négociés sans approbation.",
+    "exemptTypes": "Types exemptés d'approbation",
+    "exemptTypesHelp": "Types d'instruments séparés par des virgules (par exemple ETF, Fonds) qui peuvent toujours être négociés sans approbation.",
+    "saving": "Enregistrement...",
+    "save": "Enregistrer",
+    "saved": "Enregistré",
+    "error": "Erreur",
+    "approvals": "Approbations",
+    "approvalsHelp": "Une approbation permet de négocier un ticker précis à une date précise même si les règles ci-dessus l'interdiraient autrement (par exemple parce que la durée minimale de détention n'est pas écoulée ou que le plafond mensuel d'opérations a été atteint).",
+    "approvalsEmpty": "Aucune approbation pour le moment. Ajoutez-en une ci-dessous si une opération doit avoir lieu en dehors des règles ci-dessus.",
+    "remove": "Supprimer",
+    "add": "Ajouter"
+  },
   "var": {
     "details": "Détails de la simulation historique",
     "noData": "Pas de données VaR disponibles.",
     "title": "Valeur à risque"
   },
   "watchlist": {
-    "refresh": "Actualiser"
+    "refresh": "Actualiser",
+    "columnName": "Nom",
+    "columnSymbol": "Symbole",
+    "columnUnit": "Unité",
+    "columnLast": "Dernier",
+    "columnOpen": "Ouverture",
+    "columnHigh": "Haut",
+    "columnLow": "Bas",
+    "columnChange": "Var.",
+    "columnChangePct": "Var. %",
+    "columnVolume": "Vol.",
+    "columnTime": "Heure (Europe/London)"
   }
 }

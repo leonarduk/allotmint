@@ -74,6 +74,43 @@ describe('page manifest', () => {
     expect(buildPathForMode('pension')).toBe('/pension/forecast');
   });
 
+  it('scopes the performance default path to owner, then group, then unscoped (#7228)', () => {
+    // Owner scope wins whenever an owner is selected -- this preserves the
+    // path-segment form (and with it /performance/:owner/diagnostics)
+    // exactly as it worked before group scope existed.
+    expect(buildPathForMode('performance', { owner: 'alice' })).toBe(
+      '/performance/alice'
+    );
+
+    // No owner selected but a group is (e.g. navigating the Performance nav
+    // link while viewing the merged household Dashboard, where
+    // selectedOwner is '' and selectedGroup defaults to 'all'): this is a
+    // DELIBERATE choice to land on the household's combined performance
+    // rather than silently narrowing to "my own" performance, matching the
+    // Dashboard's own group-first default (`/?group=all`). Before #7228 this
+    // returned a bare '/performance', which the owner-root redirect then
+    // forced onto the signed-in user's own performance -- so this is an
+    // intentional behaviour change, not an oversight.
+    expect(buildPathForMode('performance', { group: 'all' })).toBe(
+      '/performance?group=all'
+    );
+    expect(buildPathForMode('performance', { group: 'adults' })).toBe(
+      '/performance?group=adults'
+    );
+
+    // Both present: owner still wins (e.g. a stale selectedGroup left over
+    // from browsing another group-scoped mode must not hijack an explicit
+    // owner selection).
+    expect(
+      buildPathForMode('performance', { owner: 'alice', group: 'all' })
+    ).toBe('/performance/alice');
+
+    // Neither present: falls through to the bare route, which the
+    // owner-root redirect (getOwnerRootRedirectPath) then resolves once
+    // owners have loaded.
+    expect(buildPathForMode('performance')).toBe('/performance');
+  });
+
   it('keeps menu metadata and default paths consistent for navigable pages', () => {
     for (const page of pageManifest) {
       if (page.section === 'standalone' && !page.menuCategory) {
@@ -167,19 +204,49 @@ describe('page manifest', () => {
     );
   });
 
-  it('wraps standalone routes in AppHeader except the excluded trio (#6725)', () => {
+  it('wraps standalone routes in AppHeader except a small excluded set (#6725, #7226)', () => {
     // Every standalone-routed page gets nav chrome when mounted directly...
     expect(standaloneRouteNeedsChrome('/data-quality')).toBe(true);
     expect(standaloneRouteNeedsChrome('/data-explorer')).toBe(true);
     expect(standaloneRouteNeedsChrome('/trail')).toBe(true);
     expect(standaloneRouteNeedsChrome('/trade-compliance')).toBe(true);
     expect(standaloneRouteNeedsChrome('/virtual')).toBe(true);
-    // ...except /alert-settings (self-renders AppHeader with lastRefresh),
-    // and the public pre-login routes that must stay chrome-free.
+    expect(standaloneRouteNeedsChrome('/help')).toBe(true);
+    // /support now gets the shared AppHeader too (#7226): it's reachable
+    // pre-login, but that's no reason to strand whoever lands there without
+    // navigation.
+    expect(standaloneRouteNeedsChrome('/support')).toBe(true);
+    // ...except /alert-settings (self-renders AppHeader with lastRefresh)
+    // and /create-account, the public pre-login route that must stay
+    // chrome-free.
     expect(standaloneRouteNeedsChrome('/alert-settings')).toBe(false);
-    expect(standaloneRouteNeedsChrome('/support')).toBe(false);
     expect(standaloneRouteNeedsChrome('/create-account')).toBe(false);
     // A route with no path (never mounted standalone) is not chrome-bearing.
     expect(standaloneRouteNeedsChrome(undefined)).toBe(false);
+  });
+
+  it('keeps the operations console out of the end-user menu and gives Help its place instead (#7226)', () => {
+    // Support is section: 'support' like its operations siblings and now
+    // shares their 'operations' menuCategory, so getMenuEntries('user')
+    // never returns it and it only ever shows up alongside Data Admin /
+    // Data Quality / Timeseries in getMenuEntries('support').
+    expect(pageManifestByMode.support.section).toBe('support');
+    expect(pageManifestByMode.support.menuCategory).toBe('operations');
+    expect(
+      getMenuEntries('user').some((entry) => entry.mode === 'support')
+    ).toBe(false);
+    expect(
+      getMenuEntries('support').some((entry) => entry.mode === 'support')
+    ).toBe(true);
+    // Deep link stays intact for whoever retains access.
+    expect(buildPathForMode('support')).toBe('/support');
+
+    // A real, end-user-facing Help entry takes its old spot in Settings.
+    expect(pageManifestByMode.help.section).toBe('user');
+    expect(pageManifestByMode.help.menuCategory).toBe('preferences');
+    expect(
+      getMenuEntries('user').some((entry) => entry.mode === 'help')
+    ).toBe(true);
+    expect(buildPathForMode('help')).toBe('/help');
   });
 });

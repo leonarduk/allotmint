@@ -6,6 +6,7 @@ Nothing here exercises get_current_user or any route -- that wiring is out of
 scope for this PR (see #7402 breakdown, steps 3+).
 """
 
+import asyncio
 from datetime import timedelta
 
 import jwt

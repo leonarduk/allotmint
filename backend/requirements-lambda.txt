@@ -1,6 +1,6 @@
 jinja2
 fastapi~=0.141.1
-mangum~=0.21.0
+mangum~=0.22.0
 pandas~=3.0.5
 yfinance~=1.6.0
 httpx~=0.28.1

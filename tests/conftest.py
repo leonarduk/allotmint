@@ -34,9 +34,7 @@ def pytest_pyfunc_call(pyfuncitem):
         return None
 
     call_kwargs = {
-        name: value
-        for name, value in pyfuncitem.funcargs.items()
-        if name in pyfuncitem._fixtureinfo.argnames
+        name: value for name, value in pyfuncitem.funcargs.items() if name in pyfuncitem._fixtureinfo.argnames
     }
 
     loop = asyncio.new_event_loop()

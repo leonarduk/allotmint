@@ -367,12 +367,7 @@ async def test_group_flow_reuses_cached_response_within_ttl(monkeypatch):
     # Returned responses must be independent copies, not the same cached object.
     assert first is not second
     second.entries[0].ticker = "MUTATED"
-    assert (
-        opportunities_module._OPPORTUNITIES_CACHE[("group", "growth", 1, 5, 0.0)][1]
-        .entries[0]
-        .ticker
-        == "AAA"
-    )
+    assert opportunities_module._OPPORTUNITIES_CACHE[("group", "growth", 1, 5, 0.0)][1].entries[0].ticker == "AAA"
 
 
 @pytest.mark.asyncio

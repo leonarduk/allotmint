@@ -331,6 +331,46 @@ async def test_watchlist_blank_tickers(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_group_flow_reuses_cached_response_within_ttl(monkeypatch):
+    """A second identical request within the TTL must not recompute signals.
+
+    This is the fix for the slow demo (buffett account) Movers page: repeat
+    page views/refreshes should reuse the last computed response instead of
+    re-running trading_agent.run (which loads 60 days of history per ticker)
+    on every hit.
+    """
+    group_payload = {
+        "gainers": [{"ticker": "AAA", "name": "Alpha", "change_pct": 1.5}],
+        "losers": [],
+        "anomalies": [],
+    }
+    monkeypatch.setattr(opportunities_module, "decode_token", lambda token: {"sub": "user"})
+    monkeypatch.setattr(
+        opportunities_module,
+        "_group_opportunities",
+        lambda *args, **kwargs: group_payload,
+    )
+    call_count = {"n": 0}
+
+    def fake_signals(tickers, **_):
+        call_count["n"] += 1
+        return [{"ticker": "AAA", "action": "BUY", "reason": "Momentum"}]
+
+    monkeypatch.setattr(opportunities_module.trading_agent, "run", fake_signals)
+
+    kwargs = dict(group="growth", tickers=None, days=1, limit=5, min_weight=0.0, token="token")
+    first = await opportunities_module.get_opportunities(**kwargs)
+    second = await opportunities_module.get_opportunities(**kwargs)
+
+    assert call_count["n"] == 1
+    assert first.entries[0].ticker == second.entries[0].ticker == "AAA"
+    # Returned responses must be independent copies, not the same cached object.
+    assert first is not second
+    second.entries[0].ticker = "MUTATED"
+    assert opportunities_module._OPPORTUNITIES_CACHE[("group", "growth", 1, 5, 0.0)][1].entries[0].ticker == "AAA"
+
+
+@pytest.mark.asyncio
 async def test_watchlist_flow_sorted_and_enriched(monkeypatch):
     captured = {}
     watchlist_payload = {

@@ -134,6 +134,24 @@ def mock_google_verify(monkeypatch, request):
     monkeypatch.setattr(app_module.auth, "verify_google_token", fake_verify)
 
 
+@pytest.fixture(autouse=True)
+def clear_opportunities_cache():
+    """Reset the module-level /opportunities response cache between tests.
+
+    backend/routes/opportunities.py caches responses in a process-wide dict
+    keyed by (group|tickers, days, limit, min_weight) to avoid recomputing
+    trading signals on every request. Without this reset, two tests that
+    happen to request the same params (e.g. group="growth", days=1, limit=5)
+    but stub different mock data would leak a cached response from whichever
+    test ran first.
+    """
+    from backend.routes import opportunities as opportunities_module
+
+    opportunities_module._OPPORTUNITIES_CACHE.clear()
+    yield
+    opportunities_module._OPPORTUNITIES_CACHE.clear()
+
+
 @pytest.fixture
 def quotes_table(monkeypatch):
     """In-memory DynamoDB table for quote tests."""

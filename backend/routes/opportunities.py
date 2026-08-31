@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional
+import threading
+import time
+from typing import Dict, List, Literal, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer
@@ -22,6 +24,34 @@ from backend.routes.portfolio import (
 router = APIRouter(tags=["opportunities"])
 
 oauth2_optional = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+
+# Signal generation (trading_agent.run) loads 60 days of history per ticker on
+# every call -- see the comment further down where it's invoked. Without this
+# cache, every Opportunities page view/refresh (including repeat views of the
+# public "buffett" demo account) re-runs that full computation from scratch.
+# A short TTL keeps repeat views fast while staying well under any interval a
+# real trade or price move would need to show up within.
+_OPPORTUNITIES_CACHE_TTL_SECONDS = 60.0
+_OpportunitiesCacheKey = Tuple[object, ...]
+_OPPORTUNITIES_CACHE: Dict[_OpportunitiesCacheKey, Tuple[float, "OpportunitiesResponse"]] = {}
+_OPPORTUNITIES_CACHE_LOCK = threading.Lock()
+
+
+def _cached_opportunities_response(key: _OpportunitiesCacheKey, build) -> "OpportunitiesResponse":
+    """Return a cached response for ``key`` if still fresh, else build and cache one."""
+
+    now = time.monotonic()
+    with _OPPORTUNITIES_CACHE_LOCK:
+        cached = _OPPORTUNITIES_CACHE.get(key)
+    if cached is not None:
+        cached_at, response = cached
+        if now - cached_at < _OPPORTUNITIES_CACHE_TTL_SECONDS:
+            return response.model_copy(deep=True)
+
+    response = build()
+    with _OPPORTUNITIES_CACHE_LOCK:
+        _OPPORTUNITIES_CACHE[key] = (now, response.model_copy(deep=True))
+    return response
 
 
 class OpportunityEntry(BaseModel):
@@ -127,7 +157,7 @@ async def get_opportunities(
             detail="Specify either a group or tickers, but not both",
         )
 
-    context: OpportunitiesContext
+    cache_key: _OpportunitiesCacheKey
     if has_group:
         # A demo-scoped token is already authorized at this point --
         # backend.bootstrap.middleware.demo_scope_gate resolves it
@@ -153,15 +183,31 @@ async def get_opportunities(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication required",
             )
-        movers = _group_opportunities(group, days=days, limit=limit, min_weight=min_weight)
-        context = OpportunitiesContext(source="group", group=group, days=days)
+        cache_key = ("group", group, days, limit, min_weight)
+
+        def _build() -> OpportunitiesResponse:
+            movers = _group_opportunities(group, days=days, limit=limit, min_weight=min_weight)
+            context = OpportunitiesContext(source="group", group=group, days=days)
+            return _build_opportunities_response(movers, context)
+
     else:
         parsed = [t.strip() for t in (tickers or "").split(",") if t.strip()]
         if not parsed:
             raise HTTPException(status_code=400, detail="No tickers provided")
-        movers = instrument_api.top_movers(parsed, days, limit)
-        context = OpportunitiesContext(source="watchlist", tickers=parsed, days=days)
+        cache_key = ("watchlist", tuple(sorted(parsed)), days, limit)
 
+        def _build() -> OpportunitiesResponse:
+            movers = instrument_api.top_movers(parsed, days, limit)
+            context = OpportunitiesContext(source="watchlist", tickers=parsed, days=days)
+            return _build_opportunities_response(movers, context)
+
+    return _cached_opportunities_response(cache_key, _build)
+
+
+def _build_opportunities_response(
+    movers: Dict[str, List[Dict[str, object]]],
+    context: OpportunitiesContext,
+) -> OpportunitiesResponse:
     context.anomalies = list(movers.get("anomalies", []))
 
     # Signal generation loads 60 days of history for every requested ticker.

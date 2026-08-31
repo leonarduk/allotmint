@@ -25,8 +25,8 @@ backend/common/holding_utils.py:356
 backend/common/holding_utils.py:169
 backend/common/holding_utils.py:489
 backend/common/holding_utils.py:104
-backend/common/instrument_api.py:522
-backend/common/instrument_api.py:526
+backend/common/instrument_api.py:531
+backend/common/instrument_api.py:535
 backend/common/instrument_groups.py:53
 backend/common/instrument_groups.py:56
 backend/common/instruments.py:107

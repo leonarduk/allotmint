@@ -147,6 +147,87 @@ def test_timeseries_for_ticker_scaling_noop_skips_apply_scaling(monkeypatch):
     assert res["prices"] == [{"date": "2023-01-08", "close": 100.0, "close_gbp": 100.0}]
 
 
+def test_timeseries_for_ticker_drops_nan_close_rows(monkeypatch):
+    """A cached row can carry a Volume but NaN OHLC (an incomplete upstream fetch
+    for that day), e.g. VWRL.L on 2026-08-03/08-12/08-25 in the current cache.
+    Such a row has no usable price, so it must be dropped rather than turned into
+    a ``nan`` float -- json.dumps rejects NaN outright
+    (``ValueError: Out of range float values are not JSON compliant: nan``),
+    which crashed GET /instrument/batch for the *entire* multi-ticker response,
+    not just the offending ticker/day (#7108)."""
+
+    class FixedDate(dt.date):
+        @classmethod
+        def today(cls):
+            return cls(2023, 1, 10)
+
+    df = pd.DataFrame(
+        {
+            "date": ["2023-01-08", "2023-01-09"],
+            "close": [100.0, float("nan")],
+            "close_gbp": [100.0, float("nan")],
+        }
+    )
+
+    monkeypatch.setattr(ia.dt, "date", FixedDate)
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, loc: ("XYZ", "L"))
+    monkeypatch.setattr(ia, "has_cached_meta_timeseries", lambda s, e: True)
+    monkeypatch.setattr(ia, "load_meta_timeseries_range", lambda s, e, start_date, end_date: df)
+
+    res = ia.timeseries_for_ticker("XYZ", days=2)
+
+    assert res["prices"] == [{"date": "2023-01-08", "close": 100.0, "close_gbp": 100.0}]
+    assert res["mini"]["7"] == res["prices"]
+    for value in [row["close"] for row in res["prices"]] + [row["close_gbp"] for row in res["prices"]]:
+        assert value == value  # not NaN (NaN != NaN)
+
+
+def test_batch_timeseries_for_tickers_omits_nan_rows_and_stays_json_serializable(monkeypatch):
+    """End-to-end regression for #7108: a NaN close row for one ticker in a
+    multi-ticker batch must not crash the whole response."""
+    import json
+    import math
+
+    class FixedDate(dt.date):
+        @classmethod
+        def today(cls):
+            return cls(2023, 1, 10)
+
+    df = pd.DataFrame(
+        {
+            "date": ["2023-01-08", "2023-01-09"],
+            "close": [100.0, float("nan")],
+            "close_gbp": [100.0, float("nan")],
+        }
+    )
+
+    # resolve_date_range's `days` window is computed against dt.date.today(),
+    # which must land near the fixture's 2023 dates -- otherwise every row
+    # falls outside the window and the ticker lands in the "empty" bucket
+    # instead of "instruments" regardless of the NaN-drop fix under test.
+    monkeypatch.setattr(ia.dt, "date", FixedDate)
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: ("XYZ", "L"))
+    monkeypatch.setattr(ia, "has_cached_meta_timeseries", lambda s, e: True)
+    monkeypatch.setattr(ia, "load_meta_timeseries_range", lambda s, e, start_date, end_date: df)
+
+    res = ia.batch_timeseries_for_tickers(["XYZ.L"], days=2, include_mini=True)
+
+    assert res["instruments"]["XYZ.L"]["prices"] == [{"date": "2023-01-08", "close": 100.0, "close_gbp": 100.0}]
+
+    # The real bug (#7108): Starlette's JSONResponse.render calls
+    # json.dumps(..., allow_nan=False, ...), which raises exactly
+    # "ValueError: Out of range float values are not JSON compliant: nan"
+    # on a bare nan float -- reproduce that call directly rather than the
+    # allow_nan=True default, which would silently pass either way.
+    serialized = json.dumps(res, allow_nan=False, separators=(",", ":"))
+    round_tripped = json.loads(serialized)
+    assert not any(
+        isinstance(v, float) and math.isnan(v)
+        for row in round_tripped["instruments"]["XYZ.L"]["prices"]
+        for v in row.values()
+    )
+
+
 def test_timeseries_for_ticker_mini_slices(monkeypatch):
     class FixedDate(dt.date):
         @classmethod

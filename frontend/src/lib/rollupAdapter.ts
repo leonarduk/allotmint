@@ -34,6 +34,17 @@ export type RollupRow = {
   sell_eligible: boolean | null;
   days_until_eligible: number | null;
   next_eligible_sell_date: string | null;
+  // Per-unit/descriptive fields that are expected to be identical across all
+  // lots of the same ticker (price is per-unit, not per-lot; currency and
+  // instrument type are properties of the instrument, not the position). Take
+  // them from the first lot encountered for the ticker — mirrors how
+  // acquired_date/eligibility are sourced from a representative lot rather
+  // than re-derived per-field. Genuinely missing on that lot falls back to
+  // null (renders as "N/A"/"—"), matching the existing pattern.
+  current_price_gbp: number | null;
+  current_price_currency: string | null;
+  currency: string | null;
+  instrument_type: string | null;
 };
 
 export function toScopedHoldingRows(accounts: Account[]): ScopedHoldingRow[] {
@@ -128,6 +139,10 @@ function addHolding(
     sell_eligible: null,
     days_until_eligible: null,
     next_eligible_sell_date: null,
+    current_price_gbp: holding.current_price_gbp ?? null,
+    current_price_currency: holding.current_price_currency ?? null,
+    currency: holding.currency ?? null,
+    instrument_type: holding.instrument_type ?? null,
     ownerSet: new Set([holding.owner]),
     accountSet: new Set([holding.source_account]),
     oldestLot: holding,

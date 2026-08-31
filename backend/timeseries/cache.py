@@ -555,6 +555,24 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
 # ──────────────────────────────────────────────────────────────
 # In-process LRU for *ranges* (no duplicate IO per request)
 # ──────────────────────────────────────────────────────────────
+
+# Floor for the `days` window _memoized_range_cached requests from
+# load_meta_timeseries. A single ticker's price/change lookup
+# (price_change_pct/_close_on, backend/common/instrument_api.py) issues up to
+# 5 sub-calls for different single-day windows (last-price fallback, 7d
+# before/after, 30d before/after); without a shared floor, each sub-call
+# computes a different `days_needed` below and therefore a different
+# _load_meta_timeseries_cached cache key, triggering a separate S3 read of
+# the same underlying per-ticker parquet file. Flooring `days_needed` to this
+# constant lets sub-calls within the window share one cache entry and one
+# fetch. Set comfortably above the largest lookback in that call chain (30d
+# change needs ~31 days back plus a few days of weekend-adjustment slack).
+# `max()` below means a caller that legitimately needs a wider window (e.g.
+# timeseries_for_ticker's default days=365, or scenario_tester's event-based
+# lookups) is unaffected -- see issue #7565.
+_MIN_CACHE_WINDOW_DAYS = 60
+
+
 @lru_cache(maxsize=512)
 def _memoized_range_cached(
     ticker: str,
@@ -568,7 +586,7 @@ def _memoized_range_cached(
     end_date = datetime.fromisoformat(end_iso).date()
     span_days = (end_date - start_date).days + 1
     lookback = (date.today() - end_date).days
-    days_needed = span_days + lookback
+    days_needed = max(span_days + lookback, _MIN_CACHE_WINDOW_DAYS)
 
     if OFFLINE_MODE:
         cache_path = str(meta_timeseries_cache_path(ticker, exchange))

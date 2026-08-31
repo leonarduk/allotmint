@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import pytest
@@ -509,6 +509,106 @@ def test_local_meta_cache_still_invalidates_when_file_mtime_changes(monkeypatch,
     assert second["Close"].iloc[0] == 1.0
     assert third["Close"].iloc[0] == 2.0
     assert len(loads) == 2
+
+
+def _wide_frame(ticker: str) -> "pd.DataFrame":
+    """A superset frame with one row per day for the last 400 days, so any
+    single-day window requested within that span slices out a non-empty
+    result without needing ``load_meta_timeseries_range``'s backward-search
+    retry loop.
+    """
+    dates = pd.date_range(end=pd.Timestamp.today().normalize(), periods=400, freq="D")
+    return pd.DataFrame(
+        {
+            "Date": dates,
+            "Open": 1.0,
+            "High": 1.0,
+            "Low": 1.0,
+            "Close": 1.0,
+            "Volume": 100,
+            "Ticker": ticker,
+            "Source": "TEST",
+        }
+    )
+
+
+def test_memoized_range_shares_underlying_fetch_across_overlapping_subcalls(monkeypatch):
+    """Regression guard for #7565: a single ticker's price/change lookup
+    (price_change_pct/_close_on) issues up to 5 sub-calls for different
+    single-day windows -- last-price fallback, 7d before/after, 30d
+    before/after. Before the fix, ``_memoized_range_cached`` computed a
+    different ``days_needed`` per sub-call, so each got a different
+    ``_load_meta_timeseries_cached`` cache key and triggered a separate
+    underlying fetch (an S3 read in production) of the same file. After the
+    fix, sub-calls within ``_MIN_CACHE_WINDOW_DAYS`` share one cache key and
+    one fetch.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+    assert cache._MIN_CACHE_WINDOW_DAYS == 60
+
+    monkeypatch.setattr(cache, "_invalidate_meta_caches_if_stale", lambda *_a, **_k: None)
+
+    calls = []
+
+    def fake_rolling_cache(_fetch_func, _cache_path, _fetch_args, days, *, ticker, exchange):
+        calls.append(days)
+        return _wide_frame(ticker)
+
+    monkeypatch.setattr(cache, "_rolling_cache", fake_rolling_cache)
+
+    today = pd.Timestamp.today().normalize().date()
+    # Distinct single-day windows mirroring price_change_pct's/_close_on's
+    # sub-calls: yesterday (last-price fallback / 7d-30d "now" anchor), 8
+    # days back, and 31 days back -- all comfortably within the 60-day floor.
+    for offset in (1, 8, 31):
+        d = today - timedelta(days=offset)
+        result = cache.load_meta_timeseries_range("ABC", "L", d, d)
+        assert not result.empty
+
+    assert calls == [60]
+
+
+def test_memoized_range_still_widens_for_larger_windows(monkeypatch):
+    """The ``max()`` floor must not narrow a window a caller legitimately
+    asked for (e.g. ``timeseries_for_ticker``'s default 365-day range, or a
+    scenario_tester event-based lookup far in the past) -- see #7565's
+    constraint that correctness of the returned range must not regress.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+
+    monkeypatch.setattr(cache, "_invalidate_meta_caches_if_stale", lambda *_a, **_k: None)
+
+    calls = []
+
+    def fake_rolling_cache(_fetch_func, _cache_path, _fetch_args, days, *, ticker, exchange):
+        calls.append(days)
+        dates = pd.date_range(end=pd.Timestamp.today().normalize(), periods=500, freq="D")
+        return pd.DataFrame(
+            {
+                "Date": dates,
+                "Open": 1.0,
+                "High": 1.0,
+                "Low": 1.0,
+                "Close": 1.0,
+                "Volume": 100,
+                "Ticker": ticker,
+                "Source": "TEST",
+            }
+        )
+
+    monkeypatch.setattr(cache, "_rolling_cache", fake_rolling_cache)
+
+    today = pd.Timestamp.today().normalize().date()
+    start = today - timedelta(days=100)
+    end = today - timedelta(days=90)
+    result = cache.load_meta_timeseries_range("ABC", "L", start, end)
+
+    assert not result.empty
+    # span (11) + lookback (90) = 101, above the 60-day floor -- must be
+    # requested as-is, not capped down to 60.
+    assert calls == [101]
 
 
 def test_load_meta_timeseries_skips_repeat_head_object_for_confirmed_missing_cache(monkeypatch):

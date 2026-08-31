@@ -331,8 +331,17 @@ def timeseries_for_ticker(
         # weekends/holidays, so we re-apply the originally-requested bounds here.
         if rd < ts_start_iso or rd > ts_end_iso:
             continue
+        # Some cached rows carry a Volume but no OHLC (e.g. an incomplete
+        # upstream fetch for that day) -- ``close`` is NaN in that case.
+        # Such a row has no usable price, so drop it rather than emit a
+        # ``nan`` float: json.dumps rejects NaN outright (ValueError: Out of
+        # range float values are not JSON compliant), which crashes response
+        # serialization for the whole batch, not just this one ticker/day.
+        if is_nan(r["close"]):
+            continue
         close_val = float(r["close"])
-        close_gbp_val = float(r.get("close_gbp", close_val))
+        close_gbp_raw = r.get("close_gbp", close_val)
+        close_gbp_val = close_val if is_nan(close_gbp_raw) else float(close_gbp_raw)
         out.append({"date": rd, "close": close_val, "close_gbp": close_gbp_val})
     mini = {
         "7": out[-7:],

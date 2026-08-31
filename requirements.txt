@@ -32,7 +32,7 @@ peewee~=4.0.6
 pillow>=12.3.0,<13.0  # moviepy~=2.2.1 requires pillow<12.0
 platformdirs~=4.11.0
 protobuf>=7.35.0,<8  # >=6.31.1 fixes CVE-2025-4565; 6.31.0+ includes protocolbuffers/protobuf#15999 for Python 3.14 PyType_Spec compatibility
-pyarrow~=24.0.0
+pyarrow~=25.0.1
 reportlab~=5.0.0
 pycparser~=3.0
 pyjwt~=2.13.0

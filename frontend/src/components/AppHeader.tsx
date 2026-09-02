@@ -4,6 +4,7 @@ import { LanguageSwitcher } from './LanguageSwitcher';
 import Menu from './Menu';
 import { InstrumentSearchBarToggle } from './InstrumentSearchBar';
 import { NotificationsDrawer } from './NotificationsDrawer';
+import { ChatPanel } from './ChatPanel';
 import UserAvatar from './UserAvatar';
 
 interface AppHeaderProps {
@@ -28,6 +29,7 @@ export default function AppHeader({
 }: AppHeaderProps) {
   const { t } = useTranslation();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   return (
     <>
@@ -73,12 +75,25 @@ export default function AppHeader({
         >
           🔔
         </button>
+        <button
+          aria-label="chat"
+          onClick={() => setChatOpen(true)}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '1.5rem',
+          }}
+        >
+          💬
+        </button>
         <UserAvatar />
       </div>
       <NotificationsDrawer
         open={notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
       />
+      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
     </>
   );
 }

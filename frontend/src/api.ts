@@ -2363,3 +2363,25 @@ export const importHoldingsCsv = (
     method: "POST",
     body: createHoldingsCsvFormData(owner, account, provider, file),
   });
+
+// Chat (tool-calling agent over the MCP data-query server)
+
+export type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+/**
+ * Send one chat turn to the backend's Bedrock tool-calling agent. `history`
+ * is resent in full each call -- there is no server-side session/persistence
+ * yet, so the caller owns the running conversation.
+ */
+export const postChat = (
+  message: string,
+  history: ChatMessage[] = [],
+): Promise<{ reply: string }> =>
+  fetchJson<{ reply: string }>(`${API_BASE}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history }),
+  });

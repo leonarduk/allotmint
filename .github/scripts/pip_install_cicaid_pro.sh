@@ -1,16 +1,10 @@
 #!/usr/bin/env bash
 # Runs a command (typically a pip install) with git credentials configured so it
-# can clone the now-private leonarduk/cicaid-pro repo. That package was made
-# private and renamed away from leonarduk/cicaid, and its old name was then
-# reused by a new, unrelated public repo -- so the old
-# github.com/leonarduk/cicaid/releases/... wheel URLs now 404 (#6754).
-# requirements-automation.txt pins cicaid-devtools to the private repo under its
-# current name.
-#
-# The URLs below deliberately name cicaid-pro rather than leaning on GitHub's
-# rename redirects: #6754 is precisely what happens when an old name is reused
-# by an unrelated repo, and a stale name in a *credential* rewrite would hand a
-# token-bearing URL to whatever now sits at that name.
+# can clone the private leonarduk/cicaid-pro repo. The AI-review modules the
+# generated workflows import (review_diff, review_comment, deepseek_review,
+# gpt_review, etc.) only exist in cicaid-pro, not the public leonarduk/cicaid
+# "free shell" package, so a plain pip install of the public wheel/repo 404s
+# or is missing these modules.
 #
 # Fails fast with an actionable message if CICAID_PRO_TOKEN is unset or empty,
 # instead of letting the wrapped command fail later with a confusing git auth
@@ -38,7 +32,7 @@
 set -euo pipefail
 
 if [ -z "${CICAID_PRO_TOKEN:-}" ]; then
-  echo "::error::CICAID_PRO_TOKEN is empty or unset. Add a fine-grained PAT (Contents: Read-only, scoped to leonarduk/cicaid-pro) as the CICAID_PRO_TOKEN repository secret (Settings > Secrets and variables > Actions) before this workflow can install cicaid-devtools. See issue #6754." >&2
+  echo "::error::CICAID_PRO_TOKEN is empty or unset. Add a fine-grained PAT (Contents: Read-only, scoped to leonarduk/cicaid-pro) as the CICAID_PRO_TOKEN repository secret (Settings > Secrets and variables > Actions) before this workflow can install cicaid-devtools-pro." >&2
   exit 1
 fi
 

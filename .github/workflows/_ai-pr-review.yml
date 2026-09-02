@@ -4,26 +4,21 @@ on:
   workflow_call:
     inputs:
       provider_name:
-        description: "Display name of the reviewer (e.g. Claude, GPT)"
+        description: "Display name of the reviewer (e.g. DeepSeek, GPT)"
         required: true
         type: string
       provider_id:
-        description: "Lowercase identifier used for file/output naming (e.g. claude, gpt)"
+        description: "Lowercase identifier used for file/output naming (e.g. deepseek, gpt)"
         required: true
         type: string
-      review_script:
-        description: "Path to the provider's review script"
+      review_module:
+        description: "Dotted module name of the provider's review integration (e.g. cicaid_devtools.lib.deepseek_review)"
         required: true
         type: string
       workflow_file:
         description: "Filename of the calling workflow, used in the posted comment link"
         required: true
         type: string
-      anthropic_max_tokens:
-        description: "ANTHROPIC_MAX_TOKENS override passed to the review script, if any"
-        required: false
-        type: string
-        default: ""
       deepseek_model:
         description: "DEEPSEEK_MODEL override passed to the review script, if any"
         required: false
@@ -40,9 +35,6 @@ on:
         type: string
         default: ""
     secrets:
-      anthropic_api_key:
-        description: "Anthropic API key, used for Claude reviews and follow-up issue creation"
-        required: true
       openai_api_key:
         description: "OpenAI API key, used for GPT reviews"
         required: false
@@ -53,14 +45,12 @@ on:
         description: "Token used for gh CLI calls (PR/issue read and write)"
         required: true
       cicaid_pro_token:
-        description: "Fine-grained PAT (Contents: Read-only) scoped to leonarduk/cicaid-pro, used to install cicaid-devtools now that the repo is private (#6754)."
+        description: "Fine-grained PAT (Contents: Read-only) scoped to leonarduk/cicaid-pro, used to install cicaid-devtools-pro since the review modules (review_diff, review_comment, deepseek_review, gpt_review, etc.) only exist in that private package"
         required: true
 
-# github.workflow resolves to the *calling* workflow's name (Claude/DeepSeek/GPT
-# PR Review), so this groups per-provider without cross-cancelling other
-# providers' runs for the same PR. Mirrors the pattern in deepseek-pr-review.yml
-# (#4719): only one job here with no side effects other workflows depend on, so
-# cancelling an in-progress run is safe.
+# github.workflow resolves to the *calling* workflow's name (DeepSeek/GPT PR
+# Review), so this groups per-provider without cross-cancelling other
+# providers' runs for the same PR.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -79,30 +69,57 @@ jobs:
         with:
           fetch-depth: 0
 
-      # leonarduk/cicaid was made private and renamed, and its old name reused
-      # for a new, unrelated, LLM-less public repo, so the old
-      # github.com/leonarduk/cicaid/releases/... wheel URL now 404s (#6754).
-      # Its current name, cicaid-pro, is spelled out below deliberately rather
-      # than leaning on GitHub's rename redirects, since #6754 is exactly what
-      # a reused old name causes.
-      # cicaid-pro still has the full package (incl. the LLM review
-      # integrations this workflow imports below) but is private, so pip
-      # needs a scoped token rewritten in as git credentials to clone it.
-      # pip_install_cicaid_pro.sh validates the token up front and exposes the
-      # credential only to the pip process through GIT_CONFIG_* variables.
-      - name: Install cicaid-devtools (PR review helpers)
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # The AI-review modules this workflow imports below (review_diff,
+      # review_comment, deepseek_review, gpt_review, etc.) only exist in the
+      # private leonarduk/cicaid-pro package, not this public "free shell"
+      # repo -- installing from here either 404s or is missing these
+      # modules. pip_install_cicaid_pro.sh validates the token up front and
+      # exposes the credential only to the pip process through GIT_CONFIG_*
+      # variables.
+      #
+      # The versions come from .github/cicaid-pins.env rather than being
+      # written inline here, so update-cicaid.yml can bump them without
+      # pushing to .github/workflows/ (see CICAID_PINS_PATH's comment in
+      # setup_review_actions.py).
+      - name: Install cicaid-devtools + cicaid-devtools-pro (PR review helpers)
         env:
           CICAID_PRO_TOKEN: ${{ secrets.cicaid_pro_token }}
-        run: bash .github/scripts/pip_install_cicaid_pro.sh pip install --retries 10 "cicaid-devtools @ git+https://github.com/leonarduk/cicaid-pro.git@v0.9.1"
+        run: |
+          set -euo pipefail
+          PINS=".github/cicaid-pins.env"
+          if [ ! -f "$PINS" ]; then
+            echo "::error::$PINS is missing. Run 'cicaid setup-review-actions' in this repo to restore it." >&2
+            exit 1
+          fi
+          CICAID_REF=$(grep -oP '^CICAID_REF=\K(?:main|v[0-9][A-Za-z0-9.+-]*)(?=\r?$)' "$PINS" || true)
+          if [ -z "${CICAID_REF}" ]; then
+            echo "::error::no valid CICAID_REF=<tag> line in $PINS." >&2
+            exit 1
+          fi
+          CICAID_PRO_REF=$(grep -oP '^CICAID_PRO_REF=\K(?:main|v[0-9][A-Za-z0-9.+-]*)(?=\r?$)' "$PINS" || true)
+          if [ -z "${CICAID_PRO_REF}" ]; then
+            echo "::error::no valid CICAID_PRO_REF=<tag> line in $PINS." >&2
+            exit 1
+          fi
+          bash .github/scripts/pip_install_cicaid_pro.sh pip install --retries 10 \
+            "cicaid-devtools @ git+https://github.com/leonarduk/cicaid.git@${CICAID_REF}" \
+            "cicaid-devtools-pro @ git+https://github.com/leonarduk/cicaid-pro.git@${CICAID_PRO_REF}"
 
       - name: Get linked issue body
         id: issue
         env:
           GH_TOKEN: ${{ secrets.gh_token }}
         run: |
+          # Only Closes/Fixes count as the closing reference; a contextual
+          # 'Refs #N' must not be picked up as the linked issue (issue #409).
           ISSUE_NUM=$(gh pr view ${{ github.event.pull_request.number }} --json body,title \
             | jq -r '[.title, .body] | join(" ")' \
-            | grep -oE '(Closes|Fixes|Refs) #[0-9]+' | head -1 | grep -oE '[0-9]+' || true)
+            | python3 -m cicaid_devtools.lib.linked_issue || true)
           if [ -n "$ISSUE_NUM" ]; then
             ISSUE_BODY=$(gh issue view "$ISSUE_NUM" --json body -q .body 2>/dev/null || echo "Issue not found")
           else
@@ -123,24 +140,10 @@ jobs:
           ISSUE_BODY: ${{ steps.issue.outputs.body }}
         run: |
           git fetch origin "$BASE_REF"
-          # review_diff's DEFAULT_GLOBS (Python/YAML/shell/etc.) omits the
-          # frontend's TS/TSX/JS/JSX/JSON/CSS/HTML extensions, so a
-          # frontend-only PR (e.g. #6279) produced an empty filtered diff and
-          # the AI review had nothing to look at. review_diff has no
-          # "extend defaults" flag -- any paths passed here fully replace
-          # DEFAULT_GLOBS -- so this list is DEFAULT_GLOBS (see
-          # cicaid_devtools/lib/review_diff.py) plus allotmint's frontend
-          # stack, kept as a superset so non-frontend PRs never regress to an
-          # empty diff again (#6280).
           DIFF=$(python3 -m cicaid_devtools.lib.review_diff \
             --base-ref "$BASE_REF" \
             --pr-title "$PR_TITLE" \
-            --issue-body "$ISSUE_BODY" \
-            -- \
-            "*.py" "*.toml" "*.md" "*.yml" "*.yaml" "*.sh" "*.cfg" "*.ini" \
-            "Dockerfile" "*.java" "*.xml" "*.properties" "*.ps1" "*.txt" \
-            "*.ts" "*.tsx" "*.js" "*.jsx" "*.mjs" "*.cjs" "*.json" "*.css" \
-            "*.scss" "*.html")
+            --issue-body "$ISSUE_BODY")
           DELIM="EOF_$(uuidgen | tr -d '-')"
           {
             echo "diff<<$DELIM"
@@ -186,10 +189,8 @@ jobs:
 
       - name: Call ${{ inputs.provider_name }} API
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
           OPENAI_API_KEY: ${{ secrets.openai_api_key }}
           DEEPSEEK_API_KEY: ${{ secrets.deepseek_api_key }}
-          ANTHROPIC_MAX_TOKENS: ${{ inputs.anthropic_max_tokens }}
           DEEPSEEK_MODEL: ${{ inputs.deepseek_model }}
           DEEPSEEK_MAX_TOKENS: ${{ inputs.deepseek_max_tokens }}
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -198,12 +199,11 @@ jobs:
           DISCUSSION: ${{ steps.discussion.outputs.text }}
           VERIFIED_FACTS: ${{ steps.verified.outputs.facts }}
         run: |
-          python3 ${{ inputs.review_script }} > /tmp/${{ inputs.provider_id }}_review_body.md
+          python3 -m ${{ inputs.review_module }} > /tmp/${{ inputs.provider_id }}_review_body.md
 
           # Guard: `-s` returns true only if the file exists AND has size > 0.
           # This distinguishes a successful API response (review body written to stdout)
           # from a failure (empty output, missing file, or API error).
-          # See docs/AI_REVIEW_WORKFLOWS.md for details.
           if [ ! -s /tmp/${{ inputs.provider_id }}_review_body.md ]; then
             echo "ERROR: ${{ inputs.provider_name }} review output was empty" >&2
             exit 1
@@ -215,12 +215,16 @@ jobs:
         run: |
           set +e
           python3 -m cicaid_devtools.lib.verdict /tmp/${{ inputs.provider_id }}_review_body.md "${{ inputs.provider_name }}"
-          VERDICT_EXIT=$?
-          if [ $VERDICT_EXIT -eq 0 ]; then
+          verdict_exit=$?
+          set -e
+
+          # Exit codes from extract_verdict.py: 0 = APPROVE, 2 = provider outage
+          # (soft-fail, doesn't block merge), anything else = REQUEST CHANGES /
+          # missing verdict (hard fail).
+          if [ "$verdict_exit" -eq 0 ]; then
             echo "approved=true" >> "$GITHUB_OUTPUT"
-          elif [ $VERDICT_EXIT -eq 2 ]; then
+          elif [ "$verdict_exit" -eq 2 ]; then
             echo "approved=skipped" >> "$GITHUB_OUTPUT"
-            exit 0
           else
             echo "approved=false" >> "$GITHUB_OUTPUT"
             exit 1
@@ -234,16 +238,31 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          bash .github/scripts/build_review_comment.sh /tmp/${{ inputs.provider_id }}_review_body.md \
+          python3 -m cicaid_devtools.lib.review_comment /tmp/${{ inputs.provider_id }}_review_body.md \
             "${{ inputs.provider_name }}" "${{ inputs.workflow_file }}" "$RUN_URL" > /tmp/${{ inputs.provider_id }}_comment_body.md
 
           # Write to Actions job summary so the review is always visible in the UI,
           # even if the gh pr comment call below fails.
           cat /tmp/${{ inputs.provider_id }}_comment_body.md >> "$GITHUB_STEP_SUMMARY"
 
-          if ! gh pr comment "$PR_NUMBER" --body-file /tmp/${{ inputs.provider_id }}_comment_body.md; then
-            echo "::warning title=${{ inputs.provider_name }} review comment::Failed to post the ${{ inputs.provider_name }} review comment to PR #$PR_NUMBER — check the Actions log above for the gh error (rate limit, token scope, or network)."
-            echo "WARNING: failed to post review comment — check the Actions log" >&2
+          # Retry with backoff: a transient rate limit shouldn't silently drop
+          # the review comment (the step summary above is a fallback, not a
+          # substitute -- reviewers watching the PR don't see the summary).
+          posted=false
+          for delay in 0 5 10 20 40; do
+            if [ "$delay" -gt 0 ]; then
+              echo "gh pr comment failed, retrying in ${delay}s..." >&2
+              sleep "$delay"
+            fi
+            if gh pr comment "$PR_NUMBER" --body-file /tmp/${{ inputs.provider_id }}_comment_body.md; then
+              posted=true
+              break
+            fi
+          done
+
+          if [ "$posted" != true ]; then
+            echo "::warning title=${{ inputs.provider_name }} review comment::Failed to post the ${{ inputs.provider_name }} review comment to PR #$PR_NUMBER after retries — check the Actions log above for the gh error (rate limit, token scope, or network)."
+            echo "WARNING: failed to post review comment after retries — check the Actions log" >&2
             exit 0
           fi
 
@@ -252,10 +271,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.gh_token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
           OPENAI_API_KEY: ${{ secrets.openai_api_key }}
           DEEPSEEK_API_KEY: ${{ secrets.deepseek_api_key }}
           FOLLOWUP_LLM_PROVIDER: ${{ vars.FOLLOWUP_LLM_PROVIDER }}
+          REPO_NAME: ${{ github.event.repository.name }}
         run: |
           # Fetch existing label names once and only create the ones missing,
           # instead of firing a gh label create call (and eating a 422) for
@@ -273,12 +292,6 @@ jobs:
           create_label_if_missing "haiku" "C5DEF5" "Suitable for Claude Haiku (simple/mechanical task)"
           create_label_if_missing "sonnet" "BFD4F2" "Suitable for Claude Sonnet (moderate reasoning)"
           create_label_if_missing "opus" "0052CC" "Suitable for Claude Opus (complex design/architecture)"
-          # local-7b/local-14b are also valid tiers in create_followup_issues.py's prompt
-          # (llm_labels.LLM_TIER_MAP) even though this workflow's own review prompts don't
-          # request them; missing either label makes `gh issue create --label local-7b` fail
-          # outright and previously crashed the whole follow-up batch (see #5556).
-          create_label_if_missing "local-7b" "0e8a16" "Doable by a local LLM (qwen2.5-coder:7b)"
-          create_label_if_missing "local-14b" "1d76db" "Doable by a local LLM (qwen2.5-coder:14b); too hard for 7b"
 
           # Extract titles to a file, then create issues via Python subprocess (no shell injection)
           python3 -m cicaid_devtools.lib.followups /tmp/${{ inputs.provider_id }}_review_body.md \
@@ -301,6 +314,20 @@ jobs:
 
           # Add the label to the PR
           gh pr edit "$PR_NUMBER" --add-label "Changes Requested"
+
+      - name: Remove 'Changes Requested' label if review approved
+        if: steps.check_approval.outputs.approved == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.gh_token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # gh pr edit --remove-label errors when the label is not on the PR
+          # (same caveat as github_issues.remove_issue_label), so only remove
+          # it when it is currently applied -- keeps the step idempotent.
+          if gh pr view "$PR_NUMBER" --json labels -q '.labels[].name' | grep -qxF "Changes Requested"; then
+            gh pr edit "$PR_NUMBER" --remove-label "Changes Requested"
+          fi
 
       - name: Fail if ${{ inputs.provider_name }} did not approve
         if: always() && contains(fromJson('["failure","skipped"]'), steps.check_approval.outcome)

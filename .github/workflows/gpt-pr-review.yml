@@ -15,28 +15,10 @@ jobs:
     with:
       provider_name: GPT
       provider_id: gpt
-      review_script: .github/scripts/gpt_review.py
+      review_module: cicaid_devtools.lib.gpt_review
       workflow_file: gpt-pr-review.yml
     secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
       openai_api_key: ${{ secrets.OPENAI_API_KEY }}
       deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
       gh_token: ${{ secrets.GITHUB_TOKEN }}
       cicaid_pro_token: ${{ secrets.CICAID_PRO_TOKEN }}
-
-  # Dependabot PRs skip the review job above, which GitHub records as "skipped"
-  # rather than "success". This job's name reproduces the composite check
-  # context a real reusable-workflow run would produce ("ai-review / GPT AI
-  # code review"), so any branch protection rule keyed on that exact string
-  # still gets satisfied for Dependabot PRs.
-  #
-  # This context is NOT currently a required status check on `main` (only
-  # DeepSeek's is — see deepseek-pr-review.yml). Kept here for consistency
-  # and in case this context is ever made required in the future.
-  dependabot-pass:
-    name: ai-review / GPT AI code review
-    if: github.actor == 'dependabot[bot]'
-    permissions: {}
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Dependabot PR — GPT review not required, passing."

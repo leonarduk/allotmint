@@ -2,11 +2,49 @@ name: DeepSeek PR Review
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+# labeled/unlabeled events on "Deep Review Required" fire an extra run
+# alongside the synchronize-triggered run, and the two runs' check results
+# (one often "skipped" via the ai-review job's `if`, the other "successful")
+# can both remain visible for the same head SHA. Grouping by PR number and
+# cancelling in-progress runs ensures only the most recent run's job is
+# still executing when a newer event arrives, so branch protection and the
+# checks UI settle on a single up-to-date result per SHA instead of
+# accumulating stale ones from earlier label toggles or pushes.
+#
+# The group key is only shared across events that can actually produce a
+# review (opened/reopened/synchronize, plus labeled/unlabeled on "Deep
+# Review Required"). A labeled/unlabeled event on any *other* label (e.g. a
+# PR created with "codex" already attached, which fires "opened" and
+# "labeled" back-to-back) is a no-op per the job's `if` below and gets its
+# own unique group via github.run_id, so it can never cancel a real,
+# in-progress review run (#6313). Without this, that no-op run could win
+# the race against the substantive run and leave the PR with no review
+# posted at all.
+concurrency:
+  group: >-
+    ${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+    github.event.label.name != 'Deep Review Required' &&
+    format('deepseek-pr-review-noop-{0}', github.run_id) ||
+    format('deepseek-pr-review-{0}', github.event.pull_request.number) }}
+  # cancel-in-progress is safe here because this workflow has only one job (ai-review).
+  # No other jobs have side effects (deployments, state mutations, cleanup) that would
+  # be dangerous to interrupt. If additional jobs are added, reassess this setting.
+  cancel-in-progress: true
 
 jobs:
   ai-review:
-    if: ${{ github.actor != 'dependabot[bot]' && vars.ENABLE_DEEPSEEK_REVIEW != 'false' }}
+    # For labeled/unlabeled events, github.event.label.name is the label that
+    # was just added or removed. Gating on it here covers both directions:
+    # adding "Deep Review Required" triggers a run that picks up the stronger
+    # model below, and removing it triggers a run that reverts to the
+    # defaults (since `contains(...)` on the current labels is then false).
+    # Any other label add/remove is ignored.
+    if: >-
+      ${{ github.actor != 'dependabot[bot]' && vars.ENABLE_DEEPSEEK_REVIEW != 'false' &&
+      (github.event.action != 'labeled' && github.event.action != 'unlabeled' ||
+      github.event.label.name == 'Deep Review Required') }}
     permissions:
       pull-requests: write
       contents: read
@@ -15,10 +53,37 @@ jobs:
     with:
       provider_name: DeepSeek
       provider_id: deepseek
-      review_module: cicaid_devtools.lib.deepseek_review
+      review_script: .github/scripts/deepseek_review.py
       workflow_file: deepseek-pr-review.yml
+      # "Deep Review Required" opts a PR into the stronger reasoning model
+      # with a larger token budget (its chain-of-thought tokens count
+      # against max_tokens). Without the label, the script falls back to
+      # its defaults (deepseek-v4-flash, 4096 tokens).
+      deepseek_model: ${{ contains(github.event.pull_request.labels.*.name, 'Deep Review Required') && 'deepseek-reasoner' || '' }}
+      deepseek_max_tokens: ${{ contains(github.event.pull_request.labels.*.name, 'Deep Review Required') && '16000' || '' }}
     secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
       openai_api_key: ${{ secrets.OPENAI_API_KEY }}
       deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
       gh_token: ${{ secrets.GITHUB_TOKEN }}
       cicaid_pro_token: ${{ secrets.CICAID_PRO_TOKEN }}
+
+  # Dependabot PRs skip the review job above, which GitHub records as "skipped"
+  # rather than "success". Branch protection requires the exact check context
+  # "ai-review / DeepSeek AI code review" (the composite name GitHub gives a
+  # reusable-workflow call) — a plain job named "ai-review" does NOT match
+  # that string, so it never satisfies the required check. This job's name
+  # reproduces the composite string literally so Dependabot PRs unblock.
+  #
+  # WARNING: of the three ai-review workflows (DeepSeek/Claude/GPT), only this
+  # one's context is currently a required status check on `main`. If you
+  # rename this job or the provider_name above, update both this job name AND
+  # the required_status_checks context in branch protection — otherwise
+  # Dependabot PRs will be blocked by a required check that can never pass.
+  dependabot-pass:
+    name: ai-review / DeepSeek AI code review
+    if: github.actor == 'dependabot[bot]'
+    permissions: {}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Dependabot PR — DeepSeek review not required, passing."

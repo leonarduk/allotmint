@@ -71,10 +71,16 @@ jobs:
           else
             RELEASE_URL="https://github.com/leonarduk/cicaid-pro/releases/tag/v${NEW_VERSION}"
           fi
-          echo "old_version=$OLD_VERSION" >> "$GITHUB_OUTPUT"
-          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
-          echo "branch_version=$BRANCH_VERSION" >> "$GITHUB_OUTPUT"
-          echo "release_url=$RELEASE_URL" >> "$GITHUB_OUTPUT"
+          # One redirect for the group rather than four: a repo whose own
+          # lint runs actionlint with shellcheck enabled (rather than the
+          # `-shellcheck=` the generated workflow-lint.yml uses) fails the
+          # job on SC2129 otherwise.
+          {
+            echo "old_version=$OLD_VERSION"
+            echo "new_version=$NEW_VERSION"
+            echo "branch_version=$BRANCH_VERSION"
+            echo "release_url=$RELEASE_URL"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Skip if a PR for this update already exists
         id: skip

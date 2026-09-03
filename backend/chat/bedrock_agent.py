@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from functools import lru_cache
 from typing import Any, Dict, List
@@ -40,10 +41,40 @@ def _tool_to_bedrock_spec(tool: Tool) -> Dict[str, Any]:
 
 
 def _tool_result_to_bedrock_content(result: CallToolResult) -> List[Dict[str, Any]]:
-    """Convert an MCP ``CallToolResult`` into Bedrock ``toolResult`` content blocks."""
+    """Convert an MCP ``CallToolResult`` into Bedrock ``toolResult`` content blocks.
 
-    text_parts = [block.text for block in result.content if hasattr(block, "text")]
-    return [{"text": "\n".join(text_parts) or "(no output)"}]
+    allotmint-pro's MCP tools only ever return text content today, but a
+    non-text block (e.g. ``ImageContent``/``EmbeddedResource``) is rendered
+    as its JSON representation rather than silently dropped -- the model
+    still sees *something* instead of a misleading "(no output)" for a tool
+    call that actually succeeded.
+    """
+
+    parts = []
+    for block in result.content:
+        if hasattr(block, "text"):
+            parts.append(block.text)
+        elif hasattr(block, "model_dump_json"):
+            parts.append(block.model_dump_json())
+        else:
+            parts.append(str(block))
+    return [{"text": "\n".join(parts) or "(no output)"}]
+
+
+def _validate_message_alternation(messages: List[Dict[str, Any]]) -> None:
+    """Raise ``ValueError`` if consecutive messages share a role.
+
+    Bedrock's Converse API requires strict user/assistant alternation and
+    rejects a violation with an HTTP 400 from deep inside boto3 -- this
+    check surfaces the same problem as a clean, catchable error at the
+    point the conversation is assembled instead.
+    """
+
+    for previous, current in zip(messages, messages[1:]):
+        if previous["role"] == current["role"]:
+            raise ValueError(
+                "Chat history must alternate user/assistant roles; got consecutive " f"'{current['role']}' messages"
+            )
 
 
 async def run_chat_turn(
@@ -64,6 +95,7 @@ async def run_chat_turn(
         {"role": item["role"], "content": [{"text": item["content"]}]} for item in history
     ]
     messages.append({"role": "user", "content": [{"text": message}]})
+    _validate_message_alternation(messages)
 
     bedrock = _bedrock_client()
 
@@ -72,7 +104,11 @@ async def run_chat_turn(
         tool_config = {"tools": [_tool_to_bedrock_spec(tool) for tool in tools_result.tools]}
 
         for _ in range(MAX_TOOL_ITERATIONS):
-            response = bedrock.converse(
+            # bedrock.converse() is a blocking boto3 call; run it off the
+            # event loop thread so a slow Bedrock response doesn't stall
+            # other concurrent requests being served by the same process.
+            response = await asyncio.to_thread(
+                bedrock.converse,
                 modelId=bedrock_model_id,
                 messages=messages,
                 toolConfig=tool_config,

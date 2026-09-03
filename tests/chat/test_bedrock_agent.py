@@ -82,6 +82,47 @@ def test_tool_result_to_bedrock_content_joins_text_blocks():
     assert bedrock_agent._tool_result_to_bedrock_content(result) == [{"text": "hello"}]
 
 
+def test_tool_result_to_bedrock_content_preserves_non_text_block():
+    class FakeStructuredBlock:
+        def model_dump_json(self):
+            return '{"type": "structured", "value": 1}'
+
+    class FakeResult:
+        content = [FakeStructuredBlock()]
+        isError = False
+
+    content = bedrock_agent._tool_result_to_bedrock_content(FakeResult())
+    assert content == [{"text": '{"type": "structured", "value": 1}'}]
+
+
+def test_validate_message_alternation_rejects_consecutive_same_role():
+    messages = [
+        {"role": "user", "content": [{"text": "a"}]},
+        {"role": "user", "content": [{"text": "b"}]},
+    ]
+    with pytest.raises(ValueError, match="must alternate"):
+        bedrock_agent._validate_message_alternation(messages)
+
+
+def test_validate_message_alternation_accepts_proper_alternation():
+    messages = [
+        {"role": "user", "content": [{"text": "a"}]},
+        {"role": "assistant", "content": [{"text": "b"}]},
+        {"role": "user", "content": [{"text": "c"}]},
+    ]
+    bedrock_agent._validate_message_alternation(messages)  # must not raise
+
+
+async def test_run_chat_turn_rejects_history_with_consecutive_same_role():
+    with pytest.raises(ValueError, match="must alternate"):
+        await bedrock_agent.run_chat_turn(
+            "hi",
+            [{"role": "user", "content": "earlier"}],
+            mcp_server_url="https://example.com/mcp",
+            bedrock_model_id="amazon.nova-lite-v1:0",
+        )
+
+
 async def test_run_chat_turn_returns_direct_answer_with_no_tool_calls(monkeypatch):
     session = FakeSession(tools=[FakeTool("list_owners")])
     monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))

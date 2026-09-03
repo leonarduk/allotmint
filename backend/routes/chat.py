@@ -40,12 +40,18 @@ async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatRespons
     if not mcp_server_url:
         raise HTTPException(status_code=503, detail="Chat is not configured (MCP_SERVER_URL unset)")
 
-    reply = await run_chat_turn(
-        payload.message,
-        [item.model_dump() for item in payload.history],
-        mcp_server_url=mcp_server_url,
-        bedrock_model_id=config.bedrock_model_id,
-    )
+    try:
+        reply = await run_chat_turn(
+            payload.message,
+            [item.model_dump() for item in payload.history],
+            mcp_server_url=mcp_server_url,
+            bedrock_model_id=config.bedrock_model_id,
+        )
+    except ValueError as exc:
+        # Raised by bedrock_agent._validate_message_alternation for a
+        # malformed history (e.g. two consecutive "user" messages) -- a
+        # client bug, not a server error, so 400 rather than 500.
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return ChatResponse(reply=reply)
 
 

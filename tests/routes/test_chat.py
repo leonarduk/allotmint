@@ -43,6 +43,23 @@ def test_post_chat_rejects_invalid_history_role(client: TestClient, monkeypatch:
     assert resp.status_code == 422
 
 
+def test_post_chat_returns_400_for_malformed_history(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
+
+    async def raising_run_chat_turn(message, history, *, mcp_server_url, bedrock_model_id):
+        raise ValueError("Chat history must alternate user/assistant roles; got consecutive 'user' messages")
+
+    monkeypatch.setattr(chat_module, "run_chat_turn", raising_run_chat_turn)
+
+    resp = client.post(
+        "/chat",
+        json={"message": "hi", "history": [{"role": "user", "content": "prev"}]},
+    )
+    # A ValueError from run_chat_turn (malformed conversation, not a server
+    # fault) must surface as 400, not an unhandled 500.
+    assert resp.status_code == 400
+
+
 def test_post_chat_returns_agent_reply(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
     monkeypatch.setattr(config, "bedrock_model_id", "amazon.nova-lite-v1:0")

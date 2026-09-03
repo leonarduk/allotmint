@@ -208,6 +208,17 @@ class Config:
     trading_agent: TradingAgentConfig = field(default_factory=TradingAgentConfig)
     cors_origins: Optional[List[str]] = None
     aws_ui_auth: AwsUiAuthConfig = field(default_factory=AwsUiAuthConfig)
+    # allotmint-pro's McpServerLambda Function URL, called by
+    # backend/chat/mcp_tools_client.py. None when unset -- POST /chat
+    # returns 503 rather than failing at import/boot time, since chat is an
+    # optional feature not every deployment enables (see backend/routes/chat.py).
+    mcp_server_url: Optional[str] = None
+    bedrock_model_id: str = "amazon.nova-lite-v1:0"
+    # Generous relative to signup_rate_limit (5/minute): chat is an
+    # authenticated feature, not a public spam-prone endpoint, but each
+    # request costs a real Bedrock Converse call (plus MCP tool calls), so
+    # it still needs a cap against a runaway client racking up AWS charges.
+    chat_rate_limit: str = "20/minute"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_allowed_emails_overridden", False)
@@ -462,6 +473,9 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         client_id=ui_auth_client_id,
     )
 
+    mcp_server_url = os.getenv("MCP_SERVER_URL", "").strip() or None
+    bedrock_model_id = os.getenv("BEDROCK_MODEL_ID", "").strip() or "amazon.nova-lite-v1:0"
+
     # Optional env override for Alpha Vantage API key to avoid committing secrets
     alpha_key_env = os.getenv("ALPHA_VANTAGE_KEY")
     if alpha_key_env:
@@ -503,6 +517,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         reload=data.get("reload"),
         rate_limit_per_minute=data.get("rate_limit_per_minute", 60),
         signup_rate_limit=data.get("signup_rate_limit", "5/minute"),
+        chat_rate_limit=data.get("chat_rate_limit", "20/minute"),
         log_config=data.get("log_config"),
         log_format=data.get("log_format"),
         skip_snapshot_warm=data.get("skip_snapshot_warm"),
@@ -573,6 +588,8 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         trading_agent=trading_agent,
         cors_origins=cors_origins,
         aws_ui_auth=aws_ui_auth,
+        mcp_server_url=mcp_server_url,
+        bedrock_model_id=bedrock_model_id,
     )
 
     return cfg

@@ -1,12 +1,19 @@
 name: Claude PR Review
 
+# Runs once when the PR is merged, not on every push during review. Claude's
+# check isn't required by branch protection (only DeepSeek's is — see
+# deepseek-pr-review.yml) and its output is purely advisory — a posted
+# comment plus optional follow-up issues — so re-running it on every
+# `synchronize` just re-reviews intermediate, soon-to-change commits at
+# full LLM cost for no gating benefit. Reviewing the final merged diff once
+# is strictly better feedback for the same cost as one review used to be.
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [closed]
 
 jobs:
   ai-review:
-    if: ${{ github.actor != 'dependabot[bot]' && vars.ENABLE_CLAUDE_REVIEW != 'false' }}
+    if: ${{ github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.merged == true && vars.ENABLE_CLAUDE_REVIEW != 'false' }}
     permissions:
       pull-requests: write
       contents: read
@@ -36,7 +43,7 @@ jobs:
   # and in case this context is ever made required in the future.
   dependabot-pass:
     name: ai-review / Claude AI code review
-    if: github.actor == 'dependabot[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     permissions: {}
     runs-on: ubuntu-latest
     steps:

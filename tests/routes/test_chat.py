@@ -26,13 +26,26 @@ def test_post_chat_requires_auth(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_post_chat_returns_503_when_mcp_server_url_unset(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("MCP_SERVER_URL", raising=False)
+    monkeypatch.setattr(config, "mcp_server_url", None)
     resp = client.post("/chat", json={"message": "hi"})
     assert resp.status_code == 503
 
 
+def test_post_chat_rejects_invalid_history_role(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
+    resp = client.post(
+        "/chat",
+        json={"message": "hi", "history": [{"role": "system", "content": "prev"}]},
+    )
+    # Pydantic validation (Literal["user", "assistant"]) rejects this before
+    # it ever reaches run_chat_turn/Bedrock, which would otherwise surface a
+    # raw Bedrock 400 to the user for an unsupported message role.
+    assert resp.status_code == 422
+
+
 def test_post_chat_returns_agent_reply(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("MCP_SERVER_URL", "https://example.com/mcp")
+    monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
+    monkeypatch.setattr(config, "bedrock_model_id", "amazon.nova-lite-v1:0")
     captured = {}
 
     async def fake_run_chat_turn(message, history, *, mcp_server_url, bedrock_model_id):
@@ -54,3 +67,4 @@ def test_post_chat_returns_agent_reply(client: TestClient, monkeypatch: pytest.M
     assert captured["message"] == "hi"
     assert captured["history"] == [{"role": "user", "content": "prev"}]
     assert captured["mcp_server_url"] == "https://example.com/mcp"
+    assert captured["bedrock_model_id"] == "amazon.nova-lite-v1:0"

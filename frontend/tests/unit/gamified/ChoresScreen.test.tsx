@@ -218,4 +218,42 @@ describe('ChoresScreen completion (#7188)', () => {
 
     consoleError.mockRestore();
   });
+
+  it('calls completeTrailTask exactly once with the correct chore id per click', async () => {
+    mocks.completeTrailTask.mockResolvedValue({
+      tasks: [{ ...UNMAPPED_TASK, completed: true }],
+      xp: 110,
+      streak: 0,
+      daily_totals: {},
+      today: '2026-08-24',
+    });
+
+    renderChores();
+
+    const button = await findDoItButton();
+    fireEvent.click(button);
+
+    // Wait for the completion to settle and the button to show "Done".
+    await screen.findByRole('button', { name: 'Done' });
+
+    // The core regression assertion: exactly one API call per click.
+    expect(mocks.completeTrailTask).toHaveBeenCalledTimes(1);
+
+    // The call must carry the clicked chore's id — and only that id.
+    expect(mocks.completeTrailTask).toHaveBeenCalledWith(
+      'water_the_beds',
+      expect.anything()
+    );
+
+    // No other chore ids may be passed (e.g., from a sibling row or a
+    // stale closure over a different task).
+    expect(mocks.completeTrailTask).not.toHaveBeenCalledWith(
+      'research_new_stock',
+      expect.anything()
+    );
+    expect(mocks.completeTrailTask).not.toHaveBeenCalledWith(
+      'review_portfolio',
+      expect.anything()
+    );
+  });
 });

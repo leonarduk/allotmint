@@ -1,12 +1,32 @@
 name: Claude PR Review
 
+# Runs once when the PR is merged, not on every push during review.
+# Claude's review is advisory only — a posted comment plus optional
+# follow-up issues, not a required status check (deepseek-pr-review.yml's
+# comments say DeepSeek's is meant to be the one that gates merges) — so
+# re-running it on every `synchronize` just re-reviewed the same PR's
+# intermediate, soon-to-change commits at full LLM cost for no gating
+# benefit. Reviewing the final merged diff once is strictly better
+# feedback for the same cost one review used to be.
+#
+# Also removed the dependabot-pass synthetic-check job. It existed to make
+# this check context report "success" instead of "skipped" for Dependabot
+# PRs, in case the context was ever made required — but neither classic
+# branch protection nor the repo's ruleset currently has any
+# required_status_checks configured (checked via `gh api
+# repos/leonarduk/allotmint/branches/main/protection` and `.../rulesets`),
+# so it wasn't protecting anything live. It also can no longer serve that
+# purpose: with the trigger now `closed`-only, it would only report
+# post-merge — too late to gate anything even if this context is made
+# required later. Re-add it, with its own pre-merge trigger, if that
+# happens.
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [closed]
 
 jobs:
   ai-review:
-    if: ${{ github.actor != 'dependabot[bot]' && vars.ENABLE_CLAUDE_REVIEW != 'false' }}
+    if: ${{ github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.merged == true && vars.ENABLE_CLAUDE_REVIEW != 'false' }}
     permissions:
       pull-requests: write
       contents: read
@@ -24,20 +44,3 @@ jobs:
       deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
       gh_token: ${{ secrets.GITHUB_TOKEN }}
       cicaid_pro_token: ${{ secrets.CICAID_PRO_TOKEN }}
-
-  # Dependabot PRs skip the review job above, which GitHub records as "skipped"
-  # rather than "success". This job's name reproduces the composite check
-  # context a real reusable-workflow run would produce ("ai-review / Claude
-  # AI code review"), so any branch protection rule keyed on that exact
-  # string still gets satisfied for Dependabot PRs.
-  #
-  # This context is NOT currently a required status check on `main` (only
-  # DeepSeek's is — see deepseek-pr-review.yml). Kept here for consistency
-  # and in case this context is ever made required in the future.
-  dependabot-pass:
-    name: ai-review / Claude AI code review
-    if: github.actor == 'dependabot[bot]'
-    permissions: {}
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Dependabot PR — Claude review not required, passing."

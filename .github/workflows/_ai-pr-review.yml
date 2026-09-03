@@ -101,7 +101,15 @@ jobs:
           # never do, whatever permissions the job is granted
           # (leonarduk/cicaid-pro#527).
           PINS=.github/cicaid-pins.env
-          CICAID_PRO_REF=$(grep -oP '^CICAID_PRO_REF=\Kv[0-9][A-Za-z0-9.+-]*(?=\r?$)' "$PINS" || true)
+          if [ ! -f "$PINS" ]; then
+            echo "::error::$PINS not found" >&2
+            exit 1
+          fi
+          # grep -E (POSIX ERE) rather than -P (GNU-only PCRE, unavailable on
+          # BSD/macOS grep) so this keeps working if the runner OS ever
+          # changes; tr strips a possible CRLF line ending up front instead
+          # of relying on a \r-tolerant lookahead inside the pattern.
+          CICAID_PRO_REF=$(tr -d '\r' < "$PINS" | grep -E '^CICAID_PRO_REF=v[0-9][A-Za-z0-9.+-]*$' | head -n1 | cut -d= -f2- || true)
           if [ -z "${CICAID_PRO_REF}" ]; then
             echo "::error::no valid CICAID_PRO_REF=<tag> line in $PINS" >&2
             exit 1

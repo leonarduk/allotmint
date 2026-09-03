@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterator, Optional
+from typing import Generator, Optional
 
 import boto3
 import httpx
@@ -31,7 +31,7 @@ class LambdaFunctionUrlSigV4Auth(httpx.Auth):
         if not self._region:
             raise RuntimeError("No AWS region resolved to sign requests (set AWS_REGION/AWS_DEFAULT_REGION)")
 
-    def auth_flow(self, request: httpx.Request) -> Iterator[httpx.Request]:
+    def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response, None]:
         aws_request = AWSRequest(
             method=request.method,
             url=str(request.url),

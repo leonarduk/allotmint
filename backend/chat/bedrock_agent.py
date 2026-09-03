@@ -10,6 +10,7 @@ import boto3
 from mcp.types import CallToolResult, Tool
 
 from backend.chat.mcp_tools_client import mcp_session
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,11 @@ async def run_chat_turn(
                     content = _tool_result_to_bedrock_content(result)
                     status = "error" if result.isError else "success"
                 except Exception as exc:  # noqa: BLE001 - surfaced to the model, not swallowed
-                    logger.warning("MCP tool call %s failed: %s", tool_use["name"], exc)
+                    logger.warning(
+                        "MCP tool call %s failed: %s",
+                        sanitise_log_value(tool_use["name"]),
+                        sanitise_log_value(exc),
+                    )
                     content = [{"text": f"Tool call failed: {exc}"}]
                     status = "error"
                 tool_result_content.append(

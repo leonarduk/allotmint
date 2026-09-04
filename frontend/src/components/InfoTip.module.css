@@ -54,7 +54,16 @@
   border-radius: 4px;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
   opacity: 0;
-  visibility: hidden;
+  /* `display: none` (not `visibility: hidden`) so the closed popover is
+     removed from layout entirely -- a hidden-but-laid-out absolutely
+     positioned popover still counts toward the page's scrollWidth, which
+     reintroduced the page-level horizontal scroll #6675 fixed (the popover
+     is the only new element on the affected route, and its `left: 0` /
+     `max-width: 70vw` box routinely lands partway off a narrow viewport).
+     `visibility` was never in the transition list, so this doesn't change
+     the perceived show/hide timing, just removes the invisible box's
+     footprint. */
+  display: none;
   pointer-events: none;
   transition: opacity 0.12s ease;
 }
@@ -62,8 +71,8 @@
 .infoTip:hover .infoTipPopover,
 .infoTip:focus-within .infoTipPopover,
 .infoTipPopoverOpen {
+  display: block;
   opacity: 1;
-  visibility: visible;
   pointer-events: auto;
 }
 

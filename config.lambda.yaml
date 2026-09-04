@@ -29,12 +29,15 @@ auth:
   # ALLOWED_EMAILS env var if set (see backend/config.py).
   allowed_emails:
     - steveleonard11@gmail.com
-  # Shareable read-only demo link (#7402 breakdown). The enforcement pieces
-  # (token minting/verification, identity resolution, the read-only authz
-  # gate, and the gateway Lambda authorizer fix in #7522) are all merged and
-  # reviewed, so this is flipped on here, scoped to the `buffett` demo
-  # account (see docs/AUTH.md#demo-link-scoped-read-only-token).
-  demo_link_enabled: true
+  # Shareable read-only demo link (#7402 breakdown). Temporarily disabled: a
+  # previously-minted token for the `buffett` demo account was accidentally
+  # exposed outside the deployment (leaked in an unrelated local debugging
+  # session). Per backend/app.py's `mint_demo_link` docstring, there is no
+  # per-token revocation -- flipping this flag is the only way to invalidate
+  # an already-issued token short of rotating JWT_SECRET (which would also
+  # invalidate every real user's session). Re-enable once a fresh token has
+  # been minted and the old one is confirmed dead.
+  demo_link_enabled: false
   demo_link_owner: buffett
   demo_link_ttl_hours: 72
 

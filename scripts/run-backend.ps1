@@ -82,9 +82,14 @@ $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $REPO_ROOT = Split-Path -Parent $SCRIPT_DIR
 Set-Location $REPO_ROOT
 
-# Load environment variables from .env if present
-if (Test-Path '.env') {
-    Get-Content '.env' | ForEach-Object {
+# Load environment variables from .env if present. A repo-local .env still
+# wins if present (backward compat), otherwise fall back to one shared file
+# outside every repo/worktree so credentials never need copying around (see
+# ALLOTMINT_ENV_FILE in docs/CONTRIBUTOR_RUNBOOK.md).
+$SharedEnvFile = if ($env:ALLOTMINT_ENV_FILE) { $env:ALLOTMINT_ENV_FILE } else { Join-Path $env:USERPROFILE 'workspace\GitHub\allotmint\.env.shared' }
+$EnvFileToLoad = if (Test-Path '.env') { '.env' } elseif (Test-Path $SharedEnvFile) { $SharedEnvFile } else { $null }
+if ($EnvFileToLoad) {
+    Get-Content $EnvFileToLoad | ForEach-Object {
         if ($_ -match '^\s*([^#=]+?)\s*=\s*(.*)\s*$') {
             $key = $matches[1]; $value = $matches[2];
             Set-Item -Path Env:$key -Value $value

@@ -144,6 +144,15 @@ into public-repository CI.
 
 Copy `.env.example` to `.env` if you want a local file-backed setup, or export the variables directly in your shell.
 
+If you work across the sibling repos in this workspace (`allotmint`, `allotmint-pro`,
+`allotmint-mcp`, ...) and got tired of copying the same `.env` into every repo root or
+worktree, `scripts/bash/run-local-api.sh` / `scripts/run-backend.ps1` also fall back to a
+single external file when no repo-local `.env` exists: `~/workspace/GitHub/allotmint/.env.shared`
+(one level above every repo — that folder is a plain directory, not a git repo, so this file
+is never at risk of being staged or committed). Override the path with the `ALLOTMINT_ENV_FILE`
+environment variable if you keep it elsewhere. A repo-local `.env`, when present, still takes
+priority — this is additive, not a breaking change.
+
 ### Core local/runtime variables
 
 | Variable | Required when | Example | What it controls |

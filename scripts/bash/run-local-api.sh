@@ -12,11 +12,20 @@ if [[ ! -d data || -z "$(ls -A data 2>/dev/null)" ]]; then
   "$SCRIPT_DIR/sync_data.sh"
 fi
 
-# Load Telegram credentials if available
+# Load Telegram credentials if available. A repo-local .env still wins if
+# present (backward compat), otherwise fall back to one shared file outside
+# every repo/worktree so credentials never need copying around (see
+# ALLOTMINT_ENV_FILE in docs/CONTRIBUTOR_RUNBOOK.md).
+SHARED_ENV_FILE="${ALLOTMINT_ENV_FILE:-$HOME/workspace/GitHub/allotmint/.env.shared}"
 if [[ -f .env ]]; then
   set -o allexport
   # shellcheck disable=SC1091
   source .env
+  set +o allexport
+elif [[ -f "$SHARED_ENV_FILE" ]]; then
+  set -o allexport
+  # shellcheck disable=SC1090
+  source "$SHARED_ENV_FILE"
   set +o allexport
 fi
 

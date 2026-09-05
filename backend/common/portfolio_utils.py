@@ -986,10 +986,18 @@ def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_cur
         g["cost_gbp"] += _safe_num(r.get("cost_gbp"))
 
     total_cost = sum(g["cost_gbp"] for g in groups.values())
+    # Portfolio weight is share of market value, not of cost: cost-based shares
+    # drift from what the holding is actually worth today, which is the number
+    # callers mean by "weight". Deliberately a different denominator from
+    # contribution_pct below, which is a gain contribution measured against cost.
+    total_market_value = sum(g["market_value_gbp"] for g in groups.values())
     for g in groups.values():
         cost = g["cost_gbp"]
         g["gain_pct"] = (g["gain_gbp"] / cost * 100.0) if cost else None
         g["contribution_pct"] = (g["gain_gbp"] / total_cost * 100.0) if total_cost else None
+        g["weight_pct"] = (
+            (g["market_value_gbp"] / total_market_value * 100.0) if total_market_value else None
+        )
     return list(groups.values())
 
 

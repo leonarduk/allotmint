@@ -140,7 +140,12 @@ export function useFetch<T>(
           // perfectly good rendered page because its silent refresh failed.
           // Keep the stale value, stay quiet, and let the next explicit refresh
           // -- which forces, and so takes the branch below -- report it.
-          console.warn(`Background revalidation failed for ${cacheKey}`, err);
+          // The key is passed as an argument rather than interpolated:
+          // `console.*` treats its first argument as a format string, and
+          // cache keys carry route-derived values (group slug, owner), so
+          // interpolating one is an externally-controlled format string
+          // (CodeQL js/tainted-format-string).
+          console.warn("Background revalidation failed for cache key", cacheKey, err);
           return;
         }
         setState({ data: null, loading: false, error: err });

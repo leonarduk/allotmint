@@ -370,7 +370,7 @@ async def test_group_flow_reuses_cached_response_within_ttl(monkeypatch):
     # Asserted through the cache's own interface rather than its internals
     # (#7581 moved the storage into TTLCache): a third read must still see the
     # value as built, and must still not have re-run the build.
-    third = await opportunities_module.get_opportunities(**kwargs)
+    third = opportunities_module.get_opportunities(**kwargs)
     assert third.entries[0].ticker == "AAA"
     assert call_count["n"] == 1
 

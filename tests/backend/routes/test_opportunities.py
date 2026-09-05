@@ -367,7 +367,12 @@ async def test_group_flow_reuses_cached_response_within_ttl(monkeypatch):
     # Returned responses must be independent copies, not the same cached object.
     assert first is not second
     second.entries[0].ticker = "MUTATED"
-    assert opportunities_module._OPPORTUNITIES_CACHE[("group", "growth", 1, 5, 0.0)][1].entries[0].ticker == "AAA"
+    # Asserted through the cache's own interface rather than its internals
+    # (#7581 moved the storage into TTLCache): a third read must still see the
+    # value as built, and must still not have re-run the build.
+    third = await opportunities_module.get_opportunities(**kwargs)
+    assert third.entries[0].ticker == "AAA"
+    assert call_count["n"] == 1
 
 
 @pytest.mark.asyncio

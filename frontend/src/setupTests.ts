@@ -10,6 +10,7 @@ import './i18n';
 import { expect, vi } from 'vitest';
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { clearFetchCache } from './utils/fetchCache';
 import { toHaveNoViolations } from 'jest-axe';
 expect.extend(toHaveNoViolations);
 
@@ -75,6 +76,12 @@ if (typeof globalThis.Request !== 'undefined') {
 
 // Ensure React Testing Library cleans up between tests to avoid cross-test DOM leakage
 afterEach(() => cleanup());
+
+// `useFetch`'s result cache is module state, so without this a test's mocked
+// API response answers the next test's render from cache and no request is
+// made at all -- the mock looks ignored and the assertions see the previous
+// fixture. Must run for every suite, not just the ones that opt into caching.
+afterEach(() => clearFetchCache());
 
 // Polyfill matchMedia
 if (!('matchMedia' in window)) {

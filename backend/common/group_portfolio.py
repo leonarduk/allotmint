@@ -24,6 +24,7 @@ from backend.common.constants import (
 )
 from backend.common.holding_utils import enrich_holding
 from backend.common.user_config import load_user_config
+from backend.config import config
 from backend.config import demo_identity as get_demo_identity
 from backend.utils.pricing_dates import PricingDateCalculator
 
@@ -75,6 +76,26 @@ def list_groups() -> List[Dict[str, Any]]:
     started_at = time.perf_counter()
     owner_rows = data_loader.list_plots()
     owners = sorted({row.owner for row in owner_rows})
+
+    # Exclude the shareable-demo-link owner (config.demo_link_owner, #7402)
+    # from every real user's group view -- it exists only so a demo-scoped
+    # token can read one owner's data (see backend/auth.py's
+    # _resolve_demo_request), not as a member of any real family/household.
+    # Without this, it was showing up in the "All positions" group dashboard
+    # alongside real family members (#7676).
+    #
+    # Not for the demo-scoped request itself, though: `list_plots` above has
+    # already narrowed that caller to exactly the demo owner (#7408), so
+    # excluding it here as well left every group empty and the demo link
+    # showing a blank dashboard -- the one visitor the owner exists for. The
+    # local import mirrors `data_loader`'s: `backend.auth` imports back into
+    # `backend.common`.
+    from backend.auth import is_demo_request
+
+    demo_link_owner = (config.demo_link_owner or "").strip().lower()
+    if demo_link_owner and not is_demo_request():
+        owners = [o for o in owners if (o or "").lower() != demo_link_owner]
+
     owner_discovery_ms = (time.perf_counter() - started_at) * 1000
 
     groups = [

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from backend.common.data_loader import resolve_owner_dir
+from backend.common.portfolio_cache import invalidate_group_portfolios
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -92,6 +93,10 @@ def save_approvals(owner: str, approvals: Dict[str, date], accounts_root: Path |
             sanitise_log_value(exc),
         )
         raise
+    # Approvals feed `enrich_holding` via `build_group_portfolio`, so a cached
+    # group portfolio built before this write still reflects the old approval
+    # state. `upsert_approval`/`delete_approval` both land here.
+    invalidate_group_portfolios()
 
 
 def upsert_approval(

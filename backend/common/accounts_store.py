@@ -35,6 +35,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_loader
 from backend.common.path_utils import safe_join
+from backend.common.portfolio_cache import invalidate_group_portfolios
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -162,6 +163,8 @@ class LocalAccountsStore:
         if not committed and not file_existed:
             with suppress(FileNotFoundError):
                 file_path.unlink()
+        if committed:
+            invalidate_group_portfolios()
         if pending_error is not None:
             raise pending_error.with_traceback(pending_traceback)
 
@@ -242,6 +245,11 @@ class LocalAccountsStore:
             portfolio_mod.build_owner_portfolio(owner, self.root)
         except FileNotFoundError as exc:
             logger.warning("Portfolio rebuild failed: %s", sanitise_log_value(exc))
+        finally:
+            # Runs even on the FileNotFoundError path: a partial rebuild still
+            # changes holdings on disk, and a cache entry outliving it would
+            # show the pre-rebuild numbers.
+            invalidate_group_portfolios()
 
 
 @dataclass
@@ -314,6 +322,7 @@ class S3AccountsStore:
             Body=body,
             ContentType="application/json",
         )
+        invalidate_group_portfolios()
 
     @contextmanager
     def edit_document(

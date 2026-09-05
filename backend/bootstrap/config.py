@@ -14,6 +14,7 @@ _OVERRIDE_ATTRS = (
     "app_env",
     "base_currency",
     "cors_origins",
+    "cors_origin_regex",
 )
 
 

@@ -7,12 +7,12 @@ backend/auth.py:201
 # caller, never attacker-controlled; email/token on the same call are already
 # wrapped in sanitise_log_value.
 backend/auth.py:775
-backend/common/accounts_store.py:283
 backend/common/accounts_store.py:291
-backend/common/accounts_store.py:410
+backend/common/accounts_store.py:299
+backend/common/accounts_store.py:419
 backend/common/alerts.py:44
-backend/common/approvals.py:40
-backend/common/approvals.py:88
+backend/common/approvals.py:41
+backend/common/approvals.py:89
 # (always int) can't carry attacker-controlled input.
 backend/common/authz.py:113
 # identity_present is `identity is not None` (always bool), not the raw
@@ -43,7 +43,7 @@ backend/common/portfolio.py:117
 backend/common/portfolio_loader.py:240
 backend/common/portfolio_loader.py:253
 backend/common/portfolio_loader.py:260
-backend/common/portfolio_utils.py:2015
+backend/common/portfolio_utils.py:2021
 backend/common/portfolio_utils.py:300
 backend/common/portfolio_utils.py:306
 backend/common/prices.py:406
@@ -62,8 +62,8 @@ backend/common/signup_requests.py:373
 # len(adjustments) is always an int (a count of synthetic transactions just
 # built in this function) and can't carry attacker-controlled string content.
 backend/common/transaction_reconciliation.py:180
-backend/config.py:616
-backend/config.py:619
+backend/config.py:656
+backend/config.py:659
 # len(lines)/len(data) are always ints (row counts produced by the CSV
 # parser in this function) and can't carry attacker-controlled string content.
 backend/importers/hargreaves.py:139
@@ -138,9 +138,9 @@ backend/agent/trading_agent.py:66
 # load_and_compute_metrics() from the agent's own trade log -- not
 # attacker/user-controlled input.
 backend/agent/trading_agent.py:596
-backend/common/portfolio_utils.py:1337
-backend/common/portfolio_utils.py:1366
-backend/common/portfolio_utils.py:2025
+backend/common/portfolio_utils.py:1343
+backend/common/portfolio_utils.py:1372
+backend/common/portfolio_utils.py:2031
 backend/common/portfolio_utils.py:228
 backend/common/portfolio_utils.py:245
 backend/common/portfolio_utils.py:256

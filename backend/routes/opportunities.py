@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from typing import Dict, List, Literal, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -14,6 +12,7 @@ from backend.agent import trading_agent
 from backend.agent.models import TradingSignal
 from backend.auth import decode_token, is_demo_request
 from backend.common import instrument_api
+from backend.common.ttl_cache import TTLCache
 from backend.config import config
 from backend.routes.portfolio import _ALLOWED_DAYS as _PORTFOLIO_ALLOWED_DAYS
 from backend.routes.portfolio import (
@@ -31,27 +30,22 @@ oauth2_optional = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 # public "buffett" demo account) re-runs that full computation from scratch.
 # A short TTL keeps repeat views fast while staying well under any interval a
 # real trade or price move would need to show up within.
+#
+# The dict/lock/staleness machinery this used to hold inline now lives in
+# TTLCache (#7581), which deep-copies on both store and read exactly as the
+# `model_copy(deep=True)` calls here used to.
 _OPPORTUNITIES_CACHE_TTL_SECONDS = 60.0
 _OpportunitiesCacheKey = Tuple[object, ...]
-_OPPORTUNITIES_CACHE: Dict[_OpportunitiesCacheKey, Tuple[float, "OpportunitiesResponse"]] = {}
-_OPPORTUNITIES_CACHE_LOCK = threading.Lock()
+_OPPORTUNITIES_CACHE: TTLCache["OpportunitiesResponse"] = TTLCache(
+    _OPPORTUNITIES_CACHE_TTL_SECONDS,
+    name="opportunities",
+)
 
 
 def _cached_opportunities_response(key: _OpportunitiesCacheKey, build) -> "OpportunitiesResponse":
     """Return a cached response for ``key`` if still fresh, else build and cache one."""
 
-    now = time.monotonic()
-    with _OPPORTUNITIES_CACHE_LOCK:
-        cached = _OPPORTUNITIES_CACHE.get(key)
-    if cached is not None:
-        cached_at, response = cached
-        if now - cached_at < _OPPORTUNITIES_CACHE_TTL_SECONDS:
-            return response.model_copy(deep=True)
-
-    response = build()
-    with _OPPORTUNITIES_CACHE_LOCK:
-        _OPPORTUNITIES_CACHE[key] = (now, response.model_copy(deep=True))
-    return response
+    return _OPPORTUNITIES_CACHE.get_or_build(key, build)
 
 
 class OpportunityEntry(BaseModel):

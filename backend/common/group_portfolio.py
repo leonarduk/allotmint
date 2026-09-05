@@ -24,6 +24,7 @@ from backend.common.constants import (
 )
 from backend.common.holding_utils import enrich_holding
 from backend.common.user_config import load_user_config
+from backend.config import config
 from backend.config import demo_identity as get_demo_identity
 from backend.utils.pricing_dates import PricingDateCalculator
 
@@ -75,6 +76,17 @@ def list_groups() -> List[Dict[str, Any]]:
     started_at = time.perf_counter()
     owner_rows = data_loader.list_plots()
     owners = sorted({row.owner for row in owner_rows})
+
+    # Exclude the shareable-demo-link owner (config.demo_link_owner, #7402)
+    # from every real user's group view -- it exists only so a demo-scoped
+    # token can read one owner's data (see backend/auth.py's
+    # _resolve_demo_request), not as a member of any real family/household.
+    # Without this, it was showing up in the "All positions" group dashboard
+    # alongside real family members (#7676).
+    demo_link_owner = (config.demo_link_owner or "").strip().lower()
+    if demo_link_owner:
+        owners = [o for o in owners if (o or "").lower() != demo_link_owner]
+
     owner_discovery_ms = (time.perf_counter() - started_at) * 1000
 
     groups = [

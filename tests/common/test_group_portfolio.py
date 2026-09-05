@@ -44,6 +44,26 @@ def test_list_groups_does_not_load_portfolio_contents():
     assert elapsed < 2
 
 
+def test_list_groups_excludes_demo_link_owner():
+    """The shareable demo-link owner (#7402) must never appear in a real
+    user's group view -- see #7676, where "buffett" (config.demo_link_owner)
+    was showing up alongside real family members in the "all" group."""
+    owner_rows = [
+        OwnerSummaryRecord(owner="Lucy"),
+        OwnerSummaryRecord(owner="Steve"),
+        OwnerSummaryRecord(owner="buffett"),
+    ]
+    with (
+        patch("backend.common.group_portfolio.data_loader.list_plots", return_value=owner_rows),
+        patch("backend.common.group_portfolio.config.demo_link_owner", "buffett"),
+    ):
+        groups = group_portfolio.list_groups()
+
+    all_group = next(g for g in groups if g["slug"] == "all")
+    assert "buffett" not in all_group["members"]
+    assert all_group["members"] == ["Lucy", "Steve"]
+
+
 def test_group_members_returns_slug_members():
     owner_rows = [
         OwnerSummaryRecord(owner="Lucy"),

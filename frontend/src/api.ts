@@ -67,6 +67,7 @@ import {
   dataQualityIssuesContractSchema,
   dataQualityAuditContractSchema,
 } from "./contracts/apiContracts";
+import { clearFetchCache } from "./utils/fetchCache";
 
 const cleanOptionalString = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
@@ -246,6 +247,20 @@ export function createClient(
   const TOKEN_STORAGE_KEY = "authToken";
 
   const setAuthToken = (t: string | null) => {
+    // Every login, logout and demo-session entry lands here, so this is the one
+    // place that sees an identity change. The cached responses below outlive a
+    // logout otherwise: the local-dev and demo logout paths in main.tsx finish
+    // with `navigate('/')`, a client-side transition that leaves module state
+    // intact, so the next person to sign in on that tab would be served the
+    // previous user's portfolio, holdings and compliance data from cache. Only
+    // the Cognito hosted-UI path does a real browser redirect.
+    //
+    // Guarded on an actual change so a token refresh for the same user (which
+    // re-sets an identical value) does not throw the cache away for nothing.
+    if (t !== authToken) {
+      clearFetchCache();
+      clearGroupInstrumentCache();
+    }
     authToken = t;
     if (!storage) return;
     if (t) storage.setItem(TOKEN_STORAGE_KEY, t);

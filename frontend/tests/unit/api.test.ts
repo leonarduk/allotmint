@@ -24,6 +24,11 @@ import {
   clearGroupInstrumentCache,
   checkScreenerAvailable,
 } from "@/api";
+import {
+  clearFetchCache,
+  readFetchCache,
+  writeFetchCache,
+} from "@/utils/fetchCache";
 
 const csvFile = new File(["ticker,units"], "holdings.csv", {
   type: "text/csv",
@@ -1072,5 +1077,52 @@ describe("checkScreenerAvailable", () => {
     global.fetch = mockFetch;
 
     await expect(checkScreenerAvailable()).resolves.toBe(true);
+  });
+});
+
+describe("cached responses do not survive an identity change", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setApiBase(DEFAULT_API_BASE);
+    setAuthToken(null);
+    clearFetchCache();
+    clearGroupInstrumentCache();
+  });
+
+  afterEach(() => {
+    setAuthToken(null);
+    clearFetchCache();
+    clearGroupInstrumentCache();
+  });
+
+  it("clears the fetch cache when a different token is set", () => {
+    writeFetchCache("portfolio-group:all:", { total: 1 });
+    expect(readFetchCache("portfolio-group:all:")).toBeDefined();
+
+    // Signing in: the local-dev and demo logout paths navigate client-side
+    // rather than reloading, so without this the next user on the same tab
+    // would be served the previous user's cached portfolio.
+    setAuthToken("token-for-user-a");
+
+    expect(readFetchCache("portfolio-group:all:")).toBeUndefined();
+  });
+
+  it("clears the fetch cache on logout", () => {
+    setAuthToken("token-for-user-a");
+    writeFetchCache("portfolio-group:all:", { total: 1 });
+
+    setAuthToken(null);
+
+    expect(readFetchCache("portfolio-group:all:")).toBeUndefined();
+  });
+
+  it("keeps the cache when the same token is re-set", () => {
+    setAuthToken("token-for-user-a");
+    writeFetchCache("portfolio-group:all:", { total: 1 });
+
+    // A token refresh for the same user must not throw the cache away.
+    setAuthToken("token-for-user-a");
+
+    expect(readFetchCache("portfolio-group:all:")).toBeDefined();
   });
 });

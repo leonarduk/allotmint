@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
 import errorToast from "../utils/errorToast";
 import {
+  fetchCacheEpoch,
   isFresh,
   readFetchCache,
   runDeduped,
@@ -124,8 +125,9 @@ export function useFetch<T>(
         if (cacheKey && !force) {
           res = await runDeduped(cacheKey, fn);
         } else {
+          const startedAtEpoch = fetchCacheEpoch();
           res = await fn();
-          if (cacheKey) writeFetchCache(cacheKey, res);
+          if (cacheKey) writeFetchCache(cacheKey, res, startedAtEpoch);
         }
         if (!cancelled) setState({ data: res, loading: false, error: null });
       } catch (e) {

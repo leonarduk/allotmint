@@ -189,6 +189,37 @@ describe("useFetch result cache", () => {
     ]);
   });
 
+  it("drops an in-flight result if the cache is cleared before it lands", async () => {
+    // The price-refresh sequence: a request is already in flight, the user hits
+    // refresh (which clears the cache), and the older request then settles. Its
+    // data predates the refresh, so it must not be written back and served for
+    // a further TTL.
+    let resolveFetch: ((value: string) => void) | undefined;
+    const slowFetcher = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+
+    const first = render(<Probe fetcher={slowFetcher} cacheKey="k" />);
+
+    clearFetchCache();
+
+    await act(async () => {
+      resolveFetch?.("pre-refresh");
+    });
+    first.unmount();
+
+    // A fresh mount must go to the network rather than find "pre-refresh"
+    // sitting in the cache.
+    const freshFetcher = vi.fn().mockResolvedValue("post-refresh");
+    render(<Probe fetcher={freshFetcher} cacheKey="k" />);
+
+    await screen.findByText("post-refresh");
+    expect(freshFetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("swaps to the new key's data on the same commit when the key changes", async () => {
     const fetcher = vi.fn(async () => "b-value");
 

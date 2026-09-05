@@ -587,6 +587,21 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   // Three 365-day benchmark computations that can only change once a day, yet
   // were re-run on every mount. Cached together under one key because they are
   // fetched and consumed as a set.
+  const benchmarkMetricsCacheKey = `group-benchmark-metrics:${slug}`;
+
+  // Effects run after the commit, so switching group would otherwise leave the
+  // previous group's alpha/tracking error/drawdown rendered under the new
+  // group's heading for a frame. Swap them during render instead, the same way
+  // `useFetch` swaps on a cache-key change.
+  const [trackedMetricsKey, setTrackedMetricsKey] = useState(benchmarkMetricsCacheKey);
+  if (trackedMetricsKey !== benchmarkMetricsCacheKey) {
+    setTrackedMetricsKey(benchmarkMetricsCacheKey);
+    const nextCached = readFetchCache<GroupBenchmarkMetrics>(benchmarkMetricsCacheKey);
+    setAlpha(nextCached?.value.alpha ?? null);
+    setTrackingError(nextCached?.value.trackingError ?? null);
+    setMaxDrawdown(nextCached?.value.maxDrawdown ?? null);
+  }
+
   useEffect(() => {
     if (!slug || !enableAdvancedAnalytics) return;
     let cancelled = false;
@@ -598,7 +613,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       setMaxDrawdown(metrics.maxDrawdown);
     };
 
-    const cacheKey = `group-benchmark-metrics:${slug}`;
+    const cacheKey = benchmarkMetricsCacheKey;
     const cached = readFetchCache<GroupBenchmarkMetrics>(cacheKey);
     if (cached) {
       applyMetrics(cached.value);
@@ -633,7 +648,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [slug, enableAdvancedAnalytics]);
+  }, [slug, enableAdvancedAnalytics, benchmarkMetricsCacheKey]);
 
   useEffect(() => {
     if (onTradeInfo) {

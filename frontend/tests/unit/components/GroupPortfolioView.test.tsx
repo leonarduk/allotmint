@@ -1052,6 +1052,73 @@ describe("GroupPortfolioView", () => {
     );
   });
 
+  it("does not show the previous group's benchmark metrics while the new group's are still loading", async () => {
+    // The metrics effect runs after the commit and only applies a value it can
+    // read from cache. Switching to a group whose metrics are *not* cached
+    // therefore left the previous group's alpha rendered under the new group's
+    // heading for as long as the request took -- not a frame, but the whole
+    // fetch. The portfolio itself is warmed for both groups so the metrics row
+    // renders and the switch is what is under test.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const portfolioPayload = { name: "At a glance", accounts: [] };
+
+    mockAllFetches(portfolioPayload, {
+      metrics: { alpha: 3.44, trackingError: 2.5, maxDrawdown: -12.34 },
+    });
+    const allView = renderWithConfig(
+      <GroupPortfolioView slug="all" owners={ownerFixtures} />,
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByText("Alpha vs Benchmark").parentElement!)
+          .getByText("3.44%"),
+      ).toBeInTheDocument(),
+    );
+    allView.unmount();
+
+    // Warm only the *portfolio* for "adults": its benchmark requests hang, so
+    // nothing lands in the metrics cache for that group.
+    const fetchMock = mockAllFetches(portfolioPayload);
+    const standardImpl = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = toUrlString(input);
+      if (url.includes("/performance-group/adults/")) {
+        return new Promise(() => {}) as Promise<Response>;
+      }
+      return standardImpl(input);
+    });
+
+    const adultsView = renderWithConfig(
+      <GroupPortfolioView slug="adults" owners={ownerFixtures} />,
+    );
+    await screen.findByText("Alpha vs Benchmark");
+    adultsView.unmount();
+
+    function Switcher() {
+      const [slug, setSlug] = useState("all");
+      return (
+        <>
+          <button type="button" onClick={() => setSlug("adults")}>
+            switch group
+          </button>
+          <GroupPortfolioView slug={slug} owners={ownerFixtures} />
+        </>
+      );
+    }
+
+    renderWithConfig(<Switcher />);
+    const alphaCell = () => screen.getByText("Alpha vs Benchmark").parentElement!;
+    expect(within(alphaCell()).getByText("3.44%")).toBeInTheDocument();
+
+    act(() => {
+      screen.getByRole("button", { name: "switch group" }).click();
+    });
+
+    expect(within(alphaCell()).queryByText("3.44%")).not.toBeInTheDocument();
+
+    warnSpy.mockRestore();
+  });
+
   it("renders whole-percentage metrics returned by the API", async () => {
     const mockPortfolio = { name: "At a glance", accounts: [] };
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});

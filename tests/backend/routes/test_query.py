@@ -35,7 +35,7 @@ async def test_list_saved_queries_returns_rich_entries(tmp_path: Path, monkeypat
     monkeypatch.setattr(query, "QUERIES_DIR", saved_dir)
     monkeypatch.setattr(query.config, "app_env", "local", raising=False)
 
-    results = await query.list_saved_queries()
+    results = query.list_saved_queries()
 
     assert results == [
         {
@@ -67,4 +67,4 @@ async def test_list_saved_queries_returns_empty_when_missing_dir(
     monkeypatch.setattr(query, "QUERIES_DIR", tmp_path / "queries")
     monkeypatch.setattr(query.config, "app_env", None, raising=False)
 
-    assert await query.list_saved_queries() == []
+    assert query.list_saved_queries() == []

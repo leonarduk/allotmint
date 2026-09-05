@@ -208,7 +208,7 @@ def _load_query_s3(slug: str) -> dict:
 
 
 @router.post("/run")
-async def run_query(q: CustomQuery):
+def run_query(q: CustomQuery):
     tickers = _resolve_tickers(q)
     if not tickers:
         return {"results": []}
@@ -273,7 +273,7 @@ def _format_saved_query(slug: str, payload: dict) -> dict:
 
 
 @router.get("/saved")
-async def list_saved_queries(detailed: bool | None = Query(None)):
+def list_saved_queries(detailed: bool | None = Query(None)):
     wants_detailed = True if detailed is None else bool(detailed)
     hidden_slugs = _seeded_fixture_slugs()
     if config.app_env == "aws":
@@ -313,7 +313,7 @@ async def list_saved_queries(detailed: bool | None = Query(None)):
 
 
 @router.get("/{slug}")
-async def load_query(slug: str):
+def load_query(slug: str):
     if config.app_env == "aws":
         try:
             return _load_query_s3(slug)
@@ -323,7 +323,7 @@ async def load_query(slug: str):
 
 
 @router.post("/{slug}")
-async def save_query(slug: str, q: CustomQuery):
+def save_query(slug: str, q: CustomQuery):
     if config.app_env == "aws":
         try:
             _save_query_s3(slug, q)

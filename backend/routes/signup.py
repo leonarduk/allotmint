@@ -205,14 +205,14 @@ def _confirmation_page(action: str, request: Request, id: str, token: str) -> HT
 
 
 @router.get("/approve", response_class=HTMLResponse)
-async def approve_signup_confirm(request: Request, id: str = "", token: str = "") -> HTMLResponse:
+def approve_signup_confirm(request: Request, id: str = "", token: str = "") -> HTMLResponse:
     """Show a confirmation page; the approval itself is performed by ``POST``."""
 
     return _confirmation_page("approve", request, id, token)
 
 
 @router.post("/approve")
-async def approve_signup_request(request: Request, id: str = "", token: str = "") -> dict[str, str]:
+def approve_signup_request(request: Request, id: str = "", token: str = "") -> dict[str, str]:
     """Provision the requesting user and notify them their login is ready.
 
     Validates the single-use token first, then provisions (idempotently) and
@@ -256,14 +256,14 @@ async def approve_signup_request(request: Request, id: str = "", token: str = ""
 
 
 @router.get("/reject", response_class=HTMLResponse)
-async def reject_signup_confirm(request: Request, id: str = "", token: str = "") -> HTMLResponse:
+def reject_signup_confirm(request: Request, id: str = "", token: str = "") -> HTMLResponse:
     """Show a confirmation page; the rejection itself is performed by ``POST``."""
 
     return _confirmation_page("reject", request, id, token)
 
 
 @router.post("/reject")
-async def reject_signup_request(request: Request, id: str = "", token: str = "") -> dict[str, str]:
+def reject_signup_request(request: Request, id: str = "", token: str = "") -> dict[str, str]:
     """Mark a pending request rejected so its token can no longer be used."""
 
     store_dir = _store_dir(request)

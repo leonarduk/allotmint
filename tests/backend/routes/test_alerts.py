@@ -118,7 +118,7 @@ async def test_get_settings_honours_updated_state(
 
     monkeypatch.setattr(alerts.alert_utils, "get_user_threshold", fake_get_user_threshold)
 
-    response = await alerts.get_settings("demo", request)
+    response = alerts.get_settings("demo", request)
 
     expected_root = Path(fallback_root).expanduser().resolve(strict=False)
     assert response == {"threshold": 2.5}
@@ -149,7 +149,7 @@ async def test_set_settings_honours_updated_state(
     monkeypatch.setattr(alerts.alert_utils, "set_user_threshold", fake_set_user_threshold)
 
     payload = alerts.ThresholdPayload(threshold=7.0)
-    response = await alerts.set_settings("demo", payload, request)
+    response = alerts.set_settings("demo", payload, request)
 
     expected_root = Path(fallback_root).expanduser().resolve(strict=False)
     assert response == {"threshold": 7.0}

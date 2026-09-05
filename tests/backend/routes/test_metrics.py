@@ -18,7 +18,7 @@ async def test_get_metrics_returns_cached_payload(monkeypatch):
     monkeypatch.setattr(metrics, "load_metrics", stub_load)
     monkeypatch.setattr(metrics, "compute_and_store_metrics", stub_compute)
 
-    result = await metrics.get_metrics("alex")
+    result = metrics.get_metrics("alex")
 
     assert result == cached_payload
 
@@ -38,7 +38,7 @@ async def test_get_metrics_computes_when_cache_empty(monkeypatch):
     monkeypatch.setattr(metrics, "load_metrics", stub_load)
     monkeypatch.setattr(metrics, "compute_and_store_metrics", stub_compute)
 
-    result = await metrics.get_metrics("alex")
+    result = metrics.get_metrics("alex")
 
     assert result is sentinel
 
@@ -59,7 +59,7 @@ async def test_get_metrics_raises_http_not_found(monkeypatch):
     monkeypatch.setattr(metrics, "raise_owner_not_found", stub_raise_owner_not_found)
 
     with pytest.raises(OwnerNotFoundError) as exc:
-        await metrics.get_metrics("alex")
+        metrics.get_metrics("alex")
 
     assert exc.value.status_code == 404
     assert stub["called"]

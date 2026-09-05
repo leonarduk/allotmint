@@ -1,4 +1,3 @@
-import asyncio
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
@@ -10,10 +9,6 @@ from backend.config import config
 from backend.routes import data_explorer
 
 
-def _run(coro):
-    return asyncio.run(coro)
-
-
 def test_list_directory_root(monkeypatch, tmp_path):
     (tmp_path / "timeseries").mkdir()
     (tmp_path / "accounts.json").write_text("{}")
@@ -21,7 +16,7 @@ def test_list_directory_root(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "app_env", "local")
     monkeypatch.setattr(config, "data_root", tmp_path)
 
-    result = _run(data_explorer.list_directory(""))
+    result = data_explorer.list_directory("")
 
     assert result["path"] == ""
     names = [(e["name"], e["type"]) for e in result["entries"]]
@@ -39,7 +34,7 @@ def test_list_directory_subdir(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "app_env", "local")
     monkeypatch.setattr(config, "data_root", tmp_path)
 
-    result = _run(data_explorer.list_directory("timeseries/meta"))
+    result = data_explorer.list_directory("timeseries/meta")
 
     assert result["path"] == "timeseries/meta"
     assert result["entries"][0]["path"] == "timeseries/meta/ABC_L.parquet"
@@ -56,7 +51,7 @@ def test_list_directory_excludes_git_and_idea_dirs(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "app_env", "local")
     monkeypatch.setattr(config, "data_root", tmp_path)
 
-    result = _run(data_explorer.list_directory(""))
+    result = data_explorer.list_directory("")
 
     names = [e["name"] for e in result["entries"]]
     assert ".git" not in names
@@ -69,7 +64,7 @@ def test_list_directory_missing_path_404(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "data_root", tmp_path)
 
     with pytest.raises(HTTPException) as exc:
-        _run(data_explorer.list_directory("does-not-exist"))
+        data_explorer.list_directory("does-not-exist")
     assert exc.value.status_code == 404
 
 
@@ -79,7 +74,7 @@ def test_list_directory_rejects_file_path(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "data_root", tmp_path)
 
     with pytest.raises(HTTPException) as exc:
-        _run(data_explorer.list_directory("a.txt"))
+        data_explorer.list_directory("a.txt")
     assert exc.value.status_code == 400
 
 
@@ -97,7 +92,7 @@ def test_list_directory_rejects_traversal(monkeypatch, tmp_path, traversal):
     monkeypatch.setattr(config, "data_root", tmp_path)
 
     with pytest.raises(HTTPException) as exc:
-        _run(data_explorer.list_directory(traversal))
+        data_explorer.list_directory(traversal)
     assert exc.value.status_code == 400
 
 
@@ -106,7 +101,7 @@ def test_list_directory_aws_missing_bucket_501(monkeypatch):
     monkeypatch.delenv("DATA_BUCKET", raising=False)
 
     with pytest.raises(HTTPException) as exc:
-        _run(data_explorer.list_directory(""))
+        data_explorer.list_directory("")
     assert exc.value.status_code == 501
 
 
@@ -127,7 +122,7 @@ def test_list_directory_aws_lists_dirs_and_files(monkeypatch):
     }
 
     with patch("boto3.client", return_value=mock_client):
-        result = _run(data_explorer.list_directory(""))
+        result = data_explorer.list_directory("")
 
     assert result["path"] == ""
     names = [(e["name"], e["type"]) for e in result["entries"]]
@@ -155,7 +150,7 @@ def test_list_directory_aws_subdir_uses_prefixed_key(monkeypatch):
     }
 
     with patch("boto3.client", return_value=mock_client):
-        result = _run(data_explorer.list_directory("timeseries/meta"))
+        result = data_explorer.list_directory("timeseries/meta")
 
     assert result["path"] == "timeseries/meta"
     assert result["entries"][0]["path"] == "timeseries/meta/ABC_L.parquet"
@@ -193,7 +188,7 @@ def test_list_directory_aws_paginates(monkeypatch):
     ]
 
     with patch("boto3.client", return_value=mock_client):
-        result = _run(data_explorer.list_directory(""))
+        result = data_explorer.list_directory("")
 
     names = [e["name"] for e in result["entries"]]
     assert names == ["a.json", "b.json"]
@@ -214,7 +209,7 @@ def test_list_directory_aws_empty_subdir_404(monkeypatch):
 
     with patch("boto3.client", return_value=mock_client):
         with pytest.raises(HTTPException) as exc:
-            _run(data_explorer.list_directory("does-not-exist"))
+            data_explorer.list_directory("does-not-exist")
     assert exc.value.status_code == 404
 
 
@@ -232,7 +227,7 @@ def test_list_directory_aws_rejects_traversal(monkeypatch, traversal):
     monkeypatch.setenv("DATA_BUCKET", "test-bucket")
 
     with pytest.raises(HTTPException) as exc:
-        _run(data_explorer.list_directory(traversal))
+        data_explorer.list_directory(traversal)
     assert exc.value.status_code == 400
 
 
@@ -246,7 +241,7 @@ def test_list_directory_aws_list_failure_502(monkeypatch):
 
     with patch("boto3.client", return_value=mock_client):
         with pytest.raises(HTTPException) as exc:
-            _run(data_explorer.list_directory(""))
+            data_explorer.list_directory("")
     assert exc.value.status_code == 502
 
 
@@ -261,7 +256,7 @@ def test_read_file_aws_preview(monkeypatch):
     mock_client.get_object.return_value = {"Body": MagicMock(read=lambda: b"hello world")}
 
     with patch("boto3.client", return_value=mock_client):
-        result = _run(data_explorer.read_file("notes.txt"))
+        result = data_explorer.read_file("notes.txt")
 
     assert result["content"] == "hello world"
     assert result["truncated"] is False
@@ -283,7 +278,7 @@ def test_read_file_aws_truncates_large_files(monkeypatch):
     }
 
     with patch("boto3.client", return_value=mock_client):
-        result = _run(data_explorer.read_file("big.log"))
+        result = data_explorer.read_file("big.log")
 
     assert result["truncated"] is True
     assert len(result["content"]) == data_explorer.MAX_PREVIEW_BYTES
@@ -296,7 +291,7 @@ def test_read_file_aws_rejects_unsupported_extension(monkeypatch):
     monkeypatch.setenv("DATA_BUCKET", "test-bucket")
 
     with pytest.raises(HTTPException) as exc:
-        _run(data_explorer.read_file("cache.parquet"))
+        data_explorer.read_file("cache.parquet")
     assert exc.value.status_code == 415
     assert exc.value.detail == data_explorer.NOT_PREVIEWABLE_DETAIL
 
@@ -309,7 +304,7 @@ def test_read_file_aws_missing_404(monkeypatch):
 
     with patch("boto3.client", return_value=mock_client):
         with pytest.raises(HTTPException) as exc:
-            _run(data_explorer.read_file("missing.txt"))
+            data_explorer.read_file("missing.txt")
     assert exc.value.status_code == 404
 
 
@@ -318,7 +313,7 @@ def test_read_file_aws_rejects_traversal(monkeypatch):
     monkeypatch.setenv("DATA_BUCKET", "test-bucket")
 
     with pytest.raises(HTTPException) as exc:
-        _run(data_explorer.read_file("../secret.txt"))
+        data_explorer.read_file("../secret.txt")
     assert exc.value.status_code == 400
 
 
@@ -327,7 +322,7 @@ def test_read_file_preview(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "app_env", "local")
     monkeypatch.setattr(config, "data_root", tmp_path)
 
-    result = _run(data_explorer.read_file("notes.txt"))
+    result = data_explorer.read_file("notes.txt")
 
     assert result["content"] == "hello world"
     assert result["truncated"] is False
@@ -340,7 +335,7 @@ def test_read_file_truncates_large_files(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "app_env", "local")
     monkeypatch.setattr(config, "data_root", tmp_path)
 
-    result = _run(data_explorer.read_file("big.log"))
+    result = data_explorer.read_file("big.log")
 
     assert result["truncated"] is True
     assert len(result["content"]) == data_explorer.MAX_PREVIEW_BYTES
@@ -352,7 +347,7 @@ def test_read_file_rejects_unsupported_extension(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "data_root", tmp_path)
 
     with pytest.raises(HTTPException) as exc:
-        _run(data_explorer.read_file("cache.parquet"))
+        data_explorer.read_file("cache.parquet")
     assert exc.value.status_code == 415
     assert exc.value.detail == data_explorer.NOT_PREVIEWABLE_DETAIL
 
@@ -369,7 +364,7 @@ def test_read_file_rejects_binary_file_with_no_extension_friendly_message(monkey
     monkeypatch.setattr(config, "data_root", tmp_path)
 
     with pytest.raises(HTTPException) as exc:
-        _run(data_explorer.read_file(".git/index"))
+        data_explorer.read_file(".git/index")
     assert exc.value.status_code == 415
     assert exc.value.detail == data_explorer.NOT_PREVIEWABLE_DETAIL
 
@@ -379,7 +374,7 @@ def test_read_file_missing_404(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "data_root", tmp_path)
 
     with pytest.raises(HTTPException) as exc:
-        _run(data_explorer.read_file("missing.txt"))
+        data_explorer.read_file("missing.txt")
     assert exc.value.status_code == 404
 
 
@@ -388,5 +383,5 @@ def test_read_file_rejects_traversal(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "data_root", tmp_path)
 
     with pytest.raises(HTTPException) as exc:
-        _run(data_explorer.read_file("../secret.txt"))
+        data_explorer.read_file("../secret.txt")
     assert exc.value.status_code == 400

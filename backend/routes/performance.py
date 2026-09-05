@@ -58,7 +58,7 @@ def _resolve_as_of(as_of: str | None) -> dt.date | None:
 
 @router.get("/performance/{owner}/alpha")
 @handle_owner_not_found
-async def owner_alpha(
+def owner_alpha(
     owner: str,
     benchmark: str = "VWRL.L",
     days: int = 365,
@@ -84,7 +84,7 @@ async def owner_alpha(
 
 @router.get("/performance/{owner}/tracking-error")
 @handle_owner_not_found
-async def owner_tracking_error(
+def owner_tracking_error(
     owner: str,
     benchmark: str = "VWRL.L",
     days: int = 365,
@@ -110,7 +110,7 @@ async def owner_tracking_error(
 
 @router.get("/performance/{owner}/max-drawdown")
 @handle_owner_not_found
-async def owner_max_drawdown(owner: str, days: int = 365, as_of: str | None = None):
+def owner_max_drawdown(owner: str, days: int = 365, as_of: str | None = None):
     """Return max drawdown for ``owner``."""
     owner = _validate_owner_slug(owner, "owner")
     try:
@@ -129,7 +129,7 @@ async def owner_max_drawdown(owner: str, days: int = 365, as_of: str | None = No
 
 @router.get("/performance/{owner}/twr")
 @handle_owner_not_found
-async def owner_twr(owner: str, days: int = 365, as_of: str | None = None):
+def owner_twr(owner: str, days: int = 365, as_of: str | None = None):
     """Return time-weighted return for ``owner``."""
     owner = _validate_owner_slug(owner, "owner")
     try:
@@ -141,7 +141,7 @@ async def owner_twr(owner: str, days: int = 365, as_of: str | None = None):
 
 @router.get("/performance/{owner}/xirr")
 @handle_owner_not_found
-async def owner_xirr(owner: str, days: int = 365, as_of: str | None = None):
+def owner_xirr(owner: str, days: int = 365, as_of: str | None = None):
     """Return XIRR for ``owner``."""
     owner = _validate_owner_slug(owner, "owner")
     try:
@@ -153,7 +153,7 @@ async def owner_xirr(owner: str, days: int = 365, as_of: str | None = None):
 
 @router.get("/performance/{owner}/holdings")
 @handle_owner_not_found
-async def owner_holdings(owner: str, date: str):
+def owner_holdings(owner: str, date: str):
     """Return holding values for ``owner`` on a specific date."""
     owner = _validate_owner_slug(owner, "owner")
     try:
@@ -166,7 +166,7 @@ async def owner_holdings(owner: str, date: str):
 
 
 @router.get("/performance-group/{slug}/alpha")
-async def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
+def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return alpha vs. benchmark for a group portfolio."""
     slug = _validate_owner_slug(slug, "slug")
     benchmark = _validate_benchmark(benchmark)
@@ -184,7 +184,7 @@ async def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
 
 
 @router.get("/performance-group/{slug}/tracking-error")
-async def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int = 365):
+def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return tracking error vs. benchmark for a group portfolio."""
     slug = _validate_owner_slug(slug, "slug")
     benchmark = _validate_benchmark(benchmark)
@@ -202,7 +202,7 @@ async def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int =
 
 
 @router.get("/performance-group/{slug}/max-drawdown")
-async def group_max_drawdown(slug: str, days: int = 365):
+def group_max_drawdown(slug: str, days: int = 365):
     """Return max drawdown for a group portfolio."""
     slug = _validate_owner_slug(slug, "slug")
     try:
@@ -219,7 +219,7 @@ async def group_max_drawdown(slug: str, days: int = 365):
 
 
 @router.get("/performance-group/{slug}")
-async def group_performance(
+def group_performance(
     slug: str,
     days: int = 365,
     exclude_cash: bool = False,
@@ -247,7 +247,7 @@ async def group_performance(
 
 
 @router.get("/performance-group/{slug}/twr")
-async def group_twr(slug: str, days: int = 365, as_of: str | None = None):
+def group_twr(slug: str, days: int = 365, as_of: str | None = None):
     """Return the combined time-weighted return for a group portfolio.
 
     ``partial`` is true, and ``missing_members`` lists who, when at least
@@ -275,7 +275,7 @@ async def group_twr(slug: str, days: int = 365, as_of: str | None = None):
 
 
 @router.get("/performance-group/{slug}/xirr")
-async def group_xirr(slug: str, days: int = 365, as_of: str | None = None):
+def group_xirr(slug: str, days: int = 365, as_of: str | None = None):
     """Return the combined XIRR for a group portfolio.
 
     ``partial`` is true, and ``missing_members`` lists who, when at least
@@ -304,7 +304,7 @@ async def group_xirr(slug: str, days: int = 365, as_of: str | None = None):
 
 @router.get("/performance/{owner}")
 @handle_owner_not_found
-async def performance(
+def performance(
     owner: str,
     days: int = 365,
     exclude_cash: bool = False,
@@ -330,7 +330,7 @@ async def performance(
 
 @router.get("/returns/compare")
 @handle_owner_not_found
-async def compare_returns(owner: str, days: int = 365):
+def compare_returns(owner: str, days: int = 365):
     """Return portfolio CAGR and cash APY for ``owner``."""
     owner = _validate_owner_slug(owner, "owner")
     try:

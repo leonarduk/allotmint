@@ -114,7 +114,7 @@ async def test_create_manual_holding_persists_to_s3(monkeypatch):
     )
 
     payload = transactions_module.ManualHoldingCreate(owner="alice", account="ISA", ticker="aaa", value_gbp=1000)
-    result = await transactions_module.create_manual_holding(_make_request(), payload)
+    result = transactions_module.create_manual_holding(_make_request(), payload)
 
     assert result["status"] == "saved"
     key = f"{WRITABLE_ACCOUNTS_PREFIX}/alice/isa.json"
@@ -150,7 +150,7 @@ async def test_create_transaction_persists_to_s3(monkeypatch):
         units=2.0,
         reason="diversify",
     )
-    result = await transactions_module.create_transaction(_make_request(), tx)
+    result = transactions_module.create_transaction(_make_request(), tx)
 
     assert result["owner"] == "alice"
     key = f"{WRITABLE_ACCOUNTS_PREFIX}/alice/ISA_transactions.json"
@@ -173,7 +173,7 @@ class TestReadEndpointsWithNonexistentRoot:
 
     @pytest.mark.asyncio
     async def test_list_transactions_returns_empty_list(self, tmp_path):
-        result = await transactions_module.list_transactions(self._nonexistent_request(tmp_path))
+        result = transactions_module.list_transactions(self._nonexistent_request(tmp_path))
         assert result == []
 
     @pytest.mark.asyncio
@@ -183,7 +183,7 @@ class TestReadEndpointsWithNonexistentRoot:
         # transactions_with_compliance, this endpoint also merges in the
         # global demo dataset, so a real demo owner like "alice" would
         # legitimately return non-empty data here.
-        result = await transactions_module.list_manual_holdings(
+        result = transactions_module.list_manual_holdings(
             self._nonexistent_request(tmp_path), owner="no-such-demo-owner"
         )
         assert result == {"owner": "no-such-demo-owner", "accounts": []}
@@ -191,5 +191,5 @@ class TestReadEndpointsWithNonexistentRoot:
     @pytest.mark.asyncio
     async def test_transactions_with_compliance_returns_empty_list(self, tmp_path):
         pytest.importorskip("allotmint_pro")
-        result = await transactions_module.transactions_with_compliance("alice", self._nonexistent_request(tmp_path))
+        result = transactions_module.transactions_with_compliance("alice", self._nonexistent_request(tmp_path))
         assert result == {"transactions": []}

@@ -51,12 +51,12 @@ class TemplateUpdatePayload(BaseModel):
 
 
 @router.get("/reports/templates")
-async def list_templates() -> List[dict]:
+def list_templates() -> List[dict]:
     return list_template_metadata()
 
 
 @router.get("/reports/templates/{template_id}")
-async def get_template_definition(template_id: str) -> dict:
+def get_template_definition(template_id: str) -> dict:
     template = get_template(template_id)
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -64,7 +64,7 @@ async def get_template_definition(template_id: str) -> dict:
 
 
 @router.post("/reports/templates", status_code=status.HTTP_201_CREATED)
-async def create_template(payload: TemplateCreatePayload) -> dict:
+def create_template(payload: TemplateCreatePayload) -> dict:
     try:
         template = create_user_template(payload.model_dump())
     except ValueError as exc:
@@ -73,7 +73,7 @@ async def create_template(payload: TemplateCreatePayload) -> dict:
 
 
 @router.put("/reports/templates/{template_id}")
-async def update_template(template_id: str, payload: TemplateUpdatePayload) -> dict:
+def update_template(template_id: str, payload: TemplateUpdatePayload) -> dict:
     try:
         template = update_user_template(template_id, payload.model_dump())
     except FileNotFoundError:
@@ -84,7 +84,7 @@ async def update_template(template_id: str, payload: TemplateUpdatePayload) -> d
 
 
 @router.delete("/reports/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_template(template_id: str) -> Response:
+def delete_template(template_id: str) -> Response:
     try:
         delete_user_template(template_id)
     except FileNotFoundError:
@@ -95,7 +95,7 @@ async def delete_template(template_id: str) -> Response:
 
 
 @router.get("/reports/{owner}")
-async def owner_report(
+def owner_report(
     owner: str,
     start: Optional[str] = None,
     end: Optional[str] = None,
@@ -137,7 +137,7 @@ async def owner_report(
 
 
 @router.get("/reports/{owner}/{template_id}")
-async def owner_template_report(
+def owner_template_report(
     owner: str,
     template_id: str,
     start: Optional[str] = None,

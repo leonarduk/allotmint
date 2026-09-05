@@ -29,13 +29,13 @@ async def require_active_user(request: Request, current_user: str | None = Depen
 
 
 @router.get("/today")
-async def today(current_user: str = Depends(require_active_user)):
+def today(current_user: str = Depends(require_active_user)):
     """Return today's quests for the authenticated user."""
     return quests.get_quests(current_user)
 
 
 @router.post("/{quest_id}/complete")
-async def complete(quest_id: str, current_user: str = Depends(require_active_user)):
+def complete(quest_id: str, current_user: str = Depends(require_active_user)):
     """Mark ``quest_id`` complete for the authenticated user."""
     try:
         return quests.mark_complete(current_user, quest_id)

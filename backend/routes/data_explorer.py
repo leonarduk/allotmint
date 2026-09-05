@@ -236,7 +236,7 @@ def _iso_mtime(stat_result: os.stat_result) -> str:
 
 
 @router.get("/tree")
-async def list_directory(path: str = Query("")) -> dict[str, Any]:
+def list_directory(path: str = Query("")) -> dict[str, Any]:
     """List the immediate contents of a directory under the data root."""
 
     if config.app_env == "aws":
@@ -287,7 +287,7 @@ class FilePreviewResponse(BaseModel):
 
 
 @router.get("/file", response_model=FilePreviewResponse)
-async def read_file(path: str = Query(...)) -> dict[str, Any]:
+def read_file(path: str = Query(...)) -> dict[str, Any]:
     """Return a text preview of a single file under the data root."""
 
     if config.app_env == "aws":

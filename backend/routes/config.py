@@ -133,13 +133,13 @@ def _normalise_config_structure(raw: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @router.get("")
-async def read_config() -> Dict[str, Any]:
+def read_config() -> Dict[str, Any]:
     """Return the full application configuration."""
     return serialise_config(config_module.config)
 
 
 @router.put("")
-async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
+def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Update configuration values and persist them to ``config.yaml``."""
     path: Path = _project_config_path()
     stored_data: Dict[str, Any] = {}

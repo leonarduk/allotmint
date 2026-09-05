@@ -60,7 +60,7 @@ def _resolve_owner_dir(root: Path, owner: str) -> Path:
 
 @router.get("/{owner}/approvals")
 @handle_owner_not_found
-async def get_approvals(owner: str, request: Request, identity: str | None = Depends(get_active_user)):
+def get_approvals(owner: str, request: Request, identity: str | None = Depends(get_active_user)):
     root = resolve_accounts_root(request)
     ensure_owner_access(identity, owner, root)
     owner_dir = _resolve_owner_dir(root, owner)

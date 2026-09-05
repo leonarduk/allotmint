@@ -93,7 +93,7 @@ async def test_log_event_appends_expected_event(monkeypatch: pytest.MonkeyPatch)
         occurred_at=occurred_at,
     )
 
-    response = await analytics.log_event(payload, current_user="authenticated-user")
+    response = analytics.log_event(payload, current_user="authenticated-user")
 
     assert response == {"status": "ok"}
     stored = captured["event"]
@@ -118,7 +118,7 @@ async def test_log_event_validation_errors(payload_kwargs: dict[str, Any], expec
 
     payload = analytics.AnalyticsEventIn(**payload_kwargs)
     with pytest.raises(HTTPException) as exc:
-        await analytics.log_event(payload, current_user=None)
+        analytics.log_event(payload, current_user=None)
 
     assert exc.value.status_code == 400
     assert exc.value.detail == expected_detail
@@ -135,7 +135,7 @@ async def test_log_event_rejects_unserialisable_metadata() -> None:
     )
 
     with pytest.raises(HTTPException) as exc:
-        await analytics.log_event(payload, current_user="user")
+        analytics.log_event(payload, current_user="user")
 
     assert exc.value.status_code == 400
     assert "Invalid metadata" in str(exc.value.detail)
@@ -151,7 +151,7 @@ async def test_get_funnel_with_no_events(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setattr(analytics, "load_events", fake_load_events)
 
-    summary = await analytics.get_funnel("trail")
+    summary = analytics.get_funnel("trail")
 
     assert summary.source == "trail"
     assert summary.total_events == 0
@@ -183,7 +183,7 @@ async def test_get_funnel_with_events(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(analytics, "load_events", fake_load_events)
 
-    summary = await analytics.get_funnel("trail")
+    summary = analytics.get_funnel("trail")
 
     assert summary.source == "trail"
     assert summary.total_events == len(events)

@@ -32,7 +32,7 @@ class SubscribePayload(BaseModel):
 
 
 @router.post("/subscribe")
-async def subscribe(payload: SubscribePayload, request: Request):
+def subscribe(payload: SubscribePayload, request: Request):
     _validate_owner(payload.user, request, allow_unknown=True)
     nudge_utils.set_user_nudge(payload.user, payload.frequency, payload.snooze_until)
     return {"status": "ok"}
@@ -44,12 +44,12 @@ class SnoozePayload(BaseModel):
 
 
 @router.post("/snooze")
-async def snooze(payload: SnoozePayload, request: Request):
+def snooze(payload: SnoozePayload, request: Request):
     _validate_owner(payload.user, request, allow_unknown=True)
     nudge_utils.snooze_user(payload.user, payload.days)
     return {"status": "ok"}
 
 
 @router.get("/")
-async def list_nudges():
+def list_nudges():
     return nudge_utils.get_recent_nudges()

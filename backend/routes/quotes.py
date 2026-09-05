@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/quotes")
-async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
+def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
     """Return quote data for the provided comma-separated ``symbols``."""
 
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]

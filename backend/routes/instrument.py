@@ -124,7 +124,7 @@ def instrument_batch(
 
 
 @router.get("/search")
-async def search_instruments(
+def search_instruments(
     q: str | None = Query(None, description="Search term for ticker or name"),
     sector: str | None = Query(None),
     region: str | None = Query(None),
@@ -285,7 +285,7 @@ def _render_html(
 # route
 # ────────────────────────────────────────────────────────────────
 @router.get("/", response_class=HTMLResponse)
-async def instrument(
+def instrument(
     ticker: str = Query(..., description="Full ticker, e.g. VWRL.L"),
     days: int = Query(365, ge=0, le=36500),
     start_date: Annotated[Optional[date], Query(description="Start date YYYY-MM-DD; overrides days")] = None,
@@ -586,7 +586,7 @@ async def instrument(
 
 
 @router.get("/intraday")
-async def intraday(
+def intraday(
     ticker: str = Query(..., description="Full ticker, e.g. VWRL.L"),
 ):
     """Return ~48h of intraday prices for ``ticker``.

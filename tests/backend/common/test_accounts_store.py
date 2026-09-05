@@ -526,3 +526,74 @@ def test_s3_iter_keys_log_injection_stripped(caplog: pytest.LogCaptureFixture) -
 
     _assert_no_injected_newlines(caplog)
     assert caplog.records
+
+
+# ---------------------------------------------------------------------------
+# Group-portfolio cache invalidation on write
+# ---------------------------------------------------------------------------
+#
+# The cache added in backend/common/portfolio_cache.py has a 60s TTL, so
+# without these hooks a user who adds a position would keep seeing the
+# pre-write totals on the next page load. Each test seeds the cache, performs
+# a write through the store, and asserts the entry is gone.
+
+
+def _seed_group_portfolio_cache():
+    from backend.common import portfolio_cache
+
+    portfolio_cache.cached_group_portfolio("all", None, lambda: {"slug": "all", "accounts": []})
+    return portfolio_cache
+
+
+def test_local_store_edit_invalidates_group_portfolio_cache(tmp_path):
+    portfolio_cache = _seed_group_portfolio_cache()
+    builds = []
+
+    store = LocalAccountsStore(root=tmp_path)
+    with store.edit_document("alice", "isa.json", default={}) as data:
+        data["holdings"] = [{"ticker": "AAA", "value_gbp": 100}]
+
+    portfolio_cache.cached_group_portfolio("all", None, lambda: builds.append(1) or {"slug": "all"})
+    assert builds == [1]
+
+
+def test_local_store_edit_keeps_cache_when_the_write_is_abandoned(tmp_path):
+    portfolio_cache = _seed_group_portfolio_cache()
+    builds = []
+
+    store = LocalAccountsStore(root=tmp_path)
+    with pytest.raises(RuntimeError):
+        with store.edit_document("alice", "isa.json", default={}) as data:
+            data["holdings"] = [{"ticker": "AAA"}]
+            raise RuntimeError("boom")
+
+    # Nothing was committed, so there is nothing to invalidate -- dropping the
+    # cache here would turn every failed write into a 10.7s rebuild.
+    portfolio_cache.cached_group_portfolio("all", None, lambda: builds.append(1) or {"slug": "all"})
+    assert builds == []
+
+
+def test_local_store_rebuild_portfolio_invalidates_group_portfolio_cache(tmp_path, monkeypatch):
+    portfolio_cache = _seed_group_portfolio_cache()
+    builds = []
+
+    monkeypatch.setattr(portfolio_loader, "rebuild_account_holdings", lambda *a, **k: {})
+    monkeypatch.setattr("backend.common.portfolio.build_owner_portfolio", lambda *a, **k: None)
+
+    store = LocalAccountsStore(root=tmp_path)
+    store.rebuild_portfolio("alice", "isa")
+
+    portfolio_cache.cached_group_portfolio("all", None, lambda: builds.append(1) or {"slug": "all"})
+    assert builds == [1]
+
+
+def test_s3_store_put_invalidates_group_portfolio_cache():
+    portfolio_cache = _seed_group_portfolio_cache()
+    builds = []
+
+    store = S3AccountsStore(bucket="test-bucket")
+    with mock.patch.object(S3AccountsStore, "_s3", return_value=mock.MagicMock()):
+        store._put_document("alice", "isa.json", {"holdings": []})
+
+    portfolio_cache.cached_group_portfolio("all", None, lambda: builds.append(1) or {"slug": "all"})
+    assert builds == [1]

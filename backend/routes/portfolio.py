@@ -28,13 +28,16 @@ from backend.common import (
     group_portfolio,
     holding_utils,
     instrument_api,
+)
+from backend.common import portfolio as portfolio_mod
+from backend.common import (
     portfolio_utils,
     prices,
 )
-from backend.common import portfolio as portfolio_mod
 from backend.common.account_models import OwnerSummaryRecord, PersonMetadata
 from backend.common.core_optional import require_core
 from backend.common.errors import log_owner_not_found
+from backend.common.portfolio_cache import cached_group_portfolio, invalidate_group_portfolios
 from backend.config import config, demo_identity
 from backend.logging_setup import sanitise_exception_traceback, sanitise_log_value
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
@@ -106,7 +109,7 @@ def _resolve_pricing_date(as_of: str | None) -> dt.date | None:
     return calc.resolve_weekday(candidate, forward=False)
 
 
-def _build_group_portfolio(slug: str, pricing_date: dt.date | None) -> Dict[str, Any]:
+def _build_group_portfolio_uncached(slug: str, pricing_date: dt.date | None) -> Dict[str, Any]:
     """Return a group portfolio, tolerating simplified test doubles."""
 
     builder = group_portfolio.build_group_portfolio
@@ -121,6 +124,23 @@ def _build_group_portfolio(slug: str, pricing_date: dt.date | None) -> Dict[str,
         kwargs["pricing_date"] = pricing_date
 
     return builder(slug, **kwargs)
+
+
+def _build_group_portfolio(slug: str, pricing_date: dt.date | None) -> Dict[str, Any]:
+    """Return a group portfolio, served from cache while one is fresh.
+
+    Every endpoint that needs the built portfolio goes through here rather
+    than calling ``group_portfolio.build_group_portfolio`` itself, so one page
+    load costs one build instead of one per endpoint. See
+    ``backend/common/portfolio_cache.py`` for the TTL, the invalidation points
+    and -- importantly -- why the key is not just ``(slug, pricing_date)``.
+    """
+
+    return cached_group_portfolio(
+        slug,
+        pricing_date,
+        lambda: _build_group_portfolio_uncached(slug, pricing_date),
+    )
 
 
 # --------------------------------------------------------------
@@ -705,16 +725,7 @@ async def group_instruments(
 ):
     try:
         pricing_date = _resolve_pricing_date(as_of)
-        builder = group_portfolio.build_group_portfolio
-        try:
-            params = inspect.signature(builder).parameters
-        except (TypeError, ValueError):  # pragma: no cover - non-standard callables
-            params = {}
-
-        if "pricing_date" in params:
-            gp = builder(slug, pricing_date=pricing_date)
-        else:
-            gp = builder(slug)
+        gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
 
@@ -983,6 +994,10 @@ async def instrument_detail(
 async def _do_refresh_prices() -> dict:
     logger.info("Refreshing prices via /prices/refresh")
     result = await asyncio.to_thread(prices.refresh_prices)
+    # Every cached group portfolio was valued at the old prices, so a refresh
+    # that left them in place would return "ok" and change nothing the user
+    # can see for up to the TTL.
+    invalidate_group_portfolios()
     return {"status": "ok", **result}
 
 

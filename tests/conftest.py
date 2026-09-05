@@ -152,6 +152,23 @@ def clear_opportunities_cache():
     opportunities_module._OPPORTUNITIES_CACHE.clear()
 
 
+@pytest.fixture(autouse=True)
+def clear_group_portfolio_cache():
+    """Reset the process-wide group-portfolio cache between tests.
+
+    ``backend/common/portfolio_cache.py`` caches built group portfolios for 60s
+    so that one page load does not re-run a multi-second build once per
+    endpoint. Without this reset, a test that stubs ``build_group_portfolio``
+    with one fixture is answered from whatever an earlier test cached under the
+    same (slug, as_of, demo scope) key -- the stub looks ignored.
+    """
+    from backend.common import portfolio_cache
+
+    portfolio_cache.invalidate_group_portfolios()
+    yield
+    portfolio_cache.invalidate_group_portfolios()
+
+
 @pytest.fixture
 def quotes_table(monkeypatch):
     """In-memory DynamoDB table for quote tests."""

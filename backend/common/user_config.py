@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from backend.common.data_loader import resolve_owner_dir
+from backend.common.portfolio_cache import invalidate_group_portfolios
 from backend.config import config
 
 
@@ -84,3 +85,6 @@ def save_user_config(owner: str, cfg: UserConfig | dict[str, object], accounts_r
 
     data = {**existing, **updates}
     path.write_text(json.dumps(data, indent=2, sort_keys=True))
+    # Read by `build_group_portfolio` through `enrich_holding` (hold-day and
+    # approval-exemption rules), so a cached portfolio predates this change.
+    invalidate_group_portfolios()

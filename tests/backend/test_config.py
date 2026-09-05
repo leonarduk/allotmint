@@ -1,4 +1,5 @@
 """Tests for backend/config.py, focusing on default value consistency."""
+
 from __future__ import annotations
 
 import pytest
@@ -41,11 +42,7 @@ class TestRateLimitDefault:
         assert direct.rate_limit_per_minute == 6000
         assert built.rate_limit_per_minute == 6000
         assert loaded.rate_limit_per_minute == 6000
-        assert (
-            direct.rate_limit_per_minute
-            == built.rate_limit_per_minute
-            == loaded.rate_limit_per_minute
-        )
+        assert direct.rate_limit_per_minute == built.rate_limit_per_minute == loaded.rate_limit_per_minute
 
 
 class TestOtherDefaultsConsistency:
@@ -67,9 +64,7 @@ class TestOtherDefaultsConsistency:
             ("enable_data_quality_admin", True),
         ],
     )
-    def test_field_defaults_match(
-        self, field_name: str, expected_default: object
-    ) -> None:
+    def test_field_defaults_match(self, field_name: str, expected_default: object) -> None:
         """Dataclass default and build_config({}) default agree for each field."""
         direct = Config()
         built = build_config({})

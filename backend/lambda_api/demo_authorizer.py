@@ -88,11 +88,24 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     authorizer exception into a 500 -- but "deny the request" is the correct
     outcome for a bug in this Lambda, not "let it through unauthenticated"
     nor "surface a 500 to the caller instead of a clean 403".
+
+    Every denial is logged with a coarse, non-sensitive reason code (never
+    the token itself) before returning. ``decode_demo_token`` and
+    ``is_cognito_id_token`` deliberately swallow the ordinary "this token
+    doesn't validate" cases (bad signature, expired, wrong audience) as
+    normal control flow rather than raising -- which previously meant a
+    systemic problem here (e.g. a ``JWT_SECRET`` mismatch between this
+    Lambda and the one that minted the token) produced a 403 with zero
+    diagnostic trace in this function's own CloudWatch logs. See the
+    incident writeup that prompted this change: every legitimate token was
+    silently falling through to the final ``isAuthorized: False`` with no
+    log line at all, indistinguishable from a client simply sending garbage.
     """
 
     try:
         token = _bearer_token(event)
         if not token:
+            logger.info("Gateway authorizer denied request: no bearer token present")
             return {"isAuthorized": False}
 
         demo_claims = decode_demo_token(token)
@@ -105,6 +118,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if is_cognito_id_token(token, _cognito_client_ids()):
             return {"isAuthorized": True, "context": {"authType": "cognito"}}
 
+        logger.info(
+            "Gateway authorizer denied request: bearer token is neither a valid "
+            "demo token nor a valid Cognito ID token"
+        )
         return {"isAuthorized": False}
     except Exception:  # deliberate fail-closed catch-all, see docstring above
         logger.exception("Gateway authorizer failed while evaluating bearer token")

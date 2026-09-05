@@ -65,24 +65,33 @@ def test_lambda_handler_admits_valid_cognito_token(monkeypatch):
     assert result == {"isAuthorized": True, "context": {"authType": "cognito"}}
 
 
-def test_lambda_handler_rejects_token_that_is_neither(monkeypatch):
+def test_lambda_handler_rejects_token_that_is_neither(monkeypatch, caplog):
     monkeypatch.setattr(mod, "decode_demo_token", lambda token: None)
     monkeypatch.setattr(mod, "is_cognito_id_token", lambda token, client_ids: False)
 
-    result = mod.lambda_handler(_event("garbage"), {})
+    with caplog.at_level("INFO", logger=mod.logger.name):
+        result = mod.lambda_handler(_event("garbage"), {})
 
     assert result == {"isAuthorized": False}
+    # A denial must always leave a trace in this Lambda's own logs (see the
+    # module docstring): a prior incident had no log line at all here for an
+    # ordinary "token doesn't validate" denial, which made a systemic
+    # JWT_SECRET mismatch indistinguishable from a client sending garbage.
+    assert "neither a valid demo token nor a valid Cognito ID token" in caplog.text
+    assert "garbage" not in caplog.text
 
 
-def test_lambda_handler_rejects_missing_bearer_token(monkeypatch):
+def test_lambda_handler_rejects_missing_bearer_token(monkeypatch, caplog):
     called = []
     monkeypatch.setattr(mod, "decode_demo_token", lambda token: called.append(token))
     monkeypatch.setattr(mod, "is_cognito_id_token", lambda token, client_ids: called.append(token))
 
-    result = mod.lambda_handler(_event(None), {})
+    with caplog.at_level("INFO", logger=mod.logger.name):
+        result = mod.lambda_handler(_event(None), {})
 
     assert result == {"isAuthorized": False}
     assert called == []
+    assert "no bearer token present" in caplog.text
 
 
 def test_lambda_handler_fails_closed_on_unexpected_exception(monkeypatch):

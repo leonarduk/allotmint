@@ -48,18 +48,21 @@ def test_aggregate_by_sector_totals_and_percentages():
     assert sectors["Tech"]["gain_gbp"] == 50
     assert sectors["Tech"]["gain_pct"] == pytest.approx(50)
     assert sectors["Tech"]["contribution_pct"] == pytest.approx(14.2857, rel=1e-3)
+    assert sectors["Tech"]["weight_pct"] == pytest.approx(34.0909, rel=1e-3)
 
     assert sectors["Finance"]["market_value_gbp"] == 220
     assert sectors["Finance"]["cost_gbp"] == 200
     assert sectors["Finance"]["gain_gbp"] == 20
     assert sectors["Finance"]["gain_pct"] == pytest.approx(10)
     assert sectors["Finance"]["contribution_pct"] == pytest.approx(5.7143, rel=1e-3)
+    assert sectors["Finance"]["weight_pct"] == pytest.approx(50.0)
 
     assert sectors["Unknown"]["market_value_gbp"] == 70
     assert sectors["Unknown"]["cost_gbp"] == 50
     assert sectors["Unknown"]["gain_gbp"] == 20
     assert sectors["Unknown"]["gain_pct"] == pytest.approx(40)
     assert sectors["Unknown"]["contribution_pct"] == pytest.approx(5.7143, rel=1e-3)
+    assert sectors["Unknown"]["weight_pct"] == pytest.approx(15.9091, rel=1e-3)
 
 
 def test_aggregate_by_region_totals_and_percentages():
@@ -73,18 +76,58 @@ def test_aggregate_by_region_totals_and_percentages():
     assert regions["US"]["gain_gbp"] == 50
     assert regions["US"]["gain_pct"] == pytest.approx(50)
     assert regions["US"]["contribution_pct"] == pytest.approx(14.2857, rel=1e-3)
+    assert regions["US"]["weight_pct"] == pytest.approx(34.0909, rel=1e-3)
 
     assert regions["EU"]["market_value_gbp"] == 70
     assert regions["EU"]["cost_gbp"] == 50
     assert regions["EU"]["gain_gbp"] == 20
     assert regions["EU"]["gain_pct"] == pytest.approx(40)
     assert regions["EU"]["contribution_pct"] == pytest.approx(5.7143, rel=1e-3)
+    assert regions["EU"]["weight_pct"] == pytest.approx(15.9091, rel=1e-3)
 
     assert regions["Unknown"]["market_value_gbp"] == 220
     assert regions["Unknown"]["cost_gbp"] == 200
     assert regions["Unknown"]["gain_gbp"] == 20
     assert regions["Unknown"]["gain_pct"] == pytest.approx(10)
     assert regions["Unknown"]["contribution_pct"] == pytest.approx(5.7143, rel=1e-3)
+    assert regions["Unknown"]["weight_pct"] == pytest.approx(50.0)
+
+
+def test_weight_pct_is_share_of_market_value_and_sums_to_100():
+    """weight_pct must use market value, not cost.
+
+    Regression guard for the research tool reading contribution_pct (a
+    gain contribution measured against cost) as if it were a portfolio
+    weight, which produced sector "weights" of ~1e-06.
+    """
+
+    rows = portfolio_utils.aggregate_by_sector(_sample_portfolio())
+
+    assert sum(row["weight_pct"] for row in rows) == pytest.approx(100.0)
+    for row in rows:
+        assert row["weight_pct"] != pytest.approx(row["contribution_pct"])
+
+
+def test_weight_pct_is_none_when_portfolio_has_no_market_value():
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "AAA",
+                        "sector": "Tech",
+                        "market_value_gbp": 0,
+                        "cost_gbp": 0,
+                        "gain_gbp": 0,
+                    }
+                ]
+            }
+        ]
+    }
+
+    rows = portfolio_utils.aggregate_by_sector(portfolio)
+
+    assert [row["weight_pct"] for row in rows] == [None]
 
 
 def test_aggregate_by_region_merges_uk_aliases():

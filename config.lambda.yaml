@@ -29,15 +29,16 @@ auth:
   # ALLOWED_EMAILS env var if set (see backend/config.py).
   allowed_emails:
     - steveleonard11@gmail.com
-  # Shareable read-only demo link (#7402 breakdown). Temporarily disabled: a
-  # previously-minted token for the `buffett` demo account was accidentally
-  # exposed outside the deployment (leaked in an unrelated local debugging
-  # session). Per backend/app.py's `mint_demo_link` docstring, there is no
-  # per-token revocation -- flipping this flag is the only way to invalidate
-  # an already-issued token short of rotating JWT_SECRET (which would also
-  # invalidate every real user's session). Re-enable once a fresh token has
-  # been minted and the old one is confirmed dead.
-  demo_link_enabled: false
+  # Shareable read-only demo link (#7402 breakdown). Re-enabled after #7649
+  # revoked a leaked token by disabling this flag. Re-enabling is safe here
+  # only because the leaked token's own `exp` (72h TTL from mint) had
+  # already passed -- decode_demo_token() rejects expired tokens regardless
+  # of this flag (see backend/auth.py), so it cannot come back to life.
+  # There is still no per-token revocation (mint_demo_link()'s docstring in
+  # backend/app.py): a leaked-but-not-yet-expired token WOULD become valid
+  # again the moment this flag flips true, since JWT_SECRET is unchanged. A
+  # fresh token must be minted via POST /demo-link after this deploys.
+  demo_link_enabled: true
   demo_link_owner: buffett
   demo_link_ttl_hours: 72
 

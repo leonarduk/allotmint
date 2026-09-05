@@ -38,6 +38,7 @@ import { money, percent, percentOrNa } from "../lib/money";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
+import { isFresh, readFetchCache, runDeduped } from "../utils/fetchCache";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
@@ -79,6 +80,20 @@ const PIE_COLORS = [
 ];
 
 const INLINE_PIE_LABEL_MIN_WIDTH = 640;
+
+// Both of these back data that changes at most once a day (a 365-day
+// benchmark window; hand-edited grouping config), so a five-minute window is
+// generous rather than risky -- and both are still refreshed on expiry
+// behind whatever is already rendered.
+const BENCHMARK_METRICS_TTL_MS = 5 * 60_000;
+const GROUPING_DEFINITIONS_TTL_MS = 5 * 60_000;
+const GROUPING_DEFINITIONS_CACHE_KEY = "instrument-grouping-definitions";
+
+type GroupBenchmarkMetrics = {
+  alpha: number | null;
+  trackingError: number | null;
+  maxDrawdown: number | null;
+};
 
 const DAY_CHANGE_BASELINE_EPSILON = 1e-2;
 // Warn when a single holding represents more than this share of the full portfolio.
@@ -282,7 +297,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     loading,
     error: portfolioError,
     refetch: refetchPortfolio,
-  } = useFetch<GroupPortfolio>(fetchPortfolio, [slug, asOfOverride], !!slug);
+  } = useFetch<GroupPortfolio>(fetchPortfolio, [slug, asOfOverride], !!slug, {
+    // The single slowest call on the page (~10.7s server-side, #7215). Without
+    // a cache key every return to the overview paid that again from cold,
+    // behind a blank skeleton. The "Refresh" control calls `refetchPortfolio`,
+    // which forces past the TTL, so a deliberate refresh is still never stale.
+    cacheKey: `portfolio-group:${slug}:${asOfOverride ?? ""}`,
+  });
 
   const fetchSector = useCallback(
     () =>
@@ -301,11 +322,17 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     fetchSector,
     [activeOwner, slug, asOfOverride, enableAdvancedAnalytics],
     !!slug && enableAdvancedAnalytics,
+    {
+      cacheKey: activeOwner
+        ? `owner-sectors:${activeOwner}:${asOfOverride ?? ""}`
+        : `group-sectors:${slug}:${asOfOverride ?? ""}`,
+    },
   );
   const { data: regionContrib } = useFetch<RegionContribution[]>(
     fetchRegion,
     [slug, asOfOverride, enableAdvancedAnalytics],
     !!slug && !activeOwner && enableAdvancedAnalytics,
+    { cacheKey: `group-regions:${slug}:${asOfOverride ?? ""}` },
   );
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
@@ -523,9 +550,19 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     instrumentRefreshVersion,
   ]);
 
+  // Admin-managed grouping config, measured at ~2.1s (#7215) and changed by
+  // hand at most a few times a day, but refetched on every mount of this view.
+  // A long TTL keeps it off the critical path of a return visit entirely.
   useEffect(() => {
     let cancelled = false;
-    listInstrumentGroupingDefinitions()
+    const cached = readFetchCache<InstrumentGroupDefinition[]>(
+      GROUPING_DEFINITIONS_CACHE_KEY,
+    );
+    if (cached) {
+      setGroupDefinitions(cached.value);
+      if (isFresh(cached, GROUPING_DEFINITIONS_TTL_MS)) return;
+    }
+    runDeduped(GROUPING_DEFINITIONS_CACHE_KEY, listInstrumentGroupingDefinitions)
       .then((definitions) => {
         if (!cancelled) setGroupDefinitions(definitions);
       })
@@ -547,23 +584,50 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     }
   }, [portfolio]);
 
+  // Three 365-day benchmark computations that can only change once a day, yet
+  // were re-run on every mount. Cached together under one key because they are
+  // fetched and consumed as a set.
   useEffect(() => {
     if (!slug || !enableAdvancedAnalytics) return;
     let cancelled = false;
     setError(null);
-    Promise.all([
-      getGroupAlphaVsBenchmark(slug, "VWRL.L"),
-      getGroupTrackingError(slug, "VWRL.L"),
-      getGroupMaxDrawdown(slug),
-    ])
-      .then(([a, te, md]) => {
-        if (cancelled) return;
-        setAlpha(a.alpha_vs_benchmark);
-        setTrackingError(te.tracking_error);
-        setMaxDrawdown(md.max_drawdown);
+
+    const applyMetrics = (metrics: GroupBenchmarkMetrics) => {
+      setAlpha(metrics.alpha);
+      setTrackingError(metrics.trackingError);
+      setMaxDrawdown(metrics.maxDrawdown);
+    };
+
+    const cacheKey = `group-benchmark-metrics:${slug}`;
+    const cached = readFetchCache<GroupBenchmarkMetrics>(cacheKey);
+    if (cached) {
+      applyMetrics(cached.value);
+      if (isFresh(cached, BENCHMARK_METRICS_TTL_MS)) return;
+    }
+
+    runDeduped(cacheKey, () =>
+      Promise.all([
+        getGroupAlphaVsBenchmark(slug, "VWRL.L"),
+        getGroupTrackingError(slug, "VWRL.L"),
+        getGroupMaxDrawdown(slug),
+      ]).then(([a, te, md]) => ({
+        alpha: a.alpha_vs_benchmark,
+        trackingError: te.tracking_error,
+        maxDrawdown: md.max_drawdown,
+      })),
+    )
+      .then((metrics) => {
+        if (!cancelled) applyMetrics(metrics);
       })
       .catch((e) => {
         if (cancelled) return;
+        // A failed background refresh of values already on screen must not
+        // replace them with an error, for the same reason `useFetch` stays
+        // quiet in that case.
+        if (cached) {
+          console.warn("Background refresh of benchmark metrics failed", e);
+          return;
+        }
         setError(e instanceof Error ? e : new Error(String(e)));
       });
     return () => {

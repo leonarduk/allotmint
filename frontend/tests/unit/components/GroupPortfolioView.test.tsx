@@ -1209,6 +1209,72 @@ describe("GroupPortfolioView", () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/compliance/"))).toBe(false);
   });
 
+  it("renders instantly from cache when the user navigates away and back", async () => {
+    // The complaint this cache was built for: leaving the overview and
+    // returning re-paid a cold load (/portfolio-group/all measured at ~10.7s
+    // in #7215) behind a blank skeleton, even seconds after the same data had
+    // been on screen.
+    const cachedPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { units: 1, cost_basis_gbp: 80, market_value_gbp: 100, day_change_gbp: 5 },
+          ],
+        },
+      ],
+    };
+    const fetchMock = mockAllFetches(cachedPortfolio);
+    const requestCount = (fragment: string) =>
+      fetchMock.mock.calls.filter(([input]) =>
+        toUrlString(input as RequestInfo | URL).includes(fragment),
+      ).length;
+    const portfolioRequests = () =>
+      fetchMock.mock.calls.filter(([input]) => {
+        const url = toUrlString(input as RequestInfo | URL);
+        return url.includes("/portfolio-group/all") && !url.includes("/instruments");
+      }).length;
+
+    const first = renderWithConfig(
+      <GroupPortfolioView slug="all" owners={ownerFixtures} />,
+    );
+    await screen.findByRole("tab", { name: "Alice Example" });
+
+    const afterFirstVisit = {
+      portfolio: portfolioRequests(),
+      alpha: requestCount("/alpha"),
+      trackingError: requestCount("tracking-error"),
+      maxDrawdown: requestCount("max-drawdown"),
+      groupings: requestCount("/instrument/admin/groupings"),
+    };
+    expect(afterFirstVisit.portfolio).toBeGreaterThan(0);
+
+    first.unmount();
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    // Synchronous, before any await: the owner table is present on the first
+    // commit of the remount, so there is no skeleton frame to see.
+    expect(
+      screen.getByRole("tab", { name: "Alice Example" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Loading your portfolio/i),
+    ).not.toBeInTheDocument();
+
+    // And nothing went back to the network for data fetched moments ago.
+    await new Promise((resolve) => window.setTimeout(resolve, 50));
+    expect(portfolioRequests()).toBe(afterFirstVisit.portfolio);
+    expect(requestCount("/alpha")).toBe(afterFirstVisit.alpha);
+    expect(requestCount("tracking-error")).toBe(afterFirstVisit.trackingError);
+    expect(requestCount("max-drawdown")).toBe(afterFirstVisit.maxDrawdown);
+    expect(requestCount("/instrument/admin/groupings")).toBe(
+      afterFirstVisit.groupings,
+    );
+  });
+
   it("refetches after position, import, and account mutations", async () => {
     const user = userEvent.setup();
     Element.prototype.scrollIntoView = vi.fn();

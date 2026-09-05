@@ -10,7 +10,9 @@ import {
   getLogs,
   type Finding,
   refreshPrices,
+  clearGroupInstrumentCache,
 } from "../api";
+import { clearFetchCache } from "../utils/fetchCache";
 import { useConfig } from "../ConfigContext";
 import { useAuth } from "../AuthContext";
 import { useUser } from "../UserContext";
@@ -234,6 +236,11 @@ export default function Support() {
     setRefreshError(null);
     try {
       const resp = await refreshPrices();
+      // Every cached portfolio/valuation response was computed against the old
+      // prices, so drop the lot rather than let the overview render pre-refresh
+      // numbers for up to its TTL after the user explicitly asked for new ones.
+      clearFetchCache();
+      clearGroupInstrumentCache();
       setLastRefresh(resp.timestamp ?? new Date().toISOString());
     } catch (e) {
       setRefreshError(e instanceof Error ? e.message : String(e));

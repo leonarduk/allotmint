@@ -4,6 +4,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from backend.common import portfolio_cache
 from backend.routes import portfolio
 
 
@@ -223,23 +224,32 @@ def test_group_endpoints_accept_as_of(monkeypatch):
     )
 
     params = {"as_of": "2024-01-15"}
+    endpoints = [
+        "/portfolio-group/demo",
+        "/portfolio-group/demo/instruments",
+        "/portfolio-group/demo/sectors",
+        "/portfolio-group/demo/regions",
+        "/portfolio-group/demo/exposure",
+    ]
 
-    resp = client.get("/portfolio-group/demo", params=params)
-    assert resp.status_code == 200
+    # Each endpoint must resolve `as_of` and pass it down itself. The cache
+    # would otherwise hide a route that ignores the parameter entirely, since
+    # only the first request of a run reaches the builder -- so drop the cache
+    # between calls to check each one on its own.
+    for path in endpoints:
+        portfolio_cache.invalidate_group_portfolios()
+        resp = client.get(path, params=params)
+        assert resp.status_code == 200
 
-    resp = client.get("/portfolio-group/demo/instruments", params=params)
-    assert resp.status_code == 200
-
-    resp = client.get("/portfolio-group/demo/sectors", params=params)
-    assert resp.status_code == 200
-
-    resp = client.get("/portfolio-group/demo/regions", params=params)
-    assert resp.status_code == 200
-
-    resp = client.get("/portfolio-group/demo/exposure", params=params)
-    assert resp.status_code == 200
-    assert len(captured) == 5
+    assert len(captured) == len(endpoints)
     assert all(date == dt.date(2024, 1, 15) for date in captured)
+
+    # And with the cache warm, the same five requests share one build.
+    portfolio_cache.invalidate_group_portfolios()
+    captured.clear()
+    for path in endpoints:
+        assert client.get(path, params=params).status_code == 200
+    assert len(captured) == 1
 
 
 def test_calculate_weights_and_market_values_dedupes_case_and_sums_duplicates():

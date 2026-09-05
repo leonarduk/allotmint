@@ -7,12 +7,12 @@ backend/auth.py:201
 # caller, never attacker-controlled; email/token on the same call are already
 # wrapped in sanitise_log_value.
 backend/auth.py:775
-backend/common/accounts_store.py:283
 backend/common/accounts_store.py:291
-backend/common/accounts_store.py:410
+backend/common/accounts_store.py:299
+backend/common/accounts_store.py:419
 backend/common/alerts.py:44
-backend/common/approvals.py:40
-backend/common/approvals.py:88
+backend/common/approvals.py:41
+backend/common/approvals.py:89
 # (always int) can't carry attacker-controlled input.
 backend/common/authz.py:113
 # identity_present is `identity is not None` (always bool), not the raw

@@ -995,9 +995,7 @@ def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_cur
         cost = g["cost_gbp"]
         g["gain_pct"] = (g["gain_gbp"] / cost * 100.0) if cost else None
         g["contribution_pct"] = (g["gain_gbp"] / total_cost * 100.0) if total_cost else None
-        g["weight_pct"] = (
-            (g["market_value_gbp"] / total_market_value * 100.0) if total_market_value else None
-        )
+        g["weight_pct"] = (g["market_value_gbp"] / total_market_value * 100.0) if total_market_value else None
     return list(groups.values())
 
 

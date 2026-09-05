@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from fastapi.testclient import TestClient
@@ -43,6 +42,6 @@ def test_trading_agent_email_error(monkeypatch, caplog):
     monkeypatch.setattr(ta.alert_utils, "send_push_notification", lambda text: None)
     monkeypatch.setattr(ta, "publish_alert", lambda payload: (_ for _ in ()).throw(RuntimeError("nope")))
     with caplog.at_level(logging.INFO):
-        result = asyncio.run(ta.signals(notify_email=True))
+        result = ta.signals(notify_email=True)
     assert result == [ta.TradingSignal.model_validate(s) for s in fake_signals]
     assert any("SNS topic ARN not configured" in r.message for r in caplog.records)

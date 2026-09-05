@@ -81,7 +81,7 @@ async def test_list_group_labels_merges_trimmed_metadata(monkeypatch: pytest.Mon
         ],
     )
 
-    labels = await instrument_admin.list_group_labels()
+    labels = instrument_admin.list_group_labels()
 
     assert labels == sorted(["Alpha", "Beta", "Gamma"], key=str.casefold)
 
@@ -91,21 +91,21 @@ async def test_create_group_handles_duplicates_and_validation(monkeypatch: pytes
     monkeypatch.setattr(instrument_admin.instrument_groups, "load_groups", store.load_groups)
     monkeypatch.setattr(instrument_admin.instrument_groups, "add_group", store.add_group)
 
-    created = await instrument_admin.create_group({"name": " Beta "})
+    created = instrument_admin.create_group({"name": " Beta "})
     assert created["status"] == "created"
     assert created["group"] == "Beta"
     assert "Beta" in created["groups"]
 
-    duplicate = await instrument_admin.create_group({"name": " alpha "})
+    duplicate = instrument_admin.create_group({"name": " alpha "})
     assert duplicate["status"] == "exists"
     assert duplicate["group"] == "Alpha"
 
     with pytest.raises(HTTPException) as exc_non_str:
-        await instrument_admin.create_group({"name": 123})
+        instrument_admin.create_group({"name": 123})
     assert exc_non_str.value.status_code == 400
 
     with pytest.raises(HTTPException) as exc_blank:
-        await instrument_admin.create_group({"name": "   "})
+        instrument_admin.create_group({"name": "   "})
     assert exc_blank.value.status_code == 400
 
 
@@ -114,17 +114,17 @@ async def test_create_instrument_validation_and_persistence(
 ) -> None:
     path_states[("AAA", "NYSE")] = True
     with pytest.raises(HTTPException) as exc_exists:
-        await instrument_admin.create_instrument("NYSE", "AAA", {})
+        instrument_admin.create_instrument("NYSE", "AAA", {})
     assert exc_exists.value.status_code == 409
 
     path_states[("BBB", "NYSE")] = False
     with pytest.raises(HTTPException) as exc_mismatch:
-        await instrument_admin.create_instrument("NYSE", "BBB", {"ticker": "WRONG"})
+        instrument_admin.create_instrument("NYSE", "BBB", {"ticker": "WRONG"})
     assert exc_mismatch.value.status_code == 400
 
     payload = {"name": "Example"}
     path_states[("CCC", "NYSE")] = False
-    result = await instrument_admin.create_instrument("NYSE", "CCC", payload)
+    result = instrument_admin.create_instrument("NYSE", "CCC", payload)
     assert result == {"status": "created"}
     assert save_calls["saved"][-1] == ("CCC", "NYSE", payload)
 
@@ -136,7 +136,7 @@ async def test_update_instrument_errors_and_merges(
 ) -> None:
     path_states[("AAA", "NYSE")] = False
     with pytest.raises(HTTPException) as exc_missing:
-        await instrument_admin.update_instrument("NYSE", "AAA", {})
+        instrument_admin.update_instrument("NYSE", "AAA", {})
     assert exc_missing.value.status_code == 404
 
     path_states[("AAA", "NYSE")] = True
@@ -147,15 +147,15 @@ async def test_update_instrument_errors_and_merges(
     monkeypatch.setattr(instrument_admin, "_load_meta_for_update", load_meta)
 
     with pytest.raises(HTTPException) as exc_ticker:
-        await instrument_admin.update_instrument("NYSE", "AAA", {"ticker": "OTHER.NYSE"})
+        instrument_admin.update_instrument("NYSE", "AAA", {"ticker": "OTHER.NYSE"})
     assert exc_ticker.value.status_code == 400
 
     with pytest.raises(HTTPException) as exc_exchange:
-        await instrument_admin.update_instrument("NYSE", "AAA", {"exchange": "LSE"})
+        instrument_admin.update_instrument("NYSE", "AAA", {"exchange": "LSE"})
     assert exc_exchange.value.status_code == 400
 
     update = {"name": "Updated", "extra": 5}
-    response = await instrument_admin.update_instrument("NYSE", "AAA", update)
+    response = instrument_admin.update_instrument("NYSE", "AAA", update)
     assert response == {"status": "updated"}
 
     saved_entry = save_calls["saved"][-1]
@@ -189,7 +189,7 @@ async def test_refresh_instrument_offline_guard(
     monkeypatch.setattr(instrument_admin.config, "offline_mode", True)
 
     with pytest.raises(HTTPException) as exc:
-        await instrument_admin.refresh_instrument("NYSE", "AAA")
+        instrument_admin.refresh_instrument("NYSE", "AAA")
 
     assert exc.value.status_code == 503
     assert save_calls["saved"] == []
@@ -209,7 +209,7 @@ async def test_refresh_instrument_fetch_failure_returns_502(
     monkeypatch.setattr(instrument_admin, "_fetch_metadata_from_yahoo", lambda _: {})
 
     with pytest.raises(HTTPException) as exc:
-        await instrument_admin.refresh_instrument("NYSE", "BBB")
+        instrument_admin.refresh_instrument("NYSE", "BBB")
 
     assert exc.value.status_code == 502
     assert save_calls["saved"] == []
@@ -234,7 +234,7 @@ async def test_refresh_instrument_preview_shows_diff_without_saving(
     monkeypatch.setattr(instrument_admin, "_load_meta_for_update", load_meta)
     monkeypatch.setattr(instrument_admin, "_fetch_metadata_from_yahoo", lambda _: dict(fetched))
 
-    response = await instrument_admin.refresh_instrument("NYSE", "CCC")
+    response = instrument_admin.refresh_instrument("NYSE", "CCC")
 
     assert response["status"] == "preview"
     assert response["changes"]["name"] == {"from": "Old", "to": "New"}
@@ -258,7 +258,7 @@ async def test_refresh_instrument_persists_when_not_preview(
     monkeypatch.setattr(instrument_admin, "_load_meta_for_update", lambda *args: dict(existing))
     monkeypatch.setattr(instrument_admin, "_fetch_metadata_from_yahoo", lambda _: dict(fetched))
 
-    response = await instrument_admin.refresh_instrument("NYSE", "DDD", {"preview": False})
+    response = instrument_admin.refresh_instrument("NYSE", "DDD", {"preview": False})
 
     assert response["status"] == "updated"
     assert len(save_calls["saved"]) == 1
@@ -299,7 +299,7 @@ async def test_assign_group_validates_and_persists(
     monkeypatch.setattr(instrument_admin, "_load_meta_for_update", load_meta)
     monkeypatch.setattr(instrument_admin.instrument_groups, "add_group", add_group)
 
-    result = await instrument_admin.assign_group("NYSE", "DDD", {"group": "  Sector  "})
+    result = instrument_admin.assign_group("NYSE", "DDD", {"group": "  Sector  "})
 
     assert result["status"] == "assigned"
     assert result["group"] == "Sector"
@@ -308,10 +308,10 @@ async def test_assign_group_validates_and_persists(
     assert saved_entry[2]["grouping"] == "Sector"
 
     with pytest.raises(HTTPException):
-        await instrument_admin.assign_group("NYSE", "DDD", {"group": 123})
+        instrument_admin.assign_group("NYSE", "DDD", {"group": 123})
 
     with pytest.raises(HTTPException):
-        await instrument_admin.assign_group("NYSE", "DDD", {"group": "   "})
+        instrument_admin.assign_group("NYSE", "DDD", {"group": "   "})
 
 
 async def test_clear_group_persists_then_skips_when_absent(
@@ -331,11 +331,11 @@ async def test_clear_group_persists_then_skips_when_absent(
 
     monkeypatch.setattr(instrument_admin, "_load_meta_for_update", load_meta)
 
-    result_first = await instrument_admin.clear_group("NYSE", "EEE")
+    result_first = instrument_admin.clear_group("NYSE", "EEE")
     assert result_first == {"status": "cleared"}
     first_save_count = len(save_calls["saved"])
     assert save_calls["saved"][-1][2].get("grouping") is None
 
-    result_second = await instrument_admin.clear_group("NYSE", "EEE")
+    result_second = instrument_admin.clear_group("NYSE", "EEE")
     assert result_second == {"status": "cleared"}
     assert len(save_calls["saved"]) == first_save_count

@@ -66,7 +66,7 @@ async def test_read_config_exposes_auth_enabled_bootstrap_fields(monkeypatch: py
     )
     monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
 
-    result = await routes_config.read_config()
+    result = routes_config.read_config()
 
     assert result["google_auth_enabled"] is True
     assert result["google_client_id"] == "client-123"
@@ -85,7 +85,7 @@ async def test_read_config_redacts_secret_fields(monkeypatch: pytest.MonkeyPatch
     )
     monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
 
-    result = await routes_config.read_config()
+    result = routes_config.read_config()
 
     for secret_field in routes_config._SECRET_CONFIG_FIELDS:
         assert secret_field not in result
@@ -100,7 +100,7 @@ async def test_read_config_exposes_auth_disabled_local_login_fields(monkeypatch:
     )
     monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
 
-    result = await routes_config.read_config()
+    result = routes_config.read_config()
 
     assert result["google_auth_enabled"] is False
     assert result["google_client_id"] is None
@@ -120,7 +120,7 @@ async def test_read_config_includes_aws_ui_auth_when_env_set(
     )
     monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
 
-    result = await routes_config.read_config()
+    result = routes_config.read_config()
 
     assert "awsUiAuth" in result
     assert result["awsUiAuth"]["enabled"] is True
@@ -135,7 +135,7 @@ async def test_read_config_omits_aws_ui_auth_when_disabled(
     dummy_config = routes_config.config_module.Config(disable_auth=True)
     monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
 
-    result = await routes_config.read_config()
+    result = routes_config.read_config()
 
     assert "awsUiAuth" not in result
     assert "aws_ui_auth" not in result
@@ -151,7 +151,7 @@ async def test_update_config_rejects_invalid_google_auth_env(monkeypatch: pytest
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "maybe")
 
     with pytest.raises(HTTPException) as exc:
-        await routes_config.update_config({"auth": {"disable_auth": True}})
+        routes_config.update_config({"auth": {"disable_auth": True}})
 
     assert exc.value.status_code == 400
     assert calls == []
@@ -179,7 +179,7 @@ async def test_update_config_supported_env_values(
 
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", env_value)
 
-    result = await routes_config.update_config(
+    result = routes_config.update_config(
         {
             "auth": {
                 "google_auth_enabled": not expected,
@@ -215,7 +215,7 @@ async def test_update_config_rejects_blank_client_id(monkeypatch: pytest.MonkeyP
     payload = {"auth": {"google_auth_enabled": True, "google_client_id": "   "}}
 
     with pytest.raises(HTTPException) as exc:
-        await routes_config.update_config(payload)
+        routes_config.update_config(payload)
 
     assert exc.value.status_code == 400
     assert exc.value.detail == "google_auth_enabled is true but google_client_id is missing"
@@ -239,7 +239,7 @@ async def test_update_config_validates_with_env_client_id(monkeypatch: pytest.Mo
     monkeypatch.delenv("GOOGLE_AUTH_ENABLED", raising=False)
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "client-from-env")
 
-    result = await routes_config.update_config({"auth": {"allowed_emails": ["user@example.com"]}})
+    result = routes_config.update_config({"auth": {"allowed_emails": ["user@example.com"]}})
 
     assert loader.cleared is True
     assert result["google_auth_enabled"] is True
@@ -269,7 +269,7 @@ async def test_update_config_env_provides_client_id(monkeypatch: pytest.MonkeyPa
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "client-from-env")
 
-    result = await routes_config.update_config({"auth": {"allowed_emails": ["user@example.com"]}})
+    result = routes_config.update_config({"auth": {"allowed_emails": ["user@example.com"]}})
 
     assert loader.cleared is True
     assert result["google_auth_enabled"] is True
@@ -304,7 +304,7 @@ async def test_update_config_noop_payload_preserves_config(monkeypatch: pytest.M
 
     original_contents = config_path.read_text()
 
-    await routes_config.update_config({})
+    routes_config.update_config({})
 
     assert calls == []
     assert loader.cleared is True
@@ -335,7 +335,7 @@ async def test_update_config_top_level_tabs_overrides_existing_value(
         _DummyConfig(google_auth_enabled=False, google_client_id=None),
     )
 
-    await routes_config.update_config({"tabs": {"reports": True}})
+    routes_config.update_config({"tabs": {"reports": True}})
 
     persisted = yaml.safe_load(config_path.read_text())
     assert persisted["ui"]["tabs"]["reports"] is True
@@ -360,7 +360,7 @@ async def test_update_config_normalises_string_google_auth_flag(
     monkeypatch.setattr(routes_config.config_module, "config", routes_config.config_module.Config())
     monkeypatch.setattr(routes_config.config_module, "settings", routes_config.config_module.Config())
 
-    result = await routes_config.update_config({})
+    result = routes_config.update_config({})
 
     written = yaml.safe_load(config_path.read_text())
     assert written["auth"]["google_auth_enabled"] is False
@@ -380,7 +380,7 @@ async def test_update_config_accepts_string_false_flag(monkeypatch: pytest.Monke
     monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
     calls = _spy_validate(monkeypatch)
 
-    result = await routes_config.update_config({})
+    result = routes_config.update_config({})
 
     assert loader.cleared is True
     assert calls == []
@@ -413,7 +413,7 @@ async def test_update_config_empty_payload_env_toggle_requires_client_id(
 
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
 
-    result = await routes_config.update_config({})
+    result = routes_config.update_config({})
 
     assert result["google_auth_enabled"] is False
     assert result["google_client_id"] is None
@@ -446,7 +446,7 @@ async def test_update_config_treats_blank_google_auth_env_as_absent(
 
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "   ")
 
-    result = await routes_config.update_config({})
+    result = routes_config.update_config({})
 
     assert calls == []
     assert loader.cleared is True

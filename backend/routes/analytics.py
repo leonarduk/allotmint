@@ -78,7 +78,7 @@ async def _optional_current_user(request: Request) -> Optional[str]:
 
 
 @router.post("/events", status_code=200)
-async def log_event(
+def log_event(
     payload: AnalyticsEventIn,
     current_user: Optional[str] = Depends(_optional_current_user),
 ) -> Dict[str, str]:
@@ -111,7 +111,7 @@ async def log_event(
 
 
 @router.get("/funnels/{source}", response_model=FunnelSummary)
-async def get_funnel(source: str) -> FunnelSummary:
+def get_funnel(source: str) -> FunnelSummary:
     """Return a simple funnel summary for ``source``."""
 
     if source not in _FUNNEL_STEPS:

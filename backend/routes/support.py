@@ -23,7 +23,7 @@ class TelegramRequest(BaseModel):
 
 
 @router.post("/telegram")
-async def post_telegram(msg: TelegramRequest) -> dict[str, str]:
+def post_telegram(msg: TelegramRequest) -> dict[str, str]:
     """Forward ``msg.text`` to the configured Telegram chat."""
 
     try:

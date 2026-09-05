@@ -135,7 +135,7 @@ def _group_opportunities(
 
 
 @router.get("/opportunities", response_model=OpportunitiesResponse)
-async def get_opportunities(
+def get_opportunities(
     *,
     group: Optional[str] = Query(None, description="Portfolio group slug"),
     tickers: Optional[str] = Query(None, description="Comma separated tickers"),

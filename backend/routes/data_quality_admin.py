@@ -835,7 +835,7 @@ def _issue_still_applies(issue: DataQualityIssue, accounts_root: Path) -> bool:
 
 
 @router.get("/issues")
-async def list_issues(
+def list_issues(
     request: Request,
     type: str | None = Query(None, description="Filter by issue type (WRONG_EXCHANGE, GAPS, ...)"),
     severity: str | None = Query(None, description="Filter by severity: high | medium | low"),
@@ -848,7 +848,7 @@ async def list_issues(
 
 
 @router.get("/issues/{issue_id}/preview")
-async def preview_issue(issue_id: str, request: Request) -> dict[str, Any]:
+def preview_issue(issue_id: str, request: Request) -> dict[str, Any]:
     issues = aggregate_issues(resolve_accounts_root(request))
     issue = find_issue(issues, issue_id)
     if issue is None:
@@ -866,7 +866,7 @@ async def preview_issue(issue_id: str, request: Request) -> dict[str, Any]:
 
 
 @write_router.post("/issues/{issue_id}/fix")
-async def fix_issue(
+def fix_issue(
     issue_id: str,
     request: Request,
     user: str | None = Depends(get_active_user),
@@ -875,7 +875,7 @@ async def fix_issue(
 
 
 @write_router.post("/fixes")
-async def batch_fix(
+def batch_fix(
     body: BatchFixRequest,
     request: Request,
     user: str | None = Depends(get_active_user),
@@ -927,7 +927,7 @@ async def batch_fix(
 
 
 @write_router.post("/series/{ticker}/{exchange}/dedupe")
-async def dedupe_series(
+def dedupe_series(
     ticker: str,
     exchange: str,
     user: str | None = Depends(get_active_user),
@@ -944,13 +944,13 @@ async def dedupe_series(
 
 
 @router.get("/audit")
-async def list_audit(limit: int | None = Query(None, ge=1, le=1000)) -> dict[str, Any]:
+def list_audit(limit: int | None = Query(None, ge=1, le=1000)) -> dict[str, Any]:
     entries = read_audit(limit=limit)
     return {"count": len(entries), "entries": entries}
 
 
 @write_router.post("/audit/{entry_id}/undo")
-async def undo_audit(
+def undo_audit(
     entry_id: str,
     request: Request,
     user: str | None = Depends(get_active_user),

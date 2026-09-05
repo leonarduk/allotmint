@@ -43,13 +43,13 @@ async def test_search_instruments_validation_and_trim(monkeypatch):
     )
 
     with pytest.raises(HTTPException):
-        await instrument.search_instruments(q="   ")
+        instrument.search_instruments(q="   ")
     with pytest.raises(HTTPException):
-        await instrument.search_instruments(q="foo", sector="   ", region=None)
+        instrument.search_instruments(q="foo", sector="   ", region=None)
     with pytest.raises(HTTPException):
-        await instrument.search_instruments(q="foo", sector=None, region="   ")
+        instrument.search_instruments(q="foo", sector=None, region="   ")
 
-    results = await instrument.search_instruments(
+    results = instrument.search_instruments(
         q="  dev  ",
         sector="  TECH  ",
         region="  uk  ",
@@ -139,7 +139,7 @@ async def test_instrument_empty_template(monkeypatch):
     monkeypatch.setattr(instrument, "get_security_meta", lambda _ticker: {"name": "Empty"})
     monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
 
-    response = await instrument.instrument(ticker="NONE.L", days=30, format="html", base_currency=None)
+    response = instrument.instrument(ticker="NONE.L", days=30, format="html", base_currency=None)
 
     assert response.status_code == 200
     assert "No price data" in response.body.decode()
@@ -147,7 +147,7 @@ async def test_instrument_empty_template(monkeypatch):
     # A known ticker (metadata present) without history returns an empty JSON
     # series with 200 instead of 404 so dashboard preloads stop logging console
     # errors for expected missing history.
-    response = await instrument.instrument(ticker="NONE.L", days=30, format="json", base_currency=None)
+    response = instrument.instrument(ticker="NONE.L", days=30, format="json", base_currency=None)
     assert response.status_code == 200
     data = json.loads(response.body.decode())
     assert data["ticker"] == "NONE.L"
@@ -159,7 +159,7 @@ async def test_instrument_empty_template(monkeypatch):
     assert data["name"] == "Empty"
     assert data["base_currency"] == "GBP"
 
-    response = await instrument.instrument(
+    response = instrument.instrument(
         ticker="NONE.L", days=30, format="json", base_currency=None, include_mini=True
     )
     assert response.status_code == 200
@@ -180,7 +180,7 @@ async def test_instrument_empty_unknown_ticker_still_404(monkeypatch):
 
     # Genuinely unknown tickers (no metadata) keep the 404 contract.
     with pytest.raises(HTTPException) as exc:
-        await instrument.instrument(ticker="NONE.L", days=30, format="json", base_currency=None)
+        instrument.instrument(ticker="NONE.L", days=30, format="json", base_currency=None)
     assert exc.value.status_code == 404
 
 
@@ -197,7 +197,7 @@ async def test_instrument_empty_known_ticker_without_currency(monkeypatch):
     monkeypatch.setattr(instrument, "get_security_meta", lambda _ticker: {"name": "North Co"})
     monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
 
-    response = await instrument.instrument(ticker="ABC.N", days=30, format="json", base_currency=None)
+    response = instrument.instrument(ticker="ABC.N", days=30, format="json", base_currency=None)
 
     assert response.status_code == 200
     data = json.loads(response.body.decode())
@@ -236,7 +236,7 @@ async def test_instrument_json_gbx_and_base_currency(monkeypatch):
     monkeypatch.setattr(instrument, "apply_scaling", fake_apply)
     monkeypatch.setattr(instrument.config, "base_currency", "USD")
 
-    response = await instrument.instrument(
+    response = instrument.instrument(
         ticker="GBX.L",
         days=30,
         format="json",
@@ -253,7 +253,7 @@ async def test_instrument_json_gbx_and_base_currency(monkeypatch):
     # Phase 3b (ADR #6911 §5.2/§8): `mini` is opt-in, omitted by default.
     assert "mini" not in data
 
-    response_with_mini = await instrument.instrument(
+    response_with_mini = instrument.instrument(
         ticker="GBX.L",
         days=30,
         format="json",
@@ -291,7 +291,7 @@ async def test_instrument_json_foreign_currency_fx(monkeypatch):
     monkeypatch.setattr(instrument, "apply_scaling", lambda df_in, _scale: df_in)
     monkeypatch.setattr(instrument.config, "base_currency", "GBP")
 
-    response = await instrument.instrument(
+    response = instrument.instrument(
         ticker="EUR.PA",
         days=180,
         format="json",
@@ -353,7 +353,7 @@ async def test_instrument_json_scales_positions(monkeypatch):
     monkeypatch.setattr(instrument, "apply_scaling", lambda df_in, scale: df_in)
     monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
 
-    response = await instrument.instrument(
+    response = instrument.instrument(
         ticker="ABC.L",
         days=30,
         format="json",
@@ -400,7 +400,7 @@ async def test_instrument_last_close_fx_conversion(monkeypatch):
     monkeypatch.setattr(instrument, "_positions_for_ticker", fake_positions)
     monkeypatch.setattr(instrument, "fetch_fx_rate_range", fake_fetch_fx_rate_range)
 
-    response = await instrument.instrument(
+    response = instrument.instrument(
         ticker="USD.FUND",
         days=30,
         format="json",
@@ -425,7 +425,7 @@ async def test_intraday_returns_prices(monkeypatch):
 
     monkeypatch.setattr(instrument.yf, "Ticker", lambda _symbol: DummyTicker())
 
-    result = await instrument.intraday("AAA.L")
+    result = instrument.intraday("AAA.L")
 
     assert result["ticker"] == "AAA.L"
     assert len(result["prices"]) == 2
@@ -451,7 +451,7 @@ async def test_intraday_no_data(monkeypatch):
     monkeypatch.setattr(instrument.yf, "Ticker", lambda _symbol: EmptyTicker())
 
     with pytest.raises(HTTPException) as exc:
-        await instrument.intraday("AAA.L")
+        instrument.intraday("AAA.L")
 
     assert exc.value.status_code == 404
     detail = exc.value.detail
@@ -637,7 +637,7 @@ async def test_instrument_empty_html_escapes_xss_in_positions(monkeypatch):
         ],
     )
 
-    response = await instrument.instrument(ticker="NONE.L", days=30, format="html", base_currency=None)
+    response = instrument.instrument(ticker="NONE.L", days=30, format="html", base_currency=None)
 
     html = response.body.decode()
     assert xss_owner not in html

@@ -32,7 +32,11 @@ export function ComplianceWarnings({ owners }: Props) {
   const { data, loading, error } = useFetch<Record<string, ComplianceResult>>(
     fetchCompliance,
     [owners],
-    complianceEnabled && owners.length > 0
+    complianceEnabled && owners.length > 0,
+    // One `/compliance/{owner}` call per owner, re-fanned out on every mount of
+    // the overview. Keyed on the owner set, which is what `fetchCompliance`
+    // varies on.
+    { cacheKey: `compliance:${[...owners].sort().join(",")}` }
   );
 
   if (!complianceEnabled || !owners.length || loading || error) return null;

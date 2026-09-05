@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from functools import lru_cache
@@ -207,6 +208,12 @@ class Config:
     tabs: TabsConfig = field(default_factory=TabsConfig)
     trading_agent: TradingAgentConfig = field(default_factory=TradingAgentConfig)
     cors_origins: Optional[List[str]] = None
+    # Regex counterpart to the explicit ``cors_origins`` allowlist, handed to
+    # CORSMiddleware's ``allow_origin_regex``. CORS has no notion of a port
+    # range, so this is how a dev machine running several frontends at once
+    # covers them all without enumerating ports that change every time vite
+    # walks past an already-taken one.
+    cors_origin_regex: Optional[str] = None
     aws_ui_auth: AwsUiAuthConfig = field(default_factory=AwsUiAuthConfig)
     # allotmint-pro's McpServerLambda Function URL, called by
     # backend/chat/mcp_tools_client.py. None when unset -- POST /chat
@@ -295,6 +302,37 @@ def _load_cors_origins(data: Dict[str, Any]) -> Optional[List[str]]:
             cors_origins = parsed_env_cors
 
     return cors_origins
+
+
+def _load_cors_origin_regex(data: Dict[str, Any]) -> Optional[str]:
+    """Load the CORS origin regex from config and environment overrides.
+
+    Mirrors :func:`_load_cors_origins`: a ``cors.origin_regex`` key, overridable
+    by ``CORS_ORIGIN_REGEX`` (empty string disables it, matching how an operator
+    would expect to switch it off from the environment).
+
+    The pattern is compiled here so a malformed one fails at config load with a
+    clear message, rather than surfacing later as an opaque middleware error on
+    the first cross-origin request.
+    """
+    cors_raw = data.get("cors")
+    origin_regex: Optional[str] = None
+    if isinstance(cors_raw, dict):
+        raw = cors_raw.get("origin_regex")
+        if raw is not None:
+            origin_regex = str(raw)
+
+    env_regex = os.getenv("CORS_ORIGIN_REGEX")
+    if env_regex is not None:
+        origin_regex = env_regex or None
+
+    if origin_regex is not None:
+        try:
+            re.compile(origin_regex)
+        except re.error as exc:
+            raise ConfigValidationError(f"Invalid CORS origin regex {origin_regex!r}: {exc}") from exc
+
+    return origin_regex
 
 
 def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Config:
@@ -402,6 +440,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
     trading_agent = TradingAgentConfig(**ta_data)
 
     cors_origins = _load_cors_origins(data)
+    cors_origin_regex = _load_cors_origin_regex(data)
 
     approval_exempt_types = _parse_str_list(data.get("approval_exempt_types"))
     approval_exempt_tickers = _parse_str_list(data.get("approval_exempt_tickers"))
@@ -587,6 +626,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         tabs=tabs,
         trading_agent=trading_agent,
         cors_origins=cors_origins,
+        cors_origin_regex=cors_origin_regex,
         aws_ui_auth=aws_ui_auth,
         mcp_server_url=mcp_server_url,
         bedrock_model_id=bedrock_model_id,

@@ -392,6 +392,42 @@ def test_cors_origins_env_override(monkeypatch):
     reload_config()
 
 
+def test_cors_origin_regex_env_override(monkeypatch):
+    monkeypatch.setenv("CORS_ORIGIN_REGEX", r"^http://localhost:5\d{3}$")
+    cfg = reload_config()
+    assert cfg.cors_origin_regex == r"^http://localhost:5\d{3}$"
+    monkeypatch.delenv("CORS_ORIGIN_REGEX")
+    reload_config()
+
+
+def test_cors_origin_regex_env_empty_string_disables(monkeypatch):
+    """An empty env value switches the regex off rather than matching nothing.
+
+    `CORS_ORIGIN_REGEX=""` is how an operator disables an inherited setting; a
+    literal empty pattern would match every origin prefix instead.
+    """
+    monkeypatch.setenv("CORS_ORIGIN_REGEX", "")
+    cfg = reload_config()
+    assert cfg.cors_origin_regex is None
+    monkeypatch.delenv("CORS_ORIGIN_REGEX")
+    reload_config()
+
+
+def test_cors_origin_regex_defaults_to_none(monkeypatch):
+    monkeypatch.delenv("CORS_ORIGIN_REGEX", raising=False)
+    cfg = reload_config()
+    assert cfg.cors_origin_regex is None
+
+
+def test_cors_origin_regex_invalid_pattern_rejected(monkeypatch):
+    """A bad pattern fails at config load, not on the first cross-origin call."""
+    monkeypatch.setenv("CORS_ORIGIN_REGEX", "^http://localhost:(5\d{3}$")
+    with pytest.raises(ConfigValidationError, match="Invalid CORS origin regex"):
+        reload_config()
+    monkeypatch.delenv("CORS_ORIGIN_REGEX")
+    reload_config()
+
+
 def test_reload_preserves_monkeypatched_allowed_emails(monkeypatch):
     reload_config()
     monkeypatch.setattr(config, "allowed_emails", ["override@example.com"], raising=False)

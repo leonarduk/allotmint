@@ -42,6 +42,12 @@ server:
       - http://localhost:5173
     production:
       - https://app.allotmint.io
+    # Optional regex matched against the Origin header in addition to the lists
+    # above (CORS_ORIGIN_REGEX overrides it; empty string disables). Useful on a
+    # dev machine running several frontends, where vite walks 5173, 5174, 5175
+    # ... past whichever ports are already taken. Unset by default -- prefer the
+    # explicit lists above for anything deployed.
+    # origin_regex: '^http://(localhost|127\.0\.0\.1):(3000|5\d{3})$'
 
 market_data:
   offline_mode: false                 # Run without external data fetches

@@ -67,23 +67,23 @@ def _remove_goal(owner: str, name: str) -> dict:
 if config.disable_auth:
 
     @router.get("/")
-    async def list_goals() -> List[GoalPayload]:
+    def list_goals() -> List[GoalPayload]:
         return _list_goals(DEMO_OWNER)
 
     @router.post("/")
-    async def create_goal(payload: GoalPayload) -> GoalPayload:
+    def create_goal(payload: GoalPayload) -> GoalPayload:
         return _create_goal(DEMO_OWNER, payload)
 
     @router.get("/{name}")
-    async def get_goal(name: str, current_amount: float) -> GoalResponse:
+    def get_goal(name: str, current_amount: float) -> GoalResponse:
         return _get_goal(DEMO_OWNER, name, current_amount)
 
     @router.put("/{name}")
-    async def update_goal(name: str, payload: GoalPayload) -> GoalPayload:
+    def update_goal(name: str, payload: GoalPayload) -> GoalPayload:
         return _update_goal(DEMO_OWNER, name, payload)
 
     @router.delete("/{name}")
-    async def remove_goal(name: str) -> dict:
+    def remove_goal(name: str) -> dict:
         return _remove_goal(DEMO_OWNER, name)
 
 else:
@@ -92,27 +92,27 @@ else:
     # limitation. Both branches are mutually exclusive at runtime via config.disable_auth.
 
     @router.get("/")
-    async def list_goals(current_user: str = Depends(get_current_user)) -> List[GoalPayload]:  # type: ignore[misc]
+    def list_goals(current_user: str = Depends(get_current_user)) -> List[GoalPayload]:  # type: ignore[misc]
         return _list_goals(current_user)
 
     @router.post("/")
-    async def create_goal(  # type: ignore[misc]
+    def create_goal(  # type: ignore[misc]
         payload: GoalPayload, current_user: str = Depends(get_current_user)
     ) -> GoalPayload:
         return _create_goal(current_user, payload)
 
     @router.get("/{name}")
-    async def get_goal(  # type: ignore[misc]
+    def get_goal(  # type: ignore[misc]
         name: str, current_amount: float, current_user: str = Depends(get_current_user)
     ) -> GoalResponse:
         return _get_goal(current_user, name, current_amount)
 
     @router.put("/{name}")
-    async def update_goal(  # type: ignore[misc]
+    def update_goal(  # type: ignore[misc]
         name: str, payload: GoalPayload, current_user: str = Depends(get_current_user)
     ) -> GoalPayload:
         return _update_goal(current_user, name, payload)
 
     @router.delete("/{name}")
-    async def remove_goal(name: str, current_user: str = Depends(get_current_user)) -> dict:  # type: ignore[misc]
+    def remove_goal(name: str, current_user: str = Depends(get_current_user)) -> dict:  # type: ignore[misc]
         return _remove_goal(current_user, name)

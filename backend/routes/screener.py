@@ -200,7 +200,7 @@ def _apply_rank(rows: List[dict]) -> None:
 
 
 @router.get("/", response_model=List[RankedFundamentals])
-async def screener(
+def screener(
     background_tasks: BackgroundTasks,
     tickers: str = Query(..., description="Comma-separated list of tickers"),
     peg_max: float | None = Query(None),

@@ -227,7 +227,7 @@ def _move_timeseries(ticker: str, source_exchange: str, destination_exchange: st
 
 
 @router.get("/edit")
-async def get_timeseries_edit(ticker: str = Query(...), exchange: str | None = Query(None)) -> JSONResponse:
+def get_timeseries_edit(ticker: str = Query(...), exchange: str | None = Query(None)) -> JSONResponse:
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
     df = _load_timeseries(ticker, exchange)
     if not df.empty:
@@ -277,7 +277,7 @@ async def post_timeseries_edit(
 
 
 @router.post("/edit/move")
-async def move_timeseries_edit(
+def move_timeseries_edit(
     ticker: str = Query(...),
     source_exchange: str = Query(...),
     destination_exchange: str = Query(...),

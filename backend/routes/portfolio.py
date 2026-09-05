@@ -521,7 +521,7 @@ def _list_owner_summaries(request: Request, current_user: Optional[str] = None) 
 if config.disable_auth:
 
     @router.get("/owners", response_model=List[OwnerSummary])
-    async def owners(request: Request) -> List[OwnerSummary]:
+    def owners(request: Request) -> List[OwnerSummary]:
         """List available owners including demo defaults when necessary."""
 
         return _list_owner_summaries(request)
@@ -529,14 +529,14 @@ if config.disable_auth:
 else:
 
     @router.get("/owners", response_model=List[OwnerSummary])
-    async def owners(request: Request, current_user: str = Depends(get_current_user)) -> List[OwnerSummary]:
+    def owners(request: Request, current_user: str = Depends(get_current_user)) -> List[OwnerSummary]:
         """List available owners including demo defaults when necessary."""
 
         return _list_owner_summaries(request, current_user)
 
 
 @router.get("/groups", response_model=List[GroupSummary])
-async def groups():
+def groups():
     return group_portfolio.list_groups()
 
 
@@ -544,7 +544,7 @@ async def groups():
 # Owner / group portfolios
 # --------------------------------------------------------------
 @router.get("/portfolio/{owner}")
-async def portfolio(owner: str, request: Request, as_of: str | None = None):
+def portfolio(owner: str, request: Request, as_of: str | None = None):
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
@@ -559,7 +559,7 @@ async def portfolio(owner: str, request: Request, as_of: str | None = None):
 
 
 @router.get("/portfolio/{owner}/sectors")
-async def portfolio_sectors(owner: str, request: Request, as_of: str | None = None):
+def portfolio_sectors(owner: str, request: Request, as_of: str | None = None):
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
@@ -576,7 +576,7 @@ async def portfolio_sectors(owner: str, request: Request, as_of: str | None = No
 
 
 @router.get("/var/{owner}")
-async def portfolio_var(
+def portfolio_var(
     owner: str,
     request: Request,
     days: int = 365,
@@ -606,7 +606,7 @@ async def portfolio_var(
 
 
 @router.get("/var/{owner}/breakdown")
-async def portfolio_var_breakdown(
+def portfolio_var_breakdown(
     owner: str,
     request: Request,
     days: int = 365,
@@ -654,7 +654,7 @@ async def portfolio_var_breakdown(
 
 
 @router.post("/var/{owner}/recompute")
-async def portfolio_var_recompute(
+def portfolio_var_recompute(
     owner: str,
     request: Request,
     days: int = 365,
@@ -676,7 +676,7 @@ async def portfolio_var_recompute(
 
 
 @router.get("/portfolio-group/{slug}")
-async def portfolio_group(slug: str, as_of: str | None = None):
+def portfolio_group(slug: str, as_of: str | None = None):
     try:
         pricing_date = _resolve_pricing_date(as_of)
         return _build_group_portfolio(slug, pricing_date)
@@ -709,7 +709,7 @@ def _account_matches_filters(account: Dict[str, Any], filters: Dict[str, set[str
 
 
 @router.get("/portfolio-group/{slug}/instruments")
-async def group_instruments(
+def group_instruments(
     slug: str,
     owner: Optional[Sequence[str]] = Query(
         None,
@@ -749,7 +749,7 @@ async def group_instruments(
 
 
 @router.get("/portfolio-group/{slug}/sectors")
-async def group_sectors(slug: str, as_of: str | None = None):
+def group_sectors(slug: str, as_of: str | None = None):
     try:
         pricing_date = _resolve_pricing_date(as_of)
         gp = _build_group_portfolio(slug, pricing_date)
@@ -759,7 +759,7 @@ async def group_sectors(slug: str, as_of: str | None = None):
 
 
 @router.get("/portfolio-group/{slug}/regions")
-async def group_regions(slug: str, as_of: str | None = None):
+def group_regions(slug: str, as_of: str | None = None):
     try:
         pricing_date = _resolve_pricing_date(as_of)
         gp = _build_group_portfolio(slug, pricing_date)
@@ -769,7 +769,7 @@ async def group_regions(slug: str, as_of: str | None = None):
 
 
 @router.get("/portfolio-group/{slug}/exposure", response_model=GroupExposureResponse)
-async def group_exposure(slug: str, as_of: str | None = None):
+def group_exposure(slug: str, as_of: str | None = None):
     pricing_date = _resolve_pricing_date(as_of)
     try:
         gp = _build_group_portfolio(slug, pricing_date)
@@ -832,7 +832,7 @@ def _enrich_movers_with_market_values(
     "/portfolio-group/{slug}/movers",
     response_model=MoversResponse,
 )
-async def group_movers(
+def group_movers(
     slug: str,
     days: int = Query(1, description="Lookback window"),
     limit: int = Query(10, description="Max results per side", le=100),
@@ -871,7 +871,7 @@ async def group_movers(
 
 
 @router.get("/account/{owner}/{account}")
-async def get_account(owner: str, account: str, request: Request):
+def get_account(owner: str, account: str, request: Request):
     root = resolve_accounts_root(request)
 
     try:
@@ -947,7 +947,7 @@ async def get_account(owner: str, account: str, request: Request):
 
 
 @router.get("/portfolio-group/{slug}/instrument/{ticker}")
-async def instrument_detail(
+def instrument_detail(
     slug: str,
     ticker: str,
     start_date: Annotated[Optional[dt.date], Query(description="Inclusive start date (YYYY-MM-DD)")] = None,

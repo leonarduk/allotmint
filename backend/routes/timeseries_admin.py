@@ -46,7 +46,7 @@ def _summarize(df: pd.DataFrame, ticker: str, exchange: str) -> dict[str, Any]:
 
 
 @router.get("/admin")
-async def timeseries_admin() -> list[dict[str, Any]]:
+def timeseries_admin() -> list[dict[str, Any]]:
     summaries: list[dict[str, Any]] = []
     if config.app_env == "aws":
         bucket = os.getenv("DATA_BUCKET")
@@ -113,14 +113,14 @@ async def timeseries_admin() -> list[dict[str, Any]]:
 
 
 @router.post("/admin/{ticker}/{exchange}/refetch")
-async def refetch_timeseries(ticker: str, exchange: str) -> dict[str, Any]:
+def refetch_timeseries(ticker: str, exchange: str) -> dict[str, Any]:
     """Fetch latest timeseries data for a ticker/exchange pair."""
     df = load_meta_timeseries(ticker.upper(), exchange.upper(), days=3650)
     return {"status": "ok", "rows": len(df)}
 
 
 @router.post("/admin/{ticker}/{exchange}/rebuild_cache")
-async def rebuild_cache(ticker: str, exchange: str) -> dict[str, Any]:
+def rebuild_cache(ticker: str, exchange: str) -> dict[str, Any]:
     """Delete and rebuild the timeseries cache for a ticker/exchange pair."""
     t = ticker.upper()
     e = exchange.upper()

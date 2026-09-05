@@ -6,6 +6,6 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 
 
 @router.get("/stats")
-async def agent_stats():
+def agent_stats():
     """Return basic trade statistics for dashboards."""
     return load_and_compute_metrics()

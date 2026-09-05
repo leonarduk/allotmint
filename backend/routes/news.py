@@ -486,7 +486,7 @@ def get_cached_news(
 
 
 @router.get("/news")
-async def get_news(
+def get_news(
     background_tasks: BackgroundTasks,
     ticker: str = Query(..., min_length=1),
 ) -> List[Dict[str, Any]]:

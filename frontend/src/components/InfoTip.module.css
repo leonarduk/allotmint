@@ -65,7 +65,12 @@
      footprint. */
   display: none;
   pointer-events: none;
-  transition: opacity 0.12s ease;
+  /* `allow-discrete` plus the @starting-style block below restores the
+     fade-in that `visibility: hidden` gave for free (opacity could already
+     animate on a rendered-but-invisible box); browsers without
+     @starting-style support just show the popover instantly, same as this
+     change's first cut. */
+  transition: opacity 0.12s ease, display 0.12s allow-discrete;
 }
 
 .infoTip:hover .infoTipPopover,
@@ -74,6 +79,14 @@
   display: block;
   opacity: 1;
   pointer-events: auto;
+}
+
+@starting-style {
+  .infoTip:hover .infoTipPopover,
+  .infoTip:focus-within .infoTipPopover,
+  .infoTipPopoverOpen {
+    opacity: 0;
+  }
 }
 
 .infoTipLink {

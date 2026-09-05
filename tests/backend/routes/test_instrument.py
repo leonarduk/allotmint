@@ -159,9 +159,7 @@ async def test_instrument_empty_template(monkeypatch):
     assert data["name"] == "Empty"
     assert data["base_currency"] == "GBP"
 
-    response = instrument.instrument(
-        ticker="NONE.L", days=30, format="json", base_currency=None, include_mini=True
-    )
+    response = instrument.instrument(ticker="NONE.L", days=30, format="json", base_currency=None, include_mini=True)
     assert response.status_code == 200
     data = json.loads(response.body.decode())
     assert data["mini"] == {"7": [], "30": [], "180": []}

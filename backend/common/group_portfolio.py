@@ -83,8 +83,17 @@ def list_groups() -> List[Dict[str, Any]]:
     # _resolve_demo_request), not as a member of any real family/household.
     # Without this, it was showing up in the "All positions" group dashboard
     # alongside real family members (#7676).
+    #
+    # Not for the demo-scoped request itself, though: `list_plots` above has
+    # already narrowed that caller to exactly the demo owner (#7408), so
+    # excluding it here as well left every group empty and the demo link
+    # showing a blank dashboard -- the one visitor the owner exists for. The
+    # local import mirrors `data_loader`'s: `backend.auth` imports back into
+    # `backend.common`.
+    from backend.auth import is_demo_request
+
     demo_link_owner = (config.demo_link_owner or "").strip().lower()
-    if demo_link_owner:
+    if demo_link_owner and not is_demo_request():
         owners = [o for o in owners if (o or "").lower() != demo_link_owner]
 
     owner_discovery_ms = (time.perf_counter() - started_at) * 1000

@@ -28,12 +28,10 @@ from backend.common import (
     group_portfolio,
     holding_utils,
     instrument_api,
-)
-from backend.common import portfolio as portfolio_mod
-from backend.common import (
     portfolio_utils,
     prices,
 )
+from backend.common import portfolio as portfolio_mod
 from backend.common.account_models import OwnerSummaryRecord, PersonMetadata
 from backend.common.core_optional import require_core
 from backend.common.errors import log_owner_not_found

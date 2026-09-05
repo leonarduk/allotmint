@@ -4,8 +4,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.routes import portfolio
 from backend.common import portfolio_cache
+from backend.routes import portfolio
 
 
 def _client():

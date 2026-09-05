@@ -330,9 +330,7 @@ def _load_cors_origin_regex(data: Dict[str, Any]) -> Optional[str]:
         try:
             re.compile(origin_regex)
         except re.error as exc:
-            raise ConfigValidationError(
-                f"Invalid CORS origin regex {origin_regex!r}: {exc}"
-            ) from exc
+            raise ConfigValidationError(f"Invalid CORS origin regex {origin_regex!r}: {exc}") from exc
 
     return origin_regex
 

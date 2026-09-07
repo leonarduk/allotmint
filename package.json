@@ -6,7 +6,7 @@
     "aws-cdk": "2.1139.0",
     "concurrently": "^10.0.5",
     "postcss": "^8.5.28",
-    "tsx": "^4.23.12"
+    "tsx": "^4.23.13"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",

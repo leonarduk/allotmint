@@ -17,7 +17,7 @@ def stub_weight_calculations(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_opportunities_rejects_invalid_days():
     with pytest.raises(HTTPException) as exc:
-        await opportunities_module.get_opportunities(
+        opportunities_module.get_opportunities(
             tickers="AAA",
             days=999,
             limit=5,
@@ -39,7 +39,7 @@ async def test_get_opportunities_rejects_group_and_tickers(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc:
-        await opportunities_module.get_opportunities(
+        opportunities_module.get_opportunities(
             group="growth",
             tickers="AAA",
             days=1,
@@ -57,7 +57,7 @@ async def test_group_requires_authentication(monkeypatch):
     monkeypatch.setattr(opportunities_module.config, "disable_auth", False)
 
     with pytest.raises(HTTPException) as exc:
-        await opportunities_module.get_opportunities(
+        opportunities_module.get_opportunities(
             group="growth",
             tickers=None,
             days=1,
@@ -81,7 +81,7 @@ async def test_group_invalid_token(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc:
-        await opportunities_module.get_opportunities(
+        opportunities_module.get_opportunities(
             group="growth",
             tickers=None,
             days=1,
@@ -145,7 +145,7 @@ async def test_group_flow_populates_context_and_entries(monkeypatch):
 
     monkeypatch.setattr(opportunities_module.trading_agent, "run", fake_signals)
 
-    response = await opportunities_module.get_opportunities(
+    response = opportunities_module.get_opportunities(
         group="growth",
         tickers=None,
         days=1,
@@ -317,7 +317,7 @@ async def test_watchlist_blank_tickers(monkeypatch):
     monkeypatch.setattr(opportunities_module.trading_agent, "run", lambda **_: [])
 
     with pytest.raises(HTTPException) as exc:
-        await opportunities_module.get_opportunities(
+        opportunities_module.get_opportunities(
             group=None,
             tickers=" ,  , ",
             days=1,
@@ -359,8 +359,8 @@ async def test_group_flow_reuses_cached_response_within_ttl(monkeypatch):
     monkeypatch.setattr(opportunities_module.trading_agent, "run", fake_signals)
 
     kwargs = dict(group="growth", tickers=None, days=1, limit=5, min_weight=0.0, token="token")
-    first = await opportunities_module.get_opportunities(**kwargs)
-    second = await opportunities_module.get_opportunities(**kwargs)
+    first = opportunities_module.get_opportunities(**kwargs)
+    second = opportunities_module.get_opportunities(**kwargs)
 
     assert call_count["n"] == 1
     assert first.entries[0].ticker == second.entries[0].ticker == "AAA"
@@ -405,7 +405,7 @@ async def test_watchlist_flow_sorted_and_enriched(monkeypatch):
         lambda mover_tickers, **_: trading_signals,
     )
 
-    response = await opportunities_module.get_opportunities(
+    response = opportunities_module.get_opportunities(
         group=None,
         tickers=" AAA ,bbb , CCC ",
         days=7,

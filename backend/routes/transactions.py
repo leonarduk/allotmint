@@ -545,7 +545,7 @@ def _rebuild_portfolio(owner: str, account: str, store: "AccountsStore") -> None
 
 
 @router.get("/transactions/compliance")
-async def transactions_with_compliance(
+def transactions_with_compliance(
     owner: str,
     request: Request,
     account: Optional[str] = None,
@@ -654,7 +654,7 @@ def _rollback_import(store: "AccountsStore", persisted: List[Dict[str, Any]]) ->
 
 
 @router.post("/transactions", status_code=201)
-async def create_transaction(request: Request, tx: TransactionCreate) -> dict:
+def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     """Store a new transaction and return it.
 
     If the owner does not yet have a writable account root, one is created
@@ -681,7 +681,7 @@ async def create_transaction(request: Request, tx: TransactionCreate) -> dict:
 
 
 @router.put("/transactions/{tx_id}")
-async def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> dict:
+def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> dict:
     store = _require_writable_store(request)
 
     original_owner, original_account_raw, index = _parse_transaction_id(tx_id)
@@ -758,7 +758,7 @@ async def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate
 
 
 @router.delete("/transactions/{tx_id}")
-async def delete_transaction(request: Request, tx_id: str) -> dict:
+def delete_transaction(request: Request, tx_id: str) -> dict:
     store = _require_writable_store(request)
 
     owner, account_raw, index = _parse_transaction_id(tx_id)
@@ -889,7 +889,7 @@ async def import_transactions(
         424: {"description": "Owner has not completed the Moneyhub OAuth consent flow."},
     },
 )
-async def import_moneyhub_transactions(
+def import_moneyhub_transactions(
     request: Request,
     owner: str = Form(...),
     identity: str | None = Depends(get_active_user),
@@ -1019,7 +1019,7 @@ async def reconcile_holdings(
 
 
 @router.post("/holdings/manual")
-async def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dict[str, Any]:
+def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dict[str, Any]:
     """Create a manual holding for the authenticated owner.
 
     If the owner does not yet have a writable account root, one is created
@@ -1071,7 +1071,7 @@ async def create_manual_holding(request: Request, payload: ManualHoldingCreate) 
 
 
 @router.post("/accounts", status_code=201)
-async def create_account(request: Request, payload: AccountCreate) -> dict[str, Any]:
+def create_account(request: Request, payload: AccountCreate) -> dict[str, Any]:
     """Create an empty named portfolio account for ``payload.owner``.
 
     Produces a skeleton ``{account_type}.json`` document (owner, account_type,
@@ -1109,7 +1109,7 @@ async def create_account(request: Request, payload: AccountCreate) -> dict[str, 
 
 
 @router.get("/holdings/manual")
-async def list_manual_holdings(
+def list_manual_holdings(
     request: Request,
     owner: str,
 ) -> dict[str, Any]:
@@ -1149,7 +1149,7 @@ async def list_manual_holdings(
 
 
 @router.get("/transactions", response_model=List[Transaction])
-async def list_transactions(
+def list_transactions(
     request: Request,
     owner: Optional[str] = None,
     account: Optional[str] = None,
@@ -1182,7 +1182,7 @@ async def list_transactions(
 
 
 @router.get("/dividends", response_model=List[Transaction])
-async def list_dividends(
+def list_dividends(
     request: Request,
     owner: Optional[str] = None,
     account: Optional[str] = None,

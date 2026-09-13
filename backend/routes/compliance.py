@@ -131,7 +131,7 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
 
 @router.get("/compliance/{owner}")
 @handle_owner_not_found
-async def compliance_for_owner(owner: str, request: Request):
+def compliance_for_owner(owner: str, request: Request):
     """Return compliance warnings and status for an owner."""
     require_core(compliance, "Compliance")
     accounts_root = resolve_accounts_root(request)

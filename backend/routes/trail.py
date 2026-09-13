@@ -12,12 +12,12 @@ router = APIRouter(prefix="/trail", tags=["trail"])
 if config.disable_auth:
 
     @router.get("")
-    async def list_tasks():
+    def list_tasks():
         """Return tasks for the configured demo user when auth is disabled."""
         return trail.get_tasks(demo_identity())
 
     @router.post("/{task_id}/complete")
-    async def complete_task(task_id: str):
+    def complete_task(task_id: str):
         """Mark ``task_id`` complete for the demo user when auth is disabled.
 
         Returns the updated Trail payload including XP, streak, and daily totals.
@@ -33,12 +33,12 @@ if config.disable_auth:
 else:
 
     @router.get("")
-    async def list_tasks(current_user: str = Depends(get_current_user)):
+    def list_tasks(current_user: str = Depends(get_current_user)):
         """Return tasks for the authenticated user."""
         return trail.get_tasks(current_user)
 
     @router.post("/{task_id}/complete")
-    async def complete_task(task_id: str, current_user: str = Depends(get_current_user)):
+    def complete_task(task_id: str, current_user: str = Depends(get_current_user)):
         """Mark ``task_id`` complete for the authenticated user.
 
         Returns the updated Trail payload including XP, streak, and daily totals.

@@ -193,7 +193,7 @@ async def test_compliance_for_owner_missing_directory(tmp_path, monkeypatch, fas
     monkeypatch.setattr(compliance_module, "_known_owners", lambda root: set())
 
     with pytest.raises(OwnerNotFoundError) as excinfo:
-        await compliance_module.compliance_for_owner("alice", request)
+        compliance_module.compliance_for_owner("alice", request)
 
     assert excinfo.value.status_code == 404
 
@@ -228,7 +228,7 @@ async def test_compliance_for_remote_owner_without_local_directory(tmp_path, mon
 
     monkeypatch.setattr(compliance_module.compliance, "check_owner", check_owner)
 
-    result = await compliance_module.compliance_for_owner("alice", request)
+    result = compliance_module.compliance_for_owner("alice", request)
 
     assert result == {"owner": "alice", "warnings": []}
     assert calls == [("alice", accounts_root, True)]
@@ -258,7 +258,7 @@ async def test_compliance_for_owner_rejects_unknown_owner(tmp_path, monkeypatch,
     )
 
     with pytest.raises(OwnerNotFoundError) as excinfo:
-        await compliance_module.compliance_for_owner("alice", request)
+        compliance_module.compliance_for_owner("alice", request)
 
     assert excinfo.value.status_code == 404
 
@@ -296,7 +296,7 @@ async def test_compliance_for_owner_translates_missing_files(tmp_path, monkeypat
     )
 
     with pytest.raises(OwnerNotFoundError) as excinfo:
-        await compliance_module.compliance_for_owner("alice", request)
+        compliance_module.compliance_for_owner("alice", request)
 
     assert excinfo.value.status_code == 404
 

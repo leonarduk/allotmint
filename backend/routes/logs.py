@@ -24,7 +24,7 @@ _CLOUDWATCH_MAX_EVENTS = 5000
 
 
 @router.get("", response_class=PlainTextResponse)
-async def read_logs(lines: int = _DEFAULT_LINES) -> str:
+def read_logs(lines: int = _DEFAULT_LINES) -> str:
     """Return the latest backend log lines.
 
     On AWS (``config.app_env == "aws"``) the Lambda filesystem has no

@@ -60,7 +60,7 @@ class TimeseriesQualityResponse(BaseModel):
 
 
 @router.get("/timeseries", response_model=TimeseriesQualityResponse)
-async def get_timeseries_quality(
+def get_timeseries_quality(
     ticker: str | None = Query(None, description="Filter to a single ticker (must be provided with exchange)"),
     exchange: str | None = Query(None, description="Filter to a single exchange (must be provided with ticker)"),
     gap_threshold_days: int = Query(

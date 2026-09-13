@@ -105,7 +105,7 @@ def test_timeseries_admin_local(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "data_root", tmp_path)
 
     async def run():
-        result = await timeseries_admin.timeseries_admin()
+        result = timeseries_admin.timeseries_admin()
         assert result == [
             {
                 "ticker": "ABC",
@@ -127,7 +127,7 @@ def test_timeseries_admin_no_meta(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "data_root", tmp_path)
 
     async def run():
-        assert await timeseries_admin.timeseries_admin() == []
+        assert timeseries_admin.timeseries_admin() == []
 
     asyncio.run(run())
 
@@ -137,7 +137,7 @@ def test_timeseries_admin_aws_no_bucket(monkeypatch):
     monkeypatch.delenv("DATA_BUCKET", raising=False)
 
     async def run():
-        assert await timeseries_admin.timeseries_admin() == []
+        assert timeseries_admin.timeseries_admin() == []
 
     asyncio.run(run())
 
@@ -162,7 +162,7 @@ def test_timeseries_admin_aws_s3_empty(monkeypatch):
     monkeypatch.setitem(sys.modules, "botocore.exceptions", type("e", (), {"ClientError": DummyExc}))
 
     async def run():
-        assert await timeseries_admin.timeseries_admin() == []
+        assert timeseries_admin.timeseries_admin() == []
 
     asyncio.run(run())
 
@@ -280,7 +280,7 @@ def test_timeseries_admin_aws_pagination(monkeypatch):
     )
 
     async def run():
-        summaries = await timeseries_admin.timeseries_admin()
+        summaries = timeseries_admin.timeseries_admin()
         tickers = [summary["ticker"] for summary in summaries]
         assert tickers == ["AAA", "CCC", "DDD"]
         assert "EMPTY" not in tickers
@@ -314,7 +314,7 @@ def test_refetch_and_rebuild(monkeypatch, tmp_path):
     monkeypatch.setattr(timeseries_admin, "load_meta_timeseries", fake_load)
 
     async def run():
-        resp = await timeseries_admin.refetch_timeseries("abc", "l")
+        resp = timeseries_admin.refetch_timeseries("abc", "l")
         assert resp == {"status": "ok", "rows": 5}
 
         cache_path = tmp_path / "cache.parquet"
@@ -327,7 +327,7 @@ def test_refetch_and_rebuild(monkeypatch, tmp_path):
 
         monkeypatch.setattr(timeseries_admin, "meta_timeseries_cache_path", fake_cache_path)
 
-        resp2 = await timeseries_admin.rebuild_cache("abc", "l")
+        resp2 = timeseries_admin.rebuild_cache("abc", "l")
         assert resp2 == {"status": "ok", "rows": 5}
         assert not cache_path.exists()
 

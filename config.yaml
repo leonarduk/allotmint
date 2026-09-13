@@ -26,11 +26,19 @@ server:
   telegram_chat_id: ''
   error_summary: '[object Object]'
   cors:
+    # Explicit allowlist. CORS has no notion of a port range, so `origin_regex`
+    # below widens this for local dev rather than enumerating ports here.
     local:
     - http://localhost:3000
     - http://localhost:5173
     production:
     - https://app.allotmint.io
+    # Matched against the request Origin in addition to the list above (Starlette
+    # ORs the two). Covers the whole vite dev range because vite walks upward --
+    # 5173, 5174, 5175 ... -- whenever another checkout already holds the port,
+    # which is routine on a machine running several allotmint stacks at once.
+    # Local hosts only; production stays on the explicit allowlist.
+    origin_regex: '^http://(localhost|127\.0\.0\.1):(3000|5\d{3})$'
 market_data:
   offline_mode: false
   fx_proxy_url: ''
@@ -84,15 +92,15 @@ ui:
     owner: true
     performance: true
     transactions: false
-    screener: true
+    screener: false
     trading: true
     timeseries: true
     watchlist: true
     allocation: true
     rebalance: true
     instrumentadmin: true
-    dataadmin: true
-    dataexplorer: true
+    dataadmin: false
+    dataexplorer: false
     virtual: true
     support: true
     settings: true
@@ -100,7 +108,8 @@ ui:
     pension: true
     reports: false
     scenario: true
-    alertsettings: true
+    alertsettings: false
+    research: false
     taxtools: false
     trail: false
     trade-compliance: false

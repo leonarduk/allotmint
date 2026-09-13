@@ -179,7 +179,7 @@ def test_background_tasks_scheduled(monkeypatch):
         lambda symbols, **k: [Fundamentals(ticker=symbols[0], peg_ratio=1, roe=1)],
     )
 
-    result = asyncio.run(screener.screener(bt, tickers="ABC"))
+    result = screener.screener(bt, tickers="ABC")
     assert result[0]["ticker"] == "ABC"
     assert len(bt.tasks) == 1
     task = bt.tasks[0]

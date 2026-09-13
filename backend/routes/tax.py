@@ -32,7 +32,7 @@ class HarvestRequest(BaseModel):
 
 
 @router.post("/harvest")
-async def harvest(req: HarvestRequest) -> dict:
+def harvest(req: HarvestRequest) -> dict:
     trades = harvest_losses([p.model_dump() for p in req.positions], req.threshold or 0.0)
     return {"trades": trades}
 

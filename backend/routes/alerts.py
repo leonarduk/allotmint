@@ -41,7 +41,7 @@ def _validate_owner(user: str, request: Request) -> None:
 
 
 @router.get("/")
-async def alerts():
+def alerts():
     """Return recent alert messages."""
     return get_recent_alerts()
 
@@ -56,14 +56,14 @@ class PushSubscriptionPayload(BaseModel):
 
 
 @router.get("/settings/{user}")
-async def get_settings(user: str, request: Request):
+def get_settings(user: str, request: Request):
     """Return the alert threshold configured for ``user``."""
     _validate_owner(user, request)
     return {"threshold": alert_utils.get_user_threshold(user)}
 
 
 @router.post("/settings/{user}")
-async def set_settings(user: str, payload: ThresholdPayload, request: Request):
+def set_settings(user: str, payload: ThresholdPayload, request: Request):
     """Update the alert threshold for ``user``."""
     _validate_owner(user, request)
     alert_utils.set_user_threshold(user, payload.threshold)
@@ -71,7 +71,7 @@ async def set_settings(user: str, payload: ThresholdPayload, request: Request):
 
 
 @router.post("/push-subscription/{user}")
-async def add_push_subscription(user: str, payload: PushSubscriptionPayload, request: Request):
+def add_push_subscription(user: str, payload: PushSubscriptionPayload, request: Request):
     """Persist a Web Push subscription for ``user``."""
     _validate_owner(user, request)
     alert_utils.set_user_push_subscription(user, payload.model_dump())
@@ -79,7 +79,7 @@ async def add_push_subscription(user: str, payload: PushSubscriptionPayload, req
 
 
 @router.delete("/push-subscription/{user}")
-async def delete_push_subscription(user: str, request: Request):
+def delete_push_subscription(user: str, request: Request):
     """Remove the Web Push subscription for ``user`` if present."""
     try:
         _validate_owner(user, request)

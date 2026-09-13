@@ -10,7 +10,7 @@ router = APIRouter(tags=["metrics"])
 
 @router.get("/metrics/{owner}")
 @handle_owner_not_found
-async def get_metrics(owner: str):
+def get_metrics(owner: str):
     """Return turnover and holding-period metrics for ``owner``."""
     try:
         metrics = load_metrics(owner)

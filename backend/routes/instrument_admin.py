@@ -27,14 +27,14 @@ router = APIRouter(
 
 
 @router.get("/admin")
-async def list_instrument_metadata() -> list[dict[str, Any]]:
+def list_instrument_metadata() -> list[dict[str, Any]]:
     """Return metadata for all instruments."""
 
     return list_instruments()
 
 
 @router.get("/admin/groups")
-async def list_group_labels() -> list[str]:
+def list_group_labels() -> list[str]:
     """Return known grouping labels from metadata and the persisted catalogue."""
 
     stored = set(instrument_groups.load_groups())
@@ -48,7 +48,7 @@ async def list_group_labels() -> list[str]:
 
 
 @router.post("/admin/groups")
-async def create_group(body: dict[str, Any]) -> dict[str, Any]:
+def create_group(body: dict[str, Any]) -> dict[str, Any]:
     """Persist a new grouping label if it does not already exist."""
 
     name = body.get("name")
@@ -70,7 +70,7 @@ async def create_group(body: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/admin/groupings")
-async def list_instrument_groupings() -> list[dict[str, Any]]:
+def list_instrument_groupings() -> list[dict[str, Any]]:
     """Return shared instrument grouping definitions."""
 
     catalogue = list_group_definitions()
@@ -78,7 +78,7 @@ async def list_instrument_groupings() -> list[dict[str, Any]]:
 
 
 @router.get("/admin/{exchange}/{ticker}")
-async def get_instrument(exchange: str, ticker: str) -> dict[str, Any]:
+def get_instrument(exchange: str, ticker: str) -> dict[str, Any]:
     """Return metadata for a ticker/exchange pair."""
 
     try:
@@ -92,7 +92,7 @@ async def get_instrument(exchange: str, ticker: str) -> dict[str, Any]:
 
 
 @router.post("/admin/{exchange}/{ticker}")
-async def create_instrument(exchange: str, ticker: str, body: dict[str, Any]) -> dict[str, str]:
+def create_instrument(exchange: str, ticker: str, body: dict[str, Any]) -> dict[str, str]:
     """Create metadata for a new instrument."""
 
     try:
@@ -112,7 +112,7 @@ async def create_instrument(exchange: str, ticker: str, body: dict[str, Any]) ->
 
 
 @router.put("/admin/{exchange}/{ticker}")
-async def update_instrument(exchange: str, ticker: str, body: dict[str, Any]) -> dict[str, str]:
+def update_instrument(exchange: str, ticker: str, body: dict[str, Any]) -> dict[str, str]:
     """Update metadata for an existing instrument."""
 
     try:
@@ -144,7 +144,7 @@ async def update_instrument(exchange: str, ticker: str, body: dict[str, Any]) ->
 
 
 @router.post("/admin/{exchange}/{ticker}/refresh")
-async def refresh_instrument(exchange: str, ticker: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+def refresh_instrument(exchange: str, ticker: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
     """Fetch fresh metadata for an instrument and optionally persist it."""
 
     try:
@@ -209,7 +209,7 @@ async def refresh_instrument(exchange: str, ticker: str, body: dict[str, Any] | 
 
 
 @router.delete("/admin/{exchange}/{ticker}")
-async def delete_instrument(exchange: str, ticker: str) -> dict[str, str]:
+def delete_instrument(exchange: str, ticker: str) -> dict[str, str]:
     """Remove instrument metadata from disk."""
 
     try:
@@ -247,7 +247,7 @@ def _load_meta_for_update(exchange: str, ticker: str) -> dict[str, Any]:
 
 
 @router.post("/admin/{exchange}/{ticker}/group")
-async def assign_group(exchange: str, ticker: str, body: dict[str, Any]) -> dict[str, Any]:
+def assign_group(exchange: str, ticker: str, body: dict[str, Any]) -> dict[str, Any]:
     """Assign a grouping label to an instrument."""
 
     try:
@@ -264,7 +264,7 @@ async def assign_group(exchange: str, ticker: str, body: dict[str, Any]) -> dict
 
 
 @router.delete("/admin/{exchange}/{ticker}/group")
-async def clear_group(exchange: str, ticker: str) -> dict[str, Any]:
+def clear_group(exchange: str, ticker: str) -> dict[str, Any]:
     """Remove any grouping label assigned to an instrument."""
 
     try:

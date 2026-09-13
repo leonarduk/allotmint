@@ -172,7 +172,7 @@ async def test_create_transaction_requires_reason(tmp_path):
     )
 
     with pytest.raises(HTTPException) as excinfo:
-        await transactions_module.create_transaction(request, tx)
+        transactions_module.create_transaction(request, tx)
 
     assert excinfo.value.status_code == 400
     assert excinfo.value.detail == "reason is required"
@@ -196,7 +196,7 @@ async def test_create_transaction_requires_price(tmp_path):
     )
 
     with pytest.raises(HTTPException) as excinfo:
-        await transactions_module.create_transaction(request, tx)
+        transactions_module.create_transaction(request, tx)
 
     assert excinfo.value.status_code == 400
     assert excinfo.value.detail == "price_gbp and units are required"
@@ -220,7 +220,7 @@ async def test_create_transaction_requires_units(tmp_path):
     )
 
     with pytest.raises(HTTPException) as excinfo:
-        await transactions_module.create_transaction(request, tx)
+        transactions_module.create_transaction(request, tx)
 
     assert excinfo.value.status_code == 400
     assert excinfo.value.detail == "price_gbp and units are required"
@@ -406,7 +406,7 @@ async def test_create_transaction_records_valid_payload(monkeypatch, tmp_path):
         reason="Rebalance",
     )
 
-    response = await transactions_module.create_transaction(request, tx)
+    response = transactions_module.create_transaction(request, tx)
 
     assert transactions_module._POSTED_TRANSACTIONS == [
         {

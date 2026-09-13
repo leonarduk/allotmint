@@ -75,12 +75,23 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
 
     default_cors = ["http://localhost:3000", "http://localhost:5173"]
     cors_origins = _validate_cors_origins(list(dict.fromkeys((cfg.cors_origins or []) + default_cors)))
+    # `allow_origin_regex` is the range-friendly counterpart to the explicit
+    # allowlist above: CORS has no notion of a port range, and enumerating every
+    # port a dev machine might use is both brittle and easy to outgrow (vite
+    # walks 5173, 5174, ... whenever a port is already taken by another
+    # checkout). Starlette ORs the two together, so the allowlist keeps working
+    # unchanged and the regex only ever widens it. None disables it entirely,
+    # which is the default -- no deployment gets a looser policy by accident.
+    cors_kwargs: dict[str, Any] = {}
+    if cfg.cors_origin_regex:
+        cors_kwargs["allow_origin_regex"] = cfg.cors_origin_regex
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
         allow_methods=_CORS_ALLOW_METHODS,
         allow_headers=_CORS_ALLOW_HEADERS,
         allow_credentials=True,
+        **cors_kwargs,
     )
     app.add_middleware(SlowAPIMiddleware)
 

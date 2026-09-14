@@ -86,7 +86,8 @@ must treat branch creation as a first step, not a release step at the end.
 **Issue creation**: Always use the template format from
 `.github/ISSUE_TEMPLATE/bug_report.md` or `.github/ISSUE_TEMPLATE/feature_request.md`
 and include every required section: What, Why, How, Constraints, LLM tier,
-Success looks like, Failure looks like.
+Success looks like, Failure looks like, Implementation notes (`FILES:` and
+`DONE:` lines for issue-worm).
 
 **When rebasing a PR branch**: rebase onto the target and force-push to the
 **same branch name**. The PR updates automatically. Do not create a new branch

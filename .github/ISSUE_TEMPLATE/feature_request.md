@@ -53,3 +53,16 @@ cross-cutting) -->
 ## Failure looks like
 
 -
+
+## Implementation notes
+
+<!-- Scoping for issue-worm, which only picks up an issue once this section
+has two filled-in lines outside this comment, each at the very start of a
+line:
+  - one beginning `FILES:` then comma-separated paths from the repo root
+    (the Files Affected paths; files still to be created are fine)
+  - one beginning `DONE:` then one checkable sentence describing a passing
+    result
+For example, `FILES: src/app.py, tests/test_app.py` with
+`DONE: app --version prints the package version and the tests pass.`
+Leave this section empty to have issue-worm draft it. -->

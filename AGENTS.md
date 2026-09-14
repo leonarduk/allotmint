@@ -138,6 +138,9 @@ The required sections are:
 - **LLM tier** — suggested AI agent tier: haiku / sonnet / opus
 - **Success looks like** — checklist of acceptance criteria
 - **Failure looks like** — what regressions or gaps would mean the fix failed
+- **Implementation notes** — for issue-worm: a `FILES:` line (comma-separated
+  repo-relative paths) and a `DONE:` line (one checkable sentence), each at the
+  start of a line; leave empty if the files aren't known yet
 
 Never submit an issue that is missing any of these sections.
 

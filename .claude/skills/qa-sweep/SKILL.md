@@ -93,7 +93,8 @@ Use `mcp__github__create_issue` with the exact section headers from
 `.github/ISSUE_TEMPLATE/bug_report.md` (bugs) or `feature_request.md`
 (incomplete/duplicate/combine/drop/expand findings): `## What`, `## Why`, `## How`,
 `## Files Affected`, `## Constraints`, `## LLM tier`, `## Value`,
-`## Success looks like`, `## Failure looks like`. Label `bug` or `enhancement`
+`## Success looks like`, `## Failure looks like`, `## Implementation notes`
+(`FILES:` / `DONE:` lines for issue-worm). Label `bug` or `enhancement`
 accordingly; add `performance` too when relevant.
 
 - `## What`: exact repro (URL/route, steps, what you observed) — screenshots or

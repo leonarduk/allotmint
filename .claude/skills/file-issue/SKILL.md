@@ -47,6 +47,7 @@ in order, every time:
 ## Value
 ## Success looks like
 ## Failure looks like
+## Implementation notes
 ```
 
 ## 3. Fill each section with evidence, not vibes
@@ -76,6 +77,10 @@ in order, every time:
     starter product observations with no functional risk.
 - **Success/Failure looks like**: concrete, checkable — "X request fires once"
   not "the bug is fixed."
+- **Implementation notes**: what issue-worm reads before it dispatches the
+  issue — two lines, each at the start of a line: `FILES:` then the Files
+  Affected paths comma-separated, and `DONE:` then one checkable sentence.
+  Leave it empty rather than guess; never write `FILES: Unknown`.
 
 ## 4. File it
 

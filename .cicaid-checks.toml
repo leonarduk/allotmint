@@ -1,0 +1,59 @@
+# Local check list for cicaid-devtools' `cicaid run-ci-checks`.
+#
+# This repo happened to work correctly without this file, because
+# cicaid_devtools.run_ci_checks.DEFAULT_CHECKS — the fallback used when a
+# target repo has no .cicaid-checks.toml of its own — is literally this
+# repo's own check list (see that module's docstring: "allotmint's own
+# checks... not a generic default"). Adding it explicitly here removes the
+# implicit coupling: this repo's checks no longer depend on staying in sync
+# with whatever cicaid happens to ship as its fallback, and other repos
+# processed by the same issue-worm-pro scheduler (ai-systems-lab, cicaid,
+# cicaid-pro) stop silently inheriting these allotmint-specific commands.
+
+[[checks]]
+name = "backend"
+description = "Backend integration tests, coverage, type checks, and contract sync"
+workflow = ".github/workflows/backend-integration.yml"
+commands = [
+    "python scripts/check_contract_version_sync.py",
+    "python -m mypy backend --config-file mypy.ini --show-error-codes --pretty --explicit-package-bases",
+    "pytest --no-cov tests/backend/common/test_data_provider_parity.py -q",
+    "pytest tests --ignore=tests/live --cov=backend --cov-report=xml --cov-report=term --cov-fail-under=80 -q",
+]
+
+[[checks]]
+name = "frontend"
+description = "Frontend lint, type checking, unit tests, and dependency audit"
+workflow = ".github/workflows/frontend-tests.yml and .github/workflows/ci.yml"
+commands = [
+    "npm --prefix frontend run lint",
+    "npm --prefix frontend run type-check",
+    "npm --prefix frontend test -- --run --coverage",
+    "npm --prefix frontend audit --audit-level=high",
+]
+
+[[checks]]
+name = "infrastructure"
+description = "CDK tests and GitHub Actions workflow lint"
+workflow = ".github/workflows/ci.yml and .github/workflows/cdk-dry-run.yml"
+commands = [
+    "pytest cdk/tests/ --no-cov",
+    "actionlint",
+]
+
+[[checks]]
+name = "scripts"
+description = "Bash developer script tests, plus shellcheck"
+workflow = ".github/workflows/ci.yml"
+commands = [
+    "npx --yes bats@1.13.0 tests/bash/*.bats",
+    "shellcheck .github/scripts/*.sh",
+]
+
+[[checks]]
+name = "backend-deps"
+description = "Backend requirements.txt dependency-conflict dry-run"
+workflow = ".github/workflows/ci.yml (validate-backend-deps)"
+commands = [
+    "pip install --dry-run -r backend/requirements.txt",
+]

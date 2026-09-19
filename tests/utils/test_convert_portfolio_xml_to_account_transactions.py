@@ -20,6 +20,17 @@ from backend.utils.convert_portfolio_xml_to_account_transactions import (
 def xml_fixture(tmp_path):
     xml = """<?xml version='1.0' encoding='UTF-8'?>
 <root>
+  <securities>
+    <security id="S1">
+      <name>Adobe Inc</name>
+      <isin>US00724F1012</isin>
+      <tickerSymbol>ADBE.N</tickerSymbol>
+    </security>
+    <security id="S2">
+      <name>Unlisted Holding</name>
+      <isin>GB0000000000</isin>
+    </security>
+  </securities>
   <accounts>
     <account id="a1">
       <name>Steve ISA Cash</name>
@@ -98,6 +109,9 @@ def test_extract_transactions_by_account(xml_fixture):
         "amount_minor",
         "type",
         "security_ref",
+        "ticker",
+        "instrument_name",
+        "isin",
         "shares",
         "portfolio_id",
         "portfolio",
@@ -106,6 +120,77 @@ def test_extract_transactions_by_account(xml_fixture):
     assert len(df) == 3
     assert (df["kind"] == "account").sum() == 2
     assert (df["kind"] == "portfolio").sum() == 1
+
+
+def test_security_reference_is_resolved_to_a_ticker(xml_fixture):
+    """The whole point of the converter for downstream consumers.
+
+    Transactions carry only a reference to a security; without resolving it the
+    output cannot be matched to an instrument.
+    """
+    df = extract_transactions_by_account(xml_fixture)
+    trade = df[df["kind"] == "portfolio"].iloc[0]
+
+    assert trade["security_ref"] == "S1"
+    assert trade["ticker"] == "ADBE.N"
+    assert trade["instrument_name"] == "Adobe Inc"
+    assert trade["isin"] == "US00724F1012"
+
+
+def test_cash_transactions_have_no_ticker(xml_fixture):
+    df = extract_transactions_by_account(xml_fixture)
+    cash = df[df["kind"] == "account"]
+
+    assert cash["security_ref"].isna().all()
+    assert cash["ticker"].isna().all()
+
+
+def test_unresolved_reference_is_left_empty_rather_than_guessed(tmp_path):
+    """An unknown reference must not be emitted as though it were a ticker."""
+    xml = """<?xml version='1.0' encoding='UTF-8'?>
+<root>
+  <securities>
+    <security id="S1"><name>Known</name><tickerSymbol>KNOWN.L</tickerSymbol></security>
+  </securities>
+  <accounts>
+    <account id="a1"><name>Steve ISA Cash</name><transactions /></account>
+  </accounts>
+  <portfolio id="p1">
+    <name>Steve ISA Portfolio</name>
+    <referenceAccount reference="a1" />
+    <transactions>
+      <portfolio-transaction id="pt1">
+        <date>2024-01-03</date>
+        <type>BUY</type>
+        <security reference="MISSING" />
+        <shares>10</shares>
+      </portfolio-transaction>
+    </transactions>
+  </portfolio>
+</root>
+"""
+    path = tmp_path / "pp.xml"
+    path.write_text(xml)
+
+    df = extract_transactions_by_account(str(path))
+    trade = df[df["kind"] == "portfolio"].iloc[0]
+
+    assert trade["security_ref"] == "MISSING"
+    assert trade["ticker"] is None
+
+
+def test_security_without_ticker_symbol_yields_no_ticker(xml_fixture, tmp_path):
+    """Some securities (unlisted funds) carry a name and ISIN but no ticker."""
+    xml = (tmp_path / "pp2.xml")
+    original = open(xml_fixture, encoding="utf-8").read()
+    xml.write_text(original.replace('<security reference="S1" />', '<security reference="S2" />'))
+
+    df = extract_transactions_by_account(str(xml))
+    trade = df[df["kind"] == "portfolio"].iloc[0]
+
+    assert trade["ticker"] is None
+    assert trade["instrument_name"] == "Unlisted Holding"
+    assert trade["isin"] == "GB0000000000"
 
 
 def test_write_account_json(xml_fixture, tmp_path):
@@ -127,6 +212,28 @@ def test_write_account_json(xml_fixture, tmp_path):
 
     assert len(isa_data["transactions"]) == 2
     assert len(gia_data["transactions"]) == 1
+
+
+def test_written_json_is_valid_json(xml_fixture, tmp_path):
+    """pandas missing values must not be written as the bare literal ``NaN``.
+
+    Python's json loader tolerates it, but it is not valid JSON: browsers and
+    the frontend's schema validation reject the whole payload.
+    """
+    df = extract_transactions_by_account(xml_fixture)
+    out_dir = tmp_path / "out"
+    write_account_json(df, out_dir)
+
+    raw = (out_dir / "steve" / "isa_transactions.json").read_text(encoding="utf-8")
+    assert "NaN" not in raw
+
+    def reject_constant(name):  # pragma: no cover - only runs on failure
+        raise AssertionError(f"non-JSON literal in output: {name}")
+
+    data = json.loads(raw, parse_constant=reject_constant)
+
+    cash = [t for t in data["transactions"] if t["kind"] == "account"]
+    assert cash and all(t["ticker"] is None for t in cash)
 
 
 def test_billion_laughs_xml_rejected(tmp_path):

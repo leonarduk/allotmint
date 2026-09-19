@@ -241,6 +241,22 @@ describe("buildTradeMarkers", () => {
     expect(markers).toEqual([]);
   });
 
+  // Reconciliation injects balancing rows, dated a year in the past, when a
+  // holding cannot be explained by the recorded trades.  Drawing them would
+  // claim a trade happened on a date it did not.
+  it("skips synthetic reconciliation rows", () => {
+    const markers = buildTradeMarkers(
+      [
+        tx({ id: "real", date: "2024-03-04" }),
+        tx({ id: "balancing", date: "2024-03-06", synthetic: true }),
+      ],
+      "AAPL.N",
+      CHART_DATES,
+    );
+
+    expect(markers.map((m) => m.key)).toEqual(["real"]);
+  });
+
   it("marks a timestamped trade on the last charted day", () => {
     const markers = buildTradeMarkers(
       [tx({ id: "1", date: "2024-03-07T00:00" })],

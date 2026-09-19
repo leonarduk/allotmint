@@ -27,14 +27,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Mapping, Tuple
 
 import defusedxml.ElementTree as ET
 import pandas as pd
 
 from backend.config import config
+from backend.utils.positions import build_security_lookup
 
 ###############################################################################
 # Helpers
@@ -51,6 +53,26 @@ def _safe_int(value: str | None) -> int | None:
 def _get_ref(elem: ET.Element, tag: str) -> str | None:
     tag_elem = elem.find(tag)
     return tag_elem.get("reference") if tag_elem is not None else None
+
+
+def _security_fields(security_ref: str | None, sec_meta: Mapping[str, Mapping[str, str]]) -> Dict[str, Any]:
+    """Resolve a transaction's security reference to instrument metadata.
+
+    A transaction carries no ticker of its own, only a reference to a
+    ``<security>`` elsewhere in the document.  Without resolving it the output
+    cannot be matched to an instrument at all, which is why consumers such as
+    the trade-marker chart overlay saw no trades for any holding.
+
+    An unresolved reference yields empty fields rather than a guess: emitting
+    the raw reference as though it were a ticker would silently mis-attribute
+    the trade to a non-existent instrument.
+    """
+    meta = sec_meta.get(security_ref or "", {})
+    return {
+        "ticker": meta.get("ticker") or None,
+        "instrument_name": meta.get("name") or None,
+        "isin": meta.get("isin") or None,
+    }
 
 
 def _normalise_account_name(name: str) -> Tuple[str, str]:
@@ -76,6 +98,10 @@ def extract_transactions_by_account(xml_path: str) -> pd.DataFrame:
         acc.get("id"): acc.findtext("name") or f"Account {acc.get('id')}" for acc in root.findall(".//accounts/account")
     }
 
+    # Map security-id -> instrument metadata, so each transaction can carry the
+    # ticker it refers to rather than only an opaque reference.
+    sec_meta = build_security_lookup(root)
+
     records: List[Dict[str, Any]] = []
 
     # ------------------------------------------------------------------
@@ -86,6 +112,7 @@ def extract_transactions_by_account(xml_path: str) -> pd.DataFrame:
         acc_name = account_names[acc_id]
 
         for trx in acc.findall("./transactions/account-transaction"):
+            security_ref = _get_ref(trx, "security")
             records.append(
                 {
                     "kind": "account",
@@ -97,7 +124,8 @@ def extract_transactions_by_account(xml_path: str) -> pd.DataFrame:
                     "currency": trx.findtext("currencyCode"),
                     "amount_minor": _safe_int(trx.findtext("amount")),
                     "type": trx.findtext("type"),
-                    "security_ref": _get_ref(trx, "security"),
+                    "security_ref": security_ref,
+                    **_security_fields(security_ref, sec_meta),
                     "shares": _safe_int(trx.findtext("shares")),
                 }
             )
@@ -114,6 +142,7 @@ def extract_transactions_by_account(xml_path: str) -> pd.DataFrame:
         acc_name = account_names.get(acc_id, f"Account {acc_id}")
 
         for ptrx in portfolio.findall("./transactions/portfolio-transaction"):
+            security_ref = _get_ref(ptrx, "security")
             records.append(
                 {
                     "kind": "portfolio",
@@ -127,7 +156,8 @@ def extract_transactions_by_account(xml_path: str) -> pd.DataFrame:
                     "currency": ptrx.findtext("currencyCode"),
                     "amount_minor": _safe_int(ptrx.findtext("amount")),
                     "type": ptrx.findtext("type"),
-                    "security_ref": _get_ref(ptrx, "security"),
+                    "security_ref": security_ref,
+                    **_security_fields(security_ref, sec_meta),
                     "shares": _safe_int(ptrx.findtext("shares")),
                 }
             )
@@ -138,6 +168,24 @@ def extract_transactions_by_account(xml_path: str) -> pd.DataFrame:
 ###############################################################################
 # Output helpers
 ###############################################################################
+
+
+def _is_missing(value: Any) -> bool:
+    return value is None or (isinstance(value, float) and math.isnan(value))
+
+
+def _clean_records(group: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Convert a frame to records with missing values as ``None``.
+
+    pandas represents a missing value as ``float('nan')``, which ``json.dump``
+    writes as the bare literal ``NaN``.  That is not valid JSON: Python's own
+    loader accepts it, but ``JSON.parse`` and the frontend's schema validation
+    reject it, so the field would break every consumer of the response.
+    """
+    return [
+        {key: (None if _is_missing(value) else value) for key, value in record.items()}
+        for record in group.to_dict(orient="records")
+    ]
 
 
 def write_account_json(df: pd.DataFrame, out_dir: str) -> None:
@@ -155,7 +203,7 @@ def write_account_json(df: pd.DataFrame, out_dir: str) -> None:
             "account_type": account_type.upper(),
             "currency": "GBP",  # Assumes single-currency books
             "last_updated": today,
-            "transactions": group.drop(columns=["owner", "account_type"]).to_dict(orient="records"),
+            "transactions": _clean_records(group.drop(columns=["owner", "account_type"])),
         }
 
         target_dir = Path(out_dir) / owner
@@ -163,7 +211,10 @@ def write_account_json(df: pd.DataFrame, out_dir: str) -> None:
         json_path = target_dir / f"{account_type}_transactions.json"
 
         with json_path.open("w", encoding="utf-8") as fh:
-            json.dump(out, fh, indent=2)
+            # allow_nan=False turns any remaining non-finite value into a loud
+            # failure here rather than a file that silently fails to parse
+            # downstream.
+            json.dump(out, fh, indent=2, allow_nan=False)
 
         print(f"Wrote {json_path} ({len(group)} transactions)")
 

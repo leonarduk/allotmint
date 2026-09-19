@@ -157,6 +157,11 @@ export function buildTradeMarkers(
 
   transactions.forEach((tx, index) => {
     if (!tx.date) return;
+    // Reconciliation injects balancing entries, dated a year in the past, when
+    // a holding cannot be explained by the recorded trades.  Drawing them would
+    // claim the owner traded on a date they did not, which is exactly the
+    // question this overlay exists to answer.
+    if (tx.synthetic) return;
     // Rows converted from the portfolio XML carry only `security_ref`, an index
     // into that XML rather than a ticker, so they cannot be attributed to an
     // instrument here and are skipped rather than mis-attributed.

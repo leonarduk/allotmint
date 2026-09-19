@@ -10,6 +10,30 @@ import pandas as pd
 # ------------------------------------------------------------------ #
 
 
+def build_security_lookup(root: ET.Element) -> dict[str, dict[str, str]]:
+    """Map a security's XML id to its metadata.
+
+    Transactions reference their instrument indirectly: a
+    ``<security reference="123"/>`` element points at the ``id`` attribute of a
+    ``<security>`` under ``<securities>``.  Resolving that reference is the only
+    way to learn which instrument a transaction is about, since the transaction
+    itself carries no ticker.
+
+    Falls back to ``<uuid>`` for exports that omit the ``id`` attribute.
+    """
+    sec_meta: dict[str, dict[str, str]] = {}
+    for s in root.findall(".//securities/security"):
+        sid = s.attrib.get("id") or s.findtext("uuid")
+        if not sid:
+            continue
+        sec_meta[sid] = {
+            "name": s.findtext("name", ""),
+            "isin": s.findtext("isin", ""),
+            "ticker": s.findtext("tickerSymbol", ""),
+        }
+    return sec_meta
+
+
 def get_unique_tickers(xml_file: str, cutoff_date: Union[str, datetime, None] = None) -> list[str]:
     df = extract_holdings_from_transactions(xml_file, by_account=False, cutoff_date=cutoff_date)
     return df["ticker"].dropna().unique().tolist()
@@ -52,16 +76,7 @@ def extract_holdings_from_transactions(
         return datetime.strptime(iso[:10], "%Y-%m-%d") <= cutoff_date
 
     # ---- securityId ➜ meta --------------------------------------------
-    sec_meta = {}
-    for s in root.findall(".//securities/security"):
-        sid = s.attrib.get("id") or s.findtext("uuid")
-        if not sid:
-            continue
-        sec_meta[sid] = {
-            "name": s.findtext("name", ""),
-            "isin": s.findtext("isin", ""),
-            "ticker": s.findtext("tickerSymbol", ""),
-        }
+    sec_meta = build_security_lookup(root)
 
     # ---- iterate -------------------------------------------------------
     ledgers: dict[str, defaultdict[str, float]] = defaultdict(lambda: defaultdict(float))
@@ -156,16 +171,7 @@ def extract_dividends_from_transactions(
             return True
         return datetime.strptime(iso[:10], "%Y-%m-%d") <= cutoff_date
 
-    sec_meta = {}
-    for s in root.findall(".//securities/security"):
-        sid = s.attrib.get("id") or s.findtext("uuid")
-        if not sid:
-            continue
-        sec_meta[sid] = {
-            "name": s.findtext("name", ""),
-            "isin": s.findtext("isin", ""),
-            "ticker": s.findtext("tickerSymbol", ""),
-        }
+    sec_meta = build_security_lookup(root)
 
     account_nodes = root.findall(".//account") if by_account else [root]
 

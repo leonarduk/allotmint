@@ -395,6 +395,12 @@ export interface Transaction {
   comments?: string | null;
   reason?: string | null;
   reason_to_buy?: string | null;
+  /**
+   * Balancing entry injected by holdings reconciliation rather than a trade the
+   * owner actually placed.  Carried by the API contract but previously absent
+   * from this interface.
+   */
+  synthetic?: boolean;
 }
 
 export interface TransactionWithCompliance extends Transaction {

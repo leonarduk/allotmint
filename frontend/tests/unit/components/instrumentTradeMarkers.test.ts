@@ -82,6 +82,20 @@ describe("snapToChartDate", () => {
   it("returns null when there is no price history", () => {
     expect(snapToChartDate("2024-03-04", [])).toBeNull();
   });
+
+  // Rows converted from the portfolio XML carry a full timestamp
+  // (e.g. "2019-08-27T00:00") rather than a plain date.
+  it("handles trade dates carrying a time component", () => {
+    expect(snapToChartDate("2024-03-05T00:00", CHART_DATES)).toBe("2024-03-05");
+  });
+
+  it("keeps a timestamped trade on the last charted day", () => {
+    expect(snapToChartDate("2024-03-07T00:00", CHART_DATES)).toBe("2024-03-07");
+  });
+
+  it("keeps a timestamped trade on the first charted day", () => {
+    expect(snapToChartDate("2024-03-01T09:30", CHART_DATES)).toBe("2024-03-01");
+  });
 });
 
 describe("capMarkers", () => {
@@ -203,6 +217,38 @@ describe("buildTradeMarkers", () => {
 
   it("returns nothing for an instrument with no trade history", () => {
     expect(buildTradeMarkers([], "AAPL.N", CHART_DATES)).toEqual([]);
+  });
+
+  // Real rows converted from the portfolio XML identify the instrument only by
+  // `security_ref`, an index into that XML.  They cannot be attributed to a
+  // ticker here, so they must be skipped rather than guessed at.
+  it("skips rows that identify the instrument only by security_ref", () => {
+    const markers = buildTradeMarkers(
+      [
+        {
+          owner: "steve",
+          account: "isa",
+          date: "2024-03-04T00:00",
+          type: "BUY",
+          security_ref: "22",
+          ticker: null,
+        },
+      ],
+      "AAPL.N",
+      CHART_DATES,
+    );
+
+    expect(markers).toEqual([]);
+  });
+
+  it("marks a timestamped trade on the last charted day", () => {
+    const markers = buildTradeMarkers(
+      [tx({ id: "1", date: "2024-03-07T00:00" })],
+      "AAPL.N",
+      CHART_DATES,
+    );
+
+    expect(markers.map((m) => m.date)).toEqual(["2024-03-07"]);
   });
 
   it("falls back to a synthesised key when the row has no id", () => {

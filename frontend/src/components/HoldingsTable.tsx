@@ -30,6 +30,7 @@ import { getGrowthStage } from "../utils/growthStage";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 import type { InstrumentGroupDefinition } from "../types";
 import type { RollupRow } from "../lib/rollupAdapter";
+import { getVirtualSpacerHeights } from "./instrumentTable/virtualPadding";
 import {
   buildCategoryLookup,
   calculateGroupTotals,
@@ -44,6 +45,10 @@ import type {
 
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
 const ESTIMATED_ROW_HEIGHT = 32;
+// Columns rendered unconditionally in every header/body row: ticker, name, price,
+// weight %, trend, ccy, type, acquired, days held, stage, eligible. Everything
+// else is gated on showAccount / relative view / visibleColumns / forward ranges.
+const ALWAYS_VISIBLE_COLUMN_COUNT = 11;
 
 type HoldingsTableRow = Holding & {
   source_account?: string;
@@ -330,11 +335,27 @@ export function HoldingsTable({
   const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
   const [tableWidth, setTableWidth] = useState(0);
 
-  useEffect(() => {
-    if (tableHeaderRef.current) {
-      setHeaderHeight(tableHeaderRef.current.getBoundingClientRect().height);
-    }
-  }, []);
+  // The header owns two rows (filter inputs + column titles) whose combined
+  // height changes when columns are toggled, the viewport narrows, or the filter
+  // row wraps. It feeds the virtualizer's scrollMargin, so it has to be
+  // re-measured on resize rather than once on mount.
+  useLayoutEffect(() => {
+    const header = tableHeaderRef.current;
+    if (!header) return;
+
+    const measure = () =>
+      setHeaderHeight((previous) => {
+        const next = header.getBoundingClientRect().height;
+        return Math.abs(next - previous) < 0.5 ? previous : next;
+      });
+
+    measure();
+
+    if (typeof ResizeObserver === "undefined") return;
+    const resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(header);
+    return () => resizeObserver.disconnect();
+  }, [sortedRows.length]);
 
   useLayoutEffect(() => {
     const container = tableContainerRef.current;
@@ -389,10 +410,25 @@ export function HoldingsTable({
     scrollMargin: headerHeight,
   });
   const virtualRows = showGroupHeaders ? [] : rowVirtualizer.getVirtualItems();
-  const paddingTop = virtualRows.length ? virtualRows[0].start : 0;
-  const paddingBottom = virtualRows.length
-    ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
-    : 0;
+  const { paddingTop, paddingBottom } = getVirtualSpacerHeights(
+    virtualRows,
+    rowVirtualizer.getTotalSize(),
+    rowVirtualizer.options.scrollMargin,
+  );
+  const spacerColSpan =
+    ALWAYS_VISIBLE_COLUMN_COUNT +
+    (showAccount ? 1 : 0) +
+    (showForward7d ? 1 : 0) +
+    (showForward30d ? 1 : 0) +
+    (visibleColumns.gain_pct ? 1 : 0) +
+    (relativeViewEnabled
+      ? 0
+      : [
+          visibleColumns.units,
+          visibleColumns.cost,
+          visibleColumns.market,
+          visibleColumns.gain,
+        ].filter(Boolean).length);
   const items = virtualRows.length
     ? virtualRows
     : sortedRows.map((_, index) => ({
@@ -713,10 +749,7 @@ export function HoldingsTable({
         <tbody>
           {paddingTop > 0 && (
             <tr style={{ height: paddingTop }}>
-              <td
-                colSpan={21 + (showAccount ? 1 : 0) + (showForward7d ? 1 : 0) + (showForward30d ? 1 : 0)}
-                className="p-0 border-0"
-              />
+              <td colSpan={spacerColSpan} className="p-0 border-0" />
             </tr>
           )}
           {items.map((virtualRow) => {
@@ -976,10 +1009,7 @@ export function HoldingsTable({
           })}
           {paddingBottom > 0 && (
             <tr style={{ height: paddingBottom }}>
-              <td
-                colSpan={21 + (showAccount ? 1 : 0) + (showForward7d ? 1 : 0) + (showForward30d ? 1 : 0)}
-                className="p-0 border-0"
-              />
+              <td colSpan={spacerColSpan} className="p-0 border-0" />
             </tr>
           )}
         </tbody>

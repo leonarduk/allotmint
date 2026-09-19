@@ -15,10 +15,7 @@ from backend.common import instrument_api
 from backend.common.ttl_cache import TTLCache
 from backend.config import config
 from backend.routes.portfolio import _ALLOWED_DAYS as _PORTFOLIO_ALLOWED_DAYS
-from backend.routes.portfolio import (
-    _calculate_weights_and_market_values,
-    _enrich_movers_with_market_values,
-)
+from backend.routes.portfolio import _calculate_weights_and_market_values, _enrich_movers_with_market_values
 
 router = APIRouter(tags=["opportunities"])
 

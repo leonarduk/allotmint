@@ -181,7 +181,7 @@ def test_unresolved_reference_is_left_empty_rather_than_guessed(tmp_path):
 
 def test_security_without_ticker_symbol_yields_no_ticker(xml_fixture, tmp_path):
     """Some securities (unlisted funds) carry a name and ISIN but no ticker."""
-    xml = (tmp_path / "pp2.xml")
+    xml = tmp_path / "pp2.xml"
     original = open(xml_fixture, encoding="utf-8").read()
     xml.write_text(original.replace('<security reference="S1" />', '<security reference="S2" />'))
 

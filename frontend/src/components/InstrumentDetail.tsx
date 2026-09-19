@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { getInstrumentDetail, getInstrumentIntraday } from "../api";
+import { getInstrumentDetail, getInstrumentIntraday, getTransactions } from "../api";
 import { money, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
-import type { InstrumentPosition, TradingSignal } from "../types";
+import type { InstrumentPosition, TradingSignal, Transaction } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import ChartSkeleton from "./skeletons/ChartSkeleton";
@@ -24,10 +24,19 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
+  ReferenceLine,
   XAxis,
   YAxis,
   Tooltip,
+  DefaultTooltipContent,
+  type TooltipContentProps,
 } from "recharts";
+import {
+  BUY_MARKER_COLOR,
+  SELL_MARKER_COLOR,
+  buildTradeMarkers,
+  type TradeMarker,
+} from "./instrumentTradeMarkers";
 
 type Variant = "drawer" | "standalone";
 
@@ -88,6 +97,51 @@ const normaliseCurrency = (value: string | null | undefined): string | undefined
   if (!trimmed) return undefined;
   return /^[A-Z]{3,5}$/.test(trimmed) ? trimmed : undefined;
 };
+
+/**
+ * Default chart tooltip, with any trades on the hovered date appended.
+ *
+ * Reference lines have no hover target of their own, so trade details are
+ * surfaced through the tooltip of the date they sit on.  The default content is
+ * reused rather than reimplemented so the tooltip looks unchanged when the
+ * hovered date has no trades.
+ */
+function TradeTooltipContent({
+  markers,
+  ...props
+}: TooltipContentProps & { markers: TradeMarker[] }) {
+  const { t } = useTranslation();
+  const hovered = markers.filter((m) => m.date === props.label);
+
+  return (
+    <>
+      <DefaultTooltipContent {...props} />
+      {hovered.length > 0 && (
+        <div style={{ padding: "0 10px 6px", color: "#000" }}>
+          {hovered.map((marker) => (
+            <div
+              key={marker.key}
+              style={{
+                fontSize: "0.75rem",
+                color:
+                  marker.side === "buy" ? BUY_MARKER_COLOR : SELL_MARKER_COLOR,
+              }}
+            >
+              {t(`instrumentDetail.tradeSide.${marker.side}`)} ·{" "}
+              {marker.tradeDate} ·{" "}
+              {Number.isFinite(toNum(marker.units)) ? fixed(marker.units) : "—"}{" "}
+              {t("instrumentDetail.tradeUnits")}
+              {Number.isFinite(toNum(marker.price))
+                ? ` @ ${fixed(marker.price)}`
+                : ""}{" "}
+              · {marker.owner} / {marker.account}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
 
 export function InstrumentPositionsTable({
   positions,
@@ -275,6 +329,8 @@ export function InstrumentDetail({
   const [err, setErr] = useState<string | null>(null);
   const [currencyFromData, setCurrencyFromData] = useState<string | null>(null);
   const [showBollinger, setShowBollinger] = useState(false);
+  const [showTrades, setShowTrades] = useState(false);
+  const [trades, setTrades] = useState<Transaction[]>([]);
   const [showMA20, setShowMA20] = useState(false);
   const [showMA50, setShowMA50] = useState(false);
   const [showMA200, setShowMA200] = useState(false);
@@ -347,6 +403,36 @@ export function InstrumentDetail({
       active = false;
     };
   }, [ticker, priceMode]);
+
+  // Trades are fetched lazily: the overlay is off by default, so most viewers of
+  // this panel never pay for the request.  No owner/account filter is applied —
+  // the instrument may be held by several of them, and a fully exited position
+  // has trades worth showing but no rows in `positions` to discover them from.
+  useEffect(() => {
+    if (!showTrades) return;
+    let active = true;
+    const start =
+      days > 0
+        ? formatDateISO(new Date(Date.now() - days * 24 * 60 * 60 * 1000))
+        : undefined;
+    getTransactions({ start })
+      .then((rows) => {
+        if (active) setTrades(rows);
+      })
+      .catch(() => {
+        // A failed lookup leaves the price line intact and the overlay empty;
+        // it is not worth failing the whole panel over.
+        if (active) setTrades([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [showTrades, ticker, days]);
+
+  useEffect(() => {
+    setShowTrades(false);
+    setTrades([]);
+  }, [ticker]);
 
   const displayCurrency = currencyProp ?? currencyFromData ?? "?";
   const reportingCurrency = normaliseCurrency(baseCurrency ?? "GBP");
@@ -442,6 +528,14 @@ export function InstrumentDetail({
       rsi,
     };
   });
+
+  const tradeMarkers = showTrades
+    ? buildTradeMarkers(
+        trades,
+        ticker,
+        prices.map((p) => p.date),
+      )
+    : [];
 
   // 7d / 30d change calculations
   const latestClose = rawPrices[rawPrices.length - 1]?.close ?? NaN;
@@ -656,6 +750,14 @@ export function InstrumentDetail({
             <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
               <input
                 type="checkbox"
+                checked={showTrades}
+                onChange={(e) => setShowTrades(e.target.checked)}
+              />{" "}
+              {t("instrumentDetail.tradeMarkers")}
+            </label>
+            <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+              <input
+                type="checkbox"
                 checked={showMA20}
                 onChange={(e) => setShowMA20(e.target.checked)}
               />{" "}
@@ -733,7 +835,25 @@ export function InstrumentDetail({
             <Tooltip
               wrapperStyle={{ color: "#000" }}
               labelStyle={{ color: "#000" }}
+              {...(tradeMarkers.length > 0
+                ? {
+                    content: (props: TooltipContentProps) => (
+                      <TradeTooltipContent {...props} markers={tradeMarkers} />
+                    ),
+                  }
+                : {})}
             />
+            {tradeMarkers.map((marker) => (
+              <ReferenceLine
+                key={marker.key}
+                x={marker.date}
+                yAxisId="price"
+                stroke={
+                  marker.side === "buy" ? BUY_MARKER_COLOR : SELL_MARKER_COLOR
+                }
+                strokeWidth={1.5}
+              />
+            ))}
             {showBollinger && (
               <>
                 <Line

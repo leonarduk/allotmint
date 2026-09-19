@@ -35,8 +35,12 @@ const defaultConfig: AppConfig = {
   },
 };
 
-vi.mock("@/api", () => ({ getInstrumentDetail: vi.fn(), getInstrumentIntraday: vi.fn() }));
-import { getInstrumentDetail, getInstrumentIntraday } from "@/api";
+vi.mock("@/api", () => ({
+  getInstrumentDetail: vi.fn(),
+  getInstrumentIntraday: vi.fn(),
+  getTransactions: vi.fn(),
+}));
+import { getInstrumentDetail, getInstrumentIntraday, getTransactions } from "@/api";
 
 class ResizeObserver {
   observe() {}
@@ -58,6 +62,7 @@ import { InstrumentDetail } from "@/components/InstrumentDetail";
 describe("InstrumentDetail", () => {
   const mockGetInstrumentDetail = getInstrumentDetail as unknown as Mock;
   const mockGetInstrumentIntraday = getInstrumentIntraday as unknown as Mock;
+  const mockGetTransactions = getTransactions as unknown as Mock;
 
   const TestProvider = ({ children }: { children: React.ReactNode }) => {
     const [relativeViewEnabled, setRelativeViewEnabled] = useState(false);
@@ -81,6 +86,8 @@ describe("InstrumentDetail", () => {
   beforeEach(() => {
     mockGetInstrumentDetail.mockReset();
     mockGetInstrumentIntraday.mockReset();
+    mockGetTransactions.mockReset();
+    mockGetTransactions.mockResolvedValue([]);
   });
 
   it("renders the drawer above page content", async () => {
@@ -313,5 +320,106 @@ describe("InstrumentDetail", () => {
 
     expect(await screen.findByText("250.00 GBX")).toBeInTheDocument();
     expect(screen.queryByText("£2.50")).not.toBeInTheDocument();
+  });
+  describe("trade markers overlay", () => {
+    const withPrices = {
+      prices: [
+        { date: "2024-01-01", close: 245, close_gbp: 2.45 },
+        { date: "2024-01-02", close: 250, close_gbp: 2.5 },
+      ],
+      positions: [],
+      currency: "GBP",
+    };
+
+    it("offers the overlay unticked, alongside the other chart overlays", async () => {
+      i18n.changeLanguage("en");
+      mockGetInstrumentDetail.mockResolvedValue(withPrices);
+
+      render(
+        <MemoryRouter>
+          <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+        </MemoryRouter>,
+      );
+
+      const toggle = await screen.findByLabelText("Trade markers");
+      expect(toggle).not.toBeChecked();
+      expect(screen.getByLabelText("Bollinger Bands")).toBeInTheDocument();
+    });
+
+    it("does not fetch trades until the overlay is switched on", async () => {
+      i18n.changeLanguage("en");
+      mockGetInstrumentDetail.mockResolvedValue(withPrices);
+
+      render(
+        <MemoryRouter>
+          <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+        </MemoryRouter>,
+      );
+
+      await screen.findByLabelText("Trade markers");
+      expect(mockGetTransactions).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByLabelText("Trade markers"));
+
+      expect(screen.getByLabelText("Trade markers")).toBeChecked();
+      expect(mockGetTransactions).toHaveBeenCalled();
+    });
+
+    it("keeps the chart usable when the trade lookup fails", async () => {
+      i18n.changeLanguage("en");
+      mockGetInstrumentDetail.mockResolvedValue(withPrices);
+      mockGetTransactions.mockRejectedValue(new Error("boom"));
+
+      render(
+        <MemoryRouter>
+          <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+        </MemoryRouter>,
+      );
+
+      await userEvent.click(await screen.findByLabelText("Trade markers"));
+
+      expect(await screen.findByRole("heading", { name: "ABC" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Trade markers")).toBeChecked();
+    });
+
+    it("resets the overlay when the drawer switches instrument", async () => {
+      i18n.changeLanguage("en");
+      mockGetInstrumentDetail.mockResolvedValue(withPrices);
+
+      const { rerender } = render(
+        <MemoryRouter>
+          <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+        </MemoryRouter>,
+      );
+
+      await userEvent.click(await screen.findByLabelText("Trade markers"));
+      expect(screen.getByLabelText("Trade markers")).toBeChecked();
+
+      rerender(
+        <MemoryRouter>
+          <InstrumentDetail ticker="XYZ.L" name="XYZ" onClose={() => {}} />
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByLabelText("Trade markers")).not.toBeChecked();
+    });
+
+    it.each(["en", "fr", "de", "es", "pt", "it"])(
+      "labels the overlay in %s",
+      async (lang) => {
+        mockGetInstrumentDetail.mockResolvedValue(withPrices);
+        i18n.changeLanguage(lang);
+
+        render(
+          <MemoryRouter>
+            <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+          </MemoryRouter>,
+        );
+
+        const label = i18n.t("instrumentDetail.tradeMarkers");
+        expect(label).not.toBe("instrumentDetail.tradeMarkers");
+        expect(await screen.findByLabelText(label)).toBeInTheDocument();
+      },
+    );
   });
 });

@@ -409,6 +409,12 @@
   },
   "instrumentDetail": {
     "bollingerBands": "Bollinger Bands",
+    "tradeMarkers": "Trade markers",
+    "tradeSide": {
+      "buy": "Buy",
+      "sell": "Sell"
+    },
+    "tradeUnits": "units",
     "cancel": "Cancel",
     "change30d": "30d",
     "change7d": "7d",

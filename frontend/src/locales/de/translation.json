@@ -261,6 +261,12 @@
   },
   "instrumentDetail": {
     "bollingerBands": "Bollinger-Bänder",
+    "tradeMarkers": "Handelsmarkierungen",
+    "tradeSide": {
+      "buy": "Kauf",
+      "sell": "Verkauf"
+    },
+    "tradeUnits": "Anteile",
     "change30d": "30T",
     "change7d": "7T",
     "columns": {

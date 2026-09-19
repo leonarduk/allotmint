@@ -260,6 +260,12 @@
   },
   "instrumentDetail": {
     "bollingerBands": "Bandes de Bollinger",
+    "tradeMarkers": "Marqueurs de transactions",
+    "tradeSide": {
+      "buy": "Achat",
+      "sell": "Vente"
+    },
+    "tradeUnits": "parts",
     "change30d": "30j",
     "change7d": "7j",
     "columns": {

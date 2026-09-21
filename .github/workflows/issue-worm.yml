@@ -5,10 +5,14 @@ name: issue-worm
 #
 # Before this workflow can do anything you need, in this repo's
 # Settings -> Secrets and variables -> Actions:
-#   WORM_PAT  - a personal access token with the `repo` scope. Not the
-#               default GITHUB_TOKEN: a push made with that token does not
-#               trigger other workflows, so the PR issue-worm opens would
-#               never get a CI run.
+#   WORM_PAT          - a personal access token with the `repo` scope. Not
+#                       the default GITHUB_TOKEN: a push made with that
+#                       token does not trigger other workflows, so the PR
+#                       issue-worm opens would never get a CI run.
+#   DEEPSEEK_API_KEY  - runs-on is ubuntu-latest, a GitHub-hosted runner
+#                       with no local Ollama reachable, so the coder is
+#                       pointed at DeepSeek's API (CODER_MODEL_SOURCE:
+#                       cloud) instead of the `local` default.
 #
 # Read back by the dashboard's GitHub Actions section (actions_runs.py),
 # which links a run to its issue only when the title starts with exactly
@@ -43,3 +47,6 @@ jobs:
         with:
           issue: ${{ github.event.issue.number }}
           github-token: ${{ secrets.WORM_PAT }}
+        env:
+          CODER_MODEL_SOURCE: cloud
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}

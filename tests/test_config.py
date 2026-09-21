@@ -27,6 +27,16 @@ def test_config_loads_fundamentals_ttl():
     assert cfg.fundamentals_cache_ttl_seconds == 86400
 
 
+def test_uvicorn_port_default():
+    """Pin the local dev backend port so a future config edit can't drift silently.
+
+    6468 spells MINT on a phone keypad (#7811); regressing to the old 8000
+    default would go unnoticed without an explicit assertion here.
+    """
+    cfg = reload_config()
+    assert cfg.uvicorn_port == 6468
+
+
 def test_tabs_defaults_true():
     cfg = reload_config()
     assert cfg.tabs.instrument is True

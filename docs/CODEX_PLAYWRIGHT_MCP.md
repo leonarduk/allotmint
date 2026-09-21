@@ -106,7 +106,7 @@ Minimum config expectations:
 
 - MCP server is registered and visible to Codex.
 - Server can launch a browser in your local environment.
-- Codex has access to your local app URL (typically `http://localhost:5173`).
+- Codex has access to your local app URL (typically `http://localhost:2568`).
 
 ### Verify Codex browser control works
 
@@ -123,7 +123,7 @@ Minimum config expectations:
    ```
 
 3. In Codex with Playwright MCP enabled, ask Codex to:
-   - open `http://localhost:5173/smoke-test`,
+   - open `http://localhost:2568/smoke-test`,
    - verify the `Smoke test` heading,
    - navigate to `/portfolio`,
    - verify the route marker indicates owner mode.

@@ -83,7 +83,7 @@ services:
       DISABLE_AUTH: ${DISABLE_AUTH:-true}
       GOOGLE_AUTH_ENABLED: ${GOOGLE_AUTH_ENABLED:-false}
       JWT_SECRET: ${JWT_SECRET:-dev-secret-not-for-production}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:2568}
     depends_on:
       minio-setup:
         condition: service_completed_successfully

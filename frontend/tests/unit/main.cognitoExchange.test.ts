@@ -6,7 +6,7 @@ vi.mock('react-dom/client', () => ({
 
 const setAuthToken = vi.fn();
 const getStoredAuthToken = vi.fn(() => null);
-const getApiBase = vi.fn(() => 'http://localhost:8000');
+const getApiBase = vi.fn(() => 'http://localhost:6468');
 const logout = vi.fn();
 
 vi.mock('@/api', () => ({

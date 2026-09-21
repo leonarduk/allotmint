@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:5173';
+const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:2568';
 
 const COGNITO_DOMAIN = 'https://cognito-test.example.com';
 const CLIENT_ID = 'test-client-id';

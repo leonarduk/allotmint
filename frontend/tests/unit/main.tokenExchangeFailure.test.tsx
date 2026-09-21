@@ -17,7 +17,7 @@ vi.mock('@/api', () => ({
   getConfig: vi.fn(),
   setAuthToken: vi.fn(),
   getStoredAuthToken: vi.fn(() => null),
-  getApiBase: vi.fn(() => 'http://localhost:8000'),
+  getApiBase: vi.fn(() => 'http://localhost:6468'),
   setApiBase: vi.fn(),
   logout: vi.fn(),
 }));

@@ -384,16 +384,18 @@ class BackendLambdaStack(Stack):
         extra_cors_origins = self.node.try_get_context("cors_origins") or os.getenv("CORS_ORIGINS")
 
         cors_origins = [
-            # Vite dev server default port. Always present so `npm run dev`
-            # works against a deployed backend without extra config.
+            # Docker-published frontend port (deploy/docker-compose.yml maps
+            # the container's dev server onto 3000). Always present so a local
+            # container works against a deployed backend without extra config.
             "http://localhost:3000",
-            # CRA-style / alternate local dev server port, kept for the same
-            # reason as above. Both localhost entries are dev-only convenience:
+            # AllotMint's own Vite dev server port -- 2568 spells ALOT on a
+            # phone keypad (#7811), replacing Vite's default 5173. Kept for the
+            # same reason as above. Both localhost entries are dev-only convenience:
             # they're baked in at synth time and only ever reach a deployed
             # stack if a developer points their local frontend at it, so they
             # are not normalised or rejected for non-local environments here
             # (audit for #4113 — no change needed).
-            "http://localhost:5173",
+            "http://localhost:2568",
             # Production frontend. Remove only if app.allotmint.io stops being
             # the production domain.
             "https://app.allotmint.io",

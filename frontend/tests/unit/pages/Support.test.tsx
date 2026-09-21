@@ -115,15 +115,15 @@ describe("Support page", () => {
   });
 
   it("shows swagger link for VITE_API_URL", async () => {
-    vi.stubEnv("VITE_API_URL", "http://localhost:8000");
+    vi.stubEnv("VITE_API_URL", "http://localhost:6468");
     render(<Support />, { wrapper: MemoryRouter });
     await expandSection(en.support.environment);
     expect(
-      await screen.findByRole("link", { name: "http://localhost:8000" })
-    ).toHaveAttribute("href", "http://localhost:8000");
+      await screen.findByRole("link", { name: "http://localhost:6468" })
+    ).toHaveAttribute("href", "http://localhost:6468");
     expect(screen.getByRole("link", { name: "API Console" })).toHaveAttribute(
       "href",
-      "http://localhost:8000/api-console"
+      "http://localhost:6468/api-console"
     );
     vi.unstubAllEnvs();
   });

@@ -27,6 +27,16 @@ def test_config_loads_fundamentals_ttl():
     assert cfg.fundamentals_cache_ttl_seconds == 86400
 
 
+def test_uvicorn_port_default():
+    """Pin the local dev backend port so a future config edit can't drift silently.
+
+    6468 spells MINT on a phone keypad (#7811); regressing to the old 8000
+    default would go unnoticed without an explicit assertion here.
+    """
+    cfg = reload_config()
+    assert cfg.uvicorn_port == 6468
+
+
 def test_tabs_defaults_true():
     cfg = reload_config()
     assert cfg.tabs.instrument is True
@@ -380,13 +390,13 @@ def test_allowed_emails_env_override(monkeypatch):
 def test_cors_origins_env_override(monkeypatch):
     monkeypatch.setenv(
         "CORS_ORIGINS",
-        "https://app.allotmint.io,http://192.168.1.25:5173,http://localhost:5173",
+        "https://app.allotmint.io,http://192.168.1.25:2568,http://localhost:2568",
     )
     cfg = reload_config()
     assert cfg.cors_origins == [
         "https://app.allotmint.io",
-        "http://192.168.1.25:5173",
-        "http://localhost:5173",
+        "http://192.168.1.25:2568",
+        "http://localhost:2568",
     ]
     monkeypatch.delenv("CORS_ORIGINS")
     reload_config()

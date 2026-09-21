@@ -14,7 +14,7 @@ def main() -> None:
     parser.add_argument("provider", help="Data provider name, e.g. hargreaves")
     parser.add_argument("file", type=Path, help="CSV/PDF file to upload")
     parser.add_argument(
-        "--api", default="http://localhost:8000", help="Base URL of the backend API"
+        "--api", default="http://localhost:6468", help="Base URL of the backend API"
     )
     parser.add_argument(
         "--owner",

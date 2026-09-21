@@ -1204,7 +1204,7 @@ async function runAuthenticatedCheck(normalizedBase: string, authToken: string |
 }
 
 if (require.main === module) {
-  const base = process.argv[2] || process.env.SMOKE_URL || 'http://localhost:8000';
+  const base = process.argv[2] || process.env.SMOKE_URL || 'http://localhost:6468';
   runSmoke(base).catch(err => {
     if (err instanceof Error) {
       console.error(err.message);

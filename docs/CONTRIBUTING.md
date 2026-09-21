@@ -28,7 +28,7 @@ Copy `.env.example` to `.env` and set variables as needed:
 | `APP_ENV` | Switching between environments | `local` | Selects `local`, `production`, or `aws` runtime behavior |
 | `GOOGLE_AUTH_ENABLED` | Testing production-like auth | `true` | Enables Google ID-token authentication |
 | `GOOGLE_CLIENT_ID` | Using Google auth locally | `your-client.apps.googleusercontent.com` | Google OAuth client for sign-in |
-| `VITE_ALLOTMINT_API_BASE` | Backend on a custom port | `http://localhost:8000` | Frontend API endpoint (use when backend isn't on default port) |
+| `VITE_ALLOTMINT_API_BASE` | Backend on a custom port | `http://localhost:6468` | Frontend API endpoint (use when backend isn't on default port) |
 
 ### Deployment and testing
 

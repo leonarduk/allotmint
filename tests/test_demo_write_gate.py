@@ -165,7 +165,7 @@ def test_options_preflight_with_demo_token_is_not_blocked(client: TestClient, de
         "/transactions",
         headers={
             **_bearer(demo_token),
-            "Origin": "http://localhost:5173",
+            "Origin": "http://localhost:2568",
             "Access-Control-Request-Method": "POST",
         },
     )

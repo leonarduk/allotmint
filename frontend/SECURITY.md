@@ -87,8 +87,8 @@ await fetchJson("http://attacker.example.com/steal");
 #### Scenario 2: Same-Origin Path Traversal
 ```javascript
 // Attacker tries to access admin endpoint when API base is /api/v1
-const client = createClient("http://localhost:8000/api/v1");
-await client.fetchJson("http://localhost:8000/admin/steal");
+const client = createClient("http://localhost:6468/api/v1");
+await client.fetchJson("http://localhost:6468/admin/steal");
 // ❌ Blocked by Layer 2 (path-prefix check)
 ```
 
@@ -102,8 +102,8 @@ setApiBase("javascript:alert('xss')");
 #### Scenario 4: Substring Path Match
 ```javascript
 // Attacker tries substring prefix match
-const client = createClient("http://localhost:8000/api/v1");
-await client.fetchJson("http://localhost:8000/api/v1other/endpoint");
+const client = createClient("http://localhost:6468/api/v1");
+await client.fetchJson("http://localhost:6468/api/v1other/endpoint");
 // ❌ Blocked by Layer 2 (exact slash boundary required)
 ```
 

@@ -268,7 +268,7 @@ describe("transient backend failures (issue #6193)", () => {
       .mockResolvedValueOnce({ ok: false, status: 503, statusText: "Service Unavailable" })
       .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
     const { fetchJson: testFetchJson } = createClient(
-      "http://localhost:8000",
+      "http://localhost:6468",
       null,
       mockFetch as unknown as typeof fetch,
       { transientRetryDelaysMs: [0] },
@@ -286,7 +286,7 @@ describe("transient backend failures (issue #6193)", () => {
       json: () => Promise.resolve({ message: "Service Unavailable" }),
     });
     const { fetchJson: testFetchJson } = createClient(
-      "http://localhost:8000",
+      "http://localhost:6468",
       null,
       mockFetch as unknown as typeof fetch,
       { transientRetryDelaysMs: [0, 0] },
@@ -307,7 +307,7 @@ describe("transient backend failures (issue #6193)", () => {
       json: () => Promise.resolve({}),
     });
     const { fetchJson: testFetchJson } = createClient(
-      "http://localhost:8000",
+      "http://localhost:6468",
       null,
       mockFetch as unknown as typeof fetch,
       { transientRetryDelaysMs: [0, 0] },
@@ -390,7 +390,7 @@ describe("stalled-request timeout (issue #7074)", () => {
       });
     });
     const { fetchJson: testFetchJson } = createClient(
-      "http://localhost:8000",
+      "http://localhost:6468",
       null,
       mockFetch as unknown as typeof fetch,
       { fetchTimeoutMs: 5000 },
@@ -416,7 +416,7 @@ describe("stalled-request timeout (issue #7074)", () => {
       json: () => Promise.resolve({ ok: true }),
     });
     const { fetchJson: testFetchJson } = createClient(
-      "http://localhost:8000",
+      "http://localhost:6468",
       null,
       mockFetch as unknown as typeof fetch,
       { fetchTimeoutMs: 5000 },
@@ -436,7 +436,7 @@ describe("stalled-request timeout (issue #7074)", () => {
       });
     });
     const { fetchJson: testFetchJson } = createClient(
-      "http://localhost:8000",
+      "http://localhost:6468",
       null,
       mockFetch as unknown as typeof fetch,
       { fetchTimeoutMs: 5000 },
@@ -787,8 +787,8 @@ describe("client-side request forgery guard (CodeQL #218)", () => {
   it("documents that a protocol-relative URL is prepended to the base (origin unchanged)", async () => {
     // "//evil.com/path" is not a valid absolute URL in Node/undici so new URL() throws,
     // landing in the catch branch which prepends the configured base.
-    // The resulting fullUrl is "http://localhost:8000//evil.com/path" — origin is still
-    // http://localhost:8000, so the SSRF guard passes.  This test pins that behaviour.
+    // The resulting fullUrl is "http://localhost:6468//evil.com/path" — origin is still
+    // http://localhost:6468, so the SSRF guard passes.  This test pins that behaviour.
     const mockFetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
@@ -808,13 +808,13 @@ describe("safe URL reconstruction (CodeQL #218 follow-up)", () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
     const { fetchJson: testFetchJson } = createClient(
-      "http://localhost:8000/api/v1",
+      "http://localhost:6468/api/v1",
       null,
       mockFetch as unknown as typeof fetch,
     );
     await testFetchJson("/holdings?owner=alice#section");
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8000/api/v1/holdings?owner=alice#section",
+      "http://localhost:6468/api/v1/holdings?owner=alice#section",
       expect.objectContaining({ headers: expect.any(Headers) }),
     );
   });
@@ -822,12 +822,12 @@ describe("safe URL reconstruction (CodeQL #218 follow-up)", () => {
   it("still blocks a same-origin path outside the configured prefix when reconstructing", async () => {
     const mockFetch = vi.fn();
     const { fetchJson: testFetchJson } = createClient(
-      "http://localhost:8000/api/v1",
+      "http://localhost:6468/api/v1",
       null,
       mockFetch as unknown as typeof fetch,
     );
     await expect(
-      testFetchJson("http://localhost:8000/other-app/steal?x=1"),
+      testFetchJson("http://localhost:6468/other-app/steal?x=1"),
     ).rejects.toThrow("does not start with configured API base");
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -835,16 +835,16 @@ describe("safe URL reconstruction (CodeQL #218 follow-up)", () => {
 
 describe("path-prefix guard (issue #3170)", () => {
   it("blocks a same-origin URL that does not match the configured API path prefix", async () => {
-    const { fetchJson: testFetchJson } = createClient("http://localhost:8000/api/v1");
+    const { fetchJson: testFetchJson } = createClient("http://localhost:6468/api/v1");
     await expect(
-      testFetchJson("http://localhost:8000/other-app/steal"),
+      testFetchJson("http://localhost:6468/other-app/steal"),
     ).rejects.toThrow("does not start with configured API base");
   });
 
   it("blocks a same-origin URL that shares the prefix string but is not within the prefix path", async () => {
-    const { fetchJson: testFetchJson } = createClient("http://localhost:8000/api/v1");
+    const { fetchJson: testFetchJson } = createClient("http://localhost:6468/api/v1");
     await expect(
-      testFetchJson("http://localhost:8000/api/v1other"),
+      testFetchJson("http://localhost:6468/api/v1other"),
     ).rejects.toThrow("does not start with configured API base");
   });
 
@@ -853,13 +853,13 @@ describe("path-prefix guard (issue #3170)", () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
     const { fetchJson: testFetchJson } = createClient(
-      "http://localhost:8000/api/v1",
+      "http://localhost:6468/api/v1",
       null,
       mockFetch as unknown as typeof fetch,
     );
-    await testFetchJson("http://localhost:8000/api/v1/users");
+    await testFetchJson("http://localhost:6468/api/v1/users");
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8000/api/v1/users",
+      "http://localhost:6468/api/v1/users",
       expect.objectContaining({ headers: expect.any(Headers) }),
     );
   });
@@ -869,13 +869,13 @@ describe("path-prefix guard (issue #3170)", () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
     const { fetchJson: testFetchJson } = createClient(
-      "http://localhost:8000/api/v1",
+      "http://localhost:6468/api/v1",
       null,
       mockFetch as unknown as typeof fetch,
     );
     await testFetchJson("/users");
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8000/api/v1/users",
+      "http://localhost:6468/api/v1/users",
       expect.objectContaining({ headers: expect.any(Headers) }),
     );
   });
@@ -885,11 +885,11 @@ describe("path-prefix guard (issue #3170)", () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
     const { fetchJson: testFetchJson } = createClient(
-      "http://localhost:8000/api/v1",
+      "http://localhost:6468/api/v1",
       null,
       mockFetch as unknown as typeof fetch,
     );
-    await testFetchJson("http://localhost:8000/api/v1");
+    await testFetchJson("http://localhost:6468/api/v1");
     expect(mockFetch).toHaveBeenCalled();
   });
 
@@ -898,18 +898,18 @@ describe("path-prefix guard (issue #3170)", () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
     const { fetchJson: testFetchJson } = createClient(
-      "http://localhost:8000/api/v1",
+      "http://localhost:6468/api/v1",
       null,
       mockFetch as unknown as typeof fetch,
     );
-    await testFetchJson("http://localhost:8000/api/v1?filter=x");
+    await testFetchJson("http://localhost:6468/api/v1?filter=x");
     expect(mockFetch).toHaveBeenCalled();
   });
 
   it("normalises a trailing slash in the configured API base and still blocks wrong paths", async () => {
-    const { fetchJson: testFetchJson } = createClient("http://localhost:8000/api/v1/");
+    const { fetchJson: testFetchJson } = createClient("http://localhost:6468/api/v1/");
     await expect(
-      testFetchJson("http://localhost:8000/other-app/steal"),
+      testFetchJson("http://localhost:6468/other-app/steal"),
     ).rejects.toThrow("does not start with configured API base");
   });
 
@@ -918,11 +918,11 @@ describe("path-prefix guard (issue #3170)", () => {
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
     const { fetchJson: testFetchJson } = createClient(
-      "http://localhost:8000/api/v1/",
+      "http://localhost:6468/api/v1/",
       null,
       mockFetch as unknown as typeof fetch,
     );
-    await testFetchJson("http://localhost:8000/api/v1/users");
+    await testFetchJson("http://localhost:6468/api/v1/users");
     expect(mockFetch).toHaveBeenCalled();
   });
 });

@@ -7,7 +7,7 @@ Fixes:
 - First-page discovery bug (visited check happened before canonicalization).
 - Always include the start URL even if navigation returns about:blank.
 - No fpdf2 deprecation warnings (uses XPos/YPos, no 'uni' arg).
-- Works with deep routes (e.g., http://localhost:5173/movers).
+- Works with deep routes (e.g., http://localhost:2568/movers).
 - Embeds screenshots only if Pillow is installed; otherwise skips cleanly.
 - Automatically falls back to `wait_until="load"` after a `networkidle` timeout
   (disable with `--strict-networkidle`).
@@ -22,7 +22,7 @@ The script reads `OPENAI_API_KEY` from the environment. If `python-dotenv` is
 installed, variables from a `.env` file are loaded automatically.
 
 Example:
-  python site_snapshot.py --base-url http://localhost:5173/movers \
+  python site_snapshot.py --base-url http://localhost:2568/movers \
       --depth 1 --max-pages 30 \
       --ai-model gpt-4o-mini \
       --ai-prompt "Describe this page."
@@ -203,7 +203,7 @@ async def crawl(
     """
     parsed_start = urlparse(base_url)
     if not parsed_start.scheme:
-        raise ValueError("--base-url must include scheme, e.g., http://localhost:5173/")
+        raise ValueError("--base-url must include scheme, e.g., http://localhost:2568/")
 
     queue: deque[Tuple[str, int]] = deque([(base_url, 0)])
     seen: Set[str] = set()  # dedupe crawl frontier by canonical URL
@@ -518,7 +518,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument(
         "--base-url",
         required=True,
-        help="Start URL (can be a deep route, e.g., http://localhost:5173/movers)",
+        help="Start URL (can be a deep route, e.g., http://localhost:2568/movers)",
     )
     ap.add_argument(
         "--output-dir",

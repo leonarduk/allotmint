@@ -4,7 +4,7 @@ import {
   setupCoreMocks,
 } from './support/smokeFixtures';
 
-const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:5173';
+const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:2568';
 const authToken = process.env.SMOKE_AUTH_TOKEN ?? process.env.TEST_ID_TOKEN ?? null;
 
 const applyAuth = (page: Page) => applyAuthToken(page, authToken);
@@ -184,10 +184,10 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     await setupCoreMocks(page);
     // /screener renders ScreenerQuery which embeds the Screener component;
     // the embedded form calls getScreener -> /screener?<criteria>.
-    await page.route('**://localhost:8000/custom-query/saved**', async (route) => {
+    await page.route('**://localhost:6468/custom-query/saved**', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     });
-    await page.route('**://localhost:8000/screener**', async (route) => {
+    await page.route('**://localhost:6468/screener**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -213,7 +213,7 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     const warnings = collectDuplicateKeyWarnings(page);
     await applyAuth(page);
     await setupCoreMocks(page);
-    await page.route('**://localhost:8000/accounts/**/approvals**', async (route) => {
+    await page.route('**://localhost:6468/accounts/**/approvals**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -240,7 +240,7 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     const warnings = collectDuplicateKeyWarnings(page);
     await applyAuth(page);
     await setupCoreMocks(page);
-    await page.route('**://localhost:8000/portfolio/**', async (route) => {
+    await page.route('**://localhost:6468/portfolio/**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -264,7 +264,7 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
         }),
       });
     });
-    await page.route('**://localhost:8000/rebalance', async (route) => {
+    await page.route('**://localhost:6468/rebalance', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

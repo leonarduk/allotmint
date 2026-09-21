@@ -73,11 +73,11 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
     # is compatible at runtime; slowapi lacks typed stubs that satisfy mypy.
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
-    default_cors = ["http://localhost:3000", "http://localhost:5173"]
+    default_cors = ["http://localhost:3000", "http://localhost:2568"]
     cors_origins = _validate_cors_origins(list(dict.fromkeys((cfg.cors_origins or []) + default_cors)))
     # `allow_origin_regex` is the range-friendly counterpart to the allowlist
     # above. CORS cannot express a port range, and enumerating every port a dev
-    # machine might use is brittle -- vite walks 5173, 5174, 5175 ... whenever a
+    # machine might use is brittle -- vite walks 2568, 2569, 2570 ... whenever a
     # port is already held by another checkout. Starlette ORs the two together,
     # so the allowlist keeps working unchanged and the regex only ever widens
     # it. Left unset (the default) nothing changes, so no deployment loosens its

@@ -1039,7 +1039,7 @@ def test_backend_api_cors_allow_origins_includes_frontend_origin(monkeypatch):
     assert cors["AllowOrigins"] == [
         "https://preview.allotmint.io",
         "http://localhost:3000",
-        "http://localhost:5173",
+        "http://localhost:2568",
         "https://app.allotmint.io",
     ]
 
@@ -1059,7 +1059,7 @@ def test_backend_api_cors_allow_origins_default(template):
     cors = api["Properties"]["CorsConfiguration"]
     assert cors["AllowOrigins"] == [
         "http://localhost:3000",
-        "http://localhost:5173",
+        "http://localhost:2568",
         "https://app.allotmint.io",
     ]
     assert cors["AllowCredentials"] is True

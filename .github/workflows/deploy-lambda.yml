@@ -1239,7 +1239,7 @@ jobs:
         run: npm --prefix frontend run smoke:frontend
         env:
           VITE_ALLOTMINT_API_BASE: ${{ env.SMOKE_URL }}
-          SMOKE_URL: 'http://localhost:5173'
+          SMOKE_URL: 'http://localhost:2568'
 
       - name: Verify authenticated invocations reached BackendLambda
         # Issue #3249: the deploy job's own invocation check runs before any

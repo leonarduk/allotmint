@@ -278,7 +278,7 @@ export GOOGLE_CLIENT_ID=dev-client.apps.googleusercontent.com
 
 | Variable | Required when | Example | What it controls |
 | --- | --- | --- | --- |
-| `VITE_ALLOTMINT_API_BASE` | Required when the backend is not at `http://localhost:8000` | `VITE_ALLOTMINT_API_BASE=http://localhost:8000` | Base URL for frontend API requests. |
+| `VITE_ALLOTMINT_API_BASE` | Required when the backend is not at `http://localhost:6468` | `VITE_ALLOTMINT_API_BASE=http://localhost:6468` | Base URL for frontend API requests. |
 | `VITE_API_URL` | Optional fallback | `VITE_API_URL=https://api.example.com` | Secondary frontend API base fallback. |
 | `VITE_APP_BASE_URL` | Optional for build/deploy flows | `VITE_APP_BASE_URL=https://app.example.com` | Used by frontend build/deploy tooling. |
 | `VITE_API_TOKEN` | Optional | `VITE_API_TOKEN=<token>` | Build/runtime token consumed by frontend workflows that expect it. |
@@ -320,14 +320,14 @@ AllotMint depends heavily on realistic local/demo data.
    npm --prefix frontend run dev
    ```
 
-5. Open the Vite URL shown in the terminal, usually `http://localhost:5173`.
+5. Open the Vite URL shown in the terminal, usually `http://localhost:2568`.
 
 This path is preferred over outdated docs that still mention `uvicorn app:app`.
 
 ### Running multiple local instances side by side
 
 `scripts/bash/run-local-api.sh` and `scripts/run-backend.ps1` pick the first
-free port starting at `server.uvicorn_port` (default `8000`) instead of
+free port starting at `server.uvicorn_port` (default `6468`) instead of
 failing if it's already bound, so a second checkout (e.g. a separate
 worktree or clone for a different set of changes) can run its own backend at
 the same time. The port actually chosen is logged to the terminal and
@@ -341,8 +341,13 @@ only happens for the dev server; explicitly setting `VITE_ALLOTMINT_API_BASE`
 (env var or `.env`) always wins, and production builds/AWS deployments are
 unaffected since they don't run the dev server or read `.local/ports/`.
 
-The frontend dev server itself still uses Vite's own default port-clash
-handling (`5173`, incrementing if busy) — nothing extra to configure there.
+The frontend dev server itself still uses Vite's own port-clash handling
+(`2568`, incrementing if busy) — nothing extra to configure there.
+
+Both defaults spell the halves of the name on a phone keypad: **ALOT → 2568**
+for the frontend and **MINT → 6468** for the backend (#7811). They replace
+Vite's `5173` and uvicorn's `8000`, which every other JS/Python project on the
+machine also claims.
 
 **Scope**: one backend per checkout at a time. `.local/ports/backend.port`
 lives at the repo root, so two backends started from the *same* checkout
@@ -372,8 +377,8 @@ so they're safe to commit to a public repo. To refresh them after a UI
 change:
 
 ```bash
-DATA_ROOT=data bash scripts/bash/run-local-api.sh   # backend, :8000
-npm --prefix frontend run dev                        # frontend, :5173
+DATA_ROOT=data bash scripts/bash/run-local-api.sh   # backend, :6468
+npm --prefix frontend run dev                        # frontend, :2568
 node frontend/scripts/capture-qa-screenshots.mjs
 ```
 
@@ -404,7 +409,7 @@ Use this when you need to verify sign-in, protected routes, or production-like a
 4. Confirm the frontend points at the correct backend, especially if you are not using the default localhost port:
 
    ```bash
-   export VITE_ALLOTMINT_API_BASE=http://localhost:8000
+   export VITE_ALLOTMINT_API_BASE=http://localhost:6468
    npm --prefix frontend run dev
    ```
 
@@ -504,8 +509,8 @@ SMOKE_URL=https://example.com npm --prefix frontend run smoke:frontend
 
 ### Smoke-mode caveats
 
-- Backend smoke checks default to `http://localhost:8000` when `SMOKE_URL` is unset.
-- Frontend smoke checks default to `http://localhost:5173` when `SMOKE_URL` is unset.
+- Backend smoke checks default to `http://localhost:6468` when `SMOKE_URL` is unset.
+- Frontend smoke checks default to `http://localhost:2568` when `SMOKE_URL` is unset.
 - Protected environments need `TEST_ID_TOKEN` and sometimes `SMOKE_AUTH_TOKEN`.
 - The smoke owner defaults to `auth.smoke_identity` from `config.yaml` unless you export `SMOKE_IDENTITY`.
 

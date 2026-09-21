@@ -68,12 +68,12 @@ future navigation features ahead of the final release.
 ## Installation
 
 1. Install dependencies with `npm install`.
-2. Ensure the backend API is running. From the repository root you can start it with `./run-local-api.sh`, which serves `http://localhost:8000` by default.
+2. Ensure the backend API is running. From the repository root you can start it with `./run-local-api.sh`, which serves `http://localhost:6468` by default.
 3. Update `public/config.json` with the backend URL you want this frontend build to use:
 
    ```json
    {
-     "apiBaseUrl": "http://192.168.1.20:8000"
+     "apiBaseUrl": "http://192.168.1.20:6468"
    }
    ```
 
@@ -82,7 +82,7 @@ future navigation features ahead of the final release.
 4. If you prefer build-time overrides, set `VITE_ALLOTMINT_API_BASE` (or legacy `VITE_API_URL`) before starting the dev server, e.g.:
 
    ```bash
-   export VITE_ALLOTMINT_API_BASE=http://localhost:8000
+   export VITE_ALLOTMINT_API_BASE=http://localhost:6468
    ```
 5. Run `npm run dev` and open the app in your browser.
 
@@ -112,7 +112,7 @@ Resolution order is:
 1. `/config.json` → `apiBaseUrl` (runtime, no rebuild).
 2. `VITE_ALLOTMINT_API_BASE`.
 3. `VITE_API_URL` (legacy).
-4. `http://localhost:8000`.
+4. `http://localhost:6468`.
 
 Runtime feature flags and tab visibility come from the backend's `config.yaml`. See the [backend setup instructions](../README.md#local-quick-start) for configuring and running the server.
 

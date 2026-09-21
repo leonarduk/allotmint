@@ -15,7 +15,7 @@ import {
 // reintroduces the regression fails loudly here rather than only being
 // caught by eyeballing a screenshot.
 
-const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:5173';
+const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:2568';
 const authToken =
   process.env.SMOKE_AUTH_TOKEN ?? process.env.TEST_ID_TOKEN ?? null;
 const marketPath = new URL('/market', baseUrl).toString();

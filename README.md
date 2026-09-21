@@ -160,7 +160,7 @@ Run the full AllotMint stack (backend + frontend) with real local fixture data.
 3. Open:
 
    - Frontend UI: http://localhost:3000
-   - Backend API console (Swagger UI): http://localhost:8000/api-console
+   - Backend API console (Swagger UI): http://localhost:6468/api-console
      (the default `/docs` route is disabled; `.env.local.example` sets
      `DISABLE_AUTH` and `LOCAL_LOGIN_EMAIL` so the console loads without a
      real login)
@@ -195,7 +195,7 @@ Use these steps when you want phones/tablets/laptops on your WiFi network to hit
 
    ```json
    {
-     "apiBaseUrl": "http://<YOUR-LAN-IP>:8000"
+     "apiBaseUrl": "http://<YOUR-LAN-IP>:6468"
    }
    ```
 
@@ -211,7 +211,7 @@ Use these steps when you want phones/tablets/laptops on your WiFi network to hit
    npm --prefix frontend run dev -- --host 0.0.0.0
    ```
 
-4. Allow inbound TCP `8000` in your machine firewall so other LAN devices can reach the FastAPI backend.
+4. Allow inbound TCP `6468` in your machine firewall so other LAN devices can reach the FastAPI backend.
 
 ### Notes
 

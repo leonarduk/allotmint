@@ -99,7 +99,7 @@ const validateApiBase = (url: string): string => {
 export const DEFAULT_API_BASE =
   import.meta.env.VITE_ALLOTMINT_API_BASE ??
   import.meta.env.VITE_API_URL ??
-  "http://localhost:8000";
+  "http://localhost:6468";
 
 // Validate at startup so a misconfigured URL surfaces immediately (CWE-918 fix).
 // The inner IIFE keeps the try/catch scoped while still producing an exported binding.

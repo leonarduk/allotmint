@@ -39,7 +39,7 @@ been reported.
 
 1. Confirm a dev server is already running (check `.claude/launch.json` for the
    `frontend` config) — prefer attaching to whatever's already up over starting a
-   fresh one (`mcp__Claude_Browser__preview_start` with `{url: "http://localhost:5173"}`
+   fresh one (`mcp__Claude_Browser__preview_start` with `{url: "http://localhost:2568"}`
    if something's already bound to that port).
 2. Skim `frontend/src/routes/registry.ts` and the nav menu components
    (`frontend/src/components/Menu.tsx` / `AppHeader.tsx`) to build a checklist of

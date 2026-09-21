@@ -49,15 +49,15 @@ def test_cors_preflight_allows_origin_matching_regex(monkeypatch):
     """A port not in the allowlist is accepted when the regex covers it.
 
     This is the case the regex exists for: vite walks past an already-taken
-    5173 onto 5174+, so a dev machine running several checkouts cannot rely on
+    2568 onto 2569+, so a dev machine running several checkouts cannot rely on
     the enumerated list alone.
     """
     monkeypatch.setattr(config, "cors_origins", ["http://localhost:3000"])
-    monkeypatch.setattr(config, "cors_origin_regex", r"^http://localhost:5\d{3}$")
+    monkeypatch.setattr(config, "cors_origin_regex", r"^http://localhost:25[6-9]\d$")
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     with TestClient(app) as client:
-        origin = "http://localhost:5174"
+        origin = "http://localhost:2569"
         resp = client.options(
             "/health",
             headers={"Origin": origin, "Access-Control-Request-Method": "GET"},
@@ -69,14 +69,14 @@ def test_cors_preflight_allows_origin_matching_regex(monkeypatch):
 def test_cors_preflight_regex_does_not_widen_beyond_pattern(monkeypatch):
     """Origins outside the pattern stay blocked -- the regex must not act as '*'."""
     monkeypatch.setattr(config, "cors_origins", ["http://localhost:3000"])
-    monkeypatch.setattr(config, "cors_origin_regex", r"^http://localhost:5\d{3}$")
+    monkeypatch.setattr(config, "cors_origin_regex", r"^http://localhost:25[6-9]\d$")
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     with TestClient(app) as client:
         for origin in (
             "https://evil.com",
-            "http://localhost:8000",
-            "http://evil.localhost:5174",
+            "http://localhost:6468",
+            "http://evil.localhost:2569",
         ):
             resp = client.options(
                 "/health",
@@ -88,7 +88,7 @@ def test_cors_preflight_regex_does_not_widen_beyond_pattern(monkeypatch):
 def test_cors_preflight_allowlist_still_works_with_regex_set(monkeypatch):
     """The explicit list and the regex are ORed, so neither disables the other."""
     monkeypatch.setattr(config, "cors_origins", ["https://app.allotmint.io"])
-    monkeypatch.setattr(config, "cors_origin_regex", r"^http://localhost:5\d{3}$")
+    monkeypatch.setattr(config, "cors_origin_regex", r"^http://localhost:25[6-9]\d$")
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     with TestClient(app) as client:
@@ -111,7 +111,7 @@ def test_cors_preflight_unset_regex_leaves_policy_unchanged(monkeypatch):
         resp = client.options(
             "/health",
             headers={
-                "Origin": "http://localhost:5174",
+                "Origin": "http://localhost:2569",
                 "Access-Control-Request-Method": "GET",
             },
         )

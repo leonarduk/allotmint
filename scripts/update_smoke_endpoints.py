@@ -668,7 +668,7 @@ const demoPensionDeathAge = computeSmokeDeathAge(smokeIdentity);
         "\n  }\n"
         "}\n"
         "\nif (require.main === module) {\n"
-        "  const base = process.argv[2] || process.env.SMOKE_URL || 'http://localhost:8000';\n"
+        "  const base = process.argv[2] || process.env.SMOKE_URL || 'http://localhost:6468';\n"
         "  runSmoke(base).catch(err => {\n"
         "    if (err instanceof Error) {\n"
         "      console.error(err.message);\n"

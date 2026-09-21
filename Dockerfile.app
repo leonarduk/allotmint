@@ -16,6 +16,6 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY backend ./backend
 COPY config.yaml ./config.yaml
 
-EXPOSE 8000
+EXPOSE 6468
 
-CMD ["python", "-m", "uvicorn", "backend.local_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "backend.local_api.main:app", "--host", "0.0.0.0", "--port", "6468"]

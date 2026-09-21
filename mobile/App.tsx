@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button, ScrollView, Text, TextInput, View } from 'react-native';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'http://localhost:8000';
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'http://localhost:6468';
 
 export default function App() {
   const [idToken, setIdToken] = useState('');

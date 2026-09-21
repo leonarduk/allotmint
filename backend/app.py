@@ -375,5 +375,5 @@ if __name__ == "__main__":  # pragma: no cover
     uvicorn.run(
         create_app(),
         host="0.0.0.0",
-        port=reload_config().uvicorn_port or 8000,
+        port=reload_config().uvicorn_port or 6468,
     )

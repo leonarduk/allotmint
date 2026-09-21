@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.app
-    command: python -m uvicorn backend.local_api.main:app --host 0.0.0.0 --port 8000 --reload
+    command: python -m uvicorn backend.local_api.main:app --host 0.0.0.0 --port 6468 --reload
     env_file:
       - .env.local
     volumes:
@@ -11,7 +11,7 @@ services:
       - ./config.yaml:/app/config.yaml:ro
       - ./backend:/app/backend:ro
     ports:
-      - "8000:8000"
+      - "6468:6468"
 
   frontend:
     build:

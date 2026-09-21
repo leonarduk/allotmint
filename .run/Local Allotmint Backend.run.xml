@@ -16,7 +16,7 @@
     <module name="" />
     <option name="RUN_TOOL" value="" />
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/backend/local_api/main.py" />
-    <option name="PARAMETERS" value="--reload-dir backend --port 8000 --app-dir ." />
+    <option name="PARAMETERS" value="--reload-dir backend --port 6468 --app-dir ." />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

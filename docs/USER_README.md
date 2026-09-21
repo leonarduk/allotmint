@@ -57,13 +57,13 @@ Sensitive endpoints such as portfolio or transaction data can be secured with a 
 3. Include the token in requests using the `X-API-Token` header:
 
    ```bash
-   curl -H "X-API-Token: $API_TOKEN" http://localhost:8000/portfolio/alex
+   curl -H "X-API-Token: $API_TOKEN" http://localhost:6468/portfolio/alex
    ```
 
    Another example fetching the list of owners:
 
    ```bash
-   curl -H "X-API-Token: $API_TOKEN" http://localhost:8000/owners
+   curl -H "X-API-Token: $API_TOKEN" http://localhost:6468/owners
    ```
 
    Omitting the header when `API_TOKEN` is set will result in `401 Unauthorized`.
@@ -71,7 +71,7 @@ Sensitive endpoints such as portfolio or transaction data can be secured with a 
 If `API_TOKEN` is unset, the API remains open which is convenient for local development and tests.
 
 ## Using a remote backend
-If the backend API is not running on `http://localhost:8000`, configure the
+If the backend API is not running on `http://localhost:6468`, configure the
 frontend to use the correct base URL.
 
 1. Set `VITE_ALLOTMINT_API_BASE` before starting the frontend:
@@ -87,11 +87,11 @@ frontend to use the correct base URL.
    VITE_ALLOTMINT_API_BASE=https://api.example.com
    ```
 
-If the variable is unset the UI defaults to `http://localhost:8000` (or
+If the variable is unset the UI defaults to `http://localhost:6468` (or
 `VITE_API_URL` if defined).
 
 ## Common workflows
-- **Start the backend**: `uvicorn app:app --reload --port 8000 --host 0.0.0.0`
+- **Start the backend**: `uvicorn app:app --reload --port 6468 --host 0.0.0.0`
 - **Start the frontend**: `cd frontend && npm run dev`
 - **Run tests**:
   - Backend: `pytest`
@@ -99,7 +99,7 @@ If the variable is unset the UI defaults to `http://localhost:8000` (or
   - Sample account data under `data/accounts/` (e.g.,
     `data/accounts/alice/savings.json`) allows tests to run without extra
     setup.
-- **Get trading agent signals**: `curl http://localhost:8000/trading-agent/signals` or invoke the `price_refresh` Lambda
+- **Get trading agent signals**: `curl http://localhost:6468/trading-agent/signals` or invoke the `price_refresh` Lambda
 - **Deploy to AWS**:
   1. `cd frontend && npm run build`
   2. `npm ci`
@@ -112,14 +112,14 @@ The group instruments endpoint aggregates holdings across the members of a
 portfolio group:
 
 ```bash
-curl http://localhost:8000/portfolio-group/all/instruments
+curl http://localhost:6468/portfolio-group/all/instruments
 ```
 
 Use optional `owner` and `account_type` query parameters to narrow the
 aggregation to specific accounts. Repeat a parameter to match multiple values:
 
 ```bash
-curl "http://localhost:8000/portfolio-group/all/instruments?owner=alex&account_type=ISA&account_type=SIPP"
+curl "http://localhost:6468/portfolio-group/all/instruments?owner=alex&account_type=ISA&account_type=SIPP"
 ```
 
 The response continues to include the standard grouping metadata while limiting

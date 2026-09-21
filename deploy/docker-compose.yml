@@ -14,9 +14,11 @@ services:
         # Mount config file
         - ../config.yaml:/workspace/backend/config.yaml:rw
       ports:
-        # Host port 8001 avoids clashing with a local uvicorn dev server on 8000.
-        # Internal Docker networking still uses 8000, so VITE_API_URL is unaffected.
-        - "8001:8000"
+        # Host port 8001 avoids clashing with a local uvicorn dev server on
+        # 6468 (MINT on a phone keypad -- #7811). Internal Docker networking
+        # uses the same 6468 the mounted config.yaml configures, so VITE_API_URL
+        # stays in step.
+        - "8001:6468"
       environment:
         - DISABLE_AUTH=false
         - ACCOUNTS_ROOT=/workspace/backend/data
@@ -27,7 +29,7 @@ services:
       networks:
         - allotmint
       healthcheck:
-        test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+        test: ["CMD", "curl", "-f", "http://localhost:6468/health"]
         interval: 10s
         timeout: 5s
         retries: 5
@@ -40,9 +42,9 @@ services:
       image: allotmint-frontend:latest
       container_name: allotmint-frontend
       ports:
-        - "3000:5173"
+        - "3000:2568"
       environment:
-        - VITE_API_URL=http://backend:8000
+        - VITE_API_URL=http://backend:6468
       restart: unless-stopped
       networks:
         - allotmint

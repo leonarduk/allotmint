@@ -49,7 +49,7 @@ Bring up the local stack:
 make local-up
 ```
 
-The API is available at `http://localhost:8000` once containers are healthy.
+The API is available at `http://localhost:6468` once containers are healthy.
 
 ## 2) Confirm the customer scope
 
@@ -88,7 +88,7 @@ Writing guidance:
 Use the report route directly:
 
 ```bash
-curl -sS "http://localhost:8000/reports/demo-owner/audit-report?format=pdf&watermark=SAMPLE" -o demo-owner-audit-report.pdf
+curl -sS "http://localhost:6468/reports/demo-owner/audit-report?format=pdf&watermark=SAMPLE" -o demo-owner-audit-report.pdf
 
 # watermark only affects the rendered PDF overlay and is intentionally excluded
 # from the visible title-page parameters list.
@@ -97,7 +97,7 @@ curl -sS "http://localhost:8000/reports/demo-owner/audit-report?format=pdf&water
 Optional JSON preview of section payloads:
 
 ```bash
-curl -sS "http://localhost:8000/reports/demo-owner/audit-report?format=json" | jq '.sections[].title'
+curl -sS "http://localhost:6468/reports/demo-owner/audit-report?format=json" | jq '.sections[].title'
 ```
 
 Expected section titles and order for `audit-report`:

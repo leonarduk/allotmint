@@ -5,7 +5,7 @@
 //
 // Requires the local dev servers already running:
 //   DATA_ROOT=data bash scripts/bash/run-local-api.sh   (backend)
-//   npm run dev                                         (frontend, :5173)
+//   npm run dev                                         (frontend, :2568)
 //
 // Usage: node frontend/scripts/capture-qa-screenshots.mjs
 // Not wired into CI -- run manually before a release / whenever the UI
@@ -22,7 +22,7 @@ const outDir = path.resolve(__dirname, "../../docs/assets/qa-screenshots");
 // backend on a port chosen by scripts/bash/run-local-api.sh or
 // scripts/run-backend.ps1, recorded in .local/ports/backend.port at the
 // repo root. Mirrors the same lookup in frontend/vite.config.ts (see #5760)
-// so this script talks to the right backend instead of assuming :8000 is
+// so this script talks to the right backend instead of assuming :6468 is
 // free.
 function readLocalBackendPort() {
   const portFile = path.resolve(__dirname, "../..", ".local", "ports", "backend.port");
@@ -34,8 +34,8 @@ function readLocalBackendPort() {
   }
 }
 
-const BACKEND = `http://localhost:${readLocalBackendPort() ?? "8000"}`;
-const FRONTEND = "http://localhost:5173";
+const BACKEND = `http://localhost:${readLocalBackendPort() ?? "6468"}`;
+const FRONTEND = "http://localhost:2568";
 const OWNER = "demo-owner";
 
 // Text that indicates the page didn't actually render its real content --

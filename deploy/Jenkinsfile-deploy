@@ -109,9 +109,9 @@ pipeline {
             echo '════════════════════════════════════════'
             echo 'Deployment successful!'
             echo '════════════════════════════════════════'
-            echo 'Backend:  http://localhost:8000'
+            echo 'Backend:  http://localhost:8001'
             echo 'Frontend: http://localhost:3000'
-            echo 'API Docs: http://localhost:8000/docs'
+            echo 'API Docs: http://localhost:8001/docs'
             echo "Host Data Dir: ${env.DATA_DIR}"
             echo 'Container Data Dir: /workspace/backend/data'
             echo '════════════════════════════════════════'

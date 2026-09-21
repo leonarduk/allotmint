@@ -9,7 +9,7 @@ import {
   setupCoreMocks,
 } from './support/smokeFixtures';
 
-const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:5173';
+const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:2568';
 const authToken = process.env.SMOKE_AUTH_TOKEN ?? process.env.TEST_ID_TOKEN ?? null;
 
 const smokePath = new URL('/smoke-test', baseUrl).toString();

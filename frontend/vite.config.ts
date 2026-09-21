@@ -46,13 +46,21 @@ export default defineConfig(({ command }) => {
       }
     },
     server: {
+      // AllotMint's dev ports spell the halves of the name on a phone keypad:
+      // ALOT -> 2568 (this server), MINT -> 6468 (the backend). See #7811.
+      // strictPort is deliberately left off, so a busy 2568 still walks to
+      // 2569+ exactly as the Vite default did.
+      port: 2568,
       proxy: {
         '/api': {
-          target: 'http://backend:8000', // Docker internal hostname
+          target: 'http://backend:6468', // Docker internal hostname
           changeOrigin: true,
           rewrite: (path: string) => path.replace(/^\/api/, '')
         }
       }
+    },
+    preview: {
+      port: 2568
     },
     build: {
       cssCodeSplit: false,

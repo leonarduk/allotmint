@@ -14,7 +14,7 @@ Set-Location $FRONTEND_DIR
 Write-Host 'Installing frontend dependencies...' -ForegroundColor Yellow
 npm install
 
-$env:VITE_APP_BASE_URL = 'http://localhost:5173'
+$env:VITE_APP_BASE_URL = 'http://localhost:2568'
 
 # Persist dev-server output to logs/frontend.log (ISO-8601 timestamped, one
 # line per entry) while still streaming live to the console.

@@ -21,7 +21,7 @@ Set-Location $REPO_ROOT
 
 if (-not $BaseUrl -or $BaseUrl -eq '') {
   if ($Local) {
-    $BaseUrl = 'http://localhost:5173'
+    $BaseUrl = 'http://localhost:2568'
   } else {
     $BaseUrl = 'https://app.allotmint.io'
   }

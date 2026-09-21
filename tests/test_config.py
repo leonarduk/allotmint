@@ -380,13 +380,13 @@ def test_allowed_emails_env_override(monkeypatch):
 def test_cors_origins_env_override(monkeypatch):
     monkeypatch.setenv(
         "CORS_ORIGINS",
-        "https://app.allotmint.io,http://192.168.1.25:5173,http://localhost:5173",
+        "https://app.allotmint.io,http://192.168.1.25:2568,http://localhost:2568",
     )
     cfg = reload_config()
     assert cfg.cors_origins == [
         "https://app.allotmint.io",
-        "http://192.168.1.25:5173",
-        "http://localhost:5173",
+        "http://192.168.1.25:2568",
+        "http://localhost:2568",
     ]
     monkeypatch.delenv("CORS_ORIGINS")
     reload_config()

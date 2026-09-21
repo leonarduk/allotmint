@@ -29,7 +29,7 @@ auth:
 server:
   app_env: local                      # Runtime environment (APP_ENV)
   uvicorn_host: 0.0.0.0               # Host interface for the FastAPI server
-  uvicorn_port: 8000                  # Port for the FastAPI server
+  uvicorn_port: 6468                  # Port for the FastAPI server (MINT on a phone keypad)
   reload: true                        # Auto-reload during development
   rate_limit_per_minute: 6000           # Max API requests per client per minute
   sns_topic_arn: ''                   # AWS SNS topic for alerts
@@ -39,15 +39,15 @@ server:
   cors:                               # Cross-origin settings by environment
     local:
       - http://localhost:3000
-      - http://localhost:5173
+      - http://localhost:2568
     production:
       - https://app.allotmint.io
     # Optional regex matched against the Origin header in addition to the lists
     # above (CORS_ORIGIN_REGEX overrides it; empty string disables). Useful on a
-    # dev machine running several frontends, where vite walks 5173, 5174, 5175
+    # dev machine running several frontends, where vite walks 2568, 2569, 2570
     # ... past whichever ports are already taken. Unset by default -- prefer the
     # explicit lists above for anything deployed.
-    # origin_regex: '^http://(localhost|127\.0\.0\.1):(3000|5\d{3})$'
+    # origin_regex: '^http://(localhost|127\.0\.0\.1):(3000|25[6-9]\d)$'
 
 market_data:
   offline_mode: false                 # Run without external data fetches

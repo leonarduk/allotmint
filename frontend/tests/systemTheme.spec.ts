@@ -5,7 +5,7 @@ import {
   DEFAULT_OWNERS_BODY,
 } from './support/smokeFixtures';
 
-const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:5173';
+const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:2568';
 
 const mockAppShell = async (page: Page, theme: 'dark' | 'light' | 'system') => {
   for (const [path, body] of [

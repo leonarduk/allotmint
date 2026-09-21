@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { applyAuth as applyAuthToken } from './support/smokeFixtures';
 
-const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:5173';
+const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:2568';
 const authToken = process.env.SMOKE_AUTH_TOKEN ?? process.env.TEST_ID_TOKEN ?? null;
 
 const applyAuth = (page: Page) => applyAuthToken(page, authToken);

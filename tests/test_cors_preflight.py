@@ -53,7 +53,7 @@ def test_cors_preflight_allows_origin_matching_regex(monkeypatch):
     the enumerated list alone.
     """
     monkeypatch.setattr(config, "cors_origins", ["http://localhost:3000"])
-    monkeypatch.setattr(config, "cors_origin_regex", r"^http://localhost:25[6-9]\d$")
+    monkeypatch.setattr(config, "cors_origin_regex", r"^http://localhost:2[5-9]\d{2}$")
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     with TestClient(app) as client:
@@ -69,7 +69,7 @@ def test_cors_preflight_allows_origin_matching_regex(monkeypatch):
 def test_cors_preflight_regex_does_not_widen_beyond_pattern(monkeypatch):
     """Origins outside the pattern stay blocked -- the regex must not act as '*'."""
     monkeypatch.setattr(config, "cors_origins", ["http://localhost:3000"])
-    monkeypatch.setattr(config, "cors_origin_regex", r"^http://localhost:25[6-9]\d$")
+    monkeypatch.setattr(config, "cors_origin_regex", r"^http://localhost:2[5-9]\d{2}$")
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     with TestClient(app) as client:
@@ -88,7 +88,7 @@ def test_cors_preflight_regex_does_not_widen_beyond_pattern(monkeypatch):
 def test_cors_preflight_allowlist_still_works_with_regex_set(monkeypatch):
     """The explicit list and the regex are ORed, so neither disables the other."""
     monkeypatch.setattr(config, "cors_origins", ["https://app.allotmint.io"])
-    monkeypatch.setattr(config, "cors_origin_regex", r"^http://localhost:25[6-9]\d$")
+    monkeypatch.setattr(config, "cors_origin_regex", r"^http://localhost:2[5-9]\d{2}$")
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     with TestClient(app) as client:

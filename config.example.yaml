@@ -47,7 +47,7 @@ server:
     # dev machine running several frontends, where vite walks 2568, 2569, 2570
     # ... past whichever ports are already taken. Unset by default -- prefer the
     # explicit lists above for anything deployed.
-    # origin_regex: '^http://(localhost|127\.0\.0\.1):(3000|25[6-9]\d)$'
+    # origin_regex: '^http://(localhost|127\.0\.0\.1):(3000|2[5-9]\d{2})$'
 
 market_data:
   offline_mode: false                 # Run without external data fetches

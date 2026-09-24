@@ -9,7 +9,7 @@
     "tsx": "^4.23.13"
   },
   "dependencies": {
-    "@capacitor/android": "^8.5.1",
+    "@capacitor/android": "^8.5.2",
     "@capacitor/core": "^8.5.1",
     "@capacitor/ios": "^8.5.1",
     "yaml": "^2.9.0"

@@ -635,12 +635,18 @@ def _memoized_range_cached(
     end_iso: str,
     cache_only: bool = False,
 ) -> pd.DataFrame:
-    # ``cache_only`` keys the LRU (see _load_meta_timeseries_cached); the
-    # loaders below read the same flag from _CACHE_ONLY in this context.
+    # ``cache_only`` is part of the LRU key (see _load_meta_timeseries_cached)
+    # and is acted on here directly, so key and behaviour can't disagree.
     global OFFLINE_MODE
 
     start_date = datetime.fromisoformat(start_iso).date()
     end_date = datetime.fromisoformat(end_iso).date()
+    if cache_only:
+        # Same read as the offline branch below, minus its live fallback.
+        existing = _load_parquet(str(meta_timeseries_cache_path(ticker, exchange)))
+        if existing.empty:
+            return _empty_ts()
+        return _ensure_schema(apply_date_range(existing, start_date, end_date))
     span_days = (end_date - start_date).days + 1
     lookback = (date.today() - end_date).days
     days_needed = max(span_days + lookback, _MIN_CACHE_WINDOW_DAYS)
@@ -659,8 +665,6 @@ def _memoized_range_cached(
             # so the dtype is safe regardless of what apply_date_range returns.
             return _ensure_schema(apply_date_range(existing, start_date, end_date))
         logger.warning("Offline mode: no cached data for %s.%s", _sanitize_for_log(ticker), _sanitize_for_log(exchange))
-        if cache_only:
-            return _empty_ts()
 
         # Temporarily disable offline mode so the live loader can fetch data.
         prev_offline_mode = config.offline_mode

@@ -394,3 +394,29 @@ def test_offline_mode_without_cache_only_still_falls_back_live(monkeypatch, tmp_
     cache.load_meta_timeseries_range("NEW", "L", start_date=day, end_date=day)
 
     assert calls, "offline mode should still fall back to a live fetch on a cache miss"
+
+
+def test_memoized_range_honours_cache_only_argument_outside_context(monkeypatch, tmp_path):
+    """The LRU-keyed ``cache_only`` argument alone must prevent fetching (#7898).
+
+    Guards against the key and the behaviour drifting apart: the argument is
+    acted on directly rather than via the context variable.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache.config, "offline_mode", False)
+    _clear_meta_lrus(cache)
+    last = _seed_stale_meta_cache(cache, "ABC", "L")
+
+    def exploding_fetch(**_kwargs):
+        raise AssertionError("cache_only=True must not call a price source")
+
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", exploding_fetch)
+    day = (last + timedelta(days=1)).isoformat()
+
+    assert cache.is_cache_only() is False
+    assert cache._memoized_range_cached("ABC", "L", day, day, True).empty
+    assert cache._memoized_range_cached("NEW", "L", day, day, True).empty
+    served = cache._memoized_range_cached("ABC", "L", last.isoformat(), last.isoformat(), True)
+    assert served["Date"].dt.date.tolist() == [last]

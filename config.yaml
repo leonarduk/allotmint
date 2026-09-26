@@ -37,7 +37,7 @@ market_data:
   alpha_vantage_enabled: false
   alpha_vantage_key: ''
   fundamentals_cache_ttl_seconds: 86400
-  stooq_timeout: 10
+  stooq_timeout: 3
   stooq_requests_per_minute: 60
   news_requests_per_day: 25
   default_sector_region: US
@@ -109,8 +109,8 @@ app_env: local
 sns_topic_arn: ''
 telegram_bot_token: ''
 telegram_chat_id: ''
-portfolio_xml_path: C:\Users\steph\workspace\GitHub\allotmint-data\portfolio\investments.xml
-transactions_output_root: C:\Users\steph\workspace\GitHub\allotmint-data\accounts
+portfolio_xml_path: D:\workspace\GitHub\allotmint\allotmint-data\portfolio\investments.xml
+transactions_output_root: D:\workspace\GitHub\allotmint\allotmint-data\accounts
 uvicorn_port: 6468
 reload: true
 rate_limit_per_minute: 6000
@@ -125,14 +125,14 @@ error_summary: '[object Object]'
 offline_mode: false
 demo_identity: demo
 smoke_identity: demo
-timeseries_cache_base: C:\Users\steph\workspace\GitHub\allotmint-data\timeseries
+timeseries_cache_base: D:\workspace\GitHub\allotmint\allotmint-data\timeseries
 fx_proxy_url: ''
 default_sector_region: US
 uk_sector_endpoint: https://www.londonstockexchange.com/api/sectors/ftse350
 alpha_vantage_enabled: ''
 alpha_vantage_key: ''
 fundamentals_cache_ttl_seconds: 86400
-stooq_timeout: 10
+stooq_timeout: 3
 news_requests_per_day: 25
 yahoo_news_endpoint: ''
 yahoo_news_key: ''
@@ -142,10 +142,10 @@ google_news_key: ''
 google_news_requests_per_day: 500
 max_trades_per_month: 20
 hold_days_min: 30
-repo_root: C:\Users\steph\workspace\GitHub\allotmint
-data_root: C:\Users\steph\workspace\GitHub\allotmint-data
-accounts_root: C:\Users\steph\workspace\GitHub\allotmint-data\accounts
-prices_json: C:\Users\steph\workspace\GitHub\allotmint-data\prices\latest_prices.json
+repo_root: D:\workspace\GitHub\allotmint\allotmint
+data_root: D:\workspace\GitHub\allotmint\allotmint-data
+accounts_root: D:\workspace\GitHub\allotmint\allotmint-data\accounts
+prices_json: D:\workspace\GitHub\allotmint\allotmint-data\prices\latest_prices.json
 risk_free_rate: 0.01
 base_currency: GBP
 approval_valid_days: 2

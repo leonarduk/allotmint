@@ -132,6 +132,33 @@ def _normalise_config_structure(raw: Dict[str, Any]) -> Dict[str, Any]:
     return data
 
 
+def _route_flat_keys_into_sections(incoming: Dict[str, Any], stored: Dict[str, Any]) -> tuple[Dict[str, Any], set]:
+    """Move incoming top-level scalar keys into the stored section that defines them.
+
+    The Settings page sends flat keys (``stooq_timeout``), but config.yaml
+    keeps most keys in sections (``market_data.stooq_timeout``) and
+    ``backend.config._flatten_dict`` lets the section value win over a
+    top-level duplicate. Merging a flat key at the top level therefore wrote
+    a dead copy and the edit was silently ignored (#7895). Keys no section
+    defines (e.g. ``base_currency``) stay top-level.
+
+    Returns the rewritten payload and the set of keys that were routed.
+    """
+
+    routed = deepcopy(incoming)
+    routed_keys = set()
+    for key, value in incoming.items():
+        if isinstance(value, dict):
+            continue
+        sections = [name for name, section in stored.items() if isinstance(section, dict) and key in section]
+        if len(sections) != 1 or not isinstance(routed.get(sections[0], {}), dict):
+            continue
+        routed.pop(key)
+        routed.setdefault(sections[0], {})[key] = value
+        routed_keys.add(key)
+    return routed, routed_keys
+
+
 @router.get("")
 def read_config() -> Dict[str, Any]:
     """Return the full application configuration."""
@@ -168,7 +195,15 @@ def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     # existing-then-incoming precedence resolves both cases correctly (#6844).
     data = deepcopy(existing_data)
     if incoming_payload:
-        deep_merge(data, _normalise_config_structure(incoming_payload))
+        incoming, routed_keys = _route_flat_keys_into_sections(
+            _normalise_config_structure(incoming_payload), existing_data
+        )
+        deep_merge(data, incoming)
+        # A stale top-level duplicate of a routed key is dead (the section
+        # wins on load), so drop it rather than leave it contradicting the
+        # value just saved.
+        for key in routed_keys:
+            data.pop(key, None)
 
     auth_section = data.get("auth", {}) if isinstance(data, dict) else {}
     if not isinstance(auth_section, dict):

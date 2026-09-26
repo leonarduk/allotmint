@@ -1,7 +1,7 @@
 import logging
-import time
 from datetime import date, timedelta
 from io import StringIO
+from time import monotonic
 
 import pandas as pd
 import requests
@@ -32,7 +32,13 @@ _STOOQ_UNREACHABLE_UNTIL: float = 0.0
 
 def _mark_stooq_unreachable() -> None:
     global _STOOQ_UNREACHABLE_UNTIL
-    _STOOQ_UNREACHABLE_UNTIL = time.monotonic() + STOOQ_UNREACHABLE_COOLDOWN_SECONDS
+    _STOOQ_UNREACHABLE_UNTIL = monotonic() + STOOQ_UNREACHABLE_COOLDOWN_SECONDS
+
+
+def reset_stooq_unreachable_cooldown() -> None:
+    """Clear the unreachable cooldown (used by tests)."""
+    global _STOOQ_UNREACHABLE_UNTIL
+    _STOOQ_UNREACHABLE_UNTIL = 0.0
 
 
 def get_stooq_suffix(exchange: str) -> str:
@@ -69,7 +75,7 @@ def fetch_stooq_timeseries_range(ticker: str, exchange: str, start_date: date, e
     global STOOQ_DISABLED_UNTIL
     if date.today() <= STOOQ_DISABLED_UNTIL:
         raise StooqRateLimitError("Exceeded the daily hits limit")
-    if time.monotonic() < _STOOQ_UNREACHABLE_UNTIL:
+    if monotonic() < _STOOQ_UNREACHABLE_UNTIL:
         raise StooqRateLimitError("Stooq unreachable; skipping during cooldown")
     if not is_valid_ticker(ticker, exchange):
         logger.info(

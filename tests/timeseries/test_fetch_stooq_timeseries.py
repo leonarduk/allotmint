@@ -137,7 +137,7 @@ def test_unreachable_stooq_is_skipped_during_cooldown(monkeypatch, exc):
     """After a timeout/connection failure Stooq is not called again until the cooldown ends (#7877)."""
     monkeypatch.setattr(fst, "is_valid_ticker", lambda *a, **k: True)
     now = [1000.0]
-    monkeypatch.setattr(fst.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(fst, "monotonic", lambda: now[0])
     calls = []
 
     def failing_get(*a, **k):

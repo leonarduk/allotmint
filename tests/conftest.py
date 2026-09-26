@@ -179,9 +179,9 @@ def reset_stooq_unreachable_cooldown():
     """
     from backend.timeseries import fetch_stooq_timeseries
 
-    fetch_stooq_timeseries._STOOQ_UNREACHABLE_UNTIL = 0.0
+    fetch_stooq_timeseries.reset_stooq_unreachable_cooldown()
     yield
-    fetch_stooq_timeseries._STOOQ_UNREACHABLE_UNTIL = 0.0
+    fetch_stooq_timeseries.reset_stooq_unreachable_cooldown()
 
 
 @pytest.fixture

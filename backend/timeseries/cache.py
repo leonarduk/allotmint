@@ -276,7 +276,9 @@ def _rolling_cache(
     # Only rewrite when the fetch added dates: a no-op save still bumps the
     # file's mtime, which makes _invalidate_meta_caches_if_stale clear every
     # ticker's LRU entries and re-triggers this fetch on the next lookup (#7877).
-    if not set(combined["Date"]).issubset(set(existing["Date"])):
+    # Compare calendar dates so a timestamp-resolution difference between the
+    # cached and fetched frames can't masquerade as a new row.
+    if existing.empty or not set(combined["Date"].dt.date).issubset(set(existing["Date"].dt.date)):
         _save_parquet(combined, cache_path)
     else:
         logger.debug(

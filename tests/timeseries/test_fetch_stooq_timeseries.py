@@ -280,6 +280,28 @@ def test_response_resets_consecutive_read_timeouts(monkeypatch):
         assert not fst.fetch_stooq_timeseries_range("AAA", "L", date(2024, 1, 1), date(2024, 1, 1)).empty
 
 
+def test_error_response_does_not_reset_consecutive_read_timeouts(monkeypatch):
+    """An HTTP error page between read timeouts still lets the global cooldown start (#7913)."""
+    monkeypatch.setattr(fst, "is_valid_ticker", lambda *a, **k: True)
+    monkeypatch.setattr(fst, "monotonic", lambda: 1000.0)
+
+    def get(url, params, **kwargs):
+        if params["s"].startswith("SLOW"):
+            raise requests.exceptions.ReadTimeout
+        return SimpleNamespace(ok=False, status_code=503, text="")
+
+    monkeypatch.setattr(fst.requests, "get", get)
+
+    for i in range(fst.STOOQ_READ_TIMEOUTS_BEFORE_COOLDOWN):
+        assert fst.fetch_stooq_timeseries_range(f"SLOW{i}", "L", date(2024, 1, 1), date(2024, 1, 1)).empty
+        if i < fst.STOOQ_READ_TIMEOUTS_BEFORE_COOLDOWN - 1:
+            with pytest.raises(Exception, match="HTTP error 503"):
+                fst.fetch_stooq_timeseries_range(f"ERR{i}", "L", date(2024, 1, 1), date(2024, 1, 1))
+
+    with pytest.raises(fst.StooqRateLimitError, match="unreachable"):
+        fst.fetch_stooq_timeseries_range("OTHER", "L", date(2024, 1, 1), date(2024, 1, 1))
+
+
 def test_reset_clears_per_ticker_skip(monkeypatch):
     """The test reset hook clears per-ticker skips as well as the global cooldown."""
     monkeypatch.setattr(fst, "is_valid_ticker", lambda *a, **k: True)

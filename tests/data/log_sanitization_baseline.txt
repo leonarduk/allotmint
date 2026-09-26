@@ -124,9 +124,9 @@ backend/timeseries/fetch_meta_timeseries.py:222
 backend/timeseries/fetch_meta_timeseries.py:602
 backend/timeseries/fetch_meta_timeseries.py:626
 backend/timeseries/fetch_meta_timeseries.py:90
-backend/timeseries/fetch_stooq_timeseries.py:185
-backend/timeseries/fetch_stooq_timeseries.py:204
-backend/timeseries/fetch_stooq_timeseries.py:210
+backend/timeseries/fetch_stooq_timeseries.py:187
+backend/timeseries/fetch_stooq_timeseries.py:206
+backend/timeseries/fetch_stooq_timeseries.py:212
 backend/timeseries/fetch_stooq_timeseries.py:146
 backend/timeseries/fetch_stooq_timeseries.py:157
 backend/timeseries/fetch_yahoo_timeseries.py:104

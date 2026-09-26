@@ -161,9 +161,11 @@ def fetch_stooq_timeseries_range(ticker: str, exchange: str, start_date: date, e
             params=params,
             timeout=config.stooq_timeout or 10,
         )
-        _record_stooq_responded()
         if not response.ok:
             raise Exception(f"HTTP error {response.status_code} for {full_ticker}")
+        # Only a successful response shows the host is healthy; an error page
+        # between read timeouts must not hold off the global cooldown.
+        _record_stooq_responded()
 
         if "Exceeded the daily hits limit" in response.text:
             logger.warning("Stooq: Exceeded the daily hits limit")

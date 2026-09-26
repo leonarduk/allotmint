@@ -265,6 +265,37 @@ def test_s3_store_rebuild_portfolio(s3_store) -> None:
     assert tickers == {"ABC", "CASH.GBP"}
 
 
+def test_s3_store_rebuild_portfolio_carries_forward_existing_holdings(s3_store) -> None:
+    """S3 rebuild keeps value_gbp and computes cost basis instead of zeroing it."""
+    store, fake = s3_store
+    tx_data = {"transactions": [{"type": "BUY", "ticker": "ABC", "units": 10, "amount_minor": 12_345}]}
+    existing = {"holdings": [{"ticker": "ABC", "units": 10, "value_gbp": 150.0, "cost_basis_gbp": 0.0}]}
+    fake.objects[f"{WRITABLE_ACCOUNTS_PREFIX}/alex/isa_transactions.json"] = json.dumps(tx_data).encode("utf-8")
+    fake.objects[f"{WRITABLE_ACCOUNTS_PREFIX}/alex/isa.json"] = json.dumps(existing).encode("utf-8")
+
+    store.rebuild_portfolio("alex", "isa")
+
+    holdings = json.loads(fake.objects[f"{WRITABLE_ACCOUNTS_PREFIX}/alex/isa.json"].decode("utf-8"))
+    assert holdings["holdings"] == [{"ticker": "ABC", "units": 10, "value_gbp": 150.0, "cost_basis_gbp": 123.45}]
+
+
+def test_local_rebuild_account_holdings_carries_forward_existing(tmp_path: Path) -> None:
+    """The on-disk rebuild reads the current <account>.json before overwriting it."""
+    owner_dir = tmp_path / "alex"
+    owner_dir.mkdir()
+    tx_data = {"transactions": [{"type": "TRANSFER_IN", "ticker": "OLD", "units": 5, "date": "2021-09-26"}]}
+    existing = {"holdings": [{"ticker": "OLD", "units": 5, "value_gbp": 60.0, "cost_basis_gbp": 42.5}]}
+    (owner_dir / "ISA_transactions.json").write_text(json.dumps(tx_data))
+    (owner_dir / "isa.json").write_text(json.dumps(existing))
+
+    portfolio_loader.rebuild_account_holdings("alex", "isa", tmp_path)
+
+    saved = json.loads((owner_dir / "isa.json").read_text())
+    assert saved["holdings"] == [
+        {"ticker": "OLD", "units": 5, "value_gbp": 60.0, "cost_basis_gbp": 42.5, "acquired_date": "2021-09-26"}
+    ]
+
+
 def test_s3_store_rebuild_portfolio_missing_transactions(s3_store, caplog: pytest.LogCaptureFixture) -> None:
     """S3 rebuild warns and returns early when no transaction document exists."""
     store, _ = s3_store

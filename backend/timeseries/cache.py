@@ -38,11 +38,16 @@ from backend.logging_setup import sanitise_log_value
 # ──────────────────────────────────────────────────────────────
 # Remote fetchers
 # ──────────────────────────────────────────────────────────────
+from backend.timeseries import refresh_queue
 from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
-from backend.utils.fx_rates import fetch_fx_rate_range
+from backend.utils.fx_rates import (
+    fallback_fx_rate_range,
+    fetch_fx_rate_range,
+    fetch_fx_rate_range_live,
+)
 from backend.utils.timeseries_helpers import (
     _nearest_weekday,
     apply_date_range,
@@ -561,10 +566,22 @@ def _invalidate_meta_caches_if_stale(ticker: str, exchange: str) -> None:
     _CACHE_FILE_MTIMES[cache] = mtime
 
 
-def _cached_window(cache_path: str, days: int) -> pd.DataFrame:
+def _last_close_target() -> date:
+    """The latest close ``_rolling_cache`` fetches up to: the last weekday before today."""
+    return _weekday_range(datetime.today().date() - timedelta(days=1), 0)[1]
+
+
+def _queue_if_stale(ticker: str, exchange: str, existing: pd.DataFrame) -> None:
+    """Queue a background refresh when a cache-only read found the parquet short of the last close (#7917)."""
+    if existing.empty or existing["Date"].max().date() < _last_close_target():
+        refresh_queue.enqueue(ticker, exchange)
+
+
+def _cached_window(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     """The ``days`` window ``_rolling_cache`` would serve, read from cache only."""
     cutoff, today = _weekday_range(datetime.today().date() - timedelta(days=1), days)
-    existing = _load_parquet(cache_path)
+    existing = _load_parquet(str(meta_timeseries_cache_path(ticker, exchange)))
+    _queue_if_stale(ticker, exchange, existing)
     if existing.empty:
         return _empty_ts()
     dates = existing["Date"].dt.date
@@ -578,9 +595,9 @@ def _load_meta_timeseries_cached(ticker: str, exchange: str, days: int, cache_on
     ``cache_only`` is part of the LRU key so a cache-only read is never handed
     back to a live caller (e.g. the background refresh) as if it were fresh.
     """
-    cache = str(meta_timeseries_cache_path(ticker, exchange))
     if cache_only:
-        return _cached_window(cache, days)
+        return _cached_window(ticker, exchange, days)
+    cache = str(meta_timeseries_cache_path(ticker, exchange))
     return _rolling_cache(
         fetch_meta_timeseries,
         cache,
@@ -644,6 +661,7 @@ def _memoized_range_cached(
     if cache_only:
         # Same read as the offline branch below, minus its live fallback.
         existing = _load_parquet(str(meta_timeseries_cache_path(ticker, exchange)))
+        _queue_if_stale(ticker, exchange, existing)
         if existing.empty:
             return _empty_ts()
         return _ensure_schema(apply_date_range(existing, start_date, end_date))
@@ -696,6 +714,153 @@ def _memoized_range(
     return _memoized_range_cached(ticker, exchange, start_iso, end_iso, _CACHE_ONLY.get()).copy()
 
 
+# ──────────────────────────────────────────────────────────────
+# FX parquet cache (#7917)
+# ──────────────────────────────────────────────────────────────
+# One file per currency, ``fx/{CCY}.parquet`` (Date, Rate = GBP per unit),
+# under the timeseries cache base -- the same file the offline branch of
+# _convert_to_base_currency reads. Only the refresh paths write it
+# (refresh_prices on the schedule, the refresh queue locally); cache-only page
+# requests read it so converting a USD holding never calls Yahoo inline.
+
+# History seeded on the first refresh of a currency: cost-basis lookups can
+# ask for a rate years back.
+_FX_CACHE_HISTORY_DAYS = 3650
+
+# How long a cache-only reader reuses its in-process copy of an FX file before
+# re-reading it (an S3 GET on Lambda). Writes from this process drop the copy.
+_FX_FRAME_TTL_SECONDS = 300.0
+_FX_FRAMES: Dict[str, tuple[pd.DataFrame, float]] = {}
+_FX_LOCK = threading.Lock()  # guards _FX_FRAMES only; never held across I/O
+_FX_WRITE_LOCK = threading.Lock()  # serialises read-merge-write of FX files
+
+
+def instrument_currency(ticker: str, exchange: str) -> str:
+    """The currency ``ticker.exchange`` is quoted in, from instrument metadata or the exchange."""
+    meta = get_instrument_meta(f"{ticker}.{exchange}")
+    return meta.get("currency") or EXCHANGE_TO_CCY.get((exchange or "").upper(), "GBP")
+
+
+def _fx_cache_path(curr: str) -> str:
+    return _cache_path("fx", f"{curr}.parquet")
+
+
+def _read_fx_parquet(path: str) -> pd.DataFrame:
+    try:
+        fx = pd.read_parquet(path)
+    except Exception as exc:
+        logger.debug("FX cache read miss (%s): %s", sanitise_log_value(path), sanitise_log_value(exc))
+        return pd.DataFrame(columns=["Date", "Rate"])
+    fx["Date"] = pd.to_datetime(fx["Date"]).astype("datetime64[ms]")
+    fx["Rate"] = pd.to_numeric(fx["Rate"], errors="coerce")
+    return fx.dropna(subset=["Rate"]).sort_values("Date").reset_index(drop=True)
+
+
+def _cached_fx_frame(curr: str) -> pd.DataFrame:
+    now = time.monotonic()
+    with _FX_LOCK:
+        entry = _FX_FRAMES.get(curr)
+    if entry is not None and now - entry[1] < _FX_FRAME_TTL_SECONDS:
+        return entry[0]
+    fx = _read_fx_parquet(_fx_cache_path(curr))
+    with _FX_LOCK:
+        _FX_FRAMES[curr] = (fx, now)
+    return fx
+
+
+def _cached_fx_rates(curr: str, start: date, end: date, *, ticker: str, exchange: str) -> pd.DataFrame:
+    """Daily ``curr``->GBP rates for ``start``..``end`` from the FX cache, without fetching.
+
+    Days the cache doesn't cover take the nearest cached rate. With no cache
+    file at all this falls back to the same approximate constant a failed live
+    fetch returns. Either way the ticker is queued so the refresh brings the
+    FX cache up to date.
+    """
+    if curr == "GBP":
+        fx = fetch_fx_rate_range(curr, "GBP", start, end).copy()
+        fx["Date"] = pd.to_datetime(fx["Date"])
+        return fx
+    cached = _cached_fx_frame(curr)
+    if cached.empty or cached["Date"].max().date() < min(end, _last_close_target()):
+        refresh_queue.enqueue(ticker, exchange)
+    if cached.empty:
+        fx = fallback_fx_rate_range(curr, "GBP", start, end)
+        fx["Date"] = pd.to_datetime(fx["Date"])
+        return fx
+    days = pd.DataFrame({"Date": pd.date_range(start, end, freq="D").astype("datetime64[ms]")})
+    return pd.merge_asof(days, cached[["Date", "Rate"]], on="Date", direction="nearest")
+
+
+def refresh_fx_cache(curr: str) -> bool:
+    """Append live ``curr``->GBP rates to the FX cache; return whether the file changed.
+
+    Fetches from the day after the last cached rate (or
+    ``_FX_CACHE_HISTORY_DAYS`` back for a new currency) to today. Like
+    _rolling_cache, a fetch that adds no dates leaves the file untouched.
+    """
+    curr = (curr or "").strip().upper()
+    if curr in ("GBP", "GBX") or not re.fullmatch(r"[A-Z]{3}", curr):
+        return False
+    path = _fx_cache_path(curr)
+    today = date.today()
+    with _FX_WRITE_LOCK:
+        existing = _read_fx_parquet(path)
+        start = (
+            existing["Date"].max().date() + timedelta(days=1)
+            if not existing.empty
+            else today - timedelta(days=_FX_CACHE_HISTORY_DAYS)
+        )
+        if start > today:
+            return False
+        live = fetch_fx_rate_range_live(curr, "GBP", start, today)
+        if live.empty:
+            return False
+        live = live[["Date", "Rate"]].copy()
+        live["Date"] = pd.to_datetime(live["Date"]).astype("datetime64[ms]")
+        live["Rate"] = pd.to_numeric(live["Rate"], errors="coerce")
+        frames = [f for f in (existing, live.dropna(subset=["Rate"])) if not f.empty]
+        combined = (
+            pd.concat(frames, ignore_index=True)
+            .drop_duplicates(subset="Date", keep="last")
+            .sort_values("Date")
+            .reset_index(drop=True)
+        )
+        if len(combined) == len(existing):
+            return False
+        _ensure_local_dir(path)
+        combined.to_parquet(path, index=False)
+        with _FX_LOCK:
+            _FX_FRAMES.pop(curr, None)
+    logger.info(
+        "FX cache for %s now runs to %s",
+        sanitise_log_value(curr),
+        sanitise_log_value(combined["Date"].max().date()),
+    )
+    return True
+
+
+def refresh_fx_cache_for_tickers(full_tickers: list[str]) -> None:
+    """Refresh the FX cache for every non-GBP currency among ``full_tickers`` (``SYM.EXCH``)."""
+    if config.offline_mode:
+        return
+    currencies = set()
+    for full in full_tickers:
+        sym, _, exch = (full or "").rpartition(".")
+        if not sym:
+            continue
+        try:
+            currencies.add(instrument_currency(sym, exch))
+        except Exception as exc:
+            logger.warning(
+                "No currency for %s; skipping its FX refresh: %s", sanitise_log_value(full), sanitise_log_value(exc)
+            )
+    for curr in sorted(currencies):
+        try:
+            refresh_fx_cache(curr)
+        except Exception as exc:
+            logger.warning("FX cache refresh failed for %s: %s", sanitise_log_value(curr), sanitise_log_value(exc))
+
+
 def _convert_to_base_currency(
     df: pd.DataFrame,
     ticker: str,
@@ -706,8 +871,7 @@ def _convert_to_base_currency(
 ) -> pd.DataFrame:
     """Convert OHLC prices to ``base_currency`` if needed."""
 
-    meta = get_instrument_meta(f"{ticker}.{exchange}")
-    currency = meta.get("currency") or EXCHANGE_TO_CCY.get((exchange or "").upper(), "GBP")
+    currency = instrument_currency(ticker, exchange)
     base_currency = (base_currency or "GBP").upper()
 
     if currency in (base_currency, "GBX") or df.empty:
@@ -719,8 +883,12 @@ def _convert_to_base_currency(
             logger.warning("Invalid/unsupported FX currency code: %s", _sanitize_for_log(curr))
             return pd.DataFrame(columns=["Date", "Rate"])
 
-        if OFFLINE_MODE:
-            path = _cache_path("fx", f"{curr}.parquet")
+        if _CACHE_ONLY.get():
+            # Checked before offline mode: its cache miss goes to the FX proxy
+            # and then Yahoo, which a page request must not do.
+            fx = _cached_fx_rates(curr, start, end, ticker=ticker, exchange=exchange)
+        elif OFFLINE_MODE:
+            path = _fx_cache_path(curr)
             try:
                 fx = pd.read_parquet(path)
                 fx["Date"] = pd.to_datetime(fx["Date"])
@@ -789,6 +957,21 @@ def _convert_to_base_currency(
 # ──────────────────────────────────────────────────────────────
 # Public helper: explicit date range
 # ──────────────────────────────────────────────────────────────
+def _converted_or_empty(
+    df: pd.DataFrame, ticker: str, exchange: str, start: date, end: date, base_currency: str
+) -> pd.DataFrame:
+    try:
+        return _convert_to_base_currency(df, ticker, exchange, start, end, base_currency)
+    except ValueError as exc:
+        logger.warning(
+            "Skipping FX conversion for %s.%s: %s",
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+            sanitise_log_value(exc),
+        )
+        return _empty_ts()
+
+
 def load_meta_timeseries_range(
     ticker: str,
     exchange: str,
@@ -804,19 +987,21 @@ def load_meta_timeseries_range(
         e = end_date - timedelta(days=offset)
         df = _memoized_range(ticker, exchange, s.isoformat(), e.isoformat())
         if not df.empty:
-            try:
-                df = _convert_to_base_currency(df, ticker, exchange, s, e, base_currency)
-            except ValueError as exc:
-                logger.warning(
-                    "Skipping FX conversion for %s.%s: %s",
-                    _sanitize_for_log(ticker),
-                    _sanitize_for_log(exchange),
-                    sanitise_log_value(exc),
-                )
-                return _empty_ts()
-            return df
+            return _converted_or_empty(df, ticker, exchange, s, e, base_currency)
 
-    if _allow_fallback and (OFFLINE_MODE or config.offline_mode) and not _CACHE_ONLY.get():
+    if _CACHE_ONLY.get():
+        # A cache-only read can't fetch the missing closes, so instead of
+        # leaving the holding unpriced serve the last cached close on or
+        # before end_date, however old; the read above has already queued
+        # the ticker for a background refresh (#7917).
+        history = _memoized_range(ticker, exchange, date.min.isoformat(), end_date.isoformat())
+        if history.empty:
+            return _empty_ts()
+        last = history.tail(1).reset_index(drop=True)
+        day = last["Date"].iloc[0].date()
+        return _converted_or_empty(last, ticker, exchange, day, day, base_currency)
+
+    if _allow_fallback and (OFFLINE_MODE or config.offline_mode):
         prev_offline_mode = config.offline_mode
         prev_global = OFFLINE_MODE
         try:

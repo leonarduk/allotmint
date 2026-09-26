@@ -1,4 +1,4 @@
-"""POST /chat -- one turn of the Bedrock tool-calling chat agent."""
+"""POST /chat -- one turn of the tool-calling chat agent (Bedrock, Ollama or DeepSeek)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, List, Literal
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from backend.chat.bedrock_agent import run_chat_turn
+from backend.chat.providers import run_configured_chat_turn
 from backend.config import config
 
 if TYPE_CHECKING:
@@ -41,14 +41,15 @@ async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatRespons
         raise HTTPException(status_code=503, detail="Chat is not configured (MCP_SERVER_URL unset)")
 
     try:
-        reply = await run_chat_turn(
+        reply = await run_configured_chat_turn(
             payload.message,
             [item.model_dump() for item in payload.history],
+            cfg=config,
             mcp_server_url=mcp_server_url,
-            bedrock_model_id=config.bedrock_model_id,
         )
     except ValueError as exc:
-        # Raised by bedrock_agent._validate_message_alternation for a
+        # Raised by bedrock_agent._validate_message_alternation (shared by
+        # both provider loops) for a
         # malformed history (e.g. two consecutive "user" messages) -- a
         # client bug, not a server error, so 400 rather than 500.
         raise HTTPException(status_code=400, detail=str(exc)) from exc

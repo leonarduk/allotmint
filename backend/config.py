@@ -13,6 +13,9 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+# Valid values for Config.chat_provider / the CHAT_PROVIDER env var.
+CHAT_PROVIDERS = ("bedrock", "ollama", "deepseek")
+
 
 class ConfigValidationError(ValueError):
     """Raised when configuration values are invalid."""
@@ -221,6 +224,14 @@ class Config:
     # optional feature not every deployment enables (see backend/routes/chat.py).
     mcp_server_url: Optional[str] = None
     bedrock_model_id: str = "amazon.nova-lite-v1:0"
+    # LLM behind POST /chat: "bedrock" (AWS), or "ollama"/"deepseek" via the
+    # OpenAI-compatible loop in backend/chat/openai_compat_agent.py. None
+    # means "bedrock" unless app_env is "local" (see backend/routes/chat.py).
+    chat_provider: Optional[str] = None
+    # Model/base URL for the OpenAI-compatible providers; None falls back to
+    # the per-provider defaults in backend/routes/chat.py.
+    chat_model: Optional[str] = None
+    chat_base_url: Optional[str] = None
     # Generous relative to signup_rate_limit (5/minute): chat is an
     # authenticated feature, not a public spam-prone endpoint, but each
     # request costs a real Bedrock Converse call (plus MCP tool calls), so
@@ -514,6 +525,11 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
 
     mcp_server_url = os.getenv("MCP_SERVER_URL", "").strip() or None
     bedrock_model_id = os.getenv("BEDROCK_MODEL_ID", "").strip() or "amazon.nova-lite-v1:0"
+    chat_provider = os.getenv("CHAT_PROVIDER", "").strip().lower() or None
+    if chat_provider is not None and chat_provider not in CHAT_PROVIDERS:
+        raise ValueError(f"Unexpected CHAT_PROVIDER '{chat_provider}'")
+    chat_model = os.getenv("CHAT_MODEL", "").strip() or None
+    chat_base_url = os.getenv("CHAT_BASE_URL", "").strip() or None
 
     # Optional env override for Alpha Vantage API key to avoid committing secrets
     alpha_key_env = os.getenv("ALPHA_VANTAGE_KEY")
@@ -630,6 +646,9 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         aws_ui_auth=aws_ui_auth,
         mcp_server_url=mcp_server_url,
         bedrock_model_id=bedrock_model_id,
+        chat_provider=chat_provider,
+        chat_model=chat_model,
+        chat_base_url=chat_base_url,
     )
 
     return cfg

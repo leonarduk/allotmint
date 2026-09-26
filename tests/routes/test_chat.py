@@ -46,10 +46,10 @@ def test_post_chat_rejects_invalid_history_role(client: TestClient, monkeypatch:
 def test_post_chat_returns_400_for_malformed_history(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
 
-    async def raising_run_chat_turn(message, history, *, mcp_server_url, bedrock_model_id):
+    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url):
         raise ValueError("Chat history must alternate user/assistant roles; got consecutive 'user' messages")
 
-    monkeypatch.setattr(chat_module, "run_chat_turn", raising_run_chat_turn)
+    monkeypatch.setattr(chat_module, "run_configured_chat_turn", raising_run_chat_turn)
 
     resp = client.post(
         "/chat",
@@ -62,17 +62,16 @@ def test_post_chat_returns_400_for_malformed_history(client: TestClient, monkeyp
 
 def test_post_chat_returns_agent_reply(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
-    monkeypatch.setattr(config, "bedrock_model_id", "amazon.nova-lite-v1:0")
     captured = {}
 
-    async def fake_run_chat_turn(message, history, *, mcp_server_url, bedrock_model_id):
+    async def fake_run_chat_turn(message, history, *, cfg, mcp_server_url):
         captured["message"] = message
         captured["history"] = history
+        captured["cfg"] = cfg
         captured["mcp_server_url"] = mcp_server_url
-        captured["bedrock_model_id"] = bedrock_model_id
         return "hello back"
 
-    monkeypatch.setattr(chat_module, "run_chat_turn", fake_run_chat_turn)
+    monkeypatch.setattr(chat_module, "run_configured_chat_turn", fake_run_chat_turn)
 
     resp = client.post(
         "/chat",
@@ -84,4 +83,4 @@ def test_post_chat_returns_agent_reply(client: TestClient, monkeypatch: pytest.M
     assert captured["message"] == "hi"
     assert captured["history"] == [{"role": "user", "content": "prev"}]
     assert captured["mcp_server_url"] == "https://example.com/mcp"
-    assert captured["bedrock_model_id"] == "amazon.nova-lite-v1:0"
+    assert captured["cfg"] is config

@@ -189,3 +189,91 @@ def test_rolling_cache_serves_cached_slice_on_empty_fetch(monkeypatch, tmp_path)
 
     assert_frame_equal(result, expected)
     assert cache._FAILED_FETCH_COUNT == 0
+
+
+def _seed_stale_meta_cache(cache, ticker: str, exchange: str) -> date:
+    """Write a meta parquet whose last row is two weekdays before the rolling window end."""
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 60)
+    last = window_end - timedelta(days=1)
+    while last.weekday() >= 5:
+        last -= timedelta(days=1)
+    dates = pd.bdate_range(end=last, periods=90)
+    frame = pd.DataFrame(
+        {
+            "Date": dates,
+            "Open": 1.0,
+            "High": 1.0,
+            "Low": 1.0,
+            "Close": [float(i) for i in range(len(dates))],
+            "Volume": 0,
+            "Ticker": ticker,
+            "Source": "SRC",
+        }
+    )
+    cache._save_parquet(frame, cache.meta_timeseries_cache_path(ticker, exchange))
+    return last
+
+
+def _clear_meta_lrus(cache):
+    cache._load_meta_timeseries_cached.cache_clear()
+    cache._memoized_range_cached.cache_clear()
+    cache._CACHE_FILE_MTIMES.clear()
+
+
+def test_cache_only_serves_stale_cache_without_fetching(monkeypatch, tmp_path):
+    """In cache-only mode a stale ticker is served from parquet and no price source is called (#7898)."""
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache.config, "offline_mode", False)
+    _clear_meta_lrus(cache)
+    last = _seed_stale_meta_cache(cache, "ABC", "L")
+
+    calls = []
+
+    def exploding_fetch(**kwargs):
+        calls.append(kwargs)
+        raise AssertionError("cache-only mode must not call a price source")
+
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", exploding_fetch)
+
+    with cache.cache_only():
+        df = cache.load_meta_timeseries_range(
+            "ABC", "L", start_date=last + timedelta(days=1), end_date=last + timedelta(days=1)
+        )
+
+    assert calls == []
+    assert not df.empty
+    assert df["Date"].dt.date.iloc[0] == last
+    assert cache.is_cache_only() is False
+
+
+def test_cache_only_read_is_not_reused_by_live_callers(monkeypatch, tmp_path):
+    """A cache-only read must not be memoised under the key a live caller uses (#7898).
+
+    Otherwise the background refresh would get the stale cache-only result back
+    and never fetch, so the parquet cache would silently stop updating.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache.config, "offline_mode", False)
+    _clear_meta_lrus(cache)
+    last = _seed_stale_meta_cache(cache, "ABC", "L")
+    day = last + timedelta(days=1)
+
+    calls = []
+
+    def recording_fetch(**kwargs):
+        calls.append(kwargs)
+        return pd.DataFrame()
+
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", recording_fetch)
+
+    with cache.cache_only():
+        cache.load_meta_timeseries_range("ABC", "L", start_date=day, end_date=day)
+        cache.load_meta_timeseries("ABC", "L", 60)
+    assert calls == []
+
+    cache.load_meta_timeseries_range("ABC", "L", start_date=day, end_date=day)
+    assert calls, "live caller should reach the price source after a cache-only read"

@@ -321,3 +321,22 @@ def test_refresh_snapshot_merges_with_existing_prices_file(tmp_path, monkeypatch
     assert result["OLD.L"]["last_price"] == pytest.approx(
         50.0
     ), "Ticker with no timeseries data must retain its existing price"
+
+
+def test_refresh_snapshot_from_timeseries_stays_live(monkeypatch):
+    """The background refresh must not run in cache-only mode, or the parquet cache is never updated (#7898)."""
+    from backend.timeseries import cache
+
+    monkeypatch.setattr(pu, "list_all_unique_tickers", lambda: ["FOO.L"])
+    monkeypatch.setattr(pu, "refresh_snapshot_in_memory", lambda *_a, **_k: None)
+    seen = []
+
+    def recording_range(**_kwargs):
+        seen.append(cache.is_cache_only())
+        return pd.DataFrame()
+
+    monkeypatch.setattr(pu, "load_meta_timeseries_range", recording_range)
+
+    pu.refresh_snapshot_in_memory_from_timeseries(days=5)
+
+    assert seen == [False]

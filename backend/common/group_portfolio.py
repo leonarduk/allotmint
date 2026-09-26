@@ -26,6 +26,7 @@ from backend.common.holding_utils import enrich_holding
 from backend.common.user_config import load_user_config
 from backend.config import config
 from backend.config import demo_identity as get_demo_identity
+from backend.timeseries.cache import cache_only
 from backend.utils.pricing_dates import PricingDateCalculator
 
 logger = logging.getLogger(__name__)
@@ -198,17 +199,20 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
             acct_copy["currency"] = _normalise_account_currency(acct_copy.get("currency"))
 
             holdings = acct_copy.get(HOLDINGS, [])
-            acct_copy[HOLDINGS] = [
-                enrich_holding(
-                    h,
-                    today,
-                    price_cache,
-                    approvals_map.get(owner),
-                    user_cfg_map.get(owner),
-                    calc=calc,
-                )
-                for h in holdings
-            ]
+            # Page request: price from the timeseries cache only; the
+            # background snapshot refresh does the live fetching (#7898).
+            with cache_only():
+                acct_copy[HOLDINGS] = [
+                    enrich_holding(
+                        h,
+                        today,
+                        price_cache,
+                        approvals_map.get(owner),
+                        user_cfg_map.get(owner),
+                        calc=calc,
+                    )
+                    for h in holdings
+                ]
 
             # compute account value in GBP for summary totals
             val_gbp = sum(float(h.get("market_value_gbp") or 0.0) for h in acct_copy[HOLDINGS])

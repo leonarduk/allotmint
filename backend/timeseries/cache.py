@@ -16,6 +16,9 @@ import os
 import re
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
@@ -48,6 +51,29 @@ from backend.utils.timeseries_helpers import (
 )
 
 OFFLINE_MODE = config.offline_mode
+
+# Per-request "read the parquet cache, never call a price source" switch
+# (#7898). Page requests (group/owner portfolio builds) turn it on so their
+# latency never depends on Yahoo/Stooq; the background snapshot refresh and
+# the admin/timeseries endpoints stay live and keep the parquet files current.
+# A ContextVar, not a module flag, so it is scoped to the calling request and
+# thread and can't leak into the background refresh.
+_CACHE_ONLY: ContextVar[bool] = ContextVar("timeseries_cache_only", default=False)
+
+
+@contextmanager
+def cache_only() -> Iterator[None]:
+    """Serve meta timeseries from the on-disk/S3 cache only inside this block."""
+    token = _CACHE_ONLY.set(True)
+    try:
+        yield
+    finally:
+        _CACHE_ONLY.reset(token)
+
+
+def is_cache_only() -> bool:
+    return _CACHE_ONLY.get()
+
 
 logger = logging.getLogger(__name__)
 
@@ -523,10 +549,26 @@ def _invalidate_meta_caches_if_stale(ticker: str, exchange: str) -> None:
     _CACHE_FILE_MTIMES[cache] = mtime
 
 
+def _cached_window(cache_path: str, days: int) -> pd.DataFrame:
+    """The ``days`` window ``_rolling_cache`` would serve, read from cache only."""
+    cutoff, today = _weekday_range(datetime.today().date() - timedelta(days=1), days)
+    existing = _load_parquet(cache_path)
+    if existing.empty:
+        return _empty_ts()
+    dates = existing["Date"].dt.date
+    return _ensure_schema(existing.loc[(dates >= cutoff) & (dates <= today)].reset_index(drop=True))
+
+
 @lru_cache(maxsize=512)
-def _load_meta_timeseries_cached(ticker: str, exchange: str, days: int) -> pd.DataFrame:
-    """LRU-backed loader for Meta timeseries."""
+def _load_meta_timeseries_cached(ticker: str, exchange: str, days: int, cache_only: bool = False) -> pd.DataFrame:
+    """LRU-backed loader for Meta timeseries.
+
+    ``cache_only`` is part of the LRU key so a cache-only read is never handed
+    back to a live caller (e.g. the background refresh) as if it were fresh.
+    """
     cache = str(meta_timeseries_cache_path(ticker, exchange))
+    if cache_only:
+        return _cached_window(cache, days)
     return _rolling_cache(
         fetch_meta_timeseries,
         cache,
@@ -549,7 +591,7 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
         _CACHE_FILE_MTIMES.clear()
 
     _invalidate_meta_caches_if_stale(ticker, exchange)
-    return _load_meta_timeseries_cached(ticker, exchange, days).copy()
+    return _load_meta_timeseries_cached(ticker, exchange, days, _CACHE_ONLY.get()).copy()
 
 
 # ──────────────────────────────────────────────────────────────
@@ -579,7 +621,10 @@ def _memoized_range_cached(
     exchange: str,
     start_iso: str,
     end_iso: str,
+    cache_only: bool = False,
 ) -> pd.DataFrame:
+    # ``cache_only`` keys the LRU (see _load_meta_timeseries_cached); the
+    # loaders below read the same flag from _CACHE_ONLY in this context.
     global OFFLINE_MODE
 
     start_date = datetime.fromisoformat(start_iso).date()
@@ -602,6 +647,8 @@ def _memoized_range_cached(
             # so the dtype is safe regardless of what apply_date_range returns.
             return _ensure_schema(apply_date_range(existing, start_date, end_date))
         logger.warning("Offline mode: no cached data for %s.%s", _sanitize_for_log(ticker), _sanitize_for_log(exchange))
+        if cache_only:
+            return _empty_ts()
 
         # Temporarily disable offline mode so the live loader can fetch data.
         prev_offline_mode = config.offline_mode
@@ -630,7 +677,7 @@ def _memoized_range(
     end_iso: str,
 ) -> pd.DataFrame:
     """LRU-cached range fetch that returns a copy to prevent mutation."""
-    return _memoized_range_cached(ticker, exchange, start_iso, end_iso).copy()
+    return _memoized_range_cached(ticker, exchange, start_iso, end_iso, _CACHE_ONLY.get()).copy()
 
 
 def _convert_to_base_currency(
@@ -753,7 +800,7 @@ def load_meta_timeseries_range(
                 return _empty_ts()
             return df
 
-    if _allow_fallback and (OFFLINE_MODE or config.offline_mode):
+    if _allow_fallback and (OFFLINE_MODE or config.offline_mode) and not _CACHE_ONLY.get():
         prev_offline_mode = config.offline_mode
         prev_global = OFFLINE_MODE
         try:

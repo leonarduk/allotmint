@@ -303,6 +303,7 @@ export function createClient(
   async function sendAuthenticated(
     url: string,
     init: RequestInit = {},
+    timeoutMs: number = fetchTimeoutMs,
   ): Promise<Response> {
     // Support relative paths by resolving against the provided base URL.
     const resolvedBase = resolveBase();
@@ -350,7 +351,7 @@ export function createClient(
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
     const csrf = getCsrfToken();
     if (csrf) headers.set("X-CSRFToken", csrf);
-    const { signal, cleanup, timedOut } = withTimeoutSignal(init.signal ?? undefined, fetchTimeoutMs);
+    const { signal, cleanup, timedOut } = withTimeoutSignal(init.signal ?? undefined, timeoutMs);
     const requestInit = {
       ...init,
       headers,
@@ -372,7 +373,7 @@ export function createClient(
       // checks and aren't a "request stalled" condition.
       if (timedOut.current) {
         const timeoutErr = new Error(
-          `Request timed out after ${Math.round(fetchTimeoutMs / 1000)}s: ${safeUrl}`,
+          `Request timed out after ${Math.round(timeoutMs / 1000)}s: ${safeUrl}`,
         );
         (timeoutErr as any).timeout = true;
         throw timeoutErr;
@@ -411,8 +412,14 @@ export function createClient(
     return res;
   }
 
-  async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<T> {
-    const res = await sendAuthenticated(url, init);
+  // `timeoutMs` overrides the client-wide fetchTimeoutMs for one request that
+  // is legitimately slow (e.g. a chat turn against a local LLM, see postChat).
+  async function fetchJson<T>(
+    url: string,
+    init: RequestInit = {},
+    timeoutMs: number = fetchTimeoutMs,
+  ): Promise<T> {
+    const res = await sendAuthenticated(url, init, timeoutMs);
     return res.json() as Promise<T>;
   }
 
@@ -2386,17 +2393,26 @@ export type ChatMessage = {
   content: string;
 };
 
+// One chat turn can take several LLM round trips plus MCP tool calls; a local
+// Ollama model routinely needs 30-90s, well past DEFAULT_FETCH_TIMEOUT_MS.
+export const CHAT_FETCH_TIMEOUT_MS = 300000;
+
 /**
- * Send one chat turn to the backend's Bedrock tool-calling agent. `history`
- * is resent in full each call -- there is no server-side session/persistence
- * yet, so the caller owns the running conversation.
+ * Send one chat turn to the backend's tool-calling agent (Bedrock, Ollama or
+ * DeepSeek). `history` is resent in full each call -- there is no
+ * server-side session/persistence yet, so the caller owns the running
+ * conversation.
  */
 export const postChat = (
   message: string,
   history: ChatMessage[] = [],
 ): Promise<{ reply: string }> =>
-  fetchJson<{ reply: string }>(`${API_BASE}/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history }),
-  });
+  fetchJson<{ reply: string }>(
+    `${API_BASE}/chat`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, history }),
+    },
+    CHAT_FETCH_TIMEOUT_MS,
+  );

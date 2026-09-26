@@ -37,4 +37,25 @@ describe("ChatPanel", () => {
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/cannot reach server/i));
   });
+
+  it("drops a failed message from history and restores it for retry (#7897)", async () => {
+    (api.postChat as Mock)
+      .mockRejectedValueOnce(new Error("timed out"))
+      .mockResolvedValueOnce({ reply: "Hello!" });
+    const user = userEvent.setup();
+
+    render(<ChatPanel open onClose={() => {}} />);
+
+    const input = screen.getByLabelText(/chat message/i);
+    await user.type(input, "hi");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+
+    expect(input).toHaveValue("hi");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() => expect(screen.getByText("Hello!")).toBeInTheDocument());
+    expect(api.postChat).toHaveBeenLastCalledWith("hi", []);
+    expect(screen.getAllByText("hi")).toHaveLength(1);
+  });
 });

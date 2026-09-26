@@ -389,3 +389,255 @@ def test_rolling_cache_saves_correction_and_new_date_together(cache_store):
     assert dict(zip(result["Date"].dt.date, result["Close"])) == {day: 11.0, new_day: 12.0}
     stored = cache._load_parquet(cache_path)
     assert dict(zip(stored["Date"].dt.date, stored["Close"])) == {day: 11.0, new_day: 12.0}
+
+
+def _seed_stale_meta_cache(cache, ticker: str, exchange: str) -> date:
+    """Write a meta parquet whose last row is two weekdays before the rolling window end."""
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 60)
+    last = window_end - timedelta(days=1)
+    while last.weekday() >= 5:
+        last -= timedelta(days=1)
+    dates = pd.bdate_range(end=last, periods=90)
+    frame = pd.DataFrame(
+        {
+            "Date": dates,
+            "Open": 1.0,
+            "High": 1.0,
+            "Low": 1.0,
+            "Close": [float(i) for i in range(len(dates))],
+            "Volume": 0,
+            "Ticker": ticker,
+            "Source": "SRC",
+        }
+    )
+    cache._save_parquet(frame, cache.meta_timeseries_cache_path(ticker, exchange))
+    return last
+
+
+def _clear_meta_lrus(cache):
+    cache._load_meta_timeseries_cached.cache_clear()
+    cache._memoized_range_cached.cache_clear()
+    cache._CACHE_FILE_MTIMES.clear()
+
+
+def test_cache_only_serves_stale_cache_without_fetching(monkeypatch, tmp_path):
+    """In cache-only mode a stale ticker is served from parquet and no price source is called (#7898)."""
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache.config, "offline_mode", False)
+    _clear_meta_lrus(cache)
+    last = _seed_stale_meta_cache(cache, "ABC", "L")
+
+    calls = []
+
+    def exploding_fetch(**kwargs):
+        calls.append(kwargs)
+        raise AssertionError("cache-only mode must not call a price source")
+
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", exploding_fetch)
+
+    with cache.cache_only():
+        df = cache.load_meta_timeseries_range(
+            "ABC", "L", start_date=last + timedelta(days=1), end_date=last + timedelta(days=1)
+        )
+
+    assert calls == []
+    # The requested day isn't cached, so load_meta_timeseries_range walks back
+    # to the most recent cached close -- the same previous-close fallback the
+    # live path uses when a fetch comes back empty.
+    assert not df.empty
+    assert df["Date"].dt.date.iloc[0] == last
+    assert cache.is_cache_only() is False
+
+
+def test_cache_only_read_is_not_reused_by_live_callers(monkeypatch, tmp_path):
+    """A cache-only read must not be memoised under the key a live caller uses (#7898).
+
+    Otherwise the background refresh would get the stale cache-only result back
+    and never fetch, so the parquet cache would silently stop updating.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache.config, "offline_mode", False)
+    _clear_meta_lrus(cache)
+    last = _seed_stale_meta_cache(cache, "ABC", "L")
+    day = last + timedelta(days=1)
+
+    calls = []
+
+    def recording_fetch(**kwargs):
+        calls.append(kwargs)
+        return pd.DataFrame()
+
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", recording_fetch)
+
+    with cache.cache_only():
+        cache.load_meta_timeseries_range("ABC", "L", start_date=day, end_date=day)
+        cache.load_meta_timeseries("ABC", "L", 60)
+    assert calls == []
+
+    cache.load_meta_timeseries_range("ABC", "L", start_date=day, end_date=day)
+    assert calls, "live caller should reach the price source after a cache-only read"
+
+
+@pytest.mark.parametrize("offline", [False, True])
+def test_cache_only_without_cache_file_returns_empty_without_fetching(monkeypatch, tmp_path, offline):
+    """A newly added holding with no cache file is unpriced, not blocked, in cache-only mode (#7898).
+
+    Covers offline mode too: there the loaders would normally switch offline mode
+    off and fetch live on a cache miss, which cache-only mode must not do.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", offline)
+    monkeypatch.setattr(cache.config, "offline_mode", offline)
+    _clear_meta_lrus(cache)
+
+    def exploding_fetch(**_kwargs):
+        raise AssertionError("cache-only mode must not call a price source")
+
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", exploding_fetch)
+    day = datetime.today().date() - timedelta(days=3)
+
+    with cache.cache_only():
+        df = cache.load_meta_timeseries_range("NEW", "L", start_date=day, end_date=day)
+
+    assert df.empty
+
+
+def test_offline_mode_without_cache_only_still_falls_back_live(monkeypatch, tmp_path):
+    """Offline-mode behaviour outside cache-only mode is unchanged: a cache miss still goes live (#7898)."""
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", True)
+    monkeypatch.setattr(cache.config, "offline_mode", True)
+    _clear_meta_lrus(cache)
+
+    calls = []
+
+    def recording_fetch(**kwargs):
+        calls.append(kwargs)
+        return pd.DataFrame()
+
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", recording_fetch)
+    day = datetime.today().date() - timedelta(days=3)
+
+    cache.load_meta_timeseries_range("NEW", "L", start_date=day, end_date=day)
+
+    assert calls, "offline mode should still fall back to a live fetch on a cache miss"
+
+
+def test_memoized_range_honours_cache_only_argument_outside_context(monkeypatch, tmp_path):
+    """The LRU-keyed ``cache_only`` argument alone must prevent fetching (#7898).
+
+    Guards against the key and the behaviour drifting apart: the argument is
+    acted on directly rather than via the context variable.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache.config, "offline_mode", False)
+    _clear_meta_lrus(cache)
+    last = _seed_stale_meta_cache(cache, "ABC", "L")
+
+    def exploding_fetch(**_kwargs):
+        raise AssertionError("cache_only=True must not call a price source")
+
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", exploding_fetch)
+    day = (last + timedelta(days=1)).isoformat()
+
+    assert cache.is_cache_only() is False
+    assert cache._memoized_range_cached("ABC", "L", day, day, True).empty
+    assert cache._memoized_range_cached("NEW", "L", day, day, True).empty
+    served = cache._memoized_range_cached("ABC", "L", last.isoformat(), last.isoformat(), True)
+    assert served["Date"].dt.date.tolist() == [last]
+
+
+def test_cache_only_stale_ticker_enriches_as_previous_close(monkeypatch, tmp_path):
+    """End to end: a stale ticker priced in cache-only mode is flagged stale, not blocked (#7898).
+
+    The reporting date's close is missing from the parquet, so ``enrich_holding``
+    must price the holding at the last cached close with ``is_stale=True``
+    without calling a price source. (The range loader's few-day lookback serves
+    that close for the reporting date itself, so ``latest_source`` is the cached
+    row's source rather than ``"previous_close"``.)
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache.config, "offline_mode", False)
+    _clear_meta_lrus(cache)
+    last = _seed_stale_meta_cache(cache, "FOO", "L")
+    last_close = float(len(pd.bdate_range(end=last, periods=90)) - 1)
+
+    def exploding_fetch(**_kwargs):
+        raise AssertionError("cache-only mode must not call a price source")
+
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", exploding_fetch)
+
+    import backend.common.holding_utils as hu
+    import backend.common.portfolio_utils as pu
+    from backend.common.constants import ACQUIRED_DATE, COST_BASIS_GBP, TICKER, UNITS
+
+    monkeypatch.setattr(hu, "load_meta_timeseries_range", cache.load_meta_timeseries_range)
+    monkeypatch.setattr(hu, "get_instrument_meta", lambda *_: {"currency": "GBP"})
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *_args, **_kwargs: 1.0)
+    monkeypatch.setattr(hu, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
+    monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {})
+
+    # Report on the weekday after ``last``, whose close the cache doesn't have.
+    reporting = last + timedelta(days=1)
+    while reporting.weekday() >= 5:
+        reporting += timedelta(days=1)
+    today = reporting + timedelta(days=1)
+
+    holding = {TICKER: "FOO.L", UNITS: 10, COST_BASIS_GBP: 0.0, ACQUIRED_DATE: "2020-01-01"}
+    with cache.cache_only():
+        result = hu.enrich_holding(holding, today, price_cache={})
+
+    assert result["price"] == pytest.approx(last_close)
+    assert result["market_value_gbp"] == pytest.approx(10 * last_close)
+    assert result["is_stale"] is True
+
+
+def test_cache_only_read_sees_background_refresh_of_parquet(monkeypatch, tmp_path):
+    """A memoised cache-only read must not outlive a parquet update (#7898).
+
+    When the background refresh rewrites the file, the mtime check in
+    _invalidate_meta_caches_if_stale clears both LRUs, cache-only entries
+    included, so the next page request sees the new close.
+    """
+    import os
+
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache.config, "offline_mode", False)
+    _clear_meta_lrus(cache)
+    last = _seed_stale_meta_cache(cache, "ABC", "L")
+    day = last + timedelta(days=1)
+    while day.weekday() >= 5:
+        day += timedelta(days=1)
+
+    def exploding_fetch(**_kwargs):
+        raise AssertionError("cache-only mode must not call a price source")
+
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", exploding_fetch)
+
+    with cache.cache_only():
+        before = cache.load_meta_timeseries_range("ABC", "L", start_date=day, end_date=day)
+    assert before["Date"].dt.date.iloc[0] == last
+
+    # Simulate the background refresh appending the missing close.
+    path = cache.meta_timeseries_cache_path("ABC", "L")
+    refreshed = pd.concat([cache._load_parquet(path), _single_row(cache, day)], ignore_index=True)
+    cache._save_parquet(refreshed, path)
+    stat = os.stat(path)
+    os.utime(path, (stat.st_atime, stat.st_mtime + 5))
+
+    with cache.cache_only():
+        after = cache.load_meta_timeseries_range("ABC", "L", start_date=day, end_date=day)
+    assert after["Date"].dt.date.iloc[0] == day

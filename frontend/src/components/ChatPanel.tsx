@@ -29,6 +29,11 @@ export function ChatPanel({ open, onClose }: Props) {
       const { reply } = await api.postChat(text, history);
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
     } catch {
+      // Drop the unanswered message and hand its text back for a retry: left
+      // in `messages`, it would make the next send's history end in two
+      // consecutive "user" turns, which the backend rejects with a 400 (#7897).
+      setMessages(history);
+      setInput(text);
       setError("Cannot reach server");
     } finally {
       setSending(false);

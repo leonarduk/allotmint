@@ -136,6 +136,15 @@ describe("realised gain helpers", () => {
     expect(cell.title).toContain("78");
   });
 
+  it("marks sales with no recorded proceeds as unknown", () => {
+    const cell = formatRealisedGain(
+      { ...base, type: "SELL", realised_gain_gbp: null, cost_basis_gbp: 100, proceeds_gbp: null },
+      "GBP",
+    );
+    expect(cell.text).toBe("Unknown");
+    expect(cell.title).toContain("proceeds");
+  });
+
   it("leaves non-disposal rows blank", () => {
     expect(formatRealisedGain({ ...base, type: "BUY" }, "GBP").text).toBe("");
   });

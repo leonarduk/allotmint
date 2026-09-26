@@ -121,7 +121,19 @@ export function formatRealisedGain(
       title: `No purchase cost recorded for ${unmatched} of the units sold`,
     };
   }
+  if (hasUnknownProceeds(transaction)) {
+    return {
+      text: "Unknown",
+      className: "text-gray",
+      title: "No sale proceeds recorded for this sale",
+    };
+  }
   return { text: "", className: "" };
+}
+
+/** The backend matched this sale's cost but could not value its proceeds. */
+function hasUnknownProceeds(transaction: Transaction): boolean {
+  return transaction.proceeds_gbp == null && typeof transaction.cost_basis_gbp === "number";
 }
 
 const INCOME_TYPES = new Set(["DIVIDEND", "DIVIDENDS", "INTEREST"]);
@@ -149,7 +161,7 @@ export function summariseTransactions(transactions: Transaction[]): Transactions
         : 0;
     if (typeof tx.realised_gain_gbp === "number" && Number.isFinite(tx.realised_gain_gbp)) {
       summary.realisedGain += tx.realised_gain_gbp;
-    } else if (type === "SELL" && (tx.unmatched_units ?? 0) > 0) {
+    } else if (type === "SELL" && ((tx.unmatched_units ?? 0) > 0 || hasUnknownProceeds(tx))) {
       summary.sellsWithUnknownGain += 1;
     }
     if (INCOME_TYPES.has(type)) summary.income += amount;

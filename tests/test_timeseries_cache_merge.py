@@ -189,3 +189,73 @@ def test_rolling_cache_serves_cached_slice_on_empty_fetch(monkeypatch, tmp_path)
 
     assert_frame_equal(result, expected)
     assert cache._FAILED_FETCH_COUNT == 0
+
+
+def _single_row(cache, day: date) -> pd.DataFrame:
+    return cache._ensure_schema(
+        pd.DataFrame(
+            {
+                "Date": [pd.Timestamp(day)],
+                "Open": [9.0],
+                "High": [9.0],
+                "Low": [9.0],
+                "Close": [9.0],
+                "Volume": [1],
+                "Ticker": ["ABC"],
+                "Source": ["Yahoo"],
+            }
+        )
+    )
+
+
+def test_rolling_cache_skips_save_when_fetch_adds_no_new_dates(monkeypatch, tmp_path):
+    """A fetch that only returns already-cached dates must not rewrite the file (#7877).
+
+    Rewriting bumps the mtime, which clears every ticker's meta LRU entries and
+    re-triggers the same fetch on the next lookup.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+
+    cache_path = cache._cache_path("foo.parquet")
+    expected = _seed_existing_parquet(cache, cache_path, days=5)
+    last_cached = expected["Date"].dt.date.max()
+
+    saves = []
+    monkeypatch.setattr(cache, "_save_parquet", lambda df, path: saves.append(path))
+
+    result = cache._rolling_cache(
+        lambda **_kwargs: _single_row(cache, last_cached),
+        cache_path,
+        {},
+        days=5,
+        ticker="ABC",
+        exchange="L",
+    )
+
+    assert saves == []
+    assert_frame_equal(result, expected)
+
+
+def test_rolling_cache_saves_when_fetch_adds_new_date(monkeypatch, tmp_path):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+
+    cache_path = cache._cache_path("foo.parquet")
+    expected = _seed_existing_parquet(cache, cache_path, days=5)
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+    assert window_end not in set(expected["Date"].dt.date)
+
+    result = cache._rolling_cache(
+        lambda **_kwargs: _single_row(cache, window_end),
+        cache_path,
+        {},
+        days=5,
+        ticker="ABC",
+        exchange="L",
+    )
+
+    assert window_end in set(result["Date"].dt.date)
+    assert window_end in set(cache._load_parquet(cache_path)["Date"].dt.date)

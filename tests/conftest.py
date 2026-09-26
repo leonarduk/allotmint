@@ -169,6 +169,21 @@ def clear_group_portfolio_cache():
     portfolio_cache.invalidate_group_portfolios()
 
 
+@pytest.fixture(autouse=True)
+def reset_stooq_unreachable_cooldown():
+    """Clear the Stooq unreachable cooldown between tests.
+
+    A test that simulates a Stooq timeout puts Stooq into a process-wide
+    cooldown (#7877); without this reset, later tests that stub a successful
+    Stooq response would be skipped by that cooldown.
+    """
+    from backend.timeseries import fetch_stooq_timeseries
+
+    fetch_stooq_timeseries._STOOQ_UNREACHABLE_UNTIL = 0.0
+    yield
+    fetch_stooq_timeseries._STOOQ_UNREACHABLE_UNTIL = 0.0
+
+
 @pytest.fixture
 def quotes_table(monkeypatch):
     """In-memory DynamoDB table for quote tests."""

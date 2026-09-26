@@ -273,7 +273,17 @@ def _rolling_cache(
     combined = (
         pd.concat(frames, ignore_index=True).drop_duplicates(subset="Date").sort_values("Date").reset_index(drop=True)
     )
-    _save_parquet(combined, cache_path)
+    # Only rewrite when the fetch added dates: a no-op save still bumps the
+    # file's mtime, which makes _invalidate_meta_caches_if_stale clear every
+    # ticker's LRU entries and re-triggers this fetch on the next lookup (#7877).
+    if not set(combined["Date"]).issubset(set(existing["Date"])):
+        _save_parquet(combined, cache_path)
+    else:
+        logger.debug(
+            "No new dates for %s.%s; leaving cache untouched",
+            _sanitize_for_log(ticker),
+            _sanitize_for_log(exchange),
+        )
     return _ensure_schema(combined[combined["Date"].dt.date >= cutoff].reset_index(drop=True))
 
 

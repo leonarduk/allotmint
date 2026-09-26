@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import date, timedelta
 from io import StringIO
 
@@ -21,6 +22,17 @@ class StooqRateLimitError(RuntimeError):
 
 # Stooq requests are disabled until this date if the rate limit is hit
 STOOQ_DISABLED_UNTIL: date = date.min
+
+# After a timeout or connection failure, skip Stooq for this many seconds so an
+# unreachable host costs one timeout per window rather than one per fetch
+# (#7877). Tracked on the monotonic clock so wall-clock changes can't extend it.
+STOOQ_UNREACHABLE_COOLDOWN_SECONDS = 600
+_STOOQ_UNREACHABLE_UNTIL: float = 0.0
+
+
+def _mark_stooq_unreachable() -> None:
+    global _STOOQ_UNREACHABLE_UNTIL
+    _STOOQ_UNREACHABLE_UNTIL = time.monotonic() + STOOQ_UNREACHABLE_COOLDOWN_SECONDS
 
 
 def get_stooq_suffix(exchange: str) -> str:
@@ -57,6 +69,8 @@ def fetch_stooq_timeseries_range(ticker: str, exchange: str, start_date: date, e
     global STOOQ_DISABLED_UNTIL
     if date.today() <= STOOQ_DISABLED_UNTIL:
         raise StooqRateLimitError("Exceeded the daily hits limit")
+    if time.monotonic() < _STOOQ_UNREACHABLE_UNTIL:
+        raise StooqRateLimitError("Stooq unreachable; skipping during cooldown")
     if not is_valid_ticker(ticker, exchange):
         logger.info(
             "Skipping Stooq fetch for unrecognized ticker %s.%s",
@@ -112,8 +126,14 @@ def fetch_stooq_timeseries_range(ticker: str, exchange: str, start_date: date, e
 
         return df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]]
 
-    except requests.exceptions.Timeout:
-        logger.warning("Stooq request timed out for %s", sanitise_log_value(full_ticker))
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+        _mark_stooq_unreachable()
+        logger.warning(
+            "Stooq request timed out or could not connect for %s (%s); skipping Stooq for %ds",
+            sanitise_log_value(full_ticker),
+            type(exc).__name__,
+            STOOQ_UNREACHABLE_COOLDOWN_SECONDS,
+        )
         return pd.DataFrame(columns=STANDARD_COLUMNS)
     except Exception as e:
         logger.error("Failed to fetch Stooq data for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(e))

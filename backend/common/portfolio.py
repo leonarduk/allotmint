@@ -31,6 +31,7 @@ from backend.common.path_utils import safe_join
 from backend.common.user_config import load_user_config
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
+from backend.timeseries.cache import cache_only
 from backend.utils.pricing_dates import PricingDateCalculator
 
 logger = logging.getLogger(__name__)
@@ -167,17 +168,20 @@ def build_owner_portfolio(
         raw = load_account_record(owner, meta, accounts_root)
         holdings_raw = raw.holdings
 
-        enriched = [
-            enrich_holding(
-                h,
-                today,
-                price_cache,
-                approvals,
-                ucfg,
-                calc=calc,
-            )
-            for h in holdings_raw
-        ]
+        # Page request: price from the timeseries cache only; the background
+        # snapshot refresh does the live fetching (#7898).
+        with cache_only():
+            enriched = [
+                enrich_holding(
+                    h,
+                    today,
+                    price_cache,
+                    approvals,
+                    ucfg,
+                    calc=calc,
+                )
+                for h in holdings_raw
+            ]
         val_gbp = sum(float(h.get("market_value_gbp") or 0.0) for h in enriched)
 
         accounts.append(

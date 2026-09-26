@@ -175,3 +175,44 @@ def test_build_group_portfolio_merges_accounts_and_totals():
     assert second["value_estimate_gbp"] == 200.0
 
     assert result["total_value_estimate_gbp"] == 350.0
+
+
+def test_build_group_portfolio_prices_holdings_from_cache_only():
+    """Holdings are enriched inside timeseries cache-only mode, and only there (#7898)."""
+    from contextlib import contextmanager
+
+    active = [False]
+
+    @contextmanager
+    def recording_cache_only():
+        active[0] = True
+        try:
+            yield
+        finally:
+            active[0] = False
+
+    mock_portfolios = [
+        {"owner": "Lucy", ACCOUNTS: [{"currency": "GBP", HOLDINGS: [{"ticker": "AAA"}, {"ticker": "BBB"}]}]},
+        {"owner": "Steve", ACCOUNTS: [{"currency": "GBP", HOLDINGS: [{"ticker": "CCC"}]}]},
+    ]
+    seen = []
+
+    def recording_enrich(h, *_args, **_kwargs):
+        seen.append(active[0])
+        return h
+
+    with (
+        patch("backend.common.portfolio_loader.list_portfolios", return_value=mock_portfolios),
+        patch(
+            "backend.common.group_portfolio.data_loader.list_plots",
+            return_value=[OwnerSummaryRecord(owner=row["owner"]) for row in mock_portfolios],
+        ),
+        patch("backend.common.group_portfolio.load_approvals", return_value={}),
+        patch("backend.common.group_portfolio.load_user_config", return_value={}),
+        patch("backend.common.group_portfolio.enrich_holding", side_effect=recording_enrich),
+        patch("backend.common.group_portfolio.cache_only", recording_cache_only),
+    ):
+        group_portfolio.build_group_portfolio("adults")
+
+    assert seen == [True, True, True]
+    assert active[0] is False

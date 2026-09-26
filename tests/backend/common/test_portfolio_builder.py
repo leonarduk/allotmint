@@ -130,3 +130,31 @@ def test_build_owner_portfolio_logs_total_plot_count_on_miss(monkeypatch, today,
         "build_owner_portfolio: no plot found for owner=nope " f"(total plots discovered={len(discovered_plots)})"
     )
     assert expected_message in caplog.messages
+
+
+def test_build_owner_portfolio_prices_holdings_from_cache_only(monkeypatch, portfolio_stubs):
+    """Holdings are enriched inside timeseries cache-only mode, and only there (#7898)."""
+    from contextlib import contextmanager
+
+    active = [False]
+    seen = []
+
+    @contextmanager
+    def recording_cache_only():
+        active[0] = True
+        try:
+            yield
+        finally:
+            active[0] = False
+
+    def recording_enrich(holding, *_args, **_kwargs):
+        seen.append(active[0])
+        return {**holding, "market_value_gbp": holding["base_value"]}
+
+    monkeypatch.setattr("backend.common.portfolio.cache_only", recording_cache_only)
+    monkeypatch.setattr("backend.common.portfolio.enrich_holding", recording_enrich)
+
+    build_owner_portfolio(portfolio_stubs["owner"])
+
+    assert seen == [True, True]
+    assert active[0] is False

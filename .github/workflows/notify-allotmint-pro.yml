@@ -1,0 +1,47 @@
+name: Notify allotmint-pro
+
+# allotmint-pro imports backend.common.* / backend.config straight from an
+# allotmint `main` checkout (its pyproject.toml puts ../allotmint on
+# pythonpath) and installs backend/requirements.txt alongside its own pins.
+# So a change here can break allotmint-pro without any commit there. This
+# fires allotmint-pro's tests.yml via repository_dispatch as soon as such a
+# change lands on main, instead of waiting for its nightly run.
+#
+# Needs the ALLOTMINT_PRO_DISPATCH_TOKEN secret: a fine-grained PAT scoped to
+# leonarduk/allotmint-pro only, with "Contents: Read and write" (the
+# permission the dispatches API requires). GITHUB_TOKEN can't dispatch to
+# another repo. If the secret is absent the job is a no-op with a warning, so
+# it never turns main red.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'config*.yaml'
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send repository_dispatch to allotmint-pro
+        env:
+          TOKEN: ${{ secrets.ALLOTMINT_PRO_DISPATCH_TOKEN }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::ALLOTMINT_PRO_DISPATCH_TOKEN is not set; skipping allotmint-pro dispatch."
+            exit 0
+          fi
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/leonarduk/allotmint-pro/dispatches \
+            -d "{\"event_type\":\"allotmint-main-updated\",\"client_payload\":{\"sha\":\"$SHA\"}}"

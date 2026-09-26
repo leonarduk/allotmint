@@ -166,7 +166,7 @@ def test_daily_limit_takes_precedence_over_unreachable_cooldown(monkeypatch):
     """The daily-limit guard still raises its own error while the unreachable cooldown is active (#7877)."""
     monkeypatch.setattr(fst, "monotonic", lambda: 1000.0)
     fst._mark_stooq_unreachable()
-    fst.STOOQ_DISABLED_UNTIL = date.today()
+    monkeypatch.setattr(fst, "STOOQ_DISABLED_UNTIL", date.today())
     monkeypatch.setattr(fst.requests, "get", lambda *a, **k: pytest.fail("Stooq should not be called"))
 
     with pytest.raises(fst.StooqRateLimitError, match="daily hits limit"):

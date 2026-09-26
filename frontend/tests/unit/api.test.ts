@@ -448,6 +448,34 @@ describe("stalled-request timeout (issue #7074)", () => {
     controller.abort();
     await assertion;
   });
+
+  it("lets one request override the client-wide timeout (slow chat turns, #7874)", async () => {
+    const mockFetch = vi.fn((_url: string, init?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      });
+    });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:6468",
+      null,
+      mockFetch as unknown as typeof fetch,
+      { fetchTimeoutMs: 5000 },
+    );
+
+    const pending = testFetchJson("/chat", { method: "POST" }, 20000);
+    const assertion = expect(pending).rejects.toMatchObject({
+      message: expect.stringMatching(/timed out after 20s/i),
+    });
+
+    await vi.advanceTimersByTimeAsync(5000);
+    const requestInit = mockFetch.mock.calls[0]?.[1] as RequestInit | undefined;
+    expect(requestInit?.signal?.aborted).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(15000);
+    await assertion;
+  });
 });
 
 describe("fetchText / getLogs (issue #6111)", () => {

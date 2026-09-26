@@ -4,6 +4,7 @@ import type { Transaction } from "@/types";
 import { getOwnerDisplayName } from "@/utils/owners";
 import { useDemoReadOnly } from "@/hooks/useDemoReadOnly";
 import {
+  formatRealisedGain,
   formatTransactionAmount,
   getTransactionRowKey,
 } from "./transactionTable";
@@ -130,19 +131,21 @@ export function TransactionsTable({
             <th className={tableStyles.cell}>Type</th>
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>Amount</th>
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>Shares</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Gain/Loss</th>
             <th className={tableStyles.cell}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {transactions.length === 0 ? (
             <tr>
-              <td className={tableStyles.cell} colSpan={10} style={{ textAlign: "center" }}>
+              <td className={tableStyles.cell} colSpan={11} style={{ textAlign: "center" }}>
                 No transactions found.
               </td>
             </tr>
           ) : (
             transactions.map((transaction, index) => {
               const key = getTransactionRowKey(transaction, index);
+              const gain = formatRealisedGain(transaction, baseCurrency);
 
               return (
                 <tr key={key}>
@@ -178,6 +181,12 @@ export function TransactionsTable({
                   </td>
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {transaction.shares ?? transaction.units ?? ""}
+                  </td>
+                  <td
+                    className={`${tableStyles.cell} ${tableStyles.right} ${gain.className}`}
+                    title={gain.title}
+                  >
+                    {gain.text}
                   </td>
                   <td className={tableStyles.cell}>
                     <div style={{ display: "flex", gap: "0.5rem" }}>

@@ -92,3 +92,69 @@ export function formatTransactionAmount(
 export function getTransactionRowKey(transaction: Transaction, index: number): string {
   return transaction.id ?? `${transaction.owner}-${transaction.date ?? ""}-${index}`;
 }
+
+export interface RealisedGainCell {
+  text: string;
+  className: string;
+  title?: string;
+}
+
+export function formatRealisedGain(
+  transaction: Transaction,
+  baseCurrency: string,
+): RealisedGainCell {
+  const gain = transaction.realised_gain_gbp;
+  if (typeof gain === "number" && Number.isFinite(gain)) {
+    const cost = transaction.cost_basis_gbp;
+    return {
+      text: money(gain, baseCurrency),
+      className: gain > 0 ? "text-positive" : gain < 0 ? "text-negative" : "text-gray",
+      title:
+        typeof cost === "number" ? `Cost basis ${money(cost, baseCurrency)}` : undefined,
+    };
+  }
+  const unmatched = transaction.unmatched_units;
+  if (typeof unmatched === "number" && unmatched > 0) {
+    return {
+      text: "Unknown",
+      className: "text-gray",
+      title: `No purchase cost recorded for ${unmatched} of the units sold`,
+    };
+  }
+  return { text: "", className: "" };
+}
+
+const INCOME_TYPES = new Set(["DIVIDEND", "DIVIDENDS", "INTEREST"]);
+
+export interface TransactionsSummary {
+  realisedGain: number;
+  sellsWithUnknownGain: number;
+  income: number;
+  fees: number;
+}
+
+/** Totals over the given rows; cash amounts come from `amount_minor` (pence). */
+export function summariseTransactions(transactions: Transaction[]): TransactionsSummary {
+  const summary: TransactionsSummary = {
+    realisedGain: 0,
+    sellsWithUnknownGain: 0,
+    income: 0,
+    fees: 0,
+  };
+  transactions.forEach((tx) => {
+    const type = (tx.type ?? "").toUpperCase();
+    const amount =
+      typeof tx.amount_minor === "number" && Number.isFinite(tx.amount_minor)
+        ? Math.abs(tx.amount_minor) / 100
+        : 0;
+    if (typeof tx.realised_gain_gbp === "number" && Number.isFinite(tx.realised_gain_gbp)) {
+      summary.realisedGain += tx.realised_gain_gbp;
+    } else if (type === "SELL" && (tx.unmatched_units ?? 0) > 0) {
+      summary.sellsWithUnknownGain += 1;
+    }
+    if (INCOME_TYPES.has(type)) summary.income += amount;
+    if (type === "FEES") summary.fees += amount;
+    if (type === "FEES_REFUND") summary.fees -= amount;
+  });
+  return summary;
+}

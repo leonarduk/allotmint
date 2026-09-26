@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildBulkDeletionOrder,
+  formatRealisedGain,
   formatTransactionAmount,
+  summariseTransactions,
 } from "@/components/transactions/transactionTable";
 
 describe("transactionTable helpers", () => {
@@ -107,5 +109,48 @@ describe("transactionTable helpers", () => {
         "GBP",
       ),
     ).toBe("");
+  });
+});
+
+describe("realised gain helpers", () => {
+  const base = { owner: "steve", account: "isa" };
+
+  it("formats a known gain with sign styling and cost basis tooltip", () => {
+    expect(
+      formatRealisedGain(
+        { ...base, type: "SELL", realised_gain_gbp: 490.21, cost_basis_gbp: 4843.77 },
+        "GBP",
+      ),
+    ).toEqual({ text: "£490.21", className: "text-positive", title: "Cost basis £4,843.77" });
+    expect(
+      formatRealisedGain({ ...base, type: "SELL", realised_gain_gbp: -596.54 }, "GBP").className,
+    ).toBe("text-negative");
+  });
+
+  it("marks sales with no recorded purchase cost as unknown", () => {
+    const cell = formatRealisedGain(
+      { ...base, type: "SELL", realised_gain_gbp: null, unmatched_units: 78 },
+      "GBP",
+    );
+    expect(cell.text).toBe("Unknown");
+    expect(cell.title).toContain("78");
+  });
+
+  it("leaves non-disposal rows blank", () => {
+    expect(formatRealisedGain({ ...base, type: "BUY" }, "GBP").text).toBe("");
+  });
+
+  it("summarises realised gain, income and net fees", () => {
+    expect(
+      summariseTransactions([
+        { ...base, type: "SELL", realised_gain_gbp: 100 },
+        { ...base, type: "SELL", realised_gain_gbp: -40 },
+        { ...base, type: "SELL", realised_gain_gbp: null, unmatched_units: 5 },
+        { ...base, type: "DIVIDEND", amount_minor: 1000 },
+        { ...base, type: "INTEREST", amount_minor: 250 },
+        { ...base, type: "FEES", amount_minor: 500 },
+        { ...base, type: "FEES_REFUND", amount_minor: 200 },
+      ]),
+    ).toEqual({ realisedGain: 60, sellsWithUnknownGain: 1, income: 12.5, fees: 3 });
   });
 });

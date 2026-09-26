@@ -209,10 +209,11 @@ def _single_row(cache, day: date) -> pd.DataFrame:
 
 
 def test_rolling_cache_skips_save_when_fetch_adds_no_new_dates(monkeypatch, tmp_path):
-    """A fetch that only returns already-cached dates must not rewrite the file (#7877).
+    """A fetch that only re-returns identical cached rows must not rewrite the file (#7877).
 
     Rewriting bumps the mtime, which clears every ticker's meta LRU entries and
-    re-triggers the same fetch on the next lookup.
+    re-triggers the same fetch on the next lookup. (Before #7914 this fetched a
+    *different* Close for the cached date; that is now a correction and is saved.)
     """
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
     cache = import_cache()
@@ -226,7 +227,7 @@ def test_rolling_cache_skips_save_when_fetch_adds_no_new_dates(monkeypatch, tmp_
     monkeypatch.setattr(cache, "_save_parquet", lambda df, path: saves.append(path))
 
     result = cache._rolling_cache(
-        lambda **_kwargs: _single_row(cache, last_cached),
+        lambda **_kwargs: expected.loc[expected["Date"].dt.date == last_cached].copy(),
         cache_path,
         {},
         days=5,
@@ -259,3 +260,132 @@ def test_rolling_cache_saves_when_fetch_adds_new_date(monkeypatch, tmp_path):
 
     assert window_end in set(result["Date"].dt.date)
     assert window_end in set(cache._load_parquet(cache_path)["Date"].dt.date)
+
+
+def _day_frame(cache, day: date, close: float, *, source: str = "SRC") -> pd.DataFrame:
+    return cache._ensure_schema(
+        pd.DataFrame(
+            {
+                "Date": [pd.Timestamp(day)],
+                "Open": [close],
+                "High": [close],
+                "Low": [close],
+                "Close": [close],
+                "Volume": [100],
+                "Ticker": ["ABC"],
+                "Source": [source],
+            }
+        )
+    )
+
+
+@pytest.fixture(params=["local", "s3"])
+def cache_store(request, monkeypatch, tmp_path):
+    """Yield ``(cache, cache_path, saves)`` for a local-disk or an ``s3://`` cache base.
+
+    The S3 variant keeps the parquet in memory by stubbing ``_load_parquet`` /
+    ``_save_parquet``, so the merge/skip decision is exercised against an
+    ``s3://`` path without network access.
+    """
+    saves: list[pd.DataFrame] = []
+    if request.param == "local":
+        monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+        cache = import_cache()
+        real_save = cache._save_parquet
+
+        def recording_save(df, path):
+            saves.append(df.copy())
+            real_save(df, path)
+
+        monkeypatch.setattr(cache, "_save_parquet", recording_save)
+    else:
+        monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/ts")
+        cache = import_cache()
+        store: dict[str, pd.DataFrame] = {}
+
+        def fake_save(df, path):
+            saves.append(df.copy())
+            store[path] = cache._ensure_schema(df.copy())
+
+        monkeypatch.setattr(cache, "_save_parquet", fake_save)
+        monkeypatch.setattr(cache, "_load_parquet", lambda path: store.get(path, cache._empty_ts()).copy())
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    cache_path = cache._cache_path("foo.parquet")
+    if request.param == "s3":
+        assert cache_path.startswith("s3://")
+    return cache, cache_path, saves
+
+
+def _seed_close_10(cache, cache_path, saves) -> date:
+    """Cache Close=10 for the day before the window end (so the next call fetches)."""
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+    day = window_end - timedelta(days=1)
+    cache._save_parquet(_day_frame(cache, day, 10.0), cache_path)
+    saves.clear()
+    return day
+
+
+def _run(cache, cache_path, fetched: pd.DataFrame) -> pd.DataFrame:
+    return cache._rolling_cache(lambda **_kwargs: fetched, cache_path, {}, days=5, ticker="ABC", exchange="L")
+
+
+def test_rolling_cache_persists_corrected_close_for_cached_date(cache_store):
+    """Cached Close=10 for D, fetch returns Close=11 for D: the correction wins and is saved (#7914)."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+
+    result = _run(cache, cache_path, _day_frame(cache, day, 11.0, source="Yahoo"))
+
+    assert len(saves) == 1
+    stored = cache._load_parquet(cache_path)
+    assert list(stored["Date"].dt.date) == [day]
+    assert stored["Close"].tolist() == [11.0]
+    assert stored["Source"].tolist() == ["Yahoo"]
+    assert result.loc[result["Date"].dt.date == day, "Close"].tolist() == [11.0]
+
+
+def test_rolling_cache_identical_refetch_does_not_save(cache_store):
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+
+    result = _run(cache, cache_path, _day_frame(cache, day, 10.0))
+
+    assert saves == []
+    assert result["Close"].tolist() == [10.0]
+
+
+def test_rolling_cache_ignores_float_noise_and_source_only_changes(cache_store):
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+
+    result = _run(cache, cache_path, _day_frame(cache, day, 10.0 * (1 + 1e-12), source="Stooq"))
+
+    assert saves == []
+    assert result["Close"].tolist() == [10.0]
+    assert result["Source"].tolist() == ["SRC"]
+
+
+def test_rolling_cache_fetched_row_without_close_does_not_overwrite(cache_store):
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    fetched = _day_frame(cache, day, 11.0)
+    fetched["Close"] = float("nan")
+
+    result = _run(cache, cache_path, fetched)
+
+    assert saves == []
+    assert result["Close"].tolist() == [10.0]
+
+
+def test_rolling_cache_saves_correction_and_new_date_together(cache_store):
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    new_day = day + timedelta(days=1)
+    fetched = pd.concat([_day_frame(cache, day, 11.0), _day_frame(cache, new_day, 12.0)], ignore_index=True)
+
+    result = _run(cache, cache_path, fetched)
+
+    assert len(saves) == 1
+    assert dict(zip(result["Date"].dt.date, result["Close"])) == {day: 11.0, new_day: 12.0}
+    stored = cache._load_parquet(cache_path)
+    assert dict(zip(stored["Date"].dt.date, stored["Close"])) == {day: 11.0, new_day: 12.0}

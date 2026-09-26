@@ -369,6 +369,28 @@ bash scripts/bash/run-local-api.sh
 npm --prefix frontend run dev
 ```
 
+### Running the chat (MCP) agent locally
+
+The header's chat drawer calls `POST /chat`, which runs a tool-calling loop
+over allotmint-pro's MCP server. Locally it uses Ollama or DeepSeek, not AWS
+Bedrock, and needs no AWS credentials: a `localhost` `MCP_SERVER_URL` is
+called unsigned.
+
+```bash
+# 1. MCP server, from this repo root (it imports `backend`), with a sibling allotmint-pro checkout
+PYTHONPATH=".;../allotmint-pro" python -m uvicorn allotmint_pro.mcp_server.app:app --port 8001   # use ":" instead of ";" on macOS/Linux
+
+# 2. Backend, pointed at it
+export MCP_SERVER_URL=http://localhost:8001/mcp
+export CHAT_PROVIDER=ollama          # or deepseek (needs DEEPSEEK_API_KEY); default: ollama when app_env is local, else bedrock
+export CHAT_MODEL=qwen3.5:9b         # any tool-calling model; defaults: qwen3.5:9b (ollama), deepseek-chat (deepseek)
+# export CHAT_BASE_URL=...           # optional; defaults: http://localhost:11434/v1, https://api.deepseek.com/v1
+bash scripts/bash/run-local-api.sh
+```
+
+These can also live in `.env.shared`. Pick a model that supports tool
+calling; reasoning-only models such as `deepseek-r1` on Ollama don't.
+
 ### Regenerating the docs screenshots
 
 `docs/assets/qa-screenshots/*.png` are captured against this repo's own bundled

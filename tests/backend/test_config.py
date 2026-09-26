@@ -71,3 +71,29 @@ class TestOtherDefaultsConsistency:
         assert getattr(direct, field_name) == expected_default
         assert getattr(built, field_name) == expected_default
         assert getattr(direct, field_name) == getattr(built, field_name)
+
+
+class TestChatProviderEnv:
+    """CHAT_PROVIDER / CHAT_MODEL / CHAT_BASE_URL env overrides (#7873)."""
+
+    def test_unset_leaves_provider_model_and_base_url_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        for name in ("CHAT_PROVIDER", "CHAT_MODEL", "CHAT_BASE_URL"):
+            monkeypatch.delenv(name, raising=False)
+        cfg = build_config({})
+        assert (cfg.chat_provider, cfg.chat_model, cfg.chat_base_url) == (None, None, None)
+
+    def test_env_values_are_read_and_provider_is_lowercased(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CHAT_PROVIDER", " Ollama ")
+        monkeypatch.setenv("CHAT_MODEL", "qwen3.5:9b")
+        monkeypatch.setenv("CHAT_BASE_URL", "http://gpu-box:11434/v1")
+        cfg = build_config({})
+        assert (cfg.chat_provider, cfg.chat_model, cfg.chat_base_url) == (
+            "ollama",
+            "qwen3.5:9b",
+            "http://gpu-box:11434/v1",
+        )
+
+    def test_unknown_provider_is_rejected(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CHAT_PROVIDER", "openai")
+        with pytest.raises(ValueError, match="Unexpected CHAT_PROVIDER"):
+            build_config({})

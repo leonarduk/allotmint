@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import * as api from "../api";
 import type { ChatMessage } from "../api";
 
@@ -7,11 +9,60 @@ interface Props {
   onClose: () => void;
 }
 
+// Assistant replies are Markdown (headings, bold, GFM tables). Raw HTML is not
+// rendered (react-markdown's default), so model output cannot inject markup.
+const markdownComponents: Components = {
+  table: ({ children }) => (
+    <div className="chat-markdown-table">
+      <table>{children}</table>
+    </div>
+  ),
+  a: ({ children, href }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  ),
+};
+
+function ChatMessageItem({ message }: { message: ChatMessage }) {
+  const isUser = message.role === "user";
+  return (
+    <li
+      aria-label={isUser ? "You" : "Assistant"}
+      style={{
+        alignSelf: isUser ? "flex-end" : "stretch",
+        maxWidth: isUser ? "85%" : "100%",
+        background: isUser ? "var(--chat-user-bg)" : "var(--chat-assistant-bg)",
+        border: "1px solid var(--drawer-border-color)",
+        borderRadius: "0.5rem",
+        padding: "0.5rem 0.75rem",
+        whiteSpace: isUser ? "pre-wrap" : undefined,
+        overflowWrap: "anywhere",
+      }}
+    >
+      {isUser ? (
+        message.content
+      ) : (
+        <div className="chat-markdown">
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {message.content}
+          </ReactMarkdown>
+        </div>
+      )}
+    </li>
+  );
+}
+
 export function ChatPanel({ open, onClose }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView?.({ block: "end" });
+  }, [messages, sending]);
 
   if (!open) return null;
 
@@ -50,12 +101,15 @@ export function ChatPanel({ open, onClose }: Props) {
         }}
       />
       <div
+        role="dialog"
+        aria-label="Chat"
         style={{
           position: "fixed",
           top: 0,
           right: 0,
-          width: "320px",
+          width: "min(560px, 100vw)",
           height: "100%",
+          boxSizing: "border-box",
           background: "var(--drawer-bg)",
           color: "var(--drawer-color)",
           borderLeft: "1px solid var(--drawer-border-color)",
@@ -94,14 +148,27 @@ export function ChatPanel({ open, onClose }: Props) {
               Ask about your portfolios, prices, or holdings.
             </div>
           )}
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <ul
+            style={{
+              listStyle: "none",
+              padding: 0,
+              margin: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.75rem",
+            }}
+          >
             {messages.map((m, i) => (
-              <li key={i} style={{ marginBottom: "0.5rem" }}>
-                <strong>{m.role === "user" ? "You" : "Assistant"}:</strong> {m.content}
-              </li>
+              <ChatMessageItem key={i} message={m} />
             ))}
           </ul>
+          {sending && (
+            <div role="status" style={{ color: "var(--drawer-muted-color)", marginTop: "0.75rem" }}>
+              Thinking…
+            </div>
+          )}
           {error && <div role="alert">{error}</div>}
+          <div ref={bottomRef} />
         </div>
         <div style={{ display: "flex", gap: "0.5rem" }}>
           <input

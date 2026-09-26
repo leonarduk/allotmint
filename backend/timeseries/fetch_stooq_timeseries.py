@@ -35,12 +35,6 @@ def _mark_stooq_unreachable() -> None:
     _STOOQ_UNREACHABLE_UNTIL = monotonic() + STOOQ_UNREACHABLE_COOLDOWN_SECONDS
 
 
-def reset_stooq_unreachable_cooldown() -> None:
-    """Clear the unreachable cooldown (used by tests)."""
-    global _STOOQ_UNREACHABLE_UNTIL
-    _STOOQ_UNREACHABLE_UNTIL = 0.0
-
-
 def get_stooq_suffix(exchange: str) -> str:
     exchange_map = {
         "L": ".UK",

@@ -170,18 +170,17 @@ def clear_group_portfolio_cache():
 
 
 @pytest.fixture(autouse=True)
-def reset_stooq_unreachable_cooldown():
-    """Clear the Stooq unreachable cooldown between tests.
+def reset_stooq_unreachable_cooldown(monkeypatch):
+    """Clear the Stooq unreachable cooldown for each test.
 
     A test that simulates a Stooq timeout puts Stooq into a process-wide
     cooldown (#7877); without this reset, later tests that stub a successful
-    Stooq response would be skipped by that cooldown.
+    Stooq response would be skipped by that cooldown. monkeypatch restores the
+    pre-test value (0.0) on teardown, undoing any cooldown the test triggered.
     """
     from backend.timeseries import fetch_stooq_timeseries
 
-    fetch_stooq_timeseries.reset_stooq_unreachable_cooldown()
-    yield
-    fetch_stooq_timeseries.reset_stooq_unreachable_cooldown()
+    monkeypatch.setattr(fetch_stooq_timeseries, "_STOOQ_UNREACHABLE_UNTIL", 0.0)
 
 
 @pytest.fixture

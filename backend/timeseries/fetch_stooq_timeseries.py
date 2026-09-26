@@ -75,8 +75,6 @@ def fetch_stooq_timeseries_range(ticker: str, exchange: str, start_date: date, e
     global STOOQ_DISABLED_UNTIL
     if date.today() <= STOOQ_DISABLED_UNTIL:
         raise StooqRateLimitError("Exceeded the daily hits limit")
-    if monotonic() < _STOOQ_UNREACHABLE_UNTIL:
-        raise StooqRateLimitError("Stooq unreachable; skipping during cooldown")
     if not is_valid_ticker(ticker, exchange):
         logger.info(
             "Skipping Stooq fetch for unrecognized ticker %s.%s",
@@ -85,6 +83,8 @@ def fetch_stooq_timeseries_range(ticker: str, exchange: str, start_date: date, e
         )
         record_skipped_ticker(ticker, exchange, reason="unknown")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
+    if monotonic() < _STOOQ_UNREACHABLE_UNTIL:
+        raise StooqRateLimitError("Stooq unreachable; skipping during cooldown")
     suffix = get_stooq_suffix(exchange)
     full_ticker = ticker + suffix
 

@@ -171,3 +171,17 @@ def test_daily_limit_takes_precedence_over_unreachable_cooldown(monkeypatch):
 
     with pytest.raises(fst.StooqRateLimitError, match="daily hits limit"):
         fst.fetch_stooq_timeseries_range("AAA", "L", date(2024, 1, 1), date(2024, 1, 2))
+
+
+def test_invalid_ticker_is_recorded_as_skipped_during_cooldown(monkeypatch):
+    """An unrecognized ticker is still skipped and recorded, not reported as a cooldown (#7877)."""
+    monkeypatch.setattr(fst, "monotonic", lambda: 1000.0)
+    fst._mark_stooq_unreachable()
+    monkeypatch.setattr(fst, "is_valid_ticker", lambda *a, **k: False)
+    skipped = []
+    monkeypatch.setattr(fst, "record_skipped_ticker", lambda *a, **k: skipped.append(a))
+
+    result = fst.fetch_stooq_timeseries_range("BAD", "L", date(2024, 1, 1), date(2024, 1, 2))
+
+    assert result.empty
+    assert skipped == [("BAD", "L")]

@@ -283,8 +283,8 @@ def _rolling_cache(
     else:
         logger.debug(
             "No new dates for %s.%s; leaving cache untouched",
-            _sanitize_for_log(ticker),
-            _sanitize_for_log(exchange),
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
         )
     return _ensure_schema(combined[combined["Date"].dt.date >= cutoff].reset_index(drop=True))
 

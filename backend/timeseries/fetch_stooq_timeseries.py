@@ -135,10 +135,9 @@ def fetch_stooq_timeseries_range(ticker: str, exchange: str, start_date: date, e
     except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
         _mark_stooq_unreachable()
         logger.warning(
-            "Stooq request timed out or could not connect for %s (%s); skipping Stooq for %ds",
+            "Stooq request timed out or could not connect for %s (%s); skipping Stooq during cooldown",
             sanitise_log_value(full_ticker),
-            type(exc).__name__,
-            STOOQ_UNREACHABLE_COOLDOWN_SECONDS,
+            sanitise_log_value(type(exc).__name__),
         )
         return pd.DataFrame(columns=STANDARD_COLUMNS)
     except Exception as e:

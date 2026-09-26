@@ -302,6 +302,31 @@ def test_error_response_does_not_reset_consecutive_read_timeouts(monkeypatch):
         fst.fetch_stooq_timeseries_range("OTHER", "L", date(2024, 1, 1), date(2024, 1, 1))
 
 
+def test_connection_cooldown_resets_consecutive_read_timeouts(monkeypatch):
+    """Read timeouts before a connection-error cooldown don't count toward the next one (#7913)."""
+    monkeypatch.setattr(fst, "is_valid_ticker", lambda *a, **k: True)
+    now = [1000.0]
+    monkeypatch.setattr(fst, "monotonic", lambda: now[0])
+    failure = [requests.exceptions.ReadTimeout]
+
+    def get(url, params, **kwargs):
+        raise failure[0]
+
+    monkeypatch.setattr(fst.requests, "get", get)
+
+    for i in range(fst.STOOQ_READ_TIMEOUTS_BEFORE_COOLDOWN - 1):
+        fst.fetch_stooq_timeseries_range(f"SLOW{i}", "L", date(2024, 1, 1), date(2024, 1, 1))
+    failure[0] = requests.exceptions.ConnectionError
+    fst.fetch_stooq_timeseries_range("DOWN", "L", date(2024, 1, 1), date(2024, 1, 1))
+
+    now[0] += fst.STOOQ_UNREACHABLE_COOLDOWN_SECONDS
+    failure[0] = requests.exceptions.ReadTimeout
+    fst.fetch_stooq_timeseries_range("AFTER", "L", date(2024, 1, 1), date(2024, 1, 1))
+
+    monkeypatch.setattr(fst.requests, "get", _ok_response)
+    assert not fst.fetch_stooq_timeseries_range("OTHER", "L", date(2024, 1, 1), date(2024, 1, 1)).empty
+
+
 def test_reset_clears_per_ticker_skip(monkeypatch):
     """The test reset hook clears per-ticker skips as well as the global cooldown."""
     monkeypatch.setattr(fst, "is_valid_ticker", lambda *a, **k: True)

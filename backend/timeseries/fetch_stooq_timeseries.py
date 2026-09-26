@@ -41,8 +41,11 @@ _STOOQ_CONSECUTIVE_READ_TIMEOUTS = 0
 
 
 def _mark_stooq_unreachable() -> None:
-    global _STOOQ_UNREACHABLE_UNTIL
+    global _STOOQ_UNREACHABLE_UNTIL, _STOOQ_CONSECUTIVE_READ_TIMEOUTS
     _STOOQ_UNREACHABLE_UNTIL = monotonic() + STOOQ_UNREACHABLE_COOLDOWN_SECONDS
+    # Each cooldown starts a fresh count, so read timeouts from before it
+    # cannot combine with one after it to trip the next cooldown early.
+    _STOOQ_CONSECUTIVE_READ_TIMEOUTS = 0
 
 
 def _record_read_timeout(full_ticker: str) -> bool:
@@ -55,7 +58,6 @@ def _record_read_timeout(full_ticker: str) -> bool:
     _STOOQ_CONSECUTIVE_READ_TIMEOUTS += 1
     if _STOOQ_CONSECUTIVE_READ_TIMEOUTS < STOOQ_READ_TIMEOUTS_BEFORE_COOLDOWN:
         return False
-    _STOOQ_CONSECUTIVE_READ_TIMEOUTS = 0
     _mark_stooq_unreachable()
     return True
 

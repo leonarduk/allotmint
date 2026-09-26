@@ -1,6 +1,7 @@
 import logging
 from datetime import date, timedelta
 from io import StringIO
+from time import monotonic
 
 import pandas as pd
 import requests
@@ -21,6 +22,23 @@ class StooqRateLimitError(RuntimeError):
 
 # Stooq requests are disabled until this date if the rate limit is hit
 STOOQ_DISABLED_UNTIL: date = date.min
+
+# After a timeout or connection failure, skip Stooq for this many seconds so an
+# unreachable host costs one timeout per window rather than one per fetch
+# (#7877). Tracked on the monotonic clock so wall-clock changes can't extend it.
+STOOQ_UNREACHABLE_COOLDOWN_SECONDS = 600
+_STOOQ_UNREACHABLE_UNTIL: float = 0.0
+
+
+def _mark_stooq_unreachable() -> None:
+    global _STOOQ_UNREACHABLE_UNTIL
+    _STOOQ_UNREACHABLE_UNTIL = monotonic() + STOOQ_UNREACHABLE_COOLDOWN_SECONDS
+
+
+def reset_stooq_unreachable_cooldown() -> None:
+    """Clear the unreachable cooldown (used by tests)."""
+    global _STOOQ_UNREACHABLE_UNTIL
+    _STOOQ_UNREACHABLE_UNTIL = 0.0
 
 
 def get_stooq_suffix(exchange: str) -> str:
@@ -65,6 +83,8 @@ def fetch_stooq_timeseries_range(ticker: str, exchange: str, start_date: date, e
         )
         record_skipped_ticker(ticker, exchange, reason="unknown")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
+    if monotonic() < _STOOQ_UNREACHABLE_UNTIL:
+        raise StooqRateLimitError("Stooq unreachable; skipping during cooldown")
     suffix = get_stooq_suffix(exchange)
     full_ticker = ticker + suffix
 
@@ -112,8 +132,13 @@ def fetch_stooq_timeseries_range(ticker: str, exchange: str, start_date: date, e
 
         return df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]]
 
-    except requests.exceptions.Timeout:
-        logger.warning("Stooq request timed out for %s", sanitise_log_value(full_ticker))
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+        _mark_stooq_unreachable()
+        logger.warning(
+            "Stooq request timed out or could not connect for %s (%s); skipping Stooq during cooldown",
+            sanitise_log_value(full_ticker),
+            sanitise_log_value(type(exc).__name__),
+        )
         return pd.DataFrame(columns=STANDARD_COLUMNS)
     except Exception as e:
         logger.error("Failed to fetch Stooq data for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(e))

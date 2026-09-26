@@ -130,3 +130,58 @@ def test_fetch_stooq_timeseries_wrapper(monkeypatch):
     assert exchange == "L"
     assert start == Day(2024, 1, 5)
     assert end == Day(2024, 1, 10)
+
+
+@pytest.mark.parametrize("exc", [requests.exceptions.Timeout, requests.exceptions.ConnectionError])
+def test_unreachable_stooq_is_skipped_during_cooldown(monkeypatch, exc):
+    """After a timeout/connection failure Stooq is not called again until the cooldown ends (#7877)."""
+    monkeypatch.setattr(fst, "is_valid_ticker", lambda *a, **k: True)
+    now = [1000.0]
+    monkeypatch.setattr(fst, "monotonic", lambda: now[0])
+    calls = []
+
+    def failing_get(*a, **k):
+        calls.append(1)
+        raise exc
+
+    monkeypatch.setattr(fst.requests, "get", failing_get)
+
+    first = fst.fetch_stooq_timeseries_range("AAA", "L", date(2024, 1, 1), date(2024, 1, 2))
+    assert first.empty
+    assert len(calls) == 1
+
+    with pytest.raises(fst.StooqRateLimitError):
+        fst.fetch_stooq_timeseries_range("BBB", "L", date(2024, 1, 1), date(2024, 1, 2))
+    assert len(calls) == 1
+
+    now[0] += fst.STOOQ_UNREACHABLE_COOLDOWN_SECONDS
+    monkeypatch.setattr(
+        fst.requests, "get", lambda *a, **k: SimpleNamespace(ok=True, status_code=200, text=_csv_response())
+    )
+    recovered = fst.fetch_stooq_timeseries_range("AAA", "L", date(2024, 1, 1), date(2024, 1, 1))
+    assert not recovered.empty
+
+
+def test_daily_limit_takes_precedence_over_unreachable_cooldown(monkeypatch):
+    """The daily-limit guard still raises its own error while the unreachable cooldown is active (#7877)."""
+    monkeypatch.setattr(fst, "monotonic", lambda: 1000.0)
+    fst._mark_stooq_unreachable()
+    monkeypatch.setattr(fst, "STOOQ_DISABLED_UNTIL", date.today())
+    monkeypatch.setattr(fst.requests, "get", lambda *a, **k: pytest.fail("Stooq should not be called"))
+
+    with pytest.raises(fst.StooqRateLimitError, match="daily hits limit"):
+        fst.fetch_stooq_timeseries_range("AAA", "L", date(2024, 1, 1), date(2024, 1, 2))
+
+
+def test_invalid_ticker_is_recorded_as_skipped_during_cooldown(monkeypatch):
+    """An unrecognized ticker is still skipped and recorded, not reported as a cooldown (#7877)."""
+    monkeypatch.setattr(fst, "monotonic", lambda: 1000.0)
+    fst._mark_stooq_unreachable()
+    monkeypatch.setattr(fst, "is_valid_ticker", lambda *a, **k: False)
+    skipped = []
+    monkeypatch.setattr(fst, "record_skipped_ticker", lambda *a, **k: skipped.append(a))
+
+    result = fst.fetch_stooq_timeseries_range("BAD", "L", date(2024, 1, 1), date(2024, 1, 2))
+
+    assert result.empty
+    assert skipped == [("BAD", "L")]

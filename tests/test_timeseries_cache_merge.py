@@ -191,6 +191,76 @@ def test_rolling_cache_serves_cached_slice_on_empty_fetch(monkeypatch, tmp_path)
     assert cache._FAILED_FETCH_COUNT == 0
 
 
+def _single_row(cache, day: date) -> pd.DataFrame:
+    return cache._ensure_schema(
+        pd.DataFrame(
+            {
+                "Date": [pd.Timestamp(day)],
+                "Open": [9.0],
+                "High": [9.0],
+                "Low": [9.0],
+                "Close": [9.0],
+                "Volume": [1],
+                "Ticker": ["ABC"],
+                "Source": ["Yahoo"],
+            }
+        )
+    )
+
+
+def test_rolling_cache_skips_save_when_fetch_adds_no_new_dates(monkeypatch, tmp_path):
+    """A fetch that only returns already-cached dates must not rewrite the file (#7877).
+
+    Rewriting bumps the mtime, which clears every ticker's meta LRU entries and
+    re-triggers the same fetch on the next lookup.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+
+    cache_path = cache._cache_path("foo.parquet")
+    expected = _seed_existing_parquet(cache, cache_path, days=5)
+    last_cached = expected["Date"].dt.date.max()
+
+    saves = []
+    monkeypatch.setattr(cache, "_save_parquet", lambda df, path: saves.append(path))
+
+    result = cache._rolling_cache(
+        lambda **_kwargs: _single_row(cache, last_cached),
+        cache_path,
+        {},
+        days=5,
+        ticker="ABC",
+        exchange="L",
+    )
+
+    assert saves == []
+    assert_frame_equal(result, expected)
+
+
+def test_rolling_cache_saves_when_fetch_adds_new_date(monkeypatch, tmp_path):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+
+    cache_path = cache._cache_path("foo.parquet")
+    expected = _seed_existing_parquet(cache, cache_path, days=5)
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+    assert window_end not in set(expected["Date"].dt.date)
+
+    result = cache._rolling_cache(
+        lambda **_kwargs: _single_row(cache, window_end),
+        cache_path,
+        {},
+        days=5,
+        ticker="ABC",
+        exchange="L",
+    )
+
+    assert window_end in set(result["Date"].dt.date)
+    assert window_end in set(cache._load_parquet(cache_path)["Date"].dt.date)
+
+
 def _seed_stale_meta_cache(cache, ticker: str, exchange: str) -> date:
     """Write a meta parquet whose last row is two weekdays before the rolling window end."""
     _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 60)
@@ -277,3 +347,50 @@ def test_cache_only_read_is_not_reused_by_live_callers(monkeypatch, tmp_path):
 
     cache.load_meta_timeseries_range("ABC", "L", start_date=day, end_date=day)
     assert calls, "live caller should reach the price source after a cache-only read"
+
+
+@pytest.mark.parametrize("offline", [False, True])
+def test_cache_only_without_cache_file_returns_empty_without_fetching(monkeypatch, tmp_path, offline):
+    """A newly added holding with no cache file is unpriced, not blocked, in cache-only mode (#7898).
+
+    Covers offline mode too: there the loaders would normally switch offline mode
+    off and fetch live on a cache miss, which cache-only mode must not do.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", offline)
+    monkeypatch.setattr(cache.config, "offline_mode", offline)
+    _clear_meta_lrus(cache)
+
+    def exploding_fetch(**_kwargs):
+        raise AssertionError("cache-only mode must not call a price source")
+
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", exploding_fetch)
+    day = datetime.today().date() - timedelta(days=3)
+
+    with cache.cache_only():
+        df = cache.load_meta_timeseries_range("NEW", "L", start_date=day, end_date=day)
+
+    assert df.empty
+
+
+def test_offline_mode_without_cache_only_still_falls_back_live(monkeypatch, tmp_path):
+    """Offline-mode behaviour outside cache-only mode is unchanged: a cache miss still goes live (#7898)."""
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", True)
+    monkeypatch.setattr(cache.config, "offline_mode", True)
+    _clear_meta_lrus(cache)
+
+    calls = []
+
+    def recording_fetch(**kwargs):
+        calls.append(kwargs)
+        return pd.DataFrame()
+
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", recording_fetch)
+    day = datetime.today().date() - timedelta(days=3)
+
+    cache.load_meta_timeseries_range("NEW", "L", start_date=day, end_date=day)
+
+    assert calls, "offline mode should still fall back to a live fetch on a cache miss"

@@ -137,3 +137,42 @@ def test_update_config_env_valid(monkeypatch, tmp_path):
 
     monkeypatch.undo()
     reload_config()
+
+
+def test_update_config_writes_flat_key_into_its_existing_section(monkeypatch, tmp_path):
+    # #7895: the Settings page sends flat keys; a key that lives in a section
+    # must be updated there, not written as a dead top-level duplicate that
+    # _flatten_dict then ignores in favour of the section value.
+    config_path = _setup_config(
+        monkeypatch,
+        tmp_path,
+        "market_data:\n  stooq_timeout: 10\nstooq_timeout: 10\nbase_currency: GBP\n",
+    )
+    client = TestClient(create_app())
+
+    resp = client.put("/config", json={"stooq_timeout": 3, "base_currency": "USD"})
+    assert resp.status_code == 200
+    assert resp.json()["stooq_timeout"] == 3
+
+    data = yaml.safe_load(config_path.read_text())
+    assert data["market_data"]["stooq_timeout"] == 3
+    assert "stooq_timeout" not in data
+    # Keys no section defines stay top-level.
+    assert data["base_currency"] == "USD"
+
+    monkeypatch.undo()
+    reload_config()
+
+
+def test_route_flat_keys_into_sections_leaves_unknown_and_nested_keys():
+    stored = {"market_data": {"stooq_timeout": 10}, "server": {"uvicorn_port": 8000}}
+    incoming = {"stooq_timeout": 3, "base_currency": "USD", "server": {"uvicorn_port": 9000}}
+
+    routed, routed_keys = routes_config._route_flat_keys_into_sections(incoming, stored)
+
+    assert routed == {
+        "market_data": {"stooq_timeout": 3},
+        "base_currency": "USD",
+        "server": {"uvicorn_port": 9000},
+    }
+    assert routed_keys == {"stooq_timeout"}

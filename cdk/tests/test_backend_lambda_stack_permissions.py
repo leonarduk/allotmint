@@ -1007,6 +1007,43 @@ def test_backend_lambda_gets_filter_log_events_on_own_log_group() -> None:
         )
 
 
+def test_backend_lambda_gets_scoped_cost_explorer_read_access() -> None:
+    """BackendLambda's role must be granted read-only Cost Explorer access.
+
+    GET /admin/aws-costs (backend/routes/aws_costs_admin.py) calls
+    ce:GetCostAndUsage; Cost Explorer has no resource-level ARNs so the
+    statement is necessarily Resource="*", but the grant must never widen to
+    a wildcard action (``ce:*``) or include any write action (issue #8016).
+    """
+    template = _stack_template()
+    backend_role = _role_logical_id_for_lambda(template, "BackendLambda")
+
+    cost_resources = _resources_for_s3_action(template, backend_role, "ce:GetCostAndUsage")
+    assert cost_resources, "Expected BackendLambda's role to be granted ce:GetCostAndUsage"
+
+    all_actions: set[str] = set()
+    for resource in template["Resources"].values():
+        if resource.get("Type") != "AWS::IAM::Policy":
+            continue
+        roles = resource.get("Properties", {}).get("Roles", [])
+        role_refs = {
+            r["Ref"] for r in roles if isinstance(r, dict) and isinstance(r.get("Ref"), str)
+        }
+        if backend_role not in role_refs:
+            continue
+        for stmt in resource["Properties"]["PolicyDocument"].get("Statement", []):
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            all_actions.update(actions)
+
+    ce_actions = {a for a in all_actions if a == "ce:*" or a.startswith("ce:")}
+    assert ce_actions == {"ce:GetCostAndUsage"}, (
+        "Expected BackendLambda's Cost Explorer permissions to be exactly "
+        f"{{'ce:GetCostAndUsage'}}, got: {ce_actions}"
+    )
+
+
 def _fallback_string_literal(source_path: Path, assigned_name: str) -> str:
     """Statically extract the fallback string literal assigned to ``assigned_name``.
 

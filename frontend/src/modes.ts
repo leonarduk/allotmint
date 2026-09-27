@@ -30,7 +30,8 @@ export type Mode =
   | "createaccount"
   | "dataquality"
   | "plot"
-  | "help";
+  | "help"
+  | "awscosts";
 
 export const MODES: Mode[] = [
   "group",
@@ -65,4 +66,5 @@ export const MODES: Mode[] = [
   "dataquality",
   "plot",
   "help",
+  "awscosts",
 ];

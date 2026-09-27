@@ -707,7 +707,7 @@ def test_memoized_range_honours_cache_only_argument_outside_context(monkeypatch,
     assert served["Date"].dt.date.tolist() == [last]
 
 
-def test_cache_only_stale_ticker_enriches_as_previous_close(monkeypatch, tmp_path):
+def test_cache_only_stale_ticker_priced_at_last_cached_close(monkeypatch, tmp_path):
     """End to end: a stale ticker priced in cache-only mode is flagged stale, not blocked (#7898).
 
     The reporting date's close is missing from the parquet, so ``enrich_holding``

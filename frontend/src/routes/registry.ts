@@ -240,6 +240,16 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     lazyComponent: lazyPage(() => import('../pages/DataQuality')),
   },
   {
+    mode: 'awscosts',
+    routeSegment: 'aws-costs',
+    section: 'support',
+    menuCategory: 'operations',
+    priority: 92,
+    defaultPath: () => '/aws-costs',
+    routePath: '/aws-costs',
+    lazyComponent: lazyPage(() => import('../pages/AwsCostsAdmin')),
+  },
+  {
     mode: 'dataexplorer',
     routeSegment: 'data-explorer',
     section: 'support',

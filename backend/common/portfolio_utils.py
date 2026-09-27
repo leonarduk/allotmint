@@ -40,8 +40,13 @@ from backend.common.virtual_portfolio import (
 )
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
-from backend.timeseries.cache import load_meta_timeseries, load_meta_timeseries_range
-from backend.utils.fx_rates import fetch_fx_rate_range
+from backend.timeseries.cache import (
+    cached_fx_rate_to_gbp,
+    is_cache_only,
+    load_meta_timeseries,
+    load_meta_timeseries_range,
+)
+from backend.utils.fx_rates import fallback_fx_rate, fetch_fx_rate_range
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 
@@ -131,6 +136,14 @@ def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float
         if ccy == "GBP":
             cache["GBP"] = 1.0
             return 1.0
+        if is_cache_only():
+            # Page request (#8028): the FX cache, else the approximate
+            # constant -- never Yahoo. A missing or stale cache is queued for
+            # a background refresh.
+            cached = cached_fx_rate_to_gbp(ccy)
+            rate = cached if cached is not None else fallback_fx_rate(ccy, "GBP")
+            cache[ccy] = rate
+            return rate
         end = date.today()
         start = end - timedelta(days=7)
         try:

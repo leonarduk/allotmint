@@ -64,15 +64,21 @@ def fetch_fx_rate_range_live(base: str, quote: str, start_date: date, end_date: 
     return pd.DataFrame(columns=["Date", "Rate"])
 
 
-def fallback_fx_rate_range(base: str, quote: str, start_date: date, end_date: date) -> pd.DataFrame:
-    """Return the approximate constant rate for ``base``/``quote`` over the range."""
+def fallback_fx_rate(base: str, quote: str) -> float:
+    """Return the approximate constant rate for ``base``/``quote`` (1.0 for unknown pairs)."""
     base = base.upper()
     quote = quote.upper()
-    dates = pd.bdate_range(start_date, end_date).date
     const = FALLBACK_RATES.get((base, quote))
     if const is None:
         inv = FALLBACK_RATES.get((quote, base))
         const = 1 / inv if inv else 1.0
+    return const
+
+
+def fallback_fx_rate_range(base: str, quote: str, start_date: date, end_date: date) -> pd.DataFrame:
+    """Return the approximate constant rate for ``base``/``quote`` over the range."""
+    dates = pd.bdate_range(start_date, end_date).date
+    const = fallback_fx_rate(base, quote)
     return pd.DataFrame({"Date": dates, "Rate": [const] * len(dates)})
 
 

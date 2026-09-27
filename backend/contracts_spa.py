@@ -36,6 +36,7 @@ class ConfigTabsContract(SpaContractBase):
     dataadmin: bool
     dataquality: bool
     dataexplorer: bool
+    awscosts: bool
     virtual: bool
     support: bool
     settings: bool

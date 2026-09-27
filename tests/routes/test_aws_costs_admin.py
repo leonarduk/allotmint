@@ -86,3 +86,44 @@ def test_cost_explorer_error_returns_502(client, monkeypatch):
 
     resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
     assert resp.status_code == 502
+
+
+def test_unparseable_dates_return_400(client):
+    resp = client.get("/admin/aws-costs", params={"start": "not-a-date", "end": "2026-09-27"})
+    assert resp.status_code == 400
+
+
+def test_non_owner_identity_forbidden_when_auth_enabled(client, monkeypatch):
+    monkeypatch.setattr(aws_costs_admin.config, "disable_auth", False)
+    monkeypatch.setattr(aws_costs_admin.config, "allowed_emails", ["owner@example.com"])
+    client.app.dependency_overrides[aws_costs_admin.get_active_user] = lambda: "viewer@example.com"
+    try:
+        resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
+    finally:
+        client.app.dependency_overrides.pop(aws_costs_admin.get_active_user, None)
+    assert resp.status_code == 403
+
+
+def test_owner_identity_allowed_when_auth_enabled(client, monkeypatch):
+    fake_client = MagicMock()
+    fake_client.get_cost_and_usage.return_value = _fake_response(("AWS Lambda", "1.00"))
+    monkeypatch.setattr(aws_costs_admin.boto3, "client", lambda *a, **k: fake_client)
+    monkeypatch.setattr(aws_costs_admin.config, "disable_auth", False)
+    monkeypatch.setattr(aws_costs_admin.config, "allowed_emails", ["owner@example.com"])
+    client.app.dependency_overrides[aws_costs_admin.get_active_user] = lambda: "Owner@Example.com"
+    try:
+        resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
+    finally:
+        client.app.dependency_overrides.pop(aws_costs_admin.get_active_user, None)
+    assert resp.status_code == 200
+
+
+def test_no_identity_forbidden_when_auth_enabled(client, monkeypatch):
+    monkeypatch.setattr(aws_costs_admin.config, "disable_auth", False)
+    monkeypatch.setattr(aws_costs_admin.config, "allowed_emails", ["owner@example.com"])
+    client.app.dependency_overrides[aws_costs_admin.get_active_user] = lambda: None
+    try:
+        resp = client.get("/admin/aws-costs", params={"start": "2026-09-01", "end": "2026-09-27"})
+    finally:
+        client.app.dependency_overrides.pop(aws_costs_admin.get_active_user, None)
+    assert resp.status_code == 403

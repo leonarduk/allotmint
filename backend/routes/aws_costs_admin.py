@@ -17,11 +17,42 @@ from typing import Any
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.common.ttl_cache import TTLCache
+from backend.config import config
+from backend.routes import get_active_user
 
-router = APIRouter(prefix="/admin/aws-costs", tags=["aws-costs-admin"])
+_FORBIDDEN_DETAIL = "Not authorized for AWS cost data"
+
+
+def _ensure_admin_access(identity: str | None = Depends(get_active_user)) -> None:
+    """Restrict this router to the deployment's configured owner email(s).
+
+    AWS cost data is account-wide infrastructure spend, not a per-owner
+    portfolio the family/viewer model in ``backend/common/authz.py`` applies
+    to, so it is gated on ``config.allowed_emails`` -- the deployment's own
+    bootstrap owner allowlist -- rather than the generic ``protected`` auth
+    dependency alone (issue #8016's constraint that non-owner/non-admin users
+    must not see this data). No-ops when auth is disabled, matching every
+    other admin route's local/demo behaviour.
+    """
+
+    if config.disable_auth:
+        return
+
+    allowed = {
+        email.strip().lower() for email in (config.allowed_emails or []) if isinstance(email, str) and email.strip()
+    }
+    if not identity or identity.strip().lower() not in allowed:
+        raise HTTPException(status_code=403, detail=_FORBIDDEN_DETAIL)
+
+
+router = APIRouter(
+    prefix="/admin/aws-costs",
+    tags=["aws-costs-admin"],
+    dependencies=[Depends(_ensure_admin_access)],
+)
 
 # Cost Explorer data is finalized well behind real time and is billed per
 # request; an hourly cache keeps this endpoint cheap to poll from a dashboard
@@ -95,7 +126,12 @@ def get_aws_costs_by_service(
     default_start, default_end = _default_period()
     period_start = start or default_start
     period_end = end or default_end
-    if period_end <= period_start:
+    try:
+        parsed_start = dt.date.fromisoformat(period_start)
+        parsed_end = dt.date.fromisoformat(period_end)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="start/end must be YYYY-MM-DD dates") from exc
+    if parsed_end <= parsed_start:
         raise HTTPException(status_code=400, detail="end must be after start")
 
     return _cache.get_or_build(

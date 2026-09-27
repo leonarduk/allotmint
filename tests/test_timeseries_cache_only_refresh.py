@@ -413,8 +413,9 @@ def test_cache_only_fx_uses_the_previous_rate_for_gaps_and_the_first_before_the_
     assert before["Rate"].tolist() == [pytest.approx(0.7)]
 
 
-def test_cache_only_gbp_instrument_in_another_base_currency_makes_no_live_calls(cache, no_live_calls):
+def test_cache_only_gbp_instrument_in_another_base_currency_makes_no_live_calls(cache, no_live_calls, monkeypatch):
     """The GBP leg of a cross-currency conversion is the unit rate, never a fetch."""
+    monkeypatch.setattr(cache, "fetch_fx_rate_range", _explode("fetch_fx_rate_range"))
     day = _target(cache)
     _seed_meta(cache, "GSK", "L", day, close=17.0)
     _seed_fx(cache, "EUR", day, rate=0.85)
@@ -468,3 +469,23 @@ def test_lambda_skip_is_logged_once(cache, monkeypatch, caplog):
         refresh_queue.enqueue("DEF", "L")
 
     assert sum("PriceRefreshLambda" in r.getMessage() for r in caplog.records) == 1
+
+
+def test_refresh_fx_cache_for_tickers_continues_past_a_failing_currency(cache, monkeypatch, caplog):
+    """One currency's failed refresh is logged and doesn't stop the others (or refresh_prices)."""
+    monkeypatch.setattr(cache, "get_instrument_meta", lambda full: {"currency": full.rsplit(".", 1)[1]})
+    refreshed = []
+
+    def flaky(curr):
+        if curr == "EUR":
+            raise OSError("s3 unavailable")
+        refreshed.append(curr)
+        return True
+
+    monkeypatch.setattr(cache, "refresh_fx_cache", flaky)
+
+    with caplog.at_level("WARNING"):
+        cache.refresh_fx_cache_for_tickers(["SAP.EUR", "AAPL.USD"])
+
+    assert refreshed == ["USD"]
+    assert any("FX cache refresh failed for EUR" in r.getMessage() for r in caplog.records)

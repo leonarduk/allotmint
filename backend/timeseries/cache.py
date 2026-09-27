@@ -781,9 +781,8 @@ def _cached_fx_rates(curr: str, start: date, end: date, *, ticker: str, exchange
     FX cache up to date.
     """
     if curr == "GBP":
-        fx = fetch_fx_rate_range(curr, "GBP", start, end).copy()
-        fx["Date"] = pd.to_datetime(fx["Date"])
-        return fx
+        # The GBP leg of a cross-currency conversion: the unit rate, no lookup.
+        return pd.DataFrame({"Date": pd.date_range(start, end, freq="D").astype("datetime64[ms]"), "Rate": 1.0})
     cached = _cached_fx_frame(curr)
     if cached.empty or cached["Date"].max().date() < min(end, _last_close_target()):
         refresh_queue.enqueue(ticker, exchange)

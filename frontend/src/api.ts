@@ -66,6 +66,7 @@ import {
   dataQualityTimeseriesContractSchema,
   dataQualityIssuesContractSchema,
   dataQualityAuditContractSchema,
+  awsCostsContractSchema,
 } from "./contracts/apiContracts";
 import { clearFetchCache } from "./utils/fetchCache";
 
@@ -2093,6 +2094,32 @@ export const undoDataQualityAudit = async (
   return fetchJson<{ status: string; entry_id: string }>(
     `${API_BASE}/data-quality/audit/${encodeURIComponent(entryId)}/undo`,
     { method: "POST" },
+  );
+};
+
+// ───────────── AWS Costs Admin ─────────────
+
+export interface AwsCostService {
+  service: string;
+  amount: number;
+  unit: string;
+}
+
+export interface AwsCostsResponse {
+  start: string;
+  end: string;
+  total: { amount: number; unit: string };
+  services: AwsCostService[];
+}
+
+/** GET /admin/aws-costs: AWS spend for [start, end) grouped by service, plus a total. */
+export const getAwsCosts = async (opts: { start?: string; end?: string } = {}): Promise<AwsCostsResponse> => {
+  const params = new URLSearchParams();
+  if (opts.start) params.set("start", opts.start);
+  if (opts.end) params.set("end", opts.end);
+  const qs = params.toString();
+  return awsCostsContractSchema.parse(
+    await fetchJson<AwsCostsResponse>(`${API_BASE}/admin/aws-costs${qs ? `?${qs}` : ""}`),
   );
 };
 

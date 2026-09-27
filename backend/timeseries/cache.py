@@ -235,6 +235,10 @@ def _merge_fetched(existing: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFr
     usable correction. Differences within float noise (rtol=1e-9) and NaN on
     both sides count as equal, so re-fetching identical data leaves ``changed``
     False and the parquet (and its mtime) untouched (#7877, #7914).
+
+    Only ``_VALUE_COLS`` are compared. When a cached date is kept, its other
+    columns (``Source``, ``Ticker``) are kept too, so a re-fetch that changes
+    only ``Source`` does not update the stored provenance.
     """
     existing = existing.loc[~existing["Date"].dt.date.duplicated()]
     new = new.loc[~new["Date"].dt.date.duplicated(keep="last")]

@@ -1,0 +1,113 @@
+import json
+
+import pytest
+from fastapi.testclient import TestClient
+
+from backend.app import create_app
+from backend.common.realised_gains import compute_disposal_gains
+from backend.config import config
+
+
+def _buy(date, units, amount, ticker="AAA.L"):
+    return {"date": date, "type": "BUY", "ticker": ticker, "units": units, "amount_minor": amount * 100}
+
+
+def _sell(date, units, amount, ticker="AAA.L"):
+    return {"date": date, "type": "SELL", "ticker": ticker, "units": units, "amount_minor": amount * 100}
+
+
+def test_full_disposal_gain_is_proceeds_minus_cost():
+    gains = compute_disposal_gains([_buy("2024-01-01", 10, 1000), _sell("2024-06-01", 10, 1250)])
+    assert gains[1].realised_gain_gbp == pytest.approx(250.0)
+    assert gains[1].cost_basis_gbp == pytest.approx(1000.0)
+    assert gains[1].proceeds_gbp == pytest.approx(1250.0)
+    assert gains[1].unmatched_units == 0.0
+
+
+def test_partial_disposal_uses_average_pool_cost():
+    txs = [
+        _buy("2024-01-01", 100, 1000),
+        _buy("2024-02-01", 100, 3000),  # pool: 200 units, £4000 -> £20/unit
+        _sell("2024-03-01", 50, 900),
+        _sell("2024-04-01", 150, 2400),
+    ]
+    gains = compute_disposal_gains(txs)
+    assert gains[2].cost_basis_gbp == pytest.approx(1000.0)
+    assert gains[2].realised_gain_gbp == pytest.approx(-100.0)
+    assert gains[3].cost_basis_gbp == pytest.approx(3000.0)
+    assert gains[3].realised_gain_gbp == pytest.approx(-600.0)
+
+
+def test_input_order_does_not_matter_and_same_day_buy_precedes_sell():
+    txs = [_sell("2024-01-01", 10, 1100), _buy("2024-01-01", 10, 1000)]
+    gains = compute_disposal_gains(txs)
+    assert gains[0].realised_gain_gbp == pytest.approx(100.0)
+    assert 1 not in gains
+
+
+def test_selling_more_than_recorded_leaves_gain_unknown():
+    gains = compute_disposal_gains([_buy("2024-01-01", 78, 2482.56), _sell("2024-01-01", 156, 4938.79)])
+    assert gains[1].realised_gain_gbp is None
+    assert gains[1].unmatched_units == pytest.approx(78)
+    assert gains[1].cost_basis_gbp == pytest.approx(2482.56)
+
+
+def test_transfer_in_without_cost_makes_pooled_disposal_unknown():
+    txs = [
+        {"date": "2021-09-26", "type": "TRANSFER_IN", "ticker": "AAA.L", "units": 50},
+        _buy("2022-01-01", 50, 500),
+        _sell("2022-02-01", 20, 300),
+    ]
+    gains = compute_disposal_gains(txs)
+    assert gains[2].realised_gain_gbp is None
+    assert gains[2].unmatched_units == pytest.approx(10)
+    assert gains[2].cost_basis_gbp == pytest.approx(100.0)
+
+
+def test_falls_back_to_price_and_fees_and_groups_by_name_without_ticker():
+    txs = [
+        {"date": "2024-01-01", "type": "BUY", "instrument_name": "Some Fund", "units": 10, "price_gbp": 10, "fees": 5},
+        {"date": "2024-02-01", "type": "SELL", "instrument_name": "Some Fund", "units": 10, "price_gbp": 12, "fees": 5},
+    ]
+    gains = compute_disposal_gains(txs)
+    assert gains[1].cost_basis_gbp == pytest.approx(105.0)
+    assert gains[1].proceeds_gbp == pytest.approx(115.0)
+    assert gains[1].realised_gain_gbp == pytest.approx(10.0)
+
+
+def test_instruments_are_pooled_separately_and_scaled_shares_handled():
+    txs = [
+        _buy("2024-01-01", 10, 100, ticker="AAA.L"),
+        {"date": "2024-01-01", "type": "BUY", "ticker": "BBB.L", "shares": 10 * 10**8, "amount_minor": 50000},
+        _sell("2024-02-01", 10, 80, ticker="AAA.L"),
+        {"date": "2024-02-01", "type": "SELL", "ticker": "BBB.L", "shares": 5 * 10**8, "amount_minor": 30000},
+    ]
+    gains = compute_disposal_gains(txs)
+    assert gains[2].realised_gain_gbp == pytest.approx(-20.0)
+    assert gains[3].realised_gain_gbp == pytest.approx(50.0)
+
+
+def test_list_transactions_includes_gain_even_when_buy_is_outside_date_filter(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    doc = {
+        "owner": "alice",
+        "account_type": "ISA",
+        "transactions": [
+            _buy("2023-01-01", 10, 1000),
+            _sell("2024-06-01", 10, 1250),
+            # Stored derived values must not leak through or override the computation.
+            {"date": "2024-07-01", "type": "INTEREST", "amount_minor": 500, "realised_gain_gbp": 999},
+        ],
+    }
+    (owner_dir / "ISA_transactions.json").write_text(json.dumps(doc))
+    client = TestClient(create_app())
+
+    resp = client.get("/transactions", params={"owner": "alice", "start": "2024-01-01"})
+    assert resp.status_code == 200
+    rows = {row["type"]: row for row in resp.json()}
+    assert set(rows) == {"SELL", "INTEREST"}
+    assert rows["SELL"]["realised_gain_gbp"] == pytest.approx(250.0)
+    assert rows["SELL"]["cost_basis_gbp"] == pytest.approx(1000.0)
+    assert rows["INTEREST"]["realised_gain_gbp"] is None

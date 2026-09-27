@@ -24,7 +24,6 @@ server:
   sns_topic_arn: ''
   telegram_bot_token: ''
   telegram_chat_id: ''
-  error_summary: '[object Object]'
   cors:
     local:
     - http://localhost:3000
@@ -105,52 +104,7 @@ ui:
     trail: false
     trade-compliance: false
     logs: true
-app_env: local
-sns_topic_arn: ''
-telegram_bot_token: ''
-telegram_chat_id: ''
-portfolio_xml_path: C:\Users\steph\workspace\GitHub\allotmint-data\portfolio\investments.xml
-transactions_output_root: C:\Users\steph\workspace\GitHub\allotmint-data\accounts
-uvicorn_port: 6468
-reload: true
-rate_limit_per_minute: 6000
-log_config: backend/logging.ini
-skip_snapshot_warm: false
-snapshot_warm_days: 30
-ft_url_template: https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}
-selenium_user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
-  (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36
-selenium_headless: true
-error_summary: '[object Object]'
-offline_mode: false
-demo_identity: demo
-smoke_identity: demo
-timeseries_cache_base: C:\Users\steph\workspace\GitHub\allotmint-data\timeseries
-fx_proxy_url: ''
-default_sector_region: US
-uk_sector_endpoint: https://www.londonstockexchange.com/api/sectors/ftse350
-alpha_vantage_enabled: ''
-alpha_vantage_key: ''
-fundamentals_cache_ttl_seconds: 86400
-stooq_timeout: 10
-news_requests_per_day: 25
-yahoo_news_endpoint: ''
-yahoo_news_key: ''
-yahoo_news_requests_per_day: 500
-google_news_endpoint: ''
-google_news_key: ''
-google_news_requests_per_day: 500
-max_trades_per_month: 20
-hold_days_min: 30
-repo_root: C:\Users\steph\workspace\GitHub\allotmint
-data_root: C:\Users\steph\workspace\GitHub\allotmint-data
-accounts_root: C:\Users\steph\workspace\GitHub\allotmint-data\accounts
-prices_json: C:\Users\steph\workspace\GitHub\allotmint-data\prices\latest_prices.json
-risk_free_rate: 0.01
 base_currency: GBP
-approval_valid_days: 2
-approval_exempt_types: ETF
-approval_exempt_tickers: ''
 trading_agent:
   rsi_buy: 30
   rsi_sell: 70

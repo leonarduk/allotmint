@@ -536,6 +536,18 @@ class BackendLambdaStack(Stack):
             )
         )
 
+        # Read-only Cost Explorer access for GET /admin/aws-costs
+        # (backend/routes/aws_costs_admin.py, issue #8016). Cost Explorer has
+        # no resource-level ARNs, so this is necessarily a Resource="*"
+        # statement, but it is scoped to the single read-only ce:GetCostAndUsage
+        # action the route actually calls -- never ce:* or a write action.
+        backend_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ce:GetCostAndUsage"],
+                resources=["*"],
+            )
+        )
+
         ui_auth_client_id_default = self.node.try_get_context(
             "ui_auth_user_pool_client_id"
         ) or os.getenv("UI_AUTH_USER_POOL_CLIENT_ID")

@@ -11,6 +11,7 @@ from backend.routes.alert_settings import router as alert_settings_router
 from backend.routes.alerts import router as alerts_router
 from backend.routes.analytics import router as analytics_router
 from backend.routes.approvals import router as approvals_router
+from backend.routes.aws_costs_admin import router as aws_costs_admin_router
 from backend.routes.chat import create_router as create_chat_router
 from backend.routes.compliance import router as compliance_router
 from backend.routes.config import router as config_router
@@ -102,6 +103,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(models_router)
     app.include_router(user_config_router, dependencies=protected)
     app.include_router(approvals_router, dependencies=protected)
+    app.include_router(aws_costs_admin_router, dependencies=protected)
     app.include_router(events_router)
     app.include_router(scenario_router)
     app.include_router(logs_router)

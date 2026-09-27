@@ -56,7 +56,7 @@ from backend.common.portfolio_utils import (
 # ──────────────────────────────────────────────────────────────
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
-from backend.timeseries.cache import load_meta_timeseries_range
+from backend.timeseries.cache import load_meta_timeseries_range, refresh_fx_cache_for_tickers
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import _nearest_weekday
 
@@ -302,6 +302,13 @@ def refresh_prices() -> Dict:
         snapshot = get_price_snapshot(tickers)
     finally:
         refresh_progress.finish()
+
+    # Page requests convert non-GBP closes from the FX cache only (#7917).
+    # A failure here must not stop the price snapshot being persisted below.
+    try:
+        refresh_fx_cache_for_tickers(tickers)
+    except Exception as exc:
+        logger.warning("FX cache refresh failed: %s", sanitise_log_value(exc))
 
     # ---- persist to disk --------------------------------------------------
     if not config.prices_json:

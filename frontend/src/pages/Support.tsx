@@ -10,6 +10,7 @@ import {
   getLogs,
   type Finding,
   refreshPrices,
+  getRefreshPricesProgress,
   clearGroupInstrumentCache,
 } from "../api";
 import { clearFetchCache } from "../utils/fetchCache";
@@ -78,6 +79,12 @@ export default function Support() {
   const [healthRunning, setHealthRunning] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [refreshProgress, setRefreshProgress] = useState<{
+    completed: number;
+    total: number;
+    currentTicker: string | null;
+  } | null>(null);
+  const refreshProgressTimer = useRef<number | null>(null);
   const [logs, setLogs] = useState("");
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState<string | null>(null);
@@ -211,6 +218,10 @@ export default function Support() {
         window.clearTimeout(localLoginResetTimer.current);
         localLoginResetTimer.current = null;
       }
+      if (refreshProgressTimer.current !== null) {
+        window.clearInterval(refreshProgressTimer.current);
+        refreshProgressTimer.current = null;
+      }
     };
   }, []);
 
@@ -249,6 +260,29 @@ export default function Support() {
   async function handleRefreshPrices() {
     setRefreshing(true);
     setRefreshError(null);
+    setRefreshProgress(null);
+
+    // Poll for incremental progress while the refresh runs, so the user sees
+    // which ticker is being fetched rather than a static "Refreshing..."
+    // label for the whole (potentially long) job. A poll failure is not
+    // fatal to the refresh itself, so it's swallowed here — the button just
+    // falls back to the plain label for that tick.
+    refreshProgressTimer.current = window.setInterval(() => {
+      getRefreshPricesProgress()
+        .then((p) => {
+          if (p.running) {
+            setRefreshProgress({
+              completed: p.completed,
+              total: p.total,
+              currentTicker: p.current_ticker,
+            });
+          }
+        })
+        .catch(() => {
+          /* ignore — the refresh itself is still tracked below */
+        });
+    }, 400);
+
     try {
       const resp = await refreshPrices();
       // Every cached portfolio/valuation response was computed against the old
@@ -260,6 +294,11 @@ export default function Support() {
     } catch (e) {
       setRefreshError(e instanceof Error ? e.message : String(e));
     } finally {
+      if (refreshProgressTimer.current !== null) {
+        window.clearInterval(refreshProgressTimer.current);
+        refreshProgressTimer.current = null;
+      }
+      setRefreshProgress(null);
       setRefreshing(false);
     }
   }
@@ -507,15 +546,36 @@ export default function Support() {
         </pre>
       </SectionCard>
 
-      <SectionCard title={t("support.priceRefresh")}> 
+      <SectionCard title={t("support.priceRefresh")}>
         <button
           type="button"
           onClick={handleRefreshPrices}
           disabled={refreshing}
           className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
         >
-          {refreshing ? t("app.refreshing") : t("app.refreshPrices")}
+          {refreshing
+            ? refreshProgress && refreshProgress.total > 0
+              ? t("app.refreshingProgress", {
+                  completed: refreshProgress.completed,
+                  total: refreshProgress.total,
+                })
+              : t("app.refreshing")
+            : t("app.refreshPrices")}
         </button>
+        {refreshing && refreshProgress && refreshProgress.total > 0 && (
+          <div className="mt-2" role="status">
+            <progress
+              className="w-full"
+              value={refreshProgress.completed}
+              max={refreshProgress.total}
+            />
+            {refreshProgress.currentTicker && (
+              <div className="text-sm text-gray-600">
+                {t("app.refreshingTicker", { ticker: refreshProgress.currentTicker })}
+              </div>
+            )}
+          </div>
+        )}
         {lastRefresh && (
           <span className="ml-2 text-sm text-gray-600">
             {t("app.last")} {new Date(lastRefresh).toLocaleString()}

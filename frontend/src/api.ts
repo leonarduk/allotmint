@@ -544,6 +544,15 @@ export const refreshPrices = () =>
     { method: "POST" }
   );
 
+/** Poll-friendly status for an in-flight price refresh (see /prices/refresh). */
+export const getRefreshPricesProgress = () =>
+  fetchJson<{
+    running: boolean;
+    total: number;
+    completed: number;
+    current_ticker: string | null;
+  }>(`${API_BASE}/prices/refresh/progress`);
+
 /** Fetch quote snapshots for a list of symbols. */
 export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
   const params = new URLSearchParams({ symbols: symbols.join(",") });

@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 import requests
 
+from backend.common import refresh_progress
 from backend.common.approvals import is_approval_valid
 from backend.common.constants import (
     ACQUIRED_DATE,
@@ -94,7 +95,7 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
 
     fx_cache: Dict[str, float] = {}
 
-    for full in full_tickers:
+    for i, full in enumerate(full_tickers):
         resolved = instrument_api._resolve_full_ticker(full, result)
         if resolved:
             ticker, exchange = resolved
@@ -165,6 +166,8 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 sanitise_log_value(full),
                 sanitise_log_value(e),
             )
+        finally:
+            refresh_progress.update(full, i + 1)
 
     logger.info("Latest prices fetched: %d/%d", len(result), len(full_tickers))
     return result

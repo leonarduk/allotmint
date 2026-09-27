@@ -102,6 +102,8 @@
     },
     "operationsLink": "Opérations",
     "refreshing": "Rafraîchissement…",
+    "refreshingProgress": "Rafraîchissement… ({{completed}}/{{total}})",
+    "refreshingTicker": "Récupération de {{ticker}}…",
     "refreshPrices": "Rafraîchir les prix",
     "relativeView": "Vue relative",
     "research": "Recherche",

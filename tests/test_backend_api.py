@@ -274,6 +274,39 @@ def test_prices_refresh(client, mock_refresh_prices):
     assert "status" in resp.json()
 
 
+def test_prices_refresh_progress_reports_idle_state(client):
+    from backend.common import refresh_progress
+
+    refresh_progress.start(0)
+    refresh_progress.finish()
+    resp = client.get("/prices/refresh/progress")
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "running": False,
+        "total": 0,
+        "completed": 0,
+        "current_ticker": None,
+    }
+
+
+def test_prices_refresh_progress_reports_in_flight_state(client):
+    from backend.common import refresh_progress
+
+    refresh_progress.start(5)
+    refresh_progress.update("ABC.L", 2)
+    try:
+        resp = client.get("/prices/refresh/progress")
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "running": True,
+            "total": 5,
+            "completed": 2,
+            "current_ticker": "ABC.L",
+        }
+    finally:
+        refresh_progress.finish()
+
+
 def test_prices_live_explicit_tickers(client, monkeypatch):
     import datetime as dt
 

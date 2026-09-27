@@ -37,7 +37,7 @@ from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
 
-from backend.common import instrument_api
+from backend.common import instrument_api, refresh_progress
 from backend.common.currency import CurrencyNormaliser
 from backend.common.holding_utils import load_latest_prices as _load_latest_prices
 from backend.common.holding_utils import load_live_prices
@@ -297,7 +297,11 @@ def refresh_prices() -> Dict:
     tickers: List[str] = list_all_unique_tickers()
     logger.info("Updating price snapshot for: %s", [sanitise_log_value(t) for t in tickers])
 
-    snapshot = get_price_snapshot(tickers)
+    refresh_progress.start(len(tickers))
+    try:
+        snapshot = get_price_snapshot(tickers)
+    finally:
+        refresh_progress.finish()
 
     # ---- persist to disk --------------------------------------------------
     if not config.prices_json:

@@ -85,6 +85,11 @@ export default function Support() {
     currentTicker: string | null;
   } | null>(null);
   const refreshProgressTimer = useRef<number | null>(null);
+  // Guards against a poll response landing after the refresh itself has
+  // already finished (interval cleared, but the in-flight fetch it kicked
+  // off hasn't resolved yet) — without this, that straggler could briefly
+  // repaint stale progress after the button has already re-enabled.
+  const refreshActive = useRef(false);
   const [logs, setLogs] = useState("");
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState<string | null>(null);
@@ -222,6 +227,7 @@ export default function Support() {
         window.clearInterval(refreshProgressTimer.current);
         refreshProgressTimer.current = null;
       }
+      refreshActive.current = false;
     };
   }, []);
 
@@ -261,6 +267,7 @@ export default function Support() {
     setRefreshing(true);
     setRefreshError(null);
     setRefreshProgress(null);
+    refreshActive.current = true;
 
     // Poll for incremental progress while the refresh runs, so the user sees
     // which ticker is being fetched rather than a static "Refreshing..."
@@ -270,7 +277,7 @@ export default function Support() {
     refreshProgressTimer.current = window.setInterval(() => {
       getRefreshPricesProgress()
         .then((p) => {
-          if (p.running) {
+          if (refreshActive.current && p.running) {
             setRefreshProgress({
               completed: p.completed,
               total: p.total,
@@ -294,6 +301,7 @@ export default function Support() {
     } catch (e) {
       setRefreshError(e instanceof Error ? e.message : String(e));
     } finally {
+      refreshActive.current = false;
       if (refreshProgressTimer.current !== null) {
         window.clearInterval(refreshProgressTimer.current);
         refreshProgressTimer.current = null;

@@ -39,6 +39,13 @@ def start(total: int) -> None:
 
 
 def update(current_ticker: str, completed: int) -> None:
+    """Record progress after processing one ticker.
+
+    ``completed`` counts tickers *attempted*, not tickers priced
+    successfully — callers advance it whether or not that ticker's fetch
+    succeeded, so the bar reliably reaches ``total`` rather than stalling on
+    a skipped/errored ticker.
+    """
     with _lock:
         if not _state["running"]:
             return

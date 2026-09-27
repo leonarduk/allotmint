@@ -558,4 +558,75 @@ describe("Support page", () => {
       await screen.findByRole("button", { name: en.app.refreshPrices }),
     ).toBeInTheDocument();
   });
+
+  it("falls back to the static refreshing label when progress polling fails", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    let resolveRefresh: (v: { status: string; tickers: number }) => void;
+    mockRefreshPrices.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
+    mockGetRefreshPricesProgress.mockRejectedValue(new Error("network error"));
+
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.priceRefresh);
+
+    const btn = await screen.findByRole("button", { name: en.app.refreshPrices });
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+
+    expect(
+      await screen.findByRole("button", { name: en.app.refreshing }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      resolveRefresh!({ status: "ok", tickers: 0 });
+      await Promise.resolve();
+    });
+
+    expect(
+      await screen.findByRole("button", { name: en.app.refreshPrices }),
+    ).toBeInTheDocument();
+  });
+
+  it("stops polling for progress once the component unmounts mid-refresh", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    mockRefreshPrices.mockReturnValue(new Promise(() => {})); // never resolves
+    mockGetRefreshPricesProgress.mockResolvedValue({
+      running: true,
+      total: 10,
+      completed: 1,
+      current_ticker: "AAPL.L",
+    });
+
+    const { unmount } = render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.priceRefresh);
+
+    const btn = await screen.findByRole("button", { name: en.app.refreshPrices });
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    const callsBeforeUnmount = mockGetRefreshPricesProgress.mock.calls.length;
+    expect(callsBeforeUnmount).toBeGreaterThan(0);
+
+    unmount();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(mockGetRefreshPricesProgress.mock.calls.length).toBe(callsBeforeUnmount);
+  });
 });

@@ -437,6 +437,87 @@ def test_rolling_cache_duplicate_cached_dates_collapse_without_save(cache_store)
     assert result.loc[result["Date"].dt.date == day, "Close"].tolist() == [10.0]
 
 
+def test_rolling_cache_saves_on_first_fetch_for_ticker(monkeypatch, tmp_path):
+    """With no cached file yet (``existing.empty``), the first fetch must be saved."""
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+
+    cache_path = cache._cache_path("foo.parquet")
+    assert cache._load_parquet(cache_path).empty
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+
+    result = cache._rolling_cache(
+        lambda **_kwargs: _single_row(cache, window_end),
+        cache_path,
+        {},
+        days=5,
+        ticker="ABC",
+        exchange="L",
+    )
+
+    assert list(result["Date"].dt.date) == [window_end]
+    assert list(cache._load_parquet(cache_path)["Date"].dt.date) == [window_end]
+
+
+@pytest.mark.parametrize("adds_new_date", [False, True], ids=["no_new_dates", "new_date"])
+def test_s3_save_skip_keeps_meta_lru_entries(monkeypatch, adds_new_date):
+    """With an s3:// cache, a skipped save leaves LastModified unchanged, so the meta LRUs survive (#7877).
+
+    S3 is stubbed with an in-memory store: ``_load_parquet``/``_save_parquet``
+    read and write it, and ``head_object`` reports its LastModified. No AWS
+    calls are made.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+
+    cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+    seeded = cache._ensure_schema(
+        pd.concat(
+            [_single_row(cache, d.date()) for d in pd.date_range(cutoff - timedelta(days=2), cutoff)],
+            ignore_index=True,
+        )
+    )
+    cache_path = cache.meta_timeseries_cache_path("ABC", "L")
+    store = {cache_path: (seeded, datetime(2026, 1, 1))}
+    saves = []
+
+    def fake_save(df, path):
+        saves.append(path)
+        store[path] = (cache._ensure_schema(df), store[path][1] + timedelta(hours=1))
+
+    class FakeS3Client:
+        def head_object(self, Bucket, Key):  # noqa: N803 - boto3 API parameter names
+            assert (Bucket, Key) == ("bucket", "timeseries/meta/ABC_L.parquet")
+            return {"LastModified": store[cache_path][1]}
+
+    monkeypatch.setattr(cache, "_load_parquet", lambda path: store[path][0].copy())
+    monkeypatch.setattr(cache, "_save_parquet", fake_save)
+    monkeypatch.setattr(cache, "_s3_client", lambda: FakeS3Client())
+    fetch_day = window_end if adds_new_date else cutoff
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", lambda **_kwargs: _single_row(cache, fetch_day))
+
+    cache._invalidate_meta_caches_if_stale("ABC", "L")
+    mtime_before = cache._s3_object_mtime(cache_path)
+    cache._load_meta_timeseries_cached("ABC", "L", 5)
+    assert cache._load_meta_timeseries_cached.cache_info().currsize == 1
+
+    # Drop the 30s mtime memo so the next check issues a fresh HeadObject.
+    cache.invalidate_s3_cache_metadata(cache_path)
+    mtime_after = cache._s3_object_mtime(cache_path)
+    cache._invalidate_meta_caches_if_stale("ABC", "L")
+
+    if adds_new_date:
+        assert saves == [cache_path]
+        assert mtime_after != mtime_before
+        assert cache._load_meta_timeseries_cached.cache_info().currsize == 0
+    else:
+        assert saves == []
+        assert mtime_after == mtime_before
+        assert cache._load_meta_timeseries_cached.cache_info().currsize == 1
+
+
 def _seed_stale_meta_cache(cache, ticker: str, exchange: str) -> date:
     """Write a meta parquet whose last row is two weekdays before the rolling window end."""
     _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 60)

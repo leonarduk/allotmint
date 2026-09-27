@@ -128,7 +128,6 @@ def _stub_price_sources(monkeypatch, cache, history: pd.DataFrame) -> _Counters:
     monkeypatch.setattr(stooq_mod, "requests", SimpleNamespace(get=fake_stooq_get, exceptions=requests.exceptions))
     monkeypatch.setattr(cache, "fetch_meta_timeseries", meta_mod.fetch_meta_timeseries)
     monkeypatch.setattr(cache, "_save_parquet", counting_save)
-    stooq_mod.reset_stooq_unreachable_cooldown()
     return counters
 
 

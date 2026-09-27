@@ -844,6 +844,27 @@ def _cached_fx_rates(curr: str, start: date, end: date, *, ticker: str, exchange
     return fx
 
 
+def cached_fx_rate_to_gbp(curr: str) -> float | None:
+    """Latest cached ``curr``->GBP rate from the FX cache, without fetching (#8028).
+
+    For point-in-time conversions (a latest price, a portfolio's base
+    currency) where there is no ticker to queue: a missing or stale cache
+    queues the currency itself for a background FX refresh. Returns ``None``
+    when nothing is cached, so the caller picks its own fallback.
+    """
+    curr = (curr or "").strip().upper()
+    if curr == "GBP":
+        return 1.0
+    if not re.fullmatch(r"[A-Z]{3}", curr):
+        return None
+    cached = _cached_fx_frame(curr)
+    if cached.empty or cached["Date"].max().date() < _last_close_target():
+        refresh_queue.enqueue_fx(curr)
+    if cached.empty:
+        return None
+    return float(cached["Rate"].iloc[-1])
+
+
 def refresh_fx_cache(curr: str) -> bool:
     """Append live ``curr``->GBP rates to the FX cache; return whether the file changed.
 

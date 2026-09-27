@@ -7,7 +7,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from functools import lru_cache
+from functools import lru_cache, wraps
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
@@ -32,6 +32,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
 
 from backend.common import portfolio_utils
 from backend.logging_setup import sanitise_log_value
+from backend.timeseries.cache import cache_only
 
 try:
     from backend.common import risk
@@ -1084,6 +1085,25 @@ def _build_portfolio_overview_section(context: ReportContext, section: ReportSec
     return rows
 
 
+def _cache_only_section(builder: Callable[..., Sequence[Dict[str, Any]]]) -> Callable[..., Sequence[Dict[str, Any]]]:
+    """Build a point-in-time aggregate section from cached prices and FX only (#8053).
+
+    Report requests are served synchronously, so like the portfolio page
+    routes (#8028) the sector/region/concentration aggregation must not call
+    Yahoo; stale tickers and currencies are queued for the background refresh.
+    Date-range sections (performance, history, allocation) stay live, since a
+    report over a long range is where a live backfill is wanted.
+    """
+
+    @wraps(builder)
+    def build(*args: Any, **kwargs: Any) -> Sequence[Dict[str, Any]]:
+        with cache_only():
+            return builder(*args, **kwargs)
+
+    return build
+
+
+@_cache_only_section
 def _build_portfolio_sectors_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
     if _is_audit_value_weight_section(section):
         portfolio = context.portfolio()
@@ -1117,6 +1137,7 @@ def _build_portfolio_sectors_section(context: ReportContext, section: ReportSect
     return out
 
 
+@_cache_only_section
 def _build_portfolio_regions_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
     if _is_audit_value_weight_section(section):
         portfolio = context.portfolio()
@@ -1150,6 +1171,7 @@ def _build_portfolio_regions_section(context: ReportContext, section: ReportSect
     return out
 
 
+@_cache_only_section
 def _build_portfolio_concentration_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:

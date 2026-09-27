@@ -171,16 +171,18 @@ def clear_group_portfolio_cache():
 
 @pytest.fixture(autouse=True)
 def reset_stooq_unreachable_cooldown(monkeypatch):
-    """Clear the Stooq unreachable cooldown for each test.
+    """Clear the Stooq unreachable cooldown and per-ticker skips for each test.
 
     A test that simulates a Stooq timeout puts Stooq into a process-wide
-    cooldown (#7877); without this reset, later tests that stub a successful
-    Stooq response would be skipped by that cooldown. monkeypatch restores the
-    pre-test value (0.0) on teardown, undoing any cooldown the test triggered.
+    cooldown (#7877) or skips that ticker (#7913); without this reset, later
+    tests that stub a successful Stooq response would be skipped. monkeypatch
+    restores the pre-test values on teardown, undoing any state the test left.
     """
     from backend.timeseries import fetch_stooq_timeseries
 
     monkeypatch.setattr(fetch_stooq_timeseries, "_STOOQ_UNREACHABLE_UNTIL", 0.0)
+    monkeypatch.setattr(fetch_stooq_timeseries, "_STOOQ_CONSECUTIVE_READ_TIMEOUTS", 0)
+    monkeypatch.setattr(fetch_stooq_timeseries, "_STOOQ_TICKER_SKIP_UNTIL", {})
 
 
 @pytest.fixture

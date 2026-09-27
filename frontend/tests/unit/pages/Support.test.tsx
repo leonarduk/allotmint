@@ -347,6 +347,33 @@ describe("Support page", () => {
     ).toBeChecked();
   });
 
+  it("saves only the fields that changed, not the whole resolved config (#7896)", async () => {
+    mockGetConfig.mockResolvedValue({
+      flag: true,
+      count: 5,
+      theme: "system",
+      data_root: "C:\\Users\\someone\\allotmint-data",
+      error_summary: { enabled: true },
+      tabs: { group: true, owner: true },
+    });
+    mockUpdateConfig.mockResolvedValue(undefined);
+
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+
+    const count = await screen.findByDisplayValue("5");
+    await act(async () => {
+      await userEvent.clear(count);
+      await userEvent.type(count, "7");
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByRole("button", { name: en.support.config.save }));
+    });
+
+    // No untouched resolved paths, no "[object Object]", no unchanged tabs.
+    expect(mockUpdateConfig).toHaveBeenCalledWith({ count: 7 });
+  });
+
   it("separates switches from other parameters", async () => {
     render(<Support />, { wrapper: MemoryRouter });
     await expandSection(en.support.config.title);

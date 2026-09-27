@@ -202,6 +202,10 @@ class TransactionContract(SpaContractBase):
     reason_to_buy: str | None = None
     synthetic: bool = False
     instrument_name: str | None = None
+    realised_gain_gbp: float | None = None
+    cost_basis_gbp: float | None = None
+    proceeds_gbp: float | None = None
+    unmatched_units: float | None = None
 
 
 class ContractEnvelope(SpaContractBase):

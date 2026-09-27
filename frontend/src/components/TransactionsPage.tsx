@@ -23,7 +23,11 @@ import {
   EMPTY_TRANSACTION_FORM_VALUES,
   type TransactionFormValues,
 } from './transactions/transactionForm';
-import { buildBulkDeletionOrder } from './transactions/transactionTable';
+import {
+  buildBulkDeletionOrder,
+  summariseTransactions,
+} from './transactions/transactionTable';
+import { money } from '../lib/money';
 import { TransactionsTable } from './transactions/TransactionsTable';
 import { useTransactionsTableState } from '../hooks/useTransactionsTableState';
 
@@ -124,6 +128,11 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
   useEffect(() => {
     resetToFirstPage();
   }, [owner, account, start, end, pageSize, resetToFirstPage]);
+
+  const summary = useMemo(
+    () => summariseTransactions(transactions ?? []),
+    [transactions]
+  );
 
   const accountOptions = useMemo(() => {
     if (owner) {
@@ -642,6 +651,29 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           {formError && <p style={{ color: 'red' }}>{formError}</p>}
           {formSuccess && <p style={{ color: 'limegreen' }}>{formSuccess}</p>}
           {error && <p style={{ color: 'red' }}>{error.message}</p>}
+
+          {!loading && (transactions?.length ?? 0) > 0 && (
+            <p data-testid="transactions-summary">
+              Realised gain/loss:{' '}
+              <strong
+                className={
+                  summary.realisedGain > 0
+                    ? 'text-positive'
+                    : summary.realisedGain < 0
+                      ? 'text-negative'
+                      : 'text-gray'
+                }
+              >
+                {money(summary.realisedGain, baseCurrency)}
+              </strong>
+              {summary.sellsWithUnknownGain > 0 &&
+                ` (excludes ${summary.sellsWithUnknownGain} sale${
+                  summary.sellsWithUnknownGain === 1 ? '' : 's'
+                } with unknown cost)`}
+              {' · '}Income: {money(summary.income, baseCurrency)}
+              {' · '}Fees: {money(summary.fees, baseCurrency)}
+            </p>
+          )}
 
           {loading ? (
             <p>{t('common.loading')}</p>

@@ -1,4 +1,5 @@
 import datetime as dt
+import importlib
 import logging
 from collections import defaultdict
 
@@ -133,28 +134,26 @@ def test_build_owner_portfolio_logs_total_plot_count_on_miss(monkeypatch, today,
 
 
 def test_build_owner_portfolio_prices_holdings_from_cache_only(monkeypatch, portfolio_stubs):
-    """Holdings are enriched inside timeseries cache-only mode, and only there (#7898)."""
-    from contextlib import contextmanager
+    """Holdings are enriched inside timeseries cache-only mode, and only there (#7898).
 
-    active = [False]
+    Uses the real ``cache_only`` and records the real
+    ``backend.timeseries.cache.is_cache_only()`` at the moment
+    ``enrich_holding`` runs, so the assertion covers the flag the pricing
+    code actually reads rather than a patched context manager (#7927).
+    """
     seen = []
 
-    @contextmanager
-    def recording_cache_only():
-        active[0] = True
-        try:
-            yield
-        finally:
-            active[0] = False
-
     def recording_enrich(holding, *_args, **_kwargs):
-        seen.append(active[0])
+        # Resolve the module at call time: some tests re-import
+        # backend.timeseries.cache, and the conftest autouse fixture
+        # ``restore_timeseries_cache_module`` puts the original back.
+        seen.append(importlib.import_module("backend.timeseries.cache").is_cache_only())
         return {**holding, "market_value_gbp": holding["base_value"]}
 
-    monkeypatch.setattr("backend.common.portfolio.cache_only", recording_cache_only)
     monkeypatch.setattr("backend.common.portfolio.enrich_holding", recording_enrich)
 
     build_owner_portfolio(portfolio_stubs["owner"])
 
+    assert seen, "enrich_holding was never called"
     assert seen == [True, True]
-    assert active[0] is False
+    assert importlib.import_module("backend.timeseries.cache").is_cache_only() is False

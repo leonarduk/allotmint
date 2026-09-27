@@ -1,3 +1,4 @@
+import importlib
 import time
 from unittest.mock import patch
 
@@ -178,19 +179,13 @@ def test_build_group_portfolio_merges_accounts_and_totals():
 
 
 def test_build_group_portfolio_prices_holdings_from_cache_only():
-    """Holdings are enriched inside timeseries cache-only mode, and only there (#7898)."""
-    from contextlib import contextmanager
+    """Holdings are enriched inside timeseries cache-only mode, and only there (#7898).
 
-    active = [False]
-
-    @contextmanager
-    def recording_cache_only():
-        active[0] = True
-        try:
-            yield
-        finally:
-            active[0] = False
-
+    Uses the real ``cache_only`` and records the real
+    ``backend.timeseries.cache.is_cache_only()`` at the moment
+    ``enrich_holding`` runs, so the assertion covers the flag the pricing
+    code actually reads rather than a patched context manager (#7927).
+    """
     mock_portfolios = [
         {"owner": "Lucy", ACCOUNTS: [{"currency": "GBP", HOLDINGS: [{"ticker": "AAA"}, {"ticker": "BBB"}]}]},
         {"owner": "Steve", ACCOUNTS: [{"currency": "GBP", HOLDINGS: [{"ticker": "CCC"}]}]},
@@ -198,7 +193,10 @@ def test_build_group_portfolio_prices_holdings_from_cache_only():
     seen = []
 
     def recording_enrich(h, *_args, **_kwargs):
-        seen.append(active[0])
+        # Resolve the module at call time: some tests re-import
+        # backend.timeseries.cache, and the conftest autouse fixture
+        # ``restore_timeseries_cache_module`` puts the original back.
+        seen.append(importlib.import_module("backend.timeseries.cache").is_cache_only())
         return h
 
     with (
@@ -210,9 +208,9 @@ def test_build_group_portfolio_prices_holdings_from_cache_only():
         patch("backend.common.group_portfolio.load_approvals", return_value={}),
         patch("backend.common.group_portfolio.load_user_config", return_value={}),
         patch("backend.common.group_portfolio.enrich_holding", side_effect=recording_enrich),
-        patch("backend.common.group_portfolio.cache_only", recording_cache_only),
     ):
         group_portfolio.build_group_portfolio("adults")
 
+    assert seen, "enrich_holding was never called"
     assert seen == [True, True, True]
-    assert active[0] is False
+    assert importlib.import_module("backend.timeseries.cache").is_cache_only() is False

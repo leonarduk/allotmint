@@ -437,6 +437,31 @@ def test_rolling_cache_duplicate_cached_dates_collapse_without_save(cache_store)
     assert result.loc[result["Date"].dt.date == day, "Close"].tolist() == [10.0]
 
 
+@pytest.mark.parametrize("nat_date", [True, False], ids=["all_na_incl_date", "cached_date_all_na_values"])
+def test_rolling_cache_all_na_fetch_does_not_save(cache_store, nat_date):
+    """An all-NA fetch over a non-empty cache neither saves nor overwrites (#7877, #7914).
+
+    A NaT-dated frame is dropped by ``_ensure_schema`` before the merge; a cached
+    date with all-NaN values reaches ``_merge_fetched`` but has no Close, so it is
+    not a correction.
+    """
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    fetched = pd.DataFrame(
+        {
+            "Date": [pd.NaT if nat_date else pd.Timestamp(day)],
+            **{col: [float("nan")] for col in ("Open", "High", "Low", "Close", "Volume")},
+            "Ticker": [None],
+            "Source": [None],
+        }
+    )
+
+    result = _run(cache, cache_path, fetched)
+
+    assert saves == []
+    assert result.loc[result["Date"].dt.date == day, "Close"].tolist() == [10.0]
+
+
 def test_rolling_cache_saves_on_first_fetch_for_ticker(monkeypatch, tmp_path):
     """With no cached file yet (``existing.empty``), the first fetch must be saved."""
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))

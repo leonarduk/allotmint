@@ -14,8 +14,10 @@ single request. Two fixes followed:
 These tests drive both paths end to end with Stooq timing out. The page build
 must make no live calls at all. The background refresh is where the #7877
 guarantees now matter: one Stooq HTTP attempt for the stale ticker, including
-a second refresh within the cooldown, and no rewrite of its parquet. They
-assert call counts, not wall-clock time.
+a second refresh within the cooldown, and no rewrite of its parquet. A
+further test (#7958) shows the cooldown alone suppresses Stooq: two stale
+tickers in one refresh, no meta LRU clearing, and only the first reaches
+Stooq. They assert call counts, not wall-clock time.
 """
 
 from __future__ import annotations
@@ -35,6 +37,8 @@ from backend.config import config
 TICKER = "COLDX"
 EXCHANGE = "L"
 FULL_TICKER = f"{TICKER}.{EXCHANGE}"
+OTHER_TICKER = "COLDY"
+OTHER_FULL_TICKER = f"{OTHER_TICKER}.{EXCHANGE}"
 OWNER = "alice"
 
 
@@ -42,10 +46,12 @@ class _Counters:
     def __init__(self) -> None:
         self.stooq_http = 0
         self.yahoo = 0
+        self.yahoo_tickers: list[str] = []
+        self.stooq_symbols: list[str] = []
         self.saves: list[str] = []
 
 
-def _stale_history(cache) -> pd.DataFrame:
+def _stale_history(cache, ticker: str = TICKER) -> pd.DataFrame:
     """Daily closes ending one weekday before the window the cache wants."""
     _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 60)
     dates = pd.bdate_range(end=window_end - timedelta(days=1), periods=400)
@@ -59,7 +65,7 @@ def _stale_history(cache) -> pd.DataFrame:
                 "Low": 100.0,
                 "Close": 100.0,
                 "Volume": 1,
-                "Ticker": TICKER,
+                "Ticker": ticker,
                 "Source": "Yahoo",
             }
         )
@@ -97,16 +103,19 @@ def _stub_portfolio(monkeypatch) -> None:
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT_TS", None)
 
 
-def _stub_refresh(monkeypatch) -> None:
-    """The background refresh sees only the stale ticker and writes no file."""
-    monkeypatch.setattr(portfolio_utils, "list_all_unique_tickers", lambda: [FULL_TICKER])
+def _stub_refresh(monkeypatch, tickers: tuple[str, ...] = (FULL_TICKER,)) -> None:
+    """The background refresh sees only the given stale tickers and writes no file."""
+    monkeypatch.setattr(portfolio_utils, "list_all_unique_tickers", lambda: list(tickers))
     monkeypatch.setattr(portfolio_utils, "_PRICES_PATH", None)
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT_TS", None)
 
 
-def _stub_price_sources(monkeypatch, cache, history: pd.DataFrame) -> _Counters:
-    """Yahoo returns only already-cached rows, Stooq times out, the rest are empty."""
+def _stub_price_sources(monkeypatch, cache, histories: dict[str, pd.DataFrame]) -> _Counters:
+    """Yahoo returns only already-cached rows, Stooq times out, the rest are empty.
+
+    ``histories`` maps each bare ticker to its cached history.
+    """
     meta_mod = importlib.import_module("backend.timeseries.fetch_meta_timeseries")
     stooq_mod = importlib.import_module("backend.timeseries.fetch_stooq_timeseries")
     counters = _Counters()
@@ -114,10 +123,12 @@ def _stub_price_sources(monkeypatch, cache, history: pd.DataFrame) -> _Counters:
     def fake_yahoo(ticker, exchange, start_date, end_date):
         # Like ISXF on a weekend: the provider has nothing newer than the cache.
         counters.yahoo += 1
-        return history.tail(1).copy()
+        counters.yahoo_tickers.append(ticker)
+        return histories[ticker].tail(1).copy()
 
     def fake_stooq_get(url, *args, **kwargs):
         counters.stooq_http += 1
+        counters.stooq_symbols.append(kwargs["params"]["s"])
         raise requests.exceptions.Timeout("stooq unreachable")
 
     real_save = cache._save_parquet
@@ -144,6 +155,14 @@ def _clear_meta_caches(cache) -> None:
     cache._CACHE_FILE_MTIMES.clear()
 
 
+def _seed_stale_parquet(cache, ticker: str) -> tuple[pd.DataFrame, str]:
+    """Write a stale history for ``ticker`` to its meta cache parquet."""
+    history = _stale_history(cache, ticker)
+    path = cache.meta_timeseries_cache_path(ticker, EXCHANGE)
+    cache._save_parquet(history, path)
+    return history, path
+
+
 @pytest.fixture
 def cold_cache(monkeypatch, tmp_path):
     """A live-mode meta cache under ``tmp_path`` holding one stale ticker."""
@@ -153,9 +172,7 @@ def cold_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(cache, "OFFLINE_MODE", False)
     _clear_meta_caches(cache)
 
-    history = _stale_history(cache)
-    path = cache.meta_timeseries_cache_path(TICKER, EXCHANGE)
-    cache._save_parquet(history, path)
+    history, path = _seed_stale_parquet(cache, TICKER)
 
     yield cache, history, path
 
@@ -165,7 +182,7 @@ def cold_cache(monkeypatch, tmp_path):
 def test_cold_group_build_prices_stale_ticker_from_cache_without_fetching(monkeypatch, cold_cache):
     cache, history, path = cold_cache
     _stub_portfolio(monkeypatch)
-    counters = _stub_price_sources(monkeypatch, cache, history)
+    counters = _stub_price_sources(monkeypatch, cache, {TICKER: history})
 
     built = group_portfolio.build_group_portfolio("all")
 
@@ -179,7 +196,7 @@ def test_cold_group_build_prices_stale_ticker_from_cache_without_fetching(monkey
 def test_background_refresh_makes_one_stooq_attempt_for_stale_ticker(monkeypatch, cold_cache):
     cache, history, path = cold_cache
     _stub_refresh(monkeypatch)
-    counters = _stub_price_sources(monkeypatch, cache, history)
+    counters = _stub_price_sources(monkeypatch, cache, {TICKER: history})
     mtime_before = os.stat(path).st_mtime_ns
 
     portfolio_utils.refresh_snapshot_in_memory_from_timeseries()
@@ -204,3 +221,33 @@ def test_background_refresh_makes_one_stooq_attempt_for_stale_ticker(monkeypatch
     assert counters.stooq_http == 1
     assert counters.saves == []
     assert os.stat(path).st_mtime_ns == mtime_before
+
+
+def test_stooq_cooldown_alone_suppresses_second_ticker_without_lru_clear(monkeypatch, cold_cache):
+    """The Stooq cooldown, not an LRU hit, stops the second Stooq call (#7958).
+
+    Two stale tickers have distinct LRU keys, so one refresh must take the live
+    fetch path for each without any cache clearing. The first ticker's Stooq
+    timeout starts the global cooldown; the second ticker still reaches the
+    fetch path (Yahoo is called for it) but must not reach Stooq.
+    """
+    cache, history, path = cold_cache
+    other_history, other_path = _seed_stale_parquet(cache, OTHER_TICKER)
+    _stub_refresh(monkeypatch, (FULL_TICKER, OTHER_FULL_TICKER))
+    counters = _stub_price_sources(monkeypatch, cache, {TICKER: history, OTHER_TICKER: other_history})
+    mtimes_before = {p: os.stat(p).st_mtime_ns for p in (path, other_path)}
+
+    portfolio_utils.refresh_snapshot_in_memory_from_timeseries()
+
+    # Both tickers reached the live fetch path, so the second Stooq call was
+    # suppressed by the cooldown rather than answered from an LRU.
+    assert TICKER in counters.yahoo_tickers
+    assert OTHER_TICKER in counters.yahoo_tickers
+    assert counters.stooq_http == 1
+    assert counters.stooq_symbols == [f"{TICKER}.UK"]
+    assert counters.saves == []
+    assert {p: os.stat(p).st_mtime_ns for p in (path, other_path)} == mtimes_before
+    for full_ticker, hist in ((FULL_TICKER, history), (OTHER_FULL_TICKER, other_history)):
+        entry = portfolio_utils._PRICE_SNAPSHOT[full_ticker]
+        assert entry["last_price"] == pytest.approx(100.0)
+        assert entry["last_price_date"] == hist["Date"].iloc[-1].strftime("%Y-%m-%d")

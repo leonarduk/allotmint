@@ -170,18 +170,42 @@ def clear_group_portfolio_cache():
 
 
 @pytest.fixture(autouse=True)
-def reset_stooq_unreachable_cooldown():
-    """Clear the Stooq unreachable cooldown and per-ticker skips between tests.
+def reset_stooq_unreachable_cooldown(monkeypatch):
+    """Clear the Stooq unreachable cooldown and per-ticker skips for each test.
 
     A test that simulates a Stooq timeout puts Stooq into a process-wide
     cooldown (#7877) or skips that ticker (#7913); without this reset, later
-    tests that stub a successful Stooq response would be skipped.
+    tests that stub a successful Stooq response would be skipped. monkeypatch
+    restores the pre-test values on teardown, undoing any state the test left.
     """
     from backend.timeseries import fetch_stooq_timeseries
 
-    fetch_stooq_timeseries.reset_stooq_unreachable_cooldown()
+    monkeypatch.setattr(fetch_stooq_timeseries, "_STOOQ_UNREACHABLE_UNTIL", 0.0)
+    monkeypatch.setattr(fetch_stooq_timeseries, "_STOOQ_CONSECUTIVE_READ_TIMEOUTS", 0)
+    monkeypatch.setattr(fetch_stooq_timeseries, "_STOOQ_TICKER_SKIP_UNTIL", {})
+
+
+@pytest.fixture(autouse=True)
+def restore_timeseries_cache_module():
+    """Put the original ``backend.timeseries.cache`` back after each test.
+
+    Some tests pop the module from ``sys.modules`` and re-import it to get
+    fresh module state. Without this, the fresh copy leaks into later tests:
+    they patch it via ``importlib.import_module`` while modules that did
+    ``from backend.timeseries.cache import ...`` at import time
+    (``holding_utils``, ``portfolio_utils``, ``group_portfolio``, ...) still
+    call the original. A later test's result then depends on whether a
+    reload test ran before it (#7990).
+    """
+    import sys
+
+    from backend import timeseries
+
+    original = sys.modules.get("backend.timeseries.cache")
     yield
-    fetch_stooq_timeseries.reset_stooq_unreachable_cooldown()
+    if original is not None and sys.modules.get("backend.timeseries.cache") is not original:
+        sys.modules["backend.timeseries.cache"] = original
+        timeseries.cache = original
 
 
 @pytest.fixture(autouse=True)

@@ -67,14 +67,6 @@ def _record_stooq_responded() -> None:
     _STOOQ_CONSECUTIVE_READ_TIMEOUTS = 0
 
 
-def reset_stooq_unreachable_cooldown() -> None:
-    """Clear the unreachable cooldown and per-ticker skips (used by tests)."""
-    global _STOOQ_UNREACHABLE_UNTIL, _STOOQ_CONSECUTIVE_READ_TIMEOUTS
-    _STOOQ_UNREACHABLE_UNTIL = 0.0
-    _STOOQ_CONSECUTIVE_READ_TIMEOUTS = 0
-    _STOOQ_TICKER_SKIP_UNTIL.clear()
-
-
 def _handle_stooq_timeout(exc: Exception, full_ticker: str) -> pd.DataFrame:
     """Apply the per-ticker skip or global cooldown for a timeout/connection error."""
     if isinstance(exc, requests.exceptions.ReadTimeout):

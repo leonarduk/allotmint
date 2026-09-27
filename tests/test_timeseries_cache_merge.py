@@ -209,10 +209,11 @@ def _single_row(cache, day: date) -> pd.DataFrame:
 
 
 def test_rolling_cache_skips_save_when_fetch_adds_no_new_dates(monkeypatch, tmp_path):
-    """A fetch that only returns already-cached dates must not rewrite the file (#7877).
+    """A fetch that only re-returns identical cached rows must not rewrite the file (#7877).
 
     Rewriting bumps the mtime, which clears every ticker's meta LRU entries and
-    re-triggers the same fetch on the next lookup.
+    re-triggers the same fetch on the next lookup. (Before #7914 this fetched a
+    *different* Close for the cached date; that is now a correction and is saved.)
     """
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
     cache = import_cache()
@@ -226,7 +227,7 @@ def test_rolling_cache_skips_save_when_fetch_adds_no_new_dates(monkeypatch, tmp_
     monkeypatch.setattr(cache, "_save_parquet", lambda df, path: saves.append(path))
 
     result = cache._rolling_cache(
-        lambda **_kwargs: _single_row(cache, last_cached),
+        lambda **_kwargs: expected.loc[expected["Date"].dt.date == last_cached].copy(),
         cache_path,
         {},
         days=5,
@@ -259,6 +260,287 @@ def test_rolling_cache_saves_when_fetch_adds_new_date(monkeypatch, tmp_path):
 
     assert window_end in set(result["Date"].dt.date)
     assert window_end in set(cache._load_parquet(cache_path)["Date"].dt.date)
+
+
+def _day_frame(cache, day: date, close: float, *, source: str = "SRC") -> pd.DataFrame:
+    return cache._ensure_schema(
+        pd.DataFrame(
+            {
+                "Date": [pd.Timestamp(day)],
+                "Open": [close],
+                "High": [close],
+                "Low": [close],
+                "Close": [close],
+                "Volume": [100],
+                "Ticker": ["ABC"],
+                "Source": [source],
+            }
+        )
+    )
+
+
+@pytest.fixture(params=["local", "s3"])
+def cache_store(request, monkeypatch, tmp_path):
+    """Yield ``(cache, cache_path, saves)`` for a local-disk or an ``s3://`` cache base.
+
+    The S3 variant keeps the parquet in memory by stubbing ``_load_parquet`` /
+    ``_save_parquet``, so the merge/skip decision is exercised against an
+    ``s3://`` path without network access.
+    """
+    saves: list[pd.DataFrame] = []
+    if request.param == "local":
+        monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+        cache = import_cache()
+        real_save = cache._save_parquet
+
+        def recording_save(df, path):
+            saves.append(df.copy())
+            real_save(df, path)
+
+        monkeypatch.setattr(cache, "_save_parquet", recording_save)
+    else:
+        monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/ts")
+        cache = import_cache()
+        store: dict[str, pd.DataFrame] = {}
+
+        def fake_save(df, path):
+            saves.append(df.copy())
+            store[path] = cache._ensure_schema(df.copy())
+
+        monkeypatch.setattr(cache, "_save_parquet", fake_save)
+        monkeypatch.setattr(cache, "_load_parquet", lambda path: store.get(path, cache._empty_ts()).copy())
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    cache_path = cache._cache_path("foo.parquet")
+    if request.param == "s3":
+        assert cache_path.startswith("s3://")
+    return cache, cache_path, saves
+
+
+def _seed_close_10(cache, cache_path, saves) -> date:
+    """Cache Close=10 for the day before the window end (so the next call fetches)."""
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+    day = window_end - timedelta(days=1)
+    cache._save_parquet(_day_frame(cache, day, 10.0), cache_path)
+    saves.clear()
+    return day
+
+
+def _run(cache, cache_path, fetched: pd.DataFrame) -> pd.DataFrame:
+    return cache._rolling_cache(lambda **_kwargs: fetched, cache_path, {}, days=5, ticker="ABC", exchange="L")
+
+
+def test_rolling_cache_persists_corrected_close_for_cached_date(cache_store):
+    """Cached Close=10 for D, fetch returns Close=11 for D: the correction wins and is saved (#7914)."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+
+    result = _run(cache, cache_path, _day_frame(cache, day, 11.0, source="Yahoo"))
+
+    assert len(saves) == 1
+    stored = cache._load_parquet(cache_path)
+    assert list(stored["Date"].dt.date) == [day]
+    assert stored["Close"].tolist() == [11.0]
+    assert stored["Source"].tolist() == ["Yahoo"]
+    assert result.loc[result["Date"].dt.date == day, "Close"].tolist() == [11.0]
+
+
+def test_rolling_cache_identical_refetch_does_not_save(cache_store):
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+
+    result = _run(cache, cache_path, _day_frame(cache, day, 10.0))
+
+    assert saves == []
+    assert result["Close"].tolist() == [10.0]
+
+
+def test_rolling_cache_ignores_float_noise_and_source_only_changes(cache_store):
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+
+    result = _run(cache, cache_path, _day_frame(cache, day, 10.0 * (1 + 1e-12), source="Stooq"))
+
+    assert saves == []
+    assert result["Close"].tolist() == [10.0]
+    assert result["Source"].tolist() == ["SRC"]
+
+
+def test_rolling_cache_fetched_row_without_close_does_not_overwrite(cache_store):
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    fetched = _day_frame(cache, day, 11.0)
+    fetched["Close"] = float("nan")
+
+    result = _run(cache, cache_path, fetched)
+
+    assert saves == []
+    assert result["Close"].tolist() == [10.0]
+
+
+def test_rolling_cache_saves_correction_and_new_date_together(cache_store):
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    new_day = day + timedelta(days=1)
+    fetched = pd.concat([_day_frame(cache, day, 11.0), _day_frame(cache, new_day, 12.0)], ignore_index=True)
+
+    result = _run(cache, cache_path, fetched)
+
+    assert len(saves) == 1
+    assert dict(zip(result["Date"].dt.date, result["Close"])) == {day: 11.0, new_day: 12.0}
+    stored = cache._load_parquet(cache_path)
+    assert dict(zip(stored["Date"].dt.date, stored["Close"])) == {day: 11.0, new_day: 12.0}
+
+
+def test_rolling_cache_persists_volume_only_correction(cache_store):
+    """A correction to a value column other than Close (here Volume) is also saved (#7914)."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    fetched = _day_frame(cache, day, 10.0)
+    fetched["Volume"] = 200
+
+    result = _run(cache, cache_path, fetched)
+
+    assert len(saves) == 1
+    assert result.loc[result["Date"].dt.date == day, "Volume"].tolist() == [200]
+    stored = cache._load_parquet(cache_path)
+    assert stored.loc[stored["Date"].dt.date == day, "Volume"].tolist() == [200]
+
+
+def test_rolling_cache_duplicate_fetched_dates_keep_last_row(cache_store):
+    """A fetch returning the same cached date twice applies the last row once (#7914)."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    fetched = pd.concat([_day_frame(cache, day, 10.5), _day_frame(cache, day, 11.0)], ignore_index=True)
+
+    result = _run(cache, cache_path, fetched)
+
+    assert len(saves) == 1
+    assert result.loc[result["Date"].dt.date == day, "Close"].tolist() == [11.0]
+    stored = cache._load_parquet(cache_path)
+    assert stored.loc[stored["Date"].dt.date == day, "Close"].tolist() == [11.0]
+
+
+def test_rolling_cache_duplicate_cached_dates_collapse_without_save(cache_store):
+    """A cache holding a date twice serves it once, and an identical fetch still skips the save."""
+    cache, cache_path, saves = cache_store
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+    day = window_end - timedelta(days=1)
+    cache._save_parquet(
+        pd.concat([_day_frame(cache, day, 10.0), _day_frame(cache, day, 10.0)], ignore_index=True),
+        cache_path,
+    )
+    saves.clear()
+
+    result = _run(cache, cache_path, _day_frame(cache, day, 10.0))
+
+    assert saves == []
+    assert result.loc[result["Date"].dt.date == day, "Close"].tolist() == [10.0]
+
+
+@pytest.mark.parametrize("nat_date", [True, False], ids=["all_na_incl_date", "cached_date_all_na_values"])
+def test_rolling_cache_all_na_fetch_does_not_save(cache_store, nat_date):
+    """An all-NA fetch over a non-empty cache neither saves nor overwrites (#7877, #7914).
+
+    A NaT-dated frame is dropped by ``_ensure_schema`` before the merge; a cached
+    date with all-NaN values reaches ``_merge_fetched`` but has no Close, so it is
+    not a correction.
+    """
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    fetched = pd.DataFrame(
+        {
+            "Date": [pd.NaT if nat_date else pd.Timestamp(day)],
+            **{col: [float("nan")] for col in ("Open", "High", "Low", "Close", "Volume")},
+            "Ticker": [None],
+            "Source": [None],
+        }
+    )
+
+    result = _run(cache, cache_path, fetched)
+
+    assert saves == []
+    assert result.loc[result["Date"].dt.date == day, "Close"].tolist() == [10.0]
+
+
+def test_rolling_cache_saves_on_first_fetch_for_ticker(monkeypatch, tmp_path):
+    """With no cached file yet (``existing.empty``), the first fetch must be saved."""
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+
+    cache_path = cache._cache_path("foo.parquet")
+    assert cache._load_parquet(cache_path).empty
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+
+    result = cache._rolling_cache(
+        lambda **_kwargs: _single_row(cache, window_end),
+        cache_path,
+        {},
+        days=5,
+        ticker="ABC",
+        exchange="L",
+    )
+
+    assert list(result["Date"].dt.date) == [window_end]
+    assert list(cache._load_parquet(cache_path)["Date"].dt.date) == [window_end]
+
+
+@pytest.mark.parametrize("adds_new_date", [False, True], ids=["no_new_dates", "new_date"])
+def test_s3_save_skip_keeps_meta_lru_entries(monkeypatch, adds_new_date):
+    """With an s3:// cache, a skipped save leaves LastModified unchanged, so the meta LRUs survive (#7877).
+
+    S3 is stubbed with an in-memory store: ``_load_parquet``/``_save_parquet``
+    read and write it, and ``head_object`` reports its LastModified. No AWS
+    calls are made.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+
+    cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+    seeded = cache._ensure_schema(
+        pd.concat(
+            [_single_row(cache, d.date()) for d in pd.date_range(cutoff - timedelta(days=2), cutoff)],
+            ignore_index=True,
+        )
+    )
+    cache_path = cache.meta_timeseries_cache_path("ABC", "L")
+    store = {cache_path: (seeded, datetime(2026, 1, 1))}
+    saves = []
+
+    def fake_save(df, path):
+        saves.append(path)
+        store[path] = (cache._ensure_schema(df), store[path][1] + timedelta(hours=1))
+
+    class FakeS3Client:
+        def head_object(self, Bucket, Key):  # noqa: N803 - boto3 API parameter names
+            assert (Bucket, Key) == ("bucket", "timeseries/meta/ABC_L.parquet")
+            return {"LastModified": store[cache_path][1]}
+
+    monkeypatch.setattr(cache, "_load_parquet", lambda path: store[path][0].copy())
+    monkeypatch.setattr(cache, "_save_parquet", fake_save)
+    monkeypatch.setattr(cache, "_s3_client", lambda: FakeS3Client())
+    fetch_day = window_end if adds_new_date else cutoff
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", lambda **_kwargs: _single_row(cache, fetch_day))
+
+    cache._invalidate_meta_caches_if_stale("ABC", "L")
+    mtime_before = cache._s3_object_mtime(cache_path)
+    cache._load_meta_timeseries_cached("ABC", "L", 5)
+    assert cache._load_meta_timeseries_cached.cache_info().currsize == 1
+
+    # Drop the 30s mtime memo so the next check issues a fresh HeadObject.
+    cache.invalidate_s3_cache_metadata(cache_path)
+    mtime_after = cache._s3_object_mtime(cache_path)
+    cache._invalidate_meta_caches_if_stale("ABC", "L")
+
+    if adds_new_date:
+        assert saves == [cache_path]
+        assert mtime_after != mtime_before
+        assert cache._load_meta_timeseries_cached.cache_info().currsize == 0
+    else:
+        assert saves == []
+        assert mtime_after == mtime_before
+        assert cache._load_meta_timeseries_cached.cache_info().currsize == 1
 
 
 def _seed_stale_meta_cache(cache, ticker: str, exchange: str) -> date:

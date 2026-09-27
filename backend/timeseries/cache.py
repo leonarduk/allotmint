@@ -26,6 +26,7 @@ from typing import Callable, Dict
 from urllib.parse import quote
 
 import boto3
+import numpy as np
 import pandas as pd
 import requests
 from botocore.config import Config
@@ -222,6 +223,46 @@ def _save_parquet(df: pd.DataFrame, path: str) -> None:
 # ──────────────────────────────────────────────────────────────
 # Rolling parquet cache (disk/S3)
 # ──────────────────────────────────────────────────────────────
+# Columns whose change on an already-cached date counts as a correction.
+_VALUE_COLS = ["Open", "High", "Low", "Close", "Volume"]
+
+
+def _value_matrix(df: pd.DataFrame) -> np.ndarray:
+    return df[_VALUE_COLS].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
+
+
+def _merge_fetched(existing: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
+    """Merge ``new`` into ``existing`` by calendar date.
+
+    Returns ``(combined, changed)``. A fetched row replaces the cached row for
+    the same date when any value column differs (a source correcting a price),
+    but only if the fetched row has a Close -- a row without one carries no
+    usable correction. Differences within float noise (rtol=1e-9) and NaN on
+    both sides count as equal, so re-fetching identical data leaves ``changed``
+    False and the parquet (and its mtime) untouched (#7877, #7914).
+
+    Only ``_VALUE_COLS`` are compared. When a cached date is kept, its other
+    columns (``Source``, ``Ticker``) are kept too, so a re-fetch that changes
+    only ``Source`` does not update the stored provenance.
+    """
+    existing = existing.loc[~existing["Date"].dt.date.duplicated()]
+    new = new.loc[~new["Date"].dt.date.duplicated(keep="last")]
+    cached_rows = pd.Series(range(len(existing)), index=existing["Date"].dt.date)
+    new_dates = new["Date"].dt.date
+    overlap = new.loc[new_dates.isin(cached_rows.index).to_numpy()]
+    added = new.loc[~new_dates.isin(cached_rows.index).to_numpy()]
+
+    before = _value_matrix(existing.iloc[cached_rows[overlap["Date"].dt.date].to_numpy()])
+    after = _value_matrix(overlap)
+    differs = ~np.isclose(before, after, rtol=1e-9, atol=0.0, equal_nan=True).all(axis=1)
+    corrected = overlap.loc[differs & overlap["Close"].notna().to_numpy()]
+
+    kept = existing.loc[~existing["Date"].dt.date.isin(set(corrected["Date"].dt.date)).to_numpy()]
+    frames = [df for df in (kept, corrected, added) if not df.empty and df.notna().any().any()]
+    combined = pd.concat(frames, ignore_index=True).sort_values("Date").reset_index(drop=True)
+    return combined, not added.empty or not corrected.empty
+
+
 def _rolling_cache(
     fetch_func: Callable[..., pd.DataFrame],
     cache_path: str,
@@ -295,25 +336,25 @@ def _rolling_cache(
         ex["Date"] = ex["Date"].dt.date
         return _ensure_schema(ex[ex["Date"] >= cutoff].reset_index(drop=True))
 
-    # Merge and dedupe by Date, skipping empty/all-NA frames to avoid
-    # pandas concat dtype warnings and object coercion
-    frames = [df for df in (existing, new) if not df.empty and df.notna().any().any()]
-    if not frames:
-        logger.warning("No timeseries data for %s.%s", _sanitize_for_log(ticker), _sanitize_for_log(exchange))
-        return _empty_ts()
-    combined = (
-        pd.concat(frames, ignore_index=True).drop_duplicates(subset="Date").sort_values("Date").reset_index(drop=True)
-    )
-    # Only rewrite when the fetch added dates: a no-op save still bumps the
-    # file's mtime, which makes _invalidate_meta_caches_if_stale clear every
-    # ticker's LRU entries and re-triggers this fetch on the next lookup (#7877).
-    # Compare calendar dates so a timestamp-resolution difference between the
-    # cached and fetched frames can't masquerade as a new row.
-    if existing.empty or not set(combined["Date"].dt.date).issubset(set(existing["Date"].dt.date)):
+    if existing.empty:
+        # Skip all-NA frames to avoid pandas concat dtype warnings/object coercion.
+        if not new.notna().any().any():
+            logger.warning("No timeseries data for %s.%s", _sanitize_for_log(ticker), _sanitize_for_log(exchange))
+            return _empty_ts()
+        combined = new.loc[~new["Date"].dt.date.duplicated(keep="last")].sort_values("Date").reset_index(drop=True)
+        changed = True
+    else:
+        # Fetched rows win on date collisions only when they change a value, so
+        # source corrections are persisted (#7914) while an identical re-fetch
+        # is not: a no-op save still bumps the file's mtime, which makes
+        # _invalidate_meta_caches_if_stale clear every ticker's LRU entries and
+        # re-triggers this fetch on the next lookup (#7877).
+        combined, changed = _merge_fetched(existing, new)
+    if changed:
         _save_parquet(combined, cache_path)
     else:
         logger.debug(
-            "No new dates for %s.%s; leaving cache untouched",
+            "No new or corrected rows for %s.%s; leaving cache untouched",
             sanitise_log_value(ticker),
             sanitise_log_value(exchange),
         )

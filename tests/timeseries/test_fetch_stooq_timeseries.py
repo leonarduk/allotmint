@@ -325,19 +325,3 @@ def test_connection_cooldown_resets_consecutive_read_timeouts(monkeypatch):
 
     monkeypatch.setattr(fst.requests, "get", _ok_response)
     assert not fst.fetch_stooq_timeseries_range("OTHER", "L", date(2024, 1, 1), date(2024, 1, 1)).empty
-
-
-def test_reset_clears_per_ticker_skip(monkeypatch):
-    """The test reset hook clears per-ticker skips as well as the global cooldown."""
-    monkeypatch.setattr(fst, "is_valid_ticker", lambda *a, **k: True)
-    monkeypatch.setattr(fst, "monotonic", lambda: 1000.0)
-
-    def timeout_get(*a, **k):
-        raise requests.exceptions.ReadTimeout
-
-    monkeypatch.setattr(fst.requests, "get", timeout_get)
-    fst.fetch_stooq_timeseries_range("SLOW", "L", date(2024, 1, 1), date(2024, 1, 1))
-
-    fst.reset_stooq_unreachable_cooldown()
-    monkeypatch.setattr(fst.requests, "get", _ok_response)
-    assert not fst.fetch_stooq_timeseries_range("SLOW", "L", date(2024, 1, 1), date(2024, 1, 1)).empty

@@ -14,6 +14,20 @@ building ``instrument_api``'s in-memory price map) default to
 ``report_progress=False`` and pass an unrelated, differently-sized ticker
 list, so they can never overwrite the refresh job's progress with their own
 counts — even if they happen to run concurrently with a tracked refresh.
+
+Known limitation: on Lambda, this state lives in one container's memory.
+``POST /prices/refresh`` and a later ``GET /prices/refresh/progress`` poll
+are separate invocations and can land on different warm instances; when
+they do, the poll sees the idle default (``running: False``) even though a
+refresh is genuinely in progress elsewhere. This degrades to the pre-this-
+feature behaviour (a static "Refreshing..." label) rather than to anything
+incorrect or worse, since the frontend already treats "no progress data"
+as its fallback case — but it does mean the progress bar isn't guaranteed
+to appear on every refresh in that deployment topology. Making it reliable
+there needs a shared store (e.g. a DynamoDB/S3-backed progress key) or
+sticky routing between the two calls; deliberately not built here, since
+this is a best-effort status signal for a Low Value UX issue (#8015), not
+a distributed job-tracking system. Tracked as a follow-up: #8055.
 """
 
 from __future__ import annotations

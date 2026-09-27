@@ -39,6 +39,7 @@ from backend.common.portfolio_cache import cached_group_portfolio, invalidate_gr
 from backend.config import config, demo_identity
 from backend.logging_setup import sanitise_exception_traceback, sanitise_log_value
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
+from backend.timeseries.cache import cache_only
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import resolve_date_range
 
@@ -572,7 +573,9 @@ def portfolio_sectors(owner: str, request: Request, as_of: str | None = None):
         log_owner_not_found(owner)
         raise HTTPException(status_code=404, detail="Owner not found")
 
-    return portfolio_utils.aggregate_by_sector(portfolio_data)
+    # Page request: aggregation reads cached prices and FX only (#8028).
+    with cache_only():
+        return portfolio_utils.aggregate_by_sector(portfolio_data)
 
 
 @router.get("/var/{owner}")
@@ -745,7 +748,9 @@ def group_instruments(
     else:
         portfolio_for_aggregation = gp
 
-    return portfolio_utils.aggregate_by_ticker(portfolio_for_aggregation)
+    # Page request: aggregation reads cached prices and FX only (#8028).
+    with cache_only():
+        return portfolio_utils.aggregate_by_ticker(portfolio_for_aggregation)
 
 
 @router.get("/portfolio-group/{slug}/sectors")
@@ -755,7 +760,8 @@ def group_sectors(slug: str, as_of: str | None = None):
         gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
-    return portfolio_utils.aggregate_by_sector(gp)
+    with cache_only():
+        return portfolio_utils.aggregate_by_sector(gp)
 
 
 @router.get("/portfolio-group/{slug}/regions")
@@ -765,7 +771,8 @@ def group_regions(slug: str, as_of: str | None = None):
         gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
-    return portfolio_utils.aggregate_by_region(gp)
+    with cache_only():
+        return portfolio_utils.aggregate_by_region(gp)
 
 
 @router.get("/portfolio-group/{slug}/exposure", response_model=GroupExposureResponse)

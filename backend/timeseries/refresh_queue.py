@@ -47,6 +47,7 @@ _lock = threading.Lock()
 _pending: dict[tuple[str, str], None] = {}  # insertion-ordered set
 _last_attempt: dict[tuple[str, str], float] = {}
 _worker: threading.Thread | None = None
+_lambda_skip_logged = False
 
 
 def _in_lambda() -> bool:
@@ -55,9 +56,17 @@ def _in_lambda() -> bool:
 
 def enqueue(ticker: str, exchange: str) -> bool:
     """Queue ``ticker.exchange`` for a background live refresh; return whether it was queued."""
-    global _worker
+    global _worker, _lambda_skip_logged
 
-    if config.offline_mode or _in_lambda():
+    if config.offline_mode:
+        return False
+    if _in_lambda():
+        if not _lambda_skip_logged:
+            _lambda_skip_logged = True
+            logger.info(
+                "Stale prices found on Lambda; leaving them to the scheduled PriceRefreshLambda "
+                "(no in-process refresh queue here)"
+            )
         return False
     key = (ticker.upper(), exchange.upper())
     with _lock:

@@ -661,7 +661,10 @@ def _memoized_range_cached(
     if cache_only:
         # Same read as the offline branch below, minus its live fallback.
         existing = _load_parquet(str(meta_timeseries_cache_path(ticker, exchange)))
-        _queue_if_stale(ticker, exchange, existing)
+        if end_date >= _last_close_target():
+            # Only a read that wants the latest close queues a refresh; a
+            # purely historical window is served whatever the cache's end.
+            _queue_if_stale(ticker, exchange, existing)
         if existing.empty:
             return _empty_ts()
         return _ensure_schema(apply_date_range(existing, start_date, end_date))
@@ -771,7 +774,8 @@ def _cached_fx_frame(curr: str) -> pd.DataFrame:
 def _cached_fx_rates(curr: str, start: date, end: date, *, ticker: str, exchange: str) -> pd.DataFrame:
     """Daily ``curr``->GBP rates for ``start``..``end`` from the FX cache, without fetching.
 
-    Days the cache doesn't cover take the nearest cached rate. With no cache
+    Each day takes the latest cached rate on or before it; days before the
+    first cached rate take that first rate. With no cache
     file at all this falls back to the same approximate constant a failed live
     fetch returns. Either way the ticker is queued so the refresh brings the
     FX cache up to date.
@@ -788,7 +792,9 @@ def _cached_fx_rates(curr: str, start: date, end: date, *, ticker: str, exchange
         fx["Date"] = pd.to_datetime(fx["Date"])
         return fx
     days = pd.DataFrame({"Date": pd.date_range(start, end, freq="D").astype("datetime64[ms]")})
-    return pd.merge_asof(days, cached[["Date", "Rate"]], on="Date", direction="nearest")
+    fx = pd.merge_asof(days, cached[["Date", "Rate"]], on="Date", direction="backward")
+    fx["Rate"] = fx["Rate"].fillna(cached["Rate"].iloc[0])
+    return fx
 
 
 def refresh_fx_cache(curr: str) -> bool:

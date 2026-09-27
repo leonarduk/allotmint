@@ -391,3 +391,80 @@ def test_cold_group_portfolio_build_makes_no_live_price_calls(cache, no_live_cal
     assert holdings["VWRL.L"]["market_value_gbp"] == pytest.approx(1000.0)
     assert all(h["is_stale"] for h in holdings.values())
     assert sorted(refresh_queue.pending()) == [("AAPL", "N"), ("VWRL", "L")]
+
+
+def test_cache_only_fx_uses_the_previous_rate_for_gaps_and_the_first_before_the_cache(cache, no_live_calls):
+    """No future rate leaks into an earlier day except before the first cached rate."""
+    day = _target(cache)
+    fri = day - timedelta(days=(day.weekday() - 4) % 7 or 7)
+    mon = fri + timedelta(days=3)
+    frame = pd.DataFrame({"Date": pd.to_datetime([fri, mon]), "Rate": [0.7, 0.9]})
+    path = cache._fx_cache_path("USD")
+    cache._ensure_local_dir(path)
+    frame.to_parquet(path, index=False)
+
+    sat = fri + timedelta(days=1)
+    weekend = cache._cached_fx_rates("USD", sat, sat, ticker="AAPL", exchange="N")
+    before = cache._cached_fx_rates(
+        "USD", fri - timedelta(days=30), fri - timedelta(days=30), ticker="AAPL", exchange="N"
+    )
+
+    assert weekend["Rate"].tolist() == [pytest.approx(0.7)]
+    assert before["Rate"].tolist() == [pytest.approx(0.7)]
+
+
+def test_cache_only_gbp_instrument_in_another_base_currency_makes_no_live_calls(cache, no_live_calls):
+    """The GBP leg of a cross-currency conversion is the unit rate, never a fetch."""
+    day = _target(cache)
+    _seed_meta(cache, "GSK", "L", day, close=17.0)
+    _seed_fx(cache, "EUR", day, rate=0.85)
+
+    with cache.cache_only():
+        df = cache.load_meta_timeseries_range("GSK", "L", start_date=day, end_date=day, base_currency="EUR")
+
+    assert df["Close_eur"].tolist() == [pytest.approx(17.0 / 0.85)]
+    assert refresh_queue.pending() == []
+
+
+def test_cache_only_historical_read_does_not_queue(cache, no_live_calls):
+    """Only reads that want the latest close queue a refresh of a stale ticker."""
+    last = _weekday_back(_target(cache), 3)
+    _seed_meta(cache, "ABC", "L", last)
+    old = _weekday_back(last, 20)
+
+    with cache.cache_only():
+        df = cache.load_meta_timeseries_range("ABC", "L", start_date=old, end_date=old)
+
+    assert df["Date"].dt.date.tolist() == [old]
+    assert refresh_queue.pending() == []
+
+
+def test_refresh_fx_cache_for_tickers_refreshes_each_foreign_currency_live(cache, monkeypatch):
+    """The scheduled refresh (refresh_prices) seeds the FX cache Lambda page requests read."""
+    fetched = []
+
+    def fake_live(base, quote, start, end):
+        fetched.append(base)
+        return pd.DataFrame({"Date": pd.bdate_range(end - timedelta(days=7), end).date, "Rate": 0.8})
+
+    monkeypatch.setattr(cache, "fetch_fx_rate_range_live", fake_live)
+
+    cache.refresh_fx_cache_for_tickers(["AAPL.N", "KO.N", "GSK.L", "CASH"])
+
+    assert fetched == ["USD"]
+    assert not cache._read_fx_parquet(cache._fx_cache_path("USD")).empty
+
+    monkeypatch.setattr(cache.config, "offline_mode", True)
+    cache.refresh_fx_cache_for_tickers(["AAPL.N"])
+    assert fetched == ["USD"]
+
+
+def test_lambda_skip_is_logged_once(cache, monkeypatch, caplog):
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "allotmint-backend")
+    monkeypatch.setattr(refresh_queue, "_lambda_skip_logged", False)
+
+    with caplog.at_level("INFO", logger=refresh_queue.__name__):
+        refresh_queue.enqueue("ABC", "L")
+        refresh_queue.enqueue("DEF", "L")
+
+    assert sum("PriceRefreshLambda" in r.getMessage() for r in caplog.records) == 1

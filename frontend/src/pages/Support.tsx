@@ -34,6 +34,27 @@ const UI_KEYS = new Set(["theme", "relative_view_enabled"]);
 type ConfigValue = string | boolean | Record<string, unknown>;
 type ConfigState = Record<string, ConfigValue>;
 
+function toConfigState(cfg: Record<string, unknown>): ConfigState {
+  const entries: ConfigState = {};
+  Object.entries(cfg).forEach(([k, v]) => {
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      entries[k] = v as Record<string, unknown>;
+    } else {
+      entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
+    }
+  });
+  return entries;
+}
+
+function toTabState(cfg: Record<string, unknown>): Record<TabPluginId, boolean> {
+  const tabConfig =
+    cfg.tabs && typeof cfg.tabs === "object" ? (cfg.tabs as Record<string, unknown>) : {};
+  return TAB_KEYS.reduce(
+    (acc, key) => ({ ...acc, [key]: Boolean(tabConfig[key]) }),
+    { ...EMPTY_TABS },
+  );
+}
+
 export default function Support() {
   const { t } = useTranslation();
   const { refreshConfig } = useConfig();
@@ -43,6 +64,12 @@ export default function Support() {
   const [status, setStatus] = useState<string | null>(null);
   const [config, setConfig] = useState<ConfigState>({});
   const [tabs, setTabs] = useState<Record<TabPluginId, boolean>>(EMPTY_TABS);
+  // What was last loaded from / saved to the backend. saveConfig sends only
+  // fields that differ from this, so an untouched form never writes the
+  // resolved config (absolute paths, "[object Object]" for object values)
+  // back into config.yaml (#7896).
+  const [savedConfig, setSavedConfig] = useState<ConfigState>({});
+  const [savedTabs, setSavedTabs] = useState<Record<TabPluginId, boolean>>(EMPTY_TABS);
   const [configStatus, setConfigStatus] = useState<string | null>(null);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [owner, setOwner] = useState("");
@@ -122,6 +149,7 @@ export default function Support() {
       try {
         await updateConfig(payload);
         setConfig((prev) => ({ ...prev, local_login_email: trimmed }));
+        setSavedConfig((prev) => ({ ...prev, local_login_email: trimmed }));
         await refreshConfig();
         if (trimmed) {
           const entry = ownerLoginMap.get(trimmed);
@@ -159,31 +187,18 @@ export default function Support() {
   useEffect(() => {
     getConfig()
       .then((cfg) => {
-        const entries: ConfigState = {};
-        Object.entries(cfg).forEach(([k, v]) => {
-          if (v && typeof v === "object" && !Array.isArray(v)) {
-            entries[k] = v as Record<string, unknown>;
-          } else {
-            entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
-          }
-        });
+        const entries = toConfigState(cfg as Record<string, unknown>);
         setConfig(entries);
+        setSavedConfig(entries);
         const rawLocalLogin = (cfg as Record<string, unknown>)[
           "local_login_email"
         ];
         const configuredLocalLogin =
           typeof rawLocalLogin === "string" ? rawLocalLogin : "";
         setLocalLogin(configuredLocalLogin.trim());
-        const tabConfig =
-          cfg && typeof cfg === "object" && cfg.tabs && typeof cfg.tabs === "object"
-            ? (cfg.tabs as Record<string, unknown>)
-            : {};
-        setTabs(
-          TAB_KEYS.reduce(
-            (acc, key) => ({ ...acc, [key]: Boolean(tabConfig[key]) }),
-            { ...EMPTY_TABS },
-          ),
-        );
+        const loadedTabs = toTabState(cfg as Record<string, unknown>);
+        setTabs(loadedTabs);
+        setSavedTabs(loadedTabs);
       })
       .catch(() => {
         /* ignore */
@@ -276,6 +291,7 @@ export default function Support() {
     const ui: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(config)) {
       if (k === "tabs") continue; // rebuilt from toggle state
+      if (v === savedConfig[k]) continue; // unchanged -- see savedConfig
       if (UI_KEYS.has(k)) {
         const parsedVal = (() => {
           if (typeof v === "string") {
@@ -306,7 +322,9 @@ export default function Support() {
         payload[k] = parsedVal;
       }
     }
-    ui.tabs = { ...tabs };
+    if (TAB_KEYS.some((key) => tabs[key] !== savedTabs[key])) {
+      ui.tabs = { ...tabs };
+    }
     if (Object.keys(ui).length) {
       payload.ui = ui;
     }
@@ -314,25 +332,12 @@ export default function Support() {
       await updateConfig(payload);
       await refreshConfig();
       const fresh = await getConfig();
-      const entries: ConfigState = {};
-      Object.entries(fresh).forEach(([k, v]) => {
-        if (v && typeof v === "object" && !Array.isArray(v)) {
-          entries[k] = v as Record<string, unknown>;
-        } else {
-          entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
-        }
-      });
+      const entries = toConfigState(fresh as Record<string, unknown>);
       setConfig(entries);
-      const freshTabs =
-        fresh && typeof fresh === "object" && fresh.tabs && typeof fresh.tabs === "object"
-          ? (fresh.tabs as Record<string, unknown>)
-          : {};
-      setTabs(
-        TAB_KEYS.reduce(
-          (acc, key) => ({ ...acc, [key]: Boolean(freshTabs[key]) }),
-          { ...EMPTY_TABS },
-        ),
-      );
+      setSavedConfig(entries);
+      const freshTabs = toTabState(fresh as Record<string, unknown>);
+      setTabs(freshTabs);
+      setSavedTabs(freshTabs);
       setConfigStatus("saved");
     } catch {
       setConfigStatus("error");

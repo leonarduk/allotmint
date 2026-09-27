@@ -6,6 +6,7 @@ import os
 import re
 from collections import defaultdict
 from contextlib import contextmanager
+from dataclasses import asdict
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum, auto
@@ -25,6 +26,7 @@ from backend.common.accounts_store import (
 from backend.common.authz import ensure_owner_access
 from backend.common.core_optional import require_core
 from backend.common.instruments import get_instrument_meta
+from backend.common.realised_gains import compute_disposal_gains
 from backend.common.ticker_utils import normalise_filter_ticker
 from backend.config import config
 from backend.integrations.moneyhub_api import MoneyhubClient, MoneyhubNotConfiguredError
@@ -117,6 +119,11 @@ class Transaction(BaseModel):
     reason_to_buy: str | None = None
     synthetic: bool = False
     instrument_name: str | None = None
+    # Derived on read for SELL transactions (Section 104 average cost); never stored.
+    realised_gain_gbp: float | None = None
+    cost_basis_gbp: float | None = None
+    proceeds_gbp: float | None = None
+    unmatched_units: float | None = None
 
     model_config = ConfigDict(extra="ignore", allow_inf_nan=True)
 
@@ -429,13 +436,22 @@ def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping
     return updated
 
 
+_DERIVED_GAIN_FIELDS = ("realised_gain_gbp", "cost_basis_gbp", "proceeds_gbp", "unmatched_units")
+
+
 def _transactions_from_doc(owner: str, account_raw: str, data: Mapping[str, Any]) -> List[Transaction]:
     results: List[Transaction] = []
     account = account_raw.lower()
     transactions = data.get("transactions", []) or []
+    gains = compute_disposal_gains(transactions)
     for idx, t in enumerate(transactions):
         t = dict(t)
         t.pop("account", None)
+        for derived in _DERIVED_GAIN_FIELDS:
+            t.pop(derived, None)
+        gain = gains.get(idx)
+        if gain is not None:
+            t.update(asdict(gain))
         instrument_name = _instrument_name_from_entry(t)
         if instrument_name:
             t["instrument_name"] = instrument_name

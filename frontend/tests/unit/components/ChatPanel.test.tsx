@@ -26,6 +26,51 @@ describe("ChatPanel", () => {
     expect(api.postChat).toHaveBeenCalledWith("what's VOD.L trading at?", []);
   });
 
+  it("renders assistant replies as markdown, including GFM tables", async () => {
+    (api.postChat as Mock).mockResolvedValueOnce({
+      reply: [
+        "## Where you're losing money",
+        "",
+        "**Total drag:** about -£3,043.",
+        "",
+        "| Ticker | P/L |",
+        "|---|---|",
+        "| FSFL.L | **-£937** |",
+      ].join("\n"),
+    });
+    const user = userEvent.setup();
+
+    render(<ChatPanel open onClose={() => {}} />);
+
+    await user.type(screen.getByLabelText(/chat message/i), "where am i losing money");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    expect(
+      await screen.findByRole("heading", { level: 2, name: /where you're losing money/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Ticker" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "FSFL.L" })).toBeInTheDocument();
+    expect(screen.getByText("Total drag:").tagName).toBe("STRONG");
+    expect(screen.queryByText(/\*\*/)).not.toBeInTheDocument();
+  });
+
+  it("does not render raw HTML from assistant replies", async () => {
+    (api.postChat as Mock).mockResolvedValueOnce({
+      reply: 'hello <img src="x" onerror="alert(1)"> <b>bold</b>',
+    });
+    const user = userEvent.setup();
+
+    const { container } = render(<ChatPanel open onClose={() => {}} />);
+
+    await user.type(screen.getByLabelText(/chat message/i), "hi");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await screen.findByText(/hello/);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("b")).toBeNull();
+  });
+
   it("shows an error message when the request fails", async () => {
     (api.postChat as Mock).mockRejectedValueOnce(new Error("network error"));
     const user = userEvent.setup();

@@ -401,6 +401,15 @@ export interface Transaction {
    * from this interface.
    */
   synthetic?: boolean;
+  /**
+   * Derived by the backend for SELL rows using Section 104 average cost.
+   * `realised_gain_gbp` is null when some units sold have no known cost
+   * (`unmatched_units` > 0), e.g. positions held before records begin.
+   */
+  realised_gain_gbp?: number | null;
+  cost_basis_gbp?: number | null;
+  proceeds_gbp?: number | null;
+  unmatched_units?: number | null;
 }
 
 export interface TransactionWithCompliance extends Transaction {

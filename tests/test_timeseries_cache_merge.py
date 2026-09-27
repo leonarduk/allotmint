@@ -391,6 +391,52 @@ def test_rolling_cache_saves_correction_and_new_date_together(cache_store):
     assert dict(zip(stored["Date"].dt.date, stored["Close"])) == {day: 11.0, new_day: 12.0}
 
 
+def test_rolling_cache_persists_volume_only_correction(cache_store):
+    """A correction to a value column other than Close (here Volume) is also saved (#7914)."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    fetched = _day_frame(cache, day, 10.0)
+    fetched["Volume"] = 200
+
+    result = _run(cache, cache_path, fetched)
+
+    assert len(saves) == 1
+    assert result.loc[result["Date"].dt.date == day, "Volume"].tolist() == [200]
+    stored = cache._load_parquet(cache_path)
+    assert stored.loc[stored["Date"].dt.date == day, "Volume"].tolist() == [200]
+
+
+def test_rolling_cache_duplicate_fetched_dates_keep_last_row(cache_store):
+    """A fetch returning the same cached date twice applies the last row once (#7914)."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    fetched = pd.concat([_day_frame(cache, day, 10.5), _day_frame(cache, day, 11.0)], ignore_index=True)
+
+    result = _run(cache, cache_path, fetched)
+
+    assert len(saves) == 1
+    assert result.loc[result["Date"].dt.date == day, "Close"].tolist() == [11.0]
+    stored = cache._load_parquet(cache_path)
+    assert stored.loc[stored["Date"].dt.date == day, "Close"].tolist() == [11.0]
+
+
+def test_rolling_cache_duplicate_cached_dates_collapse_without_save(cache_store):
+    """A cache holding a date twice serves it once, and an identical fetch still skips the save."""
+    cache, cache_path, saves = cache_store
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+    day = window_end - timedelta(days=1)
+    cache._save_parquet(
+        pd.concat([_day_frame(cache, day, 10.0), _day_frame(cache, day, 10.0)], ignore_index=True),
+        cache_path,
+    )
+    saves.clear()
+
+    result = _run(cache, cache_path, _day_frame(cache, day, 10.0))
+
+    assert saves == []
+    assert result.loc[result["Date"].dt.date == day, "Close"].tolist() == [10.0]
+
+
 def _seed_stale_meta_cache(cache, ticker: str, exchange: str) -> date:
     """Write a meta parquet whose last row is two weekdays before the rolling window end."""
     _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 60)

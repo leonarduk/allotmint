@@ -171,11 +171,11 @@ def clear_group_portfolio_cache():
 
 @pytest.fixture(autouse=True)
 def reset_stooq_unreachable_cooldown():
-    """Clear the Stooq unreachable cooldown between tests.
+    """Clear the Stooq unreachable cooldown and per-ticker skips between tests.
 
     A test that simulates a Stooq timeout puts Stooq into a process-wide
-    cooldown (#7877); without this reset, later tests that stub a successful
-    Stooq response would be skipped by that cooldown.
+    cooldown (#7877) or skips that ticker (#7913); without this reset, later
+    tests that stub a successful Stooq response would be skipped.
     """
     from backend.timeseries import fetch_stooq_timeseries
 

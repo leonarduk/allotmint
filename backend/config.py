@@ -64,6 +64,7 @@ class TabsConfig:
     dataadmin: bool = True
     dataquality: bool = True
     dataexplorer: bool = True
+    awscosts: bool = True
     virtual: bool = True
     support: bool = True
     settings: bool = True

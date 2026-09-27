@@ -30,6 +30,7 @@ from backend.common import (
     instrument_api,
     portfolio_utils,
     prices,
+    refresh_progress,
 )
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_models import OwnerSummaryRecord, PersonMetadata
@@ -1014,6 +1015,15 @@ async def refresh_prices_get():
 @router.post("/prices/refresh", operation_id="refresh_prices_post")
 async def refresh_prices_post():
     return await _do_refresh_prices()
+
+
+@router.get("/prices/refresh/progress", operation_id="refresh_prices_progress")
+async def refresh_prices_progress():
+    """Poll-friendly status for an in-flight ``/prices/refresh`` job.
+
+    Read-only and side-effect-free, unlike ``/prices/refresh`` itself.
+    """
+    return refresh_progress.snapshot()
 
 
 @router.get("/prices/live", operation_id="prices_live_get")

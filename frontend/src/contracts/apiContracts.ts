@@ -239,6 +239,24 @@ export const dataQualityAuditContractSchema = z.object({
   ),
 });
 
+// ───────────── AWS Costs Admin ─────────────
+
+const awsCostServiceSchema = z.object({
+  service: z.string(),
+  amount: z.number(),
+  unit: z.string(),
+});
+
+export const awsCostsContractSchema = z.object({
+  start: z.string(),
+  end: z.string(),
+  total: z.object({
+    amount: z.number(),
+    unit: z.string(),
+  }),
+  services: z.array(awsCostServiceSchema),
+});
+
 export const apiContractSchemas = {
   config: configContractSchema,
   owners: ownersContractSchema,
@@ -249,6 +267,7 @@ export const apiContractSchemas = {
   dataQualityTimeseries: dataQualityTimeseriesContractSchema,
   dataQualityIssues: dataQualityIssuesContractSchema,
   dataQualityAudit: dataQualityAuditContractSchema,
+  awsCosts: awsCostsContractSchema,
 } as const;
 
 // satisfies Record<keyof typeof apiContractSchemas, object> enforces that every
@@ -267,4 +286,5 @@ export const apiContractJsonSchemas = {
   dataQualityTimeseries: toJSONSchema(dataQualityTimeseriesContractSchema),
   dataQualityIssues: toJSONSchema(dataQualityIssuesContractSchema),
   dataQualityAudit: toJSONSchema(dataQualityAuditContractSchema),
+  awsCosts: toJSONSchema(awsCostsContractSchema),
 } satisfies Record<keyof typeof apiContractSchemas, object>;

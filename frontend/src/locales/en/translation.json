@@ -73,6 +73,7 @@
     "modes": {
       "alertsettings": "Alert Settings",
       "allocation": "Allocation",
+      "awscosts": "AWS Costs",
       "compliance": "Compliance Warnings",
       "dataadmin": "Data Admin",
       "dataexplorer": "Data Explorer",
@@ -124,6 +125,18 @@
     "cancel": "Cancel",
     "close": "Close",
     "retry": "Retry"
+  },
+  "awsCostsAdmin": {
+    "title": "AWS Costs",
+    "notAuthorized": "You are not authorized to view AWS cost data.",
+    "loadError": "Failed to load AWS cost data.",
+    "noData": "No cost data found for this period.",
+    "period": "Period: {{start}} – {{end}}",
+    "columns": {
+      "service": "Service",
+      "amount": "Amount"
+    },
+    "total": "Total"
   },
   "dataQuality": {
     "title": "Data Quality",

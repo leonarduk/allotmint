@@ -1,19 +1,21 @@
-"""A cold group-portfolio build must not re-fetch a stale ticker in a loop (#7877, #7912).
+"""A stale ticker must not be re-fetched in a loop (#7877, #7912, #7990).
 
 A cold ``/portfolio-group/all`` blew the frontend's 30s timeout because one
 holding missing its latest close was live-fetched again and again within a
-single request. PR #7881 fixed two causes, each with its own unit test:
+single request. Two fixes followed:
 
-- ``_rolling_cache`` no longer rewrites the parquet when the fetch adds no new
-  dates, so the rewrite's new mtime no longer clears the meta LRUs and forces
-  the next lookup to fetch again.
-- A Stooq timeout starts a cooldown, so an unreachable Stooq costs one timeout
-  per window rather than one per fetch.
+- PR #7881: ``_rolling_cache`` no longer rewrites the parquet when the fetch
+  adds no new dates (a rewrite's new mtime cleared the meta LRUs and forced the
+  next lookup to fetch again), and a Stooq timeout starts a cooldown, so an
+  unreachable Stooq costs one timeout per window rather than one per fetch.
+- #7898: page requests price holdings from the timeseries cache only; the
+  background snapshot refresh does the live fetching.
 
-This test drives ``build_group_portfolio`` end to end with Stooq timing out and
-checks the user-facing symptom: one Stooq HTTP attempt for the stale ticker,
-including a second build within the cooldown, and no rewrite of its parquet.
-It asserts call counts, not wall-clock time.
+These tests drive both paths end to end with Stooq timing out. The page build
+must make no live calls at all. The background refresh is where the #7877
+guarantees now matter: one Stooq HTTP attempt for the stale ticker, including
+a second refresh within the cooldown, and no rewrite of its parquet. They
+assert call counts, not wall-clock time.
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ import pandas as pd
 import pytest
 import requests
 
-from backend.common import group_portfolio, holding_utils, portfolio_loader, portfolio_utils
+from backend.common import group_portfolio, portfolio_loader, portfolio_utils
 from backend.config import config
 
 TICKER = "COLDX"
@@ -92,14 +94,19 @@ def _stub_portfolio(monkeypatch) -> None:
     monkeypatch.setattr(group_portfolio.owner_portfolio, "build_owner_portfolio", lambda *_a, **_k: {})
     monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda _ticker: None)
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT_TS", None)
+
+
+def _stub_refresh(monkeypatch) -> None:
+    """The background refresh sees only the stale ticker and writes no file."""
+    monkeypatch.setattr(portfolio_utils, "list_all_unique_tickers", lambda: [FULL_TICKER])
+    monkeypatch.setattr(portfolio_utils, "_PRICES_PATH", None)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT_TS", None)
 
 
 def _stub_price_sources(monkeypatch, cache, history: pd.DataFrame) -> _Counters:
-    """Yahoo returns only already-cached rows, Stooq times out, the rest are empty.
-
-    Stubs are installed on the modules the live ``cache`` actually calls into,
-    since other tests re-import ``backend.timeseries.cache``.
-    """
+    """Yahoo returns only already-cached rows, Stooq times out, the rest are empty."""
     meta_mod = importlib.import_module("backend.timeseries.fetch_meta_timeseries")
     stooq_mod = importlib.import_module("backend.timeseries.fetch_stooq_timeseries")
     counters = _Counters()
@@ -144,7 +151,6 @@ def cold_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(cache, "_CACHE_BASE", str(tmp_path))
     monkeypatch.setattr(config, "offline_mode", False)
     monkeypatch.setattr(cache, "OFFLINE_MODE", False)
-    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", cache.load_meta_timeseries_range)
     _clear_meta_caches(cache)
 
     history = _stale_history(cache)
@@ -156,28 +162,43 @@ def cold_cache(monkeypatch, tmp_path):
     _clear_meta_caches(cache)
 
 
-def test_cold_group_build_makes_one_stooq_attempt_for_stale_ticker(monkeypatch, cold_cache):
+def test_cold_group_build_prices_stale_ticker_from_cache_without_fetching(monkeypatch, cold_cache):
     cache, history, path = cold_cache
     _stub_portfolio(monkeypatch)
     counters = _stub_price_sources(monkeypatch, cache, history)
-    mtime_before = os.stat(path).st_mtime_ns
 
-    first = group_portfolio.build_group_portfolio("all")
+    built = group_portfolio.build_group_portfolio("all")
 
-    # The build did reach the live fetch path and priced the holding from cache.
-    assert counters.yahoo >= 1
-    holding = first["accounts"][0]["holdings"][0]
+    holding = built["accounts"][0]["holdings"][0]
     assert holding["price"] == pytest.approx(100.0)
-    assert counters.stooq_http == 1
+    assert counters.yahoo == 0
+    assert counters.stooq_http == 0
     assert counters.saves == []
 
-    # A later request in the same process, after something else (e.g. another
+
+def test_background_refresh_makes_one_stooq_attempt_for_stale_ticker(monkeypatch, cold_cache):
+    cache, history, path = cold_cache
+    _stub_refresh(monkeypatch)
+    counters = _stub_price_sources(monkeypatch, cache, history)
+    mtime_before = os.stat(path).st_mtime_ns
+
+    portfolio_utils.refresh_snapshot_in_memory_from_timeseries()
+
+    # The refresh reached the live fetch path and still priced the ticker from cache.
+    assert counters.yahoo >= 1
+    assert counters.stooq_http == 1
+    assert counters.saves == []
+    entry = portfolio_utils._PRICE_SNAPSHOT[FULL_TICKER]
+    assert entry["last_price"] == pytest.approx(100.0)
+    assert entry["last_price_date"] == history["Date"].iloc[-1].strftime("%Y-%m-%d")
+
+    # A later refresh in the same process, after something else (e.g. another
     # ticker's refresh) has cleared the meta LRUs, fetches again but must not
     # hit Stooq again while the cooldown is running.
     _clear_meta_caches(cache)
     yahoo_after_first = counters.yahoo
 
-    group_portfolio.build_group_portfolio("all")
+    portfolio_utils.refresh_snapshot_in_memory_from_timeseries()
 
     assert counters.yahoo > yahoo_after_first
     assert counters.stooq_http == 1

@@ -185,6 +185,29 @@ def reset_stooq_unreachable_cooldown(monkeypatch):
     monkeypatch.setattr(fetch_stooq_timeseries, "_STOOQ_TICKER_SKIP_UNTIL", {})
 
 
+@pytest.fixture(autouse=True)
+def restore_timeseries_cache_module():
+    """Put the original ``backend.timeseries.cache`` back after each test.
+
+    Some tests pop the module from ``sys.modules`` and re-import it to get
+    fresh module state. Without this, the fresh copy leaks into later tests:
+    they patch it via ``importlib.import_module`` while modules that did
+    ``from backend.timeseries.cache import ...`` at import time
+    (``holding_utils``, ``portfolio_utils``, ``group_portfolio``, ...) still
+    call the original. A later test's result then depends on whether a
+    reload test ran before it (#7990).
+    """
+    import sys
+
+    from backend import timeseries
+
+    original = sys.modules.get("backend.timeseries.cache")
+    yield
+    if original is not None and sys.modules.get("backend.timeseries.cache") is not original:
+        sys.modules["backend.timeseries.cache"] = original
+        timeseries.cache = original
+
+
 @pytest.fixture
 def quotes_table(monkeypatch):
     """In-memory DynamoDB table for quote tests."""

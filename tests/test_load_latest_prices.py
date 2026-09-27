@@ -63,13 +63,13 @@ def test_load_latest_prices_handles_errors(monkeypatch, caplog):
     assert "latest price fetch failed" in caplog.text
 
 
-def test_load_latest_prices_reports_progress_while_a_refresh_is_running(monkeypatch):
+def test_load_latest_prices_reports_progress_when_opted_in(monkeypatch):
     df = pd.DataFrame({"Date": [1], "Close_gbp": [2.0]})
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: df)
 
     refresh_progress.start(2)
     try:
-        holding_utils.load_latest_prices(["ABC.L", "DEF.L"])
+        holding_utils.load_latest_prices(["ABC.L", "DEF.L"], report_progress=True)
         snap = refresh_progress.snapshot()
     finally:
         refresh_progress.finish()
@@ -83,9 +83,31 @@ def test_load_latest_prices_ignores_progress_when_no_refresh_running(monkeypatch
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: df)
 
     refresh_progress.finish()
-    holding_utils.load_latest_prices(["ABC.L"])
+    holding_utils.load_latest_prices(["ABC.L"], report_progress=True)
 
     assert refresh_progress.snapshot()["running"] is False
+
+
+def test_load_latest_prices_does_not_report_progress_by_default(monkeypatch):
+    """An unrelated caller (report_progress defaults to False) must never
+    corrupt an in-flight refresh's progress with its own ticker list — the
+    cross-caller contamination guarded against in refresh_progress.py."""
+    df = pd.DataFrame({"Date": [1], "Close_gbp": [2.0]})
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: df)
+
+    refresh_progress.start(5)
+    try:
+        refresh_progress.update("REAL.L", 1)
+        # A different caller (e.g. instrument_api's own price map build)
+        # runs concurrently with its own, unrelated ticker list — it must
+        # not touch the tracked refresh's progress at all.
+        holding_utils.load_latest_prices(["UNRELATED.L"])
+        snap = refresh_progress.snapshot()
+    finally:
+        refresh_progress.finish()
+
+    assert snap["completed"] == 1
+    assert snap["current_ticker"] == "REAL.L"
 
 
 def test_enrich_holding_uses_scaling_override(monkeypatch):

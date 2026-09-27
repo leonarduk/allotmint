@@ -65,7 +65,7 @@ def _is_pence_currency(raw: str) -> bool:
     return CurrencyNormaliser.from_raw(raw).is_pence
 
 
-def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
+def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False) -> dict[str, float]:
     """Return latest close prices in GBP for each requested ticker.
 
     Contract:
@@ -83,6 +83,12 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     - Uses end_date = yesterday via PricingDateCalculator
     - Accepts 'HFEL.L' or 'HFEL' (defaults exchange 'L')
     - Skips empties instead of returning 0.00
+
+    ``report_progress`` opts this call into ``refresh_progress`` reporting;
+    leave it off (the default) for any caller that isn't the user-triggered
+    refresh job, so this ticker list can never overwrite the refresh job's
+    progress display with an unrelated one (see
+    :mod:`backend.common.refresh_progress`).
     """
     result: dict[str, float] = {}
     if not full_tickers:
@@ -167,7 +173,8 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 sanitise_log_value(e),
             )
         finally:
-            refresh_progress.update(full, i + 1)
+            if report_progress:
+                refresh_progress.update(full, i + 1)
 
     logger.info("Latest prices fetched: %d/%d", len(result), len(full_tickers))
     return result

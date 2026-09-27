@@ -26,14 +26,16 @@ Note on price_currency semantics
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, Iterator, List, Optional
 
 import pandas as pd
 
@@ -61,6 +63,25 @@ from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import _nearest_weekday
 
 logger = logging.getLogger(__name__)
+
+# Scopes refresh_progress reporting to the exact call chain started by
+# refresh_prices(), rather than to get_price_snapshot's signature: other
+# callers of get_price_snapshot (there are none today, but the contract
+# should hold regardless) keep their normal signature and simply never opt
+# in, so they can't corrupt an in-flight refresh's progress with an
+# unrelated, differently-sized ticker list. Thread-local by construction
+# (a plain synchronous call within refresh_prices()'s own worker thread),
+# so concurrent requests on other threads are unaffected.
+_REPORT_PROGRESS: contextvars.ContextVar[bool] = contextvars.ContextVar("refresh_progress_reporting", default=False)
+
+
+@contextmanager
+def _reporting_progress() -> Iterator[None]:
+    token = _REPORT_PROGRESS.set(True)
+    try:
+        yield
+    finally:
+        _REPORT_PROGRESS.reset(token)
 
 
 def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
@@ -118,11 +139,17 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
     - Last-close fallback: ``_load_latest_prices`` already converts to GBP
       → "GBP".
     - No-data path: ``None`` (last_price is also None; consumers should skip).
+
+    Reports ``refresh_progress`` for its ``_load_latest_prices`` call only
+    when invoked through :func:`refresh_prices`'s ``_reporting_progress``
+    context — see the module-level note there for why this is scoped by
+    context rather than by a parameter here.
     """
 
     calc = PricingDateCalculator(today=date.today(), weekday_func=_nearest_weekday)
     last_trading_day = calc.reporting_date
-    latest = _load_latest_prices(list(tickers))
+    latest_kwargs = {"report_progress": True} if _REPORT_PROGRESS.get() else {}
+    latest = _load_latest_prices(list(tickers), **latest_kwargs)
     live = load_live_prices(list(tickers))
     now = datetime.now(UTC)
 
@@ -299,7 +326,8 @@ def refresh_prices() -> Dict:
 
     refresh_progress.start(len(tickers))
     try:
-        snapshot = get_price_snapshot(tickers)
+        with _reporting_progress():
+            snapshot = get_price_snapshot(tickers)
     finally:
         refresh_progress.finish()
 

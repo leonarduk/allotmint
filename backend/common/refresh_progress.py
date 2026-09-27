@@ -2,10 +2,18 @@
 
 Single-slot state: only one manual price refresh is expected to run at a
 time (triggered from the Support page). A concurrent second refresh
-overwrites the same slot, and unrelated callers of ``load_latest_prices``
-outside a tracked refresh are ignored (``update`` no-ops while nothing is
-``running``). That is an accepted tradeoff for a status-only signal with no
-correctness implications for pricing itself.
+overwrites the same slot — an accepted tradeoff for a status-only signal
+with no correctness implications for pricing itself.
+
+Reporting is opt-in, not merely gated on ``running``: only the exact call
+chain started by ``prices.refresh_prices`` (via its
+``_reporting_progress()`` context, read by ``get_price_snapshot`` and
+forwarded to ``holding_utils.load_latest_prices(report_progress=True)``)
+ever calls ``update``. Other callers of ``load_latest_prices`` (e.g.
+building ``instrument_api``'s in-memory price map) default to
+``report_progress=False`` and pass an unrelated, differently-sized ticker
+list, so they can never overwrite the refresh job's progress with their own
+counts — even if they happen to run concurrently with a tracked refresh.
 """
 
 from __future__ import annotations

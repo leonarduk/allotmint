@@ -544,7 +544,7 @@ def test_refresh_prices_filters_nan_zero_and_negative_prices(tmp_path, monkeypat
     monkeypatch.setattr(
         prices,
         "_load_latest_prices",
-        lambda t: {"ZERO.L": 0.0},
+        lambda t, **_kwargs: {"ZERO.L": 0.0},
     )
     monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None)
     monkeypatch.setattr(prices, "_close_on", lambda *a, **k: None)

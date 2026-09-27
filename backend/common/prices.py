@@ -299,7 +299,11 @@ def refresh_prices() -> Dict:
 
     snapshot = get_price_snapshot(tickers)
     # Page requests convert non-GBP closes from the FX cache only (#7917).
-    refresh_fx_cache_for_tickers(tickers)
+    # A failure here must not stop the price snapshot being persisted below.
+    try:
+        refresh_fx_cache_for_tickers(tickers)
+    except Exception as exc:
+        logger.warning("FX cache refresh failed: %s", sanitise_log_value(exc))
 
     # ---- persist to disk --------------------------------------------------
     if not config.prices_json:

@@ -600,3 +600,25 @@ def test_refresh_prices_fetches_live_and_refreshes_fx_cache(tmp_path, monkeypatc
     prices.refresh_prices()
 
     assert seen == {"cache_only": False, "fx": tickers}
+
+
+def test_refresh_prices_persists_snapshot_when_fx_refresh_fails(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An FX cache refresh error is logged and doesn't block writing prices.json (#7917)."""
+    ticker = "XYZ.L"
+    snapshot = {ticker: {"last_price": 145.0, "last_price_date": "2024-04-01"}}
+
+    def failing_fx(_tickers):
+        raise RuntimeError("fx store unavailable")
+
+    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: [ticker])
+    monkeypatch.setattr(prices, "get_price_snapshot", lambda _ts: snapshot)
+    monkeypatch.setattr(prices, "refresh_fx_cache_for_tickers", failing_fx)
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
+    monkeypatch.setattr(prices, "check_price_alerts", Mock())
+    output_path = tmp_path / "prices.json"
+    monkeypatch.setattr(prices.config, "prices_json", output_path)
+    monkeypatch.setattr(prices, "_price_cache", {})
+
+    prices.refresh_prices()
+
+    assert json.loads(output_path.read_text()) == snapshot

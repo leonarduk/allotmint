@@ -735,7 +735,14 @@ _FX_CACHE_HISTORY_DAYS = 3650
 _FX_FRAME_TTL_SECONDS = 300.0
 _FX_FRAMES: Dict[str, tuple[pd.DataFrame, float]] = {}
 _FX_LOCK = threading.Lock()  # guards _FX_FRAMES only; never held across I/O
-_FX_WRITE_LOCK = threading.Lock()  # serialises read-merge-write of FX files
+# Serialise read-merge-write per currency, so a hung fetch for one currency
+# doesn't stall the others.
+_FX_WRITE_LOCKS: Dict[str, threading.Lock] = {}
+
+
+def _fx_write_lock(curr: str) -> threading.Lock:
+    with _FX_LOCK:
+        return _FX_WRITE_LOCKS.setdefault(curr, threading.Lock())
 
 
 def instrument_currency(ticker: str, exchange: str) -> str:
@@ -808,7 +815,7 @@ def refresh_fx_cache(curr: str) -> bool:
         return False
     path = _fx_cache_path(curr)
     today = date.today()
-    with _FX_WRITE_LOCK:
+    with _fx_write_lock(curr):
         existing = _read_fx_parquet(path)
         start = (
             existing["Date"].max().date() + timedelta(days=1)

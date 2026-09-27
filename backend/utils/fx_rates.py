@@ -33,19 +33,15 @@ FALLBACK_RATES: dict[tuple[str, str], float] = {
 }
 
 
-@lru_cache(maxsize=32)
-def fetch_fx_rate_range(base: str, quote: str, start_date: date, end_date: date) -> pd.DataFrame:
-    """Return FX rates expressed as ``quote`` per unit of ``base``.
+def fetch_fx_rate_range_live(base: str, quote: str, start_date: date, end_date: date) -> pd.DataFrame:
+    """Return live FX rates (``quote`` per unit of ``base``), or an empty frame on failure.
 
-    Falls back to a constant for common pairs if the remote fetch fails.
+    Unlike :func:`fetch_fx_rate_range` this never substitutes the approximate
+    fallback constant, so callers that persist rates (the FX parquet cache,
+    #7917) can tell a real fetch from a failed one.
     """
-
     base = base.upper()
     quote = quote.upper()
-
-    if base == quote:
-        dates = pd.bdate_range(start_date, end_date).date
-        return pd.DataFrame({"Date": dates, "Rate": [1.0] * len(dates)})
 
     pair = PAIR_MAP.get(base, {}).get(quote)
     if pair is None:
@@ -65,10 +61,36 @@ def fetch_fx_rate_range(base: str, quote: str, start_date: date, end_date: date)
             sanitise_log_value(quote),
             sanitise_log_value(exc),
         )
+    return pd.DataFrame(columns=["Date", "Rate"])
 
+
+def fallback_fx_rate_range(base: str, quote: str, start_date: date, end_date: date) -> pd.DataFrame:
+    """Return the approximate constant rate for ``base``/``quote`` over the range."""
+    base = base.upper()
+    quote = quote.upper()
     dates = pd.bdate_range(start_date, end_date).date
     const = FALLBACK_RATES.get((base, quote))
     if const is None:
         inv = FALLBACK_RATES.get((quote, base))
         const = 1 / inv if inv else 1.0
     return pd.DataFrame({"Date": dates, "Rate": [const] * len(dates)})
+
+
+@lru_cache(maxsize=32)
+def fetch_fx_rate_range(base: str, quote: str, start_date: date, end_date: date) -> pd.DataFrame:
+    """Return FX rates expressed as ``quote`` per unit of ``base``.
+
+    Falls back to a constant for common pairs if the remote fetch fails.
+    """
+
+    base = base.upper()
+    quote = quote.upper()
+
+    if base == quote:
+        dates = pd.bdate_range(start_date, end_date).date
+        return pd.DataFrame({"Date": dates, "Rate": [1.0] * len(dates)})
+
+    live = fetch_fx_rate_range_live(base, quote, start_date, end_date)
+    if not live.empty:
+        return live
+    return fallback_fx_rate_range(base, quote, start_date, end_date)

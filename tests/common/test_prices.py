@@ -572,3 +572,53 @@ def test_refresh_prices_filters_nan_zero_and_negative_prices(tmp_path, monkeypat
     assert written["NEG.L"]["last_price"] == pytest.approx(30.0)
     # A genuinely valid fresh price is persisted.
     assert written["OK.L"]["last_price"] == pytest.approx(12.0)
+
+
+def test_refresh_prices_fetches_live_and_refreshes_fx_cache(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The scheduled refresh stays on the live path and seeds the FX cache (#7917).
+
+    Page requests read prices and FX rates from cache only, so on Lambda this
+    job is what keeps both current.
+    """
+    from backend.timeseries import cache
+
+    tickers = ["AAPL.N", "XYZ.L"]
+    seen: Dict[str, object] = {}
+
+    def fake_get_price_snapshot(ts):
+        seen["cache_only"] = cache.is_cache_only()
+        return {}
+
+    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: tickers)
+    monkeypatch.setattr(prices, "get_price_snapshot", fake_get_price_snapshot)
+    monkeypatch.setattr(prices, "refresh_fx_cache_for_tickers", lambda ts: seen.setdefault("fx", list(ts)))
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
+    monkeypatch.setattr(prices, "check_price_alerts", Mock())
+    monkeypatch.setattr(prices.config, "prices_json", tmp_path / "prices.json")
+    monkeypatch.setattr(prices, "_price_cache", {})
+
+    prices.refresh_prices()
+
+    assert seen == {"cache_only": False, "fx": tickers}
+
+
+def test_refresh_prices_persists_snapshot_when_fx_refresh_fails(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An FX cache refresh error is logged and doesn't block writing prices.json (#7917)."""
+    ticker = "XYZ.L"
+    snapshot = {ticker: {"last_price": 145.0, "last_price_date": "2024-04-01"}}
+
+    def failing_fx(_tickers):
+        raise RuntimeError("fx store unavailable")
+
+    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: [ticker])
+    monkeypatch.setattr(prices, "get_price_snapshot", lambda _ts: snapshot)
+    monkeypatch.setattr(prices, "refresh_fx_cache_for_tickers", failing_fx)
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
+    monkeypatch.setattr(prices, "check_price_alerts", Mock())
+    output_path = tmp_path / "prices.json"
+    monkeypatch.setattr(prices.config, "prices_json", output_path)
+    monkeypatch.setattr(prices, "_price_cache", {})
+
+    prices.refresh_prices()
+
+    assert json.loads(output_path.read_text()) == snapshot

@@ -208,6 +208,25 @@ def restore_timeseries_cache_module():
         timeseries.cache = original
 
 
+@pytest.fixture(autouse=True)
+def isolate_timeseries_refresh_queue(monkeypatch):
+    """Keep the background price-refresh worker (#7917) from starting in tests.
+
+    A test that reads in cache-only mode with offline mode off queues its stale
+    tickers; a worker thread started then could outlive the test's fetcher
+    monkeypatches and reach a real price source. Tests call ``drain()``
+    themselves when they want the refresh to run.
+    """
+    from backend.timeseries import cache, refresh_queue
+
+    monkeypatch.setattr(refresh_queue, "autostart", False)
+    refresh_queue.reset()
+    cache._FX_FRAMES.clear()
+    yield
+    refresh_queue.reset()
+    cache._FX_FRAMES.clear()
+
+
 @pytest.fixture
 def quotes_table(monkeypatch):
     """In-memory DynamoDB table for quote tests."""

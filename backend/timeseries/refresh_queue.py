@@ -29,6 +29,7 @@ from __future__ import annotations
 import contextvars
 import logging
 import os
+import re
 import threading
 import time
 from datetime import date, timedelta
@@ -67,7 +68,10 @@ def enqueue(ticker: str, exchange: str) -> bool:
 
 def enqueue_fx(currency: str) -> bool:
     """Queue a background refresh of the ``currency``->GBP FX cache; return whether it was queued."""
-    return _enqueue((currency.upper(),))
+    currency = (currency or "").strip().upper()
+    if not re.fullmatch(r"[A-Z]{3}", currency):
+        return False
+    return _enqueue((currency,))
 
 
 def _enqueue(key: _Key) -> bool:

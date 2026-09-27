@@ -64,13 +64,13 @@ def test_cache_only_fx_to_base_converts_to_a_non_gbp_base(fx_cache, no_live_fx):
     assert rate == pytest.approx(1 / 0.75)
 
 
-def test_cache_only_fx_to_base_queues_a_stale_currency_and_uses_its_last_rate(fx_cache, no_live_fx):
+def test_cache_only_fx_to_base_queues_a_stale_currency_once_and_uses_its_last_rate(fx_cache, no_live_fx):
     _seed_fx("USD", cache._last_close_target() - timedelta(days=10), rate=0.7)
 
     with cache.cache_only():
-        rate = portfolio_utils._fx_to_base("USD", "GBP", {})
+        rates = [portfolio_utils._fx_to_base("USD", "GBP", {}) for _ in range(3)]
 
-    assert rate == pytest.approx(0.7)
+    assert rates == [pytest.approx(0.7)] * 3
     assert refresh_queue.pending() == [("USD",)]
 
 
@@ -111,6 +111,12 @@ def test_queued_currency_refreshes_its_fx_cache(fx_cache, monkeypatch):
     assert refresh_queue.enqueue_fx("USD") is False
 
 
+def test_enqueue_fx_rejects_invalid_currency_codes(fx_cache):
+    assert refresh_queue.enqueue_fx("NOT-A-CCY") is False
+    assert refresh_queue.enqueue_fx("") is False
+    assert refresh_queue.pending() == []
+
+
 def test_enqueue_fx_is_skipped_on_lambda(fx_cache, monkeypatch):
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "fn")
 
@@ -149,3 +155,40 @@ def test_owner_sectors_route_runs_cache_only(monkeypatch, tmp_path):
     portfolio_routes.portfolio_sectors("alice", request=None, as_of=None)
 
     assert seen == [True]
+
+
+@pytest.fixture
+def usd_holding_without_changes(fx_cache, no_live_fx, monkeypatch):
+    """A group with one USD holding whose snapshot lacks 7d/30d changes.
+
+    Aggregating it reaches both live paths #8028 closes: ``_fx_to_base`` for
+    the USD snapshot price, and ``price_change_pct`` -> ``load_meta_timeseries_range``
+    for the missing changes. Every live price and FX source raises.
+    """
+    _seed_fx("USD", cache._last_close_target(), rate=0.75)
+    # An earlier test's memoized AAPL.N read would skip the lookup (and its enqueue).
+    cache._load_meta_timeseries_cached.cache_clear()
+    cache._memoized_range_cached.cache_clear()
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", _explode("fetch_meta_timeseries"))
+    monkeypatch.setattr(cache, "fetch_fx_rate_range_live", _explode("cache.fetch_fx_rate_range_live"))
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"AAPL.N": {"last_price": 100.0, "price_currency": "USD"}})
+    portfolio = {"accounts": [{"owner": "alice", "holdings": [{"ticker": "AAPL.N", "exchange": "N", "units": 2}]}]}
+    monkeypatch.setattr(portfolio_routes, "_build_group_portfolio", lambda *_: portfolio)
+
+
+def test_group_instruments_prices_from_cached_fx_with_no_live_calls(usd_holding_without_changes):
+    rows = portfolio_routes.group_instruments("all", owner=None, account_type=None, as_of=None)
+
+    (row,) = rows
+    assert row["last_price_gbp"] == pytest.approx(75.0)
+    assert row["market_value_gbp"] == pytest.approx(150.0)
+    assert row["change_7d_pct"] is None
+    # No cached prices: the ticker is queued for the background refresh instead.
+    assert ("AAPL", "N") in refresh_queue.pending()
+
+
+@pytest.mark.parametrize("route", [portfolio_routes.group_sectors, portfolio_routes.group_regions])
+def test_group_field_aggregates_make_no_live_calls(usd_holding_without_changes, route):
+    (group,) = route("all", as_of=None)
+
+    assert group["market_value_gbp"] == pytest.approx(150.0)

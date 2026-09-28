@@ -288,6 +288,101 @@ class TestApplyDateRange:
         assert list(df.index) == original_index
         assert len(df) == 3
 
+    # ── #8127: searchsorted fast path (sorted, non-null datetime64 column) ──
+
+    def test_fast_path_empty_range_both_bounds_after_data(self):
+        # Range entirely after the last row: empty result, not an off-by-one.
+        dates = [self.BASE, self.MID]
+        df = self._df(dates, as_datetime=True)
+        result = th.apply_date_range(df, start_date=self.END, end_date=self.END)
+        assert result.empty
+
+    def test_fast_path_empty_range_both_bounds_before_data(self):
+        # Range entirely before the first row.
+        dates = [self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.BASE)
+        assert result.empty
+
+    def test_fast_path_start_after_end_returns_empty(self):
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        result = th.apply_date_range(df, start_date=self.END, end_date=self.BASE)
+        assert result.empty
+
+    def test_fast_path_duplicate_dates_all_included(self):
+        # searchsorted with duplicate boundary values must not drop or
+        # double-count rows sharing the same Date.
+        dates = [self.BASE, self.MID, self.MID, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        result = th.apply_date_range(df, start_date=self.MID, end_date=self.MID)
+        assert len(result) == 3
+
+    def test_fast_path_time_of_day_component_end_of_day_inclusive(self):
+        # A Date column that carries a nonzero time-of-day must still treat
+        # end_date as inclusive of the whole calendar day (half-open upper
+        # bound), not just midnight.
+        col = pd.to_datetime(
+            [
+                dt.datetime.combine(self.BASE, dt.time(0, 0)),
+                dt.datetime.combine(self.MID, dt.time(9, 30)),
+                dt.datetime.combine(self.MID, dt.time(23, 59)),
+                dt.datetime.combine(self.END, dt.time(0, 0)),
+            ]
+        )
+        df = pd.DataFrame({"Date": col, "Close": range(4)})
+        assert df["Date"].is_monotonic_increasing
+        result = th.apply_date_range(df, start_date=self.MID, end_date=self.MID)
+        assert len(result) == 2
+
+    def test_unsorted_datetime_column_falls_back_to_scan(self):
+        # Deliberately out-of-order Date column: the fast path must not be
+        # taken, and the result must still be correct (same as the sorted
+        # equivalent, modulo row order).
+        dates = [self.MID, self.BASE, self.END]
+        df = self._df(dates, as_datetime=True)
+        assert not df["Date"].is_monotonic_increasing
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
+        assert sorted(result["Date"].dt.date) == [self.BASE, self.MID]
+
+    def test_sorted_and_unsorted_paths_agree(self):
+        # Cross-check: filtering a sorted frame and its shuffled equivalent
+        # (row order aside) must produce the same set of rows.
+        dates = [self.BASE, self.MID, self.END]
+        sorted_df = self._df(dates, as_datetime=True)
+        shuffled_df = self._df([self.MID, self.END, self.BASE], as_datetime=True)
+        sorted_result = th.apply_date_range(sorted_df, start_date=self.BASE, end_date=self.MID)
+        shuffled_result = th.apply_date_range(shuffled_df, start_date=self.BASE, end_date=self.MID)
+        assert sorted(sorted_result["Date"].dt.date) == sorted(shuffled_result["Date"].dt.date)
+
+    def test_fast_path_matches_scan_path_via_monkeypatch(self, monkeypatch):
+        # Directly compares the sorted (fast) path's output against the
+        # scan-based path on the *same* sorted, non-null data, by forcing the
+        # guard's `is_monotonic_increasing` check to report False for the
+        # second call -- pinning down that the optimisation is
+        # behaviour-preserving rather than merely "looks right" on disjoint
+        # fixtures.
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        fast_result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
+
+        real_is_monotonic_increasing = pd.Series.is_monotonic_increasing
+
+        def _fake_is_monotonic_increasing(self):
+            if self.name == "Date":
+                return False
+            return real_is_monotonic_increasing.__get__(self)
+
+        monkeypatch.setattr(
+            pd.Series,
+            "is_monotonic_increasing",
+            property(_fake_is_monotonic_increasing),
+        )
+        scan_result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
+
+        assert list(fast_result["Date"].dt.date) == list(scan_result["Date"].dt.date)
+        assert list(fast_result["Close"]) == list(scan_result["Close"])
+
 
 def _make_frozen_date(frozen_today: dt.date):
     """Return a drop-in replacement for ``datetime.date`` that freezes ``today()``."""

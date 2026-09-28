@@ -130,6 +130,14 @@ def test_cash_rows_are_not_treated_as_disposals():
     assert compute_disposal_gains(txs) == {}
 
 
+def test_sell_without_amount_or_price_has_unknown_proceeds_not_zero():
+    txs = [_buy("2024-01-01", 10, 1000), {"date": "2024-06-01", "type": "SELL", "ticker": "AAA.L", "units": 10}]
+    gains = compute_disposal_gains(txs)
+    assert gains[1].proceeds_gbp is None
+    assert gains[1].realised_gain_gbp is None
+    assert gains[1].cost_basis_gbp == pytest.approx(1000.0)
+
+
 def test_results_are_keyed_by_original_index_when_non_mapping_rows_are_present():
     txs = [None, _buy("2024-01-01", 10, 1000), "junk", _sell("2024-06-01", 10, 1250)]
     gains = compute_disposal_gains(txs)

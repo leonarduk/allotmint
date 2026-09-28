@@ -1,10 +1,12 @@
 """Realised gain/loss per disposal using UK Section 104 average-cost pooling.
 
 The pooling itself lives in :mod:`backend.common.holdings_rebuild`, so realised
-gains and the cost basis written to ``<account>.json`` always agree: the same
-date ordering (acquisitions before disposals on the same day, undated rows
+gains use the same date ordering as the cost basis written to
+``<account>.json`` (acquisitions before disposals on the same day, undated rows
 last), the same settled values, and the same matching of ticker-less trades to
-tickers by instrument name.
+tickers by instrument name.  One difference remains: the rebuild can also learn
+a name's ticker from the existing holdings file, which is not loaded here, so a
+ticker-less trade whose ticker appears only there pools under its name.
 
 A SELL's realised gain is ``proceeds - cost``, where ``cost`` is taken out of
 the pool pro rata.  Units that entered the pool without a known cost (e.g. a

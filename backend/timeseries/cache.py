@@ -136,7 +136,20 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
     for col in EXPECTED_COLS:
         if col not in df.columns:
             df[col] = pd.NA
-    dates = pd.to_datetime(df["Date"], errors="coerce")
+    # `pd.to_datetime(..., errors="coerce")` is expensive even when the column
+    # is already a proper datetime64 dtype: pandas' `should_cache` heuristic
+    # iterates every element to decide whether to memoize parsed values,
+    # which dominates runtime on the large (thousands-of-rows) per-ticker
+    # parquet histories this function re-validates on every cache read (see
+    # #8095 -- this is the actual hot path behind the slow sector/region
+    # aggregation endpoints, not a live network call). Skip the conversion
+    # entirely when there is nothing to parse; only fall back to
+    # `pd.to_datetime` for inputs that genuinely need parsing (raw strings,
+    # ``datetime.date`` objects, etc.).
+    if pd.api.types.is_datetime64_any_dtype(df["Date"]):
+        dates = df["Date"]
+    else:
+        dates = pd.to_datetime(df["Date"], errors="coerce")
     # Strip timezone info before casting: .astype("datetime64[ms]") raises
     # TypeError on tz-aware Series. All callers in this module produce tz-naive
     # timestamps, but this guard future-proofs against upstream tz-aware feeds.

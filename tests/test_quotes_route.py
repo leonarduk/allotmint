@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
+from backend.routes import quotes as quotes_module
 
 
 def test_quotes_returns_502_on_yfinance_error(monkeypatch):
@@ -8,6 +9,7 @@ def test_quotes_returns_502_on_yfinance_error(monkeypatch):
         raise RuntimeError("boom")
 
     monkeypatch.setattr("backend.routes.quotes.yf.Tickers", mock_tickers)
+    monkeypatch.setattr(quotes_module.config, "offline_mode", False)
 
     app = create_app()
     client = TestClient(app)

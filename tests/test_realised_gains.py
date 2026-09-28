@@ -1,4 +1,5 @@
 import json
+import logging
 
 import pytest
 from fastapi.testclient import TestClient
@@ -127,6 +128,20 @@ def test_cash_rows_are_not_treated_as_disposals():
         {"date": "2024-02-01", "type": "SELL", "ticker": "CASH.GBP", "units": 50, "amount_minor": 5000},
     ]
     assert compute_disposal_gains(txs) == {}
+
+
+def test_results_are_keyed_by_original_index_when_non_mapping_rows_are_present():
+    txs = [None, _buy("2024-01-01", 10, 1000), "junk", _sell("2024-06-01", 10, 1250)]
+    gains = compute_disposal_gains(txs)
+    assert list(gains) == [3]
+    assert gains[3].realised_gain_gbp == pytest.approx(250.0)
+
+
+def test_oversold_disposal_logs_no_warning(caplog):
+    with caplog.at_level(logging.WARNING):
+        gains = compute_disposal_gains([_sell("2024-06-01", 10, 1250)])
+    assert gains[0].realised_gain_gbp is None
+    assert caplog.records == []
 
 
 def test_list_transactions_includes_gain_even_when_buy_is_outside_date_filter(tmp_path, monkeypatch):

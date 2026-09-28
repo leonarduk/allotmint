@@ -174,6 +174,20 @@ def test_unresolvable_ticker_less_position_is_left_out(caplog: pytest.LogCapture
     assert "No ticker known" in caplog.text
 
 
+def test_unresolved_security_ref_position_is_left_out(caplog: pytest.LogCaptureFixture) -> None:
+    tx = {
+        "transactions": [
+            {"type": "BUY", "security_ref": "sec-3", "units": 4, "amount_minor": 400, "date": "2024-01-01"}
+        ]
+    }
+
+    with caplog.at_level(logging.WARNING):
+        doc = rebuild_holdings_document(tx, "a", "isa")
+
+    assert doc["holdings"] == []
+    assert "No ticker known" in caplog.text
+
+
 def test_oversold_position_is_not_emitted_negative(caplog: pytest.LogCaptureFixture) -> None:
     tx = {"transactions": [{"type": "SELL", "instrument_name": "Old Fund", "units": 5, "amount_minor": 500}]}
     caplog.set_level(logging.WARNING, logger="backend.common.holdings_rebuild")

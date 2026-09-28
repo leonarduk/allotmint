@@ -22,7 +22,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from backend.logging_setup import sanitise_log_value
 
@@ -59,16 +59,23 @@ class Position:
         if _ISO_DATE_RE.match(tx_date) and (self.acquired_date is None or tx_date > self.acquired_date):
             self.acquired_date = tx_date
 
-    def dispose(self, qty: float) -> float:
-        """Remove ``qty`` units; return how many were not in the pool."""
+    def dispose(self, qty: float) -> tuple[float, float, float]:
+        """Remove ``qty`` units pro rata.
+
+        Returns ``(cost, unknown_cost_units, unmatched)``: the allowable cost
+        taken out, how many of the units taken had no known cost, and how many
+        of ``qty`` were not in the pool at all.
+        """
         matched = min(qty, self.units)
         fraction = matched / self.units if self.units > _EPS else 0.0
+        cost_out = self.cost * fraction
+        unknown_out = self.unknown_cost_units * fraction
         self.units -= matched
-        self.cost -= self.cost * fraction
-        self.unknown_cost_units -= self.unknown_cost_units * fraction
+        self.cost -= cost_out
+        self.unknown_cost_units -= unknown_out
         if self.units <= _EPS:
             self.units = self.cost = self.unknown_cost_units = 0.0
-        return qty - matched
+        return cost_out, unknown_out, qty - matched
 
     @property
     def cost_known(self) -> bool:
@@ -120,7 +127,9 @@ def _name(record: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _name_aliases(transactions: Sequence[Mapping[str, Any]], existing: Sequence[Mapping[str, Any]]) -> dict[str, str]:
+def name_aliases(
+    transactions: Sequence[Mapping[str, Any]], existing: Sequence[Mapping[str, Any]] = ()
+) -> dict[str, str]:
     """Map instrument names to tickers so ticker-less trades join the right pool."""
     aliases: dict[str, str] = {}
     for record in [*existing, *transactions]:
@@ -136,9 +145,12 @@ def _instrument_key(tx: Mapping[str, Any], aliases: Mapping[str, str]) -> str | 
     if ticker:
         return ticker
     name = _name(tx)
-    if name is None:
-        return None
-    return aliases.get(name, f"name:{name}")
+    if name is not None:
+        return aliases.get(name, f"name:{name}")
+    # Portfolio Performance rows whose security could not be resolved still
+    # identify the same instrument by reference, so they can share a pool.
+    ref = str(tx.get("security_ref") or "").strip()
+    return f"ref:{ref}" if ref else None
 
 
 def _sort_key(indexed: tuple[int, Mapping[str, Any]]) -> tuple[int, str, int, int]:
@@ -151,6 +163,19 @@ def _sort_key(indexed: tuple[int, Mapping[str, Any]]) -> tuple[int, str, int, in
     return (0, day, 0 if tx_type in _ACQUIRE else 1, idx)
 
 
+@dataclass(frozen=True)
+class Disposal:
+    """One disposal as replayed through its instrument's pool."""
+
+    index: int
+    tx_type: str
+    units: float
+    cost_gbp: float
+    unknown_cost_units: float
+    unmatched_units: float
+    proceeds_gbp: float | None
+
+
 @dataclass
 class Replay:
     """Result of replaying a transactions list."""
@@ -158,14 +183,17 @@ class Replay:
     positions: dict[str, Position]
     cash: float = 0.0
     cash_seen: bool = False
+    warn: bool = True
+    on_disposal: Callable[[Disposal], None] | None = None
 
 
-def _apply_trade(replay: Replay, tx: Mapping[str, Any], tx_type: str, key: str, trade_cash: bool) -> None:
+def _apply_trade(replay: Replay, index: int, tx: Mapping[str, Any], tx_type: str, key: str, trade_cash: bool) -> None:
     qty = _quantity(tx)
     if not qty:
-        logger.warning(
-            "Skipping %s with no usable quantity for %s", sanitise_log_value(tx_type), sanitise_log_value(key)
-        )
+        if replay.warn:
+            logger.warning(
+                "Skipping %s with no usable quantity for %s", sanitise_log_value(tx_type), sanitise_log_value(key)
+            )
         return
     if key == CASH_TICKER:
         replay.cash += qty if tx_type in _ACQUIRE else -qty
@@ -177,8 +205,10 @@ def _apply_trade(replay: Replay, tx: Mapping[str, Any], tx_type: str, key: str, 
     if acquisition:
         position.acquire(qty, value, str(tx.get("date") or "")[:10])
     else:
-        unmatched = position.dispose(qty)
-        if unmatched > _EPS:
+        cost_out, unknown_out, unmatched = position.dispose(qty)
+        if replay.on_disposal is not None:
+            replay.on_disposal(Disposal(index, tx_type, qty, cost_out, unknown_out, unmatched, value))
+        if unmatched > _EPS and replay.warn:
             logger.warning(
                 "%s of %s %s exceeds units held; ignoring the excess",
                 sanitise_log_value(tx_type),
@@ -204,19 +234,27 @@ def replay_transactions(
     *,
     trade_cash: bool = False,
     aliases: Mapping[str, str] | None = None,
+    on_disposal: Callable[[Disposal], None] | None = None,
+    warn: bool = True,
 ) -> Replay:
-    """Replay ``transactions`` in date order (acquisitions first within a day, undated last)."""
-    replay = Replay(positions={})
+    """Replay ``transactions`` in date order (acquisitions first within a day, undated last).
+
+    ``on_disposal`` is called for every disposal of a non-cash instrument with
+    its index into ``transactions``.  ``warn=False`` silences data-quality
+    warnings for callers that replay on every read.
+    """
+    replay = Replay(positions={}, warn=warn, on_disposal=on_disposal)
     aliases = aliases or {}
     cash_signs = {**_CASH_FLOWS, **(_CHARGES if trade_cash else {})}
-    for _, tx in sorted(enumerate(transactions), key=_sort_key):
+    for idx, tx in sorted(enumerate(transactions), key=_sort_key):
         tx_type = str(tx.get("type") or "").upper()
         if tx_type in _ACQUIRE or tx_type in _DISPOSE:
             key = _instrument_key(tx, aliases)
             if key is None:
-                logger.warning("Skipping %s with neither ticker nor instrument_name", sanitise_log_value(tx_type))
+                if warn:
+                    logger.warning("Skipping %s with neither ticker nor instrument_name", sanitise_log_value(tx_type))
                 continue
-            _apply_trade(replay, tx, tx_type, key, trade_cash)
+            _apply_trade(replay, idx, tx, tx_type, key, trade_cash)
         elif tx_type in cash_signs:
             _apply_cash(replay, tx, cash_signs[tx_type])
     return replay
@@ -261,8 +299,8 @@ def _computed_holdings(replay: Replay, previous: Mapping[str, Mapping[str, Any]]
     for key, position in replay.positions.items():
         if position.units <= _EPS:
             continue
-        if key.startswith("name:"):
-            logger.warning("No ticker known for %s; position left out of holdings", sanitise_log_value(key[5:]))
+        if key.startswith(("name:", "ref:")):
+            logger.warning("No ticker known for %s; position left out of holdings", sanitise_log_value(key))
             continue
         prev = previous.get(key)
         units = round(position.units, 8)
@@ -288,7 +326,7 @@ def rebuild_holdings_document(
     replay = replay_transactions(
         transactions,
         trade_cash=tx_data.get(TRADE_CASH_FLAG) is True,
-        aliases=_name_aliases(transactions, old_holdings),
+        aliases=name_aliases(transactions, old_holdings),
     )
     computed = _computed_holdings(replay, previous)
     # Keep the existing ordering so the rewritten file diffs cleanly.

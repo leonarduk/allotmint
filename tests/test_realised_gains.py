@@ -1,4 +1,5 @@
 import json
+import logging
 
 import pytest
 from fastapi.testclient import TestClient
@@ -85,6 +86,84 @@ def test_instruments_are_pooled_separately_and_scaled_shares_handled():
     gains = compute_disposal_gains(txs)
     assert gains[2].realised_gain_gbp == pytest.approx(-20.0)
     assert gains[3].realised_gain_gbp == pytest.approx(50.0)
+
+
+def test_undated_rows_replay_after_dated_ones():
+    undated_sell = {"type": "SELL", "ticker": "AAA.L", "units": 5, "amount_minor": 60000}
+    gains = compute_disposal_gains([undated_sell, _buy("2024-01-01", 10, 1000)])
+    assert gains[0].cost_basis_gbp == pytest.approx(500.0)
+    assert gains[0].realised_gain_gbp == pytest.approx(100.0)
+
+
+def test_zero_amount_transfer_in_is_unknown_cost_not_free():
+    txs = [
+        {"date": "2021-09-26", "type": "TRANSFER_IN", "ticker": "AAA.L", "units": 10, "amount_minor": 0},
+        _sell("2022-01-01", 10, 1500),
+    ]
+    gains = compute_disposal_gains(txs)
+    assert gains[1].realised_gain_gbp is None
+    assert gains[1].unmatched_units == pytest.approx(10)
+
+
+def test_ticker_less_sell_draws_on_pool_of_same_named_ticker():
+    txs = [
+        {**_buy("2024-01-01", 10, 1000), "instrument_name": "Some Fund Acc"},
+        {"date": "2024-02-01", "type": "SELL", "instrument_name": "Some Fund Acc", "units": 10, "amount_minor": 120000},
+    ]
+    gains = compute_disposal_gains(txs)
+    assert gains[1].realised_gain_gbp == pytest.approx(200.0)
+
+
+def test_unresolved_security_refs_pool_together():
+    txs = [
+        {"date": "2024-01-01", "type": "BUY", "security_ref": "../../security[3]", "units": 4, "amount_minor": 40000},
+        {"date": "2024-02-01", "type": "SELL", "security_ref": "../../security[3]", "units": 4, "amount_minor": 50000},
+    ]
+    assert compute_disposal_gains(txs)[1].realised_gain_gbp == pytest.approx(100.0)
+
+
+def test_cash_rows_are_not_treated_as_disposals():
+    txs = [
+        {"date": "2024-01-01", "type": "TRANSFER_IN", "ticker": "CASH.GBP", "units": 100},
+        {"date": "2024-02-01", "type": "SELL", "ticker": "CASH.GBP", "units": 50, "amount_minor": 5000},
+    ]
+    assert compute_disposal_gains(txs) == {}
+
+
+def test_sell_without_amount_or_price_has_unknown_proceeds_not_zero():
+    txs = [_buy("2024-01-01", 10, 1000), {"date": "2024-06-01", "type": "SELL", "ticker": "AAA.L", "units": 10}]
+    gains = compute_disposal_gains(txs)
+    assert gains[1].proceeds_gbp is None
+    assert gains[1].realised_gain_gbp is None
+    assert gains[1].cost_basis_gbp == pytest.approx(1000.0)
+
+
+def test_results_are_keyed_by_original_index_when_non_mapping_rows_are_present():
+    txs = [None, _buy("2024-01-01", 10, 1000), "junk", _sell("2024-06-01", 10, 1250)]
+    gains = compute_disposal_gains(txs)
+    assert list(gains) == [3]
+    assert gains[3].realised_gain_gbp == pytest.approx(250.0)
+
+
+def test_oversold_disposal_logs_no_warning(caplog):
+    with caplog.at_level(logging.WARNING):
+        gains = compute_disposal_gains([_sell("2024-06-01", 10, 1250)])
+    assert gains[0].realised_gain_gbp is None
+    assert caplog.records == []
+
+
+def test_transfer_out_and_removal_reduce_pool_without_realising_a_gain():
+    txs = [
+        _buy("2024-01-01", 10, 1000),
+        {"date": "2024-02-01", "type": "TRANSFER_OUT", "ticker": "AAA.L", "units": 4},
+        {"date": "2024-03-01", "type": "REMOVAL", "ticker": "AAA.L", "units": 2},
+        _sell("2024-04-01", 4, 600),
+    ]
+    gains = compute_disposal_gains(txs)
+    assert list(gains) == [3]
+    # 6 of 10 units left the pool pro rata, taking £600 of the £1000 cost with them.
+    assert gains[3].cost_basis_gbp == pytest.approx(400.0)
+    assert gains[3].realised_gain_gbp == pytest.approx(200.0)
 
 
 def test_list_transactions_includes_gain_even_when_buy_is_outside_date_filter(tmp_path, monkeypatch):

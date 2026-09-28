@@ -71,7 +71,7 @@
     "vite": "^8.2.2",
     "vite-imagetools": "^12.0.1",
     "vitest": "^4.1.9",
-    "zod": "^4.4.3"
+    "zod": "^4.6.5"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

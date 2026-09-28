@@ -431,15 +431,42 @@ class TestApplyDateRange:
 
         assert list(result["Date"].dt.date) == [self.BASE, self.MID]
 
-    def test_tz_aware_column_falls_back_to_scan_path(self):
-        # #8131 review: the fast-path guard didn't exclude tz-aware datetime64
-        # columns, but pd.Timestamp(bound) (tz-naive) compared via searchsorted
-        # against a tz-aware column raises/misbehaves. tz-aware columns must
-        # take the scan path instead, which already handles them via .dt.date.
-        col = pd.to_datetime([self.BASE, self.MID, self.END]).tz_localize("UTC")
+    def test_tz_aware_column_uses_local_calendar_day_not_utc_day(self):
+        # #8131 review (fair): the previous tz-aware test used UTC, where the
+        # local and UTC calendar day are identical -- it would pass even if
+        # the fallback silently used the wrong day. Asia/Tokyo is UTC+9, so
+        # local midnight is the *previous* UTC calendar day -- a real
+        # boundary crossing. The scan path's `.dt.date` reports the column's
+        # own local date, which is what a caller comparing against a plain
+        # (timezone-less) `datetime.date` bound expects.
+        col = pd.Series(pd.to_datetime([self.BASE, self.MID, self.END])).dt.tz_localize("Asia/Tokyo")
         df = pd.DataFrame({"Date": col, "Close": range(3)})
+        # Sanity check the fixture actually crosses a UTC day boundary --
+        # otherwise this test would be as vacuous as the one it replaces.
+        assert col.dt.tz_convert("UTC").dt.date.tolist() != col.dt.date.tolist()
 
         result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
+
+        assert list(result["Date"].dt.date) == [self.BASE, self.MID]
+
+    def test_open_ended_ranges_on_fast_path(self):
+        # #8131 review: start_date=None/end_date=None on the sorted-datetime64
+        # fast path weren't directly pinned (only exercised as a side effect
+        # of other tests).
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+
+        assert list(th.apply_date_range(df, start_date=self.MID)["Date"].dt.date) == [self.MID, self.END]
+        assert list(th.apply_date_range(df, end_date=self.MID)["Date"].dt.date) == [self.BASE, self.MID]
+        assert list(th.apply_date_range(df)["Date"].dt.date) == [self.BASE, self.MID, self.END]
+
+    def test_sorted_datetime64_with_trailing_nat_uses_scan_path(self):
+        # #8131 review: no test pinned that a sorted datetime64 column with a
+        # NaT is excluded from the fast path by the `not dates.hasnans` guard.
+        col = pd.to_datetime([self.BASE, self.MID, None])
+        df = pd.DataFrame({"Date": col, "Close": range(3)})
+
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.END)
 
         assert list(result["Date"].dt.date) == [self.BASE, self.MID]
 

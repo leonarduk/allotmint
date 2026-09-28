@@ -24,6 +24,7 @@ def test_get_quotes_includes_name(monkeypatch):
         return type("TT", (), {"tickers": {"AAA": ticker}})()
 
     monkeypatch.setattr(quotes.yf, "Tickers", fake_Tickers)
+    monkeypatch.setattr(quotes.config, "offline_mode", False)
 
     with TestClient(app) as client:
         resp = client.get("/api/quotes?symbols=AAA")
@@ -70,6 +71,7 @@ def test_get_quotes_includes_currency_and_quote_type(monkeypatch):
         return type("TT", (), {"tickers": {"^FTSE": ticker}})()
 
     monkeypatch.setattr(quotes.yf, "Tickers", fake_Tickers)
+    monkeypatch.setattr(quotes.config, "offline_mode", False)
 
     with TestClient(app) as client:
         resp = client.get("/api/quotes?symbols=%5EFTSE")
@@ -103,6 +105,7 @@ def test_get_quotes_prefers_long_name_over_truncated_short_name(monkeypatch):
         return type("TT", (), {"tickers": {"VUSA.L": ticker}})()
 
     monkeypatch.setattr(quotes.yf, "Tickers", fake_Tickers)
+    monkeypatch.setattr(quotes.config, "offline_mode", False)
 
     with TestClient(app) as client:
         resp = client.get("/api/quotes?symbols=VUSA.L")
@@ -134,6 +137,7 @@ def test_get_quotes_falls_back_to_short_name_when_long_name_missing(monkeypatch)
         return type("TT", (), {"tickers": {"GC=F": ticker}})()
 
     monkeypatch.setattr(quotes.yf, "Tickers", fake_Tickers)
+    monkeypatch.setattr(quotes.config, "offline_mode", False)
 
     with TestClient(app) as client:
         resp = client.get("/api/quotes?symbols=GC%3DF")
@@ -167,6 +171,7 @@ def test_get_quotes_labels_pence_as_gbx_without_scaling_price(monkeypatch):
         return type("TT", (), {"tickers": {"BP.L": ticker}})()
 
     monkeypatch.setattr(quotes.yf, "Tickers", fake_Tickers)
+    monkeypatch.setattr(quotes.config, "offline_mode", False)
 
     with TestClient(app) as client:
         resp = client.get("/api/quotes?symbols=BP.L")

@@ -17,6 +17,8 @@ from fastapi import APIRouter, Query
 
 from backend.common.currency import CurrencyNormaliser
 from backend.common.errors import ProviderFailure
+from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.utils.lazy_import import lazy_import
 
 # yfinance is only needed when /api/quotes is called; defer loading to first call.
@@ -35,6 +37,13 @@ def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
     if not syms:
         return []
 
+    # Skip the live yfinance round-trip entirely when running offline (see
+    # backend/common/accounts_store.py and backend/common/instruments.py for
+    # the same offline_mode short-circuit pattern elsewhere in the codebase).
+    if config.offline_mode:
+        logger.info("Skipping /api/quotes live fetch: market_data.offline_mode is enabled")
+        return []
+
     try:
         tickers = yf.Tickers(" ".join(syms)).tickers
     except Exception as exc:  # pragma: no cover - exercised in tests
@@ -48,11 +57,23 @@ def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
         ) from exc
 
     results: List[Dict[str, Any]] = []
+    failures: Dict[str, str] = {}
     for sym in syms:
         ticker = tickers.get(sym)
         if ticker is None:
             continue
-        info = getattr(ticker, "info", {})
+        try:
+            # `.info` triggers its own live network fetch; a single bad/rate
+            # limited symbol must not take down the whole request (#8094).
+            info = getattr(ticker, "info", {})
+        except Exception as exc:  # noqa: BLE001 - isolate per-symbol provider failures
+            logger.warning(
+                "Failed to fetch quote info for %s, skipping: %s",
+                sanitise_log_value(sym),
+                sanitise_log_value(exc),
+            )
+            failures[sym] = str(exc)
+            continue
         price = info.get("regularMarketPrice")
         if price is None:
             continue
@@ -96,6 +117,19 @@ def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
                 "currency": currency,
                 "quote_type": info.get("quoteType"),
             }
+        )
+
+    if not results and failures:
+        # Every requested symbol failed its live fetch (as opposed to simply
+        # having no price data) -- surface a structured 502 rather than a
+        # misleadingly "successful" empty list.
+        raise ProviderFailure(
+            "Failed to fetch quotes",
+            extra={
+                "provider": "yfinance",
+                "symbols": syms,
+                "provider_errors": failures,
+            },
         )
 
     return results

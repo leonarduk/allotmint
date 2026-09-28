@@ -253,15 +253,59 @@ def apply_date_range(
     Returns a new DataFrame with reset index; the original frame is not mutated.
     When ``df`` is empty or has no ``Date`` column a copy of ``df`` is returned
     (index is not reset in that case).
+
+    Performance (#8127): for a ``datetime64`` column with no null values that is
+    already sorted ascending — true of every per-ticker parquet history in the
+    warm cache this is repeatedly called against (verified against the real
+    cache: 171/171 files sorted, no NaT) — this uses ``Series.searchsorted`` to
+    binary-search the two slice boundaries directly on the datetime64 values,
+    an O(log n) lookup that also avoids the expensive ``.dt.date`` conversion
+    (which builds a Python ``datetime.date`` object per row). Any column that
+    is unsorted, contains nulls, is tz-aware, or is not ``datetime64`` falls
+    back to the original O(n) boolean-mask scan below. ``start_date``/``end_date``
+    are normalised to plain ``datetime.date`` up front (see below) before either
+    path runs, so a caller passing a ``datetime``/``Timestamp``/``np.datetime64``/
+    date-parseable string bound with a nonzero time component behaves
+    identically on both paths — only the sorted-datetime64-no-nulls-tz-naive
+    case gets the fast path, but the *result* is the same either way.
     """
     if df.empty or "Date" not in df.columns:
         return df.copy()
+    # Normalise any date-like bound (datetime.date, datetime.datetime,
+    # pd.Timestamp, np.datetime64, or a date-parseable string) to a plain
+    # datetime.date up front, before either path below sees it. Without this,
+    # a caller passing a bound with a nonzero time component would make the
+    # fast path's pd.Timestamp(start_date)/pd.Timestamp(end_date) retain that
+    # time and searchsorted against it, which can exclude rows earlier the
+    # same calendar day that the date-truncated scan path would include --
+    # the two paths must see the same bound type to actually be equivalent
+    # (#8131 review). pd.Timestamp(...).normalize() handles every one of
+    # those input types uniformly (a plain hasattr(x, "date") check misses
+    # np.datetime64, which has no .date() method).
+    if start_date is not None:
+        start_date = pd.Timestamp(start_date).normalize().date()
+    if end_date is not None:
+        end_date = pd.Timestamp(end_date).normalize().date()
     dates = df["Date"]
+    is_dt64 = pd.api.types.is_datetime64_any_dtype(dates)
+    is_tz_naive = getattr(dates.dt, "tz", None) is None if is_dt64 else True
+    if is_dt64 and is_tz_naive and not dates.hasnans and dates.is_monotonic_increasing:
+        lo = 0
+        hi = len(dates)
+        if start_date is not None:
+            lo = int(dates.searchsorted(pd.Timestamp(start_date), side="left"))
+        if end_date is not None:
+            # Half-open upper bound: end_date is inclusive of the whole
+            # calendar day, so anything strictly before the next day
+            # qualifies — this also handles a Date column that carries a
+            # nonzero time-of-day component, unlike truncating to `.dt.date`.
+            hi = int(dates.searchsorted(pd.Timestamp(end_date) + pd.Timedelta(days=1), side="left"))
+        return df.iloc[lo:hi].reset_index(drop=True).copy()
     # Normalise to plain date objects for comparison so that NaT (datetime64) and
     # None (object dtype) are both caught by isna() before the >= / <= tests.
     # For datetime64 columns .dt.date converts NaT → None; for object-dtype columns
     # the series is used as-is. Both cases are handled identically below.
-    if pd.api.types.is_datetime64_any_dtype(dates):
+    if is_dt64:
         dates = dates.dt.date
     # Drop NaT/None unconditionally — callers must not expect null rows to survive.
     mask = dates.notna()

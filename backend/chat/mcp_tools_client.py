@@ -13,8 +13,9 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 from urllib.parse import urlparse
 
+import httpx2
 from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import streamable_http_client
 
 from backend.chat.sigv4_auth import LambdaFunctionUrlSigV4Auth
 
@@ -37,7 +38,14 @@ async def mcp_session(mcp_server_url: str) -> AsyncIterator[ClientSession]:
     """
 
     auth = None if _is_local_url(mcp_server_url) else LambdaFunctionUrlSigV4Auth()
-    async with streamablehttp_client(mcp_server_url, auth=auth) as (read_stream, write_stream, _):
-        async with ClientSession(read_stream, write_stream) as session:
-            await session.initialize()
-            yield session
+    # mcp 2.x's streamable_http_client dropped the `auth` kwarg in favour of
+    # accepting a pre-configured httpx2.AsyncClient (it builds its own default
+    # client, without auth, when none is given) -- see #8131.
+    async with httpx2.AsyncClient(auth=auth) as http_client:
+        async with streamable_http_client(mcp_server_url, http_client=http_client) as (
+            read_stream,
+            write_stream,
+        ):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+                yield session

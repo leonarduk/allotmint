@@ -261,31 +261,35 @@ def apply_date_range(
     binary-search the two slice boundaries directly on the datetime64 values,
     an O(log n) lookup that also avoids the expensive ``.dt.date`` conversion
     (which builds a Python ``datetime.date`` object per row). Any column that
-    is unsorted, contains nulls, or is not ``datetime64`` falls back to the
-    original O(n) boolean-mask scan below. ``start_date``/``end_date`` are
-    normalised to plain ``datetime.date`` up front (see below) before either
-    path runs, so a caller passing a ``datetime``/``Timestamp`` bound with a
-    nonzero time component behaves identically on both paths — only the
-    sorted-datetime64-no-nulls case gets the fast path, but the *result* is
-    the same either way.
+    is unsorted, contains nulls, is tz-aware, or is not ``datetime64`` falls
+    back to the original O(n) boolean-mask scan below. ``start_date``/``end_date``
+    are normalised to plain ``datetime.date`` up front (see below) before either
+    path runs, so a caller passing a ``datetime``/``Timestamp``/``np.datetime64``/
+    date-parseable string bound with a nonzero time component behaves
+    identically on both paths — only the sorted-datetime64-no-nulls-tz-naive
+    case gets the fast path, but the *result* is the same either way.
     """
     if df.empty or "Date" not in df.columns:
         return df.copy()
-    # Normalise datetime/Timestamp bounds to plain dates up front, before
-    # either path below sees them. Without this, a caller passing a
-    # datetime.datetime or pd.Timestamp with a nonzero time component would
-    # make the fast path's pd.Timestamp(start_date)/pd.Timestamp(end_date)
-    # retain that time and searchsorted against it, which can exclude rows
-    # earlier the same calendar day that the date-truncated scan path would
-    # include -- the two paths must see the same bound type to actually be
-    # equivalent (#8131 review).
-    if start_date is not None and hasattr(start_date, "date"):
-        start_date = start_date.date()
-    if end_date is not None and hasattr(end_date, "date"):
-        end_date = end_date.date()
+    # Normalise any date-like bound (datetime.date, datetime.datetime,
+    # pd.Timestamp, np.datetime64, or a date-parseable string) to a plain
+    # datetime.date up front, before either path below sees it. Without this,
+    # a caller passing a bound with a nonzero time component would make the
+    # fast path's pd.Timestamp(start_date)/pd.Timestamp(end_date) retain that
+    # time and searchsorted against it, which can exclude rows earlier the
+    # same calendar day that the date-truncated scan path would include --
+    # the two paths must see the same bound type to actually be equivalent
+    # (#8131 review). pd.Timestamp(...).normalize() handles every one of
+    # those input types uniformly (a plain hasattr(x, "date") check misses
+    # np.datetime64, which has no .date() method).
+    if start_date is not None:
+        start_date = pd.Timestamp(start_date).normalize().date()
+    if end_date is not None:
+        end_date = pd.Timestamp(end_date).normalize().date()
     dates = df["Date"]
     is_dt64 = pd.api.types.is_datetime64_any_dtype(dates)
-    if is_dt64 and not dates.hasnans and dates.is_monotonic_increasing:
+    is_tz_naive = getattr(dates.dt, "tz", None) is None if is_dt64 else True
+    if is_dt64 and is_tz_naive and not dates.hasnans and dates.is_monotonic_increasing:
         lo = 0
         hi = len(dates)
         if start_date is not None:

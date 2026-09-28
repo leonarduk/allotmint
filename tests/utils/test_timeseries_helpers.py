@@ -3,6 +3,7 @@ import datetime as dt
 import json
 from types import SimpleNamespace
 
+import numpy as np
 import pandas as pd
 
 import backend.utils.timeseries_helpers as th
@@ -414,6 +415,33 @@ class TestApplyDateRange:
         # Both bounds fall on days present in the data (BASE, MID); truncating
         # the time component must still include both of those calendar days.
         assert list(fast_result["Date"].dt.date) == [self.BASE, self.MID]
+
+    def test_np_datetime64_bounds_with_time_component_truncate_like_datetime(self):
+        # #8131 review: hasattr(x, "date") skips np.datetime64 (it has no
+        # .date() method), so a np.datetime64 bound with a nonzero time could
+        # retain that time on the fast path and exclude same-day rows.
+        # pd.Timestamp(x).normalize() handles np.datetime64 identically to
+        # datetime.datetime/pd.Timestamp.
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        start = np.datetime64("2024-01-01T15:00:00")
+        end = np.datetime64("2024-06-15T09:00:00")
+
+        result = th.apply_date_range(df, start_date=start, end_date=end)
+
+        assert list(result["Date"].dt.date) == [self.BASE, self.MID]
+
+    def test_tz_aware_column_falls_back_to_scan_path(self):
+        # #8131 review: the fast-path guard didn't exclude tz-aware datetime64
+        # columns, but pd.Timestamp(bound) (tz-naive) compared via searchsorted
+        # against a tz-aware column raises/misbehaves. tz-aware columns must
+        # take the scan path instead, which already handles them via .dt.date.
+        col = pd.to_datetime([self.BASE, self.MID, self.END]).tz_localize("UTC")
+        df = pd.DataFrame({"Date": col, "Close": range(3)})
+
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
+
+        assert list(result["Date"].dt.date) == [self.BASE, self.MID]
 
 
 def _make_frozen_date(frozen_today: dt.date):

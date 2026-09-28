@@ -319,3 +319,16 @@ python -m scripts.reconcile_holding_tickers data/accounts/alice/isa.json
 python -m scripts.reconcile_holding_tickers --write data/accounts/alice/isa.json
 python -m scripts.reconcile_holding_tickers --write --all
 ```
+
+## profile_ensure_schema.py
+
+Reproduces the #8137 microbenchmark of `backend.timeseries.cache._ensure_schema`
+against a real cached per-ticker history, isolating its cost from
+`apply_date_range`'s (#8127/#8131). Requires the `allotmint-data` sibling
+checkout (`DATA_ROOT` or `config.yaml`'s `paths.data_root`) with at least one
+warm `timeseries/meta/<TICKER>_<EXCHANGE>.parquet` file.
+
+```bash
+DATA_ROOT=../allotmint-data python -m scripts.profile_ensure_schema
+DATA_ROOT=../allotmint-data python -m scripts.profile_ensure_schema CASH_GBP
+```

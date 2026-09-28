@@ -1178,3 +1178,37 @@ def test_memoized_range_fast_ensure_schema_does_not_alias_shared_warm_cache(monk
 
     still_cached = cache._load_meta_parquet_cached(cache_path)
     assert_frame_equal(still_cached, snapshot)
+
+
+def test_load_parquet_fast_path_never_shares_an_object_across_calls(monkeypatch, tmp_path):
+    """Audit for #8137's review: every ``_ensure_schema`` caller other than
+    ``_memoized_range_cached`` was checked for mutation-after-call risk, not
+    just re-read. ``_load_parquet`` (used directly by
+    ``load_cached_meta_timeseries_full``, which ``backend/routes/data_quality_admin.py``
+    mutates in place via ``df["Ticker"] = ticker`` without copying first) does
+    a fresh ``pd.read_parquet`` on every call -- unlike ``_memoized_range_cached``,
+    it is never wrapped in an ``lru_cache``, so no two calls can ever return
+    the same object for ``_ensure_schema``'s fast path to alias. This test
+    proves that directly: two back-to-back reads of the same file must never
+    be the same object, and mutating one must never affect the other or a
+    fresh third read.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+
+    cache_path = cache.meta_timeseries_cache_path("ABC", "L")
+    _seed_existing_parquet(cache, cache_path, days=5)
+
+    first = cache.load_cached_meta_timeseries_full("ABC", "L")
+    second = cache.load_cached_meta_timeseries_full("ABC", "L")
+    assert first is not second
+    expected_dates = list(second["Date"].dt.date)
+
+    first["Ticker"] = "MUTATED"
+    first.drop(first.index, inplace=True)
+
+    assert list(second["Ticker"].unique()) != ["MUTATED"]
+    assert not second.empty
+
+    third = cache.load_cached_meta_timeseries_full("ABC", "L")
+    assert list(third["Date"].dt.date) == expected_dates

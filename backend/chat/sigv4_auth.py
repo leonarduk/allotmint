@@ -5,12 +5,12 @@ from __future__ import annotations
 from typing import Generator, Optional
 
 import boto3
-import httpx
+import httpx2
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
 
 
-class LambdaFunctionUrlSigV4Auth(httpx.Auth):
+class LambdaFunctionUrlSigV4Auth(httpx2.Auth):
     """Signs outgoing requests for an ``AWS_IAM``-authenticated Lambda Function URL.
 
     Function URLs are signed as the ``lambda`` service, not ``execute-api``
@@ -31,7 +31,7 @@ class LambdaFunctionUrlSigV4Auth(httpx.Auth):
         if not self._region:
             raise RuntimeError("No AWS region resolved to sign requests (set AWS_REGION/AWS_DEFAULT_REGION)")
 
-    def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response, None]:
+    def auth_flow(self, request: httpx2.Request) -> Generator[httpx2.Request, httpx2.Response, None]:
         aws_request = AWSRequest(
             method=request.method,
             url=str(request.url),

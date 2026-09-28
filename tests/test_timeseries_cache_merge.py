@@ -642,6 +642,7 @@ def _seed_stale_meta_cache(cache, ticker: str, exchange: str) -> date:
 def _clear_meta_lrus(cache):
     cache._load_meta_timeseries_cached.cache_clear()
     cache._memoized_range_cached.cache_clear()
+    cache._load_meta_parquet_cached.cache_clear()
     cache._CACHE_FILE_MTIMES.clear()
 
 
@@ -866,3 +867,86 @@ def test_cache_only_read_sees_background_refresh_of_parquet(monkeypatch, tmp_pat
     with cache.cache_only():
         after = cache.load_meta_timeseries_range("ABC", "L", start_date=day, end_date=day)
     assert after["Date"].dt.date.iloc[0] == day
+
+
+# ──────────────────────────────────────────────────────────────
+# Warm per-ticker parquet cache (#8105)
+# ──────────────────────────────────────────────────────────────
+def test_load_meta_parquet_cached_shares_one_read_across_different_windows(monkeypatch, tmp_path):
+    """Two different date windows against the same ticker share one parquet read (#8105).
+
+    Before this cache, ``_memoized_range_cached``'s ``cache_only`` branch (the
+    page-request path -- see ``/portfolio/{owner}/sectors`` and friends) called
+    ``_load_parquet`` directly, so every distinct (ticker, start, end) tuple --
+    which different holdings for the same owner routinely produce -- re-read
+    and re-validated the *entire* per-ticker history. ``_load_meta_parquet_cached``
+    shares one validated read across those different windows within a process.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache.config, "offline_mode", False)
+    _clear_meta_lrus(cache)
+    last = _seed_stale_meta_cache(cache, "ABC", "L")
+
+    reads = []
+    real_load_parquet = cache._load_parquet
+
+    def counting_load_parquet(path):
+        reads.append(path)
+        return real_load_parquet(path)
+
+    monkeypatch.setattr(cache, "_load_parquet", counting_load_parquet)
+
+    with cache.cache_only():
+        first = cache.load_meta_timeseries_range("ABC", "L", start_date=last, end_date=last)
+        second = cache.load_meta_timeseries_range(
+            "ABC", "L", start_date=last - timedelta(days=1), end_date=last - timedelta(days=1)
+        )
+
+    assert not first.empty
+    assert not second.empty
+    assert first["Date"].dt.date.iloc[0] == last
+    assert second["Date"].dt.date.iloc[0] == last - timedelta(days=1)
+    # One underlying parquet read serves both distinct windows.
+    assert len(reads) == 1
+
+
+def test_load_meta_parquet_cached_invalidated_alongside_other_meta_lrus(monkeypatch, tmp_path):
+    """``_invalidate_meta_caches_if_stale`` clears the warm parquet cache too (#8105, #7877).
+
+    Extends the existing "both meta LRUs are cleared on a real mtime change"
+    guarantee (#7877) to the new warm per-ticker cache: it must never serve
+    data staler than ``_load_meta_timeseries_cached``/``_memoized_range_cached``
+    would, and it must not be cleared on a no-op rewrite either.
+    """
+    import os
+
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache.config, "offline_mode", False)
+    _clear_meta_lrus(cache)
+    last = _seed_stale_meta_cache(cache, "ABC", "L")
+
+    with cache.cache_only():
+        before = cache.load_meta_timeseries_range("ABC", "L", start_date=last, end_date=last)
+    assert before["Close"].iloc[0] is not None
+    assert cache._load_meta_parquet_cached.cache_info().currsize == 1
+
+    # A corrected close for the same cached date, written directly (as a
+    # background refresh would), with the mtime bumped forward so the change
+    # is observed regardless of filesystem mtime granularity.
+    path = cache.meta_timeseries_cache_path("ABC", "L")
+    updated = cache._load_parquet(path).copy()
+    updated.loc[updated["Date"].dt.date == last, "Close"] = 999.0
+    cache._save_parquet(updated, path)
+    stat = os.stat(path)
+    os.utime(path, (stat.st_atime, stat.st_mtime + 5))
+
+    cache._invalidate_meta_caches_if_stale("ABC", "L")
+    assert cache._load_meta_parquet_cached.cache_info().currsize == 0
+
+    with cache.cache_only():
+        after = cache.load_meta_timeseries_range("ABC", "L", start_date=last, end_date=last)
+    assert after["Close"].iloc[0] == 999.0

@@ -141,6 +141,79 @@ def test_ensure_schema_normalises_date_to_ms(date_input, input_id):
     ), f"input_id={input_id}: expected datetime64[ms], got {result['Date'].dtype}"
 
 
+def test_ensure_schema_skips_to_datetime_when_column_already_datetime(monkeypatch):
+    """Regression test for #8095: pandas' ``pd.to_datetime(..., errors="coerce")``
+    is expensive even on an already-datetime64 column, because its
+    ``should_cache`` heuristic iterates every row. This is the actual hot path
+    behind the slow sector/region/group aggregation endpoints under
+    ``offline_mode`` -- reading each ticker's (potentially multi-thousand-row)
+    cached parquet history re-runs this "parsing" on every request. When the
+    ``Date`` column is already a real datetime64 dtype there is nothing to
+    parse, so ``_ensure_schema`` must not call ``pd.to_datetime`` at all."""
+    cache = import_cache()
+
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-01-01", "2024-01-02"]).astype("datetime64[ms]"),
+            "Open": [1.0, 2.0],
+            "High": [1.5, 2.5],
+            "Low": [0.5, 1.5],
+            "Close": [1.2, 2.2],
+            "Volume": [100, 200],
+            "Ticker": ["ABC", "ABC"],
+            "Source": ["SRC", "SRC"],
+        }
+    )
+
+    calls = []
+    real_to_datetime = pd.to_datetime
+
+    def spy_to_datetime(*args, **kwargs):
+        calls.append((args, kwargs))
+        return real_to_datetime(*args, **kwargs)
+
+    monkeypatch.setattr(cache.pd, "to_datetime", spy_to_datetime)
+
+    result = cache._ensure_schema(df)
+
+    assert calls == []
+    assert result["Date"].dtype == "datetime64[ms]"
+
+
+def test_ensure_schema_still_parses_non_datetime_date_column(monkeypatch):
+    """Non-datetime64 ``Date`` inputs (e.g. raw ``datetime.date`` objects or
+    strings) still need parsing, so the fast-path in the previous test must not
+    skip ``pd.to_datetime`` for them."""
+    cache = import_cache()
+
+    calls = []
+    real_to_datetime = pd.to_datetime
+
+    def spy_to_datetime(*args, **kwargs):
+        calls.append((args, kwargs))
+        return real_to_datetime(*args, **kwargs)
+
+    monkeypatch.setattr(cache.pd, "to_datetime", spy_to_datetime)
+
+    df = pd.DataFrame(
+        {
+            "Date": [date(2024, 1, 1), date(2024, 1, 2)],
+            "Open": [1.0, 2.0],
+            "High": [1.5, 2.5],
+            "Low": [0.5, 1.5],
+            "Close": [1.2, 2.2],
+            "Volume": [100, 200],
+            "Ticker": ["ABC", "ABC"],
+            "Source": ["SRC", "SRC"],
+        }
+    )
+
+    result = cache._ensure_schema(df)
+
+    assert len(calls) == 1
+    assert result["Date"].dtype == "datetime64[ms]"
+
+
 def test_rolling_cache_serves_cached_slice_on_fetch_failure(monkeypatch, tmp_path):
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
     cache = import_cache()

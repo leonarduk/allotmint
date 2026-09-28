@@ -152,6 +152,20 @@ def test_oversold_disposal_logs_no_warning(caplog):
     assert caplog.records == []
 
 
+def test_transfer_out_and_removal_reduce_pool_without_realising_a_gain():
+    txs = [
+        _buy("2024-01-01", 10, 1000),
+        {"date": "2024-02-01", "type": "TRANSFER_OUT", "ticker": "AAA.L", "units": 4},
+        {"date": "2024-03-01", "type": "REMOVAL", "ticker": "AAA.L", "units": 2},
+        _sell("2024-04-01", 4, 600),
+    ]
+    gains = compute_disposal_gains(txs)
+    assert list(gains) == [3]
+    # 6 of 10 units left the pool pro rata, taking £600 of the £1000 cost with them.
+    assert gains[3].cost_basis_gbp == pytest.approx(400.0)
+    assert gains[3].realised_gain_gbp == pytest.approx(200.0)
+
+
 def test_list_transactions_includes_gain_even_when_buy_is_outside_date_filter(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "accounts_root", tmp_path)
     owner_dir = tmp_path / "alice"

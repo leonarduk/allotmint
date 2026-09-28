@@ -399,8 +399,9 @@ class S3AccountsStore:
                 sanitise_log_value(account),
             )
             return
-        holdings_data = portfolio_loader.compute_holdings_from_transactions(tx_data, owner, account)
         holdings_filename = f"{account.lower()}.json"
+        existing = self.read_document(owner, holdings_filename)
+        holdings_data = portfolio_loader.compute_holdings_from_transactions(tx_data, owner, account, existing)
         self._put_document(owner, holdings_filename, holdings_data)
 
     def _iter_keys(self, prefix: str, *, limit: Optional[int] = None) -> Iterator[str]:

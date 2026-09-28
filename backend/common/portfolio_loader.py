@@ -11,13 +11,12 @@ Build rich "portfolio" dictionaries that the rest of the backend expects.
 import json
 import logging
 import re
-from collections import defaultdict
-from datetime import date
 from pathlib import Path
 from typing import Any, cast
 
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
+from backend.common import holdings_rebuild
 from backend.common.account_models import OwnerSummaryRecord
 from backend.common.data_loader import (
     list_plots,  # owner -> ["isa", "sipp", ...]
@@ -105,10 +104,10 @@ def rebuild_account_holdings(
 
     The implementation mirrors the logic from
     :func:`backend.utils.positions.extract_holdings_from_transactions` but
-    operates on the normalised JSON transaction files used by the API.  Each
-    transaction is applied to a simple security ledger to arrive at the latest
-    position sizes.  A cash balance is derived from deposit/withdrawal style
-    records.
+    operates on the normalised JSON transaction files used by the API.
+    Positions and cost basis come from a Section 104 replay of the
+    transactions; fields they cannot reproduce are carried forward from the
+    existing ``<account>.json`` (see :func:`compute_holdings_from_transactions`).
 
     Parameters
     ----------
@@ -162,13 +161,12 @@ def rebuild_account_holdings(
         )
         return {}
 
-    out = compute_holdings_from_transactions(tx_data, owner, account)
-
     try:
         acct_path = safe_join(owner_dir, f"{account.lower()}.json")
     except ValueError:
         logger.error("Invalid account name: path traversal blocked")
-        return out
+        return compute_holdings_from_transactions(tx_data, owner, account)
+    out = compute_holdings_from_transactions(tx_data, owner, account, _read_existing_holdings(acct_path))
     try:
         acct_path.write_text(json.dumps(out, indent=2))
     except OSError as exc:
@@ -176,18 +174,32 @@ def rebuild_account_holdings(
     return out
 
 
+def _read_existing_holdings(acct_path: Path) -> dict[str, Any] | None:
+    """Return the current holdings document so the rebuild can carry it forward."""
+    if not acct_path.exists():
+        return None
+    try:
+        loaded = json.loads(acct_path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning(
+            "Ignoring unreadable holdings %s during rebuild: %s", sanitise_log_value(acct_path), sanitise_log_value(exc)
+        )
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
 def compute_holdings_from_transactions(
     tx_data: dict[str, Any],
     owner: str,
     account: str,
+    existing: dict[str, Any] | None = None,
 ) -> dict[str, object]:
     """Compute holdings from a parsed transactions document.
 
     This is the core computation shared by the path-based local store and the
-    S3-backed store.  It mirrors the logic originally in
-    :func:`rebuild_account_holdings` but accepts a pre-loaded transaction dict
-    instead of reading from disk, so callers control where the raw data comes
-    from and where the result is persisted.
+    S3-backed store; callers control where the raw data comes from and where
+    the result is persisted.  See :mod:`backend.common.holdings_rebuild` for
+    the Section 104 cost pooling, cash rules and carry-forward behaviour.
 
     Parameters
     ----------
@@ -198,6 +210,10 @@ def compute_holdings_from_transactions(
         Portfolio owner slug.
     account:
         Account name, e.g. ``"isa"`` or ``"sipp"``.
+    existing:
+        The current ``<account>.json`` document, if any.  Fields the
+        transactions cannot reproduce (``value_gbp``, names, the cost of units
+        with unknown cost) are carried forward from it.
 
     Returns
     -------
@@ -205,81 +221,7 @@ def compute_holdings_from_transactions(
         Holdings structure with keys ``owner``, ``account_type``, ``currency``,
         ``last_updated``, and ``holdings``.
     """
-    TYPE_SIGN = {
-        "BUY": 1,
-        "PURCHASE": 1,
-        "SELL": -1,
-        "TRANSFER_IN": 1,
-        "TRANSFER_OUT": -1,
-        "REMOVAL": -1,
-    }
-    CASH_SIGNS = {
-        "DEPOSIT": 1,
-        "WITHDRAWAL": -1,
-        "DIVIDEND": 1,
-        "DIVIDENDS": 1,
-        "INTEREST": 1,
-    }
-    SHARE_SCALE = 10**8
-
-    ledger: defaultdict[str, float] = defaultdict(float)
-    acquisition: dict[str, str] = {}
-
-    for t in cast("list[dict[str, Any]]", tx_data.get("transactions", [])):
-        ttype = (t.get("type") or "").upper()
-        ticker = (t.get("ticker") or "").upper()
-
-        if ttype in TYPE_SIGN and ticker:
-            raw = next(
-                (t[k] for k in ("shares", "quantity", "units") if k in t and t[k] is not None),
-                None,
-            )
-            try:
-                qty = float(raw) if isinstance(raw, (int, float, str)) else 0.0
-            except (TypeError, ValueError):
-                logger.warning("Skipping unparseable quantity for ticker=%s raw=%r", sanitise_log_value(ticker), raw)
-                continue
-            if abs(qty) > 1_000_000:  # detect PP's 1e8 scaling
-                qty /= SHARE_SCALE
-            qty *= TYPE_SIGN[ttype]
-            ledger[ticker] += qty
-
-            if ttype in {"BUY", "PURCHASE", "TRANSFER_IN"}:
-                d_raw = str(t.get("date") or "")[:10]
-                if _ISO_DATE_RE.match(d_raw):
-                    if not acquisition.get(ticker) or d_raw > acquisition[ticker]:
-                        acquisition[ticker] = d_raw
-                elif d_raw:
-                    logger.warning("Skipping non-ISO date for ticker=%s date=%r", sanitise_log_value(ticker), d_raw)
-
-        elif ttype in CASH_SIGNS:
-            amount_minor = t.get("amount_minor")
-            try:
-                amt = float(amount_minor) if isinstance(amount_minor, (int, float, str)) else 0.0
-            except (TypeError, ValueError):
-                logger.warning(
-                    "Skipping unparseable amount_minor for ttype=%s raw=%r", sanitise_log_value(ttype), amount_minor
-                )
-                continue
-            ledger["CASH.GBP"] += (amt / 100.0) * CASH_SIGNS[ttype]
-
-    holdings: list[dict[str, object]] = []
-    for tick, qty in ledger.items():
-        if abs(qty) < 1e-9:
-            continue
-        h: dict[str, object] = {"ticker": tick, "units": qty, "cost_basis_gbp": 0.0}
-        acq_date = acquisition.get(tick)
-        if acq_date:
-            h["acquired_date"] = acq_date
-        holdings.append(h)
-
-    return {
-        "owner": owner,
-        "account_type": account.upper(),
-        "currency": str(tx_data.get("currency", "GBP")),
-        "last_updated": date.today().isoformat(),
-        "holdings": holdings,
-    }
+    return holdings_rebuild.rebuild_holdings_document(tx_data, owner, account, existing)
 
 
 def get_units_as_of(tx_data: dict[str, Any], ticker: str, as_of: str) -> float:

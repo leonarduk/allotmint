@@ -551,9 +551,7 @@ def test_memoized_range_shares_underlying_fetch_across_overlapping_subcalls(monk
 
     calls = []
 
-    def fake_rolling_cache(
-        _fetch_func, _cache_path, _fetch_args, days, *, ticker, exchange, loader=None
-    ):
+    def fake_rolling_cache(_fetch_func, _cache_path, _fetch_args, days, *, ticker, exchange, loader=None):
         calls.append(days)
         return _wide_frame(ticker)
 
@@ -584,9 +582,7 @@ def test_memoized_range_still_widens_for_larger_windows(monkeypatch):
 
     calls = []
 
-    def fake_rolling_cache(
-        _fetch_func, _cache_path, _fetch_args, days, *, ticker, exchange, loader=None
-    ):
+    def fake_rolling_cache(_fetch_func, _cache_path, _fetch_args, days, *, ticker, exchange, loader=None):
         calls.append(days)
         dates = pd.date_range(end=pd.Timestamp.today().normalize(), periods=500, freq="D")
         return pd.DataFrame(

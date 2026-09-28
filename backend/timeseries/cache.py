@@ -246,9 +246,26 @@ def _load_meta_parquet_cached(path: str) -> pd.DataFrame:
     the parquet read itself, keyed only by path, lets every such lookup for a
     ticker within a process share one disk read + one schema validation.
 
-    Callers only ever read from the returned frame (slicing/copying, never
-    mutating in place -- see ``apply_date_range``'s and ``_rolling_cache``'s
-    own docs), so sharing the same object across callers is safe.
+    This is also wired in as ``_rolling_cache``'s ``loader`` for the live meta
+    path (``_load_meta_timeseries_cached``), which is the *write* path: it
+    merges fetched rows into the ``existing`` frame this function returns and
+    may save the result. That makes in-place mutation of ``existing`` a real
+    hazard, not just a read-only-caller concern -- see the DeepSeek PR review
+    on #8105. It was audited line by line: every place ``_rolling_cache`` (and
+    the ``_merge_fetched`` helper it calls) touches ``existing`` -- ``.copy()``,
+    boolean ``.loc[mask]`` selection, ``pd.concat``, ``.sort_values()``/
+    ``.reset_index()`` -- is called without ``inplace=True`` and produces a new
+    DataFrame rather than writing back into the original buffers; there is no
+    ``existing[...] = ...``/``existing.loc[...] = ...`` anywhere in this
+    module. ``test_rolling_cache_does_not_mutate_shared_loader_cache`` in
+    ``tests/test_timeseries_cache_merge.py`` pins this down empirically: it
+    primes this cache, drives a real write through ``_rolling_cache`` using
+    this function as the loader, and asserts the still-cached object is
+    unchanged afterward. So callers -- both the read-only page-request paths
+    and ``_rolling_cache``'s own write path -- only ever read from the
+    returned frame (slicing/copying, never mutating in place -- see
+    ``apply_date_range``'s own docs too), and sharing the same object across
+    all of them is safe.
 
     Invalidated by ``_invalidate_meta_caches_if_stale`` on exactly the same
     mtime check that already clears ``_load_meta_timeseries_cached`` and

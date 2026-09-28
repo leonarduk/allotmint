@@ -950,3 +950,80 @@ def test_load_meta_parquet_cached_invalidated_alongside_other_meta_lrus(monkeypa
     with cache.cache_only():
         after = cache.load_meta_timeseries_range("ABC", "L", start_date=last, end_date=last)
     assert after["Close"].iloc[0] == 999.0
+
+
+def test_rolling_cache_does_not_mutate_shared_loader_cache(monkeypatch, tmp_path):
+    """``_rolling_cache`` must never mutate the DataFrame its ``loader`` returns in place.
+
+    DeepSeek's PR review on #8105 flagged that ``_load_meta_parquet_cached`` --
+    an ``lru_cache`` over the raw parquet read, shared across every caller in
+    the process -- is passed as ``_rolling_cache``'s ``loader`` for the live
+    meta path. ``_rolling_cache`` is the *write* path: it merges fetched data
+    into ``existing`` and may save the result. If any operation on
+    ``existing`` mutated it in place (e.g. ``.loc[...] = ...``,
+    ``inplace=True``, or a ``concat``/``assign`` that reused the buffer), the
+    shared cached object would be corrupted for every other caller reading the
+    same lru entry, including read-only page-request paths that expect
+    on-disk contents.
+
+    Reading ``_rolling_cache`` and ``_merge_fetched`` shows every
+    transformation of ``existing`` -- ``.copy()``, boolean ``.loc[mask]``
+    selection, ``pd.concat``, ``.sort_values()``/``.reset_index()`` -- is
+    called without ``inplace=True`` and produces a new object rather than
+    writing back into the original buffers, so this is safe. This test proves
+    that empirically rather than trusting the reading: it primes the shared
+    ``_load_meta_parquet_cached`` entry, drives a real write through
+    ``_rolling_cache`` using that entry as the loader, confirms (via a
+    ``_load_parquet`` call-count spy) that both the write and the later
+    re-check hit the *same* lru entry rather than a fresh disk read, and then
+    asserts that entry's object is still byte-for-byte identical to a
+    snapshot taken before the write.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+
+    cache_path = cache.meta_timeseries_cache_path("ABC", "L")
+    expected = _seed_existing_parquet(cache, cache_path, days=5)
+
+    real_load_parquet = cache._load_parquet
+    read_calls = []
+
+    def counting_load_parquet(path):
+        read_calls.append(path)
+        return real_load_parquet(path)
+
+    monkeypatch.setattr(cache, "_load_parquet", counting_load_parquet)
+
+    # Prime the shared lru_cache entry with one real disk read.
+    cached_obj = cache._load_meta_parquet_cached(cache_path)
+    assert read_calls == [cache_path]
+    snapshot = cached_obj.copy(deep=True)
+
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+    assert window_end not in set(expected["Date"].dt.date)
+
+    # Drive the write path with the shared, cached loader -- exactly how
+    # _load_meta_timeseries_cached wires it for live meta-timeseries calls.
+    result = cache._rolling_cache(
+        lambda **_kwargs: _single_row(cache, window_end),
+        cache_path,
+        {},
+        days=5,
+        ticker="ABC",
+        exchange="L",
+        loader=cache._load_meta_parquet_cached,
+    )
+    assert window_end in set(result["Date"].dt.date)
+
+    # Still only the one disk read: _rolling_cache's `existing` was served
+    # from the lru_cache entry primed above, confirming this genuinely
+    # exercises the shared-object hazard rather than a fresh miss.
+    assert read_calls == [cache_path]
+
+    # The shared cached object itself (re-fetched from the still-warm
+    # lru_cache entry -- another disk-read-free hit) must be unchanged: the
+    # write above must not have mutated it in place.
+    still_cached = cache._load_meta_parquet_cached(cache_path)
+    assert read_calls == [cache_path]
+    assert_frame_equal(still_cached, snapshot)

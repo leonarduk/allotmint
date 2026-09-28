@@ -136,6 +136,12 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
     explicit ``.copy()`` (``_memoized_range``, ``load_meta_timeseries``), so
     returning the same object here does not introduce new aliasing risk --
     verified directly, not assumed (see the #8137 mutation-safety test).
+
+    Contract: this function may return its input object unchanged. Callers
+    that don't already own an exclusive copy of ``df`` and need to mutate the
+    result must copy it first -- exactly the same rule that already applied
+    to the input ``df`` itself, since this function has always mutated
+    ``df["Date"]`` in place when coercion is needed.
     """
     if df is None or df.empty:
         return _empty_ts()

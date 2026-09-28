@@ -109,8 +109,12 @@ def test_ensure_schema_missing_date(caplog):
             pd.to_datetime(["2024-01-01", "2024-01-02"]).tz_localize("US/Eastern"),
             "tz_aware_non_utc",
         ),
+        (
+            pd.to_datetime(["2024-01-01", "2024-01-02"]).astype("datetime64[ms]").tz_localize("UTC"),
+            "tz_aware_already_ms",
+        ),
     ],
-    ids=["ns", "ms", "s", "date_objects", "tz_aware_utc", "tz_aware_non_utc"],
+    ids=["ns", "ms", "s", "date_objects", "tz_aware_utc", "tz_aware_non_utc", "tz_aware_already_ms"],
 )
 def test_ensure_schema_normalises_date_to_ms(date_input, input_id):
     """_ensure_schema must always return datetime64[ms] for the Date column.

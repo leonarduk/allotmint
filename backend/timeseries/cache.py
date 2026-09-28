@@ -233,6 +233,48 @@ def _save_parquet(df: pd.DataFrame, path: str) -> None:
     logger.debug("Saved cache to %s (%s rows)", path, len(df))
 
 
+@lru_cache(maxsize=512)
+def _load_meta_parquet_cached(path: str) -> pd.DataFrame:
+    """Warm, process-level cache of a validated *meta* timeseries parquet file (#8105).
+
+    ``_load_parquet`` re-reads and re-validates (``_ensure_schema``) the full
+    per-ticker history on every call. The per-(ticker, days)/(ticker, range)
+    LRUs on ``_load_meta_timeseries_cached``/``_memoized_range_cached`` only
+    dedupe *identical* repeat lookups; different holdings for the same owner
+    routinely request slightly different windows against the same ticker,
+    which busts those keys but still hits the same underlying file. Caching
+    the parquet read itself, keyed only by path, lets every such lookup for a
+    ticker within a process share one disk read + one schema validation.
+
+    This is also wired in as ``_rolling_cache``'s ``loader`` for the live meta
+    path (``_load_meta_timeseries_cached``), which is the *write* path: it
+    merges fetched rows into the ``existing`` frame this function returns and
+    may save the result. That makes in-place mutation of ``existing`` a real
+    hazard, not just a read-only-caller concern -- see the DeepSeek PR review
+    on #8105. It was audited line by line: every place ``_rolling_cache`` (and
+    the ``_merge_fetched`` helper it calls) touches ``existing`` -- ``.copy()``,
+    boolean ``.loc[mask]`` selection, ``pd.concat``, ``.sort_values()``/
+    ``.reset_index()`` -- is called without ``inplace=True`` and produces a new
+    DataFrame rather than writing back into the original buffers; there is no
+    ``existing[...] = ...``/``existing.loc[...] = ...`` anywhere in this
+    module. ``test_rolling_cache_does_not_mutate_shared_loader_cache`` in
+    ``tests/test_timeseries_cache_merge.py`` pins this down empirically: it
+    primes this cache, drives a real write through ``_rolling_cache`` using
+    this function as the loader, and asserts the still-cached object is
+    unchanged afterward. So callers -- both the read-only page-request paths
+    and ``_rolling_cache``'s own write path -- only ever read from the
+    returned frame (slicing/copying, never mutating in place -- see
+    ``apply_date_range``'s own docs too), and sharing the same object across
+    all of them is safe.
+
+    Invalidated by ``_invalidate_meta_caches_if_stale`` on exactly the same
+    mtime check that already clears ``_load_meta_timeseries_cached`` and
+    ``_memoized_range_cached`` (#7877), so this can never serve data staler
+    than those two would.
+    """
+    return _load_parquet(path)
+
+
 # ──────────────────────────────────────────────────────────────
 # Rolling parquet cache (disk/S3)
 # ──────────────────────────────────────────────────────────────
@@ -284,13 +326,18 @@ def _rolling_cache(
     *,
     ticker: str,
     exchange: str,
+    loader: Callable[[str], pd.DataFrame] | None = None,
 ) -> pd.DataFrame:
 
     logger.debug("Rolling cache: %s", cache_path)
     # Only look up to yesterday (we have close prices only)
     cutoff, today = _weekday_range(datetime.today().date() - timedelta(days=1), days)
 
-    existing = _load_parquet(cache_path)
+    # Resolved here rather than as a default argument value so tests (and any
+    # other caller) that monkeypatch the module-level ``_load_parquet`` still
+    # take effect -- a default bound at def time would capture the original
+    # function object instead.
+    existing = (loader or _load_parquet)(cache_path)
 
     if OFFLINE_MODE:
         if existing.empty:
@@ -617,6 +664,7 @@ def _invalidate_meta_caches_if_stale(ticker: str, exchange: str) -> None:
     if prev is not None and prev != mtime:
         _load_meta_timeseries_cached.cache_clear()
         _memoized_range_cached.cache_clear()
+        _load_meta_parquet_cached.cache_clear()
     _CACHE_FILE_MTIMES[cache] = mtime
 
 
@@ -634,7 +682,7 @@ def _queue_if_stale(ticker: str, exchange: str, existing: pd.DataFrame) -> None:
 def _cached_window(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     """The ``days`` window ``_rolling_cache`` would serve, read from cache only."""
     cutoff, today = _weekday_range(datetime.today().date() - timedelta(days=1), days)
-    existing = _load_parquet(str(meta_timeseries_cache_path(ticker, exchange)))
+    existing = _load_meta_parquet_cached(str(meta_timeseries_cache_path(ticker, exchange)))
     _queue_if_stale(ticker, exchange, existing)
     if existing.empty:
         return _empty_ts()
@@ -659,6 +707,7 @@ def _load_meta_timeseries_cached(ticker: str, exchange: str, days: int, cache_on
         days,
         ticker=ticker,
         exchange=exchange,
+        loader=_load_meta_parquet_cached,
     )
 
 
@@ -671,6 +720,7 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
         OFFLINE_MODE = config.offline_mode
         _load_meta_timeseries_cached.cache_clear()
         _memoized_range_cached.cache_clear()
+        _load_meta_parquet_cached.cache_clear()
         _CACHE_FILE_MTIMES.clear()
 
     _invalidate_meta_caches_if_stale(ticker, exchange)
@@ -714,7 +764,7 @@ def _memoized_range_cached(
     end_date = datetime.fromisoformat(end_iso).date()
     if cache_only:
         # Same read as the offline branch below, minus its live fallback.
-        existing = _load_parquet(str(meta_timeseries_cache_path(ticker, exchange)))
+        existing = _load_meta_parquet_cached(str(meta_timeseries_cache_path(ticker, exchange)))
         if end_date >= _last_close_target():
             # Only a read that wants the latest close queues a refresh; a
             # purely historical window is served whatever the cache's end.
@@ -728,7 +778,7 @@ def _memoized_range_cached(
 
     if OFFLINE_MODE:
         cache_path = str(meta_timeseries_cache_path(ticker, exchange))
-        existing = _load_parquet(cache_path)
+        existing = _load_meta_parquet_cached(cache_path)
         # When running in offline mode we normally expect a cached copy to be
         # present. If it's missing we should not attempt any live fetches here
         # and simply return an empty frame. Higher-level helpers may decide to

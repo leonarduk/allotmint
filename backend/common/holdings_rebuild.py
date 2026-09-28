@@ -97,9 +97,13 @@ def _quantity(tx: Mapping[str, Any]) -> float | None:
 
 
 def _settled_value(tx: Mapping[str, Any], qty: float, *, acquisition: bool) -> float | None:
-    """Settled GBP value: ``amount_minor`` if present, else price x units +/- fees."""
+    """Settled GBP value: ``amount_minor`` if non-zero, else price x units +/- fees.
+
+    A zero ``amount_minor`` (common on transfers-in) records no value, so it is
+    treated as unknown rather than as a known cost of nothing.
+    """
     amount_minor = _float(tx.get("amount_minor"))
-    if amount_minor is not None:
+    if amount_minor:
         return abs(amount_minor) / 100.0
     price = _float(tx.get("price_gbp"))
     if price is None:
@@ -137,10 +141,14 @@ def _instrument_key(tx: Mapping[str, Any], aliases: Mapping[str, str]) -> str | 
     return aliases.get(name, f"name:{name}")
 
 
-def _sort_key(indexed: tuple[int, Mapping[str, Any]]) -> tuple[str, int, int]:
+def _sort_key(indexed: tuple[int, Mapping[str, Any]]) -> tuple[int, str, int, int]:
+    """Dated rows by date (acquisitions first); undated rows last, in file order."""
     idx, tx = indexed
     tx_type = str(tx.get("type") or "").upper()
-    return (str(tx.get("date") or "")[:10], 0 if tx_type in _ACQUIRE else 1, idx)
+    day = str(tx.get("date") or "")[:10]
+    if not _ISO_DATE_RE.match(day):
+        return (1, "", 0, idx)
+    return (0, day, 0 if tx_type in _ACQUIRE else 1, idx)
 
 
 @dataclass
@@ -197,7 +205,7 @@ def replay_transactions(
     trade_cash: bool = False,
     aliases: Mapping[str, str] | None = None,
 ) -> Replay:
-    """Replay ``transactions`` in date order (acquisitions first within a day)."""
+    """Replay ``transactions`` in date order (acquisitions first within a day, undated last)."""
     replay = Replay(positions={})
     aliases = aliases or {}
     cash_signs = {**_CASH_FLOWS, **(_CHARGES if trade_cash else {})}

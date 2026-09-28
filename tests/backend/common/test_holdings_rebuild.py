@@ -58,6 +58,25 @@ def test_same_day_acquisition_is_pooled_before_disposal() -> None:
     assert abc["cost_basis_gbp"] == pytest.approx(100)
 
 
+def test_undated_transactions_replay_after_dated_ones() -> None:
+    undated_sell = {"type": "SELL", "ticker": "ABC", "units": 5, "amount_minor": 6_000}
+    tx = {"transactions": [undated_sell, _buy("ABC", 20, 200, "2024-01-10")]}
+
+    abc = _holdings(rebuild_holdings_document(tx, "a", "isa"))["ABC"]
+
+    assert abc["units"] == pytest.approx(15)
+    assert abc["cost_basis_gbp"] == pytest.approx(150)
+
+
+def test_zero_amount_transfer_in_is_unknown_cost_not_zero() -> None:
+    tx = {
+        "transactions": [{"type": "TRANSFER_IN", "ticker": "OLD", "units": 5, "amount_minor": 0, "date": "2021-09-26"}]
+    }
+    existing = {"holdings": [{"ticker": "OLD", "units": 5, "cost_basis_gbp": 42.5}]}
+
+    assert _holdings(rebuild_holdings_document(tx, "a", "isa", existing))["OLD"]["cost_basis_gbp"] == 42.5
+
+
 def test_unchanged_holding_keeps_value_and_extra_fields() -> None:
     tx = {"transactions": [_buy("ABC", 10, 100, "2024-01-10"), _buy("NEW", 5, 50, "2024-02-01")]}
     existing = {

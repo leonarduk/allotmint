@@ -14,6 +14,10 @@ or a wrong field name is caught here rather than by a runtime
 
 from __future__ import annotations
 
+import inspect
+import typing
+
+from mcp.client.streamable_http import TransportStreams, streamable_http_client
 from mcp.types import CallToolResult, TextContent, Tool
 
 
@@ -32,3 +36,21 @@ def test_real_call_tool_result_exposes_snake_case_is_error():
 def test_real_call_tool_result_is_error_true_round_trips():
     result = CallToolResult(content=[TextContent(type="text", text="boom")], is_error=True)
     assert result.is_error is True
+
+
+def test_real_streamable_http_client_accepts_http_client_kwarg_not_auth():
+    # mcp_tools_client.py wires auth via a pre-configured httpx2.AsyncClient
+    # passed as `http_client=`, not the old `auth=` kwarg mcp 1.x accepted.
+    # mcp_tools_client.py's own tests mock this function, so they can't catch
+    # a real signature drift -- this checks the actual installed export.
+    params = inspect.signature(streamable_http_client).parameters
+    assert "http_client" in params
+    assert "auth" not in params
+
+
+def test_real_streamable_http_client_yields_a_two_tuple():
+    # mcp_tools_client.py does `async with streamable_http_client(...) as
+    # (read_stream, write_stream):`. mcp 1.x's streamablehttp_client yielded
+    # a 3-tuple; unpacking a real 3-tuple into two names would raise
+    # ValueError at runtime, which only a real-signature check can catch.
+    assert len(typing.get_args(TransportStreams)) == 2

@@ -36,7 +36,7 @@ protobuf>=7.35.0,<8  # >=6.31.1 fixes CVE-2025-4565; 6.31.0+ includes protocolbu
 pyarrow~=25.0.1
 reportlab~=5.0.0
 pycparser~=3.0
-pyjwt~=2.13.0
+pyjwt~=2.15.0
 pydantic~=2.13.4
 pysocks~=1.7.1
 python-json-logger~=3.3.0

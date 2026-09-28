@@ -262,11 +262,27 @@ def apply_date_range(
     an O(log n) lookup that also avoids the expensive ``.dt.date`` conversion
     (which builds a Python ``datetime.date`` object per row). Any column that
     is unsorted, contains nulls, or is not ``datetime64`` falls back to the
-    original O(n) boolean-mask scan below, so behaviour is identical either
-    way — only the sorted-datetime64-no-nulls case gets the fast path.
+    original O(n) boolean-mask scan below. ``start_date``/``end_date`` are
+    normalised to plain ``datetime.date`` up front (see below) before either
+    path runs, so a caller passing a ``datetime``/``Timestamp`` bound with a
+    nonzero time component behaves identically on both paths — only the
+    sorted-datetime64-no-nulls case gets the fast path, but the *result* is
+    the same either way.
     """
     if df.empty or "Date" not in df.columns:
         return df.copy()
+    # Normalise datetime/Timestamp bounds to plain dates up front, before
+    # either path below sees them. Without this, a caller passing a
+    # datetime.datetime or pd.Timestamp with a nonzero time component would
+    # make the fast path's pd.Timestamp(start_date)/pd.Timestamp(end_date)
+    # retain that time and searchsorted against it, which can exclude rows
+    # earlier the same calendar day that the date-truncated scan path would
+    # include -- the two paths must see the same bound type to actually be
+    # equivalent (#8131 review).
+    if start_date is not None and hasattr(start_date, "date"):
+        start_date = start_date.date()
+    if end_date is not None and hasattr(end_date, "date"):
+        end_date = end_date.date()
     dates = df["Date"]
     is_dt64 = pd.api.types.is_datetime64_any_dtype(dates)
     if is_dt64 and not dates.hasnans and dates.is_monotonic_increasing:

@@ -383,6 +383,38 @@ class TestApplyDateRange:
         assert list(fast_result["Date"].dt.date) == list(scan_result["Date"].dt.date)
         assert list(fast_result["Close"]) == list(scan_result["Close"])
 
+    def test_fast_and_scan_paths_agree_for_datetime_bounds_with_time_component(self, monkeypatch):
+        # A caller passing datetime.datetime bounds with a nonzero time (not
+        # just datetime.date) must get the same rows on both paths. Before
+        # the bound-normalisation fix, the fast path's pd.Timestamp(start_date)
+        # kept the time component and searchsorted against it directly, which
+        # could exclude same-day rows the date-truncating scan path includes.
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        start_with_time = dt.datetime.combine(self.BASE, dt.time(15, 0))
+        end_with_time = dt.datetime.combine(self.MID, dt.time(9, 0))
+
+        fast_result = th.apply_date_range(df, start_date=start_with_time, end_date=end_with_time)
+
+        real_is_monotonic_increasing = pd.Series.is_monotonic_increasing
+
+        def _fake_is_monotonic_increasing(self):
+            if self.name == "Date":
+                return False
+            return real_is_monotonic_increasing.__get__(self)
+
+        monkeypatch.setattr(
+            pd.Series,
+            "is_monotonic_increasing",
+            property(_fake_is_monotonic_increasing),
+        )
+        scan_result = th.apply_date_range(df, start_date=start_with_time, end_date=end_with_time)
+
+        assert list(fast_result["Date"].dt.date) == list(scan_result["Date"].dt.date)
+        # Both bounds fall on days present in the data (BASE, MID); truncating
+        # the time component must still include both of those calendar days.
+        assert list(fast_result["Date"].dt.date) == [self.BASE, self.MID]
+
 
 def _make_frozen_date(frozen_today: dt.date):
     """Return a drop-in replacement for ``datetime.date`` that freezes ``today()``."""

@@ -9,7 +9,7 @@ class FakeTool:
     def __init__(self, name, description="", input_schema=None):
         self.name = name
         self.description = description
-        self.inputSchema = input_schema or {"type": "object", "properties": {}}
+        self.input_schema = input_schema or {"type": "object", "properties": {}}
 
 
 class FakeToolsResult:
@@ -25,7 +25,7 @@ class FakeContentBlock:
 class FakeCallToolResult:
     def __init__(self, text, is_error=False):
         self.content = [FakeContentBlock(text)]
-        self.isError = is_error
+        self.is_error = is_error
 
 
 class FakeSession:
@@ -89,7 +89,7 @@ def test_tool_result_to_bedrock_content_preserves_non_text_block():
 
     class FakeResult:
         content = [FakeStructuredBlock()]
-        isError = False
+        is_error = False
 
     content = bedrock_agent._tool_result_to_bedrock_content(FakeResult())
     assert content == [{"text": '{"type": "structured", "value": 1}'}]

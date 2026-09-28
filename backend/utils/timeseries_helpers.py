@@ -289,13 +289,13 @@ def apply_date_range(
         lo = 0
         hi = len(dates)
         if start_date is not None:
-            lo = dates.searchsorted(pd.Timestamp(start_date), side="left")
+            lo = int(dates.searchsorted(pd.Timestamp(start_date), side="left"))
         if end_date is not None:
             # Half-open upper bound: end_date is inclusive of the whole
             # calendar day, so anything strictly before the next day
             # qualifies — this also handles a Date column that carries a
             # nonzero time-of-day component, unlike truncating to `.dt.date`.
-            hi = dates.searchsorted(pd.Timestamp(end_date) + pd.Timedelta(days=1), side="left")
+            hi = int(dates.searchsorted(pd.Timestamp(end_date) + pd.Timedelta(days=1), side="left"))
         return df.iloc[lo:hi].reset_index(drop=True).copy()
     # Normalise to plain date objects for comparison so that NaT (datetime64) and
     # None (object dtype) are both caught by isna() before the >= / <= tests.

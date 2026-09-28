@@ -35,7 +35,7 @@ def _tool_to_bedrock_spec(tool: Tool) -> Dict[str, Any]:
         "toolSpec": {
             "name": tool.name,
             "description": tool.description or tool.name,
-            "inputSchema": {"json": tool.inputSchema},
+            "inputSchema": {"json": tool.input_schema},
         }
     }
 
@@ -126,7 +126,7 @@ async def run_chat_turn(
                 try:
                     result = await session.call_tool(tool_use["name"], tool_use.get("input") or {})
                     content = _tool_result_to_bedrock_content(result)
-                    status = "error" if result.isError else "success"
+                    status = "error" if result.is_error else "success"
                 except Exception as exc:  # noqa: BLE001 - surfaced to the model, not swallowed
                     logger.warning(
                         "MCP tool call %s failed: %s",

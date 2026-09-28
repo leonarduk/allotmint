@@ -38,7 +38,7 @@ def _tool_to_openai_spec(tool: Tool) -> Dict[str, Any]:
         "function": {
             "name": tool.name,
             "description": tool.description or tool.name,
-            "parameters": tool.inputSchema,
+            "parameters": tool.input_schema,
         },
     }
 

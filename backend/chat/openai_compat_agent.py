@@ -119,7 +119,11 @@ async def run_chat_turn(
                 try:
                     arguments = _parse_tool_arguments(tool_call["function"].get("arguments"))
                     if local_tools is not None and local_tools.handles(name):
-                        content, _is_error = local_tools.call(name, arguments)
+                        content, is_error = local_tools.call(name, arguments)
+                        # OpenAI tool messages have no status field, so flag a
+                        # rejected call the same way as a failed MCP call below.
+                        if is_error:
+                            content = f"Tool call failed: {content}"
                     else:
                         result = await session.call_tool(name, arguments)
                         content = _tool_result_to_bedrock_content(result)[0]["text"]

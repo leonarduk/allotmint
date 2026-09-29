@@ -193,6 +193,33 @@ async def test_run_chat_turn_runs_navigate_locally_without_calling_mcp(monkeypat
     assert json.loads(requests[1].content)["messages"][-1]["tool_call_id"] == "call-1"
 
 
+async def test_run_chat_turn_marks_a_rejected_navigation_as_failed(monkeypatch):
+    session = FakeSession(tools=[])
+    monkeypatch.setattr(openai_compat_agent, "mcp_session", _fake_mcp_session_factory(session))
+    tool_call = _tool_call("call-1", NAVIGATE_TOOL_NAME, '{"path": "/admin"}')
+    requests = _patch_http(
+        monkeypatch,
+        [
+            _completion({"role": "assistant", "content": None, "tool_calls": [tool_call]}),
+            _completion({"role": "assistant", "content": "That page isn't available."}),
+        ],
+    )
+    local = LocalTools(pages=[ChatPage("/transactions", "Transactions")])
+
+    await openai_compat_agent.run_chat_turn(
+        "go to admin",
+        [],
+        mcp_server_url="http://localhost:8001/mcp",
+        base_url="http://localhost:11434/v1",
+        model="qwen3.5:9b",
+        local_tools=local,
+    )
+
+    assert local.navigate_to is None
+    tool_message = json.loads(requests[1].content)["messages"][-1]
+    assert tool_message["content"].startswith("Tool call failed: Unknown page")
+
+
 async def test_run_chat_turn_reports_failed_tool_call_to_the_model_instead_of_raising(monkeypatch):
     class BoomSession(FakeSession):
         async def call_tool(self, name, arguments):

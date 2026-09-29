@@ -58,7 +58,7 @@ def _fill_missing_costs(owner: str, account: str, holdings: List[Any], accounts_
         tx_path = next(
             (
                 c
-                for c in owner_dir.glob("*_transactions.json")
+                for c in sorted(owner_dir.glob("*_transactions.json"))
                 if c.stem[: -len("_transactions")].lower() == account.lower()
             ),
             None,
@@ -159,7 +159,7 @@ def list_owners(
             if slug and (not current_user or identity_can_access_owner(current_user, slug, data)):
                 owners.append(slug)
         except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("Skipping owner file %s: %s", pf, sanitise_log_value(exc))
+            logger.warning("Skipping owner file %s: %s", sanitise_log_value(pf), sanitise_log_value(exc))
             continue
     return owners
 

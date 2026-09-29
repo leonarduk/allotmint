@@ -12,6 +12,13 @@ TXS = [
 ]
 
 
+def test_cost_hints_cover_only_held_positions():
+    hints = transaction_cost_hints(TXS)
+    assert hints["ADM.L"] == (None, "2021-09-26")
+    assert hints["KO.N"] == (150.0, None)
+    assert "GONE.L" not in hints
+
+
 def test_fill_dates_zero_cost_holdings_from_transfer_in(tmp_path):
     owner_dir = tmp_path / "steve"
     owner_dir.mkdir()

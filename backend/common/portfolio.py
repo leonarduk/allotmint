@@ -27,6 +27,7 @@ from backend.common.data_loader import (
     resolve_paths,
 )
 from backend.common.holding_utils import enrich_holding
+from backend.common.holdings_rebuild import transaction_cost_hints
 from backend.common.path_utils import safe_join
 from backend.common.user_config import load_user_config
 from backend.config import config
@@ -35,6 +36,49 @@ from backend.timeseries.cache import cache_only
 from backend.utils.pricing_dates import PricingDateCalculator
 
 logger = logging.getLogger(__name__)
+
+
+def _fill_missing_costs(owner: str, account: str, holdings: List[Any], accounts_root: Optional[Path] = None) -> None:
+    """Cost zero-cost holdings from their transactions (in memory only).
+
+    A holding with no booked cost and no ``acquired_date`` is otherwise valued
+    at today's price, so its gain shows as a false £0.00.  Use the Section 104
+    cost from the transactions when it is fully known; otherwise date the
+    holding from when its unknown-cost units arrived (the opening transfer-in)
+    so ``enrich_holding`` derives the cost from the price on that date.  Never
+    writes to the data files.
+    """
+    needy = [h for h in holdings if isinstance(h, dict) and not h.get("acquired_date") and not h.get("cost_basis_gbp")]
+    if not needy:
+        return
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    root = Path(accounts_root) if accounts_root else paths.accounts_root
+    try:
+        owner_dir = safe_join(root, owner)
+        tx_path = next(
+            (
+                c
+                for c in sorted(owner_dir.glob("*_transactions.json"))
+                if c.stem[: -len("_transactions")].lower() == account.lower()
+            ),
+            None,
+        )
+        if tx_path is None:
+            return
+        tx_data = json.loads(tx_path.read_text(encoding="utf-8"))
+    except (ValueError, OSError, json.JSONDecodeError) as exc:
+        logger.warning("Could not read transactions to date unknown-cost holdings: %s", sanitise_log_value(exc))
+        return
+    transactions = (
+        [t for t in (tx_data.get("transactions") or []) if isinstance(t, dict)] if isinstance(tx_data, dict) else []
+    )
+    hints = transaction_cost_hints(transactions)
+    for h in needy:
+        cost, since = hints.get(str(h.get("ticker") or "").upper(), (None, None))
+        if cost:
+            h["cost_basis_gbp"] = cost
+        elif since:
+            h["acquired_date"] = since
 
 
 # ───────────────────────── trades helpers ─────────────────────────
@@ -115,7 +159,7 @@ def list_owners(
             if slug and (not current_user or identity_can_access_owner(current_user, slug, data)):
                 owners.append(slug)
         except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("Skipping owner file %s: %s", pf, sanitise_log_value(exc))
+            logger.warning("Skipping owner file %s: %s", sanitise_log_value(pf), sanitise_log_value(exc))
             continue
     return owners
 
@@ -167,6 +211,7 @@ def build_owner_portfolio(
     for meta in accounts_meta:
         raw = load_account_record(owner, meta, accounts_root)
         holdings_raw = raw.holdings
+        _fill_missing_costs(owner, str(meta), holdings_raw, accounts_root)
 
         # Page request: price from the timeseries cache only; the background
         # snapshot refresh does the live fetching (#7898).

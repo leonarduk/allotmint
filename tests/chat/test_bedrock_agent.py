@@ -1,8 +1,10 @@
+import copy
 from contextlib import asynccontextmanager
 
 import pytest
 
 from backend.chat import bedrock_agent
+from backend.chat.local_tools import NAVIGATE_TOOL_NAME, ChatPage, LocalTools
 
 
 class FakeTool:
@@ -170,6 +172,42 @@ async def test_run_chat_turn_calls_tool_then_answers(monkeypatch):
     )
     assert reply == "VOD.L is 1.0"
     assert session.calls == [("get_live_prices", {"tickers": ["VOD.L"]})]
+
+
+async def test_run_chat_turn_runs_navigate_locally_without_calling_mcp(monkeypatch):
+    session = FakeSession(tools=[FakeTool("get_live_prices")])
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+
+    responses = [
+        _assistant_tool_use("tool-1", NAVIGATE_TOOL_NAME, {"path": "/transactions"}),
+        _assistant_text("Opening Transactions."),
+    ]
+    seen_requests = []
+
+    class FakeBedrock:
+        def converse(self, **kwargs):
+            # The agent keeps appending to the same messages list; snapshot it.
+            seen_requests.append(copy.deepcopy(kwargs))
+            return responses[len(seen_requests) - 1]
+
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: FakeBedrock())
+    local = LocalTools(pages=[ChatPage("/transactions", "Transactions")])
+
+    reply = await bedrock_agent.run_chat_turn(
+        "go to transactions",
+        [],
+        mcp_server_url="https://example.com/mcp",
+        bedrock_model_id="amazon.nova-lite-v1:0",
+        local_tools=local,
+    )
+
+    assert reply == "Opening Transactions."
+    assert local.navigate_to == "/transactions"
+    assert session.calls == []
+    offered = [tool["toolSpec"]["name"] for tool in seen_requests[0]["toolConfig"]["tools"]]
+    assert offered == ["get_live_prices", NAVIGATE_TOOL_NAME]
+    tool_result = seen_requests[1]["messages"][-1]["content"][0]["toolResult"]
+    assert tool_result["status"] == "success"
 
 
 async def test_run_chat_turn_reports_failed_tool_call_to_the_model_instead_of_raising(monkeypatch):

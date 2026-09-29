@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from backend.chat.local_tools import LocalTools, pages_from_request
 from backend.chat.providers import run_configured_chat_turn
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -30,6 +31,12 @@ class ChatMessage(BaseModel):
     content: str
 
 
+class ChatPageIn(BaseModel):
+    # Same-site paths only: a leading "//" would be a protocol-relative URL.
+    path: str = Field(pattern=r"^/([^/].*)?$", max_length=200)
+    label: str = Field(min_length=1, max_length=100)
+
+
 class ChatRequest(BaseModel):
     message: str
     # The client resends the full prior conversation each turn; nothing is
@@ -37,10 +44,15 @@ class ChatRequest(BaseModel):
     # the planned S3-backed history follow-up, mirroring backend/routes/
     # query.py's dual local/S3 persistence pattern).
     history: List[ChatMessage] = Field(default_factory=list)
+    # Pages the client can open. When present the model gets a
+    # navigate_to_page tool limited to these paths (backend/chat/local_tools.py).
+    pages: List[ChatPageIn] = Field(default_factory=list, max_length=100)
 
 
 class ChatResponse(BaseModel):
     reply: str
+    # Set when the model asked to open a page; always one of the request's pages.
+    navigate_to: Optional[str] = None
 
 
 # Stable, machine-readable failure codes sent alongside `detail`, so the
@@ -107,12 +119,14 @@ async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatRespons
     if not mcp_server_url:
         return _chat_error(503, CHAT_ERROR_NOT_CONFIGURED, "Chat is not configured (MCP_SERVER_URL unset)")
 
+    local_tools = LocalTools(pages=pages_from_request([page.model_dump() for page in payload.pages]))
     try:
         reply = await run_configured_chat_turn(
             payload.message,
             [item.model_dump() for item in payload.history],
             cfg=config,
             mcp_server_url=mcp_server_url,
+            local_tools=local_tools,
         )
     except ValueError as exc:
         # Raised by bedrock_agent._validate_message_alternation (shared by
@@ -128,7 +142,7 @@ async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatRespons
             raise
         logger.warning("Chat upstream request failed: %s", sanitise_log_value(repr(upstream)))
         return _chat_error(502, *_describe_upstream_error(upstream))
-    return ChatResponse(reply=reply)
+    return ChatResponse(reply=reply, navigate_to=local_tools.navigate_to)
 
 
 @router.post("/chat", response_model=ChatResponse)

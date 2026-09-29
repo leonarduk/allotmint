@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 from backend.chat import openai_compat_agent
+from backend.chat.local_tools import NAVIGATE_TOOL_NAME, ChatPage, LocalTools
 
 
 class FakeTool:
@@ -160,6 +161,63 @@ async def test_run_chat_turn_calls_tool_then_answers(monkeypatch):
         "tool_call_id": "call-1",
         "content": '{"VOD.L": {"last": 1.0}}',
     }
+
+
+async def test_run_chat_turn_runs_navigate_locally_without_calling_mcp(monkeypatch):
+    session = FakeSession(tools=[FakeTool("get_live_prices")])
+    monkeypatch.setattr(openai_compat_agent, "mcp_session", _fake_mcp_session_factory(session))
+    tool_call = _tool_call("call-1", NAVIGATE_TOOL_NAME, '{"path": "/transactions"}')
+    requests = _patch_http(
+        monkeypatch,
+        [
+            _completion({"role": "assistant", "content": None, "tool_calls": [tool_call]}),
+            _completion({"role": "assistant", "content": "Opening Transactions."}),
+        ],
+    )
+    local = LocalTools(pages=[ChatPage("/transactions", "Transactions")])
+
+    reply = await openai_compat_agent.run_chat_turn(
+        "go to transactions",
+        [],
+        mcp_server_url="http://localhost:8001/mcp",
+        base_url="http://localhost:11434/v1",
+        model="qwen3.5:9b",
+        local_tools=local,
+    )
+
+    assert reply == "Opening Transactions."
+    assert local.navigate_to == "/transactions"
+    assert session.calls == []
+    offered = [tool["function"]["name"] for tool in json.loads(requests[0].content)["tools"]]
+    assert offered == ["get_live_prices", NAVIGATE_TOOL_NAME]
+    assert json.loads(requests[1].content)["messages"][-1]["tool_call_id"] == "call-1"
+
+
+async def test_run_chat_turn_marks_a_rejected_navigation_as_failed(monkeypatch):
+    session = FakeSession(tools=[])
+    monkeypatch.setattr(openai_compat_agent, "mcp_session", _fake_mcp_session_factory(session))
+    tool_call = _tool_call("call-1", NAVIGATE_TOOL_NAME, '{"path": "/admin"}')
+    requests = _patch_http(
+        monkeypatch,
+        [
+            _completion({"role": "assistant", "content": None, "tool_calls": [tool_call]}),
+            _completion({"role": "assistant", "content": "That page isn't available."}),
+        ],
+    )
+    local = LocalTools(pages=[ChatPage("/transactions", "Transactions")])
+
+    await openai_compat_agent.run_chat_turn(
+        "go to admin",
+        [],
+        mcp_server_url="http://localhost:8001/mcp",
+        base_url="http://localhost:11434/v1",
+        model="qwen3.5:9b",
+        local_tools=local,
+    )
+
+    assert local.navigate_to is None
+    tool_message = json.loads(requests[1].content)["messages"][-1]
+    assert tool_message["content"].startswith("Tool call failed: Unknown page")
 
 
 async def test_run_chat_turn_reports_failed_tool_call_to_the_model_instead_of_raising(monkeypatch):

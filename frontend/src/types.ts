@@ -112,6 +112,8 @@ export type InstrumentSummary = {
   gain_currency?: string | null;
   instrument_type?: string | null;
   gain_pct?: number;
+  /** "unknown" when any holding's cost is a guess, so its gain is not a fact (#7785). */
+  cost_basis_source?: string | null;
 
   /* last-price enrichment */
   last_price_gbp?: number | null;

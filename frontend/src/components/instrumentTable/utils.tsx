@@ -215,8 +215,11 @@ export function sanitizeGroupKey(key: string): string {
 export function calculateGroupTotals(rows: RowWithCost[], label: string): GroupTotals {
   const totalUnits = rows.reduce((sum, row) => sum + (row.units ?? 0), 0);
   const totalMarket = rows.reduce((sum, row) => sum + row.market_value_gbp, 0);
-  const totalGain = rows.reduce((sum, row) => sum + row.gain_gbp, 0);
-  const totalCost = rows.reduce((sum, row) => sum + row.cost, 0);
+  // Rows with an unknown cost basis carry a guessed cost (== market value) and a
+  // meaningless £0 gain; leave them out of cost/gain so they don't dilute the totals.
+  const costKnown = rows.filter((row) => row.cost_basis_source !== 'unknown');
+  const totalGain = costKnown.reduce((sum, row) => sum + row.gain_gbp, 0);
+  const totalCost = costKnown.reduce((sum, row) => sum + row.cost, 0);
   const gainPct = Math.abs(totalCost) > 1e-9 ? (totalGain / totalCost) * 100 : null;
 
   const weightedAverage = (accessor: (row: RowWithCost) => number | null | undefined): number | null => {

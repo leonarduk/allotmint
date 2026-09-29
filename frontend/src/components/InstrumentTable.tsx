@@ -47,6 +47,16 @@ type Props = {
  * use HoldingsTable for read-only holding and rollup presentation. See the
  * cleanup outcome in docs/decisions/6365-portfolio-consolidation.md#cleanup-outcome-6382.
  */
+/** Shown instead of a confident £0.00 when a row's cost basis is a guess (#7785). */
+function NotAvailable() {
+  const { t } = useTranslation();
+  return (
+    <span className={tableStyles.notApplicable} title={t('holdingsTable.gainNotAvailable')}>
+      {t('holdingsTable.notApplicable')}
+    </span>
+  );
+}
+
 export function InstrumentTable({ rows, showGroupTotals = true, showSparklines = true }: Props) {
   const { t } = useTranslation();
   const { relativeViewEnabled, baseCurrency } = useConfig();
@@ -528,9 +538,13 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                       )}
                       {!relativeViewEnabled && visibleColumns.cost && (
                         <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                          {money(
-                            r.cost,
-                            r.market_value_currency || r.currency || baseCurrency,
+                          {r.cost_basis_source === 'unknown' ? (
+                            <NotAvailable />
+                          ) : (
+                            money(
+                              r.cost,
+                              r.market_value_currency || r.currency || baseCurrency,
+                            )
                           )}
                         </td>
                       )}
@@ -544,21 +558,29 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                       )}
                       {!relativeViewEnabled && visibleColumns.gain && (
                         <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                          <span className={gainClass}>
-                            {gainPrefix}
-                            {money(
-                              r.gain_gbp,
-                              r.gain_currency || r.currency || baseCurrency,
-                            )}
-                          </span>
+                          {r.cost_basis_source === 'unknown' ? (
+                            <NotAvailable />
+                          ) : (
+                            <span className={gainClass}>
+                              {gainPrefix}
+                              {money(
+                                r.gain_gbp,
+                                r.gain_currency || r.currency || baseCurrency,
+                              )}
+                            </span>
+                          )}
                         </td>
                       )}
                       {visibleColumns.gain_pct && (
                         <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                          <span className={gainPctClass}>
-                            {gainPctPrefix}
-                            {percent(r.gain_pct, 1)}
-                          </span>
+                          {r.cost_basis_source === 'unknown' ? (
+                            <NotAvailable />
+                          ) : (
+                            <span className={gainPctClass}>
+                              {gainPctPrefix}
+                              {percent(r.gain_pct, 1)}
+                            </span>
+                          )}
                         </td>
                       )}
                       {!relativeViewEnabled && (

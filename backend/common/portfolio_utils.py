@@ -774,6 +774,10 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 cost_value = h.get("cost_gbp")
             cost = _safe_num(cost_value)
             row["cost_gbp"] += cost
+            # A guessed cost (cost == market value) is not a fact: flag the row so
+            # callers/UI do not present its £0.00 gain as real (#7785).
+            if h.get("cost_basis_source") == "unknown":
+                row["_cost_unknown"] = True
 
             row["market_value_gbp"] += _safe_num(h.get("market_value_gbp"))
             row["gain_gbp"] += _safe_num(h.get("gain_gbp"))
@@ -941,6 +945,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             r["grouping"] = fallback or "Unknown"
             r["grouping_id"] = None
             r["_grouping_from_fallback"] = True
+        r["cost_basis_source"] = "unknown" if r.pop("_cost_unknown", False) else None
         r.pop("_grouping_from_fallback", None)
         r.pop("_snapshot_native_price", None)
         r.pop("_snapshot_native_currency", None)

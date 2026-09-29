@@ -414,6 +414,7 @@ async def test_create_transaction_records_valid_payload(monkeypatch, tmp_path):
             "account": "primary",
             "ticker": "AAA",
             "date": tx.date.isoformat(),
+            "type": "BUY",
             "price_gbp": 2.5,
             "units": 3.0,
             "fees": None,

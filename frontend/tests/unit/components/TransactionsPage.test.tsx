@@ -225,6 +225,49 @@ describe('TransactionsPage', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('submits a SELL when Sell is chosen in the editor', async () => {
+    render(
+      <TransactionsPage
+        owners={[
+          { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+        ]}
+      />
+    );
+    await screen.findByText('PFE');
+
+    const [ownerFilter, accountFilter] = screen.getAllByRole('combobox');
+    fireEvent.change(ownerFilter, { target: { value: 'alex' } });
+    fireEvent.change(accountFilter, { target: { value: 'isa' } });
+    fireEvent.change(screen.getByLabelText('Type'), {
+      target: { value: 'SELL' },
+    });
+    fireEvent.change(screen.getByLabelText('Date'), {
+      target: { value: '2024-03-01' },
+    });
+    fireEvent.change(getEditorTicker(), { target: { value: 'PFE' } });
+    fireEvent.change(getEditorPrice(), { target: { value: '12' } });
+    fireEvent.change(getEditorUnits(), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Reason'), {
+      target: { value: 'take profit' },
+    });
+
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Add transaction' }).closest('form')!
+    );
+
+    await waitFor(() => {
+      expect(createTransactionMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          owner: 'alex',
+          account: 'isa',
+          ticker: 'PFE',
+          type: 'SELL',
+          units: 2,
+        })
+      );
+    });
+  });
+
   it('guards validation when submitting without filter owner/account context', async () => {
     render(
       <TransactionsPage

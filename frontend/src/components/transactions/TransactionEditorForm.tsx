@@ -1,5 +1,5 @@
 import type { ChangeEventHandler, FormEventHandler } from "react";
-import type { TransactionFormValues } from "./transactionForm";
+import { isTradeType, type TransactionFormValues } from "./transactionForm";
 import { useDemoReadOnly } from "../../hooks/useDemoReadOnly";
 
 interface TransactionEditorFormProps {
@@ -55,6 +55,16 @@ export function TransactionEditorForm({
           <span style={{ opacity: 0.8 }}>Select an owner and account in filters above.</span>
         )}
       </div>
+      <label style={{ display: "flex", flexDirection: "column" }}>
+        Type
+        <select value={values.type} onChange={onFieldChange("type")}>
+          <option value="BUY">Buy</option>
+          <option value="SELL">Sell</option>
+          {!isTradeType(values.type) && (
+            <option value={values.type}>{values.type} (unchanged)</option>
+          )}
+        </select>
+      </label>
       <label style={{ display: "flex", flexDirection: "column" }}>
         Date
         <input type="date" value={values.date} onChange={onFieldChange("date")} required />

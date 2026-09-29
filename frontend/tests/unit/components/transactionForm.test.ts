@@ -4,6 +4,17 @@ import {
   createTransactionFormValues,
 } from "@/components/transactions/transactionForm";
 
+const BASE_VALUES = {
+  type: "BUY",
+  date: "2024-02-01",
+  ticker: "VUSA",
+  price: "12.50",
+  units: "3",
+  fees: "",
+  comments: "",
+  reason: "rebalance",
+};
+
 describe("transactionForm helpers", () => {
   it("creates editable form values from a transaction", () => {
     expect(
@@ -19,6 +30,7 @@ describe("transactionForm helpers", () => {
         date: "2024-02-01T10:00:00Z",
       }),
     ).toEqual({
+      type: "BUY",
       ticker: "VUSA",
       price: "5.25",
       units: "2",
@@ -44,6 +56,7 @@ describe("transactionForm helpers", () => {
   it("builds a valid transaction payload", () => {
     expect(
       buildTransactionPayload({
+        type: "BUY",
         date: "2024-02-01",
         ticker: " vusa ",
         price: "12.50",
@@ -61,6 +74,7 @@ describe("transactionForm helpers", () => {
         ticker: "VUSA",
         price_gbp: 12.5,
         units: 3,
+        type: "BUY",
         fees: 1.25,
         comments: "add more",
         reason: "rebalance",
@@ -71,6 +85,7 @@ describe("transactionForm helpers", () => {
   it("returns a validation error for invalid fees", () => {
     expect(
       buildTransactionPayload({
+        type: "BUY",
         date: "2024-02-01",
         ticker: "VUSA",
         price: "12.50",
@@ -90,6 +105,7 @@ describe("transactionForm helpers", () => {
     // correctly rejects it.
     expect(
       buildTransactionPayload({
+        type: "BUY",
         date: "2024-02-01",
         ticker: "VUSA",
         price: "12.50",
@@ -107,6 +123,7 @@ describe("transactionForm helpers", () => {
   it("returns a validation error for negative fees", () => {
     expect(
       buildTransactionPayload({
+        type: "BUY",
         date: "2024-02-01",
         ticker: "VUSA",
         price: "12.50",
@@ -119,5 +136,43 @@ describe("transactionForm helpers", () => {
       payload: null,
       error: "Fees cannot be negative.",
     });
+  });
+  it("keeps SELL when editing a sale", () => {
+    const values = createTransactionFormValues({
+      owner: "alex",
+      account: "isa",
+      type: "sell",
+      date: "2024-02-01",
+    });
+    expect(values.type).toBe("SELL");
+  });
+
+  it("keeps a non-trade type so the form can leave it unchanged", () => {
+    const values = createTransactionFormValues({
+      owner: "alex",
+      account: "isa",
+      type: "DIVIDEND",
+      date: "2024-02-01",
+    });
+    expect(values.type).toBe("DIVIDEND");
+  });
+
+  it("includes SELL in the payload", () => {
+    const result = buildTransactionPayload(
+      { ...BASE_VALUES, type: "SELL" },
+      "alex",
+      "isa",
+    );
+    expect(result.payload?.type).toBe("SELL");
+  });
+
+  it("omits a non-trade type from the payload so the stored type is kept", () => {
+    const result = buildTransactionPayload(
+      { ...BASE_VALUES, type: "DIVIDEND" },
+      "alex",
+      "isa",
+    );
+    expect(result.error).toBeNull();
+    expect(result.payload).not.toHaveProperty("type");
   });
 });

@@ -1,6 +1,18 @@
 import type { Transaction } from "@/types";
 
+export type TradeType = "BUY" | "SELL";
+
+export const TRADE_TYPES: readonly TradeType[] = ["BUY", "SELL"];
+
+export function isTradeType(value: string): value is TradeType {
+  return (TRADE_TYPES as readonly string[]).includes(value);
+}
+
 export type TransactionFormValues = {
+  // BUY/SELL for manual entries. Editing an imported row of another type
+  // (e.g. DIVIDEND) keeps that type here; it is not sent on save, so the
+  // backend leaves the stored type unchanged.
+  type: string;
   date: string;
   ticker: string;
   price: string;
@@ -11,6 +23,7 @@ export type TransactionFormValues = {
 };
 
 export const EMPTY_TRANSACTION_FORM_VALUES: TransactionFormValues = {
+  type: "BUY",
   date: "",
   ticker: "",
   price: "",
@@ -59,6 +72,7 @@ export function createTransactionFormValues(
   const legacyReason = (transaction as { reason_to_buy?: string | null }).reason_to_buy;
 
   return {
+    type: formTypeFor(transaction.type),
     date: transaction.date ? transaction.date.slice(0, 10) : "",
     ticker: tickerValue,
     price:
@@ -70,6 +84,13 @@ export function createTransactionFormValues(
   };
 }
 
+// Untyped rows are legacy manual entries, which were always purchases;
+// PURCHASE replays identically to BUY.
+function formTypeFor(type: string | null | undefined): string {
+  const upper = (type ?? "").toUpperCase();
+  return upper === "" || upper === "PURCHASE" ? "BUY" : upper;
+}
+
 export type TransactionPayload = {
   owner: string;
   account: string;
@@ -78,6 +99,7 @@ export type TransactionPayload = {
   price_gbp: number;
   units: number;
   reason: string;
+  type?: TradeType;
   fees?: number;
   comments?: string;
 };
@@ -133,6 +155,7 @@ export function buildTransactionPayload(
       price_gbp: price,
       units,
       reason,
+      ...(isTradeType(values.type) ? { type: values.type } : {}),
       fees,
       comments: comments || undefined,
     },

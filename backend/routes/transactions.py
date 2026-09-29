@@ -11,7 +11,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Literal, Mapping, Optional, Tuple
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
@@ -259,11 +259,18 @@ def _global_accounts_root() -> Optional[Path]:
     return None
 
 
+# Trade types a manually entered transaction may carry. The holdings rebuild
+# (backend.common.holdings_rebuild) ignores rows without a recognised type, so
+# every manual entry must be typed for it to affect positions.
+ManualTradeType = Literal["BUY", "SELL"]
+
+
 class TransactionCreate(BaseModel):
     owner: str
     account: str
     ticker: str
     date: date
+    type: ManualTradeType = "BUY"
     price_gbp: float = Field(gt=0)
     units: float = Field(gt=0)
     fees: Optional[float] = None
@@ -273,7 +280,9 @@ class TransactionCreate(BaseModel):
 
 
 class TransactionUpdate(TransactionCreate):
-    pass
+    # Omitted means "keep the stored type", so editing an imported row of
+    # another type (e.g. DIVIDEND) does not silently turn it into a BUY.
+    type: Optional[ManualTradeType] = None
 
 
 class ManualHoldingCreate(BaseModel):

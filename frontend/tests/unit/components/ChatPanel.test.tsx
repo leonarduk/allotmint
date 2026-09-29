@@ -1,12 +1,17 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi, Mock } from "vitest";
+import { beforeEach, describe, expect, it, vi, Mock } from "vitest";
 import { ChatPanel } from "@/components/ChatPanel";
 import * as api from "@/api";
+import { startNewChat } from "@/utils/chatConversation";
 
 vi.mock("@/api");
 
 describe("ChatPanel", () => {
+  beforeEach(() => {
+    startNewChat();
+  });
+
   it("renders nothing when closed", () => {
     render(<ChatPanel open={false} onClose={() => {}} />);
     expect(screen.queryByLabelText(/chat message/i)).not.toBeInTheDocument();
@@ -226,5 +231,53 @@ describe("ChatPanel", () => {
     await waitFor(() => expect(screen.getByText("Hello!")).toBeInTheDocument());
     expect(api.postChat).toHaveBeenLastCalledWith("hi", [], [], undefined);
     expect(screen.getAllByText("hi")).toHaveLength(1);
+  });
+
+  it("keeps the conversation when the panel is remounted on another page", async () => {
+    (api.postChat as Mock).mockResolvedValueOnce({ reply: "VOD.L is 1.0" });
+    const user = userEvent.setup();
+
+    const first = render(<ChatPanel open onClose={() => {}} context={{ path: "/market" }} />);
+    await user.type(screen.getByLabelText(/chat message/i), "price of VOD.L?");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => expect(screen.getByText(/VOD\.L is 1\.0/i)).toBeInTheDocument());
+    first.unmount();
+
+    (api.postChat as Mock).mockResolvedValueOnce({ reply: "Up 2%." });
+    const context = { path: "/research/VOD.L", ticker: "VOD.L" };
+    render(<ChatPanel open onClose={() => {}} context={context} />);
+
+    expect(screen.getByText("price of VOD.L?")).toBeInTheDocument();
+    expect(screen.getByText(/VOD\.L is 1\.0/i)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/chat message/i), "and today?");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => expect(screen.getByText("Up 2%.")).toBeInTheDocument());
+    // Prior turns are sent as history, with the page the user is on now.
+    expect(api.postChat).toHaveBeenLastCalledWith(
+      "and today?",
+      [
+        { role: "user", content: "price of VOD.L?" },
+        { role: "assistant", content: "VOD.L is 1.0" },
+      ],
+      [],
+      context,
+    );
+  });
+
+  it("starts a fresh conversation only when New chat is clicked", async () => {
+    (api.postChat as Mock).mockResolvedValueOnce({ reply: "Hello." });
+    const user = userEvent.setup();
+
+    render(<ChatPanel open onClose={() => {}} />);
+    expect(screen.getByRole("button", { name: /new chat/i })).toBeDisabled();
+    await user.type(screen.getByLabelText(/chat message/i), "hi");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => expect(screen.getByText("Hello.")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: /new chat/i }));
+
+    expect(screen.queryByText("Hello.")).not.toBeInTheDocument();
+    expect(screen.getByText(/ask about your portfolios/i)).toBeInTheDocument();
   });
 });

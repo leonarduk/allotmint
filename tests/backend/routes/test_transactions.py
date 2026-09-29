@@ -36,10 +36,8 @@ def _make_request(state: dict | None = None) -> Request:
 @pytest.fixture(autouse=True)
 def reset_transactions_state():
     transactions_module._POSTED_TRANSACTIONS.clear()
-    transactions_module._PORTFOLIO_IMPACT.clear()
     yield
     transactions_module._POSTED_TRANSACTIONS.clear()
-    transactions_module._PORTFOLIO_IMPACT.clear()
 
 
 def _seed_transactions_file(accounts_root: Path, owner: str, account: str, transactions: list[dict]) -> Path:
@@ -423,7 +421,6 @@ async def test_create_transaction_records_valid_payload(monkeypatch, tmp_path):
             "external_id": None,
         }
     ]
-    assert transactions_module._PORTFOLIO_IMPACT["alice"] == pytest.approx(7.5)
     assert response["owner"] == "alice"
     assert response["account"] == "primary"
 
@@ -473,9 +470,6 @@ async def test_update_and_delete_transactions_flow(monkeypatch, tmp_path):
         assert moved_entry["price_gbp"] == pytest.approx(8.0)
         assert moved_entry["units"] == pytest.approx(4.0)
 
-        assert transactions_module._PORTFOLIO_IMPACT["alice"] == pytest.approx(-20.0)
-        assert transactions_module._PORTFOLIO_IMPACT["bob"] == pytest.approx(32.0)
-
         in_place_payload = {
             "owner": "bob",
             "account": "savings",
@@ -495,9 +489,6 @@ async def test_update_and_delete_transactions_flow(monkeypatch, tmp_path):
         assert updated_entry["units"] == pytest.approx(5.0)
         assert updated_entry["reason"] == "Adjust units"
 
-        assert transactions_module._PORTFOLIO_IMPACT["alice"] == pytest.approx(-20.0)
-        assert transactions_module._PORTFOLIO_IMPACT["bob"] == pytest.approx(45.0)
-
         delete_response = client.delete(f"/transactions/{moved_payload['id']}")
         assert delete_response.status_code == 200
         assert delete_response.json() == {"status": "deleted"}
@@ -507,9 +498,6 @@ async def test_update_and_delete_transactions_flow(monkeypatch, tmp_path):
 
         final_destination = json.loads(destination_file.read_text(encoding="utf-8"))
         assert final_destination["transactions"] == []
-
-        assert transactions_module._PORTFOLIO_IMPACT["bob"] == pytest.approx(0.0)
-        assert transactions_module._PORTFOLIO_IMPACT["alice"] == pytest.approx(-20.0)
 
 
 @pytest.mark.asyncio
@@ -548,7 +536,6 @@ async def test_update_transaction_out_of_range_index(monkeypatch, tmp_path):
 
     unchanged = json.loads(original_file.read_text(encoding="utf-8"))
     assert len(unchanged["transactions"]) == 1
-    assert not transactions_module._PORTFOLIO_IMPACT
 
 
 @pytest.mark.asyncio
@@ -607,4 +594,3 @@ async def test_update_transaction_pending_entry_guard(monkeypatch, tmp_path):
 
     assert response.status_code == 500
     assert response.json()["detail"] == "Failed to update transaction"
-    assert not transactions_module._PORTFOLIO_IMPACT

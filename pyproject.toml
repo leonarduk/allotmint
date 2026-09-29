@@ -34,6 +34,12 @@ pro = [
 # of auto-discovery rather than install any of them as packages.
 packages = []
 
+# For issue-worm's verifier (leonarduk/issue-worm#565): the full check suite -
+# backend pytest, frontend lint/type-check/unit tests and the bats suite -
+# takes ~10 minutes on a laptop, over its 600s default, so give it room.
+[tool.issue-worm]
+verifier-timeout = 1500
+
 [tool.black]
 line-length = 100
 target-version = ["py311"]

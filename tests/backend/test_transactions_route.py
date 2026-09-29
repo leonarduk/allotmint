@@ -34,7 +34,6 @@ def _client(monkeypatch, tmp_path):
     # File locking now lives in the accounts_store module.
     monkeypatch.setattr(accounts_store, "_lock_file", lambda f: None)
     monkeypatch.setattr(accounts_store, "_unlock_file", lambda f: None)
-    transactions._PORTFOLIO_IMPACT.clear()
     transactions._POSTED_TRANSACTIONS.clear()
     return TestClient(app)
 
@@ -67,7 +66,6 @@ def test_create_transaction_success(monkeypatch, tmp_path):
     assert file_path.exists()
     saved = json.loads(file_path.read_text())
     assert saved["transactions"][0]["ticker"] == "ABC"
-    assert transactions._PORTFOLIO_IMPACT["bob"] == pytest.approx(3.0)
 
 
 def test_transaction_instrument_name(monkeypatch, tmp_path):
@@ -139,7 +137,6 @@ def test_update_transaction_same_location(monkeypatch, tmp_path):
     file_path = tmp_path / "bob" / "isa_transactions.json"
     saved = json.loads(file_path.read_text())
     assert saved["transactions"][0]["price_gbp"] == 2.0
-    assert transactions._PORTFOLIO_IMPACT["bob"] == pytest.approx(4.0)
 
 
 def test_update_transaction_move_account(monkeypatch, tmp_path):
@@ -179,7 +176,6 @@ def test_update_transaction_move_account(monkeypatch, tmp_path):
     sipp_saved = json.loads(sipp_path.read_text())
     assert len(sipp_saved["transactions"]) == 1
     assert sipp_saved["transactions"][0]["price_gbp"] == 1.0
-    assert transactions._PORTFOLIO_IMPACT["bob"] == pytest.approx(5.0)
 
 
 def test_delete_transaction(monkeypatch, tmp_path):
@@ -203,7 +199,6 @@ def test_delete_transaction(monkeypatch, tmp_path):
     file_path = tmp_path / "bob" / "isa_transactions.json"
     saved = json.loads(file_path.read_text())
     assert saved["transactions"] == []
-    assert transactions._PORTFOLIO_IMPACT["bob"] == pytest.approx(0.0)
 
 
 def test_create_transaction_no_accounts_root(monkeypatch):

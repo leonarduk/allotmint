@@ -76,6 +76,13 @@ else
   echo "DATA_BUCKET not set; skipping data sync" >&2
 fi
 
+# shellcheck source=scripts/bash/lib/start_mcp_server.sh
+source "$SCRIPT_DIR/lib/start_mcp_server.sh"
+start_local_mcp_server "$REPO_ROOT"
+if [[ -n "$MCP_SERVER_PID" ]]; then
+  trap 'kill "$MCP_SERVER_PID" 2>/dev/null || true' EXIT
+fi
+
 CMD=(uvicorn backend.local_api.main:app --reload-dir backend --port "$UVICORN_PORT" --host "$UVICORN_HOST" --log-config "$LOG_CONFIG")
 if [[ "$RELOAD" == "true" ]]; then
   CMD+=(--reload)

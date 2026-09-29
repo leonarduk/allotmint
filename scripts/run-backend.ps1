@@ -457,6 +457,52 @@ if (-not $offline) {
   Write-Host 'Offline mode active; skipping remote data sync.' -ForegroundColor Yellow
 }
 
+# ───────────── MCP server (chat) ──────────────
+# Mirrors scripts/bash/lib/start_mcp_server.sh: start allotmint-pro's MCP
+# server in the background so the chat drawer (POST /chat) works locally.
+# Skipped for START_MCP_SERVER=0, a non-local MCP_SERVER_URL, or no
+# allotmint-pro checkout ($env:ALLOTMINT_PRO_DIR, else ..\allotmint-pro);
+# an already-listening port is assumed to be the server.
+function Start-LocalMcpServer {
+  if ($env:START_MCP_SERVER -eq '0') { return $null }
+
+  $mcpPort = if ($env:MCP_SERVER_PORT) { [int]$env:MCP_SERVER_PORT } else { 8001 }
+  $mcpUrl = $env:MCP_SERVER_URL
+  if ($mcpUrl) {
+    if ($mcpUrl -notmatch '^https?://(localhost|127\.0\.0\.1)(:(\d+))?(/|$)') { return $null }
+    $mcpPort = if ($matches[3]) { [int]$matches[3] } else { 80 }
+  } else {
+    $mcpUrl = "http://localhost:$mcpPort/mcp"
+  }
+
+  $proDir = if ($env:ALLOTMINT_PRO_DIR) { $env:ALLOTMINT_PRO_DIR } else { Join-Path (Split-Path -Parent $REPO_ROOT) 'allotmint-pro' }
+  if (-not (Test-Path (Join-Path $proDir 'allotmint_pro\mcp_server'))) {
+    Write-Host "allotmint-pro not found at $proDir; chat's MCP server not started (set ALLOTMINT_PRO_DIR, or START_MCP_SERVER=0 to silence)." -ForegroundColor Yellow
+    return $null
+  }
+
+  $env:MCP_SERVER_URL = $mcpUrl
+  if (-not (Test-PortFree $mcpPort)) {
+    Write-Host "Port $mcpPort already in use; assuming the MCP server is running at $mcpUrl" -ForegroundColor Yellow
+    return $null
+  }
+
+  $previousPythonPath = $env:PYTHONPATH
+  $env:PYTHONPATH = (@($REPO_ROOT, $proDir, $previousPythonPath) | Where-Object { $_ }) -join ';'
+  try {
+    $process = Start-Process -FilePath $PYTHON -NoNewWindow -PassThru `
+      -ArgumentList @('-m', 'uvicorn', 'allotmint_pro.mcp_server.app:app', '--host', '127.0.0.1', '--port', $mcpPort) `
+      -RedirectStandardOutput (Join-Path $logsDir 'mcp-server.log') `
+      -RedirectStandardError (Join-Path $logsDir 'mcp-server.err.log')
+  } finally {
+    $env:PYTHONPATH = $previousPythonPath
+  }
+  Write-Host "MCP server starting at $mcpUrl (pid $($process.Id), logs: logs\mcp-server*.log)" -ForegroundColor Green
+  return $process
+}
+
+$mcpProcess = Start-LocalMcpServer
+
 # ───────────── start server ───────────────────
 Write-Host "Starting AllotMint Local API on http://localhost:$port ... (recorded in .local/ports/backend.port)" -ForegroundColor Green
 
@@ -469,4 +515,10 @@ $arguments = @(
 if ($resolvedLogConfig) { $arguments += @('--log-config', $resolvedLogConfig) }
 if ($reload) { $arguments += '--reload' }
 
-& $PYTHON -m uvicorn @arguments
+try {
+  & $PYTHON -m uvicorn @arguments
+} finally {
+  if ($mcpProcess -and -not $mcpProcess.HasExited) {
+    Stop-Process -Id $mcpProcess.Id -Force -ErrorAction SilentlyContinue
+  }
+}

@@ -1,4 +1,5 @@
 import asyncio
+import importlib.util
 import inspect
 import os
 import shutil
@@ -23,6 +24,18 @@ from backend import auth as auth_module
 from backend.config import config
 
 _real_verify_google_token = auth_module.verify_google_token
+
+# The private cicaid automation dependency (requirements-automation.txt) is
+# only installed when CI has CICAID_PRO_TOKEN, and without it these modules
+# fail at import. ci.yml passes --ignore for them in that case; mirror it
+# here so a plain `pytest tests/` (fork PRs, local runs, automated
+# verifiers) collects the rest of the suite instead of erroring.
+if importlib.util.find_spec("cicaid_devtools") is None:
+    collect_ignore = [
+        "test_review_common.py",
+        "test_ai_review_scripts.py",
+        "scripts/test_n_review_issue.py",
+    ]
 
 
 @pytest.hookimpl(tryfirst=True)

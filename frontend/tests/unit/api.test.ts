@@ -771,6 +771,78 @@ describe("custom query (issue #7104)", () => {
     // The endpoint wraps rows in {results}; callers expect the bare array.
     expect(rows).toEqual([{ ticker: "AAA.L" }]);
   });
+
+  it("surfaces a distinct message for a 400 validation failure (not 'Query not found')", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+      json: () => Promise.resolve({ detail: "Unknown metric: bogus" }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(
+      runCustomQuery({
+        start: "2024-01-01",
+        end: "2024-02-01",
+        owners: ["alex"],
+        tickers: ["AAA.L"],
+        metrics: ["bogus"],
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(/Invalid query parameters.*Unknown metric/),
+    });
+  });
+
+  it("surfaces a distinct message for a 500 server error", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+      json: () => Promise.resolve({ detail: "boom" }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(
+      runCustomQuery({
+        start: "2024-01-01",
+        end: "2024-02-01",
+        owners: ["alex"],
+        tickers: ["AAA.L"],
+        metrics: ["meta"],
+      }),
+    ).rejects.toMatchObject({
+      status: 500,
+      message: expect.stringMatching(/Failed to run query.*boom/),
+    });
+  });
+
+  it("keeps the 'Query not found' wording for a 404", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      json: () => Promise.resolve({ detail: "Query not found" }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(
+      runCustomQuery({
+        start: "2024-01-01",
+        end: "2024-02-01",
+        owners: ["alex"],
+        tickers: ["AAA.L"],
+        metrics: ["meta"],
+      }),
+    ).rejects.toMatchObject({
+      status: 404,
+      message: expect.stringMatching(/Query not found/),
+    });
+  });
 });
 
 describe("client-side request forgery guard (CodeQL #218)", () => {

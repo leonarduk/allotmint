@@ -1868,17 +1868,55 @@ export const requestApproval = async (owner: string, ticker: string) => {
 };
 
 
-/** Execute a custom query against the backend. */
+/**
+ * Execute a custom query against the backend.
+ *
+ * The backend only exposes POST /custom-query/run (see PR #7133). Error
+ * handling distinguishes a missing saved query (404) from other failures
+ * (400/422 validation, 5xx server errors) so callers can surface an
+ * actionable message instead of a misleading "Query not found" for every
+ * non-200 response. The original error is preserved on `cause` and its
+ * `status`/`code` fields are copied onto the new error so existing callers
+ * that inspect `err.status` keep working.
+ */
 export const runCustomQuery = async (params: CustomQuery) => {
-  const { results } = await fetchJson<{ results: Record<string, unknown>[] }>(
-    `${API_BASE}/custom-query/run`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...params, format: "json" }),
-    },
-  );
-  return results;
+  try {
+    const { results } = await fetchJson<{ results: Record<string, unknown>[] }>(
+      `${API_BASE}/custom-query/run`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...params, format: "json" }),
+      },
+    );
+    return results;
+  } catch (err) {
+    const status = (err as { status?: number } | undefined)?.status;
+    const code = (err as { code?: string } | undefined)?.code;
+    const detail =
+      err instanceof Error && err.message ? err.message : "Unknown error";
+
+    let message: string;
+    if (status === 404) {
+      // Preserve the backend's "Query not found" wording when it is the
+      // actual cause, but fall back to a clear message if the body was
+      // empty/non-JSON.
+      message = /not found/i.test(detail)
+        ? detail
+        : "Query not found";
+    } else if (status === 400 || status === 422) {
+      message = `Invalid query parameters: ${detail}`;
+    } else if (typeof status === "number" && status >= 500) {
+      message = `Failed to run query: ${detail}`;
+    } else {
+      message = `Failed to run query: ${detail}`;
+    }
+
+    const wrapped = new Error(message, { cause: err });
+    if (typeof status === "number") (wrapped as any).status = status;
+    if (code) (wrapped as any).code = code;
+    throw wrapped;
+  }
 };
 
 /** Persist a query definition on the backend. */

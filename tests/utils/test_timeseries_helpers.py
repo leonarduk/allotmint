@@ -470,6 +470,54 @@ class TestApplyDateRange:
 
         assert list(result["Date"].dt.date) == [self.BASE, self.MID]
 
+    def test_presorted_marker_matches_explicit_check_path(self):
+        # #8127: a frame marked by _load_meta_parquet_cached skips the
+        # hasnans/monotonic checks; every bound combination (including bounds
+        # outside the data, single-day, and time-of-day components) must
+        # return exactly what the unmarked, explicitly-checked frame does.
+        stamps = ["2024-01-01", "2024-01-02 15:30", "2024-01-05", "2024-01-09"]
+        col = pd.to_datetime(stamps, format="mixed")
+        plain = pd.DataFrame({"Date": col, "Close": range(4)})
+        marked = plain.copy()
+        marked.attrs["_timeseries_date_sorted"] = True
+        d = dt.date
+        bounds = [
+            None,
+            d(2023, 12, 31),
+            d(2024, 1, 1),
+            d(2024, 1, 2),
+            d(2024, 1, 5),
+            d(2024, 1, 9),
+            d(2024, 1, 10),
+        ]
+
+        for start in bounds:
+            for end in bounds:
+                expected = th.apply_date_range(plain, start_date=start, end_date=end)
+                actual = th.apply_date_range(marked, start_date=start, end_date=end)
+                pd.testing.assert_frame_equal(actual, expected, obj=f"start={start} end={end}")
+
+    def test_presorted_marker_result_is_independent_copy(self):
+        # The shared cached frame must never be mutated through a returned slice.
+        col = pd.to_datetime([self.BASE, self.MID, self.END])
+        df = pd.DataFrame({"Date": col, "Close": [1.0, 2.0, 3.0]})
+        df.attrs["_timeseries_date_sorted"] = True
+
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
+        result.loc[:, "Close"] = -1.0
+
+        assert list(df["Close"]) == [1.0, 2.0, 3.0]
+
+    def test_marker_ignored_for_non_datetime64_column(self):
+        # The marker only vouches for sortedness/nulls, never dtype or tz: an
+        # object-dtype Date column still takes the scan path.
+        df = pd.DataFrame({"Date": [self.BASE, self.MID, self.END], "Close": range(3)})
+        df.attrs["_timeseries_date_sorted"] = True
+
+        result = th.apply_date_range(df, start_date=self.MID, end_date=self.END)
+
+        assert list(result["Date"]) == [self.MID, self.END]
+
 
 def _make_frozen_date(frozen_today: dt.date):
     """Return a drop-in replacement for ``datetime.date`` that freezes ``today()``."""

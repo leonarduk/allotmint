@@ -39,14 +39,14 @@ def _setup_app(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "accounts_root", tmp_path)
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
 
-    # stub out network-heavy enrichment
+    # stub out network-heavy enrichment; each unit is worth GBP 10
     for target in [
         "backend.common.holding_utils.enrich_holding",
         "backend.common.portfolio.enrich_holding",
     ]:
         monkeypatch.setattr(
             target,
-            lambda h, *a, **k: {**h, "market_value_gbp": 0.0, "gain_gbp": 0.0},
+            lambda h, *a, **k: {**h, "market_value_gbp": float(h.get("units") or 0) * 10.0, "gain_gbp": 0.0},
         )
 
     app = create_app()
@@ -54,14 +54,9 @@ def _setup_app(tmp_path, monkeypatch):
     return app, owner, account
 
 
-@pytest.fixture()
-def offline_mode(monkeypatch):
-    monkeypatch.setattr(config, "offline_mode", True)
-    yield
+def test_post_transaction_updates_portfolio(tmp_path, monkeypatch):
+    # The local store only rebuilds holdings from transactions outside offline mode.
     monkeypatch.setattr(config, "offline_mode", False)
-
-
-def test_post_transaction_updates_portfolio(tmp_path, monkeypatch, offline_mode):
     app, owner, account = _setup_app(tmp_path, monkeypatch)
 
     with TestClient(app) as client:
@@ -71,10 +66,13 @@ def test_post_transaction_updates_portfolio(tmp_path, monkeypatch, offline_mode)
         data1 = resp1.json()
         value_before = data1["total_value_estimate_gbp"]
 
-        # post a transaction adding £10 of value
+        # post a transaction adding one unit (GBP 10 of value)
         tx = {
             "owner": owner,
-            "account": account,
+            # Same spelling as the seeded isa_transactions.json: a POST writes
+            # the account name as given, so "ISA" would start a second file on
+            # a case-sensitive filesystem.
+            "account": account.lower(),
             "ticker": "AAA",
             "date": "2024-02-01",
             "price_gbp": 10.0,  # validated to be positive
@@ -84,7 +82,7 @@ def test_post_transaction_updates_portfolio(tmp_path, monkeypatch, offline_mode)
         resp2 = client.post("/transactions", json=tx)
         assert resp2.status_code == 201
 
-        # portfolio total value should reflect the added transaction
+        # the rebuilt holding carries the new unit, counted once
         resp3 = client.get(f"/portfolio/{owner}")
         assert resp3.status_code == 200
         data3 = resp3.json()

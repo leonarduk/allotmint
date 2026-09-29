@@ -194,21 +194,6 @@ def build_owner_portfolio(
             }
         )
 
-    # Allow tests to modify portfolio values by posting transactions. The
-    # transactions route keeps an in-memory mapping of additional value per
-    # owner; if present we add it to the first account and to the overall
-    # total. This avoids touching the fixture files while still demonstrating
-    # a change in portfolio valuations after a transaction is recorded.
-    extra_val = 0.0
-    try:  # imported lazily to avoid circular dependency at import time
-        from backend.routes import transactions as tx_mod
-
-        extra_val = tx_mod._PORTFOLIO_IMPACT.get(owner, 0.0)
-    except Exception:
-        pass
-    if accounts and extra_val:
-        accounts[0]["value_estimate_gbp"] += extra_val
-
     total_val = sum(a["value_estimate_gbp"] for a in accounts)
 
     return {

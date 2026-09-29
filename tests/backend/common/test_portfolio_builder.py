@@ -1,7 +1,6 @@
 import datetime as dt
 import importlib
 import logging
-from collections import defaultdict
 
 import pytest
 
@@ -77,18 +76,9 @@ def fixture_portfolio_stubs(monkeypatch, today):
     }
 
 
-def test_build_owner_portfolio_applies_transaction_impact(monkeypatch, portfolio_stubs):
+def test_build_owner_portfolio_values_accounts_from_their_holdings(portfolio_stubs):
     owner = portfolio_stubs["owner"]
     base_value = portfolio_stubs["base_value"]
-    extra_value = 37.5
-
-    from backend.routes import transactions as transactions_mod
-
-    monkeypatch.setattr(
-        transactions_mod,
-        "_PORTFOLIO_IMPACT",
-        defaultdict(float, {owner: extra_value}),
-    )
 
     portfolio = build_owner_portfolio(owner)
 
@@ -97,8 +87,8 @@ def test_build_owner_portfolio_applies_transaction_impact(monkeypatch, portfolio
     assert portfolio["trades_remaining"] == 3
 
     first_account = portfolio["accounts"][0]
-    assert first_account["value_estimate_gbp"] == pytest.approx(base_value + extra_value)
-    assert portfolio["total_value_estimate_gbp"] == pytest.approx(base_value + extra_value)
+    assert first_account["value_estimate_gbp"] == pytest.approx(base_value)
+    assert portfolio["total_value_estimate_gbp"] == pytest.approx(base_value)
 
 
 def test_build_owner_portfolio_requires_plot(monkeypatch, today):

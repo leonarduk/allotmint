@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import re
-from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import date, datetime
@@ -131,7 +130,6 @@ class Transaction(BaseModel):
 
 
 _POSTED_TRANSACTIONS: List[dict] = []
-_PORTFOLIO_IMPACT: defaultdict[str, float] = defaultdict(float)
 
 _SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _ID_RE = re.compile(r"^(?P<owner>[A-Za-z0-9_-]+):(?P<account>[A-Za-z0-9_-]+):(?P<index>\d+)$")
@@ -378,21 +376,6 @@ def _parse_transaction_id(tx_id: str) -> Tuple[str, str, int]:
     )
 
 
-def _calculate_portfolio_impact(tx: Mapping[str, object]) -> float:
-    """Value ``tx`` adds to ``_PORTFOLIO_IMPACT``: positive for an acquisition, negative for a disposal.
-
-    Create, update, delete and rollback all go through this helper, so the
-    sign stays symmetric: deleting a SELL adds its value back.
-    """
-    try:
-        price = float(tx.get("price_gbp") or 0.0)
-        units = float(tx.get("units") or 0.0)
-    except (TypeError, ValueError):
-        return 0.0
-    sign = -1.0 if str(tx.get("type") or "").upper() in {"SELL", "TRANSFER_OUT", "REMOVAL"} else 1.0
-    return sign * price * units
-
-
 def _as_non_empty_str(value: object) -> str | None:
     if isinstance(value, str):
         stripped = value.strip()
@@ -626,11 +609,10 @@ def _persist_transaction(store: "AccountsStore", owner: str, account: str, tx_da
 
     Shared by :func:`create_transaction` (single, request-validated write) and
     :func:`import_transactions` (bulk write from a parsed import, #4965) so
-    both go through the exact same append/impact/rebuild path rather than
-    duplicating it. Portfolio impact is computed tolerantly (0.0 when
-    ``price_gbp``/``units`` are absent) since imported bank-style rows (e.g.
-    Moneyhub) carry no ticker/price/units at all -- ``rebuild_account_holdings``
-    already skips any transaction entry without a ticker.
+    both go through the exact same append/rebuild path rather than
+    duplicating it. Imported bank-style rows (e.g. Moneyhub) carry no
+    ticker/price/units at all -- ``rebuild_account_holdings`` already skips any
+    transaction entry without a ticker.
     """
 
     store.ensure_owner(owner)
@@ -648,8 +630,6 @@ def _persist_transaction(store: "AccountsStore", owner: str, account: str, tx_da
             data.setdefault("transactions", []).pop(new_index)
         raise
 
-    impact = _calculate_portfolio_impact(tx_data)
-    _PORTFOLIO_IMPACT[owner] += impact
     _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
 
     tx_id = _build_transaction_id(owner, account, new_index)
@@ -673,9 +653,6 @@ def _rollback_persisted_transaction(store: "AccountsStore", persisted: Mapping[s
     else:
         raise RuntimeError(f"Cannot roll back untracked transaction {persisted['id']}")
 
-    _PORTFOLIO_IMPACT[owner] -= _calculate_portfolio_impact(removed)
-    if not _PORTFOLIO_IMPACT[owner]:
-        del _PORTFOLIO_IMPACT[owner]
     return owner, account
 
 
@@ -733,7 +710,6 @@ def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> d
     same_account = new_account.lower() == original_account_canonical.lower()
     same_location = same_owner and same_account
 
-    old_impact = 0.0
     new_entry: Dict[str, object]
     pending_entry: Optional[Dict[str, object]] = None
 
@@ -743,7 +719,6 @@ def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> d
         if index >= len(transactions) or index < 0:
             raise HTTPException(status_code=404, detail="Transaction not found")
         existing = transactions[index]
-        old_impact = _calculate_portfolio_impact(existing)
 
         if same_location:
             updated_entry = _prepare_updated_transaction(existing, tx_data)
@@ -769,14 +744,6 @@ def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> d
             data["owner"] = new_owner
             data["account_type"] = new_account
             new_index = len(transactions) - 1
-
-    new_impact = _calculate_portfolio_impact(new_entry)
-
-    if same_location:
-        _PORTFOLIO_IMPACT[new_owner] += new_impact - old_impact
-    else:
-        _PORTFOLIO_IMPACT[original_owner] -= old_impact
-        _PORTFOLIO_IMPACT[new_owner] += new_impact
 
     affected: List[Tuple[str, str]] = [(new_owner, new_account)]
     if not same_location:
@@ -813,9 +780,6 @@ def delete_transaction(request: Request, tx_id: str) -> dict:
     if removed_entry is None:
         raise HTTPException(status_code=500, detail="Failed to delete transaction")
 
-    impact = _calculate_portfolio_impact(removed_entry)
-    _PORTFOLIO_IMPACT[owner] -= impact
-
     _rebuild_portfolio(owner, account_canonical, store)
 
     return {"status": "deleted"}
@@ -828,8 +792,8 @@ def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
     persisted shape (matching ``TransactionCreate``) uses
     ``price_gbp``/``reason`` -- coalesce rather than storing both. Bank-style
     rows (Moneyhub) carry no ticker/price/units at all; those fields persist
-    as ``None``, which ``_calculate_portfolio_impact`` and
-    ``rebuild_account_holdings`` already treat as "no security impact" (#4965).
+    as ``None``, which ``rebuild_account_holdings`` already treats as "no
+    security impact" (#4965).
     """
 
     tx_data = row.model_dump(mode="json", exclude={"owner", "account", "id"})

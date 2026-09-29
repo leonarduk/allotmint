@@ -24,6 +24,28 @@ const markdownComponents: Components = {
   ),
 };
 
+// Map a failed send to a status-specific message rather than echoing the
+// backend's error text (#7721; #7131 precedent). The backend's detail stays
+// in its log and the response body for whoever is debugging. Only a request
+// that got no response at all is "Cannot reach server".
+const CHAT_STATUS_MESSAGES: Record<number, string> = {
+  400: "Chat couldn't process that conversation. Please try again.",
+  401: "Your session has expired. Please sign in again.",
+  429: "You're sending messages too quickly. Wait a moment and try again.",
+  502: "Chat couldn't reach its AI service. Please try again later.",
+  503: "Chat isn't available on this server right now.",
+  504: "Chat took too long to respond. Please try again.",
+};
+
+function chatErrorMessage(e: unknown): string {
+  const err = e as { status?: unknown; timeout?: unknown } | null;
+  if (err?.timeout) return CHAT_STATUS_MESSAGES[504];
+  if (typeof err?.status === "number") {
+    return CHAT_STATUS_MESSAGES[err.status] ?? "Chat ran into a server error. Please try again.";
+  }
+  return "Cannot reach server";
+}
+
 function ChatMessageItem({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   return (
@@ -79,13 +101,13 @@ export function ChatPanel({ open, onClose }: Props) {
     try {
       const { reply } = await api.postChat(text, history);
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-    } catch {
+    } catch (e) {
       // Drop the unanswered message and hand its text back for a retry: left
       // in `messages`, it would make the next send's history end in two
       // consecutive "user" turns, which the backend rejects with a 400 (#7897).
       setMessages(history);
       setInput(text);
-      setError("Cannot reach server");
+      setError(chatErrorMessage(e));
     } finally {
       setSending(false);
     }

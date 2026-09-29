@@ -10,10 +10,37 @@
 # processed by the same issue-worm-pro scheduler (ai-systems-lab, cicaid,
 # cicaid-pro) stop silently inheriting these allotmint-specific commands.
 
+# `paths` (read by issue-worm's verifier, ignored by cicaid itself): a check
+# runs for an automated attempt only when a changed file matches one of its
+# globs, mirroring scripts/classify_change.py's area rules. Globs are
+# case-insensitive fnmatch where `*` also crosses `/` and a leading `**/`
+# also matches at the repo root. Deliberate cross-area matches, as in the
+# classifier: backend/contracts_spa.py and backend/agent/trading_agent.py
+# also run frontend (they shape the SPA contract), and root package*.json
+# also runs infrastructure (the CDK tests use it). CI machinery (.github/**,
+# the classifier, this file) triggers every check, and a change nothing
+# here claims still runs them all. GitHub CI on the PR runs everything.
+
 [[checks]]
 name = "backend"
 description = "Backend integration tests, coverage, type checks, and contract sync"
 workflow = ".github/workflows/backend-integration.yml"
+paths = [
+    "backend/**",
+    "tests/**",
+    "data/**",
+    "requirements*.txt",
+    "pyproject.toml",
+    "pytest.ini",
+    "mypy.ini",
+    "logging.ini",
+    "config*.yaml",
+    "makefile",
+    "scripts/*.py",
+    ".github/**",
+    "scripts/classify_change.py",
+    ".cicaid-checks.toml",
+]
 commands = [
     "python scripts/check_contract_version_sync.py",
     "python -m mypy backend --config-file mypy.ini --show-error-codes --pretty --explicit-package-bases",
@@ -25,6 +52,16 @@ commands = [
 name = "frontend"
 description = "Frontend lint, type checking, unit tests, and dependency audit"
 workflow = ".github/workflows/frontend-tests.yml and .github/workflows/ci.yml"
+paths = [
+    "frontend/**",
+    "package.json",
+    "package-lock.json",
+    "backend/contracts_spa.py",
+    "backend/agent/trading_agent.py",
+    ".github/**",
+    "scripts/classify_change.py",
+    ".cicaid-checks.toml",
+]
 commands = [
     "npm --prefix frontend run lint",
     "npm --prefix frontend run type-check",
@@ -36,6 +73,15 @@ commands = [
 name = "infrastructure"
 description = "CDK tests and GitHub Actions workflow lint"
 workflow = ".github/workflows/ci.yml and .github/workflows/cdk-dry-run.yml"
+paths = [
+    "cdk/**",
+    "infra/**",
+    "package.json",
+    "package-lock.json",
+    ".github/**",
+    "scripts/classify_change.py",
+    ".cicaid-checks.toml",
+]
 commands = [
     "pytest cdk/tests/ --no-cov",
     "actionlint",
@@ -45,6 +91,21 @@ commands = [
 name = "scripts"
 description = "Bash developer script tests, plus shellcheck"
 workflow = ".github/workflows/ci.yml"
+paths = [
+    "scripts/bash/**",
+    "**/*.sh",
+    "**/*.bats",
+    "tests/bash/**",
+    "dockerfile*",
+    "**/dockerfile*",
+    "docker/**",
+    "docker-compose*.yml",
+    "deploy/**",
+    "jenkinsfile*",
+    ".github/**",
+    "scripts/classify_change.py",
+    ".cicaid-checks.toml",
+]
 commands = [
     "npx --yes bats@1.13.0 tests/bash/*.bats",
     "shellcheck .github/scripts/*.sh",
@@ -54,6 +115,13 @@ commands = [
 name = "backend-deps"
 description = "Backend requirements.txt dependency-conflict dry-run"
 workflow = ".github/workflows/ci.yml (validate-backend-deps)"
+paths = [
+    "backend/requirements.txt",
+    "requirements*.txt",
+    ".github/**",
+    "scripts/classify_change.py",
+    ".cicaid-checks.toml",
+]
 commands = [
     "pip install --dry-run -r backend/requirements.txt",
 ]

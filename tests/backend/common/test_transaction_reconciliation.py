@@ -146,3 +146,61 @@ def test_reconcile_transactions_with_holdings_adds_synthetic_entries(tmp_path: P
         "units": 2.0,
         "synthetic": True,
     }
+
+
+def _write_account(owner_dir: Path, cash: float, transactions: list[dict], **tx_meta: object) -> Path:
+    owner_dir.mkdir()
+    (owner_dir / "isa.json").write_text(
+        json.dumps(
+            {
+                "account_type": "ISA",
+                "holdings": [{"ticker": "ABC", "units": 10}, {"ticker": "CASH.GBP", "units": cash}],
+            }
+        )
+    )
+    tx_file = owner_dir / "ISA_transactions.json"
+    tx_file.write_text(json.dumps({**tx_meta, "transactions": transactions}))
+    return tx_file
+
+
+_CASH_FLOW_ROWS = [
+    {"date": "2024-01-01", "type": "TRANSFER_IN", "ticker": "CASH.GBP", "units": 1000.0},
+    {"date": "2024-01-02", "type": "DEPOSIT", "amount_minor": 50000},
+    {"date": "2024-01-03", "type": "BUY", "ticker": "ABC", "units": 10, "amount_minor": 20000},
+    {"date": "2024-01-04", "type": "FEES", "amount_minor": 500},
+]
+
+
+def test_reconcile_leaves_cash_alone_when_replay_matches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(tr, "date", FixedDate)
+    # 1000 + 500 deposit - 200 buy - 5 fee: amount_minor rows the per-ticker ledger cannot see.
+    tx_file = _write_account(tmp_path / "alice", 1295.0, _CASH_FLOW_ROWS, trade_cash_effects=True)
+    before = tx_file.read_text()
+
+    tr.reconcile_transactions_with_holdings(accounts_root=tmp_path)
+
+    assert tx_file.read_text() == before
+
+
+def test_reconcile_ignores_trade_settlements_without_opt_in(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(tr, "date", FixedDate)
+    # Without trade_cash_effects only the transfer and deposit move cash.
+    tx_file = _write_account(tmp_path / "alice", 1500.0, _CASH_FLOW_ROWS)
+    before = tx_file.read_text()
+
+    tr.reconcile_transactions_with_holdings(accounts_root=tmp_path)
+
+    assert tx_file.read_text() == before
+
+
+def test_reconcile_corrects_cash_the_replay_cannot_explain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(tr, "date", FixedDate)
+    tx_file = _write_account(tmp_path / "alice", 1200.0, _CASH_FLOW_ROWS, trade_cash_effects=True)
+
+    tr.reconcile_transactions_with_holdings(accounts_root=tmp_path)
+
+    injected = json.loads(tx_file.read_text())["transactions"][len(_CASH_FLOW_ROWS) :]
+    assert len(injected) == 1
+    assert injected[0]["ticker"] == "CASH.GBP"
+    assert injected[0]["type"] == "SELL"
+    assert injected[0]["units"] == pytest.approx(95.0)

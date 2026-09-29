@@ -606,6 +606,22 @@ def test_moving_a_trade_joins_the_destination_file_in_any_case(tmp_path, monkeyp
     assert resp.json()["id"] == "alice:sipp:1"
     names = sorted(p.name for p in (tmp_path / "alice").glob("*_transactions.json"))
     assert names == ["isa_transactions.json", "sipp_transactions.json"]
+    assert json.loads((tmp_path / "alice" / "sipp_transactions.json").read_text())["account_type"] == "sipp"
+    assert json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())["account_type"] == "isa"
+
+
+def test_editing_with_only_the_account_case_changed_keeps_the_trade_in_its_file(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    created = client.post("/transactions", json=_valid_payload(account="isa", units=2)).json()
+
+    resp = client.put(f"/transactions/{created['id']}", json=_valid_payload(account="ISA", units=3))
+
+    assert resp.status_code == 200
+    assert resp.json()["id"] == "alice:isa:0"
+    assert [p.name for p in (tmp_path / "alice").glob("*_transactions.json")] == ["isa_transactions.json"]
+    stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())
+    assert (stored["account_type"], [t["units"] for t in stored["transactions"]]) == ("isa", [3])
+    assert _holding_units(tmp_path, "PFE") == pytest.approx(3)
 
 
 def test_update_imported_dividend_without_type_keeps_dividend(tmp_path, monkeypatch):

@@ -13,6 +13,8 @@ import {
   growerRank,
   growthStageFor,
   growthStageMeta,
+  hasIntradayMove,
+  hasVigourSpread,
   isStillInPropagator,
   levelFromXp,
   resourcesFromPlot,
@@ -139,6 +141,34 @@ describe('vigourFor', () => {
     ).toBe(20);
     expect(vigourFor({ market_value_gbp: 100, day_change_gbp: 50 })).toBe(100);
     expect(vigourFor({ market_value_gbp: 0, day_change_gbp: 10 })).toBe(50);
+  });
+});
+
+describe('hasIntradayMove', () => {
+  it('is true only when the backend sent a real day_change_gbp', () => {
+    expect(hasIntradayMove({ day_change_gbp: 0 })).toBe(true);
+    expect(hasIntradayMove({ day_change_gbp: 12.5 })).toBe(true);
+    expect(hasIntradayMove({ day_change_gbp: -3 })).toBe(true);
+  });
+
+  it('is false for null/undefined, so "no move recorded" is not read as flat', () => {
+    expect(hasIntradayMove({ day_change_gbp: null })).toBe(false);
+    expect(hasIntradayMove({ day_change_gbp: undefined })).toBe(false);
+  });
+});
+
+describe('hasVigourSpread', () => {
+  it('is true only when at least two crops carry a real move', () => {
+    expect(
+      hasVigourSpread([{ hasMove: true }, { hasMove: true }, { hasMove: false }])
+    ).toBe(true);
+    expect(hasVigourSpread([{ hasMove: true }, { hasMove: false }])).toBe(
+      false
+    );
+    expect(hasVigourSpread([{ hasMove: false }, { hasMove: false }])).toBe(
+      false
+    );
+    expect(hasVigourSpread([])).toBe(false);
   });
 });
 
@@ -394,6 +424,82 @@ describe('buildPlotSnapshot', () => {
     const { crops } = buildPlotSnapshot({ portfolio: unknownEligibility });
 
     expect(isStillInPropagator(crops[0])).toBe(false);
+  });
+
+  it('marks every crop hasMove: false when the backend sends no intraday move', () => {
+    const noMove: Portfolio = {
+      owner: 'alex',
+      as_of: '2026-08-25',
+      trades_this_month: 0,
+      trades_remaining: 5,
+      total_value_estimate_gbp: 1_000,
+      accounts: [
+        {
+          account_type: 'gia',
+          currency: 'GBP',
+          owner: 'alex',
+          value_estimate_gbp: 1_000,
+          holdings: [
+            {
+              ticker: 'FLAT.L',
+              name: 'Flat Plc',
+              units: 10,
+              market_value_gbp: 500,
+              day_change_gbp: null,
+            },
+            {
+              ticker: 'ALSO.L',
+              name: 'Also Flat Plc',
+              units: 10,
+              market_value_gbp: 500,
+              day_change_gbp: null,
+            },
+          ],
+        },
+      ],
+    };
+    const { crops } = buildPlotSnapshot({ portfolio: noMove });
+    expect(crops.length).toBeGreaterThan(0);
+    expect(crops.every((crop) => crop.hasMove === false)).toBe(true);
+    // Both crops have no move, so the Vigour sort would be a no-op.
+    expect(hasVigourSpread(crops)).toBe(false);
+  });
+
+  it('flags hasMove per crop and enables the Vigour sort when a real move exists', () => {
+    const withMove: Portfolio = {
+      owner: 'alex',
+      as_of: '2026-08-25',
+      trades_this_month: 0,
+      trades_remaining: 5,
+      total_value_estimate_gbp: 1_000,
+      accounts: [
+        {
+          account_type: 'gia',
+          currency: 'GBP',
+          owner: 'alex',
+          value_estimate_gbp: 1_000,
+          holdings: [
+            {
+              ticker: 'MOVE.L',
+              name: 'Moving Plc',
+              units: 10,
+              market_value_gbp: 500,
+              day_change_gbp: 5,
+            },
+            {
+              ticker: 'STILL.L',
+              name: 'Still Plc',
+              units: 10,
+              market_value_gbp: 500,
+              day_change_gbp: -2,
+            },
+          ],
+        },
+      ],
+    };
+    const { crops } = buildPlotSnapshot({ portfolio: withMove });
+    expect(crops.every((crop) => crop.hasMove)).toBe(true);
+    expect(hasVigourSpread(crops)).toBe(true);
   });
 
   it('returns an empty but usable snapshot with no portfolio', () => {

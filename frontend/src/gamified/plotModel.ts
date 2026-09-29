@@ -132,6 +132,32 @@ export function vigourFor(
   return Math.round(clamp(momentum - penalty, 0, 100));
 }
 
+/**
+ * True only when the backend actually sent an intraday move for this
+ * holding. `day_change_gbp: null`/`undefined` means "no move recorded",
+ * which is a different fact from a genuine `0.0` flat day — the live
+ * `/portfolio/alex` payload sends `0.0` for every holding, so a bare
+ * `?? 0` would silently turn "we don't know" into "flat" and make every
+ * crop's Vigour identical (#vigour-constant).
+ */
+export function hasIntradayMove(
+  holding: Pick<Holding, 'day_change_gbp'>
+): boolean {
+  return (
+    holding.day_change_gbp !== null && holding.day_change_gbp !== undefined
+  );
+}
+
+/**
+ * True when at least two crops carry a real intraday move, i.e. the Vigour
+ * sort can actually reorder the roster. When every crop is flat (or has no
+ * move at all) the sort is a no-op and the roster hides the button rather
+ * than offering a control that does nothing.
+ */
+export function hasVigourSpread(crops: readonly Pick<Crop, 'hasMove'>[]): boolean {
+  return crops.filter((crop) => crop.hasMove).length >= 2;
+}
+
 export function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(max, Math.max(min, value));
@@ -226,6 +252,13 @@ export interface Crop {
   instrumentType: string;
   /** True only for a *confirmed* stale price (`freshness === 'stale'`). */
   stale: boolean;
+  /**
+   * True when the backend sent a real intraday move for this holding.
+   * False means "no move recorded today" — distinct from a genuine flat
+   * day, and the signal the roster uses to decide whether the Vigour sort
+   * can do anything (#vigour-constant).
+   */
+  hasMove: boolean;
   /** Fresh / stale / unknown — see `PriceFreshness`. Feeds the SUNLIGHT meter. */
   freshness: PriceFreshness;
   lastPriceDate: string | null;
@@ -351,6 +384,7 @@ function cropFromHolding(
     region: holding.region || 'Unknown',
     instrumentType: holding.instrument_type || 'Unknown',
     stale: freshness === 'stale',
+    hasMove: hasIntradayMove(holding),
     freshness,
     lastPriceDate: holding.last_price_date ?? null,
     daysHeld: holding.days_held ?? null,

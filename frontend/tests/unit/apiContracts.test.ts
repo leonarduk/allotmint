@@ -177,11 +177,9 @@ describe("API contract fixtures", () => {
       type: "object",
       required: expect.arrayContaining(["app_env", "tabs", "theme"]),
       properties: expect.objectContaining({
+        // zod >= 4.6 emits nullable primitives as a type array rather than anyOf.
         theme: expect.objectContaining({
-          anyOf: expect.arrayContaining([
-            expect.objectContaining({ type: "string" }),
-            expect.objectContaining({ type: "null" }),
-          ]),
+          type: expect.arrayContaining(["string", "null"]),
         }),
       }),
     });

@@ -12,6 +12,7 @@ import {
 import { useFetch } from '../hooks/useFetch';
 import { useConfig } from '../ConfigContext';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { createOwnerDisplayLookup, findOwnerForUser } from '../utils/owners';
 import { useAuth } from '../AuthContext';
 import { useDemoReadOnly } from '../hooks/useDemoReadOnly';
@@ -30,6 +31,7 @@ import {
 import { money } from '../lib/money';
 import { TransactionsTable } from './transactions/TransactionsTable';
 import { useTransactionsTableState } from '../hooks/useTransactionsTableState';
+import surface from '../styles/surface.module.css';
 
 type Props = {
   owners: OwnerSummary[];
@@ -209,7 +211,8 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     if (owners.length === 0) {
       return;
     }
-    const defaultOwner = findOwnerForUser(owners, user)?.owner ?? owners[0].owner;
+    const defaultOwner =
+      findOwnerForUser(owners, user)?.owner ?? owners[0].owner;
     setManualOwner((current) => current || defaultOwner);
   }, [owners, user]);
 
@@ -494,10 +497,14 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
   );
 
   const manualHoldingsSection = (
-    <section className="mb-6 rounded border border-slate-300 bg-slate-50 p-4">
-      <h2 className="mb-2 text-lg font-semibold">Account + Holdings Input</h2>
-      <p className="mb-3 text-sm text-slate-600">
-        Create accounts and add holdings that persist after refresh.
+    <section className={`mb-6 ${surface.surfaceCard}`}>
+      <h2 className={`mb-2 text-lg font-semibold ${surface.surfaceCardTitle}`}>
+        Account + Holdings Input
+      </h2>
+      <p className={`mb-3 text-sm ${surface.surfaceMuted}`}>
+        Create accounts and add holdings that persist after refresh. To view,
+        edit or delete individual trades, go to{' '}
+        <Link to="/transactions">Transactions</Link>.
       </p>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-sm">
@@ -579,9 +586,9 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
         )}
       </div>
       <div className="mt-4 space-y-2">
-        <h3 className="text-sm font-semibold text-slate-700">Saved accounts</h3>
+        <h3 className="text-sm font-semibold">Saved accounts</h3>
         {manualAccounts.length === 0 ? (
-          <p className="text-sm text-slate-500">
+          <p className={`text-sm ${surface.surfaceMuted}`}>
             No saved accounts yet for this owner.
           </p>
         ) : (
@@ -589,13 +596,13 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
             {manualAccounts.map((entry) => (
               <li
                 key={entry.account_type}
-                className="rounded border border-slate-200 p-2 text-sm"
+                className="rounded border border-[var(--surface-card-border)] p-2 text-sm"
               >
                 <div className="font-medium">
                   {entry.account_type.toUpperCase()} ({entry.holding_count}{' '}
                   holdings)
                 </div>
-                <div className="text-slate-500">{entry.currency}</div>
+                <div className={surface.surfaceMuted}>{entry.currency}</div>
               </li>
             ))}
           </ul>

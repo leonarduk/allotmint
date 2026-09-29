@@ -1,6 +1,6 @@
 import {
   fireEvent,
-  render,
+  render as rtlRender,
   screen,
   waitFor,
   within,
@@ -9,6 +9,12 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TransactionsPage } from '@/components/TransactionsPage';
 import { AuthContext } from '@/AuthContext';
+import type { ReactElement } from 'react';
+import { MemoryRouter } from 'react-router-dom';
+
+// The input-only variant renders a <Link> to /transactions, so every render
+// needs a router context.
+const render = (ui: ReactElement) => rtlRender(ui, { wrapper: MemoryRouter });
 
 const {
   getTransactionsMock,
@@ -272,6 +278,10 @@ describe('TransactionsPage', () => {
     expect(
       await screen.findByText('Account + Holdings Input')
     ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Transactions' })).toHaveAttribute(
+      'href',
+      '/transactions'
+    );
     expect(
       screen.queryByRole('button', { name: 'Add transaction' })
     ).not.toBeInTheDocument();
@@ -334,15 +344,25 @@ describe('TransactionsPage', () => {
     expect(screen.getByText('Holding saved.')).toBeInTheDocument();
   });
 
-  it('defaults the manual owner input to the logged-in user\'s owner', async () => {
+  it("defaults the manual owner input to the logged-in user's owner", async () => {
     render(
       <AuthContext.Provider
         value={{ user: { email: 'sam@example.com' }, setUser: vi.fn() }}
       >
         <TransactionsPage
           owners={[
-            { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'], email: 'alex@example.com' },
-            { owner: 'sam', full_name: 'Sam Example', accounts: ['sipp'], email: 'sam@example.com' },
+            {
+              owner: 'alex',
+              full_name: 'Alex Example',
+              accounts: ['isa'],
+              email: 'alex@example.com',
+            },
+            {
+              owner: 'sam',
+              full_name: 'Sam Example',
+              accounts: ['sipp'],
+              email: 'sam@example.com',
+            },
           ]}
           inputOnly
         />
@@ -358,8 +378,18 @@ describe('TransactionsPage', () => {
     render(
       <TransactionsPage
         owners={[
-          { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'], email: 'alex@example.com' },
-          { owner: 'sam', full_name: 'Sam Example', accounts: ['sipp'], email: 'sam@example.com' },
+          {
+            owner: 'alex',
+            full_name: 'Alex Example',
+            accounts: ['isa'],
+            email: 'alex@example.com',
+          },
+          {
+            owner: 'sam',
+            full_name: 'Sam Example',
+            accounts: ['sipp'],
+            email: 'sam@example.com',
+          },
         ]}
         inputOnly
       />
@@ -406,7 +436,9 @@ describe('TransactionsPage', () => {
       expect(getEditButtonForTicker('PFE')).toBeDisabled();
       const row = screen.getByText('PFE').closest('tr');
       if (!row) throw new Error('row not found');
-      expect(within(row).getByRole('button', { name: 'Delete' })).toBeDisabled();
+      expect(
+        within(row).getByRole('button', { name: 'Delete' })
+      ).toBeDisabled();
     });
 
     it('disables the manual "Save holding" button', async () => {

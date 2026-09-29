@@ -209,7 +209,8 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     if (owners.length === 0) {
       return;
     }
-    const defaultOwner = findOwnerForUser(owners, user)?.owner ?? owners[0].owner;
+    const defaultOwner =
+      findOwnerForUser(owners, user)?.owner ?? owners[0].owner;
     setManualOwner((current) => current || defaultOwner);
   }, [owners, user]);
 

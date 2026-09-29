@@ -82,6 +82,27 @@ The account's holdings are rebuilt from its transactions, so a later
 }
 ```
 
+## Setting a holding (`POST /holdings/manual`)
+
+Holdings are rebuilt from an account's transactions on every transaction
+write, so the holdings input page (`/input`) does not write a holding
+directly. It records the transaction that brings the account to the units
+entered:
+
+- more units than the transactions add up to: a `TRANSFER_IN` of the
+  difference, dated at the account's oldest transaction (today if it has
+  none), so it reads as a balance held from the start;
+- fewer: a `TRANSFER_OUT` of the difference, dated today (dated earlier it
+  could exceed the units held on that date);
+- the same: nothing is recorded (`"transaction": null`).
+
+Transfers carry `price_gbp` as their cost and have no cash effect. The body
+takes `units` + `price_gbp`, or `value_gbp`, which is converted to units at
+`price_gbp` if given, else at the cached last close (400 if none is known).
+
+A rebuild keeps any holding that no transaction mentions, so holdings entered
+before this change, or imported as a snapshot, are not dropped.
+
 ## Bulk import
 
 ```

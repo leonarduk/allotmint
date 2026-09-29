@@ -25,7 +25,9 @@ from backend.common.accounts_store import (
 )
 from backend.common.authz import ensure_owner_access
 from backend.common.core_optional import require_core
+from backend.common.holdings_rebuild import name_aliases, replay_transactions
 from backend.common.instruments import get_instrument_meta
+from backend.common.prices import get_price_gbp
 from backend.common.realised_gains import compute_disposal_gains
 from backend.common.ticker_utils import normalise_filter_ticker
 from backend.config import config
@@ -377,7 +379,7 @@ def _parse_transaction_id(tx_id: str) -> Tuple[str, str, int]:
 
 
 def _calculate_portfolio_impact(tx: Mapping[str, object]) -> float:
-    """Value ``tx`` adds to ``_PORTFOLIO_IMPACT``: positive for a purchase, negative for a sale.
+    """Value ``tx`` adds to ``_PORTFOLIO_IMPACT``: positive for an acquisition, negative for a disposal.
 
     Create, update, delete and rollback all go through this helper, so the
     sign stays symmetric: deleting a SELL adds its value back.
@@ -387,7 +389,7 @@ def _calculate_portfolio_impact(tx: Mapping[str, object]) -> float:
         units = float(tx.get("units") or 0.0)
     except (TypeError, ValueError):
         return 0.0
-    sign = -1.0 if str(tx.get("type") or "").upper() == "SELL" else 1.0
+    sign = -1.0 if str(tx.get("type") or "").upper() in {"SELL", "TRANSFER_OUT", "REMOVAL"} else 1.0
     return sign * price * units
 
 
@@ -1049,9 +1051,85 @@ async def reconcile_holdings(
     return {"owner": owner, "account": account, "provider": provider, **diff}
 
 
+OPENING_BALANCE_REASON = "Opening balance from holdings input"
+_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _manual_holding_units_and_price(payload: ManualHoldingCreate, ticker: str) -> Tuple[float, float]:
+    """Units and GBP price for a manual holding.
+
+    A value is converted to units at ``price_gbp`` when given, else at the
+    cached last close.
+    """
+    if payload.value_gbp is None:
+        return float(payload.units), float(payload.price_gbp)
+    price = payload.price_gbp or get_price_gbp(ticker)
+    if not price or price <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No price is known for {ticker}; provide units and price_gbp instead of value_gbp",
+        )
+    return float(payload.value_gbp) / price, float(price)
+
+
+def _transactions_account_name(owner: str, account: str, store: "AccountsStore") -> str:
+    """The existing transactions file's account spelling; a new file uses the lower-case slug.
+
+    The S3 store's rebuild reads ``<account.lower()>_transactions.json``, so a
+    new file must be lower-case for it to be found.
+    """
+    try:
+        return _find_transaction_account(owner, account, store)
+    except HTTPException as exc:
+        if exc.status_code != 404:
+            raise
+        return _normalise_account_file_name(account)
+
+
+def _opening_balance_transaction(
+    transactions: List[Mapping[str, Any]],
+    holdings: List[Mapping[str, Any]],
+    ticker: str,
+    units: float,
+    price: float,
+) -> Optional[Dict[str, Any]]:
+    """The transaction that makes ``ticker``'s replayed units equal ``units``, or None if they already do.
+
+    An increase is a TRANSFER_IN dated at the account's oldest transaction, so
+    it reads as a balance held from the start. A decrease is a TRANSFER_OUT
+    dated today: dated earlier, it could exceed the units held on that date,
+    and the rebuild would ignore the excess.
+    """
+    # The same replay the rebuild uses (including its name -> ticker aliases),
+    # so the offset agrees with the rebuilt holding.
+    aliases = name_aliases(transactions, holdings)
+    position = replay_transactions(transactions, aliases=aliases, warn=False).positions.get(ticker)
+    held = position.units if position else 0.0
+    delta = round(units - held, 8)
+    if abs(delta) < 1e-8:
+        return None
+    dates = sorted(
+        str(t.get("date") or "")[:10] for t in transactions if _ISO_DATE.match(str(t.get("date") or "")[:10])
+    )
+    today = date.today().isoformat()
+    return {
+        "type": "TRANSFER_IN" if delta > 0 else "TRANSFER_OUT",
+        "ticker": ticker,
+        "date": (dates[0] if dates else today) if delta > 0 else today,
+        "units": abs(delta),
+        "price_gbp": price,
+        "reason": OPENING_BALANCE_REASON,
+    }
+
+
 @router.post("/holdings/manual")
 def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dict[str, Any]:
-    """Create a manual holding for the authenticated owner.
+    """Set a holding by recording the transaction that brings the account to it.
+
+    Holdings are rebuilt from transactions on every transaction write, so a
+    holding written straight into ``<account>.json`` could be lost. Instead
+    this records an offsetting TRANSFER_IN/TRANSFER_OUT (see
+    :func:`_opening_balance_transaction`) and rebuilds the account.
 
     If the owner does not yet have a writable account root, one is created
     implicitly via :meth:`~backend.common.accounts_store.AccountsStore.ensure_owner`.
@@ -1067,37 +1145,26 @@ def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dic
         raise HTTPException(status_code=400, detail="ticker is required")
 
     store = _require_writable_store(request)
-    account_slug = _normalise_account_file_name(account)
-
-    holding: dict[str, Any] = {"ticker": ticker}
-    if payload.value_gbp is not None:
-        holding["value_gbp"] = float(payload.value_gbp)
-    else:
-        holding["units"] = float(payload.units)
-        holding["price"] = float(payload.price_gbp)
-
+    units, price = _manual_holding_units_and_price(payload, ticker)
     store.ensure_owner(owner)
-    with _locked_account_holdings_data(owner, account_slug, store) as (account_payload, _):
-        if payload.currency:
-            account_payload["currency"] = payload.currency.strip().upper() or "GBP"
-        account_payload["last_updated"] = date.today().isoformat()
-        account_payload["owner"] = owner
-        account_payload["account_type"] = account_slug
+    tx_account = _transactions_account_name(owner, account, store)
+    if payload.currency:
+        with _locked_account_holdings_data(owner, _normalise_account_file_name(account), store) as (doc, _):
+            doc["currency"] = payload.currency.strip().upper() or "GBP"
 
-        holdings = account_payload.setdefault("holdings", [])
-        for index, existing in enumerate(holdings):
-            existing_ticker = str(existing.get("ticker") or "").strip().upper() if isinstance(existing, Mapping) else ""
-            if existing_ticker == ticker:
-                holdings[index] = holding
-                break
-        else:
-            holdings.append(holding)
+    existing = store.read_document(owner, f"{tx_account}_transactions.json") or {}
+    holdings_doc = store.read_document(owner, f"{_normalise_account_file_name(account)}.json") or {}
+    tx = _opening_balance_transaction(
+        list(existing.get("transactions") or []), list(holdings_doc.get("holdings") or []), ticker, units, price
+    )
+    persisted = _persist_transaction(store, owner, tx_account, tx) if tx else None
 
     return {
         "status": "saved",
         "owner": owner,
-        "account": account_slug,
-        "holding": holding,
+        "account": _normalise_account_file_name(account),
+        "holding": {"ticker": ticker, "units": units, "price": price},
+        "transaction": persisted,
     }
 
 

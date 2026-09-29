@@ -311,6 +311,21 @@ def _computed_holdings(replay: Replay, previous: Mapping[str, Mapping[str, Any]]
     return out
 
 
+def _tracked_instruments(transactions: Sequence[Mapping[str, Any]], aliases: Mapping[str, str]) -> set[str]:
+    """Instrument keys any trade or transfer mentions, including ones since sold down to zero.
+
+    Derived from the transactions themselves rather than the replay's
+    positions, so it holds whether or not the replay keeps empty positions.
+    """
+    keys = set()
+    for tx in transactions:
+        if str(tx.get("type") or "").upper() in _ACQUIRE | _DISPOSE:
+            key = _instrument_key(tx, aliases)
+            if key is not None:
+                keys.add(key)
+    return keys
+
+
 def rebuild_holdings_document(
     tx_data: Mapping[str, Any],
     owner: str,
@@ -323,14 +338,19 @@ def rebuild_holdings_document(
     old_holdings = [h for h in existing.get("holdings") or [] if isinstance(h, Mapping)]
     previous = {str(h.get("ticker") or "").upper(): h for h in old_holdings if h.get("ticker")}
 
-    replay = replay_transactions(
-        transactions,
-        trade_cash=tx_data.get(TRADE_CASH_FLAG) is True,
-        aliases=name_aliases(transactions, old_holdings),
-    )
+    aliases = name_aliases(transactions, old_holdings)
+    replay = replay_transactions(transactions, trade_cash=tx_data.get(TRADE_CASH_FLAG) is True, aliases=aliases)
     computed = _computed_holdings(replay, previous)
-    # Keep the existing ordering so the rewritten file diffs cleanly.
-    ordered = [computed.pop(t) for t in previous if t in computed]
+    tracked = _tracked_instruments(transactions, aliases)
+    if replay.cash_seen:
+        tracked.add(CASH_TICKER)
+    # Keep the existing ordering so the rewritten file diffs cleanly. A
+    # holding no transaction mentions (entered by hand before /input recorded
+    # opening-balance transactions, or imported as a holdings snapshot) is not
+    # the transactions' to remove, so it is carried forward as-is.
+    ordered = [
+        computed.pop(t) if t in computed else dict(h) for t, h in previous.items() if t in computed or t not in tracked
+    ]
     ordered.extend(computed.values())
 
     doc: dict[str, Any] = dict(existing)

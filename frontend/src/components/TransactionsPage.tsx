@@ -502,8 +502,9 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
         Account + Holdings Input
       </h2>
       <p className={`mb-3 text-sm ${surface.surfaceMuted}`}>
-        Create accounts and add holdings that persist after refresh. To view,
-        edit or delete individual trades, go to{' '}
+        Create accounts and set holdings. Saving records the opening-balance
+        transfer that brings the account to the units you enter, so it shows
+        up alongside your trades on{' '}
         <Link to="/transactions">Transactions</Link>.
       </p>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">

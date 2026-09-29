@@ -113,14 +113,18 @@ async def test_create_manual_holding_persists_to_s3(monkeypatch):
         lambda _req: (S3AccountsStore(bucket="data-bucket", client=fake), transactions_module._RootResolution.WRITABLE),
     )
 
-    payload = transactions_module.ManualHoldingCreate(owner="alice", account="ISA", ticker="aaa", value_gbp=1000)
+    payload = transactions_module.ManualHoldingCreate(
+        owner="alice", account="ISA", ticker="aaa", value_gbp=1000, units=10, price_gbp=100
+    )
     result = transactions_module.create_manual_holding(_make_request(), payload)
 
     assert result["status"] == "saved"
+    tx_key = f"{WRITABLE_ACCOUNTS_PREFIX}/alice/isa_transactions.json"
+    (tx,) = json.loads(fake.objects[tx_key].decode("utf-8"))["transactions"]
+    assert (tx["type"], tx["ticker"], tx["units"]) == ("TRANSFER_IN", "AAA", 10.0)
     key = f"{WRITABLE_ACCOUNTS_PREFIX}/alice/isa.json"
-    assert key in fake.objects
     stored = json.loads(fake.objects[key].decode("utf-8"))
-    assert stored["holdings"] == [{"ticker": "AAA", "value_gbp": 1000.0}]
+    assert [(h["ticker"], h["units"]) for h in stored["holdings"]] == [("AAA", 10.0)]
     # The owner scaffold (person.json) is created in the writable prefix only.
     assert f"{WRITABLE_ACCOUNTS_PREFIX}/alice/person.json" in fake.objects
     assert not any(k.startswith("accounts/") for k in fake.objects)

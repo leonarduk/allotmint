@@ -268,3 +268,25 @@ def test_top_level_fields_are_refreshed() -> None:
     assert doc["account_type"] == "ISA"
     assert doc["currency"] == "USD"
     assert doc["last_updated"] != "2000-01-01"
+
+
+def test_rebuild_keeps_holdings_no_transaction_mentions():
+    existing = {"holdings": [{"ticker": "VUSA.L", "units": 10, "value_gbp": 1250.0}]}
+    tx_data = {"transactions": [{"type": "BUY", "ticker": "PFE", "date": "2024-01-01", "price_gbp": 10, "units": 2}]}
+
+    doc = rebuild_holdings_document(tx_data, "alice", "isa", existing)
+
+    assert [h["ticker"] for h in doc["holdings"]] == ["VUSA.L", "PFE"]
+    assert doc["holdings"][0] == {"ticker": "VUSA.L", "units": 10, "value_gbp": 1250.0}
+
+
+def test_rebuild_drops_a_holding_its_transactions_sold_to_zero():
+    existing = {"holdings": [{"ticker": "PFE", "units": 2}]}
+    tx_data = {
+        "transactions": [
+            {"type": "BUY", "ticker": "PFE", "date": "2024-01-01", "price_gbp": 10, "units": 2},
+            {"type": "SELL", "ticker": "PFE", "date": "2024-02-01", "price_gbp": 12, "units": 2},
+        ]
+    }
+
+    assert rebuild_holdings_document(tx_data, "alice", "isa", existing)["holdings"] == []

@@ -1,6 +1,7 @@
 import json
 import sys
 from collections import defaultdict
+from datetime import date
 from types import SimpleNamespace
 
 import pytest
@@ -697,30 +698,29 @@ def test_import_holdings_unknown_provider(tmp_path, monkeypatch):
     assert resp.json()["detail"] == "Unknown provider: bad"
 
 
-def test_create_manual_holding_with_value_persists_account_file(tmp_path, monkeypatch):
-    client = _make_client(tmp_path, monkeypatch)
-    payload = {
-        "owner": "alice",
-        "account": "ISA",
-        "ticker": "VUSA.L",
-        "value_gbp": 1250,
-    }
+def _replayed_units(tmp_path, owner, account_file, ticker):
+    tx_data = json.loads((tmp_path / owner / account_file).read_text())
+    holdings = compute_holdings_from_transactions(tx_data, owner, "isa")["holdings"]
+    return next((h["units"] for h in holdings if h["ticker"] == ticker), 0.0)
 
-    resp = client.post("/holdings/manual", json=payload)
+
+def test_create_manual_holding_records_an_opening_balance_transaction(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr(transactions, "get_price_gbp", lambda ticker: 125.0)
+
+    resp = client.post(
+        "/holdings/manual", json={"owner": "alice", "account": "ISA", "ticker": "VUSA.L", "value_gbp": 1250}
+    )
+
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "saved"
-    assert data["owner"] == "alice"
     assert data["account"] == "isa"
-    assert data["holding"]["ticker"] == "VUSA.L"
-    assert data["holding"]["value_gbp"] == 1250
-
-    account_path = tmp_path / "alice" / "isa.json"
-    assert account_path.exists()
-    saved = json.loads(account_path.read_text())
-    assert saved["owner"] == "alice"
-    assert saved["account_type"] == "isa"
-    assert saved["holdings"] == [{"ticker": "VUSA.L", "value_gbp": 1250.0}]
+    assert data["holding"] == {"ticker": "VUSA.L", "units": 10.0, "price": 125.0}
+    tx = data["transaction"]
+    assert (tx["type"], tx["ticker"], tx["units"], tx["price_gbp"]) == ("TRANSFER_IN", "VUSA.L", 10.0, 125.0)
+    assert tx["reason"] == transactions.OPENING_BALANCE_REASON
+    assert _replayed_units(tmp_path, "alice", "isa_transactions.json", "VUSA.L") == pytest.approx(10.0)
 
 
 def test_create_manual_holding_with_units_and_price(tmp_path, monkeypatch):
@@ -736,42 +736,112 @@ def test_create_manual_holding_with_units_and_price(tmp_path, monkeypatch):
     resp = client.post("/holdings/manual", json=payload)
     assert resp.status_code == 200
     assert resp.json()["holding"] == {"ticker": "MSFT", "units": 5.0, "price": 312.4}
+    assert resp.json()["transaction"]["units"] == 5.0
 
 
-def test_create_manual_holding_updates_existing_ticker_in_account(tmp_path, monkeypatch):
+def test_opening_balance_is_dated_at_the_oldest_transaction(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    (owner_dir / "isa_transactions.json").write_text(
+        json.dumps(
+            {
+                "transactions": [
+                    {"type": "BUY", "ticker": "PFE", "date": "2023-06-01", "price_gbp": 20, "units": 1},
+                    {"type": "BUY", "ticker": "PFE", "date": "2021-03-15", "price_gbp": 20, "units": 1},
+                ]
+            }
+        )
+    )
+
+    resp = client.post(
+        "/holdings/manual", json={"owner": "alice", "account": "isa", "ticker": "VUSA.L", "units": 4, "price_gbp": 50}
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["transaction"]["date"] == "2021-03-15"
+
+
+def test_opening_balance_for_an_account_without_transactions_is_dated_today(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
 
-    first = client.post(
-        "/holdings/manual",
-        json={
-            "owner": "alice",
-            "account": "ISA",
-            "ticker": "VUSA.L",
-            "value_gbp": 1250,
-        },
+    resp = client.post(
+        "/holdings/manual", json={"owner": "alice", "account": "isa", "ticker": "VUSA.L", "units": 4, "price_gbp": 50}
     )
-    assert first.status_code == 200
 
-    second = client.post(
-        "/holdings/manual",
-        json={
-            "owner": "alice",
-            "account": "ISA",
-            "ticker": "vusa.l",
-            "units": 3,
-            "price_gbp": 100,
-        },
-    )
-    assert second.status_code == 200
-    assert second.json()["holding"] == {"ticker": "VUSA.L", "units": 3.0, "price": 100.0}
-
-    account_path = tmp_path / "alice" / "isa.json"
-    saved = json.loads(account_path.read_text())
-    assert saved["holdings"] == [{"ticker": "VUSA.L", "units": 3.0, "price": 100.0}]
+    assert resp.status_code == 200
+    assert resp.json()["transaction"]["date"] == date.today().isoformat()
 
 
-def test_create_manual_holding_with_value_takes_precedence_over_units_and_price(tmp_path, monkeypatch):
+def test_create_manual_holding_offsets_existing_units(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
+    base = {"owner": "alice", "account": "ISA", "ticker": "VUSA.L", "price_gbp": 100}
+    assert client.post("/holdings/manual", json={**base, "units": 10}).status_code == 200
+
+    lower = client.post("/holdings/manual", json={**base, "ticker": "vusa.l", "units": 3})
+
+    assert lower.status_code == 200
+    tx = lower.json()["transaction"]
+    assert (tx["type"], tx["units"], tx["date"]) == ("TRANSFER_OUT", 7.0, date.today().isoformat())
+    assert _replayed_units(tmp_path, "alice", "isa_transactions.json", "VUSA.L") == pytest.approx(3.0)
+
+
+def test_opening_balance_counts_undated_transactions_like_the_rebuild(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    (owner_dir / "isa_transactions.json").write_text(
+        json.dumps({"transactions": [{"type": "BUY", "ticker": "VUSA.L", "price_gbp": 100, "units": 4}]})
+    )
+
+    resp = client.post(
+        "/holdings/manual", json={"owner": "alice", "account": "isa", "ticker": "VUSA.L", "units": 10, "price_gbp": 100}
+    )
+
+    assert resp.json()["transaction"]["units"] == 6.0
+    assert _replayed_units(tmp_path, "alice", "isa_transactions.json", "VUSA.L") == pytest.approx(10.0)
+
+
+def test_opening_balance_counts_ticker_less_rows_via_the_rebuild_aliases(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    (owner_dir / "isa.json").write_text(
+        json.dumps({"holdings": [{"ticker": "VUSA.L", "name": "Vanguard S&P 500", "units": 4}]})
+    )
+    (owner_dir / "isa_transactions.json").write_text(
+        json.dumps(
+            {
+                "transactions": [
+                    {"type": "BUY", "name": "Vanguard S&P 500", "date": "2024-01-01", "price_gbp": 100, "units": 4}
+                ]
+            }
+        )
+    )
+
+    resp = client.post(
+        "/holdings/manual", json={"owner": "alice", "account": "isa", "ticker": "VUSA.L", "units": 10, "price_gbp": 100}
+    )
+
+    assert resp.json()["transaction"]["units"] == 6.0
+
+
+def test_create_manual_holding_matching_current_units_records_nothing(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    payload = {"owner": "alice", "account": "ISA", "ticker": "VUSA.L", "units": 10, "price_gbp": 100}
+    assert client.post("/holdings/manual", json=payload).status_code == 200
+
+    again = client.post("/holdings/manual", json=payload)
+
+    assert again.status_code == 200
+    assert again.json()["transaction"] is None
+    stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())["transactions"]
+    assert len(stored) == 1
+
+
+def test_create_manual_holding_value_uses_given_price_over_cache(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr(transactions, "get_price_gbp", lambda ticker: 999.0)
     payload = {
         "owner": "alice",
         "account": "SIPP",
@@ -783,7 +853,20 @@ def test_create_manual_holding_with_value_takes_precedence_over_units_and_price(
 
     resp = client.post("/holdings/manual", json=payload)
     assert resp.status_code == 200
-    assert resp.json()["holding"] == {"ticker": "MSFT", "value_gbp": 500.0}
+    assert resp.json()["holding"] == {"ticker": "MSFT", "units": 5.0, "price": 100.0}
+
+
+def test_create_manual_holding_value_without_known_price_is_rejected(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr(transactions, "get_price_gbp", lambda ticker: None)
+
+    resp = client.post(
+        "/holdings/manual", json={"owner": "alice", "account": "ISA", "ticker": "VUSA.L", "value_gbp": 1250}
+    )
+
+    assert resp.status_code == 400
+    assert "provide units and price_gbp" in resp.json()["detail"]
+    assert not (tmp_path / "alice" / "isa_transactions.json").exists()
 
 
 def test_create_manual_holding_rejects_invalid_metric_combo(tmp_path, monkeypatch):
@@ -1089,7 +1172,8 @@ def test_post_manual_holding_s3_aws_returns_2xx_and_writes_to_writable_prefix(
         "owner": "alice",
         "account": "ISA",
         "ticker": "VUSA.L",
-        "value_gbp": 1250,
+        "units": 10,
+        "price_gbp": 125,
     }
 
     # ── act ──────────────────────────────────────────────────────
@@ -1101,12 +1185,12 @@ def test_post_manual_holding_s3_aws_returns_2xx_and_writes_to_writable_prefix(
     assert data["status"] == "saved"
     assert data["owner"] == "alice"
     assert data["account"] == "isa"
-    assert data["holding"]["ticker"] == "VUSA.L"
-    assert data["holding"]["value_gbp"] == 1250
+    assert data["holding"] == {"ticker": "VUSA.L", "units": 10.0, "price": 125.0}
 
-    # ── assert: object written under writable prefix ─────────────
-    writable_key = f"{WRITABLE_ACCOUNTS_PREFIX}/alice/isa.json"
-    assert fake_s3._has_key("fake-bucket", writable_key), f"Expected s3://fake-bucket/{writable_key} to exist"
+    # ── assert: objects written under writable prefix ────────────
+    for name in ("isa_transactions.json", "isa.json"):
+        writable_key = f"{WRITABLE_ACCOUNTS_PREFIX}/alice/{name}"
+        assert fake_s3._has_key("fake-bucket", writable_key), f"Expected s3://fake-bucket/{writable_key} to exist"
 
     # ── assert: global accounts/ prefix is untouched ─────────────
     global_keys = sum(1 for (b, k) in fake_s3._objects if b == "fake-bucket" and k.startswith("accounts/"))
@@ -1147,10 +1231,13 @@ def test_get_manual_holdings_s3_aws_returns_created_holding(
     assert body["owner"] == "bob"
     assert len(body["accounts"]) == 1
     acct = body["accounts"][0]
-    assert acct["account_type"] == "gia"
+    # The holdings document is rebuilt from the opening-balance transaction,
+    # and the rebuild writes account_type upper-case.
+    assert acct["account_type"] == "GIA"
     assert acct["currency"] == "GBP"
     assert acct["holding_count"] == 1
-    assert acct["holdings"] == [{"ticker": "MSFT", "units": 5.0, "price": 312.4}]
+    (holding,) = acct["holdings"]
+    assert (holding["ticker"], holding["units"], holding["cost_basis_gbp"]) == ("MSFT", 5.0, 1562.0)
 
 
 def test_app_env_aws_does_not_leak(

@@ -215,4 +215,43 @@ describe("ScenarioTester page", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(mockGetPortfolio).toHaveBeenCalledTimes(2);
   });
+
+  it("retries a failed portfolio load when the same owner is re-selected (#7136)", async () => {
+    mockGetEvents.mockResolvedValueOnce([]);
+    mockGetOwners.mockResolvedValueOnce([
+      { owner: "alex", accounts: ["isa"], full_name: "Alex Leonard" },
+    ]);
+
+    // First attempt fails.
+    mockGetPortfolio.mockRejectedValueOnce(new Error("network down"));
+
+    render(<ScenarioTester />);
+
+    await screen.findByText("Alex Leonard");
+    const [ownerCheckbox] = screen.getAllByRole("checkbox");
+
+    // Select the owner -> triggers fetch #1, which rejects.
+    fireEvent.click(ownerCheckbox);
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledTimes(1));
+
+    // Let the rejection propagate through the .catch handler so the key is
+    // removed from requestedPortfolioKeys before we retry.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // Arm the retry to succeed.
+    mockGetPortfolio.mockResolvedValueOnce({ accounts: [] } as any);
+
+    // The checkbox is a toggle: the first click selected the owner, so we
+    // must deselect and re-select to trigger a fresh load attempt.
+    fireEvent.click(ownerCheckbox); // deselect
+    fireEvent.click(ownerCheckbox); // re-select -> fetch #2
+
+    // If the .catch handler failed to delete the key, the dedup guard would
+    // suppress this call and the assertion below would fail.
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledTimes(2));
+
+    // And no further requests should fire once the retry succeeds.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(mockGetPortfolio).toHaveBeenCalledTimes(2);
+  });
 });

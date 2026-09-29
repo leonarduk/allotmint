@@ -103,6 +103,39 @@ describe("ChatPanel", () => {
     expect(alert).not.toHaveTextContent(/raw backend|cannot reach server/i);
   });
 
+  it.each([
+    ["mcp_unreachable", 502, /tools server \(MCP\).*MCP server is running/i],
+    ["llm_unreachable", 502, /AI model.*Ollama/i],
+    ["aws_error", 502, /AWS Bedrock/i],
+    ["chat_not_configured", 503, /MCP_SERVER_URL is not set/i],
+  ])("names the failing piece for error code %s", async (code, status, expected) => {
+    const err = Object.assign(new Error("raw backend text"), { status, code, detail: "raw backend detail" });
+    (api.postChat as Mock).mockRejectedValueOnce(err);
+    const user = userEvent.setup();
+
+    render(<ChatPanel open onClose={() => {}} />);
+
+    await user.type(screen.getByLabelText(/chat message/i), "hi");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(expected);
+    expect(alert).not.toHaveTextContent(/raw backend/i);
+  });
+
+  it("falls back to the status message for an unknown error code", async () => {
+    const err = Object.assign(new Error("x"), { status: 502, code: "something_new" });
+    (api.postChat as Mock).mockRejectedValueOnce(err);
+    const user = userEvent.setup();
+
+    render(<ChatPanel open onClose={() => {}} />);
+
+    await user.type(screen.getByLabelText(/chat message/i), "hi");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't reach its AI service/i);
+  });
+
   it("shows a timeout message when the request times out", async () => {
     (api.postChat as Mock).mockRejectedValueOnce(Object.assign(new Error("Request timed out"), { timeout: true }));
     const user = userEvent.setup();

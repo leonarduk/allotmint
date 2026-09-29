@@ -125,6 +125,23 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
     matches the resolution pyarrow writes to parquet by default and keeps
     assert_frame_equal comparisons stable regardless of the code path that
     produced the Date values.
+
+    Performance (#8137): when the input already conforms exactly (Date already
+    datetime64[ms], no nulls, columns already EXPECTED_COLS in order -- true
+    for every already-validated slice this function re-validates on every one
+    of the ~1400+ per-(ticker, date-range) lookups against the #8113 warm
+    cache), this returns the input object unchanged rather than doing the
+    equivalent-but-redundant astype/dropna/reindex work. Every caller in this
+    module that needs mutation safety already wraps its own LRU layer with an
+    explicit ``.copy()`` (``_memoized_range``, ``load_meta_timeseries``), so
+    returning the same object here does not introduce new aliasing risk --
+    verified directly, not assumed (see the #8137 mutation-safety test).
+
+    Contract: this function may return its input object unchanged. Callers
+    that don't already own an exclusive copy of ``df`` and need to mutate the
+    result must copy it first -- exactly the same rule that already applied
+    to the input ``df`` itself, since this function has always mutated
+    ``df["Date"]`` in place when coercion is needed.
     """
     if df is None or df.empty:
         return _empty_ts()
@@ -163,9 +180,26 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
             dates.dt.tz,
         )
         dates = dates.dt.tz_convert(None)
-    df["Date"] = dates.astype("datetime64[ms]")
-    df = df.dropna(subset=["Date"])
-    # Return only expected columns in expected order (stable)
+    # Both `.astype("datetime64[ms]")` and `.dropna()` are no-ops when the
+    # column already has the target dtype and no nulls -- true on every call
+    # for a frame that has already passed through this function once (e.g. a
+    # slice of an already-validated warm-cache frame, per #8137). Skipping
+    # them when they'd change nothing avoids re-running dropna's full-frame
+    # mask + reindex machinery, which profiling showed is over half of this
+    # function's cost on such calls (2.39s of 4.45s for 1453 calls on a
+    # 64-row sliced frame -- see #8137).
+    if dates.dtype != "datetime64[ms]":
+        df["Date"] = dates.astype("datetime64[ms]")
+    elif dates is not df["Date"]:
+        df["Date"] = dates
+    if df["Date"].hasnans:
+        df = df.dropna(subset=["Date"])
+    # Return only expected columns in expected order (stable). Skip the
+    # reindex when the columns already match exactly -- this getitem is a
+    # full column-by-column copy, and profiling showed it dominates what's
+    # left once the astype/dropna skips above apply (see #8137).
+    if list(df.columns) == EXPECTED_COLS:
+        return df
     return df[EXPECTED_COLS]
 
 

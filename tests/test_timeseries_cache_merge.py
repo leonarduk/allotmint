@@ -109,8 +109,12 @@ def test_ensure_schema_missing_date(caplog):
             pd.to_datetime(["2024-01-01", "2024-01-02"]).tz_localize("US/Eastern"),
             "tz_aware_non_utc",
         ),
+        (
+            pd.to_datetime(["2024-01-01", "2024-01-02"]).astype("datetime64[ms]").tz_localize("UTC"),
+            "tz_aware_already_ms",
+        ),
     ],
-    ids=["ns", "ms", "s", "date_objects", "tz_aware_utc", "tz_aware_non_utc"],
+    ids=["ns", "ms", "s", "date_objects", "tz_aware_utc", "tz_aware_non_utc", "tz_aware_already_ms"],
 )
 def test_ensure_schema_normalises_date_to_ms(date_input, input_id):
     """_ensure_schema must always return datetime64[ms] for the Date column.
@@ -212,6 +216,108 @@ def test_ensure_schema_still_parses_non_datetime_date_column(monkeypatch):
 
     assert len(calls) == 1
     assert result["Date"].dtype == "datetime64[ms]"
+
+
+def test_ensure_schema_skips_astype_dropna_and_reindex_when_already_conforming(monkeypatch):
+    """Regression test for #8137: profiling showed ``.dropna()`` alone cost
+    2.39s of _ensure_schema's 4.45s for 1453 calls on an already-valid,
+    already-sliced 64-row frame (the exact shape ``apply_date_range``'s
+    output takes at the three call sites in ``_memoized_range_cached``) --
+    dropna's full-frame mask + reindex machinery runs even though there is
+    nothing to drop. When the ``Date`` column is already ``datetime64[ms]``
+    with no nulls and the columns already match ``EXPECTED_COLS`` exactly,
+    ``_ensure_schema`` must skip ``.astype``, ``.dropna``, and the final
+    column reindex entirely rather than just being correct despite doing
+    the (redundant) work.
+    """
+    cache = import_cache()
+
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-01-01", "2024-01-02"]).astype("datetime64[ms]"),
+            "Open": [1.0, 2.0],
+            "High": [1.5, 2.5],
+            "Low": [0.5, 1.5],
+            "Close": [1.2, 2.2],
+            "Volume": [100, 200],
+            "Ticker": ["ABC", "ABC"],
+            "Source": ["SRC", "SRC"],
+        }
+    )
+    assert list(df.columns) == cache.EXPECTED_COLS
+
+    astype_calls = []
+    real_astype = pd.Series.astype
+
+    def spy_astype(self, *args, **kwargs):
+        astype_calls.append((args, kwargs))
+        return real_astype(self, *args, **kwargs)
+
+    dropna_calls = []
+    real_dropna = pd.DataFrame.dropna
+
+    def spy_dropna(self, *args, **kwargs):
+        dropna_calls.append((args, kwargs))
+        return real_dropna(self, *args, **kwargs)
+
+    monkeypatch.setattr(pd.Series, "astype", spy_astype)
+    monkeypatch.setattr(pd.DataFrame, "dropna", spy_dropna)
+
+    result = cache._ensure_schema(df)
+
+    assert astype_calls == []
+    assert dropna_calls == []
+    assert result is df
+    assert list(result.columns) == cache.EXPECTED_COLS
+    assert result["Date"].dtype == "datetime64[ms]"
+
+
+def test_ensure_schema_still_drops_nat_rows_when_present():
+    """The fast path in #8137 must not skip dropping NaT rows -- only skip
+    the work when there is genuinely nothing to drop."""
+    cache = import_cache()
+
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-01-01", None, "2024-01-03"]).astype("datetime64[ms]"),
+            "Open": [1.0, 2.0, 3.0],
+            "High": [1.5, 2.5, 3.5],
+            "Low": [0.5, 1.5, 2.5],
+            "Close": [1.2, 2.2, 3.2],
+            "Volume": [100, 200, 300],
+            "Ticker": ["ABC", "ABC", "ABC"],
+            "Source": ["SRC", "SRC", "SRC"],
+        }
+    )
+
+    result = cache._ensure_schema(df)
+
+    assert list(result["Date"].dt.date.astype(str)) == ["2024-01-01", "2024-01-03"]
+
+
+def test_ensure_schema_still_reindexes_columns_out_of_order():
+    """The column-reindex skip in #8137 must only fire when columns already
+    match ``EXPECTED_COLS`` exactly -- an out-of-order or extra-column frame
+    must still be reindexed."""
+    cache = import_cache()
+
+    df = pd.DataFrame(
+        {
+            "Ticker": ["ABC", "ABC"],
+            "Date": pd.to_datetime(["2024-01-01", "2024-01-02"]).astype("datetime64[ms]"),
+            "Open": [1.0, 2.0],
+            "High": [1.5, 2.5],
+            "Low": [0.5, 1.5],
+            "Close": [1.2, 2.2],
+            "Volume": [100, 200],
+            "Source": ["SRC", "SRC"],
+            "Extra": ["x", "y"],
+        }
+    )
+
+    result = cache._ensure_schema(df)
+
+    assert list(result.columns) == cache.EXPECTED_COLS
 
 
 def test_rolling_cache_serves_cached_slice_on_fetch_failure(monkeypatch, tmp_path):
@@ -1027,3 +1133,82 @@ def test_rolling_cache_does_not_mutate_shared_loader_cache(monkeypatch, tmp_path
     still_cached = cache._load_meta_parquet_cached(cache_path)
     assert read_calls == [cache_path]
     assert_frame_equal(still_cached, snapshot)
+
+
+def test_memoized_range_fast_ensure_schema_does_not_alias_shared_warm_cache(monkeypatch, tmp_path):
+    """#8137's ``_ensure_schema`` fast path can return the exact same object it
+    was given (rather than always allocating a new one via ``df[EXPECTED_COLS]``)
+    when the input already conforms. ``_memoized_range_cached`` calls
+    ``_ensure_schema(apply_date_range(existing, ...))`` where ``existing`` is
+    the shared ``_load_meta_parquet_cached`` warm-cache entry -- if
+    ``apply_date_range`` didn't always copy before slicing, this fast path
+    could hand back an alias of the shared cache entry, and a caller
+    mutating the "own copy" they think they have would corrupt every other
+    reader. ``apply_date_range`` already ``.copy()``s on every path (verified
+    directly, not assumed), and the outer ``_memoized_range``/
+    ``load_meta_timeseries`` wrappers add one more ``.copy()`` on top -- this
+    test proves the whole chain empirically: mutate the frame returned by
+    ``_memoized_range`` and confirm the shared warm-cache entry is untouched.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", True)
+
+    cache_path = cache.meta_timeseries_cache_path("ABC", "L")
+    expected = _seed_existing_parquet(cache, cache_path, days=10)
+    start_date = expected["Date"].min().date()
+    end_date = expected["Date"].max().date()
+
+    # Prime the shared _load_meta_parquet_cached entry and snapshot it.
+    cached_obj = cache._load_meta_parquet_cached(cache_path)
+    snapshot = cached_obj.copy(deep=True)
+
+    result = cache._memoized_range(
+        "ABC",
+        "L",
+        start_date.isoformat(),
+        end_date.isoformat(),
+    )
+
+    # Mutate the caller-visible result in place -- this must not be able to
+    # reach the shared warm-cache entry through any aliasing introduced by
+    # skipping _ensure_schema's defensive reindex.
+    result["Close"] = -1.0
+    result.drop(result.index, inplace=True)
+
+    still_cached = cache._load_meta_parquet_cached(cache_path)
+    assert_frame_equal(still_cached, snapshot)
+
+
+def test_load_parquet_fast_path_never_shares_an_object_across_calls(monkeypatch, tmp_path):
+    """Audit for #8137's review: every ``_ensure_schema`` caller other than
+    ``_memoized_range_cached`` was checked for mutation-after-call risk, not
+    just re-read. ``_load_parquet`` (used directly by
+    ``load_cached_meta_timeseries_full``, which ``backend/routes/data_quality_admin.py``
+    mutates in place via ``df["Ticker"] = ticker`` without copying first) does
+    a fresh ``pd.read_parquet`` on every call -- unlike ``_memoized_range_cached``,
+    it is never wrapped in an ``lru_cache``, so no two calls can ever return
+    the same object for ``_ensure_schema``'s fast path to alias. This test
+    proves that directly: two back-to-back reads of the same file must never
+    be the same object, and mutating one must never affect the other or a
+    fresh third read.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+
+    cache_path = cache.meta_timeseries_cache_path("ABC", "L")
+    _seed_existing_parquet(cache, cache_path, days=5)
+
+    first = cache.load_cached_meta_timeseries_full("ABC", "L")
+    second = cache.load_cached_meta_timeseries_full("ABC", "L")
+    assert first is not second
+    expected_dates = list(second["Date"].dt.date)
+
+    first["Ticker"] = "MUTATED"
+    first.drop(first.index, inplace=True)
+
+    assert list(second["Ticker"].unique()) != ["MUTATED"]
+    assert not second.empty
+
+    third = cache.load_cached_meta_timeseries_full("ABC", "L")
+    assert list(third["Date"].dt.date) == expected_dates

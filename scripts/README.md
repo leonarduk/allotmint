@@ -319,3 +319,29 @@ python -m scripts.reconcile_holding_tickers data/accounts/alice/isa.json
 python -m scripts.reconcile_holding_tickers --write data/accounts/alice/isa.json
 python -m scripts.reconcile_holding_tickers --write --all
 ```
+
+## profile_ensure_schema.py
+
+Reproduces the #8137 profiling of `backend.timeseries.cache._ensure_schema`
+against real cached data. Requires the `allotmint-data` sibling checkout
+(`DATA_ROOT` or `config.yaml`'s `paths.data_root`) with at least one warm
+`timeseries/meta/<TICKER>_<EXCHANGE>.parquet` file.
+
+`micro` mode isolates `_ensure_schema`/`apply_date_range`'s (#8127/#8131)
+cost on one ticker's already-sliced frame:
+
+```bash
+DATA_ROOT=../allotmint-data python -m scripts.profile_ensure_schema micro
+DATA_ROOT=../allotmint-data python -m scripts.profile_ensure_schema micro CASH_GBP
+```
+
+`e2e` mode reproduces the exact methodology #8105/#8113/#8127/#8131/#8137 all
+used: in-process `cProfile` around `build_owner_portfolio` + `aggregate_by_sector`
+for a given owner, wrapped in `cache_only()` (the same context manager the real
+`/portfolio/{owner}/sectors` route uses) so it never depends on a live price
+fetch:
+
+```bash
+DATA_ROOT=../allotmint-data python -m scripts.profile_ensure_schema e2e
+DATA_ROOT=../allotmint-data python -m scripts.profile_ensure_schema e2e alex
+```

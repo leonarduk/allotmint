@@ -15,24 +15,31 @@ Content-Type: application/json
 
 ## Required fields
 
-| Field          | Type   | Description |
-| -------------- | ------ | ----------- |
-| `owner`        | string | Portfolio owner the transaction belongs to. |
-| `account`      | string | Account identifier within the owner's portfolio. |
-| `ticker`       | string | Instrument symbol being traded. |
-| `type`         | string | Trade direction. Supported values: `BUY` or `SELL`. |
-| `shares`       | number | Quantity of shares involved in the trade. |
-| `amount_minor` | number | Notional trade value in the smallest currency unit (e.g. pence). |
-| `currency`     | string | ISO currency code such as `GBP` or `USD`. |
-| `date`         | string | Trade execution date in ISO 8601 format. |
+| Field       | Type   | Description |
+| ----------- | ------ | ----------- |
+| `owner`     | string | Portfolio owner the transaction belongs to. |
+| `account`   | string | Account identifier within the owner's portfolio. |
+| `ticker`    | string | Instrument symbol being traded. |
+| `date`      | string | Trade date, `YYYY-MM-DD`. |
+| `price_gbp` | number | Price per unit in GBP; must be greater than 0. |
+| `units`     | number | Quantity traded; must be greater than 0 (use `type` for direction). |
+| `reason`    | string | Rationale for the trade; stored for audit and compliance purposes. |
 
 ### Optional fields
 
-| Field            | Type   | Description |
-| ---------------- | ------ | ----------- |
-| `reason_to_buy`  | string | Rationale for the trade; stored for audit and compliance purposes. |
-| `security_ref`   | string | Internal security identifier, if known. |
-| `kind`           | string | Set to `portfolio` for share transactions or `account` for cash movements. |
+| Field         | Type   | Description |
+| ------------- | ------ | ----------- |
+| `type`        | string | `BUY` (default) or `SELL`. A `SELL` reduces the holding and records a realised gain. |
+| `fees`        | number | Dealing fees in GBP: added to a purchase's cost, deducted from a sale's proceeds. |
+| `comments`    | string | Free-text note. |
+| `external_id` | string | Caller-supplied identifier, e.g. a broker reference. |
+
+Only `BUY` and `SELL` are accepted here; other types (dividends, transfers,
+cash movements) come in through `POST /transactions/import`.
+
+`PUT /transactions/{id}` takes the same body. On update `type` has no
+default: omit it to keep the stored type, so editing an imported row of
+another type (e.g. `DIVIDEND`) does not change it.
 
 ## Example request
 
@@ -43,38 +50,36 @@ curl -X POST https://api.example.com/transactions \
         "owner": "alex",
         "account": "isa",
         "ticker": "PFE",
-        "type": "BUY",
-        "shares": 10,
-        "amount_minor": 170000,
-        "currency": "USD",
+        "type": "SELL",
         "date": "2024-03-25",
-        "reason_to_buy": "Long-term growth strategy"
+        "price_gbp": 17.0,
+        "units": 10,
+        "fees": 5.0,
+        "reason": "Take profit"
       }'
 ```
 
 ## Example response
 
-On success the API responds with the newly created transaction. The
-portfolio for `alex` will now include the additional shares and cash
-adjustment. Fetch it again using `GET /portfolio/alex` to verify:
+On success the API responds `201` with the stored transaction and its `id`.
+The account's holdings are rebuilt from its transactions, so a later
+`GET /portfolio/alex` reflects the sale:
 
 ```json
 {
   "owner": "alex",
   "account": "isa",
   "ticker": "PFE",
-  "type": "BUY",
-  "shares": 10,
-  "amount_minor": 170000,
-  "currency": "USD",
+  "type": "SELL",
   "date": "2024-03-25",
-  "reason_to_buy": "Long-term growth strategy"
+  "price_gbp": 17.0,
+  "units": 10.0,
+  "fees": 5.0,
+  "comments": null,
+  "reason": "Take profit",
+  "external_id": null,
+  "id": "alex:isa:3"
 }
-```
-
-```bash
-# later
-curl https://api.example.com/portfolio/alex
 ```
 
 ## Bulk import

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.common.accounts_store import WRITABLE_ACCOUNTS_PREFIX, LocalAccountsStore
+from backend.common.portfolio_loader import compute_holdings_from_transactions
 from backend.config import config
 from backend.routes import transactions
 
@@ -60,9 +61,62 @@ def test_create_transaction_success(tmp_path, monkeypatch):
     expected_tx.pop("owner")
     expected_tx.pop("account")
     expected_tx.setdefault("external_id", None)
+    expected_tx.setdefault("type", "BUY")
     assert expected_tx in stored["transactions"]
     for tx in stored["transactions"]:
         assert "owner" not in tx
+
+
+def _holding_units(tmp_path, ticker):
+    # Replay the stored transactions through the real rebuild: the test config
+    # runs offline, which skips the on-disk rebuild the route would trigger.
+    tx_data = json.loads((tmp_path / "alice" / "ISA_transactions.json").read_text())
+    holdings = compute_holdings_from_transactions(tx_data, "alice", "ISA")["holdings"]
+    return next(h["units"] for h in holdings if h["ticker"] == ticker)
+
+
+def test_create_transaction_without_type_defaults_to_buy_and_updates_holdings(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    resp = client.post("/transactions", json=_valid_payload(units=5))
+    assert resp.status_code == 201
+    assert resp.json()["type"] == "BUY"
+    assert _holding_units(tmp_path, "PFE") == pytest.approx(5)
+
+
+def test_create_sell_transaction_reduces_holdings(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    assert client.post("/transactions", json=_valid_payload(type="BUY", units=5)).status_code == 201
+    resp = client.post(
+        "/transactions",
+        json=_valid_payload(type="SELL", units=2, price_gbp=12.0, date="2024-06-01"),
+    )
+    assert resp.status_code == 201
+    assert resp.json()["type"] == "SELL"
+    assert _holding_units(tmp_path, "PFE") == pytest.approx(3)
+
+
+def test_create_transaction_rejects_non_trade_type(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    resp = client.post("/transactions", json=_valid_payload(type="DIVIDEND"))
+    assert resp.status_code == 422
+    assert not (tmp_path / "alice" / "ISA_transactions.json").exists()
+
+
+def test_update_transaction_without_type_keeps_stored_type(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    created = client.post("/transactions", json=_valid_payload(type="SELL")).json()
+    update = _valid_payload(units=1)
+    resp = client.put(f"/transactions/{created['id']}", json=update)
+    assert resp.status_code == 200
+    assert resp.json()["type"] == "SELL"
+
+
+def test_update_transaction_can_change_type(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    created = client.post("/transactions", json=_valid_payload(type="BUY")).json()
+    resp = client.put(f"/transactions/{created['id']}", json=_valid_payload(type="SELL"))
+    assert resp.status_code == 200
+    assert resp.json()["type"] == "SELL"
 
 
 def test_create_transaction_validation_error(tmp_path, monkeypatch):
@@ -451,6 +505,54 @@ def test_import_transactions_success(tmp_path, monkeypatch):
     assert data["persisted"][0]["ticker"] == "PFE"
     assert data["persisted"][0]["id"] == "alice:isa:0"
     assert captured == {"provider": "degiro", "data": b"content"}
+
+
+def test_calculate_portfolio_impact_is_negative_for_a_sale():
+    assert transactions._calculate_portfolio_impact({"type": "SELL", "price_gbp": 10.0, "units": 2}) == -20.0
+    assert transactions._calculate_portfolio_impact({"type": "BUY", "price_gbp": 10.0, "units": 2}) == 20.0
+
+
+def test_sell_then_delete_leaves_no_net_portfolio_impact(tmp_path, monkeypatch):
+    monkeypatch.setattr(transactions, "_PORTFOLIO_IMPACT", defaultdict(float))
+    monkeypatch.setattr(transactions, "_POSTED_TRANSACTIONS", [])
+    client = _make_client(tmp_path, monkeypatch)
+    created = client.post("/transactions", json=_valid_payload(type="SELL", units=2, price_gbp=10.0)).json()
+    assert transactions._PORTFOLIO_IMPACT["alice"] == pytest.approx(-20.0)
+    assert client.delete(f"/transactions/{created['id']}").status_code == 200
+    assert transactions._PORTFOLIO_IMPACT["alice"] == pytest.approx(0.0)
+
+
+def test_editing_buy_into_sell_moves_portfolio_impact_by_the_difference(tmp_path, monkeypatch):
+    monkeypatch.setattr(transactions, "_PORTFOLIO_IMPACT", defaultdict(float))
+    monkeypatch.setattr(transactions, "_POSTED_TRANSACTIONS", [])
+    client = _make_client(tmp_path, monkeypatch)
+    created = client.post("/transactions", json=_valid_payload(type="BUY", units=2, price_gbp=10.0)).json()
+    assert transactions._PORTFOLIO_IMPACT["alice"] == pytest.approx(20.0)
+    resp = client.put(f"/transactions/{created['id']}", json=_valid_payload(type="SELL", units=2, price_gbp=10.0))
+    assert resp.status_code == 200
+    assert transactions._PORTFOLIO_IMPACT["alice"] == pytest.approx(-20.0)
+
+
+def test_update_imported_dividend_without_type_keeps_dividend(tmp_path, monkeypatch):
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    (owner_dir / "ISA_transactions.json").write_text(
+        json.dumps(
+            {
+                "owner": "alice",
+                "account_type": "ISA",
+                "transactions": [
+                    {"type": "DIVIDEND", "ticker": "PFE", "date": "2024-05-01", "amount_minor": 500, "reason": "income"}
+                ],
+            }
+        )
+    )
+    client = _make_client(tmp_path, monkeypatch)
+    resp = client.put("/transactions/alice:ISA:0", json=_valid_payload(comments="edited"))
+    assert resp.status_code == 200
+    stored = json.loads((owner_dir / "ISA_transactions.json").read_text())["transactions"][0]
+    assert stored["type"] == "DIVIDEND"
+    assert stored["comments"] == "edited"
 
 
 def test_calculate_portfolio_impact_tolerates_bank_transaction_fields():

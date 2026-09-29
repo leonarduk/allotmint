@@ -1,6 +1,18 @@
 import type { Transaction } from "@/types";
 
+export type TradeType = "BUY" | "SELL";
+
+export const TRADE_TYPES: readonly TradeType[] = ["BUY", "SELL"];
+
+export function isTradeType(value: string): value is TradeType {
+  return (TRADE_TYPES as readonly string[]).includes(value);
+}
+
 export type TransactionFormValues = {
+  // BUY/SELL for manual entries. Editing a row of another type (e.g. an
+  // imported DIVIDEND, or "" for an untyped legacy entry) keeps that type
+  // here; it is not sent on save, so the backend leaves it unchanged.
+  type: string;
   date: string;
   ticker: string;
   price: string;
@@ -11,6 +23,7 @@ export type TransactionFormValues = {
 };
 
 export const EMPTY_TRANSACTION_FORM_VALUES: TransactionFormValues = {
+  type: "BUY",
   date: "",
   ticker: "",
   price: "",
@@ -59,6 +72,7 @@ export function createTransactionFormValues(
   const legacyReason = (transaction as { reason_to_buy?: string | null }).reason_to_buy;
 
   return {
+    type: formTypeFor(transaction.type),
     date: transaction.date ? transaction.date.slice(0, 10) : "",
     ticker: tickerValue,
     price:
@@ -70,6 +84,15 @@ export function createTransactionFormValues(
   };
 }
 
+// Keep the stored type as-is. In particular an untyped legacy manual entry
+// stays untyped (""), which is not a trade type and so is left out of the
+// payload: the holdings rebuild ignores untyped rows, and silently saving one
+// as a BUY could double-count a holding also entered on /input. The user
+// can still pick Buy or Sell explicitly. Only new entries default to BUY.
+function formTypeFor(type: string | null | undefined): string {
+  return (type ?? "").toUpperCase();
+}
+
 export type TransactionPayload = {
   owner: string;
   account: string;
@@ -78,6 +101,7 @@ export type TransactionPayload = {
   price_gbp: number;
   units: number;
   reason: string;
+  type?: TradeType;
   fees?: number;
   comments?: string;
 };
@@ -133,6 +157,7 @@ export function buildTransactionPayload(
       price_gbp: price,
       units,
       reason,
+      ...(isTradeType(values.type) ? { type: values.type } : {}),
       fees,
       comments: comments || undefined,
     },

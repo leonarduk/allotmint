@@ -1506,6 +1506,8 @@ export interface CreateTransactionPayload {
   price_gbp: number;
   units: number;
   reason: string;
+  /** Omit on update to keep the stored type. */
+  type?: "BUY" | "SELL";
   fees?: number;
   comments?: string;
 }

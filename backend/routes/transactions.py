@@ -287,6 +287,12 @@ class TransactionUpdate(TransactionCreate):
     type: Optional[ManualTradeType] = None
 
 
+class TransactionSplit(BaseModel):
+    """Split one transaction in two; ``units`` is the size of the first part."""
+
+    units: float = Field(gt=0)
+
+
 class ManualHoldingCreate(BaseModel):
     owner: str
     account: str
@@ -790,6 +796,65 @@ def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> d
     return _format_transaction_response(new_owner, account_response, new_entry, new_id)
 
 
+def _split_transaction_entry(entry: Mapping[str, Any], first_units: float) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Return the two halves of ``entry``; per-unit values are kept, totals pro-rated."""
+
+    total = entry.get("units")
+    if not isinstance(total, (int, float)) or isinstance(total, bool) or total <= 0:
+        raise HTTPException(status_code=400, detail="Transaction has no units to split")
+    if not 0 < first_units < total:
+        raise HTTPException(status_code=400, detail="units must be between 0 and the transaction's units")
+    first = dict(entry)
+    second = dict(entry)
+    first["units"] = round(first_units, 8)
+    second["units"] = round(total - first_units, 8)
+    ratio = first_units / total
+    for key in ("amount_minor", "fees"):
+        value = entry.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            # The second half is the remainder, so the two always sum to the original.
+            first[key] = round(value * ratio, 2)
+            second[key] = round(value - first[key], 2)
+    halves = [first, second]
+    # Keep external ids unique so re-importing the source does not duplicate a half.
+    if halves[1].get("external_id"):
+        halves[1]["external_id"] = f"{halves[1]['external_id']}#split"
+    return halves[0], halves[1]
+
+
+@router.post("/transactions/{tx_id}/split")
+def split_transaction(request: Request, tx_id: str, body: TransactionSplit) -> dict:
+    """Split a transaction into two rows (same date, price and type).
+
+    The second row is inserted directly after the first, so later transactions'
+    ids shift by one.  Position cost is unchanged, so holdings are not rebuilt.
+    """
+    store = _require_writable_store(request)
+
+    owner, account_raw, index = _parse_transaction_id(tx_id)
+    owner = _validate_component(owner, "owner")
+    account = _find_transaction_account(owner, _validate_component(account_raw, "account"), store)
+
+    with _locked_transactions_data(owner, account, store) as (data, _):
+        transactions = data.setdefault("transactions", [])
+        if index >= len(transactions) or index < 0:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        first, second = _split_transaction_entry(transactions[index], body.units)
+        transactions[index : index + 1] = [first, second]
+        data["owner"] = owner
+        data["account_type"] = account
+
+    return {
+        "status": "split",
+        "transactions": [
+            _format_transaction_response(owner, account.lower(), first, _build_transaction_id(owner, account, index)),
+            _format_transaction_response(
+                owner, account.lower(), second, _build_transaction_id(owner, account, index + 1)
+            ),
+        ],
+    }
+
+
 @router.delete("/transactions/{tx_id}")
 def delete_transaction(request: Request, tx_id: str) -> dict:
     store = _require_writable_store(request)
@@ -1254,6 +1319,7 @@ def list_transactions(
     start: Optional[str] = None,
     end: Optional[str] = None,
     tx_type: Optional[str] = Query(None, alias="type"),
+    ticker: Optional[str] = None,
 ):
     """Return transactions with optional filtering."""
 
@@ -1268,6 +1334,8 @@ def list_transactions(
         if account and t.account.lower() != account.lower():
             continue
         if tx_type and (t.type or "").upper() != tx_type.upper():
+            continue
+        if ticker and (t.ticker or "").upper() != ticker.upper():
             continue
         tx_date = _parse_date(t.date)
         if start_d and (not tx_date or tx_date < start_d):

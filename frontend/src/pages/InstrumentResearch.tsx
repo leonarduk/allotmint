@@ -4,6 +4,7 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInstrumentHistory, updateCachedInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentDetail, InstrumentPositionsTable } from "../components/InstrumentDetail";
+import { InstrumentTransactions } from "../components/InstrumentTransactions";
 import {
   confirmInstrumentMetadata,
   getNews,
@@ -1517,6 +1518,13 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             mutedColor={standalonePalette.muted}
           />
         )
+      )}
+
+      {activeTab === "positions" && (
+        <section aria-label="Transactions">
+          <h2 style={{ marginBottom: "0.75rem" }}>Transactions</h2>
+          <InstrumentTransactions ticker={tkr} />
+        </section>
       )}
 
       {activeTab === "fundamentals" && (

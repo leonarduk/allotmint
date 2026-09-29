@@ -693,7 +693,7 @@ def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     if price is None or units_val is None:
         raise HTTPException(status_code=400, detail="price_gbp and units are required")
 
-    return _persist_transaction(store, owner, account, tx_data)
+    return _persist_transaction(store, owner, _transactions_account_name(owner, account, store), tx_data)
 
 
 @router.put("/transactions/{tx_id}")
@@ -730,7 +730,7 @@ def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> d
             updated_entry = _prepare_updated_transaction(existing, tx_data)
             transactions[index] = updated_entry
             data["owner"] = new_owner
-            data["account_type"] = new_account
+            data["account_type"] = original_account_canonical
             new_entry = updated_entry
         else:
             removed_entry = transactions.pop(index)
@@ -741,9 +741,12 @@ def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> d
 
     new_index = index
 
-    if not same_location:
+    if same_location:
+        new_account = original_account_canonical
+    else:
         if pending_entry is None:
             raise HTTPException(status_code=500, detail="Failed to update transaction")
+        new_account = _transactions_account_name(new_owner, new_account, store)
         with _locked_transactions_data(new_owner, new_account, store) as (data, _):
             transactions = data.setdefault("transactions", [])
             transactions.append(pending_entry)
@@ -919,6 +922,8 @@ async def import_transactions(
 
     persisted: List[Dict[str, Any]] = []
     skipped: List[Dict[str, Any]] = []
+    # Transactions-file spelling per destination, looked up once per account.
+    file_accounts: Dict[Any, str] = {}
 
     for row in parsed:
         row_owner = row.owner or owner
@@ -935,8 +940,11 @@ async def import_transactions(
             continue
 
         tx_data = _tx_data_from_parsed(row)
+        target = (row_owner, row_account)
+        if target not in file_accounts:
+            file_accounts[target] = _transactions_account_name(row_owner, row_account, store)
         try:
-            persisted.append(_persist_transaction(store, row_owner, row_account, tx_data))
+            persisted.append(_persist_transaction(store, row_owner, file_accounts[target], tx_data))
         except Exception:
             _rollback_import(store, persisted)
             raise
@@ -1001,6 +1009,8 @@ def import_moneyhub_transactions(
 
     persisted: List[Dict[str, Any]] = []
     skipped: List[Dict[str, Any]] = []
+    # Transactions-file spelling per destination, looked up once per account.
+    file_accounts: Dict[Any, str] = {}
 
     for row in parsed:
         row_account = row.account
@@ -1014,7 +1024,9 @@ def import_moneyhub_transactions(
             continue
 
         tx_data = _tx_data_from_parsed(row)
-        persisted.append(_persist_transaction(store, owner, row_account, tx_data))
+        if row_account not in file_accounts:
+            file_accounts[row_account] = _transactions_account_name(owner, row_account, store)
+        persisted.append(_persist_transaction(store, owner, file_accounts[row_account], tx_data))
 
     return {"persisted": persisted, "skipped": skipped}
 
@@ -1104,8 +1116,9 @@ def _manual_holding_units_and_price(payload: ManualHoldingCreate, ticker: str) -
 def _transactions_account_name(owner: str, account: str, store: "AccountsStore") -> str:
     """The existing transactions file's account spelling; a new file uses the lower-case slug.
 
-    The S3 store's rebuild reads ``<account.lower()>_transactions.json``, so a
-    new file must be lower-case for it to be found.
+    Every write goes through this so an account typed as ``ISA`` and ``isa``
+    shares one file: on a case-sensitive filesystem or S3, two spellings would
+    be two files, and the rebuild would read only one of them.
     """
     try:
         return _find_transaction_account(owner, account, store)

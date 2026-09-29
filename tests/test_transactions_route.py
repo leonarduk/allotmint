@@ -51,13 +51,13 @@ def test_create_transaction_success(tmp_path, monkeypatch):
     assert resp.status_code == 201
     data = resp.json()
     for key, value in payload.items():
-        assert data[key] == value
+        assert data[key] == (value.lower() if key == "account" else value)
 
-    file_path = tmp_path / "alice" / "ISA_transactions.json"
-    assert file_path.exists()
-    stored = json.loads(file_path.read_text())
+    # A new account's transactions file is lower-case, whatever the spelling posted.
+    assert [p.name for p in (tmp_path / "alice").glob("*_transactions.json")] == ["isa_transactions.json"]
+    stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())
     assert stored["owner"] == "alice"
-    assert stored["account_type"] == "ISA"
+    assert stored["account_type"] == "isa"
     expected_tx = payload.copy()
     expected_tx.pop("owner")
     expected_tx.pop("account")
@@ -69,10 +69,8 @@ def test_create_transaction_success(tmp_path, monkeypatch):
 
 
 def _holding_units(tmp_path, ticker):
-    # Replay the stored transactions through the real rebuild: the test config
-    # runs offline, which skips the on-disk rebuild the route would trigger.
-    tx_data = json.loads((tmp_path / "alice" / "ISA_transactions.json").read_text())
-    holdings = compute_holdings_from_transactions(tx_data, "alice", "ISA")["holdings"]
+    # The holdings the route's rebuild wrote.
+    holdings = json.loads((tmp_path / "alice" / "isa.json").read_text())["holdings"]
     return next(h["units"] for h in holdings if h["ticker"] == ticker)
 
 
@@ -100,7 +98,7 @@ def test_create_transaction_rejects_non_trade_type(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
     resp = client.post("/transactions", json=_valid_payload(type="DIVIDEND"))
     assert resp.status_code == 422
-    assert not (tmp_path / "alice" / "ISA_transactions.json").exists()
+    assert not list((tmp_path / "alice").glob("*_transactions.json"))
 
 
 def test_update_transaction_without_type_keeps_stored_type(tmp_path, monkeypatch):
@@ -518,7 +516,6 @@ def _value_units_at_ten(monkeypatch):
 
 def test_posted_buy_is_valued_once_in_owner_portfolio(tmp_path, monkeypatch):
     """The rebuilt holding carries the trade; nothing may add its value again."""
-    monkeypatch.setattr(config, "offline_mode", False)
     client = _make_client(tmp_path, monkeypatch)
     _value_units_at_ten(monkeypatch)
     resp = client.post("/transactions", json=_valid_payload(account="isa", units=2, price_gbp=10.0))
@@ -530,7 +527,6 @@ def test_posted_buy_is_valued_once_in_owner_portfolio(tmp_path, monkeypatch):
 
 
 def test_posted_sell_and_its_delete_net_the_owner_portfolio_units(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "offline_mode", False)
     client = _make_client(tmp_path, monkeypatch)
     _value_units_at_ten(monkeypatch)
     buy = _valid_payload(account="isa", units=3, price_gbp=10.0)
@@ -544,7 +540,6 @@ def test_posted_sell_and_its_delete_net_the_owner_portfolio_units(tmp_path, monk
 
 
 def test_editing_a_buy_into_a_sell_moves_owner_portfolio_value_once(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "offline_mode", False)
     client = _make_client(tmp_path, monkeypatch)
     _value_units_at_ten(monkeypatch)
     assert client.post("/transactions", json=_valid_payload(account="isa", units=3, price_gbp=10.0)).status_code == 201
@@ -561,7 +556,6 @@ def test_editing_a_buy_into_a_sell_moves_owner_portfolio_value_once(tmp_path, mo
 
 
 def test_moving_a_trade_to_another_account_keeps_owner_portfolio_value(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "offline_mode", False)
     client = _make_client(tmp_path, monkeypatch)
     _value_units_at_ten(monkeypatch)
     assert client.post("/transactions", json=_valid_payload(account="isa", units=1, price_gbp=10.0)).status_code == 201
@@ -574,6 +568,60 @@ def test_moving_a_trade_to_another_account_keeps_owner_portfolio_value(tmp_path,
     values = {a["account_type"].lower(): a["value_estimate_gbp"] for a in built["accounts"]}
     assert values == {"isa": pytest.approx(10.0), "sipp": pytest.approx(20.0)}
     assert built["total_value_estimate_gbp"] == pytest.approx(30.0)
+
+
+def test_posting_to_an_account_in_another_case_uses_its_existing_file(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    assert client.post("/transactions", json=_valid_payload(account="ISA", units=2)).status_code == 201
+    resp = client.post("/transactions", json=_valid_payload(account="Isa", units=3))
+    assert resp.status_code == 201
+
+    assert [p.name for p in (tmp_path / "alice").glob("*_transactions.json")] == ["isa_transactions.json"]
+    assert resp.json()["id"] == "alice:isa:1"
+    assert _holding_units(tmp_path, "PFE") == pytest.approx(5)
+
+
+def test_posting_keeps_an_existing_mixed_case_transactions_file(tmp_path, monkeypatch):
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    (owner_dir / "ISA_transactions.json").write_text(
+        json.dumps({"owner": "alice", "account_type": "ISA", "transactions": []})
+    )
+    client = _make_client(tmp_path, monkeypatch)
+
+    assert client.post("/transactions", json=_valid_payload(account="isa", units=2)).status_code == 201
+
+    assert [p.name for p in owner_dir.glob("*_transactions.json")] == ["ISA_transactions.json"]
+    assert _holding_units(tmp_path, "PFE") == pytest.approx(2)
+
+
+def test_moving_a_trade_joins_the_destination_file_in_any_case(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    assert client.post("/transactions", json=_valid_payload(account="sipp", units=1)).status_code == 201
+    moved = client.post("/transactions", json=_valid_payload(account="isa", units=2)).json()
+
+    resp = client.put(f"/transactions/{moved['id']}", json=_valid_payload(account="SIPP", units=2))
+
+    assert resp.status_code == 200
+    assert resp.json()["id"] == "alice:sipp:1"
+    names = sorted(p.name for p in (tmp_path / "alice").glob("*_transactions.json"))
+    assert names == ["isa_transactions.json", "sipp_transactions.json"]
+    assert json.loads((tmp_path / "alice" / "sipp_transactions.json").read_text())["account_type"] == "sipp"
+    assert json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())["account_type"] == "isa"
+
+
+def test_editing_with_only_the_account_case_changed_keeps_the_trade_in_its_file(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    created = client.post("/transactions", json=_valid_payload(account="isa", units=2)).json()
+
+    resp = client.put(f"/transactions/{created['id']}", json=_valid_payload(account="ISA", units=3))
+
+    assert resp.status_code == 200
+    assert resp.json()["id"] == "alice:isa:0"
+    assert [p.name for p in (tmp_path / "alice").glob("*_transactions.json")] == ["isa_transactions.json"]
+    stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())
+    assert (stored["account_type"], [t["units"] for t in stored["transactions"]]) == ("isa", [3])
+    assert _holding_units(tmp_path, "PFE") == pytest.approx(3)
 
 
 def test_update_imported_dividend_without_type_keeps_dividend(tmp_path, monkeypatch):

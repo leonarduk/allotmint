@@ -18,7 +18,7 @@ Content-Type: application/json
 | Field       | Type   | Description |
 | ----------- | ------ | ----------- |
 | `owner`     | string | Portfolio owner the transaction belongs to. |
-| `account`   | string | Account identifier within the owner's portfolio. |
+| `account`   | string | Account identifier within the owner's portfolio. Case-insensitive: `ISA` and `isa` are the same account, recorded in its existing transactions file (a new account's file is lower-case). The response's `account` and `id` use that file's spelling, so posting `ISA` to a new account returns `isa`. |
 | `ticker`    | string | Instrument symbol being traded. |
 | `date`      | string | Trade date, `YYYY-MM-DD`. |
 | `price_gbp` | number | Price per unit in GBP; must be greater than 0. |

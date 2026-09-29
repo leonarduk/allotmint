@@ -428,3 +428,34 @@ def test_fetch_new_dividends_returns_empty_list_for_empty_series():
         result = dividends._fetch_new_dividends("GOOGL", since=None)
 
     assert result == []
+
+
+def _pay_half_a_pound(monkeypatch):
+    monkeypatch.setattr(
+        dividends.yf,
+        "Ticker",
+        lambda ticker: SimpleNamespace(dividends=_dividends_series({RECENT_EX_DATE: 0.5})),
+    )
+    monkeypatch.setattr(dividends, "get_instrument_meta", lambda ticker: {"currency": "GBP"})
+
+
+def test_refresh_dividends_writes_to_the_file_when_account_type_differs_in_case(tmp_path, monkeypatch):
+    _make_holding("alice", "isa", "AAA.L", 100, tmp_path)
+    tx_path = tmp_path / "alice" / "isa_transactions.json"
+    tx_path.write_text(json.dumps({**json.loads(tx_path.read_text()), "account_type": "ISA"}))
+    _store(tmp_path, monkeypatch)
+    _pay_half_a_pound(monkeypatch)
+
+    assert dividends.refresh_dividends()["dividends_created"] == 1
+
+    assert [p.name for p in (tmp_path / "alice").glob("*_transactions.json")] == ["isa_transactions.json"]
+    assert [t["type"] for t in _read_transactions(tmp_path, "alice", "isa")] == ["BUY", "DIVIDEND"]
+
+
+def test_refresh_dividends_reads_a_mixed_case_holdings_file_never_rebuilt(tmp_path, monkeypatch):
+    _make_holding("alice", "ISA", "AAA.L", 100, tmp_path)
+    _store(tmp_path, monkeypatch)
+    _pay_half_a_pound(monkeypatch)
+
+    assert dividends.refresh_dividends()["dividends_created"] == 1
+    assert [t["type"] for t in _read_transactions(tmp_path, "alice", "ISA")] == ["BUY", "DIVIDEND"]

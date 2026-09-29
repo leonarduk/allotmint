@@ -157,7 +157,8 @@ async def test_create_transaction_persists_to_s3(monkeypatch):
     result = transactions_module.create_transaction(_make_request(), tx)
 
     assert result["owner"] == "alice"
-    key = f"{WRITABLE_ACCOUNTS_PREFIX}/alice/ISA_transactions.json"
+    # A new account's transactions file is lower-case, whatever the spelling posted.
+    key = f"{WRITABLE_ACCOUNTS_PREFIX}/alice/isa_transactions.json"
     assert key in fake.objects
     stored = json.loads(fake.objects[key].decode("utf-8"))
     assert len(stored["transactions"]) == 1

@@ -55,8 +55,8 @@ def _setup_app(tmp_path, monkeypatch):
 
 
 def test_post_transaction_updates_portfolio(tmp_path, monkeypatch):
-    # The local store only rebuilds holdings from transactions outside offline mode.
-    monkeypatch.setattr(config, "offline_mode", False)
+    # Offline mode (forced on for the suite) must still rebuild holdings.
+    monkeypatch.setattr(config, "offline_mode", True)
     app, owner, account = _setup_app(tmp_path, monkeypatch)
 
     with TestClient(app) as client:

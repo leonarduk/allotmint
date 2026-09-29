@@ -196,7 +196,11 @@ def refresh_dividends() -> Dict[str, Any]:
     accounts = [(owner, account) for owner, account, _ in store.iter_transaction_documents()]
 
     for owner, account in accounts:
-        holdings_doc = store.read_document(owner, f"{account}.json") or {}
+        # Rebuilds write the lower-case holdings file; an account never rebuilt
+        # may still only have one spelled like its transactions file.
+        holdings_doc = (
+            store.read_document(owner, f"{account.lower()}.json") or store.read_document(owner, f"{account}.json") or {}
+        )
         tickers = sorted(
             {str(h.get("ticker")).upper() for h in holdings_doc.get("holdings", []) or [] if h.get("ticker")}
         )

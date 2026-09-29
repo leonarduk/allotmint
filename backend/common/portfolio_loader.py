@@ -133,12 +133,13 @@ def rebuild_account_holdings(
         raise FileNotFoundError("invalid owner") from exc
 
     account_lc = account.lower()
-    tx_path = None
-    for candidate in owner_dir.glob("*_transactions.json"):
-        stem = candidate.stem.replace("_transactions", "")
-        if stem.lower() == account_lc:
-            tx_path = candidate
-            break
+    matches = [
+        c for c in owner_dir.glob("*_transactions.json") if c.stem.replace("_transactions", "").lower() == account_lc
+    ]
+    # An exact spelling wins if an older write left files differing only in case.
+    exact = [c for c in matches if c.name == f"{account}_transactions.json"]
+    candidates = exact or sorted(matches)
+    tx_path = candidates[0] if candidates else None
 
     if not tx_path:
         logger.error(

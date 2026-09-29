@@ -19,7 +19,7 @@ def _client(monkeypatch, tmp_path):
     monkeypatch.setattr(
         transactions,
         "config",
-        SimpleNamespace(accounts_root=tmp_path, offline_mode=False, app_env="local"),
+        SimpleNamespace(accounts_root=tmp_path, repo_root=None, offline_mode=False, app_env="local"),
     )
     monkeypatch.setattr(
         accounts_store,

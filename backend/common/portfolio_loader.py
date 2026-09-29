@@ -138,7 +138,8 @@ def rebuild_account_holdings(
     ]
     # An exact spelling wins if an older write left files differing only in case.
     exact = [c for c in matches if c.name == f"{account}_transactions.json"]
-    tx_path = (exact or sorted(matches) or [None])[0]
+    candidates = exact or sorted(matches)
+    tx_path = candidates[0] if candidates else None
 
     if not tx_path:
         logger.error(

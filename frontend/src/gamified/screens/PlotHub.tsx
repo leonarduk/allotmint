@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
 import {
+  attentionReasonFor,
   formatGbp,
   formatPct,
   germinatingCrops,
   growthStageMeta,
+  neediestCrop,
   type Crop,
 } from '../plotModel';
 import {
@@ -63,20 +65,26 @@ function Champion({
   role,
   rival,
   basePath,
+  reason,
 }: {
   crop: Crop;
   role: string;
   rival?: boolean;
   basePath: string;
+  /** When set, replaces the stage/gain meta with the actual problem. */
+  reason?: string;
 }) {
   const stage = growthStageMeta(crop.stage);
   const accentStyle = { '--plot-crop-accent': stage.accent } as CSSProperties;
+  const meta = reason
+    ? `${role} · ${reason}`
+    : `${role} · ${stage.label} · ${formatPct(crop.gainPct)}`;
   return (
     <Link
       to={`${basePath}/crops/${encodeURIComponent(crop.id)}`}
       className={styles.stageChampion}
       style={accentStyle}
-      aria-label={`${role}: ${crop.ticker}, ${stage.label}, ${formatPct(crop.gainPct)}`}
+      aria-label={`${role}: ${crop.ticker}, ${reason ?? `${stage.label}, ${formatPct(crop.gainPct)}`}`}
     >
       <span
         className={`${styles.stageGlyph} ${rival ? styles.stageGlyphRival : ''}`}
@@ -89,9 +97,7 @@ function Champion({
         />
       </span>
       <span className={styles.stageName}>{crop.ticker}</span>
-      <span className={styles.stageMeta}>
-        {role} · {stage.label} · {formatPct(crop.gainPct)}
-      </span>
+      <span className={styles.stageMeta}>{meta}</span>
     </Link>
   );
 }
@@ -119,7 +125,12 @@ export default function PlotHub({ basePath }: { basePath: string }) {
 
   const byGain = [...crops].sort((left, right) => right.gainPct - left.gainPct);
   const best = byGain[0];
-  const worst = byGain.length > 1 ? byGain[byGain.length - 1] : undefined;
+  // "Needs attention" is a judgement, not a ranking artefact: only a crop
+  // with a real problem (compliance block, stale price, or an actual loss)
+  // is nominated, and the card states which problem it is. A plot where
+  // every holding is up shows a healthy-plot state instead of a scapegoat.
+  const worst = neediestCrop(crops);
+  const worstReason = worst ? attentionReasonFor(worst) : null;
   const openChores = chores.filter((chore) => !chore.completed).length;
   const featured = crops.slice(0, 6);
   const germinating = germinatingCrops(crops);
@@ -137,15 +148,18 @@ export default function PlotHub({ basePath }: { basePath: string }) {
             <span className={styles.stageVersus} aria-hidden="true">
               VS
             </span>
-            {worst ? (
+            {worst && worstReason ? (
               <Champion
                 crop={worst}
                 role="Needs attention"
+                reason={worstReason.label}
                 rival
                 basePath={basePath}
               />
             ) : (
-              <div />
+              <p className={styles.stageEmpty}>
+                Nothing needs attention — the whole plot is healthy.
+              </p>
             )}
           </>
         ) : (

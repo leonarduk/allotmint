@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  attentionReasonFor,
   buildPlotSnapshot,
   findCropByRouteId,
   germinatingCrops,
@@ -17,6 +18,7 @@ import {
   hasVigourSpread,
   isStillInPropagator,
   levelFromXp,
+  neediestCrop,
   resourcesFromPlot,
   starsFor,
   vigourFor,
@@ -816,6 +818,93 @@ describe('crop identity', () => {
     // A bare ticker still lands somewhere sensible for older/bookmarked links.
     expect(findCropByRouteId(crops, 'VWRL.L')?.ticker).toBe('VWRL.L');
     expect(findCropByRouteId(crops, 'NOPE.L')).toBeUndefined();
+  });
+});
+
+describe('attentionReasonFor', () => {
+  const crop = (over: Partial<Crop>): Crop =>
+    ({
+      ticker: 'X.L',
+      gainPct: 0,
+      freshness: 'fresh',
+      sellEligible: true,
+      ...over,
+    }) as Crop;
+
+  it('returns null for a healthy crop, however it ranks', () => {
+    // A crop that is merely the least-up on a green plot is not a problem.
+    expect(attentionReasonFor(crop({ gainPct: 5 }))).toBeNull();
+    expect(attentionReasonFor(crop({ gainPct: 0 }))).toBeNull();
+    expect(attentionReasonFor(crop({ gainPct: -4.9 }))).toBeNull();
+  });
+
+  it('flags a real loss with the amount stated', () => {
+    expect(attentionReasonFor(crop({ gainPct: -9.5 }))).toEqual({
+      label: 'down 9.5%',
+      kind: 'loss',
+    });
+    expect(attentionReasonFor(crop({ gainPct: -5 }))?.kind).toBe('loss');
+  });
+
+  it('flags a stale price', () => {
+    expect(attentionReasonFor(crop({ freshness: 'stale' }))).toEqual({
+      label: 'price is stale',
+      kind: 'stale-price',
+    });
+  });
+
+  it('flags a compliance block', () => {
+    expect(attentionReasonFor(crop({ sellEligible: false }))).toEqual({
+      label: 'not sellable yet',
+      kind: 'not-sellable',
+    });
+  });
+
+  it('picks the most actionable problem, not just the worst gain', () => {
+    // A -40% loss that is also not sellable reports the compliance block:
+    // "you cannot sell this" is more actionable than "this is down".
+    expect(
+      attentionReasonFor(crop({ gainPct: -40, sellEligible: false }))?.kind
+    ).toBe('not-sellable');
+    // A stale price beats a loss for the same reason.
+    expect(
+      attentionReasonFor(crop({ gainPct: -40, freshness: 'stale' }))?.kind
+    ).toBe('stale-price');
+  });
+});
+
+describe('neediestCrop', () => {
+  const crop = (over: Partial<Crop>): Crop =>
+    ({
+      ticker: 'X.L',
+      gainPct: 0,
+      freshness: 'fresh',
+      sellEligible: true,
+      ...over,
+    }) as Crop;
+
+  it('returns undefined when nothing is actually wrong', () => {
+    expect(
+      neediestCrop([crop({ ticker: 'A', gainPct: 5 }), crop({ ticker: 'B', gainPct: 1 })])
+    ).toBeUndefined();
+    expect(neediestCrop([])).toBeUndefined();
+  });
+
+  it('picks the worst offender by the same priority the reason uses', () => {
+    const picked = neediestCrop([
+      crop({ ticker: 'LOSS', gainPct: -20 }),
+      crop({ ticker: 'STALE', freshness: 'stale' }),
+      crop({ ticker: 'BLOCKED', sellEligible: false }),
+    ]);
+    expect(picked?.ticker).toBe('BLOCKED');
+  });
+
+  it('breaks ties within a kind by the worst gain', () => {
+    const picked = neediestCrop([
+      crop({ ticker: 'MILD', gainPct: -6 }),
+      crop({ ticker: 'DEEP', gainPct: -30 }),
+    ]);
+    expect(picked?.ticker).toBe('DEEP');
   });
 });
 

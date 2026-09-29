@@ -1,6 +1,5 @@
 import json
 import sys
-from collections import defaultdict
 from datetime import date
 from types import SimpleNamespace
 
@@ -9,6 +8,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
+from backend.common import portfolio as portfolio_mod
 from backend.common.accounts_store import WRITABLE_ACCOUNTS_PREFIX, LocalAccountsStore
 from backend.common.portfolio_loader import compute_holdings_from_transactions
 from backend.config import config
@@ -508,30 +508,72 @@ def test_import_transactions_success(tmp_path, monkeypatch):
     assert captured == {"provider": "degiro", "data": b"content"}
 
 
-def test_calculate_portfolio_impact_is_negative_for_a_sale():
-    assert transactions._calculate_portfolio_impact({"type": "SELL", "price_gbp": 10.0, "units": 2}) == -20.0
-    assert transactions._calculate_portfolio_impact({"type": "BUY", "price_gbp": 10.0, "units": 2}) == 20.0
+def _value_units_at_ten(monkeypatch):
+    monkeypatch.setattr(
+        portfolio_mod,
+        "enrich_holding",
+        lambda holding, *args, **kwargs: {**holding, "market_value_gbp": float(holding["units"]) * 10.0},
+    )
 
 
-def test_sell_then_delete_leaves_no_net_portfolio_impact(tmp_path, monkeypatch):
-    monkeypatch.setattr(transactions, "_PORTFOLIO_IMPACT", defaultdict(float))
-    monkeypatch.setattr(transactions, "_POSTED_TRANSACTIONS", [])
+def test_posted_buy_is_valued_once_in_owner_portfolio(tmp_path, monkeypatch):
+    """The rebuilt holding carries the trade; nothing may add its value again."""
+    monkeypatch.setattr(config, "offline_mode", False)
     client = _make_client(tmp_path, monkeypatch)
-    created = client.post("/transactions", json=_valid_payload(type="SELL", units=2, price_gbp=10.0)).json()
-    assert transactions._PORTFOLIO_IMPACT["alice"] == pytest.approx(-20.0)
-    assert client.delete(f"/transactions/{created['id']}").status_code == 200
-    assert transactions._PORTFOLIO_IMPACT["alice"] == pytest.approx(0.0)
+    _value_units_at_ten(monkeypatch)
+    resp = client.post("/transactions", json=_valid_payload(account="isa", units=2, price_gbp=10.0))
+    assert resp.status_code == 201
+
+    built = portfolio_mod.build_owner_portfolio("alice", tmp_path)
+
+    assert built["total_value_estimate_gbp"] == pytest.approx(20.0)
 
 
-def test_editing_buy_into_sell_moves_portfolio_impact_by_the_difference(tmp_path, monkeypatch):
-    monkeypatch.setattr(transactions, "_PORTFOLIO_IMPACT", defaultdict(float))
-    monkeypatch.setattr(transactions, "_POSTED_TRANSACTIONS", [])
+def test_posted_sell_and_its_delete_net_the_owner_portfolio_units(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "offline_mode", False)
     client = _make_client(tmp_path, monkeypatch)
-    created = client.post("/transactions", json=_valid_payload(type="BUY", units=2, price_gbp=10.0)).json()
-    assert transactions._PORTFOLIO_IMPACT["alice"] == pytest.approx(20.0)
-    resp = client.put(f"/transactions/{created['id']}", json=_valid_payload(type="SELL", units=2, price_gbp=10.0))
+    _value_units_at_ten(monkeypatch)
+    buy = _valid_payload(account="isa", units=3, price_gbp=10.0)
+    assert client.post("/transactions", json=buy).status_code == 201
+    sell = client.post("/transactions", json=_valid_payload(account="isa", type="SELL", units=1, price_gbp=10.0))
+    assert sell.status_code == 201
+
+    assert portfolio_mod.build_owner_portfolio("alice", tmp_path)["total_value_estimate_gbp"] == pytest.approx(20.0)
+    assert client.delete(f"/transactions/{sell.json()['id']}").status_code == 200
+    assert portfolio_mod.build_owner_portfolio("alice", tmp_path)["total_value_estimate_gbp"] == pytest.approx(30.0)
+
+
+def test_editing_a_buy_into_a_sell_moves_owner_portfolio_value_once(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "offline_mode", False)
+    client = _make_client(tmp_path, monkeypatch)
+    _value_units_at_ten(monkeypatch)
+    assert client.post("/transactions", json=_valid_payload(account="isa", units=3, price_gbp=10.0)).status_code == 201
+    second = client.post("/transactions", json=_valid_payload(account="isa", units=1, price_gbp=10.0)).json()
+    assert portfolio_mod.build_owner_portfolio("alice", tmp_path)["total_value_estimate_gbp"] == pytest.approx(40.0)
+
+    edited = _valid_payload(account="isa", type="SELL", units=1, price_gbp=10.0)
+    assert client.put(f"/transactions/{second['id']}", json=edited).status_code == 200
+    assert portfolio_mod.build_owner_portfolio("alice", tmp_path)["total_value_estimate_gbp"] == pytest.approx(20.0)
+
+    edited["type"] = "BUY"
+    assert client.put(f"/transactions/{second['id']}", json=edited).status_code == 200
+    assert portfolio_mod.build_owner_portfolio("alice", tmp_path)["total_value_estimate_gbp"] == pytest.approx(40.0)
+
+
+def test_moving_a_trade_to_another_account_keeps_owner_portfolio_value(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "offline_mode", False)
+    client = _make_client(tmp_path, monkeypatch)
+    _value_units_at_ten(monkeypatch)
+    assert client.post("/transactions", json=_valid_payload(account="isa", units=1, price_gbp=10.0)).status_code == 201
+    moved = client.post("/transactions", json=_valid_payload(account="isa", units=2, price_gbp=10.0)).json()
+
+    resp = client.put(f"/transactions/{moved['id']}", json=_valid_payload(account="sipp", units=2, price_gbp=10.0))
     assert resp.status_code == 200
-    assert transactions._PORTFOLIO_IMPACT["alice"] == pytest.approx(-20.0)
+
+    built = portfolio_mod.build_owner_portfolio("alice", tmp_path)
+    values = {a["account_type"].lower(): a["value_estimate_gbp"] for a in built["accounts"]}
+    assert values == {"isa": pytest.approx(10.0), "sipp": pytest.approx(20.0)}
+    assert built["total_value_estimate_gbp"] == pytest.approx(30.0)
 
 
 def test_update_imported_dividend_without_type_keeps_dividend(tmp_path, monkeypatch):
@@ -556,21 +598,9 @@ def test_update_imported_dividend_without_type_keeps_dividend(tmp_path, monkeypa
     assert stored["comments"] == "edited"
 
 
-def test_calculate_portfolio_impact_tolerates_bank_transaction_fields():
-    assert transactions._calculate_portfolio_impact({"price_gbp": None, "units": None}) == 0.0
-
-
-def test_calculate_portfolio_impact_tolerates_price_only_none():
-    assert transactions._calculate_portfolio_impact({"price_gbp": None, "units": 10}) == 0.0
-
-
-def test_calculate_portfolio_impact_tolerates_units_only_none():
-    assert transactions._calculate_portfolio_impact({"price_gbp": 1.5, "units": None}) == 0.0
-
-
 def test_import_transactions_rolls_back_when_later_write_fails(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
-    # Isolate from _POSTED_TRANSACTIONS/_PORTFOLIO_IMPACT state left behind by
+    # Isolate from _POSTED_TRANSACTIONS state left behind by
     # other tests in this module (they're process-global, not reset between
     # tests) rather than snapshotting whatever pre-existing state happens to
     # be there -- a before/after equality check against polluted state can
@@ -586,9 +616,7 @@ def test_import_transactions_rolls_back_when_later_write_fails(tmp_path, monkeyp
     pre_existing_posted = [
         {"owner": "bob", "account": "isa", "ticker": "AAA", "units": 1, "price_gbp": 1},
     ]
-    pre_existing_impact = defaultdict(float, {"bob": 42.0})
     monkeypatch.setattr(transactions, "_POSTED_TRANSACTIONS", list(pre_existing_posted))
-    monkeypatch.setattr(transactions, "_PORTFOLIO_IMPACT", pre_existing_impact)
     sample = [
         transactions.Transaction(owner="alice", account="isa", ticker="PFE", price_gbp=2, units=3),
         transactions.Transaction(owner="alice", account="isa", ticker="MSFT", price_gbp=5, units=2),
@@ -615,7 +643,6 @@ def test_import_transactions_rolls_back_when_later_write_fails(tmp_path, monkeyp
     stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())
     assert stored["transactions"] == []
     assert transactions._POSTED_TRANSACTIONS == pre_existing_posted
-    assert dict(transactions._PORTFOLIO_IMPACT) == {"bob": 42.0}
 
 
 def test_import_transactions_empty_parse_does_not_require_writable_store(tmp_path, monkeypatch):

@@ -30,7 +30,9 @@ def test_close_on_returns_none_for_nan_close(monkeypatch):
     frame = pd.DataFrame({"Date": [sample_date], "Close": [float("nan")]})
 
     monkeypatch.setattr(ia, "_nearest_weekday", lambda d, forward=False: sample_date)
-    monkeypatch.setattr(ia, "load_meta_timeseries_range", lambda sym, ex, start_date, end_date: frame)
+    monkeypatch.setattr(
+        ia, "load_meta_timeseries_range", lambda sym, ex, start_date, end_date: frame
+    )
 
     assert ia._close_on("AAA", "L", sample_date) is None
 
@@ -56,10 +58,14 @@ def test_close_on_memoizes_only_inside_cache_only(monkeypatch):
     with cache_only():
         assert ia._close_on("AAA", "L", sample_date) == 123.45
         assert ia._close_on("AAA", "L", sample_date) == 123.45
-    assert len(calls) == 1, "second cache-only call must hit the memo, not load_meta_timeseries_range again"
+    assert (
+        len(calls) == 1
+    ), "second cache-only call must hit the memo, not load_meta_timeseries_range again"
 
     assert ia._close_on("AAA", "L", sample_date) == 123.45
-    assert len(calls) == 2, "a call outside cache_only() must never be served from the cache-only memo"
+    assert (
+        len(calls) == 2
+    ), "a call outside cache_only() must never be served from the cache-only memo"
 
 
 def test_close_on_cache_only_memo_cleared_by_meta_cache_invalidation(monkeypatch):
@@ -89,6 +95,33 @@ def test_close_on_cache_only_memo_cleared_by_meta_cache_invalidation(monkeypatch
         second = ia._close_on("AAA", "L", sample_date)
         assert len(calls) == 2, "clearing the registered clearer must force a fresh lookup"
         assert second != first
+
+
+def test_close_on_cache_only_never_memoizes_a_missing_result(monkeypatch):
+    """#8232 review / test_reports_cache_only.py: a missing day (empty frame,
+    no cached row) must never be memoized, even inside cache_only(). Missing
+    data is exactly the case where load_meta_timeseries_range's caller-side
+    refresh_queue.enqueue side effect matters (#7917) -- caching the ``None``
+    here would silently suppress that queueing for the rest of this process's
+    lifetime, including once real data finally lands, since there is no file
+    yet for the invalidation hook to bust this entry with."""
+    ia._close_on_cache_only.cache_clear()
+    sample_date = dt.date(2023, 1, 8)
+    calls = []
+
+    def fake_load(sym, ex, start_date, end_date):
+        calls.append(1)
+        return pd.DataFrame()
+
+    monkeypatch.setattr(ia, "_nearest_weekday", lambda d, forward=False: sample_date)
+    monkeypatch.setattr(ia, "load_meta_timeseries_range", fake_load)
+
+    from backend.timeseries.cache import cache_only
+
+    with cache_only():
+        assert ia._close_on("AAA", "L", sample_date) is None
+        assert ia._close_on("AAA", "L", sample_date) is None
+    assert len(calls) == 2, "a missing result must never be served from the memo"
 
 
 def test_price_change_pct_unresolved(monkeypatch):
@@ -176,7 +209,10 @@ def test_top_movers_includes_instrument_type(monkeypatch):
     monkeypatch.setattr(
         ia,
         "get_security_meta",
-        lambda t: {"name": f"{t} name", "instrument_type": "stock" if t.startswith("AAA") else "etf"},
+        lambda t: {
+            "name": f"{t} name",
+            "instrument_type": "stock" if t.startswith("AAA") else "etf",
+        },
     )
 
     res = ia.top_movers(["AAA", "BBB"], 7)

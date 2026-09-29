@@ -3,8 +3,8 @@ from __future__ import annotations
 import datetime as dt
 import inspect
 import logging
+from collections import OrderedDict
 from datetime import timedelta
-from functools import lru_cache
 from typing import Any, Dict, Optional
 
 import pandas as pd
@@ -70,7 +70,9 @@ def _is_pence_currency(raw: str) -> bool:
     return CurrencyNormaliser.from_raw(raw).is_pence
 
 
-def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False) -> dict[str, float]:
+def load_latest_prices(
+    full_tickers: list[str], *, report_progress: bool = False
+) -> dict[str, float]:
     """Return latest close prices in GBP for each requested ticker.
 
     Contract:
@@ -130,7 +132,9 @@ def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False
 
             name_map = _lower_name_map(df)
             close_gbp_col = name_map.get("close_gbp")
-            close_native_col = name_map.get("close") or name_map.get("adj close") or name_map.get("adj_close")
+            close_native_col = (
+                name_map.get("close") or name_map.get("adj close") or name_map.get("adj_close")
+            )
 
             if not close_gbp_col and not close_native_col:
                 continue
@@ -147,7 +151,10 @@ def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False
             if close_gbp_col is None:
                 full_ticker = f"{ticker}.{exchange}"
                 meta = (
-                    get_instrument_meta(full_ticker) or get_instrument_meta(full) or get_instrument_meta(ticker) or {}
+                    get_instrument_meta(full_ticker)
+                    or get_instrument_meta(full)
+                    or get_instrument_meta(ticker)
+                    or {}
                 )
 
                 raw_currency = str(meta.get("currency") or "").strip()
@@ -301,52 +308,22 @@ def _derived_cost_basis_close_px(
     return px
 
 
-@lru_cache(maxsize=2048)
-def _get_price_for_date_scaled_cache_only(
+def _load_unscaled_price_for_date_impl(
     ticker: str,
     exchange: str,
     d: dt.date,
     field: str = "Close_gbp",
 ) -> tuple[Optional[float], Optional[str]]:
-    """Memoized body of ``_get_price_for_date_scaled``, used only inside a
-    ``cache_only()`` block (#8211).
+    """Load a single-day DF and return the requested field's *unscaled* value,
+    together with its source. For close prices we prefer the GBP-converted
+    column when available, falling back to the regular close.
 
-    ``enrich_holding`` -> ``get_effective_cost_basis_gbp`` calls this up to
-    several times per holding, and each call otherwise pays the full
-    ``load_meta_timeseries_range`` round trip (the per-(ticker,range) LRU,
-    ``apply_date_range``, ``_ensure_schema``, and an uncached FX merge in
-    ``_convert_to_base_currency``) for what is conceptually one row. Only
-    memoized for cache-only reads (page requests): a live/background-refresh
-    read is specifically asking for fresh data, which this process-lifetime
-    cache must not intercept. Registered with
-    ``backend.timeseries.cache.register_meta_cache_clearer`` so a stale
-    underlying file still invalidates this cache the same way it invalidates
-    the timeseries module's own.
+    Deliberately does not apply ``get_scaling_override``/``apply_scaling`` --
+    see ``_load_unscaled_price_for_date_cache_only`` for why (#8232 review).
     """
-    return _get_price_for_date_scaled_impl(ticker, exchange, d, field)
-
-
-def _get_price_for_date_scaled_impl(
-    ticker: str,
-    exchange: str,
-    d: dt.date,
-    field: str = "Close_gbp",
-) -> tuple[Optional[float], Optional[str]]:
-    """
-    Load a single-day DF, apply scaling override and return the requested
-    field together with its source. For close prices we prefer the
-    GBP-converted column when available, falling back to the regular close.
-    """
-    parts = ticker.upper().split(".")
-    if "CASH" in parts:
-        return 1.0, None
-
     df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=d, end_date=d)
     if df is None or df.empty:
         return None, None
-
-    scale = get_scaling_override(ticker, exchange, None)
-    df = apply_scaling(df, scale)
 
     nm = _lower_name_map(df)
     col = None
@@ -354,7 +331,7 @@ def _get_price_for_date_scaled_impl(
         col = nm.get("close_gbp") or nm.get("close") or nm.get("adj close") or nm.get("adj_close")
     else:
         col = nm.get(field.lower())
-    if not col or df.empty:
+    if not col:
         return None, None
 
     try:
@@ -371,18 +348,90 @@ def _get_price_for_date_scaled_impl(
     return price, src
 
 
+_UNSCALED_PRICE_CACHE_MAXSIZE = 2048
+_unscaled_price_cache: "OrderedDict[tuple[str, str, dt.date, str], tuple[float, Optional[str]]]" = (
+    OrderedDict()
+)
+
+
+def _load_unscaled_price_for_date_cache_only(
+    ticker: str,
+    exchange: str,
+    d: dt.date,
+    field: str = "Close_gbp",
+) -> tuple[Optional[float], Optional[str]]:
+    """Memoized, *unscaled* body of ``_get_price_for_date_scaled``, used only
+    inside a ``cache_only()`` block (#8211).
+
+    ``enrich_holding`` -> ``get_effective_cost_basis_gbp`` calls this up to
+    several times per holding, and each call otherwise pays the full
+    ``load_meta_timeseries_range`` round trip (the per-(ticker,range) LRU,
+    ``apply_date_range``, ``_ensure_schema``, and an uncached FX merge in
+    ``_convert_to_base_currency``) for what is conceptually one row. Only
+    memoized for cache-only reads (page requests): a live/background-refresh
+    read is specifically asking for fresh data, which this process-lifetime
+    cache must not intercept. Registered with
+    ``backend.timeseries.cache.register_meta_cache_clearer`` so a stale
+    underlying file still invalidates this cache the same way it invalidates
+    the timeseries module's own.
+
+    Memoizes only the *unscaled* price, with ``get_scaling_override`` and
+    ``apply_scaling`` applied fresh on every call in ``_get_price_for_date_scaled``
+    instead of being baked into this cache: ``get_scaling_override`` reads
+    ``data/scaling_overrides.json`` fresh every call with no caching of its own,
+    so memoizing its already-applied result here would risk serving a stale
+    scaled price if that file changes while this process is running (#8232
+    review). ``apply_scaling`` is a pure scalar multiply on the OHLC columns,
+    so deferring it to a plain ``price * scale`` after this lookup is
+    mathematically equivalent to applying it before column selection.
+
+    A missing result (``None``, i.e. no cached row for this day) is
+    deliberately not memoized either, for the same reason ``_close_on_cache_only``
+    (backend/common/instrument_api.py) doesn't: ``load_meta_timeseries_range``
+    queues the ticker on ``refresh_queue`` when cache-only reads find nothing,
+    and caching the ``None`` here would silently suppress that queueing for the
+    rest of this process's lifetime, including once real data finally lands.
+    """
+    key = (ticker, exchange, d, field)
+    if key in _unscaled_price_cache:
+        _unscaled_price_cache.move_to_end(key)
+        return _unscaled_price_cache[key]
+    result = _load_unscaled_price_for_date_impl(ticker, exchange, d, field)
+    if result[0] is not None:
+        _unscaled_price_cache[key] = result
+        _unscaled_price_cache.move_to_end(key)
+        if len(_unscaled_price_cache) > _UNSCALED_PRICE_CACHE_MAXSIZE:
+            _unscaled_price_cache.popitem(last=False)
+    return result
+
+
+_load_unscaled_price_for_date_cache_only.cache_clear = _unscaled_price_cache.clear  # type: ignore[attr-defined]
+
+
 def _get_price_for_date_scaled(
     ticker: str,
     exchange: str,
     d: dt.date,
     field: str = "Close_gbp",
 ) -> tuple[Optional[float], Optional[str]]:
+    parts = ticker.upper().split(".")
+    if "CASH" in parts:
+        return 1.0, None
+
     if is_cache_only():
-        return _get_price_for_date_scaled_cache_only(ticker, exchange, d, field)
-    return _get_price_for_date_scaled_impl(ticker, exchange, d, field)
+        price, src = _load_unscaled_price_for_date_cache_only(ticker, exchange, d, field)
+    else:
+        price, src = _load_unscaled_price_for_date_impl(ticker, exchange, d, field)
+    if price is None:
+        return None, None
+
+    scale = get_scaling_override(ticker, exchange, None)
+    if scale is not None and scale != 1:
+        price = price * scale
+    return price, src
 
 
-register_meta_cache_clearer(_get_price_for_date_scaled_cache_only.cache_clear)
+register_meta_cache_clearer(_load_unscaled_price_for_date_cache_only.cache_clear)
 
 
 def get_effective_cost_basis_gbp(
@@ -544,7 +593,10 @@ def enrich_holding(
 
     out["currency"] = meta.get("currency")
     out["instrument_type"] = (
-        meta.get("instrumentType") or meta.get("instrument_type") or meta.get("assetClass") or meta.get("asset_class")
+        meta.get("instrumentType")
+        or meta.get("instrument_type")
+        or meta.get("assetClass")
+        or meta.get("asset_class")
     )
     out["name"] = out.get("name") or meta.get("name") or full
     out["sector"] = out.get("sector") or meta.get("sector")
@@ -612,7 +664,9 @@ def enrich_holding(
     exempt_type = instr_type in exempt_types
     if is_etf and is_commodity:
         exempt_type = False
-    needs_approval = not (ticker.upper() in exempt_tickers or full.upper() in exempt_tickers or exempt_type)
+    needs_approval = not (
+        ticker.upper() in exempt_tickers or full.upper() in exempt_tickers or exempt_type
+    )
 
     approved = False
     if approvals and needs_approval:
@@ -620,7 +674,9 @@ def enrich_holding(
         if approved_on:
             approved = is_approval_valid(approved_on, today)
 
-    out["sell_eligible"] = None if eligible is None else bool(eligible and (approved or not needs_approval))
+    out["sell_eligible"] = (
+        None if eligible is None else bool(eligible and (approved or not needs_approval))
+    )
 
     px = px_source = prev_px = None
     last_price_time = None
@@ -641,7 +697,9 @@ def enrich_holding(
             prev_date = calc.previous_pricing_date
         else:
             asof_date = calc.reporting_date
-            px, px_source = _get_price_for_date_scaled(ticker, exchange, asof_date, field="Close_gbp")
+            px, px_source = _get_price_for_date_scaled(
+                ticker, exchange, asof_date, field="Close_gbp"
+            )
             prev_date = calc.previous_pricing_date
 
         prev_px, _ = _get_price_for_date_scaled(ticker, exchange, prev_date, field="Close_gbp")
@@ -660,7 +718,9 @@ def enrich_holding(
                 future_candidate = pricing_date + timedelta(days=7)
                 future_date = calc.resolve_weekday(future_candidate, forward=True)
                 if future_date > pricing_date:
-                    future_px, _ = _get_price_for_date_scaled(ticker, exchange, future_date, field="Close_gbp")
+                    future_px, _ = _get_price_for_date_scaled(
+                        ticker, exchange, future_date, field="Close_gbp"
+                    )
                     if future_px is not None:
                         change = (future_px / px) - 1
                         out["forward_7d_change_pct"] = round(change * 100, 4)
@@ -668,7 +728,9 @@ def enrich_holding(
                 future_candidate = pricing_date + timedelta(days=30)
                 future_date = calc.resolve_weekday(future_candidate, forward=True)
                 if future_date > pricing_date:
-                    future_px, _ = _get_price_for_date_scaled(ticker, exchange, future_date, field="Close_gbp")
+                    future_px, _ = _get_price_for_date_scaled(
+                        ticker, exchange, future_date, field="Close_gbp"
+                    )
                     if future_px is not None:
                         change = (future_px / px) - 1
                         out["forward_30d_change_pct"] = round(change * 100, 4)
@@ -691,7 +753,9 @@ def enrich_holding(
         if "price_hint" in params:
             pass_price_hint = True
         else:
-            pass_price_hint = any(param.kind is inspect.Parameter.VAR_KEYWORD for param in params.values())
+            pass_price_hint = any(
+                param.kind is inspect.Parameter.VAR_KEYWORD for param in params.values()
+            )
 
     if pass_price_hint:
         ecb = helper(out, price_cache, price_hint=px)
@@ -716,7 +780,9 @@ def enrich_holding(
         out["gain_gbp"] = round(mv - cost_for_gain, 2)
         out["unrealised_gain_gbp"] = out["gain_gbp"]
         out["unrealized_gain_gbp"] = out["gain_gbp"]
-        out["gain_pct"] = ((mv - cost_for_gain) / cost_for_gain * 100.0) if cost_for_gain > 0 else None
+        out["gain_pct"] = (
+            ((mv - cost_for_gain) / cost_for_gain * 100.0) if cost_for_gain > 0 else None
+        )
     else:
         out["market_value_gbp"] = None
         out["gain_gbp"] = None

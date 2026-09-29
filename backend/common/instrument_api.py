@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -189,7 +190,9 @@ def _resolve_grouping_details(
     return None, None
 
 
-def _derive_grouping(*sources: Optional[Mapping[str, Any]], current: Optional[Any] = None) -> Optional[str]:
+def _derive_grouping(
+    *sources: Optional[Mapping[str, Any]], current: Optional[Any] = None
+) -> Optional[str]:
     """Return the first non-empty grouping/sector/currency/region from the metadata."""
 
     name, _ = _resolve_grouping_details(*sources, current=current)
@@ -460,7 +463,9 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
     df = None
     for interval in ("5m", "15m"):
         try:
-            df = fetch_yahoo_timeseries_period(sym, ex, period="5d", interval=interval, normalize=False)
+            df = fetch_yahoo_timeseries_period(
+                sym, ex, period="5d", interval=interval, normalize=False
+            )
             if not df.empty:
                 break
         except Exception:
@@ -490,7 +495,10 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
 
     col = "Close_gbp" if "Close_gbp" in df.columns else "Close"
 
-    prices = [{"timestamp": r["Date"].to_pydatetime().isoformat(), "price": float(r[col])} for _, r in df.iterrows()]
+    prices = [
+        {"timestamp": r["Date"].to_pydatetime().isoformat(), "price": float(r[col])}
+        for _, r in df.iterrows()
+    ]
     last_time = prices[-1]["timestamp"] if prices else None
     return {"prices": prices, "last_price_time": last_time}
 
@@ -500,8 +508,11 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
 # ───────────────────────────────────────────────────────────────
 
 
-@lru_cache(maxsize=2048)
-def _close_on_cache_only(sym: str, ex: str, d: dt.date) -> Optional[float]:
+_CLOSE_ON_CACHE_MAXSIZE = 2048
+_close_on_cache: "OrderedDict[tuple[str, str, dt.date], float]" = OrderedDict()
+
+
+def _close_on_cache_only(sym: str, ex: str, snap: dt.date) -> Optional[float]:
     """Memoized body of ``_close_on``, used only inside a ``cache_only()`` block (#8211).
 
     ``price_change_pct`` calls ``_close_on`` twice per ticker (yesterday, and
@@ -517,17 +528,48 @@ def _close_on_cache_only(sym: str, ex: str, d: dt.date) -> Optional[float]:
     ``backend.timeseries.cache.register_meta_cache_clearer`` so a stale
     underlying file still invalidates this cache the same way it invalidates
     the timeseries module's own.
+
+    Takes the already-``_nearest_weekday``-snapped date, not the caller's raw
+    ``d`` -- keying on the raw date would give a Saturday and its Sunday (or
+    the Friday they both resolve to) three separate cache entries for what is
+    the same underlying row, defeating the point of memoizing (#8232 review).
+
+    A missing result (``None``, i.e. no cached row for this day) is deliberately
+    **not** memoized, unlike a plain ``lru_cache``: ``load_meta_timeseries_range``
+    queues the ticker on ``refresh_queue`` when cache-only reads find nothing, and
+    that queueing is itself de-duplicated/cooldown-gated there. Caching the
+    ``None`` here as well would silently swallow that queueing for every
+    subsequent lookup of the same day for the rest of this process's lifetime,
+    including once real data finally lands -- there being no file to have an
+    mtime on yet, ``_invalidate_meta_caches_if_stale`` has nothing to bust this
+    entry with in the meantime (#8232 review, ``test_reports_cache_only.py``).
     """
-    return _close_on_impl(sym, ex, d)
+    key = (sym, ex, snap)
+    if key in _close_on_cache:
+        _close_on_cache.move_to_end(key)
+        return _close_on_cache[key]
+    result = _close_on_impl(sym, ex, snap)
+    if result is not None:
+        _close_on_cache[key] = result
+        _close_on_cache.move_to_end(key)
+        if len(_close_on_cache) > _CLOSE_ON_CACHE_MAXSIZE:
+            _close_on_cache.popitem(last=False)
+    return result
 
 
-def _close_on_impl(sym: str, ex: str, d: dt.date) -> Optional[float]:
-    """Return close price for ``sym.ex`` ticker on date ``d`` if available."""
-    snap = _nearest_weekday(d, forward=False)
+_close_on_cache_only.cache_clear = _close_on_cache.clear  # type: ignore[attr-defined]
+
+
+def _close_on_impl(sym: str, ex: str, snap: dt.date) -> Optional[float]:
+    """Return close price for ``sym.ex`` ticker on the (already weekend-snapped) date ``snap``."""
     df = load_meta_timeseries_range(sym, ex, start_date=snap, end_date=snap)
     if df is None or df.empty:
         return None
-    col = "close_gbp" if "close_gbp" in df.columns else ("Close_gbp" if "Close_gbp" in df.columns else None)
+    col = (
+        "close_gbp"
+        if "close_gbp" in df.columns
+        else ("Close_gbp" if "Close_gbp" in df.columns else None)
+    )
     if col is None:
         col = "close" if "close" in df.columns else ("Close" if "Close" in df.columns else None)
     if not col:
@@ -538,9 +580,10 @@ def _close_on_impl(sym: str, ex: str, d: dt.date) -> Optional[float]:
 
 def _close_on(sym: str, ex: str, d: dt.date) -> Optional[float]:
     """Return close price for ``sym.ex`` ticker on date ``d`` if available."""
+    snap = _nearest_weekday(d, forward=False)
     if is_cache_only():
-        return _close_on_cache_only(sym, ex, d)
-    return _close_on_impl(sym, ex, d)
+        return _close_on_cache_only(sym, ex, snap)
+    return _close_on_impl(sym, ex, snap)
 
 
 register_meta_cache_clearer(_close_on_cache_only.cache_clear)
@@ -561,7 +604,11 @@ def price_change_pct(ticker: str, days: int) -> Optional[float]:
     if px_now is None or px_then is None or px_then == 0:
         return None
     if px_then < MIN_PRICE_THRESHOLD:
-        logger.warning("price_change_pct: px_then %.4f below threshold for %s", px_then, sanitise_log_value(ticker))
+        logger.warning(
+            "price_change_pct: px_then %.4f below threshold for %s",
+            px_then,
+            sanitise_log_value(ticker),
+        )
         return None
     pct = (px_now / px_then - 1.0) * 100.0
     if abs(pct) > MAX_CHANGE_PCT:
@@ -608,7 +655,9 @@ def top_movers(
     rows: List[Dict[str, Any]] = []
     anomalies: List[str] = []
 
-    candidates = [t for t in tickers if not (min_weight and weights and weights.get(t, 0.0) < min_weight)]
+    candidates = [
+        t for t in tickers if not (min_weight and weights and weights.get(t, 0.0) < min_weight)
+    ]
 
     def _row_or_anomaly(t: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """Return (row, None) on success, (None, ticker) as an anomaly, or
@@ -783,8 +832,12 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
     price_tickers = [tkr for tkr in by_ticker if tkr]
     price_and_changes: Dict[str, Dict[str, Any]] = {}
     if price_tickers:
-        with ThreadPoolExecutor(max_workers=min(_PRICE_FETCH_MAX_WORKERS, len(price_tickers))) as pool:
-            price_and_changes = dict(zip(price_tickers, pool.map(_price_and_changes, price_tickers)))
+        with ThreadPoolExecutor(
+            max_workers=min(_PRICE_FETCH_MAX_WORKERS, len(price_tickers))
+        ) as pool:
+            price_and_changes = dict(
+                zip(price_tickers, pool.map(_price_and_changes, price_tickers))
+            )
 
     for tkr, entry in by_ticker.items():
         if not tkr:
@@ -794,7 +847,9 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
         entry.setdefault("industry", meta.get("industry") or meta.get("sector"))
         entry.setdefault("region", meta.get("region"))
         entry.setdefault("sector", meta.get("sector"))
-        grouping_name, grouping_id = _resolve_grouping_details(meta, entry, current=entry.get("grouping"))
+        grouping_name, grouping_id = _resolve_grouping_details(
+            meta, entry, current=entry.get("grouping")
+        )
         if grouping_id:
             entry["grouping_id"] = grouping_id
         if grouping_name:

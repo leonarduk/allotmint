@@ -48,7 +48,7 @@ def test_get_price_for_date_scaled_memoizes_only_inside_cache_only(monkeypatch):
     """#8211: _get_price_for_date_scaled should skip repeat load_meta_timeseries_range
     calls for the same (ticker, exchange, d, field) inside cache_only(), but never
     memoize outside it -- a live/background-refresh read must always see fresh data."""
-    holding_utils._get_price_for_date_scaled_cache_only.cache_clear()
+    holding_utils._load_unscaled_price_for_date_cache_only.cache_clear()
     d = dt.date(2024, 1, 1)
     calls = []
 
@@ -65,17 +65,21 @@ def test_get_price_for_date_scaled_memoizes_only_inside_cache_only(monkeypatch):
     with cache_only():
         assert holding_utils._get_price_for_date_scaled("AAA", "L", d) == (123.45, "Yahoo")
         assert holding_utils._get_price_for_date_scaled("AAA", "L", d) == (123.45, "Yahoo")
-    assert len(calls) == 1, "second cache-only call must hit the memo, not load_meta_timeseries_range again"
+    assert (
+        len(calls) == 1
+    ), "second cache-only call must hit the memo, not load_meta_timeseries_range again"
 
     assert holding_utils._get_price_for_date_scaled("AAA", "L", d) == (123.45, "Yahoo")
-    assert len(calls) == 2, "a call outside cache_only() must never be served from the cache-only memo"
+    assert (
+        len(calls) == 2
+    ), "a call outside cache_only() must never be served from the cache-only memo"
 
 
 def test_get_price_for_date_scaled_cache_only_memo_cleared_by_meta_cache_invalidation(monkeypatch):
     """#8211: the new memo must be registered with cache.py's invalidation
     hook so a stale underlying file still busts it, same as the module's own
     meta LRUs."""
-    holding_utils._get_price_for_date_scaled_cache_only.cache_clear()
+    holding_utils._load_unscaled_price_for_date_cache_only.cache_clear()
     d = dt.date(2024, 1, 1)
     calls = []
 
@@ -99,6 +103,61 @@ def test_get_price_for_date_scaled_cache_only_memo_cleared_by_meta_cache_invalid
         second, _ = holding_utils._get_price_for_date_scaled("AAA", "L", d)
         assert len(calls) == 2, "clearing the registered clearer must force a fresh lookup"
         assert second != first
+
+
+def test_get_price_for_date_scaled_never_memoizes_a_missing_result(monkeypatch):
+    """#8232 review / test_reports_cache_only.py: a missing day must never be
+    memoized, even inside cache_only() -- that's exactly the case where
+    load_meta_timeseries_range's refresh_queue.enqueue side effect (#7917)
+    matters, and caching the miss would silently suppress it thereafter."""
+    holding_utils._load_unscaled_price_for_date_cache_only.cache_clear()
+    d = dt.date(2024, 1, 1)
+    calls = []
+
+    def fake_loader(*args, **kwargs):
+        calls.append(1)
+        return pd.DataFrame()
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_loader)
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: 1.0)
+
+    from backend.timeseries.cache import cache_only
+
+    with cache_only():
+        assert holding_utils._get_price_for_date_scaled("AAA", "L", d) == (None, None)
+        assert holding_utils._get_price_for_date_scaled("AAA", "L", d) == (None, None)
+    assert len(calls) == 2, "a missing result must never be served from the memo"
+
+
+def test_get_price_for_date_scaled_applies_scaling_fresh_every_call(monkeypatch):
+    """#8232 review: the memo holds only the unscaled price; get_scaling_override
+    (which reads data/scaling_overrides.json fresh, uncached, every call) must
+    still be re-applied on every call rather than baked into the cached value."""
+    holding_utils._load_unscaled_price_for_date_cache_only.cache_clear()
+    d = dt.date(2024, 1, 1)
+
+    def fake_loader(*args, **kwargs):
+        return pd.DataFrame({"Close_gbp": [10.0], "Source": ["Yahoo"]})
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_loader)
+
+    scales = [1.0, 2.0]
+
+    def fake_scaling(*args, **kwargs):
+        return scales.pop(0)
+
+    monkeypatch.setattr(holding_utils, "get_scaling_override", fake_scaling)
+
+    from backend.timeseries.cache import cache_only
+
+    with cache_only():
+        first, _ = holding_utils._get_price_for_date_scaled("AAA", "L", d)
+        second, _ = holding_utils._get_price_for_date_scaled("AAA", "L", d)
+
+    assert first == 10.0
+    assert (
+        second == 20.0
+    ), "a changed scaling override must be reflected even though the load is memoized"
 
 
 def test_get_effective_cost_basis_gbp_booked_cost(monkeypatch):

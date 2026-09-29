@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { InstrumentGroupDefinition, InstrumentSummary } from '@/types';
 import {
   buildCategoryLookup,
+  calculateGroupTotals,
   createGroups,
   createRowsWithCost,
   filterRowsByExchange,
@@ -75,5 +76,27 @@ describe('instrumentTable utils', () => {
     ]);
     expect(splitTickerParts('VUSA')).toEqual({ ticker: 'VUSA', exchange: 'L' });
     expect(splitTickerParts('VUSA.N')).toEqual({ ticker: 'VUSA', exchange: 'N' });
+  });
+});
+
+describe('calculateGroupTotals with unknown cost basis (#7785)', () => {
+  const base: InstrumentSummary = {
+    ticker: 'A',
+    name: 'A',
+    units: 1,
+    market_value_gbp: 1000,
+    gain_gbp: 100,
+  };
+
+  it('leaves unknown-cost rows out of cost, gain and gain %', () => {
+    const rows = createRowsWithCost([
+      base,
+      { ...base, ticker: 'B', market_value_gbp: 5000, gain_gbp: 0, cost_basis_source: 'unknown' },
+    ]);
+    const totals = calculateGroupTotals(rows, 'All');
+    expect(totals.marketValue).toBe(6000);
+    expect(totals.cost).toBe(900);
+    expect(totals.gain).toBe(100);
+    expect(totals.gainPct).toBeCloseTo((100 / 900) * 100);
   });
 });

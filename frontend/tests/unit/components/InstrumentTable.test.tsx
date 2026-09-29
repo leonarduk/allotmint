@@ -490,3 +490,32 @@ describe("InstrumentTable", () => {
         await waitFor(() => expect(within(container).getByText("—")).toBeInTheDocument());
     });
 });
+
+describe("InstrumentTable unknown cost basis (#7785)", () => {
+    it("shows N/A instead of a confident £0.00 gain for unknown-cost rows", () => {
+        const rows: InstrumentSummary[] = [
+            {
+                ticker: "UNK",
+                name: "Unknown Cost Corp",
+                grouping: "Group A",
+                exchange: "L",
+                currency: "GBP",
+                instrument_type: "Equity",
+                units: 10,
+                market_value_gbp: 1000,
+                gain_gbp: 0,
+                gain_pct: 0,
+                cost_basis_source: "unknown",
+                last_price_gbp: 100,
+                last_price_date: "2024-01-01",
+                change_7d_pct: 1,
+                change_30d_pct: 2,
+            },
+        ];
+        renderWithConfig(<InstrumentTable rows={rows} />);
+        fireEvent.click(screen.getByRole("button", { name: /Toggle Group A/i }));
+        const row = screen.getByText("Unknown Cost Corp").closest("tr") as HTMLElement;
+        expect(within(row).getAllByText("N/A").length).toBe(3);
+        expect(within(row).queryByText("0.0%")).toBeNull();
+    });
+});

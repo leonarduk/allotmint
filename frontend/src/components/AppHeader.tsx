@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useConfig } from '../ConfigContext';
-import { buildChatPages } from '../utils/chatPages';
+import { buildChatContext, buildChatPages } from '../utils/chatPages';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import Menu from './Menu';
 import { InstrumentSearchBarToggle } from './InstrumentSearchBar';
@@ -34,6 +34,7 @@ export default function AppHeader({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { tabs, disabledTabs } = useConfig();
   const chatPages = useMemo(
     () => buildChatPages(tabs, disabledTabs, (mode) => t(`app.modes.${mode}`)),
@@ -106,6 +107,7 @@ export default function AppHeader({
         open={chatOpen}
         onClose={() => setChatOpen(false)}
         pages={chatPages}
+        context={buildChatContext(pathname)}
         onNavigate={(path) => {
           // Close the drawer so the page the user asked for is visible; the
           // conversation is kept for when they reopen it.

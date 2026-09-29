@@ -85,5 +85,17 @@ def merge_tool_lists(mcp_tools: Sequence[Tool], local: Optional[LocalTools]) -> 
     return [tool for tool in mcp_tools if tool.name not in local_names] + local_tools
 
 
+def system_prompt_from_context(context: Mapping[str, Any] | None) -> Optional[str]:
+    """Tell the model which page the user is looking at, so "this stock" resolves."""
+
+    if not context:
+        return None
+    ticker = context.get("ticker")
+    line = f"The user is currently viewing the page {context['path']}."
+    if ticker:
+        line += f' It is about the instrument {ticker}; treat "this stock" or "this" as {ticker}.'
+    return line
+
+
 def pages_from_request(pages: Sequence[Mapping[str, Any]] | None) -> List[ChatPage]:
     return [ChatPage(path=str(item["path"]), label=str(item["label"])) for item in pages or ()]

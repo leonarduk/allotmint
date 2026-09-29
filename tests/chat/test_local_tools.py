@@ -47,3 +47,12 @@ def test_merge_tool_lists_lets_local_tool_replace_same_named_mcp_tool():
 def test_merge_tool_lists_without_local_tools_returns_mcp_tools():
     mcp_tools = [Tool(name="get_portfolio", input_schema={"type": "object"})]
     assert merge_tool_lists(mcp_tools, None) == mcp_tools
+
+
+def test_system_prompt_from_context_names_the_page_and_ticker():
+    from backend.chat.local_tools import system_prompt_from_context
+
+    assert system_prompt_from_context(None) is None
+    assert "/transactions" in system_prompt_from_context({"path": "/transactions", "ticker": None})
+    prompt = system_prompt_from_context({"path": "/research/ARG.TO", "ticker": "ARG.TO"})
+    assert "/research/ARG.TO" in prompt and "this stock" in prompt

@@ -23,7 +23,7 @@ describe("ChatPanel", () => {
 
     expect(screen.getByText(/what's VOD\.L trading at\?/i)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(/VOD\.L is 1\.0/i)).toBeInTheDocument());
-    expect(api.postChat).toHaveBeenCalledWith("what's VOD.L trading at?", [], []);
+    expect(api.postChat).toHaveBeenCalledWith("what's VOD.L trading at?", [], [], undefined);
   });
 
   it("sends the available pages and follows the page the assistant opens", async () => {
@@ -44,7 +44,7 @@ describe("ChatPanel", () => {
     await user.click(screen.getByRole("button", { name: /send/i }));
 
     await waitFor(() => expect(onNavigate).toHaveBeenCalledWith("/transactions"));
-    expect(api.postChat).toHaveBeenCalledWith("go to the transactions page", [], pages);
+    expect(api.postChat).toHaveBeenCalledWith("go to the transactions page", [], pages, undefined);
     expect(screen.getByText("Opening Transactions.")).toBeInTheDocument();
   });
 
@@ -70,6 +70,19 @@ describe("ChatPanel", () => {
 
     await waitFor(() => expect(screen.getByText("Opening it.")).toBeInTheDocument());
     expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("sends the page the user is on as context", async () => {
+    (api.postChat as Mock).mockResolvedValueOnce({ reply: "ok" });
+    const user = userEvent.setup();
+    const context = { path: "/research/ARG.TO", ticker: "ARG.TO" };
+
+    render(<ChatPanel open onClose={() => {}} context={context} />);
+
+    await user.type(screen.getByLabelText(/chat message/i), "is this stock a buy");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() => expect(api.postChat).toHaveBeenCalledWith("is this stock a buy", [], [], context));
   });
 
   it("renders assistant replies as markdown, including GFM tables", async () => {
@@ -211,7 +224,7 @@ describe("ChatPanel", () => {
     await user.click(screen.getByRole("button", { name: /send/i }));
 
     await waitFor(() => expect(screen.getByText("Hello!")).toBeInTheDocument());
-    expect(api.postChat).toHaveBeenLastCalledWith("hi", [], []);
+    expect(api.postChat).toHaveBeenLastCalledWith("hi", [], [], undefined);
     expect(screen.getAllByText("hi")).toHaveLength(1);
   });
 });

@@ -306,7 +306,16 @@ def _load_meta_parquet_cached(path: str) -> pd.DataFrame:
     ``_memoized_range_cached`` (#7877), so this can never serve data staler
     than those two would.
     """
-    return _load_parquet(path)
+    df = _load_parquet(path)
+    # Mark frames verified as having a sorted, null-free Date column so that
+    # apply_date_range can skip its O(n) validation checks on the hot path
+    # (#8127). _ensure_schema (called by _load_parquet) has already dropped
+    # NaT and pinned Date to datetime64[ms]; parquet writes here are
+    # date-ordered, so this is True for every real cache file.
+    if not df.empty and "Date" in df.columns:
+        if pd.api.types.is_datetime64_any_dtype(df["Date"]) and df["Date"].is_monotonic_increasing:
+            df.attrs["_timeseries_date_sorted"] = True
+    return df
 
 
 # ──────────────────────────────────────────────────────────────
@@ -752,8 +761,7 @@ def _cached_window(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     _queue_if_stale(ticker, exchange, existing)
     if existing.empty:
         return _empty_ts()
-    dates = existing["Date"].dt.date
-    return _ensure_schema(existing.loc[(dates >= cutoff) & (dates <= today)].reset_index(drop=True))
+    return _ensure_schema(apply_date_range(existing, cutoff, today))
 
 
 @lru_cache(maxsize=512)

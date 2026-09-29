@@ -289,7 +289,16 @@ def apply_date_range(
     dates = df["Date"]
     is_dt64 = pd.api.types.is_datetime64_any_dtype(dates)
     is_tz_naive = getattr(dates.dt, "tz", None) is None if is_dt64 else True
-    if is_dt64 and is_tz_naive and not dates.hasnans and dates.is_monotonic_increasing:
+    # Fast path: _load_meta_parquet_cached marks frames it has verified as
+    # sorted and null-free, letting us skip the O(n) hasnans/monotonic
+    # checks that would otherwise make this helper still O(n) per call
+    # (#8127). Only the cache module sets this attr; every other caller
+    # takes the explicit-check branch below, preserving prior behavior.
+    if df.attrs.get("_timeseries_date_sorted", False):
+        fast_ok = is_dt64 and is_tz_naive
+    else:
+        fast_ok = is_dt64 and is_tz_naive and not dates.hasnans and dates.is_monotonic_increasing
+    if fast_ok:
         lo = 0
         hi = len(dates)
         if start_date is not None:

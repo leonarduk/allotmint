@@ -33,7 +33,9 @@ from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
     has_cached_meta_timeseries,
+    is_cache_only,
     load_meta_timeseries_range,
+    register_meta_cache_clearer,
 )
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_period
@@ -498,7 +500,28 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
 # ───────────────────────────────────────────────────────────────
 
 
-def _close_on(sym: str, ex: str, d: dt.date) -> Optional[float]:
+@lru_cache(maxsize=2048)
+def _close_on_cache_only(sym: str, ex: str, d: dt.date) -> Optional[float]:
+    """Memoized body of ``_close_on``, used only inside a ``cache_only()`` block (#8211).
+
+    ``price_change_pct`` calls ``_close_on`` twice per ticker (yesterday, and
+    ``days`` ago), and the same ticker often recurs across multiple accounts/
+    holdings within one portfolio build and across repeated page requests for
+    the same owner in this long-lived process -- each call otherwise pays the
+    full ``load_meta_timeseries_range`` round trip (the per-(ticker,range) LRU,
+    ``apply_date_range``, ``_ensure_schema``, and an uncached FX merge in
+    ``_convert_to_base_currency``) for what is conceptually one row. Only
+    memoized for cache-only reads (page requests): a live/background-refresh
+    read is specifically asking for fresh data, which this process-lifetime
+    cache must not intercept. Registered with
+    ``backend.timeseries.cache.register_meta_cache_clearer`` so a stale
+    underlying file still invalidates this cache the same way it invalidates
+    the timeseries module's own.
+    """
+    return _close_on_impl(sym, ex, d)
+
+
+def _close_on_impl(sym: str, ex: str, d: dt.date) -> Optional[float]:
     """Return close price for ``sym.ex`` ticker on date ``d`` if available."""
     snap = _nearest_weekday(d, forward=False)
     df = load_meta_timeseries_range(sym, ex, start_date=snap, end_date=snap)
@@ -511,6 +534,16 @@ def _close_on(sym: str, ex: str, d: dt.date) -> Optional[float]:
         return None
     price = float(df[col].iloc[0])
     return None if is_nan(price) else price
+
+
+def _close_on(sym: str, ex: str, d: dt.date) -> Optional[float]:
+    """Return close price for ``sym.ex`` ticker on date ``d`` if available."""
+    if is_cache_only():
+        return _close_on_cache_only(sym, ex, d)
+    return _close_on_impl(sym, ex, d)
+
+
+register_meta_cache_clearer(_close_on_cache_only.cache_clear)
 
 
 def price_change_pct(ticker: str, days: int) -> Optional[float]:

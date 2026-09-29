@@ -4,6 +4,7 @@ import datetime as dt
 import inspect
 import logging
 from datetime import timedelta
+from functools import lru_cache
 from typing import Any, Dict, Optional
 
 import pandas as pd
@@ -24,7 +25,11 @@ from backend.common.numeric_utils import is_nan
 from backend.common.user_config import UserConfig
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
-from backend.timeseries.cache import load_meta_timeseries_range
+from backend.timeseries.cache import (
+    is_cache_only,
+    load_meta_timeseries_range,
+    register_meta_cache_clearer,
+)
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import (
     _nearest_weekday,
@@ -296,7 +301,32 @@ def _derived_cost_basis_close_px(
     return px
 
 
-def _get_price_for_date_scaled(
+@lru_cache(maxsize=2048)
+def _get_price_for_date_scaled_cache_only(
+    ticker: str,
+    exchange: str,
+    d: dt.date,
+    field: str = "Close_gbp",
+) -> tuple[Optional[float], Optional[str]]:
+    """Memoized body of ``_get_price_for_date_scaled``, used only inside a
+    ``cache_only()`` block (#8211).
+
+    ``enrich_holding`` -> ``get_effective_cost_basis_gbp`` calls this up to
+    several times per holding, and each call otherwise pays the full
+    ``load_meta_timeseries_range`` round trip (the per-(ticker,range) LRU,
+    ``apply_date_range``, ``_ensure_schema``, and an uncached FX merge in
+    ``_convert_to_base_currency``) for what is conceptually one row. Only
+    memoized for cache-only reads (page requests): a live/background-refresh
+    read is specifically asking for fresh data, which this process-lifetime
+    cache must not intercept. Registered with
+    ``backend.timeseries.cache.register_meta_cache_clearer`` so a stale
+    underlying file still invalidates this cache the same way it invalidates
+    the timeseries module's own.
+    """
+    return _get_price_for_date_scaled_impl(ticker, exchange, d, field)
+
+
+def _get_price_for_date_scaled_impl(
     ticker: str,
     exchange: str,
     d: dt.date,
@@ -339,6 +369,20 @@ def _get_price_for_date_scaled(
     if is_nan(src):
         src = None
     return price, src
+
+
+def _get_price_for_date_scaled(
+    ticker: str,
+    exchange: str,
+    d: dt.date,
+    field: str = "Close_gbp",
+) -> tuple[Optional[float], Optional[str]]:
+    if is_cache_only():
+        return _get_price_for_date_scaled_cache_only(ticker, exchange, d, field)
+    return _get_price_for_date_scaled_impl(ticker, exchange, d, field)
+
+
+register_meta_cache_clearer(_get_price_for_date_scaled_cache_only.cache_clear)
 
 
 def get_effective_cost_basis_gbp(

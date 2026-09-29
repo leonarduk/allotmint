@@ -35,6 +35,62 @@ def test_close_on_returns_none_for_nan_close(monkeypatch):
     assert ia._close_on("AAA", "L", sample_date) is None
 
 
+def test_close_on_memoizes_only_inside_cache_only(monkeypatch):
+    """#8211: _close_on should skip repeat load_meta_timeseries_range calls
+    for the same (sym, ex, d) inside cache_only(), but never memoize outside
+    it -- a live/background-refresh read must always see fresh data."""
+    ia._close_on_cache_only.cache_clear()
+    sample_date = dt.date(2023, 1, 8)
+    frame = pd.DataFrame({"Date": [sample_date], "Close": [123.45]})
+    calls = []
+
+    def fake_load(sym, ex, start_date, end_date):
+        calls.append((sym, ex, start_date, end_date))
+        return frame
+
+    monkeypatch.setattr(ia, "_nearest_weekday", lambda d, forward=False: sample_date)
+    monkeypatch.setattr(ia, "load_meta_timeseries_range", fake_load)
+
+    from backend.timeseries.cache import cache_only
+
+    with cache_only():
+        assert ia._close_on("AAA", "L", sample_date) == 123.45
+        assert ia._close_on("AAA", "L", sample_date) == 123.45
+    assert len(calls) == 1, "second cache-only call must hit the memo, not load_meta_timeseries_range again"
+
+    assert ia._close_on("AAA", "L", sample_date) == 123.45
+    assert len(calls) == 2, "a call outside cache_only() must never be served from the cache-only memo"
+
+
+def test_close_on_cache_only_memo_cleared_by_meta_cache_invalidation(monkeypatch):
+    """#8211: the new memo must be registered with cache.py's invalidation
+    hook so a stale underlying file still busts it, same as the module's own
+    meta LRUs."""
+    ia._close_on_cache_only.cache_clear()
+    sample_date = dt.date(2023, 1, 8)
+    calls = []
+
+    def fake_load(sym, ex, start_date, end_date):
+        calls.append(1)
+        return pd.DataFrame({"Date": [sample_date], "Close": [float(len(calls))]})
+
+    monkeypatch.setattr(ia, "_nearest_weekday", lambda d, forward=False: sample_date)
+    monkeypatch.setattr(ia, "load_meta_timeseries_range", fake_load)
+
+    from backend.timeseries import cache as cache_mod
+
+    with cache_mod.cache_only():
+        first = ia._close_on("AAA", "L", sample_date)
+        assert len(calls) == 1
+
+        for clear_fn in cache_mod._EXTRA_META_CACHE_CLEARERS:
+            clear_fn()
+
+        second = ia._close_on("AAA", "L", sample_date)
+        assert len(calls) == 2, "clearing the registered clearer must force a fresh lookup"
+        assert second != first
+
+
 def test_price_change_pct_unresolved(monkeypatch):
     _fixed_today(monkeypatch)
     monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: None)

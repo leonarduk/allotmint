@@ -311,6 +311,13 @@ def _computed_holdings(replay: Replay, previous: Mapping[str, Mapping[str, Any]]
     return out
 
 
+def _tracked_by_transactions(ticker: str, replay: Replay) -> bool:
+    """Whether any replayed transaction touched ``ticker`` (even if since sold down to zero)."""
+    if ticker == CASH_TICKER:
+        return replay.cash_seen
+    return ticker in replay.positions
+
+
 def rebuild_holdings_document(
     tx_data: Mapping[str, Any],
     owner: str,
@@ -329,8 +336,15 @@ def rebuild_holdings_document(
         aliases=name_aliases(transactions, old_holdings),
     )
     computed = _computed_holdings(replay, previous)
-    # Keep the existing ordering so the rewritten file diffs cleanly.
-    ordered = [computed.pop(t) for t in previous if t in computed]
+    # Keep the existing ordering so the rewritten file diffs cleanly. A
+    # holding no transaction mentions (entered by hand before /input recorded
+    # opening-balance transactions, or imported as a holdings snapshot) is not
+    # the transactions' to remove, so it is carried forward as-is.
+    ordered = [
+        computed.pop(t) if t in computed else dict(h)
+        for t, h in previous.items()
+        if t in computed or not _tracked_by_transactions(t, replay)
+    ]
     ordered.extend(computed.values())
 
     doc: dict[str, Any] = dict(existing)

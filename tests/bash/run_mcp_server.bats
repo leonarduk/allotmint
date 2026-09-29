@@ -23,6 +23,16 @@ STUB
 }
 
 @test "runs the MCP server in the foreground on the default port" {
+  # The launcher refuses a port something already listens on, and this test
+  # needs the real default (8001) - which a developer's own running MCP
+  # server holds. Skip rather than fail on such a machine; a clean CI runner
+  # always has it free.
+  # shellcheck source=scripts/bash/lib/find_free_port.sh
+  source "$REPO_ROOT/scripts/bash/lib/find_free_port.sh"
+  if port_in_use 8001; then
+    skip "port 8001 is already in use on this machine"
+  fi
+
   run bash "$SCRIPT"
 
   [ "$status" -eq 0 ]

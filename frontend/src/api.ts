@@ -393,8 +393,12 @@ export function createClient(
       let message = TRANSIENT_HTTP_STATUSES.has(res.status)
         ? "The backend service is temporarily unavailable. Please try again."
         : `HTTP ${res.status} - ${res.statusText} (${safeUrl})`;
+      let code: string | undefined;
       try {
         const body = await res.json();
+        // A stable machine-readable failure code (e.g. POST /chat's
+        // "mcp_unreachable") that callers can map to their own wording.
+        if (typeof body?.code === "string") code = body.code;
         if (
           !TRANSIENT_HTTP_STATUSES.has(res.status) &&
           typeof body?.detail === "string" &&
@@ -408,6 +412,7 @@ export function createClient(
       const err = new Error(message);
       (err as any).status = res.status;
       (err as any).headers = res.headers;
+      (err as any).code = code;
       throw err;
     }
     return res;

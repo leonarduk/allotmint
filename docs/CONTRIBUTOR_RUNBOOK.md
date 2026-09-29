@@ -376,16 +376,26 @@ over allotmint-pro's MCP server. Locally it uses Ollama or DeepSeek, not AWS
 Bedrock, and needs no AWS credentials: a `localhost` `MCP_SERVER_URL` is
 called unsigned.
 
-```bash
-# 1. MCP server, from this repo root (it imports `backend`), with a sibling allotmint-pro checkout
-PYTHONPATH=".;../allotmint-pro" python -m uvicorn allotmint_pro.mcp_server.app:app --port 8001   # use ":" instead of ";" on macOS/Linux
+`scripts/bash/run-local-api.sh` and `scripts/run-backend.ps1` start the MCP
+server for you in the background (on `http://localhost:8001/mcp`, logging to
+`logs/mcp-server*.log`) and stop it when the backend exits. They need a sibling
+`allotmint-pro` checkout, or `ALLOTMINT_PRO_DIR` pointing at one. They skip it
+when `START_MCP_SERVER=0`, when `MCP_SERVER_URL` points somewhere other than
+localhost, or when the port is already listening (assumed to be a server you
+started yourself). `MCP_SERVER_PORT` changes the port.
 
-# 2. Backend, pointed at it
-export MCP_SERVER_URL=http://localhost:8001/mcp
+```bash
 export CHAT_PROVIDER=ollama          # or deepseek (needs DEEPSEEK_API_KEY); default: ollama when app_env is local, else bedrock
 export CHAT_MODEL=qwen3.5:9b         # any tool-calling model; defaults: qwen3.5:9b (ollama), deepseek-chat (deepseek)
 # export CHAT_BASE_URL=...           # optional; defaults: http://localhost:11434/v1, https://api.deepseek.com/v1
 bash scripts/bash/run-local-api.sh
+```
+
+To run the MCP server by hand instead, from this repo root (it imports
+`backend`), then set `MCP_SERVER_URL=http://localhost:8001/mcp` for the backend:
+
+```bash
+PYTHONPATH=".;../allotmint-pro" python -m uvicorn allotmint_pro.mcp_server.app:app --port 8001   # use ":" instead of ";" on macOS/Linux
 ```
 
 These can also live in `.env.shared`. Pick a model that supports tool

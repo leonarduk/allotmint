@@ -28,10 +28,18 @@ const markdownComponents: Components = {
   ),
 };
 
-// Map a failed send to a status-specific message rather than echoing the
-// backend's error text (#7721; #7131 precedent). The backend's detail stays
-// in its log and the response body for whoever is debugging. Only a request
-// that got no response at all is "Cannot reach server".
+// Map a failed send to fixed wording rather than echoing the backend's error
+// text (#7721; #7131 precedent). The `code` POST /chat sends with a 502/503
+// (backend/routes/chat.py) names the piece that failed and wins; otherwise
+// the HTTP status decides. Only a request that got no response at all is
+// "Cannot reach server".
+const CHAT_CODE_MESSAGES: Record<string, string> = {
+  chat_not_configured: "Chat isn't configured on this server (MCP_SERVER_URL is not set).",
+  mcp_unreachable: "Chat couldn't reach its tools server (MCP). Check the MCP server is running.",
+  llm_unreachable: "Chat couldn't reach its AI model. Check the model provider (e.g. Ollama) is running.",
+  aws_error: "Chat's AWS call (Bedrock or MCP request signing) failed. Check the AWS credentials and access.",
+};
+
 const CHAT_STATUS_MESSAGES: Record<number, string> = {
   400: "Chat couldn't process that conversation. Please try again.",
   401: "Your session has expired. Please sign in again.",
@@ -42,7 +50,10 @@ const CHAT_STATUS_MESSAGES: Record<number, string> = {
 };
 
 function chatErrorMessage(e: unknown): string {
-  const err = e as { status?: unknown; timeout?: unknown } | null;
+  const err = e as { status?: unknown; timeout?: unknown; code?: unknown } | null;
+  if (typeof err?.code === "string" && Object.hasOwn(CHAT_CODE_MESSAGES, err.code)) {
+    return CHAT_CODE_MESSAGES[err.code];
+  }
   if (err?.timeout) return CHAT_STATUS_MESSAGES[504];
   if (typeof err?.status === "number") {
     return CHAT_STATUS_MESSAGES[err.status] ?? "Chat ran into a server error. Please try again.";

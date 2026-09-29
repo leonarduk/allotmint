@@ -32,6 +32,7 @@ def test_post_chat_returns_503_when_mcp_server_url_unset(client: TestClient, mon
     monkeypatch.setattr(config, "mcp_server_url", None)
     resp = client.post("/chat", json={"message": "hi"})
     assert resp.status_code == 503
+    assert resp.json()["code"] == "chat_not_configured"
 
 
 def test_post_chat_rejects_invalid_history_role(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -75,6 +76,7 @@ def test_post_chat_returns_502_when_mcp_server_unreachable(client: TestClient, m
     resp = client.post("/chat", json={"message": "hi"})
 
     assert resp.status_code == 502
+    assert resp.json()["code"] == "mcp_unreachable"
     assert "MCP tools server" in resp.json()["detail"]
 
 
@@ -90,6 +92,7 @@ def test_post_chat_returns_502_when_llm_provider_fails(client: TestClient, monke
     resp = client.post("/chat", json={"message": "hi"})
 
     assert resp.status_code == 502
+    assert resp.json()["code"] == "llm_unreachable"
     assert "LLM provider (HTTP 404)" in resp.json()["detail"]
 
 
@@ -105,6 +108,7 @@ def test_post_chat_returns_502_when_bedrock_fails(client: TestClient, monkeypatc
     resp = client.post("/chat", json={"message": "hi"})
 
     assert resp.status_code == 502
+    assert resp.json()["code"] == "aws_error"
     assert "AWS call failed (AccessDeniedException)" in resp.json()["detail"]
 
 

@@ -368,6 +368,26 @@ describe("getCachedGroupInstruments cache eviction on rejection (issue #7222)", 
 });
 
 describe("HTTP error shape relied on by ChatPanel (#7721)", () => {
+  it("carries the body's machine-readable code on the thrown error", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      statusText: "Bad Gateway",
+      json: () => Promise.resolve({ detail: "backend detail", code: "mcp_unreachable" }),
+    });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:6468",
+      null,
+      mockFetch as unknown as typeof fetch,
+    );
+
+    await expect(testFetchJson("/chat", { method: "POST" })).rejects.toMatchObject({
+      status: 502,
+      code: "mcp_unreachable",
+      message: expect.stringMatching(/temporarily unavailable/i),
+    });
+  });
+
   it.each([400, 429, 502, 503])("rejects a POST /chat %i with the response status attached", async (status) => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: false,
@@ -381,7 +401,7 @@ describe("HTTP error shape relied on by ChatPanel (#7721)", () => {
       mockFetch as unknown as typeof fetch,
     );
 
-    await expect(testFetchJson("/chat", { method: "POST" })).rejects.toMatchObject({ status });
+    await expect(testFetchJson("/chat", { method: "POST" })).rejects.toMatchObject({ status, code: undefined });
     // POSTs are not retried, so a 502/503 surfaces after one attempt.
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });

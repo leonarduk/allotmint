@@ -163,6 +163,39 @@ def test_aggregate_by_region_merges_uk_aliases():
     assert regions["United Kingdom"]["cost_gbp"] == pytest.approx(425858.04 + 200000)
 
 
+def test_aggregate_by_sector_merges_real_estate_aliases():
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "AAA.L",
+                        "sector": "Real Estate",
+                        "market_value_gbp": 150000,
+                        "cost_gbp": 100000,
+                        "gain_gbp": 50000,
+                    },
+                    {
+                        "ticker": "BBB.L",
+                        "sector": "Real Estate Investment Trusts",
+                        "market_value_gbp": 250000,
+                        "cost_gbp": 200000,
+                        "gain_gbp": 50000,
+                    },
+                ]
+            }
+        ]
+    }
+
+    sector_rows = portfolio_utils.aggregate_by_sector(portfolio)
+    sectors = {row["sector"]: row for row in sector_rows}
+
+    assert set(sectors) == {"Real Estate"}
+    assert sectors["Real Estate"]["market_value_gbp"] == pytest.approx(150000 + 250000)
+    assert sectors["Real Estate"]["cost_gbp"] == pytest.approx(100000 + 200000)
+    assert sectors["Real Estate"]["gain_gbp"] == pytest.approx(50000 + 50000)
+
+
 def test_holding_metadata_overrides_instrument_defaults(monkeypatch):
     monkeypatch.setattr(
         portfolio_utils,

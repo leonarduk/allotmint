@@ -3,6 +3,12 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import * as api from "../api";
 import type { ChatContext, ChatMessage, ChatPage } from "../api";
+import {
+  appendChatMessage,
+  setChatMessages,
+  startNewChat,
+  useChatMessages,
+} from "../utils/chatConversation";
 
 interface Props {
   open: boolean;
@@ -93,7 +99,7 @@ function ChatMessageItem({ message }: { message: ChatMessage }) {
 }
 
 export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Props) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const messages = useChatMessages();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,13 +117,13 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
 
     const history = messages;
     const userMessage: ChatMessage = { role: "user", content: text };
-    setMessages([...history, userMessage]);
+    setChatMessages([...history, userMessage]);
     setInput("");
     setSending(true);
     setError(null);
     try {
       const { reply, navigate_to } = await api.postChat(text, history, pages, context);
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      appendChatMessage({ role: "assistant", content: reply });
       // Only follow a path that was offered: the backend enforces this too.
       if (navigate_to && onNavigate && pages.some((page) => page.path === navigate_to)) {
         onNavigate(navigate_to);
@@ -126,7 +132,7 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
       // Drop the unanswered message and hand its text back for a retry: left
       // in `messages`, it would make the next send's history end in two
       // consecutive "user" turns, which the backend rejects with a 400 (#7897).
-      setMessages(history);
+      setChatMessages(history);
       setInput(text);
       setError(chatErrorMessage(e));
     } finally {
@@ -177,18 +183,30 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
           }}
         >
           <strong>Chat</strong>
-          <button
-            onClick={onClose}
-            aria-label="close"
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "1.2rem",
-              cursor: "pointer",
-            }}
-          >
-            ×
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <button
+              onClick={() => {
+                startNewChat();
+                setInput("");
+                setError(null);
+              }}
+              disabled={sending || messages.length === 0}
+            >
+              New chat
+            </button>
+            <button
+              onClick={onClose}
+              aria-label="close"
+              style={{
+                background: "none",
+                border: "none",
+                fontSize: "1.2rem",
+                cursor: "pointer",
+              }}
+            >
+              ×
+            </button>
+          </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto", marginBottom: "1rem" }}>
           {messages.length === 0 && (

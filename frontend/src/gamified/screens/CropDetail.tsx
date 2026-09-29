@@ -37,13 +37,18 @@ function abilitiesFor(crop: Crop) {
     {
       icon: '💚',
       name: 'Vigour',
-      detail: `${formatPct(crop.dayChangePct)} today${
-        crop.stale
-          ? ' · price data is stale'
-          : crop.freshness === 'unknown'
-            ? ' · price freshness unverified'
-            : ''
-      }`,
+      // A crop with no recorded intraday move is not "flat" — the backend
+      // simply didn't send a day_change_gbp. Saying so explicitly keeps
+      // "no data" distinct from a genuine 0.0% day (#vigour-constant).
+      detail: !crop.hasMove
+        ? 'No move recorded today'
+        : `${formatPct(crop.dayChangePct)} today${
+            crop.stale
+              ? ' · price data is stale'
+              : crop.freshness === 'unknown'
+                ? ' · price freshness unverified'
+                : ''
+          }`,
       level: Math.round(crop.vigour / 20),
       max: 5,
     },
@@ -181,10 +186,14 @@ export default function CropDetail({ basePath }: { basePath: string }) {
             {formatGbp(crop.gainGbp)} ({formatPct(crop.gainPct)})
           </div>
           <div style={{ width: '100%' }}>
-            <Meter
-              pct={crop.vigour}
-              label={`Vigour ${crop.vigour} out of 100`}
-            />
+            {crop.hasMove ? (
+              <Meter
+                pct={crop.vigour}
+                label={`Vigour ${crop.vigour} out of 100`}
+              />
+            ) : (
+              <p className={styles.sectionNote}>No move recorded today</p>
+            )}
           </div>
         </section>
 
@@ -209,7 +218,7 @@ export default function CropDetail({ basePath }: { basePath: string }) {
                 crop.dayChangePct >= 0 ? styles.gain : styles.loss
               }`}
             >
-              {formatPct(crop.dayChangePct)}
+              {crop.hasMove ? formatPct(crop.dayChangePct) : 'no data'}
             </span>
           </div>
           <div className={styles.statRow}>

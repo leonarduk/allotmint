@@ -67,8 +67,14 @@ export default function CropCard({
         <span className={styles.cropBed}>{crop.bedName}</span>
         <span className={styles.cropStageChip}>{stage.label}</span>
         <span className={styles.cropValue}>{formatGbp(crop.valueGbp)}</span>
+        {/* A crop with no recorded intraday move shows "no data" rather than
+            a confident +0.0%, so a genuinely flat day stays distinguishable
+            from a missing figure (#vigour-constant). */}
         <span className={crop.gainPct >= 0 ? styles.gain : styles.loss}>
           {formatPct(crop.gainPct)}
+        </span>
+        <span className={styles.cropDayChange}>
+          {crop.hasMove ? `${formatPct(crop.dayChangePct)} today` : 'no data today'}
         </span>
       </Link>
     </div>

@@ -8,7 +8,7 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
-import { GROWTH_STAGES, type Crop } from '../plotModel';
+import { GROWTH_STAGES, hasVigourSpread, type Crop } from '../plotModel';
 import {
   loadFavourites,
   matchesSearch,
@@ -98,9 +98,25 @@ export default function CropRoster({ basePath }: { basePath: string }) {
     [owner]
   );
 
+  // The Vigour sort is only offered when at least two crops carry a real
+  // intraday move — otherwise every crop scores the same 50/100 and the
+  // button reorders nothing (#vigour-constant). If the user had selected
+  // it and the data later loses its spread, fall back to Plot share.
+  const vigourSortable = useMemo(
+    () => hasVigourSpread(snapshot.crops),
+    [snapshot.crops]
+  );
+  const availableSorts = useMemo(
+    () => SORTS.filter((entry) => entry.id !== 'vigour' || vigourSortable),
+    [vigourSortable]
+  );
+  const activeSort: SortKey =
+    sort === 'vigour' && !vigourSortable ? 'value' : sort;
+
   const visible = useMemo(() => {
     const compare =
-      SORTS.find((entry) => entry.id === sort)?.compare ?? SORTS[0].compare;
+      SORTS.find((entry) => entry.id === activeSort)?.compare ??
+      SORTS[0].compare;
     return snapshot.crops
       .filter((crop) => bedFilter === 'all' || crop.bedId === bedFilter)
       .filter((crop) => !favouritesOnly || favourites.has(crop.ticker))
@@ -111,7 +127,14 @@ export default function CropRoster({ basePath }: { basePath: string }) {
         )
       )
       .sort(compare);
-  }, [snapshot.crops, sort, bedFilter, favouritesOnly, favourites, search]);
+  }, [
+    snapshot.crops,
+    activeSort,
+    bedFilter,
+    favouritesOnly,
+    favourites,
+    search,
+  ]);
 
   const stageCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -174,13 +197,13 @@ export default function CropRoster({ basePath }: { basePath: string }) {
         </label>
 
         <div className={styles.toolbar} role="group" aria-label="Sort crops">
-          {SORTS.map((entry) => (
+          {availableSorts.map((entry) => (
             <button
               key={entry.id}
               type="button"
-              aria-pressed={sort === entry.id}
+              aria-pressed={activeSort === entry.id}
               className={
-                sort === entry.id
+                activeSort === entry.id
                   ? `${styles.chipButton} ${styles.chipButtonActive}`
                   : styles.chipButton
               }
@@ -190,6 +213,12 @@ export default function CropRoster({ basePath }: { basePath: string }) {
             </button>
           ))}
         </div>
+        {!vigourSortable && snapshot.crops.length > 0 && (
+          <p className={styles.sectionNote}>
+            Vigour sort is hidden: no crop has a recorded move today, so every
+            crop would score the same.
+          </p>
+        )}
 
         <div className={styles.toolbar} role="group" aria-label="Filter crops">
           <button

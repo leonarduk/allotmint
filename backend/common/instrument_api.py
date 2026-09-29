@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import threading
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
@@ -503,6 +504,15 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
 
 _CLOSE_ON_CACHE_MAXSIZE = 2048
 _close_on_cache: "OrderedDict[tuple[str, str, dt.date], float]" = OrderedDict()
+# Guards _close_on_cache's mutations only (check/insert/evict), not the
+# load_meta_timeseries_range call on a miss -- unlike lru_cache's C
+# implementation, OrderedDict.move_to_end/popitem aren't atomic across a
+# read-modify-write sequence, so concurrent threads (FastAPI's sync-endpoint
+# threadpool) could otherwise race on the dict itself. A miss still lets two
+# threads compute the same (ticker, date) concurrently and both write the
+# same value -- wasted duplicate work, not a correctness issue, the same
+# trade-off any unlocked check-then-compute cache makes (#8232 review round 5).
+_close_on_cache_lock = threading.Lock()
 
 
 def _close_on_cache_only(sym: str, ex: str, snap: dt.date) -> Optional[float]:
@@ -538,19 +548,26 @@ def _close_on_cache_only(sym: str, ex: str, snap: dt.date) -> Optional[float]:
     entry with in the meantime (#8232 review, ``test_reports_cache_only.py``).
     """
     key = (sym, ex, snap)
-    if key in _close_on_cache:
-        _close_on_cache.move_to_end(key)
-        return _close_on_cache[key]
+    with _close_on_cache_lock:
+        if key in _close_on_cache:
+            _close_on_cache.move_to_end(key)
+            return _close_on_cache[key]
     result = _close_on_impl(sym, ex, snap)
     if result is not None:
-        _close_on_cache[key] = result
-        _close_on_cache.move_to_end(key)
-        if len(_close_on_cache) > _CLOSE_ON_CACHE_MAXSIZE:
-            _close_on_cache.popitem(last=False)
+        with _close_on_cache_lock:
+            _close_on_cache[key] = result
+            _close_on_cache.move_to_end(key)
+            if len(_close_on_cache) > _CLOSE_ON_CACHE_MAXSIZE:
+                _close_on_cache.popitem(last=False)
     return result
 
 
-_close_on_cache_only.cache_clear = _close_on_cache.clear  # type: ignore[attr-defined]
+def _clear_close_on_cache() -> None:
+    with _close_on_cache_lock:
+        _close_on_cache.clear()
+
+
+_close_on_cache_only.cache_clear = _clear_close_on_cache  # type: ignore[attr-defined]
 
 
 def _close_on_impl(sym: str, ex: str, snap: dt.date) -> Optional[float]:

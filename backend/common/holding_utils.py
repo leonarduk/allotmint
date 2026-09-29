@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import inspect
 import logging
+import threading
 from collections import OrderedDict
 from datetime import timedelta
 from typing import Any, Dict, Optional
@@ -366,6 +367,12 @@ def _load_unscaled_price_for_date_impl(
 
 _UNSCALED_PRICE_CACHE_MAXSIZE = 2048
 _unscaled_price_cache: "OrderedDict[tuple[str, str, dt.date, str], tuple[float, Optional[str], bool]]" = OrderedDict()
+# Guards _unscaled_price_cache's mutations only, not the load_meta_timeseries_range
+# call on a miss -- see instrument_api._close_on_cache_lock's identical comment
+# (#8232 review round 5): OrderedDict.move_to_end/popitem aren't atomic across
+# a read-modify-write sequence the way lru_cache's C implementation is, and
+# FastAPI runs sync endpoints in a threadpool.
+_unscaled_price_cache_lock = threading.Lock()
 
 
 def _load_unscaled_price_for_date_cache_only(
@@ -406,19 +413,26 @@ def _load_unscaled_price_for_date_cache_only(
     rest of this process's lifetime, including once real data finally lands.
     """
     key = (ticker, exchange, d, field)
-    if key in _unscaled_price_cache:
-        _unscaled_price_cache.move_to_end(key)
-        return _unscaled_price_cache[key]
+    with _unscaled_price_cache_lock:
+        if key in _unscaled_price_cache:
+            _unscaled_price_cache.move_to_end(key)
+            return _unscaled_price_cache[key]
     result = _load_unscaled_price_for_date_impl(ticker, exchange, d, field)
     if result[0] is not None:
-        _unscaled_price_cache[key] = result
-        _unscaled_price_cache.move_to_end(key)
-        if len(_unscaled_price_cache) > _UNSCALED_PRICE_CACHE_MAXSIZE:
-            _unscaled_price_cache.popitem(last=False)
+        with _unscaled_price_cache_lock:
+            _unscaled_price_cache[key] = result
+            _unscaled_price_cache.move_to_end(key)
+            if len(_unscaled_price_cache) > _UNSCALED_PRICE_CACHE_MAXSIZE:
+                _unscaled_price_cache.popitem(last=False)
     return result
 
 
-_load_unscaled_price_for_date_cache_only.cache_clear = _unscaled_price_cache.clear  # type: ignore[attr-defined]
+def _clear_unscaled_price_cache() -> None:
+    with _unscaled_price_cache_lock:
+        _unscaled_price_cache.clear()
+
+
+_load_unscaled_price_for_date_cache_only.cache_clear = _clear_unscaled_price_cache  # type: ignore[attr-defined]
 
 
 def _get_price_for_date_scaled(
@@ -429,6 +443,11 @@ def _get_price_for_date_scaled(
 ) -> tuple[Optional[float], Optional[str]]:
     parts = ticker.upper().split(".")
     if "CASH" in parts:
+        # Also duplicated in _load_unscaled_price_for_date_impl for direct
+        # callers -- load-bearing here too: removing it would route CASH
+        # through _load_unscaled_price_for_date_cache_only and memoize it
+        # under a key with no backing file for invalidation to bust (#8232
+        # review round 5).
         return 1.0, None
 
     if is_cache_only():

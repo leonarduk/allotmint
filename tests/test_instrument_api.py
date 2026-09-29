@@ -118,6 +118,40 @@ def test_close_on_cache_only_never_memoizes_a_missing_result(monkeypatch):
     assert len(calls) == 2, "a missing result must never be served from the memo"
 
 
+def test_close_on_cache_only_thread_safe_under_concurrent_access(monkeypatch):
+    """#8232 review round 5: OrderedDict.move_to_end/popitem aren't atomic
+    across the check/insert/evict sequence the way lru_cache's C
+    implementation is, and FastAPI runs sync endpoints in a threadpool --
+    without a lock, concurrent misses racing to evict could raise KeyError
+    or corrupt the OrderedDict. Hammers the cache from many threads with
+    enough distinct keys to force repeated eviction and asserts it survives
+    without error and never exceeds its configured size."""
+    import concurrent.futures
+
+    ia._close_on_cache_only.cache_clear()
+    monkeypatch.setattr(ia, "_CLOSE_ON_CACHE_MAXSIZE", 25)
+    monkeypatch.setattr(ia, "_nearest_weekday", lambda d, forward=False: d)
+    monkeypatch.setattr(
+        ia,
+        "load_meta_timeseries_range",
+        lambda sym, ex, start_date, end_date: pd.DataFrame({"Date": [start_date], "Close": [1.0]}),
+    )
+
+    from backend.timeseries.cache import cache_only
+
+    dates = [dt.date(2023, 1, 1) + dt.timedelta(days=i) for i in range(400)]
+
+    def hit(i: int):
+        with cache_only():
+            return ia._close_on("AAA", "L", dates[i % len(dates)])
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as pool:
+        results = list(pool.map(hit, range(2000)))
+
+    assert all(r == 1.0 for r in results)
+    assert len(ia._close_on_cache) <= 25
+
+
 def test_price_change_pct_reuses_the_close_on_memo_across_calls(monkeypatch):
     """#8232 review round 4: the unit tests prove the _close_on memo works in
     isolation; this proves it actually cuts load_meta_timeseries_range calls

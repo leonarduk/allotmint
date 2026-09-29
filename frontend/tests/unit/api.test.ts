@@ -771,6 +771,80 @@ describe("custom query (issue #7104)", () => {
     // The endpoint wraps rows in {results}; callers expect the bare array.
     expect(rows).toEqual([{ ticker: "AAA.L" }]);
   });
+
+  it("propagates a 404 error with the backend's detail message instead of unwrapping a results envelope", async () => {
+    // Regression guard for PR #7133: a 404 from /custom-query/run can mean
+    // "invalid query parameters", not just "saved query not found".  The
+    // backend's detail must reach the caller verbatim so the UI can show the
+    // real reason rather than a misleading generic message.
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      json: () => Promise.resolve({ detail: "Unknown metric: bogus" }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(
+      runCustomQuery({
+        start: "2024-01-01",
+        end: "2024-02-01",
+        owners: ["alex"],
+        tickers: ["AAA.L"],
+        metrics: ["bogus"],
+      }),
+    ).rejects.toThrow("Unknown metric: bogus");
+
+    // The error path must not attempt to read a {results} envelope.
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates a 500 error with the backend's detail message", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+      json: () => Promise.resolve({ detail: "Query engine crashed" }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(
+      runCustomQuery({
+        start: "2024-01-01",
+        end: "2024-02-01",
+        owners: ["alex"],
+        tickers: ["AAA.L"],
+        metrics: ["meta"],
+      }),
+    ).rejects.toThrow("Query engine crashed");
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the HTTP status when the error body is not JSON", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+      json: () => Promise.reject(new Error("not json")),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(
+      runCustomQuery({
+        start: "2024-01-01",
+        end: "2024-02-01",
+        owners: ["alex"],
+        tickers: ["AAA.L"],
+        metrics: ["meta"],
+      }),
+    ).rejects.toThrow("HTTP 500");
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("client-side request forgery guard (CodeQL #218)", () => {

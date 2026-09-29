@@ -36,7 +36,6 @@ from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_loader
 from backend.common.path_utils import safe_join
 from backend.common.portfolio_cache import invalidate_group_portfolios
-from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
 try:  # Unix-like systems
@@ -240,8 +239,9 @@ class LocalAccountsStore:
             logger.warning("Portfolio rebuild skipped: no local root")
             return
         try:
-            if not config.offline_mode:
-                portfolio_loader.rebuild_account_holdings(owner, account, self.root)
+            # Local file I/O only, so it runs in offline mode too: skipping it
+            # left holdings stale after every transaction write.
+            portfolio_loader.rebuild_account_holdings(owner, account, self.root)
             portfolio_mod.build_owner_portfolio(owner, self.root)
         except FileNotFoundError as exc:
             logger.warning("Portfolio rebuild failed: %s", sanitise_log_value(exc))

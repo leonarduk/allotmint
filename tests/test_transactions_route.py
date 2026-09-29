@@ -518,7 +518,6 @@ def _value_units_at_ten(monkeypatch):
 
 def test_posted_buy_is_valued_once_in_owner_portfolio(tmp_path, monkeypatch):
     """The rebuilt holding carries the trade; nothing may add its value again."""
-    monkeypatch.setattr(config, "offline_mode", False)
     client = _make_client(tmp_path, monkeypatch)
     _value_units_at_ten(monkeypatch)
     resp = client.post("/transactions", json=_valid_payload(account="isa", units=2, price_gbp=10.0))
@@ -530,7 +529,6 @@ def test_posted_buy_is_valued_once_in_owner_portfolio(tmp_path, monkeypatch):
 
 
 def test_posted_sell_and_its_delete_net_the_owner_portfolio_units(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "offline_mode", False)
     client = _make_client(tmp_path, monkeypatch)
     _value_units_at_ten(monkeypatch)
     buy = _valid_payload(account="isa", units=3, price_gbp=10.0)
@@ -544,7 +542,6 @@ def test_posted_sell_and_its_delete_net_the_owner_portfolio_units(tmp_path, monk
 
 
 def test_editing_a_buy_into_a_sell_moves_owner_portfolio_value_once(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "offline_mode", False)
     client = _make_client(tmp_path, monkeypatch)
     _value_units_at_ten(monkeypatch)
     assert client.post("/transactions", json=_valid_payload(account="isa", units=3, price_gbp=10.0)).status_code == 201
@@ -561,7 +558,6 @@ def test_editing_a_buy_into_a_sell_moves_owner_portfolio_value_once(tmp_path, mo
 
 
 def test_moving_a_trade_to_another_account_keeps_owner_portfolio_value(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "offline_mode", False)
     client = _make_client(tmp_path, monkeypatch)
     _value_units_at_ten(monkeypatch)
     assert client.post("/transactions", json=_valid_payload(account="isa", units=1, price_gbp=10.0)).status_code == 201

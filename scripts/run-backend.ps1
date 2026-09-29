@@ -460,7 +460,8 @@ if (-not $offline) {
 # ───────────── MCP server (chat) ──────────────
 # Mirrors scripts/bash/lib/start_mcp_server.sh: start allotmint-pro's MCP
 # server in the background so the chat drawer (POST /chat) works locally.
-# Skipped for START_MCP_SERVER=0, a non-local MCP_SERVER_URL, or no
+# Skipped for START_MCP_SERVER=0, an MCP_SERVER_URL that isn't plain-HTTP
+# localhost (remote, or https:// this plain-HTTP server can't serve), or no
 # allotmint-pro checkout ($env:ALLOTMINT_PRO_DIR, else ..\allotmint-pro);
 # an already-listening port is assumed to be the server.
 function Start-LocalMcpServer {
@@ -469,7 +470,7 @@ function Start-LocalMcpServer {
   $mcpPort = if ($env:MCP_SERVER_PORT) { [int]$env:MCP_SERVER_PORT } else { 8001 }
   $mcpUrl = $env:MCP_SERVER_URL
   if ($mcpUrl) {
-    if ($mcpUrl -notmatch '^https?://(localhost|127\.0\.0\.1)(:(\d+))?(/|$)') { return $null }
+    if ($mcpUrl -notmatch '^http://(localhost|127\.0\.0\.1)(:(\d+))?(/|$)') { return $null }
     $mcpPort = if ($matches[3]) { [int]$matches[3] } else { 80 }
   } else {
     $mcpUrl = "http://localhost:$mcpPort/mcp"

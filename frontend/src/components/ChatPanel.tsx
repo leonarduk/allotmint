@@ -33,7 +33,7 @@ const CHAT_CODE_MESSAGES: Record<string, string> = {
   chat_not_configured: "Chat isn't configured on this server (MCP_SERVER_URL is not set).",
   mcp_unreachable: "Chat couldn't reach its tools server (MCP). Check the MCP server is running.",
   llm_unreachable: "Chat couldn't reach its AI model. Check the model provider (e.g. Ollama) is running.",
-  aws_error: "Chat's call to AWS Bedrock failed. Check the AWS credentials and Bedrock model access.",
+  aws_error: "Chat's AWS call (Bedrock or MCP request signing) failed. Check the AWS credentials and access.",
 };
 
 const CHAT_STATUS_MESSAGES: Record<number, string> = {

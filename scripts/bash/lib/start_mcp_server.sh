@@ -6,7 +6,8 @@
 #
 # Behaviour, in order:
 #   - START_MCP_SERVER=0            -> do nothing.
-#   - MCP_SERVER_URL set, not local -> do nothing (a remote/deployed server).
+#   - MCP_SERVER_URL set, not plain-HTTP localhost -> do nothing (a remote
+#     server, or an https:// one this plain-HTTP server can't serve).
 #   - no allotmint-pro checkout     -> warn and do nothing; chat stays off.
 #     Looked up at $ALLOTMINT_PRO_DIR, else the sibling ../allotmint-pro.
 #   - port already listening        -> assume the server is already running.
@@ -29,7 +30,7 @@ start_local_mcp_server() {
   local url="${MCP_SERVER_URL:-}"
   local port="${MCP_SERVER_PORT:-8001}"
   if [[ -n "$url" ]]; then
-    if [[ ! "$url" =~ ^https?://(localhost|127\.0\.0\.1)(:([0-9]+))?(/|$) ]]; then
+    if [[ ! "$url" =~ ^http://(localhost|127\.0\.0\.1)(:([0-9]+))?(/|$) ]]; then
       return 0
     fi
     port="${BASH_REMATCH[3]:-80}"

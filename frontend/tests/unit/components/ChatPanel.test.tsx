@@ -106,7 +106,7 @@ describe("ChatPanel", () => {
   it.each([
     ["mcp_unreachable", 502, /tools server \(MCP\).*MCP server is running/i],
     ["llm_unreachable", 502, /AI model.*Ollama/i],
-    ["aws_error", 502, /AWS Bedrock/i],
+    ["aws_error", 502, /AWS call \(Bedrock or MCP request signing\)/i],
     ["chat_not_configured", 503, /MCP_SERVER_URL is not set/i],
   ])("names the failing piece for error code %s", async (code, status, expected) => {
     const err = Object.assign(new Error("raw backend text"), { status, code, detail: "raw backend detail" });

@@ -55,6 +55,16 @@ wait_for_stub() {
   [ "$MCP_SERVER_URL" = "https://abc.lambda-url.eu-west-2.on.aws/mcp" ]
 }
 
+@test "does nothing for an https localhost MCP_SERVER_URL" {
+  # The auto-started server is plain HTTP; serving it behind an https:// URL
+  # would fail every chat turn's TLS handshake.
+  export MCP_SERVER_URL="https://localhost:59304/mcp"
+  start_local_mcp_server "$REPO"
+
+  [ -z "$MCP_SERVER_PID" ]
+  [ ! -f "$BATS_TEST_TMPDIR/uvicorn.args" ]
+}
+
 @test "does nothing when START_MCP_SERVER=0" {
   START_MCP_SERVER=0
   start_local_mcp_server "$REPO"

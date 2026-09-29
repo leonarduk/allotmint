@@ -78,7 +78,8 @@ def _describe_upstream_error(exc: BaseException) -> tuple[str, str]:
     """Return the ``(code, detail)`` for an upstream error found by ``_find_upstream_error``."""
     # httpx2 is only used by the MCP client (backend/chat/mcp_tools_client.py);
     # plain httpx only by the Ollama/DeepSeek loop (openai_compat_agent.py);
-    # botocore by Bedrock (bedrock_agent.py) and MCP request signing (sigv4_auth.py).
+    # botocore by Bedrock (bedrock_agent.py) and MCP request signing (sigv4_auth.py),
+    # which can't be told apart by type, so aws_error names neither as the culprit.
     if isinstance(exc, httpx2.HTTPError):
         return CHAT_ERROR_MCP_UNREACHABLE, (
             f"Chat could not reach the MCP tools server ({type(exc).__name__}). "
@@ -89,7 +90,7 @@ def _describe_upstream_error(exc: BaseException) -> tuple[str, str]:
         if isinstance(exc, ClientError):
             reason = exc.response.get("Error", {}).get("Code", reason)
         return CHAT_ERROR_AWS, (
-            f"Chat's AWS call failed ({reason}). "
+            f"Chat's AWS call failed ({reason}), from Bedrock or from signing MCP requests. "
             "Check the AWS credentials and region, and Bedrock model access for BEDROCK_MODEL_ID."
         )
     reason = type(exc).__name__

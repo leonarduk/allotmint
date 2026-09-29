@@ -695,8 +695,14 @@ _EXTRA_META_CACHE_CLEARERS: list[Callable[[], None]] = []
 
 def register_meta_cache_clearer(clear_fn: Callable[[], None]) -> None:
     """Register an external lru_cache to be cleared alongside this module's
-    own meta caches whenever _invalidate_meta_caches_if_stale fires (#8211)."""
-    _EXTRA_META_CACHE_CLEARERS.append(clear_fn)
+    own meta caches whenever _invalidate_meta_caches_if_stale fires (#8211).
+
+    Idempotent: registering the same callable twice (e.g. a module reloaded
+    under a hot-reload dev server) is a no-op rather than a duplicate call on
+    every future invalidation (#8232 review round 2).
+    """
+    if clear_fn not in _EXTRA_META_CACHE_CLEARERS:
+        _EXTRA_META_CACHE_CLEARERS.append(clear_fn)
 
 
 def _invalidate_meta_caches_if_stale(ticker: str, exchange: str) -> None:

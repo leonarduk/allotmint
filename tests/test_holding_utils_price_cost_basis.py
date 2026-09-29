@@ -132,12 +132,16 @@ def test_get_price_for_date_scaled_never_memoizes_a_missing_result(monkeypatch):
 def test_get_price_for_date_scaled_applies_scaling_fresh_every_call(monkeypatch):
     """#8232 review: the memo holds only the unscaled price; get_scaling_override
     (which reads data/scaling_overrides.json fresh, uncached, every call) must
-    still be re-applied on every call rather than baked into the cached value."""
+    still be re-applied on every call rather than baked into the cached value.
+
+    Uses a bare ``Close`` column (no ``Close_gbp``) since that's the column
+    apply_scaling actually touches -- see
+    test_get_price_for_date_scaled_never_scales_the_gbp_converted_column."""
     holding_utils._load_unscaled_price_for_date_cache_only.cache_clear()
     d = dt.date(2024, 1, 1)
 
     def fake_loader(*args, **kwargs):
-        return pd.DataFrame({"Close_gbp": [10.0], "Source": ["Yahoo"]})
+        return pd.DataFrame({"Close": [10.0], "Source": ["Yahoo"]})
 
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_loader)
 
@@ -158,6 +162,31 @@ def test_get_price_for_date_scaled_applies_scaling_fresh_every_call(monkeypatch)
     assert (
         second == 20.0
     ), "a changed scaling override must be reflected even though the load is memoized"
+
+
+def test_get_price_for_date_scaled_never_scales_the_gbp_converted_column(monkeypatch):
+    """#8232 review round 2: apply_scaling (backend/utils/timeseries_helpers.py)
+    only multiplies the raw Open/High/Low/Close columns -- never Close_gbp,
+    "adj close" or "adj_close". A value read from Close_gbp must therefore
+    never be scaled, on the cache-only path or the live path, even when a
+    non-1.0 scaling override exists for the ticker."""
+    holding_utils._load_unscaled_price_for_date_cache_only.cache_clear()
+    d = dt.date(2024, 1, 1)
+
+    def fake_loader(*args, **kwargs):
+        return pd.DataFrame({"Close_gbp": [10.0], "Source": ["Yahoo"]})
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_loader)
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: 100.0)
+
+    from backend.timeseries.cache import cache_only
+
+    with cache_only():
+        cache_only_price, _ = holding_utils._get_price_for_date_scaled("AAA", "L", d)
+    live_price, _ = holding_utils._get_price_for_date_scaled("AAA", "L", d)
+
+    assert cache_only_price == 10.0
+    assert live_price == 10.0
 
 
 def test_get_effective_cost_basis_gbp_booked_cost(monkeypatch):

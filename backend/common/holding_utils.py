@@ -308,22 +308,36 @@ def _derived_cost_basis_close_px(
     return px
 
 
+# apply_scaling (backend/utils/timeseries_helpers.py) only multiplies columns
+# whose lowercase name is exactly one of these -- notably *not* "close_gbp",
+# "adj close" or "adj_close". A GBP-converted or adjusted close was therefore
+# never scaled even before this refactor; only the raw OHLC columns were.
+_SCALABLE_COLUMNS = {"open", "high", "low", "close"}
+
+
 def _load_unscaled_price_for_date_impl(
     ticker: str,
     exchange: str,
     d: dt.date,
     field: str = "Close_gbp",
-) -> tuple[Optional[float], Optional[str]]:
+) -> tuple[Optional[float], Optional[str], bool]:
     """Load a single-day DF and return the requested field's *unscaled* value,
-    together with its source. For close prices we prefer the GBP-converted
-    column when available, falling back to the regular close.
+    its source, and whether that value is subject to scaling. For close
+    prices we prefer the GBP-converted column when available, falling back to
+    the regular close.
 
     Deliberately does not apply ``get_scaling_override``/``apply_scaling`` --
     see ``_load_unscaled_price_for_date_cache_only`` for why (#8232 review).
+    The caller applies ``scale`` itself, but only when the third element here
+    is ``True``: replicating ``apply_scaling``'s behavior exactly requires
+    knowing which physical column the value came from, since ``apply_scaling``
+    skips ``close_gbp``/``adj close``/``adj_close`` (#8232 review round 2 --
+    the original ``price * scale`` deferral applied to *every* column,
+    silently re-scaling an already-GBP-converted price).
     """
     df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=d, end_date=d)
     if df is None or df.empty:
-        return None, None
+        return None, None, False
 
     nm = _lower_name_map(df)
     col = None
@@ -332,26 +346,26 @@ def _load_unscaled_price_for_date_impl(
     else:
         col = nm.get(field.lower())
     if not col:
-        return None, None
+        return None, None, False
 
     try:
         price = float(df.iloc[0][col])
     except (ValueError, TypeError, KeyError, IndexError):
-        return None, None
+        return None, None, False
 
     if is_nan(price):
-        return None, None
+        return None, None, False
 
     src = df.iloc[0].get("Source")
     if is_nan(src):
         src = None
-    return price, src
+    return price, src, col.lower() in _SCALABLE_COLUMNS
 
 
 _UNSCALED_PRICE_CACHE_MAXSIZE = 2048
-_unscaled_price_cache: "OrderedDict[tuple[str, str, dt.date, str], tuple[float, Optional[str]]]" = (
-    OrderedDict()
-)
+_unscaled_price_cache: (
+    "OrderedDict[tuple[str, str, dt.date, str], tuple[float, Optional[str], bool]]"
+) = OrderedDict()
 
 
 def _load_unscaled_price_for_date_cache_only(
@@ -359,7 +373,7 @@ def _load_unscaled_price_for_date_cache_only(
     exchange: str,
     d: dt.date,
     field: str = "Close_gbp",
-) -> tuple[Optional[float], Optional[str]]:
+) -> tuple[Optional[float], Optional[str], bool]:
     """Memoized, *unscaled* body of ``_get_price_for_date_scaled``, used only
     inside a ``cache_only()`` block (#8211).
 
@@ -375,15 +389,14 @@ def _load_unscaled_price_for_date_cache_only(
     underlying file still invalidates this cache the same way it invalidates
     the timeseries module's own.
 
-    Memoizes only the *unscaled* price, with ``get_scaling_override`` and
-    ``apply_scaling`` applied fresh on every call in ``_get_price_for_date_scaled``
-    instead of being baked into this cache: ``get_scaling_override`` reads
-    ``data/scaling_overrides.json`` fresh every call with no caching of its own,
-    so memoizing its already-applied result here would risk serving a stale
-    scaled price if that file changes while this process is running (#8232
-    review). ``apply_scaling`` is a pure scalar multiply on the OHLC columns,
-    so deferring it to a plain ``price * scale`` after this lookup is
-    mathematically equivalent to applying it before column selection.
+    Memoizes only the *unscaled* price (plus whether it's scalable at all --
+    see ``_load_unscaled_price_for_date_impl``), with ``get_scaling_override``
+    and the scaling multiply applied fresh on every call in
+    ``_get_price_for_date_scaled`` instead of being baked into this cache:
+    ``get_scaling_override`` reads ``data/scaling_overrides.json`` fresh every
+    call with no caching of its own, so memoizing its already-applied result
+    here would risk serving a stale scaled price if that file changes while
+    this process is running (#8232 review).
 
     A missing result (``None``, i.e. no cached row for this day) is
     deliberately not memoized either, for the same reason ``_close_on_cache_only``
@@ -419,11 +432,13 @@ def _get_price_for_date_scaled(
         return 1.0, None
 
     if is_cache_only():
-        price, src = _load_unscaled_price_for_date_cache_only(ticker, exchange, d, field)
+        price, src, scalable = _load_unscaled_price_for_date_cache_only(ticker, exchange, d, field)
     else:
-        price, src = _load_unscaled_price_for_date_impl(ticker, exchange, d, field)
+        price, src, scalable = _load_unscaled_price_for_date_impl(ticker, exchange, d, field)
     if price is None:
         return None, None
+    if not scalable:
+        return price, src
 
     scale = get_scaling_override(ticker, exchange, None)
     if scale is not None and scale != 1:

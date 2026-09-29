@@ -276,3 +276,27 @@ def test_get_effective_cost_basis_gbp_cache_fallback(monkeypatch):
     price_cache = {"CCC.L": 5.0}
     holding = {TICKER: "CCC.L", UNITS: 3, ACQUIRED_DATE: "2024-01-01"}
     assert holding_utils.get_effective_cost_basis_gbp(holding, price_cache) == 15.0
+
+
+def test_scalable_columns_matches_apply_scaling_exactly():
+    """#8232 review round 6: holding_utils._SCALABLE_COLUMNS is a hardcoded
+    mirror of apply_scaling's actual behavior (backend/utils/timeseries_helpers.py),
+    not derived from it -- so a future column added to apply_scaling (or
+    removed) would silently desync the two. Locks the invariant: for every
+    known candidate column, apply_scaling changing it must agree exactly with
+    whether that column's lowercase name is in _SCALABLE_COLUMNS."""
+    from backend.utils.timeseries_helpers import apply_scaling
+
+    candidates = ["Open", "High", "Low", "Close", "Close_gbp", "Adj Close", "Volume", "Source"]
+    df = pd.DataFrame({col: [1.0] if col != "Source" else ["Yahoo"] for col in candidates})
+
+    scaled = apply_scaling(df, scale=2.0)
+
+    for col in candidates:
+        if col == "Source":
+            continue
+        actually_scaled = scaled[col].iloc[0] != df[col].iloc[0]
+        expected_scalable = col.lower() in holding_utils._SCALABLE_COLUMNS
+        assert (
+            actually_scaled == expected_scalable
+        ), f"{col}: apply_scaling scaled={actually_scaled}, _SCALABLE_COLUMNS says={expected_scalable}"

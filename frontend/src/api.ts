@@ -1868,7 +1868,17 @@ export const requestApproval = async (owner: string, ticker: string) => {
 };
 
 
-/** Execute a custom query against the backend. */
+/**
+ * Execute a custom query against the backend.
+ *
+ * POSTs the query as a JSON body (with `format: "json"` so the backend
+ * returns structured results rather than a file download) and unwraps the
+ * `{ results: [...] }` envelope. This was previously a GET with query-string
+ * params, which the backend rejected — see PR #7133. The integration tests in
+ * `tests/unit/pages/ScreenerQuery.test.tsx` drive the real implementation
+ * through the Run button and assert on the wire-level request, so a revert to
+ * GET (or dropping `format: "json"`) fails the suite.
+ */
 export const runCustomQuery = async (params: CustomQuery) => {
   const { results } = await fetchJson<{ results: Record<string, unknown>[] }>(
     `${API_BASE}/custom-query/run`,

@@ -3,7 +3,9 @@ import logging
 import os
 import sys
 import threading
+import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -739,6 +741,32 @@ def test_invalidate_meta_caches_skips_update_for_confirmed_missing(monkeypatch):
     cache._invalidate_meta_caches_if_stale("MISSING", "L")
     assert cache._CACHE_FILE_MTIMES[cache_uri] == 0.0
     assert len(clears) == 0  # confirmed-missing fast path: no further work
+
+
+def test_invalidate_meta_caches_calls_registered_extra_clearers(monkeypatch, tmp_path):
+    """#8211: an external module's ``lru_cache`` registered via
+    ``register_meta_cache_clearer`` must be cleared alongside this module's
+    own meta LRUs whenever a ticker's backing file goes stale."""
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+
+    calls = []
+    cache.register_meta_cache_clearer(lambda: calls.append(1))
+
+    cache_path = Path(cache.meta_timeseries_cache_path("ABC", "L"))
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_bytes(b"x")
+
+    cache._invalidate_meta_caches_if_stale("ABC", "L")
+    assert calls == []  # first-ever check: prev was None, no clear triggered
+
+    later = time.time() + 5
+    os.utime(cache_path, (later, later))
+    cache._invalidate_meta_caches_if_stale("ABC", "L")
+    assert calls == [1], "a real mtime change must invoke the registered extra clearer"
+
+    cache._invalidate_meta_caches_if_stale("ABC", "L")
+    assert calls == [1], "an unchanged mtime must not invoke it again"
 
 
 def test_s3_object_mtime_skips_repeat_head_object_within_ttl(monkeypatch):

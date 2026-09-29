@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import threading
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -33,7 +35,9 @@ from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
     has_cached_meta_timeseries,
+    is_cache_only,
     load_meta_timeseries_range,
+    register_meta_cache_clearer,
 )
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_period
@@ -498,9 +502,83 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
 # ───────────────────────────────────────────────────────────────
 
 
-def _close_on(sym: str, ex: str, d: dt.date) -> Optional[float]:
-    """Return close price for ``sym.ex`` ticker on date ``d`` if available."""
-    snap = _nearest_weekday(d, forward=False)
+_CLOSE_ON_CACHE_MAXSIZE = 2048
+_close_on_cache: "OrderedDict[tuple[str, str, dt.date], float]" = OrderedDict()
+# Guards _close_on_cache's mutations only (check/insert/evict), not the
+# load_meta_timeseries_range call on a miss -- unlike lru_cache's C
+# implementation, OrderedDict.move_to_end/popitem aren't atomic across a
+# read-modify-write sequence, so concurrent threads (FastAPI's sync-endpoint
+# threadpool) could otherwise race on the dict itself. A miss still lets two
+# threads compute the same (ticker, date) concurrently and both write the
+# same value -- wasted duplicate work, not a correctness issue, the same
+# trade-off any unlocked check-then-compute cache makes (#8232 review round 5).
+_close_on_cache_lock = threading.Lock()
+
+
+def _close_on_cache_only(sym: str, ex: str, snap: dt.date) -> Optional[float]:
+    """Memoized body of ``_close_on``, used only inside a ``cache_only()`` block (#8211).
+
+    ``price_change_pct`` calls ``_close_on`` twice per ticker (yesterday, and
+    ``days`` ago), and the same ticker often recurs across multiple accounts/
+    holdings within one portfolio build and across repeated page requests for
+    the same owner in this long-lived process -- each call otherwise pays the
+    full ``load_meta_timeseries_range`` round trip (the per-(ticker,range) LRU,
+    ``apply_date_range``, ``_ensure_schema``, and an uncached FX merge in
+    ``_convert_to_base_currency``) for what is conceptually one row. Only
+    memoized for cache-only reads (page requests): a live/background-refresh
+    read is specifically asking for fresh data, which this process-lifetime
+    cache must not intercept. Registered with
+    ``backend.timeseries.cache.register_meta_cache_clearer`` so a stale
+    underlying file still invalidates this cache the same way it invalidates
+    the timeseries module's own.
+
+    Takes the already-``_nearest_weekday``-snapped date, not the caller's raw
+    ``d`` -- keying on the raw date would give a Saturday and its Sunday (or
+    the Friday they both resolve to) three separate cache entries for what is
+    the same underlying row, defeating the point of memoizing (#8232 review).
+
+    A ``None`` result is deliberately **not** memoized, unlike a plain
+    ``lru_cache`` -- for either way ``_close_on_impl`` can produce one:
+
+    - No cached row for this day at all: ``load_meta_timeseries_range`` queues
+      the ticker on ``refresh_queue``, and that queueing is itself
+      de-duplicated/cooldown-gated there. Caching the ``None`` here as well
+      would silently swallow that queueing for every subsequent lookup of the
+      same day for the rest of this process's lifetime, including once real
+      data finally lands -- there being no file to have an mtime on yet,
+      ``_invalidate_meta_caches_if_stale`` has nothing to bust this entry with
+      in the meantime (#8232 review, ``test_reports_cache_only.py``).
+    - A row exists but its close is NaN: there's no refresh-queue concern
+      here, so skipping the memo just means a missed optimization (the NaN
+      row gets re-read on the next lookup) rather than a correctness risk --
+      not worth a second code path to special-case, since a NaN close for an
+      already-cached day is rare (#8232 review round 7).
+    """
+    key = (sym, ex, snap)
+    with _close_on_cache_lock:
+        if key in _close_on_cache:
+            _close_on_cache.move_to_end(key)
+            return _close_on_cache[key]
+    result = _close_on_impl(sym, ex, snap)
+    if result is not None:
+        with _close_on_cache_lock:
+            _close_on_cache[key] = result
+            _close_on_cache.move_to_end(key)
+            if len(_close_on_cache) > _CLOSE_ON_CACHE_MAXSIZE:
+                _close_on_cache.popitem(last=False)
+    return result
+
+
+def _clear_close_on_cache() -> None:
+    with _close_on_cache_lock:
+        _close_on_cache.clear()
+
+
+_close_on_cache_only.cache_clear = _clear_close_on_cache  # type: ignore[attr-defined]
+
+
+def _close_on_impl(sym: str, ex: str, snap: dt.date) -> Optional[float]:
+    """Return close price for ``sym.ex`` ticker on the (already weekend-snapped) date ``snap``."""
     df = load_meta_timeseries_range(sym, ex, start_date=snap, end_date=snap)
     if df is None or df.empty:
         return None
@@ -511,6 +589,17 @@ def _close_on(sym: str, ex: str, d: dt.date) -> Optional[float]:
         return None
     price = float(df[col].iloc[0])
     return None if is_nan(price) else price
+
+
+def _close_on(sym: str, ex: str, d: dt.date) -> Optional[float]:
+    """Return close price for ``sym.ex`` ticker on date ``d`` if available."""
+    snap = _nearest_weekday(d, forward=False)
+    if is_cache_only():
+        return _close_on_cache_only(sym, ex, snap)
+    return _close_on_impl(sym, ex, snap)
+
+
+register_meta_cache_clearer(_close_on_cache_only.cache_clear)
 
 
 def price_change_pct(ticker: str, days: int) -> Optional[float]:
@@ -528,7 +617,11 @@ def price_change_pct(ticker: str, days: int) -> Optional[float]:
     if px_now is None or px_then is None or px_then == 0:
         return None
     if px_then < MIN_PRICE_THRESHOLD:
-        logger.warning("price_change_pct: px_then %.4f below threshold for %s", px_then, sanitise_log_value(ticker))
+        logger.warning(
+            "price_change_pct: px_then %.4f below threshold for %s",
+            px_then,
+            sanitise_log_value(ticker),
+        )
         return None
     pct = (px_now / px_then - 1.0) * 100.0
     if abs(pct) > MAX_CHANGE_PCT:

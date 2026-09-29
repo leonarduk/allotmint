@@ -681,6 +681,36 @@ def _s3_object_mtime(cache: str) -> float | None:
     return mtime
 
 
+# Other modules (backend.common.instrument_api's _close_on, backend.common.
+# holding_utils's _get_price_for_date_scaled -- see #8211) memoize their own
+# single-day price lookups on top of this module's caches. They can't import
+# _invalidate_meta_caches_if_stale's callers directly without a circular
+# import (they're already imported *by* this module's callers), so they
+# register their lru_cache's .cache_clear here instead, and it's invoked
+# alongside this module's own meta caches whenever any ticker's file goes
+# stale -- the same coarse whole-cache-clear granularity _load_meta_timeseries_cached
+# et al already use below, not a new invalidation model.
+_EXTRA_META_CACHE_CLEARERS: list[Callable[[], None]] = []
+
+
+def register_meta_cache_clearer(clear_fn: Callable[[], None]) -> None:
+    """Register an external lru_cache to be cleared alongside this module's
+    own meta caches whenever _invalidate_meta_caches_if_stale fires (#8211).
+
+    Idempotent for the same callable object: calling this twice with the
+    exact same ``clear_fn`` is a no-op rather than a duplicate entry. This
+    does *not* dedupe across a module reload -- a bound method like
+    ``_close_on_cache_only.cache_clear`` is a fresh object each time its
+    owning module re-imports, so a hot-reload dev server would still
+    accumulate one entry per reload. Nothing in this codebase reloads these
+    modules at runtime (Lambda never does; tests that do use
+    ``import_cache()`` reload only ``cache.py`` itself, not its callers), so
+    this is a real but currently unreachable gap (#8232 review round 3).
+    """
+    if clear_fn not in _EXTRA_META_CACHE_CLEARERS:
+        _EXTRA_META_CACHE_CLEARERS.append(clear_fn)
+
+
 def _invalidate_meta_caches_if_stale(ticker: str, exchange: str) -> None:
     """Clear both meta LRUs when the backing file's mtime has changed."""
     cache = meta_timeseries_cache_path(ticker, exchange)
@@ -699,6 +729,8 @@ def _invalidate_meta_caches_if_stale(ticker: str, exchange: str) -> None:
         _load_meta_timeseries_cached.cache_clear()
         _memoized_range_cached.cache_clear()
         _load_meta_parquet_cached.cache_clear()
+        for clear_fn in _EXTRA_META_CACHE_CLEARERS:
+            clear_fn()
     _CACHE_FILE_MTIMES[cache] = mtime
 
 

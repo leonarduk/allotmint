@@ -25,8 +25,8 @@ from backend.common.accounts_store import (
 )
 from backend.common.authz import ensure_owner_access
 from backend.common.core_optional import require_core
+from backend.common.holdings_rebuild import replay_transactions
 from backend.common.instruments import get_instrument_meta
-from backend.common.portfolio_loader import get_units_as_of
 from backend.common.prices import get_price_gbp
 from backend.common.realised_gains import compute_disposal_gains
 from backend.common.ticker_utils import normalise_filter_ticker
@@ -1096,7 +1096,10 @@ def _opening_balance_transaction(
     dated today: dated earlier, it could exceed the units held on that date,
     and the rebuild would ignore the excess.
     """
-    held = get_units_as_of({"transactions": transactions}, ticker, "9999-12-31")
+    # The same replay the rebuild uses, so the offset agrees with the rebuilt
+    # holding (it also counts undated rows, which get_units_as_of skips).
+    position = replay_transactions(transactions, warn=False).positions.get(ticker)
+    held = position.units if position else 0.0
     delta = round(units - held, 8)
     if abs(delta) < 1e-8:
         return None

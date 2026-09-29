@@ -265,6 +265,27 @@ def test_s3_store_rebuild_portfolio(s3_store) -> None:
     assert tickers == {"ABC", "CASH.GBP"}
 
 
+def test_s3_store_rebuild_portfolio_reads_a_mixed_case_transactions_file(s3_store) -> None:
+    store, fake = s3_store
+    tx_data = {"transactions": [{"type": "BUY", "ticker": "ABC", "units": 3, "date": "2024-01-10"}]}
+    fake.objects[f"{WRITABLE_ACCOUNTS_PREFIX}/alex/ISA_transactions.json"] = json.dumps(tx_data).encode("utf-8")
+
+    store.rebuild_portfolio("alex", "ISA")
+
+    holdings = json.loads(fake.objects[f"{WRITABLE_ACCOUNTS_PREFIX}/alex/isa.json"].decode("utf-8"))
+    assert [(h["ticker"], h["units"]) for h in holdings["holdings"]] == [("ABC", 3.0)]
+
+
+@pytest.mark.parametrize("store_kind", ["local", "s3"])
+def test_iter_transaction_documents_names_the_account_after_the_file(store_kind, tmp_path, s3_store):
+    store = LocalAccountsStore(root=tmp_path) if store_kind == "local" else s3_store[0]
+    with store.edit_document("alice", "isa_transactions.json", default={}) as data:
+        data["account_type"] = "ISA"
+        data["transactions"] = []
+
+    assert [(owner, account) for owner, account, _ in store.iter_transaction_documents()] == [("alice", "isa")]
+
+
 def test_s3_store_rebuild_portfolio_carries_forward_existing_holdings(s3_store) -> None:
     """S3 rebuild keeps value_gbp and computes cost basis instead of zeroing it."""
     store, fake = s3_store

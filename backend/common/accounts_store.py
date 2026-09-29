@@ -208,8 +208,9 @@ class LocalAccountsStore:
             if not isinstance(data, dict):
                 continue
             owner = str(data.get("owner") or path.parent.name)
-            account_raw = str(data.get("account_type") or path.stem.replace("_transactions", ""))
-            yield owner, account_raw, data
+            # The filename, not ``account_type``: callers write back to
+            # ``<account>_transactions.json``, and the two can differ in case.
+            yield owner, path.name[: -len("_transactions.json")], data
 
     def ensure_owner(self, owner: str) -> None:
         """Implicit account-creation path for the local/file-backed store.
@@ -365,8 +366,8 @@ class S3AccountsStore:
             data = self.read_document(owner, parts[1])
             if not isinstance(data, dict):
                 continue
-            account_raw = str(data.get("account_type") or parts[1].replace("_transactions.json", ""))
-            yield str(data.get("owner") or owner), account_raw, data
+            # The filename, not ``account_type`` (see LocalAccountsStore).
+            yield str(data.get("owner") or owner), parts[1][: -len("_transactions.json")], data
 
     def ensure_owner(self, owner: str) -> None:
         """Implicit account-creation path for the S3-backed store.
@@ -389,9 +390,14 @@ class S3AccountsStore:
             data.setdefault("viewers", [])
 
     def rebuild_portfolio(self, owner: str, account: str) -> None:
-        """Rebuild holdings from transactions for the S3-backed store."""
-        tx_filename = f"{account.lower()}_transactions.json"
-        tx_data = self.read_document(owner, tx_filename)
+        """Rebuild holdings from transactions for the S3-backed store.
+
+        ``account`` is the transactions file's own spelling; older callers
+        passed a lower-cased name, so that is tried second.
+        """
+        tx_data = self.read_document(owner, f"{account}_transactions.json")
+        if tx_data is None and account != account.lower():
+            tx_data = self.read_document(owner, f"{account.lower()}_transactions.json")
         if tx_data is None:
             logger.warning(
                 "Portfolio rebuild skipped for %s/%s: no transaction document",

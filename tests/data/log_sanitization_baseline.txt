@@ -7,9 +7,9 @@ backend/auth.py:201
 # caller, never attacker-controlled; email/token on the same call are already
 # wrapped in sanitise_log_value.
 backend/auth.py:775
-backend/common/accounts_store.py:291
-backend/common/accounts_store.py:299
-backend/common/accounts_store.py:420
+backend/common/accounts_store.py:292
+backend/common/accounts_store.py:300
+backend/common/accounts_store.py:426
 backend/common/alerts.py:44
 backend/common/approvals.py:41
 backend/common/approvals.py:89

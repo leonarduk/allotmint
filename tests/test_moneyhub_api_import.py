@@ -435,7 +435,7 @@ def test_import_moneyhub_route_persists_and_dedupes_on_reimport(tmp_path, monkey
     assert first["skipped"] == []
     assert {t["external_id"] for t in first["persisted"]} == {"moneyhub:tx-1", "moneyhub:tx-2"}
     assert all(t["owner"] == "alice" for t in first["persisted"])
-    assert all(t["account"] == "Current" for t in first["persisted"])
+    assert all(t["account"] == "current" for t in first["persisted"])
 
     # Re-importing must not create duplicates.
     resp = client.post("/transactions/import/moneyhub", data={"owner": "alice"})

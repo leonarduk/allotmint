@@ -55,7 +55,7 @@ def test_import_transactions_full_featured_row(tmp_path, monkeypatch):
     assert persisted["price_gbp"] == 10.5
     assert persisted["units"] == 2
     assert persisted["reason"] == "diversify"
-    assert persisted["id"] == "alice:ISA:0"
+    assert persisted["id"] == "alice:isa:0"
 
 
 def test_import_transactions_hargreaves_uses_owner_account_fallback(tmp_path, monkeypatch):
@@ -77,7 +77,7 @@ def test_import_transactions_hargreaves_uses_owner_account_fallback(tmp_path, mo
     assert len(data["persisted"]) == 1
     persisted = data["persisted"][0]
     assert persisted["owner"] == "alice"
-    assert persisted["account"] == "ISA"
+    assert persisted["account"] == "isa"
     assert persisted["ticker"] == "PFE"
     assert persisted["price_gbp"] == pytest.approx(10.5)
     assert persisted["units"] == 2

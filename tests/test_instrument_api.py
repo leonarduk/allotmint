@@ -30,9 +30,7 @@ def test_close_on_returns_none_for_nan_close(monkeypatch):
     frame = pd.DataFrame({"Date": [sample_date], "Close": [float("nan")]})
 
     monkeypatch.setattr(ia, "_nearest_weekday", lambda d, forward=False: sample_date)
-    monkeypatch.setattr(
-        ia, "load_meta_timeseries_range", lambda sym, ex, start_date, end_date: frame
-    )
+    monkeypatch.setattr(ia, "load_meta_timeseries_range", lambda sym, ex, start_date, end_date: frame)
 
     assert ia._close_on("AAA", "L", sample_date) is None
 
@@ -58,14 +56,10 @@ def test_close_on_memoizes_only_inside_cache_only(monkeypatch):
     with cache_only():
         assert ia._close_on("AAA", "L", sample_date) == 123.45
         assert ia._close_on("AAA", "L", sample_date) == 123.45
-    assert (
-        len(calls) == 1
-    ), "second cache-only call must hit the memo, not load_meta_timeseries_range again"
+    assert len(calls) == 1, "second cache-only call must hit the memo, not load_meta_timeseries_range again"
 
     assert ia._close_on("AAA", "L", sample_date) == 123.45
-    assert (
-        len(calls) == 2
-    ), "a call outside cache_only() must never be served from the cache-only memo"
+    assert len(calls) == 2, "a call outside cache_only() must never be served from the cache-only memo"
 
 
 def test_close_on_cache_only_memo_cleared_by_meta_cache_invalidation(monkeypatch):

@@ -65,14 +65,10 @@ def test_get_price_for_date_scaled_memoizes_only_inside_cache_only(monkeypatch):
     with cache_only():
         assert holding_utils._get_price_for_date_scaled("AAA", "L", d) == (123.45, "Yahoo")
         assert holding_utils._get_price_for_date_scaled("AAA", "L", d) == (123.45, "Yahoo")
-    assert (
-        len(calls) == 1
-    ), "second cache-only call must hit the memo, not load_meta_timeseries_range again"
+    assert len(calls) == 1, "second cache-only call must hit the memo, not load_meta_timeseries_range again"
 
     assert holding_utils._get_price_for_date_scaled("AAA", "L", d) == (123.45, "Yahoo")
-    assert (
-        len(calls) == 2
-    ), "a call outside cache_only() must never be served from the cache-only memo"
+    assert len(calls) == 2, "a call outside cache_only() must never be served from the cache-only memo"
 
 
 def test_get_price_for_date_scaled_cache_only_memo_cleared_by_meta_cache_invalidation(monkeypatch):
@@ -159,9 +155,7 @@ def test_get_price_for_date_scaled_applies_scaling_fresh_every_call(monkeypatch)
         second, _ = holding_utils._get_price_for_date_scaled("AAA", "L", d)
 
     assert first == 10.0
-    assert (
-        second == 20.0
-    ), "a changed scaling override must be reflected even though the load is memoized"
+    assert second == 20.0, "a changed scaling override must be reflected even though the load is memoized"
 
 
 def test_get_price_for_date_scaled_never_scales_the_gbp_converted_column(monkeypatch):
@@ -187,6 +181,29 @@ def test_get_price_for_date_scaled_never_scales_the_gbp_converted_column(monkeyp
 
     assert cache_only_price == 10.0
     assert live_price == 10.0
+
+
+def test_get_price_for_date_scaled_scales_close_on_the_live_path(monkeypatch):
+    """#8232 review round 3: the live (non-cache_only) path must still scale a
+    bare Close column exactly like the pre-refactor apply_scaling(df, scale)
+    did -- the issue's constraint is that offline_mode: false behavior must
+    not change, and this pins that for the scalable-column case (the
+    Close_gbp case, which is deliberately *not* scaled, is covered by
+    test_get_price_for_date_scaled_never_scales_the_gbp_converted_column)."""
+    holding_utils._load_unscaled_price_for_date_cache_only.cache_clear()
+    d = dt.date(2024, 1, 1)
+
+    def fake_loader(*args, **kwargs):
+        return pd.DataFrame({"Close": [10.0], "Source": ["Yahoo"]})
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_loader)
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: 2.0)
+
+    assert not holding_utils.is_cache_only()
+    price, src = holding_utils._get_price_for_date_scaled("AAA", "L", d)
+
+    assert price == 20.0
+    assert src == "Yahoo"
 
 
 def test_get_effective_cost_basis_gbp_booked_cost(monkeypatch):

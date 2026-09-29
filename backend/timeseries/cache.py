@@ -697,9 +697,15 @@ def register_meta_cache_clearer(clear_fn: Callable[[], None]) -> None:
     """Register an external lru_cache to be cleared alongside this module's
     own meta caches whenever _invalidate_meta_caches_if_stale fires (#8211).
 
-    Idempotent: registering the same callable twice (e.g. a module reloaded
-    under a hot-reload dev server) is a no-op rather than a duplicate call on
-    every future invalidation (#8232 review round 2).
+    Idempotent for the same callable object: calling this twice with the
+    exact same ``clear_fn`` is a no-op rather than a duplicate entry. This
+    does *not* dedupe across a module reload -- a bound method like
+    ``_close_on_cache_only.cache_clear`` is a fresh object each time its
+    owning module re-imports, so a hot-reload dev server would still
+    accumulate one entry per reload. Nothing in this codebase reloads these
+    modules at runtime (Lambda never does; tests that do use
+    ``import_cache()`` reload only ``cache.py`` itself, not its callers), so
+    this is a real but currently unreachable gap (#8232 review round 3).
     """
     if clear_fn not in _EXTRA_META_CACHE_CLEARERS:
         _EXTRA_META_CACHE_CLEARERS.append(clear_fn)

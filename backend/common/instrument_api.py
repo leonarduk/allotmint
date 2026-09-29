@@ -190,9 +190,7 @@ def _resolve_grouping_details(
     return None, None
 
 
-def _derive_grouping(
-    *sources: Optional[Mapping[str, Any]], current: Optional[Any] = None
-) -> Optional[str]:
+def _derive_grouping(*sources: Optional[Mapping[str, Any]], current: Optional[Any] = None) -> Optional[str]:
     """Return the first non-empty grouping/sector/currency/region from the metadata."""
 
     name, _ = _resolve_grouping_details(*sources, current=current)
@@ -463,9 +461,7 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
     df = None
     for interval in ("5m", "15m"):
         try:
-            df = fetch_yahoo_timeseries_period(
-                sym, ex, period="5d", interval=interval, normalize=False
-            )
+            df = fetch_yahoo_timeseries_period(sym, ex, period="5d", interval=interval, normalize=False)
             if not df.empty:
                 break
         except Exception:
@@ -495,10 +491,7 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
 
     col = "Close_gbp" if "Close_gbp" in df.columns else "Close"
 
-    prices = [
-        {"timestamp": r["Date"].to_pydatetime().isoformat(), "price": float(r[col])}
-        for _, r in df.iterrows()
-    ]
+    prices = [{"timestamp": r["Date"].to_pydatetime().isoformat(), "price": float(r[col])} for _, r in df.iterrows()]
     last_time = prices[-1]["timestamp"] if prices else None
     return {"prices": prices, "last_price_time": last_time}
 
@@ -565,11 +558,7 @@ def _close_on_impl(sym: str, ex: str, snap: dt.date) -> Optional[float]:
     df = load_meta_timeseries_range(sym, ex, start_date=snap, end_date=snap)
     if df is None or df.empty:
         return None
-    col = (
-        "close_gbp"
-        if "close_gbp" in df.columns
-        else ("Close_gbp" if "Close_gbp" in df.columns else None)
-    )
+    col = "close_gbp" if "close_gbp" in df.columns else ("Close_gbp" if "Close_gbp" in df.columns else None)
     if col is None:
         col = "close" if "close" in df.columns else ("Close" if "Close" in df.columns else None)
     if not col:
@@ -655,9 +644,7 @@ def top_movers(
     rows: List[Dict[str, Any]] = []
     anomalies: List[str] = []
 
-    candidates = [
-        t for t in tickers if not (min_weight and weights and weights.get(t, 0.0) < min_weight)
-    ]
+    candidates = [t for t in tickers if not (min_weight and weights and weights.get(t, 0.0) < min_weight)]
 
     def _row_or_anomaly(t: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """Return (row, None) on success, (None, ticker) as an anomaly, or
@@ -832,12 +819,8 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
     price_tickers = [tkr for tkr in by_ticker if tkr]
     price_and_changes: Dict[str, Dict[str, Any]] = {}
     if price_tickers:
-        with ThreadPoolExecutor(
-            max_workers=min(_PRICE_FETCH_MAX_WORKERS, len(price_tickers))
-        ) as pool:
-            price_and_changes = dict(
-                zip(price_tickers, pool.map(_price_and_changes, price_tickers))
-            )
+        with ThreadPoolExecutor(max_workers=min(_PRICE_FETCH_MAX_WORKERS, len(price_tickers))) as pool:
+            price_and_changes = dict(zip(price_tickers, pool.map(_price_and_changes, price_tickers)))
 
     for tkr, entry in by_ticker.items():
         if not tkr:
@@ -847,9 +830,7 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
         entry.setdefault("industry", meta.get("industry") or meta.get("sector"))
         entry.setdefault("region", meta.get("region"))
         entry.setdefault("sector", meta.get("sector"))
-        grouping_name, grouping_id = _resolve_grouping_details(
-            meta, entry, current=entry.get("grouping")
-        )
+        grouping_name, grouping_id = _resolve_grouping_details(meta, entry, current=entry.get("grouping"))
         if grouping_id:
             entry["grouping_id"] = grouping_id
         if grouping_name:

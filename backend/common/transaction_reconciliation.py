@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 
 from backend.common.data_loader import resolve_paths
+from backend.common.holdings_rebuild import CASH_TICKER, TRADE_CASH_FLAG, replay_transactions
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -73,6 +74,23 @@ def _transactions_to_positions(transactions: Iterable[Mapping[str, object]]) -> 
     return ledger
 
 
+def _cash_balance(tx_data: Mapping[str, object], transactions: Iterable[Mapping[str, object]]) -> float:
+    """``CASH.GBP`` as :mod:`holdings_rebuild` replays it.
+
+    Cash also moves through ticker-less ``amount_minor`` rows (deposits,
+    dividends, and trade settlements under ``trade_cash_effects``) which
+    :func:`_transactions_to_positions` cannot see, so the reconciler must use
+    the same replay as the rebuild or it injects entries the rebuild then
+    double counts.
+    """
+    replay = replay_transactions(
+        [tx for tx in transactions if isinstance(tx, Mapping)],
+        trade_cash=tx_data.get(TRADE_CASH_FLAG) is True,
+        warn=False,
+    )
+    return round(replay.cash, 2)
+
+
 def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> None:
     """Ensure each holding balance is reproducible from transactions.
 
@@ -124,7 +142,8 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
                 logger.debug("Skipping holdings with no transactions")
                 continue
 
-            ledger = _transactions_to_positions(transactions)
+            ledger = dict(_transactions_to_positions(transactions))
+            ledger[CASH_TICKER] = _cash_balance(tx_data, transactions)
 
             holdings_raw = account_data.get("holdings") or []
             holdings: dict[str, float] = {}

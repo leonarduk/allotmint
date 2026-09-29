@@ -3,8 +3,10 @@ import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
 import { ALLOWANCES_UNAVAILABLE_MESSAGE } from '../plotModel';
 import {
+  buildSeasonBadges,
   buildSeasonGroups,
   seasonCountdown,
+  type SeasonBadge,
   type SeasonGroupProgress,
 } from '../seasonModel';
 import Meter from '../components/Meter';
@@ -14,8 +16,14 @@ import Meter from '../components/Meter';
  * been earned yet. Earlier tiers already earned collapse into a compact
  * badge instead of each repeating the same current value against a target
  * that's already been cleared — see #7006.
+ *
+ * The goal line is the ladder's own `title(target)` ("Tend 25 crops at
+ * once"), not a bare "Next: 25" — the description already existed in
+ * `buildGoalGroups` and was simply never rendered here (#7194).
  */
 function GroupRow({ group }: { group: SeasonGroupProgress }) {
+  const capped = group.next !== null && group.next.pct >= 100;
+
   return (
     <li
       className={`${styles.choreRow} ${
@@ -48,6 +56,11 @@ function GroupRow({ group }: { group: SeasonGroupProgress }) {
                 {group.currentDisplay} / {group.next.displayTarget}
               </span>
             </div>
+            {capped && (
+              <p className={styles.groupComplete}>
+                {group.currentDisplay} — already past this tier.
+              </p>
+            )}
           </div>
         ) : (
           <p className={styles.groupComplete}>
@@ -93,6 +106,49 @@ function GroupRow({ group }: { group: SeasonGroupProgress }) {
 }
 
 /**
+ * The trophy shelf: one badge per category, earned once every tier in that
+ * category is cleared. Derived from the same tier state as the ladder below,
+ * so a badge can never claim something the tier chips contradict.
+ */
+function BadgeShelf({ badges }: { badges: SeasonBadge[] }) {
+  const earned = badges.filter((badge) => badge.earned).length;
+
+  return (
+    <section className={`${styles.panel} ${styles.panelGlow}`}>
+      <h3 className={styles.panelTitle}>
+        Badge shelf ({earned}/{badges.length})
+      </h3>
+      <ul className={styles.badgeShelf}>
+        {badges.map((badge) => (
+          <li
+            key={badge.id}
+            className={`${styles.badgeCard} ${
+              badge.earned ? styles.badgeCardEarned : ''
+            }`}
+            title={
+              badge.earned
+                ? `${badge.rewardLabel} earned`
+                : badge.nextTitle ?? badge.rewardLabel
+            }
+          >
+            <span className={styles.badgeIcon} aria-hidden="true">
+              {badge.rewardIcon}
+            </span>
+            <span className={styles.badgeLabel}>{badge.rewardLabel}</span>
+            <span className={styles.badgeProgress}>
+              {badge.earned ? 'Earned' : badge.progress}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className={styles.sectionNote}>
+        A badge is earned when every tier in its category is cleared.
+      </p>
+    </section>
+  );
+}
+
+/**
  * The season ladder: tiered milestones over the real UK tax year, with the
  * countdown to 5 April that actually matters for unused allowances.
  *
@@ -108,6 +164,8 @@ export default function SeasonTrack() {
     () => buildSeasonGroups(snapshot, allowances, allowancesUnavailable),
     [snapshot, allowances, allowancesUnavailable]
   );
+
+  const badges = useMemo(() => buildSeasonBadges(groups), [groups]);
 
   const countdown = useMemo(
     () => (season ? seasonCountdown(season, new Date()) : null),
@@ -145,6 +203,8 @@ export default function SeasonTrack() {
           allowances API — the date unused ISA and pension headroom expires.
         </p>
       </section>
+
+      <BadgeShelf badges={badges} />
 
       {groups.map((group) => (
         <section

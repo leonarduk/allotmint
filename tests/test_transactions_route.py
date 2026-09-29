@@ -525,6 +525,24 @@ def test_posted_buy_is_valued_once_in_owner_portfolio(tmp_path, monkeypatch):
     assert built["total_value_estimate_gbp"] == pytest.approx(20.0)
 
 
+def test_posted_sell_and_its_delete_move_owner_portfolio_value_once(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "offline_mode", False)
+    client = _make_client(tmp_path, monkeypatch)
+    buy = _valid_payload(account="isa", units=3, price_gbp=10.0)
+    assert client.post("/transactions", json=buy).status_code == 201
+    sell = client.post("/transactions", json=_valid_payload(account="isa", type="SELL", units=1, price_gbp=10.0))
+    assert sell.status_code == 201
+    monkeypatch.setattr(
+        portfolio_mod,
+        "enrich_holding",
+        lambda holding, *args, **kwargs: {**holding, "market_value_gbp": float(holding["units"]) * 10.0},
+    )
+
+    assert portfolio_mod.build_owner_portfolio("alice", tmp_path)["total_value_estimate_gbp"] == pytest.approx(20.0)
+    assert client.delete(f"/transactions/{sell.json()['id']}").status_code == 200
+    assert portfolio_mod.build_owner_portfolio("alice", tmp_path)["total_value_estimate_gbp"] == pytest.approx(30.0)
+
+
 def test_update_imported_dividend_without_type_keeps_dividend(tmp_path, monkeypatch):
     owner_dir = tmp_path / "alice"
     owner_dir.mkdir()

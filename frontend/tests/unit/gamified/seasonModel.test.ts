@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildSeasonBadges,
   buildSeasonGoals,
   buildSeasonGroups,
   buildStreakPath,
@@ -302,6 +303,70 @@ describe('buildSeasonGroups', () => {
       '14 days',
       '30 days',
     ]);
+  });
+
+  it('singularises the streak chip target so a 1-day tier never reads "1 days"', () => {
+    const oneDaySnapshot = buildPlotSnapshot({ portfolio, xp: 300, streak: 1 });
+    const oneDayGroups = buildSeasonGroups(oneDaySnapshot, null);
+    const streak = oneDayGroups.find((group) => group.id === 'streak');
+    // The 3-day tier is still the next one, but the chip row must never
+    // render a pluralised "1 days" for a single-day figure.
+    expect(streak?.currentDisplay).toBe('1 day');
+  });
+});
+
+describe('buildSeasonBadges', () => {
+  const snapshot = buildPlotSnapshot({ portfolio, xp: 300, streak: 6 });
+
+  it('emits one badge per category, derived from the same tier state', () => {
+    const groups = buildSeasonGroups(snapshot, {
+      isa: { used: 4_200, limit: 20_000, remaining: 15_800 },
+      pension: { used: 9_000, limit: 60_000, remaining: 51_000 },
+    });
+    const badges = buildSeasonBadges(groups);
+
+    expect(badges).toHaveLength(5);
+    expect(badges.map((badge) => badge.id)).toEqual([
+      'tend',
+      'grow',
+      'feed',
+      'streak',
+      'rank',
+    ]);
+    // A badge is earned exactly when its group is complete.
+    for (const badge of badges) {
+      const group = groups.find((candidate) => candidate.id === badge.id);
+      expect(badge.earned).toBe(group?.complete);
+    }
+  });
+
+  it('reports progress and the next tier while a badge is unearned', () => {
+    const groups = buildSeasonGroups(snapshot, null);
+    const badges = buildSeasonBadges(groups);
+    const grow = badges.find((badge) => badge.id === 'grow');
+
+    // £60k clears 1k/10k/50k but not 250k.
+    expect(grow).toMatchObject({ earned: false, progress: '3/4' });
+    expect(grow?.nextTitle).toBe('Grow the plot to £250.0k');
+  });
+
+  it('marks a badge earned once every tier is cleared, with no next tier', () => {
+    const richSnapshot = buildPlotSnapshot({
+      portfolio: { ...portfolio, total_value_estimate_gbp: 999_999 },
+      xp: 300,
+      streak: 6,
+    });
+    const badges = buildSeasonBadges(buildSeasonGroups(richSnapshot, null));
+    const grow = badges.find((badge) => badge.id === 'grow');
+
+    expect(grow).toMatchObject({ earned: true, progress: '4/4' });
+    expect(grow?.nextTitle).toBeNull();
+  });
+
+  it('never marks a badge earned when its data failed to load', () => {
+    const badges = buildSeasonBadges(buildSeasonGroups(snapshot, null, true));
+    const feed = badges.find((badge) => badge.id === 'feed');
+    expect(feed?.earned).toBe(false);
   });
 });
 

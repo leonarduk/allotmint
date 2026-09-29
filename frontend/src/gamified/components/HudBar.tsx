@@ -7,13 +7,25 @@ interface HudBarProps {
   snapshot: PlotSnapshot;
   /** Where the "classic view" escape hatch points. */
   classicPath: string;
+  /**
+   * Badges earned on the season ladder, derived from the same tier state the
+   * Season page renders. Optional so the HUD still works where the season
+   * data is not loaded.
+   */
+  badgesEarned?: number;
+  badgesTotal?: number;
 }
 
 /**
  * Top status strip: plot value, running gain, grower level and XP — the
  * gamified read-out of figures the classic dashboard shows as a table.
  */
-export default function HudBar({ snapshot, classicPath }: HudBarProps) {
+export default function HudBar({
+  snapshot,
+  classicPath,
+  badgesEarned = 0,
+  badgesTotal = 0,
+}: HudBarProps) {
   const { grower, plotValueGbp, totalGainGbp, streak, rank } = snapshot;
   const gainClass = totalGainGbp >= 0 ? styles.hudChipGain : styles.hudChipLoss;
   // Built as one string rather than interpolated JSX children so it lands in
@@ -52,6 +64,19 @@ export default function HudBar({ snapshot, classicPath }: HudBarProps) {
           <span aria-hidden="true">🔥</span>
           <span>{streak}</span>
           <span className={styles.srOnly}>day streak</span>
+        </span>
+      )}
+
+      {badgesTotal > 0 && (
+        <span
+          className={styles.hudChip}
+          title="Season badges earned"
+        >
+          <span aria-hidden="true">🏅</span>
+          <span>
+            {badgesEarned}/{badgesTotal}
+          </span>
+          <span className={styles.srOnly}>season badges earned</span>
         </span>
       )}
 

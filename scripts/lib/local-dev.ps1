@@ -31,6 +31,12 @@ function Get-AllotmintProDir([string]$RepoRoot) {
   return $null
 }
 
+# True if $Value is a TCP port number (1-65535).
+function Test-ValidPort([string]$Value) {
+  $number = 0
+  return ($Value -match '^\d+$') -and [int]::TryParse($Value, [ref]$number) -and $number -ge 1 -and $number -le 65535
+}
+
 # PYTHONPATH for the MCP server: it imports `backend` from the repo root and
 # `allotmint_pro` from the checkout.
 function Get-McpServerPythonPath([string]$RepoRoot, [string]$ProDir) {

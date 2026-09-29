@@ -19,6 +19,11 @@
 # shellcheck source=scripts/bash/lib/find_free_port.sh
 source "$(dirname "${BASH_SOURCE[0]}")/find_free_port.sh"
 
+# True if $1 is a TCP port number (1-65535).
+valid_port() {
+  [[ "$1" =~ ^[0-9]+$ ]] && ((10#$1 >= 1 && 10#$1 <= 65535))
+}
+
 # Prints the allotmint-pro checkout for repo root $1 ($ALLOTMINT_PRO_DIR, else
 # the sibling ../allotmint-pro); returns 1 if it has no MCP server package.
 mcp_pro_dir() {
@@ -53,6 +58,10 @@ start_local_mcp_server() {
     port="${BASH_REMATCH[3]:-80}"
   else
     url="http://localhost:$port/mcp"
+  fi
+  if ! valid_port "$port"; then
+    echo "Invalid MCP server port '$port' (from MCP_SERVER_PORT or MCP_SERVER_URL; expected 1-65535); chat's MCP server not started." >&2
+    return 0
   fi
 
   local pro_dir

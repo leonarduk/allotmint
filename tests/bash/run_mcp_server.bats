@@ -53,11 +53,29 @@ STUB
   [[ "$output" != *"ARGS="* ]]
 }
 
-@test "rejects a non-numeric port" {
-  run bash "$SCRIPT" abc
+@test "rejects a non-numeric or out-of-range port argument" {
+  for bad in abc 0 65536 99999; do
+    run bash "$SCRIPT" "$bad"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"Invalid port '$bad'"* ]]
+    [[ "$output" == *"Usage:"* ]]
+    [[ "$output" != *"ARGS="* ]]
+  done
+}
+
+@test "rejects an invalid MCP_SERVER_PORT" {
+  MCP_SERVER_PORT=eighty run bash "$SCRIPT"
 
   [ "$status" -eq 2 ]
-  [[ "$output" == *"Usage:"* ]]
+  [[ "$output" == *"Invalid port 'eighty'"* ]]
+}
+
+@test "takes MCP_SERVER_PORT from the shared env file" {
+  [ ! -f "$REPO_ROOT/.env" ] || skip "a repo-local .env takes precedence"
+  printf 'MCP_SERVER_PORT=59315\n' >>"$ALLOTMINT_ENV_FILE"
+  run bash "$SCRIPT"
+
+  [[ "$output" == *"--port 59315"* ]]
 }
 
 @test "refuses a port that is already in use" {

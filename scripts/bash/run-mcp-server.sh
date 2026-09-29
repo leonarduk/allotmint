@@ -23,7 +23,8 @@ source "$SCRIPT_DIR/lib/start_mcp_server.sh"
 load_allotmint_env "$REPO_ROOT"
 
 PORT="${1:-${MCP_SERVER_PORT:-8001}}"
-if [[ ! "$PORT" =~ ^[0-9]+$ ]]; then
+if ! valid_port "$PORT"; then
+  echo "Invalid port '$PORT' (from the argument or MCP_SERVER_PORT; expected 1-65535)." >&2
   echo "Usage: $0 [port]" >&2
   exit 2
 fi

@@ -446,14 +446,19 @@ if (-not $offline) {
 function Start-LocalMcpServer {
   if ($env:START_MCP_SERVER -eq '0') { return $null }
 
-  $mcpPort = if ($env:MCP_SERVER_PORT) { [int]$env:MCP_SERVER_PORT } else { 8001 }
+  $mcpPort = if ($env:MCP_SERVER_PORT) { $env:MCP_SERVER_PORT } else { '8001' }
   $mcpUrl = $env:MCP_SERVER_URL
   if ($mcpUrl) {
     if ($mcpUrl -notmatch '^http://(localhost|127\.0\.0\.1)(:(\d+))?(/|$)') { return $null }
-    $mcpPort = if ($matches[3]) { [int]$matches[3] } else { 80 }
+    $mcpPort = if ($matches[3]) { $matches[3] } else { '80' }
   } else {
     $mcpUrl = "http://localhost:$mcpPort/mcp"
   }
+  if (-not (Test-ValidPort $mcpPort)) {
+    Write-Host "Invalid MCP server port '$mcpPort' (from MCP_SERVER_PORT or MCP_SERVER_URL; expected 1-65535); chat's MCP server not started." -ForegroundColor Yellow
+    return $null
+  }
+  $mcpPort = [int]$mcpPort
 
   $proDir = Get-AllotmintProDir $REPO_ROOT
   if (-not $proDir) {

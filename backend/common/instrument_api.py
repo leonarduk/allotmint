@@ -537,15 +537,22 @@ def _close_on_cache_only(sym: str, ex: str, snap: dt.date) -> Optional[float]:
     the Friday they both resolve to) three separate cache entries for what is
     the same underlying row, defeating the point of memoizing (#8232 review).
 
-    A missing result (``None``, i.e. no cached row for this day) is deliberately
-    **not** memoized, unlike a plain ``lru_cache``: ``load_meta_timeseries_range``
-    queues the ticker on ``refresh_queue`` when cache-only reads find nothing, and
-    that queueing is itself de-duplicated/cooldown-gated there. Caching the
-    ``None`` here as well would silently swallow that queueing for every
-    subsequent lookup of the same day for the rest of this process's lifetime,
-    including once real data finally lands -- there being no file to have an
-    mtime on yet, ``_invalidate_meta_caches_if_stale`` has nothing to bust this
-    entry with in the meantime (#8232 review, ``test_reports_cache_only.py``).
+    A ``None`` result is deliberately **not** memoized, unlike a plain
+    ``lru_cache`` -- for either way ``_close_on_impl`` can produce one:
+
+    - No cached row for this day at all: ``load_meta_timeseries_range`` queues
+      the ticker on ``refresh_queue``, and that queueing is itself
+      de-duplicated/cooldown-gated there. Caching the ``None`` here as well
+      would silently swallow that queueing for every subsequent lookup of the
+      same day for the rest of this process's lifetime, including once real
+      data finally lands -- there being no file to have an mtime on yet,
+      ``_invalidate_meta_caches_if_stale`` has nothing to bust this entry with
+      in the meantime (#8232 review, ``test_reports_cache_only.py``).
+    - A row exists but its close is NaN: there's no refresh-queue concern
+      here, so skipping the memo just means a missed optimization (the NaN
+      row gets re-read on the next lookup) rather than a correctness risk --
+      not worth a second code path to special-case, since a NaN close for an
+      already-cached day is rare (#8232 review round 7).
     """
     key = (sym, ex, snap)
     with _close_on_cache_lock:

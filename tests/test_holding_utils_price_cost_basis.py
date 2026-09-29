@@ -88,6 +88,30 @@ def test_get_price_for_date_scaled_memoizes_only_inside_cache_only(monkeypatch):
     assert len(calls) == 2, "a call outside cache_only() must never be served from the cache-only memo"
 
 
+def test_get_price_for_date_scaled_keyed_on_field(monkeypatch):
+    """#8232 review round 7: the memo key includes `field` -- two different
+    fields for the same (ticker, exchange, d) must never collide into one
+    cache entry."""
+    holding_utils._load_unscaled_price_for_date_cache_only.cache_clear()
+    d = dt.date(2024, 1, 1)
+
+    def fake_loader(*args, **kwargs):
+        return pd.DataFrame({"Close_gbp": [10.0], "Open": [5.0], "Source": ["Yahoo"]})
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_loader)
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: 1.0)
+
+    from backend.timeseries.cache import cache_only
+
+    with cache_only():
+        close_price, _ = holding_utils._get_price_for_date_scaled("AAA", "L", d, field="Close_gbp")
+        open_price, _ = holding_utils._get_price_for_date_scaled("AAA", "L", d, field="Open")
+
+    assert close_price == 10.0
+    assert open_price == 5.0
+    assert len(holding_utils._unscaled_price_cache) == 2
+
+
 def test_get_price_for_date_scaled_cache_only_memo_cleared_by_meta_cache_invalidation(monkeypatch):
     """#8211: the new memo must be registered with cache.py's invalidation
     hook so a stale underlying file still busts it, same as the module's own

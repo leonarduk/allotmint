@@ -60,6 +60,31 @@ def test_close_on_memoizes_only_inside_cache_only(monkeypatch):
 
     assert ia._close_on("AAA", "L", sample_date) == 123.45
     assert len(calls) == 2, "a call outside cache_only() must never be served from the cache-only memo"
+    assert len(ia._close_on_cache) == 1, (
+        "the live-path call must not populate the cache-only memo either "
+        "(#8232 review round 7) -- only the earlier cache_only() call should"
+    )
+
+
+def test_close_on_cache_only_keyed_on_field_equivalent_snap_not_shared_across_tickers(monkeypatch):
+    """#8232 review round 7: the memo key includes (sym, ex, snap) -- two
+    different tickers on the same day must never collide into one cache
+    entry."""
+    ia._close_on_cache_only.cache_clear()
+    sample_date = dt.date(2023, 1, 8)
+    monkeypatch.setattr(ia, "_nearest_weekday", lambda d, forward=False: sample_date)
+
+    def fake_load(sym, ex, start_date, end_date):
+        return pd.DataFrame({"Date": [start_date], "Close": [1.0 if sym == "AAA" else 2.0]})
+
+    monkeypatch.setattr(ia, "load_meta_timeseries_range", fake_load)
+
+    from backend.timeseries.cache import cache_only
+
+    with cache_only():
+        assert ia._close_on("AAA", "L", sample_date) == 1.0
+        assert ia._close_on("BBB", "L", sample_date) == 2.0
+    assert len(ia._close_on_cache) == 2
 
 
 def test_close_on_cache_only_memo_cleared_by_meta_cache_invalidation(monkeypatch):

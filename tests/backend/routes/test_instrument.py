@@ -128,6 +128,33 @@ def test_positions_for_ticker_cost_basis_fallback(monkeypatch):
     assert positions[2]["unrealised_gain_gbp"] == 150.0
 
 
+def test_positions_for_ticker_unknown_cost_basis_is_not_zero_gain(monkeypatch):
+    """A holding with no booked cost and no acquisition date must report an
+    unknown gain (None), not a confident 0.00 from cost == current price."""
+    monkeypatch.setattr(
+        instrument,
+        "list_portfolios",
+        lambda: [
+            {
+                "owner": "steve",
+                "accounts": [
+                    {
+                        "account_type": "SIPP",
+                        "holdings": [{"ticker": "AIGE.L", "units": 1322.0, "cost_basis_gbp": 0.0}],
+                    }
+                ],
+            }
+        ],
+    )
+
+    positions = instrument._positions_for_ticker("AIGE.L", last_close=6.11)
+
+    assert len(positions) == 1
+    assert positions[0]["market_value_gbp"] == 8077.42
+    assert positions[0]["unrealised_gain_gbp"] is None
+    assert positions[0]["gain_pct"] is None
+
+
 @pytest.mark.asyncio
 @pytest.mark.anyio("asyncio")
 async def test_instrument_empty_template(monkeypatch):

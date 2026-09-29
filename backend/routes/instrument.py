@@ -178,6 +178,42 @@ def _validate_ticker(tkr: str) -> None:
         raise HTTPException(400, f'Invalid ticker: "{tkr}"')
 
 
+def _position_gain(h: Dict[str, Any], mv_gbp: float | None) -> tuple[float | None, float | None]:
+    """Return ``(gain_gbp, gain_pct)`` for a raw holding, or ``None`` when unknowable.
+
+    Raw account files do not contain the derived gain fields returned by the
+    holdings endpoint. Map their legacy field names onto the canonical ones,
+    then reuse its cost basis calculation so both views report the same result.
+
+    The cost basis is only trusted when it is booked on the holding or derived
+    from a historical price near the acquisition date. If neither exists we must
+    NOT fall back to the current price: that sets cost == market value and
+    reports a confident 0.00 gain that is really just "unknown" (stale holdings
+    file with ``cost_basis_gbp: 0`` and no ``acquired_date``).
+    """
+
+    gain_gbp = h.get("gain_gbp")
+    gain_pct = h.get("gain_pct")
+    if mv_gbp is None or (gain_gbp is not None and gain_pct is not None):
+        return gain_gbp, gain_pct
+
+    normalised = dict(h)
+    normalised[UNITS] = h.get(UNITS) or h.get("quantity")
+    normalised[COST_BASIS_GBP] = h.get(EFFECTIVE_COST_BASIS_GBP) or h.get(COST_BASIS_GBP) or h.get("cost_basis")
+    # An empty cache and no price hint stop the helper substituting the current
+    # price for a missing cost; it then returns 0.0 for "unknown".
+    cost = get_effective_cost_basis_gbp(normalised, {}, price_hint=None)
+    if cost is None or cost <= 0:
+        return gain_gbp, gain_pct
+
+    calculated_gain = round(mv_gbp - cost, 2)
+    if gain_gbp is None:
+        gain_gbp = calculated_gain
+    if gain_pct is None:
+        gain_pct = calculated_gain / cost * 100.0
+    return gain_gbp, gain_pct
+
+
 def _positions_for_ticker(tkr: str, last_close: float | None) -> List[Dict[str, Any]]:
     """Return every occurrence of ``tkr`` across all portfolios.
 
@@ -196,8 +232,6 @@ def _positions_for_ticker(tkr: str, last_close: float | None) -> List[Dict[str, 
     """
 
     positions: List[Dict[str, Any]] = []
-    price_cache = {tkr: last_close} if last_close is not None else {}
-
     # Iterate through owners -> accounts -> holdings
     for pf in list_portfolios():
         owner = pf["owner"]
@@ -210,28 +244,7 @@ def _positions_for_ticker(tkr: str, last_close: float | None) -> List[Dict[str, 
                 units = h.get("units") or h.get("quantity")
                 mv_gbp = None if units is None or last_close is None else round(units * last_close, 2)
 
-                gain_gbp = h.get("gain_gbp")
-                gain_pct = h.get("gain_pct")
-                if mv_gbp is not None and (gain_gbp is None or gain_pct is None):
-                    # Raw account files do not contain the derived gain fields
-                    # returned by the holdings endpoint. Map their legacy field
-                    # names onto the canonical ones, then reuse its cost basis
-                    # calculation so both views report the same result.
-                    normalised = dict(h)
-                    normalised[UNITS] = h.get(UNITS) or h.get("quantity")
-                    normalised[COST_BASIS_GBP] = (
-                        h.get(EFFECTIVE_COST_BASIS_GBP) or h.get(COST_BASIS_GBP) or h.get("cost_basis")
-                    )
-                    cost = get_effective_cost_basis_gbp(normalised, price_cache, price_hint=last_close)
-                    # The helper never returns None, but keep the guard explicit
-                    # so a future signature change cannot introduce a TypeError
-                    # or a divide-by-zero in the gain percentage below.
-                    if cost is not None and cost > 0:
-                        calculated_gain = round(mv_gbp - cost, 2)
-                        if gain_gbp is None:
-                            gain_gbp = calculated_gain
-                        if gain_pct is None:
-                            gain_pct = calculated_gain / cost * 100.0
+                gain_gbp, gain_pct = _position_gain(h, mv_gbp)
 
                 positions.append(
                     {

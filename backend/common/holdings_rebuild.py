@@ -49,11 +49,14 @@ class Position:
     cost: float = 0.0
     unknown_cost_units: float = 0.0
     acquired_date: str | None = None
+    unknown_cost_since: str | None = None
 
     def acquire(self, qty: float, cost: float | None, tx_date: str) -> None:
         self.units += qty
         if cost is None:
             self.unknown_cost_units += qty
+            if _ISO_DATE_RE.match(tx_date) and (self.unknown_cost_since is None or tx_date < self.unknown_cost_since):
+                self.unknown_cost_since = tx_date
         else:
             self.cost += cost
         if _ISO_DATE_RE.match(tx_date) and (self.acquired_date is None or tx_date > self.acquired_date):
@@ -258,6 +261,24 @@ def replay_transactions(
         elif tx_type in cash_signs:
             _apply_cash(replay, tx, cash_signs[tx_type])
     return replay
+
+
+def transaction_cost_hints(transactions: Sequence[Mapping[str, Any]]) -> dict[str, tuple[float | None, str | None]]:
+    """Map ticker -> ``(pool_cost, unknown_cost_since)`` for positions still held.
+
+    ``pool_cost`` is the Section 104 cost when every held unit has a known
+    cost, else ``None``.  ``unknown_cost_since`` is the date the units of
+    unknown cost (typically an opening ``TRANSFER_IN``) first arrived.
+    Read-time callers use these for holdings whose stored cost is 0, instead of
+    reporting a false break-even.
+    """
+    replay = replay_transactions(transactions, aliases=name_aliases(transactions), warn=False)
+    hints: dict[str, tuple[float | None, str | None]] = {}
+    for key, pos in replay.positions.items():
+        if pos.units <= _EPS:
+            continue
+        hints[key] = (round(pos.cost, 2) if pos.cost_known else None, pos.unknown_cost_since)
+    return hints
 
 
 def _units_match(a: Any, b: float) -> bool:

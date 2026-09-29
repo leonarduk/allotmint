@@ -141,7 +141,7 @@ async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatRespons
         if upstream is None:
             raise
         logger.warning("Chat upstream request failed: %s", sanitise_log_value(repr(upstream)))
-        raise HTTPException(status_code=502, detail=_upstream_error_detail(upstream)) from exc
+        return _chat_error(502, *_describe_upstream_error(upstream))
     return ChatResponse(reply=reply, navigate_to=local_tools.navigate_to)
 
 

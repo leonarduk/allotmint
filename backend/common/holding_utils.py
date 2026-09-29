@@ -327,7 +327,16 @@ def _load_unscaled_price_for_date_impl(
     skips ``close_gbp``/``adj close``/``adj_close`` (#8232 review round 2 --
     the original ``price * scale`` deferral applied to *every* column,
     silently re-scaling an already-GBP-converted price).
+
+    Also short-circuits ``CASH`` tickers the same way ``_get_price_for_date_scaled``
+    does, rather than relying on its caller to: this function is called
+    directly by ``scripts/profile_single_day_lookups.py`` and by tests, and a
+    ``CASH`` ticker has no backing parquet to hit ``load_meta_timeseries_range``
+    for (#8232 review round 4).
     """
+    if "CASH" in ticker.upper().split("."):
+        return 1.0, None, False
+
     df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=d, end_date=d)
     if df is None or df.empty:
         return None, None, False

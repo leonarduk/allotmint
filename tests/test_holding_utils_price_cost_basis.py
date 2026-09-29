@@ -18,6 +18,23 @@ def test_get_price_for_date_scaled_cash():
     assert src is None
 
 
+def test_load_unscaled_price_for_date_impl_handles_cash_directly(monkeypatch):
+    """#8232 review round 4: _load_unscaled_price_for_date_impl is called
+    directly by scripts/profile_single_day_lookups.py and by tests, not only
+    through the _get_price_for_date_scaled dispatcher that used to be the
+    sole place CASH was special-cased -- it must short-circuit CASH itself
+    rather than hitting load_meta_timeseries_range for a ticker with no
+    backing parquet."""
+
+    def explode(*args, **kwargs):
+        raise AssertionError("CASH must never reach load_meta_timeseries_range")
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", explode)
+    d = dt.date(2024, 1, 1)
+    price, src, scalable = holding_utils._load_unscaled_price_for_date_impl("CASH", "L", d)
+    assert (price, src, scalable) == (1.0, None, False)
+
+
 def test_get_price_for_date_scaled_empty_data(monkeypatch):
     def fake_loader(*args, **kwargs):
         return pd.DataFrame()

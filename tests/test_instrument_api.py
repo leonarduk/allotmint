@@ -118,6 +118,40 @@ def test_close_on_cache_only_never_memoizes_a_missing_result(monkeypatch):
     assert len(calls) == 2, "a missing result must never be served from the memo"
 
 
+def test_price_change_pct_reuses_the_close_on_memo_across_calls(monkeypatch):
+    """#8232 review round 4: the unit tests prove the _close_on memo works in
+    isolation; this proves it actually cuts load_meta_timeseries_range calls
+    at the price_change_pct level -- the real call graph #8211 traced, where
+    two holdings of the same ticker each trigger their own price_change_pct
+    call (e.g. via aggregate_by_ticker for different owners, or repeated page
+    loads for the same owner)."""
+    ia._close_on_cache_only.cache_clear()
+    _fixed_today(monkeypatch)
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: ("AAA", "L"))
+    monkeypatch.setattr(ia, "_nearest_weekday", lambda d, forward=False: d)
+
+    calls = []
+
+    def fake_load(sym, ex, start_date, end_date):
+        calls.append((start_date, end_date))
+        return pd.DataFrame({"Date": [start_date], "Close": [10.0]})
+
+    monkeypatch.setattr(ia, "load_meta_timeseries_range", fake_load)
+
+    from backend.timeseries.cache import cache_only
+
+    with cache_only():
+        first = ia.price_change_pct("AAA", 7)
+        second = ia.price_change_pct("AAA", 7)
+
+    assert first == second == 0.0
+    # price_change_pct calls _close_on twice per invocation (yesterday, and
+    # `days` ago) -- without the memo this would be 4 load_meta_timeseries_range
+    # calls for the two price_change_pct calls; with it, only the first
+    # invocation's two distinct dates ever reach the loader.
+    assert len(calls) == 2, "the second price_change_pct call must be served entirely from the memo"
+
+
 def test_price_change_pct_unresolved(monkeypatch):
     _fixed_today(monkeypatch)
     monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: None)

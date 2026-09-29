@@ -507,6 +507,43 @@ def test_import_transactions_success(tmp_path, monkeypatch):
     assert captured == {"provider": "degiro", "data": b"content"}
 
 
+def test_calculate_portfolio_impact_is_negative_for_a_sale():
+    assert transactions._calculate_portfolio_impact({"type": "SELL", "price_gbp": 10.0, "units": 2}) == -20.0
+    assert transactions._calculate_portfolio_impact({"type": "BUY", "price_gbp": 10.0, "units": 2}) == 20.0
+
+
+def test_sell_then_delete_leaves_no_net_portfolio_impact(tmp_path, monkeypatch):
+    monkeypatch.setattr(transactions, "_PORTFOLIO_IMPACT", defaultdict(float))
+    monkeypatch.setattr(transactions, "_POSTED_TRANSACTIONS", [])
+    client = _make_client(tmp_path, monkeypatch)
+    created = client.post("/transactions", json=_valid_payload(type="SELL", units=2, price_gbp=10.0)).json()
+    assert transactions._PORTFOLIO_IMPACT["alice"] == pytest.approx(-20.0)
+    assert client.delete(f"/transactions/{created['id']}").status_code == 200
+    assert transactions._PORTFOLIO_IMPACT["alice"] == pytest.approx(0.0)
+
+
+def test_update_imported_dividend_without_type_keeps_dividend(tmp_path, monkeypatch):
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    (owner_dir / "ISA_transactions.json").write_text(
+        json.dumps(
+            {
+                "owner": "alice",
+                "account_type": "ISA",
+                "transactions": [
+                    {"type": "DIVIDEND", "ticker": "PFE", "date": "2024-05-01", "amount_minor": 500, "reason": "income"}
+                ],
+            }
+        )
+    )
+    client = _make_client(tmp_path, monkeypatch)
+    resp = client.put("/transactions/alice:ISA:0", json=_valid_payload(comments="edited"))
+    assert resp.status_code == 200
+    stored = json.loads((owner_dir / "ISA_transactions.json").read_text())["transactions"][0]
+    assert stored["type"] == "DIVIDEND"
+    assert stored["comments"] == "edited"
+
+
 def test_calculate_portfolio_impact_tolerates_bank_transaction_fields():
     assert transactions._calculate_portfolio_impact({"price_gbp": None, "units": None}) == 0.0
 

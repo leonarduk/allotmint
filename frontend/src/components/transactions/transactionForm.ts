@@ -9,9 +9,9 @@ export function isTradeType(value: string): value is TradeType {
 }
 
 export type TransactionFormValues = {
-  // BUY/SELL for manual entries. Editing an imported row of another type
-  // (e.g. DIVIDEND) keeps that type here; it is not sent on save, so the
-  // backend leaves the stored type unchanged.
+  // BUY/SELL for manual entries. Editing a row of another type (e.g. an
+  // imported DIVIDEND, or "" for an untyped legacy entry) keeps that type
+  // here; it is not sent on save, so the backend leaves it unchanged.
   type: string;
   date: string;
   ticker: string;
@@ -84,11 +84,13 @@ export function createTransactionFormValues(
   };
 }
 
-// Untyped rows are legacy manual entries, which were always purchases;
-// PURCHASE replays identically to BUY.
+// Keep the stored type as-is. In particular an untyped legacy manual entry
+// stays untyped (""), which is not a trade type and so is left out of the
+// payload: the holdings rebuild ignores untyped rows, and silently saving one
+// as a BUY could double-count a holding also entered on /input. The user
+// can still pick Buy or Sell explicitly. Only new entries default to BUY.
 function formTypeFor(type: string | null | undefined): string {
-  const upper = (type ?? "").toUpperCase();
-  return upper === "" || upper === "PURCHASE" ? "BUY" : upper;
+  return (type ?? "").toUpperCase();
 }
 
 export type TransactionPayload = {

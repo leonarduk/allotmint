@@ -30,7 +30,7 @@ describe("transactionForm helpers", () => {
         date: "2024-02-01T10:00:00Z",
       }),
     ).toEqual({
-      type: "BUY",
+      type: "",
       ticker: "VUSA",
       price: "5.25",
       units: "2",
@@ -155,6 +155,22 @@ describe("transactionForm helpers", () => {
       date: "2024-02-01",
     });
     expect(values.type).toBe("DIVIDEND");
+  });
+
+  it("leaves an untyped legacy entry untyped so saving it does not start counting it", () => {
+    const values = createTransactionFormValues({
+      owner: "alex",
+      account: "isa",
+      ticker: "VUSA",
+      price_gbp: 10,
+      units: 2,
+      reason: "legacy",
+      date: "2024-02-01",
+    });
+    expect(values.type).toBe("");
+    const result = buildTransactionPayload(values, "alex", "isa");
+    expect(result.error).toBeNull();
+    expect(result.payload).not.toHaveProperty("type");
   });
 
   it("includes SELL in the payload", () => {

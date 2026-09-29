@@ -61,7 +61,7 @@ export function TransactionEditorForm({
           <option value="BUY">Buy</option>
           <option value="SELL">Sell</option>
           {!isTradeType(values.type) && (
-            <option value={values.type}>{values.type} (unchanged)</option>
+            <option value={values.type}>{values.type || "Untyped"} (unchanged)</option>
           )}
         </select>
       </label>

@@ -377,12 +377,18 @@ def _parse_transaction_id(tx_id: str) -> Tuple[str, str, int]:
 
 
 def _calculate_portfolio_impact(tx: Mapping[str, object]) -> float:
+    """Value ``tx`` adds to ``_PORTFOLIO_IMPACT``: positive for a purchase, negative for a sale.
+
+    Create, update, delete and rollback all go through this helper, so the
+    sign stays symmetric: deleting a SELL adds its value back.
+    """
     try:
         price = float(tx.get("price_gbp") or 0.0)
         units = float(tx.get("units") or 0.0)
     except (TypeError, ValueError):
         return 0.0
-    return price * units
+    sign = -1.0 if str(tx.get("type") or "").upper() == "SELL" else 1.0
+    return sign * price * units
 
 
 def _as_non_empty_str(value: object) -> str | None:

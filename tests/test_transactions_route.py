@@ -802,6 +802,30 @@ def test_opening_balance_counts_undated_transactions_like_the_rebuild(tmp_path, 
     assert _replayed_units(tmp_path, "alice", "isa_transactions.json", "VUSA.L") == pytest.approx(10.0)
 
 
+def test_opening_balance_counts_ticker_less_rows_via_the_rebuild_aliases(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    (owner_dir / "isa.json").write_text(
+        json.dumps({"holdings": [{"ticker": "VUSA.L", "name": "Vanguard S&P 500", "units": 4}]})
+    )
+    (owner_dir / "isa_transactions.json").write_text(
+        json.dumps(
+            {
+                "transactions": [
+                    {"type": "BUY", "name": "Vanguard S&P 500", "date": "2024-01-01", "price_gbp": 100, "units": 4}
+                ]
+            }
+        )
+    )
+
+    resp = client.post(
+        "/holdings/manual", json={"owner": "alice", "account": "isa", "ticker": "VUSA.L", "units": 10, "price_gbp": 100}
+    )
+
+    assert resp.json()["transaction"]["units"] == 6.0
+
+
 def test_create_manual_holding_matching_current_units_records_nothing(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
     payload = {"owner": "alice", "account": "ISA", "ticker": "VUSA.L", "units": 10, "price_gbp": 100}

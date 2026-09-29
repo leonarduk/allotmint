@@ -25,7 +25,7 @@ from backend.common.accounts_store import (
 )
 from backend.common.authz import ensure_owner_access
 from backend.common.core_optional import require_core
-from backend.common.holdings_rebuild import replay_transactions
+from backend.common.holdings_rebuild import name_aliases, replay_transactions
 from backend.common.instruments import get_instrument_meta
 from backend.common.prices import get_price_gbp
 from backend.common.realised_gains import compute_disposal_gains
@@ -1087,7 +1087,11 @@ def _transactions_account_name(owner: str, account: str, store: "AccountsStore")
 
 
 def _opening_balance_transaction(
-    transactions: List[Mapping[str, Any]], ticker: str, units: float, price: float
+    transactions: List[Mapping[str, Any]],
+    holdings: List[Mapping[str, Any]],
+    ticker: str,
+    units: float,
+    price: float,
 ) -> Optional[Dict[str, Any]]:
     """The transaction that makes ``ticker``'s replayed units equal ``units``, or None if they already do.
 
@@ -1096,9 +1100,10 @@ def _opening_balance_transaction(
     dated today: dated earlier, it could exceed the units held on that date,
     and the rebuild would ignore the excess.
     """
-    # The same replay the rebuild uses, so the offset agrees with the rebuilt
-    # holding (it also counts undated rows, which get_units_as_of skips).
-    position = replay_transactions(transactions, warn=False).positions.get(ticker)
+    # The same replay the rebuild uses (including its name -> ticker aliases),
+    # so the offset agrees with the rebuilt holding.
+    aliases = name_aliases(transactions, holdings)
+    position = replay_transactions(transactions, aliases=aliases, warn=False).positions.get(ticker)
     held = position.units if position else 0.0
     delta = round(units - held, 8)
     if abs(delta) < 1e-8:
@@ -1148,7 +1153,10 @@ def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dic
             doc["currency"] = payload.currency.strip().upper() or "GBP"
 
     existing = store.read_document(owner, f"{tx_account}_transactions.json") or {}
-    tx = _opening_balance_transaction(list(existing.get("transactions") or []), ticker, units, price)
+    holdings_doc = store.read_document(owner, f"{_normalise_account_file_name(account)}.json") or {}
+    tx = _opening_balance_transaction(
+        list(existing.get("transactions") or []), list(holdings_doc.get("holdings") or []), ticker, units, price
+    )
     persisted = _persist_transaction(store, owner, tx_account, tx) if tx else None
 
     return {

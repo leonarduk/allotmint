@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import * as api from "../api";
-import type { ChatMessage, ChatPage } from "../api";
+import type { ChatContext, ChatMessage, ChatPage } from "../api";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   /** Pages the assistant may open for the user. */
   pages?: ChatPage[];
+  /** The page the user is on, sent with each turn. */
+  context?: ChatContext;
   /** Called with a page's path when the assistant opens it. */
   onNavigate?: (path: string) => void;
 }
@@ -90,7 +92,7 @@ function ChatMessageItem({ message }: { message: ChatMessage }) {
   );
 }
 
-export function ChatPanel({ open, onClose, pages = [], onNavigate }: Props) {
+export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -114,7 +116,7 @@ export function ChatPanel({ open, onClose, pages = [], onNavigate }: Props) {
     setSending(true);
     setError(null);
     try {
-      const { reply, navigate_to } = await api.postChat(text, history, pages);
+      const { reply, navigate_to } = await api.postChat(text, history, pages, context);
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
       // Only follow a path that was offered: the backend enforces this too.
       if (navigate_to && onNavigate && pages.some((page) => page.path === navigate_to)) {

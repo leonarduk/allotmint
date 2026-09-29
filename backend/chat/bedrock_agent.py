@@ -85,6 +85,7 @@ async def run_chat_turn(
     mcp_server_url: str,
     bedrock_model_id: str,
     local_tools: Optional[LocalTools] = None,
+    system_prompt: Optional[str] = None,
 ) -> str:
     """Run one user turn through the Bedrock tool-calling loop and return the reply.
 
@@ -116,6 +117,7 @@ async def run_chat_turn(
                 modelId=bedrock_model_id,
                 messages=messages,
                 toolConfig=tool_config,
+                **({"system": [{"text": system_prompt}]} if system_prompt else {}),
             )
             output_message = response["output"]["message"]
             messages.append(output_message)

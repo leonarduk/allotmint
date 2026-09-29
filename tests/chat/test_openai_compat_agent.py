@@ -261,3 +261,22 @@ async def test_run_chat_turn_raises_when_loop_does_not_converge(monkeypatch):
         await openai_compat_agent.run_chat_turn(
             "loop", [], mcp_server_url="http://localhost:8001/mcp", base_url="http://x/v1", model="m"
         )
+
+
+async def test_run_chat_turn_prepends_system_prompt(monkeypatch):
+    session = FakeSession(tools=[FakeTool("list_owners")])
+    monkeypatch.setattr(openai_compat_agent, "mcp_session", _fake_mcp_session_factory(session))
+    requests = _patch_http(monkeypatch, [_completion({"role": "assistant", "content": "ok"})])
+
+    await openai_compat_agent.run_chat_turn(
+        "buy?",
+        [],
+        mcp_server_url="http://localhost:8001/mcp",
+        base_url="http://localhost:11434/v1",
+        model="m",
+        system_prompt="on /research/ARG.TO",
+    )
+
+    messages = json.loads(requests[0].content)["messages"]
+    assert messages[0] == {"role": "system", "content": "on /research/ARG.TO"}
+    assert messages[-1] == {"role": "user", "content": "buy?"}

@@ -35,6 +35,7 @@ async def run_configured_chat_turn(
     cfg: Config,
     mcp_server_url: str,
     local_tools: Optional[LocalTools] = None,
+    system_prompt: Optional[str] = None,
 ) -> str:
     provider = resolve_chat_provider(cfg)
     if provider == "bedrock":
@@ -44,6 +45,7 @@ async def run_configured_chat_turn(
             mcp_server_url=mcp_server_url,
             bedrock_model_id=cfg.bedrock_model_id,
             local_tools=local_tools,
+            system_prompt=system_prompt,
         )
 
     default_base_url, default_model = OPENAI_COMPAT_DEFAULTS[provider]
@@ -58,4 +60,5 @@ async def run_configured_chat_turn(
         model=cfg.chat_model or default_model,
         api_key=api_key,
         local_tools=local_tools,
+        system_prompt=system_prompt,
     )

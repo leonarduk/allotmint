@@ -2442,6 +2442,12 @@ export type ChatPage = {
   label: string;
 };
 
+/** The page the user has open, so "this stock" resolves. */
+export type ChatContext = {
+  path: string;
+  ticker?: string;
+};
+
 export type ChatReply = {
   reply: string;
   /** Set when the assistant asked to open one of the pages sent with the turn. */
@@ -2463,13 +2469,14 @@ export const postChat = (
   message: string,
   history: ChatMessage[] = [],
   pages: ChatPage[] = [],
+  context?: ChatContext,
 ): Promise<ChatReply> =>
   fetchJson<ChatReply>(
     `${API_BASE}/chat`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, history, pages }),
+      body: JSON.stringify({ message, history, pages, context }),
     },
     CHAT_FETCH_TIMEOUT_MS,
   );

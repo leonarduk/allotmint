@@ -1,5 +1,5 @@
 import type { TabsConfig } from '../ConfigContext';
-import type { ChatPage } from '../api';
+import type { ChatContext, ChatPage } from '../api';
 import type { Mode } from '../modes';
 import { buildPathForMode, getMenuEntries } from '../pageManifest';
 
@@ -36,4 +36,18 @@ export function buildChatPages(
     }
   }
   return pages;
+}
+
+// Instrument pages live at /research/:ticker.
+const RESEARCH_PATH = /^\/research\/([^/]+)\/?$/;
+
+/** The page the user is on, sent with each chat turn (backend/chat/local_tools.py). */
+export function buildChatContext(pathname: string): ChatContext {
+  const match = RESEARCH_PATH.exec(pathname);
+  if (!match) return { path: pathname };
+  try {
+    return { path: pathname, ticker: decodeURIComponent(match[1]) };
+  } catch {
+    return { path: pathname };
+  }
 }

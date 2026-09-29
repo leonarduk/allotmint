@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from backend.chat import bedrock_agent, openai_compat_agent
+from backend.chat.local_tools import LocalTools
 from backend.config import Config
 
 # (base_url, model) used when chat_base_url / chat_model are unset.
@@ -33,6 +34,7 @@ async def run_configured_chat_turn(
     *,
     cfg: Config,
     mcp_server_url: str,
+    local_tools: Optional[LocalTools] = None,
 ) -> str:
     provider = resolve_chat_provider(cfg)
     if provider == "bedrock":
@@ -41,6 +43,7 @@ async def run_configured_chat_turn(
             history,
             mcp_server_url=mcp_server_url,
             bedrock_model_id=cfg.bedrock_model_id,
+            local_tools=local_tools,
         )
 
     default_base_url, default_model = OPENAI_COMPAT_DEFAULTS[provider]
@@ -54,4 +57,5 @@ async def run_configured_chat_turn(
         base_url=cfg.chat_base_url or default_base_url,
         model=cfg.chat_model or default_model,
         api_key=api_key,
+        local_tools=local_tools,
     )

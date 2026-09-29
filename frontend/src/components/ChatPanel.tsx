@@ -2,11 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import * as api from "../api";
-import type { ChatMessage } from "../api";
+import type { ChatMessage, ChatPage } from "../api";
 
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Pages the assistant may open for the user. */
+  pages?: ChatPage[];
+  /** Called with a page's path when the assistant opens it. */
+  onNavigate?: (path: string) => void;
 }
 
 // Assistant replies are Markdown (headings, bold, GFM tables). Raw HTML is not
@@ -75,7 +79,7 @@ function ChatMessageItem({ message }: { message: ChatMessage }) {
   );
 }
 
-export function ChatPanel({ open, onClose }: Props) {
+export function ChatPanel({ open, onClose, pages = [], onNavigate }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -99,8 +103,12 @@ export function ChatPanel({ open, onClose }: Props) {
     setSending(true);
     setError(null);
     try {
-      const { reply } = await api.postChat(text, history);
+      const { reply, navigate_to } = await api.postChat(text, history, pages);
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      // Only follow a path that was offered: the backend enforces this too.
+      if (navigate_to && onNavigate && pages.some((page) => page.path === navigate_to)) {
+        onNavigate(navigate_to);
+      }
     } catch (e) {
       // Drop the unanswered message and hand its text back for a retry: left
       // in `messages`, it would make the next send's history end in two

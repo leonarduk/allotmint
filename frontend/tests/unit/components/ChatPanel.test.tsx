@@ -23,7 +23,53 @@ describe("ChatPanel", () => {
 
     expect(screen.getByText(/what's VOD\.L trading at\?/i)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(/VOD\.L is 1\.0/i)).toBeInTheDocument());
-    expect(api.postChat).toHaveBeenCalledWith("what's VOD.L trading at?", []);
+    expect(api.postChat).toHaveBeenCalledWith("what's VOD.L trading at?", [], []);
+  });
+
+  it("sends the available pages and follows the page the assistant opens", async () => {
+    const pages = [
+      { path: "/transactions", label: "Transactions" },
+      { path: "/market", label: "Market" },
+    ];
+    (api.postChat as Mock).mockResolvedValueOnce({
+      reply: "Opening Transactions.",
+      navigate_to: "/transactions",
+    });
+    const onNavigate = vi.fn();
+    const user = userEvent.setup();
+
+    render(<ChatPanel open onClose={() => {}} pages={pages} onNavigate={onNavigate} />);
+
+    await user.type(screen.getByLabelText(/chat message/i), "go to the transactions page");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith("/transactions"));
+    expect(api.postChat).toHaveBeenCalledWith("go to the transactions page", [], pages);
+    expect(screen.getByText("Opening Transactions.")).toBeInTheDocument();
+  });
+
+  it("ignores a navigate_to that was not one of the offered pages", async () => {
+    (api.postChat as Mock).mockResolvedValueOnce({
+      reply: "Opening it.",
+      navigate_to: "/admin",
+    });
+    const onNavigate = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <ChatPanel
+        open
+        onClose={() => {}}
+        pages={[{ path: "/market", label: "Market" }]}
+        onNavigate={onNavigate}
+      />,
+    );
+
+    await user.type(screen.getByLabelText(/chat message/i), "go to admin");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() => expect(screen.getByText("Opening it.")).toBeInTheDocument());
+    expect(onNavigate).not.toHaveBeenCalled();
   });
 
   it("renders assistant replies as markdown, including GFM tables", async () => {
@@ -132,7 +178,7 @@ describe("ChatPanel", () => {
     await user.click(screen.getByRole("button", { name: /send/i }));
 
     await waitFor(() => expect(screen.getByText("Hello!")).toBeInTheDocument());
-    expect(api.postChat).toHaveBeenLastCalledWith("hi", []);
+    expect(api.postChat).toHaveBeenLastCalledWith("hi", [], []);
     expect(screen.getAllByText("hi")).toHaveLength(1);
   });
 });

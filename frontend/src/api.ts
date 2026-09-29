@@ -2429,6 +2429,18 @@ export type ChatMessage = {
   content: string;
 };
 
+/** A page the chat may open for the user (see utils/chatPages.ts). */
+export type ChatPage = {
+  path: string;
+  label: string;
+};
+
+export type ChatReply = {
+  reply: string;
+  /** Set when the assistant asked to open one of the pages sent with the turn. */
+  navigate_to?: string | null;
+};
+
 // One chat turn can take several LLM round trips plus MCP tool calls; a local
 // Ollama model routinely needs 30-90s, well past DEFAULT_FETCH_TIMEOUT_MS.
 export const CHAT_FETCH_TIMEOUT_MS = 300000;
@@ -2437,18 +2449,20 @@ export const CHAT_FETCH_TIMEOUT_MS = 300000;
  * Send one chat turn to the backend's tool-calling agent (Bedrock, Ollama or
  * DeepSeek). `history` is resent in full each call -- there is no
  * server-side session/persistence yet, so the caller owns the running
- * conversation.
+ * conversation. `pages` are the pages the assistant may open; the reply's
+ * `navigate_to` is always one of them.
  */
 export const postChat = (
   message: string,
   history: ChatMessage[] = [],
-): Promise<{ reply: string }> =>
-  fetchJson<{ reply: string }>(
+  pages: ChatPage[] = [],
+): Promise<ChatReply> =>
+  fetchJson<ChatReply>(
     `${API_BASE}/chat`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, history }),
+      body: JSON.stringify({ message, history, pages }),
     },
     CHAT_FETCH_TIMEOUT_MS,
   );

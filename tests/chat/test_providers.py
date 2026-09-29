@@ -28,7 +28,7 @@ def test_resolve_chat_provider(chat_provider, app_env, expected):
 async def test_bedrock_provider_uses_bedrock_agent(monkeypatch):
     captured = {}
 
-    async def fake_bedrock(message, history, *, mcp_server_url, bedrock_model_id):
+    async def fake_bedrock(message, history, *, mcp_server_url, bedrock_model_id, local_tools=None):
         captured.update(message=message, mcp_server_url=mcp_server_url, bedrock_model_id=bedrock_model_id)
         return "from bedrock"
 
@@ -66,7 +66,7 @@ async def test_openai_compat_providers_resolve_base_url_model_and_key(
         monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     captured = {}
 
-    async def fake_openai(message, history, *, mcp_server_url, base_url, model, api_key=None):
+    async def fake_openai(message, history, *, mcp_server_url, base_url, model, api_key=None, local_tools=None):
         captured["args"] = (base_url, model, api_key)
         return "from openai-compat"
 

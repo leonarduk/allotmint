@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from functools import lru_cache
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import boto3
 from mcp.types import CallToolResult, Tool
 
+from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import mcp_session
 from backend.logging_setup import sanitise_log_value
 
@@ -83,12 +84,14 @@ async def run_chat_turn(
     *,
     mcp_server_url: str,
     bedrock_model_id: str,
+    local_tools: Optional[LocalTools] = None,
 ) -> str:
     """Run one user turn through the Bedrock tool-calling loop and return the reply.
 
     ``history`` is ``[{"role": "user"|"assistant", "content": "..."}, ...]`` —
     the caller resends the full prior conversation each turn; nothing is
-    persisted server-side in this first pass.
+    persisted server-side in this first pass. ``local_tools`` are offered
+    alongside the MCP tools and run in-process (see ``backend.chat.local_tools``).
     """
 
     messages: List[Dict[str, Any]] = [
@@ -101,7 +104,8 @@ async def run_chat_turn(
 
     async with mcp_session(mcp_server_url) as session:
         tools_result = await session.list_tools()
-        tool_config = {"tools": [_tool_to_bedrock_spec(tool) for tool in tools_result.tools]}
+        tools = merge_tool_lists(tools_result.tools, local_tools)
+        tool_config = {"tools": [_tool_to_bedrock_spec(tool) for tool in tools]}
 
         for _ in range(MAX_TOOL_ITERATIONS):
             # bedrock.converse() is a blocking boto3 call; run it off the
@@ -123,6 +127,18 @@ async def run_chat_turn(
 
             tool_result_content = []
             for tool_use in tool_uses:
+                if local_tools is not None and local_tools.handles(tool_use["name"]):
+                    text, is_error = local_tools.call(tool_use["name"], tool_use.get("input") or {})
+                    tool_result_content.append(
+                        {
+                            "toolResult": {
+                                "toolUseId": tool_use["toolUseId"],
+                                "content": [{"text": text}],
+                                "status": "error" if is_error else "success",
+                            }
+                        }
+                    )
+                    continue
                 try:
                     result = await session.call_tool(tool_use["name"], tool_use.get("input") or {})
                     content = _tool_result_to_bedrock_content(result)

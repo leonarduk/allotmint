@@ -22,6 +22,7 @@ from backend.chat.bedrock_agent import (
     _tool_result_to_bedrock_content,
     _validate_message_alternation,
 )
+from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import mcp_session
 from backend.logging_setup import sanitise_log_value
 
@@ -82,6 +83,7 @@ async def run_chat_turn(
     base_url: str,
     model: str,
     api_key: Optional[str] = None,
+    local_tools: Optional[LocalTools] = None,
 ) -> str:
     """Run one user turn through an OpenAI-compatible tool-calling loop and return the reply.
 
@@ -99,7 +101,7 @@ async def run_chat_turn(
         httpx.AsyncClient(headers=headers, timeout=REQUEST_TIMEOUT_SECONDS) as client,
     ):
         tools_result = await session.list_tools()
-        tools = [_tool_to_openai_spec(tool) for tool in tools_result.tools]
+        tools = [_tool_to_openai_spec(tool) for tool in merge_tool_lists(tools_result.tools, local_tools)]
 
         for _ in range(MAX_TOOL_ITERATIONS):
             output_message = await _complete(client, base_url=base_url, model=model, messages=messages, tools=tools)
@@ -116,8 +118,11 @@ async def run_chat_turn(
                 name = tool_call["function"]["name"]
                 try:
                     arguments = _parse_tool_arguments(tool_call["function"].get("arguments"))
-                    result = await session.call_tool(name, arguments)
-                    content = _tool_result_to_bedrock_content(result)[0]["text"]
+                    if local_tools is not None and local_tools.handles(name):
+                        content, _is_error = local_tools.call(name, arguments)
+                    else:
+                        result = await session.call_tool(name, arguments)
+                        content = _tool_result_to_bedrock_content(result)[0]["text"]
                 except Exception as exc:  # noqa: BLE001 - surfaced to the model, not swallowed
                     logger.warning(
                         "MCP tool call %s failed: %s",

@@ -391,6 +391,12 @@ bash scripts/bash/run-local-api.sh
 These can also live in `.env.shared`. Pick a model that supports tool
 calling; reasoning-only models such as `deepseek-r1` on Ollama don't.
 
+Besides the MCP data tools, the chat can open pages of the app ("go to the
+transactions page"). That tool, `navigate_to_page`, is handled by this backend
+(`backend/chat/local_tools.py`), not the MCP server. The drawer sends the menu
+pages enabled for the user with each turn (`frontend/src/utils/chatPages.ts`),
+and the model can only open one of those.
+
 ### Regenerating the docs screenshots
 
 `docs/assets/qa-screenshots/*.png` are captured against this repo's own bundled

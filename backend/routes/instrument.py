@@ -199,9 +199,12 @@ def _position_gain(h: Dict[str, Any], mv_gbp: float | None) -> tuple[float | Non
 
     normalised = dict(h)
     normalised[UNITS] = h.get(UNITS) or h.get("quantity")
+    # ``or`` deliberately treats a stored 0.0 as "no booked cost".
     normalised[COST_BASIS_GBP] = h.get(EFFECTIVE_COST_BASIS_GBP) or h.get(COST_BASIS_GBP) or h.get("cost_basis")
     # An empty cache and no price hint stop the helper substituting the current
-    # price for a missing cost; it then returns 0.0 for "unknown".
+    # price for a missing cost; it then returns 0.0 for "unknown". The cache is
+    # only a memo there: the historical close near ``acquired_date`` is still
+    # loaded from the price timeseries.
     cost = get_effective_cost_basis_gbp(normalised, {}, price_hint=None)
     if cost is None or cost <= 0:
         return gain_gbp, gain_pct

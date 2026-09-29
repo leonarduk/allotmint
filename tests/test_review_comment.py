@@ -25,7 +25,30 @@ def _to_bash_path(p: Path | str) -> str:
     return s
 
 
-@pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
+def _bash_can_run_script() -> bool:
+    """True only if the ``bash`` on PATH can execute and see ``SCRIPT``.
+
+    ``shutil.which("bash")`` alone is not enough on Windows: it can find
+    ``System32\bash.exe`` (the WSL launcher) with no distro behind it, or
+    a Git Bash that doesn't understand the ``/mnt/c/...`` paths
+    ``_to_bash_path`` produces. Probe with the real path mapping so these
+    tests skip on such a machine instead of failing on its setup.
+    """
+    if shutil.which("bash") is None:
+        return False
+    try:
+        probe = subprocess.run(
+            ["bash", "-c", 'test -f "$1"', "_", _to_bash_path(SCRIPT)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return probe.returncode == 0
+
+
+@pytest.mark.skipif(not _bash_can_run_script(), reason="no bash that can run the script")
 @pytest.mark.parametrize("provider", ["Claude", "GPT"])
 class TestBuildReviewComment:
     def _run(self, body_file: str, provider: str) -> subprocess.CompletedProcess:

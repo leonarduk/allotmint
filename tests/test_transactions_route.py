@@ -508,17 +508,21 @@ def test_import_transactions_success(tmp_path, monkeypatch):
     assert captured == {"provider": "degiro", "data": b"content"}
 
 
-def test_posted_buy_is_valued_once_in_owner_portfolio(tmp_path, monkeypatch):
-    """The rebuilt holding carries the trade; nothing may add its value again."""
-    monkeypatch.setattr(config, "offline_mode", False)
-    client = _make_client(tmp_path, monkeypatch)
-    resp = client.post("/transactions", json=_valid_payload(account="isa", units=2, price_gbp=10.0))
-    assert resp.status_code == 201
+def _value_units_at_ten(monkeypatch):
     monkeypatch.setattr(
         portfolio_mod,
         "enrich_holding",
         lambda holding, *args, **kwargs: {**holding, "market_value_gbp": float(holding["units"]) * 10.0},
     )
+
+
+def test_posted_buy_is_valued_once_in_owner_portfolio(tmp_path, monkeypatch):
+    """The rebuilt holding carries the trade; nothing may add its value again."""
+    monkeypatch.setattr(config, "offline_mode", False)
+    client = _make_client(tmp_path, monkeypatch)
+    _value_units_at_ten(monkeypatch)
+    resp = client.post("/transactions", json=_valid_payload(account="isa", units=2, price_gbp=10.0))
+    assert resp.status_code == 201
 
     built = portfolio_mod.build_owner_portfolio("alice", tmp_path)
 
@@ -528,19 +532,32 @@ def test_posted_buy_is_valued_once_in_owner_portfolio(tmp_path, monkeypatch):
 def test_posted_sell_and_its_delete_move_owner_portfolio_value_once(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "offline_mode", False)
     client = _make_client(tmp_path, monkeypatch)
+    _value_units_at_ten(monkeypatch)
     buy = _valid_payload(account="isa", units=3, price_gbp=10.0)
     assert client.post("/transactions", json=buy).status_code == 201
     sell = client.post("/transactions", json=_valid_payload(account="isa", type="SELL", units=1, price_gbp=10.0))
     assert sell.status_code == 201
-    monkeypatch.setattr(
-        portfolio_mod,
-        "enrich_holding",
-        lambda holding, *args, **kwargs: {**holding, "market_value_gbp": float(holding["units"]) * 10.0},
-    )
 
     assert portfolio_mod.build_owner_portfolio("alice", tmp_path)["total_value_estimate_gbp"] == pytest.approx(20.0)
     assert client.delete(f"/transactions/{sell.json()['id']}").status_code == 200
     assert portfolio_mod.build_owner_portfolio("alice", tmp_path)["total_value_estimate_gbp"] == pytest.approx(30.0)
+
+
+def test_editing_a_buy_into_a_sell_moves_owner_portfolio_value_once(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "offline_mode", False)
+    client = _make_client(tmp_path, monkeypatch)
+    _value_units_at_ten(monkeypatch)
+    assert client.post("/transactions", json=_valid_payload(account="isa", units=3, price_gbp=10.0)).status_code == 201
+    second = client.post("/transactions", json=_valid_payload(account="isa", units=1, price_gbp=10.0)).json()
+    assert portfolio_mod.build_owner_portfolio("alice", tmp_path)["total_value_estimate_gbp"] == pytest.approx(40.0)
+
+    edited = _valid_payload(account="isa", type="SELL", units=1, price_gbp=10.0)
+    assert client.put(f"/transactions/{second['id']}", json=edited).status_code == 200
+    assert portfolio_mod.build_owner_portfolio("alice", tmp_path)["total_value_estimate_gbp"] == pytest.approx(20.0)
+
+    edited["type"] = "BUY"
+    assert client.put(f"/transactions/{second['id']}", json=edited).status_code == 200
+    assert portfolio_mod.build_owner_portfolio("alice", tmp_path)["total_value_estimate_gbp"] == pytest.approx(40.0)
 
 
 def test_update_imported_dividend_without_type_keeps_dividend(tmp_path, monkeypatch):

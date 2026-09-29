@@ -24,6 +24,16 @@ const markdownComponents: Components = {
   ),
 };
 
+// Prefer the backend's explanation (chat not configured, MCP server or LLM
+// down) over a generic message; only a request that got no response at all
+// is "Cannot reach server".
+function chatErrorMessage(e: unknown): string {
+  const err = e as { detail?: unknown; status?: unknown; timeout?: unknown; message?: string } | null;
+  if (typeof err?.detail === "string" && err.detail) return err.detail;
+  if ((typeof err?.status === "number" || err?.timeout) && err.message) return err.message;
+  return "Cannot reach server";
+}
+
 function ChatMessageItem({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   return (
@@ -79,13 +89,13 @@ export function ChatPanel({ open, onClose }: Props) {
     try {
       const { reply } = await api.postChat(text, history);
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-    } catch {
+    } catch (e) {
       // Drop the unanswered message and hand its text back for a retry: left
       // in `messages`, it would make the next send's history end in two
       // consecutive "user" turns, which the backend rejects with a 400 (#7897).
       setMessages(history);
       setInput(text);
-      setError("Cannot reach server");
+      setError(chatErrorMessage(e));
     } finally {
       setSending(false);
     }

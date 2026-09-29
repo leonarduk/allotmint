@@ -1,3 +1,5 @@
+import httpx
+import httpx2
 import pytest
 from fastapi.testclient import TestClient
 
@@ -58,6 +60,48 @@ def test_post_chat_returns_400_for_malformed_history(client: TestClient, monkeyp
     # A ValueError from run_chat_turn (malformed conversation, not a server
     # fault) must surface as 400, not an unhandled 500.
     assert resp.status_code == 400
+
+
+def test_post_chat_returns_502_when_mcp_server_unreachable(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "http://localhost:8001/mcp")
+
+    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url):
+        # The MCP SDK's anyio task group wraps the transport's ConnectError.
+        raise ExceptionGroup("unhandled errors in a TaskGroup", [httpx2.ConnectError("All connection attempts failed")])
+
+    monkeypatch.setattr(chat_module, "run_configured_chat_turn", raising_run_chat_turn)
+
+    resp = client.post("/chat", json={"message": "hi"})
+
+    assert resp.status_code == 502
+    assert "MCP tools server" in resp.json()["detail"]
+
+
+def test_post_chat_returns_502_when_llm_provider_fails(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "http://localhost:8001/mcp")
+    request = httpx.Request("POST", "http://localhost:11434/v1/chat/completions")
+
+    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url):
+        raise httpx.HTTPStatusError("not found", request=request, response=httpx.Response(404, request=request))
+
+    monkeypatch.setattr(chat_module, "run_configured_chat_turn", raising_run_chat_turn)
+
+    resp = client.post("/chat", json={"message": "hi"})
+
+    assert resp.status_code == 502
+    assert "LLM provider (HTTP 404)" in resp.json()["detail"]
+
+
+def test_post_chat_does_not_mask_unrelated_errors(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "http://localhost:8001/mcp")
+
+    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(chat_module, "run_configured_chat_turn", raising_run_chat_turn)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        client.post("/chat", json={"message": "hi"})
 
 
 def test_post_chat_returns_agent_reply(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

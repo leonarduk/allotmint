@@ -393,20 +393,21 @@ export function createClient(
       let message = TRANSIENT_HTTP_STATUSES.has(res.status)
         ? "The backend service is temporarily unavailable. Please try again."
         : `HTTP ${res.status} - ${res.statusText} (${safeUrl})`;
+      let detail: string | undefined;
       try {
         const body = await res.json();
-        if (
-          !TRANSIENT_HTTP_STATUSES.has(res.status) &&
-          typeof body?.detail === "string" &&
-          body.detail.trim()
-        ) {
-          message = body.detail;
+        if (typeof body?.detail === "string" && body.detail.trim()) {
+          detail = body.detail;
+          if (!TRANSIENT_HTTP_STATUSES.has(res.status)) message = body.detail;
         }
       } catch {
         // response body was not JSON; fall back to the generic message above
       }
       const err = new Error(message);
       (err as any).status = res.status;
+      // Kept even for 502/503/504, whose `message` stays generic, so callers
+      // that can explain an upstream failure (e.g. ChatPanel) still can.
+      (err as any).detail = detail;
       (err as any).headers = res.headers;
       throw err;
     }

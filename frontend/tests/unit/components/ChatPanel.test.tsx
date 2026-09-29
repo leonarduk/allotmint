@@ -83,11 +83,13 @@ describe("ChatPanel", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/cannot reach server/i));
   });
 
-  it("shows the backend's explanation when the server responds with an error", async () => {
-    const err = Object.assign(new Error("The backend service is temporarily unavailable."), {
-      status: 503,
-      detail: "Chat is not configured (MCP_SERVER_URL unset)",
-    });
+  it.each([
+    [503, /isn't available/i],
+    [502, /couldn't reach its AI service/i],
+    [429, /too quickly/i],
+    [500, /server error/i],
+  ])("shows a status-specific message for HTTP %i without echoing backend text", async (status, expected) => {
+    const err = Object.assign(new Error("raw backend text"), { status, detail: "raw backend detail" });
     (api.postChat as Mock).mockRejectedValueOnce(err);
     const user = userEvent.setup();
 
@@ -96,14 +98,13 @@ describe("ChatPanel", () => {
     await user.type(screen.getByLabelText(/chat message/i), "hi");
     await user.click(screen.getByRole("button", { name: /send/i }));
 
-    await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent("Chat is not configured (MCP_SERVER_URL unset)"),
-    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(expected);
+    expect(alert).not.toHaveTextContent(/raw backend|cannot reach server/i);
   });
 
-  it("shows the HTTP error message when the response has no detail", async () => {
-    const err = Object.assign(new Error("HTTP 500 - Internal Server Error (/chat)"), { status: 500 });
-    (api.postChat as Mock).mockRejectedValueOnce(err);
+  it("shows a timeout message when the request times out", async () => {
+    (api.postChat as Mock).mockRejectedValueOnce(Object.assign(new Error("Request timed out"), { timeout: true }));
     const user = userEvent.setup();
 
     render(<ChatPanel open onClose={() => {}} />);
@@ -111,7 +112,7 @@ describe("ChatPanel", () => {
     await user.type(screen.getByLabelText(/chat message/i), "hi");
     await user.click(screen.getByRole("button", { name: /send/i }));
 
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("HTTP 500 - Internal Server Error"));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/took too long/i);
   });
 
   it("drops a failed message from history and restores it for retry (#7897)", async () => {

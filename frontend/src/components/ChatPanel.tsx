@@ -24,13 +24,25 @@ const markdownComponents: Components = {
   ),
 };
 
-// Prefer the backend's explanation (chat not configured, MCP server or LLM
-// down) over a generic message; only a request that got no response at all
-// is "Cannot reach server".
+// Map a failed send to a status-specific message rather than echoing the
+// backend's error text (#7721; #7131 precedent). The backend's detail stays
+// in its log and the response body for whoever is debugging. Only a request
+// that got no response at all is "Cannot reach server".
+const CHAT_STATUS_MESSAGES: Record<number, string> = {
+  400: "Chat couldn't process that conversation. Please try again.",
+  401: "Your session has expired. Please sign in again.",
+  429: "You're sending messages too quickly. Wait a moment and try again.",
+  502: "Chat couldn't reach its AI service. Please try again later.",
+  503: "Chat isn't available on this server right now.",
+  504: "Chat took too long to respond. Please try again.",
+};
+
 function chatErrorMessage(e: unknown): string {
-  const err = e as { detail?: unknown; status?: unknown; timeout?: unknown; message?: string } | null;
-  if (typeof err?.detail === "string" && err.detail) return err.detail;
-  if ((typeof err?.status === "number" || err?.timeout) && err.message) return err.message;
+  const err = e as { status?: unknown; timeout?: unknown } | null;
+  if (err?.timeout) return CHAT_STATUS_MESSAGES[504];
+  if (typeof err?.status === "number") {
+    return CHAT_STATUS_MESSAGES[err.status] ?? "Chat ran into a server error. Please try again.";
+  }
   return "Cannot reach server";
 }
 

@@ -1,11 +1,25 @@
 from typing import Dict, List, Tuple
 
+import pytest
 import requests
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.routes import news
 from backend.utils import page_cache
+
+
+@pytest.fixture(autouse=True)
+def _isolated_news_quota(monkeypatch, tmp_path):
+    """Point the daily news quota at a throwaway counter file.
+
+    ``COUNTER_FILE`` lives under the real ``data/cache`` directory, which is
+    gitignored and so survives between runs in a long-lived checkout. Once
+    enough runs in one day have used up ``news_requests_per_day``, ``/news``
+    answers 429 and these tests fail regardless of the code under test
+    (tests/routes/test_news.py already isolates it the same way).
+    """
+    monkeypatch.setattr(news, "COUNTER_FILE", tmp_path / "news_requests.json")
 
 
 def _client():

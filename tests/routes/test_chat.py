@@ -50,7 +50,7 @@ def test_post_chat_rejects_invalid_history_role(client: TestClient, monkeypatch:
 def test_post_chat_returns_400_for_malformed_history(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
 
-    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None):
+    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
         raise ValueError("Chat history must alternate user/assistant roles; got consecutive 'user' messages")
 
     monkeypatch.setattr(chat_module, "run_configured_chat_turn", raising_run_chat_turn)
@@ -67,7 +67,7 @@ def test_post_chat_returns_400_for_malformed_history(client: TestClient, monkeyp
 def test_post_chat_returns_502_when_mcp_server_unreachable(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "mcp_server_url", "http://localhost:8001/mcp")
 
-    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None):
+    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
         # The MCP SDK's anyio task group wraps the transport's ConnectError.
         raise ExceptionGroup("unhandled errors in a TaskGroup", [httpx2.ConnectError("All connection attempts failed")])
 
@@ -84,7 +84,7 @@ def test_post_chat_returns_502_when_llm_provider_fails(client: TestClient, monke
     monkeypatch.setattr(config, "mcp_server_url", "http://localhost:8001/mcp")
     request = httpx.Request("POST", "http://localhost:11434/v1/chat/completions")
 
-    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None):
+    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
         raise httpx.HTTPStatusError("not found", request=request, response=httpx.Response(404, request=request))
 
     monkeypatch.setattr(chat_module, "run_configured_chat_turn", raising_run_chat_turn)
@@ -100,7 +100,7 @@ def test_post_chat_returns_502_when_bedrock_fails(client: TestClient, monkeypatc
     monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
     error = ClientError({"Error": {"Code": "AccessDeniedException", "Message": "no"}}, "Converse")
 
-    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None):
+    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
         raise error
 
     monkeypatch.setattr(chat_module, "run_configured_chat_turn", raising_run_chat_turn)
@@ -115,7 +115,7 @@ def test_post_chat_returns_502_when_bedrock_fails(client: TestClient, monkeypatc
 def test_post_chat_finds_upstream_error_via_cause(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "mcp_server_url", "http://localhost:8001/mcp")
 
-    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None):
+    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
         raise RuntimeError("wrapped") from httpx2.ConnectError("refused")
 
     monkeypatch.setattr(chat_module, "run_configured_chat_turn", raising_run_chat_turn)
@@ -129,7 +129,7 @@ def test_post_chat_finds_upstream_error_via_cause(client: TestClient, monkeypatc
 def test_post_chat_does_not_mask_unrelated_errors(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "mcp_server_url", "http://localhost:8001/mcp")
 
-    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None):
+    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(chat_module, "run_configured_chat_turn", raising_run_chat_turn)
@@ -142,7 +142,7 @@ def test_post_chat_returns_agent_reply(client: TestClient, monkeypatch: pytest.M
     monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
     captured = {}
 
-    async def fake_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None):
+    async def fake_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
         captured["message"] = message
         captured["history"] = history
         captured["cfg"] = cfg
@@ -169,7 +169,7 @@ def test_post_chat_returns_navigation_requested_by_the_model(
 ) -> None:
     monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
 
-    async def navigating_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None):
+    async def navigating_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
         assert [page.path for page in local_tools.pages] == ["/transactions", "/market"]
         local_tools.call("navigate_to_page", {"path": "/transactions"})
         return "Opening Transactions."
@@ -198,3 +198,41 @@ def test_post_chat_rejects_off_site_page_paths(client: TestClient, monkeypatch: 
     resp = client.post("/chat", json={"message": "hi", "pages": [{"path": path, "label": "Evil"}]})
 
     assert resp.status_code == 422
+
+
+def test_post_chat_passes_page_context_as_system_prompt(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
+    captured = {}
+
+    async def fake_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
+        captured["system_prompt"] = system_prompt
+        return "ok"
+
+    monkeypatch.setattr(chat_module, "run_configured_chat_turn", fake_run_chat_turn)
+
+    resp = client.post("/chat", json={"message": "buy?", "context": {"path": "/research/ARG.TO", "ticker": "ARG.TO"}})
+
+    assert resp.status_code == 200
+    assert "/research/ARG.TO" in captured["system_prompt"]
+    assert "ARG.TO" in captured["system_prompt"]
+
+
+def test_post_chat_without_context_sends_no_system_prompt(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
+    captured = {}
+
+    async def fake_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
+        captured["system_prompt"] = system_prompt
+        return "ok"
+
+    monkeypatch.setattr(chat_module, "run_configured_chat_turn", fake_run_chat_turn)
+
+    assert client.post("/chat", json={"message": "hi"}).status_code == 200
+    assert captured["system_prompt"] is None
+
+
+@pytest.mark.parametrize("context", [{"path": "//evil.example"}, {"path": "/research/X", "ticker": "a b;drop"}])
+def test_post_chat_rejects_bad_context(client: TestClient, monkeypatch: pytest.MonkeyPatch, context: dict) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
+
+    assert client.post("/chat", json={"message": "hi", "context": context}).status_code == 422

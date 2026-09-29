@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from backend.chat.local_tools import LocalTools, pages_from_request
+from backend.chat.local_tools import LocalTools, pages_from_request, system_prompt_from_context
 from backend.chat.providers import run_configured_chat_turn
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -37,6 +37,12 @@ class ChatPageIn(BaseModel):
     label: str = Field(min_length=1, max_length=100)
 
 
+class ChatContextIn(BaseModel):
+    # The page the user has open; same same-site path rule as ChatPageIn.
+    path: str = Field(pattern=r"^/([^/].*)?$", max_length=200)
+    ticker: Optional[str] = Field(default=None, pattern=r"^[A-Za-z0-9._\-]{1,30}$")
+
+
 class ChatRequest(BaseModel):
     message: str
     # The client resends the full prior conversation each turn; nothing is
@@ -47,6 +53,8 @@ class ChatRequest(BaseModel):
     # Pages the client can open. When present the model gets a
     # navigate_to_page tool limited to these paths (backend/chat/local_tools.py).
     pages: List[ChatPageIn] = Field(default_factory=list, max_length=100)
+    # The page the user is on; becomes a line of the system prompt.
+    context: Optional[ChatContextIn] = None
 
 
 class ChatResponse(BaseModel):
@@ -127,6 +135,7 @@ async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatRespons
             cfg=config,
             mcp_server_url=mcp_server_url,
             local_tools=local_tools,
+            system_prompt=system_prompt_from_context(payload.context.model_dump() if payload.context else None),
         )
     except ValueError as exc:
         # Raised by bedrock_agent._validate_message_alternation (shared by

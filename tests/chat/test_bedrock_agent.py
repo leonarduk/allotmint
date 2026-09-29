@@ -275,3 +275,24 @@ async def test_run_chat_turn_raises_after_max_iterations(monkeypatch):
             mcp_server_url="https://example.com/mcp",
             bedrock_model_id="amazon.nova-lite-v1:0",
         )
+
+
+async def test_run_chat_turn_sends_system_prompt_only_when_given(monkeypatch):
+    session = FakeSession(tools=[FakeTool("list_owners")])
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    seen = []
+
+    class FakeBedrock:
+        def converse(self, **kwargs):
+            seen.append(kwargs)
+            return _assistant_text("ok")
+
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: FakeBedrock())
+    args = ("hi", [])
+    kwargs = {"mcp_server_url": "https://example.com/mcp", "bedrock_model_id": "m"}
+
+    await bedrock_agent.run_chat_turn(*args, **kwargs, system_prompt="on /research/ARG.TO")
+    await bedrock_agent.run_chat_turn(*args, **kwargs)
+
+    assert seen[0]["system"] == [{"text": "on /research/ARG.TO"}]
+    assert "system" not in seen[1]

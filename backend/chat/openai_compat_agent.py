@@ -84,6 +84,7 @@ async def run_chat_turn(
     model: str,
     api_key: Optional[str] = None,
     local_tools: Optional[LocalTools] = None,
+    system_prompt: Optional[str] = None,
 ) -> str:
     """Run one user turn through an OpenAI-compatible tool-calling loop and return the reply.
 
@@ -93,6 +94,8 @@ async def run_chat_turn(
     messages: List[Dict[str, Any]] = [{"role": item["role"], "content": item["content"]} for item in history]
     messages.append({"role": "user", "content": message})
     _validate_message_alternation(messages)
+    if system_prompt:
+        messages.insert(0, {"role": "system", "content": system_prompt})
 
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 

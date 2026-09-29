@@ -522,6 +522,17 @@ def test_sell_then_delete_leaves_no_net_portfolio_impact(tmp_path, monkeypatch):
     assert transactions._PORTFOLIO_IMPACT["alice"] == pytest.approx(0.0)
 
 
+def test_editing_buy_into_sell_moves_portfolio_impact_by_the_difference(tmp_path, monkeypatch):
+    monkeypatch.setattr(transactions, "_PORTFOLIO_IMPACT", defaultdict(float))
+    monkeypatch.setattr(transactions, "_POSTED_TRANSACTIONS", [])
+    client = _make_client(tmp_path, monkeypatch)
+    created = client.post("/transactions", json=_valid_payload(type="BUY", units=2, price_gbp=10.0)).json()
+    assert transactions._PORTFOLIO_IMPACT["alice"] == pytest.approx(20.0)
+    resp = client.put(f"/transactions/{created['id']}", json=_valid_payload(type="SELL", units=2, price_gbp=10.0))
+    assert resp.status_code == 200
+    assert transactions._PORTFOLIO_IMPACT["alice"] == pytest.approx(-20.0)
+
+
 def test_update_imported_dividend_without_type_keeps_dividend(tmp_path, monkeypatch):
     owner_dir = tmp_path / "alice"
     owner_dir.mkdir()

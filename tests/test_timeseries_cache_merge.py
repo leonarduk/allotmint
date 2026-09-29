@@ -998,9 +998,7 @@ def test_load_meta_parquet_cached_shares_one_read_across_different_windows(monke
     # Compute the earlier date using the real loader *before* monkeypatching,
     # so the spy only counts reads made by the code under test.
     real_load_parquet = cache._load_parquet
-    seeded_dates = sorted(
-        set(real_load_parquet(cache.meta_timeseries_cache_path("ABC", "L"))["Date"].dt.date)
-    )
+    seeded_dates = sorted(set(real_load_parquet(cache.meta_timeseries_cache_path("ABC", "L"))["Date"].dt.date))
     earlier = next(d for d in reversed(seeded_dates) if d < last)
 
     reads = []

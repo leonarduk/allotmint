@@ -1,6 +1,6 @@
 import {
   fireEvent,
-  render,
+  render as rtlRender,
   screen,
   waitFor,
   within,
@@ -9,6 +9,12 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TransactionsPage } from '@/components/TransactionsPage';
 import { AuthContext } from '@/AuthContext';
+import type { ReactElement } from 'react';
+import { MemoryRouter } from 'react-router-dom';
+
+// The input-only variant renders a <Link> to /transactions, so every render
+// needs a router context.
+const render = (ui: ReactElement) => rtlRender(ui, { wrapper: MemoryRouter });
 
 const {
   getTransactionsMock,
@@ -272,6 +278,10 @@ describe('TransactionsPage', () => {
     expect(
       await screen.findByText('Account + Holdings Input')
     ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Transactions' })).toHaveAttribute(
+      'href',
+      '/transactions'
+    );
     expect(
       screen.queryByRole('button', { name: 'Add transaction' })
     ).not.toBeInTheDocument();

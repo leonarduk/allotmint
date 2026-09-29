@@ -529,7 +529,7 @@ def test_posted_buy_is_valued_once_in_owner_portfolio(tmp_path, monkeypatch):
     assert built["total_value_estimate_gbp"] == pytest.approx(20.0)
 
 
-def test_posted_sell_and_its_delete_move_owner_portfolio_value_once(tmp_path, monkeypatch):
+def test_posted_sell_and_its_delete_net_the_owner_portfolio_units(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "offline_mode", False)
     client = _make_client(tmp_path, monkeypatch)
     _value_units_at_ten(monkeypatch)
@@ -558,6 +558,22 @@ def test_editing_a_buy_into_a_sell_moves_owner_portfolio_value_once(tmp_path, mo
     edited["type"] = "BUY"
     assert client.put(f"/transactions/{second['id']}", json=edited).status_code == 200
     assert portfolio_mod.build_owner_portfolio("alice", tmp_path)["total_value_estimate_gbp"] == pytest.approx(40.0)
+
+
+def test_moving_a_trade_to_another_account_keeps_owner_portfolio_value(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "offline_mode", False)
+    client = _make_client(tmp_path, monkeypatch)
+    _value_units_at_ten(monkeypatch)
+    assert client.post("/transactions", json=_valid_payload(account="isa", units=1, price_gbp=10.0)).status_code == 201
+    moved = client.post("/transactions", json=_valid_payload(account="isa", units=2, price_gbp=10.0)).json()
+
+    resp = client.put(f"/transactions/{moved['id']}", json=_valid_payload(account="sipp", units=2, price_gbp=10.0))
+    assert resp.status_code == 200
+
+    built = portfolio_mod.build_owner_portfolio("alice", tmp_path)
+    values = {a["account_type"].lower(): a["value_estimate_gbp"] for a in built["accounts"]}
+    assert values == {"isa": pytest.approx(10.0), "sipp": pytest.approx(20.0)}
+    assert built["total_value_estimate_gbp"] == pytest.approx(30.0)
 
 
 def test_update_imported_dividend_without_type_keeps_dividend(tmp_path, monkeypatch):

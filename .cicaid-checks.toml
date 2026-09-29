@@ -12,10 +12,14 @@
 
 # `paths` (read by issue-worm's verifier, ignored by cicaid itself): a check
 # runs for an automated attempt only when a changed file matches one of its
-# globs, mirroring scripts/classify_change.py's area rules (inclusively -
-# e.g. tests/bash/** also triggers backend). CI machinery (.github/**, the
-# classifier, this file) triggers every check, and a change nothing here
-# claims still runs them all. GitHub CI on the PR runs everything anyway.
+# globs, mirroring scripts/classify_change.py's area rules. Globs are
+# case-insensitive fnmatch where `*` also crosses `/` and a leading `**/`
+# also matches at the repo root. Deliberate cross-area matches, as in the
+# classifier: backend/contracts_spa.py and backend/agent/trading_agent.py
+# also run frontend (they shape the SPA contract), and root package*.json
+# also runs infrastructure (the CDK tests use it). CI machinery (.github/**,
+# the classifier, this file) triggers every check, and a change nothing
+# here claims still runs them all. GitHub CI on the PR runs everything.
 
 [[checks]]
 name = "backend"
@@ -32,7 +36,7 @@ paths = [
     "logging.ini",
     "config*.yaml",
     "makefile",
-    "scripts/**",
+    "scripts/*.py",
     ".github/**",
     "scripts/classify_change.py",
     ".cicaid-checks.toml",

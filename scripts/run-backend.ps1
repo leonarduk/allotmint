@@ -82,20 +82,11 @@ $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $REPO_ROOT = Split-Path -Parent $SCRIPT_DIR
 Set-Location $REPO_ROOT
 
-# Load environment variables from .env if present. A repo-local .env still
-# wins if present (backward compat), otherwise fall back to one shared file
-# outside every repo/worktree so credentials never need copying around (see
-# ALLOTMINT_ENV_FILE in docs/CONTRIBUTOR_RUNBOOK.md).
-$SharedEnvFile = if ($env:ALLOTMINT_ENV_FILE) { $env:ALLOTMINT_ENV_FILE } else { Join-Path $env:USERPROFILE 'workspace\GitHub\allotmint\.env.shared' }
-$EnvFileToLoad = if (Test-Path '.env') { '.env' } elseif (Test-Path $SharedEnvFile) { $SharedEnvFile } else { $null }
-if ($EnvFileToLoad) {
-    Get-Content $EnvFileToLoad | ForEach-Object {
-        if ($_ -match '^\s*([^#=]+?)\s*=\s*(.*)\s*$') {
-            $key = $matches[1]; $value = $matches[2];
-            Set-Item -Path Env:$key -Value $value
-        }
-    }
-}
+# Shared with run-mcp-server.ps1: env loading, MCP server helpers, Test-PortFree.
+. (Join-Path $SCRIPT_DIR 'lib\local-dev.ps1')
+
+# Load environment variables from .env / the shared env file.
+Import-AllotmintEnv $REPO_ROOT
 
 function Get-GitValue([string[]]$arguments) {
   try {
@@ -185,18 +176,6 @@ function Test-Internet {
 function Coalesce([object]$value, [object]$fallback) {
   if ($null -ne $value -and $value -ne '') { return $value }
   return $fallback
-}
-
-function Test-PortFree([int]$Port) {
-  $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
-  try {
-    $listener.Start()
-    return $true
-  } catch {
-    return $false
-  } finally {
-    $listener.Stop()
-  }
 }
 
 # Finds the first free port at or after $StartPort so multiple local
@@ -476,9 +455,9 @@ function Start-LocalMcpServer {
     $mcpUrl = "http://localhost:$mcpPort/mcp"
   }
 
-  $proDir = if ($env:ALLOTMINT_PRO_DIR) { $env:ALLOTMINT_PRO_DIR } else { Join-Path (Split-Path -Parent $REPO_ROOT) 'allotmint-pro' }
-  if (-not (Test-Path (Join-Path $proDir 'allotmint_pro\mcp_server'))) {
-    Write-Host "allotmint-pro not found at $proDir; chat's MCP server not started (set ALLOTMINT_PRO_DIR, or START_MCP_SERVER=0 to silence)." -ForegroundColor Yellow
+  $proDir = Get-AllotmintProDir $REPO_ROOT
+  if (-not $proDir) {
+    Write-Host "allotmint-pro not found at $(Get-AllotmintProCandidate $REPO_ROOT); chat's MCP server not started (set ALLOTMINT_PRO_DIR, or START_MCP_SERVER=0 to silence)." -ForegroundColor Yellow
     return $null
   }
 
@@ -489,10 +468,10 @@ function Start-LocalMcpServer {
   }
 
   $previousPythonPath = $env:PYTHONPATH
-  $env:PYTHONPATH = (@($REPO_ROOT, $proDir, $previousPythonPath) | Where-Object { $_ }) -join ';'
+  $env:PYTHONPATH = Get-McpServerPythonPath $REPO_ROOT $proDir
   try {
     $process = Start-Process -FilePath $PYTHON -NoNewWindow -PassThru `
-      -ArgumentList @('-m', 'uvicorn', 'allotmint_pro.mcp_server.app:app', '--host', '127.0.0.1', '--port', $mcpPort) `
+      -ArgumentList (Get-McpServerArguments $mcpPort) `
       -RedirectStandardOutput (Join-Path $logsDir 'mcp-server.log') `
       -RedirectStandardError (Join-Path $logsDir 'mcp-server.err.log')
   } finally {

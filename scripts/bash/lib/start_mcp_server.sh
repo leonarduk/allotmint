@@ -19,6 +19,23 @@
 # shellcheck source=scripts/bash/lib/find_free_port.sh
 source "$(dirname "${BASH_SOURCE[0]}")/find_free_port.sh"
 
+# Prints the allotmint-pro checkout for repo root $1 ($ALLOTMINT_PRO_DIR, else
+# the sibling ../allotmint-pro); returns 1 if it has no MCP server package.
+mcp_pro_dir() {
+  local pro_dir="${ALLOTMINT_PRO_DIR:-$1/../allotmint-pro}"
+  [[ -d "$pro_dir/allotmint_pro/mcp_server" ]] || return 1
+  echo "$pro_dir"
+}
+
+# Runs the MCP server in the foreground on 127.0.0.1:$3, importing `backend`
+# from repo root $1 and `allotmint_pro` from checkout $2. Shared by
+# start_local_mcp_server (which backgrounds it) and run-mcp-server.sh.
+run_mcp_server() {
+  local repo_root="$1" pro_dir="$2" port="$3"
+  PYTHONPATH="$repo_root:$pro_dir${PYTHONPATH:+:$PYTHONPATH}" \
+    uvicorn allotmint_pro.mcp_server.app:app --host 127.0.0.1 --port "$port"
+}
+
 start_local_mcp_server() {
   local repo_root="$1"
   MCP_SERVER_PID=""
@@ -38,9 +55,9 @@ start_local_mcp_server() {
     url="http://localhost:$port/mcp"
   fi
 
-  local pro_dir="${ALLOTMINT_PRO_DIR:-$repo_root/../allotmint-pro}"
-  if [[ ! -d "$pro_dir/allotmint_pro/mcp_server" ]]; then
-    echo "allotmint-pro not found at $pro_dir; chat's MCP server not started (set ALLOTMINT_PRO_DIR, or START_MCP_SERVER=0 to silence)." >&2
+  local pro_dir
+  if ! pro_dir=$(mcp_pro_dir "$repo_root"); then
+    echo "allotmint-pro not found at ${ALLOTMINT_PRO_DIR:-$repo_root/../allotmint-pro}; chat's MCP server not started (set ALLOTMINT_PRO_DIR, or START_MCP_SERVER=0 to silence)." >&2
     return 0
   fi
 
@@ -51,9 +68,7 @@ start_local_mcp_server() {
   fi
 
   mkdir -p "$repo_root/logs"
-  PYTHONPATH="$repo_root:$pro_dir${PYTHONPATH:+:$PYTHONPATH}" \
-    uvicorn allotmint_pro.mcp_server.app:app --host 127.0.0.1 --port "$port" \
-    >>"$repo_root/logs/mcp-server.log" 2>&1 &
+  run_mcp_server "$repo_root" "$pro_dir" "$port" >>"$repo_root/logs/mcp-server.log" 2>&1 &
   MCP_SERVER_PID=$!
   echo "MCP server starting at $MCP_SERVER_URL (pid $MCP_SERVER_PID, log: logs/mcp-server.log)" >&2
 }

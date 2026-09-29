@@ -391,12 +391,22 @@ export CHAT_MODEL=qwen3.5:9b         # any tool-calling model; defaults: qwen3.5
 bash scripts/bash/run-local-api.sh
 ```
 
-To run the MCP server by hand instead, from this repo root (it imports
-`backend`), then set `MCP_SERVER_URL=http://localhost:8001/mcp` for the backend:
+To run the MCP server on its own, in the foreground in a separate terminal,
+use its startup script. It loads the same `.env` / `.env.shared` as the
+backend scripts and takes an optional port (default `MCP_SERVER_PORT`, else
+8001). Start it before the backend, which then finds the port in use and
+leaves it alone; otherwise set `MCP_SERVER_URL=http://localhost:<port>/mcp`
+for the backend.
 
 ```bash
-PYTHONPATH=".;../allotmint-pro" python -m uvicorn allotmint_pro.mcp_server.app:app --port 8001   # use ":" instead of ";" on macOS/Linux
+bash scripts/bash/run-mcp-server.sh [port]         # macOS/Linux
+.\scripts\run-mcp-server.ps1 [-Port 8001]           # Windows PowerShell
 ```
+
+On Windows its log may show `ConnectionResetError: [WinError 10054]`
+tracebacks after chat turns. They're harmless noise from asyncio's Windows
+event loop when the backend closes its per-turn MCP connection; the requests
+themselves have already succeeded.
 
 These can also live in `.env.shared`. Pick a model that supports tool
 calling; reasoning-only models such as `deepseek-r1` on Ollama don't.

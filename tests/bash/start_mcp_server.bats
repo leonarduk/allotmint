@@ -65,6 +65,15 @@ wait_for_stub() {
   [ ! -f "$BATS_TEST_TMPDIR/uvicorn.args" ]
 }
 
+@test "warns and does not start for an invalid MCP_SERVER_PORT" {
+  MCP_SERVER_PORT=99999
+  run start_local_mcp_server "$REPO"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Invalid MCP server port '99999'"* ]]
+  [ ! -f "$BATS_TEST_TMPDIR/uvicorn.args" ]
+}
+
 @test "does nothing when START_MCP_SERVER=0" {
   START_MCP_SERVER=0
   start_local_mcp_server "$REPO"

@@ -15,6 +15,7 @@ vi.mock("@/api", () => ({
   getInstrumentDetail: vi.fn(),
   getInstrumentIntraday: vi.fn(),
   searchInstruments: vi.fn(),
+  getTransactions: vi.fn(),
 }));
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -34,6 +35,7 @@ const mockGetScreener = vi.mocked(api.getScreener);
 const mockGetInstrumentDetail = vi.mocked(api.getInstrumentDetail);
 const mockGetInstrumentIntraday = vi.mocked(api.getInstrumentIntraday);
 const mockSearchInstruments = vi.mocked(api.searchInstruments);
+const mockGetTransactions = vi.mocked(api.getTransactions);
 const mockUseInstrumentHistory = vi.mocked(useInstrumentHistory);
 
 const defaultConfig: ConfigContextValue = {
@@ -138,6 +140,8 @@ describe("InstrumentResearch page", () => {
     mockSearchInstruments.mockReset();
     mockGetNews.mockReset();
     mockGetNews.mockResolvedValue([]);
+    mockGetTransactions.mockReset();
+    mockGetTransactions.mockResolvedValue([]);
     mockGetInstrumentDetail.mockResolvedValue({
       prices: [
         { date: "2024-01-01", close_gbp: 100 },

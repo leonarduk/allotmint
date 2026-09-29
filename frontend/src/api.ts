@@ -1485,6 +1485,7 @@ export const getTransactions = async (params: {
   start?: string;
   end?: string;
   type?: string;
+  ticker?: string;
 }) => {
   const query = new URLSearchParams();
   if (params.owner) query.set("owner", params.owner);
@@ -1492,6 +1493,7 @@ export const getTransactions = async (params: {
   if (params.start) query.set("start", params.start);
   if (params.end) query.set("end", params.end);
   if (params.type) query.set("type", params.type);
+  if (params.ticker) query.set("ticker", params.ticker);
   const qs = query.toString();
   return transactionsContractSchema.parse(
     await fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`),
@@ -1559,6 +1561,17 @@ export const updateTransaction = (id: string, payload: CreateTransactionPayload)
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
+/** Split a transaction in two; `units` is the size of the first part. */
+export const splitTransaction = (id: string, units: number) =>
+  fetchJson<{ status: string; transactions: Transaction[] }>(
+    `${API_BASE}/transactions/${encodeURIComponent(id)}/split`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ units }),
+    },
+  );
 
 export const deleteTransaction = (id: string) =>
   fetchJson<{ status: string }>(`${API_BASE}/transactions/${encodeURIComponent(id)}`, {

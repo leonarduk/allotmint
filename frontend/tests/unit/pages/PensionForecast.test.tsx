@@ -391,10 +391,17 @@ describe("PensionForecast page", () => {
     );
   });
 
-  it("shows a plain-language message when death age is not after retirement age", async () => {
+  // Explicit coverage for the null-retirementAge path: this is the user's
+  // *first* forecast attempt, so no prior successful forecast has populated
+  // `retirementAge`. The error copy must therefore omit the parenthetical
+  // retirement age entirely (contrast with the "names the retirement age"
+  // test below, which mocks a prior successful forecast first).
+  it("shows a plain-language message when death age is not after retirement age and no prior retirement age is known", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "steve", full_name: "Steve Leonard", accounts: [] },
     ]);
+    // No prior successful forecast is mocked, so `retirementAge` stays null
+    // when the death-age validation error comes back.
     mockGetPensionForecast.mockRejectedValue(
       new Error("death_age must exceed retirement_age"),
     );
@@ -410,9 +417,15 @@ describe("PensionForecast page", () => {
     const btn = screen.getByRole("button", { name: /forecast/i });
     await userEvent.click(btn);
 
+    // Plain-language copy with no parenthetical retirement age, because none
+    // is known yet.
     await screen.findByText(
       "Death age (50) must be after your retirement age.",
     );
+    expect(
+      screen.queryByText(/must be after your retirement age \(/i),
+    ).not.toBeInTheDocument();
+    // Raw backend field names and Error: prefixes must never leak through.
     expect(
       screen.queryByText(/death_age must exceed retirement_age/i),
     ).not.toBeInTheDocument();

@@ -1080,7 +1080,9 @@ def _transactions_account_name(owner: str, account: str, store: "AccountsStore")
     """
     try:
         return _find_transaction_account(owner, account, store)
-    except HTTPException:
+    except HTTPException as exc:
+        if exc.status_code != 404:
+            raise
         return _normalise_account_file_name(account)
 
 

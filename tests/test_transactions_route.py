@@ -762,6 +762,17 @@ def test_opening_balance_is_dated_at_the_oldest_transaction(tmp_path, monkeypatc
     assert resp.json()["transaction"]["date"] == "2021-03-15"
 
 
+def test_opening_balance_for_an_account_without_transactions_is_dated_today(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    resp = client.post(
+        "/holdings/manual", json={"owner": "alice", "account": "isa", "ticker": "VUSA.L", "units": 4, "price_gbp": 50}
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["transaction"]["date"] == date.today().isoformat()
+
+
 def test_create_manual_holding_offsets_existing_units(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
     base = {"owner": "alice", "account": "ISA", "ticker": "VUSA.L", "price_gbp": 100}

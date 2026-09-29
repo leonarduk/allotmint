@@ -33,14 +33,20 @@ if [[ -z "${TELEGRAM_BOT_TOKEN:-}" || -z "${TELEGRAM_CHAT_ID:-}" ]]; then
   echo "Warning: TELEGRAM_BOT_TOKEN and/or TELEGRAM_CHAT_ID not set; Telegram logging will be disabled." >&2
 fi
 
-# load shared config
+# load shared config (keys are nested under server:/paths:; defaults match
+# scripts/run-backend.ps1)
+# shellcheck source=scripts/bash/lib/read_config_value.sh
+source "$SCRIPT_DIR/lib/read_config_value.sh"
 CONFIG_FILE="config.yaml"
-APP_ENV=$(awk -F': ' '/^app_env:/ {print $2}' "$CONFIG_FILE" | tr -d '"')
-UVICORN_HOST=$(awk -F': ' '/^uvicorn_host:/ {print $2}' "$CONFIG_FILE" | tr -d '"')
-UVICORN_HOST=${UVICORN_HOST:-0.0.0.0}
-UVICORN_PORT=$(awk -F': ' '/^uvicorn_port:/ {print $2}' "$CONFIG_FILE" | tr -d '"')
-RELOAD=$(awk -F': ' '/^reload:/ {print $2}' "$CONFIG_FILE" | tr -d '"')
-LOG_CONFIG=$(awk -F': ' '/^log_config:/ {print $2}' "$CONFIG_FILE" | tr -d '"')
+APP_ENV=$(read_config_value "$CONFIG_FILE" server.app_env local)
+UVICORN_HOST=$(read_config_value "$CONFIG_FILE" server.uvicorn_host 0.0.0.0)
+UVICORN_PORT=$(read_config_value "$CONFIG_FILE" server.uvicorn_port 6468)
+RELOAD=$(read_config_value "$CONFIG_FILE" server.reload true)
+LOG_CONFIG=$(read_config_value "$CONFIG_FILE" paths.log_config backend/logging.ini)
+
+# backend/logging.ini's file handler writes logs/backend.log, and uvicorn
+# loads it before any Python setup runs, so the directory must exist first.
+mkdir -p logs
 
 export ALLOTMINT_ENV="$APP_ENV"
 

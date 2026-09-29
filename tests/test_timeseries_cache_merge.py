@@ -995,8 +995,15 @@ def test_load_meta_parquet_cached_shares_one_read_across_different_windows(monke
     _clear_meta_lrus(cache)
     last = _seed_stale_meta_cache(cache, "ABC", "L")
 
-    reads = []
+    # Compute the earlier date using the real loader *before* monkeypatching,
+    # so the spy only counts reads made by the code under test.
     real_load_parquet = cache._load_parquet
+    seeded_dates = sorted(
+        set(real_load_parquet(cache.meta_timeseries_cache_path("ABC", "L"))["Date"].dt.date)
+    )
+    earlier = next(d for d in reversed(seeded_dates) if d < last)
+
+    reads = []
 
     def counting_load_parquet(path):
         reads.append(path)
@@ -1006,14 +1013,12 @@ def test_load_meta_parquet_cached_shares_one_read_across_different_windows(monke
 
     with cache.cache_only():
         first = cache.load_meta_timeseries_range("ABC", "L", start_date=last, end_date=last)
-        second = cache.load_meta_timeseries_range(
-            "ABC", "L", start_date=last - timedelta(days=1), end_date=last - timedelta(days=1)
-        )
+        second = cache.load_meta_timeseries_range("ABC", "L", start_date=earlier, end_date=earlier)
 
     assert not first.empty
     assert not second.empty
     assert first["Date"].dt.date.iloc[0] == last
-    assert second["Date"].dt.date.iloc[0] == last - timedelta(days=1)
+    assert second["Date"].dt.date.iloc[0] == earlier
     # One underlying parquet read serves both distinct windows.
     assert len(reads) == 1
 

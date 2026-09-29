@@ -87,7 +87,7 @@ export function InstrumentTransactions({ ticker }: Props) {
     const first = Number(unitsText);
     const total = Number(rowUnits(tx));
     if (!Number.isFinite(first) || first <= 0 || first >= total) {
-      setError(`Enter units between 0 and ${total}.`);
+      setError(`Enter units greater than 0 and less than ${total}.`);
       return;
     }
     void run(

@@ -63,9 +63,7 @@ describe('InstrumentTransactions', () => {
     await user.click(await screen.findByRole('button', { name: 'Split' }));
     await user.type(screen.getByLabelText('Units in first part'), '10');
     await user.click(screen.getByRole('button', { name: 'Confirm split' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'between 0 and 10'
-    );
+    expect(await screen.findByRole('alert')).toHaveTextContent('less than 10');
     expect(mockSplit).not.toHaveBeenCalled();
   });
 

@@ -802,16 +802,18 @@ def _split_transaction_entry(entry: Mapping[str, Any], first_units: float) -> Tu
         raise HTTPException(status_code=400, detail="Transaction has no units to split")
     if not 0 < first_units < total:
         raise HTTPException(status_code=400, detail="units must be between 0 and the transaction's units")
-    parts = (first_units, total - first_units)
-    halves: List[Dict[str, Any]] = []
-    for units in parts:
-        half = dict(entry)
-        half["units"] = round(units, 8)
-        ratio = units / total
-        for key in ("amount_minor", "fees"):
-            if isinstance(entry.get(key), (int, float)) and not isinstance(entry.get(key), bool):
-                half[key] = round(entry[key] * ratio, 2)
-        halves.append(half)
+    first = dict(entry)
+    second = dict(entry)
+    first["units"] = round(first_units, 8)
+    second["units"] = round(total - first_units, 8)
+    ratio = first_units / total
+    for key in ("amount_minor", "fees"):
+        value = entry.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            # The second half is the remainder, so the two always sum to the original.
+            first[key] = round(value * ratio, 2)
+            second[key] = round(value - first[key], 2)
+    halves = [first, second]
     # Keep external ids unique so re-importing the source does not duplicate a half.
     if halves[1].get("external_id"):
         halves[1]["external_id"] = f"{halves[1]['external_id']}#split"

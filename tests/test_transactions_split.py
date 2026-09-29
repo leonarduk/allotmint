@@ -64,3 +64,14 @@ def test_list_transactions_filters_by_ticker(tmp_path, monkeypatch):
     _seed(tmp_path)
     resp = _client(tmp_path, monkeypatch).get("/transactions", params={"ticker": "pfe"})
     assert [t["ticker"] for t in resp.json()] == ["PFE"]
+
+
+def test_split_halves_sum_to_original_when_prorating_does_not_divide_evenly(tmp_path, monkeypatch):
+    path = _seed(tmp_path)
+    data = json.loads(path.read_text())
+    data["transactions"][0].update(units=3, amount_minor=1000, fees=0.1)
+    path.write_text(json.dumps(data))
+    _client(tmp_path, monkeypatch).post("/transactions/alice:ISA:0/split", json={"units": 1})
+    first, second = json.loads(path.read_text())["transactions"][:2]
+    assert round(first["amount_minor"] + second["amount_minor"], 2) == 1000
+    assert round(first["fees"] + second["fees"], 2) == 0.1

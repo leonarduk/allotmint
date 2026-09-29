@@ -210,7 +210,7 @@ class LocalAccountsStore:
             owner = str(data.get("owner") or path.parent.name)
             # The filename, not ``account_type``: callers write back to
             # ``<account>_transactions.json``, and the two can differ in case.
-            yield owner, path.name[: -len("_transactions.json")], data
+            yield owner, path.name.removesuffix("_transactions.json"), data
 
     def ensure_owner(self, owner: str) -> None:
         """Implicit account-creation path for the local/file-backed store.
@@ -367,7 +367,7 @@ class S3AccountsStore:
             if not isinstance(data, dict):
                 continue
             # The filename, not ``account_type`` (see LocalAccountsStore).
-            yield str(data.get("owner") or owner), parts[1][: -len("_transactions.json")], data
+            yield str(data.get("owner") or owner), parts[1].removesuffix("_transactions.json"), data
 
     def ensure_owner(self, owner: str) -> None:
         """Implicit account-creation path for the S3-backed store.

@@ -367,6 +367,26 @@ describe("getCachedGroupInstruments cache eviction on rejection (issue #7222)", 
   });
 });
 
+describe("HTTP error shape relied on by ChatPanel (#7721)", () => {
+  it.each([400, 429, 502, 503])("rejects a POST /chat %i with the response status attached", async (status) => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status,
+      statusText: "Error",
+      json: () => Promise.resolve({ detail: "backend detail" }),
+    });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:6468",
+      null,
+      mockFetch as unknown as typeof fetch,
+    );
+
+    await expect(testFetchJson("/chat", { method: "POST" })).rejects.toMatchObject({ status });
+    // POSTs are not retried, so a 502/503 surfaces after one attempt.
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("stalled-request timeout (issue #7074)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -465,8 +485,10 @@ describe("stalled-request timeout (issue #7074)", () => {
     );
 
     const pending = testFetchJson("/chat", { method: "POST" }, 20000);
+    // ChatPanel keys its timeout message off `timeout: true` (#7721).
     const assertion = expect(pending).rejects.toMatchObject({
       message: expect.stringMatching(/timed out after 20s/i),
+      timeout: true,
     });
 
     await vi.advanceTimersByTimeAsync(5000);

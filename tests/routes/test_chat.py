@@ -1,6 +1,7 @@
 import httpx
 import httpx2
 import pytest
+from botocore.exceptions import ClientError
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
@@ -90,6 +91,35 @@ def test_post_chat_returns_502_when_llm_provider_fails(client: TestClient, monke
 
     assert resp.status_code == 502
     assert "LLM provider (HTTP 404)" in resp.json()["detail"]
+
+
+def test_post_chat_returns_502_when_bedrock_fails(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
+    error = ClientError({"Error": {"Code": "AccessDeniedException", "Message": "no"}}, "Converse")
+
+    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url):
+        raise error
+
+    monkeypatch.setattr(chat_module, "run_configured_chat_turn", raising_run_chat_turn)
+
+    resp = client.post("/chat", json={"message": "hi"})
+
+    assert resp.status_code == 502
+    assert "AWS call failed (AccessDeniedException)" in resp.json()["detail"]
+
+
+def test_post_chat_finds_upstream_error_via_cause(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "http://localhost:8001/mcp")
+
+    async def raising_run_chat_turn(message, history, *, cfg, mcp_server_url):
+        raise RuntimeError("wrapped") from httpx2.ConnectError("refused")
+
+    monkeypatch.setattr(chat_module, "run_configured_chat_turn", raising_run_chat_turn)
+
+    resp = client.post("/chat", json={"message": "hi"})
+
+    assert resp.status_code == 502
+    assert "MCP tools server" in resp.json()["detail"]
 
 
 def test_post_chat_does_not_mask_unrelated_errors(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

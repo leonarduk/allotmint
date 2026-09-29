@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, List, Literal, Optional
 
 import httpx
 import httpx2
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -41,17 +42,20 @@ class ChatResponse(BaseModel):
     reply: str
 
 
+_UPSTREAM_ERRORS = (httpx.HTTPError, httpx2.HTTPError, BotoCoreError, ClientError)
+
+
 def _find_upstream_error(exc: BaseException) -> Optional[BaseException]:
-    """Return the first httpx/httpx2 error in ``exc``, unwrapping exception groups.
+    """Return the first upstream (HTTP/AWS) error in ``exc``, unwrapping groups and causes.
 
     The MCP SDK runs its transport in an anyio task group, so a refused
     connection to the MCP server arrives wrapped in an ``ExceptionGroup``.
     """
 
-    if isinstance(exc, (httpx.HTTPError, httpx2.HTTPError)):
+    if isinstance(exc, _UPSTREAM_ERRORS):
         return exc
-    for inner in getattr(exc, "exceptions", ()):
-        found = _find_upstream_error(inner)
+    for inner in (*getattr(exc, "exceptions", ()), exc.__cause__):
+        found = _find_upstream_error(inner) if inner is not None else None
         if found is not None:
             return found
     return None
@@ -59,11 +63,20 @@ def _find_upstream_error(exc: BaseException) -> Optional[BaseException]:
 
 def _upstream_error_detail(exc: BaseException) -> str:
     # httpx2 is only used by the MCP client (backend/chat/mcp_tools_client.py);
-    # plain httpx only by the Ollama/DeepSeek loop (openai_compat_agent.py).
+    # plain httpx only by the Ollama/DeepSeek loop (openai_compat_agent.py);
+    # botocore by Bedrock (bedrock_agent.py) and MCP request signing (sigv4_auth.py).
     if isinstance(exc, httpx2.HTTPError):
         return (
             f"Chat could not reach the MCP tools server ({type(exc).__name__}). "
             "Check it is running and that MCP_SERVER_URL points at it."
+        )
+    if isinstance(exc, (BotoCoreError, ClientError)):
+        reason = type(exc).__name__
+        if isinstance(exc, ClientError):
+            reason = exc.response.get("Error", {}).get("Code", reason)
+        return (
+            f"Chat's AWS call failed ({reason}). "
+            "Check the AWS credentials and region, and Bedrock model access for BEDROCK_MODEL_ID."
         )
     reason = type(exc).__name__
     if isinstance(exc, httpx.HTTPStatusError):

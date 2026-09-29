@@ -593,6 +593,72 @@ export function buildPlotSnapshot({
   };
 }
 
+/**
+ * A defensible reason a crop needs attention, or null when nothing is
+ * actually wrong with it. Ordered most-actionable first: a compliance block
+ * ("you cannot sell this") beats a stale price ("you cannot trust this
+ * number") beats a loss ("this is down"). The label is only ever shown when
+ * one of these is true, so "Needs attention" never lands on a crop that is
+ * merely last in a sorted list.
+ */
+export interface AttentionReason {
+  /** Short label rendered on the champion card, e.g. "down 9.5%". */
+  label: string;
+  /** Machine-readable kind, for tests and future styling. */
+  kind: 'not-sellable' | 'stale-price' | 'loss';
+}
+
+/**
+ * Absolute loss threshold (percent) below which a crop is considered to
+ * genuinely need attention. A crop that is merely the *least* up on a green
+ * plot is not a problem, so this is a real loss, not a ranking artefact.
+ */
+export const ATTENTION_LOSS_THRESHOLD_PCT = -5;
+
+export function attentionReasonFor(crop: Crop): AttentionReason | null {
+  if (crop.sellEligible === false) {
+    return { label: 'not sellable yet', kind: 'not-sellable' };
+  }
+  if (crop.freshness === 'stale') {
+    return { label: 'price is stale', kind: 'stale-price' };
+  }
+  if (crop.gainPct <= ATTENTION_LOSS_THRESHOLD_PCT) {
+    return {
+      label: `down ${Math.abs(crop.gainPct).toFixed(1)}%`,
+      kind: 'loss',
+    };
+  }
+  return null;
+}
+
+/**
+ * The crop that most deserves the "Needs attention" slot, or undefined when
+ * the whole plot is healthy. Picks the worst offender by the same priority
+ * `attentionReasonFor` uses, so the card's stated reason always matches why
+ * it was chosen.
+ */
+export function neediestCrop(crops: readonly Crop[]): Crop | undefined {
+  const ranked = crops
+    .map((crop) => ({ crop, reason: attentionReasonFor(crop) }))
+    .filter(
+      (entry): entry is { crop: Crop; reason: AttentionReason } =>
+        entry.reason !== null
+    );
+  if (ranked.length === 0) return undefined;
+  const priority: Record<AttentionReason['kind'], number> = {
+    'not-sellable': 0,
+    'stale-price': 1,
+    loss: 2,
+  };
+  ranked.sort((left, right) => {
+    const byKind = priority[left.reason.kind] - priority[right.reason.kind];
+    if (byKind !== 0) return byKind;
+    // Within the same kind, the worst gain wins (most negative first).
+    return left.crop.gainPct - right.crop.gainPct;
+  });
+  return ranked[0].crop;
+}
+
 export interface GerminatingCrop {
   crop: Crop;
   /** 0–100 through the minimum holding period, or 0 when `indeterminate`. */

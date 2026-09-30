@@ -161,10 +161,6 @@ def test_dividends_endpoint(tmp_path, monkeypatch):
     assert len(resp2.json()) == 1
 
 
-def test_old_private_loader_name_still_resolves_for_allotmint_pro():
-    assert transactions._load_all_transactions is transactions.load_all_transactions
-
-
 def test_load_all_transactions_handles_missing_root(monkeypatch):
     monkeypatch.setattr(config, "accounts_root", "")
     assert transactions.load_all_transactions() == []

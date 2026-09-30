@@ -511,10 +511,6 @@ def load_all_transactions(store: Optional["AccountsStore"] = None) -> List[Trans
     return results
 
 
-# Old private name, kept until allotmint-pro imports ``load_all_transactions``.
-_load_all_transactions = load_all_transactions
-
-
 def _find_transaction_account(owner: str, account: str, store: "AccountsStore") -> str:
     """Return the canonical account name for ``owner``'s transactions file.
 

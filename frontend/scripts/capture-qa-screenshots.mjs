@@ -180,6 +180,18 @@ async function shot(browser, { name, url, waitFor, viewport = { width: 1440, hei
   }
 }
 
+// True only when the URL's parsed hostname is the Cognito hosted UI (or a
+// subdomain of it). Compares the hostname, not a substring of the whole URL,
+// so e.g. https://evil.example/?x=amazoncognito.com doesn't match.
+function isHostedLoginUrl(rawUrl) {
+  try {
+    const { hostname } = new URL(rawUrl);
+    return hostname === "amazoncognito.com" || hostname.endsWith(".amazoncognito.com");
+  } catch {
+    return false;
+  }
+}
+
 // Capture one demo-walkthrough step into demoOutDir. Returns the step's
 // caption on success, or null if the step was skipped (e.g. the login page
 // wasn't reachable). Never throws -- a skipped step just drops out of the
@@ -196,12 +208,7 @@ async function demoShot(browser, step) {
       try {
         await page.goto(`${FRONTEND}/`, { waitUntil: "networkidle", timeout: 15000 });
         // If the app redirected to a hosted-UI login page, capture that.
-        const url = page.url();
-        const looksLikeLogin =
-          url.includes("amazoncognito.com") ||
-          url.includes("/login") ||
-          (await page.getByText(/sign in/i).first().isVisible().catch(() => false));
-        if (!looksLikeLogin) {
+        if (!isHostedLoginUrl(page.url())) {
           console.warn(`skipped ${step.name}: no hosted-UI login page reached`);
           return null;
         }
@@ -221,7 +228,7 @@ async function demoShot(browser, step) {
         // Open the first holding row to reach the detail view. Best-effort:
         // if the row isn't clickable, capture the list view instead.
         try {
-          const row = page.locator("table tbody tr").first();
+          const row = page.locator("table tbody tr", { hasText: step.waitFor }).first();
           await row.click({ timeout: 5000 });
           await page.waitForTimeout(800);
         } catch {

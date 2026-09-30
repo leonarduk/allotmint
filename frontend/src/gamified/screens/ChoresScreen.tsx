@@ -150,14 +150,14 @@ export default function ChoresScreen() {
     usePlotData();
   const navigate = useNavigate();
 
-  // Per-chore pending/error UI state for #7188. The pending/error *ids* live
+  // Per-chore pending/error UI state for #7188. The pending/error *id sets* live
   // in the reusable `useAsyncItemState` hook (see ../../hooks/useAsyncItemState)
   // rather than in PlotDataContext, because this is purely presentational —
   // PlotDataContext's `completeChore` already tracks the single in-flight
   // completion chain for correctness; this just reflects that back per row.
   // The human-readable error copy stays local to this screen: the hook only
   // tracks *which* id errored, not the message to show for it.
-  const { pendingId, errorId, start, succeed, fail } = useAsyncItemState();
+  const { pendingIds, errorIds, start, succeed, fail } = useAsyncItemState();
   const [errorMessages, setErrorMessages] = useState<Record<string, string>>({});
 
   const handleComplete = useCallback(
@@ -166,7 +166,7 @@ export default function ChoresScreen() {
       // pending (that used to blur focus on click), so a second Enter/click
       // on the same row while its request is still in flight has to be
       // guarded here instead — a no-op, not a second POST.
-      if (pendingId === id) return;
+      if (pendingIds.has(id)) return;
       setErrorMessages((prev) => {
         if (!(id in prev)) return prev;
         const next = { ...prev };
@@ -196,7 +196,7 @@ export default function ChoresScreen() {
           fail(id);
         });
     },
-    [completeChore, pendingId, start, succeed, fail]
+    [completeChore, pendingIds, start, succeed, fail]
   );
 
   const daily = chores.filter((chore) => chore.kind === 'daily');
@@ -272,8 +272,12 @@ export default function ChoresScreen() {
                 key={chore.id}
                 chore={chore}
                 owner={owner}
-                pending={pendingId === chore.id}
-                error={errorId === chore.id ? errorMessages[chore.id] ?? null : null}
+                pending={pendingIds.has(chore.id)}
+                error={
+                  errorIds.has(chore.id)
+                    ? (errorMessages[chore.id] ?? null)
+                    : null
+                }
                 onComplete={handleComplete}
                 onNavigate={navigate}
               />
@@ -291,8 +295,12 @@ export default function ChoresScreen() {
                 key={chore.id}
                 chore={chore}
                 owner={owner}
-                pending={pendingId === chore.id}
-                error={errorId === chore.id ? errorMessages[chore.id] ?? null : null}
+                pending={pendingIds.has(chore.id)}
+                error={
+                  errorIds.has(chore.id)
+                    ? (errorMessages[chore.id] ?? null)
+                    : null
+                }
                 onComplete={handleComplete}
                 onNavigate={navigate}
               />

@@ -1,39 +1,54 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 /**
- * State for a single in-flight async operation on a list item, keyed by id.
+ * Per-item pending/error state for async operations on a list of items,
+ * keyed by id.
  *
- * The hook intentionally tracks only *one* pending id and *one* error id at a
- * time. That matches the common UI pattern where a list of items each have an
- * action button, but only one action can meaningfully be in flight or in an
- * error state per row at once — and it keeps the state machine small enough to
- * reason about (no partially-applied transitions, no stale ids).
+ * Several items may be in flight, or in an error state, at the same time
+ * (e.g. the user clicks chore A and then chore B before A settles), so the
+ * hook tracks a *set* of pending ids and a *set* of errored ids. A transition
+ * for one id never touches another id's state.
  *
- * Callers are expected to drive it through the four transitions:
+ * Callers drive it through four transitions:
  *
  *   start(id)   — a request for `id` is now in flight (clears any prior error
  *                 for the same id, so a retry doesn't show a stale message)
- *   succeed(id) — the request for `id` resolved; clears pending (and error)
+ *   succeed(id) — the request for `id` resolved; clears pending and error
  *   fail(id)    — the request for `id` rejected; clears pending, records error
  *   reset(id)   — clear both pending and error for `id` without a transition
  *
- * The hook does not store the error *message* — only which id errored. That
+ * The hook does not store the error *message* — only which ids errored. That
  * keeps it generic (callers own their own copy/formatting) and avoids baking
  * a string shape into the hook's API.
  */
 export interface AsyncItemState {
-  /** The id whose async operation is currently in flight, if any. */
-  pendingId: string | null;
-  /** The id whose most recent async operation failed, if any. */
-  errorId: string | null;
+  /** Ids whose async operation is currently in flight. */
+  pendingIds: ReadonlySet<string>;
+  /** Ids whose most recent async operation failed. */
+  errorIds: ReadonlySet<string>;
   /** Mark `id` as in flight. Clears any prior error for the same id. */
   start: (id: string) => void;
   /** Mark `id` as settled successfully. Clears pending and error for `id`. */
   succeed: (id: string) => void;
-  /** Mark `id` as failed. Clears pending and records `id` as the error. */
+  /** Mark `id` as failed. Clears pending and records `id` as errored. */
   fail: (id: string) => void;
   /** Clear pending and error for `id` without recording a transition. */
   reset: (id: string) => void;
+}
+
+function withId(prev: ReadonlySet<string>, id: string): ReadonlySet<string> {
+  if (prev.has(id)) return prev;
+  return new Set(prev).add(id);
+}
+
+function withoutId(
+  prev: ReadonlySet<string>,
+  id: string
+): ReadonlySet<string> {
+  if (!prev.has(id)) return prev;
+  const next = new Set(prev);
+  next.delete(id);
+  return next;
 }
 
 /**
@@ -44,31 +59,38 @@ export interface AsyncItemState {
  * dependency arrays (e.g. inside `useCallback`).
  */
 export function useAsyncItemState(): AsyncItemState {
-  const [pendingId, setPendingId] = useState<string | null>(null);
-  const [errorId, setErrorId] = useState<string | null>(null);
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
+  const [errorIds, setErrorIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
 
   const start = useCallback((id: string) => {
-    setPendingId(id);
+    setPendingIds((prev) => withId(prev, id));
     // A retry should not keep showing the previous failure for the same row.
-    setErrorId((prev) => (prev === id ? null : prev));
+    setErrorIds((prev) => withoutId(prev, id));
   }, []);
 
   const succeed = useCallback((id: string) => {
-    setPendingId((prev) => (prev === id ? null : prev));
-    setErrorId((prev) => (prev === id ? null : prev));
+    setPendingIds((prev) => withoutId(prev, id));
+    setErrorIds((prev) => withoutId(prev, id));
   }, []);
 
   const fail = useCallback((id: string) => {
-    setPendingId((prev) => (prev === id ? null : prev));
-    setErrorId(id);
+    setPendingIds((prev) => withoutId(prev, id));
+    setErrorIds((prev) => withId(prev, id));
   }, []);
 
   const reset = useCallback((id: string) => {
-    setPendingId((prev) => (prev === id ? null : prev));
-    setErrorId((prev) => (prev === id ? null : prev));
+    setPendingIds((prev) => withoutId(prev, id));
+    setErrorIds((prev) => withoutId(prev, id));
   }, []);
 
-  return { pendingId, errorId, start, succeed, fail, reset };
+  return useMemo(
+    () => ({ pendingIds, errorIds, start, succeed, fail, reset }),
+    [pendingIds, errorIds, start, succeed, fail, reset]
+  );
 }
 
 export default useAsyncItemState;

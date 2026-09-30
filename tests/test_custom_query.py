@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 import pytest
@@ -9,12 +10,25 @@ from backend.routes.query import Metric
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch, tmp_path):
     orig_root = config.data_root
     orig_cache_base = ts_cache._CACHE_BASE
-    test_data_root = Path(__file__).resolve().parent / "data"
+    # Work on a copy of the checked-in fixtures: a query run caches the
+    # tickers it fetches, and saving a query writes a file, which used to
+    # land in tests/data and the real data/queries respectively.
+    test_data_root = tmp_path / "data"
+    shutil.copytree(Path(__file__).resolve().parent / "data", test_data_root)
     config.data_root = test_data_root
     ts_cache._CACHE_BASE = str(test_data_root / "timeseries")
+    from backend.routes import query as query_module
+
+    monkeypatch.setattr(query_module, "QUERIES_DIR", test_data_root / "queries")
+    # With no owners filter a query also prices every ticker held in every
+    # portfolio (_resolve_tickers). These tests only assert on the tickers
+    # they name, which the fixture cache holds; the demo holdings are not in
+    # it, so they used to be fetched live - and only when an earlier test had
+    # already turned the cache module's OFFLINE_MODE off.
+    monkeypatch.setattr(query_module, "list_portfolios", lambda: [])
     from backend.app import create_app
 
     client = TestClient(create_app())

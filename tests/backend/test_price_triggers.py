@@ -159,6 +159,8 @@ def test_routes_crud(client):
 
 def test_routes_validation_and_ownership(client):
     assert client.post("/price-triggers/alice", json={"ticker": "X", "condition": "up", "price": 1}).status_code == 422
-    assert client.post("/price-triggers/alice", json={"ticker": "X", "condition": "above", "price": -1}).status_code == 422
+    assert (
+        client.post("/price-triggers/alice", json={"ticker": "X", "condition": "above", "price": -1}).status_code == 422
+    )
     assert client.get("/price-triggers/bob").status_code == 403
     assert client.patch("/price-triggers/alice/nope", json={"price": 1}).status_code == 404

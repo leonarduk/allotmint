@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from backend.common.portfolio_loader import compute_holdings_from_transactions
 from backend.routes import transactions as tx_routes
 from scripts import convert_untracked_holdings as convert
 
@@ -129,3 +130,78 @@ def test_rebuild_keeps_an_uneven_cost_and_an_unknown_one(tmp_path):
     holdings = {h["ticker"]: h for h in json.loads((tmp_path / "alice" / "isa.json").read_text())["holdings"]}
     assert (holdings["AAA"]["units"], holdings["AAA"]["cost_basis_gbp"]) == (3.0, 100.0)
     assert (holdings["BBB"]["units"], holdings["BBB"]["cost_basis_gbp"], holdings["BBB"]["value_gbp"]) == (7.0, 0, 70.0)
+
+
+def _seed_cash(tmp_path, balance, **tx_doc_extra):
+    _write(
+        tmp_path / "alice" / "isa.json",
+        {
+            "owner": "alice",
+            "holdings": [
+                {"ticker": "CASH.GBP", "units": balance, "cost_basis_gbp": balance},
+                {"ticker": "BBB", "units": 5, "cost_basis_gbp": 50.0},
+            ],
+        },
+    )
+    _write(
+        tmp_path / "alice" / "isa_transactions.json",
+        {
+            "owner": "alice",
+            "account_type": "isa",
+            **tx_doc_extra,
+            "transactions": [{"type": "BUY", "ticker": "BBB", "date": "2023-02-01", "units": 5, "price_gbp": 10.0}],
+        },
+    )
+
+
+def _cash(tmp_path):
+    holdings = json.loads((tmp_path / "alice" / "isa.json").read_text())["holdings"]
+    return next(h["units"] for h in holdings if h["ticker"] == "CASH.GBP")
+
+
+def test_cash_is_only_reported_without_include_cash(tmp_path, capsys):
+    _seed_cash(tmp_path, 2000)
+
+    assert convert.main(["--accounts-root", str(tmp_path), "--owner", "alice", "--write"]) == 0
+
+    assert len(json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())["transactions"]) == 1
+    assert "skipped CASH.GBP: cash balance: re-run with --include-cash" in capsys.readouterr().out
+
+
+def test_include_cash_records_an_opening_deposit_that_a_later_dividend_adds_to(tmp_path, capsys):
+    _seed_cash(tmp_path, 2000)
+
+    assert convert.main(["--accounts-root", str(tmp_path), "--owner", "alice", "--include-cash", "--write"]) == 0
+
+    tx_doc = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())
+    deposit = tx_doc["transactions"][-1]
+    assert (deposit["type"], deposit["amount_minor"], deposit["date"]) == ("DEPOSIT", 200000, "2023-02-01")
+    assert _cash(tmp_path) == pytest.approx(2000)
+    assert "recorded CASH.GBP: DEPOSIT GBP 2,000.00, dated 2023-02-01" in capsys.readouterr().out
+
+    # Why it matters: without the deposit the rebuild would value the cash at this dividend alone.
+    tx_doc["transactions"].append({"type": "DIVIDEND", "ticker": "BBB", "date": "2024-01-01", "amount_minor": 1234})
+    existing = json.loads((tmp_path / "alice" / "isa.json").read_text())
+    rebuilt = compute_holdings_from_transactions(tx_doc, "alice", "isa", existing)["holdings"]
+    assert next(h["units"] for h in rebuilt if h["ticker"] == "CASH.GBP") == pytest.approx(2012.34)
+
+    assert convert.main(["--accounts-root", str(tmp_path), "--owner", "alice", "--include-cash", "--write"]) == 0
+    assert len(json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())["transactions"]) == 2
+
+
+def test_include_cash_records_a_withdrawal_for_an_overdrawn_balance(tmp_path):
+    _seed_cash(tmp_path, -12.5)
+
+    assert convert.main(["--accounts-root", str(tmp_path), "--owner", "alice", "--include-cash", "--write"]) == 0
+
+    withdrawal = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())["transactions"][-1]
+    assert (withdrawal["type"], withdrawal["amount_minor"]) == ("WITHDRAWAL", 1250)
+    assert _cash(tmp_path) == pytest.approx(-12.5)
+
+
+def test_include_cash_leaves_cash_that_trades_already_settle(tmp_path):
+    _seed_cash(tmp_path, -50, trade_cash_effects=True)
+
+    assert convert.main(["--accounts-root", str(tmp_path), "--owner", "alice", "--include-cash", "--write"]) == 0
+
+    assert len(json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())["transactions"]) == 1

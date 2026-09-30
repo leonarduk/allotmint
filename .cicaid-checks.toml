@@ -45,7 +45,7 @@ commands = [
     "python scripts/check_contract_version_sync.py",
     "python -m mypy backend --config-file mypy.ini --show-error-codes --pretty --explicit-package-bases",
     "pytest --no-cov tests/backend/common/test_data_provider_parity.py -q",
-    "pytest tests --ignore=tests/live --cov=backend --cov-report=xml --cov-report=term --cov-fail-under=80 -q",
+    "pytest tests --ignore=tests/live -n auto --cov=backend --cov-report=xml --cov-report=term --cov-fail-under=80 -q",
 ]
 
 [[checks]]

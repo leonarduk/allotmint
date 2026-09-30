@@ -1878,17 +1878,49 @@ export const requestApproval = async (owner: string, ticker: string) => {
  * `tests/unit/pages/ScreenerQuery.test.tsx` drive the real implementation
  * through the Run button and assert on the wire-level request, so a revert to
  * GET (or dropping `format: "json"`) fails the suite.
+ *
+ * Error handling (#7178) maps the HTTP status to an actionable message
+ * (400/422 -> "Invalid query parameters", 5xx/other -> "Failed to run query")
+ * instead of a misleading "Query not found" for every non-200 response. A 404
+ * keeps the backend's own detail verbatim, since it can mean either a missing
+ * saved query or invalid parameters (PR #7133). The original error is kept on
+ * `cause` and its `status`/`code` are copied onto the thrown error so callers
+ * that inspect `err.status` keep working.
  */
 export const runCustomQuery = async (params: CustomQuery) => {
-  const { results } = await fetchJson<{ results: Record<string, unknown>[] }>(
-    `${API_BASE}/custom-query/run`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...params, format: "json" }),
-    },
-  );
-  return results;
+  try {
+    const { results } = await fetchJson<{ results: Record<string, unknown>[] }>(
+      `${API_BASE}/custom-query/run`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...params, format: "json" }),
+      },
+    );
+    return results;
+  } catch (err) {
+    const status = (err as { status?: number } | undefined)?.status;
+    const code = (err as { code?: string } | undefined)?.code;
+    const detail =
+      err instanceof Error && err.message ? err.message : "Unknown error";
+
+    let message: string;
+    if (status === 404) {
+      // Keep the backend's detail verbatim: a 404 here is not always "saved
+      // query missing" (see #7133). The generic HTTP fallback already reads
+      // "... Not Found ...", so only a non-Error throw needs the default.
+      message = err instanceof Error && err.message ? detail : "Query not found";
+    } else if (status === 400 || status === 422) {
+      message = `Invalid query parameters: ${detail}`;
+    } else {
+      message = `Failed to run query: ${detail}`;
+    }
+
+    const wrapped = new Error(message, { cause: err });
+    if (typeof status === "number") (wrapped as any).status = status;
+    if (code) (wrapped as any).code = code;
+    throw wrapped;
+  }
 };
 
 /** Persist a query definition on the backend. */

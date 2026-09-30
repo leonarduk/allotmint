@@ -740,37 +740,13 @@ describe("scenario APIs", () => {
 });
 
 describe("custom query (issue #7104)", () => {
-  it("POSTs the query body -- the backend only exposes POST /custom-query/run", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ results: [{ ticker: "AAA.L" }] }),
-    });
-    // @ts-expect-error: replacing global fetch with mock
-    global.fetch = mockFetch;
-
-    const rows = await runCustomQuery({
-      start: "2024-01-01",
-      end: "2024-02-01",
-      owners: ["alex"],
-      tickers: ["AAA.L"],
-      metrics: ["meta"],
-    });
-
-    // The GET form this replaced 404'd: no such route existed.
-    const [url, init] = mockFetch.mock.calls[0];
-    expect(url).toBe(`${API_BASE}/custom-query/run`);
-    expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body as string)).toEqual({
-      start: "2024-01-01",
-      end: "2024-02-01",
-      owners: ["alex"],
-      tickers: ["AAA.L"],
-      metrics: ["meta"],
-      format: "json",
-    });
-    // The endpoint wraps rows in {results}; callers expect the bare array.
-    expect(rows).toEqual([{ ticker: "AAA.L" }]);
-  });
+  const QUERY_PARAMS = {
+    start: "2024-01-01",
+    end: "2024-02-01",
+    owners: ["alex"],
+    tickers: ["AAA.L"],
+    metrics: ["meta"],
+  };
 
   it("propagates a 404 error with the backend's detail message instead of unwrapping a results envelope", async () => {
     // Regression guard for PR #7133: a 404 from /custom-query/run can mean
@@ -786,18 +762,45 @@ describe("custom query (issue #7104)", () => {
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
-    await expect(
-      runCustomQuery({
-        start: "2024-01-01",
-        end: "2024-02-01",
-        owners: ["alex"],
-        tickers: ["AAA.L"],
-        metrics: ["bogus"],
-      }),
-    ).rejects.toThrow("Unknown metric: bogus");
+    await expect(runCustomQuery(QUERY_PARAMS)).rejects.toMatchObject({
+      status: 404,
+      message: "Unknown metric: bogus",
+    });
 
     // The error path must not attempt to read a {results} envelope.
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the 'Query not found' wording for a 404 saved-query miss", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      json: () => Promise.resolve({ detail: "Query not found" }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(runCustomQuery(QUERY_PARAMS)).rejects.toMatchObject({
+      status: 404,
+      message: "Query not found",
+    });
+  });
+
+  it("surfaces a distinct message for a 400 validation failure (not 'Query not found')", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+      json: () => Promise.resolve({ detail: "Unknown metric: bogus" }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(runCustomQuery(QUERY_PARAMS)).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(/Invalid query parameters.*Unknown metric/),
+    });
   });
 
   it("propagates a 500 error with the backend's detail message", async () => {
@@ -810,15 +813,10 @@ describe("custom query (issue #7104)", () => {
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
-    await expect(
-      runCustomQuery({
-        start: "2024-01-01",
-        end: "2024-02-01",
-        owners: ["alex"],
-        tickers: ["AAA.L"],
-        metrics: ["meta"],
-      }),
-    ).rejects.toThrow("Query engine crashed");
+    await expect(runCustomQuery(QUERY_PARAMS)).rejects.toMatchObject({
+      status: 500,
+      message: expect.stringMatching(/Failed to run query.*Query engine crashed/),
+    });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
@@ -833,17 +831,34 @@ describe("custom query (issue #7104)", () => {
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
-    await expect(
-      runCustomQuery({
-        start: "2024-01-01",
-        end: "2024-02-01",
-        owners: ["alex"],
-        tickers: ["AAA.L"],
-        metrics: ["meta"],
-      }),
-    ).rejects.toThrow("HTTP 500");
+    await expect(runCustomQuery(QUERY_PARAMS)).rejects.toThrow("HTTP 500");
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves the original error on `cause` and keeps status/code for callers", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      statusText: "Unprocessable Entity",
+      json: () => Promise.resolve({ detail: "bad range", code: "bad_range" }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    const err = await runCustomQuery(QUERY_PARAMS).catch((e) => e);
+    expect(err).toMatchObject({ status: 422, code: "bad_range" });
+    expect((err as Error).cause).toBeInstanceOf(Error);
+    expect(((err as Error).cause as Error).message).toBe("bad range");
+  });
+
+  it("reports a failure with no HTTP status (network error) as 'Failed to run query'", async () => {
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = vi.fn().mockRejectedValue(new Error("network down"));
+
+    const err = await runCustomQuery(QUERY_PARAMS).catch((e) => e);
+    expect((err as Error).message).toBe("Failed to run query: network down");
+    expect((err as { status?: number }).status).toBeUndefined();
   });
 });
 

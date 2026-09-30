@@ -7,6 +7,11 @@ from backend.config import config
 def test_timeseries_edit_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    # The cache module read TIMESERIES_CACHE_BASE at import time, so the env
+    # var alone does not redirect it - patch the bound value too.
+    from backend.timeseries import cache as ts_cache
+
+    monkeypatch.setattr(ts_cache, "_CACHE_BASE", str(tmp_path))
     app = create_app()
     client = TestClient(app)
     token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
@@ -46,6 +51,11 @@ def test_timeseries_edit_roundtrip(tmp_path, monkeypatch):
 def test_timeseries_edit_invalid_json_logs_validation_failure(tmp_path, monkeypatch, caplog):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    # The cache module read TIMESERIES_CACHE_BASE at import time, so the env
+    # var alone does not redirect it - patch the bound value too.
+    from backend.timeseries import cache as ts_cache
+
+    monkeypatch.setattr(ts_cache, "_CACHE_BASE", str(tmp_path))
     app = create_app()
     client = TestClient(app)
     token = client.post("/token", json={"id_token": "good"}).json()["access_token"]

@@ -5,6 +5,7 @@ import { usePlotData, type Chore } from '../PlotDataContext';
 import RadialProgress from '../components/RadialProgress';
 import Meter from '../components/Meter';
 import { markChorePending, type TrackedChoreId } from '../../choreCompletion';
+import { useAsyncItemState } from '../../hooks/useAsyncItemState';
 
 /**
  * Chores that used to self-complete on click (#7003) now deep-link to the
@@ -149,12 +150,15 @@ export default function ChoresScreen() {
     usePlotData();
   const navigate = useNavigate();
 
-  // Per-chore pending/error UI state for #7188. Keyed by chore id rather
-  // than living in PlotDataContext because this is purely presentational —
+  // Per-chore pending/error UI state for #7188. The pending/error *id sets* live
+  // in the reusable `useAsyncItemState` hook (see ../../hooks/useAsyncItemState)
+  // rather than in PlotDataContext, because this is purely presentational —
   // PlotDataContext's `completeChore` already tracks the single in-flight
   // completion chain for correctness; this just reflects that back per row.
-  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  // The human-readable error copy stays local to this screen: the hook only
+  // tracks *which* id errored, not the message to show for it.
+  const { pendingIds, errorIds, start, succeed, fail } = useAsyncItemState();
+  const [errorMessages, setErrorMessages] = useState<Record<string, string>>({});
 
   const handleComplete = useCallback(
     (id: string) => {
@@ -163,14 +167,17 @@ export default function ChoresScreen() {
       // on the same row while its request is still in flight has to be
       // guarded here instead — a no-op, not a second POST.
       if (pendingIds.has(id)) return;
-      setErrors((prev) => {
+      setErrorMessages((prev) => {
         if (!(id in prev)) return prev;
         const next = { ...prev };
         delete next[id];
         return next;
       });
-      setPendingIds((prev) => new Set(prev).add(id));
+      start(id);
       completeChore(id)
+        .then(() => {
+          succeed(id);
+        })
         .catch((cause: unknown) => {
           // #7188 finding 5: log the actual cause instead of discarding it —
           // otherwise an expired session (401), a stale chore id (404) and a
@@ -185,18 +192,11 @@ export default function ChoresScreen() {
               : cause instanceof Error && cause.message
                 ? cause.message
                 : 'Could not complete this chore. Try again.';
-          setErrors((prev) => ({ ...prev, [id]: message }));
-        })
-        .finally(() => {
-          setPendingIds((prev) => {
-            if (!prev.has(id)) return prev;
-            const next = new Set(prev);
-            next.delete(id);
-            return next;
-          });
+          setErrorMessages((prev) => ({ ...prev, [id]: message }));
+          fail(id);
         });
     },
-    [completeChore, pendingIds]
+    [completeChore, pendingIds, start, succeed, fail]
   );
 
   const daily = chores.filter((chore) => chore.kind === 'daily');
@@ -273,7 +273,11 @@ export default function ChoresScreen() {
                 chore={chore}
                 owner={owner}
                 pending={pendingIds.has(chore.id)}
-                error={errors[chore.id] ?? null}
+                error={
+                  errorIds.has(chore.id)
+                    ? (errorMessages[chore.id] ?? null)
+                    : null
+                }
                 onComplete={handleComplete}
                 onNavigate={navigate}
               />
@@ -292,7 +296,11 @@ export default function ChoresScreen() {
                 chore={chore}
                 owner={owner}
                 pending={pendingIds.has(chore.id)}
-                error={errors[chore.id] ?? null}
+                error={
+                  errorIds.has(chore.id)
+                    ? (errorMessages[chore.id] ?? null)
+                    : null
+                }
                 onComplete={handleComplete}
                 onNavigate={navigate}
               />

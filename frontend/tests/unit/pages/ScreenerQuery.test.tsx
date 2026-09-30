@@ -550,9 +550,11 @@ describe("Screener & Query page — Run button integration (real runCustomQuery)
       screen.getAllByRole("button", { name: i18n.t("query.run") })[1],
     );
 
-    // The backend's `detail` message is surfaced to the user, and no results
-    // table is rendered.
-    expect(await screen.findByText("query blew up")).toBeInTheDocument();
+    // The backend's `detail` message is surfaced to the user (prefixed with
+    // "Failed to run query" for 5xx, #7178), and no results table is rendered.
+    expect(
+      await screen.findByText("Failed to run query: query blew up"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("AAA")).not.toBeInTheDocument();
   });
 });

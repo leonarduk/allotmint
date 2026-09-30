@@ -11,15 +11,13 @@ from backend.routes.query import Metric
 
 @pytest.fixture
 def client(monkeypatch, tmp_path):
-    orig_root = config.data_root
-    orig_cache_base = ts_cache._CACHE_BASE
     # Work on a copy of the checked-in fixtures: a query run caches the
     # tickers it fetches, and saving a query writes a file, which used to
     # land in tests/data and the real data/queries respectively.
     test_data_root = tmp_path / "data"
     shutil.copytree(Path(__file__).resolve().parent / "data", test_data_root)
-    config.data_root = test_data_root
-    ts_cache._CACHE_BASE = str(test_data_root / "timeseries")
+    monkeypatch.setattr(config, "data_root", test_data_root)
+    monkeypatch.setattr(ts_cache, "_CACHE_BASE", str(test_data_root / "timeseries"))
     from backend.routes import query as query_module
 
     monkeypatch.setattr(query_module, "QUERIES_DIR", test_data_root / "queries")
@@ -34,11 +32,7 @@ def client(monkeypatch, tmp_path):
     client = TestClient(create_app())
     token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})
-    try:
-        yield client
-    finally:
-        config.data_root = orig_root
-        ts_cache._CACHE_BASE = orig_cache_base
+    yield client
 
 
 BASE_QUERY = {

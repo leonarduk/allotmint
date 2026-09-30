@@ -374,11 +374,15 @@ function IssuesTab({ presetTypes }: { presetTypes?: readonly string[] }) {
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setPreview(null)}>
+            <button type="button" className="rounded border border-slate-300 bg-white px-4 py-2 text-slate-900 hover:bg-slate-100 disabled:opacity-50" onClick={() => setPreview(null)}>
               {t("dataQuality.admin.issues.actions.close")}
             </button>
             {preview.fixable && (
-              <button type="button" onClick={() => { setConfirming(preview); setPreview(null); }}>
+              <button
+                type="button"
+                className="rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700 disabled:opacity-50"
+                onClick={() => { setConfirming(preview); setPreview(null); }}
+              >
                 {t("dataQuality.admin.issues.actions.apply")}
               </button>
             )}
@@ -398,10 +402,15 @@ function IssuesTab({ presetTypes }: { presetTypes?: readonly string[] }) {
           <p className="mb-2 text-sm">{confirming.suggested_fix}</p>
           <p className="mb-4 text-xs opacity-70">{t("dataQuality.admin.issues.actions.confirmBody")}</p>
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setConfirming(null)}>
+            <button type="button" className="rounded border border-slate-300 bg-white px-4 py-2 text-slate-900 hover:bg-slate-100 disabled:opacity-50" onClick={() => setConfirming(null)}>
               {t("dataQuality.admin.issues.actions.cancel")}
             </button>
-            <button type="button" onClick={() => applyFix(confirming)} disabled={fixingId === confirming.id}>
+            <button
+              type="button"
+              className="rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700 disabled:opacity-50"
+              onClick={() => applyFix(confirming)}
+              disabled={fixingId === confirming.id}
+            >
               {fixingId === confirming.id
                 ? t("dataQuality.admin.issues.actions.fixing")
                 : t("dataQuality.admin.issues.actions.apply")}

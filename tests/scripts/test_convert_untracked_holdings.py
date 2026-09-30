@@ -110,3 +110,22 @@ def test_holdings_without_a_transactions_file_get_a_lower_case_one(tmp_path):
 def test_write_for_every_owner_requires_all(tmp_path):
     with pytest.raises(SystemExit):
         convert.main(["--accounts-root", str(tmp_path), "--write"])
+
+
+def test_rebuild_keeps_an_uneven_cost_and_an_unknown_one(tmp_path):
+    _write(
+        tmp_path / "alice" / "isa.json",
+        {
+            "owner": "alice",
+            "holdings": [
+                {"ticker": "AAA", "units": 3, "cost_basis_gbp": 100.0},
+                {"ticker": "BBB", "units": 7, "cost_basis_gbp": 0, "value_gbp": 70.0},
+            ],
+        },
+    )
+
+    assert convert.main(["--accounts-root", str(tmp_path), "--owner", "alice", "--write"]) == 0
+
+    holdings = {h["ticker"]: h for h in json.loads((tmp_path / "alice" / "isa.json").read_text())["holdings"]}
+    assert (holdings["AAA"]["units"], holdings["AAA"]["cost_basis_gbp"]) == (3.0, 100.0)
+    assert (holdings["BBB"]["units"], holdings["BBB"]["cost_basis_gbp"], holdings["BBB"]["value_gbp"]) == (7.0, 0, 70.0)

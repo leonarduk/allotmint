@@ -314,4 +314,47 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     await expect(page.getByText('CASH — Cash L', { exact: true })).toBeVisible();
     expect(warnings).toEqual([]);
   });
+
+  test('header search toggle opens the search input and shows suggestions', async ({
+    page,
+  }) => {
+    // Regression guard for the header search toggle label change (#7271): the
+    // toggle must still open the search input and surface suggestions, not just
+    // carry the correct accessible label.
+    await applyAuth(page);
+    await setupCoreMocks(page);
+    await page.route('**/instrument/search**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { ticker: 'BBB', name: 'BBB Corp' },
+          { ticker: 'BBBY', name: 'Bed Bath' },
+        ]),
+      });
+    });
+
+    await page.goto(`${baseUrl}/research`);
+
+    // Locate the header toggle by its accessible label. Using getByRole with
+    // the exact name avoids strict-mode conflicts with the embedded search bar
+    // on /research (which has its own input but no toggle button).
+    const headerToggle = page.getByRole('button', {
+      name: 'Show instrument search',
+    });
+    await expect(headerToggle).toBeVisible();
+    await headerToggle.click();
+
+    // The header search input should now be visible and interactive. Scope to
+    // the header region so we don't match the embedded search bar's input.
+    const headerInput = page
+      .locator('header')
+      .getByLabel('Search instruments');
+    await expect(headerInput).toBeVisible();
+    await headerInput.fill('BBB');
+
+    // A suggestion for the typed query must appear, proving the toggle wired
+    // the input up to the search flow.
+    await expect(page.getByText('BBB — BBB Corp', { exact: true })).toBeVisible();
+  });
 });

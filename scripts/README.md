@@ -332,7 +332,12 @@ that, the holding can be sold through the transaction form like any other.
   holding's existing cost.
 - **Date:** the holding's `acquired_date`, else the account's oldest
   transaction, else today.
-- **Skipped and reported:** `CASH.GBP` (record a `DEPOSIT` instead), holdings
+- **Cash (`--include-cash`):** a `CASH.GBP` balance that no cash transaction
+  explains gets an opening `DEPOSIT` (or `WITHDRAWAL`, if negative) of that
+  amount, dated at the account's oldest transaction. Without one, the first
+  cash row the account records, such as an imported `DIVIDEND`, makes the
+  rebuild replace the balance with that row's amount alone.
+- **Skipped and reported:** `CASH.GBP` without `--include-cash`, holdings
   without units, and holdings files whose name is not lower-case.
 
 The command is a dry run unless `--write` is supplied. Running it again after
@@ -342,6 +347,7 @@ The command is a dry run unless `--write` is supplied. Running it again after
 ```bash
 python -m scripts.convert_untracked_holdings
 python -m scripts.convert_untracked_holdings --owner alice --write
+python -m scripts.convert_untracked_holdings --include-cash --all --write
 python -m scripts.convert_untracked_holdings --accounts-root ../allotmint-data/accounts --all --write
 python -m scripts.convert_untracked_holdings --bucket my-data-bucket --owner alice --write
 ```

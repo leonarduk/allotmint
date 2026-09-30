@@ -320,6 +320,32 @@ python -m scripts.reconcile_holding_tickers --write data/accounts/alice/isa.json
 python -m scripts.reconcile_holding_tickers --write --all
 ```
 
+## convert_untracked_holdings.py
+
+Record holdings that no transaction mentions (entered by hand before `/input`
+recorded opening balances, or imported as a holdings snapshot) as
+opening-balance `TRANSFER_IN` transactions, then rebuild each account. After
+that, the holding can be sold through the transaction form like any other.
+
+- **Cost:** the transfer's price is `cost_basis_gbp` ÷ units when the holding
+  has a positive cost. Otherwise it has no price, and the rebuild keeps the
+  holding's existing cost.
+- **Date:** the holding's `acquired_date`, else the account's oldest
+  transaction, else today.
+- **Skipped and reported:** `CASH.GBP` (record a `DEPOSIT` instead), holdings
+  without units, and holdings files whose name is not lower-case.
+
+The command is a dry run unless `--write` is supplied. Running it again after
+`--write` changes nothing. `--write` without `--owner` also requires `--all`.
+`--bucket` targets the S3 writable accounts store instead of a local root.
+
+```bash
+python -m scripts.convert_untracked_holdings
+python -m scripts.convert_untracked_holdings --owner alice --write
+python -m scripts.convert_untracked_holdings --accounts-root ../allotmint-data/accounts --all --write
+python -m scripts.convert_untracked_holdings --bucket my-data-bucket --owner alice --write
+```
+
 ## profile_ensure_schema.py
 
 Reproduces the #8137 profiling of `backend.timeseries.cache._ensure_schema`

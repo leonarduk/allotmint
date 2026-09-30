@@ -175,6 +175,16 @@ def test_s3_store_list_and_iter(s3_store):
     assert data["transactions"] == [{"ticker": "AAA"}]
 
 
+@pytest.mark.parametrize("store_kind", ["local", "s3"])
+def test_list_owners(store_kind, tmp_path, s3_store):
+    store = LocalAccountsStore(root=tmp_path) if store_kind == "local" else s3_store[0]
+    for owner in ("bob", "alice"):
+        with store.edit_document(owner, "isa.json", default={}) as data:
+            data["holdings"] = []
+
+    assert store.list_owners() == ["alice", "bob"]
+
+
 def test_s3_store_ensure_owner_idempotent(s3_store):
     store, fake = s3_store
     store.ensure_owner("alice")

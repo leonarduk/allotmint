@@ -1,12 +1,10 @@
 import importlib
 from datetime import date
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import backend.routes as routes_pkg
-from backend.auth import get_current_user
 from backend.common import goals as goals_mod
 from backend.common.storage import get_storage
 from backend.routes import goals as goals_route
@@ -25,12 +23,16 @@ def _app(tmp_path, monkeypatch, *, active_user: str | None = "alice", disable_au
         async def override_user():
             return active_user
 
-        app.dependency_overrides[get_current_user] = override_user
+        # Key the override on the dependency the reloaded route actually
+        # uses. Other test modules reload backend.auth, which replaces
+        # get_current_user; this module's import-time reference then no
+        # longer matches, the override silently never applied, and these
+        # tests failed whenever such a module ran first in the process.
+        app.dependency_overrides[module.get_current_user] = override_user
     app.include_router(module.router)
     return TestClient(app)
 
 
-@pytest.mark.xfail(reason="Authentication dependency override needs fixing")
 def test_create_and_list(tmp_path, monkeypatch):
     client = _app(tmp_path, monkeypatch)
     payload = {"name": "Car", "target_amount": 1000, "target_date": date.today().isoformat()}
@@ -41,7 +43,6 @@ def test_create_and_list(tmp_path, monkeypatch):
     assert data[0]["name"] == "Car"
 
 
-@pytest.mark.xfail(reason="Authentication dependency override needs fixing")
 def test_goal_progress(tmp_path, monkeypatch):
     client = _app(tmp_path, monkeypatch)
     payload = {"name": "House", "target_amount": 5000, "target_date": date.today().isoformat()}
@@ -53,7 +54,6 @@ def test_goal_progress(tmp_path, monkeypatch):
     assert any(t["action"] == "buy" for t in data["trades"])
 
 
-@pytest.mark.xfail(reason="Authentication dependency override needs fixing")
 def test_update_and_delete(tmp_path, monkeypatch):
     client = _app(tmp_path, monkeypatch)
     payload = {"name": "Trip", "target_amount": 2000, "target_date": date.today().isoformat()}

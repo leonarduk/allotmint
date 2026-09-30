@@ -129,8 +129,11 @@ beforeEach(() => {
   mocks.getOwners.mockResolvedValue([
     { owner: 'steve', accounts: ['stocks-isa'] },
   ]);
-  // Empty by default so pickerOwners falls back to the full owners list,
-  // matching pre-#7189 test expectations unless a test overrides it.
+  // PlotDataContext fetches groups alongside owners (#7189) to filter the
+  // grower picker. Empty by default so pickerOwners falls back to the full
+  // owners list, matching pre-#7189 test expectations unless a test
+  // overrides it — and so an unmocked getGroups can never leak a real
+  // network call into these tests.
   mocks.getGroups.mockResolvedValue([]);
   mocks.getPortfolio.mockResolvedValue(portfolio);
   mocks.getAllowances.mockResolvedValue({

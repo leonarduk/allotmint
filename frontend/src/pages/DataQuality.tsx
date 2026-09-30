@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import {
   dedupeDataQualitySeries,
   fixDataQualityBatch,
@@ -62,6 +63,27 @@ function entityLabel(entity: Record<string, unknown>): string {
   if (holding) parts.push(holding);
   else if (ticker) parts.push(exchange ? `${ticker}.${exchange}` : ticker);
   return parts.join(" / ") || "—";
+}
+
+// InstrumentResearch (/research/:ticker) only resolves tickers of this shape.
+const LINKABLE_TICKER = /^[A-Za-z0-9.-]{1,10}$/;
+
+/** Full "TICKER.EXCHANGE" symbol for an issue entity, or null if it has no research page. */
+function researchSymbol(entity: Record<string, unknown>): string | null {
+  const ticker = entity.ticker as string | undefined;
+  const exchange = entity.exchange as string | undefined;
+  const holding = entity.holding as string | undefined;
+  const symbol = ticker ? (exchange ? `${ticker}.${exchange}` : ticker) : holding;
+  return symbol && LINKABLE_TICKER.test(symbol) ? symbol : null;
+}
+
+function ResearchLink({ symbol, children }: { symbol: string | null; children: ReactNode }) {
+  if (!symbol) return <>{children}</>;
+  return (
+    <Link to={`/research/${encodeURIComponent(symbol)}`} className="underline">
+      {children}
+    </Link>
+  );
 }
 
 function IssueTable({
@@ -128,7 +150,11 @@ function IssueTable({
               <td className={tableStyles.cell}>
                 {t(`dataQuality.admin.issues.severity.${issue.severity}`)}
               </td>
-              <td className={tableStyles.cell}>{entityLabel(issue.entity)}</td>
+              <td className={tableStyles.cell}>
+                <ResearchLink symbol={researchSymbol(issue.entity)}>
+                  {entityLabel(issue.entity)}
+                </ResearchLink>
+              </td>
               <td className={tableStyles.cell}>{issue.description}</td>
               <td className={tableStyles.cell}>{issue.suggested_fix}</td>
               <td className={tableStyles.cell}>
@@ -499,7 +525,9 @@ function SeriesTab() {
           <tbody>
             {sorted.map((row) => (
               <tr key={`${row.ticker}.${row.exchange}`}>
-                <td className={tableStyles.cell}>{row.ticker}</td>
+                <td className={tableStyles.cell}>
+                  <ResearchLink symbol={researchSymbol({ ticker: row.ticker, exchange: row.exchange })}>{row.ticker}</ResearchLink>
+                </td>
                 <td className={tableStyles.cell}>{row.exchange}</td>
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>{row.total_points}</td>
                 <td className={tableStyles.cell}>
@@ -626,7 +654,11 @@ function AuditTab() {
                 {new Date(entry.timestamp).toLocaleString()}
               </td>
               <td className={tableStyles.cell}>{entry.action}</td>
-              <td className={tableStyles.cell}>{entityLabel(entry.entity)}</td>
+              <td className={tableStyles.cell}>
+                <ResearchLink symbol={researchSymbol(entry.entity)}>
+                  {entityLabel(entry.entity)}
+                </ResearchLink>
+              </td>
               <td className={tableStyles.cell}>
                 <pre className="text-xs">{JSON.stringify(entry.before)}</pre>
               </td>

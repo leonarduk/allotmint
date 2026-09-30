@@ -190,6 +190,11 @@ class LocalAccountsStore:
             return []
         return sorted(p.name for p in owner_dir.glob("*.json") if p.is_file())
 
+    def list_owners(self) -> List[str]:
+        if self.root is None or not self.root.exists():
+            return []
+        return sorted(p.name for p in self.root.iterdir() if p.is_dir())
+
     def owner_exists(self, owner: str) -> bool:
         try:
             owner_dir = self._owner_dir(owner, create=False)
@@ -350,6 +355,12 @@ class S3AccountsStore:
             if name and "/" not in name:
                 names.append(name)
         return sorted(names)
+
+    def list_owners(self) -> List[str]:
+        prefix = f"{self.prefix}/"
+        return sorted(
+            {key[len(prefix) :].split("/")[0] for key in self._iter_keys(prefix) if "/" in key[len(prefix) :]}
+        )
 
     def owner_exists(self, owner: str) -> bool:
         prefix = f"{self.prefix}/{owner}/"

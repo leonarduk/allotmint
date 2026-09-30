@@ -101,7 +101,9 @@ takes `units` + `price_gbp`, or `value_gbp`, which is converted to units at
 `price_gbp` if given, else at the cached last close (400 if none is known).
 
 A rebuild keeps any holding that no transaction mentions, so holdings entered
-before this change, or imported as a snapshot, are not dropped.
+before this change, or imported as a snapshot, are not dropped. Such a holding
+has nothing behind it to sell, though. To give it an opening balance, run
+`python -m scripts.convert_untracked_holdings` (see `scripts/README.md`).
 
 ## Bulk import
 

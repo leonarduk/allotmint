@@ -223,6 +223,20 @@ describe("UserConfig page", () => {
     ).toBeInTheDocument();
   });
 
+  it("links the subtitle to the compliance documentation", async () => {
+    mockGetOwners.mockResolvedValue([]);
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    const link = await screen.findByRole("link", {
+      name: /learn more about compliance/i,
+    });
+    expect(link).toHaveAttribute("href", "https://docs.example.com/compliance");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
   it("hides the owner prompt once an owner is selected and labels fields with units (#7224)", async () => {
     mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
     mockGetUserConfig.mockResolvedValue({});

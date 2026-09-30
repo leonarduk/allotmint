@@ -161,14 +161,18 @@ def test_dividends_endpoint(tmp_path, monkeypatch):
     assert len(resp2.json()) == 1
 
 
+def test_old_private_loader_name_still_resolves_for_allotmint_pro():
+    assert transactions._load_all_transactions is transactions.load_all_transactions
+
+
 def test_load_all_transactions_handles_missing_root(monkeypatch):
     monkeypatch.setattr(config, "accounts_root", "")
-    assert transactions._load_all_transactions() == []
+    assert transactions.load_all_transactions() == []
 
 
 def test_load_all_transactions_handles_missing_directory(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "accounts_root", tmp_path / "missing")
-    assert transactions._load_all_transactions() == []
+    assert transactions.load_all_transactions() == []
 
 
 def test_load_all_transactions_skips_malformed_json(tmp_path, monkeypatch):
@@ -188,7 +192,7 @@ def test_load_all_transactions_skips_malformed_json(tmp_path, monkeypatch):
     }
     (good_dir / "GIA_transactions.json").write_text(json.dumps(good_payload))
 
-    results = transactions._load_all_transactions()
+    results = transactions.load_all_transactions()
     assert len(results) == 1
     tx = results[0]
     assert tx.owner == "bob"
@@ -215,7 +219,7 @@ def test_load_all_transactions_normalises_names(tmp_path, monkeypatch):
     }
     (bob_dir / "GIA_transactions.json").write_text(json.dumps(bob_payload))
 
-    results = sorted(transactions._load_all_transactions(), key=lambda t: (t.owner, t.account))
+    results = sorted(transactions.load_all_transactions(), key=lambda t: (t.owner, t.account))
     assert len(results) == 2
 
     alice_tx = results[0]
@@ -303,7 +307,7 @@ def test_load_all_transactions_merges_global_and_writable(tmp_path, monkeypatch)
     store = LocalAccountsStore(root=writable_root)
 
     results = sorted(
-        transactions._load_all_transactions(store),
+        transactions.load_all_transactions(store),
         key=lambda t: (t.owner, t.account, t.date or ""),
     )
 
@@ -456,7 +460,7 @@ def test_transactions_compliance_filters(tmp_path, monkeypatch):
         transactions.Transaction(owner="alice", account="gia", date="2024-01-02", ticker="MSFT"),
         transactions.Transaction(owner="bob", account="isa", date="2024-01-02", ticker="PFE"),
     ]
-    monkeypatch.setattr(transactions, "_load_all_transactions", lambda *_a, **_k: sample)
+    monkeypatch.setattr(transactions, "load_all_transactions", lambda *_a, **_k: sample)
 
     captured = {}
 

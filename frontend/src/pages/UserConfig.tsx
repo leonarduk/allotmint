@@ -14,6 +14,14 @@ import { useDemoReadOnly } from '../hooks/useDemoReadOnly';
 import { findOwnerForUser, sanitizeOwners } from '../utils/owners';
 
 /**
+ * Link to the compliance documentation that governs the trading rules shown
+ * on this page. TODO: replace with the canonical docs URL once it is
+ * published; kept as a named constant so the subtitle link and its test
+ * share a single source of truth.
+ */
+const COMPLIANCE_DOCS_URL = 'https://docs.example.com/compliance';
+
+/**
  * Distinguish permission/session failures from generic ones so the approvals
  * error message tells the user something actionable instead of a blanket
  * "Failed to ..." (#5215 -- a 403 here was previously indistinguishable from
@@ -167,7 +175,15 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
         {t(
           'userConfig.subtitle',
           'The compliance rules that govern how this account can trade, and the tickers pre-approved to bypass them.'
-        )}
+        )}{' '}
+        <a
+          href={COMPLIANCE_DOCS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-400"
+        >
+          {t('userConfig.complianceDocsLink', 'Learn more about compliance')}
+        </a>
       </p>
       {user && (
         <section className="flex flex-col items-center space-y-4 rounded-lg border p-4">

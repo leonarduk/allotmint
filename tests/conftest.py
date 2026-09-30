@@ -74,6 +74,29 @@ def enable_offline_mode():
 
 
 @pytest.fixture(scope="session", autouse=True)
+def isolate_timeseries_cache(tmp_path_factory):
+    """Redirect the default timeseries cache to a session-scoped temp dir.
+
+    ``backend.timeseries.cache._CACHE_BASE`` is bound once at import time
+    from ``TIMESERIES_CACHE_BASE`` / ``config.timeseries_cache_base`` -
+    ``data/timeseries`` under the repo's own config.yaml - so any test that
+    fetches prices without redirecting the cache wrote parquet files into
+    the real data/timeseries directory. That tree is gitignored, so the
+    files piled up across runs in a long-lived checkout (local dev, or an
+    automated verifier's workspace) and later tests could read them.
+    Tests that want particular cached data still point ``_CACHE_BASE`` at
+    their own directory; this only changes the default. Not restored at
+    teardown, for the same straggler-thread reason as isolate_prices_json.
+    """
+    from backend.timeseries import cache as ts_cache
+
+    tmp_cache = tmp_path_factory.mktemp("timeseries")
+    ts_cache._CACHE_BASE = str(tmp_cache)
+    config.timeseries_cache_base = str(tmp_cache)
+    yield tmp_cache
+
+
+@pytest.fixture(scope="session", autouse=True)
 def isolate_prices_json(tmp_path_factory):
     """Redirect the default price-snapshot path to a session-scoped temp copy.
 

@@ -435,6 +435,29 @@ The script temporarily flips `config.yaml`'s `reports` tab and
 values it found on disk before it ran. It's not wired into CI — run it
 manually and review the diff before committing.
 
+### Capturing the offline demo walkthrough
+
+For the interview/demo flow (Cognito hosted-UI login → portfolio dashboard →
+one drill-down) there's a `--demo` mode that writes a short, ordered set of
+annotated screenshots plus a self-contained `index.html` into
+`docs/assets/qa-screenshots/demo/`. It's the fallback for when the room has
+no reliable network/VPN access to click through a live app or localhost —
+open `demo/index.html` straight from disk and present with no network.
+
+```bash
+DATA_ROOT=data bash scripts/bash/run-local-api.sh   # backend, :6468
+npm --prefix frontend run dev                        # frontend, :2568
+node frontend/scripts/capture-qa-screenshots.mjs --demo
+```
+
+The login step is best-effort: if the Cognito hosted UI isn't reachable (no
+network, or auth disabled locally) it is skipped and the walkthrough starts
+at the dashboard, and `index.html` says so instead of claiming a login leg.
+`01-login.png` is only produced against an auth-enabled stack that redirects to the
+hosted UI (see section 6); the documented local commands above run with auth
+disabled and will not capture it. Like the main run, it restores `local_login_email` to the
+value it found on disk before it ran.
+
 ## 6. Local auth-enabled mode
 
 Use this when you need to verify sign-in, protected routes, or production-like auth assumptions.

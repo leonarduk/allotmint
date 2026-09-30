@@ -452,7 +452,10 @@ node frontend/scripts/capture-qa-screenshots.mjs --demo
 
 The login step is best-effort: if the Cognito hosted UI isn't reachable (no
 network, or auth disabled locally) it is skipped and the walkthrough starts
-at the dashboard. Like the main run, it restores `local_login_email` to the
+at the dashboard, and `index.html` says so instead of claiming a login leg.
+`01-login.png` is only produced against an auth-enabled stack that redirects to the
+hosted UI (see section 6); the documented local commands above run with auth
+disabled and will not capture it. Like the main run, it restores `local_login_email` to the
 value it found on disk before it ran.
 
 ## 6. Local auth-enabled mode

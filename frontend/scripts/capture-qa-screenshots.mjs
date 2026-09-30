@@ -268,6 +268,11 @@ function writeDemoIndex(captured) {
       </figure>`,
     )
     .join("\n");
+  // Only claim the login leg when it was actually captured; against an
+  // auth-disabled local stack it is skipped.
+  const flow = captured.some((c) => c.kind === "login")
+    ? "Cognito login &rarr; portfolio dashboard &rarr; one drill-down"
+    : "portfolio dashboard &rarr; portfolio view &rarr; one drill-down (the Cognito login step needs an auth-enabled stack and is not part of this capture)";
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -284,7 +289,7 @@ function writeDemoIndex(captured) {
 </head>
 <body>
   <h1>AllotMint demo walkthrough</h1>
-  <p class="lead">Offline fallback for the interview flow: Cognito login &rarr; portfolio dashboard &rarr; one drill-down. Open this file directly; no network access required.</p>
+  <p class="lead">Offline fallback for the interview flow: ${flow}. Open this file directly; no network access required.</p>
 ${items}
 </body>
 </html>
@@ -317,7 +322,7 @@ async function runDemo() {
     try {
       for (const step of DEMO_STEPS) {
         const caption = await demoShot(browser, step);
-        if (caption) captured.push({ name: step.name, caption });
+        if (caption) captured.push({ name: step.name, caption, kind: step.kind });
       }
     } finally {
       await browser.close();

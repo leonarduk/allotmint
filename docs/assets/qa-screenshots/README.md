@@ -24,4 +24,4 @@ node frontend/scripts/capture-qa-screenshots.mjs --demo
 
 Then open `demo/index.html` directly in a browser. The login step is
 best-effort: if the Cognito hosted UI isn't reachable (no network, or auth
-disabled locally) it is skipped and the walkthrough starts at the dashboard.
+disabled locally) it is skipped and the walkthrough starts at the dashboard. The committed walkthrough was captured against the auth-disabled local stack, so it has no `01-login.png`.

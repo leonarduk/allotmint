@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import importlib.util
 import inspect
 import os
@@ -171,6 +172,31 @@ def mock_google_verify(monkeypatch, request):
 
 
 @pytest.fixture(autouse=True)
+def clear_instrument_meta_cache():
+    """Reset the process-wide instrument metadata caches between tests.
+
+    ``instruments.get_instrument_meta`` (and ``_persisted_metadata_exchanges``)
+    are ``lru_cache``d. Several tests point the instruments directory
+    elsewhere or stub the metadata sources and then look a real ticker up;
+    not all clear the cache afterwards, so a later test in the same process
+    could get that stubbed entry - e.g. HFEL.L without a sector. Under
+    pytest-xdist which test ran first differs per worker, so this showed up
+    as a flaky test_get_security_meta_includes_sector_and_region.
+    """
+    from backend.common import instruments
+
+    def _clear():
+        for name in ("get_instrument_meta", "_persisted_metadata_exchanges"):
+            clear = getattr(getattr(instruments, name, None), "cache_clear", None)
+            if clear is not None:
+                clear()
+
+    _clear()
+    yield
+    _clear()
+
+
+@pytest.fixture(autouse=True)
 def clear_opportunities_cache():
     """Reset the module-level /opportunities response cache between tests.
 
@@ -292,3 +318,37 @@ def quotes_table(monkeypatch):
     monkeypatch.setattr(boto3, "resource", fake_resource)
 
     return table
+
+
+# --- Shared ``config`` object: put it back after every test --------------------
+#
+# Many tests assign to ``config`` attributes directly (``config.app_env =
+# "aws"``, ``config.accounts_root = ...``) and not all of them undo it. In
+# serial order a later test usually happened to reset what it needed; with
+# pytest-xdist each worker runs a different order, and a leaked ``app_env =
+# "aws"`` or ``accounts_root`` made unrelated tests fail.
+#
+# The baseline is taken once, after the session fixtures that deliberately set
+# ``config`` up (offline mode, the isolated prices and timeseries paths), and
+# restored in pytest_runtest_teardown *after* every function fixture has torn
+# down. A restore inside an autouse fixture ran before monkeypatch's own undo
+# (fixture teardown order), and that undo re-sets values through
+# ``Config.__setattr__`` - which e.g. marks ``allowed_emails`` as overridden
+# and made test_config.py's reload_config() keep a stale list.
+_CONFIG_BASELINE: dict | None = None
+
+
+@pytest.fixture(scope="session", autouse=True)
+def shared_config_baseline(enable_offline_mode, isolate_prices_json, isolate_timeseries_cache):
+    global _CONFIG_BASELINE
+    _CONFIG_BASELINE = copy.deepcopy(vars(config))
+    yield
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_teardown(item, nextitem):
+    yield
+    if _CONFIG_BASELINE is not None:
+        state = vars(config)
+        state.clear()
+        state.update(copy.deepcopy(_CONFIG_BASELINE))

@@ -18,6 +18,7 @@ owner (including its approvals) are not rejected with a 403.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, Mapping, Optional, Set
 
@@ -117,3 +118,19 @@ def ensure_owner_access(
             len(_allowed_identities(owner, meta)),
         )
         raise PermissionDeniedError(_FORBIDDEN_DETAIL, safe_detail=_FORBIDDEN_DETAIL)
+
+
+def is_admin_identity(identity: Optional[str]) -> bool:
+    """Return ``True`` when ``identity`` may perform admin-only actions.
+
+    Mirrors ``require_admin`` in ``backend/app.py``: with an ``ADMIN_EMAILS``
+    allowlist configured it is always enforced (even when ``disable_auth`` is
+    set, as on the Lambda); with no allowlist only local dev
+    (``disable_auth``) is allowed through.
+    """
+
+    raw = os.getenv("ADMIN_EMAILS", "")
+    admins = {e.strip().lower() for e in raw.split(",") if e.strip()}
+    if admins:
+        return isinstance(identity, str) and identity.strip().lower() in admins
+    return bool(config.disable_auth)

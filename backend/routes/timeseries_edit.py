@@ -9,12 +9,17 @@ from pathlib import Path
 
 import pandas as pd
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from backend.common import instrument_api
-from backend.common.errors import InternalServiceError, ValidationFailure
+from backend.common.authz import is_admin_identity
+from backend.common.errors import InternalServiceError, PermissionDeniedError, ValidationFailure
+from backend.data_quality.audit import append_audit
 from backend.logging_setup import sanitise_log_value
+from backend.routes import get_active_user
+from backend.routes._accounts import resolve_accounts_root
+from backend.routes.transactions import resolve_writable_store
 from backend.timeseries.cache import (
     EXPECTED_COLS,
     _ensure_schema,
@@ -25,6 +30,7 @@ from backend.timeseries.cache import (
     invalidate_s3_cache_metadata,
     meta_timeseries_cache_path,
 )
+from backend.timeseries.series_references import ReferenceScanUnavailable, find_series_references
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 logger = logging.getLogger(__name__)
@@ -300,3 +306,103 @@ def move_timeseries_edit(
             "exchange": destination_exchange,
         }
     )
+
+
+def _series_references(request: Request, ticker: str, exchange: str) -> dict:
+    """Scan holdings, transactions and instrument metadata for ``ticker.exchange``."""
+    store, _ = resolve_writable_store(request)
+    try:
+        return find_series_references(
+            ticker,
+            exchange,
+            accounts_root=resolve_accounts_root(request, allow_missing=True),
+            stores=[store],
+        )
+    except ReferenceScanUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+def _delete_cached_series(ticker: str, exchange: str) -> None:
+    cache = meta_timeseries_cache_path(ticker, exchange)
+    if not cache.startswith("s3://"):
+        Path(cache).unlink()
+        return
+    parsed = _split_s3_cache_uri(cache)
+    if parsed is None:
+        raise InternalServiceError("Invalid S3 timeseries cache path")
+    bucket, key = parsed
+    try:
+        _s3_client().delete_object(Bucket=bucket, Key=key)
+    except (BotoCoreError, ClientError) as exc:
+        raise InternalServiceError(
+            f"Failed to delete cached timeseries for {ticker}.{exchange}",
+            extra={"ticker": ticker, "exchange": exchange},
+        ) from exc
+    invalidate_s3_cache_metadata(cache)
+
+
+def _format_references(references: list[dict[str, str]]) -> str:
+    return "; ".join(f"{r['kind']} in {r['owner']}/{r['account']}" for r in references)
+
+
+@router.get("/edit/references")
+def get_series_references(
+    request: Request,
+    ticker: str = Query(...),
+    exchange: str | None = Query(None),
+    user: str | None = Depends(get_active_user),
+) -> JSONResponse:
+    """Preflight for the Research page's Delete Series action."""
+    ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
+    result = _series_references(request, ticker, exchange)
+    exists = has_cached_meta_timeseries(ticker, exchange)
+    return JSONResponse(
+        {
+            "ticker": ticker,
+            "exchange": exchange,
+            "exists": exists,
+            "references": result["references"],
+            "has_metadata": result["has_metadata"],
+            "orphaned": result["orphaned"],
+            "can_delete": bool(exists and result["orphaned"] and is_admin_identity(user)),
+        }
+    )
+
+
+@router.delete("/edit")
+def delete_timeseries_edit(
+    request: Request,
+    ticker: str = Query(...),
+    exchange: str | None = Query(None),
+    user: str | None = Depends(get_active_user),
+) -> JSONResponse:
+    """Delete an orphaned cached series (admin only, audited)."""
+    if not is_admin_identity(user):
+        raise PermissionDeniedError("Admin access required", safe_detail="Admin access required")
+    ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
+    if not has_cached_meta_timeseries(ticker, exchange):
+        raise HTTPException(status_code=404, detail=f"No cached series for {ticker}.{exchange}")
+    result = _series_references(request, ticker, exchange)
+    if result["references"]:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete {ticker}.{exchange}: still referenced by "
+            + _format_references(result["references"]),
+        )
+    if result["has_metadata"]:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete {ticker}.{exchange}: an instrument metadata record exists",
+        )
+    rows = len(_load_timeseries(ticker, exchange))
+    _delete_cached_series(ticker, exchange)
+    append_audit(
+        action="delete_series",
+        issue_id=f"manual:{ticker}.{exchange}",
+        entity={"ticker": ticker, "exchange": exchange},
+        before={"rows": rows},
+        after={},
+        actor=user,
+        extra={"kind": "delete_series"},
+    )
+    return JSONResponse({"status": "ok", "ticker": ticker, "exchange": exchange, "rows": rows})

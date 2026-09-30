@@ -40,7 +40,33 @@
       "saved": "Salvato"
     },
     "threshold": "Soglia %:",
-    "title": "Impostazioni di avviso"
+    "title": "Impostazioni di avviso",
+    "triggers": {
+      "above": "Sale fino a o sopra",
+      "add": "Aggiungi trigger",
+      "below": "Scende fino a o sotto",
+      "cancel": "Annulla",
+      "condition": "Condizione",
+      "continuous": "Continuo",
+      "delete": "Elimina",
+      "deleteError": "Impossibile eliminare il trigger di prezzo.",
+      "description": "Ricevi un avviso quando un prezzo supera un livello. I prezzi sono in GBP e vengono controllati a ogni aggiornamento; vengono quotati anche i titoli che non possiedi.",
+      "edit": "Modifica",
+      "empty": "Nessun trigger di prezzo.",
+      "enabled": "Attivo",
+      "lastFired": "Ultima attivazione",
+      "loadError": "Impossibile caricare i trigger di prezzo.",
+      "mode": "Si attiva",
+      "modeHelp": "Una volta: si attiva la prima volta e poi si disattiva. Continuo: si attiva ogni volta che il prezzo supera il livello e si riarma quando torna indietro.",
+      "note": "Nota (facoltativa)",
+      "once": "Una volta",
+      "price": "Prezzo (£)",
+      "saveError": "Impossibile salvare il trigger di prezzo.",
+      "ticker": "Ticker",
+      "title": "Trigger di prezzo",
+      "update": "Aggiorna trigger",
+      "when": "Quando"
+    }
   },
   "allocation": {
     "instrumentTypes": "Tipi di strumenti",

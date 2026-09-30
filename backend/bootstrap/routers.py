@@ -35,6 +35,7 @@ from backend.routes.pension import router as pension_router
 from backend.routes.performance import router as performance_router
 from backend.routes.portfolio import public_router as public_portfolio_router
 from backend.routes.portfolio import router as portfolio_router
+from backend.routes.price_triggers import router as price_triggers_router
 from backend.routes.query import router as query_router
 from backend.routes.quest_routes import router as quest_router
 from backend.routes.quotes import router as quotes_router
@@ -80,6 +81,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(transactions_router)
     app.include_router(alert_settings_router, dependencies=protected)
     app.include_router(alerts_router, dependencies=protected)
+    app.include_router(price_triggers_router, dependencies=protected)
     app.include_router(nudges_router, dependencies=protected)
     app.include_router(quest_router, dependencies=protected)
     app.include_router(trail_router, dependencies=protected)

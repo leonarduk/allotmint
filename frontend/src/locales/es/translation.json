@@ -40,7 +40,33 @@
       "saved": "Guardado"
     },
     "threshold": "Umbral %:",
-    "title": "Configuración de alertas"
+    "title": "Configuración de alertas",
+    "triggers": {
+      "above": "Sube hasta o por encima de",
+      "add": "Añadir disparador",
+      "below": "Baja hasta o por debajo de",
+      "cancel": "Cancelar",
+      "condition": "Condición",
+      "continuous": "Continuo",
+      "delete": "Eliminar",
+      "deleteError": "No se pudo eliminar el disparador de precio.",
+      "description": "Recibe una alerta cuando un precio cruce un nivel. Los precios están en GBP y se comprueban en cada actualización; también se cotizan los valores que no tienes.",
+      "edit": "Editar",
+      "empty": "Aún no hay disparadores de precio.",
+      "enabled": "Activo",
+      "lastFired": "Última activación",
+      "loadError": "No se pudieron cargar los disparadores de precio.",
+      "mode": "Se activa",
+      "modeHelp": "Una vez: se activa la primera vez y se desactiva. Continuo: se activa cada vez que el precio cruza el nivel y se rearma cuando vuelve atrás.",
+      "note": "Nota (opcional)",
+      "once": "Una vez",
+      "price": "Precio (£)",
+      "saveError": "No se pudo guardar el disparador de precio.",
+      "ticker": "Ticker",
+      "title": "Disparadores de precio",
+      "update": "Actualizar disparador",
+      "when": "Cuando"
+    }
   },
   "allocation": {
     "instrumentTypes": "Tipos de instrumentos",

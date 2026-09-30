@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -46,9 +47,11 @@ const baseConfig: ConfigContextValue = {
 
 function renderWithConfig(dataQualityAdmin: boolean) {
   return render(
-    <configContext.Provider value={{ ...baseConfig, dataQualityAdmin }}>
-      <DataQuality />
-    </configContext.Provider>,
+    <MemoryRouter>
+      <configContext.Provider value={{ ...baseConfig, dataQualityAdmin }}>
+        <DataQuality />
+      </configContext.Provider>
+    </MemoryRouter>,
   );
 }
 
@@ -233,6 +236,23 @@ describe("DataQuality admin UI", () => {
     // Tab labels visible.
     expect(screen.getByRole("tab", { name: en.dataQuality.admin.tabs.issues })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: en.dataQuality.admin.tabs.audit })).toBeInTheDocument();
+  });
+
+  it("links issue entities to the instrument research page", async () => {
+    mockGetDataQualityIssues.mockResolvedValue({
+      count: 2,
+      issues: [
+        issue({ id: "GAPS:ABC:L", type: "GAPS", entity: { ticker: "ABC", exchange: "L" } }),
+        issue({ id: "X:cash", type: "GAPS", entity: { ticker: "EURGBP=X" } }),
+      ],
+    });
+
+    renderWithConfig(true);
+
+    const link = await screen.findByRole("link", { name: "ABC.L" });
+    expect(link).toHaveAttribute("href", "/research/ABC.L");
+    // Symbols with no research page render as plain text.
+    expect(screen.queryByRole("link", { name: /EURGBP/ })).toBeNull();
   });
 
   it("filters issues by type and ticker", async () => {

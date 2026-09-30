@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pandas as pd
 import pytest
 from botocore.exceptions import ClientError
@@ -132,6 +134,34 @@ def test_post_csv_saves_parquet(tmp_path, monkeypatch):
     assert df.loc[0, "Close"] == 1.5
     assert list(df["Ticker"]) == ["XYZ", "XYZ"]
     assert list(df["Source"]) == ["Manual", "Manual"]
+
+
+def test_get_cached_series_with_missing_values_serialises_as_null(tmp_path, monkeypatch):
+    """NaN in a cached parquet must not 500 the GET (browser shows "Failed to fetch")."""
+    client = _make_client(tmp_path, monkeypatch)
+    path = timeseries_edit.meta_timeseries_cache_path("ERNS", "L")
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-01-01", "2024-01-02"]),
+            "Open": [1.0, float("nan")],
+            "High": [2.0, float("nan")],
+            "Low": [0.5, float("nan")],
+            "Close": [1.5, 1.6],
+            "Volume": [float("nan"), 110.0],
+            "Ticker": ["ERNS.L", "ERNS.L"],
+            "Source": ["Yahoo", None],
+        }
+    ).to_parquet(path, index=False)
+
+    resp = client.get("/timeseries/edit?ticker=ERNS&exchange=L")
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert rows[0]["Volume"] is None
+    assert rows[1]["Open"] is None
+    assert rows[1]["Source"] is None
+    assert rows[1]["Close"] == 1.6
 
 
 def test_get_missing_file(tmp_path, monkeypatch):

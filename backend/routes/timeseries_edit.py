@@ -233,6 +233,10 @@ def get_timeseries_edit(ticker: str = Query(...), exchange: str | None = Query(N
     if not df.empty:
         df = df.copy()
         df["Date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
+        # Cached series routinely carry NaN (e.g. missing Volume). JSONResponse
+        # rejects NaN, and that 500 escapes CORSMiddleware, so the browser only
+        # sees an opaque "Failed to fetch". Emit missing values as JSON null.
+        df = df.astype(object).where(df.notna(), None)
     return JSONResponse(df.to_dict(orient="records"))
 
 

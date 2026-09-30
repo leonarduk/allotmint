@@ -230,7 +230,7 @@ def test_list_transactions_filter(monkeypatch):
         transactions.Transaction(owner="a", account="sipp", date="2024-02-01"),
         transactions.Transaction(owner="b", account="isa", date="2024-01-01"),
     ]
-    monkeypatch.setattr(transactions, "_load_all_transactions", lambda *_a, **_k: sample)
+    monkeypatch.setattr(transactions, "load_all_transactions", lambda *_a, **_k: sample)
     resp = client.get(
         "/transactions",
         params={
@@ -252,7 +252,7 @@ def test_transactions_with_compliance_account_case(monkeypatch, tmp_path):
     app.state.accounts_root = tmp_path
     client = TestClient(app)
     sample = [transactions.Transaction(owner="a", account="isa", date="2024-01-01")]
-    monkeypatch.setattr(transactions, "_load_all_transactions", lambda *_a, **_k: sample)
+    monkeypatch.setattr(transactions, "load_all_transactions", lambda *_a, **_k: sample)
     monkeypatch.setattr(
         transactions,
         "compliance",
@@ -279,7 +279,7 @@ def test_list_dividends_account_case(monkeypatch):
             date="2024-01-01",
         )
     ]
-    monkeypatch.setattr(transactions, "_load_all_transactions", lambda *_a, **_k: sample)
+    monkeypatch.setattr(transactions, "load_all_transactions", lambda *_a, **_k: sample)
     resp = client.get(
         "/dividends",
         params={"owner": "a", "account": "ISA"},

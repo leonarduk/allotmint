@@ -1,11 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import i18n from "@/i18n";
 import Help from "@/pages/Help";
 import { configContext, type ConfigContextValue } from "@/ConfigContext";
 
+const DEFAULT_ISSUES_URL = "https://github.com/leonarduk/allotmint/issues/new";
+
 describe("Help page", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
   it("explains what the main pages do, links the metrics glossary, and links how to report a problem", () => {
     render(<Help />, { wrapper: MemoryRouter });
 
@@ -28,13 +35,27 @@ describe("Help page", () => {
     });
     expect(glossaryLink).toHaveAttribute("href", "/metrics-explained");
 
-    // A way to report a problem.
+    // A way to report a problem. When VITE_ISSUE_TRACKER_URL is unset the
+    // link falls back to the default GitHub issues URL.
+    const reportLink = screen.getByRole("link", {
+      name: i18n.t("help.reportLink", "Open a GitHub issue"),
+    });
+    expect(reportLink).toHaveAttribute("href", DEFAULT_ISSUES_URL);
+  });
+
+  it("uses VITE_ISSUE_TRACKER_URL for the report link when set", async () => {
+    vi.stubEnv("VITE_ISSUE_TRACKER_URL", "https://tracker.example.com/new-issue");
+    vi.resetModules();
+
+    const { default: HelpWithEnv } = await import("@/pages/Help");
+    render(<HelpWithEnv />, { wrapper: MemoryRouter });
+
     const reportLink = screen.getByRole("link", {
       name: i18n.t("help.reportLink", "Open a GitHub issue"),
     });
     expect(reportLink).toHaveAttribute(
       "href",
-      "https://github.com/leonarduk/allotmint/issues/new",
+      "https://tracker.example.com/new-issue",
     );
   });
 

@@ -105,6 +105,10 @@ beforeEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
   mocks.getOwners.mockResolvedValue(OWNERS);
+  // PlotDataContext fetches groups alongside owners (#7189) to filter the
+  // grower picker; this file exercises the filtering itself, so it uses a
+  // real non-empty group rather than the empty-array baseline other files
+  // default to.
   mocks.getGroups.mockResolvedValue(GROUPS);
   mocks.getPortfolio.mockImplementation((owner: string) =>
     Promise.resolve(

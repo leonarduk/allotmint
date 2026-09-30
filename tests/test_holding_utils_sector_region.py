@@ -1,6 +1,34 @@
+import shutil
 from datetime import date
+from pathlib import Path
+
+import pytest
 
 from backend.common.holding_utils import enrich_holding
+from backend.timeseries import cache as ts_cache
+
+_FIXTURE_META = Path(__file__).resolve().parent / "data" / "timeseries" / "meta"
+
+
+@pytest.fixture(autouse=True)
+def _fixture_price_cache(monkeypatch, tmp_path):
+    """Serve these tickers' prices from the checked-in fixture parquets.
+
+    enrich_holding prices the holding. With nothing cached for the ticker,
+    offline mode raised "no cache available" - so these tests passed only
+    when an earlier test in the same process had already cached it, and
+    failed on their own or on a pytest-xdist worker that hadn't.
+    """
+    meta = tmp_path / "meta"
+    meta.mkdir()
+    for name in ("HFEL_L.parquet", "VWRL_L.parquet"):
+        shutil.copy(_FIXTURE_META / name, meta / name)
+    monkeypatch.setattr(ts_cache, "_CACHE_BASE", str(tmp_path))
+    ts_cache._memoized_range_cached.cache_clear()
+    ts_cache._load_meta_timeseries_cached.cache_clear()
+    yield
+    ts_cache._memoized_range_cached.cache_clear()
+    ts_cache._load_meta_timeseries_cached.cache_clear()
 
 
 def test_enrich_holding_includes_sector_and_region():

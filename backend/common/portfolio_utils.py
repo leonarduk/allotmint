@@ -973,6 +973,25 @@ def _normalise_region_label(key: str) -> str:
     return _REGION_ALIASES.get(key.upper(), key)
 
 
+# Known aliases for the same sector under different provider/holding-source
+# labels, normalised to a single canonical name before grouping. Deliberately
+# narrow: only collapses labels that unambiguously refer to the same sector
+# (e.g. "Real Estate Investment Trusts" -> "Real Estate"), never broader
+# groupings like "Real Estate Services". See allotmint#7161.
+_SECTOR_ALIASES: Dict[str, str] = {
+    "REAL ESTATE INVESTMENT TRUSTS": "Real Estate",
+    "REAL ESTATE INVESTMENT TRUST": "Real Estate",
+    "REITS": "Real Estate",
+    "REIT": "Real Estate",
+}
+
+
+def _normalise_sector_label(key: str) -> str:
+    """Map known sector aliases (e.g. ``Real Estate Investment Trusts``) to their canonical label."""
+
+    return _SECTOR_ALIASES.get(key.upper(), key)
+
+
 def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP") -> List[dict]:
     """Helper to aggregate ticker rows by ``field`` (e.g. sector/region)."""
     rows = aggregate_by_ticker(portfolio, base_currency)
@@ -989,6 +1008,8 @@ def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_cur
             key = "Unknown"
         elif field == "region":
             key = _normalise_region_label(key)
+        elif field == "sector":
+            key = _normalise_sector_label(key)
         g = groups.setdefault(
             key,
             {

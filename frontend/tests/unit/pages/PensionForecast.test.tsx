@@ -8,6 +8,8 @@ import en from "@/locales/en/translation.json";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 
+import { humanizeForecastError } from "@/utils/forecastErrors";
+
 type RouteStateMock = {
   mode: "owner";
   setMode: ReturnType<typeof vi.fn>;
@@ -391,10 +393,17 @@ describe("PensionForecast page", () => {
     );
   });
 
-  it("shows a plain-language message when death age is not after retirement age", async () => {
+  // Explicit coverage for the null-retirementAge path: this is the user's
+  // *first* forecast attempt, so no prior successful forecast has populated
+  // `retirementAge`. The error copy must therefore omit the parenthetical
+  // retirement age entirely (contrast with the "names the retirement age"
+  // test below, which mocks a prior successful forecast first).
+  it("shows a plain-language message when death age is not after retirement age and no prior retirement age is known", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "steve", full_name: "Steve Leonard", accounts: [] },
     ]);
+    // No prior successful forecast is mocked, so `retirementAge` stays null
+    // when the death-age validation error comes back.
     mockGetPensionForecast.mockRejectedValue(
       new Error("death_age must exceed retirement_age"),
     );
@@ -410,9 +419,15 @@ describe("PensionForecast page", () => {
     const btn = screen.getByRole("button", { name: /forecast/i });
     await userEvent.click(btn);
 
+    // Plain-language copy with no parenthetical retirement age, because none
+    // is known yet.
     await screen.findByText(
       "Death age (50) must be after your retirement age.",
     );
+    expect(
+      screen.queryByText(/must be after your retirement age \(/i),
+    ).not.toBeInTheDocument();
+    // Raw backend field names and Error: prefixes must never leak through.
     expect(
       screen.queryByText(/death_age must exceed retirement_age/i),
     ).not.toBeInTheDocument();
@@ -726,6 +741,79 @@ describe("PensionForecast page", () => {
   // can observe -- it's covered directly by
   // test_forecast_pension_none_state_pension_matches_explicit_zero in
   // tests/backend/common/test_pension.py (#7211 review follow-up).
+  // The extraction of `humanizeForecastError` into `@/utils/forecastErrors`
+  // is a pure refactor: the page's behaviour is unchanged, and these tests
+  // exercise the shared utility directly so its contract stays pinned even
+  // if the page stops calling it in the future.
+  describe("humanizeForecastError (shared utility)", () => {
+    it("maps the death_age/retirement_age detail to plain language with a known retirement age", () => {
+      expect(
+        humanizeForecastError("death_age must exceed retirement_age", {
+          deathAge: 50,
+          retirementAge: 67,
+        }),
+      ).toBe("Death age (50) must be after your retirement age (67).");
+    });
+
+    it("omits the retirement age when it is not yet known", () => {
+      expect(
+        humanizeForecastError("death_age must exceed retirement_age", {
+          deathAge: 50,
+          retirementAge: null,
+        }),
+      ).toBe("Death age (50) must be after your retirement age.");
+    });
+
+    it("trims the raw message before lookup so whitespace does not defeat the map", () => {
+      expect(
+        humanizeForecastError("  death_age must exceed retirement_age  ", {
+          deathAge: 50,
+          retirementAge: 67,
+        }),
+      ).toBe("Death age (50) must be after your retirement age (67).");
+    });
+
+    it("maps the missing/invalid dob detail to a profile-check message", () => {
+      expect(
+        humanizeForecastError("missing or invalid dob", {
+          deathAge: 90,
+          retirementAge: null,
+        }),
+      ).toBe(
+        "We couldn't determine this owner's date of birth. Please check their profile details and try again.",
+      );
+    });
+
+    it("falls back to generic input guidance for an unrecognised 4xx", () => {
+      expect(
+        humanizeForecastError("some_unmapped_detail", {
+          deathAge: 90,
+          retirementAge: null,
+          status: 400,
+        }),
+      ).toBe(
+        "We couldn't calculate this forecast. Please check your inputs and try again.",
+      );
+    });
+
+    it("passes a 5xx message through instead of blaming the user's inputs", () => {
+      expect(
+        humanizeForecastError(
+          "The backend service is temporarily unavailable. Please try again.",
+          { deathAge: 90, retirementAge: null, status: 503 },
+        ),
+      ).toBe(
+        "The backend service is temporarily unavailable. Please try again.",
+      );
+    });
+
+    it("uses a generic fallback when the raw message is empty and no status is given", () => {
+      expect(
+        humanizeForecastError("   ", { deathAge: 90, retirementAge: null }),
+      ).toBe("We couldn't calculate this forecast. Please try again.");
+    });
+  });
+
   it("submits the default state pension value ('0') as an explicit statePensionAnnual: 0", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alex", full_name: "Alex Example", accounts: [] },

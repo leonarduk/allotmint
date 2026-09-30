@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   getEvents,
@@ -21,6 +21,7 @@ import {
 import errorToast from "../utils/errorToast";
 import { loadJSON, saveJSON } from "../utils/storage";
 import { MAX_SCENARIO_HOLDING_ROWS } from "../constants/renderLimits";
+import { useDedupedRequest } from "../hooks/useDedupedRequest";
 
 const HORIZONS = ["1d", "1w", "1m", "3m", "1y"];
 
@@ -72,14 +73,6 @@ export default function ScenarioTester() {
     loadJSON<CustomHolding[]>("scenario.customHoldings", []),
   );
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(() => new Set());
-  // Keys (`owner::asOf`) already requested for the current reporting date --
-  // in flight or resolved. This is a ref rather than derived from
-  // portfolioStates because the load effect calls ensurePortfolioLoaded once
-  // per selected owner in a single tick: once the first owner queues a
-  // setPortfolioStates update, React stops eagerly evaluating later updaters,
-  // so anything a later updater computes is not readable at its call site.
-  // Cleared with portfolioStates whenever the reporting date changes.
-  const requestedPortfolioKeys = useRef<Set<string>>(new Set());
 
   const fmt = new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -121,21 +114,28 @@ export default function ScenarioTester() {
 
   const effectiveDate = reportingDate.trim() === "" ? null : reportingDate.trim();
 
+  const { run: runPortfolioRequest, clear: clearPortfolioRequests } =
+    useDedupedRequest(
+      useCallback(
+        (owner: string) => getPortfolio(owner, { asOf: effectiveDate }),
+        [effectiveDate],
+      ),
+    );
+
   const ensurePortfolioLoaded = useCallback(
     (owner: string) => {
       const requestKey = `${owner}::${effectiveDate ?? ""}`;
-      if (requestedPortfolioKeys.current.has(requestKey)) {
-        return;
-      }
-      requestedPortfolioKeys.current.add(requestKey);
 
       setPortfolioStates((prev) => ({
         ...prev,
         [owner]: { status: "loading", asOf: effectiveDate ?? null },
       }));
 
-      getPortfolio(owner, { asOf: effectiveDate })
+      runPortfolioRequest(requestKey)
         .then((pf) => {
+          if (pf === undefined) {
+            return;
+          }
           setPortfolioStates((prev) => {
             const state = prev[owner];
             if (!state || state.asOf !== (effectiveDate ?? null)) {
@@ -152,10 +152,6 @@ export default function ScenarioTester() {
           });
         })
         .catch((e) => {
-          // Drop the key on failure so selecting the owner again retries; a
-          // successful load keeps it, and that is what suppresses the repeat
-          // requests this guard exists for (#7105).
-          requestedPortfolioKeys.current.delete(requestKey);
           const msg = e instanceof Error ? e.message : String(e);
           setPortfolioStates((prev) => {
             const state = prev[owner];
@@ -173,7 +169,7 @@ export default function ScenarioTester() {
           });
         });
     },
-    [effectiveDate],
+    [effectiveDate, runPortfolioRequest],
   );
 
   useEffect(() => {
@@ -182,9 +178,9 @@ export default function ScenarioTester() {
   }, [selectedOwners, ensurePortfolioLoaded]);
 
   useEffect(() => {
-    requestedPortfolioKeys.current.clear();
+    clearPortfolioRequests();
     setPortfolioStates({});
-  }, [effectiveDate]);
+  }, [effectiveDate, clearPortfolioRequests]);
 
   const toggleHorizon = (h: string) => {
     setHorizons((prev) =>

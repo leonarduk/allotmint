@@ -47,6 +47,9 @@ beforeEach(() => {
   mocks.getOwners.mockResolvedValue([
     { owner: 'steve', accounts: ['stocks-isa'] },
   ]);
+  // PlotDataContext fetches groups alongside owners (#7189) to filter the
+  // grower picker; an empty list here just means "no group filtering",
+  // which keeps this file's single-owner scenarios unaffected.
   mocks.getGroups.mockResolvedValue([]);
   mocks.getPortfolio.mockResolvedValue(portfolio);
   mocks.getAllowances.mockResolvedValue({

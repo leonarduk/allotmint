@@ -7,9 +7,9 @@ backend/auth.py:201
 # caller, never attacker-controlled; email/token on the same call are already
 # wrapped in sanitise_log_value.
 backend/auth.py:775
-backend/common/accounts_store.py:292
-backend/common/accounts_store.py:300
-backend/common/accounts_store.py:426
+backend/common/accounts_store.py:297
+backend/common/accounts_store.py:305
+backend/common/accounts_store.py:437
 backend/common/alerts.py:44
 backend/common/approvals.py:41
 backend/common/approvals.py:89
@@ -146,9 +146,9 @@ backend/agent/trading_agent.py:66
 # load_and_compute_metrics() from the agent's own trade log -- not
 # attacker/user-controlled input.
 backend/agent/trading_agent.py:596
-backend/common/portfolio_utils.py:1361
-backend/common/portfolio_utils.py:1390
-backend/common/portfolio_utils.py:2049
+backend/common/portfolio_utils.py:1382
+backend/common/portfolio_utils.py:1411
+backend/common/portfolio_utils.py:2060
 backend/common/portfolio_utils.py:241
 backend/common/portfolio_utils.py:258
 backend/common/portfolio_utils.py:269
@@ -160,3 +160,4 @@ backend/common/portfolio_utils.py:354
 backend/common/portfolio_utils.py:558
 backend/common/portfolio_utils.py:574
 backend/common/portfolio_utils.py:581
+backend/common/portfolio_utils.py:2070

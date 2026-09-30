@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import { createInstance } from "i18next";
@@ -427,5 +427,134 @@ describe("Screener & Query page", () => {
     expect(
       await screen.findByLabelText(i18n.t("query.start")),
     ).toBeInTheDocument();
+  });
+});
+
+// Integration coverage for the full Run-button flow (issue #7133 follow-up).
+//
+// The unit tests above mock `runCustomQuery` itself, so they would stay green
+// even if `runCustomQuery` reverted to a GET (or dropped `format: "json"` from
+// the request body) — the exact regression PR #7133 fixed. These tests instead
+// stub the global `fetch` and drive the *real* `runCustomQuery` through the
+// component, asserting on the wire-level request (method, URL, JSON body) and
+// on the user-visible result/error states.
+describe("Screener & Query page — Run button integration (real runCustomQuery)", () => {
+  // `runCustomQuery` is mocked at module scope above; these tests need the
+  // real implementation, so we import it fresh from the module registry and
+  // restore the mocked binding afterwards.
+  let realRunCustomQuery: typeof import("@/api").runCustomQuery;
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(async () => {
+    const actual = await vi.importActual<typeof import("@/api")>("@/api");
+    realRunCustomQuery = actual.runCustomQuery;
+    // Re-point the mocked export at the real implementation for this block.
+    (runCustomQuery as unknown as { mockImplementation: (fn: unknown) => void })
+      .mockImplementation(realRunCustomQuery);
+
+    // Default the other API calls the page makes on mount so the form renders
+    // deterministically without hitting the network.
+    getOwners.mockResolvedValue([
+      { owner: "alice", full_name: "Alice Example", accounts: [] },
+    ]);
+    getPortfolio.mockImplementation((owner: string) =>
+      Promise.resolve(makePortfolio(owner, ["VOD"])),
+    );
+    listSavedQueries.mockResolvedValue([]);
+    getScreener.mockResolvedValue([]);
+    checkScreenerAvailable.mockResolvedValue(true);
+
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  function stubFetchOnce(payload: unknown, init: { ok?: boolean; status?: number } = {}) {
+    const ok = init.ok ?? true;
+    const status = init.status ?? (ok ? 200 : 500);
+    fetchSpy.mockResolvedValueOnce({
+      ok,
+      status,
+      statusText: ok ? "OK" : "Internal Server Error",
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => payload,
+      text: async () => JSON.stringify(payload),
+    } as unknown as Response);
+  }
+
+  it("POSTs the query as JSON with format=json and renders the unwrapped results", async () => {
+    stubFetchOnce({ results: mockQueryData });
+
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText("Alice Example");
+    await screen.findByLabelText("VOD");
+
+    fireEvent.change(screen.getByLabelText(i18n.t("query.start")), {
+      target: { value: "2024-01-01" },
+    });
+    fireEvent.change(screen.getByLabelText(i18n.t("query.end")), {
+      target: { value: "2024-02-01" },
+    });
+    fireEvent.click(screen.getByLabelText("Alice Example"));
+    await screen.findByLabelText("VOD");
+    fireEvent.click(screen.getByLabelText("VOD"));
+    fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: i18n.t("query.run") })[1],
+    );
+
+    // The unwrapped `results` array must be rendered — proving the response
+    // shape `{ results: [...] }` is parsed correctly end-to-end.
+    expect(await screen.findByText("AAA")).toBeInTheDocument();
+
+    // Wire-level assertions: a POST to /custom-query/run with a JSON body
+    // that includes `format: "json"`. Reverting to GET (or dropping the
+    // format field) would fail these.
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(String(url)).toContain("/custom-query/run");
+    expect(init.method).toBe("POST");
+    expect(
+      new Headers(init.headers as HeadersInit).get("Content-Type"),
+    ).toBe("application/json");
+    const body = JSON.parse(String(init.body));
+    expect(body).toMatchObject({
+      start: "2024-01-01",
+      end: "2024-02-01",
+      owners: ["alice"],
+      tickers: ["VOD"],
+      metrics: ["market_value_gbp"],
+      format: "json",
+    });
+  });
+
+  it("shows an error state when the backend rejects the query", async () => {
+    stubFetchOnce(
+      { detail: "query blew up" },
+      { ok: false, status: 500 },
+    );
+
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText("Alice Example");
+    await screen.findByLabelText("VOD");
+
+    fireEvent.click(screen.getByLabelText("Alice Example"));
+    await screen.findByLabelText("VOD");
+    fireEvent.click(screen.getByLabelText("VOD"));
+    fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: i18n.t("query.run") })[1],
+    );
+
+    // The backend's `detail` message is surfaced to the user (prefixed with
+    // "Failed to run query" for 5xx, #7178), and no results table is rendered.
+    expect(
+      await screen.findByText("Failed to run query: query blew up"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("AAA")).not.toBeInTheDocument();
   });
 });

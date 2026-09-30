@@ -1871,12 +1871,20 @@ export const requestApproval = async (owner: string, ticker: string) => {
 /**
  * Execute a custom query against the backend.
  *
- * The backend only exposes POST /custom-query/run (see PR #7133). Error
- * handling distinguishes a missing saved query (404) from other failures
- * (400/422 validation, 5xx server errors) so callers can surface an
- * actionable message instead of a misleading "Query not found" for every
- * non-200 response. The original error is preserved on `cause` and its
- * `status`/`code` fields are copied onto the new error so existing callers
+ * POSTs the query as a JSON body (with `format: "json"` so the backend
+ * returns structured results rather than a file download) and unwraps the
+ * `{ results: [...] }` envelope. This was previously a GET with query-string
+ * params, which the backend rejected — see PR #7133. The integration tests in
+ * `tests/unit/pages/ScreenerQuery.test.tsx` drive the real implementation
+ * through the Run button and assert on the wire-level request, so a revert to
+ * GET (or dropping `format: "json"`) fails the suite.
+ *
+ * Error handling (#7178) maps the HTTP status to an actionable message
+ * (400/422 -> "Invalid query parameters", 5xx/other -> "Failed to run query")
+ * instead of a misleading "Query not found" for every non-200 response. A 404
+ * keeps the backend's own detail verbatim, since it can mean either a missing
+ * saved query or invalid parameters (PR #7133). The original error is kept on
+ * `cause` and its `status`/`code` are copied onto the thrown error so callers
  * that inspect `err.status` keep working.
  */
 export const runCustomQuery = async (params: CustomQuery) => {
@@ -1898,16 +1906,12 @@ export const runCustomQuery = async (params: CustomQuery) => {
 
     let message: string;
     if (status === 404) {
-      // Preserve the backend's "Query not found" wording when it is the
-      // actual cause, but fall back to a clear message if the body was
-      // empty/non-JSON.
-      message = /not found/i.test(detail)
-        ? detail
-        : "Query not found";
+      // Keep the backend's detail verbatim: a 404 here is not always "saved
+      // query missing" (see #7133). The generic HTTP fallback already reads
+      // "... Not Found ...", so only a non-Error throw needs the default.
+      message = err instanceof Error && err.message ? detail : "Query not found";
     } else if (status === 400 || status === 422) {
       message = `Invalid query parameters: ${detail}`;
-    } else if (typeof status === "number" && status >= 500) {
-      message = `Failed to run query: ${detail}`;
     } else {
       message = `Failed to run query: ${detail}`;
     }

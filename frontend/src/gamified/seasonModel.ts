@@ -198,6 +198,7 @@ function buildGoalGroups(
       current: snapshot.streak,
       title: (target) => `Hold a ${target}-day chore streak`,
       format: (value) => pluralize(value, 'day'),
+      chipFormat: (value) => pluralize(value, 'day'),
     },
     {
       id: 'rank',
@@ -252,6 +253,46 @@ export interface SeasonTierBadge {
    */
   displayTarget: string;
   complete: boolean;
+}
+
+/**
+ * A reward the ladder actually pays out. Derived purely from the same tier
+ * state `buildSeasonGroups` already computes — nothing is stored separately,
+ * so a badge can never disagree with the tier chips beside it.
+ */
+export interface SeasonBadge {
+  /** Matches the owning group's id, e.g. "tend". */
+  id: string;
+  group: string;
+  rewardIcon: string;
+  rewardLabel: string;
+  /** True once every tier in the group is earned. */
+  earned: boolean;
+  /** Earned tiers / total tiers, e.g. "2/4". */
+  progress: string;
+  /** The next tier still to clear, or null once the badge is earned. */
+  nextTitle: string | null;
+}
+
+/**
+ * The trophy shelf: one badge per group, earned when every tier in that
+ * group is cleared. Built from `buildSeasonGroups` so the shelf and the
+ * ladder can never drift.
+ */
+export function buildSeasonBadges(
+  groups: SeasonGroupProgress[]
+): SeasonBadge[] {
+  return groups.map((group) => ({
+    id: group.id,
+    group: group.group,
+    rewardIcon: group.rewardIcon,
+    rewardLabel: group.rewardLabel,
+    earned: group.complete && !group.unavailable,
+    progress: `${group.tiers.filter((tier) => tier.complete).length}/${
+      group.tiers.length
+    }`,
+    nextTitle: group.next?.title ?? null,
+  }));
 }
 
 export interface SeasonGroupProgress {

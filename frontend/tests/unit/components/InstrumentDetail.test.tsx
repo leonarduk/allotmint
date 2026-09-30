@@ -321,6 +321,28 @@ describe("InstrumentDetail", () => {
     expect(await screen.findByText("250.00 GBX")).toBeInTheDocument();
     expect(screen.queryByText("£2.50")).not.toBeInTheDocument();
   });
+
+  it("falls back to close_gbp when the native close field is absent", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({
+      prices: [
+        { date: "2024-01-01", close_gbp: 2.45 },
+        { date: "2024-01-02", close_gbp: 2.5 },
+      ],
+      positions: [],
+      currency: "GBP",
+    });
+
+    render(
+      <MemoryRouter>
+        <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+      </MemoryRouter>,
+    );
+
+    // The most recent price row should render the close_gbp value in GBP,
+    // exercising the `reportingClose ?? nativeClose` fallback chain.
+    expect(await screen.findByText("£2.50")).toBeInTheDocument();
+    expect(screen.queryByText("2.50 GBX")).not.toBeInTheDocument();
+  });
   describe("trade markers overlay", () => {
     const withPrices = {
       prices: [

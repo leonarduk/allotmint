@@ -1666,7 +1666,7 @@ export const updatePriceTrigger = (
 
 /** Delete a price trigger. */
 export const deletePriceTrigger = (user: string, id: string) =>
-  fetchJson<{ status: string }>(
+  fetchJson<{ status: string; trigger: PriceTrigger }>(
     `${API_BASE}/price-triggers/${encodeURIComponent(user)}/${encodeURIComponent(id)}`,
     { method: "DELETE" },
   );

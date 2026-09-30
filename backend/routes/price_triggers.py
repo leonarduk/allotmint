@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, NoReturn, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -38,7 +38,7 @@ async def _identity(user: str, request: Request, current_user: str | None) -> st
     return identity
 
 
-def _raise(exc: triggers.TriggerError) -> None:
+def _raise(exc: triggers.TriggerError) -> NoReturn:
     missing = isinstance(exc, triggers.TriggerNotFound)
     code = status.HTTP_404_NOT_FOUND if missing else status.HTTP_422_UNPROCESSABLE_ENTITY
     raise HTTPException(status_code=code, detail=str(exc)) from exc

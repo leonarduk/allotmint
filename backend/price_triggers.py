@@ -27,7 +27,7 @@ import threading
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 from backend.common.alerts import publish_alert
 from backend.common.storage import JSONStorage, get_storage
@@ -198,7 +198,7 @@ def update_trigger(user: str, trigger_id: str, **changes: Any) -> Dict[str, Any]
     unknown = set(changes) - set(_UPDATABLE)
     if unknown:
         raise TriggerError(f"cannot update: {', '.join(sorted(unknown))}")
-    cleaners = {
+    cleaners: Dict[str, Callable[[Any], Any]] = {
         "ticker": _clean_ticker,
         "condition": _clean_condition,
         "price": _clean_price,

@@ -456,16 +456,19 @@ export function InstrumentDetail({
     .map((p) => {
       const nativeClose = toNum(p.close);
       const reportingClose = toNum(p.close_gbp ?? p.close_usd);
-      const close =
-        shouldUseNativeClose && Number.isFinite(nativeClose)
-          ? nativeClose
-          : Number.isFinite(reportingClose)
-            ? reportingClose
-            : nativeClose;
-      const currency =
-        shouldUseNativeClose && Number.isFinite(nativeClose)
-          ? instrumentCurrency ?? ""
-          : reportingCurrency ?? instrumentCurrency ?? "";
+      // Prefer the native close only when we actually have one; otherwise fall
+      // back to the reporting-currency close (close_gbp / close_usd).  This
+      // keeps instruments whose `close` field is absent but which do provide a
+      // converted price rendering correctly.
+      const useNative = shouldUseNativeClose && Number.isFinite(nativeClose);
+      const close = useNative
+        ? nativeClose
+        : Number.isFinite(reportingClose)
+          ? reportingClose
+          : nativeClose;
+      const currency = useNative
+        ? instrumentCurrency ?? ""
+        : reportingCurrency ?? instrumentCurrency ?? "";
       return { date: p.date, close, currency };
     })
     .filter((p) => Number.isFinite(p.close));

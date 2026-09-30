@@ -472,12 +472,17 @@ def _transactions_from_doc(owner: str, account_raw: str, data: Mapping[str, Any]
     return results
 
 
-def _load_all_transactions(store: Optional["AccountsStore"] = None) -> List[Transaction]:
+def load_all_transactions(store: Optional["AccountsStore"] = None) -> List[Transaction]:
     """Load transactions from the global demo dataset, overlaid by writable store.
 
     Writable documents take precedence over the read-only global dataset for the
     same ``(owner, account)`` so freshly written transactions are reflected in
     deployed read endpoints.
+
+    Read-only: unlike ``account_scaffold.load_transactions`` it never creates
+    owner files. Rows carry ids, instrument names and SELL realised gains, as
+    ``GET /transactions`` returns them. allotmint-pro's MCP ``get_transactions``
+    tool calls this.
     """
     # files look like data/accounts/<owner>/<ACCOUNT>_transactions.json
     merged: Dict[Tuple[str, str], List[Transaction]] = {}
@@ -504,6 +509,10 @@ def _load_all_transactions(store: Optional["AccountsStore"] = None) -> List[Tran
     for txs in merged.values():
         results.extend(txs)
     return results
+
+
+# Old private name, kept until allotmint-pro imports ``load_all_transactions``.
+_load_all_transactions = load_all_transactions
 
 
 def _find_transaction_account(owner: str, account: str, store: "AccountsStore") -> str:
@@ -577,7 +586,7 @@ def transactions_with_compliance(
 
     require_core(compliance, "Compliance")
     store, _ = resolve_writable_store(request)
-    txs = [t.model_dump() for t in _load_all_transactions(store) if t.owner.lower() == owner.lower()]
+    txs = [t.model_dump() for t in load_all_transactions(store) if t.owner.lower() == owner.lower()]
     if account:
         txs = [t for t in txs if (t.get("account") or "").lower() == account.lower()]
     norm_ticker = normalise_filter_ticker(
@@ -917,7 +926,7 @@ async def import_transactions(
     store = _require_writable_store(request)
 
     if any(t.external_id for t in parsed):
-        existing = _load_all_transactions(store)
+        existing = load_all_transactions(store)
         parsed = importers.dedupe_against_existing(parsed, existing)
 
     persisted: List[Dict[str, Any]] = []
@@ -1004,7 +1013,7 @@ def import_moneyhub_transactions(
     store = _require_writable_store(request)
 
     if any(t.external_id for t in parsed):
-        existing = _load_all_transactions(store)
+        existing = load_all_transactions(store)
         parsed = importers.dedupe_against_existing(parsed, existing)
 
     persisted: List[Dict[str, Any]] = []
@@ -1305,7 +1314,7 @@ def list_transactions(
 
     store, _ = resolve_writable_store(request)
     txs: List[Transaction] = []
-    for t in _load_all_transactions(store):
+    for t in load_all_transactions(store):
         if owner and t.owner.lower() != owner.lower():
             continue
         if account and t.account.lower() != account.lower():
@@ -1345,7 +1354,7 @@ def list_dividends(
 
     store, _ = resolve_writable_store(request)
     txs: List[Transaction] = []
-    for t in _load_all_transactions(store):
+    for t in load_all_transactions(store):
         ttype = (t.type or "").upper()
         if ttype not in {"DIVIDEND", "DIVIDENDS"}:
             continue

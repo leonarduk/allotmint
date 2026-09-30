@@ -5,7 +5,17 @@ import { useConfig } from "../ConfigContext";
 import { isModeEnabled } from "../pageManifest";
 import type { Mode } from "../modes";
 
-const ISSUES_URL = "https://github.com/leonarduk/allotmint/issues/new";
+// Default issue tracker URL used when VITE_ISSUE_TRACKER_URL is not set.
+// Deployments using a different tracker (Jira, GitLab, self-hosted, ...) can
+// override this via the environment variable without code changes.
+const DEFAULT_ISSUES_URL = "https://github.com/leonarduk/allotmint/issues/new";
+
+// Vite exposes env vars prefixed with VITE_ on import.meta.env. Fall back to
+// the default when the variable is unset or empty so the link is never
+// undefined.
+const ISSUES_URL =
+  (import.meta.env.VITE_ISSUE_TRACKER_URL as string | undefined)?.trim() ||
+  DEFAULT_ISSUES_URL;
 
 interface HelpPageEntry {
   path: string;

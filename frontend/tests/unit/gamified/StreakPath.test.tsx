@@ -149,4 +149,46 @@ describe('StreakPath', () => {
 
     expect(crateTitle).toBe('No chores tracked yet this week');
   });
+
+  it('does not say "Finish every day" for a partially tracked week with a miss', () => {
+    // Mixed scenario: 3 tracked days (one of which is a miss) and 3
+    // untracked days. The "Finish every day" copy must only appear when
+    // every day in the week is tracked and at least one was missed — with
+    // untracked days present, the crate should fall back to the positive
+    // "keep going" framing instead.
+    const totals: Record<string, { completed: number; total: number }> = {
+      // Tracked, completed.
+      '2026-08-20': { completed: 4, total: 4 },
+      '2026-08-21': { completed: 4, total: 4 },
+      // Tracked, missed (0 of 4).
+      '2026-08-22': { completed: 0, total: 4 },
+      // 2026-08-23 .. 2026-08-25 intentionally untracked.
+      // Today, tracked and completed.
+      '2026-08-26': { completed: 4, total: 4 },
+    };
+    const days = buildStreakPath(totals, '2026-08-26');
+    const { container } = render(<StreakPath days={days} streak={0} />);
+
+    const crateTitle = container
+      .querySelector('li:last-child span[title]')
+      ?.getAttribute('title');
+
+    expect(crateTitle).toBeTruthy();
+    expect(crateTitle).not.toMatch(/finish every day/i);
+    expect(crateTitle).toMatch(/keep going/i);
+
+    // The missed tracked day must be visually distinct from the untracked
+    // days in this mixed scenario.
+    const missedStamp = container.querySelector(
+      'span[title="2026-08-22: 0 of 4 chores done"]'
+    );
+    const untrackedStamp = container.querySelector(
+      'span[title="2026-08-23: no chores recorded"]'
+    );
+
+    expect(missedStamp).toBeTruthy();
+    expect(untrackedStamp).toBeTruthy();
+    expect(missedStamp?.className).toContain('stampMissed');
+    expect(untrackedStamp?.className).not.toContain('stampMissed');
+  });
 });

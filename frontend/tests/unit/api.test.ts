@@ -1222,6 +1222,22 @@ describe("checkScreenerAvailable", () => {
 
     await expect(checkScreenerAvailable()).resolves.toBe(true);
   });
+
+  it("returns true when fetch rejects with a network error", async () => {
+    // A rejected fetch (DNS failure, connection refused, offline, etc.) means
+    // there is no Response object and therefore no status code. The probe
+    // treats "no status" as "screener is available" so a transient network
+    // blip does not hide the feature from the user; the real request will
+    // surface the error if the backend is genuinely unreachable.
+    const mockFetch = vi
+      .fn()
+      .mockRejectedValue(new TypeError("Failed to fetch"));
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(checkScreenerAvailable()).resolves.toBe(true);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("cached responses do not survive an identity change", () => {

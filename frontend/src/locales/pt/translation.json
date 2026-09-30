@@ -40,7 +40,33 @@
       "saved": "Salvo"
     },
     "threshold": "Percentual de limite:",
-    "title": "Configurações de alerta"
+    "title": "Configurações de alerta",
+    "triggers": {
+      "above": "Sobe até ou acima de",
+      "add": "Adicionar gatilho",
+      "below": "Cai até ou abaixo de",
+      "cancel": "Cancelar",
+      "condition": "Condição",
+      "continuous": "Contínuo",
+      "delete": "Excluir",
+      "deleteError": "Não foi possível excluir o gatilho de preço.",
+      "description": "Receba um alerta quando um preço cruzar um nível. Os preços estão em GBP e são verificados a cada atualização; ativos que você não possui também são cotados.",
+      "edit": "Editar",
+      "empty": "Ainda não há gatilhos de preço.",
+      "enabled": "Ativo",
+      "lastFired": "Último disparo",
+      "loadError": "Não foi possível carregar os gatilhos de preço.",
+      "mode": "Dispara",
+      "modeHelp": "Uma vez: dispara na primeira vez e depois se desativa. Contínuo: dispara sempre que o preço cruza o nível e rearma quando volta.",
+      "note": "Nota (opcional)",
+      "once": "Uma vez",
+      "price": "Preço (£)",
+      "saveError": "Não foi possível salvar o gatilho de preço.",
+      "ticker": "Ticker",
+      "title": "Gatilhos de preço",
+      "update": "Atualizar gatilho",
+      "when": "Quando"
+    }
   },
   "allocation": {
     "instrumentTypes": "Tipos de instrumentos",

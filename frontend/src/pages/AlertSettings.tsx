@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import AppHeader from "../components/AppHeader";
+import PriceTriggersPanel from "../components/PriceTriggersPanel";
 import {
   getAlertThreshold,
   getConfig,
@@ -227,6 +228,13 @@ export default function AlertSettings() {
             </span>
           )}
         </div>
+        {!resolving && identity && !forbidden && (
+          <PriceTriggersPanel
+            identity={identity}
+            disabled={demoReadOnly}
+            disabledReason={reason()}
+          />
+        )}
         <div style={{ marginTop: "2rem" }}>
           <h2>{t("alertSettings.push.title")}</h2>
           {/* Push notifications have no implementation anywhere in this app

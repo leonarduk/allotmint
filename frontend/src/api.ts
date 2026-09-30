@@ -1613,6 +1613,64 @@ export const setAlertThreshold = (owner: string, threshold: number) =>
     body: JSON.stringify({ threshold }),
   });
 
+export type PriceTriggerCondition = "above" | "below";
+export type PriceTriggerMode = "once" | "continuous";
+
+export interface PriceTrigger {
+  id: string;
+  ticker: string;
+  condition: PriceTriggerCondition;
+  /** Target price in GBP. */
+  price: number;
+  mode: PriceTriggerMode;
+  enabled: boolean;
+  note: string | null;
+  created_at: string;
+  last_triggered_at: string | null;
+  last_triggered_price: number | null;
+  trigger_count: number;
+}
+
+export type PriceTriggerInput = Pick<
+  PriceTrigger,
+  "ticker" | "condition" | "price" | "mode"
+> & { note?: string | null; enabled?: boolean };
+
+const jsonInit = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+/** List the price triggers configured for an identity. */
+export const getPriceTriggers = (user: string) =>
+  fetchJson<PriceTrigger[]>(`${API_BASE}/price-triggers/${encodeURIComponent(user)}`);
+
+/** Create a price trigger. */
+export const createPriceTrigger = (user: string, trigger: PriceTriggerInput) =>
+  fetchJson<PriceTrigger>(
+    `${API_BASE}/price-triggers/${encodeURIComponent(user)}`,
+    jsonInit("POST", trigger),
+  );
+
+/** Amend a price trigger; only the supplied fields change. */
+export const updatePriceTrigger = (
+  user: string,
+  id: string,
+  changes: Partial<PriceTriggerInput>,
+) =>
+  fetchJson<PriceTrigger>(
+    `${API_BASE}/price-triggers/${encodeURIComponent(user)}/${encodeURIComponent(id)}`,
+    jsonInit("PATCH", changes),
+  );
+
+/** Delete a price trigger. */
+export const deletePriceTrigger = (user: string, id: string) =>
+  fetchJson<{ status: string }>(
+    `${API_BASE}/price-triggers/${encodeURIComponent(user)}/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+
 export interface PushSubscriptionJSON {
   endpoint?: string;
   keys: {

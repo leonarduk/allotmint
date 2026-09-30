@@ -39,6 +39,7 @@ from typing import Dict, Iterable, Iterator, List, Optional
 
 import pandas as pd
 
+from backend import price_triggers
 from backend.common import instrument_api, refresh_progress
 from backend.common.currency import CurrencyNormaliser
 from backend.common.holding_utils import load_latest_prices as _load_latest_prices
@@ -322,6 +323,11 @@ def refresh_prices() -> Dict:
     the current portfolios.  Writes to JSON and updates the cache.
     """
     tickers: List[str] = list_all_unique_tickers()
+    try:
+        # Watched tickers are priced too so a trigger on a non-held ticker can fire.
+        tickers = sorted(set(tickers) | set(price_triggers.watched_tickers()))
+    except Exception as exc:  # trigger problems must not fail the price refresh
+        logger.error("Could not load price trigger tickers: %s", sanitise_log_value(exc))
     logger.info("Updating price snapshot for: %s", [sanitise_log_value(t) for t in tickers])
 
     refresh_progress.start(len(tickers))
@@ -408,6 +414,10 @@ def refresh_prices() -> Dict:
             _price_cache[tkr.upper()] = info["last_price"]
         refresh_snapshot_in_memory(merged)
     check_price_alerts()
+    try:
+        price_triggers.evaluate({t: (info or {}).get("last_price") for t, info in snapshot.items()})
+    except Exception as exc:  # trigger problems must not fail the price refresh
+        logger.error("Price trigger evaluation failed: %s", sanitise_log_value(exc))
 
     logger.debug("Snapshot written to %s", sanitise_log_value(path))
     ts = datetime.now(UTC).isoformat().replace("+00:00", "Z")

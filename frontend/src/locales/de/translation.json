@@ -40,7 +40,33 @@
       "saved": "Gespeichert"
     },
     "threshold": "Schwellenwert %:",
-    "title": "Alarm-Einstellungen"
+    "title": "Alarm-Einstellungen",
+    "triggers": {
+      "above": "Steigt auf oder über",
+      "add": "Auslöser hinzufügen",
+      "below": "Fällt auf oder unter",
+      "cancel": "Abbrechen",
+      "condition": "Bedingung",
+      "continuous": "Fortlaufend",
+      "delete": "Löschen",
+      "deleteError": "Preisauslöser konnte nicht gelöscht werden.",
+      "description": "Erhalte einen Alarm, wenn ein Preis eine Marke erreicht. Preise in GBP, geprüft bei jeder Preisaktualisierung; auch nicht gehaltene Titel werden bepreist.",
+      "edit": "Bearbeiten",
+      "empty": "Noch keine Preisauslöser.",
+      "enabled": "Aktiv",
+      "lastFired": "Zuletzt ausgelöst",
+      "loadError": "Preisauslöser konnten nicht geladen werden.",
+      "mode": "Auslösung",
+      "modeHelp": "Einmal: löst beim ersten Mal aus und schaltet sich dann ab. Fortlaufend: löst bei jedem Überschreiten der Marke aus und wird wieder scharf, sobald der Preis zurückgeht.",
+      "note": "Notiz (optional)",
+      "once": "Einmal",
+      "price": "Preis (£)",
+      "saveError": "Preisauslöser konnte nicht gespeichert werden.",
+      "ticker": "Ticker",
+      "title": "Preisauslöser",
+      "update": "Auslöser aktualisieren",
+      "when": "Wenn"
+    }
   },
   "allocation": {
     "instrumentTypes": "Instrumenttypen",

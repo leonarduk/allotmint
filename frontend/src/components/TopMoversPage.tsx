@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { getOpportunities, getGroupInstruments } from "../api";
+import { ALL_PORTFOLIOS_SLUG } from "../constants/portfolios";
 import type { OpportunityEntry } from "../types";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import { InstrumentDetail } from "./InstrumentDetail";
@@ -82,7 +83,7 @@ export function TopMoversPage() {
   const fetchMovers = useCallback(async () => {
     if (watchlist === "Portfolio") {
       try {
-        const rows = await getGroupInstruments("all");
+        const rows = await getGroupInstruments(ALL_PORTFOLIOS_SLUG);
         const total = rows.reduce(
           (sum, r) => sum + (r.market_value_gbp ?? 0),
           0,
@@ -106,7 +107,7 @@ export function TopMoversPage() {
       try {
         setFallbackError(null);
         return await getOpportunities({
-          group: "all",
+          group: ALL_PORTFOLIOS_SLUG,
           days: PERIODS[period],
           limit: 10,
           minWeight: excludeSmall ? MIN_WEIGHT : 0,

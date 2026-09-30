@@ -18,7 +18,6 @@ import {
   createOwnerDisplayLookup,
   getOwnerDisplayName,
 } from "../utils/owners";
-import { ALL_PORTFOLIOS_SLUG } from "../constants/portfolios";
 
 // Issue #7202: the metric *values* sent to the backend must stay the
 // existing snake_case identifiers (they round-trip through the
@@ -88,17 +87,9 @@ function QuerySection() {
   // fallback was byte-identical to the test fixtures, so the suite stayed
   // green even with the derivation logic gutted). Tests mock `getPortfolio`
   // instead.
-  // When no owners are explicitly selected, the query is scoped to every
-  // portfolio — represented by the shared `ALL_PORTFOLIOS_SLUG` sentinel
-  // rather than a bare "all" literal, so the slug stays in sync with the
-  // backend's API contract.
   const scopeOwners = useMemo(
     () =>
-      selectedOwners.length
-        ? selectedOwners
-        : ownerList.length
-        ? ownerList.map((o) => o.owner)
-        : [ALL_PORTFOLIOS_SLUG],
+      selectedOwners.length ? selectedOwners : ownerList.map((o) => o.owner),
     [selectedOwners, ownerList],
   );
   const fetchTickerData = useCallback(async () => {

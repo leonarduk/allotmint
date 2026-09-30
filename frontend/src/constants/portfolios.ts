@@ -6,4 +6,4 @@
 // being spelled out as a bare `"all"` literal at each call site — a typo in
 // one usage would otherwise silently break aggregation with no compile-time
 // error.
-export const ALL_PORTFOLIOS_SLUG = "all";
+export const ALL_PORTFOLIOS_SLUG = "all" as const;

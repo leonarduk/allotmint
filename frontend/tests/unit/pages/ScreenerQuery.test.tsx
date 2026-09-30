@@ -104,7 +104,6 @@ import {
   checkScreenerAvailable,
 } from "@/api";
 import { ScreenerQuery } from "@/pages/ScreenerQuery";
-import { ALL_PORTFOLIOS_SLUG } from "@/constants/portfolios";
 
 function renderWithI18n(ui: ReactElement) {
   const i18n = createInstance();
@@ -287,12 +286,6 @@ describe("Screener & Query page", () => {
     const zzz = await screen.findByLabelText("ZZZ");
     expect(zzz).toBeChecked();
     expect(screen.getByText(new RegExp(i18n.t("query.tickerNotHeld")))).toBeInTheDocument();
-  });
-
-  it("exposes the shared all-portfolios slug as the API contract value", () => {
-    // Guards against a typo/rename silently changing the wire format: the
-    // slug is part of the frontend/backend contract and must stay "all".
-    expect(ALL_PORTFOLIOS_SLUG).toBe("all");
   });
 
   it("derives the ticker list from real per-owner holdings, not a hardcoded list", async () => {

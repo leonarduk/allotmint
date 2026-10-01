@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from backend.common import instrument_api
-from backend.common.authz import is_admin_identity
+from backend.common.admin import is_admin_identity
 from backend.common.errors import InternalServiceError, PermissionDeniedError, ValidationFailure
 from backend.data_quality.audit import append_audit
 from backend.logging_setup import sanitise_log_value

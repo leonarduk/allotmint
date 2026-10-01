@@ -1348,6 +1348,33 @@ export const moveTimeseries = (ticker: string, sourceExchange: string, destinati
     { method: "POST" },
   );
 
+export interface SeriesReference {
+  kind: "holding" | "transaction";
+  owner: string;
+  account: string;
+}
+
+export interface SeriesReferences {
+  ticker: string;
+  exchange: string;
+  exists: boolean;
+  references: SeriesReference[];
+  has_metadata: boolean;
+  orphaned: boolean;
+  can_delete: boolean;
+}
+
+export const getSeriesReferences = (ticker: string, exchange: string) =>
+  fetchJson<SeriesReferences>(
+    `${API_BASE}/timeseries/edit/references?ticker=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`,
+  );
+
+export const deleteTimeseries = (ticker: string, exchange: string) =>
+  fetchJson<{ status: string; rows: number; ticker: string; exchange: string }>(
+    `${API_BASE}/timeseries/edit?ticker=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`,
+    { method: "DELETE" },
+  );
+
 export const getInstrumentMetadata = (ticker: string, exchange: string) =>
   fetchJson<(InstrumentMetadata & Record<string, unknown>) | null>(
     `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}`,

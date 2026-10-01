@@ -17,6 +17,7 @@ import {
 import type { NewsItem, InstrumentMetadata, ScreenerResult } from "../types";
 import EmptyState from "../components/EmptyState";
 import { InstrumentSearchBar } from "../components/InstrumentSearchBar";
+import { DeleteSeriesButton } from "../components/DeleteSeriesButton";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import surfaceStyles from "../styles/surface.module.css";
 import { formatDateISO } from "../lib/date";
@@ -945,6 +946,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         <button onClick={toggleWatchlist} style={{ marginLeft: "1rem" }}>
           {inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
         </button>
+        {baseTicker && instrumentExchange && (
+          <DeleteSeriesButton ticker={baseTicker} exchange={instrumentExchange.toUpperCase()} />
+        )}
       </div>
       <form onSubmit={handleSaveMetadata} style={{ marginBottom: "1rem" }}>
         <div

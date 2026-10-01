@@ -16,6 +16,8 @@ vi.mock("@/api", () => ({
   getInstrumentIntraday: vi.fn(),
   searchInstruments: vi.fn(),
   getTransactions: vi.fn(),
+  getSeriesReferences: vi.fn(() => Promise.resolve({ can_delete: false })),
+  deleteTimeseries: vi.fn(),
 }));
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

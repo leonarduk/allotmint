@@ -127,3 +127,38 @@ When done with local containers:
 ```bash
 make local-down
 ```
+
+## Periodic summary (`periodic-summary`)
+
+A monthly-style performance report (in the spirit of justETF's monthly email):
+headline returns for the reporting month, YTD, 1 year and since inception
+(plus annualised), a trailing-12-month return series, benchmark comparison,
+risk (volatility, Sharpe, drawdowns), top/bottom contributors and rule-based
+insights.
+
+```bash
+# end defaults to the last complete month-end; benchmark defaults to
+# report_benchmark in config.yaml (VWRL.L)
+curl -sS "http://localhost:6468/reports/demo-owner/periodic-summary?end=2026-09-30&benchmark=VWRL.L&format=pdf" \
+  -o demo-owner-periodic-summary.pdf
+```
+
+How the numbers are built:
+- Returns are **time-weighted and rebuilt from the transaction ledger**
+  (`data/accounts/{owner}/*_transactions.json`) by
+  `backend/common/ledger_performance.py`: units and cash actually held each
+  day, valued at that day's GBP close, chained around deposits, withdrawals
+  and transfers. Dividends and interest count as return. This is deliberately
+  *not* `compute_owner_performance`, which prices today's holdings backwards.
+- An owner without a ledger gets null portfolio returns (benchmark figures
+  still render) and an insight saying so; the report never falls back to the
+  current-holdings history.
+- The benchmark is a price return (no dividends); if its prices are missing
+  the benchmark columns are null rather than the report failing.
+
+Insights are rule-based, not hand-written: each rule in
+`backend/report_periodic.py` is a pure function with a module-level threshold
+(benchmark gap YTD, single-holding weight, HHI, unrecovered drawdown, one
+holding driving the month, cash weight, ledger coverage). Any hand-written
+`key_findings.md` for the owner is appended after them. The section is omitted
+when nothing fires and there is no findings file.

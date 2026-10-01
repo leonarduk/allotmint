@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, status
@@ -21,6 +22,16 @@ from backend.reports import (
 )
 
 router = APIRouter(tags=["reports"])
+
+# Same shape the /performance benchmark parameter accepts (e.g. VWRL.L).
+_BENCHMARK_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
+
+
+def _validate_benchmark(value: str) -> str:
+    candidate = value.strip().upper()
+    if ".." in candidate or not _BENCHMARK_RE.fullmatch(candidate):
+        raise HTTPException(status_code=400, detail="Invalid benchmark")
+    return candidate
 
 
 class TemplateColumnPayload(BaseModel):
@@ -143,8 +154,15 @@ def owner_template_report(
     start: Optional[str] = None,
     end: Optional[str] = None,
     watermark: Optional[str] = None,
+    benchmark: Optional[str] = None,
     format: str = "json",
 ):
+    """Render ``template_id`` for ``owner``.
+
+    ``end`` is the reporting date (the periodic-summary template defaults it
+    to the last complete month-end); ``benchmark`` overrides the configured
+    ``report_benchmark`` for templates that compare against one.
+    """
     start_d = _parse_date(start)
     end_d = _parse_date(end)
     watermark_text = watermark.strip() if watermark else None
@@ -153,6 +171,8 @@ def owner_template_report(
         build_kwargs: Dict[str, Any] = {"start": start_d, "end": end_d}
         if watermark_text:
             build_kwargs["watermark"] = watermark_text
+        if benchmark and benchmark.strip():
+            build_kwargs["benchmark"] = _validate_benchmark(benchmark)
         document = build_report_document(template_id, owner, **build_kwargs)
     except FileNotFoundError:
         log_owner_not_found(owner, template_id=template_id)

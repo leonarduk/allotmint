@@ -203,6 +203,9 @@ class Config:
     prices_json: Optional[Path] = None
     audit_dir: Optional[Path] = None
     risk_free_rate: Optional[float] = None
+    # Benchmark ticker for the periodic-summary report; the report route's
+    # ``benchmark`` query parameter overrides it per request.
+    report_benchmark: str = "VWRL.L"
     base_currency: Optional[str] = "GBP"
 
     approval_valid_days: Optional[int] = None
@@ -637,6 +640,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         prices_json=prices_json,
         audit_dir=audit_dir,
         risk_free_rate=data.get("risk_free_rate"),
+        report_benchmark=str(data.get("report_benchmark") or "VWRL.L"),
         approval_valid_days=data.get("approval_valid_days"),
         approval_exempt_types=approval_exempt_types,
         approval_exempt_tickers=approval_exempt_tickers,

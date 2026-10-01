@@ -20,20 +20,17 @@ def test_transaction_roots_aws(monkeypatch):
 def test_transaction_roots_local(monkeypatch):
     monkeypatch.setattr(reports.config, "app_env", "local")
     monkeypatch.setattr(reports.config, "transactions_output_root", Path("/existing"))
-    monkeypatch.setattr(reports.config, "accounts_root", Path("/missing"))
+    monkeypatch.setattr(reports.config, "accounts_root", Path("/accounts"))
     monkeypatch.setattr(reports.config, "data_root", Path("/data"))
+    monkeypatch.setattr(Path, "exists", lambda self: True)
 
-    exists_map = {
-        Path("/existing"): True,
-        Path("/missing"): False,
-        Path("/data/transactions"): True,
-    }
+    # Legacy ``data_root/transactions`` and the output root are ignored (#8462).
+    assert list(reports._transaction_roots()) == ["/accounts"]
 
-    def fake_exists(self):
-        return exists_map.get(self, False)
 
-    monkeypatch.setattr(Path, "exists", fake_exists)
+def test_transaction_roots_local_missing_accounts_root(monkeypatch):
+    monkeypatch.setattr(reports.config, "app_env", "local")
+    monkeypatch.setattr(reports.config, "accounts_root", Path("/missing"))
+    monkeypatch.setattr(Path, "exists", lambda self: False)
 
-    roots = list(reports._transaction_roots())
-    assert roots == ["/existing", "/data/transactions"]
-    assert len(roots) == len(set(roots))
+    assert list(reports._transaction_roots()) == []

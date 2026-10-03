@@ -162,7 +162,10 @@ def load_latest_closes(
                 continue
 
             # Sort by, and later read the close date from, the same column: the
-            # named "Date" column, else the first column (Date in these feeds).
+            # named "Date" column, else the first column. The timeseries cache
+            # guarantees "Date" (EXPECTED_COLS in backend/timeseries/cache.py),
+            # so the fallback only matters for ad-hoc frames, and it fails safe:
+            # an unparseable value gives close_date None, i.e. stale.
             date_col = name_map.get("date") or df.columns[0]
             df = df.sort_values(date_col)
             last = df.iloc[-1]

@@ -108,6 +108,8 @@ def test_get_price_snapshot_uses_latest_and_live(monkeypatch: pytest.MonkeyPatch
     assert stale_info["last_price"] == pytest.approx(120.5)
     assert stale_info["last_price_time"] == old_timestamp.isoformat().replace("+00:00", "Z")
     assert stale_info["is_stale"] is True
+    # A stale live quote is still dated by the trading day its changes anchor to.
+    assert stale_info["last_price_date"] == last_trading_day.isoformat()
     assert stale_info["change_7d_pct"] == pytest.approx((120.5 / 100.0 - 1.0) * 100.0)
     assert stale_info["change_30d_pct"] == pytest.approx((120.5 / 90.0 - 1.0) * 100.0)
     assert requested_dates == [seven_day, thirty_day]

@@ -34,7 +34,7 @@ export function HoldingsFilterControls({
   return (
     <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">
       <RelativeViewToggle />
-      <span className="flex items-center gap-1">
+      <span className="flex flex-wrap items-center gap-1">
         {t('holdingsTable.range')}
         {([7, 30, 180] as const).map((days) => (
           <label key={days} className="ml-1">
@@ -48,7 +48,7 @@ export function HoldingsFilterControls({
           </label>
         ))}
       </span>
-      <span className="flex items-center gap-1">
+      <span className="flex flex-wrap items-center gap-1">
         {t('holdingsTable.view')}
         {viewPresets.map((preset) => (
           <button
@@ -61,7 +61,7 @@ export function HoldingsFilterControls({
           </button>
         ))}
       </span>
-      <span className="flex items-center gap-1">
+      <span className="flex flex-wrap items-center gap-1">
         {t('holdingsTable.quickFilters')}
         {onSellEligible && (
           <button

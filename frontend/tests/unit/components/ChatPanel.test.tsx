@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi, Mock } from "vitest";
 import { ChatPanel } from "@/components/ChatPanel";
 import * as api from "@/api";
-import { startNewChat } from "@/utils/chatConversation";
+import { getChatMessages, setChatMessages, startNewChat } from "@/utils/chatConversation";
 
 vi.mock("@/api");
 
@@ -279,5 +279,145 @@ describe("ChatPanel", () => {
 
     expect(screen.queryByText("Hello.")).not.toBeInTheDocument();
     expect(screen.getByText(/ask about your portfolios/i)).toBeInTheDocument();
+  });
+
+  describe("copy and edit (#8590)", () => {
+    const conversation = [
+      { role: "user" as const, content: "first question" },
+      { role: "assistant" as const, content: "**first** answer" },
+      { role: "user" as const, content: "second question" },
+      { role: "assistant" as const, content: "second answer" },
+    ];
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      setChatMessages(conversation);
+    });
+
+    const items = () => screen.getAllByRole("listitem").filter((li) => li.classList.contains("chat-message"));
+
+    it("copies a user message's text", async () => {
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[0]).getByRole("button", { name: /copy message/i }));
+
+      expect(await navigator.clipboard.readText()).toBe("first question");
+      expect(within(items()[0]).getByText("Copied")).toBeInTheDocument();
+    });
+
+    it("copies an assistant reply as its Markdown source", async () => {
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[1]).getByRole("button", { name: /copy message/i }));
+
+      expect(await navigator.clipboard.readText()).toBe("**first** answer");
+    });
+
+    it("says so when the clipboard is unavailable", async () => {
+      const user = userEvent.setup();
+      vi.spyOn(navigator.clipboard, "writeText").mockRejectedValueOnce(new Error("denied"));
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[0]).getByRole("button", { name: /copy message/i }));
+
+      expect(await within(items()[0]).findByText("Copy failed")).toBeInTheDocument();
+    });
+
+    it("offers Edit only on the user's own messages", () => {
+      render(<ChatPanel open onClose={() => {}} />);
+
+      expect(within(items()[0]).getByRole("button", { name: /edit message/i })).toBeInTheDocument();
+      expect(within(items()[1]).queryByRole("button", { name: /edit message/i })).not.toBeInTheDocument();
+    });
+
+    it("regenerates from an edited message, dropping everything after it", async () => {
+      (api.postChat as Mock).mockResolvedValueOnce({ reply: "new answer" });
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[0]).getByRole("button", { name: /edit message/i }));
+      const box = screen.getByLabelText(/edited message/i);
+      expect(box).toHaveValue("first question");
+      expect(box).toHaveFocus();
+      expect((box as HTMLTextAreaElement).selectionStart).toBe("first question".length);
+      await user.clear(box);
+      await user.type(box, "better question");
+      await user.click(screen.getByRole("button", { name: /save & regenerate/i }));
+
+      await waitFor(() => expect(screen.getByText("new answer")).toBeInTheDocument());
+      expect(api.postChat).toHaveBeenCalledWith("better question", [], [], undefined);
+      expect(getChatMessages()).toEqual([
+        { role: "user", content: "better question" },
+        { role: "assistant", content: "new answer" },
+      ]);
+      expect(screen.queryByText("second question")).not.toBeInTheDocument();
+    });
+
+    it("sends only the turns before the edited message as history", async () => {
+      (api.postChat as Mock).mockResolvedValueOnce({ reply: "new second answer" });
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[2]).getByRole("button", { name: /edit message/i }));
+      const box = screen.getByLabelText(/edited message/i);
+      await user.clear(box);
+      await user.type(box, "second, rephrased{Enter}");
+
+      await waitFor(() => expect(screen.getByText("new second answer")).toBeInTheDocument());
+      expect(api.postChat).toHaveBeenCalledWith("second, rephrased", conversation.slice(0, 2), [], undefined);
+      expect(getChatMessages()).toHaveLength(4);
+    });
+
+    it("leaves the conversation alone on cancel or an unchanged edit", async () => {
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[0]).getByRole("button", { name: /edit message/i }));
+      await user.type(screen.getByLabelText(/edited message/i), " changed{Escape}");
+      expect(screen.queryByLabelText(/edited message/i)).not.toBeInTheDocument();
+
+      await user.click(within(items()[0]).getByRole("button", { name: /edit message/i }));
+      await user.click(screen.getByRole("button", { name: /save & regenerate/i }));
+
+      expect(api.postChat).not.toHaveBeenCalled();
+      expect(getChatMessages()).toEqual(conversation);
+    });
+
+    it("restores the pre-edit conversation and keeps the edit for retry on failure", async () => {
+      (api.postChat as Mock).mockRejectedValueOnce(Object.assign(new Error("x"), { status: 502 }));
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[0]).getByRole("button", { name: /edit message/i }));
+      const box = screen.getByLabelText(/edited message/i);
+      await user.clear(box);
+      await user.type(box, "better question");
+      await user.click(screen.getByRole("button", { name: /save & regenerate/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't reach its AI service/i);
+      expect(getChatMessages()).toEqual(conversation);
+      expect(screen.getByLabelText(/edited message/i)).toHaveValue("better question");
+    });
+
+    it("disables Edit, but not Copy, while a reply is pending", async () => {
+      let resolve: (v: { reply: string }) => void = () => {};
+      (api.postChat as Mock).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.type(screen.getByLabelText(/chat message/i), "third question");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      for (const button of screen.getAllByRole("button", { name: /edit message/i })) {
+        expect(button).toBeDisabled();
+      }
+      for (const button of screen.getAllByRole("button", { name: /copy message/i })) {
+        expect(button).toBeEnabled();
+      }
+      resolve({ reply: "third answer" });
+      await waitFor(() => expect(screen.getByText("third answer")).toBeInTheDocument());
+    });
   });
 });

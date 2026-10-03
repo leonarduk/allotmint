@@ -1033,10 +1033,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 onChange={handleDateChange}
                 disabled={loading}
                 style={{
-                  backgroundColor: "#111",
-                  border: "1px solid #444",
+                  backgroundColor: "var(--input-bg)",
+                  border: "1px solid var(--input-border)",
                   borderRadius: "4px",
-                  color: "#fff",
+                  color: "var(--input-text)",
                   padding: "0.25rem 0.5rem",
                   fontSize: "0.85rem",
                 }}

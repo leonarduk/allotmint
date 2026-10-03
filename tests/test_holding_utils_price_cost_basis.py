@@ -383,34 +383,71 @@ def test_enrich_holding_plausible_book_cost_unchanged(monkeypatch):
     assert out["gain_pct"] == pytest.approx(7320.0 / 26300 * 100)
 
 
-@pytest.mark.parametrize("ticker", ["AV.", "AV.L"])
-def test_enrich_holding_trailing_dot_ticker_gets_lse_pence_scaling(monkeypatch, ticker):
-    """#8596: the SIPP holds Aviva as "AV." (50 units, £263 booked from HL
-    transactions). It used to resolve to exchange "", miss the "L" pence
-    override and be priced at 678.4 (pence read as pounds), flagging a
-    correct booked cost as book_suspect. Uses the real _resolve_full_ticker."""
+# #8596: the three SIPP holdings flagged book_suspect. Booked costs come from
+# the HL transactions (buys less sells) and are correct in pounds; the raw
+# closes are pence. (ticker, units, booked cost, raw pence close)
+_PENCE_HOLDINGS_8596 = [
+    ("AV.", 50, 263.0, 678.4),
+    ("AV.L", 50, 263.0, 678.4),
+    ("CLIG.L", 14, 47.81, 526.0),
+    ("HICL.L", 90, 106.41, 131.2),
+]
+
+
+def _patch_real_scaling_env(monkeypatch, tmp_path, overrides, raw_close):
+    """Like _patch_enrich_env, but keeps the real _resolve_full_ticker and the
+    real get_scaling_override reading an overrides table from config.repo_root."""
+    import json
+
+    from backend.common import instruments
     from backend.common import portfolio_utils as pu
+    from backend.config import config
 
-    def fake_scaling(sym, exchange, requested):
-        return 0.01 if (sym, exchange) == ("AV", "L") else 1.0
-
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "scaling_overrides.json").write_text(json.dumps(overrides))
+    monkeypatch.setattr(config, "repo_root", tmp_path)
     monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
     monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {})
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {})
-    monkeypatch.setattr(holding_utils, "get_scaling_override", fake_scaling)
+    # Metadata fallback in get_scaling_override: these instruments say GBP.
+    monkeypatch.setattr(instruments, "get_instrument_meta", lambda *_: {"currency": "GBP"})
     monkeypatch.setattr(holding_utils, "is_cache_only", lambda: False)
     monkeypatch.setattr(
-        holding_utils, "_load_unscaled_price_for_date_impl", lambda t, ex, d, field: (678.4, "mock", True, d)
+        holding_utils, "_load_unscaled_price_for_date_impl", lambda t, ex, d, field: (raw_close, "mock", True, d)
     )
     monkeypatch.setattr(holding_utils, "_derived_cost_basis_close_px", lambda *a, **k: None)
-    holding = {TICKER: ticker, UNITS: 50, COST_BASIS_GBP: 263}
+
+
+@pytest.mark.parametrize("ticker,units,cost,raw_close", _PENCE_HOLDINGS_8596)
+def test_enrich_holding_pence_override_clears_book_suspect(monkeypatch, tmp_path, ticker, units, cost, raw_close):
+    """#8596: with an "L" pence override for the symbol, each holding is priced
+    in pounds and its booked cost is accepted. "AV." used to resolve to
+    exchange "", so the "L" override never applied to it."""
+    symbol = ticker.split(".")[0]
+    _patch_real_scaling_env(monkeypatch, tmp_path, {"L": {symbol: 0.01}}, raw_close)
+    holding = {TICKER: ticker, UNITS: units, COST_BASIS_GBP: cost}
 
     out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 1), price_cache={})
 
-    assert out["price"] == pytest.approx(6.784)
+    assert out["price"] == pytest.approx(raw_close / 100)
     assert out["cost_basis_source"] == "book"
     assert "cost_basis_warning" not in out
-    assert out["gain_gbp"] == pytest.approx(76.2)
+    assert out["gain_gbp"] == pytest.approx(round(units * raw_close / 100, 2) - cost)
+
+
+@pytest.mark.parametrize("ticker,units,cost,raw_close", _PENCE_HOLDINGS_8596)
+def test_enrich_holding_missing_pence_override_flags_book_suspect(
+    monkeypatch, tmp_path, ticker, units, cost, raw_close
+):
+    """#8596 mechanism: with no override and GBP metadata the pence close is
+    read as pounds, so the correct booked cost looks ~100x too low."""
+    _patch_real_scaling_env(monkeypatch, tmp_path, {"L": {}}, raw_close)
+    holding = {TICKER: ticker, UNITS: units, COST_BASIS_GBP: cost}
+
+    out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 1), price_cache={})
+
+    assert out["price"] == pytest.approx(raw_close)
+    assert out["cost_basis_source"] == "book_suspect"
 
 
 def test_enrich_holding_big_genuine_gain_supported_by_acquisition_close(monkeypatch):

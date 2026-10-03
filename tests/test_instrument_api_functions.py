@@ -24,6 +24,13 @@ def test_resolve_full_ticker_variants(monkeypatch):
     assert ia._resolve_full_ticker("BAZ", {}) is None
 
 
+def test_resolve_full_ticker_trailing_dot_is_lse():
+    """#8596: broker-style "AV." must resolve to the LSE, not an empty exchange,
+    so pence scaling overrides keyed under "L" apply to it."""
+    assert ia._resolve_full_ticker("AV.", {}) == ("AV", "L")
+    assert ia._resolve_full_ticker("bp.", {"BP.N": 1.0}) == ("BP", "L")
+
+
 def test_prime_latest_prices_respects_skip(monkeypatch):
     monkeypatch.setattr(ia.config, "skip_snapshot_warm", True)
 

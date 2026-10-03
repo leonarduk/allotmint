@@ -1,11 +1,13 @@
 """
 Meta time-series fetcher that transparently tries Yahoo -> Stooq -> Alpha Vantage -> FT
-and merges the first successful result. Helpers return snapshots
+and merges the results without mixing price bases (see ``source_basis``). Helpers return snapshots
 (last price, 7-day %, 30-day %).
 
 2025-08-04 - smarter merge:
   - Fetch Yahoo first; if coverage < 95 % of the requested window,
     supplement from Stooq, Alpha Vantage, then FT.
+  - 2026-10 (#8597): supplements only fill gaps when they match the primary
+    source's price basis on shared dates; sources are never interleaved.
   - Added ticker sanity-check and quieter logging for expected fall-backs.
 """
 
@@ -46,6 +48,7 @@ from backend.timeseries.fetch_stooq_timeseries import (
     fetch_stooq_timeseries_range,
 )
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
+from backend.timeseries.source_basis import combine_sources
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
 from backend.utils.timeseries_helpers import (
     STANDARD_COLUMNS,
@@ -369,12 +372,16 @@ def _explicit_exchange_from_ticker(ticker: str) -> str:
     return parts[1].strip().upper() if len(parts) == 2 else ""
 
 
-def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:
-    if not sources:
+def _merge(sources: List[pd.DataFrame], label: str = "") -> pd.DataFrame:
+    """Combine provider frames without interleaving price bases (#8597).
+
+    The best-covered source is kept whole; other sources only fill its
+    missing dates, and only when they agree with it on shared dates.
+    """
+    df = combine_sources(sources, label=label)
+    if df.empty:
         return pd.DataFrame(columns=STANDARD_COLUMNS)
-    df = pd.concat(sources, ignore_index=True)
-    df = df.drop_duplicates(subset=["Date", "Close"], keep="last")
-    return df.sort_values("Date").reset_index(drop=True)
+    return df
 
 
 def _coverage_ratio(df: pd.DataFrame, expected: set[date]) -> float:
@@ -448,6 +455,7 @@ def fetch_meta_timeseries(
         record_skipped_ticker(ticker, exchange, reason="unknown")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
+    label = f"{ticker}.{exchange}"
     # Weekday grid we want to fill
     expected_dates = set(pd.bdate_range(start_date, end_date).date)
 
@@ -478,7 +486,7 @@ def fetch_meta_timeseries(
     try:
         stooq = fetch_stooq_timeseries_range(ticker, exchange, start_date, end_date)
         if not stooq.empty:
-            combined = _merge([*data, stooq])
+            combined = _merge([*data, stooq], label)
             if _coverage_ratio(combined, expected_dates) >= min_coverage:
                 return combined
             data.append(stooq)
@@ -502,7 +510,7 @@ def fetch_meta_timeseries(
         try:
             av = fetch_alphavantage_timeseries_range(ticker, exchange, start_date, end_date)
             if not av.empty:
-                combined = _merge([*data, av])
+                combined = _merge([*data, av], label)
                 if _coverage_ratio(combined, expected_dates) >= min_coverage:
                     return combined
                 data.append(av)
@@ -539,7 +547,7 @@ def fetch_meta_timeseries(
         logger.info("No data sources succeeded for %s.%s", sanitise_log_value(ticker), sanitise_log_value(exchange))
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
-    df = _merge(data)
+    df = _merge(data, label)
     # Ensure we compare like-for-like datatypes. Some sources (e.g. FT) may
     # return plain ``datetime.date`` objects which cannot be directly
     # compared against ``pd.Timestamp``. Convert the column on the fly to

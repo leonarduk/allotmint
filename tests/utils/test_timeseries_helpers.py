@@ -29,7 +29,7 @@ def test_get_scaling_override_requested():
 
 def test_get_scaling_override_from_json():
     assert th.get_scaling_override("GAMA", "L", None) == 0.01
-    assert th.get_scaling_override("ADM", "L", None) == 0.1
+    assert th.get_scaling_override("ADM", "L", None) == 0.01  # pence, not 0.1 (#8597)
 
 
 def test_get_scaling_override_from_json_lse_pence_tickers():
@@ -528,3 +528,35 @@ def _make_frozen_date(frozen_today: dt.date):
             return frozen_today
 
     return _FrozenDate
+
+
+def test_get_scaling_override_rejects_non_pence_pound_factor(monkeypatch, tmp_path):
+    """A typo'd factor (0.1) is ignored and the instrument's GBX currency
+    metadata decides instead, so the price is not silently mis-scaled (#8597)."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "scaling_overrides.json").write_text('{"L": {"ADM": 0.1}}')
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=tmp_path))
+    monkeypatch.setattr(
+        "backend.common.instruments.get_instrument_meta",
+        lambda symbol: {"currency": "GBX"},
+    )
+
+    assert th.get_scaling_override("ADM", "L", None) == 0.01
+
+
+def test_get_scaling_override_invalid_factor_falls_through_to_next_candidate(monkeypatch, tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "scaling_overrides.json").write_text('{"L": {"ADM": 0.1, "*": 0.01}}')
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=tmp_path))
+
+    assert th.get_scaling_override("ADM", "L", None) == 0.01
+
+
+def test_is_valid_override_factor():
+    assert th.is_valid_override_factor(0.01)
+    assert th.is_valid_override_factor(1)
+    assert th.is_valid_override_factor(100)
+    for bad in (0.1, 0.001, 10, 0.5, 0.0, -0.01):
+        assert not th.is_valid_override_factor(bad), bad

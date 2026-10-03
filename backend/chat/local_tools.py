@@ -10,6 +10,9 @@ list stays owned by the frontend and only pages enabled for this user are
 offered. The tool's ``path`` is an enum of exactly those paths, and a call with
 any other value is rejected, so the model cannot send the user to an arbitrary
 URL.
+
+With ``data_tools=True`` (the chat route sets it) it also offers in-process
+data tools, currently ``get_nav_discount`` (``backend.chat.nav_discount_tool``).
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
 from mcp.types import Tool
 
+from backend.chat import nav_discount_tool
 from backend.chat.tool_switches import enabled_tools
 
 NAVIGATE_TOOL_NAME = "navigate_to_page"
@@ -35,9 +39,14 @@ class LocalTools:
     """Local tools for one chat turn, plus the navigation they requested."""
 
     pages: Sequence[ChatPage] = ()
+    data_tools: bool = False
     navigate_to: Optional[str] = field(default=None, init=False)
 
     def tools(self) -> List[Tool]:
+        data_tools = [nav_discount_tool.TOOL] if self.data_tools else []
+        return self._navigate_tools() + data_tools
+
+    def _navigate_tools(self) -> List[Tool]:
         if not self.pages:
             return []
         listing = "; ".join(f"{page.path} ({page.label})" for page in self.pages)
@@ -63,11 +72,15 @@ class LocalTools:
         ]
 
     def handles(self, name: str) -> bool:
+        if name == nav_discount_tool.TOOL_NAME:
+            return self.data_tools
         return bool(self.pages) and name == NAVIGATE_TOOL_NAME
 
     def call(self, name: str, arguments: Mapping[str, Any]) -> Tuple[str, bool]:
         """Run a local tool; return ``(text for the model, is_error)``."""
 
+        if name == nav_discount_tool.TOOL_NAME and self.data_tools:
+            return nav_discount_tool.call(arguments)
         if name != NAVIGATE_TOOL_NAME:
             return f"Unknown local tool {name}", True
         path = arguments.get("path")

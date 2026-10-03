@@ -127,7 +127,7 @@ async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatRespons
     if not mcp_server_url:
         return _chat_error(503, CHAT_ERROR_NOT_CONFIGURED, "Chat is not configured (MCP_SERVER_URL unset)")
 
-    local_tools = LocalTools(pages=pages_from_request([page.model_dump() for page in payload.pages]))
+    local_tools = LocalTools(pages=pages_from_request([page.model_dump() for page in payload.pages]), data_tools=True)
     try:
         reply = await run_configured_chat_turn(
             payload.message,

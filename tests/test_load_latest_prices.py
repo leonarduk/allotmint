@@ -115,9 +115,6 @@ def test_enrich_holding_uses_scaling_override(monkeypatch):
         return pd.DataFrame({"Date": [start_date], "Close": [2000.0]})
 
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_load_meta_timeseries_range)
-    # Stub the factor rather than reading data/scaling_overrides.json, so this
-    # tests that enrich_holding applies the override, not one ticker's value.
-    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.1)
 
     holding = {"ticker": "ADM.L", "units": 1, "cost_basis_gbp": 100}
     enriched = holding_utils.enrich_holding(holding, dt.date(2024, 1, 3), {})

@@ -90,6 +90,29 @@ def merge_tool_lists(mcp_tools: Sequence[Tool], local: Optional[LocalTools]) -> 
     return enabled_tools([tool for tool in mcp_tools if tool.name not in local_names] + local_tools)
 
 
+# Sent on every chat turn. Without it a model that is not offered a tool for
+# something (an older MCP server, or the tool switched off in the admin config)
+# tends to say AllotMint has no such data -- e.g. "no P/E, P/B or yield" when
+# the fundamentals tools exist (#8685). Kept tool-agnostic: the tool list and
+# its descriptions are what say which data is available on this turn.
+BASE_SYSTEM_PROMPT = (
+    "You are the AllotMint assistant. Answer questions about the user's portfolios, "
+    "transactions and instruments with the tools you are given, and read each tool's "
+    "description to see what data it returns; market tools can include valuation "
+    "fundamentals such as P/E, P/B and dividend yield. When a tool result names its "
+    "source or an as-of date, cite them with the figures. If none of your tools covers "
+    "a request, say that you have no tool for it here; do not claim AllotMint has no "
+    "such data, and do not make figures up."
+)
+
+
+def build_system_prompt(context: Mapping[str, Any] | None) -> str:
+    """The system prompt for one chat turn: the base guidance, then the page context if any."""
+
+    context_line = system_prompt_from_context(context)
+    return f"{BASE_SYSTEM_PROMPT}\n\n{context_line}" if context_line else BASE_SYSTEM_PROMPT
+
+
 def system_prompt_from_context(context: Mapping[str, Any] | None) -> Optional[str]:
     """Tell the model which page the user is looking at, so "this stock" resolves."""
 

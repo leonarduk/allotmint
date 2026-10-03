@@ -38,19 +38,16 @@ from backend.utils.pricing_dates import PricingDateCalculator
 logger = logging.getLogger(__name__)
 
 
-def _fill_missing_costs(owner: str, account: str, holdings: List[Any], accounts_root: Optional[Path] = None) -> None:
-    """Cost zero-cost holdings from their transactions (in memory only).
+# Held tickers already reported as having no matching transaction pool, so the
+# warning fires once per process rather than on every page request (same idea
+# as ``_warned_missing_data_bucket`` in backend/routes/transactions.py).
+_UNMATCHED_COST_WARNED: set[tuple[str, str, str]] = set()
 
-    A holding with no booked cost and no ``acquired_date`` is otherwise valued
-    at today's price, so its gain shows as a false £0.00.  Use the Section 104
-    cost from the transactions when it is fully known; otherwise date the
-    holding from when its unknown-cost units arrived (the opening transfer-in)
-    so ``enrich_holding`` derives the cost from the price on that date.  Never
-    writes to the data files.
-    """
-    needy = [h for h in holdings if isinstance(h, dict) and not h.get("acquired_date") and not h.get("cost_basis_gbp")]
-    if not needy:
-        return
+
+def _read_account_transactions(
+    owner: str, account: str, accounts_root: Optional[Path]
+) -> Optional[List[Dict[str, Any]]]:
+    """Return the account's transactions, or ``None`` when there is no usable file."""
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
     try:
@@ -64,20 +61,95 @@ def _fill_missing_costs(owner: str, account: str, holdings: List[Any], accounts_
             None,
         )
         if tx_path is None:
-            return
+            return None
         tx_data = json.loads(tx_path.read_text(encoding="utf-8"))
     except (ValueError, OSError, json.JSONDecodeError) as exc:
-        logger.warning("Could not read transactions to date unknown-cost holdings: %s", sanitise_log_value(exc))
+        logger.warning("Could not read transactions to cost unknown-cost holdings: %s", sanitise_log_value(exc))
+        return None
+    if not isinstance(tx_data, dict):
+        return []
+    return [t for t in (tx_data.get("transactions") or []) if isinstance(t, dict)]
+
+
+def _strip_suffix(ticker: str) -> str:
+    """``VWRL.L`` -> ``VWRL``; a ticker with no exchange suffix is returned unchanged."""
+    return ticker.rsplit(".", 1)[0] if "." in ticker else ticker
+
+
+def _match_hint_key(ticker: str, hint_keys: List[str], held_bases: Dict[str, int]) -> Optional[str]:
+    """Return the transaction pool key for held ``ticker``, or ``None``.
+
+    An exact match always wins.  Otherwise a pool whose ticker differs only by
+    an exchange suffix on one side (``VWRL`` vs ``VWRL.L``) is used, but only
+    when exactly one pool fits and no other holding in the account shares the
+    same base symbol, so an ambiguous listing is never guessed at.
+    """
+    if ticker in hint_keys:
+        return ticker
+    base = _strip_suffix(ticker)
+    if held_bases.get(base, 0) != 1:
+        return None
+    candidates = [k for k in hint_keys if k == base or _strip_suffix(k) == ticker]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _warn_unmatched(owner: str, account: str, ticker: str) -> None:
+    key = (owner.lower(), account.lower(), ticker)
+    if key in _UNMATCHED_COST_WARNED:
         return
-    transactions = (
-        [t for t in (tx_data.get("transactions") or []) if isinstance(t, dict)] if isinstance(tx_data, dict) else []
+    _UNMATCHED_COST_WARNED.add(key)
+    logger.warning(
+        "No transaction history matches zero-cost holding %s in %s/%s; its cost stays unknown",
+        sanitise_log_value(ticker),
+        sanitise_log_value(owner),
+        sanitise_log_value(account),
     )
+
+
+def _held_base_counts(holdings: List[Any]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for h in holdings:
+        if isinstance(h, dict):
+            base = _strip_suffix(str(h.get("ticker") or "").strip().upper())
+            counts[base] = counts.get(base, 0) + 1
+    return counts
+
+
+def fill_missing_costs(owner: str, account: str, holdings: List[Any], accounts_root: Optional[Path] = None) -> None:
+    """Cost zero-cost holdings from their transactions (in memory only).
+
+    Mutates the dicts in ``holdings``; callers holding shared data should pass
+    copies.  The transactions file is read and replayed once per call.
+
+    A holding with no booked cost is otherwise valued at today's price (or the
+    close on its ``acquired_date``), so its gain is a guess or a false £0.00.
+    When the transactions give a fully known Section 104 pool cost it is used,
+    even if the holding has an ``acquired_date``.  Otherwise an undated holding
+    is dated from when its unknown-cost units arrived (the opening transfer-in)
+    so ``enrich_holding`` derives the cost from the price on that date.  A
+    non-zero booked cost always wins.  Never writes to the data files.
+    """
+    needy = [h for h in holdings if isinstance(h, dict) and not h.get("cost_basis_gbp")]
+    if not needy:
+        return
+    transactions = _read_account_transactions(owner, account, accounts_root)
+    if transactions is None:
+        return
     hints = transaction_cost_hints(transactions)
+    hint_keys = [k for k in hints if not k.startswith(("name:", "ref:"))]
+    held_bases = _held_base_counts(holdings)
     for h in needy:
-        cost, since = hints.get(str(h.get("ticker") or "").upper(), (None, None))
+        ticker = str(h.get("ticker") or "").strip().upper()
+        if not ticker or _strip_suffix(ticker) == "CASH":  # cash has no transaction pool
+            continue
+        key = _match_hint_key(ticker, hint_keys, held_bases)
+        if key is None:
+            _warn_unmatched(owner, account, ticker)
+            continue
+        cost, since = hints[key]
         if cost:
             h["cost_basis_gbp"] = cost
-        elif since:
+        elif since and not h.get("acquired_date"):
             h["acquired_date"] = since
 
 
@@ -211,7 +283,7 @@ def build_owner_portfolio(
     for meta in accounts_meta:
         raw = load_account_record(owner, meta, accounts_root)
         holdings_raw = raw.holdings
-        _fill_missing_costs(owner, str(meta), holdings_raw, accounts_root)
+        fill_missing_costs(owner, str(meta), holdings_raw, accounts_root)
 
         # Page request: price from the timeseries cache only; the background
         # snapshot refresh does the live fetching (#7898).

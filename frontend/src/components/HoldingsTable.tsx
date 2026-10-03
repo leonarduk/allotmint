@@ -385,9 +385,10 @@ export function HoldingsTable({
   );
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
   const showGroupHeaders = effectiveGroupingMode !== "flat";
-  // Rollup rows have no days held, and groups have no days-held total to sort
-  // by (GROUP_SORT_KEYS.days_held is null), so the column is only sortable flat.
-  const daysHeldSortable = !rollupMode && !showGroupHeaders;
+  // Rollup rows have no days held. In grouped mode there is no days-held group
+  // total (GROUP_SORT_KEYS.days_held is null), but sorting still orders rows
+  // within each group, and groups follow their first row in that order.
+  const daysHeldSortable = !rollupMode;
 
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ["units", t("holdingsTable.columns.units")],
@@ -501,7 +502,8 @@ export function HoldingsTable({
           visibleColumns.gain,
         ].filter(Boolean).length);
   // Grouped mode walks the groups in their own (totals-sorted) order so each
-  // group's rows stay contiguous under its header (#8529).
+  // group's rows stay contiguous under its header (#8529). Every grouped row
+  // comes from groupingRows above, which always stamps __holdingsIndex.
   const groupByIndex = useMemo(() => {
     const lookup = new Map<number, GroupedRows>();
     for (const group of groups) {

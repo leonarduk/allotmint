@@ -345,16 +345,37 @@ describe("HoldingsTable", () => {
         expect(headerOrder()).toEqual(["Toggle Zulu", "Toggle Alpha"]);
     });
 
-    it("makes Days Held non-sortable in grouped mode (no group total to sort by)", async () => {
-        renderWithConfig(<HoldingsTable holdings={holdings} groupingMode="group" />);
+    it("sorts rows within each group by Days Held; groups follow their first row (#8529)", async () => {
+        // Days held: Tech AAA 10, CCC 150; Energy BBB 200, DDD 50.
+        const daysHoldings: Holding[] = [
+            { ...holdings[0], ticker: "AAA", name: "AAA plc", sector: "Tech", days_held: 10 },
+            { ...holdings[0], ticker: "BBB", name: "BBB plc", sector: "Energy", days_held: 200 },
+            { ...holdings[0], ticker: "CCC", name: "CCC plc", sector: "Tech", days_held: 150 },
+            { ...holdings[0], ticker: "DDD", name: "DDD plc", sector: "Energy", days_held: 50 },
+        ];
+        const { container } = renderWithConfig(
+            <HoldingsTable holdings={daysHoldings} groupingMode="sector" />,
+        );
+        const bodyOrder = () =>
+            Array.from(container.querySelectorAll("tbody tr")).map((row) => {
+                const button = row.querySelector("button");
+                return button?.getAttribute("aria-label") ?? button?.textContent;
+            });
+        await userEvent.click(screen.getByRole("button", { name: "Toggle Tech" }));
+        await userEvent.click(screen.getByRole("button", { name: "Toggle Energy" }));
 
-        const daysHeldHeader = screen.getByRole("columnheader", { name: "Days Held" });
-        expect(daysHeldHeader.className).not.toContain("clickable");
+        const daysHeldHeader = screen.getByRole("columnheader", { name: /Days Held/ });
+        expect(daysHeldHeader.className).toContain("clickable");
+
+        // ▲: AAA(10) leads, so Tech comes first; Energy rows DDD(50) then BBB(200).
         await userEvent.click(daysHeldHeader);
-        expect(daysHeldHeader).not.toHaveTextContent("▲");
-        expect(daysHeldHeader).not.toHaveTextContent("▼");
-        // The active sort is unchanged: Ticker still shows its indicator.
-        expect(screen.getByRole("columnheader", { name: /Ticker/ })).toHaveTextContent("▲");
+        expect(daysHeldHeader).toHaveTextContent("▲");
+        expect(bodyOrder()).toEqual(["Toggle Tech", "AAA", "CCC", "Toggle Energy", "DDD", "BBB"]);
+
+        // ▼: BBB(200) leads, so Energy comes first; Tech rows CCC(150) then AAA(10).
+        await userEvent.click(daysHeldHeader);
+        expect(daysHeldHeader).toHaveTextContent("▼");
+        expect(bodyOrder()).toEqual(["Toggle Energy", "BBB", "DDD", "Toggle Tech", "CCC", "AAA"]);
     });
 
     it("falls back to group mode when category mode is requested without definitions", async () => {

@@ -38,6 +38,7 @@ from backend.common.sector_labels import (
     CASH_SECTOR_LABEL,
     REGION_ALIASES,
     SECTOR_ALIASES,
+    is_cash_instrument,
     normalise_optional_region,
     normalise_optional_sector,
     normalise_region_label,
@@ -807,9 +808,11 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
             snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
             # Normalise the ticker before comparison to guard against casing or
             # whitespace variations (e.g. "cash.gbp", " CASH.GBP ").
-            if _is_cash_holding(full_tkr, h):
+            if is_cash_instrument(full_tkr, h.get("instrument_type")):
                 # Cash gets an explicit sector so every sector view shows it as
-                # "Cash" rather than "Unknown sector"/"Other" (#8530).
+                # "Cash" rather than "Unknown sector"/"Other" (#8530). The
+                # "holding" source matters: _aggregate_by_field buckets rows
+                # whose sector source ranks below security_meta as "Unknown".
                 row["sector"] = CASH_SECTOR_LABEL
                 row["_sector_source"] = "holding"
             if full_tkr.strip().upper() == "CASH.GBP":
@@ -1071,15 +1074,6 @@ _REGION_ALIASES: Dict[str, str] = REGION_ALIASES
 _SECTOR_ALIASES: Dict[str, str] = SECTOR_ALIASES
 _normalise_region_label = normalise_region_label
 _normalise_sector_label = normalise_sector_label
-
-
-def _is_cash_holding(full_ticker: str, holding: dict) -> bool:
-    """True for cash rows: ``CASH.<ccy>`` (or legacy ``<ccy>.CASH``) tickers or ``instrument_type`` cash."""
-
-    if _canonicalise_cash_ticker(full_ticker.strip()).startswith("CASH."):
-        return True
-    instrument_type = holding.get("instrument_type")
-    return isinstance(instrument_type, str) and instrument_type.strip().lower() == "cash"
 
 
 def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP") -> List[dict]:

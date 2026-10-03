@@ -23,7 +23,12 @@ from backend.common.constants import (
 from backend.common.currency import CurrencyNormaliser
 from backend.common.instruments import get_instrument_meta
 from backend.common.numeric_utils import is_nan
-from backend.common.sector_labels import CASH_SECTOR_LABEL, normalise_optional_region, normalise_optional_sector
+from backend.common.sector_labels import (
+    CASH_SECTOR_LABEL,
+    is_cash_instrument,
+    normalise_optional_region,
+    normalise_optional_sector,
+)
 from backend.common.user_config import UserConfig
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -781,6 +786,10 @@ def enrich_holding(
     # same exposure together, matching the sector/region aggregates (#8530).
     out["sector"] = normalise_optional_sector(out.get("sector") or meta.get("sector"))
     out["region"] = normalise_optional_region(out.get("region") or meta.get("region"))
+    if is_cash_instrument(full, out.get("instrument_type")):
+        # Cash that _is_cash() doesn't catch (e.g. CASH.USD in a GBP account)
+        # still gets the same "Cash" sector as aggregate_by_ticker rows (#8530).
+        out["sector"] = CASH_SECTOR_LABEL
     out["asset_class"] = out.get("asset_class") or meta.get("assetClass") or meta.get("asset_class")
 
     units = float(out.get(UNITS, 0) or 0.0)

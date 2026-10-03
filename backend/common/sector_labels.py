@@ -16,8 +16,22 @@ from __future__ import annotations
 from typing import Dict
 
 # Sector label used for cash holdings in every sector view, instead of
-# leaving the sector blank (shown as "Unknown sector" / "Other").
+# leaving the sector blank (shown as "Unknown sector" / "Other"). It must never
+# be a key in SECTOR_ALIASES, or normalisation would relabel cash; a test guards
+# this.
 CASH_SECTOR_LABEL = "Cash"
+
+
+def is_cash_instrument(ticker: object, instrument_type: object = None) -> bool:
+    """True for ``CASH.<ccy>`` / legacy ``<ccy>.CASH`` / bare ``CASH`` tickers or ``instrument_type`` cash."""
+
+    if isinstance(instrument_type, str) and instrument_type.strip().lower() == "cash":
+        return True
+    if not isinstance(ticker, str):
+        return False
+    symbol = ticker.strip().upper()
+    return symbol == "CASH" or symbol.startswith("CASH.") or symbol.endswith(".CASH")
+
 
 # Known aliases for the same region under different provider/holding-source
 # labels. Deliberately narrow: only collapses labels that unambiguously refer

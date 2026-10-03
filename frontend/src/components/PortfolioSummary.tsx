@@ -139,8 +139,8 @@ export function PortfolioSummary({ totals }: Props) {
         gap: "1.5rem",
         margin: "1rem 0",
         padding: "1rem",
-        backgroundColor: "#222",
-        border: "1px solid #444",
+        backgroundColor: "var(--summary-card-bg)",
+        border: "1px solid var(--summary-card-border)",
         borderRadius: "6px",
       }}
     >
@@ -164,7 +164,11 @@ export function PortfolioSummary({ totals }: Props) {
         icon={<TrendingUp size={20} />}
         value={allGainUnknown ? "—" : money(totalGain, baseCurrency)}
         accentColor={
-          allGainUnknown ? undefined : totalGain >= 0 ? "lightgreen" : "red"
+          allGainUnknown
+            ? undefined
+            : totalGain >= 0
+              ? "var(--gain-positive)"
+              : "var(--gain-negative)"
         }
         secondary={allGainUnknown ? undefined : `(${percent(totalGainPct)})`}
         note={gainNote}
@@ -197,7 +201,7 @@ function SummaryCard({
       <div
         style={{
           fontSize: "1rem",
-          color: "#aaa",
+          color: "var(--summary-card-label)",
           display: "flex",
           alignItems: "center",
           gap: "0.25rem",
@@ -210,7 +214,7 @@ function SummaryCard({
         style={{
           fontSize: "2rem",
           fontWeight: "bold",
-          color: accentColor ?? "#eee",
+          color: accentColor ?? "var(--summary-card-value)",
           display: "flex",
           alignItems: "baseline",
           gap: "0.5rem",
@@ -222,7 +226,7 @@ function SummaryCard({
             style={{
               fontSize: "1rem",
               fontWeight: "normal",
-              color: accentColor ?? "#aaa",
+              color: accentColor ?? "var(--summary-card-label)",
             }}
           >
             {secondary}
@@ -232,7 +236,11 @@ function SummaryCard({
       {note && (
         <div
           role="status"
-          style={{ fontSize: "0.75rem", color: "#aaa", marginTop: "0.25rem" }}
+          style={{
+            fontSize: "0.75rem",
+            color: "var(--summary-card-label)",
+            marginTop: "0.25rem",
+          }}
         >
           {note}
         </div>

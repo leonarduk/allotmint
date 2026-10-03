@@ -544,6 +544,40 @@ def test_refresh_prices_keeps_existing_s3_snapshot_when_nothing_fetched(
     assert any("keeping the existing S3 price snapshot" in m for m in messages)
 
 
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        (None, True),  # key absent: written
+        ("PreconditionFailed", False),  # 412: key exists, kept
+        ("ConditionalRequestConflict", False),  # 409: a concurrent write won the race
+    ],
+)
+def test_put_empty_snapshot_if_absent(code, expected) -> None:
+    from botocore.exceptions import ClientError
+
+    calls = []
+
+    def put_object(**kwargs):
+        calls.append(kwargs)
+        if code:
+            raise ClientError({"Error": {"Code": code, "Message": code}}, "PutObject")
+
+    assert prices.put_empty_snapshot_if_absent(SimpleNamespace(put_object=put_object), "bucket") is expected
+    assert calls[0]["IfNoneMatch"] == "*"
+    assert calls[0]["Body"] == b"{}"
+
+
+def test_put_empty_snapshot_if_absent_raises_other_errors() -> None:
+    """Anything but 412/409 isn't "already exists", so it propagates to the caller's handler."""
+    from botocore.exceptions import ClientError
+
+    def put_object(**_kwargs):
+        raise ClientError({"Error": {"Code": "AccessDenied", "Message": "denied"}}, "PutObject")
+
+    with pytest.raises(ClientError):
+        prices.put_empty_snapshot_if_absent(SimpleNamespace(put_object=put_object), "bucket")
+
+
 def test_refresh_prices_seeds_missing_s3_snapshot_when_nothing_fetched(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

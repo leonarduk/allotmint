@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useInstrumentHistory, updateCachedInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentDetail, InstrumentPositionsTable } from "../components/InstrumentDetail";
 import { InstrumentTransactions } from "../components/InstrumentTransactions";
+import { InstrumentValuationPanel } from "../components/InstrumentValuationPanel";
 import {
   confirmInstrumentMetadata,
   getNews,
@@ -1534,6 +1535,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       {activeTab === "fundamentals" && (
         <div style={{ marginBottom: "2rem" }}>
           <h2 style={{ marginBottom: "0.75rem" }}>Fundamentals</h2>
+          <InstrumentValuationPanel ticker={tkr} positions={positions} />
           {fundamentalsLoading ? (
             <div>Loading fundamentals...</div>
           ) : fundamentalsError ? (
@@ -1576,7 +1578,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                   title: "Valuation",
                   rows: [
                     { label: "PEG Ratio", value: formatRatio(fundamentals.peg_ratio) },
-                    { label: "P/E Ratio", value: formatRatio(fundamentals.pe_ratio) },
+                    { label: "P/E Ratio (trailing)", value: formatRatio(fundamentals.pe_ratio) },
                     {
                       label: "Market Cap",
                       value: money(fundamentals.market_cap, fundamentalsCurrency),

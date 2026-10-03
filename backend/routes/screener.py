@@ -3,19 +3,33 @@ from __future__ import annotations
 """API route for basic stock screening based on valuation metrics."""
 
 import hashlib
-from typing import List
+import logging
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.common.core_optional import require_core
+from backend.common import instrument_api
+from backend.common.core_optional import missing_package, require_core
 from backend.common.prices import get_security_meta
+from backend.logging_setup import sanitise_log_value
 from backend.utils import page_cache
 
 try:
     from backend.screener import screen
 except ModuleNotFoundError:
     screen = None
+
+# Imported on its own so an older allotmint-pro without the valuation module
+# (allotmint-pro#259) still serves /screener; only /screener/valuation is gated.
+try:
+    from allotmint_pro.screener.valuation import instrument_valuation
+except ModuleNotFoundError as exc:
+    if not missing_package(exc):
+        raise
+    instrument_valuation = None
+
+logger = logging.getLogger(__name__)
 
 
 class RankedFundamentals(BaseModel):
@@ -40,6 +54,7 @@ class RankedFundamentals(BaseModel):
     name: str | None = None
     peg_ratio: float | None = None
     pe_ratio: float | None = None
+    forward_pe: float | None = None
     de_ratio: float | None = None
     lt_de_ratio: float | None = None
     interest_coverage: float | None = None
@@ -67,6 +82,13 @@ class RankedFundamentals(BaseModel):
     ps_ratio: float | None = None
     ev_ebitda: float | None = None
     book_value: float | None = None
+    book_value_as_of: str | None = None
+    total_debt: int | None = None
+    total_cash: int | None = None
+    net_debt: int | None = None
+    price: float | None = None
+    currency: str | None = None
+    financial_currency: str | None = None
     revenue: int | None = None
     revenue_growth: float | None = None
     earnings_growth: float | None = None
@@ -315,3 +337,45 @@ def screener(
 
     background_tasks.add_task(page_cache.save_cache, page, payload)
     return payload
+
+
+def _price_snapshot_flags(ticker: str) -> Dict[str, Any]:
+    """The app's own staleness flag for ``ticker``'s latest price (the one holdings use)."""
+
+    try:
+        snap = instrument_api._price_and_changes(ticker)
+    except Exception as exc:  # noqa: BLE001 -- the flag is advisory; never fail the profile over it
+        logger.warning(
+            "valuation: price snapshot lookup failed for %s: %s",
+            sanitise_log_value(ticker),
+            sanitise_log_value(exc),
+        )
+        return {"is_stale": None, "last_price_date": None}
+    return {"is_stale": snap.get("is_stale"), "last_price_date": snap.get("last_price_date")}
+
+
+@router.get("/valuation")
+def valuation(ticker: str = Query(..., description="Full ticker, e.g. UKW.L")) -> Dict[str, Any]:
+    """Valuation profile for one instrument (allotmint-pro#259).
+
+    Multiples, NAV and premium/discount, income, gearing, a benchmark
+    reference and risk, with data-quality flags. ``data_quality.price_snapshot``
+    adds the app's own ``is_stale`` flag for the latest price so the page can
+    show it next to the numbers. Positions' ``cost_basis_source`` flags are
+    already on the ``/instrument`` payload the page holds.
+    """
+
+    require_core(instrument_valuation, "Instrument valuation")
+
+    symbol = ticker.strip().upper()
+    if not symbol or symbol.startswith("."):
+        raise HTTPException(status_code=400, detail="No ticker supplied")
+    try:
+        profile = instrument_valuation(symbol).model_dump()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    # The flag is advisory, so a profile without ``data_quality`` must not turn into a 500.
+    data_quality = profile.get("data_quality") or {}
+    data_quality["price_snapshot"] = _price_snapshot_flags(symbol)
+    profile["data_quality"] = data_quality
+    return profile

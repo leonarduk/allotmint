@@ -22,7 +22,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
-from backend.common import instrument_api
+from backend.common import instrument_api, nav
 from backend.common.constants import ACQUIRED_DATE, COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP, UNITS
 from backend.common.holding_utils import is_cost_basis_unreliable
 from backend.common.instruments import list_instruments
@@ -167,6 +167,21 @@ def search_instruments(
         if len(matches) >= MAX_SEARCH_RESULTS:
             break
     return matches
+
+
+@router.get("/nav-discount")
+def instrument_nav_discount(
+    ticker: Annotated[str, Query(description="Full ticker of a closed-end fund, e.g. 3IN.L")],
+) -> Dict[str, Any]:
+    """Latest NAV, the close on its date and the premium/discount (``backend/common/nav.py``).
+
+    Always 200 for a well-formed ticker. ``applicable``/``reason`` explain a
+    null result: not a closed-end fund, no NAV recorded, no price, or units
+    that do not add up.
+    """
+
+    _validate_ticker(ticker.strip())
+    return nav.nav_discount(ticker).as_dict()
 
 
 # ────────────────────────────────────────────────────────────────

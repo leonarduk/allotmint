@@ -605,7 +605,10 @@ def get_effective_cost_basis_gbp(
 # ─────── booked cost plausibility (#8472) ───────
 # A booked cost whose implied unit cost (book / units) is more than this factor
 # below or above the reference price is treated as suspect (e.g. an unscaled
-# pence figure or a partial book cost from the source statement).
+# pence figure or a partial book cost from the source statement). Downstream
+# reports call this "cost_basis_suspect" (#8596). It usually means the *price*
+# is wrong, not the cost: a pence close read as pounds because the ticker has
+# no pence entry in data/scaling_overrides.json or doesn't resolve to "L".
 BOOK_COST_PLAUSIBILITY_BAND = 20.0
 BOOK_COST_SUSPECT_SOURCE = "book_suspect"
 BOOK_COST_OUT_OF_BAND_WARNING = "implied_unit_cost_out_of_band"

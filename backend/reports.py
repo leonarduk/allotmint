@@ -6,7 +6,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from functools import lru_cache, wraps
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
@@ -30,7 +30,8 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
     portfolio_mod = None
 
-from backend.common import portfolio_utils
+from backend import report_periodic
+from backend.common import ledger_performance, portfolio_utils
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import cache_only
 
@@ -53,6 +54,18 @@ _PDF_INTERNAL_PARAM_KEYS: frozenset[str] = frozenset({"watermark"})
 # Source key that produces optional key-findings rows; sections using this source
 # are omitted from the document when the builder returns no rows.
 _KEY_FINDINGS_SOURCE = "portfolio.key_findings"
+# Rule-based insights (merged with any hand-written key findings); omitted the
+# same way when no rule fires and there is no findings file.
+_INSIGHTS_SOURCE = "portfolio.insights"
+_FINDINGS_SOURCES: frozenset[str] = frozenset({_KEY_FINDINGS_SOURCE, _INSIGHTS_SOURCE})
+
+# Sources backed by the ledger rebuild (backend.common.ledger_performance). A
+# template using any of them reports up to ``end``, defaulting to the last
+# complete month-end, against a benchmark.
+_PERIODIC_SOURCES: frozenset[str] = frozenset(
+    {"performance.periods", "performance.monthly", "performance.risk", "performance.contributors", _INSIGHTS_SOURCE}
+)
+DEFAULT_REPORT_BENCHMARK = "VWRL.L"
 
 
 @dataclass(slots=True)
@@ -328,6 +341,91 @@ AUDIT_REPORT_TEMPLATE = ReportTemplate(
 )
 
 
+PERIODIC_SUMMARY_TEMPLATE = ReportTemplate(
+    template_id="periodic-summary",
+    name="Periodic summary",
+    description=(
+        "Monthly-style summary: headline period returns, monthly returns, benchmark comparison, "
+        "risk, top/bottom contributors and rule-based insights. Reports up to 'end' (default: "
+        "last complete month-end); 'start' is not used."
+    ),
+    sections=(
+        ReportSectionSchema(
+            id="periods",
+            title="Returns by period",
+            source="performance.periods",
+            description=(
+                "Time-weighted returns rebuilt from the transaction ledger, incl. dividends; "
+                "benchmark is price return"
+            ),
+            columns=(
+                ReportColumnSchema("period", "Period"),
+                ReportColumnSchema("start", "Start", type="date"),
+                ReportColumnSchema("end", "End", type="date"),
+                ReportColumnSchema("portfolio_return", "Portfolio", type="number"),
+                ReportColumnSchema("benchmark_return", "Benchmark", type="number"),
+                ReportColumnSchema("excess_return", "Excess", type="number"),
+            ),
+        ),
+        ReportSectionSchema(
+            id="monthly",
+            title="Monthly returns",
+            source="performance.monthly",
+            description=(
+                "Time-weighted return per calendar month for the trailing 12 months, with year-to-date cumulative"
+            ),
+            columns=(
+                ReportColumnSchema("month", "Month"),
+                ReportColumnSchema("portfolio_return", "Portfolio", type="number"),
+                ReportColumnSchema("cumulative_ytd_return", "Cumulative YTD", type="number"),
+                ReportColumnSchema("benchmark_return", "Benchmark", type="number"),
+            ),
+        ),
+        ReportSectionSchema(
+            id="risk",
+            title="Risk",
+            source="performance.risk",
+            description="Volatility, Sharpe ratio and drawdowns of the ledger-based time-weighted return index",
+            # Rows also carry ``key`` and ``units`` (fraction/number), which
+            # report_to_pdf uses to format ``value``.
+            columns=(
+                ReportColumnSchema("metric", "Metric"),
+                ReportColumnSchema("value", "Value", type="number"),
+                ReportColumnSchema("window", "Window"),
+                ReportColumnSchema("peak_date", "Peak", type="date"),
+                ReportColumnSchema("trough_date", "Trough", type="date"),
+            ),
+        ),
+        ReportSectionSchema(
+            id="contributors",
+            title="Top and bottom contributors",
+            source="performance.contributors",
+            description=(
+                "Holdings' contribution in GBP and percentage points; dividends not tagged to a holding are excluded"
+            ),
+            # Rows also carry the instrument ``name`` and ``period_key``; the
+            # PDF's equal-width columns leave no room for a name column.
+            columns=(
+                ReportColumnSchema("period", "Period"),
+                ReportColumnSchema("direction", "Direction"),
+                ReportColumnSchema("rank", "Rank", type="integer"),
+                ReportColumnSchema("ticker", "Ticker"),
+                ReportColumnSchema("contribution_gbp", "P&L (GBP)", type="number"),
+                ReportColumnSchema("contribution_return", "Contrib. (pp)", type="number"),
+                ReportColumnSchema("weight", "Weight", type="number"),
+            ),
+        ),
+        ReportSectionSchema(
+            id="insights",
+            title="Insights",
+            source=_INSIGHTS_SOURCE,
+            description="Rule-based findings from the figures above, plus any hand-written key findings",
+            columns=(ReportColumnSchema("finding", "Finding"),),
+        ),
+    ),
+)
+
+
 BUILTIN_TEMPLATES: Dict[str, ReportTemplate] = {
     template.template_id: template
     for template in (
@@ -335,6 +433,7 @@ BUILTIN_TEMPLATES: Dict[str, ReportTemplate] = {
         TRANSACTIONS_TEMPLATE,
         ALLOCATION_BREAKDOWN_TEMPLATE,
         AUDIT_REPORT_TEMPLATE,
+        PERIODIC_SUMMARY_TEMPLATE,
     )
 }
 
@@ -623,6 +722,12 @@ class ReportContext:
     _portfolio: Dict[str, Any] | None = None
     _owner_portfolio: Dict[str, Any] | None = None
     _owner_portfolio_loaded: bool = False
+    benchmark: Optional[str] = None
+    _account_ledgers: List[ledger_performance.AccountLedger] | None = None
+    _ledger: ledger_performance.LedgerPerformance | None = None
+    _ledger_loaded: bool = False
+    _benchmark_closes: pd.Series | None = None
+    _benchmark_loaded: bool = False
 
     def summary(self) -> ReportData:
         if self._summary is None:
@@ -710,6 +815,63 @@ class ReportContext:
         if self._portfolio is None:
             self._portfolio = _portfolio_snapshot(self.owner, pricing_date=self.end) or {}
         return dict(self._portfolio)
+
+    def reporting_end(self) -> date:
+        """``end``, or the last complete month-end when the caller gave none."""
+        return self.end or ledger_performance.last_complete_month_end(date.today())
+
+    def benchmark_ticker(self) -> str:
+        return self.benchmark or config.report_benchmark or DEFAULT_REPORT_BENCHMARK
+
+    def current_holdings(self) -> List[Dict[str, Any]]:
+        portfolio = self.owner_portfolio() or {}
+        accounts = portfolio.get("accounts")
+        holdings: List[Dict[str, Any]] = []
+        for account in accounts if isinstance(accounts, list) else []:
+            raw = account.get("holdings") if isinstance(account, dict) else None
+            holdings.extend(h for h in raw or [] if isinstance(h, dict))
+        return holdings
+
+    def account_ledgers(self) -> List[ledger_performance.AccountLedger]:
+        if self._account_ledgers is None:
+            self._account_ledgers = ledger_performance.load_owner_ledgers(self.owner)
+        return list(self._account_ledgers)
+
+    def ledger(self) -> ledger_performance.LedgerPerformance | None:
+        """Ledger-rebuilt daily values and returns up to ``reporting_end()``.
+
+        ``None`` when the owner has no dated transactions; raises
+        ``FileNotFoundError`` when the owner has neither a ledger nor a
+        portfolio, so the route reports a missing owner as 404.
+        """
+        if not self._ledger_loaded:
+            self._ledger_loaded = True
+            ledgers = self.account_ledgers()
+            holdings = self.current_holdings()
+            if not ledgers and self.owner_portfolio() is None:
+                raise FileNotFoundError(f"No ledger or portfolio for owner '{self.owner}'")
+            self._ledger = ledger_performance.build_ledger_performance(ledgers, self.reporting_end(), holdings=holdings)
+        return self._ledger
+
+    def benchmark_closes(self) -> pd.Series | None:
+        """GBP closes of the benchmark covering every reporting period; ``None`` if unavailable."""
+        if not self._benchmark_loaded:
+            self._benchmark_loaded = True
+            end = self.reporting_end()
+            perf = self.ledger()
+            # Monthly rows reach back 12 months; YTD/1Y less. A week's slack
+            # finds a close on or before a base date that fell on a holiday.
+            start = ledger_performance.one_year_before(end) - timedelta(days=31)
+            if perf is not None:
+                start = min(start, perf.inception - timedelta(days=1))
+            ticker = self.benchmark_ticker()
+            try:
+                closes = ledger_performance.load_gbp_closes(ticker, start - timedelta(days=7), end)
+            except (OSError, ValueError, KeyError) as exc:
+                logger.warning("benchmark %s unavailable: %s", sanitise_log_value(ticker), sanitise_log_value(exc))
+                closes = pd.Series(dtype=float)
+            self._benchmark_closes = None if closes.empty else closes
+        return self._benchmark_closes
 
 
 def _round_if_number(value: Any, digits: int) -> Optional[float]:
@@ -1287,6 +1449,61 @@ def _build_portfolio_var_section(context: ReportContext, section: ReportSectionS
     return rows
 
 
+# Periodic-summary sections (#8053 reasoning applied per section): periods,
+# monthly, risk and contributors are date-range sections -- they value the
+# ledger from inception, and the benchmark over a year or more -- so like
+# performance/history they stay live and may backfill missing history. The
+# insights section is not wrapped in ``_cache_only_section`` either: it only
+# re-reads the same ledger/benchmark data, which ReportContext builds once per
+# request, so wrapping it would either be a no-op or, if it ran first in a
+# user template, pin that shared data to stale cache for every other section.
+# Its one point-in-time input, the current holdings used for the ledger
+# reconciliation, already comes from build_owner_portfolio's cache-only path.
+def _build_periods_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
+    return report_periodic.period_rows(context.ledger(), context.benchmark_closes(), context.reporting_end())
+
+
+def _build_monthly_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
+    return report_periodic.monthly_rows(context.ledger(), context.benchmark_closes(), context.reporting_end())
+
+
+def _build_risk_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
+    return report_periodic.risk_rows(context.ledger(), context.reporting_end(), config.risk_free_rate or 0.0)
+
+
+def _build_contributors_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
+    return report_periodic.contributor_rows(context.ledger(), context.reporting_end())
+
+
+def _insight_inputs(context: ReportContext) -> report_periodic.InsightInputs:
+    perf = context.ledger()
+    end = context.reporting_end()
+    closes = context.benchmark_closes()
+    weighted = ledger_performance.weights_at(perf, end) if perf is not None else None
+    unreconciled: tuple[str, ...] = ()
+    if perf is not None:
+        unreconciled = ledger_performance.unreconciled_instruments(
+            context.account_ledgers(), context.current_holdings()
+        )
+    return report_periodic.InsightInputs(
+        periods=report_periodic.period_rows(perf, closes, end),
+        risk=report_periodic.risk_rows(perf, end, config.risk_free_rate or 0.0),
+        contributors=report_periodic.contributor_rows(perf, end),
+        weights=weighted[0] if weighted else {},
+        cash_weight=weighted[1] if weighted else None,
+        benchmark=context.benchmark_ticker(),
+        has_ledger=perf is not None,
+        unreconciled=unreconciled,
+        unpriced=perf.unpriced if perf is not None else (),
+    )
+
+
+def _build_insights_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
+    """Rule-based findings first, then the owner's hand-written key findings (if any)."""
+    rows = report_periodic.insight_rows(_insight_inputs(context))
+    return [*rows, *_build_key_findings_section(context, section)]
+
+
 SECTION_BUILDERS: Dict[str, SectionBuilder] = {
     "performance.metrics": _build_metrics_section,
     "performance.history": _build_history_section,
@@ -1298,6 +1515,11 @@ SECTION_BUILDERS: Dict[str, SectionBuilder] = {
     "portfolio.regions": _build_portfolio_regions_section,
     "portfolio.concentration": _build_portfolio_concentration_section,
     "portfolio.var": _build_portfolio_var_section,
+    "performance.periods": _build_periods_section,
+    "performance.monthly": _build_monthly_section,
+    "performance.risk": _build_risk_section,
+    "performance.contributors": _build_contributors_section,
+    _INSIGHTS_SOURCE: _build_insights_section,
 }
 
 
@@ -1492,6 +1714,7 @@ def build_report_document(
     start: Optional[date] = None,
     end: Optional[date] = None,
     watermark: Optional[str] = None,
+    benchmark: Optional[str] = None,
     store: TemplateStore | None = None,
 ) -> ReportDocument:
     template = get_template(template_id, store=store)
@@ -1499,6 +1722,8 @@ def build_report_document(
         raise ValueError(f"Unknown report template '{template_id}'")
 
     context = ReportContext(owner=owner, start=start, end=end)
+    if benchmark:
+        context.benchmark = benchmark
     sections: List[ReportSectionData] = []
     for schema in template.sections:
         builder = SECTION_BUILDERS.get(schema.source)
@@ -1519,10 +1744,10 @@ def build_report_document(
             and not section_rows
         ):
             continue
-        # Omit sections backed by portfolio.key_findings when the owner has no
-        # findings file — regardless of the section id chosen by the template
-        # author (built-in or user-defined).
-        if schema.source == _KEY_FINDINGS_SOURCE and not section_rows:
+        # Omit findings sections (hand-written key findings, rule-based
+        # insights) when they have nothing to say — regardless of the section
+        # id chosen by the template author (built-in or user-defined).
+        if schema.source in _FINDINGS_SOURCES and not section_rows:
             continue
         sections.append(ReportSectionData(schema=schema, rows=tuple(section_rows)))
 
@@ -1531,6 +1756,10 @@ def build_report_document(
         params["start"] = start.isoformat()
     if end:
         params["end"] = end.isoformat()
+    if any(schema.source in _PERIODIC_SOURCES for schema in template.sections):
+        # Record what the periodic sections actually used, defaults included.
+        params["end"] = context.reporting_end().isoformat()
+        params["benchmark"] = context.benchmark_ticker()
     if watermark:
         watermark_text = watermark.strip()
         if watermark_text:
@@ -1759,11 +1988,17 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             numeric *= 100.0
         return f"{numeric:.2f}%"
 
-    def _format_cell_value(column: ReportColumnSchema, row_value: Any) -> str:
+    def _format_cell_value(column: ReportColumnSchema, row_value: Any, units: Any = None) -> str:
         key = column.key.lower()
         label = column.label.lower()
         if row_value is None:
             return "\u2014"
+        # Metric/value/units rows that mix kinds (the periodic risk section):
+        # the row's units say how to read "value" -- a fraction or a number.
+        if units == "fraction":
+            return _format_percent(row_value, value_is_ratio=True)
+        if units == "number":
+            return _format_percent(row_value, value_is_ratio=False).rstrip("%")
         if any(token in key for token in ("_gbp", "amount", "price", "value")) or "gbp" in label:
             return _format_gbp(row_value)
         if "pct" in key or "percent" in key:
@@ -1918,7 +2153,7 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             y = _start_content_page()
 
         y = _draw_section_heading(section, y)
-        if section.schema.source == _KEY_FINDINGS_SOURCE:
+        if section.schema.source in _FINDINGS_SOURCES:
             return _draw_key_findings_section(section, y)
 
         if y < 80:
@@ -1928,19 +2163,22 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     def _draw_section_table(section: ReportSectionData, start_y: float) -> float:
         y = start_y
         y = _draw_section_header(section, y)
-        if section.schema.source == _KEY_FINDINGS_SOURCE:
+        if section.schema.source in _FINDINGS_SOURCES:
             return y
         if Table is None:
             c.setFont("Helvetica", 9)
             for row in section.rows:
-                line = " | ".join(_format_cell_value(column, row.get(column.key)) for column in section.schema.columns)
+                line = " | ".join(
+                    _format_cell_value(column, row.get(column.key), row.get("units"))
+                    for column in section.schema.columns
+                )
                 c.drawString(40, y, line)
                 y -= 12
             return y - 10
 
         headers = [column.label for column in section.schema.columns]
         body_rows = [
-            [_format_cell_value(column, row.get(column.key)) for column in section.schema.columns]
+            [_format_cell_value(column, row.get(column.key), row.get("units")) for column in section.schema.columns]
             for row in section.rows
         ]
         if body_rows:

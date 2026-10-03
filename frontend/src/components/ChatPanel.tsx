@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
 import * as api from "../api";
 import type { ChatContext, ChatMessage, ChatPage } from "../api";
 import {
@@ -9,6 +7,7 @@ import {
   startNewChat,
   useChatMessages,
 } from "../utils/chatConversation";
+import { ChatMessageItem } from "./ChatMessageItem";
 
 interface Props {
   open: boolean;
@@ -20,21 +19,6 @@ interface Props {
   /** Called with a page's path when the assistant opens it. */
   onNavigate?: (path: string) => void;
 }
-
-// Assistant replies are Markdown (headings, bold, GFM tables). Raw HTML is not
-// rendered (react-markdown's default), so model output cannot inject markup.
-const markdownComponents: Components = {
-  table: ({ children }) => (
-    <div className="chat-markdown-table">
-      <table>{children}</table>
-    </div>
-  ),
-  a: ({ children, href }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer">
-      {children}
-    </a>
-  ),
-};
 
 // Map a failed send to fixed wording rather than echoing the backend's error
 // text (#7721; #7131 precedent). The `code` POST /chat sends with a 502/503
@@ -69,40 +53,12 @@ function chatErrorMessage(e: unknown): string {
   return "Cannot reach server";
 }
 
-function ChatMessageItem({ message }: { message: ChatMessage }) {
-  const isUser = message.role === "user";
-  return (
-    <li
-      aria-label={isUser ? "You" : "Assistant"}
-      style={{
-        alignSelf: isUser ? "flex-end" : "stretch",
-        maxWidth: isUser ? "85%" : "100%",
-        background: isUser ? "var(--chat-user-bg)" : "var(--chat-assistant-bg)",
-        border: "1px solid var(--drawer-border-color)",
-        borderRadius: "0.5rem",
-        padding: "0.5rem 0.75rem",
-        whiteSpace: isUser ? "pre-wrap" : undefined,
-        overflowWrap: "anywhere",
-      }}
-    >
-      {isUser ? (
-        message.content
-      ) : (
-        <div className="chat-markdown">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {message.content}
-          </ReactMarkdown>
-        </div>
-      )}
-    </li>
-  );
-}
-
 export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Props) {
   const messages = useChatMessages();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ index: number; draft: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -111,14 +67,12 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
 
   if (!open) return null;
 
-  const send = async () => {
-    const text = input.trim();
-    if (!text || sending) return;
-
-    const history = messages;
-    const userMessage: ChatMessage = { role: "user", content: text };
-    setChatMessages([...history, userMessage]);
-    setInput("");
+  // Posts `text` as the next user turn after `history`. `onFail` puts the
+  // conversation back: an unanswered message left in `messages` would make the
+  // next send's history end in two consecutive "user" turns, which the backend
+  // rejects with a 400 (#7897).
+  const submit = async (text: string, history: ChatMessage[], onFail: () => void) => {
+    setChatMessages([...history, { role: "user", content: text }]);
     setSending(true);
     setError(null);
     try {
@@ -129,15 +83,43 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
         onNavigate(navigate_to);
       }
     } catch (e) {
-      // Drop the unanswered message and hand its text back for a retry: left
-      // in `messages`, it would make the next send's history end in two
-      // consecutive "user" turns, which the backend rejects with a 400 (#7897).
-      setChatMessages(history);
-      setInput(text);
+      onFail();
       setError(chatErrorMessage(e));
     } finally {
       setSending(false);
     }
+  };
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || sending) return;
+
+    const history = messages;
+    setInput("");
+    // Drop the unanswered message and hand its text back for a retry.
+    await submit(text, history, () => {
+      setChatMessages(history);
+      setInput(text);
+    });
+  };
+
+  // Replaces the edited message and regenerates from there: every later turn
+  // is discarded and only the turns before it are sent as history (#8590).
+  const saveEdit = async () => {
+    if (!editing || sending) return;
+    const { index } = editing;
+    const text = editing.draft.trim();
+    if (!text) return;
+    setEditing(null);
+    if (text === messages[index]?.content) return;
+
+    const previous = messages;
+    // On failure restore the pre-edit conversation and reopen the edit box
+    // with the edited text, so it can be retried.
+    await submit(text, messages.slice(0, index), () => {
+      setChatMessages(previous);
+      setEditing({ index, draft: text });
+    });
   };
 
   return (
@@ -188,6 +170,7 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
               onClick={() => {
                 startNewChat();
                 setInput("");
+                setEditing(null);
                 setError(null);
               }}
               disabled={sending || messages.length === 0}
@@ -225,7 +208,24 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
             }}
           >
             {messages.map((m, i) => (
-              <ChatMessageItem key={i} message={m} />
+              <ChatMessageItem
+                key={i}
+                message={m}
+                busy={sending}
+                onEdit={
+                  m.role === "user" ? () => setEditing({ index: i, draft: m.content }) : undefined
+                }
+                editing={
+                  editing?.index === i
+                    ? {
+                        draft: editing.draft,
+                        onChange: (draft) => setEditing({ index: i, draft }),
+                        onSave: () => void saveEdit(),
+                        onCancel: () => setEditing(null),
+                      }
+                    : undefined
+                }
+              />
             ))}
           </ul>
           {sending && (

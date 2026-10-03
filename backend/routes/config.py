@@ -204,9 +204,7 @@ async def read_mcp_tools() -> Dict[str, Any]:
     for name in switches:
         tools.setdefault(name, {"name": name, "description": ""})
     return {
-        "tools": [
-            {**tool, "enabled": switches.get(name, True) is not False} for name, tool in sorted(tools.items())
-        ],
+        "tools": [{**tool, "enabled": switches.get(name, True) is not False} for name, tool in sorted(tools.items())],
         "mcp_error": mcp_error,
     }
 

@@ -283,7 +283,8 @@ def test_merge_and_coverage_ratio():
 
     merged = _merge([df1, df2])
     assert merged["Date"].tolist() == list(pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"]).date)
-    assert merged.iloc[1]["Source"] == "B"
+    # The primary source (A) keeps its row on the shared date; B only fills the gap.
+    assert merged["Source"].tolist() == ["A", "A", "B"]
 
     expected = set(pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04"]).date)
     ratio = _coverage_ratio(merged, expected)
@@ -383,7 +384,8 @@ def test_fetch_meta_timeseries_yahoo_stooq_merge():
     start = date(2024, 1, 1)
     end = date(2024, 1, 3)
     yahoo_df = _make_df(["2024-01-01", "2024-01-02"], "Yahoo")
-    stooq_df = _make_df(["2024-01-03"], "Stooq")
+    # Stooq shares 2024-01-02 with Yahoo at the same price, so its basis is verified.
+    stooq_df = _make_df(["2024-01-02", "2024-01-03"], "Stooq")
 
     import backend.timeseries.fetch_meta_timeseries as meta
 
@@ -400,6 +402,59 @@ def test_fetch_meta_timeseries_yahoo_stooq_merge():
     yahoo_mock.assert_called_once()
     stooq_mock.assert_called_once()
     ft_mock.assert_not_called()
+
+
+def _priced_df(closes: dict[str, float], source: str) -> pd.DataFrame:
+    df = _make_df(list(closes), source)
+    df["Close"] = list(closes.values())
+    return df
+
+
+def test_merge_never_interleaves_sources_on_different_bases():
+    """#8597: Stooq's dividend-adjusted closes (~25% lower) must not fill Yahoo's gaps."""
+    yahoo = _priced_df({"2015-03-02": 1469.89, "2015-03-03": 1456.94, "2015-03-05": 1507.73}, "Yahoo")
+    stooq = _priced_df({"2015-03-03": 1110.0, "2015-03-04": 1110.38, "2015-03-05": 1150.0}, "Stooq")
+
+    merged = _merge([yahoo, stooq])
+
+    assert merged["Source"].unique().tolist() == ["Yahoo"]
+    assert merged["Close"].tolist() == [1469.89, 1456.94, 1507.73]
+
+
+def test_merge_without_shared_dates_keeps_only_the_primary_source():
+    yahoo = _make_df(["2024-01-01", "2024-01-02"], "Yahoo")
+    stooq = _make_df(["2024-01-03"], "Stooq")
+
+    assert _merge([yahoo, stooq])["Source"].tolist() == ["Yahoo", "Yahoo"]
+
+
+def test_merge_tie_on_coverage_keeps_the_earlier_source_and_checks_each_supplement():
+    yahoo = _priced_df({"2024-01-01": 10.0, "2024-01-02": 10.0}, "Yahoo")
+    stooq = _priced_df({"2024-01-02": 7.5, "2024-01-03": 7.5}, "Stooq")
+    ft = _priced_df({"2024-01-02": 10.05, "2024-01-04": 10.1}, "FT")
+
+    merged = _merge([yahoo, stooq, ft])
+
+    assert merged["Source"].tolist() == ["Yahoo", "Yahoo", "FT"]
+
+
+def test_basis_ratio_is_none_without_shared_dates():
+    from backend.timeseries.source_basis import basis_ratio, same_basis
+
+    yahoo = _priced_df({"2024-01-01": 10.0}, "Yahoo")
+    stooq = _priced_df({"2024-01-02": 10.0}, "Stooq")
+
+    assert basis_ratio(yahoo, stooq) is None
+    assert same_basis(yahoo, stooq) is False
+
+
+def test_merge_prefers_the_best_covered_source_as_primary():
+    yahoo = _priced_df({"2024-01-02": 20.0}, "Yahoo")
+    stooq = _priced_df({"2024-01-01": 10.0, "2024-01-02": 10.0, "2024-01-03": 10.0}, "Stooq")
+
+    merged = _merge([yahoo, stooq])
+
+    assert merged["Source"].tolist() == ["Stooq"] * 3
 
 
 def test_fetch_meta_timeseries_coverage_shortfall():

@@ -12,6 +12,7 @@ from mcp.types import CallToolResult, Tool
 
 from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import mcp_session
+from backend.chat.tool_switches import switched_off_message, tool_enabled
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -129,6 +130,17 @@ async def run_chat_turn(
 
             tool_result_content = []
             for tool_use in tool_uses:
+                if not tool_enabled(tool_use["name"]):
+                    tool_result_content.append(
+                        {
+                            "toolResult": {
+                                "toolUseId": tool_use["toolUseId"],
+                                "content": [{"text": switched_off_message(tool_use["name"])}],
+                                "status": "error",
+                            }
+                        }
+                    )
+                    continue
                 if local_tools is not None and local_tools.handles(tool_use["name"]):
                     text, is_error = local_tools.call(tool_use["name"], tool_use.get("input") or {})
                     tool_result_content.append(

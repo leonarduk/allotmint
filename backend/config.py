@@ -227,6 +227,13 @@ class Config:
     # returns 503 rather than failing at import/boot time, since chat is an
     # optional feature not every deployment enables (see backend/routes/chat.py).
     mcp_server_url: Optional[str] = None
+    # Per-tool on/off switches for the MCP tools the chat assistant can call,
+    # edited on the admin page and stored as ``mcp.mcp_tools`` in config.yaml.
+    # Every tool is on unless set to false here; allotmint-pro's MCP server and
+    # the chat agents both honour it (see backend/chat/tool_switches.py).
+    mcp_tools: Dict[str, bool] = field(default_factory=dict)
+    # Target owner/repo for allotmint-pro's create_github_issue MCP tool.
+    mcp_github_repo: Optional[str] = None
     bedrock_model_id: str = "amazon.nova-lite-v1:0"
     # LLM behind POST /chat: "bedrock" (AWS), or "ollama"/"deepseek" via the
     # OpenAI-compatible loop in backend/chat/openai_compat_agent.py. None
@@ -286,6 +293,20 @@ def _flatten_dict(src: Dict[str, Any], dst: Dict[str, Any]) -> None:
                 dst[sub_key] = sub_val
         else:
             dst.setdefault(key, value)
+
+
+def _parse_mcp_tools(val: Any) -> Dict[str, bool]:
+    """Validate ``mcp.mcp_tools``: a map of tool name to boolean (missing names are on)."""
+    if val is None:
+        return {}
+    if not isinstance(val, dict):
+        raise ConfigValidationError("'mcp_tools' must be a mapping of tool name to true/false")
+    switches: Dict[str, bool] = {}
+    for name, enabled in val.items():
+        if not isinstance(name, str) or not name.strip() or not isinstance(enabled, bool):
+            raise ConfigValidationError("'mcp_tools' must be a mapping of tool name to true/false")
+        switches[name.strip()] = enabled
+    return switches
 
 
 def _parse_str_list(val: Any) -> Optional[List[str]]:
@@ -528,6 +549,8 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
     )
 
     mcp_server_url = os.getenv("MCP_SERVER_URL", "").strip() or None
+    mcp_tools = _parse_mcp_tools(data.get("mcp_tools"))
+    mcp_github_repo = str(data.get("mcp_github_repo") or "").strip() or None
     bedrock_model_id = os.getenv("BEDROCK_MODEL_ID", "").strip() or "amazon.nova-lite-v1:0"
     chat_provider = os.getenv("CHAT_PROVIDER", "").strip().lower() or None
     if chat_provider is not None and chat_provider not in CHAT_PROVIDERS:
@@ -650,6 +673,8 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         cors_origin_regex=cors_origin_regex,
         aws_ui_auth=aws_ui_auth,
         mcp_server_url=mcp_server_url,
+        mcp_tools=mcp_tools,
+        mcp_github_repo=mcp_github_repo,
         bedrock_model_id=bedrock_model_id,
         chat_provider=chat_provider,
         chat_model=chat_model,

@@ -543,7 +543,10 @@
       "otherSwitches": "Altri interruttori",
       "save": "Salva",
       "tabsEnabled": "Schede abilitate",
-      "title": "Configurazione"
+      "title": "Configurazione",
+      "mcpTools": "Strumenti MCP",
+      "mcpToolsHint": "Strumenti che l'assistente di chat può usare. Sono tutti attivi per impostazione predefinita; deseleziona per disattivarne uno.",
+      "mcpToolsUnavailable": "Impossibile caricare l'elenco degli strumenti MCP."
     },
     "dataExplorer": {
       "title": "Data Explorer",

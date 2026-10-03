@@ -5,7 +5,7 @@ import os
 from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import yaml
 from fastapi import APIRouter, HTTPException
@@ -163,6 +163,52 @@ def _route_flat_keys_into_sections(incoming: Dict[str, Any], stored: Dict[str, A
 def read_config() -> Dict[str, Any]:
     """Return the full application configuration."""
     return serialise_config(config_module.config)
+
+
+async def _list_mcp_server_tools(mcp_server_url: str) -> List[Dict[str, str]]:
+    from backend.chat.mcp_tools_client import mcp_session
+
+    async with mcp_session(mcp_server_url) as session:
+        result = await session.list_tools()
+    return [{"name": tool.name, "description": tool.description or ""} for tool in result.tools]
+
+
+@router.get("/mcp-tools")
+async def read_mcp_tools() -> Dict[str, Any]:
+    """Every chat assistant tool with its admin on/off switch (``mcp.mcp_tools``).
+
+    Tools come from the MCP server's listing plus the chat backend's local
+    ``navigate_to_page``. The MCP server hides tools that are switched off, so
+    names already in the config are added back; every tool is on unless the
+    config says false. ``mcp_error`` is set when the MCP server could not be
+    listed, in which case only the configured and local tools are returned.
+    """
+    from backend.chat.local_tools import NAVIGATE_TOOL_NAME
+
+    cfg = config_module.config
+    switches: Dict[str, bool] = dict(getattr(cfg, "mcp_tools", None) or {})
+    tools: Dict[str, Dict[str, Any]] = {}
+    mcp_error = None
+    if cfg.mcp_server_url:
+        try:
+            for tool in await _list_mcp_server_tools(cfg.mcp_server_url):
+                tools[tool["name"]] = tool
+        except Exception as exc:  # noqa: BLE001 - reported to the admin page, not swallowed
+            logger.warning("Listing MCP tools failed: %s", sanitise_log_value(exc))
+            mcp_error = f"Could not list the MCP server's tools: {exc}"
+    else:
+        mcp_error = "MCP_SERVER_URL is not set, so only configured and local tools are listed."
+    tools.setdefault(
+        NAVIGATE_TOOL_NAME, {"name": NAVIGATE_TOOL_NAME, "description": "Open a page of the app for the user."}
+    )
+    for name in switches:
+        tools.setdefault(name, {"name": name, "description": ""})
+    return {
+        "tools": [
+            {**tool, "enabled": switches.get(name, True) is not False} for name, tool in sorted(tools.items())
+        ],
+        "mcp_error": mcp_error,
+    }
 
 
 @router.put("")

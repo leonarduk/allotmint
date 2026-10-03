@@ -1876,6 +1876,20 @@ export const updateConfig = (cfg: Record<string, unknown>) =>
     body: JSON.stringify(cfg),
   });
 
+export interface McpToolSwitch {
+  name: string;
+  description: string;
+  enabled: boolean;
+}
+
+export interface McpToolsResponse {
+  tools: McpToolSwitch[];
+  mcp_error: string | null;
+}
+
+/** Every chat assistant tool with its admin on/off switch (all on by default). */
+export const getMcpTools = () => fetchJson<McpToolsResponse>(`${API_BASE}/config/mcp-tools`);
+
 export const getUserConfig = (owner: string) =>
   fetchJson<UserConfig>(`${API_BASE}/user-config/${owner}`);
 

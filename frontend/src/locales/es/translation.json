@@ -542,7 +542,10 @@
       "otherSwitches": "Otros interruptores",
       "save": "Guardar",
       "tabsEnabled": "Pestañas habilitadas",
-      "title": "Configuración"
+      "title": "Configuración",
+      "mcpTools": "Herramientas MCP",
+      "mcpToolsHint": "Herramientas que puede usar el asistente de chat. Todas están activas por defecto; desmarca una para desactivarla.",
+      "mcpToolsUnavailable": "No se pudo cargar la lista de herramientas MCP."
     },
     "dataExplorer": {
       "title": "Data Explorer",

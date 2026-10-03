@@ -37,11 +37,23 @@
   box-shadow: inset -14px 0 12px -14px rgba(15, 23, 42, 0.85);
 }
 
-.table thead th {
+/* Stick the whole <thead> rather than each <th>: the header has two rows
+   (filter inputs + column titles), and per-cell `top: 0` made both rows pin
+   to the same offset so the filter inputs covered the titles (#8532). The
+   background must be opaque — `inherit` resolved to transparent, letting
+   scrolled rows and group labels show through. Sticky positioning keeps the
+   thead in flow, so its measured height (virtualizer scrollMargin) is
+   unchanged. */
+.table thead {
   position: sticky;
   top: 0;
-  z-index: 1;
-  background: inherit;
+  z-index: 2;
+  background-color: var(--surface-card-bg);
+  box-shadow: inset 0 -1px 0 var(--surface-card-border);
+}
+
+.table thead th {
+  background-color: var(--surface-card-bg);
 }
 
 .cell {
@@ -145,7 +157,9 @@
 
 .groupCount {
   font-size: 0.85rem;
-  color: rgba(0, 0, 0, 0.6);
+  /* Theme-aware muted text: #bbb on dark / #555 on light both clear
+     WCAG AA 4.5:1 against the page and card backgrounds (#8532). */
+  color: var(--surface-muted-color);
 }
 
 .groupAction {

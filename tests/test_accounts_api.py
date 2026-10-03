@@ -11,18 +11,24 @@ from backend.common import portfolio_utils
 from backend.config import config
 
 
-@pytest.fixture(scope="session")
+def _stub_network_heavy(mp: pytest.MonkeyPatch) -> None:
+    """Stub config flags and price helpers; ``mp`` restores them on teardown."""
+    mp.setattr(config, "skip_snapshot_warm", True)
+    mp.setattr(config, "offline_mode", True)
+    mp.setattr(config, "disable_auth", True)
+    mp.setattr(prices, "refresh_prices", lambda: {})
+    mp.setattr(portfolio_utils, "list_all_unique_tickers", lambda *a, **k: [])
+
+
+@pytest.fixture(scope="module")
 def client():
     """Create a test client with network-heavy operations stubbed."""
-    config.skip_snapshot_warm = True
-    config.offline_mode = True
-    config.disable_auth = True
-    prices.refresh_prices = lambda: {}
-    portfolio_utils.list_all_unique_tickers = lambda *a, **k: []
-    reload(app_mod)
-    app = app_mod.create_app()
-    with TestClient(app) as c:
-        yield c
+    with pytest.MonkeyPatch.context() as mp:
+        _stub_network_heavy(mp)
+        reload(app_mod)
+        app = app_mod.create_app()
+        with TestClient(app) as c:
+            yield c
 
 
 def sample_accounts():
@@ -91,12 +97,8 @@ def test_account_route_returns_data(client, owner, accounts):
         assert isinstance(data.get("holdings"), list)
 
 
-def test_account_route_adds_missing_account_type(tmp_path):
-    config.skip_snapshot_warm = True
-    config.offline_mode = True
-    config.disable_auth = True
-    prices.refresh_prices = lambda: {}
-    portfolio_utils.list_all_unique_tickers = lambda *a, **k: []
+def test_account_route_adds_missing_account_type(tmp_path, monkeypatch):
+    _stub_network_heavy(monkeypatch)
 
     owner = "temp"
     acct = "missing"
@@ -108,8 +110,7 @@ def test_account_route_adds_missing_account_type(tmp_path):
     demo_dir.mkdir()
     (demo_dir / "demo.json").write_text(json.dumps({"currency": "GBP", "holdings": []}))
 
-    old_root = config.accounts_root
-    config.accounts_root = tmp_path
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
     reload(app_mod)
     app = app_mod.create_app()
     with TestClient(app) as c:
@@ -124,5 +125,3 @@ def test_account_route_adds_missing_account_type(tmp_path):
         names = {entry.get("owner", "").casefold() for entry in owners}
         assert "temp" in names
         assert "demo" in names
-    config.accounts_root = old_root
-    reload(app_mod)

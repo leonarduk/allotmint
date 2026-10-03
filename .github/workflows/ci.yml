@@ -60,6 +60,11 @@ jobs:
       - name: Run review_common and review-script tests
         if: steps.automation-deps.outputs.available == 'true'
         run: pytest tests/test_review_common.py tests/test_ai_review_scripts.py -v --no-cov
+      # Runs here rather than only in the backend suite: lambda-compat is gated
+      # on `backend`, so a CSS-only PR would otherwise merge without the
+      # snapshot check and turn main red for the next backend PR (#8725).
+      - name: Check frontend/src/index.css matches tests/snapshots/index.css
+        run: pytest tests/test_styles_snapshot.py -v --no-cov
       - name: Check package-lock.json cross-OS platform coverage
         run: python scripts/check_lockfile_platform_coverage.py
       - name: Audit architecture diagram reproducibility and references

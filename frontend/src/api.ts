@@ -23,6 +23,7 @@ import type {
   Alert,
   PriceEntry,
   ScreenerResult,
+  InstrumentValuation,
   VirtualPortfolio,
   CustomQuery,
   SavedQuery,
@@ -1147,6 +1148,13 @@ export const getScreener = (
     params.set("earnings_growth_min", String(criteria.earnings_growth_min));
   return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`, { signal });
 };
+
+/** Valuation profile (NAV, premium/discount, income, gearing, benchmark, risk) for one ticker. */
+export const getInstrumentValuation = (ticker: string, signal?: AbortSignal) =>
+  fetchJson<InstrumentValuation>(
+    `${API_BASE}/screener/valuation?${new URLSearchParams({ ticker }).toString()}`,
+    { signal },
+  );
 
 /**
  * Cheap up-front probe for whether the screener is available in this

@@ -90,6 +90,12 @@ def _resolve_full_ticker(ticker: str, latest: Dict[str, float]) -> Optional[tupl
         return None
     if "." in t:
         sym, ex = t.split(".", 1)
+        if not ex:
+            # A trailing dot with no suffix ("AV.", "BP.", "SN.") is the
+            # broker spelling of an LSE ticker. Returning an empty exchange
+            # made scaling miss the "L" override table and price the holding
+            # in raw pence, which flagged its booked cost as suspect (#8596).
+            return sym, "L"
         return sym, ex
     base = t.split(".", 1)[0]
     for k in latest.keys():

@@ -4,6 +4,7 @@ import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
 import {
   attentionReasonFor,
+  compareGainPctDesc,
   formatGbp,
   formatPct,
   germinatingCrops,
@@ -123,7 +124,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
     (crop) => crop.freshness === 'unknown'
   ).length;
 
-  const byGain = [...crops].sort((left, right) => right.gainPct - left.gainPct);
+  const byGain = [...crops].sort(compareGainPctDesc);
   const best = byGain[0];
   // "Needs attention" is a judgement, not a ranking artefact: only a crop
   // with a real problem (compliance block, stale price, or an actual loss)

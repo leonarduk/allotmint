@@ -815,6 +815,8 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
     """
     gp = build_group_portfolio(group_slug)
     by_ticker: Dict[str, Dict[str, Any]] = {}
+    # Market value of holdings with a known gain, per ticker (#8471).
+    known_gain_mv: Dict[str, float] = {}
 
     for acct in gp.get(ACCOUNTS, []):
         for h in acct.get(HOLDINGS, []):
@@ -834,8 +836,15 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
                 },
             )
             entry["units"] += float(h.get("units") or 0.0)
-            entry["market_value_gbp"] += float(h.get("market_value_gbp") or 0.0)
-            entry["gain_gbp"] += float(h.get("gain_gbp") or 0.0)
+            market_value = float(h.get("market_value_gbp") or 0.0)
+            entry["market_value_gbp"] += market_value
+            # A holding with an unknown cost has gain_gbp None (#8471). Leave it
+            # out of both the gain and the implied cost (market value - gain),
+            # or its market value would count as cost and dilute gain_pct.
+            # Tracked outside the response entries so it can never leak.
+            if h.get("gain_gbp") is not None:
+                entry["gain_gbp"] += float(h["gain_gbp"])
+                known_gain_mv[tkr] = known_gain_mv.get(tkr, 0.0) + market_value
 
     # Decorate with last price + changes. _price_and_changes is the slow,
     # I/O-bound part (see _PRICE_FETCH_MAX_WORKERS above) -- fetch it for
@@ -860,7 +869,10 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
         if grouping_name:
             entry["grouping"] = grouping_name
         entry.update(price_and_changes[tkr])
-        cost = entry["market_value_gbp"] - entry["gain_gbp"]
-        entry["gain_pct"] = (entry["gain_gbp"] / cost * 100.0) if cost else None
+        if tkr in known_gain_mv:
+            cost = known_gain_mv[tkr] - entry["gain_gbp"]
+            entry["gain_pct"] = (entry["gain_gbp"] / cost * 100.0) if cost else None
+        else:
+            entry["gain_pct"] = None
 
     return sorted(by_ticker.values(), key=lambda r: r["market_value_gbp"], reverse=True)

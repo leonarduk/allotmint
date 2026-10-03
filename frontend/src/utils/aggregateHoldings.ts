@@ -1,4 +1,5 @@
 import type { Holding } from "../types";
+import { isCostBasisUnreliable } from "../lib/costBasis";
 
 export type ScopedHolding = Holding & {
   source_account?: string;
@@ -46,14 +47,23 @@ export const aggregateHoldingsByTicker = (
       Number.isNaN(snapshotTime) || Number.isNaN(acquiredTime)
         ? oldest.days_held
         : Math.max(0, Math.floor((snapshotTime - acquiredTime) / 86_400_000));
-    const costBasis = sum(
-      lots.map((lot) =>
-        (lot.cost_basis_gbp ?? 0) > 0
-          ? lot.cost_basis_gbp
-          : lot.effective_cost_basis_gbp,
-      ),
+    const lotCost = (lot: ScopedHolding): number =>
+      ((lot.cost_basis_gbp ?? 0) > 0
+        ? lot.cost_basis_gbp
+        : lot.effective_cost_basis_gbp) ?? 0;
+    const costBasis = sum(lots.map(lotCost));
+    // Only lots with a real cost carry a gain (#8471): a zero cost or the
+    // last-resort guessed cost (#7220) must not count as break-even.
+    const gainLots = lots.filter(
+      (lot) =>
+        lot.gain_gbp != null &&
+        !isCostBasisUnreliable(lot.cost_basis_source) &&
+        lotCost(lot) > 0,
     );
-    const gain = sum(lots.map((lot) => lot.gain_gbp));
+    const gain = gainLots.length
+      ? sum(gainLots.map((lot) => lot.gain_gbp))
+      : null;
+    const gainCost = sum(gainLots.map(lotCost));
 
     return {
       ...first,
@@ -63,7 +73,10 @@ export const aggregateHoldingsByTicker = (
       cost_basis_gbp: costBasis,
       effective_cost_basis_gbp: costBasis,
       gain_gbp: gain,
-      gain_pct: costBasis ? (gain / costBasis) * 100 : 0,
+      gain_pct: gain !== null && gainCost > 0 ? (gain / gainCost) * 100 : null,
+      cost_basis_source: gainLots.length
+        ? gainLots[0].cost_basis_source
+        : first.cost_basis_source,
       day_change_gbp: sum(lots.map((lot) => lot.day_change_gbp)),
       acquired_date: acquiredDate,
       days_held: daysHeld,

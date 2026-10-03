@@ -8,7 +8,12 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
-import { GROWTH_STAGES, hasVigourSpread, type Crop } from '../plotModel';
+import {
+  GROWTH_STAGES,
+  compareGainPctDesc,
+  hasVigourSpread,
+  type Crop,
+} from '../plotModel';
 import {
   loadFavourites,
   matchesSearch,
@@ -31,7 +36,7 @@ const SORTS: {
     label: 'Plot share',
     compare: (a, b) => b.valueGbp - a.valueGbp,
   },
-  { id: 'gain', label: 'Growth', compare: (a, b) => b.gainPct - a.gainPct },
+  { id: 'gain', label: 'Growth', compare: compareGainPctDesc },
   { id: 'vigour', label: 'Vigour', compare: (a, b) => b.vigour - a.vigour },
   {
     id: 'name',

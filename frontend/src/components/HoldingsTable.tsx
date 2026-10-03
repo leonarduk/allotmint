@@ -185,9 +185,9 @@ export function HoldingsTable({
     return value > 0 ? "text-positive" : "text-negative";
   };
 
-  // Gain is shown as N/A (not a figure) when the cost is a guess ("unknown",
-  // #7220) or the booked cost is implausible ("book_suspect", #8472).
-  const isGainWithheld = isCostBasisUnreliable;
+  // Gain is shown as N/A (not a figure) whenever it is null: no positive cost
+  // (#8471), a guessed cost ("unknown", #7220) or an implausible booked cost
+  // ("book_suspect", #8472). The tooltip says which.
   const gainWithheldTitle = (source: string | null | undefined): string =>
     source === COST_BASIS_BOOK_SUSPECT
       ? t("holdingsTable.bookCostSuspect")
@@ -215,12 +215,15 @@ export function HoldingsTable({
         : h.cost_basis_gbp ?? 0;
 
     const market = h.market_value_gbp ?? 0;
-    // An implausible booked cost (#8472) has its gain nulled by the backend;
-    // don't re-derive it here from market - cost, which would bring back the
-    // absurd +10,000% figure the backend deliberately withheld.
-    if (h.cost_basis_source === COST_BASIS_BOOK_SUSPECT) {
+
+    // No positive cost, a last-resort guessed cost ("unknown", #7220) or an
+    // implausible booked cost ("book_suspect", #8472): the gain is unknown, so
+    // keep it null rather than inventing 0%, a gain equal to the market value
+    // (#8471), or re-deriving the absurd figure the backend withheld.
+    if (cost <= 0 || isCostBasisUnreliable(h.cost_basis_source)) {
       return { ...h, cost, market, gain: null, gain_pct: null };
     }
+
     const gain =
       h.gain_gbp !== undefined && h.gain_gbp !== null && h.gain_gbp !== 0
         ? h.gain_gbp
@@ -229,9 +232,7 @@ export function HoldingsTable({
     const gain_pct =
       h.gain_pct !== undefined && h.gain_pct !== null
         ? h.gain_pct
-        : cost
-          ? (gain / cost) * 100
-          : 0;
+        : (gain / cost) * 100;
 
     return { ...h, cost, market, gain, gain_pct };
   });
@@ -254,7 +255,8 @@ export function HoldingsTable({
     }
     if (filters.gain_pct) {
       const minGain = parseFloat(filters.gain_pct);
-      if (!Number.isNaN(minGain) && (h.gain_pct ?? 0) < minGain) return false;
+      // An unknown gain is neither above nor below the threshold (#8471).
+      if (!Number.isNaN(minGain) && (h.gain_pct == null || h.gain_pct < minGain)) return false;
     }
     if (!rollupMode && filters.sell_eligible) {
       // sell_eligible is null when the acquisition date is unknown (#7220):
@@ -277,10 +279,11 @@ export function HoldingsTable({
     () =>
       sortedRows.reduce(
         (acc, h) => {
-          // Rows whose cost basis is a guess or an implausible booked cost
-          // (#7220/#8472) carry no real gain: keep them out of both the gain
-          // and the cost behind the total gain % so they can't skew it.
-          const gainCounted = !isCostBasisUnreliable(h.cost_basis_source);
+          // Rows with no known gain -- no positive cost, a guessed cost or an
+          // implausible booked cost (#7220/#8471/#8472) -- stay out of both
+          // the gain and the cost behind the total gain % so they can't skew
+          // it. Their cost still counts toward the total cost.
+          const gainCounted = h.gain !== null;
           return {
             cost: acc.cost + (h.cost ?? 0),
             market: acc.market + (h.market ?? 0),
@@ -293,7 +296,9 @@ export function HoldingsTable({
       ),
     [sortedRows],
   );
-  const totalGainPct = totals.gainCost ? (totals.gain / totals.gainCost) * 100 : 0;
+  const totalGainPct = totals.gainCost
+    ? (totals.gain / totals.gainCost) * 100
+    : null;
 
   const categoryLookup = useMemo(
     () => buildCategoryLookup(categoryDefinitions),
@@ -313,7 +318,10 @@ export function HoldingsTable({
       __holdingsIndex: index,
       cost: row.cost,
       market_value_gbp: row.market,
-      gain_gbp: row.gain,
+      // A null gain only arises when cost <= 0 (adds nothing to cost totals)
+      // or the cost basis is already unreliable (excluded by
+      // calculateGroupTotals), so it contributes no gain either (#8471).
+      gain_gbp: row.gain ?? 0,
       change_7d_pct: row.change_7d_pct ?? row.forward_7d_change_pct ?? null,
       change_30d_pct: row.change_30d_pct ?? row.forward_30d_change_pct ?? null,
     })) as RowWithCost[];
@@ -845,9 +853,9 @@ export function HoldingsTable({
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (
                   <td
-                    className={`${tableStyles.cell} ${tableStyles.right} ${isGainWithheld(h.cost_basis_source) ? "" : getPerformanceClass(h.gain)}`}
+                    className={`${tableStyles.cell} ${tableStyles.right} ${h.gain === null ? "" : getPerformanceClass(h.gain)}`}
                   >
-                    {isGainWithheld(h.cost_basis_source) ? (
+                    {h.gain === null ? (
                       <span
                         className={tableStyles.notApplicable}
                         title={gainWithheldTitle(h.cost_basis_source)}
@@ -861,9 +869,9 @@ export function HoldingsTable({
                 )}
                 {visibleColumns.gain_pct && (
                   <td
-                    className={`${tableStyles.cell} ${tableStyles.right} ${isGainWithheld(h.cost_basis_source) ? "" : getPerformanceClass(h.gain_pct)}`}
+                    className={`${tableStyles.cell} ${tableStyles.right} ${h.gain_pct === null ? "" : getPerformanceClass(h.gain_pct)}`}
                   >
-                    {isGainWithheld(h.cost_basis_source) ? (
+                    {h.gain_pct === null ? (
                       <span
                         className={tableStyles.notApplicable}
                         title={gainWithheldTitle(h.cost_basis_source)}

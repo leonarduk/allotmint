@@ -9,6 +9,7 @@
  */
 
 import type { Account, Holding, Portfolio } from '../types';
+import { isCostBasisUnreliable } from '../lib/costBasis';
 
 export type GrowthStage =
   | 'wilting'
@@ -239,8 +240,9 @@ export interface Crop {
   units: number;
   valueGbp: number;
   costGbp: number;
-  gainGbp: number;
-  gainPct: number;
+  /** Null when the cost basis is unknown, so the gain is too (#8471). */
+  gainGbp: number | null;
+  gainPct: number | null;
   dayChangePct: number;
   stage: GrowthStage;
   stars: number;
@@ -358,9 +360,17 @@ function cropFromHolding(
   const valueGbp = holding.market_value_gbp ?? 0;
   const costGbp =
     holding.effective_cost_basis_gbp ?? holding.cost_basis_gbp ?? 0;
-  const gainGbp = holding.gain_gbp ?? valueGbp - costGbp;
-  const gainPct =
-    holding.gain_pct ?? (costGbp > 0 ? (gainGbp / costGbp) * 100 : 0);
+  // A guessed (#7220) or implausible booked (#8472) cost, or no positive cost
+  // means the gain is unknown: keep it null rather than 0% or a gain equal to
+  // the whole market value (#8471).
+  const costUnknown = isCostBasisUnreliable(holding.cost_basis_source);
+  const gainGbp = costUnknown
+    ? null
+    : (holding.gain_gbp ?? (costGbp > 0 ? valueGbp - costGbp : null));
+  const gainPct = costUnknown
+    ? null
+    : (holding.gain_pct ??
+      (costGbp > 0 && gainGbp !== null ? (gainGbp / costGbp) * 100 : null));
   const share = plotValue > 0 ? valueGbp / plotValue : 0;
   const dayChangeGbp = holding.day_change_gbp ?? 0;
   const freshness = freshnessFor(holding);
@@ -571,7 +581,10 @@ export function buildPlotSnapshot({
   });
   crops.sort((left, right) => right.valueGbp - left.valueGbp);
 
-  const totalGainGbp = crops.reduce((sum, crop) => sum + crop.gainGbp, 0);
+  const totalGainGbp = crops.reduce(
+    (sum, crop) => sum + (crop.gainGbp ?? 0),
+    0
+  );
   const dayChangeGbp = crops.reduce(
     (sum, crop) => sum + (crop.valueGbp * crop.dayChangePct) / 100,
     0
@@ -622,13 +635,27 @@ export function attentionReasonFor(crop: Crop): AttentionReason | null {
   if (crop.freshness === 'stale') {
     return { label: 'price is stale', kind: 'stale-price' };
   }
-  if (crop.gainPct <= ATTENTION_LOSS_THRESHOLD_PCT) {
+  if (crop.gainPct !== null && crop.gainPct <= ATTENTION_LOSS_THRESHOLD_PCT) {
     return {
       label: `down ${Math.abs(crop.gainPct).toFixed(1)}%`,
       kind: 'loss',
     };
   }
   return null;
+}
+
+/**
+ * Sort comparator: highest gain % first, with unknown gains (#8471) last
+ * rather than ranked as a 0% break-even.
+ */
+export function compareGainPctDesc(
+  left: Pick<Crop, 'gainPct'>,
+  right: Pick<Crop, 'gainPct'>
+): number {
+  if (left.gainPct === null || right.gainPct === null) {
+    return (left.gainPct === null ? 1 : 0) - (right.gainPct === null ? 1 : 0);
+  }
+  return right.gainPct - left.gainPct;
 }
 
 /**
@@ -654,7 +681,10 @@ export function neediestCrop(crops: readonly Crop[]): Crop | undefined {
     const byKind = priority[left.reason.kind] - priority[right.reason.kind];
     if (byKind !== 0) return byKind;
     // Within the same kind, the worst gain wins (most negative first).
-    return left.crop.gainPct - right.crop.gainPct;
+    // 'loss' crops always have a known gain. A 'not-sellable' or
+    // 'stale-price' crop can have an unknown (null) gain (#8471); it ranks as
+    // 0% only to break ties within its own kind, never to pick the kind.
+    return (left.crop.gainPct ?? 0) - (right.crop.gainPct ?? 0);
   });
   return ranked[0].crop;
 }
@@ -800,8 +830,12 @@ export function formatGbp(value: number | null | undefined): string {
   return `${sign}£${abs.toFixed(abs < 10 ? 2 : 0)}`;
 }
 
-/** Signed percentage for gain chips, always with an explicit +/-. */
+/**
+ * Signed percentage for gain chips, always with an explicit +/-. A missing
+ * value renders as "—", not a confident +0.0% (#8471).
+ */
 export function formatPct(value: number | null | undefined): string {
-  const pct = Number.isFinite(value) ? (value as number) : 0;
+  if (!Number.isFinite(value)) return '—';
+  const pct = value as number;
   return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
 }

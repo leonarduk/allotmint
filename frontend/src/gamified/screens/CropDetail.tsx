@@ -30,7 +30,11 @@ function abilitiesFor(crop: Crop) {
       // honestly show rather than inventing a yield figure.
       icon: '🧺',
       name: 'Growth',
-      detail: `${formatGbp(crop.gainGbp)} unrealised gain (${formatPct(crop.gainPct)})`,
+      // An unknown cost basis means an unknown gain, not £0 (#8471).
+      detail:
+        crop.gainGbp === null
+          ? 'Gain unknown — no cost basis on record'
+          : `${formatGbp(crop.gainGbp)} unrealised gain (${formatPct(crop.gainPct)})`,
       level: growthLevelFor(crop.stage),
       max: 5,
     },
@@ -182,8 +186,8 @@ export default function CropDetail({ basePath }: { basePath: string }) {
           <StarRating value={crop.stars} />
           <div className={styles.radialLabel}>Plot value</div>
           <div className={styles.radialValue}>{formatGbp(crop.valueGbp)}</div>
-          <div className={crop.gainPct >= 0 ? styles.gain : styles.loss}>
-            {formatGbp(crop.gainGbp)} ({formatPct(crop.gainPct)})
+          <div className={(crop.gainPct ?? 0) >= 0 ? styles.gain : styles.loss}>
+            {crop.gainGbp === null ? '—' : formatGbp(crop.gainGbp)} ({formatPct(crop.gainPct)})
           </div>
           <div style={{ width: '100%' }}>
             {crop.hasMove ? (

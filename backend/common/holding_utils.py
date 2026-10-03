@@ -554,6 +554,14 @@ def get_effective_cost_basis_gbp(
 BOOK_COST_PLAUSIBILITY_BAND = 20.0
 BOOK_COST_SUSPECT_SOURCE = "book_suspect"
 BOOK_COST_OUT_OF_BAND_WARNING = "implied_unit_cost_out_of_band"
+# cost_basis_source values whose cost (and therefore gain) must not be presented
+# or aggregated as fact: a guessed cost (#7220) or an implausible booked cost.
+COST_BASIS_UNRELIABLE_SOURCES = frozenset({"unknown", BOOK_COST_SUSPECT_SOURCE})
+
+
+def is_cost_basis_unreliable(source: object) -> bool:
+    """True when ``cost_basis_source`` marks the cost as a guess or suspect."""
+    return source in COST_BASIS_UNRELIABLE_SOURCES
 
 
 def _book_cost_reference_price(
@@ -571,10 +579,14 @@ def _book_cost_reference_price(
     if acq is not None:
         try:
             acq_px = _derived_cost_basis_close_px(ticker, exchange, acq, price_cache)
-        except (OSError, ValueError, KeyError, IndexError, TypeError) as exc:
-            # E.g. offline mode with no cached series: fall back to the current
-            # price rather than failing enrichment of a booked holding.
-            logger.debug(
+        except Exception as exc:  # noqa: BLE001 -- see justification below
+            # load_meta_timeseries_range can raise arbitrary errors from the
+            # cache/fetch layer (ValueError in offline mode with no cache,
+            # network/HTTP errors from live fetchers, parquet/pyarrow read
+            # errors). This lookup only refines a plausibility *flag*, so any
+            # failure falls back to the current price (logged, not swallowed)
+            # instead of failing enrichment of the whole booked holding.
+            logger.warning(
                 "acquisition close unavailable for %s.%s on %s: %s",
                 sanitise_log_value(ticker),
                 sanitise_log_value(exchange),

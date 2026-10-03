@@ -3,6 +3,7 @@ import type { Account } from "../types";
 import { money, percent } from "../lib/money";
 import { useConfig } from "../ConfigContext";
 import { isCashInstrument } from "../lib/instruments";
+import { isCostBasisUnreliable } from "../lib/costBasis";
 import { LineChart, PiggyBank, TrendingUp, Wallet } from "lucide-react";
 
 export type PortfolioTotals = {
@@ -15,8 +16,9 @@ export type PortfolioTotals = {
   totalGainPct: number;
   totalDayChangePct: number;
   /** Non-cash holdings whose gain is excluded from totalGain/totalCost
-   * because cost_basis_source === "unknown" (no acquisition date and no
-   * booked cost on record, per #7220). Market value from these holdings
+   * because their cost basis is unreliable: cost_basis_source "unknown" (no
+   * acquisition date and no booked cost on record, per #7220) or
+   * "book_suspect" (implausible booked cost, #8472). Market value from these holdings
    * still counts toward totalValue/totalStockValue/totalCash -- only the
    * *gain* figures, which the app cannot honestly compute, are excluded. */
   unknownCostBasisCount: number;
@@ -59,8 +61,10 @@ export function computePortfolioTotals(accounts: Account[]): PortfolioTotals {
       // indistinguishable from "you broke even". Excluding it from the
       // gain/cost totals (rather than summing that fabricated zero) keeps
       // the headline figure honest; the per-row cells already render N/A
-      // for the same reason (HoldingsTable.tsx).
-      if (h.cost_basis_source === "unknown") {
+      // for the same reason (HoldingsTable.tsx). An implausible booked cost
+      // ("book_suspect", #8472) is excluded for the same reason: summing its
+      // tiny cost would inflate the headline gain by orders of magnitude.
+      if (isCostBasisUnreliable(h.cost_basis_source)) {
         unknownCostBasisCount += 1;
         continue;
       }
@@ -122,9 +126,9 @@ export function PortfolioSummary({ totals }: Props) {
     gainEligibleHoldingCount > 0 &&
     unknownCostBasisCount === gainEligibleHoldingCount;
   const gainNote = allGainUnknown
-    ? `Gain unavailable for all ${gainEligibleHoldingCount} holdings (no cost basis on record)`
+    ? `Gain unavailable for all ${gainEligibleHoldingCount} holdings (no reliable cost basis)`
     : unknownCostBasisCount > 0
-      ? `Excludes ${unknownCostBasisCount} of ${gainEligibleHoldingCount} holdings with no cost basis on record`
+      ? `Excludes ${unknownCostBasisCount} of ${gainEligibleHoldingCount} holdings with no reliable cost basis`
       : undefined;
 
   return (

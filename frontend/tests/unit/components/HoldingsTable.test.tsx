@@ -548,6 +548,45 @@ describe("HoldingsTable", () => {
         expect(within(row).getByText("£263.00")).toBeInTheDocument();
     });
 
+    it("keeps book_suspect rows out of the footer gain and total gain % (#8472)", async () => {
+        const plausible: Holding = {
+            ticker: "OK.L",
+            name: "Plausible Co",
+            units: 10,
+            acquired_date: null,
+            price: 10,
+            cost_basis_gbp: 80,
+            effective_cost_basis_gbp: 80,
+            market_value_gbp: 100,
+            gain_gbp: 20,
+            gain_pct: 25,
+            current_price_gbp: 10,
+            cost_basis_source: "book",
+        };
+        const suspect: Holding = {
+            ticker: "AV.L",
+            name: "Aviva",
+            units: 50,
+            acquired_date: null,
+            price: 672.4,
+            cost_basis_gbp: 263,
+            effective_cost_basis_gbp: 263,
+            market_value_gbp: 33620,
+            gain_gbp: null,
+            gain_pct: null,
+            current_price_gbp: 672.4,
+            cost_basis_source: "book_suspect",
+        };
+
+        const { container } = renderWithConfig(<HoldingsTable holdings={[plausible, suspect]} />);
+        await screen.findByText("Aviva");
+
+        const footer = container.querySelector("tfoot")!;
+        // Only the plausible holding's £20 / 25% counts toward the totals.
+        expect(within(footer).getByText("£20.00")).toBeInTheDocument();
+        expect(within(footer).getByText("25.0%")).toBeInTheDocument();
+    });
+
     it("keeps footer columns aligned with the header in relative view", async () => {
         const TestProviderRelative = ({ children }: { children: React.ReactNode }) => (
             <configContext.Provider

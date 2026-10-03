@@ -145,9 +145,9 @@ backend/agent/trading_agent.py:66
 # load_and_compute_metrics() from the agent's own trade log -- not
 # attacker/user-controlled input.
 backend/agent/trading_agent.py:596
-backend/common/portfolio_utils.py:1382
-backend/common/portfolio_utils.py:1411
-backend/common/portfolio_utils.py:2060
+backend/common/portfolio_utils.py:1397
+backend/common/portfolio_utils.py:1426
+backend/common/portfolio_utils.py:2075
 backend/common/portfolio_utils.py:241
 backend/common/portfolio_utils.py:258
 backend/common/portfolio_utils.py:269
@@ -159,4 +159,4 @@ backend/common/portfolio_utils.py:354
 backend/common/portfolio_utils.py:558
 backend/common/portfolio_utils.py:574
 backend/common/portfolio_utils.py:581
-backend/common/portfolio_utils.py:2070
+backend/common/portfolio_utils.py:2085

@@ -18,6 +18,10 @@ import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
 import { formatDateISO } from "../lib/date";
 import {
+  COST_BASIS_BOOK_SUSPECT,
+  isCostBasisUnreliable,
+} from "../lib/costBasis";
+import {
   HoldingsFilterControls,
   type SparkRange,
 } from "./HoldingsFilterControls";
@@ -183,10 +187,9 @@ export function HoldingsTable({
 
   // Gain is shown as N/A (not a figure) when the cost is a guess ("unknown",
   // #7220) or the booked cost is implausible ("book_suspect", #8472).
-  const isGainWithheld = (source: string | null | undefined): boolean =>
-    source === "unknown" || source === "book_suspect";
+  const isGainWithheld = isCostBasisUnreliable;
   const gainWithheldTitle = (source: string | null | undefined): string =>
-    source === "book_suspect"
+    source === COST_BASIS_BOOK_SUSPECT
       ? t("holdingsTable.bookCostSuspect")
       : t("holdingsTable.gainNotAvailable");
 
@@ -215,7 +218,7 @@ export function HoldingsTable({
     // An implausible booked cost (#8472) has its gain nulled by the backend;
     // don't re-derive it here from market - cost, which would bring back the
     // absurd +10,000% figure the backend deliberately withheld.
-    if (h.cost_basis_source === "book_suspect") {
+    if (h.cost_basis_source === COST_BASIS_BOOK_SUSPECT) {
       return { ...h, cost, market, gain: null, gain_pct: null };
     }
     const gain =
@@ -273,17 +276,24 @@ export function HoldingsTable({
   const totals = useMemo(
     () =>
       sortedRows.reduce(
-        (acc, h) => ({
-          cost: acc.cost + (h.cost ?? 0),
-          market: acc.market + (h.market ?? 0),
-          gain: acc.gain + (h.gain ?? 0),
-          weight: acc.weight + (h.weight_pct ?? 0),
-        }),
-        { cost: 0, market: 0, gain: 0, weight: 0 },
+        (acc, h) => {
+          // Rows whose cost basis is a guess or an implausible booked cost
+          // (#7220/#8472) carry no real gain: keep them out of both the gain
+          // and the cost behind the total gain % so they can't skew it.
+          const gainCounted = !isCostBasisUnreliable(h.cost_basis_source);
+          return {
+            cost: acc.cost + (h.cost ?? 0),
+            market: acc.market + (h.market ?? 0),
+            gain: acc.gain + (gainCounted ? h.gain ?? 0 : 0),
+            gainCost: acc.gainCost + (gainCounted ? h.cost ?? 0 : 0),
+            weight: acc.weight + (h.weight_pct ?? 0),
+          };
+        },
+        { cost: 0, market: 0, gain: 0, gainCost: 0, weight: 0 },
       ),
     [sortedRows],
   );
-  const totalGainPct = totals.cost ? (totals.gain / totals.cost) * 100 : 0;
+  const totalGainPct = totals.gainCost ? (totals.gain / totals.gainCost) * 100 : 0;
 
   const categoryLookup = useMemo(
     () => buildCategoryLookup(categoryDefinitions),
@@ -892,7 +902,7 @@ export function HoldingsTable({
                     title={
                       h.cost_basis_source === "unknown"
                         ? t("holdingsTable.costBasisUnknown")
-                        : h.cost_basis_source === "book_suspect"
+                        : h.cost_basis_source === COST_BASIS_BOOK_SUSPECT
                           ? t("holdingsTable.bookCostSuspect")
                           : (h.cost_basis_gbp ?? 0) > 0
                           ? t("holdingsTable.actualPurchaseCost")

@@ -228,6 +228,8 @@ def _implausible_book_cost_issue(
     units = float(holding.get("units") or 0)
     book = enriched.get("cost_basis_gbp")
     price = enriched.get("current_price_gbp")
+    # book_suspect is only ever set for a positive booked cost and units > 0.
+    implied = float(book or 0.0) / units if units > 0 else 0.0
     return DataQualityIssue(
         id=_issue_id(IssueType.IMPLAUSIBLE_BOOK_COST, owner, account, ticker),
         type=IssueType.IMPLAUSIBLE_BOOK_COST,
@@ -235,7 +237,7 @@ def _implausible_book_cost_issue(
         entity=_holding_entity(owner, account, holding),
         description=(
             f"Holding {ticker} has a booked cost of £{book} for {units:g} units "
-            f"(implied £{float(book) / units:.4f}/unit) against a price of £{price}; "
+            f"(implied £{implied:.4f}/unit) against a price of £{price}; "
             f"the gain is hidden until the book cost is corrected."
         ),
         suggested_fix="Check the book cost against the source statement and correct cost_basis_gbp.",

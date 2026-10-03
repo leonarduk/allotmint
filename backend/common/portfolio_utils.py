@@ -26,7 +26,7 @@ from backend.common import group_portfolio
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_scaffold import load_transactions
 from backend.common.data_loader import DATA_BUCKET_ENV
-from backend.common.holding_utils import _get_price_for_date_scaled
+from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, _get_price_for_date_scaled, is_cost_basis_unreliable
 from backend.common.instruments import (
     decode_html_entities,
     get_instrument_meta,
@@ -773,14 +773,22 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             if cost_value is None:
                 cost_value = h.get("cost_gbp")
             cost = _safe_num(cost_value)
-            row["cost_gbp"] += cost
-            # A guessed cost (cost == market value) is not a fact: flag the row so
-            # callers/UI do not present its £0.00 gain as real (#7785).
-            if h.get("cost_basis_source") == "unknown":
+            source = h.get("cost_basis_source")
+            cost_unreliable = is_cost_basis_unreliable(source)
+            # A guessed cost (already == market value, #7785) or an implausible
+            # booked cost (#8472) is not a fact: flag the row so callers/UI render
+            # its gain as N/A. A suspect book cost is counted at market value so
+            # it contributes no gain -- the row-level market - cost
+            # recomputations below would otherwise resurrect the absurd gain.
+            if source == BOOK_COST_SUSPECT_SOURCE:
+                cost = _safe_num(h.get("market_value_gbp"))
+                row["_cost_suspect"] = True
+            elif cost_unreliable:
                 row["_cost_unknown"] = True
+            row["cost_gbp"] += cost
 
             row["market_value_gbp"] += _safe_num(h.get("market_value_gbp"))
-            row["gain_gbp"] += _safe_num(h.get("gain_gbp"))
+            row["gain_gbp"] += 0.0 if cost_unreliable else _safe_num(h.get("gain_gbp"))
 
             snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
             # Normalise the ticker before comparison to guard against casing or
@@ -945,7 +953,14 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             r["grouping"] = fallback or "Unknown"
             r["grouping_id"] = None
             r["_grouping_from_fallback"] = True
-        r["cost_basis_source"] = "unknown" if r.pop("_cost_unknown", False) else None
+        cost_suspect = r.pop("_cost_suspect", False)
+        cost_unknown = r.pop("_cost_unknown", False)
+        if cost_suspect:
+            r["cost_basis_source"] = BOOK_COST_SUSPECT_SOURCE
+        elif cost_unknown:
+            r["cost_basis_source"] = "unknown"
+        else:
+            r["cost_basis_source"] = None
         r.pop("_grouping_from_fallback", None)
         r.pop("_snapshot_native_price", None)
         r.pop("_snapshot_native_currency", None)

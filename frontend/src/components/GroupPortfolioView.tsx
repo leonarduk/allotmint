@@ -989,7 +989,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               style={{
                 marginTop: "0.25rem",
                 fontSize: "0.85rem",
-                color: "#aaa",
+                color: "var(--summary-card-label)",
               }}
             >
               {t("group.pricingAsOf", { date: pricingDate })}
@@ -1014,7 +1014,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           >
             <label
               htmlFor={dateInputId}
-              style={{ fontSize: "0.75rem", color: "#aaa" }}
+              style={{ fontSize: "0.75rem", color: "var(--summary-card-label)" }}
             >
               {t("group.pricingDatePickerLabel")}
             </label>
@@ -1068,7 +1068,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         <LoadingStatus label={loadingLabel}>
           <p
             aria-hidden="true"
-            style={{ color: "#aaa", fontSize: "0.85rem", margin: "0 0 0.75rem" }}
+            style={{ color: "var(--summary-card-label)", fontSize: "0.85rem", margin: "0 0 0.75rem" }}
           >
             {loadingLabel}
           </p>
@@ -1088,8 +1088,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             gap: "2rem",
             marginBottom: "1rem",
             padding: "0.75rem 1rem",
-            backgroundColor: "#222",
-            border: "1px solid #444",
+            backgroundColor: "var(--summary-card-bg)",
+            border: "1px solid var(--summary-card-border)",
             borderRadius: "6px",
           }}
         >
@@ -1102,7 +1102,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           >
             <BadgeCheck size={16} />
             <div>
-              <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+              <div style={{ fontSize: "0.9rem", color: "var(--summary-card-label)" }}>
                 Alpha vs Benchmark
               </div>
               <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
@@ -1119,7 +1119,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           >
             <LineChart size={16} />
             <div>
-              <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+              <div style={{ fontSize: "0.9rem", color: "var(--summary-card-label)" }}>
                 Tracking Error
               </div>
               <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
@@ -1137,7 +1137,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             <Shield size={16} />
             <div>
               <div
-                style={{ fontSize: "0.9rem", color: "#aaa" }}
+                style={{ fontSize: "0.9rem", color: "var(--summary-card-label)" }}
                 title={t("dashboard.maxDrawdownHelp")}
               >
                 {t("dashboard.maxDrawdown")}
@@ -1237,7 +1237,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               })}
             </Link>
           </div>
-          <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+          <p style={{ color: "var(--summary-card-label)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
             {t("allocation.contributionDescription")}
           </p>
           <div style={{ width: "100%", height: 300 }}>
@@ -1263,7 +1263,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                     (row, idx) => (
                       <Cell
                         key={`cell-bar-${idx}`}
-                        fill={row.gain_gbp >= 0 ? "lightgreen" : "red"}
+                        fill={row.gain_gbp >= 0 ? "var(--gain-positive)" : "var(--gain-negative)"}
                       />
                     )
                   )}
@@ -1348,7 +1348,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                     <td
                       className={`${tableStyles.cell} ${tableStyles.right}`}
                       style={{
-                        color: row.dayChange >= 0 ? "lightgreen" : "red",
+                        color: row.dayChange >= 0 ? "var(--gain-positive)" : "var(--gain-negative)",
                         }}
                       >
                         {money(row.dayChange, baseCurrency)}
@@ -1357,7 +1357,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                     <td
                       className={`${tableStyles.cell} ${tableStyles.right}`}
                       style={{
-                        color: row.dayChange >= 0 ? "lightgreen" : "red",
+                        color: row.dayChange >= 0 ? "var(--gain-positive)" : "var(--gain-negative)",
                       }}
                     >
                       {percent(row.dayChangePct)}
@@ -1365,14 +1365,14 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                     {!relativeViewEnabled && (
                       <td
                         className={`${tableStyles.cell} ${tableStyles.right}`}
-                        style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
+                        style={{ color: row.gain >= 0 ? "var(--gain-positive)" : "var(--gain-negative)" }}
                       >
                         {money(row.gain, baseCurrency)}
                       </td>
                     )}
                     <td
                       className={`${tableStyles.cell} ${tableStyles.right}`}
-                      style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
+                      style={{ color: row.gain >= 0 ? "var(--gain-positive)" : "var(--gain-negative)" }}
                     >
                       {percent(row.gainPct)}
                     </td>
@@ -1405,7 +1405,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                       <td
                         className={`${tableStyles.cell} ${tableStyles.right}`}
                         style={{
-                          color: acct.dayChange >= 0 ? "lightgreen" : "red",
+                          color: acct.dayChange >= 0 ? "var(--gain-positive)" : "var(--gain-negative)",
                             }}
                           >
                             {money(acct.dayChange, baseCurrency)}
@@ -1414,7 +1414,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                         <td
                           className={`${tableStyles.cell} ${tableStyles.right}`}
                           style={{
-                            color: acct.dayChange >= 0 ? "lightgreen" : "red",
+                            color: acct.dayChange >= 0 ? "var(--gain-positive)" : "var(--gain-negative)",
                           }}
                         >
                           {percent(acct.dayChangePct)}
@@ -1423,7 +1423,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                           <td
                             className={`${tableStyles.cell} ${tableStyles.right}`}
                             style={{
-                              color: acct.gain >= 0 ? "lightgreen" : "red",
+                              color: acct.gain >= 0 ? "var(--gain-positive)" : "var(--gain-negative)",
                             }}
                           >
                             {money(acct.gain, baseCurrency)}
@@ -1431,7 +1431,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                         )}
                         <td
                           className={`${tableStyles.cell} ${tableStyles.right}`}
-                          style={{ color: acct.gain >= 0 ? "lightgreen" : "red" }}
+                          style={{ color: acct.gain >= 0 ? "var(--gain-positive)" : "var(--gain-negative)" }}
                         >
                           {percent(acct.gainPct)}
                         </td>
@@ -1466,9 +1466,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           style={{
             padding: "0.5rem 0.75rem",
             borderRadius: "4px",
-            border: "1px solid #444",
-            backgroundColor: activeOwner === null ? "#333" : "transparent",
-            color: activeOwner === null ? "#eee" : "inherit",
+            border: "1px solid var(--tab-border)",
+            backgroundColor: activeOwner === null ? "var(--tab-active-bg)" : "transparent",
+            color: activeOwner === null ? "var(--tab-active-text)" : "inherit",
             cursor: "pointer",
           }}
         >
@@ -1484,10 +1484,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             style={{
               padding: "0.5rem 0.75rem",
               borderRadius: "4px",
-              border: "1px solid #444",
+              border: "1px solid var(--tab-border)",
               backgroundColor:
-                activeOwner === tab.value ? "#333" : "transparent",
-              color: activeOwner === tab.value ? "#eee" : "inherit",
+                activeOwner === tab.value ? "var(--tab-active-bg)" : "transparent",
+              color: activeOwner === tab.value ? "var(--tab-active-text)" : "inherit",
               cursor: "pointer",
             }}
           >
@@ -1516,10 +1516,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             style={{
               padding: "0.5rem 0.75rem",
               borderRadius: "4px",
-              border: "1px solid #444",
+              border: "1px solid var(--tab-border)",
               backgroundColor:
-                activeAccountType === null ? "#333" : "transparent",
-              color: activeAccountType === null ? "#eee" : "inherit",
+                activeAccountType === null ? "var(--tab-active-bg)" : "transparent",
+              color: activeAccountType === null ? "var(--tab-active-text)" : "inherit",
               cursor: "pointer",
             }}
           >
@@ -1537,10 +1537,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 style={{
                   padding: "0.5rem 0.75rem",
                   borderRadius: "4px",
-                  border: "1px solid #444",
+                  border: "1px solid var(--tab-border)",
                   backgroundColor:
-                    activeAccountType === type ? "#333" : "transparent",
-                  color: activeAccountType === type ? "#eee" : "inherit",
+                    activeAccountType === type ? "var(--tab-active-bg)" : "transparent",
+                  color: activeAccountType === type ? "var(--tab-active-text)" : "inherit",
                   cursor: "pointer",
                 }}
               >

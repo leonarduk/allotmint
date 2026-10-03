@@ -29,6 +29,10 @@
     --input-border: #444;
     --input-text: #fff;
     --gain-positive: lightgreen;
+    --gain-negative: red;
+    --tab-border: #444;
+    --tab-active-bg: #333;
+    --tab-active-text: #eee;
 
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -59,6 +63,10 @@
     --input-border: #ccc;
     --input-text: #213547;
     --gain-positive: #15803d;
+    --gain-negative: #b91c1c;
+    --tab-border: #d4d4d4;
+    --tab-active-bg: #e5e7eb;
+    --tab-active-text: #111827;
 }
 
 :root[data-theme='dark'] {
@@ -84,6 +92,10 @@
     --input-border: #444;
     --input-text: #fff;
     --gain-positive: lightgreen;
+    --gain-negative: red;
+    --tab-border: #444;
+    --tab-active-bg: #333;
+    --tab-active-text: #eee;
 }
 
 /* System-theme overrides must remain unlayered. The default dark values above
@@ -113,6 +125,10 @@
         --input-border: #ccc;
         --input-text: #213547;
         --gain-positive: #15803d;
+        --gain-negative: #b91c1c;
+        --tab-border: #d4d4d4;
+        --tab-active-bg: #e5e7eb;
+        --tab-active-text: #111827;
     }
 
     :root:not([data-theme]) a:hover {

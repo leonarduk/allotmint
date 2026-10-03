@@ -125,9 +125,15 @@ def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.M
     tickers = ["ABC.L", "DEF.N", "GHI.L"]
     now = datetime.now(UTC)
     stale_ts = now - timedelta(minutes=30)
-    latest = {"ABC.L": 100.0, "DEF.N": 55.0, "GHI.L": 40.0}
+    last_trading_day = prices._nearest_weekday(date.today() - timedelta(days=1), forward=False)
+    old_close_day = last_trading_day - timedelta(days=10)
+    latest = {
+        "ABC.L": (100.0, last_trading_day),
+        "DEF.N": (55.0, last_trading_day),
+        "GHI.L": (40.0, old_close_day),
+    }
 
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda requested: latest)
+    monkeypatch.setattr(prices, "_load_latest_closes", lambda requested: latest)
     monkeypatch.setattr(
         prices,
         "load_live_prices",
@@ -140,7 +146,6 @@ def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.M
     mapping = {"ABC.L": ("ABC", "L"), "DEF.N": ("DEF", "N"), "GHI.L": ("GHI", "L")}
     monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: mapping.get(full))
 
-    last_trading_day = prices._nearest_weekday(date.today() - timedelta(days=1), forward=False)
     seven_day = last_trading_day - timedelta(days=7)
     thirty_day = last_trading_day - timedelta(days=30)
 
@@ -182,6 +187,7 @@ def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.M
     assert info_ghi["last_price"] == pytest.approx(40.0)
     assert info_ghi["is_stale"] is True
     assert info_ghi["last_price_time"] is None
+    assert info_ghi["last_price_date"] == old_close_day.isoformat()
     assert info_ghi["change_7d_pct"] == pytest.approx((40.0 / 39.0 - 1.0) * 100.0)
     assert info_ghi["change_30d_pct"] == pytest.approx((40.0 / 38.0 - 1.0) * 100.0)
 
@@ -202,8 +208,8 @@ def test_get_price_snapshot_treats_nan_price_as_no_data(monkeypatch: pytest.Monk
 
     monkeypatch.setattr(
         prices,
-        "_load_latest_prices",
-        lambda requested: {"NAN_LIVE.L": 12.0, "NAN_CACHED.L": float("nan")},
+        "_load_latest_closes",
+        lambda requested: {"NAN_LIVE.L": (12.0, None), "NAN_CACHED.L": (float("nan"), None)},
     )
     monkeypatch.setattr(
         prices,
@@ -500,7 +506,7 @@ def test_last_close_fallback_snapshot_does_not_double_convert_fx(
     """USD last-close fallback should remain single-converted when aggregated."""
 
     ticker = "USDX.US"
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda _: {ticker: 80.0})
+    monkeypatch.setattr(prices, "_load_latest_closes", lambda _: {ticker: (80.0, None)})
     monkeypatch.setattr(prices, "load_live_prices", lambda _: {})
     monkeypatch.setattr(prices, "_close_on", lambda *_: 80.0)
     monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("USDX", "US"))
@@ -541,7 +547,7 @@ def test_last_close_fallback_snapshot_marks_gbx_prices_as_gbp(
     """GBX instruments should not be divided twice when snapshot uses last-close fallback."""
 
     ticker = "VOD.L"
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda _: {ticker: 1.103})
+    monkeypatch.setattr(prices, "_load_latest_closes", lambda _: {ticker: (1.103, None)})
     monkeypatch.setattr(prices, "load_live_prices", lambda _: {})
     monkeypatch.setattr(prices, "_close_on", lambda *_: 1.103)
     monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("VOD", "L"))

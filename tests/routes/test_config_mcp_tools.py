@@ -104,6 +104,11 @@ def test_get_mcp_tools_merges_server_listing_config_and_local_tools(config_path,
     assert body["mcp_error"] is None
     assert body["tools"] == [
         {"name": "delete_price_trigger", "description": "", "enabled": False},
+        {
+            "name": "get_nav_discount",
+            "description": "NAV premium/discount for a closed-end fund.",
+            "enabled": True,
+        },
         {"name": "get_portfolio", "description": "Portfolio", "enabled": True},
         {
             "name": "navigate_to_page",
@@ -126,7 +131,7 @@ def test_get_mcp_tools_reports_an_unreachable_server(config_path, monkeypatch):
 
     assert "Could not list the MCP server's tools" in body["mcp_error"]
     assert "internal-host" not in body["mcp_error"]
-    assert [tool["name"] for tool in body["tools"]] == ["navigate_to_page"]
+    assert [tool["name"] for tool in body["tools"]] == ["get_nav_discount", "navigate_to_page"]
 
 
 def test_get_mcp_tools_without_a_server_url(config_path, monkeypatch):

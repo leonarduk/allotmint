@@ -1,0 +1,57 @@
+"""Guard the checked-in ``data/scaling_overrides.json`` against bad factors.
+
+An override is the factor that turns a fetched LSE quote into GBP, so the
+only meaningful values are 0.01 (quoted in pence) and 1 (quoted in pounds).
+Any other factor is a typo that silently mis-scales every price for the
+ticker -- e.g. ``"ADM": 0.1`` made Admiral Group (ADM.L) render 10x too
+high, which surfaced as an apparent -90% move against paths that convert
+via the instrument's GBX currency metadata instead (#8597).
+
+Root cause of #8597, for the record: the cached ADM.L series
+(allotmint-data timeseries/meta/ADM_L.parquet, 2004-09-23 .. 2026-10-02) is
+in pence throughout -- 285p to 4128p, with no ~10x/~100x step between any
+two rows. The discontinuity was never in the series. It came from this
+file: ``"ADM"`` changed from 0.01 to 0.1 in ba608c365 ("Develop (#1219)",
+2025-09-10), a 10x factor (hence -90%, not the -99% of a GBX/GBP slip).
+The generic single-day-move suspect check is tracked in #7789.
+"""
+
+import json
+from pathlib import Path
+
+import pytest
+
+from backend.utils import timeseries_helpers as th
+
+OVERRIDES_PATH = Path(__file__).resolve().parents[1] / "data" / "scaling_overrides.json"
+VALID_FACTORS = {0.01, 1.0}
+
+
+def _load_overrides() -> dict:
+    return json.loads(OVERRIDES_PATH.read_text())
+
+
+def _entries() -> list[tuple[str, str, float]]:
+    return [(ex, tkr, factor) for ex, table in _load_overrides().items() for tkr, factor in table.items()]
+
+
+@pytest.mark.parametrize("exchange,ticker,factor", _entries())
+def test_override_factor_is_a_currency_unit_factor(exchange, ticker, factor):
+    assert float(factor) in VALID_FACTORS, (
+        f"{ticker}.{exchange} override {factor} is not a pence (0.01) or pounds (1) factor. "
+        "Any other value mis-scales every price for the ticker (see #8597). If a market "
+        "genuinely needs another unit factor, add it to VALID_FACTORS with a comment saying why."
+    )
+
+
+def test_adm_override_scales_pence_to_pounds(monkeypatch):
+    # Pin lookup to this checkout so the checked-in file is the one read,
+    # whatever data_root/repo_root the local config points at.
+    monkeypatch.setattr(th.config, "data_root", None, raising=False)
+    monkeypatch.setattr(th.config, "repo_root", OVERRIDES_PATH.parents[1], raising=False)
+    factor = th.get_scaling_override("ADM.L", "L", None)
+    assert factor == pytest.approx(_load_overrides()["L"]["ADM"])
+    assert factor == pytest.approx(0.01)
+    # Cached ADM.L closes are in pence (e.g. 3588 on 2026-10-02); the scaled
+    # value must be the ~GBP 35.88 share price, not 358.80.
+    assert 3588 * factor == pytest.approx(35.88)

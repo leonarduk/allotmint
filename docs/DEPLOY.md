@@ -348,6 +348,31 @@ against the same key already in the bucket. It exits non-zero and lists the
 offending slugs if any collide with a different owner; matching or new slugs
 are left alone.
 
+### Investment-trust NAVs and instrument metadata
+
+Nothing copies allotmint-data to the bucket automatically. After changing these
+files in the data repo, upload them by hand from the allotmint-data checkout:
+
+```bash
+# NAVs for the premium/discount endpoint and the get_nav_discount chat tool
+aws s3 cp nav/navs.csv "s3://$DATA_BUCKET/nav/navs.csv"
+# Instrument metadata, e.g. trusts retyped as "Investment Trust"
+# (METADATA_BUCKET is the same bucket; METADATA_PREFIX defaults to instruments/)
+aws s3 sync instruments/ "s3://$DATA_BUCKET/instruments/"
+```
+
+On Lambda, `data_root` is `/tmp/data`, which is empty on a cold start. The
+backend therefore reads `s3://$DATA_BUCKET/nav/navs.csv` directly, and caches
+it for 5 minutes, so a new upload takes effect without a redeploy. If that
+object is missing, it falls back to the copy baked into the image at
+`/var/task/data/nav/navs.csv`. The deploy workflow fills that copy from the
+bucket (`aws s3 sync "s3://$DATA_BUCKET/" data/`) before the image is built.
+
+Instrument metadata is read from `s3://$DATA_BUCKET/instruments/...` first,
+then from the baked-in copy. A retype only takes effect once it is in the
+bucket, or after the next deploy if it was uploaded before that build. See
+[NAV_DISCOUNT.md](NAV_DISCOUNT.md) for the CSV format.
+
 ## Install dependencies
 
 ```bash

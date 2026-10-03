@@ -334,7 +334,10 @@ A single head SHA can also carry duplicate check-runs for the same job, where
 a later duplicate is `skipped` (a second trigger whose job-level `if:` was
 false). `skipped` and `neutral` runs carry no verdict and are ignored; the
 latest remaining run's conclusion is used, and a reviewer with no such run
-(or one still in progress) counts as pending. PR #8598 hit both problems:
+(or one still in progress) counts as pending. This is deliberate: every
+duplicate belongs to the same head SHA, so a later `skipped` run reviewed
+nothing new and the earlier verdict on that exact code still stands — a
+prior `failure` keeps the label, a prior `success` clears it. PR #8598 hit both problems:
 its label stayed stuck because the exact-name match never found
 `ai-review / DeepSeek AI code review`, and the skipped duplicate would have
 shadowed the earlier `success` anyway.

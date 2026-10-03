@@ -30,6 +30,7 @@ import { configContext, type AppConfig } from "@/ConfigContext";
 import { getGroupPortfolio, getInstrumentDetail } from "@/api";
 import type { InstrumentSummary } from "@/types";
 import type { RollupRow } from "@/lib/rollupAdapter";
+import tableStyles from "@/styles/table.module.css";
 
 const defaultConfig: AppConfig = {
     relativeViewEnabled: false,
@@ -254,6 +255,20 @@ describe("HoldingsTable", () => {
         expect(incomeToggle).toHaveAttribute("aria-expanded", "true");
         expect(screen.getByRole("button", { name: "AAA" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "XYZ" })).toBeNull();
+    });
+
+    it("renders the group count with the theme-aware groupCount class (#8532)", () => {
+        const groupedHoldings = holdings.map((holding) => ({
+            ...holding,
+            grouping: holding.ticker === "XYZ" ? "Technology" : "Income",
+        }));
+
+        renderWithConfig(
+            <HoldingsTable holdings={groupedHoldings} groupingMode="group" />,
+        );
+
+        const technologyToggle = screen.getByRole("button", { name: "Toggle Technology" });
+        expect(within(technologyToggle).getByText("(1)")).toHaveClass(tableStyles.groupCount);
     });
 
     it("keeps the existing flat rendering when groupingMode is omitted", async () => {

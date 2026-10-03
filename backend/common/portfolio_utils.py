@@ -592,17 +592,13 @@ def list_all_unique_tickers() -> List[str]:
 # ──────────────────────────────────────────────────────────────
 # Core aggregation
 # ──────────────────────────────────────────────────────────────
-def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
-    """Collapse a nested portfolio tree into one row per ticker,
-    enriched with latest-price snapshot.
+def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
+    """Implementation of :func:`aggregate_by_ticker`.
 
-    Values are converted to ``base_currency`` using recent FX rates.
-
-    ``cost_basis_source`` on a row is ``"book_suspect"`` if any contributing
-    holding has an implausible booked cost (#8472), else ``"unknown"`` if any
-    has a guessed cost (#7785), else ``None``. Book-suspect holdings are
-    excluded from ``cost_gbp``/``gain_gbp``/``gain_pct`` (those cover only the
-    remaining holdings) but still count in ``units``/``market_value_gbp``.
+    Each row additionally carries ``_unreliable_cost_split``: the
+    ``(cost, gain, market_value)`` share of the row contributed by
+    unreliable-cost holdings (#8488), consumed by :func:`_aggregate_by_field`
+    and stripped by :func:`aggregate_by_ticker`.
     """
     base_currency = base_currency.upper()
     fx_cache: Dict[str, float] = {}
@@ -796,6 +792,8 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
 
             row["market_value_gbp"] += _safe_num(h.get("market_value_gbp"))
             row["gain_gbp"] += 0.0 if suspect else _safe_num(h.get("gain_gbp"))
+            if is_cost_basis_unreliable(source):
+                _track_unreliable_lot(row, h, cost, suspect)
 
             snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
             # Normalise the ticker before comparison to guard against casing or
@@ -946,6 +944,8 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
 
         cost = r["cost_gbp"]
         r["gain_pct"] = (r["gain_gbp"] / cost * 100.0) if cost else None
+        price_based = snapshot_native_price is not None or r["ticker"].strip().upper() == "CASH.GBP"
+        r["_unreliable_cost_split"] = _unreliable_cost_split(r, price_based, rate or 1.0)
         r["cost_currency"] = base_currency
         r["market_value_currency"] = base_currency
         r["gain_currency"] = base_currency
@@ -976,6 +976,68 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
         r.pop("_snapshot_native_currency", None)
 
     return list(rows.values())
+
+
+def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
+    """Collapse a nested portfolio tree into one row per ticker,
+    enriched with latest-price snapshot.
+
+    Values are converted to ``base_currency`` using recent FX rates.
+
+    ``cost_basis_source`` on a row is ``"book_suspect"`` if any contributing
+    holding has an implausible booked cost (#8472), else ``"unknown"`` if any
+    has a guessed cost (#7785), else ``None``. Book-suspect holdings are
+    excluded from ``cost_gbp``/``gain_gbp``/``gain_pct`` (those cover only the
+    remaining holdings) but still count in ``units``/``market_value_gbp``.
+    """
+    rows = _aggregate_ticker_rows(portfolio, base_currency)
+    for r in rows:
+        r.pop("_unreliable_cost_split", None)
+    return rows
+
+
+def _track_unreliable_lot(row: dict, holding: dict, cost: float, suspect: bool) -> None:
+    """Accumulate an unreliable-cost holding's figures on ``row`` (#8488).
+
+    Lets sector/region aggregates drop exactly that holding's share of the
+    row's ``cost_gbp``/``gain_gbp`` while keeping the reliable holdings' share.
+    Book-suspect holdings are already kept out of the row's cost and gain, so
+    only their units and market value are tracked.
+    """
+    lots = row.setdefault(
+        "_unreliable_lots",
+        {"units": 0.0, "unknown_units": 0.0, "cost": 0.0, "market_value": 0.0, "gain": 0.0},
+    )
+    units = _safe_num(holding.get("units"))
+    lots["units"] += units
+    lots["market_value"] += _safe_num(holding.get("market_value_gbp"))
+    if not suspect:
+        lots["unknown_units"] += units
+        lots["cost"] += cost
+        lots["gain"] += _safe_num(holding.get("gain_gbp"))
+
+
+def _unreliable_cost_split(row: dict, price_based: bool, rate: float) -> tuple[float, float, float]:
+    """Return ``(cost, gain, market_value)`` in base currency contributed to
+    ``row`` by its unreliable-cost holdings, popping the tracking state.
+
+    ``price_based`` mirrors how the row's own figures were finalised: when its
+    market value and gain were recomputed from ``last_price_gbp`` (snapshot or
+    cash) the unreliable share is recomputed the same way, otherwise it is the
+    sum of the holdings' own figures scaled by the FX ``rate``.
+    """
+    lots = row.pop("_unreliable_lots", None)
+    if not lots:
+        return 0.0, 0.0, 0.0
+    cost = round(lots["cost"] * rate, 2)
+    if price_based:
+        price = _safe_num(row.get("last_price_gbp"))
+        market_value = round(lots["units"] * price, 2)
+        gain = round(lots["unknown_units"] * price - cost, 2)
+    else:
+        market_value = round(lots["market_value"] * rate, 2)
+        gain = round(lots["gain"] * rate, 2)
+    return cost, gain, market_value
 
 
 def _costed_market_value(row: dict, price: float) -> float:
@@ -1025,8 +1087,15 @@ def _normalise_sector_label(key: str) -> str:
 
 
 def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP") -> List[dict]:
-    """Helper to aggregate ticker rows by ``field`` (e.g. sector/region)."""
-    rows = aggregate_by_ticker(portfolio, base_currency)
+    """Helper to aggregate ticker rows by ``field`` (e.g. sector/region).
+
+    Holdings with an unreliable cost basis (``is_cost_basis_unreliable``:
+    guessed or book-suspect) are left out of ``cost_gbp``/``gain_gbp`` -- and so
+    of ``gain_pct`` and the ``contribution_pct`` denominator -- but still count
+    in ``market_value_gbp``/``weight_pct``. Their market value is reported per
+    group as ``unknown_cost_market_value_gbp`` (#8488).
+    """
+    rows = _aggregate_ticker_rows(portfolio, base_currency)
     groups: Dict[str, dict] = {}
     source_priority = {"holding": 3, "security_meta": 2, "instrument_meta": 1}
     for r in rows:
@@ -1049,12 +1118,15 @@ def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_cur
                 "market_value_gbp": 0.0,
                 "gain_gbp": 0.0,
                 "cost_gbp": 0.0,
+                "unknown_cost_market_value_gbp": 0.0,
                 "currency": base_currency,
             },
         )
+        excluded_cost, excluded_gain, excluded_value = r.pop("_unreliable_cost_split", None) or (0.0, 0.0, 0.0)
         g["market_value_gbp"] += _safe_num(r.get("market_value_gbp"))
-        g["gain_gbp"] += _safe_num(r.get("gain_gbp"))
-        g["cost_gbp"] += _safe_num(r.get("cost_gbp"))
+        g["gain_gbp"] += _safe_num(r.get("gain_gbp")) - excluded_gain
+        g["cost_gbp"] += _safe_num(r.get("cost_gbp")) - excluded_cost
+        g["unknown_cost_market_value_gbp"] += excluded_value
 
     total_cost = sum(g["cost_gbp"] for g in groups.values())
     # Portfolio weight is share of market value, not of cost: cost-based shares

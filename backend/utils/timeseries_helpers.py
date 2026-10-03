@@ -1,5 +1,7 @@
 import datetime
 import json
+import logging
+import math
 import re
 from pathlib import Path
 from typing import Optional, Tuple
@@ -9,9 +11,26 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from backend.common.currency import extract_currency
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.utils.html_render import render_timeseries_html
 
 STANDARD_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]
+
+logger = logging.getLogger(__name__)
+
+# A pence/pounds (GBX/GBP) mix-up is always exactly 100x, so the only factors
+# that make sense in ``scaling_overrides.json`` are 0.01 (pence -> pounds),
+# 1 (no-op) and 100 (pounds -> pence). Anything else is almost certainly a
+# typo -- e.g. ADM.L was once listed as 0.1, which rendered its prices 10x too
+# high and, because downstream code only skips its own pence->GBP step when
+# the factor equals the pence factor exactly, made the latest close 10x too
+# low (3588p -> 358.8 -> 3.588 instead of 35.88) (#8597).
+_VALID_OVERRIDE_FACTORS = (0.01, 1.0, 100.0)
+
+
+def is_valid_override_factor(value: float) -> bool:
+    """True if ``value`` is a pence/pounds unit factor (0.01, 1 or 100)."""
+    return any(math.isclose(value, f, rel_tol=1e-9, abs_tol=1e-12) for f in _VALID_OVERRIDE_FACTORS)
 
 
 def apply_scaling(df: pd.DataFrame, scale: float, scale_volume: bool = False) -> pd.DataFrame:
@@ -81,7 +100,13 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
     base = re.split(r"[.:]", ticker)[0].upper()
     ex = (exchange or "").upper()
 
-    # Try: exact -> base -> per-exchange wildcard -> global wildcard
+    # Overrides are applied at read time only (callers do
+    # ``apply_scaling(df, get_scaling_override(...))`` on series loaded from
+    # the cache) and are never written back into cached series, so editing a
+    # factor here or in scaling_overrides.json needs no cache backfill (#8597).
+    #
+    # Try: exact -> base -> per-exchange wildcard -> global wildcard. A factor
+    # rejected by is_valid_override_factor falls through to the next candidate.
     candidates = [
         (ex, ticker),
         (ex, base),
@@ -92,9 +117,20 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
     for ex_key, t_key in candidates:
         if ex_key in ov and t_key in ov[ex_key]:
             try:
-                return float(ov[ex_key][t_key])
+                value = float(ov[ex_key][t_key])
             except Exception:
                 continue
+            if not is_valid_override_factor(value):
+                logger.warning(
+                    "Ignoring scaling override %s for %s/%s in %s: only 0.01, 1 or 100 are valid "
+                    "pence/pounds factors; falling back to currency metadata",
+                    sanitise_log_value(value),
+                    sanitise_log_value(ex_key),
+                    sanitise_log_value(t_key),
+                    sanitise_log_value(path),
+                )
+                continue
+            return value
 
     full = base if not ex else f"{base}.{ex}"
     currency = None

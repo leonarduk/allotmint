@@ -40,10 +40,16 @@ const ISSUE_TYPES = [
   "OUTLIERS",
   "MISSING_METADATA",
   "TICKER_MISMATCH",
+  "IMPLAUSIBLE_BOOK_COST",
 ] as const;
 
 /** Holdings-related issue types surfaced by the Holdings tab (#6724). */
-const HOLDING_ISSUE_TYPES = ["WRONG_EXCHANGE", "UNRESOLVED_TICKER", "MISSING_SERIES"] as const;
+const HOLDING_ISSUE_TYPES = [
+  "WRONG_EXCHANGE",
+  "UNRESOLVED_TICKER",
+  "MISSING_SERIES",
+  "IMPLAUSIBLE_BOOK_COST",
+] as const;
 
 interface IssueFilters {
   type: string;

@@ -1085,9 +1085,45 @@ def test_transaction_roots_local(monkeypatch, tmp_path):
 
     roots = list(reports._transaction_roots())
 
-    assert output_root.as_posix() in roots
-    assert accounts_root.as_posix() in roots
-    assert transactions_dir.as_posix() in roots
+    # Only the canonical ledger root; legacy/output roots are not read (#8462).
+    assert roots == [accounts_root.as_posix()]
+
+
+def test_transactions_not_double_counted_across_legacy_root(monkeypatch, tmp_path):
+    """Same ISA account in accounts/ and legacy data/transactions/ counts once (#8462)."""
+    owner = "alice"
+    data_root = tmp_path / "data"
+    accounts_root = data_root / "accounts"
+    canonical = [
+        {"date": "2024-01-02", "type": "SELL", "amount_minor": 1000},
+        {"date": "2024-01-03", "type": "DIVIDEND", "amount_minor": 250},
+    ]
+    for root, filename in (
+        (accounts_root, "ISA_transactions.json"),
+        (data_root / "transactions", "isa_transactions.json"),
+    ):
+        owner_dir = root / owner
+        owner_dir.mkdir(parents=True)
+        payload = {"owner": owner, "account_type": "ISA", "transactions": canonical}
+        (owner_dir / filename).write_text(json.dumps(payload), encoding="utf-8")
+
+    monkeypatch.setattr(reports.config, "app_env", "local", raising=False)
+    monkeypatch.setattr(reports.config, "data_root", data_root, raising=False)
+    monkeypatch.setattr(reports.config, "accounts_root", accounts_root, raising=False)
+    monkeypatch.setattr(reports.config, "transactions_output_root", accounts_root, raising=False)
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.compute_owner_performance",
+        lambda owner, **kwargs: {"history": [], "max_drawdown": None},
+    )
+
+    assert reports._load_transactions(owner) == canonical
+
+    summary = reports.compile_report(owner)
+    assert summary.realized_gains_gbp == 10.0
+    assert summary.income_gbp == 2.5
+
+    rows = reports.ReportContext(owner, start=None, end=None).transactions()
+    assert len(rows) == 2
 
 
 def test_build_key_findings_section_parses_valid_file(tmp_path, monkeypatch):

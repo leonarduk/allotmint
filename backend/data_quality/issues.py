@@ -18,9 +18,11 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Sequence
 
+from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, enrich_holding
 from backend.common.instruments import get_instrument_meta, resolve_instrument_ticker
 from backend.config import config
 from backend.timeseries.cache import (
+    cache_only,
     has_cached_meta_timeseries,
     list_cached_meta_tickers,
     load_cached_meta_timeseries_full,
@@ -48,6 +50,7 @@ class IssueType:
     OUTLIERS = "OUTLIERS"
     MISSING_METADATA = "MISSING_METADATA"
     TICKER_MISMATCH = "TICKER_MISMATCH"
+    IMPLAUSIBLE_BOOK_COST = "IMPLAUSIBLE_BOOK_COST"
 
 
 SEVERITY = {
@@ -60,6 +63,7 @@ SEVERITY = {
     IssueType.OUTLIERS: "low",
     IssueType.MISSING_METADATA: "low",
     IssueType.TICKER_MISMATCH: "low",
+    IssueType.IMPLAUSIBLE_BOOK_COST: "high",
 }
 
 # Issue types whose fix is a fetch/refetch of the cached series.
@@ -196,18 +200,72 @@ def _dedupe_issues(issues: Iterable[DataQualityIssue]) -> list[DataQualityIssue]
     return list(seen.values())
 
 
+def _has_positive_book_cost(holding: dict[str, Any]) -> bool:
+    try:
+        return float(holding.get("cost_basis_gbp") or 0) > 0 and float(holding.get("units") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _implausible_book_cost_issue(
+    owner: str,
+    account: str,
+    holding: dict[str, Any],
+    ticker: str,
+    price_cache: dict[str, float],
+) -> DataQualityIssue | None:
+    """Flag a booked cost whose implied unit cost is out of band (#8472).
+
+    Reuses ``enrich_holding`` (the single source of truth for the check) on a
+    copy of the raw holding inside ``cache_only()`` so no live fetch happens.
+    """
+    if not _has_positive_book_cost(holding):
+        return None
+    with cache_only():
+        enriched = enrich_holding(holding, date.today(), price_cache)
+    if enriched.get("cost_basis_source") != BOOK_COST_SUSPECT_SOURCE:
+        return None
+    units = float(holding.get("units") or 0)
+    book = enriched.get("cost_basis_gbp")
+    price = enriched.get("current_price_gbp")
+    # book_suspect is only ever set for a positive booked cost and units > 0.
+    implied = float(book or 0.0) / units if units > 0 else 0.0
+    return DataQualityIssue(
+        id=_issue_id(IssueType.IMPLAUSIBLE_BOOK_COST, owner, account, ticker),
+        type=IssueType.IMPLAUSIBLE_BOOK_COST,
+        severity=SEVERITY[IssueType.IMPLAUSIBLE_BOOK_COST],
+        entity=_holding_entity(owner, account, holding),
+        description=(
+            f"Holding {ticker} has a booked cost of £{book} for {units:g} units "
+            f"(implied £{implied:.4f}/unit) against a price of £{price}; "
+            f"the gain is hidden until the book cost is corrected."
+        ),
+        suggested_fix="Check the book cost against the source statement and correct cost_basis_gbp.",
+        preview={
+            "before": {"cost_basis_gbp": book, "warning": enriched.get("cost_basis_warning")},
+            "after": {"cost_basis_gbp": "corrected"},
+        },
+        fixable=False,
+    )
+
+
 def aggregate_holding_issues(
     accounts_root: Path | None = None,
     *,
     instruments_root: Path | None = None,
 ) -> list[DataQualityIssue]:
-    """Detect holdings-side issues: wrong exchange, unresolved ticker, missing series."""
+    """Detect holdings-side issues: wrong exchange, unresolved ticker, missing
+    series, and implausible booked cost."""
     issues: list[DataQualityIssue] = []
+    price_cache: dict[str, float] = {}
     for owner, account, holding in iter_holdings(accounts_root):
         ticker = str(holding.get("ticker") or "").strip().upper()
         parsed = _parse_holding_ticker(ticker)
         if parsed is None:
             continue
+        book_issue = _implausible_book_cost_issue(owner, account, holding, ticker, price_cache)
+        if book_issue is not None:
+            issues.append(book_issue)
         symbol, exchange = parsed
         meta = get_instrument_meta(f"{symbol}.{exchange}")
         has_meta = bool(meta and meta.get("name"))

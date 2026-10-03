@@ -547,6 +547,113 @@ def get_effective_cost_basis_gbp(
     return round(units * float(close_px), 2)
 
 
+# ─────── booked cost plausibility (#8472) ───────
+# A booked cost whose implied unit cost (book / units) is more than this factor
+# below or above the reference price is treated as suspect (e.g. an unscaled
+# pence figure or a partial book cost from the source statement).
+BOOK_COST_PLAUSIBILITY_BAND = 20.0
+BOOK_COST_SUSPECT_SOURCE = "book_suspect"
+BOOK_COST_OUT_OF_BAND_WARNING = "implied_unit_cost_out_of_band"
+# cost_basis_source values whose cost (and therefore gain) must not be presented
+# or aggregated as fact: a guessed cost (#7220) or an implausible booked cost.
+# Keep in sync with UNRELIABLE_SOURCES in frontend/src/lib/costBasis.ts (both
+# sides have a test pinning the contents: tests/test_holding_utils_price_cost_basis.py
+# and frontend/tests/unit/lib/costBasis.test.ts).
+COST_BASIS_UNRELIABLE_SOURCES = frozenset({"unknown", BOOK_COST_SUSPECT_SOURCE})
+# (ticker, exchange) pairs whose acquisition-close lookup failure was already
+# logged at WARNING; later failures for the same pair log at DEBUG.
+_ACQ_CLOSE_FAILURE_WARNED: set[tuple[str, str]] = set()
+
+
+def is_cost_basis_unreliable(source: object) -> bool:
+    """True when ``cost_basis_source`` marks the cost as a guess or suspect."""
+    return source in COST_BASIS_UNRELIABLE_SOURCES
+
+
+def _book_cost_reference_price(
+    ticker: str,
+    exchange: str,
+    acq: Optional[dt.date],
+    current_price: Optional[float],
+    price_cache: dict[str, float],
+) -> Optional[float]:
+    """Acquisition-date close when known and available, else the current price.
+
+    The acquisition-date close is preferred so a genuine long-held multi-bagger
+    is judged against what it actually cost at the time, not today's price.
+    """
+    if acq is not None:
+        try:
+            acq_px = _derived_cost_basis_close_px(ticker, exchange, acq, price_cache)
+        except Exception as exc:  # noqa: BLE001 -- see justification below
+            # load_meta_timeseries_range can raise arbitrary errors from the
+            # cache/fetch layer (ValueError in offline mode with no cache,
+            # network/HTTP errors from live fetchers, parquet/pyarrow read
+            # errors). This lookup only refines a plausibility *flag*, so any
+            # failure falls back to the current price (logged, not swallowed)
+            # instead of failing enrichment of the whole booked holding.
+            # WARNING once per ticker per process, DEBUG thereafter, so an
+            # offline run doesn't flood the log on every page load.
+            key = (ticker, exchange)
+            log = logger.debug if key in _ACQ_CLOSE_FAILURE_WARNED else logger.warning
+            _ACQ_CLOSE_FAILURE_WARNED.add(key)
+            log(
+                "acquisition close unavailable for %s.%s on %s: %s",
+                sanitise_log_value(ticker),
+                sanitise_log_value(exchange),
+                sanitise_log_value(acq),
+                sanitise_log_value(exc),
+            )
+            acq_px = None
+        if acq_px is not None and acq_px > 0:
+            return float(acq_px)
+    if current_price is not None and not is_nan(current_price) and current_price > 0:
+        return float(current_price)
+    return None
+
+
+def _flag_implausible_book_cost(
+    out: Dict[str, Any],
+    units: float,
+    ticker: str,
+    exchange: str,
+    acq: Optional[dt.date],
+    current_price: Optional[float],
+    price_cache: dict[str, float],
+) -> None:
+    """Flag (never replace) a booked cost whose implied unit cost is out of band.
+
+    Read-time only: the booked ``cost_basis_gbp`` is left untouched, but the
+    holding is tagged ``book_suspect`` with a ``cost_basis_warning`` and its
+    gain fields are nulled so an absurd gain is not presented as fact.
+    """
+    if out.get("cost_basis_source") != "book" or units <= 0:
+        return
+    try:
+        book = float(out.get(COST_BASIS_GBP) or 0.0)
+    except (TypeError, ValueError):
+        book = 0.0
+    if not book > 0:  # also rejects NaN
+        return
+    reference = _book_cost_reference_price(ticker, exchange, acq, current_price, price_cache)
+    if reference is None:
+        return
+    implied = book / units
+    band = BOOK_COST_PLAUSIBILITY_BAND
+    if reference / band <= implied <= reference * band:
+        return
+    logger.info(
+        "Booked cost for %s looks implausible: implied unit cost %s vs reference %s",
+        sanitise_log_value(out.get(TICKER)),
+        sanitise_log_value(f"{implied:.4f}"),
+        sanitise_log_value(f"{reference:.4f}"),
+    )
+    out["cost_basis_source"] = BOOK_COST_SUSPECT_SOURCE
+    out["cost_basis_warning"] = BOOK_COST_OUT_OF_BAND_WARNING
+    for key in ("gain_gbp", "unrealised_gain_gbp", "unrealized_gain_gbp", "gain_pct"):
+        out[key] = None
+
+
 # ───────────── canonical enrichment ─────────────
 def enrich_holding(
     h: Dict[str, Any],
@@ -623,7 +730,7 @@ def enrich_holding(
         ticker, exchange = resolved
     else:
         exchange = "L"
-        logger.debug("Could not resolve exchange for %s; defaulting to L", full)
+        logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(full))
 
     out["currency"] = meta.get("currency")
     out["instrument_type"] = (
@@ -796,7 +903,9 @@ def enrich_holding(
     # the last-resort guess of units * current price (cost_basis_source
     # "unknown", #7220). Any gain computed from it is made up -- 0.0 for the
     # guess, the whole market value for a zero cost -- so report it as unknown.
-    cost_unknown = cost_for_gain <= 0 or (booked_cost <= 0 and out.get("cost_basis_source") == "unknown")
+    # (book_suspect is flagged later by _flag_implausible_book_cost, which nulls
+    # the gain fields itself.)
+    cost_unknown = cost_for_gain <= 0 or (booked_cost <= 0 and is_cost_basis_unreliable(out.get("cost_basis_source")))
 
     if px is not None:
         mv = round(units * float(px), 2)
@@ -829,6 +938,7 @@ def enrich_holding(
     elif out.get("cost_basis_source") != "unknown":
         out["cost_basis_source"] = "derived"
 
+    _flag_implausible_book_cost(out, units, ticker, exchange, acq, px, price_cache)
     return out
 
 

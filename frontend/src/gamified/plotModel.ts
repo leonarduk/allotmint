@@ -9,6 +9,7 @@
  */
 
 import type { Account, Holding, Portfolio } from '../types';
+import { isCostBasisUnreliable } from '../lib/costBasis';
 
 export type GrowthStage =
   | 'wilting'
@@ -359,10 +360,10 @@ function cropFromHolding(
   const valueGbp = holding.market_value_gbp ?? 0;
   const costGbp =
     holding.effective_cost_basis_gbp ?? holding.cost_basis_gbp ?? 0;
-  // A last-resort guessed cost (#7220) or no positive cost to fall back on
+  // A guessed (#7220) or implausible booked (#8472) cost, or no positive cost
   // means the gain is unknown: keep it null rather than 0% or a gain equal to
   // the whole market value (#8471).
-  const costUnknown = holding.cost_basis_source === 'unknown';
+  const costUnknown = isCostBasisUnreliable(holding.cost_basis_source);
   const gainGbp = costUnknown
     ? null
     : (holding.gain_gbp ?? (costGbp > 0 ? valueGbp - costGbp : null));

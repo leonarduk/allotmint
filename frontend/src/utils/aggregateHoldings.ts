@@ -1,4 +1,5 @@
 import type { Holding } from "../types";
+import { isCostBasisUnreliable } from "../lib/costBasis";
 
 export type ScopedHolding = Holding & {
   source_account?: string;
@@ -56,7 +57,7 @@ export const aggregateHoldingsByTicker = (
     const gainLots = lots.filter(
       (lot) =>
         lot.gain_gbp != null &&
-        lot.cost_basis_source !== "unknown" &&
+        !isCostBasisUnreliable(lot.cost_basis_source) &&
         lotCost(lot) > 0,
     );
     const gain = gainLots.length

@@ -244,6 +244,7 @@
     "inferredCost": "Abgeleitet vom Preis am Erwerbsdatum",
     "costBasisUnknown": "Kein Erwerbsdatum oder gebuchte Kosten erfasst — Kosten werden gleich dem aktuellen Wert angenommen",
     "gainNotAvailable": "Gewinn unbekannt — kein Erwerbsdatum oder gebuchte Kosten erfasst",
+    "bookCostSuspect": "Gebuchte Kosten wirken im Vergleich zum Kurs unplausibel — Gewinn ausgeblendet, bis sie geprüft sind",
     "minimumGainPrompt": "Minimaler Gewinn %",
     "notApplicable": "N/A",
     "acquiredNotAvailable": "Kein Erwerbsdatum erfasst",

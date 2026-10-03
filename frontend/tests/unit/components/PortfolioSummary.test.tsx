@@ -79,6 +79,31 @@ describe("computePortfolioTotals", () => {
     expect(totals.gainEligibleHoldingCount).toBe(2);
   });
 
+  it("excludes book_suspect holdings from gain/cost so a tiny suspect book cost can't inflate the total (#8472)", () => {
+    const accounts = [
+      account([
+        holding({ ticker: "AAA.L", market_value_gbp: 100, cost_basis_gbp: 80, gain_gbp: 20 }),
+        // 50 units booked at £263 but worth £33,620: backend nulls the gain.
+        holding({
+          ticker: "AV.L",
+          market_value_gbp: 33620,
+          cost_basis_gbp: 263,
+          effective_cost_basis_gbp: 263,
+          gain_gbp: null,
+          gain_pct: null,
+          cost_basis_source: "book_suspect",
+        }),
+      ]),
+    ];
+    const totals = computePortfolioTotals(accounts);
+
+    expect(totals.totalGain).toBe(20);
+    expect(totals.totalCost).toBe(80);
+    expect(totals.totalGainPct).toBe(25);
+    expect(totals.totalStockValue).toBe(33720);
+    expect(totals.unknownCostBasisCount).toBe(1);
+  });
+
   it("still includes cash holdings' real cost/gain, unlike unknown holdings", () => {
     const accounts = [
       account([
@@ -112,7 +137,7 @@ describe("PortfolioSummary", () => {
     ]);
     render(<PortfolioSummary totals={totals} />);
     expect(screen.getByText("£20.00")).toBeInTheDocument();
-    expect(screen.queryByText(/no cost basis on record/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no reliable cost basis/i)).not.toBeInTheDocument();
   });
 
   it("shows an honest partial note instead of a silent £0.00 when some holdings' cost basis is unknown", () => {
@@ -135,7 +160,7 @@ describe("PortfolioSummary", () => {
     // silent £0.00 diluted by the unknown holding's fabricated zero.
     expect(screen.getByText("£20.00")).toBeInTheDocument();
     expect(
-      screen.getByText("Excludes 1 of 2 holdings with no cost basis on record"),
+      screen.getByText("Excludes 1 of 2 holdings with no reliable cost basis"),
     ).toBeInTheDocument();
   });
 
@@ -164,7 +189,7 @@ describe("PortfolioSummary", () => {
     expect(gainLoss).not.toHaveTextContent("(0.00%)");
     expect(gainLoss).toHaveTextContent("—");
     expect(
-      screen.getByText("Gain unavailable for all 1 holdings (no cost basis on record)"),
+      screen.getByText("Gain unavailable for all 1 holdings (no reliable cost basis)"),
     ).toBeInTheDocument();
   });
 });

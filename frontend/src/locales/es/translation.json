@@ -243,6 +243,7 @@
     "inferredCost": "Inferido del precio en la fecha de adquisición",
     "costBasisUnknown": "No hay fecha de adquisición ni coste registrado — se asume que el coste es igual al valor actual",
     "gainNotAvailable": "Ganancia desconocida — no hay fecha de adquisición ni coste registrado",
+    "bookCostSuspect": "El coste registrado parece inverosímil frente al precio — ganancia oculta hasta revisarlo",
     "minimumGainPrompt": "Ganancia mínima %",
     "notApplicable": "N/A",
     "acquiredNotAvailable": "No hay fecha de adquisición registrada",

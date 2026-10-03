@@ -879,6 +879,23 @@ describe('unknown cost basis (#8471)', () => {
     expect(crops[0].gainPct).toBeNull();
   });
 
+  it('keeps gain null for an implausible booked cost (#8472)', () => {
+    const { crops } = plotWith({
+      ticker: 'AV.L',
+      name: 'Suspect Cost',
+      units: 50,
+      market_value_gbp: 33_620,
+      cost_basis_gbp: 263,
+      effective_cost_basis_gbp: 263,
+      gain_gbp: null,
+      gain_pct: null,
+      cost_basis_source: 'book_suspect',
+    });
+
+    expect(crops[0].gainGbp).toBeNull();
+    expect(crops[0].gainPct).toBeNull();
+  });
+
   it('still derives gain from a real cost when the backend omits it', () => {
     const { crops } = plotWith({
       ticker: 'REAL.L',

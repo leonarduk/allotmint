@@ -259,6 +259,18 @@ describe("toRollupRows", () => {
             gain_pct: 0,
             cost_basis_source: "unknown",
           },
+          {
+            ticker: "UNK",
+            name: "Unknown",
+            units: 1,
+            cost_basis_gbp: 5,
+            effective_cost_basis_gbp: 5,
+            market_value_gbp: 0,
+            // A stale gain on a book_suspect lot (#8472) must still be ignored.
+            gain_gbp: 100,
+            gain_pct: 2000,
+            cost_basis_source: "book_suspect",
+          },
         ],
       },
     ];

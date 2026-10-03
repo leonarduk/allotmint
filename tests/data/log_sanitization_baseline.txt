@@ -23,7 +23,6 @@ backend/common/dividends.py:74
 backend/common/errors.py:102
 backend/common/holding_utils.py:493
 backend/common/holding_utils.py:185
-backend/common/holding_utils.py:626
 backend/common/holding_utils.py:117
 backend/common/instrument_api.py:620
 backend/common/instrument_api.py:628
@@ -88,9 +87,9 @@ backend/common/storage.py:80
 backend/lambda_api/price_refresh.py:62
 backend/nudges.py:161
 backend/reports.py:1735
-backend/reports.py:1825
-backend/reports.py:1836
-backend/reports.py:1851
+backend/reports.py:1819
+backend/reports.py:1830
+backend/reports.py:1845
 backend/routes/market.py:164
 backend/routes/market.py:170
 backend/routes/market.py:179
@@ -146,9 +145,9 @@ backend/agent/trading_agent.py:66
 # load_and_compute_metrics() from the agent's own trade log -- not
 # attacker/user-controlled input.
 backend/agent/trading_agent.py:596
-backend/common/portfolio_utils.py:1382
-backend/common/portfolio_utils.py:1411
-backend/common/portfolio_utils.py:2060
+backend/common/portfolio_utils.py:1414
+backend/common/portfolio_utils.py:1443
+backend/common/portfolio_utils.py:2092
 backend/common/portfolio_utils.py:241
 backend/common/portfolio_utils.py:258
 backend/common/portfolio_utils.py:269
@@ -160,4 +159,4 @@ backend/common/portfolio_utils.py:354
 backend/common/portfolio_utils.py:558
 backend/common/portfolio_utils.py:574
 backend/common/portfolio_utils.py:581
-backend/common/portfolio_utils.py:2070
+backend/common/portfolio_utils.py:2102

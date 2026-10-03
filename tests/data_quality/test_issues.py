@@ -206,3 +206,63 @@ def test_aggregate_issues_dedupes_across_sources(monkeypatch, tmp_path, accounts
     issues = aggregate_issues(accounts_root)
     ids = [i.id for i in issues]
     assert len(ids) == len(set(ids))
+
+
+def _write_booked_holdings(tmp_path, holdings):
+    owner = tmp_path / "demo"
+    owner.mkdir(exist_ok=True)
+    doc = {"owner": "demo", "account_type": "isa", "currency": "GBP", "holdings": holdings}
+    (owner / "isa.json").write_text(json.dumps(doc), encoding="utf-8")
+    return tmp_path
+
+
+def _patch_book_cost_env(monkeypatch, current_price):
+    """Metadata present and series cached so only the book-cost check fires."""
+    from backend.common import holding_utils, instrument_api
+    from backend.common import portfolio_utils as pu
+
+    monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: {"name": "x"})
+    monkeypatch.setattr(issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: f"{symbol}.L")
+    monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: True)
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda full, cache: (full.split(".")[0], "L"))
+    monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {})
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {})
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: None)
+    monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *a, **k: (current_price, "mock"))
+    monkeypatch.setattr(holding_utils, "_derived_cost_basis_close_px", lambda *a, **k: None)
+
+
+def test_aggregate_holding_issues_flags_implausible_book_cost(monkeypatch, tmp_path):
+    """#8472: a booked cost implying ~1/100 of the price is surfaced as an
+    IMPLAUSIBLE_BOOK_COST issue; a plausible one is not."""
+    root = _write_booked_holdings(
+        tmp_path,
+        [
+            {"ticker": "AV.L", "units": 50, "cost_basis_gbp": 263},
+            {"ticker": "OK.L", "units": 50, "cost_basis_gbp": 30000},
+            {"ticker": "NOCOST.L", "units": 50},
+        ],
+    )
+    _patch_book_cost_env(monkeypatch, current_price=672.40)
+
+    issues = aggregate_holding_issues(root)
+
+    flagged = [i for i in issues if i.type == IssueType.IMPLAUSIBLE_BOOK_COST]
+    assert [i.entity for i in flagged] == [{"owner": "demo", "account": "isa", "holding": "AV.L"}]
+    issue = flagged[0]
+    assert issue.id == "IMPLAUSIBLE_BOOK_COST:demo:isa:AV.L"
+    assert issue.severity == "high"
+    assert issue.fixable is False
+    assert issue.preview["before"] == {"cost_basis_gbp": 263, "warning": "implied_unit_cost_out_of_band"}
+    assert "AV.L" in issue.description
+
+
+def test_aggregate_holding_issues_book_check_does_not_mutate_holdings_file(monkeypatch, tmp_path):
+    root = _write_booked_holdings(tmp_path, [{"ticker": "AV.L", "units": 50, "cost_basis_gbp": 263}])
+    before = (root / "demo" / "isa.json").read_text(encoding="utf-8")
+    _patch_book_cost_env(monkeypatch, current_price=672.40)
+
+    aggregate_holding_issues(root)
+
+    assert (root / "demo" / "isa.json").read_text(encoding="utf-8") == before

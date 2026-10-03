@@ -1,4 +1,5 @@
 import type { Account, Holding, InstrumentSummary } from "../types";
+import { COST_BASIS_UNKNOWN, isCostBasisUnreliable } from "./costBasis";
 
 export type ScopedHoldingRow = Holding & {
   owner: string;
@@ -16,10 +17,10 @@ export type RollupRow = {
   // Null when no lot has a known cost, so the gain is unknown (#8471).
   gain_gbp: number | null;
   gain_pct: number | null;
-  // "unknown" when no lot has a known cost; mirrors Holding (#8471). A ticker
-  // mixing known- and unknown-cost lots gets null: its gain/gain_pct come
-  // from the known lots only, but effective_cost_basis_gbp still includes the
-  // unknown lots' guessed cost.
+  // "unknown" when no lot has a known cost (zero, guessed or book_suspect);
+  // mirrors Holding (#8471). A ticker mixing known- and unknown-cost lots gets
+  // null: its gain/gain_pct come from the known lots only, but
+  // effective_cost_basis_gbp still includes the unknown lots' cost.
   cost_basis_source?: "unknown" | null;
   weight_pct: number;
   lot_count: number;
@@ -121,7 +122,7 @@ function addHolding(
   // A zero cost or the last-resort guessed cost (#7220) has no real gain.
   const gainKnown =
     holding.gain_gbp != null &&
-    holding.cost_basis_source !== "unknown" &&
+    !isCostBasisUnreliable(holding.cost_basis_source) &&
     holdingCost > 0;
   const lotGain = gainKnown ? holding.gain_gbp ?? 0 : 0;
   const lotGainCost = gainKnown ? holdingCost : 0;
@@ -231,7 +232,7 @@ export function toRollupRows(
       gain_gbp: hasKnownGain ? row.gain_gbp : null,
       gain_pct:
         hasKnownGain && gainCost > 0 ? (row.gain_gbp / gainCost) * 100 : null,
-      cost_basis_source: hasKnownGain ? null : "unknown",
+      cost_basis_source: hasKnownGain ? null : COST_BASIS_UNKNOWN,
       weight_pct: scopedTotal
         ? (row.market_value_gbp / scopedTotal) * 100
         : 0,

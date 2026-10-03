@@ -63,6 +63,26 @@ def test_load_latest_prices_handles_errors(monkeypatch, caplog):
     assert "latest price fetch failed" in caplog.text
 
 
+def test_load_latest_prices_names_unpriced_tickers(monkeypatch, caplog):
+    """A ticker with no cached/fetched data is named in a warning, not just counted (#8599)."""
+
+    def fake_range(ticker, exchange, start_date, end_date):
+        if ticker == "GOOD":
+            return pd.DataFrame({"Date": [1], "Close_gbp": [2.0]})
+        return pd.DataFrame()
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_range)
+
+    with caplog.at_level("WARNING", logger=holding_utils.logger.name):
+        prices = holding_utils.load_latest_prices(["GOOD.L", "GONE.L"])
+
+    assert prices == {"GOOD.L": 2.0}
+    messages = [
+        r.getMessage() for r in caplog.records if r.name == holding_utils.logger.name and r.levelname == "WARNING"
+    ]
+    assert messages == ["No latest price for 1 ticker(s): GONE.L"]
+
+
 def test_load_latest_prices_reports_progress_when_opted_in(monkeypatch):
     df = pd.DataFrame({"Date": [1], "Close_gbp": [2.0]})
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: df)

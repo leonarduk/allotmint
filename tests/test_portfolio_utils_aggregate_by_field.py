@@ -248,3 +248,125 @@ def test_holding_metadata_overrides_instrument_defaults(monkeypatch):
     by_region = {r["region"]: r for r in portfolio_utils.aggregate_by_region(portfolio)}
     assert "User Region" in by_region
     assert "Instrument Region" not in by_region
+
+
+# ---------------------------------------------------------------------------
+# Canonical sector/region labels (#8530)
+# ---------------------------------------------------------------------------
+
+
+def _two_holding_portfolio(first: dict, second: dict) -> dict:
+    return {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "AAA.L", "market_value_gbp": 100, "cost_gbp": 80, "gain_gbp": 20, **first},
+                    {"ticker": "BBB.L", "market_value_gbp": 50, "cost_gbp": 40, "gain_gbp": 10, **second},
+                ]
+            }
+        ]
+    }
+
+
+@pytest.mark.parametrize(
+    ("alias", "canonical"),
+    [
+        ("Financial Services", "Financials"),
+        ("Technology", "Information Technology"),
+        ("Consumer Defensive", "Consumer Staples"),
+        ("Consumer Cyclical", "Consumer Discretionary"),
+        ("Basic Materials", "Materials"),
+        ("Healthcare", "Health Care"),
+        ("Communication", "Communication Services"),
+        ("Real Estate Investment Trusts", "Real Estate"),
+        ("  financial services  ", "Financials"),
+    ],
+)
+def test_sector_aliases_merge_into_gics_in_rows_and_aggregates(alias, canonical):
+    portfolio = _two_holding_portfolio({"sector": canonical}, {"sector": alias})
+
+    sectors = {row["sector"]: row for row in portfolio_utils.aggregate_by_sector(portfolio)}
+    assert set(sectors) == {canonical}
+    assert sectors[canonical]["market_value_gbp"] == pytest.approx(150)
+
+    rows = {r["ticker"]: r for r in portfolio_utils.aggregate_by_ticker(portfolio)}
+    assert rows["BBB.L"]["sector"] == canonical
+
+
+@pytest.mark.parametrize("alias", ["UK", "GB", "Great Britain", "u.k."])
+def test_region_aliases_merge_into_united_kingdom_in_rows_and_aggregates(alias):
+    portfolio = _two_holding_portfolio({"region": "United Kingdom"}, {"region": alias})
+
+    regions = {row["region"] for row in portfolio_utils.aggregate_by_region(portfolio)}
+    assert regions == {"United Kingdom"}
+
+    rows = {r["ticker"]: r for r in portfolio_utils.aggregate_by_ticker(portfolio)}
+    assert rows["BBB.L"]["region"] == "United Kingdom"
+
+
+@pytest.mark.parametrize("distinct", ["Real Estate Services", "Financial Services Holdings"])
+def test_sector_aliases_are_exact_match_only(distinct):
+    """A label that merely contains an alias stays its own bucket (#8292)."""
+
+    portfolio = _two_holding_portfolio({"sector": "Real Estate"}, {"sector": distinct})
+
+    sectors = {row["sector"] for row in portfolio_utils.aggregate_by_sector(portfolio)}
+    assert sectors == {"Real Estate", distinct}
+
+    rows = {r["ticker"]: r for r in portfolio_utils.aggregate_by_ticker(portfolio)}
+    assert rows["BBB.L"]["sector"] == distinct
+
+
+def test_cash_is_labelled_cash_sector_in_rows_and_aggregates():
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "CASH.GBP",
+                        "region": "United Kingdom",
+                        "units": 1000,
+                        "market_value_gbp": 1000,
+                        "cost_gbp": 1000,
+                        "gain_gbp": 0,
+                    },
+                    {
+                        "ticker": "AAA.L",
+                        "sector": "Financials",
+                        "market_value_gbp": 500,
+                        "cost_gbp": 400,
+                        "gain_gbp": 100,
+                    },
+                ]
+            }
+        ]
+    }
+
+    rows = {r["ticker"]: r for r in portfolio_utils.aggregate_by_ticker(portfolio)}
+    assert rows["CASH.GBP"]["sector"] == "Cash"
+
+    sectors = {row["sector"]: row for row in portfolio_utils.aggregate_by_sector(portfolio)}
+    assert set(sectors) == {"Cash", "Financials"}
+    assert sectors["Cash"]["market_value_gbp"] == pytest.approx(1000)
+
+
+def test_cash_instrument_type_is_labelled_cash_sector():
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "CASH.USD",
+                        "instrument_type": "Cash",
+                        "units": 10,
+                        "market_value_gbp": 8,
+                        "cost_gbp": 8,
+                        "gain_gbp": 0,
+                    }
+                ]
+            }
+        ]
+    }
+
+    sectors = {row["sector"] for row in portfolio_utils.aggregate_by_sector(portfolio)}
+    assert sectors == {"Cash"}

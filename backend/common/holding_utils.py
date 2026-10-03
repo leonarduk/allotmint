@@ -23,6 +23,7 @@ from backend.common.constants import (
 from backend.common.currency import CurrencyNormaliser
 from backend.common.instruments import get_instrument_meta
 from backend.common.numeric_utils import is_nan
+from backend.common.sector_labels import CASH_SECTOR_LABEL, normalise_optional_region, normalise_optional_sector
 from backend.common.user_config import UserConfig
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -690,8 +691,10 @@ def enrich_holding(
         out["name"] = out.get("name") or _cash_name(full, account_ccy)
         out["currency"] = meta.get("currency") or account_ccy
         out["instrument_type"] = meta.get("instrumentType") or meta.get("instrument_type") or "Cash"
-        out["sector"] = out.get("sector") or meta.get("sector")
-        out["region"] = out.get("region") or meta.get("region")
+        # Cash is labelled "Cash" in every sector view rather than left blank
+        # (shown as "Unknown sector"/"Other"); see #8530.
+        out["sector"] = CASH_SECTOR_LABEL
+        out["region"] = normalise_optional_region(out.get("region") or meta.get("region"))
 
         out["price"] = 1.0
         out["current_price_gbp"] = 1.0 if account_ccy == "GBP" else None
@@ -737,8 +740,10 @@ def enrich_holding(
         meta.get("instrumentType") or meta.get("instrument_type") or meta.get("assetClass") or meta.get("asset_class")
     )
     out["name"] = out.get("name") or meta.get("name") or full
-    out["sector"] = out.get("sector") or meta.get("sector")
-    out["region"] = out.get("region") or meta.get("region")
+    # Canonical labels so per-holding consumers (e.g. /allocation) bucket the
+    # same exposure together, matching the sector/region aggregates (#8530).
+    out["sector"] = normalise_optional_sector(out.get("sector") or meta.get("sector"))
+    out["region"] = normalise_optional_region(out.get("region") or meta.get("region"))
     out["asset_class"] = out.get("asset_class") or meta.get("assetClass") or meta.get("asset_class")
 
     units = float(out.get(UNITS, 0) or 0.0)

@@ -658,7 +658,8 @@ def test_aggregate_by_ticker_security_meta_and_default_fallback(monkeypatch):
     assert aaa_row["grouping"] == "Technology"
     assert aaa_row["grouping_id"] is None
     assert aaa_row["currency"] == "GBP"
-    assert aaa_row["sector"] == "Technology"
+    # Row sectors carry the canonical GICS label; grouping keeps the raw value (#8530).
+    assert aaa_row["sector"] == "Information Technology"
 
 
 def test_aggregate_by_ticker_backfills_default_meta_and_marks_fallback(monkeypatch):
@@ -741,7 +742,8 @@ def test_aggregate_by_ticker_backfills_default_meta_and_marks_fallback(monkeypat
     assert len(rows) == 1
     row = rows[0]
     assert row["currency"] == "GBP"
-    assert row["sector"] == "Technology"
+    # Row sectors carry the canonical GICS label; grouping keeps the raw value (#8530).
+    assert row["sector"] == "Information Technology"
     assert row["region"] == "Europe"
     assert row["grouping"] == "Technology"
     assert captured_flags["values"] == [True]

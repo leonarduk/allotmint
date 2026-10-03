@@ -69,6 +69,24 @@ describe('instrumentTable utils', () => {
     expect(grouped[1]).toMatchObject({ label: 'Uncategorised' });
   });
 
+  it('groups rows by sector case-insensitively with an unknown-sector bucket (#8486)', () => {
+    const sectorRows: InstrumentSummary[] = [
+      { ...rows[0], ticker: 'AV.L', sector: 'Financials' },
+      { ...rows[1], ticker: 'BAC', sector: 'financials' },
+      { ...rows[0], ticker: 'ZZZ', sector: null, market_value_gbp: 10, gain_gbp: 0 },
+    ];
+
+    const grouped = createGroups(createRowsWithCost(sectorRows), 'market_value_gbp', false, 'sector', {
+      ungroupedLabel: 'Ungrouped',
+      uncategorisedLabel: 'Uncategorised',
+      unknownSectorLabel: 'Unknown sector',
+    }, buildCategoryLookup([]));
+
+    expect(grouped.map((group) => group.label)).toEqual(['Financials', 'Unknown sector']);
+    expect(grouped[0]?.rows.map((row) => row.ticker)).toEqual(['AV.L', 'BAC']);
+    expect(grouped[0]?.totals.marketValue).toBe(1500);
+  });
+
   it('deduplicates group options and parses ticker parts', () => {
     expect(mergeGroupOptions([' Income '], ['income', 'Growth', null])).toEqual([
       'Growth',

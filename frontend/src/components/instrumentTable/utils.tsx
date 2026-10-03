@@ -113,7 +113,7 @@ export function createGroups(
   sortKey: keyof RowWithCost,
   asc: boolean,
   groupingMode: GroupingMode,
-  labels: { ungroupedLabel: string; uncategorisedLabel: string },
+  labels: { ungroupedLabel: string; uncategorisedLabel: string; unknownSectorLabel?: string },
   categoryLookup: ReturnType<typeof buildCategoryLookup>,
 ): ReadonlyArray<GroupedRows> {
   if (!rows.length) return [];
@@ -123,6 +123,16 @@ export function createGroups(
       ungroupedLabel: '',
       getGroupKey: () => 'all',
       getGroupLabel: () => '',
+    });
+  }
+
+  if (groupingMode === 'sector') {
+    // createGroupedRows trims and lowercases keys, so "Financials" and
+    // "financials" share one group; blank sectors land in the unknown bucket.
+    return createGroupedRows(rows, sortKey, asc, {
+      ungroupedLabel: labels.unknownSectorLabel ?? 'Unknown sector',
+      getGroupKey: (row) => row.sector ?? null,
+      getGroupLabel: ({ raw }) => raw,
     });
   }
 

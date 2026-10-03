@@ -328,6 +328,9 @@ export function HoldingsTable({
         uncategorisedLabel: t("instrumentTable.uncategorised", {
           defaultValue: "Uncategorised",
         }),
+        unknownSectorLabel: t("instrumentTable.unknownSector", {
+          defaultValue: "Unknown sector",
+        }),
       },
       categoryLookup,
     );

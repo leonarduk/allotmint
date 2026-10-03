@@ -236,9 +236,7 @@ def _apply_instrument_type(rows: List[dict]) -> None:
 def _apply_rank(rows: List[dict]) -> None:
     rows.sort(
         key=lambda x: (
-            float("inf")
-            if x.get("peg_ratio") in (None,) or x.get("roe") in (None, 0)
-            else x["peg_ratio"] / x["roe"]
+            float("inf") if x.get("peg_ratio") in (None,) or x.get("roe") in (None, 0) else x["peg_ratio"] / x["roe"]
         )
     )
     for i, row in enumerate(rows, 1):
@@ -348,7 +346,9 @@ def _price_snapshot_flags(ticker: str) -> Dict[str, Any]:
         snap = instrument_api._price_and_changes(ticker)
     except Exception as exc:  # noqa: BLE001 -- the flag is advisory; never fail the profile over it
         logger.warning(
-            "valuation: price snapshot lookup failed for %s: %s", sanitise_log_value(ticker), exc
+            "valuation: price snapshot lookup failed for %s: %s",
+            sanitise_log_value(ticker),
+            sanitise_log_value(exc),
         )
         return {"is_stale": None, "last_price_date": None}
     return {"is_stale": snap.get("is_stale"), "last_price_date": snap.get("last_price_date")}

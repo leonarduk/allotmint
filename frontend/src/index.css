@@ -190,6 +190,50 @@ h1 {
     }
 }
 
+/* Copy / Edit actions under each chat message (#8590). Hidden until the
+   message is hovered or focused; opacity (not display) keeps the buttons in
+   the tab order, and devices without hover always show them. */
+.chat-message-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.chat-message:hover .chat-message-actions,
+.chat-message:focus-within .chat-message-actions {
+    opacity: 1;
+}
+@media (hover: none) {
+    .chat-message-actions {
+        opacity: 1;
+    }
+}
+.chat-message-action {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem;
+    border: none;
+    border-radius: 0.25rem;
+    background: none;
+    color: var(--drawer-muted-color);
+    cursor: pointer;
+}
+.chat-message-action:hover:not(:disabled) {
+    color: var(--drawer-color);
+    background: var(--drawer-border-color);
+}
+.chat-message-copy-status {
+    align-self: center;
+    font-size: 0.75rem;
+    color: var(--drawer-muted-color);
+}
+.chat-message-action:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+
 /* Markdown rendered in chat replies. Tailwind preflight resets headings, lists
    and tables, so restore compact defaults scoped to the chat panel. */
 .chat-markdown > :first-child {

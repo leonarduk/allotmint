@@ -40,6 +40,22 @@ def _normalise_account_currency(value: object) -> str:
     return "GBP"
 
 
+def _holdings_with_derived_costs(owner: str, account: Dict[str, Any]) -> List[Any]:
+    """Return copies of ``account``'s holdings with transaction-derived costs filled.
+
+    Mirrors ``build_owner_portfolio`` so a zero-cost holding shows the same cost
+    on group and owner views (#8473).  The holdings are copied first so the
+    fill never mutates the ``list_portfolios()`` data it was given.  The
+    account's transactions file is located by ``account_type`` (e.g. ``ISA`` ->
+    ``ISA_transactions.json``), matching case-insensitively.
+    """
+    holdings = [dict(h) if isinstance(h, dict) else h for h in account.get(HOLDINGS) or []]
+    account_name = str(account.get("account_type") or "").strip()
+    if account_name and holdings:
+        owner_portfolio.fill_missing_costs(owner, account_name, holdings)
+    return holdings
+
+
 def _trade_counts_for_owner(owner: str, today: dt.date) -> tuple[int, int]:
     """Return (trades_this_month, trades_remaining) for an owner."""
 
@@ -198,7 +214,7 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
             acct_copy[OWNER] = owner
             acct_copy["currency"] = _normalise_account_currency(acct_copy.get("currency"))
 
-            holdings = acct_copy.get(HOLDINGS, [])
+            holdings = _holdings_with_derived_costs(owner, acct_copy)
             # Page request: price from the timeseries cache only; the
             # background snapshot refresh does the live fetching (#7898).
             with cache_only():

@@ -578,7 +578,7 @@ def _book_cost_reference_price(
                 "acquisition close unavailable for %s.%s on %s: %s",
                 sanitise_log_value(ticker),
                 sanitise_log_value(exchange),
-                acq,
+                sanitise_log_value(acq),
                 sanitise_log_value(exc),
             )
             acq_px = None
@@ -614,10 +614,10 @@ def _flag_implausible_book_cost(
     if reference / band <= implied <= reference * band:
         return
     logger.info(
-        "Booked cost for %s looks implausible: implied unit cost %.4f vs reference %.4f",
+        "Booked cost for %s looks implausible: implied unit cost %s vs reference %s",
         sanitise_log_value(out.get(TICKER)),
-        implied,
-        reference,
+        sanitise_log_value(f"{implied:.4f}"),
+        sanitise_log_value(f"{reference:.4f}"),
     )
     out["cost_basis_source"] = BOOK_COST_SUSPECT_SOURCE
     out["cost_basis_warning"] = BOOK_COST_OUT_OF_BAND_WARNING
@@ -701,7 +701,7 @@ def enrich_holding(
         ticker, exchange = resolved
     else:
         exchange = "L"
-        logger.debug("Could not resolve exchange for %s; defaulting to L", full)
+        logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(full))
 
     out["currency"] = meta.get("currency")
     out["instrument_type"] = (

@@ -445,7 +445,7 @@ def test_enrich_holding_non_cash_standard_path(monkeypatch):
     today = dt.date(2024, 1, 1)
     holding = {"ticker": "ABC.L", "units": 2}
     monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda f, pc: (f, "L"))
-    monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *a, **k: (1.0, None))
+    monkeypatch.setattr(holding_utils, "_get_dated_price_for_date_scaled", lambda *a, **k: (1.0, None, None))
     monkeypatch.setattr(holding_utils, "get_effective_cost_basis_gbp", lambda h, cache: 0.0)
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {})
     monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda *_: {})

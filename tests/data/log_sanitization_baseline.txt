@@ -21,7 +21,7 @@ backend/common/authz.py:101
 backend/common/dividends.py:74
 # Issue #5879: do not double-sanitise values prepared by the diagnostic helper.
 backend/common/errors.py:102
-backend/common/holding_utils.py:493
+backend/common/holding_utils.py:530
 backend/common/holding_utils.py:185
 backend/common/holding_utils.py:117
 backend/common/instrument_api.py:620

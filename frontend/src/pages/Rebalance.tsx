@@ -317,75 +317,79 @@ export default function Rebalance() {
         {ownersLoading && <span className="text-xs text-slate-500">Loading owners…</span>}
         {isPrefilling && <span className="text-xs text-slate-500">Loading holdings…</span>}
       </div>
-      {ownersError && <p className="mb-4 text-sm text-red-600">{ownersError}</p>}
+      {ownersError && (
+        <p className="mb-4 break-words text-sm text-red-600 [overflow-wrap:anywhere]">{ownersError}</p>
+      )}
 
       <form onSubmit={handleSubmit} className="mb-4 flex flex-col gap-2">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th>Current value</th>
-              <th>Current weight</th>
-              <th>Target weight</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => (
-              <tr key={idx}>
-                <td>
-                  <input
-                    type="text"
-                    className="w-full border p-1"
-                    value={row.ticker}
-                    onChange={(e) => updateRow(idx, "ticker", e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    step="any"
-                    className="w-full border p-1"
-                    value={row.current}
-                    onChange={(e) => updateRow(idx, "current", e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    className="w-full border p-1 opacity-80"
-                    value={
-                      Number.isFinite(parseFloat(row.current)) && totalCurrentValue > 0
-                        ? `${percentFormatter.format((parseFloat(row.current) / totalCurrentValue) * 100)}%`
-                        : "—"
-                    }
-                    readOnly
-                    aria-label={`Current weight for ${row.ticker || `row ${idx + 1}`}`}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    step="any"
-                    className="w-full border p-1"
-                    value={row.target}
-                    onChange={(e) => updateRow(idx, "target", e.target.value)}
-                    aria-label={`Target weight (%) for ${row.ticker || `row ${idx + 1}`}`}
-                  />
-                </td>
-                <td>
-                  <button
-                    type="button"
-                    className="text-red-600"
-                    onClick={() => removeRow(idx)}
-                  >
-                    Remove
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Current value</th>
+                <th>Current weight</th>
+                <th>Target weight</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row, idx) => (
+                <tr key={idx}>
+                  <td>
+                    <input
+                      type="text"
+                      className="w-full border p-1"
+                      value={row.ticker}
+                      onChange={(e) => updateRow(idx, "ticker", e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="any"
+                      className="w-full border p-1"
+                      value={row.current}
+                      onChange={(e) => updateRow(idx, "current", e.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="text"
+                      className="w-full border p-1 opacity-80"
+                      value={
+                        Number.isFinite(parseFloat(row.current)) && totalCurrentValue > 0
+                          ? `${percentFormatter.format((parseFloat(row.current) / totalCurrentValue) * 100)}%`
+                          : "—"
+                      }
+                      readOnly
+                      aria-label={`Current weight for ${row.ticker || `row ${idx + 1}`}`}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="any"
+                      className="w-full border p-1"
+                      value={row.target}
+                      onChange={(e) => updateRow(idx, "target", e.target.value)}
+                      aria-label={`Target weight (%) for ${row.ticker || `row ${idx + 1}`}`}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="text-red-600"
+                      onClick={() => removeRow(idx)}
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <p
           className={`mt-2 text-xs ${
             Math.abs(totalTargetWeightPct - 100) <= 0.01
@@ -414,32 +418,34 @@ export default function Rebalance() {
           </button>
         </div>
       </form>
-      {err && <p className="text-red-600">{err}</p>}
+      {err && <p className="break-words text-red-600 [overflow-wrap:anywhere]">{err}</p>}
       {tradeRows && tradeRows.length > 0 && (
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th>Current weight</th>
-              <th>Target weight</th>
-              <th>Action</th>
-              <th>Trade value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tradeRows.map((t, index) => (
-              <tr key={`${t.ticker}-${index}`}>
-                <td>{t.ticker}</td>
-                <td>{percentFormatter.format(t.currentWeightPct)}%</td>
-                <td>{percentFormatter.format(t.targetWeightPct)}%</td>
-                <td className={t.action === "buy" ? "text-green-600" : "text-red-600"}>
-                  {t.action.toUpperCase()}
-                </td>
-                <td>{t.amount.toFixed(2)}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Current weight</th>
+                <th>Target weight</th>
+                <th>Action</th>
+                <th>Trade value</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {tradeRows.map((t, index) => (
+                <tr key={`${t.ticker}-${index}`}>
+                  <td>{t.ticker}</td>
+                  <td>{percentFormatter.format(t.currentWeightPct)}%</td>
+                  <td>{percentFormatter.format(t.targetWeightPct)}%</td>
+                  <td className={t.action === "buy" ? "text-green-600" : "text-red-600"}>
+                    {t.action.toUpperCase()}
+                  </td>
+                  <td>{t.amount.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {tradeRows && tradeRows.length > 0 && (
         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">

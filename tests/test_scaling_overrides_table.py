@@ -20,8 +20,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 OVERRIDES_PATH = REPO_ROOT / "data" / "scaling_overrides.json"
 
 # LSE stocks/trusts whose metadata says GBP but which quote in pence (#7787).
-# ADM.L's 0.1 -> 0.01 correction is owned by #8598, which pins it there.
-PENCE_QUOTED_GBP_TAGGED = ["AV", "CLIG", "HICL"]
+# ADM.L's 0.1 -> 0.01 correction landed in #8598; it is listed here too so all
+# four #7787 tickers are pinned in one place.
+PENCE_QUOTED_GBP_TAGGED = ["ADM", "AV", "CLIG", "HICL"]
 
 # GBP-tagged LSE ETFs that really are quoted in pounds; a blanket exchange-level
 # 0.01 would wrongly divide all of these by 100 (#7787).

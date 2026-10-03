@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Check, Copy, Pencil } from "lucide-react";
+import { Check, Copy, Pencil, RefreshCw } from "lucide-react";
 import type { ChatMessage } from "../api";
 
 // Assistant replies are Markdown (headings, bold, GFM tables). Raw HTML is not
@@ -134,15 +134,17 @@ export interface ChatMessageEditing {
 
 interface Props {
   message: ChatMessage;
-  /** True while a reply is pending: editing is blocked, copying is not. */
+  /** True while a reply is pending: editing and regenerating are blocked, copying is not. */
   busy: boolean;
   /** Starts editing this message; only passed for the user's own messages. */
   onEdit?: () => void;
+  /** Asks for a new reply in place of this one; only passed for assistant replies. */
+  onRegenerate?: () => void;
   /** Set while this message is being edited. */
   editing?: ChatMessageEditing;
 }
 
-export function ChatMessageItem({ message, busy, onEdit, editing }: Props) {
+export function ChatMessageItem({ message, busy, onEdit, onRegenerate, editing }: Props) {
   const isUser = message.role === "user";
   return (
     <li
@@ -192,6 +194,18 @@ export function ChatMessageItem({ message, busy, onEdit, editing }: Props) {
                 disabled={busy}
               >
                 <Pencil size={14} aria-hidden />
+              </button>
+            )}
+            {onRegenerate && (
+              <button
+                type="button"
+                className="chat-message-action"
+                aria-label="Regenerate reply"
+                title="Regenerate"
+                onClick={onRegenerate}
+                disabled={busy}
+              >
+                <RefreshCw size={14} aria-hidden />
               </button>
             )}
           </div>

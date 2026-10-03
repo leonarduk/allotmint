@@ -11,24 +11,27 @@ from backend.common import portfolio_utils
 from backend.config import config
 
 
-def _stub_network_heavy(mp: pytest.MonkeyPatch) -> None:
-    """Stub config flags and price helpers; ``mp`` restores them on teardown."""
-    mp.setattr(config, "skip_snapshot_warm", True)
-    mp.setattr(config, "offline_mode", True)
-    mp.setattr(config, "disable_auth", True)
-    mp.setattr(prices, "refresh_prices", lambda: {})
-    mp.setattr(portfolio_utils, "list_all_unique_tickers", lambda *a, **k: [])
-
-
 @pytest.fixture(scope="module")
 def client():
-    """Create a test client with network-heavy operations stubbed."""
+    """Create a test client with network-heavy operations stubbed.
+
+    The stubs are undone when this module finishes so later test modules see
+    the real ``refresh_prices``/``list_all_unique_tickers`` (#8652).
+    """
     with pytest.MonkeyPatch.context() as mp:
-        _stub_network_heavy(mp)
+        mp.setattr(config, "skip_snapshot_warm", True)
+        mp.setattr(config, "offline_mode", True)
+        mp.setattr(config, "disable_auth", True)
+        mp.setattr(prices, "refresh_prices", lambda: {})
+        mp.setattr(portfolio_utils, "list_all_unique_tickers", lambda *a, **k: [])
         reload(app_mod)
-        app = app_mod.create_app()
-        with TestClient(app) as c:
-            yield c
+        try:
+            app = app_mod.create_app()
+            with TestClient(app) as c:
+                yield c
+        finally:
+            mp.undo()
+            reload(app_mod)
 
 
 def sample_accounts():
@@ -97,9 +100,7 @@ def test_account_route_returns_data(client, owner, accounts):
         assert isinstance(data.get("holdings"), list)
 
 
-def test_account_route_adds_missing_account_type(tmp_path, monkeypatch):
-    _stub_network_heavy(monkeypatch)
-
+def test_account_route_adds_missing_account_type(tmp_path):
     owner = "temp"
     acct = "missing"
     acct_dir = tmp_path / owner
@@ -110,18 +111,37 @@ def test_account_route_adds_missing_account_type(tmp_path, monkeypatch):
     demo_dir.mkdir()
     (demo_dir / "demo.json").write_text(json.dumps({"currency": "GBP", "holdings": []}))
 
-    monkeypatch.setattr(config, "accounts_root", tmp_path)
-    reload(app_mod)
-    app = app_mod.create_app()
-    with TestClient(app) as c:
-        resp = c.get(f"/account/{owner}/{acct}")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["account_type"] == acct
-        assert "owner" not in data
-        owners_resp = c.get("/owners")
-        assert owners_resp.status_code == 200
-        owners = owners_resp.json()
-        names = {entry.get("owner", "").casefold() for entry in owners}
-        assert "temp" in names
-        assert "demo" in names
+    real_refresh_prices = prices.refresh_prices
+    real_list_all_unique_tickers = portfolio_utils.list_all_unique_tickers
+
+    # A local MonkeyPatch (not the ``monkeypatch`` fixture) so the stubs and
+    # accounts_root can be undone *before* the final reload of backend.app,
+    # without also undoing conftest's autouse patches mid-test.
+    try:
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(config, "skip_snapshot_warm", True)
+            mp.setattr(config, "offline_mode", True)
+            mp.setattr(config, "disable_auth", True)
+            mp.setattr(prices, "refresh_prices", lambda: {})
+            mp.setattr(portfolio_utils, "list_all_unique_tickers", lambda *a, **k: [])
+            mp.setattr(config, "accounts_root", tmp_path)
+            reload(app_mod)
+            app = app_mod.create_app()
+            with TestClient(app) as c:
+                resp = c.get(f"/account/{owner}/{acct}")
+                assert resp.status_code == 200
+                data = resp.json()
+                assert data["account_type"] == acct
+                assert "owner" not in data
+                owners_resp = c.get("/owners")
+                assert owners_resp.status_code == 200
+                owners = owners_resp.json()
+                names = {entry.get("owner", "").casefold() for entry in owners}
+                assert "temp" in names
+                assert "demo" in names
+    finally:
+        reload(app_mod)
+
+    # Guard against the stubs leaking past this test (#8652).
+    assert prices.refresh_prices is real_refresh_prices
+    assert portfolio_utils.list_all_unique_tickers is real_list_all_unique_tickers

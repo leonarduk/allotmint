@@ -357,7 +357,9 @@ export function Watchlist() {
         <button onClick={fetchData}>{t("watchlist.refresh")}</button>
       </div>
       {error && (
-        <div className="mb-2 text-red-500">{error}</div>
+        <div className="mb-2 break-words text-red-500 [overflow-wrap:anywhere]">
+          {error}
+        </div>
       )}
       {allClosed && (
         <div className="mb-2 text-gray-800 dark:text-gray-200">

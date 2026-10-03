@@ -75,8 +75,8 @@ backend/config.py:680
 backend/config.py:683
 # len(lines)/len(data) are always ints (row counts produced by the CSV
 # parser in this function) and can't carry attacker-controlled string content.
-backend/importers/hargreaves.py:139
-backend/importers/hargreaves.py:162
+backend/importers/hargreaves.py:202
+backend/importers/hargreaves.py:225
 backend/reports.py:562
 backend/reports.py:568
 backend/reports.py:546

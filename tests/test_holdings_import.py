@@ -97,6 +97,113 @@ def test_hargreaves_parse_uses_later_price_column_when_first_is_blank():
     assert holding.price == pytest.approx(4.5)
 
 
+TRANSFER_CSV = (
+    "Code,Stock,Units held,Price (pence),Value (£),Cost (£)\n"
+    "UPS,United Parcel Service Class 'B' Com Stock US$0.01 (CDI) *R,10,1000,100,80\n"
+    "BIIB,Biogen Inc *R,5,2000,100,\n"
+    "AAA,Alpha,10,150,15,15\n"
+)
+
+
+def test_hargreaves_parse_preserves_instrument_name():
+    [holding] = hargreaves.parse("Code,Stock,Units held,Price (pence),Cost (£)\nAAA,Alpha plc,10,150,15\n".encode())
+
+    assert holding.instrument_name == "Alpha plc"
+
+
+def test_hargreaves_parse_normal_row_unchanged_by_transfer_handling():
+    """Rows without ``*R`` keep their previous shape: untyped, cost as booked (#8474)."""
+    normal = hargreaves.parse(TRANSFER_CSV.encode())[2]
+
+    assert normal.ticker == "AAA"
+    assert normal.type is None
+    assert normal.date is None
+    assert normal.comments is None
+    assert normal.amount_minor == pytest.approx(1500)
+    assert normal.units == 10
+
+
+def test_hargreaves_parse_transfer_in_row_with_cost():
+    """An ``*R`` row is typed TRANSFER_IN with its name stripped and cost kept (#8474)."""
+    transfer = hargreaves.parse(TRANSFER_CSV.encode())[0]
+
+    assert transfer.ticker == "UPS"
+    assert transfer.instrument_name == "United Parcel Service Class 'B' Com Stock US$0.01 (CDI)"
+    assert transfer.type == "TRANSFER_IN"
+    assert transfer.amount_minor == pytest.approx(8000)
+    assert transfer.comments is None
+
+
+def test_hargreaves_parse_transfer_in_row_without_cost_is_flagged(caplog):
+    """A missing cost stays missing (not 0) and is flagged (#8474).
+
+    It is deliberately left untyped: as a TRANSFER_IN the replay would derive
+    a cost from the *current* price x units, i.e. a guessed cost.
+    """
+    with caplog.at_level("WARNING", logger=hargreaves.logger.name):
+        transfer = hargreaves.parse(TRANSFER_CSV.encode())[1]
+
+    assert transfer.ticker == "BIIB"
+    assert transfer.instrument_name == "Biogen Inc"
+    assert transfer.type is None
+    assert transfer.amount_minor is None
+    assert transfer.comments == hargreaves.MISSING_COST_COMMENT
+    assert any("BIIB" in record.getMessage() for record in caplog.records)
+
+
+def test_hargreaves_parse_transfer_in_zero_cost_is_not_stored_as_zero():
+    csv_data = "Code,Stock,Units held,Price (pence),Cost (£)\nB,Barrick *R,5,1500,0\n"
+
+    [transfer] = hargreaves.parse(csv_data.encode())
+
+    assert transfer.type is None
+    assert transfer.amount_minor is None
+    assert transfer.comments == hargreaves.MISSING_COST_COMMENT
+
+
+@pytest.mark.parametrize(
+    ("code", "name"),
+    [("ADBE *R", "Adobe Inc"), ("ADBE*R", "Adobe Inc"), ("*R ADBE", "Adobe Inc"), ("ADBE", "*R Adobe Inc")],
+)
+def test_hargreaves_parse_strips_transfer_marker_from_code_or_name(code, name):
+    csv_data = f"Code,Stock,Units held,Price (pence),Cost (£)\n{code},{name},5,1500,50\n"
+
+    [transfer] = hargreaves.parse(csv_data.encode())
+
+    assert transfer.ticker == "ADBE"
+    assert transfer.instrument_name == "Adobe Inc"
+    assert transfer.type == "TRANSFER_IN"
+
+
+def test_hargreaves_transfer_in_cost_reaches_replay():
+    """Persisted via /transactions/import, an ``*R`` row gives the replay a cost basis (#8474)."""
+    from backend.common.holdings_rebuild import transaction_cost_hints
+    from backend.routes.transactions import _tx_data_from_parsed
+
+    records = [_tx_data_from_parsed(tx) for tx in hargreaves.parse(TRANSFER_CSV.encode())]
+    hints = transaction_cost_hints(records)
+
+    assert hints["UPS"] == (pytest.approx(80.0), None)
+    # No booked cost -> not replayed, so no cost is guessed from today's price.
+    assert "BIIB" not in hints
+    # Untyped normal rows are still ignored by the replay, exactly as before.
+    assert "AAA" not in hints
+
+
+def test_update_holdings_from_csv_keeps_transfer_in_cost(tmp_path: Path, monkeypatch):
+    """The holdings-snapshot path keeps an ``*R`` row's booked cost under a clean ticker (#8474)."""
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    monkeypatch.setattr(update_holdings_from_csv, "resolve_instrument_ticker", lambda ticker: None)
+    update_holdings_from_csv.update_from_csv(
+        owner="alice", account="isa", provider="hargreaves", data=TRANSFER_CSV.encode()
+    )
+    data = json.loads((tmp_path / "alice" / "isa.json").read_text())
+    h = {h["ticker"]: h for h in data["holdings"]}
+
+    assert set(h) == {"UPS.L", "BIIB.L", "AAA.L"}
+    assert h["UPS.L"]["cost_basis_gbp"] == 80
+
+
 def test_update_holdings_from_csv(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(config, "accounts_root", tmp_path)
     result = update_holdings_from_csv.update_from_csv(

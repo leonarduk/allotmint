@@ -130,4 +130,36 @@ describe('calculateGroupTotals with unknown cost basis (#7785)', () => {
     expect(totals.gain).toBe(100);
     expect(totals.gainPct).toBeCloseTo((100 / 900) * 100);
   });
+
+  it('returns null gain and cost when no row has a reliable cost basis (#8531)', () => {
+    const rows = createRowsWithCost([
+      { ...base, ticker: 'AV', market_value_gbp: 33920, gain_gbp: 0, cost_basis_source: 'book_suspect' },
+      { ...base, ticker: 'B', market_value_gbp: 500, gain_gbp: 0, cost_basis_source: 'unknown' },
+    ]);
+    const totals = calculateGroupTotals(rows, 'Financial Services');
+    expect(totals.marketValue).toBe(34420);
+    expect(totals.gain).toBeNull();
+    expect(totals.cost).toBeNull();
+    expect(totals.gainPct).toBeNull();
+  });
+
+  it('counts distinct tickers so callers can suppress cross-instrument unit sums (#8531)', () => {
+    const rows = createRowsWithCost([base, { ...base, units: 4 }, { ...base, ticker: 'B', units: 2 }]);
+    expect(calculateGroupTotals(rows, 'All').instrumentCount).toBe(2);
+    expect(calculateGroupTotals(rows.slice(0, 2), 'A').instrumentCount).toBe(1);
+  });
+
+  it('sorts groups with null gain last in both directions (#8531)', () => {
+    const groupRows = createRowsWithCost([
+      { ...base, ticker: 'U', grouping: 'Unreliable', gain_gbp: 0, cost_basis_source: 'unknown' },
+      { ...base, ticker: 'L', grouping: 'Loss', gain_gbp: -50 },
+      { ...base, ticker: 'G', grouping: 'Gain', gain_gbp: 200 },
+    ]);
+    const labels = { ungroupedLabel: 'Ungrouped', uncategorisedLabel: 'Uncategorised' };
+    const lookup = buildCategoryLookup([]);
+    const descending = createGroups(groupRows, 'gain_gbp', false, 'group', labels, lookup);
+    expect(descending.map((group) => group.label)).toEqual(['Gain', 'Loss', 'Unreliable']);
+    const ascending = createGroups(groupRows, 'gain_gbp', true, 'group', labels, lookup);
+    expect(ascending.map((group) => group.label)).toEqual(['Loss', 'Gain', 'Unreliable']);
+  });
 });

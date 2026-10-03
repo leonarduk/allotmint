@@ -252,6 +252,26 @@ describe("InstrumentTable", () => {
         expect(screen.getByText("ABC")).toBeInTheDocument();
     });
 
+    it("shows N/A gain/cost for an all-unreliable-cost group and — for multi-instrument units (#8531)", async () => {
+        const unreliableRows: InstrumentSummary[] = [
+            ...rows.filter((row) => row.grouping !== "Group B"),
+            { ...rows[2], gain_gbp: 0, cost_basis_source: "unknown" },
+        ];
+        renderWithConfig(<InstrumentTable rows={unreliableRows} />);
+        await screen.findByRole("button", { name: /Toggle Group B/i });
+
+        const groupBSummary = getSummaryRow("Group B");
+        expect(within(groupBSummary).getAllByText("N/A")).toHaveLength(2);
+        expect(within(groupBSummary).queryByText("£0.00")).toBeNull();
+        // Single-instrument group keeps its unit count.
+        expect(within(groupBSummary).getByText("3")).toBeInTheDocument();
+
+        // Group A mixes ABC and XYZ, so 10 + 5 units is not shown.
+        const groupASummary = getSummaryRow("Group A");
+        expect(within(groupASummary).queryByText("15")).toBeNull();
+        expect(within(groupASummary).getByText("▲£50.00")).toBeInTheDocument();
+    });
+
     it("hides group totals when showGroupTotals is false", async () => {
         render(<InstrumentTable rows={rows} showGroupTotals={false} />);
         await screen.findByRole("button", { name: /Toggle Group A/i });

@@ -514,7 +514,10 @@ export function HoldingsTable({
         </th>
         {!relativeViewEnabled && visibleColumns.units && (
           <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-            {new Intl.NumberFormat(i18n.language).format(group.totals.units)}
+            {/* Units summed across different instruments mean nothing (#8531). */}
+            {group.totals.instrumentCount > 1
+              ? "—"
+              : new Intl.NumberFormat(i18n.language).format(group.totals.units)}
           </td>
         )}
         {!relativeViewEnabled && visibleColumns.market && (
@@ -524,7 +527,16 @@ export function HoldingsTable({
         )}
         {!relativeViewEnabled && visibleColumns.gain && (
           <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-            {money(group.totals.gain, baseCurrency)}
+            {group.totals.gain === null ? (
+              <span
+                className={tableStyles.notApplicable}
+                title={t("holdingsTable.gainNotAvailable")}
+              >
+                {t("holdingsTable.notApplicable")}
+              </span>
+            ) : (
+              money(group.totals.gain, baseCurrency)
+            )}
           </td>
         )}
         {visibleColumns.gain_pct && (
@@ -535,7 +547,16 @@ export function HoldingsTable({
         <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>—</td>
         {!relativeViewEnabled && visibleColumns.cost && (
           <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-            {money(group.totals.cost, baseCurrency)}
+            {group.totals.cost === null ? (
+              <span
+                className={tableStyles.notApplicable}
+                title={t("holdingsTable.gainNotAvailable")}
+              >
+                {t("holdingsTable.notApplicable")}
+              </span>
+            ) : (
+              money(group.totals.cost, baseCurrency)
+            )}
           </td>
         )}
         {showForward7d && (

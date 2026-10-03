@@ -1,3 +1,5 @@
+import pytest
+
 from backend.common import portfolio_utils
 
 
@@ -117,3 +119,135 @@ def test_book_suspect_units_excluded_from_snapshot_gain_recompute(monkeypatch):
 def test_book_suspect_takes_precedence_over_unknown_on_a_row():
     rows = _rows(_portfolio(_holding("AV.L", "unknown", owner="a"), _suspect_holding()))
     assert rows["AV.L"]["cost_basis_source"] == "book_suspect"
+
+
+# ── Sector/region aggregates (#8488) ────────────────────────────────────────
+
+
+def _lot(ticker, market_value, cost, source, sector="Tech", region="Europe", units=10, owner="a"):
+    return {
+        "ticker": ticker,
+        "owner": owner,
+        "units": units,
+        "sector": sector,
+        "region": region,
+        "market_value_gbp": market_value,
+        "cost_gbp": cost,
+        "gain_gbp": market_value - cost,
+        "cost_basis_source": source,
+    }
+
+
+def _by(rows, field):
+    return {r[field]: r for r in rows}
+
+
+def test_sector_gain_pct_ignores_unknown_cost_holding():
+    portfolio = _portfolio(
+        _lot("ZQA.L", 1200, 1000, "book"),
+        # Guessed cost == market value (#7785): would read as 0% at full cost.
+        _lot("ZQB.L", 1000, 1000, "unknown"),
+    )
+    tech = _by(portfolio_utils.aggregate_by_sector(portfolio), "sector")["Tech"]
+    assert tech["gain_pct"] == pytest.approx(20.0)
+    assert tech["cost_gbp"] == pytest.approx(1000)
+    assert tech["gain_gbp"] == pytest.approx(200)
+    assert tech["market_value_gbp"] == pytest.approx(2200)
+    assert tech["unknown_cost_market_value_gbp"] == pytest.approx(1000)
+
+
+def test_region_gain_pct_ignores_unknown_cost_holding():
+    portfolio = _portfolio(_lot("ZQA.L", 1200, 1000, "book"), _lot("ZQB.L", 1000, 1000, "unknown"))
+    europe = _by(portfolio_utils.aggregate_by_region(portfolio), "region")["Europe"]
+    assert europe["gain_pct"] == pytest.approx(20.0)
+    assert europe["unknown_cost_market_value_gbp"] == pytest.approx(1000)
+
+
+def test_contribution_pct_excludes_unreliable_cost_and_weights_are_unchanged():
+    portfolio = _portfolio(
+        _lot("ZQA.L", 1200, 1000, "book"),
+        _lot("ZQB.L", 1000, 1000, "unknown"),
+        _lot("ZQC.L", 550, 500, "book", sector="Energy"),
+    )
+    groups = _by(portfolio_utils.aggregate_by_sector(portfolio), "sector")
+    reliable_total_cost = 1000 + 500
+    assert groups["Tech"]["contribution_pct"] == pytest.approx(200 / reliable_total_cost * 100)
+    assert groups["Energy"]["contribution_pct"] == pytest.approx(50 / reliable_total_cost * 100)
+    # Market value and weight still include the unknown-cost holding.
+    assert groups["Tech"]["market_value_gbp"] == pytest.approx(2200)
+    assert groups["Tech"]["weight_pct"] == pytest.approx(2200 / 2750 * 100)
+    assert groups["Energy"]["weight_pct"] == pytest.approx(550 / 2750 * 100)
+
+
+def test_all_reliable_groups_match_plain_sums_of_ticker_rows():
+    portfolio = _portfolio(
+        _lot("ZQA.L", 1200, 1000, "book"),
+        _lot("ZQD.L", 800, 900, "derived"),
+        _lot("ZQC.L", 550, 500, None, sector="Energy"),
+    )
+    rows = portfolio_utils.aggregate_by_ticker(portfolio)
+    groups = _by(portfolio_utils.aggregate_by_sector(portfolio), "sector")
+    total_cost = sum(r["cost_gbp"] for r in rows)
+    for sector, group in groups.items():
+        members = [r for r in rows if r["sector"] == sector]
+        gain = sum(r["gain_gbp"] for r in members)
+        cost = sum(r["cost_gbp"] for r in members)
+        assert group["gain_gbp"] == gain
+        assert group["cost_gbp"] == cost
+        assert group["gain_pct"] == gain / cost * 100.0
+        assert group["contribution_pct"] == gain / total_cost * 100.0
+        assert group["unknown_cost_market_value_gbp"] == 0.0
+
+
+def test_book_suspect_holding_excluded_from_sector_gain():
+    suspect = dict(_suspect_holding(), sector="Tech", region="Europe")
+    portfolio = _portfolio(_lot("ZQA.L", 1200, 1000, "book"), suspect)
+    tech = _by(portfolio_utils.aggregate_by_sector(portfolio), "sector")["Tech"]
+    assert tech["gain_pct"] == pytest.approx(20.0)
+    assert tech["cost_gbp"] == pytest.approx(1000)
+    assert tech["market_value_gbp"] == pytest.approx(1200 + 33620)
+    assert tech["unknown_cost_market_value_gbp"] == pytest.approx(33620)
+
+
+def test_mixed_ticker_keeps_reliable_lots_in_sector_figures():
+    # One ticker held as a known-cost lot (+20%) and a guessed-cost lot: the
+    # ticker row is tagged "unknown" but only the guessed lot is dropped.
+    portfolio = _portfolio(
+        _lot("ZQA.L", 1200, 1000, "book"),
+        _lot("ZQA.L", 1200, 1200, "unknown", owner="b"),
+    )
+    assert _rows(portfolio)["ZQA.L"]["cost_basis_source"] == "unknown"
+    tech = _by(portfolio_utils.aggregate_by_sector(portfolio), "sector")["Tech"]
+    assert tech["cost_gbp"] == pytest.approx(1000)
+    assert tech["gain_gbp"] == pytest.approx(200)
+    assert tech["gain_pct"] == pytest.approx(20.0)
+    assert tech["market_value_gbp"] == pytest.approx(2400)
+    assert tech["unknown_cost_market_value_gbp"] == pytest.approx(1200)
+
+
+def test_mixed_ticker_split_uses_snapshot_price(monkeypatch):
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_PRICE_SNAPSHOT",
+        {"ZQA.L": {"last_price": 150.0, "price_currency": "GBP"}},
+    )
+    suspect = dict(_lot("ZQA.L", 1000, 10, "book_suspect", owner="c"), gain_gbp=None)
+    portfolio = _portfolio(
+        _lot("ZQA.L", 1200, 1000, "book"),
+        _lot("ZQA.L", 1200, 1200, "unknown", owner="b"),
+        suspect,
+    )
+    tech = _by(portfolio_utils.aggregate_by_sector(portfolio), "sector")["Tech"]
+    # 30 units at the snapshot price of 150; only the book lot's 10 units are costed.
+    assert tech["market_value_gbp"] == pytest.approx(4500)
+    assert tech["cost_gbp"] == pytest.approx(1000)
+    assert tech["gain_gbp"] == pytest.approx(10 * 150 - 1000)
+    assert tech["gain_pct"] == pytest.approx(50.0)
+    assert tech["unknown_cost_market_value_gbp"] == pytest.approx(20 * 150)
+
+
+def test_cost_split_does_not_leak_into_ticker_rows():
+    rows = _rows(_portfolio(_lot("ZQA.L", 1200, 1000, "book"), _lot("ZQB.L", 1000, 1000, "unknown")))
+    for row in rows.values():
+        assert "_unreliable_cost_split" not in row
+        assert "_unreliable_lots" not in row

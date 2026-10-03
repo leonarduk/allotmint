@@ -142,6 +142,8 @@ export type SectorContribution = {
   currency?: string | null;
   gain_pct?: number | null;
   contribution_pct?: number | null;
+  /** Market value of holdings left out of gain/cost (unreliable cost basis, #8488). */
+  unknown_cost_market_value_gbp?: number;
 };
 
 export type RegionContribution = {
@@ -152,6 +154,8 @@ export type RegionContribution = {
   currency?: string | null;
   gain_pct?: number | null;
   contribution_pct?: number | null;
+  /** Market value of holdings left out of gain/cost (unreliable cost basis, #8488). */
+  unknown_cost_market_value_gbp?: number;
 };
 
 export interface PerformancePoint {

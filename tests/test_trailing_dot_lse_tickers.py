@@ -12,6 +12,10 @@ from backend.common.portfolio import fill_missing_costs
 from backend.common.ticker_utils import canonical_ticker, split_ticker
 from backend.utils import update_holdings_from_csv
 
+# Captured at collection time: tests/test_accounts_api.py rebinds
+# portfolio_utils.list_all_unique_tickers globally without restoring it.
+_LIST_ALL_UNIQUE_TICKERS = portfolio_utils.list_all_unique_tickers
+
 
 @pytest.mark.parametrize(
     ("ticker", "exchange", "expected"),
@@ -126,6 +130,8 @@ def test_unique_tickers_collapse_padded_epic(monkeypatch):
     ]
     monkeypatch.setattr(portfolio_utils, "list_portfolios", lambda: portfolios)
     monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+
+    monkeypatch.setattr(portfolio_utils, "list_all_unique_tickers", _LIST_ALL_UNIQUE_TICKERS)
 
     assert sorted(portfolio_utils.list_all_unique_tickers()) == ["AZN.L", "BP.L"]
 

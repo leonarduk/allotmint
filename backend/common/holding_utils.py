@@ -29,6 +29,7 @@ from backend.common.sector_labels import (
     normalise_optional_region,
     normalise_optional_sector,
 )
+from backend.common.ticker_utils import canonical_ticker
 from backend.common.user_config import UserConfig
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -727,7 +728,11 @@ def enrich_holding(
     Produces the same keys in both paths.
     """
     out = dict(h)  # do not mutate caller
-    full = (out.get(TICKER) or "").upper()
+    # Canonical key so a padded LSE EPIC ("BP.") is priced and labelled as
+    # "BP.L" -- the key the price snapshot and timeseries cache use (#8600).
+    full = canonical_ticker(out.get(TICKER))
+    if full:
+        out[TICKER] = full
     meta = get_instrument_meta(full)
     ucfg = user_config or UserConfig(
         hold_days_min=config.hold_days_min,

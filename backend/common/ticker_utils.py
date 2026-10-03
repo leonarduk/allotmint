@@ -7,6 +7,41 @@ import os
 DEFAULT_OFFLINE_TICKER = "PFE"
 _FORCE_DEMO = os.getenv("TESTING") not in {None, "", "0", "false", "False"}
 
+# The London Stock Exchange pads two-letter EPICs with a trailing dot
+# (``BP.``, ``AV.``, ``SN.``) and brokers such as Hargreaves Lansdown export
+# them that way.  A trailing dot therefore means "LSE", never "no exchange".
+LSE_EXCHANGE = "L"
+
+
+def split_ticker(ticker: str | None, exchange: str | None = None) -> tuple[str, str | None]:
+    """Split ``ticker`` into ``(symbol, exchange)`` without ever returning ``""``.
+
+    ``"BP.L"`` -> ``("BP", "L")``; ``"BP."`` -> ``("BP", "L")`` (padded LSE
+    EPIC); ``"BP"`` with ``exchange="L"`` -> ``("BP", "L")``; ``"BP"`` ->
+    ``("BP", None)``.  An explicit suffix on ``ticker`` wins over ``exchange``.
+    """
+    raw = (ticker or "").strip().upper()
+    symbol, dot, suffix = raw.partition(".")
+    if suffix:
+        return symbol, suffix
+    if dot:
+        return symbol, LSE_EXCHANGE
+    fallback = (exchange or "").strip().upper()
+    return symbol, fallback or None
+
+
+def canonical_ticker(ticker: str | None, exchange: str | None = None) -> str:
+    """Return the single canonical ``SYMBOL.EXCHANGE`` key for ``ticker``.
+
+    ``"BP."``, ``"bp.l"`` and ``("BP", "L")`` all become ``"BP.L"`` so prices,
+    cache files and transaction pools share one key.  A bare symbol with no
+    known exchange is returned bare; an empty exchange is never emitted.
+    """
+    symbol, exch = split_ticker(ticker, exchange)
+    if not symbol:
+        return ""
+    return f"{symbol}.{exch}" if exch else symbol
+
 
 def canonical_cache_ticker(
     ticker: str,

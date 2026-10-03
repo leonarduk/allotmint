@@ -280,11 +280,12 @@ describe("InstrumentTable", () => {
         const { container } = renderWithConfig(<InstrumentTable rows={mixedRows} />);
         await screen.findByRole("button", { name: /Toggle Group A/i });
 
-        const footer = container.querySelector("tfoot") as HTMLElement;
+        // Footer cells: label, units, cost, market, gain, gain %, ...
         // Cost 900 + 550 + 270 + 180 and gain 100 - 50 + 30 + 20; the
         // unknown-cost row is left out of both.
-        expect(within(footer).getByText("£1,900.00")).toBeInTheDocument();
-        expect(within(footer).getByText("▲£100.00")).toBeInTheDocument();
+        const footerCells = (container.querySelector("tfoot tr") as HTMLTableRowElement).cells;
+        expect(footerCells[2]).toHaveTextContent(/^£1,900\.00$/);
+        expect(footerCells[4]).toHaveTextContent(/^▲£100\.00$/);
     });
 
     it("shows — for overall Cost/Gain when no row has a reliable cost (#8531)", async () => {
@@ -296,11 +297,12 @@ describe("InstrumentTable", () => {
         const { container } = renderWithConfig(<InstrumentTable rows={unreliable} />);
         await screen.findByRole("button", { name: /Toggle Group A/i });
 
-        const footer = container.querySelector("tfoot") as HTMLElement;
-        expect(within(footer).queryByText("£0.00")).toBeNull();
-        expect(within(footer).getByText("£2,000.00")).toBeInTheDocument();
-        // Cost and Gain fall back to "—" alongside the always-"—" columns.
-        expect(within(footer).getAllByText("—").length).toBeGreaterThanOrEqual(4);
+        // Footer cells: label, units, cost, market, gain, gain %, ...
+        const footerCells = (container.querySelector("tfoot tr") as HTMLTableRowElement).cells;
+        expect(footerCells[0]).toHaveTextContent("Total");
+        expect(footerCells[2]).toHaveTextContent(/^—$/);
+        expect(footerCells[3]).toHaveTextContent("£2,000.00");
+        expect(footerCells[4]).toHaveTextContent(/^—$/);
     });
 
     it("hides group totals when showGroupTotals is false", async () => {

@@ -338,6 +338,14 @@ def _patch_enrich_env(monkeypatch, current_price, acq_close=None):
     monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {})
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {})
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: None)
+    # enrich_holding reads the reporting-date price via the dated variant
+    # (#7919) and the previous/forward closes via the undated one; stub both
+    # so no real or cached price fetch is reached.
+    monkeypatch.setattr(
+        holding_utils,
+        "_get_dated_price_for_date_scaled",
+        lambda ticker, exchange, d, *a, **k: (current_price, "mock", d if current_price is not None else None),
+    )
     monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *a, **k: (current_price, "mock"))
     monkeypatch.setattr(holding_utils, "_derived_cost_basis_close_px", lambda *a, **k: acq_close)
 

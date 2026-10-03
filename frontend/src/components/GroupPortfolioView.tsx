@@ -343,7 +343,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const [instrumentLoading, setInstrumentLoading] = useState(false);
   const [instrumentError, setInstrumentError] = useState<Error | null>(null);
   const [requestedDisplayMode, setRequestedDisplayMode] = useState<
-    "flat" | "rollup" | "category"
+    "flat" | "rollup" | "category" | "sector"
   >("rollup");
   const displayMode = familyMvpEnabled ? "flat" : requestedDisplayMode;
   const [selectedInstrument, setSelectedInstrument] = useState<{
@@ -1561,7 +1561,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           }}
         >
           <legend className="sr-only">{t("holdingsTable.displayMode.label")}</legend>
-          {(["rollup", "flat", "category"] as const).map((mode) => (
+          {(["rollup", "flat", "category", "sector"] as const).map((mode) => (
             <label key={mode}>
               <input
                 type="radio"
@@ -1624,7 +1624,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             holdings={displayMode === "flat" ? scopedRows : rollupRows}
             rollupMode={displayMode !== "flat"}
             showAccount={showAccount}
-            groupingMode={displayMode === "category" ? "category" : "flat"}
+            groupingMode={
+              displayMode === "category" || displayMode === "sector" ? displayMode : "flat"
+            }
             categoryDefinitions={groupDefinitions}
             onSelectInstrument={(ticker, name, instrumentType) =>
               setSelectedInstrument({ ticker, name, instrumentType })

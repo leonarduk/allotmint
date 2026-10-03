@@ -23,7 +23,7 @@ export type GroupedRows = {
   totals: GroupTotals;
 };
 
-export type GroupingMode = 'group' | 'flat' | 'category';
+export type GroupingMode = 'group' | 'flat' | 'category' | 'sector';
 
 export type VisibleColumns = {
   units: boolean;

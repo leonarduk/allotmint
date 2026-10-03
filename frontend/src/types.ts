@@ -103,6 +103,7 @@ export type InstrumentSummary = {
   ticker: string;
   name: string;
   grouping?: string | null;
+  sector?: string | null;
   exchange?: string | null;
   currency?: string | null;
   units: number;

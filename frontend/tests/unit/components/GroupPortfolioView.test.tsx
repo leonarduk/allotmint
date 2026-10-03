@@ -1486,6 +1486,48 @@ describe("GroupPortfolioView", () => {
     expect(within(aaaRow).getAllByText("£60.00").length).toBeGreaterThan(0);
   });
 
+  it("groups holdings by instrument sector in Sector mode (#8486)", async () => {
+    const user = userEvent.setup();
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "AAA", units: 1, market_value_gbp: 60, gain_gbp: 0 },
+            { ticker: "BBB", units: 1, market_value_gbp: 40, gain_gbp: 0 },
+          ],
+        },
+      ],
+    };
+    // BBB has no sector anywhere, so it must land in the unknown-sector bucket.
+    const instruments = {
+      [instrumentKey()]: [
+        { ticker: "AAA", name: "Alpha", units: 1, market_value_gbp: 60, gain_gbp: 0, sector: "Financials" },
+      ],
+    };
+    const fetchMock = mockAllFetches(mockPortfolio, { instruments });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          toUrlString(input as RequestInfo | URL).endsWith("/instruments"),
+        ),
+      ).toBe(true),
+    );
+
+    await user.click(await screen.findByRole("radio", { name: "Sector" }));
+    await user.click(await screen.findByRole("button", { name: "Toggle Financials" }));
+    expect(await screen.findByRole("button", { name: "AAA" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Toggle Unknown sector" }));
+    expect(await screen.findByRole("button", { name: "BBB" })).toBeInTheDocument();
+  });
+
   it("opens the InstrumentDetail drawer on ticker click without navigating away", async () => {
     const user = userEvent.setup();
     const mockPortfolio = {

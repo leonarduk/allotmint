@@ -20,6 +20,7 @@ export type RollupRow = {
   owners: string[];
   accounts: string[];
   grouping: string | null;
+  sector: string | null;
   exchange: string | null;
   change_7d_pct: number | null;
   change_30d_pct: number | null;
@@ -70,6 +71,7 @@ type MutableRollup = Omit<
   RollupRow,
   | "weight_pct"
   | "grouping"
+  | "sector"
   | "exchange"
   | "change_7d_pct"
   | "change_30d_pct"
@@ -212,6 +214,7 @@ export function toRollupRows(
       owners: Array.from(ownerSet),
       accounts: Array.from(accountSet),
       grouping: instrument?.grouping ?? null,
+      sector: instrument?.sector ?? oldestLot.sector ?? null,
       exchange: instrument?.exchange ?? null,
       change_7d_pct: instrument?.change_7d_pct ?? null,
       change_30d_pct: instrument?.change_30d_pct ?? null,

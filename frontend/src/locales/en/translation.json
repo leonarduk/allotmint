@@ -365,7 +365,8 @@
       "category": "Category",
       "flat": "Flat",
       "label": "Holdings display mode",
-      "rollup": "Rollup"
+      "rollup": "Rollup",
+      "sector": "Sector"
     },
     "clearFilters": "Clear filters",
     "horizontalScroll": "Scroll holdings columns horizontally",
@@ -544,7 +545,8 @@
       "market": "Market"
     },
     "noInstruments": "No instruments.",
-    "ungrouped": "Ungrouped"
+    "ungrouped": "Ungrouped",
+    "unknownSector": "Unknown sector"
   },
   "instrumentType": {
     "bond": "Bond",

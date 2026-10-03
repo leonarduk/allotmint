@@ -111,6 +111,9 @@ def test_account_route_adds_missing_account_type(tmp_path):
     demo_dir.mkdir()
     (demo_dir / "demo.json").write_text(json.dumps({"currency": "GBP", "holdings": []}))
 
+    real_refresh_prices = prices.refresh_prices
+    real_list_all_unique_tickers = portfolio_utils.list_all_unique_tickers
+
     # A local MonkeyPatch (not the ``monkeypatch`` fixture) so the stubs and
     # accounts_root can be undone *before* the final reload of backend.app,
     # without also undoing conftest's autouse patches mid-test.
@@ -138,3 +141,7 @@ def test_account_route_adds_missing_account_type(tmp_path):
                 assert "demo" in names
     finally:
         reload(app_mod)
+
+    # Guard against the stubs leaking past this test (#8652).
+    assert prices.refresh_prices is real_refresh_prices
+    assert portfolio_utils.list_all_unique_tickers is real_list_all_unique_tickers

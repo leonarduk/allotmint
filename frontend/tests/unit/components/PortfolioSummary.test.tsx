@@ -128,6 +128,59 @@ describe("computePortfolioTotals", () => {
     expect(totals.totalCost).toBe(1000);
     expect(totals.unknownCostBasisCount).toBe(0);
   });
+
+  it("excludes unpriced non-cash holdings from gain/cost instead of booking their cost as a loss (#8607)", () => {
+    const accounts = [
+      account([
+        holding({ ticker: "AAA.L", market_value_gbp: 100, cost_basis_gbp: 80, gain_gbp: 20 }),
+        // No price: market value is null and the backend nulls the gain.
+        holding({
+          ticker: "NOPRICE.L",
+          market_value_gbp: null,
+          cost_basis_gbp: 1000,
+          effective_cost_basis_gbp: 1000,
+          gain_gbp: null,
+          gain_pct: null,
+        }),
+      ]),
+    ];
+    const totals = computePortfolioTotals(accounts);
+
+    expect(totals.totalGain).toBe(20);
+    expect(totals.totalCost).toBe(80);
+    expect(totals.totalGainPct).toBe(25);
+    expect(totals.totalStockValue).toBe(100);
+    expect(totals.unpricedHoldingCount).toBe(1);
+    expect(totals.unknownCostBasisCount).toBe(0);
+    expect(totals.gainEligibleHoldingCount).toBe(2);
+  });
+
+  it("counts a holding that is both unpriced and unknown-cost once, under cost basis (#8607)", () => {
+    const accounts = [
+      account([
+        holding({ ticker: "AAA.L", market_value_gbp: 100, cost_basis_gbp: 80, gain_gbp: 20 }),
+        holding({
+          ticker: "BOTH.L",
+          market_value_gbp: null,
+          cost_basis_gbp: 0,
+          effective_cost_basis_gbp: 0,
+          gain_gbp: null,
+          gain_pct: null,
+          cost_basis_source: "unknown",
+        }),
+      ]),
+    ];
+    const totals = computePortfolioTotals(accounts);
+
+    expect(totals.totalGain).toBe(20);
+    expect(totals.totalCost).toBe(80);
+    // Excluded exactly once, so the "N of M" counts never exceed M.
+    expect(totals.unknownCostBasisCount).toBe(1);
+    expect(totals.unpricedHoldingCount).toBe(0);
+    expect(totals.unknownCostBasisCount + totals.unpricedHoldingCount).toBeLessThanOrEqual(
+      totals.gainEligibleHoldingCount,
+    );
+  });
 });
 
 describe("PortfolioSummary", () => {
@@ -190,6 +243,61 @@ describe("PortfolioSummary", () => {
     expect(gainLoss).toHaveTextContent("—");
     expect(
       screen.getByText("Gain unavailable for all 1 holdings (no reliable cost basis)"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows gain from priced holdings only, with a note, when some holdings are unpriced (#8607)", () => {
+    const totals = computePortfolioTotals([
+      account([
+        holding({ ticker: "AAA.L", market_value_gbp: 100, cost_basis_gbp: 80, gain_gbp: 20 }),
+        holding({
+          ticker: "NOPRICE.L",
+          market_value_gbp: null,
+          cost_basis_gbp: 1000,
+          gain_gbp: null,
+          gain_pct: null,
+        }),
+      ]),
+    ]);
+    render(<PortfolioSummary totals={totals} />);
+    const gainLoss = screen.getByText("Gain/loss").parentElement!;
+    expect(gainLoss).toHaveTextContent("£20.00");
+    expect(gainLoss).not.toHaveTextContent("-100");
+    expect(screen.getByText("Excludes 1 of 2 holdings with no price")).toBeInTheDocument();
+  });
+
+  it("shows — instead of -100% when every holding is unpriced (#8607)", () => {
+    const totals = computePortfolioTotals([
+      account([
+        holding({
+          ticker: "NOPRICE.L",
+          market_value_gbp: null,
+          cost_basis_gbp: 1000,
+          gain_gbp: null,
+          gain_pct: null,
+        }),
+      ]),
+    ]);
+    render(<PortfolioSummary totals={totals} />);
+    const gainLoss = screen.getByText("Gain/loss").parentElement!;
+    expect(gainLoss).toHaveTextContent("—");
+    expect(gainLoss).not.toHaveTextContent("-100");
+    expect(screen.getByText("Gain unavailable for all 1 holdings (no price)")).toBeInTheDocument();
+  });
+
+  it("combines cost-basis and no-price exclusions in one note (#8607)", () => {
+    const totals = computePortfolioTotals([
+      account([
+        holding({ ticker: "AAA.L", market_value_gbp: 100, cost_basis_gbp: 80, gain_gbp: 20 }),
+        holding({ ticker: "ZZZ.L", market_value_gbp: 500, cost_basis_source: "unknown" }),
+        holding({ ticker: "NOPRICE.L", market_value_gbp: null, gain_gbp: null }),
+      ]),
+    ]);
+    render(<PortfolioSummary totals={totals} />);
+    expect(
+      screen.getByText(
+        "Excludes 1 of 3 holdings with no reliable cost basis and 1 with no price",
+      ),
     ).toBeInTheDocument();
   });
 });

@@ -71,7 +71,7 @@ def _seed_meta(cache, ticker: str, exchange: str, last: date, close: float = 10.
             "Close": close,
             "Volume": 0,
             "Ticker": ticker,
-            "Source": "SRC",
+            "Source": "Yahoo",
         }
     )
     cache._save_parquet(frame, cache.meta_timeseries_cache_path(ticker, exchange))

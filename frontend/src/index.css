@@ -21,6 +21,15 @@
     --surface-muted-color: #bbbbbb;
     --native-control-bg: #ffffff;
     --native-control-color: #213547;
+    /* Top nav menu (Menu.tsx) colours (#8609). Opaque values so contrast
+       checks are meaningful; light values mirror the Tailwind grays used before. */
+    --menu-text: #c4c4c4;
+    --menu-text-active: #ffffff;
+    --menu-active-bg: #3a3a3a;
+    --menu-hover-bg: #333333;
+    --menu-border: #3a3a3a;
+    --menu-toggle-border: #555555;
+    --menu-toggle-text: #e0e0e0;
     --summary-card-bg: #222;
     --summary-card-border: #444;
     --summary-card-label: #aaa;
@@ -55,6 +64,13 @@
     --surface-card-color: #213547;
     --surface-card-border: #e0e0e0;
     --surface-muted-color: #555555;
+    --menu-text: #4b5563;
+    --menu-text-active: #111827;
+    --menu-active-bg: #f3f4f6;
+    --menu-hover-bg: #f3f4f6;
+    --menu-border: #e5e7eb;
+    --menu-toggle-border: #d1d5db;
+    --menu-toggle-text: #374151;
     --summary-card-bg: #f5f5f5;
     --summary-card-border: #d4d4d4;
     --summary-card-label: #555555;
@@ -84,6 +100,13 @@
     --surface-card-color: rgba(255, 255, 255, 0.95);
     --surface-card-border: #3a3a3a;
     --surface-muted-color: #bbbbbb;
+    --menu-text: #c4c4c4;
+    --menu-text-active: #ffffff;
+    --menu-active-bg: #3a3a3a;
+    --menu-hover-bg: #333333;
+    --menu-border: #3a3a3a;
+    --menu-toggle-border: #555555;
+    --menu-toggle-text: #e0e0e0;
     --summary-card-bg: #222;
     --summary-card-border: #444;
     --summary-card-label: #aaa;
@@ -117,6 +140,13 @@
         --surface-card-color: #213547;
         --surface-card-border: #e0e0e0;
         --surface-muted-color: #555555;
+        --menu-text: #4b5563;
+        --menu-text-active: #111827;
+        --menu-active-bg: #f3f4f6;
+        --menu-hover-bg: #f3f4f6;
+        --menu-border: #e5e7eb;
+        --menu-toggle-border: #d1d5db;
+        --menu-toggle-text: #374151;
         --summary-card-bg: #f5f5f5;
         --summary-card-border: #d4d4d4;
         --summary-card-label: #555555;

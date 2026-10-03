@@ -5,13 +5,19 @@ import path from 'node:path'
 // Guards the sticky-header and count-badge fixes from #8532. jsdom does not
 // lay out or paint, so these assert the stylesheet contract directly.
 describe('table.module.css sticky header and group count', () => {
-  const cssPath = path.resolve(process.cwd(), 'src/styles/table.module.css')
+  // Resolve relative to this file so the test works whether vitest runs from
+  // frontend/ or the repo root.
+  const cssPath = path.resolve(__dirname, '../../../src/styles/table.module.css')
   const css = fs.readFileSync(cssPath, 'utf-8')
 
+  // Returns the body of the rule for an exact selector, including indented
+  // copies inside @media blocks. Requires exactly one, so a later duplicate
+  // (e.g. a media-query override) can't silently change the effective rule.
   const rule = (selector: string) => {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const match = css.match(new RegExp(`(?:^|\\n)${escaped}\\s*{([^}]*)}`))
-    return match?.[1] ?? ''
+    const matches = [...css.matchAll(new RegExp(`(?:^|\\n)\\s*${escaped}\\s*{([^}]*)}`, 'g'))]
+    expect(matches, `expected exactly one "${selector}" rule`).toHaveLength(1)
+    return matches[0][1]
   }
 
   it('makes the whole thead sticky with an opaque theme background', () => {
@@ -40,7 +46,7 @@ describe('table.module.css sticky header and group count', () => {
 // default (dark), explicit light/dark, and the system-theme light override
 // (#6530).
 describe('theme tokens used by the holdings table header and group count', () => {
-  const indexCss = fs.readFileSync(path.resolve(process.cwd(), 'src/index.css'), 'utf-8')
+  const indexCss = fs.readFileSync(path.resolve(__dirname, '../../../src/index.css'), 'utf-8')
 
   const block = (selector: string, after = 0) => {
     const start = indexCss.indexOf(`${selector} {`, after)

@@ -112,8 +112,10 @@ def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False
     from backend.common import instrument_api
 
     fx_cache: Dict[str, float] = {}
+    unpriced: list[str] = []
 
     for i, full in enumerate(full_tickers):
+        priced_before = len(result)
         resolved = instrument_api._resolve_full_ticker(full, result)
         if resolved:
             ticker, exchange = resolved
@@ -185,10 +187,20 @@ def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False
                 sanitise_log_value(e),
             )
         finally:
+            if len(result) == priced_before:
+                unpriced.append(full)
             if report_progress:
                 refresh_progress.update(full, i + 1)
 
     logger.info("Latest prices fetched: %d/%d", len(result), len(full_tickers))
+    if unpriced:
+        # Name the symbols so a refresh that keeps failing for one ticker is
+        # visible in the logs rather than only as a shortfall in the count (#8599).
+        logger.warning(
+            "No latest price for %d ticker(s): %s",
+            len(unpriced),
+            ", ".join(sanitise_log_value(t) for t in unpriced),
+        )
     return result
 
 

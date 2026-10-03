@@ -317,10 +317,13 @@ def get_price_gbp(ticker: str) -> Optional[float]:
 # ──────────────────────────────────────────────────────────────
 # Refresh logic
 # ──────────────────────────────────────────────────────────────
-def refresh_prices() -> Dict:
-    """
-    Pulls latest close, 7- and 30-day % moves for every ticker in
-    the current portfolios.  Writes to JSON and updates the cache.
+def refresh_universe() -> List[str]:
+    """Return every ticker the scheduled price refresh keeps fresh.
+
+    That is held tickers (real and virtual portfolios) plus tickers watched by
+    an enabled price trigger. A cached series outside this set is never
+    refreshed, which the Data Quality report uses to tell a failing refresh
+    apart from an orphaned cache file (#8599).
     """
     tickers: List[str] = list_all_unique_tickers()
     try:
@@ -328,6 +331,15 @@ def refresh_prices() -> Dict:
         tickers = sorted(set(tickers) | set(price_triggers.watched_tickers()))
     except Exception as exc:  # trigger problems must not fail the price refresh
         logger.error("Could not load price trigger tickers: %s", sanitise_log_value(exc))
+    return tickers
+
+
+def refresh_prices() -> Dict:
+    """
+    Pulls latest close, 7- and 30-day % moves for every ticker in
+    the current portfolios.  Writes to JSON and updates the cache.
+    """
+    tickers = refresh_universe()
     logger.info("Updating price snapshot for: %s", [sanitise_log_value(t) for t in tickers])
 
     refresh_progress.start(len(tickers))

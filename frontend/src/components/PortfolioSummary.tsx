@@ -168,7 +168,7 @@ export function PortfolioSummary({ totals }: Props) {
             ? undefined
             : totalGain >= 0
               ? "var(--gain-positive)"
-              : "red"
+              : "var(--gain-negative)"
         }
         secondary={allGainUnknown ? undefined : `(${percent(totalGainPct)})`}
         note={gainNote}

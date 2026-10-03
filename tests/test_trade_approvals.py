@@ -24,8 +24,8 @@ def test_enrich_holding_requires_approval(monkeypatch):
         "cost_basis_gbp": 1.0,
     }
     monkeypatch.setattr(
-        "backend.common.holding_utils._get_price_for_date_scaled",
-        lambda *a, **k: (1.0, None),
+        "backend.common.holding_utils._get_dated_price_for_date_scaled",
+        lambda *a, **k: (1.0, None, None),
     )
     out = enrich_holding(holding, today, {}, {})
     assert out["sell_eligible"] is False
@@ -49,8 +49,8 @@ def test_enrich_holding_weekend_anniversary(monkeypatch):
         "cost_basis_gbp": 1.0,
     }
     monkeypatch.setattr(
-        "backend.common.holding_utils._get_price_for_date_scaled",
-        lambda *a, **k: (1.0, None),
+        "backend.common.holding_utils._get_dated_price_for_date_scaled",
+        lambda *a, **k: (1.0, None, None),
     )
     calc = PricingDateCalculator(today=today)
     expected_next_date = calc.resolve_weekday(acq_date + timedelta(days=config.hold_days_min), forward=True)

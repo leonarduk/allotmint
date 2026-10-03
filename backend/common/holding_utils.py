@@ -315,11 +315,15 @@ def _load_unscaled_price_for_date_impl(
     exchange: str,
     d: dt.date,
     field: str = "Close_gbp",
-) -> tuple[Optional[float], Optional[str], bool]:
+) -> tuple[Optional[float], Optional[str], bool, Optional[dt.date]]:
     """Load a single-day DF and return the requested field's *unscaled* value,
-    its source, and whether that value is subject to scaling. For close
-    prices we prefer the GBP-converted column when available, falling back to
-    the regular close.
+    its source, whether that value is subject to scaling, and the date of the
+    row actually served. For close prices we prefer the GBP-converted column
+    when available, falling back to the regular close.
+
+    ``load_meta_timeseries_range`` walks back up to four days when ``d`` has
+    no row, so the row date can be earlier than ``d``; ``enrich_holding``
+    compares it with the reporting date to decide staleness (#7919).
 
     Deliberately does not apply ``get_scaling_override``/``apply_scaling`` --
     see ``_load_unscaled_price_for_date_cache_only`` for why (#8232 review).
@@ -337,11 +341,11 @@ def _load_unscaled_price_for_date_impl(
     for (#8232 review round 4).
     """
     if "CASH" in ticker.upper().split("."):
-        return 1.0, None, False
+        return 1.0, None, False, d
 
     df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=d, end_date=d)
     if df is None or df.empty:
-        return None, None, False
+        return None, None, False, None
 
     nm = _lower_name_map(df)
     col = None
@@ -350,24 +354,26 @@ def _load_unscaled_price_for_date_impl(
     else:
         col = nm.get(field.lower())
     if not col:
-        return None, None, False
+        return None, None, False, None
 
     try:
         price = float(df.iloc[0][col])
     except (ValueError, TypeError, KeyError, IndexError):
-        return None, None, False
+        return None, None, False, None
 
     if is_nan(price):
-        return None, None, False
+        return None, None, False, None
 
     src = df.iloc[0].get("Source")
     if is_nan(src):
         src = None
-    return price, src, col.lower() in _SCALABLE_COLUMNS
+    return price, src, col.lower() in _SCALABLE_COLUMNS, _parse_date(df.iloc[0].get("Date"))
 
 
 _UNSCALED_PRICE_CACHE_MAXSIZE = 2048
-_unscaled_price_cache: "OrderedDict[tuple[str, str, dt.date, str], tuple[float, Optional[str], bool]]" = OrderedDict()
+# (price, source, scalable, row_date) -- see _load_unscaled_price_for_date_impl.
+_UnscaledPrice = tuple[float, Optional[str], bool, Optional[dt.date]]
+_unscaled_price_cache: "OrderedDict[tuple[str, str, dt.date, str], _UnscaledPrice]" = OrderedDict()
 # Guards _unscaled_price_cache's mutations only, not the load_meta_timeseries_range
 # call on a miss -- see instrument_api._close_on_cache_lock's identical comment
 # (#8232 review round 5): OrderedDict.move_to_end/popitem aren't atomic across
@@ -381,7 +387,7 @@ def _load_unscaled_price_for_date_cache_only(
     exchange: str,
     d: dt.date,
     field: str = "Close_gbp",
-) -> tuple[Optional[float], Optional[str], bool]:
+) -> tuple[Optional[float], Optional[str], bool, Optional[dt.date]]:
     """Memoized, *unscaled* body of ``_get_price_for_date_scaled``, used only
     inside a ``cache_only()`` block (#8211).
 
@@ -442,6 +448,18 @@ def _get_price_for_date_scaled(
     d: dt.date,
     field: str = "Close_gbp",
 ) -> tuple[Optional[float], Optional[str]]:
+    price, src, _row_date = _get_dated_price_for_date_scaled(ticker, exchange, d, field)
+    return price, src
+
+
+def _get_dated_price_for_date_scaled(
+    ticker: str,
+    exchange: str,
+    d: dt.date,
+    field: str = "Close_gbp",
+) -> tuple[Optional[float], Optional[str], Optional[dt.date]]:
+    """Like :func:`_get_price_for_date_scaled`, plus the date of the row used
+    (which may be earlier than ``d`` -- see ``_load_unscaled_price_for_date_impl``)."""
     parts = ticker.upper().split(".")
     if "CASH" in parts:
         # Also duplicated in _load_unscaled_price_for_date_impl for direct
@@ -449,21 +467,40 @@ def _get_price_for_date_scaled(
         # through _load_unscaled_price_for_date_cache_only and memoize it
         # under a key with no backing file for invalidation to bust (#8232
         # review round 5).
-        return 1.0, None
+        return 1.0, None, d
 
     if is_cache_only():
-        price, src, scalable = _load_unscaled_price_for_date_cache_only(ticker, exchange, d, field)
+        price, src, scalable, row_date = _load_unscaled_price_for_date_cache_only(ticker, exchange, d, field)
     else:
-        price, src, scalable = _load_unscaled_price_for_date_impl(ticker, exchange, d, field)
+        price, src, scalable, row_date = _load_unscaled_price_for_date_impl(ticker, exchange, d, field)
     if price is None:
-        return None, None
+        return None, None, None
     if not scalable:
-        return price, src
+        return price, src, row_date
 
     scale = get_scaling_override(ticker, exchange, None)
     if scale is not None and scale != 1:
         price = price * scale
-    return price, src
+    return price, src, row_date
+
+
+def _snapshot_is_stale(snap: Dict[str, Any], reporting_date: dt.date) -> bool:
+    """Staleness of a price snapshot entry relative to ``reporting_date`` (#7919).
+
+    Stale when the entry says so (live quotes older than 15 minutes, set in
+    ``backend/common/prices.py``) *or* its ``last_price_date`` is before the
+    reporting date. The timeseries-built snapshot
+    (``portfolio_utils.refresh_snapshot_in_memory_from_timeseries``) carries
+    only ``last_price_date``; an entry with neither field is treated as stale
+    rather than silently fresh.
+    """
+    flag = snap.get("is_stale")
+    price_date = _parse_date(snap.get("last_price_date"))
+    if flag is True:
+        return True
+    if price_date is not None:
+        return price_date < reporting_date
+    return flag is None
 
 
 register_meta_cache_clearer(_load_unscaled_price_for_date_cache_only.cache_clear)
@@ -831,12 +868,15 @@ def enrich_holding(
         if not is_nan(snap_price):
             px = float(snap["last_price"])
             last_price_time = snap.get("last_price_time")
-            is_stale = bool(snap.get("is_stale", False))
+            is_stale = _snapshot_is_stale(snap, calc.reporting_date)
             px_source = "snapshot"
             prev_date = calc.previous_pricing_date
         else:
             asof_date = calc.reporting_date
-            px, px_source = _get_price_for_date_scaled(ticker, exchange, asof_date, field="Close_gbp")
+            px, px_source, px_date = _get_dated_price_for_date_scaled(ticker, exchange, asof_date, field="Close_gbp")
+            # The range loader may have walked back to an earlier close; only a
+            # row for the reporting date itself is fresh (#7919).
+            is_stale = px_date is None or px_date < asof_date
             prev_date = calc.previous_pricing_date
 
         prev_px, _ = _get_price_for_date_scaled(ticker, exchange, prev_date, field="Close_gbp")

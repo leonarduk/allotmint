@@ -389,7 +389,11 @@ def test_cold_group_portfolio_build_makes_no_live_price_calls(cache, no_live_cal
     assert holdings["AAPL.N"]["price"] == pytest.approx(200.0 * 0.75)
     assert holdings["GSK.L"]["price"] == pytest.approx(15.0)
     assert holdings["VWRL.L"]["market_value_gbp"] == pytest.approx(1000.0)
-    assert all(h["is_stale"] for h in holdings.values())
+    # Only the tickers priced from an earlier close are stale; GSK has a close
+    # for the reporting date itself (#7919).
+    assert holdings["VWRL.L"]["is_stale"] is True
+    assert holdings["AAPL.N"]["is_stale"] is True
+    assert holdings["GSK.L"]["is_stale"] is False
     assert sorted(refresh_queue.pending()) == [("AAPL", "N"), ("VWRL", "L")]
 
 

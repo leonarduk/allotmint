@@ -28,9 +28,7 @@ def test_mcp_tools_default_to_empty_so_every_tool_is_on(config_path):
 
 
 def test_mcp_section_is_parsed():
-    cfg = validate_config_data(
-        {"mcp": {"mcp_tools": {"read_data_file": False}, "mcp_github_repo": " o/r "}}
-    )
+    cfg = validate_config_data({"mcp": {"mcp_tools": {"read_data_file": False}, "mcp_github_repo": " o/r "}})
 
     assert cfg.mcp_tools == {"read_data_file": False}
     assert cfg.mcp_github_repo == "o/r"
@@ -45,9 +43,7 @@ def test_invalid_mcp_tools_are_rejected(value):
 def test_put_config_saves_switches_under_the_mcp_section(config_path):
     client = TestClient(create_app())
 
-    resp = client.put(
-        "/config", json={"mcp": {"mcp_tools": {"read_data_file": False, "get_portfolio": True}}}
-    )
+    resp = client.put("/config", json={"mcp": {"mcp_tools": {"read_data_file": False, "get_portfolio": True}}})
 
     assert resp.status_code == 200
     assert yaml.safe_load(config_path.read_text())["mcp"]["mcp_tools"] == {
@@ -58,9 +54,7 @@ def test_put_config_saves_switches_under_the_mcp_section(config_path):
 
 
 def test_saving_one_switch_keeps_the_other_mcp_settings(config_path):
-    config_path.write_text(
-        "mcp:\n  mcp_github_repo: octo/tracker\n  mcp_tools:\n    get_account: false\n"
-    )
+    config_path.write_text("mcp:\n  mcp_github_repo: octo/tracker\n  mcp_tools:\n    get_account: false\n")
     reload_config()
     client = TestClient(create_app())
 

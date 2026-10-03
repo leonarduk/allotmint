@@ -11,18 +11,27 @@ from backend.common import portfolio_utils
 from backend.config import config
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def client():
-    """Create a test client with network-heavy operations stubbed."""
-    config.skip_snapshot_warm = True
-    config.offline_mode = True
-    config.disable_auth = True
-    prices.refresh_prices = lambda: {}
-    portfolio_utils.list_all_unique_tickers = lambda *a, **k: []
-    reload(app_mod)
-    app = app_mod.create_app()
-    with TestClient(app) as c:
-        yield c
+    """Create a test client with network-heavy operations stubbed.
+
+    The stubs are undone when this module finishes so later test modules see
+    the real ``refresh_prices``/``list_all_unique_tickers`` (#8652).
+    """
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(config, "skip_snapshot_warm", True)
+        mp.setattr(config, "offline_mode", True)
+        mp.setattr(config, "disable_auth", True)
+        mp.setattr(prices, "refresh_prices", lambda: {})
+        mp.setattr(portfolio_utils, "list_all_unique_tickers", lambda *a, **k: [])
+        reload(app_mod)
+        try:
+            app = app_mod.create_app()
+            with TestClient(app) as c:
+                yield c
+        finally:
+            mp.undo()
+            reload(app_mod)
 
 
 def sample_accounts():
@@ -92,12 +101,6 @@ def test_account_route_returns_data(client, owner, accounts):
 
 
 def test_account_route_adds_missing_account_type(tmp_path):
-    config.skip_snapshot_warm = True
-    config.offline_mode = True
-    config.disable_auth = True
-    prices.refresh_prices = lambda: {}
-    portfolio_utils.list_all_unique_tickers = lambda *a, **k: []
-
     owner = "temp"
     acct = "missing"
     acct_dir = tmp_path / owner
@@ -108,21 +111,30 @@ def test_account_route_adds_missing_account_type(tmp_path):
     demo_dir.mkdir()
     (demo_dir / "demo.json").write_text(json.dumps({"currency": "GBP", "holdings": []}))
 
-    old_root = config.accounts_root
-    config.accounts_root = tmp_path
-    reload(app_mod)
-    app = app_mod.create_app()
-    with TestClient(app) as c:
-        resp = c.get(f"/account/{owner}/{acct}")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["account_type"] == acct
-        assert "owner" not in data
-        owners_resp = c.get("/owners")
-        assert owners_resp.status_code == 200
-        owners = owners_resp.json()
-        names = {entry.get("owner", "").casefold() for entry in owners}
-        assert "temp" in names
-        assert "demo" in names
-    config.accounts_root = old_root
-    reload(app_mod)
+    # A local MonkeyPatch (not the ``monkeypatch`` fixture) so the stubs and
+    # accounts_root can be undone *before* the final reload of backend.app,
+    # without also undoing conftest's autouse patches mid-test.
+    try:
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(config, "skip_snapshot_warm", True)
+            mp.setattr(config, "offline_mode", True)
+            mp.setattr(config, "disable_auth", True)
+            mp.setattr(prices, "refresh_prices", lambda: {})
+            mp.setattr(portfolio_utils, "list_all_unique_tickers", lambda *a, **k: [])
+            mp.setattr(config, "accounts_root", tmp_path)
+            reload(app_mod)
+            app = app_mod.create_app()
+            with TestClient(app) as c:
+                resp = c.get(f"/account/{owner}/{acct}")
+                assert resp.status_code == 200
+                data = resp.json()
+                assert data["account_type"] == acct
+                assert "owner" not in data
+                owners_resp = c.get("/owners")
+                assert owners_resp.status_code == 200
+                owners = owners_resp.json()
+                names = {entry.get("owner", "").casefold() for entry in owners}
+                assert "temp" in names
+                assert "demo" in names
+    finally:
+        reload(app_mod)

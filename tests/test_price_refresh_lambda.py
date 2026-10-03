@@ -2,14 +2,14 @@ import importlib
 import sys
 from types import SimpleNamespace
 
-import pytest
 from botocore.exceptions import ClientError
 
 import backend.common.prices as prices
 
 
-def _missing_key(**_kwargs):
-    raise ClientError({"Error": {"Code": "404", "Message": "Not Found"}}, "HeadObject")
+def _snapshot_exists_error():
+    """What S3 returns for a ``IfNoneMatch="*"`` put when the key already exists."""
+    return ClientError({"Error": {"Code": "PreconditionFailed", "Message": "exists"}}, "PutObject")
 
 
 def _import_lambda(monkeypatch, env_value):
@@ -157,8 +157,6 @@ def test_seed_empty_snapshot_puts_object(monkeypatch):
     put_calls = []
 
     class _FakeS3:
-        head_object = staticmethod(_missing_key)
-
         def put_object(self, **kwargs):
             put_calls.append(kwargs)
 
@@ -171,6 +169,7 @@ def test_seed_empty_snapshot_puts_object(monkeypatch):
     assert put_calls[0]["Key"] == "prices/latest_prices.json"
     assert put_calls[0]["Body"] == b"{}"
     assert put_calls[0]["ContentType"] == "application/json"
+    assert put_calls[0]["IfNoneMatch"] == "*"  # never replaces an existing snapshot
 
 
 def test_seed_empty_snapshot_swallows_boto3_error(monkeypatch):
@@ -179,8 +178,6 @@ def test_seed_empty_snapshot_swallows_boto3_error(monkeypatch):
     monkeypatch.setenv("DATA_BUCKET", "test-bucket")
 
     class _BrokenS3:
-        head_object = staticmethod(_missing_key)
-
         def put_object(self, **kwargs):
             raise OSError("connection refused")
 
@@ -190,26 +187,28 @@ def test_seed_empty_snapshot_swallows_boto3_error(monkeypatch):
     fn()
 
 
-@pytest.mark.parametrize("head_error", [None, OSError("denied")])
-def test_seed_empty_snapshot_never_replaces_an_existing_or_unverifiable_snapshot(monkeypatch, head_error):
+def test_seed_empty_snapshot_keeps_an_existing_snapshot(monkeypatch, caplog):
     """A failed refresh must not overwrite the last good snapshot with {} (#8805)."""
     fn, mod = _get_seed_fn(monkeypatch)
     monkeypatch.setattr(mod.config, "app_env", "aws")
     monkeypatch.setenv("DATA_BUCKET", "test-bucket")
 
-    put_calls = []
+    attempts = []
 
-    def head_object(**_kwargs):
-        if head_error is not None:
-            raise head_error
-        return {}
+    def put_object(**kwargs):
+        attempts.append(kwargs)
+        raise _snapshot_exists_error()
 
-    fake = SimpleNamespace(head_object=head_object, put_object=lambda **kw: put_calls.append(kw))
-    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=lambda svc: fake))
+    monkeypatch.setitem(
+        sys.modules, "boto3", SimpleNamespace(client=lambda svc: SimpleNamespace(put_object=put_object))
+    )
 
-    fn()
+    with caplog.at_level("INFO", logger=mod.logger.name):
+        fn()
 
-    assert put_calls == []
+    assert [a["IfNoneMatch"] for a in attempts] == ["*"]
+    assert any("already present" in r.getMessage() for r in caplog.records)
+    assert not any(r.levelname == "WARNING" for r in caplog.records)
 
 
 def test_lambda_handler_runs_refresh_as_system_job(monkeypatch):

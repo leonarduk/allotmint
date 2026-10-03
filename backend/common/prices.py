@@ -334,22 +334,29 @@ def refresh_universe() -> List[str]:
     return tickers
 
 
-def s3_snapshot_exists(client, bucket: str) -> Optional[bool]:
-    """Return whether ``PRICES_S3_KEY`` exists in ``bucket``; ``None`` if unknown.
+def put_empty_snapshot_if_absent(client, bucket: str) -> bool:
+    """Write ``{}`` to ``PRICES_S3_KEY`` only if no snapshot exists; return whether it wrote.
 
-    "Unknown" (a denied or failed HEAD) is reported separately so callers can
-    refuse to overwrite a snapshot they can't see rather than assume it's
-    missing.
+    Uses an S3 conditional write (``IfNoneMatch="*"``), so the existence check
+    and the write are one atomic call: a missing key is always created (the
+    post-deploy check needs it, #3685) and an existing snapshot -- however it
+    got there -- is never replaced with ``{}`` (#8805). Other errors raise.
     """
     try:
-        client.head_object(Bucket=bucket, Key=PRICES_S3_KEY)
+        client.put_object(
+            Bucket=bucket,
+            Key=PRICES_S3_KEY,
+            Body=b"{}",
+            ContentType="application/json",
+            IfNoneMatch="*",
+        )
         return True
     except Exception as exc:
         code = str(getattr(exc, "response", {}).get("Error", {}).get("Code", ""))
-        if code in {"404", "NoSuchKey", "NotFound"}:
+        # 412: the key exists. 409: a concurrent write to the key won the race.
+        if code in {"PreconditionFailed", "412", "ConditionalRequestConflict", "409"}:
             return False
-        logger.warning("Could not check for the S3 price snapshot: %s", sanitise_log_value(exc))
-        return None
+        raise
 
 
 def _upload_snapshot_to_s3(merged: Dict) -> None:
@@ -357,9 +364,9 @@ def _upload_snapshot_to_s3(merged: Dict) -> None:
 
     The key must always exist after a refresh so post-deploy checks don't wait
     forever (#3685). But an empty ``merged`` -- nothing fetched and no local
-    seed, the normal case in a fresh Lambda container -- is only uploaded when
-    no snapshot exists yet; overwriting a good snapshot with ``{}`` left every
-    holding without a snapshot price (#8805).
+    seed, the normal case in a fresh Lambda container -- is only written when
+    no snapshot exists yet (an atomic conditional write); overwriting a good
+    snapshot with ``{}`` left every holding without a snapshot price (#8805).
     """
     _s3_bucket = os.getenv(DATA_BUCKET_ENV)
     if not _s3_bucket:
@@ -370,13 +377,11 @@ def _upload_snapshot_to_s3(merged: Dict) -> None:
 
         client = boto3.client("s3")
         if not merged:
-            exists = s3_snapshot_exists(client, _s3_bucket)
-            if exists:
+            if put_empty_snapshot_if_absent(client, _s3_bucket):
+                logger.warning("No prices fetched; seeded an empty S3 price snapshot because none existed")
+            else:
                 logger.error("No prices fetched; keeping the existing S3 price snapshot rather than uploading {}")
-                return
-            if exists is None:
-                logger.error("No prices fetched and the S3 price snapshot can't be checked; not uploading {}")
-                return
+            return
         client.put_object(
             Bucket=_s3_bucket,
             Key=PRICES_S3_KEY,

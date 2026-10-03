@@ -31,7 +31,7 @@ from datetime import UTC, datetime
 
 from backend.auth import system_job_context
 from backend.common.portfolio_utils import DATA_BUCKET_ENV, PRICES_S3_KEY
-from backend.common.prices import refresh_prices, s3_snapshot_exists
+from backend.common.prices import put_empty_snapshot_if_absent, refresh_prices
 from backend.config import config
 from backend.logging_setup import sanitise_exception_traceback, sanitise_log_value
 
@@ -61,22 +61,12 @@ def _seed_empty_snapshot() -> None:
     try:
         import boto3  # type: ignore
 
-        client = boto3.client("s3")
-        # Only seed a missing key: a failed refresh must not replace the last
-        # good snapshot with {} (#8805).
-        exists = s3_snapshot_exists(client, bucket)
-        if exists:
+        # Only seed a missing key, atomically: a failed refresh must not replace
+        # the last good snapshot with {} (#8805), but a missing key must still
+        # be created for the post-deploy check (#3685).
+        if not put_empty_snapshot_if_absent(boto3.client("s3"), bucket):
             logger.info("Price snapshot already present; not seeding {}")
             return
-        if exists is None:
-            logger.warning("Can't check for an existing price snapshot; not seeding {}")
-            return
-        client.put_object(
-            Bucket=bucket,
-            Key=PRICES_S3_KEY,
-            Body=b"{}",
-            ContentType="application/json",
-        )
         logger.info(
             "Seeded empty price snapshot to s3://%s/%s", sanitise_log_value(bucket), sanitise_log_value(PRICES_S3_KEY)
         )

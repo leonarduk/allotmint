@@ -547,6 +547,84 @@ def get_effective_cost_basis_gbp(
     return round(units * float(close_px), 2)
 
 
+# ─────── booked cost plausibility (#8472) ───────
+# A booked cost whose implied unit cost (book / units) is more than this factor
+# below or above the reference price is treated as suspect (e.g. an unscaled
+# pence figure or a partial book cost from the source statement).
+BOOK_COST_PLAUSIBILITY_BAND = 20.0
+BOOK_COST_SUSPECT_SOURCE = "book_suspect"
+BOOK_COST_OUT_OF_BAND_WARNING = "implied_unit_cost_out_of_band"
+
+
+def _book_cost_reference_price(
+    ticker: str,
+    exchange: str,
+    acq: Optional[dt.date],
+    current_price: Optional[float],
+    price_cache: dict[str, float],
+) -> Optional[float]:
+    """Acquisition-date close when known and available, else the current price.
+
+    The acquisition-date close is preferred so a genuine long-held multi-bagger
+    is judged against what it actually cost at the time, not today's price.
+    """
+    if acq is not None:
+        try:
+            acq_px = _derived_cost_basis_close_px(ticker, exchange, acq, price_cache)
+        except (OSError, ValueError, KeyError, IndexError, TypeError) as exc:
+            # E.g. offline mode with no cached series: fall back to the current
+            # price rather than failing enrichment of a booked holding.
+            logger.debug(
+                "acquisition close unavailable for %s.%s on %s: %s",
+                sanitise_log_value(ticker),
+                sanitise_log_value(exchange),
+                acq,
+                sanitise_log_value(exc),
+            )
+            acq_px = None
+        if acq_px is not None and acq_px > 0:
+            return float(acq_px)
+    if current_price is not None and not is_nan(current_price) and current_price > 0:
+        return float(current_price)
+    return None
+
+
+def _flag_implausible_book_cost(
+    out: Dict[str, Any],
+    units: float,
+    ticker: str,
+    exchange: str,
+    acq: Optional[dt.date],
+    current_price: Optional[float],
+    price_cache: dict[str, float],
+) -> None:
+    """Flag (never replace) a booked cost whose implied unit cost is out of band.
+
+    Read-time only: the booked ``cost_basis_gbp`` is left untouched, but the
+    holding is tagged ``book_suspect`` with a ``cost_basis_warning`` and its
+    gain fields are nulled so an absurd gain is not presented as fact.
+    """
+    if out.get("cost_basis_source") != "book" or units <= 0:
+        return
+    reference = _book_cost_reference_price(ticker, exchange, acq, current_price, price_cache)
+    if reference is None:
+        return
+    implied = float(out[COST_BASIS_GBP]) / units
+    band = BOOK_COST_PLAUSIBILITY_BAND
+    if reference / band <= implied <= reference * band:
+        return
+    logger.info(
+        "Booked cost for %s looks implausible: implied unit cost %.4f vs reference %.4f",
+        sanitise_log_value(out.get(TICKER)),
+        implied,
+        reference,
+    )
+    out["cost_basis_source"] = BOOK_COST_SUSPECT_SOURCE
+    out["cost_basis_warning"] = BOOK_COST_OUT_OF_BAND_WARNING
+    for key in ("gain_gbp", "unrealised_gain_gbp", "unrealized_gain_gbp", "gain_pct"):
+        out[key] = None
+
+
 # ───────────── canonical enrichment ─────────────
 def enrich_holding(
     h: Dict[str, Any],
@@ -824,6 +902,7 @@ def enrich_holding(
     elif out.get("cost_basis_source") != "unknown":
         out["cost_basis_source"] = "derived"
 
+    _flag_implausible_book_cost(out, units, ticker, exchange, acq, px, price_cache)
     return out
 
 

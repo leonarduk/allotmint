@@ -1,6 +1,7 @@
 import datetime as dt
 
 import pandas as pd
+import pytest
 
 from backend.common import holding_utils
 from backend.common.constants import (
@@ -324,3 +325,110 @@ def test_scalable_columns_matches_apply_scaling_exactly():
         assert (
             actually_scaled == expected_scalable
         ), f"{col}: apply_scaling scaled={actually_scaled}, _SCALABLE_COLUMNS says={expected_scalable}"
+
+
+# ─────── booked cost plausibility (#8472) ───────
+def _patch_enrich_env(monkeypatch, current_price, acq_close=None):
+    """Isolate enrich_holding from metadata, snapshots and the timeseries cache."""
+    from backend.common import instrument_api
+    from backend.common import portfolio_utils as pu
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda full, cache: (full.split(".")[0], "L"))
+    monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {})
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {})
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: None)
+    monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *a, **k: (current_price, "mock"))
+    monkeypatch.setattr(holding_utils, "_derived_cost_basis_close_px", lambda *a, **k: acq_close)
+
+
+def test_enrich_holding_flags_implausible_book_cost(monkeypatch):
+    """AV. from #8472: 50 units booked at £263 against £672.40 -> +12,679% gain.
+    Implied unit cost £5.26 is far below 1/20 of the price, so the holding is
+    flagged and its gain withheld, while the booked cost itself is untouched."""
+    _patch_enrich_env(monkeypatch, current_price=672.40)
+    holding = {TICKER: "AV.L", UNITS: 50, COST_BASIS_GBP: 263}
+
+    out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 1), price_cache={})
+
+    assert out["cost_basis_source"] == holding_utils.BOOK_COST_SUSPECT_SOURCE == "book_suspect"
+    assert out["cost_basis_warning"] == "implied_unit_cost_out_of_band"
+    assert out[COST_BASIS_GBP] == 263
+    assert out["market_value_gbp"] == 33620.0
+    for key in ("gain_gbp", "unrealised_gain_gbp", "unrealized_gain_gbp", "gain_pct"):
+        assert out[key] is None
+    assert holding[COST_BASIS_GBP] == 263, "the caller's holding must never be mutated"
+
+
+def test_enrich_holding_flags_book_cost_far_above_price(monkeypatch):
+    _patch_enrich_env(monkeypatch, current_price=1.0)
+    holding = {TICKER: "AAA.L", UNITS: 10, COST_BASIS_GBP: 500}  # £50/unit vs £1
+
+    out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 1), price_cache={})
+
+    assert out["cost_basis_source"] == "book_suspect"
+    assert out["gain_pct"] is None
+
+
+def test_enrich_holding_plausible_book_cost_unchanged(monkeypatch):
+    _patch_enrich_env(monkeypatch, current_price=672.40)
+    holding = {TICKER: "AV.L", UNITS: 50, COST_BASIS_GBP: 26300}
+
+    out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 1), price_cache={})
+
+    assert out["cost_basis_source"] == "book"
+    assert "cost_basis_warning" not in out
+    assert out[COST_BASIS_GBP] == 26300
+    assert out["gain_gbp"] == 7320.0
+    assert out["gain_pct"] == pytest.approx(7320.0 / 26300 * 100)
+
+
+def test_enrich_holding_big_genuine_gain_supported_by_acquisition_close(monkeypatch):
+    """A real 30-bagger: £1/unit booked, now £30, but it closed at ~£1 on the
+    acquisition date -- judged against that close it is plausible."""
+    _patch_enrich_env(monkeypatch, current_price=30.0, acq_close=1.05)
+    holding = {TICKER: "BIG.L", UNITS: 100, COST_BASIS_GBP: 100, ACQUIRED_DATE: "2010-01-04"}
+
+    out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 1), price_cache={})
+
+    assert out["cost_basis_source"] == "book"
+    assert out["gain_gbp"] == 2900.0
+    assert out["gain_pct"] == pytest.approx(2900.0)
+
+
+def test_enrich_holding_uses_acquisition_close_over_current_price(monkeypatch):
+    """Acquisition-date close wins as reference even when the current price
+    would have accepted the booked cost."""
+    _patch_enrich_env(monkeypatch, current_price=10.0, acq_close=1000.0)
+    holding = {TICKER: "DROP.L", UNITS: 10, COST_BASIS_GBP: 100, ACQUIRED_DATE: "2020-01-02"}
+
+    out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 1), price_cache={})
+
+    assert out["cost_basis_source"] == "book_suspect"
+
+
+def test_enrich_holding_no_reference_price_is_not_flagged(monkeypatch):
+    _patch_enrich_env(monkeypatch, current_price=None)
+    holding = {TICKER: "NOPX.L", UNITS: 50, COST_BASIS_GBP: 263}
+
+    out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 1), price_cache={})
+
+    assert out["cost_basis_source"] == "book"
+    assert "cost_basis_warning" not in out
+
+
+def test_enrich_holding_acquisition_close_lookup_error_falls_back_to_current_price(monkeypatch):
+    """Offline mode with no cached series raises ValueError from the
+    acquisition-close lookup; the check must fall back to the current price
+    instead of failing enrichment."""
+    _patch_enrich_env(monkeypatch, current_price=672.40)
+
+    def boom(*args, **kwargs):
+        raise ValueError("Offline mode: no cache available")
+
+    monkeypatch.setattr(holding_utils, "_derived_cost_basis_close_px", boom)
+    holding = {TICKER: "AV.L", UNITS: 50, COST_BASIS_GBP: 263, ACQUIRED_DATE: "2020-01-02"}
+
+    out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 1), price_cache={})
+
+    assert out["cost_basis_source"] == "book_suspect"

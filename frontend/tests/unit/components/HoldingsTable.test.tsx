@@ -519,6 +519,35 @@ describe("HoldingsTable", () => {
         expect(within(row).getAllByText("£40.00")).toHaveLength(2);
     });
 
+    it("renders Gain £/Gain % as N/A, not a re-derived +12,679%, when cost_basis_source is book_suspect (#8472)", async () => {
+        // The backend nulls gain_gbp/gain_pct for an implausible booked cost;
+        // the table must not fall back to market - cost and resurrect the
+        // absurd gain it withheld.
+        const suspectHolding: Holding = {
+            ticker: "AV.L",
+            name: "Aviva",
+            units: 50,
+            acquired_date: null,
+            price: 672.4,
+            cost_basis_gbp: 263,
+            effective_cost_basis_gbp: 263,
+            market_value_gbp: 33620,
+            gain_gbp: null,
+            gain_pct: null,
+            current_price_gbp: 672.4,
+            cost_basis_source: "book_suspect",
+        };
+
+        renderWithConfig(<HoldingsTable holdings={[suspectHolding]} />);
+
+        const row = (await screen.findByText("Aviva")).closest("tr")!;
+        const tip = "Book cost looks implausible against the price — gain hidden until it is checked";
+        // Gain £, Gain % and the Cost £ cell all carry the explanation.
+        expect(within(row).getAllByTitle(tip).length).toBe(3);
+        expect(within(row).queryByText(/12,6\d\d/)).not.toBeInTheDocument();
+        expect(within(row).getByText("£263.00")).toBeInTheDocument();
+    });
+
     it("keeps footer columns aligned with the header in relative view", async () => {
         const TestProviderRelative = ({ children }: { children: React.ReactNode }) => (
             <configContext.Provider

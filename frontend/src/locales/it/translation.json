@@ -243,6 +243,7 @@
     "inferredCost": "Dedotto dal prezzo alla data di acquisizione",
     "costBasisUnknown": "Nessuna data di acquisizione o costo registrato — il costo è considerato pari al valore attuale",
     "gainNotAvailable": "Guadagno sconosciuto — nessuna data di acquisizione o costo registrato",
+    "bookCostSuspect": "Il costo registrato sembra implausibile rispetto al prezzo — guadagno nascosto fino alla verifica",
     "minimumGainPrompt": "Min guadagno %",
     "notApplicable": "N/A",
     "acquiredNotAvailable": "Nessuna data di acquisizione registrata",

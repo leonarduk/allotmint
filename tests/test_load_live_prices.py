@@ -66,3 +66,34 @@ def test_load_live_prices_scales_pence_quoted_lse_ticker_with_gbp_currency(monke
 
     prices = holding_utils.load_live_prices(["GSK.L"])
     assert prices["GSK.L"]["price"] == pytest.approx(18.88)
+
+
+def test_load_live_prices_adm_gbx_quote_not_double_scaled(monkeypatch):
+    """Regression test for #8597: ADM.L (GBX metadata) was listed in
+    ``data/scaling_overrides.json`` as 0.1, so a 3588p quote became 358.8 and
+    then -- because 0.1 != the pence factor -- was divided by 100 again,
+    giving 3.588. Uses the real ``get_scaling_override`` and overrides file.
+    """
+
+    class Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "quoteResponse": {
+                    "result": [
+                        {
+                            "symbol": "ADM.L",
+                            "regularMarketPrice": 3588.0,
+                            "regularMarketTime": 1700000000,
+                        }
+                    ]
+                }
+            }
+
+    monkeypatch.setattr(holding_utils.requests, "get", lambda url, timeout: Resp())
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda t: {"currency": "GBX"})
+
+    prices = holding_utils.load_live_prices(["ADM.L"])
+    assert prices["ADM.L"]["price"] == pytest.approx(35.88)

@@ -45,7 +45,7 @@ def test_get_scaling_override_prefers_requested(tmp_path, monkeypatch):
 
 
 def test_get_scaling_override_reads_override_file(tmp_path, monkeypatch):
-    overrides = {"L": {"ABC.L": "1.25"}, "*": {"*": 5}}
+    overrides = {"L": {"ABC.L": "100"}, "*": {"*": 0.01}}
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     (data_dir / "scaling_overrides.json").write_text(json.dumps(overrides))
@@ -54,7 +54,7 @@ def test_get_scaling_override_reads_override_file(tmp_path, monkeypatch):
 
     value = th.get_scaling_override("ABC.L", "L", requested_scaling=None)
 
-    assert value == pytest.approx(1.25)
+    assert value == pytest.approx(100.0)
 
 
 def test_get_scaling_override_currency_detection(monkeypatch):

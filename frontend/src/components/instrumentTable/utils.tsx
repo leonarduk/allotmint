@@ -198,8 +198,16 @@ function createGroupedRows(
         const cmp = String(va ?? '').localeCompare(String(vb ?? ''));
         return asc ? cmp : -cmp;
       }
-      const na = typeof va === 'number' && Number.isFinite(va) ? va : 0;
-      const nb = typeof vb === 'number' && Number.isFinite(vb) ? vb : 0;
+      // Null totals (e.g. gain/cost for an all-unreliable-cost group, #8531)
+      // sort last in either direction rather than masquerading as zero.
+      const aMissing = typeof va !== 'number' || !Number.isFinite(va);
+      const bMissing = typeof vb !== 'number' || !Number.isFinite(vb);
+      if (aMissing || bMissing) {
+        if (aMissing && bMissing) return 0;
+        return aMissing ? 1 : -1;
+      }
+      const na = va as number;
+      const nb = vb as number;
       if (na === nb) return 0;
       return asc ? na - nb : nb - na;
     });
@@ -232,7 +240,13 @@ export function calculateGroupTotals(rows: RowWithCost[], label: string): GroupT
   const costKnown = rows.filter((row) => !isCostBasisUnreliable(row.cost_basis_source));
   const totalGain = costKnown.reduce((sum, row) => sum + row.gain_gbp, 0);
   const totalCost = costKnown.reduce((sum, row) => sum + row.cost, 0);
-  const gainPct = Math.abs(totalCost) > 1e-9 ? (totalGain / totalCost) * 100 : null;
+  // With no reliable cost at all, gain/cost/gain % are unknown rather than £0 (#8531).
+  const hasKnownCost = costKnown.length > 0;
+  const gainPct =
+    hasKnownCost && Math.abs(totalCost) > 1e-9 ? (totalGain / totalCost) * 100 : null;
+  // Distinct tickers, not rows: the "(N)" group label counts rows, so two lots
+  // of one ticker show "(2)" with their units still summed (#8531).
+  const instrumentCount = new Set(rows.map((row) => row.ticker)).size;
 
   const weightedAverage = (accessor: (row: RowWithCost) => number | null | undefined): number | null => {
     let numerator = 0;
@@ -251,9 +265,10 @@ export function calculateGroupTotals(rows: RowWithCost[], label: string): GroupT
   return {
     labelValue: label,
     units: totalUnits,
-    cost: totalCost,
+    instrumentCount,
+    cost: hasKnownCost ? totalCost : null,
     marketValue: totalMarket,
-    gain: totalGain,
+    gain: hasKnownCost ? totalGain : null,
     gainPct,
     change7dPct: weightedAverage((row) => row.change_7d_pct),
     change30dPct: weightedAverage((row) => row.change_30d_pct),

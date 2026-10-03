@@ -8,9 +8,13 @@ export type RowWithCost = InstrumentSummary & {
 export type GroupTotals = {
   labelValue: string;
   units: number;
-  cost: number;
+  /** Distinct tickers in the group; summed units are only meaningful when this is 1 (#8531). */
+  instrumentCount: number;
+  /** Null when no row in the group has a reliable cost basis (#8531). */
+  cost: number | null;
   marketValue: number;
-  gain: number;
+  /** Null when no row in the group has a reliable cost basis (#8531). */
+  gain: number | null;
   gainPct: number | null;
   change7dPct: number | null;
   change30dPct: number | null;

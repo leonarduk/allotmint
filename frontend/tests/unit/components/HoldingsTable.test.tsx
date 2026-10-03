@@ -673,6 +673,57 @@ describe("HoldingsTable", () => {
             expect(within(groupRow).getByText("£40.00")).toBeInTheDocument();
         });
 
+        it("shows N/A, not £0.00, for gain and cost of an all-unreliable-cost group (#8531)", async () => {
+            renderWithConfig(
+                <HoldingsTable
+                    holdings={[
+                        { ...guessedCostHolding, grouping: "Unreliable" },
+                        { ...knownHolding, grouping: "Reliable" },
+                    ] as Holding[]}
+                    groupingMode="group"
+                />,
+            );
+            const unreliableRow = (
+                await screen.findByRole("button", { name: "Toggle Unreliable" })
+            ).closest("tr")!;
+            expect(within(unreliableRow).getAllByText("N/A")).toHaveLength(2);
+            // Both N/A spans (Gain £ and Cost £) explain why via the tooltip.
+            expect(within(unreliableRow).getAllByTitle(gainUnknownTitle)).toHaveLength(2);
+            expect(within(unreliableRow).queryByText("£0.00")).toBeNull();
+            expect(within(unreliableRow).getByText("£40.00")).toBeInTheDocument();
+
+            const reliableRow = screen
+                .getByRole("button", { name: "Toggle Reliable" })
+                .closest("tr")!;
+            expect(within(reliableRow).queryByText("N/A")).toBeNull();
+            expect(within(reliableRow).getByText("£50.00")).toBeInTheDocument();
+            expect(within(reliableRow).getByText("£100.00")).toBeInTheDocument();
+        });
+
+        it("shows — for units in a multi-instrument group header but sums a single-ticker group (#8531)", async () => {
+            renderWithConfig(
+                <HoldingsTable
+                    holdings={[
+                        { ...knownHolding, units: 7, grouping: "Mixed" },
+                        { ...knownHolding, ticker: "OTHER", name: "Other Co", units: 3, grouping: "Mixed" },
+                        { ...knownHolding, ticker: "SOLO", name: "Solo A", units: 4, grouping: "Solo", acquired_date: "2020-01-01" },
+                        { ...knownHolding, ticker: "SOLO", name: "Solo B", units: 6, grouping: "Solo", acquired_date: "2021-01-01" },
+                    ] as Holding[]}
+                    groupingMode="group"
+                />,
+            );
+            const mixedRow = (
+                await screen.findByRole("button", { name: "Toggle Mixed" })
+            ).closest("tr")!;
+            // The first <td> after the group label <th> is the Units cell.
+            expect(within(mixedRow).getAllByRole("cell")[0]).toHaveTextContent(/^—$/);
+
+            const soloRow = screen
+                .getByRole("button", { name: "Toggle Solo" })
+                .closest("tr")!;
+            expect(within(soloRow).getAllByRole("cell")[0]).toHaveTextContent(/^10$/);
+        });
+
         it("keeps the computed gain for a holding with a real cost", async () => {
             renderWithConfig(<HoldingsTable holdings={[knownHolding]} />);
 

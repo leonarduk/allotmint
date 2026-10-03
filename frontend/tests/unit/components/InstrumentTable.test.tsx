@@ -252,6 +252,59 @@ describe("InstrumentTable", () => {
         expect(screen.getByText("ABC")).toBeInTheDocument();
     });
 
+    it("shows N/A gain/cost for an all-unreliable-cost group and — for multi-instrument units (#8531)", async () => {
+        const unreliableRows: InstrumentSummary[] = [
+            ...rows.filter((row) => row.grouping !== "Group B"),
+            { ...rows[2], gain_gbp: 0, cost_basis_source: "unknown" },
+        ];
+        renderWithConfig(<InstrumentTable rows={unreliableRows} />);
+        await screen.findByRole("button", { name: /Toggle Group B/i });
+
+        const groupBSummary = getSummaryRow("Group B");
+        expect(within(groupBSummary).getAllByText("N/A")).toHaveLength(2);
+        expect(within(groupBSummary).queryByText("£0.00")).toBeNull();
+        // Single-instrument group keeps its unit count.
+        expect(within(groupBSummary).getByText("3")).toBeInTheDocument();
+
+        // Group A mixes ABC and XYZ, so 10 + 5 units is not shown.
+        const groupASummary = getSummaryRow("Group A");
+        expect(within(groupASummary).queryByText("15")).toBeNull();
+        expect(within(groupASummary).getByText("▲£50.00")).toBeInTheDocument();
+    });
+
+    it("keeps numeric Cost/Gain in the overall totals row for a mixed portfolio (#8531)", async () => {
+        const mixedRows: InstrumentSummary[] = [
+            ...rows,
+            { ...rows[2], ticker: "UNK", name: "Unknown Co", gain_gbp: 0, cost_basis_source: "unknown" },
+        ];
+        const { container } = renderWithConfig(<InstrumentTable rows={mixedRows} />);
+        await screen.findByRole("button", { name: /Toggle Group A/i });
+
+        // Footer cells: label, units, cost, market, gain, gain %, ...
+        // Cost 900 + 550 + 270 + 180 and gain 100 - 50 + 30 + 20; the
+        // unknown-cost row is left out of both.
+        const footerCells = (container.querySelector("tfoot tr") as HTMLTableRowElement).cells;
+        expect(footerCells[2]).toHaveTextContent(/^£1,900\.00$/);
+        expect(footerCells[4]).toHaveTextContent(/^▲£100\.00$/);
+    });
+
+    it("shows — for overall Cost/Gain when no row has a reliable cost (#8531)", async () => {
+        const unreliable = rows.map((row) => ({
+            ...row,
+            gain_gbp: 0,
+            cost_basis_source: "unknown",
+        }));
+        const { container } = renderWithConfig(<InstrumentTable rows={unreliable} />);
+        await screen.findByRole("button", { name: /Toggle Group A/i });
+
+        // Footer cells: label, units, cost, market, gain, gain %, ...
+        const footerCells = (container.querySelector("tfoot tr") as HTMLTableRowElement).cells;
+        expect(footerCells[0]).toHaveTextContent("Total");
+        expect(footerCells[2]).toHaveTextContent(/^—$/);
+        expect(footerCells[3]).toHaveTextContent("£2,000.00");
+        expect(footerCells[4]).toHaveTextContent(/^—$/);
+    });
+
     it("hides group totals when showGroupTotals is false", async () => {
         render(<InstrumentTable rows={rows} showGroupTotals={false} />);
         await screen.findByRole("button", { name: /Toggle Group A/i });

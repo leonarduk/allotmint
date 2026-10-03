@@ -130,4 +130,78 @@ describe('calculateGroupTotals with unknown cost basis (#7785)', () => {
     expect(totals.gain).toBe(100);
     expect(totals.gainPct).toBeCloseTo((100 / 900) * 100);
   });
+
+  it('returns null gain and cost when no row has a reliable cost basis (#8531)', () => {
+    const rows = createRowsWithCost([
+      { ...base, ticker: 'AV', market_value_gbp: 33920, gain_gbp: 0, cost_basis_source: 'book_suspect' },
+      { ...base, ticker: 'B', market_value_gbp: 500, gain_gbp: 0, cost_basis_source: 'unknown' },
+    ]);
+    const totals = calculateGroupTotals(rows, 'Financial Services');
+    expect(totals.marketValue).toBe(34420);
+    expect(totals.gain).toBeNull();
+    expect(totals.cost).toBeNull();
+    expect(totals.gainPct).toBeNull();
+  });
+
+  it('counts distinct tickers so callers can suppress cross-instrument unit sums (#8531)', () => {
+    const rows = createRowsWithCost([base, { ...base, units: 4 }, { ...base, ticker: 'B', units: 2 }]);
+    expect(calculateGroupTotals(rows, 'All').instrumentCount).toBe(2);
+    expect(calculateGroupTotals(rows.slice(0, 2), 'A').instrumentCount).toBe(1);
+  });
+
+  it('sorts groups with null gain last in both directions (#8531)', () => {
+    const groupRows = createRowsWithCost([
+      { ...base, ticker: 'U', grouping: 'Unreliable', gain_gbp: 0, cost_basis_source: 'unknown' },
+      { ...base, ticker: 'L', grouping: 'Loss', gain_gbp: -50 },
+      { ...base, ticker: 'G', grouping: 'Gain', gain_gbp: 200 },
+    ]);
+    const labels = { ungroupedLabel: 'Ungrouped', uncategorisedLabel: 'Uncategorised' };
+    const lookup = buildCategoryLookup([]);
+    const descending = createGroups(groupRows, 'gain_gbp', false, 'group', labels, lookup);
+    expect(descending.map((group) => group.label)).toEqual(['Gain', 'Loss', 'Unreliable']);
+    const ascending = createGroups(groupRows, 'gain_gbp', true, 'group', labels, lookup);
+    expect(ascending.map((group) => group.label)).toEqual(['Loss', 'Gain', 'Unreliable']);
+  });
+
+  it('sorts groups with NaN or missing totals last in both directions (#8531)', () => {
+    const labels = { ungroupedLabel: 'Ungrouped', uncategorisedLabel: 'Uncategorised' };
+    const lookup = buildCategoryLookup([]);
+
+    // NaN market value propagates into the group's marketValue total.
+    const marketRows = createRowsWithCost([
+      { ...base, ticker: 'N', grouping: 'NaN', market_value_gbp: Number.NaN },
+      { ...base, ticker: 'S', grouping: 'Small', market_value_gbp: 100 },
+      { ...base, ticker: 'B', grouping: 'Big', market_value_gbp: 5000 },
+    ]);
+    for (const asc of [true, false]) {
+      const sorted = createGroups(marketRows, 'market_value_gbp', asc, 'group', labels, lookup);
+      expect(sorted.at(-1)?.label).toBe('NaN');
+    }
+
+    // No 7d change on any row leaves the group's change7dPct missing.
+    const changeRows = createRowsWithCost([
+      { ...base, ticker: 'M', grouping: 'Missing', change_7d_pct: undefined },
+      { ...base, ticker: 'D', grouping: 'Down', change_7d_pct: -3 },
+      { ...base, ticker: 'U', grouping: 'Up', change_7d_pct: 4 },
+    ]);
+    const ascending = createGroups(changeRows, 'change_7d_pct', true, 'group', labels, lookup);
+    expect(ascending.map((group) => group.label)).toEqual(['Down', 'Up', 'Missing']);
+    const descending = createGroups(changeRows, 'change_7d_pct', false, 'group', labels, lookup);
+    expect(descending.map((group) => group.label)).toEqual(['Up', 'Down', 'Missing']);
+  });
+
+  it('sorts a genuine 0% change in its natural place and only missing change last (#8531)', () => {
+    const labels = { ungroupedLabel: 'Ungrouped', uncategorisedLabel: 'Uncategorised' };
+    const lookup = buildCategoryLookup([]);
+    const changeRows = createRowsWithCost([
+      { ...base, ticker: 'P', grouping: 'Plus5', change_7d_pct: 5 },
+      { ...base, ticker: 'Z', grouping: 'Zero', change_7d_pct: 0 },
+      { ...base, ticker: 'M', grouping: 'Minus3', change_7d_pct: -3 },
+      { ...base, ticker: 'X', grouping: 'Missing', change_7d_pct: null },
+    ]);
+    const ascending = createGroups(changeRows, 'change_7d_pct', true, 'group', labels, lookup);
+    expect(ascending.map((group) => group.label)).toEqual(['Minus3', 'Zero', 'Plus5', 'Missing']);
+    const descending = createGroups(changeRows, 'change_7d_pct', false, 'group', labels, lookup);
+    expect(descending.map((group) => group.label)).toEqual(['Plus5', 'Zero', 'Minus3', 'Missing']);
+  });
 });

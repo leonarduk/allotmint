@@ -416,16 +416,22 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
                   {!relativeViewEnabled && visibleColumns.units && (
                     <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                      {showGroupTotals && Number.isFinite(group.totals.units)
+                      {showGroupTotals &&
+                      group.totals.instrumentCount <= 1 &&
+                      Number.isFinite(group.totals.units)
                         ? formatUnits(group.totals.units)
                         : '—'}
                     </td>
                   )}
                   {!relativeViewEnabled && visibleColumns.cost && (
                     <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                      {showGroupTotals && Number.isFinite(group.totals.cost)
-                        ? money(group.totals.cost, baseCurrency)
-                        : '—'}
+                      {!showGroupTotals
+                        ? '—'
+                        : group.totals.cost === null
+                          ? t('holdingsTable.notApplicable')
+                          : Number.isFinite(group.totals.cost)
+                            ? money(group.totals.cost, baseCurrency)
+                            : '—'}
                     </td>
                   )}
                   {!relativeViewEnabled && visibleColumns.market && (
@@ -437,9 +443,13 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                   )}
                   {!relativeViewEnabled && visibleColumns.gain && (
                     <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                      {showGroupTotals && Number.isFinite(group.totals.gain)
-                        ? formatSignedMoney(group.totals.gain, baseCurrency)
-                        : '—'}
+                      {!showGroupTotals
+                        ? '—'
+                        : group.totals.gain === null
+                          ? t('holdingsTable.notApplicable')
+                          : Number.isFinite(group.totals.gain)
+                            ? formatSignedMoney(group.totals.gain, baseCurrency)
+                            : '—'}
                     </td>
                   )}
                   {visibleColumns.gain_pct && (
@@ -683,7 +693,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
             )}
             {!relativeViewEnabled && visibleColumns.cost && (
               <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                {Number.isFinite(overallTotals.cost)
+                {overallTotals.cost !== null && Number.isFinite(overallTotals.cost)
                   ? money(overallTotals.cost, baseCurrency)
                   : '—'}
               </td>
@@ -697,7 +707,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
             )}
             {!relativeViewEnabled && visibleColumns.gain && (
               <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                {Number.isFinite(overallTotals.gain)
+                {overallTotals.gain !== null && Number.isFinite(overallTotals.gain)
                   ? formatSignedMoney(overallTotals.gain, baseCurrency)
                   : '—'}
               </td>

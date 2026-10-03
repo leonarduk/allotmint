@@ -29,12 +29,17 @@ def _entries() -> list[tuple[str, str, float]]:
 
 @pytest.mark.parametrize("exchange,ticker,factor", _entries())
 def test_override_factor_is_a_currency_unit_factor(exchange, ticker, factor):
-    assert (
-        float(factor) in VALID_FACTORS
-    ), f"{ticker}.{exchange} override {factor} is not a pence (0.01) or pounds (1) factor"
+    assert float(factor) in VALID_FACTORS, (
+        f"{ticker}.{exchange} override {factor} is not a pence (0.01) or pounds (1) factor. "
+        "Any other value mis-scales every price for the ticker (see #8597). If a market "
+        "genuinely needs another unit factor, add it to VALID_FACTORS with a comment saying why."
+    )
 
 
 def test_adm_override_scales_pence_to_pounds(monkeypatch):
+    # With no configured roots, get_scaling_override falls back to
+    # <repo>/data/scaling_overrides.json -- the checked-in file under test --
+    # instead of whatever data_root/repo_root the local config points at.
     monkeypatch.setattr(th.config, "data_root", None, raising=False)
     monkeypatch.setattr(th.config, "repo_root", None, raising=False)
     assert th.get_scaling_override("ADM.L", "L", None) == pytest.approx(0.01)

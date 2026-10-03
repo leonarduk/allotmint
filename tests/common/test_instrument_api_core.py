@@ -1,5 +1,7 @@
 import time
 
+import pytest
+
 from backend.common import instrument_api as ia
 
 
@@ -234,3 +236,47 @@ def test_instrument_summaries_fetches_prices_concurrently(monkeypatch):
     # generous headroom for scheduling/thread-pool overhead in CI while still
     # clearly failing if this regresses to one-ticker-at-a-time.
     assert elapsed < len(tickers) * SLEEP_SECONDS * 0.75
+
+
+def _flat_price_and_changes(ticker: str) -> dict:
+    return {
+        "last_price_gbp": 1.0,
+        "last_price_date": "2024-01-01",
+        "last_price_time": None,
+        "is_stale": False,
+        "change_7d_pct": None,
+        "change_30d_pct": None,
+    }
+
+
+def test_instrument_summaries_exclude_unknown_gain_from_gain_pct(monkeypatch):
+    """#8471: a holding with gain_gbp None (unknown cost) must not count its
+    market value as cost -- that would dilute the ticker's gain_pct."""
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    # Known lot: cost 100, gain 20 -> 20%.
+                    {"ticker": "MIX.L", "name": "Mixed", "units": 1.0, "market_value_gbp": 120.0, "gain_gbp": 20.0},
+                    {"ticker": "MIX.L", "name": "Mixed", "units": 1.0, "market_value_gbp": 80.0, "gain_gbp": None},
+                    {"ticker": "UNK.L", "name": "Unknown", "units": 1.0, "market_value_gbp": 50.0, "gain_gbp": None},
+                ]
+            }
+        ]
+    }
+    monkeypatch.setattr(ia, "build_group_portfolio", lambda slug, **_: portfolio)
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: {})
+    monkeypatch.setattr(ia, "_price_and_changes", _flat_price_and_changes)
+
+    by_ticker = {row["ticker"]: row for row in ia.instrument_summaries_for_group("demo")}
+
+    mixed = by_ticker["MIX.L"]
+    assert mixed["market_value_gbp"] == pytest.approx(200.0)
+    assert mixed["gain_gbp"] == pytest.approx(20.0)
+    assert mixed["gain_pct"] == pytest.approx(20.0)
+    assert "_known_gain_mv" not in mixed
+    assert "_has_known_gain" not in mixed
+
+    unknown = by_ticker["UNK.L"]
+    assert unknown["market_value_gbp"] == pytest.approx(50.0)
+    assert unknown["gain_pct"] is None

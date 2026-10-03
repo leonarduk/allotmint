@@ -1230,3 +1230,63 @@ def test_get_template_audit_report_has_expected_order_and_legacy_builtins():
     assert "performance-summary" in ids
     assert "transactions" in ids
     assert "allocation-breakdown" in ids
+
+
+def _unknown_gain_document() -> "reports.ReportDocument":
+    schema = reports.ReportSectionSchema(
+        id="sectors",
+        title="Sectors",
+        source="portfolio.sectors",
+        columns=(
+            reports.ReportColumnSchema("sector", "Sector"),
+            reports.ReportColumnSchema("gain_gbp", "Gain (GBP)", type="number"),
+            reports.ReportColumnSchema("gain_pct", "Gain (%)", type="number"),
+        ),
+    )
+    section = reports.ReportSectionData(
+        schema=schema,
+        rows=({"sector": "Unknown Cost", "gain_gbp": None, "gain_pct": None},),
+    )
+    return reports.ReportDocument(
+        template=reports.ReportTemplate(
+            template_id="gain", name="Gain", description="", sections=(schema,), builtin=False
+        ),
+        owner="alice",
+        generated_at=datetime.now(tz=UTC),
+        parameters={},
+        sections=(section,),
+    )
+
+
+def test_report_to_csv_renders_unknown_gain_as_empty_cell():
+    """#8471: gain_gbp/gain_pct None must export as an empty cell, not "None"."""
+    csv_data = reports.report_to_csv(_unknown_gain_document()).decode()
+
+    assert "Unknown Cost,," in csv_data
+    assert "None" not in csv_data
+    assert "nan" not in csv_data.lower()
+
+
+def test_report_to_pdf_renders_unknown_gain_as_dash(monkeypatch):
+    """#8471: gain_gbp/gain_pct None must render as an em dash in the PDF."""
+    drawn: list[str] = []
+
+    class RecordingCanvas:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def drawString(self, *args, **kwargs):
+            drawn.append(str(args[2]))
+
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: None
+
+    monkeypatch.setattr(reports, "canvas", SimpleNamespace(Canvas=RecordingCanvas))
+    monkeypatch.setattr(reports, "letter", (500, 700))
+    monkeypatch.setattr(reports, "Table", None)
+
+    reports.report_to_pdf(_unknown_gain_document())
+
+    row = next(text for text in drawn if "Unknown Cost" in text)
+    assert "—" in row
+    assert "None" not in row

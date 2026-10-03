@@ -680,7 +680,9 @@ export function neediestCrop(crops: readonly Crop[]): Crop | undefined {
     const byKind = priority[left.reason.kind] - priority[right.reason.kind];
     if (byKind !== 0) return byKind;
     // Within the same kind, the worst gain wins (most negative first).
-    // A 'loss' reason implies a known gain, so the ?? never applies there.
+    // 'loss' crops always have a known gain. A 'not-sellable' or
+    // 'stale-price' crop can have an unknown (null) gain (#8471); it ranks as
+    // 0% only to break ties within its own kind, never to pick the kind.
     return (left.crop.gainPct ?? 0) - (right.crop.gainPct ?? 0);
   });
   return ranked[0].crop;

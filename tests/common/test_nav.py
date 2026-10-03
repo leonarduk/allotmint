@@ -118,7 +118,7 @@ def test_nav_to_gbp_scales_pence_exactly_without_fx(value, currency, expected):
 
 def test_nav_to_gbp_uses_the_cached_fx_rate_and_flags_it():
     assert nav_to_gbp(1.0, "EUR", lambda ccy: 0.85) == (pytest.approx(0.85), True)
-    assert nav_to_gbp(1.0, "EUR", lambda ccy: None) == (None, True)
+    assert nav_to_gbp(1.0, "EUR", lambda ccy: None) == (None, False)
 
 
 # ───────────────────────────── discount ─────────────────────────────
@@ -242,3 +242,29 @@ def test_as_dict_is_json_ready(monkeypatch):
     assert payload["ticker"] == "VWRL.L"
     assert payload["applicable"] is False
     assert payload["warnings"] == []
+
+
+def test_foreign_nav_without_a_rate_is_not_reported_as_converted(monkeypatch):
+    _meta(monkeypatch, TRUST_META)
+    record = NavRecord(1.0, "EUR", date(2026, 9, 30), "RNS")
+    result = nav_discount(
+        "SERE.L", providers=[FixedProvider(record)], price_lookup=_price(0.6), fx_lookup=lambda c: None
+    )
+    assert result.fx_converted is False
+    assert result.warnings == []
+
+
+def test_a_ticker_without_an_exchange_suffix_is_rejected(monkeypatch):
+    _meta(monkeypatch, TRUST_META)
+    lookup = _price(3.425)
+    result = nav_discount("3IN", providers=[], price_lookup=lookup)
+    assert result.applicable is False
+    assert "exchange suffix" in result.reason
+    assert lookup.calls == []
+
+
+def test_load_nav_csv_rejects_a_file_with_the_wrong_header(tmp_path, caplog):
+    path = tmp_path / "navs.csv"
+    path.write_text("symbol,value\n3IN.L,380.5\n", encoding="utf-8")
+    assert load_nav_csv(path) == {}
+    assert "missing column" in caplog.text

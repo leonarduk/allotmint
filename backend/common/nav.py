@@ -154,7 +154,14 @@ def load_nav_csv(path: Path) -> Dict[str, NavRecord]:
         return {}
     latest: Dict[str, NavRecord] = {}
     with path.open("r", encoding="utf-8", newline="") as handle:
-        for line, row in enumerate(csv.DictReader(handle), start=2):
+        reader = csv.DictReader(handle)
+        missing = [column for column in CSV_COLUMNS[:4] if column not in (reader.fieldnames or ())]
+        if missing:
+            logger.error(
+                "Ignoring %s: header is missing column(s) %s", sanitise_log_value(path), sanitise_log_value(missing)
+            )
+            return {}
+        for line, row in enumerate(reader, start=2):
             ticker = str(row.get("ticker") or "").strip().upper()
             record = _record_from_row(row, line, path) if ticker else None
             if record is not None and _newer(record, latest.get(ticker)):
@@ -218,7 +225,7 @@ def is_closed_end(meta: Dict[str, Any]) -> bool:
 
 
 def nav_to_gbp(nav: float, currency: str, fx_lookup: FxLookup) -> Tuple[Optional[float], bool]:
-    """``(nav in GBP, whether FX was applied)``. ``None`` when no FX rate is cached."""
+    """``(nav in GBP, whether FX was applied)``. ``(None, False)`` when no FX rate is cached."""
     normaliser = CurrencyNormaliser.from_raw(currency)
     if normaliser.is_pence:
         return nav * normaliser.pence_factor, False
@@ -226,13 +233,13 @@ def nav_to_gbp(nav: float, currency: str, fx_lookup: FxLookup) -> Tuple[Optional
         return nav, False
     rate = fx_lookup(normaliser.canonical)
     if rate is None or not math.isfinite(rate) or rate <= 0:
-        return None, True
+        return None, False
     return nav * rate, True
 
 
 def _split_ticker(ticker: str) -> Tuple[str, str]:
     symbol, _, exchange = ticker.upper().partition(".")
-    return symbol, exchange or "L"
+    return symbol, exchange
 
 
 def default_price_lookup(symbol: str, exchange: str, on: date) -> Tuple[Optional[float], Optional[date]]:
@@ -300,6 +307,10 @@ def nav_discount(
     (not a closed-end fund, no NAV recorded, no price, implausible units).
     """
     ticker = ticker.strip().upper()
+    symbol, exchange = _split_ticker(ticker)
+    if not symbol or not exchange:
+        # No silent default exchange: a bare "BEP" must not be priced as BEP.L.
+        return NavDiscount(ticker=ticker, applicable=False, reason="Ticker needs an exchange suffix, e.g. 3IN.L.")
     if not is_closed_end(get_instrument_meta(ticker) or {}):
         return NavDiscount(
             ticker=ticker,
@@ -315,7 +326,6 @@ def nav_discount(
     _apply_record(result, record, fx_lookup)
     if record.nav_date is None:
         result.warnings.append("NAV has no date; compared with the latest cached close instead.")
-    symbol, exchange = _split_ticker(ticker)
     price, price_date = price_lookup(symbol, exchange, record.nav_date or today or date.today())
     _apply_price(result, price, price_date)
     return result

@@ -7,8 +7,9 @@ import json
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from backend import config_module
 from backend.chat import nav_discount_tool
-from backend.chat.local_tools import NAVIGATE_TOOL_NAME, ChatPage, LocalTools
+from backend.chat.local_tools import NAVIGATE_TOOL_NAME, ChatPage, LocalTools, merge_tool_lists
 from backend.common import nav
 from backend.common.nav import NavDiscount
 from backend.routes import instrument
@@ -76,3 +77,11 @@ def test_nav_discount_route(monkeypatch):
     assert response.json()["nav_gbp"] == 3.805
 
     assert client.get("/instrument/nav-discount", params={"ticker": ".L"}).status_code == 400
+
+
+def test_admin_switch_hides_the_tool(monkeypatch):
+    monkeypatch.setattr(config_module.config, "mcp_tools", {nav_discount_tool.TOOL_NAME: False}, raising=False)
+    assert merge_tool_lists([], LocalTools(data_tools=True)) == []
+
+    monkeypatch.setattr(config_module.config, "mcp_tools", {}, raising=False)
+    assert [tool.name for tool in merge_tool_lists([], LocalTools(data_tools=True))] == [nav_discount_tool.TOOL_NAME]

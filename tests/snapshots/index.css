@@ -30,6 +30,18 @@
     --menu-border: #3a3a3a;
     --menu-toggle-border: #555555;
     --menu-toggle-text: #e0e0e0;
+    --summary-card-bg: #222;
+    --summary-card-border: #444;
+    --summary-card-label: #aaa;
+    --summary-card-value: #eee;
+    --input-bg: #111;
+    --input-border: #444;
+    --input-text: #fff;
+    --gain-positive: lightgreen;
+    --gain-negative: red;
+    --tab-border: #444;
+    --tab-active-bg: #333;
+    --tab-active-text: #eee;
 
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -59,6 +71,18 @@
     --menu-border: #e5e7eb;
     --menu-toggle-border: #d1d5db;
     --menu-toggle-text: #374151;
+    --summary-card-bg: #f5f5f5;
+    --summary-card-border: #d4d4d4;
+    --summary-card-label: #555555;
+    --summary-card-value: #213547;
+    --input-bg: #ffffff;
+    --input-border: #ccc;
+    --input-text: #213547;
+    --gain-positive: #15803d;
+    --gain-negative: #b91c1c;
+    --tab-border: #d4d4d4;
+    --tab-active-bg: #e5e7eb;
+    --tab-active-text: #111827;
 }
 
 :root[data-theme='dark'] {
@@ -83,6 +107,18 @@
     --menu-border: #3a3a3a;
     --menu-toggle-border: #555555;
     --menu-toggle-text: #e0e0e0;
+    --summary-card-bg: #222;
+    --summary-card-border: #444;
+    --summary-card-label: #aaa;
+    --summary-card-value: #eee;
+    --input-bg: #111;
+    --input-border: #444;
+    --input-text: #fff;
+    --gain-positive: lightgreen;
+    --gain-negative: red;
+    --tab-border: #444;
+    --tab-active-bg: #333;
+    --tab-active-text: #eee;
 }
 
 /* System-theme overrides must remain unlayered. The default dark values above
@@ -111,6 +147,18 @@
         --menu-border: #e5e7eb;
         --menu-toggle-border: #d1d5db;
         --menu-toggle-text: #374151;
+        --summary-card-bg: #f5f5f5;
+        --summary-card-border: #d4d4d4;
+        --summary-card-label: #555555;
+        --summary-card-value: #213547;
+        --input-bg: #ffffff;
+        --input-border: #ccc;
+        --input-text: #213547;
+        --gain-positive: #15803d;
+        --gain-negative: #b91c1c;
+        --tab-border: #d4d4d4;
+        --tab-active-bg: #e5e7eb;
+        --tab-active-text: #111827;
     }
 
     :root:not([data-theme]) a:hover {

@@ -26,4 +26,4 @@ def enabled_tools(tools: Iterable[T]) -> List[T]:
 
 
 def switched_off_message(name: str) -> str:
-    return f"{name} is switched off in the admin config (MCP tools)."
+    return f"{name} is switched off in the admin config."

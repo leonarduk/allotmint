@@ -194,8 +194,10 @@ async def read_mcp_tools() -> Dict[str, Any]:
             for tool in await _list_mcp_server_tools(cfg.mcp_server_url):
                 tools[tool["name"]] = tool
         except Exception as exc:  # noqa: BLE001 - reported to the admin page, not swallowed
+            # Details go to the log only: an exception message can carry internal
+            # URLs or stack details that shouldn't reach the browser.
             logger.warning("Listing MCP tools failed: %s", sanitise_log_value(exc))
-            mcp_error = f"Could not list the MCP server's tools: {exc}"
+            mcp_error = "Could not list the MCP server's tools; see the backend log for details."
     else:
         mcp_error = "MCP_SERVER_URL is not set, so only configured and local tools are listed."
     tools.setdefault(

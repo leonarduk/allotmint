@@ -126,6 +126,8 @@ export function createGroups(
   }
 
   if (groupingMode === 'sector') {
+    // createGroupedRows trims and lowercases keys, so "Financials" and
+    // "financials" share one group; blank sectors land in the unknown bucket.
     return createGroupedRows(rows, sortKey, asc, {
       ungroupedLabel: labels.unknownSectorLabel ?? 'Unknown sector',
       getGroupKey: (row) => row.sector ?? null,

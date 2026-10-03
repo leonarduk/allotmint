@@ -361,4 +361,18 @@ describe("toRollupRows", () => {
     expect(fromLot.sector).toBe("BBB lot sector");
     expect(noSector.sector).toBeNull();
   });
+
+  it("falls back to the lot sector when the instrument sector is blank (#8486)", () => {
+    const withLotSectors = accounts.map((account) => ({
+      ...account,
+      holdings: account.holdings.map((holding) => ({ ...holding, sector: "Financials" })),
+    }));
+    const instruments: InstrumentSummary[] = [
+      { ticker: "AAA", name: "Alpha", units: 3, market_value_gbp: 300, gain_gbp: 150, sector: "  " },
+    ];
+
+    const [row] = toRollupRows(toScopedHoldingRows(withLotSectors), instruments);
+
+    expect(row.sector).toBe("Financials");
+  });
 });

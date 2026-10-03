@@ -214,7 +214,8 @@ export function toRollupRows(
       owners: Array.from(ownerSet),
       accounts: Array.from(accountSet),
       grouping: instrument?.grouping ?? null,
-      sector: instrument?.sector ?? oldestLot.sector ?? null,
+      // `||` so a blank instrument sector still falls back to the lot's.
+      sector: instrument?.sector?.trim() || oldestLot.sector?.trim() || null,
       exchange: instrument?.exchange ?? null,
       change_7d_pct: instrument?.change_7d_pct ?? null,
       change_30d_pct: instrument?.change_30d_pct ?? null,

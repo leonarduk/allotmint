@@ -430,6 +430,30 @@ describe("Support page", () => {
     expect(mockUpdateConfig).toHaveBeenCalledWith({});
   });
 
+  it("edits mcp_github_repo as an ordinary config parameter", async () => {
+    mockGetConfig.mockResolvedValue({
+      theme: "system",
+      mcp_github_repo: "octo/tracker",
+      mcp_tools: { read_data_file: false },
+      tabs: { group: true },
+    });
+    mockUpdateConfig.mockResolvedValue(undefined);
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+
+    const repo = await screen.findByDisplayValue("octo/tracker");
+    await act(async () => {
+      await userEvent.clear(repo);
+      await userEvent.type(repo, "octo/new-repo");
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByRole("button", { name: en.support.config.save }));
+    });
+
+    // The mcp_tools map is never echoed back from the generic form.
+    expect(mockUpdateConfig).toHaveBeenCalledWith({ mcp_github_repo: "octo/new-repo" });
+  });
+
   it("shows why the MCP tool list is incomplete", async () => {
     mockGetMcpTools.mockResolvedValue({ tools: [], mcp_error: "MCP_SERVER_URL is not set" });
     render(<Support />, { wrapper: MemoryRouter });

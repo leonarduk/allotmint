@@ -51,10 +51,31 @@ fi
 
 echo "PR #${PR_NUMBER} (${HEAD_SHA}) — enabled reviewers: ${ENABLED_CHECK_NAMES[*]}"
 
+# Fetch every check-run for the head SHA once (one compact JSON object per
+# line, across all pages) and filter locally with jq for each reviewer.
+CHECK_RUNS=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
+  --jq '.check_runs[] | {name, status, conclusion, started_at}')
+
+# Resolve one reviewer's effective conclusion from $CHECK_RUNS.
+# - The review jobs run inside the reusable _ai-pr-review.yml workflow, so the
+#   check-run is named "<caller job> / <job name>" (e.g.
+#   "ai-review / DeepSeek AI code review"). Match the bare name or any
+#   " / <name>" suffix so a caller-job rename doesn't silently break this.
+# - A single push can produce duplicate check-runs for the same job where the
+#   later one is "skipped" (e.g. a second trigger whose job-level `if:` was
+#   false). skipped/neutral runs carry no verdict, so ignore them and take the
+#   latest remaining run; in-progress runs have a null conclusion -> pending.
+reviewer_conclusion() {
+  printf '%s\n' "$CHECK_RUNS" | jq -rs --arg name "$1" '
+    [ .[]
+      | select(.name == $name or (.name | endswith(" / " + $name)))
+      | select(.conclusion != "skipped" and .conclusion != "neutral") ]
+    | sort_by(.started_at) | last | .conclusion // "pending"'
+}
+
 ALL_SUCCESS=true
 for NAME in "${ENABLED_CHECK_NAMES[@]}"; do
-  CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
-    --jq "[.check_runs[] | select(.name == \"${NAME}\")] | sort_by(.started_at) | last | .conclusion // \"pending\"")
+  CONCLUSION=$(reviewer_conclusion "$NAME")
   echo "  ${NAME}: ${CONCLUSION}"
   if [ "$CONCLUSION" != "success" ]; then
     ALL_SUCCESS=false

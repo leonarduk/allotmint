@@ -321,6 +321,24 @@ scheduled sweep or scanning every open PR. Run it from the Actions tab (or
 specific PR's label is stuck. Leaving `pr_number` empty falls back to the
 full sweep, same as before.
 
+#### How check-runs are matched
+
+The reconcile script looks up each enabled reviewer by its job name
+(`Claude AI code review`, `GPT AI code review`, `DeepSeek AI code review`).
+Because those jobs run inside the reusable `_ai-pr-review.yml` workflow, the
+actual check-run names carry the caller job's prefix — e.g.
+`ai-review / DeepSeek AI code review` — so the script accepts either the bare
+name or any `<caller> / <name>` suffix match.
+
+A single head SHA can also carry duplicate check-runs for the same job, where
+a later duplicate is `skipped` (a second trigger whose job-level `if:` was
+false). `skipped` and `neutral` runs carry no verdict and are ignored; the
+latest remaining run's conclusion is used, and a reviewer with no such run
+(or one still in progress) counts as pending. PR #8598 hit both problems:
+its label stayed stuck because the exact-name match never found
+`ai-review / DeepSeek AI code review`, and the skipped duplicate would have
+shadowed the earlier `success` anyway.
+
 If a fourth reviewer is added (see [Adding a new AI reviewer](#adding-a-new-ai-reviewer)),
 update `sync-changes-requested-label.yml`'s `workflows:` trigger list and its
 conclusion checks to include the new provider's check-run name — otherwise

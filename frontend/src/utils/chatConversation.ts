@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from "react";
 import type { ChatMessage } from "../api";
+import { isLogout, onAuthChange } from "../authEvents";
 
 // The chat conversation outlives ChatPanel: AppHeader (and so ChatPanel) is
 // mounted per page, so component state was lost on every navigation. Keeping
 // it here carries the conversation across pages; sessionStorage also carries
 // it across a reload of the same tab. It is cleared by startNewChat(), which
-// api.setAuthToken also calls on logout.
+// also runs on logout via the authEvents subscriber below.
 const STORAGE_KEY = "allotmint.chat.messages";
 
 function isMessage(m: unknown): m is ChatMessage {
@@ -52,6 +53,15 @@ export function appendChatMessage(message: ChatMessage) {
 export function startNewChat() {
   set([]);
 }
+
+// Clear on logout only, not on every token change: a reload re-applies the
+// stored token from null, and the Cognito refresh swaps in a new token for the
+// same user every hour. Registered at module load; main.tsx imports this
+// module statically (via AppHeader -> ChatPanel), so the subscriber is in
+// place before any logout can happen.
+onAuthChange((change) => {
+  if (isLogout(change)) startNewChat();
+});
 
 function subscribe(listener: () => void) {
   listeners.add(listener);

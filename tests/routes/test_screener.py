@@ -52,6 +52,11 @@ def test_hash_params_stable_and_callable(monkeypatch):
         high_52w_max=None,
         low_52w_min=None,
         avg_volume_min=None,
+        pb_max=2.0,
+        ps_max=None,
+        ev_ebitda_max=None,
+        revenue_growth_min=None,
+        earnings_growth_min=None,
     )
 
     page1, call1 = screener._hash_params(["AAA", "BBB"], **kwargs)
@@ -62,6 +67,9 @@ def test_hash_params_stable_and_callable(monkeypatch):
     result = call1()
     assert [r["ticker"] for r in result] == ["AAA", "BBB"]
     assert calls == [(["AAA", "BBB"], kwargs)]
+
+    page3, _ = screener._hash_params(["AAA", "BBB"], **{**kwargs, "pb_max": 3.0})
+    assert page3 != page1
 
 
 def test_apply_rank_ties_and_nan():
@@ -186,3 +194,45 @@ def test_background_tasks_scheduled(monkeypatch):
     assert task.func is page_cache.save_cache
     asyncio.run(bt())
     assert saved["data"][0]["ticker"] == "ABC"
+
+
+def test_screener_forwards_valuation_filters_and_returns_new_fields(monkeypatch):
+    client = _client()
+    monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
+    monkeypatch.setattr(page_cache, "is_stale", lambda p, ttl: True)
+    monkeypatch.setattr(page_cache, "save_cache", lambda *a: None)
+    captured = {}
+
+    def fake_screen(symbols, **kwargs):
+        captured.update(kwargs)
+        return [Fundamentals(ticker=symbols[0], pb_ratio=1.2, ps_ratio=None, ev_ebitda=7.5, revenue_growth=0.05)]
+
+    monkeypatch.setattr(screener, "screen", fake_screen)
+
+    resp = client.get(
+        "/screener",
+        params={
+            "tickers": "ABC",
+            "pb_max": 2,
+            "ps_max": 3,
+            "ev_ebitda_max": 10,
+            "revenue_growth_min": 0.02,
+            "earnings_growth_min": -0.1,
+        },
+    )
+
+    assert resp.status_code == 200
+    assert {
+        k: captured[k] for k in ("pb_max", "ps_max", "ev_ebitda_max", "revenue_growth_min", "earnings_growth_min")
+    } == {
+        "pb_max": 2.0,
+        "ps_max": 3.0,
+        "ev_ebitda_max": 10.0,
+        "revenue_growth_min": 0.02,
+        "earnings_growth_min": -0.1,
+    }
+    row = resp.json()[0]
+    assert row["pb_ratio"] == 1.2
+    assert row["ps_ratio"] is None
+    assert row["ev_ebitda"] == 7.5
+    assert row["revenue_growth"] == 0.05

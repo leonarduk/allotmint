@@ -1080,6 +1080,11 @@ export const getScreener = (
     low_52w_max?: number;
     low_52w_min?: number;
     avg_volume_min?: number;
+    pb_max?: number;
+    ps_max?: number;
+    ev_ebitda_max?: number;
+    revenue_growth_min?: number;
+    earnings_growth_min?: number;
   } = {},
   signal?: AbortSignal,
 ) => {
@@ -1132,6 +1137,14 @@ export const getScreener = (
     params.set("low_52w_min", String(criteria.low_52w_min));
   if (criteria.avg_volume_min != null)
     params.set("avg_volume_min", String(criteria.avg_volume_min));
+  if (criteria.pb_max != null) params.set("pb_max", String(criteria.pb_max));
+  if (criteria.ps_max != null) params.set("ps_max", String(criteria.ps_max));
+  if (criteria.ev_ebitda_max != null)
+    params.set("ev_ebitda_max", String(criteria.ev_ebitda_max));
+  if (criteria.revenue_growth_min != null)
+    params.set("revenue_growth_min", String(criteria.revenue_growth_min));
+  if (criteria.earnings_growth_min != null)
+    params.set("earnings_growth_min", String(criteria.earnings_growth_min));
   return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`, { signal });
 };
 

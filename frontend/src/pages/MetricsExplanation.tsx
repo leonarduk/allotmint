@@ -521,6 +521,26 @@ export default function MetricsExplanation() {
             <h3 className="font-semibold">{t("metricsExplanation.sections.screener.pe.title", "P/E ratio")}</h3>
             <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.pe.detail", "Share price divided by earnings per share.")}</p>
           </div>
+          <div id="pb-ratio">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.pb.title", "P/B ratio")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.pb.detail", "Share price divided by book value per share. Below 1 means the market values the company at less than its net assets on paper.")}</p>
+          </div>
+          <div id="ps-ratio">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.ps.title", "P/S ratio")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.ps.detail", "Market capitalisation divided by trailing twelve-month revenue. Useful where earnings are negative or volatile.")}</p>
+          </div>
+          <div id="ev-ebitda">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.evEbitda.title", "EV/EBITDA")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.evEbitda.detail", "Enterprise value (market cap plus net debt) divided by EBITDA. Compares companies regardless of how they are financed.")}</p>
+          </div>
+          <div id="revenue-growth">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.revenueGrowth.title", "Revenue growth")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.revenueGrowth.detail", "Year-on-year revenue growth, as a fraction (0.1 = 10%).")}</p>
+          </div>
+          <div id="earnings-growth">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.earningsGrowth.title", "Earnings growth")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.earningsGrowth.detail", "Year-on-year earnings growth, as a fraction (0.1 = 10%).")}</p>
+          </div>
           <div id="lt-debt-equity">
             <h3 className="font-semibold">{t("metricsExplanation.sections.screener.ltDe.title", "LT D/E ratio")}</h3>
             <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.ltDe.detail", "Long-term debt divided by shareholders' equity.")}</p>

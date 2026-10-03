@@ -63,6 +63,13 @@ class RankedFundamentals(BaseModel):
     high_52w: float | None = None
     low_52w: float | None = None
     avg_volume: int | None = None
+    pb_ratio: float | None = None
+    ps_ratio: float | None = None
+    ev_ebitda: float | None = None
+    book_value: float | None = None
+    revenue: int | None = None
+    revenue_growth: float | None = None
+    earnings_growth: float | None = None
     rank: int
     # Route-only: not present on allotmint_pro.screener.Fundamentals.
     # Populated here (not by the screener engine) from portfolio holdings
@@ -103,6 +110,11 @@ def _hash_params(
     high_52w_max: float | None,
     low_52w_min: float | None,
     avg_volume_min: int | None,
+    pb_max: float | None,
+    ps_max: float | None,
+    ev_ebitda_max: float | None,
+    revenue_growth_min: float | None,
+    earnings_growth_min: float | None,
 ):
     params = "|".join(
         [
@@ -134,6 +146,11 @@ def _hash_params(
             str(high_52w_max),
             str(low_52w_min),
             str(avg_volume_min),
+            str(pb_max),
+            str(ps_max),
+            str(ev_ebitda_max),
+            str(revenue_growth_min),
+            str(earnings_growth_min),
         ]
     )
     page = "screener_" + hashlib.sha1(params.encode()).hexdigest()
@@ -168,6 +185,11 @@ def _hash_params(
                 high_52w_max=high_52w_max,
                 low_52w_min=low_52w_min,
                 avg_volume_min=avg_volume_min,
+                pb_max=pb_max,
+                ps_max=ps_max,
+                ev_ebitda_max=ev_ebitda_max,
+                revenue_growth_min=revenue_growth_min,
+                earnings_growth_min=earnings_growth_min,
             )
         ]
         _apply_instrument_type(rows)
@@ -228,6 +250,11 @@ def screener(
     high_52w_max: float | None = Query(None),
     low_52w_min: float | None = Query(None),
     avg_volume_min: int | None = Query(None),
+    pb_max: float | None = Query(None),
+    ps_max: float | None = Query(None),
+    ev_ebitda_max: float | None = Query(None),
+    revenue_growth_min: float | None = Query(None, description="Fraction, e.g. 0.1 for 10%"),
+    earnings_growth_min: float | None = Query(None, description="Fraction, e.g. 0.1 for 10%"),
 ):
     """Return tickers that meet the supplied screening criteria."""
 
@@ -264,6 +291,11 @@ def screener(
         high_52w_max=high_52w_max,
         low_52w_min=low_52w_min,
         avg_volume_min=avg_volume_min,
+        pb_max=pb_max,
+        ps_max=ps_max,
+        ev_ebitda_max=ev_ebitda_max,
+        revenue_growth_min=revenue_growth_min,
+        earnings_growth_min=earnings_growth_min,
     )
 
     page_cache.schedule_refresh(page, SCREENER_TTL, call)

@@ -20,9 +20,10 @@ _NAME_COLUMNS = ("Stock", "Security", "Name", "Description")
 # HL appends ``*R`` to the stock name of transferred-in / re-registered lines,
 # e.g. "United Parcel Service Class 'B' Com Stock US$0.01 (CDI) *R" (#8474).
 # Tolerate it as a leading or trailing token on either the name or the code.
+# A leading marker must be followed by a word boundary, so "*RADBE" is left alone.
 _TRANSFER_MARKER_RE = re.compile(r"^\s*\*R\b\s*|\s*\*R\s*$", re.IGNORECASE)
-TRANSFER_IN_TYPE = "TRANSFER_IN"
-MISSING_COST_COMMENT = "Transferred in (*R); cost basis missing from HL export"
+TRANSFER_IN_COMMENT = "Transferred in (HL *R)"
+MISSING_COST_COMMENT = "cost basis missing from HL export"
 
 
 def _to_float(value: str | None) -> float | None:
@@ -91,8 +92,8 @@ def _price_in_gbp(row: dict[str, str | None], units: float | None) -> float | No
 
 def _strip_transfer_marker(value: str) -> tuple[str, bool]:
     """Return ``value`` without an HL ``*R`` marker and whether one was present."""
-    stripped = _TRANSFER_MARKER_RE.sub("", value).strip()
-    return stripped, stripped != value.strip()
+    marked = bool(_TRANSFER_MARKER_RE.search(value))
+    return _TRANSFER_MARKER_RE.sub("", value).strip(), marked
 
 
 def _first_text(row: dict[str, str | None], columns: tuple[str, ...]) -> str:
@@ -107,11 +108,9 @@ def _first_text(row: dict[str, str | None], columns: tuple[str, ...]) -> str:
 def _parse_row(row: dict[str, str | None]) -> Transaction:
     """Convert one HL holdings row into a position record.
 
-    Rows marked ``*R`` (transferred in) with a booked cost are typed
-    ``TRANSFER_IN`` so the transaction replay
-    (``backend.common.holdings_rebuild``) can pick up that cost.  A
-    missing/zero cost on such a row is left missing (never guessed) and
-    flagged -- see :func:`_mark_transfer_in`.
+    Rows marked ``*R`` (transferred in) have the marker stripped and are
+    flagged in ``comments`` -- see :func:`_mark_transfer_in`.  Like every other
+    row they stay untyped.
     """
     code, code_marked = _strip_transfer_marker((row.get("Code") or row.get("code") or "").strip())
     name, name_marked = _strip_transfer_marker(_first_text(row, _NAME_COLUMNS))
@@ -126,21 +125,26 @@ def _parse_row(row: dict[str, str | None]) -> Transaction:
     return position
 
 
-def _mark_transfer_in(position: Transaction) -> None:
-    """Type ``position`` as a transfer-in, or flag it when its cost is unknown.
+def _append_comment(position: Transaction, note: str) -> None:
+    """Append ``note`` to ``position.comments`` rather than overwriting it."""
+    position.comments = f"{position.comments}; {note}" if position.comments else note
 
-    Only a row with a booked cost is typed ``TRANSFER_IN``.  Without one the
-    replay would fall back to ``price x units`` -- and ``price`` here is the
-    *current* market price, not an acquisition price -- which would write a
-    guessed cost into the ledger.  So a cost-less row stays untyped (ignored
-    by the replay, as before) with ``amount_minor`` left missing, a
-    ``comments`` flag, and a warning asking for a cost-basis import.
+
+def _mark_transfer_in(position: Transaction) -> None:
+    """Record the HL ``*R`` transfer-in marker on ``position`` without typing it.
+
+    The row is deliberately *not* typed ``TRANSFER_IN``.  A holdings export
+    carries no dates, so an undated transfer-in would be replayed last by
+    ``backend.common.holdings_rebuild`` and add its units on top of the dated
+    BUYs the ledger already holds for the position -- double-counting it.  The
+    marker is kept in ``comments`` instead.  A missing/zero cost is left
+    missing (never guessed), flagged in ``comments`` and logged.
     """
+    _append_comment(position, TRANSFER_IN_COMMENT)
     if position.amount_minor:
-        position.type = TRANSFER_IN_TYPE
         return
     position.amount_minor = None
-    position.comments = MISSING_COST_COMMENT
+    _append_comment(position, MISSING_COST_COMMENT)
     logger.warning(
         "Hargreaves transferred-in holding %s has no booked cost; cost basis needs importing",
         sanitise_log_value(position.ticker or position.instrument_name),

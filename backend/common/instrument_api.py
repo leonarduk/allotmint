@@ -31,6 +31,7 @@ from backend.common.holding_utils import load_latest_prices
 from backend.common.instruments import list_group_definitions
 from backend.common.numeric_utils import is_nan
 from backend.common.portfolio_utils import get_security_meta, list_all_unique_tickers
+from backend.common.ticker_utils import split_ticker
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
@@ -89,9 +90,13 @@ def _resolve_full_ticker(ticker: str, latest: Dict[str, float]) -> Optional[tupl
     if not t:
         return None
     if "." in t:
-        sym, ex = t.split(".", 1)
-        return sym, ex
-    base = t.split(".", 1)[0]
+        # split_ticker maps a padded LSE EPIC ("BP.") to ("BP", "L") so it
+        # shares a cache key with "BP.L" instead of an empty exchange (#8600).
+        sym, ex = split_ticker(t)
+        if sym and ex:
+            return sym, ex
+        return None
+    base = t
     for k in latest.keys():
         sym, ex = (k.split(".", 1) + [None])[:2]
         if sym == base and ex:

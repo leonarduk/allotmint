@@ -29,6 +29,7 @@ from backend.common.data_loader import (
 from backend.common.holding_utils import enrich_holding
 from backend.common.holdings_rebuild import transaction_cost_hints
 from backend.common.path_utils import safe_join
+from backend.common.ticker_utils import canonical_ticker
 from backend.common.user_config import load_user_config
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -86,6 +87,11 @@ def _match_hint_key(ticker: str, hint_keys: List[str], held_bases: Dict[str, int
     """
     if ticker in hint_keys:
         return ticker
+    # Pools are keyed canonically, so a held padded LSE EPIC ("BP.") matches
+    # its "BP.L" pool exactly rather than via the base-symbol guess (#8600).
+    canonical = canonical_ticker(ticker)
+    if canonical in hint_keys:
+        return canonical
     base = _strip_suffix(ticker)
     if held_bases.get(base, 0) != 1:
         return None

@@ -44,6 +44,7 @@ from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
+from backend.timeseries.source_basis import compatible_rows
 from backend.utils.fx_rates import (
     fallback_fx_rate_range,
     fetch_fx_rate_range,
@@ -321,6 +322,10 @@ def _load_meta_parquet_cached(path: str) -> pd.DataFrame:
 # ──────────────────────────────────────────────────────────────
 # Rolling parquet cache (disk/S3)
 # ──────────────────────────────────────────────────────────────
+# Calendar days of cached history each incremental fetch re-covers, giving a
+# fallback source's rows shared dates to be basis-checked against (#8597).
+_BASIS_OVERLAP_DAYS = 14
+
 # Columns whose change on an already-cached date counts as a correction.
 _VALUE_COLS = ["Open", "High", "Low", "Close", "Volume"]
 
@@ -400,12 +405,17 @@ def _rolling_cache(
         if have_min <= cutoff and have_max >= today:
             return _ensure_schema(existing[existing["Date"].dt.date >= cutoff].reset_index(drop=True))
 
+        # Each fetch re-covers _BASIS_OVERLAP_DAYS of cached history so rows
+        # from a fallback source can be checked against the cached basis
+        # before they are merged (#8597); identical overlap rows are no-ops.
         # Need to extend forward only
         if have_min <= cutoff <= have_max < today:
-            fetch_args.update(start_date=have_max + timedelta(days=1), end_date=today)
+            start = max(have_min, have_max - timedelta(days=_BASIS_OVERLAP_DAYS))
+            fetch_args.update(start_date=start, end_date=today)
         # Need to fetch earlier window chunk
         elif cutoff < have_min:
-            fetch_args.update(start_date=cutoff, end_date=have_min - timedelta(days=1))
+            end = min(have_max, have_min + timedelta(days=_BASIS_OVERLAP_DAYS))
+            fetch_args.update(start_date=cutoff, end_date=end)
     else:
         fetch_args.update(start_date=cutoff, end_date=today)
 
@@ -452,7 +462,11 @@ def _rolling_cache(
         # is not: a no-op save still bumps the file's mtime, which makes
         # _invalidate_meta_caches_if_stale clear every ticker's LRU entries and
         # re-triggers this fetch on the next lookup (#7877).
-        combined, changed = _merge_fetched(existing, new)
+        #
+        # Rows from a source on a different price basis are dropped rather
+        # than interleaved with the cached series (#8597).
+        new = compatible_rows(existing, new, label=f"{ticker}.{exchange}")
+        combined, changed = _merge_fetched(existing, new) if not new.empty else (existing, False)
     if changed:
         _save_parquet(combined, cache_path)
     else:

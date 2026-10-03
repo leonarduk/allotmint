@@ -588,6 +588,13 @@ export interface ScreenerResult {
   high_52w: number | null;
   low_52w: number | null;
   avg_volume: number | null;
+  pb_ratio?: number | null;
+  ps_ratio?: number | null;
+  ev_ebitda?: number | null;
+  book_value?: number | null;
+  revenue?: number | null;
+  revenue_growth?: number | null;
+  earnings_growth?: number | null;
   instrument_type?: string | null;
 }
 

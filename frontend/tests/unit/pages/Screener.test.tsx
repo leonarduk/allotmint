@@ -155,6 +155,85 @@ describe("Screener", () => {
     expect(screen.getByText("1.5")).toBeInTheDocument();
   });
 
+  it("sends valuation filters and shows P/B, P/S, EV/EBITDA and growth columns (#8557)", async () => {
+    mockGetScreener.mockResolvedValueOnce([
+      {
+        rank: 1,
+        ticker: "AAA",
+        name: "AAA Corp",
+        peg_ratio: null,
+        pe_ratio: null,
+        de_ratio: null,
+        lt_de_ratio: null,
+        interest_coverage: null,
+        current_ratio: null,
+        quick_ratio: null,
+        fcf: null,
+        eps: null,
+        gross_margin: null,
+        operating_margin: null,
+        net_margin: null,
+        ebitda_margin: null,
+        roa: null,
+        roe: null,
+        roi: null,
+        dividend_yield: null,
+        dividend_payout_ratio: null,
+        beta: null,
+        shares_outstanding: null,
+        float_shares: null,
+        market_cap: null,
+        high_52w: null,
+        low_52w: null,
+        avg_volume: null,
+        pb_ratio: 1.25,
+        ps_ratio: 3.5,
+        ev_ebitda: 7.75,
+        revenue_growth: 0.12,
+        earnings_growth: null,
+      },
+    ]);
+
+    render(<Screener />);
+
+    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
+      target: { value: "AAA" },
+    });
+    fireEvent.change(screen.getByLabelText("Max P/B"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Max P/S"), { target: { value: "4" } });
+    fireEvent.change(screen.getByLabelText("Max EV/EBITDA"), { target: { value: "10" } });
+    fireEvent.change(screen.getByLabelText("Min Revenue Growth"), { target: { value: "0.05" } });
+    fireEvent.change(screen.getByLabelText("Min Earnings Growth"), { target: { value: "-0.1" } });
+
+    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
+
+    await waitFor(() => expect(mockGetScreener).toHaveBeenCalled());
+    expect(mockGetScreener).toHaveBeenCalledWith(
+      ["AAA"],
+      expect.objectContaining({
+        pb_max: 2,
+        ps_max: 4,
+        ev_ebitda_max: 10,
+        revenue_growth_min: 0.05,
+        earnings_growth_min: -0.1,
+      }),
+    );
+
+    expect(await screen.findByText("EV/EBITDA")).toBeInTheDocument();
+    expect(screen.getByText("P/B")).toBeInTheDocument();
+    expect(screen.getByText("Rev Growth")).toBeInTheDocument();
+    expect(screen.getByText("1.25")).toBeInTheDocument();
+    expect(screen.getByText("3.5")).toBeInTheDocument();
+    expect(screen.getByText("7.75")).toBeInTheDocument();
+    expect(screen.getByText("0.12")).toBeInTheDocument();
+
+    const tip = screen.getByRole("button", { name: "What does EV/EBITDA mean?" });
+    fireEvent.click(tip);
+    expect(
+      within(tip.parentElement as HTMLElement).getByRole("link", { name: "Learn more" }),
+    ).toHaveAttribute("href", "/metrics-explained#ev-ebitda");
+  });
+
   it("attaches an InfoTip to ratio column headers linking to the glossary (#7230)", async () => {
     mockGetScreener.mockResolvedValueOnce([
       {

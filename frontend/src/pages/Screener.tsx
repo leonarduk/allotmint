@@ -36,6 +36,11 @@ const RATIO_COLUMN_TIPS: Record<
   MktCap: { key: "marketCap", defaultText: "Share price multiplied by shares outstanding.", anchor: "market-cap" },
   "52wH": { key: "high52w", defaultText: "The highest trading price over the past 52 weeks.", anchor: "week-52-high" },
   "52wL": { key: "low52w", defaultText: "The lowest trading price over the past 52 weeks.", anchor: "week-52-low" },
+  "P/B": { key: "pb", defaultText: "Share price divided by book value per share.", anchor: "pb-ratio" },
+  "P/S": { key: "ps", defaultText: "Market capitalisation divided by trailing twelve-month revenue.", anchor: "ps-ratio" },
+  "EV/EBITDA": { key: "evEbitda", defaultText: "Enterprise value (market cap plus net debt) divided by EBITDA.", anchor: "ev-ebitda" },
+  "Rev Growth": { key: "revenueGrowth", defaultText: "Year-on-year revenue growth, as a fraction (0.1 = 10%).", anchor: "revenue-growth" },
+  "EPS Growth": { key: "earningsGrowth", defaultText: "Year-on-year earnings growth, as a fraction (0.1 = 10%).", anchor: "earnings-growth" },
   AvgVol: { key: "avgVolume", defaultText: "The average number of shares traded per day over a recent period.", anchor: "avg-volume" },
 };
 
@@ -83,6 +88,11 @@ export function Screener() {
   const [high52wMax, setHigh52wMax] = useState("");
   const [low52wMin, setLow52wMin] = useState("");
   const [avgVolumeMin, setAvgVolumeMin] = useState("");
+  const [pbMax, setPbMax] = useState("");
+  const [psMax, setPsMax] = useState("");
+  const [evEbitdaMax, setEvEbitdaMax] = useState("");
+  const [revenueGrowthMin, setRevenueGrowthMin] = useState("");
+  const [earningsGrowthMin, setEarningsGrowthMin] = useState("");
 
   const [rows, setRows] = useState<ScreenerResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -178,6 +188,15 @@ export function Screener() {
         high_52w_max: high52wMax ? parseFloat(high52wMax) : undefined,
         low_52w_min: low52wMin ? parseFloat(low52wMin) : undefined,
         avg_volume_min: avgVolumeMin ? parseFloat(avgVolumeMin) : undefined,
+        pb_max: pbMax ? parseFloat(pbMax) : undefined,
+        ps_max: psMax ? parseFloat(psMax) : undefined,
+        ev_ebitda_max: evEbitdaMax ? parseFloat(evEbitdaMax) : undefined,
+        revenue_growth_min: revenueGrowthMin
+          ? parseFloat(revenueGrowthMin)
+          : undefined,
+        earnings_growth_min: earningsGrowthMin
+          ? parseFloat(earningsGrowthMin)
+          : undefined,
       });
       setRows(data);
     } catch (e) {
@@ -288,6 +307,61 @@ export function Screener() {
               type="number"
               value={peMax}
               onChange={(e) => setPeMax(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.maxPb")}
+            <input
+              aria-label={t("screener.maxPb")}
+              type="number"
+              value={pbMax}
+              onChange={(e) => setPbMax(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.maxPs")}
+            <input
+              aria-label={t("screener.maxPs")}
+              type="number"
+              value={psMax}
+              onChange={(e) => setPsMax(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.maxEvEbitda")}
+            <input
+              aria-label={t("screener.maxEvEbitda")}
+              type="number"
+              value={evEbitdaMax}
+              onChange={(e) => setEvEbitdaMax(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minRevenueGrowth")}
+            <input
+              aria-label={t("screener.minRevenueGrowth")}
+              type="number"
+              value={revenueGrowthMin}
+              onChange={(e) => setRevenueGrowthMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minEarningsGrowth")}
+            <input
+              aria-label={t("screener.minEarningsGrowth")}
+              type="number"
+              value={earningsGrowthMin}
+              onChange={(e) => setEarningsGrowthMin(e.target.value)}
               step="any"
               style={{ marginLeft: "0.25rem" }}
             />
@@ -575,6 +649,26 @@ export function Screener() {
                 P/E
                 <RatioHeaderInfoTip column="P/E" />
               </th>
+              <th style={right} onClick={() => handleSort("pb_ratio")}>
+                P/B
+                <RatioHeaderInfoTip column="P/B" />
+              </th>
+              <th style={right} onClick={() => handleSort("ps_ratio")}>
+                P/S
+                <RatioHeaderInfoTip column="P/S" />
+              </th>
+              <th style={right} onClick={() => handleSort("ev_ebitda")}>
+                EV/EBITDA
+                <RatioHeaderInfoTip column="EV/EBITDA" />
+              </th>
+              <th style={right} onClick={() => handleSort("revenue_growth")}>
+                Rev Growth
+                <RatioHeaderInfoTip column="Rev Growth" />
+              </th>
+              <th style={right} onClick={() => handleSort("earnings_growth")}>
+                EPS Growth
+                <RatioHeaderInfoTip column="EPS Growth" />
+              </th>
               <th style={right} onClick={() => handleSort("de_ratio")}>
                 D/E
                 <RatioHeaderInfoTip column="D/E" />
@@ -696,6 +790,11 @@ export function Screener() {
                 <td style={cell}>{r.ticker}</td>
                 <td style={right}>{r.peg_ratio ?? "—"}</td>
                 <td style={right}>{r.pe_ratio ?? "—"}</td>
+                <td style={right}>{r.pb_ratio ?? "—"}</td>
+                <td style={right}>{r.ps_ratio ?? "—"}</td>
+                <td style={right}>{r.ev_ebitda ?? "—"}</td>
+                <td style={right}>{r.revenue_growth ?? "—"}</td>
+                <td style={right}>{r.earnings_growth ?? "—"}</td>
                 <td style={right}>{r.de_ratio ?? "—"}</td>
                 <td style={right}>{r.lt_de_ratio ?? "—"}</td>
                 <td style={right}>{r.interest_coverage ?? "—"}</td>

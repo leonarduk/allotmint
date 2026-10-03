@@ -70,6 +70,7 @@ import {
   awsCostsContractSchema,
 } from "./contracts/apiContracts";
 import { clearFetchCache } from "./utils/fetchCache";
+import { startNewChat } from "./utils/chatConversation";
 
 const cleanOptionalString = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
@@ -263,6 +264,11 @@ export function createClient(
       clearFetchCache();
       clearGroupInstrumentCache();
     }
+    // The chat conversation is kept in sessionStorage so it survives a reload,
+    // so it is cleared only on logout, not on every token change: a reload
+    // re-applies the stored token from null, and the Cognito refresh swaps in
+    // a new token for the same user every hour.
+    if (t === null && authToken !== null) startNewChat();
     authToken = t;
     if (!storage) return;
     if (t) storage.setItem(TOKEN_STORAGE_KEY, t);

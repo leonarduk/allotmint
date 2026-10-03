@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from backend.common.currency import extract_currency
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.utils.html_render import render_timeseries_html
 
 STANDARD_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]
@@ -27,8 +28,9 @@ logger = logging.getLogger(__name__)
 _VALID_OVERRIDE_FACTORS = (0.01, 1.0, 100.0)
 
 
-def _is_valid_override_factor(value: float) -> bool:
-    return any(math.isclose(value, f, rel_tol=1e-9) for f in _VALID_OVERRIDE_FACTORS)
+def is_valid_override_factor(value: float) -> bool:
+    """True if ``value`` is a pence/pounds unit factor (0.01, 1 or 100)."""
+    return any(math.isclose(value, f, rel_tol=1e-9, abs_tol=1e-12) for f in _VALID_OVERRIDE_FACTORS)
 
 
 def apply_scaling(df: pd.DataFrame, scale: float, scale_volume: bool = False) -> pd.DataFrame:
@@ -112,14 +114,14 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
                 value = float(ov[ex_key][t_key])
             except Exception:
                 continue
-            if not _is_valid_override_factor(value):
+            if not is_valid_override_factor(value):
                 logger.warning(
                     "Ignoring scaling override %s for %s/%s in %s: only 0.01, 1 or 100 are valid "
                     "pence/pounds factors; falling back to currency metadata",
-                    value,
-                    ex_key,
-                    t_key,
-                    path,
+                    sanitise_log_value(value),
+                    sanitise_log_value(ex_key),
+                    sanitise_log_value(t_key),
+                    sanitise_log_value(path),
                 )
                 continue
             return value

@@ -68,12 +68,22 @@ def test_load_live_prices_scales_pence_quoted_lse_ticker_with_gbp_currency(monke
     assert prices["GSK.L"]["price"] == pytest.approx(18.88)
 
 
-def test_load_live_prices_adm_gbx_quote_not_double_scaled(monkeypatch):
-    """Regression test for #8597: ADM.L (GBX metadata) was listed in
-    ``data/scaling_overrides.json`` as 0.1, so a 3588p quote became 358.8 and
-    then -- because 0.1 != the pence factor -- was divided by 100 again,
-    giving 3.588. Uses the real ``get_scaling_override`` and overrides file.
+def test_load_live_prices_typo_override_does_not_double_scale_gbx_quote(monkeypatch, tmp_path):
+    """Regression test for #8597, end to end through the real
+    ``get_scaling_override``: with a typo'd ``"ADM": 0.1`` override, a 3588p
+    GBX quote used to become 3588 * 0.1 = 358.8 and then -- because 0.1 is not
+    the pence factor -- be divided by 100 again, giving 3.588. The override
+    validator now ignores 0.1 and falls back to the GBX metadata (0.01).
     """
+    from types import SimpleNamespace
+
+    from backend.utils import timeseries_helpers as th
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "scaling_overrides.json").write_text('{"L": {"ADM": 0.1}}')
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=tmp_path))
+    monkeypatch.setattr("backend.common.instruments.get_instrument_meta", lambda symbol: {"currency": "GBX"})
 
     class Resp:
         def raise_for_status(self):

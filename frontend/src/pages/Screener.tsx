@@ -706,6 +706,14 @@ export function Screener() {
                     ? new Intl.NumberFormat(i18n.language).format(r.fcf)
                     : "—"}
                 </td>
+                <td style={right}>{r.eps ?? "—"}</td>
+                <td style={right}>{r.gross_margin ?? "—"}</td>
+                <td style={right}>{r.operating_margin ?? "—"}</td>
+                <td style={right}>{r.net_margin ?? "—"}</td>
+                <td style={right}>{r.ebitda_margin ?? "—"}</td>
+                <td style={right}>{r.roa ?? "—"}</td>
+                <td style={right}>{r.roe ?? "—"}</td>
+                <td style={right}>{r.roi ?? "—"}</td>
                 <td style={right}>{r.dividend_yield ?? "—"}</td>
                 <td style={right}>{r.dividend_payout_ratio ?? "—"}</td>
                 <td style={right}>{r.beta ?? "—"}</td>
@@ -735,14 +743,6 @@ export function Screener() {
                     ? new Intl.NumberFormat(i18n.language).format(r.avg_volume)
                     : "—"}
                 </td>
-                <td style={right}>{r.eps ?? "—"}</td>
-                <td style={right}>{r.gross_margin ?? "—"}</td>
-                <td style={right}>{r.operating_margin ?? "—"}</td>
-                <td style={right}>{r.net_margin ?? "—"}</td>
-                <td style={right}>{r.ebitda_margin ?? "—"}</td>
-                <td style={right}>{r.roa ?? "—"}</td>
-                <td style={right}>{r.roe ?? "—"}</td>
-                <td style={right}>{r.roi ?? "—"}</td>
               </tr>
             ))}
           </tbody>

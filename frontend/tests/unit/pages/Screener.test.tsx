@@ -205,6 +205,68 @@ describe("Screener", () => {
     expect(link).toHaveAttribute("href", "/metrics-explained#peg-ratio");
   });
 
+  it("renders every body cell under its matching column header", async () => {
+    // Header label -> row field, in header order. Each field gets a distinct
+    // value (< 1000 so locale grouping never alters it) so a misplaced cell
+    // is caught by index, not just by presence.
+    const columns: [string, string][] = [
+      ["PEG", "peg_ratio"],
+      ["P/E", "pe_ratio"],
+      ["D/E", "de_ratio"],
+      ["LT D/E", "lt_de_ratio"],
+      ["IntCov", "interest_coverage"],
+      ["Curr", "current_ratio"],
+      ["Quick", "quick_ratio"],
+      ["FCF", "fcf"],
+      ["EPS", "eps"],
+      ["Gross Margin", "gross_margin"],
+      ["Op Margin", "operating_margin"],
+      ["Net Margin", "net_margin"],
+      ["EBITDA Margin", "ebitda_margin"],
+      ["ROA", "roa"],
+      ["ROE", "roe"],
+      ["ROI", "roi"],
+      ["Div%", "dividend_yield"],
+      ["Payout", "dividend_payout_ratio"],
+      ["Beta", "beta"],
+      ["Shares", "shares_outstanding"],
+      ["Float", "float_shares"],
+      ["MktCap", "market_cap"],
+      ["52wH", "high_52w"],
+      ["52wL", "low_52w"],
+      ["AvgVol", "avg_volume"],
+    ];
+    const row: Record<string, unknown> = { rank: 1, ticker: "AAA", name: "AAA Corp" };
+    columns.forEach(([, field], i) => {
+      row[field] = 101 + i;
+    });
+    mockGetScreener.mockResolvedValueOnce([row as never]);
+
+    const { container } = render(<Screener />);
+    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
+      target: { value: "AAA" },
+    });
+    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
+    await screen.findByText("AAA");
+
+    // The header's own label is its first text node; the InfoTip follows it.
+    const headers = screen
+      .getAllByRole("columnheader")
+      .map((th) => th.childNodes[0]?.textContent?.trim());
+    const cells = Array.from(
+      container.querySelectorAll("tbody tr:first-child td"),
+    ).map((td) => td.textContent?.trim());
+
+    expect(cells).toHaveLength(headers.length);
+    expect(cells[headers.indexOf("Rank")]).toBe("1");
+    expect(cells[headers.indexOf("Ticker")]).toBe("AAA");
+    columns.forEach(([label], i) => {
+      const idx = headers.indexOf(label);
+      expect(idx, `header ${label}`).toBeGreaterThan(-1);
+      expect(cells[idx], `cell under ${label}`).toBe(String(101 + i));
+    });
+  });
+
   it("does not emit duplicate-key warnings when the same ticker appears twice (#6505)", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockGetScreener.mockResolvedValueOnce([

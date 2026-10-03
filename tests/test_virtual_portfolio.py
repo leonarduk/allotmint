@@ -13,7 +13,7 @@ def test_aggregate_with_mixed_holdings(monkeypatch):
         prices = {"AAA": 12.0, "CCC": 8.0}
         if ticker not in prices:
             raise AssertionError("price lookup should not occur for zero-unit holdings")
-        return prices[ticker], "Feed"
+        return prices[ticker], "Feed", d
 
     def fake_derived_cost_basis_close_px(ticker, exchange, acq, cache):
         prices = {"AAA": 10.0, "CCC": 7.0}
@@ -21,7 +21,7 @@ def test_aggregate_with_mixed_holdings(monkeypatch):
             raise AssertionError("cost basis lookup should not occur for zero-unit holdings")
         return prices[ticker]
 
-    monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", fake_get_price_for_date_scaled)
+    monkeypatch.setattr(holding_utils, "_get_dated_price_for_date_scaled", fake_get_price_for_date_scaled)
     monkeypatch.setattr(holding_utils, "_derived_cost_basis_close_px", fake_derived_cost_basis_close_px)
 
     holdings = [

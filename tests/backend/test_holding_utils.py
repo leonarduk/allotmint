@@ -25,7 +25,7 @@ def test_enrich_holding_scales_booked_cost_basis(monkeypatch):
         "_PRICE_SNAPSHOT",
         {"FOO.L": {"last_price": 2.0, "is_stale": False}},
     )
-    monkeypatch.setattr(hu, "_get_price_for_date_scaled", lambda *args, **kwargs: (1.9, "mock"))
+    monkeypatch.setattr(hu, "_get_dated_price_for_date_scaled", lambda *args, **kwargs: (1.9, "mock", None))
 
     holding = {
         TICKER: "FOO.L",
@@ -147,7 +147,7 @@ def test_enrich_holding_market_value_set_from_price_snapshot(monkeypatch):
         {"VWRL.L": {"last_price": 97.5, "price_currency": "GBP", "is_stale": False}},
     )
     # Stub out timeseries access — only the snapshot price should be used.
-    monkeypatch.setattr(hu, "_get_price_for_date_scaled", lambda *args, **kwargs: (None, None))
+    monkeypatch.setattr(hu, "_get_dated_price_for_date_scaled", lambda *args, **kwargs: (None, None, None))
     monkeypatch.setattr(hu, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
 
     holding = {TICKER: "VWRL.L", UNITS: 10, COST_BASIS_GBP: 0.0, ACQUIRED_DATE: "2025-01-01"}
@@ -178,10 +178,10 @@ def test_enrich_holding_falls_back_to_previous_close_when_today_missing(monkeypa
     def fake_price_for_date(ticker, exchange, d, field="Close_gbp"):
         # No price for "today"; a valid close exists for the previous date.
         if d == dt.date(2026, 5, 15):
-            return 50.0, "Yahoo"
-        return None, None
+            return 50.0, "Yahoo", d
+        return None, None, None
 
-    monkeypatch.setattr(hu, "_get_price_for_date_scaled", fake_price_for_date)
+    monkeypatch.setattr(hu, "_get_dated_price_for_date_scaled", fake_price_for_date)
     monkeypatch.setattr(hu, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
 
     holding = {TICKER: "FOO.L", UNITS: 10, COST_BASIS_GBP: 0.0, ACQUIRED_DATE: "2025-01-01"}
@@ -210,10 +210,10 @@ def test_enrich_holding_monday_fallback_reaches_previous_friday(monkeypatch):
     def fake_price_for_date(ticker, exchange, d, field="Close_gbp"):
         # Monday's close is missing; only the previous Friday has a price.
         if d == previous_friday:
-            return 42.0, "Yahoo"
-        return None, None
+            return 42.0, "Yahoo", d
+        return None, None, None
 
-    monkeypatch.setattr(hu, "_get_price_for_date_scaled", fake_price_for_date)
+    monkeypatch.setattr(hu, "_get_dated_price_for_date_scaled", fake_price_for_date)
     monkeypatch.setattr(hu, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
 
     holding = {TICKER: "FOO.L", UNITS: 10, COST_BASIS_GBP: 0.0, ACQUIRED_DATE: "2025-01-01"}
@@ -241,7 +241,7 @@ def test_enrich_holding_no_acquired_date_stays_null(monkeypatch):
     monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda *_: ("FOO", "L"))
     monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
     monkeypatch.setattr(hu, "get_instrument_meta", lambda *_: {})
-    monkeypatch.setattr(hu, "_get_price_for_date_scaled", lambda *a, **k: (1.0, "mock"))
+    monkeypatch.setattr(hu, "_get_dated_price_for_date_scaled", lambda *a, **k: (1.0, "mock", None))
     monkeypatch.setattr(hu, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
 
     holding = {TICKER: "FOO.L", UNITS: 1, COST_BASIS_GBP: 0.0}
@@ -321,7 +321,7 @@ def test_enrich_holding_no_acquired_date_tags_cost_basis_source_unknown(monkeypa
     monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
     monkeypatch.setattr(hu, "get_instrument_meta", lambda *_: {})
     monkeypatch.setattr(hu, "get_scaling_override", lambda *args, **kwargs: None)
-    monkeypatch.setattr(hu, "_get_price_for_date_scaled", lambda *a, **k: (8.0, "mock"))
+    monkeypatch.setattr(hu, "_get_dated_price_for_date_scaled", lambda *a, **k: (8.0, "mock", None))
 
     holding = {TICKER: "FOO.L", UNITS: 5}  # no cost_basis_gbp, no acquired_date
     today = dt.date(2026, 8, 27)
@@ -358,3 +358,85 @@ def test_enrich_holding_keeps_gain_for_derived_cost(monkeypatch):
     assert out[EFFECTIVE_COST_BASIS_GBP] == pytest.approx(20.0)
     assert out["gain_gbp"] == pytest.approx(20.0)
     assert out["gain_pct"] == pytest.approx(100.0)
+
+
+# ── is_stale reflects the price's own date (#7919) ───────────────────────────
+_REPORTING = dt.date(2026, 9, 25)  # Friday
+_TODAY = dt.date(2026, 9, 26)  # Saturday -> reporting date is Friday
+
+
+@pytest.mark.parametrize(
+    ("snap", "expected"),
+    [
+        ({"last_price_date": "2026-09-24"}, True),  # timeseries snapshot, a day behind
+        ({"last_price_date": "2026-09-25"}, False),  # timeseries snapshot, current
+        ({"last_price_date": "2026-09-25", "is_stale": True}, True),  # live quote >15 min old
+        ({"last_price_date": "2026-09-25", "is_stale": False}, False),  # fresh live quote
+        ({"is_stale": False}, False),  # flag only
+        ({"is_stale": True}, True),
+        ({}, True),  # neither field: don't report fresh by default
+    ],
+)
+def test_snapshot_is_stale_uses_price_date_and_flag(snap, expected):
+    assert hu._snapshot_is_stale({"last_price": 1.0, **snap}, _REPORTING) is expected
+
+
+def _stub_enrich_env(monkeypatch, snapshot):
+    import backend.common.portfolio_utils as pu
+
+    monkeypatch.setattr(hu, "get_instrument_meta", lambda *_: {"currency": "GBP"})
+    monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", snapshot)
+    monkeypatch.setattr(hu, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
+
+
+def test_enrich_snapshot_price_from_before_reporting_date_is_stale(monkeypatch):
+    """The ISXF case: the timeseries-built snapshot has Thursday's close on a Saturday."""
+    _stub_enrich_env(
+        monkeypatch,
+        {"FOO.L": {"last_price": 99.88, "price_currency": "GBP", "last_price_date": "2026-09-24"}},
+    )
+    monkeypatch.setattr(hu, "_get_dated_price_for_date_scaled", lambda *a, **k: (99.5, "Yahoo", dt.date(2026, 9, 24)))
+
+    holding = {TICKER: "FOO.L", UNITS: 10, COST_BASIS_GBP: 0.0, ACQUIRED_DATE: "2025-01-01"}
+    result = hu.enrich_holding(holding, _TODAY, price_cache={})
+
+    assert result["latest_source"] == "snapshot"
+    assert result["is_stale"] is True
+
+
+@pytest.mark.parametrize(
+    ("row_date", "expected_stale"),
+    [
+        (_REPORTING, False),  # close for the reporting date itself
+        (dt.date(2026, 9, 24), True),  # range loader walked back to Thursday
+    ],
+)
+def test_enrich_timeseries_price_staleness_follows_row_date(monkeypatch, row_date, expected_stale):
+    _stub_enrich_env(monkeypatch, {})
+
+    def fake_dated(ticker, exchange, d, field="Close_gbp"):
+        if d == _REPORTING:
+            return 100.0, "Yahoo", row_date
+        return 99.0, "Yahoo", d
+
+    monkeypatch.setattr(hu, "_get_dated_price_for_date_scaled", fake_dated)
+
+    holding = {TICKER: "FOO.L", UNITS: 10, COST_BASIS_GBP: 0.0, ACQUIRED_DATE: "2025-01-01"}
+    result = hu.enrich_holding(holding, _TODAY, price_cache={})
+
+    assert result["price"] == pytest.approx(100.0)
+    assert result["latest_source"] == "Yahoo"
+    assert result["is_stale"] is expected_stale
+
+
+def test_get_dated_price_reports_the_row_date_served(monkeypatch):
+    """The dated lookup returns the date of the row actually used, not the one asked for."""
+    served = pd.DataFrame({"Date": [pd.Timestamp("2026-09-24")], "Close": [99.88], "Source": ["Yahoo"]})
+    monkeypatch.setattr(hu, "load_meta_timeseries_range", lambda **_k: served)
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *a, **k: 1.0)
+
+    price, src, row_date = hu._get_dated_price_for_date_scaled("FOO", "L", _REPORTING)
+
+    assert (price, src, row_date) == (pytest.approx(99.88), "Yahoo", dt.date(2026, 9, 24))
+    assert hu._get_price_for_date_scaled("FOO", "L", _REPORTING) == (pytest.approx(99.88), "Yahoo")

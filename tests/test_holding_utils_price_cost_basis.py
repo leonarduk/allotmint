@@ -32,8 +32,8 @@ def test_load_unscaled_price_for_date_impl_handles_cash_directly(monkeypatch):
 
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", explode)
     d = dt.date(2024, 1, 1)
-    price, src, scalable = holding_utils._load_unscaled_price_for_date_impl("CASH", "L", d)
-    assert (price, src, scalable) == (1.0, None, False)
+    price, src, scalable, row_date = holding_utils._load_unscaled_price_for_date_impl("CASH", "L", d)
+    assert (price, src, scalable, row_date) == (1.0, None, False, d)
 
 
 def test_get_price_for_date_scaled_empty_data(monkeypatch):

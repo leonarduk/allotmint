@@ -12,6 +12,7 @@ const mockCheckPortfolioHealth = vi.hoisted(() => vi.fn());
 const mockFetch = vi.hoisted(() => vi.fn());
 const mockRefreshPrices = vi.hoisted(() => vi.fn());
 const mockGetRefreshPricesProgress = vi.hoisted(() => vi.fn());
+const mockGetMcpTools = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -26,6 +27,7 @@ vi.mock("@/api", async () => {
     checkPortfolioHealth: mockCheckPortfolioHealth,
     refreshPrices: mockRefreshPrices,
     getRefreshPricesProgress: mockGetRefreshPricesProgress,
+    getMcpTools: mockGetMcpTools,
   };
 });
 
@@ -65,6 +67,13 @@ beforeEach(() => {
     },
   });
   mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+  mockGetMcpTools.mockResolvedValue({
+    tools: [
+      { name: "get_portfolio", description: "Portfolio", enabled: true },
+      { name: "read_data_file", description: "Read a file", enabled: true },
+    ],
+    mcp_error: null,
+  });
   mockRefreshPrices.mockResolvedValue({ status: "ok", tickers: 0 });
   mockGetRefreshPricesProgress.mockResolvedValue({
     running: false,
@@ -384,6 +393,73 @@ describe("Support page", () => {
 
     // No untouched resolved paths, no "[object Object]", no unchanged tabs.
     expect(mockUpdateConfig).toHaveBeenCalledWith({ count: 7 });
+  });
+
+  it("lists MCP tools, all on, and saves a switched-off tool under the mcp section", async () => {
+    mockUpdateConfig.mockResolvedValue(undefined);
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+
+    expect(await screen.findByRole("heading", { name: en.support.config.mcpTools })).toBeInTheDocument();
+    const readFile = await screen.findByLabelText("read_data_file");
+    expect(readFile).toBeChecked();
+    expect(screen.getByLabelText("get_portfolio")).toBeChecked();
+
+    await act(async () => {
+      await userEvent.click(readFile);
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByRole("button", { name: en.support.config.save }));
+    });
+
+    expect(mockUpdateConfig).toHaveBeenCalledWith({
+      mcp: { mcp_tools: { get_portfolio: true, read_data_file: false } },
+    });
+  });
+
+  it("does not send MCP switches when none changed", async () => {
+    mockUpdateConfig.mockResolvedValue(undefined);
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+    await screen.findByLabelText("read_data_file");
+
+    await act(async () => {
+      await userEvent.click(screen.getByRole("button", { name: en.support.config.save }));
+    });
+
+    expect(mockUpdateConfig).toHaveBeenCalledWith({});
+  });
+
+  it("edits mcp_github_repo as an ordinary config parameter", async () => {
+    mockGetConfig.mockResolvedValue({
+      theme: "system",
+      mcp_github_repo: "octo/tracker",
+      mcp_tools: { read_data_file: false },
+      tabs: { group: true },
+    });
+    mockUpdateConfig.mockResolvedValue(undefined);
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+
+    const repo = await screen.findByDisplayValue("octo/tracker");
+    await act(async () => {
+      await userEvent.clear(repo);
+      await userEvent.type(repo, "octo/new-repo");
+    });
+    await act(async () => {
+      await userEvent.click(screen.getByRole("button", { name: en.support.config.save }));
+    });
+
+    // The mcp_tools map is never echoed back from the generic form.
+    expect(mockUpdateConfig).toHaveBeenCalledWith({ mcp_github_repo: "octo/new-repo" });
+  });
+
+  it("shows why the MCP tool list is incomplete", async () => {
+    mockGetMcpTools.mockResolvedValue({ tools: [], mcp_error: "MCP_SERVER_URL is not set" });
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+
+    expect(await screen.findByText("MCP_SERVER_URL is not set")).toBeInTheDocument();
   });
 
   it("separates switches from other parameters", async () => {

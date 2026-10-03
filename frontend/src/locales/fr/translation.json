@@ -544,7 +544,10 @@
       "otherSwitches": "Autres commutateurs",
       "save": "Enregistrer",
       "tabsEnabled": "Onglets activés",
-      "title": "Configuration"
+      "title": "Configuration",
+      "mcpTools": "Outils MCP",
+      "mcpToolsHint": "Outils que l'assistant de chat peut utiliser. Tous sont activés par défaut ; décochez-en un pour le désactiver.",
+      "mcpToolsUnavailable": "Impossible de charger la liste des outils MCP."
     },
     "dataExplorer": {
       "title": "Data Explorer",

@@ -862,7 +862,10 @@
       "otherSwitches": "Other Switches",
       "save": "Save",
       "tabsEnabled": "Tabs Enabled",
-      "title": "Configuration"
+      "title": "Configuration",
+      "mcpTools": "MCP tools",
+      "mcpToolsHint": "Tools the chat assistant can use. All are on by default; untick to switch one off.",
+      "mcpToolsUnavailable": "Could not load the MCP tool list."
     },
     "dataExplorer": {
       "title": "Data Explorer",

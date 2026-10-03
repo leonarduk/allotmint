@@ -24,6 +24,7 @@ from backend.chat.bedrock_agent import (
 )
 from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import mcp_session
+from backend.chat.tool_switches import switched_off_message, tool_enabled
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -120,6 +121,8 @@ async def run_chat_turn(
             for tool_call in tool_calls:
                 name = tool_call["function"]["name"]
                 try:
+                    if not tool_enabled(name):
+                        raise ValueError(switched_off_message(name))
                     arguments = _parse_tool_arguments(tool_call["function"].get("arguments"))
                     if local_tools is not None and local_tools.handles(name):
                         content, is_error = local_tools.call(name, arguments)

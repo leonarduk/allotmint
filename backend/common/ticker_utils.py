@@ -22,6 +22,9 @@ def split_ticker(ticker: str | None, exchange: str | None = None) -> tuple[str, 
     """
     raw = (ticker or "").strip().upper()
     symbol, dot, suffix = raw.partition(".")
+    if not symbol:
+        # "." / ".L" name no instrument; never pair an exchange with "".
+        return "", None
     if suffix:
         return symbol, suffix
     if dot:

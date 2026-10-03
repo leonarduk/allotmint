@@ -48,6 +48,11 @@ def test_split_ticker_never_returns_empty_exchange():
     assert split_ticker("BP", "") == ("BP", None)
 
 
+@pytest.mark.parametrize("ticker", [".", "..", ".L", "   ", "", None])
+def test_split_ticker_degenerate_input_has_no_exchange(ticker):
+    assert split_ticker(ticker, "L") == ("", None)
+
+
 def test_resolve_full_ticker_maps_padded_epic_to_lse(monkeypatch):
     monkeypatch.setattr(ia, "_TICKER_EXCHANGE_MAP", {})
     assert ia._resolve_full_ticker("BP.", {}) == ("BP", "L")

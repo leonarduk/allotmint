@@ -172,7 +172,7 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         last_close, close_date = latest_closes.get(full, (None, None))
         price = None
         ts: Optional[datetime] = None
-        price_date: Optional[date] = last_trading_day
+        price_date: Optional[date] = None
         is_stale = True
         # price_currency tracks the currency denomination of `price`.
         # Both live and last-close sources are GBP-normalised at this point.
@@ -187,6 +187,9 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
             ts = live_info.get("timestamp")
             if ts:
                 is_stale = (now - ts) > timedelta(minutes=15)
+            # Live quotes are dated by the trading day their 7/30-day changes
+            # are anchored to; last_price_time carries the quote's own time.
+            price_date = last_trading_day
             # load_live_prices converts to GBP internally
             price_currency = "GBP"
         elif not is_nan(last_close):

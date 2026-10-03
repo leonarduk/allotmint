@@ -16,7 +16,10 @@ export type RollupRow = {
   // Null when no lot has a known cost, so the gain is unknown (#8471).
   gain_gbp: number | null;
   gain_pct: number | null;
-  // "unknown" when no lot has a known cost; mirrors Holding (#8471).
+  // "unknown" when no lot has a known cost; mirrors Holding (#8471). A ticker
+  // mixing known- and unknown-cost lots gets null: its gain/gain_pct come
+  // from the known lots only, but effective_cost_basis_gbp still includes the
+  // unknown lots' guessed cost.
   cost_basis_source?: "unknown" | null;
   weight_pct: number;
   lot_count: number;

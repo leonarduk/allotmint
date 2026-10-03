@@ -299,10 +299,10 @@ export function HoldingsTable({
       __holdingsIndex: index,
       cost: row.cost,
       market_value_gbp: row.market,
-      // An unknown gain contributes nothing; its cost is excluded below.
+      // A null gain only arises when cost <= 0 (adds nothing to cost totals)
+      // or cost_basis_source is already "unknown" (excluded by
+      // calculateGroupTotals), so it contributes no gain either (#8471).
       gain_gbp: row.gain ?? 0,
-      cost_basis_source:
-        row.gain === null ? "unknown" : row.cost_basis_source,
       change_7d_pct: row.change_7d_pct ?? row.forward_7d_change_pct ?? null,
       change_30d_pct: row.change_30d_pct ?? row.forward_30d_change_pct ?? null,
     })) as RowWithCost[];

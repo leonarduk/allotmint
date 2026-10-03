@@ -274,9 +274,31 @@ def test_instrument_summaries_exclude_unknown_gain_from_gain_pct(monkeypatch):
     assert mixed["market_value_gbp"] == pytest.approx(200.0)
     assert mixed["gain_gbp"] == pytest.approx(20.0)
     assert mixed["gain_pct"] == pytest.approx(20.0)
-    assert "_known_gain_mv" not in mixed
-    assert "_has_known_gain" not in mixed
-
     unknown = by_ticker["UNK.L"]
     assert unknown["market_value_gbp"] == pytest.approx(50.0)
     assert unknown["gain_pct"] is None
+    for row in by_ticker.values():
+        assert not [key for key in row if key.startswith("_")]
+
+
+def test_instrument_summaries_entries_carry_no_private_keys_when_decoration_fails(monkeypatch):
+    """The #8471 known-gain accumulator lives outside the response entries, so
+    an exception part-way through decoration cannot leave private keys on them."""
+    holding = {"ticker": "AAA.L", "name": "Alpha", "units": 1.0, "market_value_gbp": 10.0, "gain_gbp": 1.0}
+    portfolio = {"accounts": [{"holdings": [holding]}]}
+    monkeypatch.setattr(ia, "build_group_portfolio", lambda slug, **_: portfolio)
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: {})
+    monkeypatch.setattr(ia, "_price_and_changes", _flat_price_and_changes)
+    seen: list[dict] = []
+
+    def failing_grouping(meta, entry, current=None):
+        seen.append(dict(entry))
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(ia, "_resolve_grouping_details", failing_grouping)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        ia.instrument_summaries_for_group("demo")
+
+    assert seen
+    assert not [key for key in seen[0] if key.startswith("_")]

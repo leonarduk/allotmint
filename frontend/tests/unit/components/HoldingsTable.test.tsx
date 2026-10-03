@@ -605,6 +605,59 @@ describe("HoldingsTable", () => {
             expect(within(footer as HTMLElement).queryByText("35.7%")).toBeNull();
         });
 
+        it("keeps a booked-cost holding with a null gain_gbp in the cost totals and its booked label", async () => {
+            // A real booked cost with a missing gain must not be treated as
+            // unknown: its gain is derived (market - cost) and its cost stays
+            // in both the footer and the group header totals.
+            const bookedNullGain: Holding = {
+                ticker: "BOOKN",
+                name: "Booked Null Gain Co",
+                units: 1,
+                cost_basis_gbp: 100,
+                market_value_gbp: 130,
+                gain_gbp: null,
+                gain_pct: null,
+                current_price_gbp: 130,
+                cost_basis_source: "book",
+            };
+            const other: Holding = {
+                ...knownHolding,
+                ticker: "OTHER",
+                name: "Other Co",
+                cost_basis_gbp: 50,
+                market_value_gbp: 60,
+                gain_gbp: 10,
+                gain_pct: 20,
+            };
+
+            const { unmount } = renderWithConfig(
+                <HoldingsTable holdings={[bookedNullGain, other]} />,
+            );
+            const row = (await screen.findByText("Booked Null Gain Co")).closest("tr")!;
+            expect(within(row).queryByTitle(gainUnknownTitle)).toBeNull();
+            expect(within(row).getByTitle("Actual purchase cost")).toBeInTheDocument();
+            expect(within(row).getByText("£30.00")).toBeInTheDocument();
+            const footer = screen.getByRole("table").querySelector("tfoot") as HTMLElement;
+            expect(within(footer).getByText("£150.00")).toBeInTheDocument();
+            expect(within(footer).getByText("£40.00")).toBeInTheDocument();
+            unmount();
+
+            renderWithConfig(
+                <HoldingsTable
+                    holdings={[
+                        { ...bookedNullGain, grouping: "Mixed" },
+                        { ...other, grouping: "Mixed" },
+                    ] as Holding[]}
+                    groupingMode="group"
+                />,
+            );
+            const groupRow = (
+                await screen.findByRole("button", { name: "Toggle Mixed" })
+            ).closest("tr")!;
+            expect(within(groupRow).getByText("£150.00")).toBeInTheDocument();
+            expect(within(groupRow).getByText("£40.00")).toBeInTheDocument();
+        });
+
         it("keeps the computed gain for a holding with a real cost", async () => {
             renderWithConfig(<HoldingsTable holdings={[knownHolding]} />);
 

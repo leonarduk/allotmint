@@ -360,7 +360,7 @@ export function HoldingsTable({
 
     return createGroups(
       groupingRows,
-      GROUP_SORT_KEYS[sortKey as HoldingsSortKey] ?? null,
+      GROUP_SORT_KEYS[sortKey as HoldingsSortKey],
       asc,
       effectiveGroupingMode,
       {

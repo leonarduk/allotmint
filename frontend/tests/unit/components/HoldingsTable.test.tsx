@@ -284,14 +284,19 @@ describe("HoldingsTable", () => {
         const { container } = renderWithConfig(
             <HoldingsTable holdings={sectorHoldings} groupingMode="sector" />,
         );
-        await userEvent.click(screen.getByRole("button", { name: "Toggle Tech" }));
-        await userEvent.click(screen.getByRole("button", { name: "Toggle Energy" }));
-
         const bodyOrder = () =>
             Array.from(container.querySelectorAll("tbody tr")).map((row) => {
                 const button = row.querySelector("button");
                 return button?.getAttribute("aria-label") ?? button?.textContent;
             });
+
+        // Collapsed groups render only their header rows, none of their holdings.
+        expect(bodyOrder()).toEqual(["Toggle Energy", "Toggle Tech"]);
+
+        // Expanding one group shows only that group's rows, under its header.
+        await userEvent.click(screen.getByRole("button", { name: "Toggle Tech" }));
+        expect(bodyOrder()).toEqual(["Toggle Energy", "Toggle Tech", "AAA", "CCC"]);
+        await userEvent.click(screen.getByRole("button", { name: "Toggle Energy" }));
 
         // Ticker ▲ sorts groups by label; rows stay contiguous under their header.
         expect(bodyOrder()).toEqual(["Toggle Energy", "BBB", "DDD", "Toggle Tech", "AAA", "CCC"]);
@@ -312,6 +317,13 @@ describe("HoldingsTable", () => {
         await userEvent.click(screen.getByRole("columnheader", { name: /Cost £/ }));
         // Rows within a group follow the flat sort too: DDD (£390) before BBB (£40).
         expect(bodyOrder()).toEqual(["Toggle Energy", "DDD", "BBB", "Toggle Tech", "AAA", "CCC"]);
+
+        // Gain % ▲ then ▼ by group gain %: Energy (£20 / £430 ≈ 4.7%) / Tech (£100 / £100 = 100%).
+        // Within Energy, rows follow the flat sort: DDD (≈2.6%) before BBB (25%) when ascending.
+        await userEvent.click(screen.getByRole("columnheader", { name: /Gain %/ }));
+        expect(bodyOrder()).toEqual(["Toggle Energy", "DDD", "BBB", "Toggle Tech", "AAA", "CCC"]);
+        await userEvent.click(screen.getByRole("columnheader", { name: /Gain %/ }));
+        expect(bodyOrder()).toEqual(["Toggle Tech", "AAA", "CCC", "Toggle Energy", "BBB", "DDD"]);
     });
 
     it("falls back to group mode when category mode is requested without definitions", async () => {

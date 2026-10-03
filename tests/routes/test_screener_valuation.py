@@ -86,6 +86,21 @@ def test_valuation_survives_a_snapshot_failure(monkeypatch):
     }
 
 
+def test_valuation_tolerates_a_profile_without_data_quality(monkeypatch):
+    payload = {"ticker": "UKW.L", "data_quality": None}
+    monkeypatch.setattr(screener, "instrument_valuation", lambda _t: SimpleNamespace(model_dump=lambda: payload))
+    monkeypatch.setattr(
+        screener.instrument_api,
+        "_price_and_changes",
+        lambda t: {"is_stale": False, "last_price_date": "2026-10-02"},
+    )
+
+    resp = _client().get("/screener/valuation", params={"ticker": "UKW.L"})
+
+    assert resp.status_code == 200
+    assert resp.json()["data_quality"] == {"price_snapshot": {"is_stale": False, "last_price_date": "2026-10-02"}}
+
+
 def test_valuation_rejects_a_blank_ticker(monkeypatch):
     monkeypatch.setattr(screener, "instrument_valuation", _profile)
 

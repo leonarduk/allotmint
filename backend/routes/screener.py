@@ -374,5 +374,8 @@ def valuation(ticker: str = Query(..., description="Full ticker, e.g. UKW.L")) -
         profile = instrument_valuation(symbol).model_dump()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    profile["data_quality"]["price_snapshot"] = _price_snapshot_flags(symbol)
+    # The flag is advisory, so a profile without ``data_quality`` must not turn into a 500.
+    data_quality = profile.get("data_quality") or {}
+    data_quality["price_snapshot"] = _price_snapshot_flags(symbol)
+    profile["data_quality"] = data_quality
     return profile

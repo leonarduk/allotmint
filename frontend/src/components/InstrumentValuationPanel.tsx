@@ -110,6 +110,8 @@ export function InstrumentValuationPanel({
         },
         {
           label: 'Debt/Equity',
+          // Unlike net_gearing (a fraction), debt_to_equity is already a
+          // percent as Yahoo reports it (45.4 = 45.4%), so it is not scaled.
           value:
             bs.debt_to_equity == null ? '—' : percent(bs.debt_to_equity, 1),
         },

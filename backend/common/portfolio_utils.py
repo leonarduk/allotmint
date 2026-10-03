@@ -34,6 +34,16 @@ from backend.common.instruments import (
     resolve_instrument_ticker,
 )
 from backend.common.portfolio_loader import list_portfolios  # existing helper
+from backend.common.sector_labels import (
+    CASH_SECTOR_LABEL,
+    REGION_ALIASES,
+    SECTOR_ALIASES,
+    is_cash_instrument,
+    normalise_optional_region,
+    normalise_optional_sector,
+    normalise_region_label,
+    normalise_sector_label,
+)
 from backend.common.virtual_portfolio import (
     VirtualPortfolio,
     list_virtual_portfolios,
@@ -798,6 +808,13 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
             snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
             # Normalise the ticker before comparison to guard against casing or
             # whitespace variations (e.g. "cash.gbp", " CASH.GBP ").
+            if is_cash_instrument(full_tkr, h.get("instrument_type")):
+                # Cash gets an explicit sector so every sector view shows it as
+                # "Cash" rather than "Unknown sector"/"Other" (#8530). The
+                # "holding" source matters: _aggregate_by_field buckets rows
+                # whose sector source ranks below security_meta as "Unknown".
+                row["sector"] = CASH_SECTOR_LABEL
+                row["_sector_source"] = "holding"
             if full_tkr.strip().upper() == "CASH.GBP":
                 # Cash is always £1/unit; never derive price from the snapshot.
                 row["last_price_gbp"] = 1.0
@@ -953,6 +970,10 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
             r["last_price_currency"] = base_currency
         if r.get("day_change_gbp") is not None:
             r["day_change_currency"] = base_currency
+        # One canonical label per sector/region on every row, so the holdings
+        # table, /allocation and the sector/region aggregates agree (#8530).
+        r["sector"] = normalise_optional_sector(r.get("sector"))
+        r["region"] = normalise_optional_region(r.get("region"))
         if not _first_nonempty_str(r.get("grouping")):
             fallback = _first_nonempty_str(
                 r.get("sector"),
@@ -1047,43 +1068,12 @@ def _costed_market_value(row: dict, price: float) -> float:
     return round(units * price, 2)
 
 
-# Known aliases for the same region under different provider/holding-source
-# labels, normalised to a single canonical name before grouping. Deliberately
-# narrow: only collapses labels that unambiguously refer to the same country
-# (e.g. "UK" and "United Kingdom"), never broader groupings like "England" ->
-# "Europe". See allotmint#7107.
-_REGION_ALIASES: Dict[str, str] = {
-    "UK": "United Kingdom",
-    "U.K.": "United Kingdom",
-    "GB": "United Kingdom",
-    "GBR": "United Kingdom",
-    "GREAT BRITAIN": "United Kingdom",
-}
-
-
-def _normalise_region_label(key: str) -> str:
-    """Map known region aliases (e.g. ``UK``) to their canonical label."""
-
-    return _REGION_ALIASES.get(key.upper(), key)
-
-
-# Known aliases for the same sector under different provider/holding-source
-# labels, normalised to a single canonical name before grouping. Deliberately
-# narrow: only collapses labels that unambiguously refer to the same sector
-# (e.g. "Real Estate Investment Trusts" -> "Real Estate"), never broader
-# groupings like "Real Estate Services". See allotmint#7161.
-_SECTOR_ALIASES: Dict[str, str] = {
-    "REAL ESTATE INVESTMENT TRUSTS": "Real Estate",
-    "REAL ESTATE INVESTMENT TRUST": "Real Estate",
-    "REITS": "Real Estate",
-    "REIT": "Real Estate",
-}
-
-
-def _normalise_sector_label(key: str) -> str:
-    """Map known sector aliases (e.g. ``Real Estate Investment Trusts``) to their canonical label."""
-
-    return _SECTOR_ALIASES.get(key.upper(), key)
+# Kept as module attributes for existing callers; the tables live in
+# backend.common.sector_labels so holding enrichment can share them (#8530).
+_REGION_ALIASES: Dict[str, str] = REGION_ALIASES
+_SECTOR_ALIASES: Dict[str, str] = SECTOR_ALIASES
+_normalise_region_label = normalise_region_label
+_normalise_sector_label = normalise_sector_label
 
 
 def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP") -> List[dict]:

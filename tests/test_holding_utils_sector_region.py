@@ -47,3 +47,25 @@ def test_enrich_holding_instrument_type_falls_back_to_asset_class():
     holding = {"ticker": "VWRL.L", "units": 1}
     out = enrich_holding(holding, date.today(), {}, {})
     assert out.get("instrument_type") == "Equity"
+
+
+def test_enrich_holding_normalises_sector_and_region_aliases():
+    # Per-holding rows feed /allocation directly, so they must carry the same
+    # canonical labels as the backend aggregates (#8530).
+    holding = {"ticker": "HFEL.L", "units": 1, "sector": "Financial Services", "region": "UK"}
+    out = enrich_holding(holding, date.today(), {}, {})
+    assert out["sector"] == "Financials"
+    assert out["region"] == "United Kingdom"
+
+
+def test_enrich_holding_keeps_real_estate_services_distinct():
+    holding = {"ticker": "HFEL.L", "units": 1, "sector": "Real Estate Services"}
+    out = enrich_holding(holding, date.today(), {}, {})
+    assert out["sector"] == "Real Estate Services"
+
+
+def test_enrich_holding_labels_cash_sector():
+    holding = {"ticker": "CASH.GBP", "units": 100, "region": "UK"}
+    out = enrich_holding(holding, date.today(), {}, {})
+    assert out["sector"] == "Cash"
+    assert out["region"] == "United Kingdom"

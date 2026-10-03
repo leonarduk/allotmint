@@ -19,8 +19,15 @@ Note on price_currency semantics
 ---------------------------------
 * ``load_live_prices`` returns GBP-normalised prices, so live snapshots emit
   ``price_currency = "GBP"``.
-* ``_load_latest_prices`` also returns GBP-normalised prices, so fallback
+* ``_load_latest_closes`` also returns GBP-normalised prices, so fallback
   snapshots emit ``price_currency = "GBP"``.
+
+Note on is_stale semantics (#8595)
+----------------------------------
+* A live quote is fresh while its timestamp is under 15 minutes old.
+* A last close is fresh when it is from the latest completed trading day
+  (``PricingDateCalculator.reporting_date``); older closes are stale.
+  ``last_price_date`` carries the close's own date so consumers can show it.
 * When no price is available, ``price_currency`` is ``None``.
 """
 
@@ -42,7 +49,7 @@ import pandas as pd
 from backend import price_triggers
 from backend.common import instrument_api, refresh_progress
 from backend.common.currency import CurrencyNormaliser
-from backend.common.holding_utils import load_latest_prices as _load_latest_prices
+from backend.common.holding_utils import load_latest_closes as _load_latest_closes
 from backend.common.holding_utils import load_live_prices
 from backend.common.numeric_utils import is_nan
 from backend.common.portfolio_loader import list_portfolios
@@ -137,11 +144,11 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
 
     ``price_currency`` reflects the *actual* currency of ``last_price``:
     - Live-price path: ``load_live_prices`` already converts to GBP → "GBP".
-    - Last-close fallback: ``_load_latest_prices`` already converts to GBP
+    - Last-close fallback: ``_load_latest_closes`` already converts to GBP
       → "GBP".
     - No-data path: ``None`` (last_price is also None; consumers should skip).
 
-    Reports ``refresh_progress`` for its ``_load_latest_prices`` call only
+    Reports ``refresh_progress`` for its ``_load_latest_closes`` call only
     when invoked through :func:`refresh_prices`'s ``_reporting_progress``
     context — see the module-level note there for why this is scoped by
     context rather than by a parameter here.
@@ -150,16 +157,18 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
     calc = PricingDateCalculator(today=date.today(), weekday_func=_nearest_weekday)
     last_trading_day = calc.reporting_date
     latest_kwargs = {"report_progress": True} if _REPORT_PROGRESS.get() else {}
-    latest = _load_latest_prices(list(tickers), **latest_kwargs)
+    latest_closes = _load_latest_closes(list(tickers), **latest_kwargs)
+    latest = {key: price for key, (price, _close_date) in latest_closes.items()}
     live = load_live_prices(list(tickers))
     now = datetime.now(UTC)
 
     snapshot: Dict[str, Dict] = {}
     for full in tickers:
         live_info = live.get(full.upper())
-        last_close = latest.get(full)
+        last_close, close_date = latest_closes.get(full, (None, None))
         price = None
         ts: Optional[datetime] = None
+        price_date: Optional[date] = last_trading_day
         is_stale = True
         # price_currency tracks the currency denomination of `price`.
         # Both live and last-close sources are GBP-normalised at this point.
@@ -178,8 +187,11 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
             price_currency = "GBP"
         elif not is_nan(last_close):
             price = float(last_close)
-            # no timestamp -> treat as stale
-            # _load_latest_prices already normalises to GBP.
+            # A close from the latest completed trading day is fresh; only an
+            # older (or undated) close is stale (#8595).
+            price_date = close_date
+            is_stale = close_date is None or close_date < last_trading_day
+            # _load_latest_closes already normalises to GBP.
             price_currency = "GBP"
         else:
             # No price data available. Emit None so consumers can distinguish
@@ -191,7 +203,7 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
             "price_currency": price_currency,
             "change_7d_pct": None,
             "change_30d_pct": None,
-            "last_price_date": last_trading_day.isoformat(),
+            "last_price_date": price_date.isoformat() if price_date else None,
             "last_price_time": ts.isoformat().replace("+00:00", "Z") if ts else None,
             "is_stale": is_stale,
         }

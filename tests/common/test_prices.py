@@ -68,7 +68,7 @@ def test_get_price_snapshot_uses_latest_and_live(monkeypatch: pytest.MonkeyPatch
     seven_day = last_trading_day - timedelta(days=7)
     thirty_day = last_trading_day - timedelta(days=30)
 
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 118.5})
+    monkeypatch.setattr(prices, "_load_latest_closes", lambda tickers: {ticker: (118.5, last_trading_day)})
     monkeypatch.setattr(
         prices, "load_live_prices", lambda tickers: {ticker.upper(): {"price": 120.5, "timestamp": now}}
     )
@@ -120,8 +120,8 @@ def test_get_price_snapshot_handles_missing_live_fields(monkeypatch: pytest.Monk
 
     monkeypatch.setattr(
         prices,
-        "_load_latest_prices",
-        lambda tickers: {ticker_missing_price: 5.0, ticker_missing_ts: 6.0},
+        "_load_latest_closes",
+        lambda tickers: {ticker_missing_price: (5.0, None), ticker_missing_ts: (6.0, None)},
     )
     monkeypatch.setattr(
         prices,
@@ -152,13 +152,14 @@ def test_get_price_snapshot_handles_missing_live_fields(monkeypatch: pytest.Monk
 
 
 def test_get_price_snapshot_defaults_to_cached_close(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A close from the latest completed trading day, with no live quote, is fresh (#8595)."""
     ticker = "XYZ.L"
     base = ticker.split(".", 1)[0]
     last_trading_day = prices._nearest_weekday(date.today() - timedelta(days=1), forward=False)
     seven_day = last_trading_day - timedelta(days=7)
     thirty_day = last_trading_day - timedelta(days=30)
 
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 99.5})
+    monkeypatch.setattr(prices, "_load_latest_closes", lambda tickers: {ticker: (99.5, last_trading_day)})
     monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
     monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None)
 
@@ -181,13 +182,49 @@ def test_get_price_snapshot_defaults_to_cached_close(monkeypatch: pytest.MonkeyP
     assert info["price_currency"] == "GBP"
     assert info["last_price_date"] == last_trading_day.isoformat()
     assert info["last_price_time"] is None
-    assert info["is_stale"] is True
+    assert info["is_stale"] is False
     assert info["change_7d_pct"] == pytest.approx((99.5 / 88.0 - 1.0) * 100.0)
     assert info["change_30d_pct"] is None
     assert requested == [
         (base, "L", seven_day),
         (base, "L", thirty_day),
     ]
+
+
+@pytest.mark.parametrize("close_age_days", [1, 10])
+def test_get_price_snapshot_marks_older_cached_close_stale(
+    monkeypatch: pytest.MonkeyPatch, close_age_days: int
+) -> None:
+    """A close older than the latest trading day is stale and reports its own date (#8595)."""
+    ticker = "OLD.L"
+    last_trading_day = prices._nearest_weekday(date.today() - timedelta(days=1), forward=False)
+    close_day = last_trading_day - timedelta(days=close_age_days)
+
+    monkeypatch.setattr(prices, "_load_latest_closes", lambda tickers: {ticker: (50.0, close_day)})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("OLD", "L"))
+    monkeypatch.setattr(prices, "_close_on", lambda *args, **kwargs: None)
+
+    info = prices.get_price_snapshot([ticker])[ticker]
+
+    assert info["last_price"] == pytest.approx(50.0)
+    assert info["is_stale"] is True
+    assert info["last_price_date"] == close_day.isoformat()
+
+
+def test_get_price_snapshot_marks_undated_cached_close_stale(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A close whose row date can't be determined is treated as stale, not silently fresh."""
+    ticker = "NODATE.L"
+
+    monkeypatch.setattr(prices, "_load_latest_closes", lambda tickers: {ticker: (50.0, None)})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("NODATE", "L"))
+    monkeypatch.setattr(prices, "_close_on", lambda *args, **kwargs: None)
+
+    info = prices.get_price_snapshot([ticker])[ticker]
+
+    assert info["is_stale"] is True
+    assert info["last_price_date"] is None
 
 
 def test_get_price_snapshot_uses_prior_weekday_on_weekend(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -203,7 +240,7 @@ def test_get_price_snapshot_uses_prior_weekday_on_weekend(monkeypatch: pytest.Mo
             return frozen_today
 
     monkeypatch.setattr(prices, "date", FakeDate)
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 111.0})
+    monkeypatch.setattr(prices, "_load_latest_closes", lambda tickers: {ticker: (111.0, expected_last_trading_day)})
     monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
     monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("WEEK", "L"))
 
@@ -514,7 +551,7 @@ def test_refresh_prices_partial_null_preserves_existing_prices(tmp_path, monkeyp
 
 def test_refresh_prices_filters_nan_zero_and_negative_prices(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     """End-to-end NaN/zero/negative guard: mock the underlying price fetches
-    (``_load_latest_prices`` / ``load_live_prices``) so ``get_price_snapshot``
+    (``_load_latest_closes`` / ``load_live_prices``) so ``get_price_snapshot``
     runs for real, then verify ``refresh_prices``'s write-boundary filter
     keeps only finite, strictly-positive prices — preserving any existing
     seed value for tickers whose freshly-fetched price is NaN, zero, or
@@ -543,8 +580,8 @@ def test_refresh_prices_filters_nan_zero_and_negative_prices(tmp_path, monkeypat
     )
     monkeypatch.setattr(
         prices,
-        "_load_latest_prices",
-        lambda t, **_kwargs: {"ZERO.L": 0.0},
+        "_load_latest_closes",
+        lambda t, **_kwargs: {"ZERO.L": (0.0, None)},
     )
     monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None)
     monkeypatch.setattr(prices, "_close_on", lambda *a, **k: None)

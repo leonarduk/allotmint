@@ -54,6 +54,18 @@ const ESTIMATED_ROW_HEIGHT = 32;
 // else is gated on showAccount / relative view / visibleColumns / forward ranges.
 const ALWAYS_VISIBLE_COLUMN_COUNT = 11;
 
+// HoldingsTable sorts on its own row keys; createGroups orders groups by
+// RowWithCost keys. Translate so groups sort by their totals (#8529). Weight %
+// is market value / portfolio total, so group weight order == market value order.
+const GROUP_SORT_KEYS: Partial<Record<string, keyof RowWithCost>> = {
+  gain: "gain_gbp",
+  weight_pct: "market_value_gbp",
+  forward_7d_change_pct: "change_7d_pct",
+  forward_30d_change_pct: "change_30d_pct",
+};
+
+type IndexedGroupRow = RowWithCost & { __holdingsIndex: number };
+
 type HoldingsTableRow = Holding & {
   source_account?: string;
   row_key?: string;
@@ -328,7 +340,7 @@ export function HoldingsTable({
 
     return createGroups(
       groupingRows,
-      sortKey as keyof RowWithCost,
+      GROUP_SORT_KEYS[String(sortKey)] ?? (sortKey as keyof RowWithCost),
       asc,
       effectiveGroupingMode,
       {
@@ -465,13 +477,24 @@ export function HoldingsTable({
           visibleColumns.market,
           visibleColumns.gain,
         ].filter(Boolean).length);
-  const items = virtualRows.length
-    ? virtualRows
-    : sortedRows.map((_, index) => ({
-        index,
-        start: index * ESTIMATED_ROW_HEIGHT,
-        end: (index + 1) * ESTIMATED_ROW_HEIGHT,
-      }));
+  // Grouped mode walks the groups in their own (totals-sorted) order so each
+  // group's rows stay contiguous under its header (#8529).
+  const groupByIndex = useMemo(() => {
+    const lookup = new Map<number, GroupedRows>();
+    for (const group of groups) {
+      for (const row of group.rows) {
+        lookup.set((row as IndexedGroupRow).__holdingsIndex, group);
+      }
+    }
+    return lookup;
+  }, [groups]);
+  const items: { index: number }[] = showGroupHeaders
+    ? groups.flatMap((group) =>
+        group.rows.map((row) => ({ index: (row as IndexedGroupRow).__holdingsIndex })),
+      )
+    : virtualRows.length
+      ? virtualRows
+      : sortedRows.map((_, index) => ({ index }));
 
   const renderGroupHeader = (group: GroupedRows, expanded: boolean) => {
     const groupDomId = `holdings-group-${sanitizeGroupKey(group.key)}`;
@@ -790,18 +813,10 @@ export function HoldingsTable({
           )}
           {items.map((virtualRow) => {
             const h = sortedRows[virtualRow.index];
-            const group = showGroupHeaders
-              ? groups.find((candidate) =>
-                  candidate.rows.some(
-                    (row) =>
-                      (row as RowWithCost & { __holdingsIndex: number }).__holdingsIndex ===
-                      virtualRow.index,
-                  ),
-                )
-              : undefined;
+            const group = showGroupHeaders ? groupByIndex.get(virtualRow.index) : undefined;
             const isFirstGroupRow =
-              (group?.rows[0] as (RowWithCost & { __holdingsIndex: number }) | undefined)
-                ?.__holdingsIndex === virtualRow.index;
+              (group?.rows[0] as IndexedGroupRow | undefined)?.__holdingsIndex ===
+              virtualRow.index;
             const expanded = group ? expandedGroups.has(group.key) : true;
             if (group && !expanded && !isFirstGroupRow) return null;
             const isSelected = h.ticker === selectedTicker;

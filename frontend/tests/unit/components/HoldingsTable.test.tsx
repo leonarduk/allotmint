@@ -305,6 +305,13 @@ describe("HoldingsTable", () => {
         expect(bodyOrder()).toEqual(["Toggle Energy", "BBB", "DDD", "Toggle Tech", "AAA", "CCC"]);
         await userEvent.click(screen.getByRole("columnheader", { name: /Gain £/ }));
         expect(bodyOrder()).toEqual(["Toggle Tech", "AAA", "CCC", "Toggle Energy", "BBB", "DDD"]);
+
+        // Cost £ ▲ then ▼: Tech (£50 + £50 = £100) / Energy (£40 + £390 = £430) by summed cost.
+        await userEvent.click(screen.getByRole("columnheader", { name: /Cost £/ }));
+        expect(bodyOrder()).toEqual(["Toggle Tech", "AAA", "CCC", "Toggle Energy", "BBB", "DDD"]);
+        await userEvent.click(screen.getByRole("columnheader", { name: /Cost £/ }));
+        // Rows within a group follow the flat sort too: DDD (£390) before BBB (£40).
+        expect(bodyOrder()).toEqual(["Toggle Energy", "DDD", "BBB", "Toggle Tech", "AAA", "CCC"]);
     });
 
     it("falls back to group mode when category mode is requested without definitions", async () => {
@@ -324,6 +331,10 @@ describe("HoldingsTable", () => {
         expect(
             screen.getByRole("button", { name: "Toggle Technology" }),
         ).toBeInTheDocument();
+
+        // Rows still render under the fallback grouping once expanded (#8529).
+        await userEvent.click(screen.getByRole("button", { name: "Toggle Technology" }));
+        expect(screen.getByRole("button", { name: "XYZ" })).toBeInTheDocument();
     });
 
     it("uses category definitions when provided in category mode", async () => {

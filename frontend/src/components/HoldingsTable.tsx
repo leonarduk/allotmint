@@ -54,14 +54,33 @@ const ESTIMATED_ROW_HEIGHT = 32;
 // else is gated on showAccount / relative view / visibleColumns / forward ranges.
 const ALWAYS_VISIBLE_COLUMN_COUNT = 11;
 
+// Every column HoldingsTable can sort on. sortBy() only accepts these, so a new
+// sortable column fails to compile until it gets a GROUP_SORT_KEYS entry.
+type HoldingsSortKey =
+  | "ticker"
+  | "name"
+  | "gain"
+  | "gain_pct"
+  | "cost"
+  | "forward_7d_change_pct"
+  | "forward_30d_change_pct"
+  | "weight_pct"
+  | "days_held";
+
 // HoldingsTable sorts on its own row keys; createGroups orders groups by
 // RowWithCost keys. Translate so groups sort by their totals (#8529). Weight %
 // is market value / portfolio total, so group weight order == market value order.
-const GROUP_SORT_KEYS: Partial<Record<string, keyof RowWithCost>> = {
+// null = no group total exists, so groups keep first-appearance order.
+const GROUP_SORT_KEYS: Record<HoldingsSortKey, keyof RowWithCost | null> = {
+  ticker: "ticker",
+  name: "name",
   gain: "gain_gbp",
-  weight_pct: "market_value_gbp",
+  gain_pct: "gain_pct",
+  cost: "cost",
   forward_7d_change_pct: "change_7d_pct",
   forward_30d_change_pct: "change_30d_pct",
+  weight_pct: "market_value_gbp",
+  days_held: null,
 };
 
 type IndexedGroupRow = RowWithCost & { __holdingsIndex: number };
@@ -286,6 +305,7 @@ export function HoldingsTable({
 
   // sort
   const { sorted: sortedRows, sortKey, asc, handleSort } = useSortableTable(filtered, "ticker");
+  const sortBy = (key: HoldingsSortKey) => handleSort(key);
 
   const totals = useMemo(
     () =>
@@ -340,7 +360,7 @@ export function HoldingsTable({
 
     return createGroups(
       groupingRows,
-      GROUP_SORT_KEYS[String(sortKey)] ?? (sortKey as keyof RowWithCost),
+      GROUP_SORT_KEYS[sortKey as HoldingsSortKey] ?? null,
       asc,
       effectiveGroupingMode,
       {
@@ -724,12 +744,12 @@ export function HoldingsTable({
             )}
             <th
               className={`${tableStyles.cell} ${tableStyles.clickable}`}
-              onClick={() => handleSort("ticker")}
+              onClick={() => sortBy("ticker")}
               aria-label={t("holdingsTable.columns.ticker")}
             >
               {t("holdingsTable.columns.ticker")}{sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
             </th>
-            <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => handleSort("name")}>
+            <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => sortBy("name")}>
               {t("holdingsTable.columns.name")}{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
             </th>
             {!relativeViewEnabled && visibleColumns.units && (
@@ -741,7 +761,7 @@ export function HoldingsTable({
             {!relativeViewEnabled && visibleColumns.gain && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-                onClick={() => handleSort("gain")}
+                onClick={() => sortBy("gain")}
               >
                 {t("holdingsTable.columns.gain")}{sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
               </th>
@@ -749,7 +769,7 @@ export function HoldingsTable({
             {visibleColumns.gain_pct && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-                onClick={() => handleSort("gain_pct")}
+                onClick={() => sortBy("gain_pct")}
               >
                 {t("holdingsTable.columns.gainPct")}{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
               </th>
@@ -758,7 +778,7 @@ export function HoldingsTable({
             {!relativeViewEnabled && visibleColumns.cost && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-                onClick={() => handleSort("cost")}
+                onClick={() => sortBy("cost")}
               >
                 {t("holdingsTable.columns.cost")}{sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
               </th>
@@ -766,7 +786,7 @@ export function HoldingsTable({
             {showForward7d && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-                onClick={() => handleSort("forward_7d_change_pct")}
+                onClick={() => sortBy("forward_7d_change_pct")}
               >
                 {t("holdingsTable.columns.forward7d")}
                 {sortKey === "forward_7d_change_pct" ? (asc ? " ▲" : " ▼") : ""}
@@ -775,7 +795,7 @@ export function HoldingsTable({
             {showForward30d && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-                onClick={() => handleSort("forward_30d_change_pct")}
+                onClick={() => sortBy("forward_30d_change_pct")}
               >
                 {t("holdingsTable.columns.forward30d")}
                 {sortKey === "forward_30d_change_pct" ? (asc ? " ▲" : " ▼") : ""}
@@ -783,7 +803,7 @@ export function HoldingsTable({
             )}
             <th
               className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-              onClick={() => handleSort("weight_pct")}
+              onClick={() => sortBy("weight_pct")}
             >
               {t("holdingsTable.columns.weightPct")}{sortKey === "weight_pct" ? (asc ? " ▲" : " ▼") : ""}
             </th>
@@ -795,7 +815,7 @@ export function HoldingsTable({
             <th className={tableStyles.cell}>{t("holdingsTable.columns.acquired")}</th>
             <th
               className={`${tableStyles.cell} ${tableStyles.right}${rollupMode ? "" : ` ${tableStyles.clickable}`}`}
-              onClick={rollupMode ? undefined : () => handleSort("days_held")}
+              onClick={rollupMode ? undefined : () => sortBy("days_held")}
             >
               {t("holdingsTable.columns.daysHeld")}
               {!rollupMode && sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}

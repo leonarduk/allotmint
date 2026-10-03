@@ -110,7 +110,7 @@ type GroupingOptions = {
 
 export function createGroups(
   rows: RowWithCost[],
-  sortKey: keyof RowWithCost,
+  sortKey: keyof RowWithCost | null,
   asc: boolean,
   groupingMode: GroupingMode,
   labels: { ungroupedLabel: string; uncategorisedLabel: string; unknownSectorLabel?: string },
@@ -158,7 +158,7 @@ export function createGroups(
 
 function createGroupedRows(
   rows: RowWithCost[],
-  sortKey: keyof RowWithCost,
+  sortKey: keyof RowWithCost | null,
   asc: boolean,
   options: GroupingOptions,
 ): GroupedRows[] {
@@ -189,7 +189,8 @@ function createGroupedRows(
     totals: calculateGroupTotals(group.rows, group.label),
   }));
 
-  const totalsKey = GROUP_SUMMARY_SORT_MAP[sortKey];
+  // A null sortKey means the column has no group total: keep first-appearance order.
+  const totalsKey = sortKey ? GROUP_SUMMARY_SORT_MAP[sortKey] : undefined;
   if (totalsKey) {
     groups.sort((a, b) => {
       const va = a.totals[totalsKey];

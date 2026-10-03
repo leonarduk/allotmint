@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from backend.chat.local_tools import LocalTools, pages_from_request, system_prompt_from_context
+from backend.chat.local_tools import LocalTools, build_system_prompt, pages_from_request
 from backend.chat.providers import run_configured_chat_turn
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -135,7 +135,7 @@ async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatRespons
             cfg=config,
             mcp_server_url=mcp_server_url,
             local_tools=local_tools,
-            system_prompt=system_prompt_from_context(payload.context.model_dump() if payload.context else None),
+            system_prompt=build_system_prompt(payload.context.model_dump() if payload.context else None),
         )
     except ValueError as exc:
         # Raised by bedrock_agent._validate_message_alternation (shared by

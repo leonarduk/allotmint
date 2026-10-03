@@ -100,7 +100,13 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
     base = re.split(r"[.:]", ticker)[0].upper()
     ex = (exchange or "").upper()
 
-    # Try: exact -> base -> per-exchange wildcard -> global wildcard
+    # Overrides are applied at read time only (callers do
+    # ``apply_scaling(df, get_scaling_override(...))`` on series loaded from
+    # the cache) and are never written back into cached series, so editing a
+    # factor here or in scaling_overrides.json needs no cache backfill (#8597).
+    #
+    # Try: exact -> base -> per-exchange wildcard -> global wildcard. A factor
+    # rejected by is_valid_override_factor falls through to the next candidate.
     candidates = [
         (ex, ticker),
         (ex, base),

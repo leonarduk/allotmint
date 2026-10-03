@@ -463,10 +463,16 @@
     "change7d": "7d",
     "columns": {
       "account": "Account",
+      "acquired": "Acquired",
+      "avgCost": "Avg cost £",
+      "cost": "Cost £",
+      "daysHeld": "Days held",
       "gain": "Gain £",
       "gainPct": "Gain %",
       "market": "Mkt £",
-      "units": "Units"
+      "price": "Price £",
+      "units": "Units",
+      "weightPct": "Weight %"
     },
     "confirm": "Confirm",
     "currencyLabel": "Currency",
@@ -490,6 +496,8 @@
     "noPositions": "No positions",
     "noPriceData": "No price data",
     "positions": "Positions",
+    "total": "Total",
+    "totalCostIncomplete": "Total unavailable — at least one position has no reliable cost basis",
     "priceColumns": {
       "close": "£ Close",
       "date": "Date",

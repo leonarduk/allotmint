@@ -302,6 +302,164 @@ describe("InstrumentDetail", () => {
     expect(screen.getByRole('columnheader', { name: /Gain %/ })).toBeInTheDocument();
   });
 
+  describe("positions table (#8533)", () => {
+    const fullPosition = {
+      owner: "steve",
+      account: "SIPP",
+      units: 73,
+      market_value_gbp: 876,
+      unrealised_gain_gbp: 146,
+      gain_gbp: 146,
+      gain_pct: 20,
+      cost_basis_gbp: 730,
+      avg_cost_gbp: 10,
+      current_price_gbp: 12,
+      weight_pct: 87.6,
+      acquired_date: "2024-01-02",
+      days_held: 100,
+      cost_basis_source: "book",
+    };
+
+    const renderPositions = async (positions: unknown[]) => {
+      mockGetInstrumentDetail.mockResolvedValue({ prices: [], positions, currency: null });
+      i18n.changeLanguage("en");
+      renderWithConfig(<InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />);
+      await screen.findByText(`${positions.length ? "steve – SIPP" : "No positions"}`);
+    };
+
+    const rowCells = (row: HTMLElement) =>
+      Array.from(row.querySelectorAll("td")).map((td) => td.textContent);
+
+    it("shows every dashboard column for a position", async () => {
+      await renderPositions([fullPosition]);
+
+      for (const header of [
+        "Account",
+        "Units",
+        "Avg cost £",
+        "Cost £",
+        "Price £",
+        "Mkt £",
+        "Gain £",
+        "Gain %",
+        "Weight %",
+        "Acquired",
+        "Days held",
+      ]) {
+        expect(screen.getByRole("columnheader", { name: header })).toBeInTheDocument();
+      }
+      const row = screen.getByText("steve – SIPP").closest("tr")!;
+      expect(rowCells(row)).toEqual([
+        "steve – SIPP",
+        "73.0000",
+        "£10.00",
+        "£730.00",
+        "£12.00",
+        "£876.00",
+        "£146.00",
+        "20.0%",
+        "87.6%",
+        "2024-01-02",
+        "100",
+      ]);
+      expect(screen.queryByTestId("positions-total-row")).toBeNull();
+    });
+
+    it("keeps the % and holding-period columns in relative view", async () => {
+      await renderPositions([fullPosition]);
+      await userEvent.click(screen.getByLabelText("Relative view"));
+
+      for (const hidden of ["Units", "Avg cost £", "Cost £", "Price £", "Mkt £", "Gain £"]) {
+        expect(screen.queryByRole("columnheader", { name: hidden })).toBeNull();
+      }
+      const row = screen.getByText("steve – SIPP").closest("tr")!;
+      expect(rowCells(row)).toEqual(["steve – SIPP", "20.0%", "87.6%", "2024-01-02", "100"]);
+    });
+
+    it("shows N/A with a tooltip for an unreliable cost instead of a bare dash", async () => {
+      await renderPositions([
+        {
+          ...fullPosition,
+          cost_basis_gbp: null,
+          avg_cost_gbp: null,
+          gain_gbp: null,
+          unrealised_gain_gbp: null,
+          gain_pct: null,
+          acquired_date: null,
+          days_held: null,
+          cost_basis_source: "unknown",
+        },
+      ]);
+
+      const row = screen.getByText("steve – SIPP").closest("tr")!;
+      const cells = rowCells(row);
+      // Avg cost, Cost, Gain £, Gain % are N/A; market value still shows.
+      expect(cells.slice(2, 4)).toEqual(["N/A", "N/A"]);
+      expect(cells[5]).toBe("£876.00");
+      expect(cells.slice(6, 8)).toEqual(["N/A", "N/A"]);
+      expect(cells).not.toContain("—");
+      const na = row.querySelectorAll("td")[3].querySelector("span")!;
+      expect(na).toHaveAttribute("title", i18n.t("holdingsTable.gainNotAvailable"));
+    });
+
+    it("adds a total row when the instrument is held in several accounts", async () => {
+      await renderPositions([
+        fullPosition,
+        {
+          ...fullPosition,
+          account: "ISA",
+          units: 27,
+          market_value_gbp: 324,
+          gain_gbp: 54,
+          unrealised_gain_gbp: 54,
+          gain_pct: 20,
+          cost_basis_gbp: 270,
+          avg_cost_gbp: 10,
+          weight_pct: 2.4,
+        },
+      ]);
+
+      const total = screen.getByTestId("positions-total-row");
+      expect(rowCells(total)).toEqual([
+        "Total",
+        "100.0000",
+        "£10.00",
+        "£1,000.00",
+        "",
+        "£1,200.00",
+        "£200.00",
+        "20.0%",
+        "90.0%",
+        "",
+        "",
+      ]);
+    });
+
+    it("withholds total cost and gain when any position's cost is unreliable", async () => {
+      await renderPositions([
+        fullPosition,
+        {
+          ...fullPosition,
+          owner: "alex",
+          account: "ISA",
+          cost_basis_gbp: null,
+          avg_cost_gbp: null,
+          gain_gbp: null,
+          unrealised_gain_gbp: null,
+          gain_pct: null,
+          cost_basis_source: "book_suspect",
+        },
+      ]);
+
+      const cells = rowCells(screen.getByTestId("positions-total-row"));
+      expect(cells.slice(2, 4)).toEqual(["N/A", "N/A"]);
+      expect(cells[5]).toBe("£1,752.00");
+      expect(cells.slice(6, 8)).toEqual(["N/A", "N/A"]);
+      // Weights are shares of different owners' portfolios: not summed.
+      expect(cells[8]).toBe("—");
+    });
+  });
+
   it("prefers page currency and renders native GBX prices", async () => {
     mockGetInstrumentDetail.mockResolvedValue({
       prices: [

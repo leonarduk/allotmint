@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getInstrumentDetail, getInstrumentIntraday, getTransactions } from "../api";
 import { money, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
+import { COST_BASIS_BOOK_SUSPECT, isCostBasisUnreliable } from "../lib/costBasis";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { formatDateISO } from "../lib/date";
@@ -143,6 +144,189 @@ function TradeTooltipContent({
   );
 }
 
+// Positions figures are GBP by contract (the backend reads *_gbp fields from
+// the dashboard's enriched holding rows), whatever the reporting currency.
+const POSITION_CURRENCY = "GBP";
+
+/** Columns of the positions table; `absolute` ones are hidden in relative view. */
+const POSITION_COLUMNS = [
+  { key: "account", absolute: false, align: "left" },
+  { key: "units", absolute: true, align: "right" },
+  { key: "avgCost", absolute: true, align: "right" },
+  { key: "cost", absolute: true, align: "right" },
+  { key: "price", absolute: true, align: "right" },
+  { key: "market", absolute: true, align: "right" },
+  { key: "gain", absolute: true, align: "right" },
+  { key: "gainPct", absolute: false, align: "right" },
+  { key: "weightPct", absolute: false, align: "right" },
+  { key: "acquired", absolute: false, align: "left" },
+  { key: "daysHeld", absolute: false, align: "right" },
+] as const;
+
+type PositionColumnKey = (typeof POSITION_COLUMNS)[number]["key"];
+
+const positionGain = (pos: Position): number | null | undefined =>
+  pos.gain_gbp !== undefined ? pos.gain_gbp : pos.unrealised_gain_gbp;
+
+const isPositionCostUnknown = (pos: Position): boolean =>
+  isCostBasisUnreliable(pos.cost_basis_source);
+
+type PositionTotals = {
+  units: number;
+  market: number;
+  cost: number | null;
+  avgCost: number | null;
+  gain: number | null;
+  gainPct: number | null;
+  weightPct: number | null;
+  costUnknown: boolean;
+};
+
+const sumFinite = (values: unknown[]): number =>
+  values.reduce<number>((acc, v) => {
+    const n = toNum(v);
+    return Number.isFinite(n) ? acc + n : acc;
+  }, 0);
+
+/**
+ * Aggregate several positions of one instrument. Cost and gain are only summed
+ * when every position has a reliable figure, so one unknown cost never turns
+ * the total into a confident (and wrong) number (#8283/#8471). Weight is a
+ * share of each owner's own portfolio, so it is only summed for a single owner.
+ */
+function totalPositions(positions: Position[]): PositionTotals {
+  const units = sumFinite(positions.map((p) => p.units));
+  const market = sumFinite(positions.map((p) => p.market_value_gbp));
+  const costUnknown = positions.some(
+    (p) => isPositionCostUnknown(p) || !Number.isFinite(toNum(p.cost_basis_gbp)),
+  );
+  const gainKnown = positions.every((p) => Number.isFinite(toNum(positionGain(p))));
+  const cost = costUnknown ? null : sumFinite(positions.map((p) => p.cost_basis_gbp));
+  const gain = costUnknown || !gainKnown ? null : sumFinite(positions.map(positionGain));
+  const owners = new Set(positions.map((p) => p.owner));
+  const weightKnown = positions.every((p) => Number.isFinite(toNum(p.weight_pct)));
+  return {
+    units,
+    market,
+    cost,
+    avgCost: cost != null && units ? cost / units : null,
+    gain,
+    gainPct: gain != null && cost ? (gain / cost) * 100 : null,
+    weightPct:
+      owners.size === 1 && weightKnown
+        ? sumFinite(positions.map((p) => p.weight_pct))
+        : null,
+    costUnknown,
+  };
+}
+
+/**
+ * Shown instead of a cost/gain figure when the cost basis is a guess (#7220)
+ * or an implausible booked cost (#8472), so it is never read as a real £0.00.
+ */
+function CostNotAvailable({
+  source,
+  title,
+}: {
+  source?: string | null;
+  title?: string;
+}) {
+  const { t } = useTranslation();
+  const tooltip =
+    title ??
+    (source === COST_BASIS_BOOK_SUSPECT
+      ? t("holdingsTable.bookCostSuspect")
+      : t("holdingsTable.gainNotAvailable"));
+  return (
+    <span className={tableStyles.notApplicable} title={tooltip}>
+      {t("holdingsTable.notApplicable")}
+    </span>
+  );
+}
+
+function NotRecorded({ title }: { title: string }) {
+  const { t } = useTranslation();
+  return (
+    <span className={tableStyles.notApplicable} title={title}>
+      {t("holdingsTable.notApplicable")}
+    </span>
+  );
+}
+
+const cellClass = (align: "left" | "right") =>
+  align === "right" ? `${tableStyles.cell} ${tableStyles.right}` : tableStyles.cell;
+
+type CellRenderers = Record<PositionColumnKey, () => ReactNode>;
+
+function usePositionCells(colorForValue: (v: unknown) => string) {
+  const { t } = useTranslation();
+  const gbp = (v: number | null | undefined) => money(v, POSITION_CURRENCY);
+
+  const rowCells = (pos: Position, account: ReactNode): CellRenderers => {
+    const costUnknown = isPositionCostUnknown(pos);
+    const unknown = () => <CostNotAvailable source={pos.cost_basis_source} />;
+    const gain = positionGain(pos);
+    return {
+      account: () => account,
+      units: () => fixed(pos.units, 4),
+      avgCost: () => (costUnknown ? unknown() : gbp(pos.avg_cost_gbp)),
+      cost: () => (costUnknown ? unknown() : gbp(pos.cost_basis_gbp)),
+      price: () => gbp(pos.current_price_gbp),
+      market: () => gbp(pos.market_value_gbp),
+      gain: () =>
+        costUnknown ? unknown() : <span style={{ color: colorForValue(gain) }}>{gbp(gain)}</span>,
+      gainPct: () =>
+        costUnknown ? (
+          unknown()
+        ) : (
+          <span style={{ color: colorForValue(pos.gain_pct) }}>{percent(pos.gain_pct, 1)}</span>
+        ),
+      weightPct: () => percent(pos.weight_pct, 1),
+      acquired: () =>
+        pos.acquired_date && !isNaN(Date.parse(pos.acquired_date)) ? (
+          formatDateISO(new Date(pos.acquired_date))
+        ) : (
+          <NotRecorded title={t("holdingsTable.acquiredNotAvailable")} />
+        ),
+      daysHeld: () =>
+        pos.days_held ?? <NotRecorded title={t("holdingsTable.daysHeldNotAvailable")} />,
+    };
+  };
+
+  const totalCells = (totals: PositionTotals): CellRenderers => {
+    const incomplete = () => (
+      <CostNotAvailable title={t("instrumentDetail.totalCostIncomplete")} />
+    );
+    return {
+      account: () => <strong>{t("instrumentDetail.total")}</strong>,
+      units: () => fixed(totals.units, 4),
+      avgCost: () => (totals.costUnknown ? incomplete() : gbp(totals.avgCost)),
+      cost: () => (totals.costUnknown ? incomplete() : gbp(totals.cost)),
+      price: () => "",
+      market: () => gbp(totals.market),
+      gain: () =>
+        totals.costUnknown ? (
+          incomplete()
+        ) : (
+          <span style={{ color: colorForValue(totals.gain) }}>{gbp(totals.gain)}</span>
+        ),
+      gainPct: () =>
+        totals.costUnknown ? (
+          incomplete()
+        ) : (
+          <span style={{ color: colorForValue(totals.gainPct) }}>
+            {percent(totals.gainPct, 1)}
+          </span>
+        ),
+      weightPct: () => percent(totals.weightPct, 1),
+      acquired: () => "",
+      daysHeld: () => "",
+    };
+  };
+
+  return { rowCells, totalCells };
+}
+
 export function InstrumentPositionsTable({
   positions,
   loading,
@@ -153,7 +337,7 @@ export function InstrumentPositionsTable({
   resolveOwnerName,
 }: PositionsTableProps) {
   const { t } = useTranslation();
-  const { baseCurrency, relativeViewEnabled } = useConfig();
+  const { relativeViewEnabled } = useConfig();
   const colorForValue = (value: unknown) => {
     const n = toNum(value);
     if (!Number.isFinite(n) || n === 0) {
@@ -162,97 +346,72 @@ export function InstrumentPositionsTable({
 
     return n > 0 ? positiveColor : negativeColor;
   };
+  const { rowCells, totalCells } = usePositionCells(colorForValue);
+  const columns = POSITION_COLUMNS.filter((c) => !relativeViewEnabled || !c.absolute);
+
+  const renderCells = (cells: CellRenderers) =>
+    columns.map((c) => (
+      <td key={c.key} className={cellClass(c.align)}>
+        {cells[c.key]()}
+      </td>
+    ));
+
+  const accountLink = (pos: Position) => (
+    <Link
+      to={`/portfolio/${encodeURIComponent(pos.owner ?? "")}`}
+      style={{ color: linkColor, textDecoration: "none" }}
+    >
+      {resolveOwnerName ? resolveOwnerName(pos.owner) : pos.owner} – {pos.account}
+    </Link>
+  );
 
   return (
-    <table
-      className={tableStyles.table}
-      style={{ fontSize: "0.85rem", marginBottom: "1rem" }}
-    >
-      <thead>
-        <tr>
-          <th className={tableStyles.cell}>{t("instrumentDetail.columns.account")}</th>
-          {!relativeViewEnabled && (
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-              {t("instrumentDetail.columns.units")}
-            </th>
-          )}
-          {!relativeViewEnabled && (
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-              {t("instrumentDetail.columns.market")}
-            </th>
-          )}
-          {!relativeViewEnabled && (
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-              {t("instrumentDetail.columns.gain")}
-            </th>
-          )}
-          <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-            {t("instrumentDetail.columns.gainPct")}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {loading ? (
-          <TableRowsSkeleton
-            rows={3}
-            colSpan={relativeViewEnabled ? 2 : 5}
-            label={t("app.loading")}
-            cellClassName={`${tableStyles.cell} ${tableStyles.center}`}
-          />
-        ) : positions.length ? (
-          positions.map((pos, i) => (
-            <tr key={`${pos.owner}-${pos.account}-${i}`}>
-              <td className={tableStyles.cell}>
-                <Link
-                  to={`/portfolio/${encodeURIComponent(pos.owner ?? "")}`}
-                  style={{ color: linkColor, textDecoration: "none" }}
-                >
-                  {resolveOwnerName ? resolveOwnerName(pos.owner) : pos.owner} – {pos.account}
-                </Link>
-              </td>
-              {!relativeViewEnabled && (
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {fixed(pos.units, 4)}
-                </td>
-              )}
-              {!relativeViewEnabled && (
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {money(pos.market_value_gbp, baseCurrency)}
-                </td>
-              )}
-              {!relativeViewEnabled && (
-                <td
-                  className={`${tableStyles.cell} ${tableStyles.right}`}
-                  style={{
-                    color: colorForValue(pos.unrealised_gain_gbp),
-                  }}
-                >
-                  {money(pos.unrealised_gain_gbp, baseCurrency)}
-                </td>
-              )}
+    <div style={{ overflowX: "auto", marginBottom: "1rem" }}>
+      <table className={tableStyles.table} style={{ fontSize: "0.85rem" }}>
+        <thead>
+          <tr>
+            {columns.map((c) => (
+              <th key={c.key} className={cellClass(c.align)}>
+                {t(`instrumentDetail.columns.${c.key}`)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {loading ? (
+            <TableRowsSkeleton
+              rows={3}
+              colSpan={columns.length}
+              label={t("app.loading")}
+              cellClassName={`${tableStyles.cell} ${tableStyles.center}`}
+            />
+          ) : positions.length ? (
+            positions.map((pos, i) => (
+              <tr key={`${pos.owner}-${pos.account}-${i}`}>
+                {renderCells(rowCells(pos, accountLink(pos)))}
+              </tr>
+            ))
+          ) : (
+            <tr>
               <td
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                style={{
-                  color: colorForValue(pos.gain_pct),
-                }}
+                colSpan={columns.length}
+                className={`${tableStyles.cell} ${tableStyles.center}`}
+                style={{ color: mutedColor }}
               >
-                {percent(pos.gain_pct, 1)}
+                {t("instrumentDetail.noPositions")}
               </td>
             </tr>
-          ))
-        ) : (
-          <tr>
-            <td
-              colSpan={relativeViewEnabled ? 2 : 5}
-              className={`${tableStyles.cell} ${tableStyles.center}`}
-              style={{ color: mutedColor }}
-            >
-              {t("instrumentDetail.noPositions")}
-            </td>
-          </tr>
+          )}
+        </tbody>
+        {!loading && positions.length > 1 && (
+          <tfoot>
+            <tr data-testid="positions-total-row">
+              {renderCells(totalCells(totalPositions(positions)))}
+            </tr>
+          </tfoot>
         )}
-      </tbody>
-    </table>
+      </table>
+    </div>
   );
 }
 

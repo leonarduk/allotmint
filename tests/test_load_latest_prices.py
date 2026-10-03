@@ -136,8 +136,9 @@ def test_enrich_holding_uses_scaling_override(monkeypatch):
 
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_load_meta_timeseries_range)
 
-    holding = {"ticker": "ADM.L", "units": 1, "cost_basis_gbp": 100}
+    holding = {"ticker": "ADM.L", "units": 1, "cost_basis_gbp": 10}
     enriched = holding_utils.enrich_holding(holding, dt.date(2024, 1, 3), {})
 
-    assert enriched["current_price_gbp"] == 200.0
+    # ADM.L's override is 0.01 (pence -> GBP): 2000p is GBP 20, not 200 (#8597).
+    assert enriched["current_price_gbp"] == 20.0
     assert enriched["gain_pct"] == pytest.approx(100.0)

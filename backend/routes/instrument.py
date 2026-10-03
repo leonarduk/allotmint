@@ -224,7 +224,11 @@ def _position_from_holding(owner: str, account: str, h: Dict[str, Any], owner_to
     units = _finite(h.get(UNITS) if h.get(UNITS) is not None else h.get("quantity"))
     market_value = _finite(h.get("market_value_gbp"))
     cost = _holding_cost_gbp(h)
-    gain_gbp = _finite(h.get("gain_gbp"))
+    # enrich_holding already nulls the gain for an unreliable cost; enforce it
+    # here too so the API never pairs a null cost with a gain figure.
+    cost_unreliable = is_cost_basis_unreliable(h.get("cost_basis_source"))
+    gain_gbp = None if cost_unreliable else _finite(h.get("gain_gbp"))
+    gain_pct = None if cost_unreliable else _finite(h.get("gain_pct"))
     weight = market_value / owner_total * 100.0 if market_value is not None and owner_total else None
     return {
         "owner": owner,
@@ -234,7 +238,7 @@ def _position_from_holding(owner: str, account: str, h: Dict[str, Any], owner_to
         # Legacy key kept for backward compatibility; same value as gain_gbp.
         "unrealised_gain_gbp": gain_gbp,
         "gain_gbp": gain_gbp,
-        "gain_pct": _finite(h.get("gain_pct")),
+        "gain_pct": gain_pct,
         "cost_basis_gbp": cost,
         "avg_cost_gbp": cost / units if cost is not None and units else None,
         "current_price_gbp": _finite(h.get("current_price_gbp")),
@@ -277,11 +281,15 @@ def _positions_for_ticker(tkr: str) -> List[Dict[str, Any]]:
     for owner in _owners_holding(tkr):
         try:
             pf = build_owner_portfolio(owner)
-        except FileNotFoundError:
+        except Exception as exc:  # noqa: BLE001 -- one bad portfolio must not 500 the page
+            # Any owner whose portfolio cannot be built (missing plot, malformed
+            # account file, pricing error) is logged and skipped so the rest of
+            # the research page still renders.
             logger.warning(
-                "instrument positions: no portfolio for owner %s holding %s",
+                "instrument positions: skipping owner %s holding %s: %s",
                 sanitise_log_value(owner),
                 sanitise_log_value(tkr),
+                sanitise_log_value(exc),
             )
             continue
         owner_total = _finite(pf.get("total_value_estimate_gbp"))

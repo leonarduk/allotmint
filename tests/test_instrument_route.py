@@ -325,16 +325,19 @@ def test_positions_unreliable_cost_is_unknown_not_zero(monkeypatch):
 
 
 def test_positions_one_row_per_account(monkeypatch):
+    """Ticker matching is case-insensitive on both the raw files used for owner
+    discovery and the enriched rows, and against the requested ticker."""
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
-    raw = {"isa": [{"ticker": "ABC.L", "units": 2}], "sipp": [{"ticker": "abc.l", "units": 3}]}
+    # Raw file carries a mixed-case ticker; the enriched rows differ in case.
+    raw = {"sipp": [{"ticker": "Abc.l", "units": 3}]}
     enriched = {
-        "isa": [{"ticker": "ABC.L", "units": 2, "market_value_gbp": 20.0}],
-        "sipp": [{"ticker": "abc.l", "units": 3, "market_value_gbp": 30.0}, {"ticker": "XYZ.L", "units": 1}],
+        "isa": [{"ticker": "abc.L", "units": 2, "market_value_gbp": 20.0}],
+        "sipp": [{"ticker": "ABC.L", "units": 3, "market_value_gbp": 30.0}, {"ticker": "XYZ.L", "units": 1}],
     }
     _patch_route_sources(monkeypatch, "alex", raw, lambda *a, **k: _enriched_portfolio("alex", enriched))
 
     app = create_app()
-    resp = _auth_client(app).get("/instrument?ticker=ABC.L&days=1&format=json")
+    resp = _auth_client(app).get("/instrument?ticker=aBc.L&days=1&format=json")
 
     assert resp.status_code == 200
     positions = resp.json()["positions"]
@@ -342,20 +345,126 @@ def test_positions_one_row_per_account(monkeypatch):
     assert [p["weight_pct"] for p in positions] == [pytest.approx(40.0), pytest.approx(60.0)]
 
 
-def test_positions_skip_owner_without_portfolio(monkeypatch):
+@pytest.mark.parametrize("total", [0.0, None, "missing"])
+def test_positions_weight_none_without_owner_total(monkeypatch, total):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     raw = {"isa": [{"ticker": "ABC.L", "units": 2}]}
-
-    def missing(owner, *a, **k):
-        raise FileNotFoundError(owner)
-
-    _patch_route_sources(monkeypatch, "ghost", raw, missing)
+    built = _enriched_portfolio("alex", {"isa": [{"ticker": "ABC.L", "units": 2, "market_value_gbp": 20.0}]})
+    if total == "missing":
+        del built["total_value_estimate_gbp"]
+    else:
+        built["total_value_estimate_gbp"] = total
+    _patch_route_sources(monkeypatch, "alex", raw, lambda *a, **k: built)
 
     app = create_app()
     resp = _auth_client(app).get("/instrument?ticker=ABC.L&days=1&format=json")
 
     assert resp.status_code == 200
-    assert resp.json()["positions"] == []
+    [pos] = resp.json()["positions"]
+    assert pos["market_value_gbp"] == pytest.approx(20.0)
+    assert pos["weight_pct"] is None
+
+
+@pytest.mark.parametrize("source", ["unknown", "book_suspect"])
+def test_positions_unreliable_cost_nulls_gain_in_api(monkeypatch, source):
+    """Even if an enriched row carried a gain alongside an unreliable cost, the
+    API returns the gain fields as null so non-UI consumers are not misled."""
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    raw = {"isa": [{"ticker": "ABC.L", "units": 2}]}
+    row = {
+        "ticker": "ABC.L",
+        "units": 2,
+        "market_value_gbp": 22.0,
+        "cost_basis_gbp": 22.0,
+        "gain_gbp": 0.0,
+        "unrealised_gain_gbp": 0.0,
+        "gain_pct": 0.0,
+        "cost_basis_source": source,
+    }
+    _patch_route_sources(monkeypatch, "alex", raw, lambda *a, **k: _enriched_portfolio("alex", {"isa": [row]}))
+
+    app = create_app()
+    resp = _auth_client(app).get("/instrument?ticker=ABC.L&days=1&format=json")
+
+    assert resp.status_code == 200
+    [pos] = resp.json()["positions"]
+    assert pos["cost_basis_source"] == source
+    assert pos["cost_basis_gbp"] is None
+    assert pos["avg_cost_gbp"] is None
+    assert pos["gain_gbp"] is None
+    assert pos["unrealised_gain_gbp"] is None
+    assert pos["gain_pct"] is None
+    assert pos["market_value_gbp"] == pytest.approx(22.0)
+
+
+@pytest.mark.parametrize("error", [FileNotFoundError("no plot"), ValueError("malformed account file")])
+def test_positions_skip_owner_whose_portfolio_fails(monkeypatch, caplog, error):
+    """One owner's portfolio failing to build is logged and skipped; the other
+    owners' positions are still returned and the page does not 500."""
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    raw = {"isa": [{"ticker": "ABC.L", "units": 2}]}
+    good = _enriched_portfolio("alex", {"isa": [{"ticker": "ABC.L", "units": 2, "market_value_gbp": 20.0}]})
+
+    def build(owner, *a, **k):
+        if owner == "ghost":
+            raise error
+        return good
+
+    _patch_route_sources(monkeypatch, "alex", raw, build)
+    monkeypatch.setattr(
+        "backend.routes.instrument.list_portfolios",
+        lambda: _raw_portfolios("ghost", raw) + _raw_portfolios("alex", raw),
+    )
+
+    app = create_app()
+    with caplog.at_level("WARNING", logger="backend.routes.instrument"):
+        resp = _auth_client(app).get("/instrument?ticker=ABC.L&days=1&format=json")
+
+    assert resp.status_code == 200
+    assert [p["owner"] for p in resp.json()["positions"]] == ["alex"]
+    assert any("ghost" in r.getMessage() and "ABC.L" in r.getMessage() for r in caplog.records)
+
+
+def test_positions_scaling_override_applied_once(monkeypatch):
+    """The holdings pipeline applies ``get_scaling_override`` when it prices a
+    holding (holding_utils._get_price_for_date_scaled), so the route must not
+    scale positions again. Runs the real ``enrich_holding`` against a raw
+    pence-scale ``Close`` series with a 0.01 override; no network."""
+    from backend.common import holding_utils, portfolio_utils
+
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+    history = pd.DataFrame({"Date": [pd.Timestamp(date.today())], "Close": [1000.0]})
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: history)
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.01)
+    # Same override seen by the route's own price-series handling.
+    monkeypatch.setattr("backend.routes.instrument.get_scaling_override", lambda *a, **k: 0.01)
+
+    raw = {"SIPP": [{"ticker": "SCLX.L", "units": 73, "cost_basis_gbp": 500.0}]}
+    builder = _fake_owner_builder(raw)
+    _patch_route_sources(monkeypatch, "steve", raw, builder)
+    monkeypatch.setattr("backend.common.portfolio.build_owner_portfolio", builder)
+
+    app = create_app()
+    client = _auth_client(app)
+    instrument_resp = client.get("/instrument?ticker=SCLX.L&days=1&format=json")
+    portfolio_resp = client.get("/portfolio/steve")
+
+    assert instrument_resp.status_code == 200
+    assert portfolio_resp.status_code == 200
+    [pos] = instrument_resp.json()["positions"]
+    [row] = [h for a in portfolio_resp.json()["accounts"] for h in a["holdings"]]
+
+    # 1000 * 0.01 = 10.00/unit: scaled exactly once (not 1000 or 0.10).
+    assert pos["current_price_gbp"] == pytest.approx(10.0)
+    assert pos["market_value_gbp"] == pytest.approx(730.0)
+    assert pos["gain_gbp"] == pytest.approx(230.0)
+    assert pos["gain_pct"] == pytest.approx(46.0)
+    assert pos["market_value_gbp"] == pytest.approx(row["market_value_gbp"])
+    assert pos["gain_gbp"] == pytest.approx(row["gain_gbp"])
+    assert pos["unrealised_gain_gbp"] == pytest.approx(row["unrealised_gain_gbp"])
+    assert pos["gain_pct"] == pytest.approx(row["gain_pct"])
+    assert pos["current_price_gbp"] == pytest.approx(row["current_price_gbp"])
 
 
 def test_non_gbp_instrument_has_distinct_close(monkeypatch):

@@ -402,6 +402,30 @@ describe("InstrumentDetail", () => {
       expect(na).toHaveAttribute("title", i18n.t("holdingsTable.gainNotAvailable"));
     });
 
+    it("explains a suspect booked cost in the N/A tooltip", async () => {
+      await renderPositions([
+        {
+          ...fullPosition,
+          cost_basis_gbp: null,
+          avg_cost_gbp: null,
+          gain_gbp: null,
+          unrealised_gain_gbp: null,
+          gain_pct: null,
+          cost_basis_source: "book_suspect",
+          cost_basis_warning: "implied_unit_cost_out_of_band",
+        },
+      ]);
+
+      const row = screen.getByText("steve – SIPP").closest("tr")!;
+      const cells = row.querySelectorAll("td");
+      // Avg cost, Cost, Gain £, Gain % all carry the book-suspect explanation.
+      for (const idx of [2, 3, 6, 7]) {
+        const na = cells[idx].querySelector("span")!;
+        expect(na).toHaveTextContent("N/A");
+        expect(na).toHaveAttribute("title", i18n.t("holdingsTable.bookCostSuspect"));
+      }
+    });
+
     it("adds a total row when the instrument is held in several accounts", async () => {
       await renderPositions([
         fullPosition,

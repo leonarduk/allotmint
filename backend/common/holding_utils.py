@@ -197,9 +197,9 @@ def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False
         # Name the symbols so a refresh that keeps failing for one ticker is
         # visible in the logs rather than only as a shortfall in the count (#8599).
         logger.warning(
-            "No latest price for %d ticker(s): %s",
-            len(unpriced),
-            ", ".join(sanitise_log_value(t) for t in unpriced),
+            "No latest price for %s ticker(s): %s",
+            sanitise_log_value(len(unpriced)),
+            sanitise_log_value(", ".join(unpriced)),
         )
     return result
 

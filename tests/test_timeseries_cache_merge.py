@@ -381,7 +381,7 @@ def _single_row(cache, day: date) -> pd.DataFrame:
                 "Close": [9.0],
                 "Volume": [1],
                 "Ticker": ["ABC"],
-                "Source": ["Yahoo"],
+                "Source": ["SRC"],
             }
         )
     )
@@ -513,14 +513,76 @@ def test_rolling_cache_persists_corrected_close_for_cached_date(cache_store):
     cache, cache_path, saves = cache_store
     day = _seed_close_10(cache, cache_path, saves)
 
-    result = _run(cache, cache_path, _day_frame(cache, day, 11.0, source="Yahoo"))
+    result = _run(cache, cache_path, _day_frame(cache, day, 11.0))
 
     assert len(saves) == 1
     stored = cache._load_parquet(cache_path)
     assert list(stored["Date"].dt.date) == [day]
     assert stored["Close"].tolist() == [11.0]
-    assert stored["Source"].tolist() == ["Yahoo"]
+    assert stored["Source"].tolist() == ["SRC"]
     assert result.loc[result["Date"].dt.date == day, "Close"].tolist() == [11.0]
+
+
+def test_rolling_cache_rejects_other_source_on_a_different_basis(cache_store):
+    """A Stooq row 25% off the cached SRC basis is neither a correction nor a new row (#8597)."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    fetched = pd.concat(
+        [_day_frame(cache, day, 7.5, source="Stooq"), _day_frame(cache, day + timedelta(days=1), 7.6, source="Stooq")],
+        ignore_index=True,
+    )
+
+    result = _run(cache, cache_path, fetched)
+
+    assert saves == []
+    assert result["Close"].tolist() == [10.0]
+    assert result["Source"].tolist() == ["SRC"]
+
+
+def test_rolling_cache_accepts_other_source_on_the_same_basis(cache_store):
+    """A fallback source that agrees with the cache on shared dates may extend it."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    new_day = day + timedelta(days=1)
+    fetched = pd.concat(
+        [_day_frame(cache, day, 10.01, source="Stooq"), _day_frame(cache, new_day, 10.5, source="Stooq")],
+        ignore_index=True,
+    )
+
+    result = _run(cache, cache_path, fetched)
+
+    assert len(saves) == 1
+    assert dict(zip(result["Date"].dt.date, result["Close"])) == {day: 10.01, new_day: 10.5}
+
+
+def test_rolling_cache_rejects_other_source_without_shared_dates(cache_store):
+    """With no overlapping date there is no evidence the bases match, so the row is dropped."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+
+    result = _run(cache, cache_path, _day_frame(cache, day + timedelta(days=1), 10.0, source="Stooq"))
+
+    assert saves == []
+    assert result["Date"].dt.date.tolist() == [day]
+
+
+def test_rolling_cache_forward_fetch_overlaps_cached_history(monkeypatch, tmp_path):
+    """Incremental fetches re-cover recent cached days so a fallback source can be basis-checked."""
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    cache_path = cache._cache_path("foo.parquet")
+    _seed_existing_parquet(cache, cache_path, days=30)
+    have_max = cache._load_parquet(cache_path)["Date"].dt.date.max()
+    captured = {}
+
+    def fetch(**kwargs):
+        captured.update(kwargs)
+        return cache._empty_ts()
+
+    cache._rolling_cache(fetch, cache_path, {}, days=30, ticker="ABC", exchange="L")
+
+    assert captured["start_date"] == have_max - timedelta(days=cache._BASIS_OVERLAP_DAYS)
 
 
 def test_rolling_cache_identical_refetch_does_not_save(cache_store):

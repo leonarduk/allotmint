@@ -1788,20 +1788,14 @@ def _transaction_roots() -> Iterable[str]:
         yield Path("transactions").as_posix()
         return
 
-    roots: List[str] = []
-    if config.transactions_output_root:
-        roots.append(Path(config.transactions_output_root).as_posix())
+    # Only the canonical ledger (``<accounts_root>/<owner>/*_transactions.json``,
+    # the same files the holdings rebuild reads). ``data_root/transactions``
+    # holds legacy exports of the same accounts, so reading it as well
+    # double-counted every transaction (#8462).
     if config.accounts_root:
-        roots.append(Path(config.accounts_root).as_posix())
-    roots.append((config.data_root / "transactions").as_posix())
-
-    seen: set[str] = set()
-    for r in roots:
-        path = Path(r)
-        posix = path.as_posix()
-        if posix not in seen and path.exists():
-            seen.add(posix)
-            yield posix
+        path = Path(config.accounts_root)
+        if path.exists():
+            yield path.as_posix()
 
 
 def _load_transactions(owner: str) -> List[dict]:

@@ -87,14 +87,10 @@ backend/common/storage.py:54
 backend/common/storage.py:80
 backend/lambda_api/price_refresh.py:62
 backend/nudges.py:161
-backend/reports.py:1510
-backend/reports.py:1590
-backend/reports.py:1601
-backend/reports.py:1616
 backend/reports.py:1735
-backend/reports.py:1825
-backend/reports.py:1836
-backend/reports.py:1851
+backend/reports.py:1819
+backend/reports.py:1830
+backend/reports.py:1845
 backend/routes/market.py:164
 backend/routes/market.py:170
 backend/routes/market.py:179

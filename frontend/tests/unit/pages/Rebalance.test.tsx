@@ -69,6 +69,14 @@ describe("Rebalance page", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/not number of units\/shares/i)).toBeInTheDocument();
     expect(screen.getByText(/treated as no-change/i)).toBeInTheDocument();
+
+    // Both the input and trades tables scroll inside their own container so
+    // they cannot widen the page on a phone (#8612).
+    const tables = screen.getAllByRole("table");
+    expect(tables).toHaveLength(2);
+    for (const table of tables) {
+      expect(table.parentElement).toHaveClass("overflow-x-auto");
+    }
   });
 
   it("prefills targets that sum to exactly 100% so the untouched prefill can be submitted", async () => {

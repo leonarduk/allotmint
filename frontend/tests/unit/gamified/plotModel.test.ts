@@ -9,6 +9,7 @@ import {
   bedIconFor,
   bedNameFor,
   clamp,
+  compareGainPctDesc,
   formatGbp,
   formatPct,
   growerRank,
@@ -609,7 +610,13 @@ describe('formatters', () => {
   it('always signs percentages', () => {
     expect(formatPct(12.34)).toBe('+12.3%');
     expect(formatPct(-1)).toBe('-1.0%');
-    expect(formatPct(null)).toBe('+0.0%');
+  });
+
+  it('renders a missing percentage as a dash, not a confident +0.0% (#8471)', () => {
+    expect(formatPct(null)).toBe('—');
+    expect(formatPct(undefined)).toBe('—');
+    expect(formatPct(Number.NaN)).toBe('—');
+    expect(formatPct(0)).toBe('+0.0%');
   });
 
   it('clamps out-of-range and non-finite values', () => {
@@ -818,6 +825,84 @@ describe('crop identity', () => {
     // A bare ticker still lands somewhere sensible for older/bookmarked links.
     expect(findCropByRouteId(crops, 'VWRL.L')?.ticker).toBe('VWRL.L');
     expect(findCropByRouteId(crops, 'NOPE.L')).toBeUndefined();
+  });
+});
+
+describe('unknown cost basis (#8471)', () => {
+  const plotWith = (holding: Portfolio['accounts'][number]['holdings'][number]) =>
+    buildPlotSnapshot({
+      portfolio: {
+        owner: 'steve',
+        as_of: '2026-08-24',
+        total_value_estimate_gbp: 2_000,
+        accounts: [
+          {
+            account_type: 'isa',
+            currency: 'GBP',
+            value_estimate_gbp: 2_000,
+            holdings: [holding],
+          },
+        ],
+      } as Portfolio,
+    });
+
+  it('keeps gain null, not 0 or the market value, when cost is zero', () => {
+    const { crops, totalGainGbp } = plotWith({
+      ticker: 'ZERO.L',
+      name: 'Zero Cost',
+      units: 10,
+      market_value_gbp: 1_000,
+      cost_basis_gbp: 0,
+      effective_cost_basis_gbp: 0,
+      gain_gbp: null,
+      gain_pct: null,
+    });
+
+    expect(crops[0].gainGbp).toBeNull();
+    expect(crops[0].gainPct).toBeNull();
+    expect(totalGainGbp).toBe(0);
+  });
+
+  it('keeps gain null for a last-resort guessed cost', () => {
+    const { crops } = plotWith({
+      ticker: 'GUESS.L',
+      name: 'Guessed Cost',
+      units: 10,
+      market_value_gbp: 1_000,
+      effective_cost_basis_gbp: 1_000,
+      gain_gbp: 0,
+      gain_pct: 0,
+      cost_basis_source: 'unknown',
+    });
+
+    expect(crops[0].gainGbp).toBeNull();
+    expect(crops[0].gainPct).toBeNull();
+  });
+
+  it('still derives gain from a real cost when the backend omits it', () => {
+    const { crops } = plotWith({
+      ticker: 'REAL.L',
+      name: 'Real Cost',
+      units: 10,
+      market_value_gbp: 1_200,
+      effective_cost_basis_gbp: 1_000,
+    });
+
+    expect(crops[0].gainGbp).toBe(200);
+    expect(crops[0].gainPct).toBe(20);
+  });
+
+  it('never flags an unknown gain as a loss and sorts it last', () => {
+    const unknown = { ticker: 'U', gainPct: null, freshness: 'fresh', sellEligible: true } as Crop;
+    const up = { ...unknown, ticker: 'UP', gainPct: 5 } as Crop;
+    const down = { ...unknown, ticker: 'DOWN', gainPct: -10 } as Crop;
+
+    expect(attentionReasonFor(unknown)).toBeNull();
+    expect([unknown, down, up].sort(compareGainPctDesc).map((c) => c.ticker)).toEqual([
+      'UP',
+      'DOWN',
+      'U',
+    ]);
   });
 });
 

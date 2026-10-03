@@ -230,6 +230,91 @@ describe("toRollupRows", () => {
     });
   });
 
+  it("returns a null gain, not 0%, when no lot has a known cost (#8471)", () => {
+    const unknownCostAccounts: Account[] = [
+      {
+        owner: "alice",
+        account_type: "ISA",
+        currency: "GBP",
+        value_estimate_gbp: 140,
+        holdings: [
+          {
+            ticker: "UNK",
+            name: "Unknown",
+            units: 1,
+            cost_basis_gbp: 0,
+            effective_cost_basis_gbp: 0,
+            market_value_gbp: 100,
+            gain_gbp: null,
+            gain_pct: null,
+          },
+          {
+            ticker: "UNK",
+            name: "Unknown",
+            units: 1,
+            cost_basis_gbp: 0,
+            effective_cost_basis_gbp: 40,
+            market_value_gbp: 40,
+            gain_gbp: 0,
+            gain_pct: 0,
+            cost_basis_source: "unknown",
+          },
+        ],
+      },
+    ];
+
+    const [row] = toRollupRows(toScopedHoldingRows(unknownCostAccounts));
+
+    expect(row).toMatchObject({
+      ticker: "UNK",
+      market_value_gbp: 140,
+      gain_gbp: null,
+      gain_pct: null,
+      cost_basis_source: "unknown",
+    });
+  });
+
+  it("weights gain % by known-cost lots only when a ticker mixes known and unknown cost (#8471)", () => {
+    const mixedAccounts: Account[] = [
+      {
+        owner: "alice",
+        account_type: "ISA",
+        currency: "GBP",
+        value_estimate_gbp: 160,
+        holdings: [
+          {
+            ticker: "MIX",
+            name: "Mixed",
+            units: 1,
+            cost_basis_gbp: 80,
+            market_value_gbp: 100,
+            gain_gbp: 20,
+            cost_basis_source: "book",
+          },
+          {
+            ticker: "MIX",
+            name: "Mixed",
+            units: 1,
+            effective_cost_basis_gbp: 60,
+            market_value_gbp: 60,
+            gain_gbp: 0,
+            cost_basis_source: "unknown",
+          },
+        ],
+      },
+    ];
+
+    const [row] = toRollupRows(toScopedHoldingRows(mixedAccounts));
+
+    expect(row).toMatchObject({
+      ticker: "MIX",
+      effective_cost_basis_gbp: 140,
+      gain_gbp: 20,
+      gain_pct: 25,
+      cost_basis_source: null,
+    });
+  });
+
   it("derives acquisition/eligibility fields from the oldest dated lot", () => {
     // AAA has two lots: alice's, acquired 2025-01-01, and bob's, with no
     // acquired_date at all. The rollup must use alice's lot (the only one

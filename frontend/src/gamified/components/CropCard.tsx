@@ -70,7 +70,7 @@ export default function CropCard({
         {/* A crop with no recorded intraday move shows "no data" rather than
             a confident +0.0%, so a genuinely flat day stays distinguishable
             from a missing figure (#vigour-constant). */}
-        <span className={crop.gainPct >= 0 ? styles.gain : styles.loss}>
+        <span className={(crop.gainPct ?? 0) >= 0 ? styles.gain : styles.loss}>
           {formatPct(crop.gainPct)}
         </span>
         <span className={styles.cropDayChange}>

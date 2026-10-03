@@ -787,19 +787,24 @@ def enrich_holding(
     out[EFFECTIVE_COST_BASIS_GBP] = ecb
 
     try:
-        cost_for_gain = float(out.get(COST_BASIS_GBP) or 0.0)
+        booked_cost = float(out.get(COST_BASIS_GBP) or 0.0)
     except (TypeError, ValueError):
-        cost_for_gain = 0.0
-    if cost_for_gain <= 0:
-        cost_for_gain = ecb
+        booked_cost = 0.0
+    cost_for_gain = booked_cost if booked_cost > 0 else ecb
+
+    # No usable cost (#8471): either nothing to derive one from, or the cost is
+    # the last-resort guess of units * current price (cost_basis_source
+    # "unknown", #7220). Any gain computed from it is made up -- 0.0 for the
+    # guess, the whole market value for a zero cost -- so report it as unknown.
+    cost_unknown = cost_for_gain <= 0 or (booked_cost <= 0 and out.get("cost_basis_source") == "unknown")
 
     if px is not None:
         mv = round(units * float(px), 2)
         out["market_value_gbp"] = mv
-        out["gain_gbp"] = round(mv - cost_for_gain, 2)
+        out["gain_gbp"] = None if cost_unknown else round(mv - cost_for_gain, 2)
         out["unrealised_gain_gbp"] = out["gain_gbp"]
         out["unrealized_gain_gbp"] = out["gain_gbp"]
-        out["gain_pct"] = ((mv - cost_for_gain) / cost_for_gain * 100.0) if cost_for_gain > 0 else None
+        out["gain_pct"] = None if cost_unknown else (mv - cost_for_gain) / cost_for_gain * 100.0
     else:
         out["market_value_gbp"] = None
         out["gain_gbp"] = None

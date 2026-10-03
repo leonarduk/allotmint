@@ -519,6 +519,102 @@ describe("HoldingsTable", () => {
         expect(within(row).getAllByText("£40.00")).toHaveLength(2);
     });
 
+    describe("unknown cost basis (#8471)", () => {
+        const gainUnknownTitle =
+            "Gain unknown — no acquisition date or booked cost on record";
+        const zeroCostHolding: Holding = {
+            ticker: "ZERO",
+            name: "Zero Cost Co",
+            units: 5,
+            cost_basis_gbp: 0,
+            effective_cost_basis_gbp: 0,
+            market_value_gbp: 100,
+            gain_gbp: null,
+            gain_pct: null,
+            current_price_gbp: 20,
+        };
+        const knownHolding: Holding = {
+            ticker: "KNWN",
+            name: "Known Cost Co",
+            units: 1,
+            cost_basis_gbp: 100,
+            market_value_gbp: 150,
+            gain_gbp: 50,
+            gain_pct: 50,
+            current_price_gbp: 150,
+            cost_basis_source: "book",
+        };
+        const guessedCostHolding: Holding = {
+            ticker: "GUESS",
+            name: "Guessed Cost Co",
+            units: 5,
+            cost_basis_gbp: null,
+            effective_cost_basis_gbp: 40,
+            market_value_gbp: 40,
+            gain_gbp: null,
+            gain_pct: null,
+            current_price_gbp: 8,
+            cost_basis_source: "unknown",
+        };
+
+        it("renders N/A, not 0.0%, for gain % when cost is zero and gain_pct is null", async () => {
+            renderWithConfig(<HoldingsTable holdings={[zeroCostHolding]} />);
+
+            const row = (await screen.findByText("Zero Cost Co")).closest("tr")!;
+            expect(within(row).getAllByTitle(gainUnknownTitle)).toHaveLength(2);
+            expect(within(row).queryByText("0.0%")).toBeNull();
+        });
+
+        it("does not report the whole market value as gain when cost is zero (#7220)", async () => {
+            // A legacy payload with gain_gbp == market value and no cost must
+            // not be shown as a £100 gain.
+            renderWithConfig(
+                <HoldingsTable
+                    holdings={[{ ...zeroCostHolding, gain_gbp: 100 }]}
+                />,
+            );
+
+            const row = (await screen.findByText("Zero Cost Co")).closest("tr")!;
+            expect(within(row).getAllByTitle(gainUnknownTitle)).toHaveLength(2);
+            // £100.00 appears once, for market value only.
+            expect(within(row).getAllByText("£100.00")).toHaveLength(1);
+        });
+
+        it("leaves unknown-gain rows out of the minimum gain filter", async () => {
+            renderWithConfig(
+                <HoldingsTable holdings={[knownHolding, zeroCostHolding]} />,
+            );
+            await screen.findByText("Zero Cost Co");
+
+            await userEvent.type(screen.getByPlaceholderText("Min Gain %"), "-10");
+
+            expect(screen.getByText("Known Cost Co")).toBeInTheDocument();
+            expect(screen.queryByText("Zero Cost Co")).toBeNull();
+        });
+
+        it("weights the total gain % by known-cost rows only", async () => {
+            renderWithConfig(
+                <HoldingsTable holdings={[knownHolding, guessedCostHolding]} />,
+            );
+            await screen.findByText("Guessed Cost Co");
+
+            const footer = screen.getByRole("table").querySelector("tfoot")!;
+            // £50 gain on the £100 known cost; the £40 guessed cost must not
+            // dilute it to 35.7%.
+            expect(within(footer as HTMLElement).getByText("50.0%")).toBeInTheDocument();
+            expect(within(footer as HTMLElement).queryByText("35.7%")).toBeNull();
+        });
+
+        it("keeps the computed gain for a holding with a real cost", async () => {
+            renderWithConfig(<HoldingsTable holdings={[knownHolding]} />);
+
+            const row = (await screen.findByText("Known Cost Co")).closest("tr")!;
+            expect(within(row).queryByTitle(gainUnknownTitle)).toBeNull();
+            expect(within(row).getByText("£50.00")).toBeInTheDocument();
+            expect(within(row).getByText("50.0%")).toBeInTheDocument();
+        });
+    });
+
     it("keeps footer columns aligned with the header in relative view", async () => {
         const TestProviderRelative = ({ children }: { children: React.ReactNode }) => (
             <configContext.Provider

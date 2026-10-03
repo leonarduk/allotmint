@@ -157,7 +157,10 @@ def test_enrich_holding_market_value_set_from_price_snapshot(monkeypatch):
     assert result["market_value_gbp"] == pytest.approx(
         975.0
     ), "market_value_gbp must not be None when price snapshot has data"
-    assert result["gain_gbp"] is not None
+    # With no usable cost (the helper is stubbed to 0.0) the gain is unknown,
+    # not the whole market value (#8471, #7220).
+    assert result["gain_gbp"] is None
+    assert result["gain_pct"] is None
     assert result["current_price_gbp"] == pytest.approx(97.5)
 
 
@@ -308,8 +311,8 @@ def test_enrich_holding_no_acquired_date_tags_cost_basis_source_unknown(monkeypa
     (not a monkeypatched stand-in returning 0.0), a holding with no booked
     cost and no acquired date must report cost_basis_source == "unknown"
     rather than the generic "derived" a real historical derivation gets, and
-    gain_gbp/gain_pct must reflect the resulting break-even (0.0), not a
-    fabricated large gain and not a crash.
+    gain_gbp/gain_pct must be None (unknown, #8471) -- not a made-up 0.0
+    break-even, not a fabricated large gain, and not a crash.
     """
     import backend.common.instrument_api as instrument_api
     import backend.common.portfolio_utils as pu
@@ -328,6 +331,30 @@ def test_enrich_holding_no_acquired_date_tags_cost_basis_source_unknown(monkeypa
     assert out[ACQUIRED_DATE] is None
     assert out[EFFECTIVE_COST_BASIS_GBP] == pytest.approx(40.0)
     assert out["market_value_gbp"] == pytest.approx(40.0)
-    assert out["gain_gbp"] == pytest.approx(0.0)
-    assert out["gain_pct"] == pytest.approx(0.0)
+    assert out["gain_gbp"] is None
+    assert out["unrealised_gain_gbp"] is None
+    assert out["unrealized_gain_gbp"] is None
+    assert out["gain_pct"] is None
     assert out["cost_basis_source"] == "unknown"
+
+
+def test_enrich_holding_keeps_gain_for_derived_cost(monkeypatch):
+    """#8471 must only blank the guessed cost: a holding whose cost is derived
+    from a real historical price near its acquisition date keeps its gain."""
+    import backend.common.instrument_api as instrument_api
+    import backend.common.portfolio_utils as pu
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda *_: ("FOO", "L"))
+    monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(hu, "get_instrument_meta", lambda *_: {})
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *args, **kwargs: None)
+    monkeypatch.setattr(hu, "_get_price_for_date_scaled", lambda *a, **k: (8.0, "mock"))
+    monkeypatch.setattr(hu, "_derived_cost_basis_close_px", lambda *a, **k: 4.0)
+
+    holding = {TICKER: "FOO.L", UNITS: 5, ACQUIRED_DATE: "2025-01-02"}
+    out = hu.enrich_holding(holding, dt.date(2026, 8, 27), price_cache={}, approvals={})
+
+    assert out["cost_basis_source"] == "derived"
+    assert out[EFFECTIVE_COST_BASIS_GBP] == pytest.approx(20.0)
+    assert out["gain_gbp"] == pytest.approx(20.0)
+    assert out["gain_pct"] == pytest.approx(100.0)

@@ -13,8 +13,11 @@ export type RollupRow = {
   cost_basis_gbp: number;
   effective_cost_basis_gbp: number;
   market_value_gbp: number;
-  gain_gbp: number;
-  gain_pct: number;
+  // Null when no lot has a known cost, so the gain is unknown (#8471).
+  gain_gbp: number | null;
+  gain_pct: number | null;
+  // "unknown" when no lot has a known cost; mirrors Holding (#8471).
+  cost_basis_source?: "unknown" | null;
   weight_pct: number;
   lot_count: number;
   owners: string[];
@@ -73,7 +76,14 @@ type MutableRollup = Omit<
   | "exchange"
   | "change_7d_pct"
   | "change_30d_pct"
+  | "gain_gbp"
+  | "gain_pct"
+  | "cost_basis_source"
 > & {
+  // Gain and cost summed over lots with a known cost only (#8471).
+  gain_gbp: number;
+  gainCost: number;
+  hasKnownGain: boolean;
   ownerSet: Set<string>;
   accountSet: Set<string>;
   oldestLot: ScopedHoldingRow;
@@ -105,6 +115,13 @@ function addHolding(
     (holding.cost_basis_gbp ?? 0) > 0
       ? holding.cost_basis_gbp ?? 0
       : holding.effective_cost_basis_gbp ?? 0;
+  // A zero cost or the last-resort guessed cost (#7220) has no real gain.
+  const gainKnown =
+    holding.gain_gbp != null &&
+    holding.cost_basis_source !== "unknown" &&
+    holdingCost > 0;
+  const lotGain = gainKnown ? holding.gain_gbp ?? 0 : 0;
+  const lotGainCost = gainKnown ? holdingCost : 0;
 
   const existing = grouped.get(holding.ticker);
   if (existing) {
@@ -112,7 +129,9 @@ function addHolding(
     existing.cost_basis_gbp += holding.cost_basis_gbp ?? 0;
     existing.effective_cost_basis_gbp += holdingCost;
     existing.market_value_gbp += holding.market_value_gbp ?? 0;
-    existing.gain_gbp += holding.gain_gbp ?? 0;
+    existing.gain_gbp += lotGain;
+    existing.gainCost += lotGainCost;
+    existing.hasKnownGain = existing.hasKnownGain || gainKnown;
     existing.lot_count += 1;
     existing.ownerSet.add(holding.owner);
     existing.accountSet.add(holding.source_account);
@@ -129,8 +148,9 @@ function addHolding(
     cost_basis_gbp: holding.cost_basis_gbp ?? 0,
     effective_cost_basis_gbp: holdingCost,
     market_value_gbp: holding.market_value_gbp ?? 0,
-    gain_gbp: holding.gain_gbp ?? 0,
-    gain_pct: 0,
+    gain_gbp: lotGain,
+    gainCost: lotGainCost,
+    hasKnownGain: gainKnown,
     lot_count: 1,
     owners: [],
     accounts: [],
@@ -180,7 +200,14 @@ export function toRollupRows(
 
   return Array.from(grouped.values(), (row) => {
     const instrument = instrumentByTicker.get(row.ticker);
-    const { ownerSet, accountSet, oldestLot, ...rollup } = row;
+    const {
+      ownerSet,
+      accountSet,
+      oldestLot,
+      gainCost,
+      hasKnownGain,
+      ...rollup
+    } = row;
 
     const acquiredDate = hasValidAcquiredDate(oldestLot)
       ? oldestLot.acquired_date!
@@ -198,9 +225,10 @@ export function toRollupRows(
 
     return {
       ...rollup,
-      gain_pct: row.effective_cost_basis_gbp
-        ? (row.gain_gbp / row.effective_cost_basis_gbp) * 100
-        : 0,
+      gain_gbp: hasKnownGain ? row.gain_gbp : null,
+      gain_pct:
+        hasKnownGain && gainCost > 0 ? (row.gain_gbp / gainCost) * 100 : null,
+      cost_basis_source: hasKnownGain ? null : "unknown",
       weight_pct: scopedTotal
         ? (row.market_value_gbp / scopedTotal) * 100
         : 0,

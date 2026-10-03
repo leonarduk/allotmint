@@ -203,6 +203,14 @@ export function HoldingsTable({
         : h.cost_basis_gbp ?? 0;
 
     const market = h.market_value_gbp ?? 0;
+
+    // No positive cost, or a cost that is only the last-resort guess of
+    // units * current price (#7220): the gain is unknown, so keep it null
+    // rather than inventing 0% or a gain equal to the market value (#8471).
+    if (cost <= 0 || h.cost_basis_source === "unknown") {
+      return { ...h, cost, market, gain: null, gain_pct: null };
+    }
+
     const gain =
       h.gain_gbp !== undefined && h.gain_gbp !== null && h.gain_gbp !== 0
         ? h.gain_gbp
@@ -211,9 +219,7 @@ export function HoldingsTable({
     const gain_pct =
       h.gain_pct !== undefined && h.gain_pct !== null
         ? h.gain_pct
-        : cost
-          ? (gain / cost) * 100
-          : 0;
+        : (gain / cost) * 100;
 
     return { ...h, cost, market, gain, gain_pct };
   });
@@ -236,7 +242,8 @@ export function HoldingsTable({
     }
     if (filters.gain_pct) {
       const minGain = parseFloat(filters.gain_pct);
-      if (!Number.isNaN(minGain) && (h.gain_pct ?? 0) < minGain) return false;
+      // An unknown gain is neither above nor below the threshold (#8471).
+      if (!Number.isNaN(minGain) && (h.gain_pct == null || h.gain_pct < minGain)) return false;
     }
     if (!rollupMode && filters.sell_eligible) {
       // sell_eligible is null when the acquisition date is unknown (#7220):
@@ -262,13 +269,17 @@ export function HoldingsTable({
           cost: acc.cost + (h.cost ?? 0),
           market: acc.market + (h.market ?? 0),
           gain: acc.gain + (h.gain ?? 0),
+          // Only rows with a known gain weight the total gain % (#8471).
+          gainCost: acc.gainCost + (h.gain === null ? 0 : h.cost ?? 0),
           weight: acc.weight + (h.weight_pct ?? 0),
         }),
-        { cost: 0, market: 0, gain: 0, weight: 0 },
+        { cost: 0, market: 0, gain: 0, gainCost: 0, weight: 0 },
       ),
     [sortedRows],
   );
-  const totalGainPct = totals.cost ? (totals.gain / totals.cost) * 100 : 0;
+  const totalGainPct = totals.gainCost
+    ? (totals.gain / totals.gainCost) * 100
+    : null;
 
   const categoryLookup = useMemo(
     () => buildCategoryLookup(categoryDefinitions),
@@ -288,7 +299,10 @@ export function HoldingsTable({
       __holdingsIndex: index,
       cost: row.cost,
       market_value_gbp: row.market,
-      gain_gbp: row.gain,
+      // An unknown gain contributes nothing; its cost is excluded below.
+      gain_gbp: row.gain ?? 0,
+      cost_basis_source:
+        row.gain === null ? "unknown" : row.cost_basis_source,
       change_7d_pct: row.change_7d_pct ?? row.forward_7d_change_pct ?? null,
       change_30d_pct: row.change_30d_pct ?? row.forward_30d_change_pct ?? null,
     })) as RowWithCost[];
@@ -817,9 +831,9 @@ export function HoldingsTable({
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (
                   <td
-                    className={`${tableStyles.cell} ${tableStyles.right} ${h.cost_basis_source === "unknown" ? "" : getPerformanceClass(h.gain)}`}
+                    className={`${tableStyles.cell} ${tableStyles.right} ${h.gain === null ? "" : getPerformanceClass(h.gain)}`}
                   >
-                    {h.cost_basis_source === "unknown" ? (
+                    {h.gain === null ? (
                       <span
                         className={tableStyles.notApplicable}
                         title={t("holdingsTable.gainNotAvailable")}
@@ -833,9 +847,9 @@ export function HoldingsTable({
                 )}
                 {visibleColumns.gain_pct && (
                   <td
-                    className={`${tableStyles.cell} ${tableStyles.right} ${h.cost_basis_source === "unknown" ? "" : getPerformanceClass(h.gain_pct)}`}
+                    className={`${tableStyles.cell} ${tableStyles.right} ${h.gain_pct === null ? "" : getPerformanceClass(h.gain_pct)}`}
                   >
-                    {h.cost_basis_source === "unknown" ? (
+                    {h.gain_pct === null ? (
                       <span
                         className={tableStyles.notApplicable}
                         title={t("holdingsTable.gainNotAvailable")}

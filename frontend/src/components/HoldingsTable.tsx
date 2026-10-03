@@ -385,6 +385,9 @@ export function HoldingsTable({
   );
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
   const showGroupHeaders = effectiveGroupingMode !== "flat";
+  // Rollup rows have no days held, and groups have no days-held total to sort
+  // by (GROUP_SORT_KEYS.days_held is null), so the column is only sortable flat.
+  const daysHeldSortable = !rollupMode && !showGroupHeaders;
 
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ["units", t("holdingsTable.columns.units")],
@@ -814,11 +817,11 @@ export function HoldingsTable({
             <th className={tableStyles.cell}>{t("instrumentTable.columns.type")}</th>
             <th className={tableStyles.cell}>{t("holdingsTable.columns.acquired")}</th>
             <th
-              className={`${tableStyles.cell} ${tableStyles.right}${rollupMode ? "" : ` ${tableStyles.clickable}`}`}
-              onClick={rollupMode ? undefined : () => sortBy("days_held")}
+              className={`${tableStyles.cell} ${tableStyles.right}${daysHeldSortable ? ` ${tableStyles.clickable}` : ""}`}
+              onClick={daysHeldSortable ? () => sortBy("days_held") : undefined}
             >
               {t("holdingsTable.columns.daysHeld")}
-              {!rollupMode && sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}
+              {daysHeldSortable && sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}
             </th>
             <th className={`${tableStyles.cell} ${tableStyles.center}`}>{t("holdingsTable.columns.stage")}</th>
             <th className={`${tableStyles.cell} ${tableStyles.center}`}>{t("holdingsTable.columns.eligible")}</th>

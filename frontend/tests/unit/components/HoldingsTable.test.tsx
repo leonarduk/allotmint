@@ -326,6 +326,37 @@ describe("HoldingsTable", () => {
         expect(bodyOrder()).toEqual(["Toggle Tech", "AAA", "CCC", "Toggle Energy", "BBB", "DDD"]);
     });
 
+    it("sorts groups by label, not first-appearance order, for Ticker ▲/▼ (#8529)", async () => {
+        // Label order (Alpha, Zulu) is the opposite of ticker order (AAA in Zulu, ZZZ in Alpha).
+        const labelHoldings: Holding[] = [
+            { ...holdings[0], ticker: "ZZZ", name: "Zed plc", sector: "Alpha" },
+            { ...holdings[0], ticker: "AAA", name: "Ay plc", sector: "Zulu" },
+        ];
+        const { container } = renderWithConfig(
+            <HoldingsTable holdings={labelHoldings} groupingMode="sector" />,
+        );
+        const headerOrder = () =>
+            Array.from(container.querySelectorAll("tbody tr button[aria-label]")).map((button) =>
+                button.getAttribute("aria-label"),
+            );
+
+        expect(headerOrder()).toEqual(["Toggle Alpha", "Toggle Zulu"]);
+        await userEvent.click(screen.getByRole("columnheader", { name: /Ticker/ }));
+        expect(headerOrder()).toEqual(["Toggle Zulu", "Toggle Alpha"]);
+    });
+
+    it("makes Days Held non-sortable in grouped mode (no group total to sort by)", async () => {
+        renderWithConfig(<HoldingsTable holdings={holdings} groupingMode="group" />);
+
+        const daysHeldHeader = screen.getByRole("columnheader", { name: "Days Held" });
+        expect(daysHeldHeader.className).not.toContain("clickable");
+        await userEvent.click(daysHeldHeader);
+        expect(daysHeldHeader).not.toHaveTextContent("▲");
+        expect(daysHeldHeader).not.toHaveTextContent("▼");
+        // The active sort is unchanged: Ticker still shows its indicator.
+        expect(screen.getByRole("columnheader", { name: /Ticker/ })).toHaveTextContent("▲");
+    });
+
     it("falls back to group mode when category mode is requested without definitions", async () => {
         const groupedHoldings = holdings.map((holding) => ({
             ...holding,

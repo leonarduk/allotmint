@@ -21,6 +21,8 @@ _NAME_COLUMNS = ("Stock", "Security", "Name", "Description")
 # e.g. "United Parcel Service Class 'B' Com Stock US$0.01 (CDI) *R" (#8474).
 # Tolerate it as a leading or trailing token on either the name or the code.
 # A leading marker must be followed by a word boundary, so "*RADBE" is left alone.
+# The trailing case deliberately has no boundary: HL tickers never contain "*",
+# and HL sometimes glues the marker on ("FOO*R"), so that is stripped too.
 _TRANSFER_MARKER_RE = re.compile(r"^\s*\*R\b\s*|\s*\*R\s*$", re.IGNORECASE)
 TRANSFER_IN_COMMENT = "Transferred in (HL *R)"
 MISSING_COST_COMMENT = "cost basis missing from HL export"
@@ -97,9 +99,10 @@ def _strip_transfer_marker(value: str) -> tuple[str, bool]:
 
 
 def _first_text(row: dict[str, str | None], columns: tuple[str, ...]) -> str:
-    """Return the first non-blank text value found under ``columns``."""
+    """Return the first non-blank text value under ``columns``, matching headers case-insensitively."""
+    by_lower = {str(key).strip().lower(): value for key, value in row.items() if key is not None}
     for column in columns:
-        value = (row.get(column) or "").strip()
+        value = (by_lower.get(column.lower()) or "").strip()
         if value:
             return value
     return ""
@@ -119,7 +122,8 @@ def _parse_row(row: dict[str, str | None]) -> Transaction:
     cost = _to_float(row.get("Cost (£)") or row.get("Cost"))
     amount_minor = cost * 100 if cost is not None else None
     position = add_position(ticker=code, price=price, units=units, amount_minor=amount_minor)
-    position.instrument_name = name or None
+    if name:
+        position.instrument_name = name
     if code_marked or name_marked:
         _mark_transfer_in(position)
     return position
@@ -141,7 +145,7 @@ def _mark_transfer_in(position: Transaction) -> None:
     missing (never guessed), flagged in ``comments`` and logged.
     """
     _append_comment(position, TRANSFER_IN_COMMENT)
-    if position.amount_minor:
+    if position.amount_minor is not None and position.amount_minor != 0:
         return
     position.amount_minor = None
     _append_comment(position, MISSING_COST_COMMENT)

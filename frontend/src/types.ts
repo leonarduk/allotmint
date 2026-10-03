@@ -358,13 +358,29 @@ export interface MarketOverview {
   headlines: NewsItem[];
 }
 
+/**
+ * One holding of an instrument, projected by the backend from the same
+ * enriched holding row the dashboard uses (#8533). Monetary fields are GBP.
+ */
 export interface InstrumentPosition {
   owner: string;
   account: string;
   units: number | null;
   market_value_gbp?: number | null;
+  /** Legacy alias of `gain_gbp`. */
   unrealised_gain_gbp?: number | null;
+  gain_gbp?: number | null;
   gain_pct?: number | null;
+  /** Null when the cost basis is unknown or unreliable. */
+  cost_basis_gbp?: number | null;
+  avg_cost_gbp?: number | null;
+  current_price_gbp?: number | null;
+  /** Share of the owner's total portfolio value. */
+  weight_pct?: number | null;
+  acquired_date?: string | null;
+  days_held?: number | null;
+  cost_basis_source?: string | null;
+  cost_basis_warning?: string | null;
 }
 
 export interface InstrumentDetail {

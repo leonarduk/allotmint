@@ -65,127 +65,6 @@ async def test_search_instruments_validation_and_trim(monkeypatch):
     ]
 
 
-def test_positions_for_ticker_cost_basis_fallback(monkeypatch):
-    monkeypatch.setattr(
-        instrument,
-        "list_portfolios",
-        lambda: [
-            {
-                "owner": "alex",
-                "accounts": [
-                    {
-                        "account_type": "isa",
-                        "holdings": [
-                            {
-                                "ticker": "ABC",
-                                "units": 10,
-                                "effective_cost_basis_gbp": 900,
-                            }
-                        ],
-                    },
-                    {
-                        "account_type": "sipp",
-                        "holdings": [
-                            {
-                                "ticker": "ABC",
-                                "units": 5,
-                                "cost_basis_gbp": 400,
-                            }
-                        ],
-                    },
-                ],
-            },
-            {
-                "owner": "sam",
-                "accounts": [
-                    {
-                        "account_type": "general",
-                        "holdings": [
-                            {
-                                "ticker": "ABC",
-                                "units": 2,
-                                "cost_basis": "50",
-                            },
-                            {
-                                "ticker": "IGNORED",
-                                "units": 1,
-                            },
-                        ],
-                    }
-                ],
-            },
-        ],
-    )
-
-    positions = instrument._positions_for_ticker("ABC", last_close=100.0)
-
-    assert len(positions) == 3
-    assert positions[0]["market_value_gbp"] == 1000.0
-    assert positions[0]["unrealised_gain_gbp"] == 100.0
-    assert positions[1]["market_value_gbp"] == 500.0
-    assert positions[1]["unrealised_gain_gbp"] == 100.0
-    assert positions[2]["market_value_gbp"] == 200.0
-    assert positions[2]["unrealised_gain_gbp"] == 150.0
-
-
-def test_positions_for_ticker_unknown_cost_basis_is_not_zero_gain(monkeypatch):
-    """A holding with no booked cost and no acquisition date must report an
-    unknown gain (None), not a confident 0.00 from cost == current price."""
-    monkeypatch.setattr(
-        instrument,
-        "list_portfolios",
-        lambda: [
-            {
-                "owner": "steve",
-                "accounts": [
-                    {
-                        "account_type": "SIPP",
-                        "holdings": [{"ticker": "AIGE.L", "units": 1322.0, "cost_basis_gbp": 0.0}],
-                    }
-                ],
-            }
-        ],
-    )
-
-    positions = instrument._positions_for_ticker("AIGE.L", last_close=6.11)
-
-    assert len(positions) == 1
-    assert positions[0]["market_value_gbp"] == 8077.42
-    assert positions[0]["unrealised_gain_gbp"] is None
-    assert positions[0]["gain_pct"] is None
-
-
-def _one_holding_portfolio(holding):
-    return [{"owner": "steve", "accounts": [{"account_type": "SIPP", "holdings": [holding]}]}]
-
-
-def test_positions_for_ticker_booked_cost_without_acquired_date_keeps_gain(monkeypatch):
-    holding = {"ticker": "AIGE.L", "units": 1000.0, "cost_basis_gbp": 4000.0}
-    monkeypatch.setattr(instrument, "list_portfolios", lambda: _one_holding_portfolio(holding))
-
-    positions = instrument._positions_for_ticker("AIGE.L", last_close=6.0)
-
-    assert positions[0]["unrealised_gain_gbp"] == 2000.0
-    assert positions[0]["gain_pct"] == pytest.approx(50.0)
-
-
-def test_positions_for_ticker_derives_cost_from_historical_close_at_acquisition(monkeypatch):
-    """No booked cost but an acquisition date: cost still comes from the
-    historical close, not from the current price (empty price cache is fine)."""
-    from backend.common import holding_utils
-
-    history = pd.DataFrame({"Date": [pd.Timestamp("2024-04-25")], "Close": [3.0]})
-    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: history)
-    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 1)
-    holding = {"ticker": "AIGE.L", "units": 1000.0, "cost_basis_gbp": 0.0, "acquired_date": "2024-04-25"}
-    monkeypatch.setattr(instrument, "list_portfolios", lambda: _one_holding_portfolio(holding))
-
-    positions = instrument._positions_for_ticker("AIGE.L", last_close=6.0)
-
-    assert positions[0]["unrealised_gain_gbp"] == 3000.0
-    assert positions[0]["gain_pct"] == pytest.approx(100.0)
-
-
 @pytest.mark.asyncio
 @pytest.mark.anyio("asyncio")
 async def test_instrument_empty_template(monkeypatch):
@@ -379,8 +258,6 @@ async def test_instrument_json_scales_positions(monkeypatch):
         lambda _ticker: {"name": "Scale Fund", "currency": "GBP"},
     )
 
-    captured_last_close: dict[str, float | None] = {}
-
     positions = [
         {
             "owner": "alex",
@@ -400,11 +277,7 @@ async def test_instrument_json_scales_positions(monkeypatch):
         },
     ]
 
-    def fake_positions(ticker: str, last_close: float | None):
-        captured_last_close["value"] = last_close
-        return positions
-
-    monkeypatch.setattr(instrument, "_positions_for_ticker", fake_positions)
+    monkeypatch.setattr(instrument, "_positions_for_ticker", lambda ticker: positions)
     monkeypatch.setattr(instrument, "get_scaling_override", lambda *a, **k: 2.0)
     monkeypatch.setattr(instrument, "apply_scaling", lambda df_in, scale: df_in)
     monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
@@ -418,54 +291,11 @@ async def test_instrument_json_scales_positions(monkeypatch):
 
     payload = json.loads(response.body.decode())
 
-    assert captured_last_close["value"] == pytest.approx(22.0)
-    assert payload["positions"][0]["unrealised_gain_gbp"] == pytest.approx(10.0)
+    # The enriched holdings pipeline already priced (and scaled) each position;
+    # the route must not apply the price-series scaling a second time (#8533).
+    assert payload["positions"][0]["unrealised_gain_gbp"] == pytest.approx(5.0)
     assert payload["positions"][1]["unrealised_gain_gbp"] is None
-
-
-@pytest.mark.asyncio
-@pytest.mark.anyio("asyncio")
-async def test_instrument_last_close_fx_conversion(monkeypatch):
-    dates = pd.date_range(date(2024, 4, 1), periods=3, freq="D")
-    df = pd.DataFrame({"Date": dates, "Close": [15.5, 16.75, 17.25]})
-
-    monkeypatch.setattr(instrument, "load_meta_timeseries_range", lambda *_, **__: df)
-    monkeypatch.setattr(
-        instrument,
-        "get_security_meta",
-        lambda _ticker: {"name": "US Fund", "currency": "USD"},
-    )
-    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
-    monkeypatch.setattr(instrument, "get_scaling_override", lambda *_, **__: 1.0)
-    monkeypatch.setattr(instrument, "apply_scaling", lambda df_in, _scale: df_in)
-
-    captured_last_close: dict[str, float | None] = {}
-    fx_call: dict[str, tuple[str, str, date, date]] = {}
-
-    def fake_positions(ticker: str, last_close: float | None):
-        captured_last_close["value"] = last_close
-        return []
-
-    def fake_fetch_fx_rate_range(from_ccy, to_ccy, start, end):
-        if start != end:
-            return pd.DataFrame(columns=["Date", "Rate"])
-        fx_call["args"] = (from_ccy, to_ccy, start, end)
-        rng = pd.date_range(start, end, freq="D")
-        return pd.DataFrame({"Date": rng, "Rate": [0.78] * len(rng)})
-
-    monkeypatch.setattr(instrument, "_positions_for_ticker", fake_positions)
-    monkeypatch.setattr(instrument, "fetch_fx_rate_range", fake_fetch_fx_rate_range)
-
-    response = instrument.instrument(
-        ticker="USD.FUND",
-        days=30,
-        format="json",
-        base_currency="GBP",
-    )
-
-    assert response.status_code == 200
-    assert captured_last_close["value"] == pytest.approx(17.25 * 0.78)
-    assert fx_call["args"] == ("USD", "GBP", dates[-1].date(), dates[-1].date())
+    assert payload["prices"][-1]["close_gbp"] == pytest.approx(22.0)
 
 
 async def test_intraday_returns_prices(monkeypatch):
@@ -691,6 +521,15 @@ async def test_instrument_empty_html_escapes_xss_in_positions(monkeypatch):
                 ],
             }
         ],
+    )
+    monkeypatch.setattr(
+        instrument,
+        "build_owner_portfolio",
+        lambda owner, *_a, **_k: {
+            "owner": owner,
+            "accounts": [{"account_type": "isa", "holdings": [{"ticker": "NONE.L", "units": 1}]}],
+            "total_value_estimate_gbp": 0.0,
+        },
     )
 
     response = instrument.instrument(ticker="NONE.L", days=30, format="html", base_currency=None)

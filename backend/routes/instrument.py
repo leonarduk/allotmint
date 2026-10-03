@@ -10,6 +10,8 @@ GET /instrument?ticker=XDEV.L&days=365&format=json
 GET /instrument?ticker=XDEV.L&days=365&format=html
 """
 
+import logging
+import math
 from datetime import date
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Optional
@@ -21,12 +23,14 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
 from backend.common import instrument_api
-from backend.common.constants import COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP, UNITS
-from backend.common.holding_utils import get_effective_cost_basis_gbp
+from backend.common.constants import ACQUIRED_DATE, COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP, UNITS
+from backend.common.holding_utils import is_cost_basis_unreliable
 from backend.common.instruments import list_instruments
+from backend.common.portfolio import build_owner_portfolio
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import get_security_meta
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.fx_rates import fetch_fx_rate_range
 from backend.utils.lazy_import import lazy_import
@@ -38,6 +42,8 @@ np = lazy_import("numpy")
 pd = lazy_import("pandas")
 # yfinance is only used by the /intraday endpoint; defer loading to first call.
 yf = lazy_import("yfinance")
+
+logger = logging.getLogger(__name__)
 
 templates_dir = Path(__file__).resolve().parent.parent / "templates"
 env = Environment(
@@ -178,87 +184,120 @@ def _validate_ticker(tkr: str) -> None:
         raise HTTPException(400, f'Invalid ticker: "{tkr}"')
 
 
-def _position_gain(h: Dict[str, Any], mv_gbp: float | None) -> tuple[float | None, float | None]:
-    """Return ``(gain_gbp, gain_pct)`` for a raw holding, or ``None`` when unknowable.
+def _finite(value: Any) -> float | None:
+    """Return ``value`` as a float, or ``None`` when missing/non-numeric/NaN/inf."""
 
-    Raw account files do not contain the derived gain fields returned by the
-    holdings endpoint. Map their legacy field names onto the canonical ones,
-    then reuse its cost basis calculation so both views report the same result.
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return None
+    return num if math.isfinite(num) else None
 
-    The cost basis is only trusted when it is booked on the holding or derived
-    from a historical price near the acquisition date. If neither exists we must
-    NOT fall back to the current price: that sets cost == market value and
-    reports a confident 0.00 gain that is really just "unknown" (stale holdings
-    file with ``cost_basis_gbp: 0`` and no ``acquired_date``).
+
+def _holding_cost_gbp(h: Dict[str, Any]) -> float | None:
+    """Return the cost the holdings pipeline used for this row's gain.
+
+    Mirrors ``enrich_holding``: a booked ``cost_basis_gbp`` wins, otherwise the
+    effective (derived) cost. A guessed or implausible cost (#7220/#8472) is
+    reported as unknown rather than as a figure (#8283/#8471).
     """
 
-    gain_gbp = h.get("gain_gbp")
-    gain_pct = h.get("gain_pct")
-    if mv_gbp is None or (gain_gbp is not None and gain_pct is not None):
-        return gain_gbp, gain_pct
-
-    normalised = dict(h)
-    normalised[UNITS] = h.get(UNITS) or h.get("quantity")
-    # ``or`` deliberately treats a stored 0.0 as "no booked cost".
-    normalised[COST_BASIS_GBP] = h.get(EFFECTIVE_COST_BASIS_GBP) or h.get(COST_BASIS_GBP) or h.get("cost_basis")
-    # An empty cache and no price hint stop the helper substituting the current
-    # price for a missing cost; it then returns 0.0 for "unknown". The cache is
-    # only a memo there: the historical close near ``acquired_date`` is still
-    # loaded from the price timeseries.
-    cost = get_effective_cost_basis_gbp(normalised, {}, price_hint=None)
-    if cost is None or cost <= 0:
-        return gain_gbp, gain_pct
-
-    calculated_gain = round(mv_gbp - cost, 2)
-    if gain_gbp is None:
-        gain_gbp = calculated_gain
-    if gain_pct is None:
-        gain_pct = calculated_gain / cost * 100.0
-    return gain_gbp, gain_pct
+    if is_cost_basis_unreliable(h.get("cost_basis_source")):
+        return None
+    booked = _finite(h.get(COST_BASIS_GBP))
+    if booked is not None and booked > 0:
+        return booked
+    effective = _finite(h.get(EFFECTIVE_COST_BASIS_GBP))
+    return effective if effective is not None and effective > 0 else None
 
 
-def _positions_for_ticker(tkr: str, last_close: float | None) -> List[Dict[str, Any]]:
-    """Return every occurrence of ``tkr`` across all portfolios.
+def _position_from_holding(owner: str, account: str, h: Dict[str, Any], owner_total: float | None) -> Dict[str, Any]:
+    """Project one enriched holding row onto the instrument positions shape.
 
-    The structure returned by :func:`list_portfolios` looks roughly like::
+    Every figure is read from the enriched row produced by
+    :func:`backend.common.holding_utils.enrich_holding` (the dashboard's
+    pipeline), so the research page and the dashboard agree by construction.
+    """
 
-        {
-          "owner": "alex",
-          "accounts": [
-              {"account_type": "isa",  "holdings": [...]},
-              {"account_type": "sipp", "holdings": [...]},
-          ]
-        }
+    units = _finite(h.get(UNITS) if h.get(UNITS) is not None else h.get("quantity"))
+    market_value = _finite(h.get("market_value_gbp"))
+    cost = _holding_cost_gbp(h)
+    # enrich_holding already nulls the gain for an unreliable cost; enforce it
+    # here too so the API never pairs a null cost with a gain figure.
+    cost_unreliable = is_cost_basis_unreliable(h.get("cost_basis_source"))
+    gain_gbp = None if cost_unreliable else _finite(h.get("gain_gbp"))
+    gain_pct = None if cost_unreliable else _finite(h.get("gain_pct"))
+    weight = market_value / owner_total * 100.0 if market_value is not None and owner_total else None
+    return {
+        "owner": owner,
+        "account": account,
+        "units": units,
+        "market_value_gbp": market_value,
+        # Legacy key kept for backward compatibility; same value as gain_gbp.
+        "unrealised_gain_gbp": gain_gbp,
+        "gain_gbp": gain_gbp,
+        "gain_pct": gain_pct,
+        "cost_basis_gbp": cost,
+        "avg_cost_gbp": cost / units if cost is not None and units else None,
+        "current_price_gbp": _finite(h.get("current_price_gbp")),
+        "weight_pct": weight,
+        "acquired_date": h.get(ACQUIRED_DATE),
+        "days_held": h.get("days_held"),
+        "cost_basis_source": h.get("cost_basis_source"),
+        "cost_basis_warning": h.get("cost_basis_warning"),
+    }
 
-    This helper walks the nested tree and flattens all matching holdings into a
-    list of simple dictionaries.
+
+def _owners_holding(tkr: str) -> List[str]:
+    """Return the owners whose raw account files hold ``tkr`` (first-seen order)."""
+
+    owners: List[str] = []
+    for pf in list_portfolios():
+        owner = pf.get("owner")
+        if not owner or owner in owners:
+            continue
+        holds = any(
+            (h.get("ticker") or "").upper() == tkr for acct in pf.get("accounts", []) for h in acct.get("holdings", [])
+        )
+        if holds:
+            owners.append(owner)
+    return owners
+
+
+def _positions_for_ticker(tkr: str) -> List[Dict[str, Any]]:
+    """Return every holding of ``tkr`` across all owners, as the dashboard sees it.
+
+    Owners are discovered from the raw account files (cheap), then each
+    matching owner's portfolio is built with :func:`build_owner_portfolio` --
+    the same call behind ``/portfolio/{owner}`` -- and the matching enriched
+    rows are projected. This replaces an earlier re-derivation from raw
+    holdings that used its own price/GBX handling and cost logic and so
+    disagreed with the dashboard (#8533).
     """
 
     positions: List[Dict[str, Any]] = []
-    # Iterate through owners -> accounts -> holdings
-    for pf in list_portfolios():
-        owner = pf["owner"]
+    for owner in _owners_holding(tkr):
+        try:
+            pf = build_owner_portfolio(owner)
+        except Exception as exc:  # noqa: BLE001 -- one bad portfolio must not 500 the page
+            # Any owner whose portfolio cannot be built (missing plot, malformed
+            # account file, pricing error) is logged and skipped so the rest of
+            # the research page still renders.
+            logger.warning(
+                "instrument positions: skipping owner %s holding %s: %s",
+                sanitise_log_value(owner),
+                sanitise_log_value(tkr),
+                sanitise_log_value(exc),
+            )
+            continue
+        owner_total = _finite(pf.get("total_value_estimate_gbp"))
         for acct in pf.get("accounts", []):
-            acct_name = acct.get("account_type", "account")
+            account = acct.get("account_type", "account")
             for h in acct.get("holdings", []):
-                if (h.get("ticker") or "").upper() != tkr:
-                    continue
-
-                units = h.get("units") or h.get("quantity")
-                mv_gbp = None if units is None or last_close is None else round(units * last_close, 2)
-
-                gain_gbp, gain_pct = _position_gain(h, mv_gbp)
-
-                positions.append(
-                    {
-                        "owner": owner,
-                        "account": acct_name,
-                        "units": units,
-                        "market_value_gbp": mv_gbp,
-                        "unrealised_gain_gbp": gain_gbp,
-                        "gain_pct": gain_pct,
-                    }
-                )
+                if (h.get("ticker") or "").upper() == tkr:
+                    positions.append(_position_from_holding(owner, account, h, owner_total))
     return positions
 
 
@@ -358,7 +397,7 @@ def instrument(
     base_currency = (base_currency or getattr(config, "base_currency", None) or "GBP").upper()
 
     if df.empty:
-        positions = _positions_for_ticker(ticker.upper(), None)
+        positions = _positions_for_ticker(ticker.upper())
         if format == "json":
             # Known tickers (present in portfolio or instrument metadata) with no
             # price history return an empty series with 200 so dashboard preloads
@@ -462,47 +501,10 @@ def instrument(
 
     df = df[pd.notnull(df["Close"])]
 
-    last_close: float | None = None
-    if "Close_gbp" in df.columns:
-        try:
-            last_val = df.iloc[-1]["Close_gbp"]
-            last_close = float(last_val) if pd.notnull(last_val) else None
-        except (TypeError, ValueError):
-            last_close = None
-
-    if last_close is None and "Close" in df.columns:
-        try:
-            native_close = df.iloc[-1]["Close"]
-            native_close_f = float(native_close) if pd.notnull(native_close) else None
-        except (TypeError, ValueError):
-            native_close_f = None
-
-        if native_close_f is not None:
-            if native_currency in {None, "GBP"}:
-                last_close = native_close_f
-            elif native_currency == "GBX":
-                last_close = native_close_f / 100.0
-            else:
-                last_date_val = df.iloc[-1]["Date"]
-                if isinstance(last_date_val, pd.Timestamp):
-                    last_date = last_date_val.date()
-                else:
-                    last_date = pd.to_datetime(last_date_val).date()
-                try:
-                    fx_last = fetch_fx_rate_range(native_currency, "GBP", last_date, last_date)
-                    if not fx_last.empty:
-                        rate = fx_last.iloc[-1]["Rate"]
-                        rate_f = float(rate) if pd.notnull(rate) else None
-                        if rate_f:
-                            last_close = native_close_f * rate_f
-                except Exception:
-                    pass
-    positions = _positions_for_ticker(ticker.upper(), last_close)
-
-    if scale != 1.0:
-        for p in positions:
-            if p.get("unrealised_gain_gbp") is not None:
-                p["unrealised_gain_gbp"] = p["unrealised_gain_gbp"] * scale
+    # Positions come from the dashboard's enriched holdings pipeline, which
+    # prices (and scales) each holding itself; they do not depend on this
+    # request's price window (#8533).
+    positions = _positions_for_ticker(ticker.upper())
 
     # ── JSON ───────────────────────────────────────────────────
     if format == "json":

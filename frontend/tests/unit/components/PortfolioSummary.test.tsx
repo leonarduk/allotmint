@@ -154,6 +154,33 @@ describe("computePortfolioTotals", () => {
     expect(totals.unknownCostBasisCount).toBe(0);
     expect(totals.gainEligibleHoldingCount).toBe(2);
   });
+
+  it("counts a holding that is both unpriced and unknown-cost once, under cost basis (#8607)", () => {
+    const accounts = [
+      account([
+        holding({ ticker: "AAA.L", market_value_gbp: 100, cost_basis_gbp: 80, gain_gbp: 20 }),
+        holding({
+          ticker: "BOTH.L",
+          market_value_gbp: null,
+          cost_basis_gbp: 0,
+          effective_cost_basis_gbp: 0,
+          gain_gbp: null,
+          gain_pct: null,
+          cost_basis_source: "unknown",
+        }),
+      ]),
+    ];
+    const totals = computePortfolioTotals(accounts);
+
+    expect(totals.totalGain).toBe(20);
+    expect(totals.totalCost).toBe(80);
+    // Excluded exactly once, so the "N of M" counts never exceed M.
+    expect(totals.unknownCostBasisCount).toBe(1);
+    expect(totals.unpricedHoldingCount).toBe(0);
+    expect(totals.unknownCostBasisCount + totals.unpricedHoldingCount).toBeLessThanOrEqual(
+      totals.gainEligibleHoldingCount,
+    );
+  });
 });
 
 describe("PortfolioSummary", () => {

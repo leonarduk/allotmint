@@ -28,8 +28,10 @@ export type PortfolioTotals = {
   /** Non-cash holdings with no market value (no price), excluded from
    * totalGain/totalCost (#8607). Without a price their gain cannot be
    * computed; treating the missing value as £0 would book their whole cost
-   * as a loss. Counted separately from unknownCostBasisCount (a holding is
-   * counted in at most one of the two). */
+   * as a loss. Counted separately from unknownCostBasisCount: a holding is
+   * counted in at most one of the two, and unknown cost basis takes
+   * precedence, so an unpriced holding with an unreliable cost basis is
+   * reported under cost basis and the "N of M" counts never exceed M. */
   unpricedHoldingCount: number;
 };
 
@@ -164,8 +166,8 @@ export function PortfolioSummary({ totals }: Props) {
   } = totals;
   const { baseCurrency } = useConfig();
 
-  // When every holding is excluded (unknown cost basis or no price),
-  // totalCost/totalGain are both zero -- not because the portfolio broke
+  // When every gain-eligible holding is excluded (unknown cost basis or no
+  // price), totalCost/totalGain are both zero -- not because the portfolio broke
   // even, but because there is nothing to compute from. Say so rather than
   // showing a confident £0.00.
   const allGainUnknown =

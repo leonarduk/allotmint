@@ -141,6 +141,7 @@ def test_get_price_snapshot_handles_missing_live_fields(monkeypatch: pytest.Monk
     assert missing_price["change_7d_pct"] is None
     assert missing_price["change_30d_pct"] is None
     assert missing_price["last_price_time"] is not None
+    assert missing_price["last_price_date"] is None  # no price, so no price date
 
     missing_ts = snapshot[ticker_missing_ts]
     assert missing_ts["last_price"] == pytest.approx(1.0)
@@ -225,6 +226,21 @@ def test_get_price_snapshot_marks_undated_cached_close_stale(monkeypatch: pytest
 
     assert info["is_stale"] is True
     assert info["last_price_date"] is None
+
+
+def test_get_price_snapshot_no_data_has_no_price_date(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With neither a live quote nor a cached close, no price date is implied."""
+    ticker = "NONE.L"
+
+    monkeypatch.setattr(prices, "_load_latest_closes", lambda tickers: {})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+
+    info = prices.get_price_snapshot([ticker])[ticker]
+
+    assert info["last_price"] is None
+    assert info["price_currency"] is None
+    assert info["last_price_date"] is None
+    assert info["is_stale"] is True
 
 
 def test_get_price_snapshot_uses_prior_weekday_on_weekend(monkeypatch: pytest.MonkeyPatch) -> None:

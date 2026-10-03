@@ -193,7 +193,10 @@ def load_latest_closes(
                 continue
 
             key = f"{ticker}.{exchange}"
-            result[key] = (val, _parse_date(last[df.columns[0]]))
+            # Look the date up by name; fall back to the first column, which
+            # the sort above already treats as the date in these feeds.
+            date_col = name_map.get("date") or df.columns[0]
+            result[key] = (val, _parse_date(last[date_col]))
 
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning(

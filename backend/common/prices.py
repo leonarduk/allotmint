@@ -28,6 +28,10 @@ Note on is_stale semantics (#8595)
 * A last close is fresh when it is from the latest completed trading day
   (``PricingDateCalculator.reporting_date``); older closes are stale.
   ``last_price_date`` carries the close's own date so consumers can show it.
+* A live quote reports the latest trading day as ``last_price_date`` (the
+  day its 7/30-day changes are anchored to); ``last_price_time`` carries the
+  quote's own timestamp.
+* An entry with no price reports ``last_price_date = None``.
 * When no price is available, ``price_currency`` is ``None``.
 """
 
@@ -188,7 +192,8 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         elif not is_nan(last_close):
             price = float(last_close)
             # A close from the latest completed trading day is fresh; only an
-            # older (or undated) close is stale (#8595).
+            # older (or undated) close is stale (#8595). A close dated after
+            # the trading day (feed clock ahead of ours) is not older, so fresh.
             price_date = close_date
             is_stale = close_date is None or close_date < last_trading_day
             # _load_latest_closes already normalises to GBP.
@@ -203,7 +208,7 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
             "price_currency": price_currency,
             "change_7d_pct": None,
             "change_30d_pct": None,
-            "last_price_date": price_date.isoformat() if price_date else None,
+            "last_price_date": price_date.isoformat() if price is not None and price_date else None,
             "last_price_time": ts.isoformat().replace("+00:00", "Z") if ts else None,
             "is_stale": is_stale,
         }

@@ -452,6 +452,25 @@ def test_load_latest_closes_reports_the_row_date(monkeypatch):
     assert hu.load_latest_prices(["FOO.L"]) == {"FOO.L": pytest.approx(10.0)}
 
 
+def test_load_latest_closes_finds_date_column_by_name(monkeypatch):
+    served = pd.DataFrame({"Close_gbp": [9.0, 10.0], "Date": [pd.Timestamp("2026-09-24"), pd.Timestamp("2026-09-25")]})
+    monkeypatch.setattr(hu, "load_meta_timeseries_range", lambda **_k: served)
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *a, **k: 1.0)
+
+    price, close_date = hu.load_latest_closes(["FOO.L"])["FOO.L"]
+
+    assert close_date == _REPORTING
+    assert price == pytest.approx(10.0)
+
+
+def test_load_latest_closes_unparseable_date_is_none(monkeypatch):
+    served = pd.DataFrame({"Date": ["2026-09-24", "not-a-date"], "Close_gbp": [9.0, 10.0]})
+    monkeypatch.setattr(hu, "load_meta_timeseries_range", lambda **_k: served)
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *a, **k: 1.0)
+
+    assert hu.load_latest_closes(["FOO.L"]) == {"FOO.L": (pytest.approx(10.0), None)}
+
+
 @pytest.mark.parametrize(
     ("close_date", "expected_stale"),
     [

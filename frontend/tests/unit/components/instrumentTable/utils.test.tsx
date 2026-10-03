@@ -162,4 +162,31 @@ describe('calculateGroupTotals with unknown cost basis (#7785)', () => {
     const ascending = createGroups(groupRows, 'gain_gbp', true, 'group', labels, lookup);
     expect(ascending.map((group) => group.label)).toEqual(['Loss', 'Gain', 'Unreliable']);
   });
+
+  it('sorts groups with NaN or missing totals last in both directions (#8531)', () => {
+    const labels = { ungroupedLabel: 'Ungrouped', uncategorisedLabel: 'Uncategorised' };
+    const lookup = buildCategoryLookup([]);
+
+    // NaN market value propagates into the group's marketValue total.
+    const marketRows = createRowsWithCost([
+      { ...base, ticker: 'N', grouping: 'NaN', market_value_gbp: Number.NaN },
+      { ...base, ticker: 'S', grouping: 'Small', market_value_gbp: 100 },
+      { ...base, ticker: 'B', grouping: 'Big', market_value_gbp: 5000 },
+    ]);
+    for (const asc of [true, false]) {
+      const sorted = createGroups(marketRows, 'market_value_gbp', asc, 'group', labels, lookup);
+      expect(sorted.at(-1)?.label).toBe('NaN');
+    }
+
+    // No 7d change on any row leaves the group's change7dPct missing.
+    const changeRows = createRowsWithCost([
+      { ...base, ticker: 'M', grouping: 'Missing', change_7d_pct: undefined },
+      { ...base, ticker: 'D', grouping: 'Down', change_7d_pct: -3 },
+      { ...base, ticker: 'U', grouping: 'Up', change_7d_pct: 4 },
+    ]);
+    const ascending = createGroups(changeRows, 'change_7d_pct', true, 'group', labels, lookup);
+    expect(ascending.map((group) => group.label)).toEqual(['Down', 'Up', 'Missing']);
+    const descending = createGroups(changeRows, 'change_7d_pct', false, 'group', labels, lookup);
+    expect(descending.map((group) => group.label)).toEqual(['Up', 'Down', 'Missing']);
+  });
 });

@@ -272,6 +272,37 @@ describe("InstrumentTable", () => {
         expect(within(groupASummary).getByText("▲£50.00")).toBeInTheDocument();
     });
 
+    it("keeps numeric Cost/Gain in the overall totals row for a mixed portfolio (#8531)", async () => {
+        const mixedRows: InstrumentSummary[] = [
+            ...rows,
+            { ...rows[2], ticker: "UNK", name: "Unknown Co", gain_gbp: 0, cost_basis_source: "unknown" },
+        ];
+        const { container } = renderWithConfig(<InstrumentTable rows={mixedRows} />);
+        await screen.findByRole("button", { name: /Toggle Group A/i });
+
+        const footer = container.querySelector("tfoot") as HTMLElement;
+        // Cost 900 + 550 + 270 + 180 and gain 100 - 50 + 30 + 20; the
+        // unknown-cost row is left out of both.
+        expect(within(footer).getByText("£1,900.00")).toBeInTheDocument();
+        expect(within(footer).getByText("▲£100.00")).toBeInTheDocument();
+    });
+
+    it("shows — for overall Cost/Gain when no row has a reliable cost (#8531)", async () => {
+        const unreliable = rows.map((row) => ({
+            ...row,
+            gain_gbp: 0,
+            cost_basis_source: "unknown",
+        }));
+        const { container } = renderWithConfig(<InstrumentTable rows={unreliable} />);
+        await screen.findByRole("button", { name: /Toggle Group A/i });
+
+        const footer = container.querySelector("tfoot") as HTMLElement;
+        expect(within(footer).queryByText("£0.00")).toBeNull();
+        expect(within(footer).getByText("£2,000.00")).toBeInTheDocument();
+        // Cost and Gain fall back to "—" alongside the always-"—" columns.
+        expect(within(footer).getAllByText("—").length).toBeGreaterThanOrEqual(4);
+    });
+
     it("hides group totals when showGroupTotals is false", async () => {
         render(<InstrumentTable rows={rows} showGroupTotals={false} />);
         await screen.findByRole("button", { name: /Toggle Group A/i });

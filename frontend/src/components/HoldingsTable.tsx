@@ -321,6 +321,8 @@ export function HoldingsTable({
       // A null gain only arises when cost <= 0 (adds nothing to cost totals)
       // or the cost basis is already unreliable (excluded by
       // calculateGroupTotals), so it contributes no gain either (#8471).
+      // Group totals that are null (#8531) come from calculateGroupTotals,
+      // not from this per-row fallback.
       gain_gbp: row.gain ?? 0,
       change_7d_pct: row.change_7d_pct ?? row.forward_7d_change_pct ?? null,
       change_30d_pct: row.change_30d_pct ?? row.forward_30d_change_pct ?? null,

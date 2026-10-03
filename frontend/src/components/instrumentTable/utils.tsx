@@ -243,6 +243,8 @@ export function calculateGroupTotals(rows: RowWithCost[], label: string): GroupT
   const gainPct = Math.abs(totalCost) > 1e-9 ? (totalGain / totalCost) * 100 : null;
   // With no reliable cost at all, gain/cost are unknown rather than £0 (#8531).
   const hasKnownCost = costKnown.length > 0;
+  // Distinct tickers, not rows: the "(N)" group label counts rows, so two lots
+  // of one ticker show "(2)" with their units still summed (#8531).
   const instrumentCount = new Set(rows.map((row) => row.ticker)).size;
 
   const weightedAverage = (accessor: (row: RowWithCost) => number | null | undefined): number | null => {

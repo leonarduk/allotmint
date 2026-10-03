@@ -64,8 +64,12 @@ def _seed_empty_snapshot() -> None:
         client = boto3.client("s3")
         # Only seed a missing key: a failed refresh must not replace the last
         # good snapshot with {} (#8805).
-        if s3_snapshot_exists(client, bucket) is not False:
-            logger.info("Price snapshot already present (or unverifiable); not seeding {}")
+        exists = s3_snapshot_exists(client, bucket)
+        if exists:
+            logger.info("Price snapshot already present; not seeding {}")
+            return
+        if exists is None:
+            logger.warning("Can't check for an existing price snapshot; not seeding {}")
             return
         client.put_object(
             Bucket=bucket,

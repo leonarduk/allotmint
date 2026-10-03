@@ -369,9 +369,14 @@ def _upload_snapshot_to_s3(merged: Dict) -> None:
         import boto3  # type: ignore
 
         client = boto3.client("s3")
-        if not merged and s3_snapshot_exists(client, _s3_bucket) is not False:
-            logger.error("No prices fetched; keeping the existing S3 price snapshot rather than uploading {}")
-            return
+        if not merged:
+            exists = s3_snapshot_exists(client, _s3_bucket)
+            if exists:
+                logger.error("No prices fetched; keeping the existing S3 price snapshot rather than uploading {}")
+                return
+            if exists is None:
+                logger.error("No prices fetched and the S3 price snapshot can't be checked; not uploading {}")
+                return
         client.put_object(
             Bucket=_s3_bucket,
             Key=PRICES_S3_KEY,

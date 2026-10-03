@@ -466,6 +466,39 @@ def test_refresh_prices_uploads_existing_snapshot_to_s3_when_all_prices_null(
     assert put_calls[0]["ContentType"] == "application/json"
 
 
+def test_refresh_universe_finds_held_tickers_with_auth_enabled_only_as_system_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End to end through list_all_unique_tickers -> list_portfolios -> _list_aws_plots (#8805).
+
+    With auth enabled and no request user, owner discovery hides every owner,
+    so the refresh universe is empty -- unless it runs as a system job, as the
+    scheduled PriceRefreshLambda does.
+    """
+    from backend.auth import system_job_context
+    from backend.common import data_loader, portfolio_loader, portfolio_utils
+
+    class _FakeS3Provider:
+        def list_plots(self, current_user=None):
+            return [{"owner": "alice", "accounts": ["isa"]}]
+
+    monkeypatch.setattr(data_loader.config, "disable_auth", False, raising=False)
+    monkeypatch.setattr(data_loader.config, "app_env", "aws", raising=False)
+    monkeypatch.setattr(data_loader, "S3DataProvider", _FakeS3Provider)
+    monkeypatch.setattr(data_loader, "load_person_meta", lambda owner: {})
+    monkeypatch.setattr(
+        portfolio_loader,
+        "_build_owner_portfolio",
+        lambda summary: {"owner": summary.owner, "person": {}, "accounts": [{"holdings": [{"ticker": "AAA.L"}]}]},
+    )
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+    monkeypatch.setattr(prices.price_triggers, "watched_tickers", lambda: [])
+
+    assert prices.refresh_universe() == []
+    with system_job_context():
+        assert prices.refresh_universe() == ["AAA.L"]
+
+
 def _empty_refresh(tmp_path, monkeypatch: pytest.MonkeyPatch, head_object) -> list:
     """Run refresh_prices with nothing fetched and no local seed (a fresh Lambda container)."""
     monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: [])

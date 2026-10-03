@@ -106,7 +106,13 @@ def is_system_job() -> bool:
 
 @contextmanager
 def system_job_context() -> Iterator[None]:
-    """Run a trusted system job that may list every owner without a request user."""
+    """Run a trusted system job that may list every owner without a request user.
+
+    Never use this on an HTTP request path: inside it, an unauthenticated
+    caller sees every owner. It is for scheduled/Lambda entry points only.
+    The ContextVar is not propagated to threads started inside the block, so
+    owner discovery must run on the calling thread.
+    """
 
     token = _system_job.set(True)
     try:

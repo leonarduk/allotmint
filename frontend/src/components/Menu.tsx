@@ -181,14 +181,14 @@ export default function Menu({
         type="button"
         aria-expanded={mobileMenuOpen}
         aria-controls="app-main-menu"
-        className="mb-3 inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-gray-300 px-4 text-sm font-medium text-gray-700 sm:hidden"
+        className="mb-3 inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-[var(--menu-toggle-border)] px-4 text-sm font-medium text-[var(--menu-toggle-text)] sm:hidden"
         onClick={() => setMobileMenuOpen((current) => !current)}
       >
         {mobileMenuOpen ? t('app.close') : t('app.menu')}
       </button>
       <ul
         id="app-main-menu"
-        className={`${mobileMenuOpen ? 'flex' : 'hidden'} list-none flex-col gap-3 border-b border-gray-200 pb-4 sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-4`}
+        className={`${mobileMenuOpen ? 'flex' : 'hidden'} list-none flex-col gap-3 border-b border-[var(--menu-border)] pb-4 sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-4`}
       >
         {categoriesToRender.map((category) => {
           const isOpen = category.id === openCategory;
@@ -208,8 +208,8 @@ export default function Menu({
                 aria-controls={panelId}
                 className={`flex min-h-11 w-full items-center justify-between gap-2 rounded border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring sm:min-w-[8rem] sm:w-auto ${
                   isOpen || containsActiveTab
-                    ? 'border-blue-600 bg-gray-100 text-gray-900'
-                    : 'border-transparent bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    ? 'border-blue-600 bg-[var(--menu-active-bg)] text-[var(--menu-text-active)]'
+                    : 'border-transparent bg-transparent text-[var(--menu-text)] hover:bg-[var(--menu-hover-bg)] hover:text-[var(--menu-text-active)]'
                 }`}
                 onClick={() =>
                   setOpenCategory((current) =>
@@ -254,6 +254,10 @@ export default function Menu({
                   }
                 }}
               >
+                {/* Item text colours use Tailwind's `!` (important) modifier so
+                    they beat the unlayered global `a` / `a:hover` colours in
+                    index.css, which otherwise outrank the utilities layer and
+                    left items in the default link blue (#8609). */}
                 <ul className="flex list-none flex-col gap-2">
                   {category.tabs.map((tab) => (
                     <li key={tab.mode}>
@@ -266,8 +270,8 @@ export default function Menu({
                         })}
                         className={`block min-h-11 w-full rounded px-3 py-2 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           mode === tab.mode
-                            ? 'font-semibold text-gray-900'
-                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                            ? 'font-semibold text-[var(--menu-text-active)]!'
+                            : 'text-[var(--menu-text)]! hover:bg-[var(--menu-hover-bg)] hover:text-[var(--menu-text-active)]!'
                         }`}
                       >
                         {t(`app.modes.${tab.mode}`)}
@@ -282,8 +286,8 @@ export default function Menu({
                         to="/metrics-explained"
                         className={`block min-h-11 w-full rounded px-3 py-2 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           location.pathname === '/metrics-explained'
-                            ? 'font-semibold text-gray-900'
-                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                            ? 'font-semibold text-[var(--menu-text-active)]!'
+                            : 'text-[var(--menu-text)]! hover:bg-[var(--menu-hover-bg)] hover:text-[var(--menu-text-active)]!'
                         }`}
                       >
                         {t('app.glossaryLink', 'Glossary')}
@@ -309,7 +313,7 @@ export default function Menu({
                           to={buildPathForMode(
                             firstOperationsEntry?.mode ?? 'support'
                           )}
-                          className="block min-h-11 w-full rounded px-3 py-2 text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
+                          className="block min-h-11 w-full rounded px-3 py-2 text-sm text-[var(--menu-text)]! transition-colors duration-150 hover:bg-[var(--menu-hover-bg)] hover:text-[var(--menu-text-active)]! focus:outline-none focus-visible:ring"
                         >
                           {t('app.operationsLink', 'Operations')}
                         </Link>
@@ -325,7 +329,7 @@ export default function Menu({
                         ref={assignFirstFocusable}
                         role="menuitem"
                         to={buildPathForMode('group', { group: selectedGroup })}
-                        className="block min-h-11 w-full rounded px-3 py-2 text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
+                        className="block min-h-11 w-full rounded px-3 py-2 text-sm text-[var(--menu-text)]! transition-colors duration-150 hover:bg-[var(--menu-hover-bg)] hover:text-[var(--menu-text-active)]! focus:outline-none focus-visible:ring"
                       >
                         {t('app.userLink')}
                       </Link>

@@ -161,7 +161,10 @@ def load_latest_closes(
             if not close_gbp_col and not close_native_col:
                 continue
 
-            df = df.sort_values(df.columns[0])  # first column is Date in these feeds
+            # Sort by, and later read the close date from, the same column: the
+            # named "Date" column, else the first column (Date in these feeds).
+            date_col = name_map.get("date") or df.columns[0]
+            df = df.sort_values(date_col)
             last = df.iloc[-1]
 
             selected_col = close_gbp_col or close_native_col
@@ -195,9 +198,6 @@ def load_latest_closes(
                 continue
 
             key = f"{ticker}.{exchange}"
-            # Look the date up by name; fall back to the first column, which
-            # the sort above already treats as the date in these feeds.
-            date_col = name_map.get("date") or df.columns[0]
             result[key] = (val, _parse_date(last[date_col]))
 
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:

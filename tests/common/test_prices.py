@@ -213,6 +213,23 @@ def test_get_price_snapshot_marks_older_cached_close_stale(
     assert info["last_price_date"] == close_day.isoformat()
 
 
+def test_get_price_snapshot_close_dated_after_trading_day_is_fresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A feed whose clock runs ahead of ours: the close isn't older than the trading day, so fresh."""
+    ticker = "AHEAD.L"
+    last_trading_day = prices._nearest_weekday(date.today() - timedelta(days=1), forward=False)
+    close_day = last_trading_day + timedelta(days=1)
+
+    monkeypatch.setattr(prices, "_load_latest_closes", lambda tickers: {ticker: (50.0, close_day)})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("AHEAD", "L"))
+    monkeypatch.setattr(prices, "_close_on", lambda *args, **kwargs: None)
+
+    info = prices.get_price_snapshot([ticker])[ticker]
+
+    assert info["is_stale"] is False
+    assert info["last_price_date"] == close_day.isoformat()
+
+
 def test_get_price_snapshot_marks_undated_cached_close_stale(monkeypatch: pytest.MonkeyPatch) -> None:
     """A close whose row date can't be determined is treated as stale, not silently fresh."""
     ticker = "NODATE.L"

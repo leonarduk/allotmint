@@ -454,7 +454,8 @@ def test_load_latest_closes_reports_the_row_date(monkeypatch):
 
 
 def test_load_latest_closes_finds_date_column_by_name(monkeypatch):
-    served = pd.DataFrame({"Close_gbp": [9.0, 10.0], "Date": [pd.Timestamp("2026-09-24"), pd.Timestamp("2026-09-25")]})
+    """Date not first and rows not in price order: sort and date both key on "Date"."""
+    served = pd.DataFrame({"Close_gbp": [10.0, 11.0], "Date": [pd.Timestamp("2026-09-25"), pd.Timestamp("2026-09-24")]})
     monkeypatch.setattr(hu, "load_meta_timeseries_range", lambda **_k: served)
     monkeypatch.setattr(hu, "get_scaling_override", lambda *a, **k: 1.0)
 

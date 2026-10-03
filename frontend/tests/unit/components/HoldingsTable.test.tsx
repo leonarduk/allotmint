@@ -672,6 +672,8 @@ describe("HoldingsTable", () => {
                 await screen.findByRole("button", { name: "Toggle Unreliable" })
             ).closest("tr")!;
             expect(within(unreliableRow).getAllByText("N/A")).toHaveLength(2);
+            // Both N/A spans (Gain £ and Cost £) explain why via the tooltip.
+            expect(within(unreliableRow).getAllByTitle(gainUnknownTitle)).toHaveLength(2);
             expect(within(unreliableRow).queryByText("£0.00")).toBeNull();
             expect(within(unreliableRow).getByText("£40.00")).toBeInTheDocument();
 

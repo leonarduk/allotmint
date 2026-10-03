@@ -12,6 +12,7 @@ Read path contract (mirrors backend/routes/data_quality.py):
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import date
@@ -21,6 +22,7 @@ from typing import Any, Iterable, Iterator, Sequence
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, enrich_holding
 from backend.common.instruments import get_instrument_meta, resolve_instrument_ticker
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
     cache_only,
     has_cached_meta_timeseries,
@@ -34,6 +36,8 @@ from backend.timeseries.quality import (
     compute_quality,
 )
 
+logger = logging.getLogger(__name__)
+
 # A cached series is STALE when its last date is older than this many days.
 DEFAULT_STALE_SERIES_MAX_AGE_DAYS = 10
 
@@ -45,6 +49,10 @@ class IssueType:
     UNRESOLVED_TICKER = "UNRESOLVED_TICKER"
     MISSING_SERIES = "MISSING_SERIES"
     STALE_SERIES = "STALE_SERIES"
+    # Stale, but outside the scheduled refresh universe: an orphaned cache
+    # file (former holding, one-off screener seed, legacy key), not a
+    # failing refresh (#8599).
+    UNTRACKED_STALE_SERIES = "UNTRACKED_STALE_SERIES"
     GAPS = "GAPS"
     DUPLICATES = "DUPLICATES"
     OUTLIERS = "OUTLIERS"
@@ -58,6 +66,7 @@ SEVERITY = {
     IssueType.UNRESOLVED_TICKER: "high",
     IssueType.MISSING_SERIES: "medium",
     IssueType.STALE_SERIES: "medium",
+    IssueType.UNTRACKED_STALE_SERIES: "low",
     IssueType.GAPS: "medium",
     IssueType.DUPLICATES: "low",
     IssueType.OUTLIERS: "low",
@@ -358,17 +367,109 @@ def aggregate_holding_issues(
     return _dedupe_issues(issues)
 
 
+def _refresh_universe() -> list[str]:
+    """Tickers the scheduled price refresh keeps fresh (held + virtual + watched)."""
+    # Imported lazily: backend.common.prices pulls in the portfolio loaders.
+    from backend.common.prices import refresh_universe
+
+    return refresh_universe()
+
+
+def _tracked_series_keys(accounts_root: Path | None) -> tuple[set[str], set[str]] | None:
+    """Return ``(full_keys, bare_symbols)`` the refresh keeps fresh, or None.
+
+    Unions the refresh job's own universe with the holdings under
+    ``accounts_root`` (the request-resolved tree). Tickers without an
+    exchange suffix (e.g. ``AV.``) match on symbol so a suffix problem never
+    hides a held series as untracked. None means the universe could not be
+    determined; callers then treat every series as tracked so a real refresh
+    failure is never under-reported.
+    """
+    try:
+        universe = list(_refresh_universe())
+        universe.extend(str(h.get("ticker") or "") for _, _, h in iter_holdings(accounts_root))
+    except Exception as exc:
+        logger.warning(
+            "Could not determine the price refresh universe; reporting all stale series as tracked: %s",
+            sanitise_log_value(exc),
+        )
+        return None
+    full: set[str] = set()
+    bare: set[str] = set()
+    for raw in universe:
+        symbol, sep, exchange = raw.strip().upper().partition(".")
+        if not symbol:
+            continue
+        if sep and exchange:
+            full.add(f"{symbol}.{exchange}")
+        else:
+            bare.add(symbol)
+    return full, bare
+
+
+def _is_tracked(ticker: str, exchange: str, tracked: tuple[set[str], set[str]] | None) -> bool:
+    if tracked is None:
+        return True
+    full, bare = tracked
+    return f"{ticker}.{exchange}".upper() in full or ticker.upper() in bare
+
+
+def _stale_series_issue(
+    ticker: str,
+    exchange: str,
+    last: date,
+    age_days: int,
+    tracked: tuple[set[str], set[str]] | None,
+) -> DataQualityIssue:
+    """Build the stale issue: a failing refresh if tracked, an orphan if not."""
+    entity: dict[str, Any] = {"ticker": ticker, "exchange": exchange}
+    before = {"last_date": last.isoformat()}
+    if not _is_tracked(ticker, exchange, tracked):
+        return DataQualityIssue(
+            id=_issue_id(IssueType.UNTRACKED_STALE_SERIES, ticker, exchange),
+            type=IssueType.UNTRACKED_STALE_SERIES,
+            severity=SEVERITY[IssueType.UNTRACKED_STALE_SERIES],
+            entity=entity,
+            description=(
+                f"Series {ticker}.{exchange} last updated {last} ({age_days} days ago). "
+                f"It is not held or watched, so no scheduled refresh maintains it."
+            ),
+            suggested_fix=(
+                "Delete the orphaned cache file, or hold/watch the ticker if it should "
+                "stay current (check it is not delisted or renamed)."
+            ),
+            preview={"before": before, "after": {"last_date": "unchanged"}},
+            fixable=False,
+        )
+    return DataQualityIssue(
+        id=_issue_id(IssueType.STALE_SERIES, ticker, exchange),
+        type=IssueType.STALE_SERIES,
+        severity=SEVERITY[IssueType.STALE_SERIES],
+        entity=entity,
+        description=f"Series {ticker}.{exchange} last updated {last} ({age_days} days ago).",
+        suggested_fix="Refetch the series.",
+        preview={"before": before, "after": {"last_date": "refetched"}},
+        fix_payload={"kind": "refetch", "ticker": ticker, "exchange": exchange},
+    )
+
+
 def aggregate_series_issues(
     *,
     stale_max_age_days: int = DEFAULT_STALE_SERIES_MAX_AGE_DAYS,
     gap_threshold_days: int = DEFAULT_GAP_THRESHOLD_DAYS,
     outlier_sigma: float = DEFAULT_OUTLIER_SIGMA,
     rolling_window: int = DEFAULT_ROLLING_WINDOW,
+    accounts_root: Path | None = None,
 ) -> list[DataQualityIssue]:
     """Detect timeseries-side issues: stale, gaps, duplicates, outliers,
-    missing metadata, and ticker/cache-key mismatches."""
+    missing metadata, and ticker/cache-key mismatches.
+
+    A stale series is ``STALE_SERIES`` only when the scheduled refresh is
+    responsible for it; otherwise it is ``UNTRACKED_STALE_SERIES`` (#8599).
+    """
     issues: list[DataQualityIssue] = []
     today = date.today()
+    tracked = _tracked_series_keys(accounts_root)
     for ticker, exchange in list_cached_meta_tickers():
         try:
             df = load_cached_meta_timeseries_full(ticker, exchange)
@@ -479,25 +580,7 @@ def aggregate_series_issues(
             last = last_date if isinstance(last_date, date) else date.fromisoformat(str(last_date))
             age_days = (today - last).days
             if age_days > stale_max_age_days:
-                issues.append(
-                    DataQualityIssue(
-                        id=_issue_id(IssueType.STALE_SERIES, ticker, exchange),
-                        type=IssueType.STALE_SERIES,
-                        severity=SEVERITY[IssueType.STALE_SERIES],
-                        entity=entity,
-                        description=(f"Series {ticker}.{exchange} last updated {last} " f"({age_days} days ago)."),
-                        suggested_fix="Refetch the series.",
-                        preview={
-                            "before": {"last_date": last.isoformat()},
-                            "after": {"last_date": "refetched"},
-                        },
-                        fix_payload={
-                            "kind": "refetch",
-                            "ticker": ticker,
-                            "exchange": exchange,
-                        },
-                    )
-                )
+                issues.append(_stale_series_issue(ticker, exchange, last, age_days, tracked))
 
         # Ticker column in the cache rows must match the cache key.
         if "Ticker" in df.columns:
@@ -537,7 +620,7 @@ def aggregate_issues(
     """Aggregate holdings + series issues into one deduplicated list."""
     issues: list[DataQualityIssue] = aggregate_holding_issues(accounts_root)
     if include_series:
-        issues.extend(aggregate_series_issues(**series_kwargs))
+        issues.extend(aggregate_series_issues(accounts_root=accounts_root, **series_kwargs))
     return _dedupe_issues(issues)
 
 

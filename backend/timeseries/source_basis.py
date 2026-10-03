@@ -99,6 +99,7 @@ def combine_sources(frames: Iterable[pd.DataFrame], *, label: str = "") -> pd.Da
     candidates = [f for f in frames if f is not None and not f.empty]
     if not candidates:
         return pd.DataFrame()
+    # ``-i`` makes ``max`` pick the earliest frame among equally covered ones.
     primary_idx = max(range(len(candidates)), key=lambda i: (_dates(candidates[i]).nunique(), -i))
     primary = candidates[primary_idx]
     combined = primary.loc[~_dates(primary).duplicated(keep="last").to_numpy()]

@@ -585,6 +585,38 @@ def test_rolling_cache_forward_fetch_overlaps_cached_history(monkeypatch, tmp_pa
     assert captured["start_date"] == have_max - timedelta(days=cache._BASIS_OVERLAP_DAYS)
 
 
+def test_rolling_cache_backfill_fetch_overlaps_cached_history(monkeypatch, tmp_path):
+    """Fetching an earlier chunk also re-covers the oldest cached days for the basis check."""
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    cache_path = cache._cache_path("foo.parquet")
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+    days = pd.bdate_range(end=window_end, periods=30)
+    cache._save_parquet(pd.concat([_day_frame(cache, d.date(), 10.0) for d in days], ignore_index=True), cache_path)
+    have_min = days[0].date()
+    captured = {}
+
+    def fetch(**kwargs):
+        captured.update(kwargs)
+        return cache._empty_ts()
+
+    cache._rolling_cache(fetch, cache_path, {}, days=90, ticker="ABC", exchange="L")
+
+    assert captured["end_date"] == have_min + timedelta(days=cache._BASIS_OVERLAP_DAYS)
+
+
+def test_rolling_cache_same_source_skips_the_basis_check(cache_store):
+    """A cache holding only SRC accepts further SRC rows without needing shared dates."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+
+    result = _run(cache, cache_path, _day_frame(cache, day + timedelta(days=1), 20.0))
+
+    assert len(saves) == 1
+    assert result["Close"].tolist() == [10.0, 20.0]
+
+
 def test_rolling_cache_identical_refetch_does_not_save(cache_store):
     cache, cache_path, saves = cache_store
     day = _seed_close_10(cache, cache_path, saves)

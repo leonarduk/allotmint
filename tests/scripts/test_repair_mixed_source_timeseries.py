@@ -50,14 +50,26 @@ def test_drops_minority_source_on_a_different_basis(tmp_path):
 def test_keeps_minority_source_on_the_same_basis(tmp_path):
     path = tmp_path / "ABC_L.parquet"
     pd.concat(
-        [_rows(["2024-01-01", "2024-01-02"], [100.0, 101.0], "Yahoo"), _rows(["2024-01-03"], [101.5], "Stooq")]
+        [
+            _rows(["2024-01-01", "2024-01-03", "2024-01-05"], [100.0, 101.0, 102.0], "Yahoo"),
+            _rows(["2024-01-02", "2024-01-04", "2024-01-08"], [100.5, 101.5, 102.5], "Stooq"),
+        ]
     ).to_parquet(path, index=False)
 
     report = repair.repair_file(path, refill=False)
 
     assert report.dropped == {}
     assert report.kept_sources == ["Stooq"]
-    assert len(report.frame) == 3
+    assert len(report.frame) == 6
+
+
+def test_too_few_neighbour_pairs_is_not_evidence_of_a_shared_basis(tmp_path):
+    path = tmp_path / "ABC_L.parquet"
+    pd.concat(
+        [_rows(["2024-01-01", "2024-01-02"], [100.0, 101.0], "Yahoo"), _rows(["2024-01-03"], [101.5], "Stooq")]
+    ).to_parquet(path, index=False)
+
+    assert repair.repair_file(path, refill=False).dropped == {"Stooq": 1}
 
 
 def test_single_source_file_is_skipped(tmp_path):
@@ -82,6 +94,8 @@ def test_refill_uses_yahoo_only_when_it_matches_the_kept_basis(tmp_path, monkeyp
 
     import backend.timeseries.fetch_yahoo_timeseries as yahoo
 
+    # refill_from_yahoo imports the fetcher at call time, so patching the
+    # module attribute is what it sees; keep that import inside the function.
     monkeypatch.setattr(yahoo, "fetch_yahoo_timeseries_range", fake_fetch)
 
     report = repair.repair_file(path, refill=True)

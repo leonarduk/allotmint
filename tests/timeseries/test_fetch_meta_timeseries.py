@@ -428,6 +428,26 @@ def test_merge_without_shared_dates_keeps_only_the_primary_source():
     assert _merge([yahoo, stooq])["Source"].tolist() == ["Yahoo", "Yahoo"]
 
 
+def test_merge_tie_on_coverage_keeps_the_earlier_source_and_checks_each_supplement():
+    yahoo = _priced_df({"2024-01-01": 10.0, "2024-01-02": 10.0}, "Yahoo")
+    stooq = _priced_df({"2024-01-02": 7.5, "2024-01-03": 7.5}, "Stooq")
+    ft = _priced_df({"2024-01-02": 10.05, "2024-01-04": 10.1}, "FT")
+
+    merged = _merge([yahoo, stooq, ft])
+
+    assert merged["Source"].tolist() == ["Yahoo", "Yahoo", "FT"]
+
+
+def test_basis_ratio_is_none_without_shared_dates():
+    from backend.timeseries.source_basis import basis_ratio, same_basis
+
+    yahoo = _priced_df({"2024-01-01": 10.0}, "Yahoo")
+    stooq = _priced_df({"2024-01-02": 10.0}, "Stooq")
+
+    assert basis_ratio(yahoo, stooq) is None
+    assert same_basis(yahoo, stooq) is False
+
+
 def test_merge_prefers_the_best_covered_source_as_primary():
     yahoo = _priced_df({"2024-01-02": 20.0}, "Yahoo")
     stooq = _priced_df({"2024-01-01": 10.0, "2024-01-02": 10.0, "2024-01-03": 10.0}, "Stooq")

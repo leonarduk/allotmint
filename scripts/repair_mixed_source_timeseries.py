@@ -40,6 +40,8 @@ logger = logging.getLogger(__name__)
 # How far apart a minority-source row and its nearest primary row may be
 # when estimating whether they share a basis.
 NEIGHBOUR_DAYS = 5
+# Fewer neighbouring pairs than this is too little evidence to keep a source.
+MIN_NEIGHBOUR_PAIRS = 3
 PREFERRED_PRIMARY = "Yahoo"
 # Day-to-day move reported as a likely basis jump in the summary.
 JUMP_THRESHOLD = 0.15
@@ -72,7 +74,7 @@ def neighbour_ratio(primary: pd.DataFrame, other: pd.DataFrame) -> float | None:
         left, right, on="Date", direction="nearest", tolerance=pd.Timedelta(days=NEIGHBOUR_DAYS)
     ).dropna(subset=["PrimaryClose"])
     paired = paired[(paired["Close"] > 0) & (paired["PrimaryClose"] > 0)]
-    if paired.empty:
+    if len(paired) < MIN_NEIGHBOUR_PAIRS:
         return None
     return float((paired["Close"] / paired["PrimaryClose"]).median())
 
@@ -101,8 +103,8 @@ def ticker_from_path(path: Path) -> tuple[str, str]:
     return symbol, exchange
 
 
-def refill_from_yahoo(kept: pd.DataFrame, dropped: pd.DataFrame, path: Path) -> pd.DataFrame:
-    """Return Yahoo rows for dates in ``dropped`` that ``kept`` lacks, if Yahoo matches ``kept``'s basis."""
+def refill_from_yahoo(kept: pd.DataFrame, dropped: pd.DataFrame, path: Path, primary: str) -> pd.DataFrame:
+    """Return Yahoo rows for dates in ``dropped`` that ``kept`` lacks, if Yahoo matches the primary's basis."""
     from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
 
     symbol, exchange = ticker_from_path(path)
@@ -110,11 +112,15 @@ def refill_from_yahoo(kept: pd.DataFrame, dropped: pd.DataFrame, path: Path) -> 
     end = dropped["Date"].max().date() + timedelta(days=NEIGHBOUR_DAYS * 2)
     fetched = fetch_yahoo_timeseries_range(symbol, exchange, start, end)
     fetched["Date"] = pd.to_datetime(fetched["Date"]).astype("datetime64[ms]")
-    if not same_basis(kept, fetched):
+    if not same_basis(kept.loc[kept["Source"] == primary], fetched):
         logger.warning("%s: Yahoo refill is not on the cached basis; leaving gaps", path.name)
         return fetched.iloc[0:0]
-    wanted = set(dropped["Date"]) - set(kept["Date"])
-    return fetched.loc[fetched["Date"].isin(wanted)]
+    wanted = set(_day(dropped)) - set(_day(kept))
+    return fetched.loc[_day(fetched).isin(wanted).to_numpy()]
+
+
+def _day(df: pd.DataFrame) -> pd.Series:
+    return pd.to_datetime(df["Date"]).dt.normalize().astype("datetime64[ns]")
 
 
 def repair_file(path: Path, *, refill: bool) -> Repair | None:
@@ -128,7 +134,7 @@ def repair_file(path: Path, *, refill: bool) -> Repair | None:
     kept = split_sources(df, report)
     if refill and report.dropped:
         dropped = df.loc[sources.isin(list(report.dropped)).to_numpy()]
-        extra = refill_from_yahoo(kept, dropped, path)
+        extra = refill_from_yahoo(kept, dropped, path, report.primary)
         report.refilled = len(extra)
         kept = pd.concat([kept, extra[df.columns]], ignore_index=True)
     repaired = kept.sort_values("Date").reset_index(drop=True)[df.columns]

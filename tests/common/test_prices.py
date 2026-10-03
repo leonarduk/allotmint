@@ -466,6 +466,65 @@ def test_refresh_prices_uploads_existing_snapshot_to_s3_when_all_prices_null(
     assert put_calls[0]["ContentType"] == "application/json"
 
 
+def _empty_refresh(tmp_path, monkeypatch: pytest.MonkeyPatch, head_object) -> list:
+    """Run refresh_prices with nothing fetched and no local seed (a fresh Lambda container)."""
+    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: [])
+    monkeypatch.setattr(prices.price_triggers, "watched_tickers", lambda: [])
+    monkeypatch.setattr(prices, "get_price_snapshot", lambda _: {})
+    monkeypatch.setattr(prices, "refresh_fx_cache_for_tickers", lambda _: None)
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
+    monkeypatch.setattr(prices, "check_price_alerts", Mock())
+    monkeypatch.setattr(prices.config, "prices_json", tmp_path / "prices.json")
+    monkeypatch.setattr(prices.config, "app_env", "aws")
+    monkeypatch.setenv("DATA_BUCKET", "test-bucket")
+
+    put_calls: list = []
+    fake = SimpleNamespace(head_object=head_object, put_object=lambda **kw: put_calls.append(kw))
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=lambda svc: fake))
+
+    prices.refresh_prices()
+    return put_calls
+
+
+def test_refresh_prices_keeps_existing_s3_snapshot_when_nothing_fetched(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An empty refresh must not replace a good S3 snapshot with {} (#8805)."""
+    with caplog.at_level("ERROR", logger=prices.logger.name):
+        put_calls = _empty_refresh(tmp_path, monkeypatch, head_object=lambda **_kw: {})
+
+    assert put_calls == []
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("universe is empty" in m for m in messages)
+    assert any("keeping the existing S3 price snapshot" in m for m in messages)
+
+
+def test_refresh_prices_seeds_missing_s3_snapshot_when_nothing_fetched(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no snapshot at all, {} is still uploaded so the key exists (#3685)."""
+    from botocore.exceptions import ClientError
+
+    def missing(**_kw):
+        raise ClientError({"Error": {"Code": "404", "Message": "Not Found"}}, "HeadObject")
+
+    put_calls = _empty_refresh(tmp_path, monkeypatch, head_object=missing)
+
+    assert len(put_calls) == 1
+    assert json.loads(put_calls[0]["Body"]) == {}
+
+
+def test_refresh_prices_does_not_upload_empty_snapshot_when_existence_unknown(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A denied/failed HEAD means "can't tell", so don't risk overwriting with {}."""
+
+    def denied(**_kw):
+        raise OSError("AccessDenied")
+
+    assert _empty_refresh(tmp_path, monkeypatch, head_object=denied) == []
+
+
 def test_refresh_prices_partial_null_preserves_existing_prices(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Partial-outage refresh updates valid prices and preserves existing ones for null tickers."""
     seed = {

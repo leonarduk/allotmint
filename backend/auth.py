@@ -6,7 +6,8 @@ import inspect
 import logging
 import os
 import secrets
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -86,6 +87,32 @@ def is_demo_request() -> bool:
     """Return whether the current request resolved via a demo-scoped token."""
 
     return demo_readonly.get()
+
+
+# Marker for trusted, user-less system jobs (the scheduled price refresh) that
+# must see every owner's holdings. With auth enabled, owner discovery hides all
+# owners when there is no request user, which left the price refresh with an
+# empty ticker universe and an empty snapshot (#8805). Only ever set through
+# system_job_context() by a non-HTTP entry point -- no request path sets it --
+# and the token reset keeps it from leaking into a reused Lambda environment.
+_system_job: ContextVar[bool] = ContextVar("system_job", default=False)
+
+
+def is_system_job() -> bool:
+    """Return whether the caller is running inside :func:`system_job_context`."""
+
+    return _system_job.get()
+
+
+@contextmanager
+def system_job_context() -> Iterator[None]:
+    """Run a trusted system job that may list every owner without a request user."""
+
+    token = _system_job.set(True)
+    try:
+        yield
+    finally:
+        _system_job.reset(token)
 
 
 def _emails_for_person_meta(meta: Any) -> Set[str]:

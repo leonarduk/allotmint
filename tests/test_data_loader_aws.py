@@ -160,6 +160,33 @@ def test_list_aws_plots_blocks_anonymous(monkeypatch, cleanup_boto3_module):
     assert calls["list_objects"] is True
 
 
+def test_list_aws_plots_system_job_sees_every_owner(monkeypatch, cleanup_boto3_module):
+    """The scheduled price refresh has no user but must see every owner with auth on (#8805)."""
+    from backend.auth import is_system_job, system_job_context
+
+    monkeypatch.setattr(dl.config, "disable_auth", False, raising=False)
+    monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
+    monkeypatch.setattr(dl, "load_person_meta", lambda owner: {})
+
+    def fake_client(name):
+        return SimpleNamespace(
+            list_objects_v2=lambda **_kw: {
+                "Contents": [{"Key": "accounts/Alice/ISA.json"}, {"Key": "accounts/Bob/SIPP.json"}]
+            }
+        )
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+
+    with system_job_context():
+        owners = [entry["owner"] for entry in dl._list_aws_plots(current_user=None)]
+
+    assert owners == ["Alice", "Bob"]
+    # The marker is scoped to the block: anonymous callers are still blocked afterwards.
+    assert is_system_job() is False
+    assert dl._list_aws_plots(current_user=None) == []
+
+
 def test_list_aws_plots_filters_special_directories(monkeypatch):
     monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
     monkeypatch.setattr(dl.config, "disable_auth", True, raising=False)

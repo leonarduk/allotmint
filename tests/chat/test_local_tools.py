@@ -56,3 +56,21 @@ def test_system_prompt_from_context_names_the_page_and_ticker():
     assert "/transactions" in system_prompt_from_context({"path": "/transactions", "ticker": None})
     prompt = system_prompt_from_context({"path": "/research/ARG.TO", "ticker": "ARG.TO"})
     assert "/research/ARG.TO" in prompt and "this stock" in prompt
+
+
+def test_build_system_prompt_always_carries_the_base_guidance():
+    from backend.chat.local_tools import BASE_SYSTEM_PROMPT, build_system_prompt
+
+    assert build_system_prompt(None) == BASE_SYSTEM_PROMPT
+    prompt = build_system_prompt({"path": "/research/ARG.TO", "ticker": "ARG.TO"})
+    assert prompt.startswith(BASE_SYSTEM_PROMPT)
+    assert prompt.endswith('treat "this stock" or "this" as ARG.TO.')
+
+
+def test_base_system_prompt_stops_the_model_denying_data_it_has_no_tool_for():
+    # #8685: the assistant said AllotMint had "no P/E, P/B, yield" data.
+    from backend.chat.local_tools import BASE_SYSTEM_PROMPT
+
+    assert "P/E" in BASE_SYSTEM_PROMPT and "dividend yield" in BASE_SYSTEM_PROMPT
+    assert "do not claim AllotMint has no such data" in BASE_SYSTEM_PROMPT
+    assert "source" in BASE_SYSTEM_PROMPT and "as-of date" in BASE_SYSTEM_PROMPT

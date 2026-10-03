@@ -12,6 +12,7 @@ vi.mock("@/api", () => ({
   refreshInstrumentMetadata: vi.fn(),
   confirmInstrumentMetadata: vi.fn(),
   getScreener: vi.fn(),
+  getInstrumentValuation: vi.fn(() => Promise.reject(Object.assign(new Error("gated"), { status: 402 }))),
   getInstrumentDetail: vi.fn(),
   getInstrumentIntraday: vi.fn(),
   searchInstruments: vi.fn(),
@@ -379,7 +380,7 @@ describe("InstrumentResearch page", () => {
     expect(criteria).toEqual({});
     expect(signal).toBeInstanceOf(AbortSignal);
     expect(await screen.findByRole("heading", { name: "Fundamentals" })).toBeInTheDocument();
-    const peRow = await screen.findByText("P/E Ratio");
+    const peRow = await screen.findByText("P/E Ratio (trailing)");
     const peValue = within(peRow.closest("tr") as HTMLElement).getByText("15.20");
     expect(peValue).toBeInTheDocument();
     const netMarginRow = await screen.findByText("Net Margin");

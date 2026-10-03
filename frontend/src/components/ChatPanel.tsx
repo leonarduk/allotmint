@@ -122,6 +122,20 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
     });
   };
 
+  // Asks again for the reply at `index` without changing the question: that
+  // reply and every later turn are discarded, and the preceding user message
+  // is resent with only the turns before it as history (#8820).
+  const regenerate = async (index: number) => {
+    const prompt = messages[index - 1];
+    if (sending || prompt?.role !== "user") return;
+
+    const previous = messages;
+    setEditing(null);
+    // On failure restore the conversation as it was, old reply included, so
+    // a failed regenerate never loses the answer the user already had.
+    await submit(prompt.content, messages.slice(0, index - 1), () => setChatMessages(previous));
+  };
+
   return (
     <>
       <div
@@ -214,6 +228,11 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
                 busy={sending}
                 onEdit={
                   m.role === "user" ? () => setEditing({ index: i, draft: m.content }) : undefined
+                }
+                onRegenerate={
+                  m.role === "assistant" && messages[i - 1]?.role === "user"
+                    ? () => void regenerate(i)
+                    : undefined
                 }
                 editing={
                   editing?.index === i

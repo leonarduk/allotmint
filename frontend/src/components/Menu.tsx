@@ -117,8 +117,14 @@ export default function Menu({
   const firstLinkRefs = useRef<Record<string, HTMLElement | null>>({});
   const mobileMenuRef = useRef<HTMLElement | null>(null);
 
-  // Close mobile menu and open category on route change
+  // Close mobile menu and open category on route change. Skip the initial
+  // mount: the effect would otherwise reset a category the user opened
+  // between the first commit and the passive-effect flush (e.g. right after
+  // a lazy route resolves), swallowing that first click.
+  const lastPathnameRef = useRef(location.pathname);
   useEffect(() => {
+    if (lastPathnameRef.current === location.pathname) return;
+    lastPathnameRef.current = location.pathname;
     setMobileMenuOpen(false);
     setOpenCategory(null);
   }, [location.pathname]);

@@ -79,6 +79,29 @@ describe('Menu', () => {
     );
   });
 
+  it('closes an open category when the route changes', async () => {
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter initialEntries={['/']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const dashboardToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.dashboard'),
+    });
+    fireEvent.click(dashboardToggle);
+    expect(dashboardToggle).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(
+      await screen.findByRole('menuitem', {
+        name: i18n.t('app.modes.transactions'),
+      })
+    );
+    await waitFor(() =>
+      expect(dashboardToggle).toHaveAttribute('aria-expanded', 'false')
+    );
+  });
+
   it('updates aria-expanded attribute when toggled', () => {
     render(
       <MemoryRouter>

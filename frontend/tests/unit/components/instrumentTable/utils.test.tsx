@@ -99,4 +99,17 @@ describe('calculateGroupTotals with unknown cost basis (#7785)', () => {
     expect(totals.gain).toBe(100);
     expect(totals.gainPct).toBeCloseTo((100 / 900) * 100);
   });
+
+  it('leaves book_suspect rows out of cost, gain and gain % (#8472)', () => {
+    const rows = createRowsWithCost([
+      base,
+      // Backend rollup row for AV.: cost/gain exclude the suspect holding.
+      { ...base, ticker: 'AV', market_value_gbp: 33620, gain_gbp: 0, cost_basis_source: 'book_suspect' },
+    ]);
+    const totals = calculateGroupTotals(rows, 'All');
+    expect(totals.marketValue).toBe(34620);
+    expect(totals.cost).toBe(900);
+    expect(totals.gain).toBe(100);
+    expect(totals.gainPct).toBeCloseTo((100 / 900) * 100);
+  });
 });

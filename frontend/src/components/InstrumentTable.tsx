@@ -18,6 +18,7 @@ import {
 } from '../api';
 import { useNavigate } from 'react-router-dom';
 import Sparkline from './Sparkline';
+import { COST_BASIS_BOOK_SUSPECT, isCostBasisUnreliable } from '../lib/costBasis';
 import { useInstrumentTableState } from './instrumentTable/useInstrumentTableState';
 import {
   cashFirstComparator,
@@ -47,11 +48,18 @@ type Props = {
  * use HoldingsTable for read-only holding and rollup presentation. See the
  * cleanup outcome in docs/decisions/6365-portfolio-consolidation.md#cleanup-outcome-6382.
  */
-/** Shown instead of a confident £0.00 when a row's cost basis is a guess (#7785). */
-function NotAvailable() {
+/**
+ * Shown instead of a figure when a row's cost basis is a guess (#7785) or an
+ * implausible booked cost (#8472).
+ */
+function NotAvailable({ source }: { source?: string | null }) {
   const { t } = useTranslation();
+  const title =
+    source === COST_BASIS_BOOK_SUSPECT
+      ? t('holdingsTable.bookCostSuspect')
+      : t('holdingsTable.gainNotAvailable');
   return (
-    <span className={tableStyles.notApplicable} title={t('holdingsTable.gainNotAvailable')}>
+    <span className={tableStyles.notApplicable} title={title}>
       {t('holdingsTable.notApplicable')}
     </span>
   );
@@ -538,8 +546,8 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                       )}
                       {!relativeViewEnabled && visibleColumns.cost && (
                         <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                          {r.cost_basis_source === 'unknown' ? (
-                            <NotAvailable />
+                          {isCostBasisUnreliable(r.cost_basis_source) ? (
+                            <NotAvailable source={r.cost_basis_source} />
                           ) : (
                             money(
                               r.cost,
@@ -558,8 +566,8 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                       )}
                       {!relativeViewEnabled && visibleColumns.gain && (
                         <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                          {r.cost_basis_source === 'unknown' ? (
-                            <NotAvailable />
+                          {isCostBasisUnreliable(r.cost_basis_source) ? (
+                            <NotAvailable source={r.cost_basis_source} />
                           ) : (
                             <span className={gainClass}>
                               {gainPrefix}
@@ -573,8 +581,8 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                       )}
                       {visibleColumns.gain_pct && (
                         <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                          {r.cost_basis_source === 'unknown' ? (
-                            <NotAvailable />
+                          {isCostBasisUnreliable(r.cost_basis_source) ? (
+                            <NotAvailable source={r.cost_basis_source} />
                           ) : (
                             <span className={gainPctClass}>
                               {gainPctPrefix}

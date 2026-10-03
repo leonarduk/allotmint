@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { money, percent } from '@/lib/money';
 import { isCashInstrument } from '@/lib/instruments';
+import { isCostBasisUnreliable } from '@/lib/costBasis';
 import i18n from '@/i18n';
 import statusStyles from '@/styles/status.module.css';
 import type { InstrumentGroupDefinition, InstrumentSummary } from '@/types';
@@ -217,7 +218,8 @@ export function calculateGroupTotals(rows: RowWithCost[], label: string): GroupT
   const totalMarket = rows.reduce((sum, row) => sum + row.market_value_gbp, 0);
   // Rows with an unknown cost basis carry a guessed cost (== market value) and a
   // meaningless £0 gain; leave them out of cost/gain so they don't dilute the totals.
-  const costKnown = rows.filter((row) => row.cost_basis_source !== 'unknown');
+  // Rows with an implausible booked cost (#8472) have no gain at all.
+  const costKnown = rows.filter((row) => !isCostBasisUnreliable(row.cost_basis_source));
   const totalGain = costKnown.reduce((sum, row) => sum + row.gain_gbp, 0);
   const totalCost = costKnown.reduce((sum, row) => sum + row.cost, 0);
   const gainPct = Math.abs(totalCost) > 1e-9 ? (totalGain / totalCost) * 100 : null;

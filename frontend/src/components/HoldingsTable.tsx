@@ -18,6 +18,10 @@ import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
 import { formatDateISO } from "../lib/date";
 import {
+  COST_BASIS_BOOK_SUSPECT,
+  isCostBasisUnreliable,
+} from "../lib/costBasis";
+import {
   HoldingsFilterControls,
   type SparkRange,
 } from "./HoldingsFilterControls";
@@ -181,6 +185,14 @@ export function HoldingsTable({
     return value > 0 ? "text-positive" : "text-negative";
   };
 
+  // Gain is shown as N/A (not a figure) when the cost is a guess ("unknown",
+  // #7220) or the booked cost is implausible ("book_suspect", #8472).
+  const isGainWithheld = isCostBasisUnreliable;
+  const gainWithheldTitle = (source: string | null | undefined): string =>
+    source === COST_BASIS_BOOK_SUSPECT
+      ? t("holdingsTable.bookCostSuspect")
+      : t("holdingsTable.gainNotAvailable");
+
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -203,6 +215,12 @@ export function HoldingsTable({
         : h.cost_basis_gbp ?? 0;
 
     const market = h.market_value_gbp ?? 0;
+    // An implausible booked cost (#8472) has its gain nulled by the backend;
+    // don't re-derive it here from market - cost, which would bring back the
+    // absurd +10,000% figure the backend deliberately withheld.
+    if (h.cost_basis_source === COST_BASIS_BOOK_SUSPECT) {
+      return { ...h, cost, market, gain: null, gain_pct: null };
+    }
     const gain =
       h.gain_gbp !== undefined && h.gain_gbp !== null && h.gain_gbp !== 0
         ? h.gain_gbp
@@ -258,17 +276,24 @@ export function HoldingsTable({
   const totals = useMemo(
     () =>
       sortedRows.reduce(
-        (acc, h) => ({
-          cost: acc.cost + (h.cost ?? 0),
-          market: acc.market + (h.market ?? 0),
-          gain: acc.gain + (h.gain ?? 0),
-          weight: acc.weight + (h.weight_pct ?? 0),
-        }),
-        { cost: 0, market: 0, gain: 0, weight: 0 },
+        (acc, h) => {
+          // Rows whose cost basis is a guess or an implausible booked cost
+          // (#7220/#8472) carry no real gain: keep them out of both the gain
+          // and the cost behind the total gain % so they can't skew it.
+          const gainCounted = !isCostBasisUnreliable(h.cost_basis_source);
+          return {
+            cost: acc.cost + (h.cost ?? 0),
+            market: acc.market + (h.market ?? 0),
+            gain: acc.gain + (gainCounted ? h.gain ?? 0 : 0),
+            gainCost: acc.gainCost + (gainCounted ? h.cost ?? 0 : 0),
+            weight: acc.weight + (h.weight_pct ?? 0),
+          };
+        },
+        { cost: 0, market: 0, gain: 0, gainCost: 0, weight: 0 },
       ),
     [sortedRows],
   );
-  const totalGainPct = totals.cost ? (totals.gain / totals.cost) * 100 : 0;
+  const totalGainPct = totals.gainCost ? (totals.gain / totals.gainCost) * 100 : 0;
 
   const categoryLookup = useMemo(
     () => buildCategoryLookup(categoryDefinitions),
@@ -817,12 +842,12 @@ export function HoldingsTable({
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (
                   <td
-                    className={`${tableStyles.cell} ${tableStyles.right} ${h.cost_basis_source === "unknown" ? "" : getPerformanceClass(h.gain)}`}
+                    className={`${tableStyles.cell} ${tableStyles.right} ${isGainWithheld(h.cost_basis_source) ? "" : getPerformanceClass(h.gain)}`}
                   >
-                    {h.cost_basis_source === "unknown" ? (
+                    {isGainWithheld(h.cost_basis_source) ? (
                       <span
                         className={tableStyles.notApplicable}
-                        title={t("holdingsTable.gainNotAvailable")}
+                        title={gainWithheldTitle(h.cost_basis_source)}
                       >
                         {t("holdingsTable.notApplicable")}
                       </span>
@@ -833,12 +858,12 @@ export function HoldingsTable({
                 )}
                 {visibleColumns.gain_pct && (
                   <td
-                    className={`${tableStyles.cell} ${tableStyles.right} ${h.cost_basis_source === "unknown" ? "" : getPerformanceClass(h.gain_pct)}`}
+                    className={`${tableStyles.cell} ${tableStyles.right} ${isGainWithheld(h.cost_basis_source) ? "" : getPerformanceClass(h.gain_pct)}`}
                   >
-                    {h.cost_basis_source === "unknown" ? (
+                    {isGainWithheld(h.cost_basis_source) ? (
                       <span
                         className={tableStyles.notApplicable}
-                        title={t("holdingsTable.gainNotAvailable")}
+                        title={gainWithheldTitle(h.cost_basis_source)}
                       >
                         {t("holdingsTable.notApplicable")}
                       </span>
@@ -877,7 +902,9 @@ export function HoldingsTable({
                     title={
                       h.cost_basis_source === "unknown"
                         ? t("holdingsTable.costBasisUnknown")
-                        : (h.cost_basis_gbp ?? 0) > 0
+                        : h.cost_basis_source === COST_BASIS_BOOK_SUSPECT
+                          ? t("holdingsTable.bookCostSuspect")
+                          : (h.cost_basis_gbp ?? 0) > 0
                           ? t("holdingsTable.actualPurchaseCost")
                           : t("holdingsTable.inferredCost")
                     }

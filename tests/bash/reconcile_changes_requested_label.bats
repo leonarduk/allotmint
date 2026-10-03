@@ -28,7 +28,8 @@ teardown() {
 # Remaining args describe the fake check-runs for that head SHA, each as
 # NAME=CONCLUSION or NAME=CONCLUSION@STARTED_AT (e.g.
 # "ai-review / Claude AI code review=success@2026-01-01T00:00:05Z").
-# CONCLUSION "pending" emits an in-progress run (null conclusion). The
+# CONCLUSION "pending" emits an in-progress run (null conclusion) and
+# "queued" a not-yet-started run (null conclusion and null started_at). The
 # check-runs endpoint prints one compact JSON object per run -- what the real
 # `gh api --paginate --jq '.check_runs[] | {...}'` call produces -- so the
 # script's own jq filtering is exercised for real.
@@ -49,7 +50,10 @@ write_fake_gh() {
     if [[ "$rest" == *@* ]]; then
       started_at="${rest#*@}"
     fi
-    if [ "$conclusion" = "pending" ]; then
+    if [ "$conclusion" = "queued" ]; then
+      printf '{"name":"%s","status":"queued","conclusion":null,"started_at":null}\n' \
+        "$name" >> "$runs_file"
+    elif [ "$conclusion" = "pending" ]; then
       printf '{"name":"%s","status":"in_progress","conclusion":null,"started_at":"%s"}\n' \
         "$name" "$started_at" >> "$runs_file"
     else
@@ -278,6 +282,30 @@ HEADER
   export ENABLE_CLAUDE="false"
   export ENABLE_GPT="false"
   write_fake_gh "sha123" "true"     "Legacy DeepSeek AI code review=success"
+
+  run bash "$SCRIPT" 42
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"DeepSeek AI code review: pending"* ]]
+  ! grep -q -- "--remove-label" "$CALL_LOG"
+}
+
+@test "a queued re-run (null started_at) is pending, not shadowed by an older success" {
+  export ENABLE_CLAUDE="false"
+  export ENABLE_GPT="false"
+  write_fake_gh "sha123" "true"     "ai-review / DeepSeek AI code review=success@2026-01-01T00:00:01Z"     "ai-review / DeepSeek AI code review=queued"
+
+  run bash "$SCRIPT" 42
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"DeepSeek AI code review: pending"* ]]
+  ! grep -q -- "--remove-label" "$CALL_LOG"
+}
+
+@test "an in-progress re-run is pending, not shadowed by an older success" {
+  export ENABLE_CLAUDE="false"
+  export ENABLE_GPT="false"
+  write_fake_gh "sha123" "true"     "ai-review / DeepSeek AI code review=success@2026-01-01T00:00:01Z"     "ai-review / DeepSeek AI code review=pending@2026-01-01T00:00:09Z"
 
   run bash "$SCRIPT" 42
 

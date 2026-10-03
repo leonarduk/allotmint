@@ -64,13 +64,19 @@ CHECK_RUNS=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
 # - A single push can produce duplicate check-runs for the same job where the
 #   later one is "skipped" (e.g. a second trigger whose job-level `if:` was
 #   false). skipped/neutral runs carry no verdict, so ignore them and take the
-#   latest remaining run; in-progress runs have a null conclusion -> pending.
+#   latest remaining run.
+# - Any matching run that hasn't completed (queued or in progress) means a
+#   fresh verdict is on its way -> pending. This is checked explicitly rather
+#   than via sort order because a queued run has a null started_at, which
+#   sorts *first* and would otherwise let an older completed run win.
 reviewer_conclusion() {
   printf '%s\n' "$CHECK_RUNS" | jq -rs --arg name "$1" '
     [ .[]
       | select(.name == $name or (.name | endswith(" / " + $name)))
       | select(.conclusion != "skipped" and .conclusion != "neutral") ]
-    | sort_by(.started_at) | last | .conclusion // "pending"'
+    | if any(.[]; .status != "completed") then "pending"
+      else (sort_by(.started_at) | last | .conclusion // "pending")
+      end'
 }
 
 ALL_SUCCESS=true

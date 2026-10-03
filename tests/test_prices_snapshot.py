@@ -29,8 +29,8 @@ def test_get_price_snapshot(monkeypatch):
     d7 = last_trading_day - timedelta(days=7)
     d30 = last_trading_day - timedelta(days=30)
 
-    # Patch load_latest_prices to return a last price of 100
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 100.0})
+    # Patch load_latest_closes to return a last close of 100 from the last trading day
+    monkeypatch.setattr(prices, "_load_latest_closes", lambda tickers: {ticker: (100.0, last_trading_day)})
     monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
 
     # Map requested dates to fake close prices
@@ -47,6 +47,7 @@ def test_get_price_snapshot(monkeypatch):
 
     assert info["last_price"] == 100.0
     assert info["last_price_date"] == last_trading_day.isoformat()
+    assert info["is_stale"] is False
     assert info["change_7d_pct"] == pytest.approx((100 / 90.0 - 1) * 100)
     assert info["change_30d_pct"] == pytest.approx((100 / 80.0 - 1) * 100)
     assert weekday_calls[0] == (frozen_today - timedelta(days=1), False)
@@ -57,10 +58,12 @@ def test_get_price_snapshot(monkeypatch):
 def test_get_price_snapshot_unrecognised_ticker_falls_back_to_last_close(monkeypatch):
     """When a ticker isn't recognised by the live-price provider (e.g. an OEIC
     fund Yahoo Finance doesn't cover), get_price_snapshot must not raise and
-    must fall back to the last stored/close price with is_stale=True (#3423)."""
+    must fall back to the last stored/close price (#3423). The stored close
+    here is weeks old, so it is stale (#8595)."""
     ticker = "UNKNOWN.FUND"
+    old_close = date.today() - timedelta(days=30)
 
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 42.5})
+    monkeypatch.setattr(prices, "_load_latest_closes", lambda tickers: {ticker: (42.5, old_close)})
     # Simulates load_live_prices returning nothing for an unrecognised ticker,
     # rather than raising -- see backend.common.holding_utils.load_live_prices.
     monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})

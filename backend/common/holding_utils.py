@@ -80,6 +80,23 @@ def _is_pence_currency(raw: str) -> bool:
 def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False) -> dict[str, float]:
     """Return latest close prices in GBP for each requested ticker.
 
+    Thin wrapper over :func:`load_latest_closes` that drops the close dates;
+    see that function for the full contract.
+    """
+    closes = load_latest_closes(full_tickers, report_progress=report_progress)
+    return {key: price for key, (price, _close_date) in closes.items()}
+
+
+def load_latest_closes(
+    full_tickers: list[str], *, report_progress: bool = False
+) -> dict[str, tuple[float, Optional[dt.date]]]:
+    """Return ``(close_gbp, close_date)`` for each requested ticker.
+
+    ``close_date`` is the date of the row the close was read from (``None``
+    when the feed's date column can't be parsed). Callers use it to judge
+    staleness against the latest completed trading day (#8595) instead of
+    assuming every last close is stale.
+
     Contract:
     - Output values are always GBP-normalised regardless of source columns.
     - If ``Close_gbp``/``close_gbp`` exists, use it directly.
@@ -102,7 +119,7 @@ def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False
     progress display with an unrelated one (see
     :mod:`backend.common.refresh_progress`).
     """
-    result: dict[str, float] = {}
+    result: dict[str, tuple[float, Optional[dt.date]]] = {}
     if not full_tickers:
         return result
 
@@ -176,7 +193,7 @@ def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False
                 continue
 
             key = f"{ticker}.{exchange}"
-            result[key] = val
+            result[key] = (val, _parse_date(last[df.columns[0]]))
 
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning(

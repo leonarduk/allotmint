@@ -189,4 +189,19 @@ describe('calculateGroupTotals with unknown cost basis (#7785)', () => {
     const descending = createGroups(changeRows, 'change_7d_pct', false, 'group', labels, lookup);
     expect(descending.map((group) => group.label)).toEqual(['Up', 'Down', 'Missing']);
   });
+
+  it('sorts a genuine 0% change in its natural place and only missing change last (#8531)', () => {
+    const labels = { ungroupedLabel: 'Ungrouped', uncategorisedLabel: 'Uncategorised' };
+    const lookup = buildCategoryLookup([]);
+    const changeRows = createRowsWithCost([
+      { ...base, ticker: 'P', grouping: 'Plus5', change_7d_pct: 5 },
+      { ...base, ticker: 'Z', grouping: 'Zero', change_7d_pct: 0 },
+      { ...base, ticker: 'M', grouping: 'Minus3', change_7d_pct: -3 },
+      { ...base, ticker: 'X', grouping: 'Missing', change_7d_pct: null },
+    ]);
+    const ascending = createGroups(changeRows, 'change_7d_pct', true, 'group', labels, lookup);
+    expect(ascending.map((group) => group.label)).toEqual(['Minus3', 'Zero', 'Plus5', 'Missing']);
+    const descending = createGroups(changeRows, 'change_7d_pct', false, 'group', labels, lookup);
+    expect(descending.map((group) => group.label)).toEqual(['Plus5', 'Zero', 'Minus3', 'Missing']);
+  });
 });

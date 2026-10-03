@@ -110,6 +110,18 @@ describe("Watchlist page", () => {
     unmount();
   });
 
+  it("lets a long unbroken error (e.g. a timeout URL) wrap instead of widening the page (#8612)", async () => {
+    const message =
+      "Request timed out after 30s: http://localhost:6468/api/quotes?symbols=%5EFTSE%2C%5ENDX%2C%5EGSPC%2C%5ERUT";
+    (getQuotes as ReturnType<typeof vi.fn>).mockRejectedValue(new Error(message));
+    localStorage.setItem("watchlistSymbols", "AAA");
+
+    renderWatchlist();
+
+    const errorEl = await screen.findByText(message);
+    expect(errorEl).toHaveClass("break-words", "[overflow-wrap:anywhere]");
+  });
+
   it("allows manual refresh and auto-refresh", async () => {
     vi.useFakeTimers();
     (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([sampleRows[0]]);

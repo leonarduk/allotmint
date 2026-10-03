@@ -8,15 +8,27 @@ import backend.common.alerts as alerts
 from backend import config as backend_config
 from backend import config_module
 from backend.app import create_app
+from backend.common import data_loader
 from backend.common.instruments import get_instrument_meta
 
 
 @pytest.fixture
-def client(mock_google_verify):
+def client(mock_google_verify, monkeypatch, tmp_path):
     """Return a TestClient with offline mode enabled."""
     previous = backend_config.offline_mode
     backend_config.offline_mode = True
     from backend.local_api.main import app
+
+    # Point the shared app at a private copy of the demo accounts so write
+    # tests (POST /accounts, /transactions) can't land in the tracked
+    # data/accounts tree. The app's own import-time temp copy is not enough:
+    # any lifespan shutdown of the shared app deletes it, after which the
+    # resolvers fall back to the repo's data dir.
+    accounts_root = tmp_path / "accounts"
+    shutil.copytree(data_loader.resolve_paths(None, None).accounts_root, accounts_root)
+    monkeypatch.setattr(app.state, "accounts_root", accounts_root, raising=False)
+    monkeypatch.setattr(app.state, "accounts_root_is_global", False, raising=False)
+    monkeypatch.setattr(config_module.config, "accounts_root", accounts_root, raising=False)
 
     client = TestClient(app)
     token = client.post("/token", json={"id_token": "good"}).json()["access_token"]

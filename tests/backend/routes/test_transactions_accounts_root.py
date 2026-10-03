@@ -127,3 +127,19 @@ def test_require_writable_store_rejects_invalid_resolution(monkeypatch, tmp_path
         transactions_module._require_writable_store(request)
 
     assert excinfo.value.status_code == 400
+
+
+def test_require_writable_store_rejects_cached_demo_root_without_global_flag():
+    """The repo's bundled demo dataset must never be writable, even when the
+    cached ``accounts_root_is_global`` flag was cleared (``resolve_accounts_root``
+    resets it whenever the cached root exists, including after a fallback to
+    the demo dataset). Previously this let test POSTs rewrite data/accounts."""
+    demo_root = transactions_module.data_loader.resolve_paths(None, None).accounts_root
+    assert demo_root.exists()
+
+    request = _build_request({"accounts_root": demo_root, "accounts_root_is_global": False})
+
+    with pytest.raises(HTTPException) as excinfo:
+        transactions_module._require_writable_store(request)
+
+    assert excinfo.value.status_code == 400

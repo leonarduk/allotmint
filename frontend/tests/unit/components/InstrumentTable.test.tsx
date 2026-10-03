@@ -518,4 +518,35 @@ describe("InstrumentTable unknown cost basis (#7785)", () => {
         expect(within(row).getAllByText("N/A").length).toBe(3);
         expect(within(row).queryByText("0.0%")).toBeNull();
     });
+
+    it("shows N/A with the implausible-book-cost tooltip for book_suspect rows (#8472)", () => {
+        const rows: InstrumentSummary[] = [
+            {
+                ticker: "AV",
+                name: "Aviva",
+                grouping: "Group A",
+                exchange: "L",
+                currency: "GBP",
+                instrument_type: "Equity",
+                units: 50,
+                market_value_gbp: 33620,
+                gain_gbp: 0,
+                gain_pct: null,
+                cost_basis_source: "book_suspect",
+                last_price_gbp: 672.4,
+                last_price_date: "2024-01-01",
+                change_7d_pct: 1,
+                change_30d_pct: 2,
+            },
+        ];
+        renderWithConfig(<InstrumentTable rows={rows} />);
+        fireEvent.click(screen.getByRole("button", { name: /Toggle Group A/i }));
+        const row = screen.getByText("Aviva").closest("tr") as HTMLElement;
+        expect(within(row).getAllByText("N/A").length).toBe(3);
+        expect(
+            within(row).getAllByTitle(
+                "Book cost looks implausible against the price — gain hidden until it is checked",
+            ).length,
+        ).toBe(3);
+    });
 });

@@ -556,7 +556,13 @@ BOOK_COST_SUSPECT_SOURCE = "book_suspect"
 BOOK_COST_OUT_OF_BAND_WARNING = "implied_unit_cost_out_of_band"
 # cost_basis_source values whose cost (and therefore gain) must not be presented
 # or aggregated as fact: a guessed cost (#7220) or an implausible booked cost.
+# Keep in sync with UNRELIABLE_SOURCES in frontend/src/lib/costBasis.ts (both
+# sides have a test pinning the contents: tests/test_holding_utils_price_cost_basis.py
+# and frontend/tests/unit/lib/costBasis.test.ts).
 COST_BASIS_UNRELIABLE_SOURCES = frozenset({"unknown", BOOK_COST_SUSPECT_SOURCE})
+# (ticker, exchange) pairs whose acquisition-close lookup failure was already
+# logged at WARNING; later failures for the same pair log at DEBUG.
+_ACQ_CLOSE_FAILURE_WARNED: set[tuple[str, str]] = set()
 
 
 def is_cost_basis_unreliable(source: object) -> bool:
@@ -586,7 +592,12 @@ def _book_cost_reference_price(
             # errors). This lookup only refines a plausibility *flag*, so any
             # failure falls back to the current price (logged, not swallowed)
             # instead of failing enrichment of the whole booked holding.
-            logger.warning(
+            # WARNING once per ticker per process, DEBUG thereafter, so an
+            # offline run doesn't flood the log on every page load.
+            key = (ticker, exchange)
+            log = logger.debug if key in _ACQ_CLOSE_FAILURE_WARNED else logger.warning
+            _ACQ_CLOSE_FAILURE_WARNED.add(key)
+            log(
                 "acquisition close unavailable for %s.%s on %s: %s",
                 sanitise_log_value(ticker),
                 sanitise_log_value(exchange),
@@ -618,10 +629,16 @@ def _flag_implausible_book_cost(
     """
     if out.get("cost_basis_source") != "book" or units <= 0:
         return
+    try:
+        book = float(out.get(COST_BASIS_GBP) or 0.0)
+    except (TypeError, ValueError):
+        book = 0.0
+    if not book > 0:  # also rejects NaN
+        return
     reference = _book_cost_reference_price(ticker, exchange, acq, current_price, price_cache)
     if reference is None:
         return
-    implied = float(out[COST_BASIS_GBP]) / units
+    implied = book / units
     band = BOOK_COST_PLAUSIBILITY_BAND
     if reference / band <= implied <= reference * band:
         return

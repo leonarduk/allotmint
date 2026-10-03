@@ -1,7 +1,9 @@
 /**
  * cost_basis_source values whose cost (and therefore gain) must not be shown
- * or summed as fact. Mirrors COST_BASIS_UNRELIABLE_SOURCES in
- * backend/common/holding_utils.py.
+ * or summed as fact. Keep in sync with COST_BASIS_UNRELIABLE_SOURCES in
+ * backend/common/holding_utils.py; both sides pin the contents in a test
+ * (frontend/tests/unit/lib/costBasis.test.ts and
+ * tests/test_holding_utils_price_cost_basis.py).
  *
  * - "unknown": no booked cost and no acquisition date, so cost was set equal to
  *   market value as a last resort (#7220).

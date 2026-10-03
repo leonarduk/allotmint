@@ -432,3 +432,57 @@ def test_enrich_holding_acquisition_close_lookup_error_falls_back_to_current_pri
     out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 1), price_cache={})
 
     assert out["cost_basis_source"] == "book_suspect"
+
+
+@pytest.mark.parametrize("cost", [None, 0, 0.0, "", "not-a-number", float("nan")])
+def test_flag_implausible_book_cost_ignores_missing_or_zero_cost(monkeypatch, cost):
+    """A "book" source with a missing/zero/garbage cost must be skipped, never
+    raise -- one bad record must not break enrich_holding for a portfolio."""
+    _patch_enrich_env(monkeypatch, current_price=672.40)
+    out = {TICKER: "AV.L", UNITS: 50, "cost_basis_source": "book", "gain_gbp": 1.0}
+    if cost is not None:
+        out[COST_BASIS_GBP] = cost
+
+    holding_utils._flag_implausible_book_cost(out, 50, "AV", "L", None, 672.40, {})
+
+    assert out["cost_basis_source"] == "book"
+    assert out["gain_gbp"] == 1.0
+
+
+def test_flag_implausible_book_cost_ignores_zero_units(monkeypatch):
+    _patch_enrich_env(monkeypatch, current_price=672.40)
+    out = {TICKER: "AV.L", UNITS: 0, COST_BASIS_GBP: 263, "cost_basis_source": "book"}
+
+    holding_utils._flag_implausible_book_cost(out, 0, "AV", "L", None, 672.40, {})
+
+    assert out["cost_basis_source"] == "book"
+
+
+def test_acquisition_close_failure_warns_once_per_ticker(monkeypatch, caplog):
+    import logging
+
+    _patch_enrich_env(monkeypatch, current_price=672.40)
+
+    def boom(*args, **kwargs):
+        raise ValueError("Offline mode: no cache available")
+
+    monkeypatch.setattr(holding_utils, "_derived_cost_basis_close_px", boom)
+    monkeypatch.setattr(holding_utils, "_ACQ_CLOSE_FAILURE_WARNED", set())
+    acq = dt.date(2020, 1, 2)
+
+    with caplog.at_level(logging.DEBUG, logger=holding_utils.logger.name):
+        for _ in range(3):
+            holding_utils._book_cost_reference_price("AV", "L", acq, 672.40, {})
+
+    records = [r for r in caplog.records if "acquisition close unavailable" in r.getMessage()]
+    assert [r.levelno for r in records] == [logging.WARNING, logging.DEBUG, logging.DEBUG]
+
+
+def test_cost_basis_unreliable_sources_contents():
+    """Pinned set; must match UNRELIABLE_SOURCES in frontend/src/lib/costBasis.ts
+    (whose own test, frontend/tests/unit/lib/costBasis.test.ts, pins the same list)."""
+    assert holding_utils.COST_BASIS_UNRELIABLE_SOURCES == frozenset({"unknown", "book_suspect"})
+    assert holding_utils.is_cost_basis_unreliable("book_suspect")
+    assert holding_utils.is_cost_basis_unreliable("unknown")
+    for source in ("book", "derived", "cash", "none", None):
+        assert not holding_utils.is_cost_basis_unreliable(source)

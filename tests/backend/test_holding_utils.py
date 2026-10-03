@@ -349,6 +349,7 @@ def test_enrich_holding_keeps_gain_for_derived_cost(monkeypatch):
     monkeypatch.setattr(hu, "get_instrument_meta", lambda *_: {})
     monkeypatch.setattr(hu, "get_scaling_override", lambda *args, **kwargs: None)
     monkeypatch.setattr(hu, "_get_price_for_date_scaled", lambda *a, **k: (8.0, "mock"))
+    monkeypatch.setattr(hu, "_get_dated_price_for_date_scaled", lambda t, e, d, *a, **k: (8.0, "mock", d))
     monkeypatch.setattr(hu, "_derived_cost_basis_close_px", lambda *a, **k: 4.0)
 
     holding = {TICKER: "FOO.L", UNITS: 5, ACQUIRED_DATE: "2025-01-02"}

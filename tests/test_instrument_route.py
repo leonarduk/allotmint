@@ -258,6 +258,7 @@ def test_positions_match_holdings_pipeline(monkeypatch):
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
     # Current price 12.00 GBP; acquisition-date close 10.00 GBP. No network.
     monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *a, **k: (12.0, "test"))
+    monkeypatch.setattr(holding_utils, "_get_dated_price_for_date_scaled", lambda t, e, d, *a, **k: (12.0, "test", d))
     monkeypatch.setattr(holding_utils, "_derived_cost_basis_close_px", lambda *a, **k: 10.0)
 
     raw = {"SIPP": [{"ticker": "ABC.L", "units": 73, "cost_basis_gbp": 730.0, "acquired_date": "2024-01-02"}]}
@@ -307,6 +308,7 @@ def test_positions_unreliable_cost_is_unknown_not_zero(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
     monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *a, **k: (6.11, "test"))
+    monkeypatch.setattr(holding_utils, "_get_dated_price_for_date_scaled", lambda t, e, d, *a, **k: (6.11, "test", d))
     raw = {"SIPP": [{"ticker": "AIGE.L", "units": 1322.0, "cost_basis_gbp": 0.0}]}
     _patch_route_sources(monkeypatch, "steve", raw, _fake_owner_builder(raw))
 

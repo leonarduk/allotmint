@@ -4,7 +4,8 @@ import type { ChatMessage } from "../api";
 // The chat conversation outlives ChatPanel: AppHeader (and so ChatPanel) is
 // mounted per page, so component state was lost on every navigation. Keeping
 // it here carries the conversation across pages; sessionStorage also carries
-// it across a reload of the same tab. It is cleared only by startNewChat().
+// it across a reload of the same tab. It is cleared by startNewChat(), which
+// api.setAuthToken also calls on logout.
 const STORAGE_KEY = "allotmint.chat.messages";
 
 function isMessage(m: unknown): m is ChatMessage {

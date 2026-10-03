@@ -278,6 +278,121 @@ describe("HoldingsTable", () => {
         expect(screen.queryByRole("button", { name: /Toggle / })).toBeNull();
     });
 
+    it("keeps each expanded group's rows under its own header and sorts groups by totals (#8529)", async () => {
+        // Ticker order interleaves the sectors: AAA(Tech), BBB(Energy), CCC(Tech), DDD(Energy).
+        const make = (ticker: string, sector: string, market: number, gain: number): Holding => ({
+            ...holdings[0],
+            ticker,
+            name: `${ticker} plc`,
+            sector,
+            cost_basis_gbp: market - gain,
+            market_value_gbp: market,
+            gain_gbp: gain,
+        });
+        const sectorHoldings = [
+            make("AAA", "Tech", 100, 50),
+            make("BBB", "Energy", 50, 10),
+            make("CCC", "Tech", 100, 50),
+            make("DDD", "Energy", 400, 10),
+        ];
+
+        const { container } = renderWithConfig(
+            <HoldingsTable holdings={sectorHoldings} groupingMode="sector" />,
+        );
+        const bodyOrder = () =>
+            Array.from(container.querySelectorAll("tbody tr")).map((row) => {
+                const button = row.querySelector("button");
+                return button?.getAttribute("aria-label") ?? button?.textContent;
+            });
+
+        // Collapsed groups render only their header rows, none of their holdings.
+        expect(bodyOrder()).toEqual(["Toggle Energy", "Toggle Tech"]);
+
+        // Expanding one group shows only that group's rows, under its header.
+        await userEvent.click(screen.getByRole("button", { name: "Toggle Tech" }));
+        expect(bodyOrder()).toEqual(["Toggle Energy", "Toggle Tech", "AAA", "CCC"]);
+        await userEvent.click(screen.getByRole("button", { name: "Toggle Energy" }));
+
+        // Ticker ▲ sorts groups by label; rows stay contiguous under their header.
+        expect(bodyOrder()).toEqual(["Toggle Energy", "BBB", "DDD", "Toggle Tech", "AAA", "CCC"]);
+
+        // Weight % ▲: Tech (£200) before Energy (£450).
+        await userEvent.click(screen.getByRole("columnheader", { name: /Weight %/ }));
+        expect(bodyOrder()).toEqual(["Toggle Tech", "AAA", "CCC", "Toggle Energy", "BBB", "DDD"]);
+
+        // Gain £ ▲ then ▼: Energy (£20) / Tech (£100) by group gain total.
+        await userEvent.click(screen.getByRole("columnheader", { name: /Gain £/ }));
+        expect(bodyOrder()).toEqual(["Toggle Energy", "BBB", "DDD", "Toggle Tech", "AAA", "CCC"]);
+        await userEvent.click(screen.getByRole("columnheader", { name: /Gain £/ }));
+        expect(bodyOrder()).toEqual(["Toggle Tech", "AAA", "CCC", "Toggle Energy", "BBB", "DDD"]);
+
+        // Cost £ ▲ then ▼: Tech (£50 + £50 = £100) / Energy (£40 + £390 = £430) by summed cost.
+        await userEvent.click(screen.getByRole("columnheader", { name: /Cost £/ }));
+        expect(bodyOrder()).toEqual(["Toggle Tech", "AAA", "CCC", "Toggle Energy", "BBB", "DDD"]);
+        await userEvent.click(screen.getByRole("columnheader", { name: /Cost £/ }));
+        // Rows within a group follow the flat sort too: DDD (£390) before BBB (£40).
+        expect(bodyOrder()).toEqual(["Toggle Energy", "DDD", "BBB", "Toggle Tech", "AAA", "CCC"]);
+
+        // Gain % ▲ then ▼ by group gain %: Energy (£20 / £430 ≈ 4.7%) / Tech (£100 / £100 = 100%).
+        // Within Energy, rows follow the flat sort: DDD (≈2.6%) before BBB (25%) when ascending.
+        await userEvent.click(screen.getByRole("columnheader", { name: /Gain %/ }));
+        expect(bodyOrder()).toEqual(["Toggle Energy", "DDD", "BBB", "Toggle Tech", "AAA", "CCC"]);
+        await userEvent.click(screen.getByRole("columnheader", { name: /Gain %/ }));
+        expect(bodyOrder()).toEqual(["Toggle Tech", "AAA", "CCC", "Toggle Energy", "BBB", "DDD"]);
+    });
+
+    it("sorts groups by label, not first-appearance order, for Ticker ▲/▼ (#8529)", async () => {
+        // Label order (Alpha, Zulu) is the opposite of ticker order (AAA in Zulu, ZZZ in Alpha).
+        const labelHoldings: Holding[] = [
+            { ...holdings[0], ticker: "ZZZ", name: "Zed plc", sector: "Alpha" },
+            { ...holdings[0], ticker: "AAA", name: "Ay plc", sector: "Zulu" },
+        ];
+        const { container } = renderWithConfig(
+            <HoldingsTable holdings={labelHoldings} groupingMode="sector" />,
+        );
+        const headerOrder = () =>
+            Array.from(container.querySelectorAll("tbody tr button[aria-label]")).map((button) =>
+                button.getAttribute("aria-label"),
+            );
+
+        expect(headerOrder()).toEqual(["Toggle Alpha", "Toggle Zulu"]);
+        await userEvent.click(screen.getByRole("columnheader", { name: /Ticker/ }));
+        expect(headerOrder()).toEqual(["Toggle Zulu", "Toggle Alpha"]);
+    });
+
+    it("sorts rows within each group by Days Held; groups follow their first row (#8529)", async () => {
+        // Days held: Tech AAA 10, CCC 150; Energy BBB 200, DDD 50.
+        const daysHoldings: Holding[] = [
+            { ...holdings[0], ticker: "AAA", name: "AAA plc", sector: "Tech", days_held: 10 },
+            { ...holdings[0], ticker: "BBB", name: "BBB plc", sector: "Energy", days_held: 200 },
+            { ...holdings[0], ticker: "CCC", name: "CCC plc", sector: "Tech", days_held: 150 },
+            { ...holdings[0], ticker: "DDD", name: "DDD plc", sector: "Energy", days_held: 50 },
+        ];
+        const { container } = renderWithConfig(
+            <HoldingsTable holdings={daysHoldings} groupingMode="sector" />,
+        );
+        const bodyOrder = () =>
+            Array.from(container.querySelectorAll("tbody tr")).map((row) => {
+                const button = row.querySelector("button");
+                return button?.getAttribute("aria-label") ?? button?.textContent;
+            });
+        await userEvent.click(screen.getByRole("button", { name: "Toggle Tech" }));
+        await userEvent.click(screen.getByRole("button", { name: "Toggle Energy" }));
+
+        const daysHeldHeader = screen.getByRole("columnheader", { name: /Days Held/ });
+        expect(daysHeldHeader.className).toContain("clickable");
+
+        // ▲: AAA(10) leads, so Tech comes first; Energy rows DDD(50) then BBB(200).
+        await userEvent.click(daysHeldHeader);
+        expect(daysHeldHeader).toHaveTextContent("▲");
+        expect(bodyOrder()).toEqual(["Toggle Tech", "AAA", "CCC", "Toggle Energy", "DDD", "BBB"]);
+
+        // ▼: BBB(200) leads, so Energy comes first; Tech rows CCC(150) then AAA(10).
+        await userEvent.click(daysHeldHeader);
+        expect(daysHeldHeader).toHaveTextContent("▼");
+        expect(bodyOrder()).toEqual(["Toggle Energy", "BBB", "DDD", "Toggle Tech", "CCC", "AAA"]);
+    });
+
     it("falls back to group mode when category mode is requested without definitions", async () => {
         const groupedHoldings = holdings.map((holding) => ({
             ...holding,
@@ -295,6 +410,10 @@ describe("HoldingsTable", () => {
         expect(
             screen.getByRole("button", { name: "Toggle Technology" }),
         ).toBeInTheDocument();
+
+        // Rows still render under the fallback grouping once expanded (#8529).
+        await userEvent.click(screen.getByRole("button", { name: "Toggle Technology" }));
+        expect(screen.getByRole("button", { name: "XYZ" })).toBeInTheDocument();
     });
 
     it("uses category definitions when provided in category mode", async () => {

@@ -12,7 +12,7 @@ auth:
   disable_auth: true
   demo_identity: demo
   smoke_identity: demo
-  local_login_email: ''
+  local_login_email: steveleonard11@gnail.com
   allowed_emails: your-email@example.com
 server:
   app_env: local
@@ -117,3 +117,5 @@ trading_agent:
   min_sharpe: null
   max_volatility: null
 cors_origins: http://localhost:3000,http://localhost:2568
+mcp:
+  mcp_github_repo: leonarduk/allotmint

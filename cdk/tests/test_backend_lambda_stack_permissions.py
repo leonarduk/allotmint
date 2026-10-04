@@ -214,7 +214,9 @@ def _expected_prefix_condition(prefixes: tuple[str, ...]) -> dict:
 #   TradingAgentLambda — calls load_prices_for_tickers() → load_meta_timeseries_range() which
 #                        reads parquet from S3 by known key. No writes anywhere in this path.
 #                        Pyarrow may list the timeseries/ prefix before reading cached files.
-BACKEND_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:PutObject", "s3:ListBucket"}
+#   BackendLambda also deletes saved chat history, on chat/* only (#8870; see
+#   test_backend_lambda_can_delete_only_chat_history).
+BACKEND_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:PutObject", "s3:ListBucket", "s3:DeleteObject"}
 REFRESH_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:PutObject", "s3:ListBucket"}
 TRADING_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:ListBucket"}
 
@@ -622,9 +624,12 @@ def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
     for fragment in role_fragments:
         role = _role_logical_id_for_lambda(template, fragment)
         actions = _s3_actions_for_role(template, role)
-        assert forbidden.isdisjoint(
+        # The one exception: BackendLambda deletes saved chat history, on
+        # chat/* only, asserted in test_backend_lambda_can_delete_only_chat_history.
+        allowed = {"s3:DeleteObject"} if fragment == "BackendLambda" else set()
+        assert (forbidden - allowed).isdisjoint(
             actions
-        ), f"Found forbidden actions for {fragment}: {actions & forbidden}"
+        ), f"Found forbidden actions for {fragment}: {actions & (forbidden - allowed)}"
         # Also catch wildcard grants which implicitly include delete
         assert (
             "s3:*" not in actions and "*" not in actions
@@ -1135,7 +1140,12 @@ def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
 # corresponding cross-check test above. If this set drifts from what's actually
 # declared in the stack, either a new duplicated constant needs a cross-check
 # test, or this set is stale and should be trimmed.
-_COVERED_STACK_PREFIX_CONSTANTS = frozenset({"WRITABLE_ACCOUNTS_PREFIX", "METADATA_PREFIX"})
+# CHAT_HISTORY_PREFIX is not duplicated: the backend has no S3 fallback for it
+# and only learns the location from CHAT_HISTORY_STORAGE_URI (#8870), which
+# test_backend_lambda_chat_history_env_points_at_the_chat_prefix checks.
+_COVERED_STACK_PREFIX_CONSTANTS = frozenset(
+    {"WRITABLE_ACCOUNTS_PREFIX", "METADATA_PREFIX", "CHAT_HISTORY_PREFIX"}
+)
 
 
 def test_no_uncovered_duplicated_prefix_constants_in_backend_lambda_stack() -> None:
@@ -1187,3 +1197,54 @@ def test_grant_bucket_access_raises_on_no_permissions() -> None:
             allow_put=False,
             allow_list=False,
         )
+
+
+def test_backend_lambda_can_delete_only_chat_history() -> None:
+    """DeleteObject serves "Delete my chat history" (#8870) and reaches chat/* only."""
+    template = _stack_template()
+    backend_role = _role_logical_id_for_lambda(template, "BackendLambda")
+
+    delete_resources = _resources_for_s3_action(template, backend_role, "s3:DeleteObject")
+    assert delete_resources, "BackendLambda needs s3:DeleteObject for chat history"
+    for resource in delete_resources:
+        assert resource.endswith("/chat/*']]}") or resource.endswith("/chat/*"), (
+            f"BackendLambda s3:DeleteObject must be scoped to chat/*, got {resource}"
+        )
+
+    list_conditions = _conditions_for_s3_action(template, backend_role, "s3:ListBucket")
+    assert {"StringLike": {"s3:prefix": ["chat", "chat/*"]}} in list_conditions
+
+
+def test_backend_lambda_chat_history_env_points_at_the_chat_prefix() -> None:
+    template = _stack_template()
+    backend_fn = next(
+        resource
+        for logical_id, resource in template["Resources"].items()
+        if resource.get("Type") == "AWS::Lambda::Function" and "BackendLambda" in logical_id
+    )
+    uri = backend_fn["Properties"]["Environment"]["Variables"]["CHAT_HISTORY_STORAGE_URI"]
+    parts = uri["Fn::Join"][1]
+    assert parts[0] == "s3://" and parts[-1] == "/chat"
+
+
+def test_chat_history_expires_after_the_agreed_retention() -> None:
+    """Saved chats hold portfolio details: they expire 90 days after their last save,
+    and superseded or deleted versions after a day (#8870)."""
+    template = _stack_template()
+    buckets = [
+        resource
+        for logical_id, resource in template["Resources"].items()
+        if resource.get("Type") == "AWS::S3::Bucket" and "PortfolioDataBucket" in logical_id
+    ]
+    assert len(buckets) == 1
+    rules = buckets[0]["Properties"]["LifecycleConfiguration"]["Rules"]
+    chat_rules = [rule for rule in rules if rule.get("Prefix") == "chat/"]
+    assert chat_rules == [
+        {
+            "Id": "ExpireChatHistory",
+            "Prefix": "chat/",
+            "Status": "Enabled",
+            "ExpirationInDays": 90,
+            "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
+        }
+    ]

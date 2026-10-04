@@ -316,6 +316,7 @@
     "drawdownRangeUnknown": "We couldn't identify the dates for this drawdown.",
     "drawdownPercentSummary": "The portfolio fell {{drawdown}} from its peak before recovering.",
     "drawdownSuspicious": "Drops larger than 90% usually indicate missing or incorrect prices. Check the highlighted period for gaps or stale data.",
+    "drawdownUnreliable": "The max drawdown calculation returned an impossible value (a drawdown must lie between -100% and 0%), so it is not shown. This usually indicates missing or incorrect prices.",
     "drawdownChartDescription": "Drawdown is computed from the daily portfolio value curve. The shaded region shows the peak-to-trough span of the max drawdown.",
     "drawdownSeriesUnavailable": "We couldn't load drawdown history for this period.",
     "performancePartialMembers": "Time-weighted return and XIRR are incomplete: no transaction history was found for {{members}}, so these figures likely read higher than the household's real return.",

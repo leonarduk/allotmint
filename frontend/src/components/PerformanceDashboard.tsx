@@ -80,6 +80,41 @@ const isFiniteNumber = (value: number | null | undefined): value is number =>
 const isPlausible = (value: number, range: PlausibleRange) =>
   value >= range.min && value <= range.max;
 
+/**
+ * Single source of truth for how a metric value is treated:
+ * - "missing": null/undefined/NaN/Infinity -> plain "N/A";
+ * - "unreliable": finite but outside the plausible range -> "N/A" with an
+ *   "unreliable" tooltip (never rescaled);
+ * - "ok": formatted as a percentage.
+ * The drawdown tile, the drawdown details text, the warning and the
+ * auto-expand all read this so they can never disagree (#8570 review).
+ */
+type MetricState = "missing" | "unreliable" | "ok";
+
+const classifyMetric = (
+  value: number | null | undefined,
+  range: PlausibleRange,
+): MetricState => {
+  if (!isFiniteNumber(value)) return "missing";
+  return isPlausible(value, range) ? "ok" : "unreliable";
+};
+
+/** A plausible drawdown at or beyond -90% usually means bad price data. */
+const SEVERE_DRAWDOWN = -0.9;
+
+type DrawdownState = MetricState | "severe";
+
+/** Classify max drawdown; "severe" is a plausible value <= -90%. */
+const classifyDrawdown = (value: number | null | undefined): DrawdownState => {
+  const state = classifyMetric(value, DRAWDOWN_RANGE);
+  if (state === "ok" && (value as number) <= SEVERE_DRAWDOWN) return "severe";
+  return state;
+};
+
+/** Severe or unreliable drawdowns open the details panel automatically. */
+const drawdownNeedsAttention = (state: DrawdownState) =>
+  state === "severe" || state === "unreliable";
+
 type FractionMetricProps = {
   value: number | null;
   range: PlausibleRange;
@@ -90,10 +125,11 @@ type FractionMetricProps = {
 function FractionMetric({ value, range, testId }: FractionMetricProps) {
   const { t, i18n } = useTranslation();
   const na = t("dashboard.metricNotAvailable", "N/A");
-  if (!isFiniteNumber(value)) {
+  const state = classifyMetric(value, range);
+  if (state === "missing") {
     return <span data-testid={testId}>{na}</span>;
   }
-  if (!isPlausible(value, range)) {
+  if (state === "unreliable") {
     return (
       <span
         data-testid={testId}
@@ -107,7 +143,9 @@ function FractionMetric({ value, range, testId }: FractionMetricProps) {
       </span>
     );
   }
-  return <span data-testid={testId}>{percent(value * 100, 2, i18n.language)}</span>;
+  return (
+    <span data-testid={testId}>{percent((value as number) * 100, 2, i18n.language)}</span>
+  );
 }
 
 export function PerformanceDashboard({ owner, group, asOf }: Props) {
@@ -205,10 +243,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         setDrawdownTrough(mdRes.trough ?? null);
         // max_drawdown is a fraction; a severe (<= -90%) or implausible
         // value auto-expands the details so the user sees the warning.
-        if (
-          isFiniteNumber(mdRes.max_drawdown) &&
-          Math.abs(mdRes.max_drawdown) >= 0.9
-        ) {
+        if (drawdownNeedsAttention(classifyDrawdown(mdRes.max_drawdown))) {
           setShowDrawdownDetails(true);
         }
       } else {
@@ -271,14 +306,17 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     }).format(value);
   };
 
-  // Only quote the drawdown in the details text when it is plausible; an
-  // implausible value still triggers the "check your prices" warning below.
+  // The tile, this details text and the warnings below all derive from the
+  // same classification, so an implausible drawdown is N/A everywhere and
+  // gets the "unreliable" warning -- never a quoted percentage, and never
+  // the ">90% drop" copy (which would be wrong for, say, +5%).
+  const drawdownState = classifyDrawdown(maxDrawdown);
   const drawdownPercentText =
-    isFiniteNumber(maxDrawdown) && isPlausible(maxDrawdown, DRAWDOWN_RANGE)
-      ? percent(maxDrawdown * 100, 2, i18n.language)
+    drawdownState === "ok" || drawdownState === "severe"
+      ? percent((maxDrawdown as number) * 100, 2, i18n.language)
       : null;
-  const severeDrawdown =
-    isFiniteNumber(maxDrawdown) && Math.abs(maxDrawdown) >= 0.9;
+  const severeDrawdown = drawdownState === "severe";
+  const unreliableDrawdown = drawdownState === "unreliable";
 
   const drawdownRangeText =
     drawdownPeak && drawdownTrough
@@ -529,8 +567,22 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             </p>
           )}
           {severeDrawdown && (
-            <p style={{ fontSize: "0.85rem", color: "#facc15", marginBottom: "0.75rem" }}>
+            <p
+              data-testid="drawdown-severe-warning"
+              style={{ fontSize: "0.85rem", color: "#facc15", marginBottom: "0.75rem" }}
+            >
               {t("dashboard.drawdownSuspicious")}
+            </p>
+          )}
+          {unreliableDrawdown && (
+            <p
+              data-testid="drawdown-unreliable-warning"
+              style={{ fontSize: "0.85rem", color: "#facc15", marginBottom: "0.75rem" }}
+            >
+              {t(
+                "dashboard.drawdownUnreliable",
+                "The max drawdown calculation returned an impossible value (a drawdown must lie between -100% and 0%), so it is not shown. This usually indicates missing or incorrect prices.",
+              )}
             </p>
           )}
           {drawdownDetailsAvailable ? (

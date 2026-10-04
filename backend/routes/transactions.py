@@ -151,6 +151,12 @@ def _global_demo_root() -> Optional[Path]:
     try:
         return data_loader.resolve_paths(None, None).accounts_root.resolve()
     except Exception:
+        # Returning None disables the read-only guard for the demo dataset in
+        # _resolve_local_root, so make the failure visible rather than silent.
+        logger.warning(
+            "Could not resolve the bundled demo accounts root; demo data write protection is disabled",
+            exc_info=True,
+        )
         return None
 
 

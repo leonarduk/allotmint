@@ -143,3 +143,18 @@ def test_require_writable_store_rejects_cached_demo_root_without_global_flag():
         transactions_module._require_writable_store(request)
 
     assert excinfo.value.status_code == 400
+
+
+def test_global_demo_root_logs_when_resolution_fails(monkeypatch, caplog):
+    """A failed lookup disables the demo-data write guard, so it must be logged."""
+
+    def _boom(*_args, **_kwargs):
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(transactions_module.data_loader, "resolve_paths", _boom)
+
+    with caplog.at_level("WARNING", logger=transactions_module.logger.name):
+        assert transactions_module._global_demo_root() is None
+
+    assert "demo data write protection is disabled" in caplog.text
+    assert "disk gone" in caplog.text

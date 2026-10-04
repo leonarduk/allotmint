@@ -79,6 +79,21 @@ def test_pension_route_accepts_custom_retirement_age(monkeypatch):
     assert resp.json()["retirement_age"] == 60
 
 
+def test_pension_route_rejects_retirement_age_before_current_age(monkeypatch):
+    monkeypatch.setattr(
+        "backend.routes.pension.load_person_metadata",
+        lambda owner, root=None: PersonMetadata(dob="1980-01-01"),
+    )
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get(
+            "/pension/forecast",
+            params={"owner": "alice", "death_age": 90, "retirement_age": 30},
+        )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "retirement_age must not be before current_age"
+
+
 def test_pension_profile_returns_age_facts(monkeypatch):
     monkeypatch.setattr(
         "backend.routes.pension.load_person_metadata",

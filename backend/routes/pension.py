@@ -1,4 +1,5 @@
 import inspect
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
@@ -58,11 +59,16 @@ def pension_forecast(
     contribution_monthly: float | None = Query(None, ge=0),
     investment_growth_pct: float = Query(5.0),
     desired_income_annual: float | None = Query(None, ge=0),
-    retirement_age: int | None = Query(
-        None,
-        ge=0,
-        description="Age you plan to stop work; defaults to your UK state pension age",
-    ),
+    # Annotated (rather than `= Query(None)`) so direct Python callers that
+    # omit it get a real None instead of a Query sentinel.
+    retirement_age: Annotated[
+        int | None,
+        Query(
+            ge=0,
+            le=100,
+            description="Age you plan to stop work; defaults to your UK state pension age",
+        ),
+    ] = None,
 ):
     accounts_root = resolve_accounts_root(request)
     dob, current_age = _load_dob(owner, accounts_root)
@@ -70,6 +76,8 @@ def pension_forecast(
     state_pension_age = state_pension_age_uk(dob)
     if retirement_age is None:
         retirement_age = state_pension_age
+    elif retirement_age < int(current_age):
+        raise HTTPException(status_code=400, detail="retirement_age must not be before current_age")
     if death_age <= retirement_age:
         raise HTTPException(status_code=400, detail="death_age must exceed retirement_age")
 

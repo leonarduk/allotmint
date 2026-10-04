@@ -665,6 +665,7 @@
     "ages": {
       "ageNowHelper": "From the date of birth on file ({{dob}}).",
       "ageNowLabel": "Age now",
+      "ageNowLoadFailed": "Couldn't load age details: {{error}}",
       "ageNowUnknown": "Add a date of birth to this owner's profile to see it.",
       "retirementAgeHelper": "When you stop work and start drawing your pension. Defaults to your State Pension age ({{spa}}), which is when the State Pension starts whatever you choose. Private pensions can usually be accessed from 55 (57 from April 2028).",
       "retirementAgeHelperNoSpa": "When you stop work and start drawing your pension. Leave blank to use your State Pension age.",

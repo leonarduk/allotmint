@@ -77,7 +77,9 @@ describe("PensionForecast page", () => {
     });
     // Default: no dob on file, so the form falls back to its "unknown" age
     // copy and leaves the retirement age for the backend to default.
-    mockGetPensionProfile.mockRejectedValue(new Error("missing or invalid dob"));
+    mockGetPensionProfile.mockRejectedValue(
+      Object.assign(new Error("missing or invalid dob"), { status: 400 }),
+    );
   });
 
   afterEach(() => {
@@ -767,6 +769,37 @@ describe("PensionForecast page", () => {
     expect(
       screen.getByText(/you \+ employer: £5,000\.00 a month/i),
     ).toBeInTheDocument();
+
+    // With the employer slider taking the whole allowance, savings clamp to £0.
+    fireEvent.change(savings, { target: { value: "0" } });
+    fireEvent.change(employer, { target: { value: "5000" } });
+    expect(employer.value).toBe("5000");
+    fireEvent.change(savings, { target: { value: "500" } });
+    expect(savings.value).toBe("0");
+  });
+
+  it("shows a profile load failure instead of passing it off as a missing date of birth", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
+    mockGetPensionProfile.mockRejectedValue(
+      Object.assign(new Error("The backend service is temporarily unavailable."), {
+        status: 503,
+      }),
+    );
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    expect(
+      await screen.findByText(
+        "Couldn't load age details: The backend service is temporarily unavailable.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(en.pensionForecast.ages.ageNowUnknown),
+    ).not.toBeInTheDocument();
   });
 
   it("offers minimum/moderate/comfortable retirement spending presets for single and couple households", async () => {

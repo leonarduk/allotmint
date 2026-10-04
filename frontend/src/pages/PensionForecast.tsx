@@ -52,6 +52,7 @@ export default function PensionForecast() {
   // Age facts loaded per owner before any forecast runs, so the form can show
   // "age now" and default the retirement age to the owner's state pension age.
   const [profile, setProfile] = useState<PensionProfileResponse | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [plannedRetirementAge, setPlannedRetirementAge] = useState<string>("");
   const [household, setHousehold] = useState<Household>("single");
   const [monthlySavings, setMonthlySavings] = useState(250);
@@ -199,6 +200,7 @@ export default function PensionForecast() {
 
   useEffect(() => {
     setProfile(null);
+    setProfileError(null);
     setPlannedRetirementAge("");
     if (!owner) return;
     let cancelled = false;
@@ -209,9 +211,14 @@ export default function PensionForecast() {
         setProfile(p);
         setPlannedRetirementAge(String(p.state_pension_age));
       })
-      .catch(() => {
-        // No dob on file: the form still works, the backend defaults the
-        // retirement age itself and reports the dob problem on Forecast.
+      .catch((ex: any) => {
+        if (cancelled) return;
+        // A 400 means no usable dob on file: the form still works, the
+        // backend defaults the retirement age itself and reports the dob
+        // problem on Forecast. Anything else (outage, auth) is surfaced
+        // rather than passed off as a missing dob.
+        if (ex?.status === 400) return;
+        setProfileError(ex instanceof Error ? ex.message : String(ex));
       });
     return () => {
       cancelled = true;
@@ -751,7 +758,11 @@ export default function PensionForecast() {
                 <p className="text-xs text-slate-500">
                   {displayedDob
                     ? t("pensionForecast.ages.ageNowHelper", { dob: displayedDob })
-                    : t("pensionForecast.ages.ageNowUnknown")}
+                    : profileError
+                      ? t("pensionForecast.ages.ageNowLoadFailed", {
+                          error: profileError,
+                        })
+                      : t("pensionForecast.ages.ageNowUnknown")}
                 </p>
               </div>
               <div className="space-y-2">

@@ -45,10 +45,9 @@ class ChatContextIn(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    # The client resends the full prior conversation each turn; nothing is
-    # persisted server-side in this first pass (see docs/issue tracker for
-    # the planned S3-backed history follow-up, mirroring backend/routes/
-    # query.py's dual local/S3 persistence pattern).
+    # The client resends the active path of the conversation each turn. The
+    # conversation is saved separately, through /chat/conversation
+    # (backend/routes/chat_history.py, #8870); this endpoint never reads it.
     history: List[ChatMessage] = Field(default_factory=list)
     # Pages the client can open. When present the model gets a
     # navigate_to_page tool limited to these paths (backend/chat/local_tools.py).

@@ -571,10 +571,13 @@ def test_refresh_universe_finds_held_tickers_with_auth_enabled_only_as_system_jo
         assert prices.refresh_universe() == ["AAA.L"]
 
 
-def _empty_refresh(tmp_path, monkeypatch: pytest.MonkeyPatch, *, snapshot_exists: bool) -> list:
+def _empty_refresh(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, *, snapshot_exists: bool, put_error: Exception | None = None
+) -> list:
     """Run refresh_prices with nothing fetched and no local seed (a fresh Lambda container).
 
     The fake S3 honours ``IfNoneMatch="*"`` like the real one: 412 when the key exists.
+    ``put_error``, when given, is raised by every ``put_object`` call instead.
     """
     from botocore.exceptions import ClientError
 
@@ -591,6 +594,8 @@ def _empty_refresh(tmp_path, monkeypatch: pytest.MonkeyPatch, *, snapshot_exists
     written: list = []
 
     def put_object(**kwargs):
+        if put_error is not None:
+            raise put_error
         if kwargs.get("IfNoneMatch") == "*" and snapshot_exists:
             raise ClientError({"Error": {"Code": "PreconditionFailed", "Message": "exists"}}, "PutObject")
         written.append(kwargs)
@@ -659,6 +664,43 @@ def test_refresh_prices_seeds_missing_s3_snapshot_when_nothing_fetched(
     assert len(written) == 1
     assert json.loads(written[0]["Body"]) == {}
     assert written[0]["IfNoneMatch"] == "*"
+
+
+def test_refresh_prices_logs_error_when_missing_snapshot_cannot_be_seeded(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A denied conditional seed may leave the key missing (#3685), so it is an ERROR, not a WARNING (#8943)."""
+    from botocore.exceptions import ClientError
+
+    denied = ClientError({"Error": {"Code": "AccessDenied", "Message": "denied"}}, "PutObject")
+    with caplog.at_level("WARNING", logger=prices.logger.name):
+        written = _empty_refresh(tmp_path, monkeypatch, snapshot_exists=False, put_error=denied)
+
+    assert written == []
+    seed_failures = [r for r in caplog.records if "Failed to seed a missing S3 price snapshot" in r.getMessage()]
+    assert [r.levelname for r in seed_failures] == ["ERROR"]
+    assert not any(r.levelname == "WARNING" and "S3" in r.getMessage() for r in caplog.records)
+
+
+def test_upload_snapshot_failure_with_prices_stays_warning(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed non-empty overwrite leaves the previous snapshot in place, so it stays a WARNING."""
+
+    def put_object(**_kwargs):
+        raise OSError("connection reset")
+
+    monkeypatch.setenv("DATA_BUCKET", "test-bucket")
+    monkeypatch.setitem(
+        sys.modules, "boto3", SimpleNamespace(client=lambda svc: SimpleNamespace(put_object=put_object))
+    )
+
+    with caplog.at_level("WARNING", logger=prices.logger.name):
+        prices._upload_snapshot_to_s3({"AAA.L": {"last_price": 1.0}})
+
+    assert [(r.levelname, r.getMessage().split(":")[0]) for r in caplog.records] == [
+        ("WARNING", "Failed to upload price snapshot to S3")
+    ]
 
 
 def test_refresh_prices_partial_null_preserves_existing_prices(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -23,6 +23,10 @@ import {
   getCachedGroupInstruments,
   clearGroupInstrumentCache,
   checkScreenerAvailable,
+  getChatConversation,
+  putChatConversation,
+  archiveChatConversation,
+  deleteChatHistory,
 } from "@/api";
 import {
   clearFetchCache,
@@ -31,9 +35,13 @@ import {
 } from "@/utils/fetchCache";
 import {
   appendChatMessage,
+  getChatIdentityEpoch,
   getChatMessages,
+  getChatSyncState,
+  setChatSyncState,
   startNewChat,
 } from "@/utils/chatConversation";
+import { onAuthChange } from "@/authEvents";
 
 const csvFile = new File(["ticker,units"], "holdings.csv", {
   type: "text/csv",
@@ -1307,6 +1315,29 @@ describe("cached responses do not survive an identity change", () => {
   });
 });
 
+describe("setAuthToken auth-change events (issue #8618)", () => {
+  afterEach(() => {
+    setAuthToken(null);
+  });
+
+  it("emits once per actual token change, with the previous token", () => {
+    setAuthToken(null);
+    const listener = vi.fn();
+    const unsubscribe = onAuthChange(listener);
+
+    setAuthToken("token-for-user-a");
+    // Re-setting the same token is not a change.
+    setAuthToken("token-for-user-a");
+    setAuthToken(null);
+    unsubscribe();
+
+    expect(listener.mock.calls).toEqual([
+      [{ previousToken: null, nextToken: "token-for-user-a" }],
+      [{ previousToken: "token-for-user-a", nextToken: null }],
+    ]);
+  });
+});
+
 describe("chat conversation is scoped to the login session", () => {
   const message = { role: "user" as const, content: "What is my ISA worth?" };
 
@@ -1327,7 +1358,12 @@ describe("chat conversation is scoped to the login session", () => {
     setAuthToken(null);
 
     expect(getChatMessages()).toEqual([]);
-    expect(sessionStorage.getItem("allotmint.chat.messages")).toBe("[]");
+    // Nothing of the conversation, in any version, is left in storage (#8842).
+    expect(JSON.parse(sessionStorage.getItem("allotmint.chat.tree.v1") ?? "null")).toMatchObject({
+      nodes: [],
+      active: {},
+    });
+    expect(sessionStorage.getItem("allotmint.chat.messages")).toBeNull();
   });
 
   it("keeps the conversation when the stored token is re-applied on reload", () => {
@@ -1347,5 +1383,99 @@ describe("chat conversation is scoped to the login session", () => {
     setAuthToken("refreshed-token-for-user-a");
 
     expect(getChatMessages()).toEqual([message]);
+  });
+});
+
+describe("saved chat conversation API (#8870)", () => {
+  const tree = {
+    nodes: [{ id: "1", parentId: null, role: "user" as const, content: "hi" }],
+    active: { root: "1" },
+    nextId: 2,
+  };
+
+  const respond = (status: number, body: unknown) =>
+    vi.fn().mockResolvedValue({
+      ok: status < 400,
+      status,
+      statusText: "",
+      headers: new Headers(),
+      json: () => Promise.resolve(body),
+      text: () => Promise.resolve(""),
+    });
+
+  it("GETs the saved conversation", async () => {
+    const saved = { owner: "abc", revision: 3, conversation: tree };
+    const mockFetch = respond(200, saved);
+    global.fetch = mockFetch;
+
+    await expect(getChatConversation()).resolves.toEqual(saved);
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${DEFAULT_API_BASE}/chat/conversation`);
+    expect(init.method).toBeUndefined();
+  });
+
+  it("PUTs the tree with the revision it was based on", async () => {
+    const mockFetch = respond(200, { revision: 4 });
+    global.fetch = mockFetch;
+
+    await expect(putChatConversation(tree, 3)).resolves.toEqual({ revision: 4 });
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${DEFAULT_API_BASE}/chat/conversation`);
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({ revision: 3, conversation: tree });
+  });
+
+  it("rejects a stale PUT with the saved document on the error", async () => {
+    const current = { revision: 5, conversation: tree };
+    global.fetch = respond(409, { detail: "changed", code: "chat_conversation_conflict", current });
+
+    await expect(putChatConversation(tree, 3)).rejects.toMatchObject({
+      status: 409,
+      code: "chat_conversation_conflict",
+      body: { current },
+    });
+  });
+
+  it("archives with POST and deletes the history with DELETE", async () => {
+    const mockFetch = respond(200, { revision: 2, archived: true });
+    global.fetch = mockFetch;
+    await expect(archiveChatConversation()).resolves.toEqual({ revision: 2, archived: true });
+    expect(mockFetch.mock.calls[0][0]).toBe(`${DEFAULT_API_BASE}/chat/conversation/archive`);
+    expect((mockFetch.mock.calls[0][1] as RequestInit).method).toBe("POST");
+
+    const deleteFetch = respond(204, null);
+    global.fetch = deleteFetch;
+    await expect(deleteChatHistory()).resolves.toBeUndefined();
+    expect(deleteFetch.mock.calls[0][0]).toBe(`${DEFAULT_API_BASE}/chat/conversation`);
+    expect((deleteFetch.mock.calls[0][1] as RequestInit).method).toBe("DELETE");
+  });
+});
+
+describe("saved chat bookkeeping follows the signed-in identity (#8870)", () => {
+  afterEach(() => {
+    setAuthToken(null);
+  });
+
+  it("forgets whose saved copy this tab holds on logout", () => {
+    setAuthToken("token-for-user-a");
+    setChatSyncState({ owner: "user-a", revision: 7, dirty: true, archivePending: true });
+
+    setAuthToken(null);
+
+    expect(getChatSyncState()).toEqual({ owner: null, revision: 0, dirty: false, archivePending: false });
+    expect(JSON.parse(sessionStorage.getItem("allotmint.chat.sync.v1") ?? "null")).toEqual(
+      getChatSyncState(),
+    );
+  });
+
+  it("asks for a reload whenever a different token is applied", () => {
+    setAuthToken("token-for-user-a");
+    const epoch = getChatIdentityEpoch();
+
+    setAuthToken("token-for-user-a");
+    expect(getChatIdentityEpoch()).toBe(epoch);
+
+    setAuthToken("token-for-user-b");
+    expect(getChatIdentityEpoch()).toBeGreaterThan(epoch);
   });
 });

@@ -2,11 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import * as api from "../api";
 import type { ChatContext, ChatMessage, ChatPage } from "../api";
 import {
+  addChatVersion,
   appendChatMessage,
-  setChatMessages,
-  startNewChat,
+  endChatPathAt,
+  restoreChat,
+  selectChatVersion,
+  snapshotChat,
   useChatMessages,
+  useChatPath,
 } from "../utils/chatConversation";
+import {
+  deleteSavedChatHistory,
+  ensureChatLoaded,
+  setChatReplyPending,
+  startNewSavedChat,
+  useChatSaveFailed,
+} from "../utils/chatSync";
+import { isDemoSession } from "../demoAuth";
 import { ChatMessageItem } from "./ChatMessageItem";
 
 interface Props {
@@ -55,11 +67,21 @@ function chatErrorMessage(e: unknown): string {
 
 export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Props) {
   const messages = useChatMessages();
+  const path = useChatPath();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ index: number; draft: string } | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const saveFailed = useChatSaveFailed();
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Picks up the conversation saved on the server (#8870); a failure leaves
+  // the local one in place and shows the "Not saved" hint.
+  useEffect(() => {
+    if (open) void ensureChatLoaded();
+  }, [open]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView?.({ block: "end" });
@@ -67,12 +89,21 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
 
   if (!open) return null;
 
-  // Posts `text` as the next user turn after `history`. `onFail` puts the
-  // conversation back: an unanswered message left in `messages` would make the
-  // next send's history end in two consecutive "user" turns, which the backend
-  // rejects with a 400 (#7897).
-  const submit = async (text: string, history: ChatMessage[], onFail: () => void) => {
-    setChatMessages([...history, { role: "user", content: text }]);
+  // Posts `text` as the next user turn after `history`. `place` puts that turn
+  // in the conversation; the reply is appended after it. On failure the
+  // conversation is restored exactly as it was before `place`, so no
+  // unanswered turn is left behind: history ending in two consecutive "user"
+  // turns is rejected by the backend with a 400 (#7897).
+  const submit = async (
+    text: string,
+    history: ChatMessage[],
+    place: () => void,
+    onFail?: () => void,
+  ) => {
+    const before = snapshotChat();
+    // Not saved until the reply is in: on failure it is rolled back anyway.
+    setChatReplyPending(true);
+    place();
     setSending(true);
     setError(null);
     try {
@@ -83,10 +114,12 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
         onNavigate(navigate_to);
       }
     } catch (e) {
-      onFail();
+      restoreChat(before);
+      onFail?.();
       setError(chatErrorMessage(e));
     } finally {
       setSending(false);
+      setChatReplyPending(false);
     }
   };
 
@@ -94,46 +127,69 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
     const text = input.trim();
     if (!text || sending) return;
 
-    const history = messages;
     setInput("");
-    // Drop the unanswered message and hand its text back for a retry.
-    await submit(text, history, () => {
-      setChatMessages(history);
-      setInput(text);
-    });
+    // Hand the unanswered message's text back for a retry.
+    await submit(
+      text,
+      messages,
+      () => appendChatMessage({ role: "user", content: text }),
+      () => setInput(text),
+    );
   };
 
-  // Replaces the edited message and regenerates from there: every later turn
-  // is discarded and only the turns before it are sent as history (#8590).
+  // Adds the edited text as a new version of the message and regenerates from
+  // there, sending only the turns before it as history. The old version keeps
+  // its later turns, reachable through the version control (#8590, #8842).
   const saveEdit = async () => {
     if (!editing || sending) return;
     const { index } = editing;
+    const node = path[index];
     const text = editing.draft.trim();
-    if (!text) return;
+    if (!node || !text) return;
     setEditing(null);
-    if (text === messages[index]?.content) return;
+    if (text === node.content) return;
 
-    const previous = messages;
-    // On failure restore the pre-edit conversation and reopen the edit box
-    // with the edited text, so it can be retried.
-    await submit(text, messages.slice(0, index), () => {
-      setChatMessages(previous);
-      setEditing({ index, draft: text });
-    });
+    // On failure reopen the edit box with the edited text, so it can be retried.
+    await submit(
+      text,
+      messages.slice(0, index),
+      () => addChatVersion(node.id, { role: "user", content: text }),
+      () => setEditing({ index, draft: text }),
+    );
   };
 
-  // Asks again for the reply at `index` without changing the question: that
-  // reply and every later turn are discarded, and the preceding user message
-  // is resent with only the turns before it as history (#8820).
+  // Asks again for the reply at `index` without changing the question. The
+  // new reply becomes another version of it; the old one and its later turns
+  // are kept. A failure restores the old reply as the active one (#8820, #8842).
   const regenerate = async (index: number) => {
-    const prompt = messages[index - 1];
+    const prompt = path[index - 1];
     if (sending || prompt?.role !== "user") return;
 
-    const previous = messages;
     setEditing(null);
-    // On failure restore the conversation as it was, old reply included, so
-    // a failed regenerate never loses the answer the user already had.
-    await submit(prompt.content, messages.slice(0, index - 1), () => setChatMessages(previous));
+    await submit(prompt.content, messages.slice(0, index - 1), () => endChatPathAt(prompt.id));
+  };
+
+  // Deletes the saved history (this conversation and every archived one). On
+  // failure the conversation is kept and the error shown.
+  const deleteHistory = async () => {
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteSavedChatHistory();
+      setInput("");
+      setEditing(null);
+    } catch {
+      setError("Couldn't delete your chat history. Please try again.");
+    } finally {
+      setDeleting(false);
+      setConfirmingDelete(false);
+    }
+  };
+
+  const selectVersion = (id: string, offset: number) => {
+    if (sending) return;
+    setEditing(null);
+    selectChatVersion(id, offset);
   };
 
   return (
@@ -178,11 +234,29 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
             marginBottom: "1rem",
           }}
         >
-          <strong>Chat</strong>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
+            <strong>Chat</strong>
+            {saveFailed && (
+              <span
+                title="Your chat couldn't be saved to your account. It is still kept in this tab, and saving is retried on your next change."
+                style={{ color: "var(--drawer-muted-color)", fontSize: "0.85em" }}
+              >
+                Not saved
+              </span>
+            )}
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            {!isDemoSession() && (
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                disabled={sending || deleting || confirmingDelete}
+              >
+                Delete history
+              </button>
+            )}
             <button
               onClick={() => {
-                startNewChat();
+                startNewSavedChat();
                 setInput("");
                 setEditing(null);
                 setError(null);
@@ -205,6 +279,23 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
             </button>
           </div>
         </div>
+        {confirmingDelete && (
+          <div
+            role="group"
+            aria-label="Confirm deleting chat history"
+            style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}
+          >
+            <span style={{ flex: "1 1 12rem" }}>
+              Delete your saved chat history, including chats you started over with New chat? This can't be undone.
+            </span>
+            <button onClick={() => void deleteHistory()} disabled={deleting}>
+              Delete
+            </button>
+            <button onClick={() => setConfirmingDelete(false)} disabled={deleting}>
+              Cancel
+            </button>
+          </div>
+        )}
         <div style={{ flex: 1, overflowY: "auto", marginBottom: "1rem" }}>
           {messages.length === 0 && (
             <div style={{ color: "var(--drawer-muted-color)" }}>
@@ -221,16 +312,25 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
               gap: "0.75rem",
             }}
           >
-            {messages.map((m, i) => (
+            {path.map((m, i) => (
               <ChatMessageItem
-                key={i}
+                key={m.id}
                 message={m}
                 busy={sending}
+                version={
+                  m.versionCount > 1
+                    ? {
+                        current: m.version,
+                        count: m.versionCount,
+                        onSelect: (offset) => selectVersion(m.id, offset),
+                      }
+                    : undefined
+                }
                 onEdit={
                   m.role === "user" ? () => setEditing({ index: i, draft: m.content }) : undefined
                 }
                 onRegenerate={
-                  m.role === "assistant" && messages[i - 1]?.role === "user"
+                  m.role === "assistant" && path[i - 1]?.role === "user"
                     ? () => void regenerate(i)
                     : undefined
                 }

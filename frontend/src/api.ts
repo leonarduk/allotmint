@@ -2633,10 +2633,19 @@ export type ChatContext = {
   ticker?: string;
 };
 
+/** A file the assistant saved with its export_file tool (#9039). */
+export type ChatFile = {
+  filename: string;
+  media_type: string;
+  content_base64: string;
+};
+
 export type ChatReply = {
   reply: string;
   /** Set when the assistant asked to open one of the pages sent with the turn. */
   navigate_to?: string | null;
+  /** Files (CSV, Excel, Word) the assistant exported during the turn. */
+  files?: ChatFile[];
 };
 
 // One chat turn can take several LLM round trips plus MCP tool calls; a local

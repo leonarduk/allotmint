@@ -74,6 +74,51 @@ describe("ChatPanel", () => {
     expect(screen.getByText("Opening Transactions.")).toBeInTheDocument();
   });
 
+  it("offers the files the assistant exported as downloads under its reply (#9039)", async () => {
+    (api.postChat as Mock).mockResolvedValueOnce({
+      reply: "Your audit is ready.",
+      files: [{ filename: "audit.csv", media_type: "text/csv", content_base64: btoa("ticker,days") }],
+    });
+    // jsdom has no object URLs; stand in for them and put the originals back after.
+    const original = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
+    const createObjectURL = vi.fn((_blob: Blob) => "blob:audit");
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const user = userEvent.setup();
+
+    render(<ChatPanel open onClose={() => {}} />);
+
+    await user.type(screen.getByLabelText(/chat message/i), "export the audit as csv");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    const reply = await screen.findByRole("listitem", { name: "Assistant" });
+    await user.click(within(reply).getByRole("button", { name: "Download audit.csv" }));
+
+    const blob = createObjectURL.mock.calls[0][0];
+    expect(blob.type).toBe("text/csv");
+    expect(await blob.text()).toBe("ticker,days");
+    const link = click.mock.contexts[0] as HTMLAnchorElement;
+    expect(link.download).toBe("audit.csv");
+    expect(link.href).toBe("blob:audit");
+    click.mockRestore();
+    URL.createObjectURL = original.create;
+    URL.revokeObjectURL = original.revoke;
+  });
+
+  it("shows no download buttons for a reply without files", async () => {
+    (api.postChat as Mock).mockResolvedValueOnce({ reply: "Nothing to export." });
+    const user = userEvent.setup();
+
+    render(<ChatPanel open onClose={() => {}} />);
+
+    await user.type(screen.getByLabelText(/chat message/i), "hi");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await screen.findByText("Nothing to export.");
+    expect(screen.queryByRole("list", { name: "Exported files" })).not.toBeInTheDocument();
+  });
+
   it("ignores a navigate_to that was not one of the offered pages", async () => {
     (api.postChat as Mock).mockResolvedValueOnce({
       reply: "Opening it.",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 import warnings
 from typing import TYPE_CHECKING, List, Literal, Optional
@@ -56,10 +57,18 @@ class ChatRequest(BaseModel):
     context: Optional[ChatContextIn] = None
 
 
+class ChatFileOut(BaseModel):
+    filename: str
+    media_type: str
+    content_base64: str
+
+
 class ChatResponse(BaseModel):
     reply: str
     # Set when the model asked to open a page; always one of the request's pages.
     navigate_to: Optional[str] = None
+    # Files the model saved with export_file (#9039), for the client to offer as downloads.
+    files: List[ChatFileOut] = Field(default_factory=list)
 
 
 # Stable, machine-readable failure codes sent alongside `detail`, so the
@@ -126,7 +135,11 @@ async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatRespons
     if not mcp_server_url:
         return _chat_error(503, CHAT_ERROR_NOT_CONFIGURED, "Chat is not configured (MCP_SERVER_URL unset)")
 
-    local_tools = LocalTools(pages=pages_from_request([page.model_dump() for page in payload.pages]), data_tools=True)
+    local_tools = LocalTools(
+        pages=pages_from_request([page.model_dump() for page in payload.pages]),
+        data_tools=True,
+        file_exports=True,
+    )
     try:
         reply = await run_configured_chat_turn(
             payload.message,
@@ -150,7 +163,15 @@ async def _post_chat_impl(request: Request, payload: ChatRequest) -> ChatRespons
             raise
         logger.warning("Chat upstream request failed: %s", sanitise_log_value(repr(upstream)))
         return _chat_error(502, *_describe_upstream_error(upstream))
-    return ChatResponse(reply=reply, navigate_to=local_tools.navigate_to)
+    files = [
+        ChatFileOut(
+            filename=item.filename,
+            media_type=item.media_type,
+            content_base64=base64.b64encode(item.content).decode("ascii"),
+        )
+        for item in local_tools.files
+    ]
+    return ChatResponse(reply=reply, navigate_to=local_tools.navigate_to, files=files)
 
 
 @router.post("/chat", response_model=ChatResponse)

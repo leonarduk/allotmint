@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import * as api from "../api";
-import type { ChatContext, ChatMessage, ChatPage } from "../api";
+import type { ChatContext, ChatFile, ChatMessage, ChatPage } from "../api";
 import {
   addChatVersion,
   appendChatMessage,
@@ -115,6 +115,9 @@ export function ChatPanel({
   // "history" lists the saved chats in place of the conversation.
   const [view, setView] = useState<"chat" | "history">("chat");
   const [opening, setOpening] = useState(false);
+  // Files the assistant exported, by the id of the reply they came with. Kept
+  // for this session only: the saved conversation holds just the text (#9039).
+  const [files, setFiles] = useState<Record<string, ChatFile[]>>({});
   const saveFailed = useChatSaveFailed();
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -148,8 +151,9 @@ export function ChatPanel({
     setSending(true);
     setError(null);
     try {
-      const { reply, navigate_to } = await api.postChat(text, history, pages, context);
-      appendChatMessage({ role: "assistant", content: reply });
+      const { reply, navigate_to, files: replyFiles } = await api.postChat(text, history, pages, context);
+      const replyId = appendChatMessage({ role: "assistant", content: reply });
+      if (replyFiles?.length) setFiles((prev) => ({ ...prev, [replyId]: replyFiles }));
       // Only follow a path that was offered: the backend enforces this too.
       if (navigate_to && onNavigate && pages.some((page) => page.path === navigate_to)) {
         onNavigate(navigate_to);
@@ -411,6 +415,7 @@ export function ChatPanel({
                   <ChatMessageItem
                     key={m.id}
                     message={m}
+                    files={files[m.id]}
                     busy={sending}
                     version={
                       m.versionCount > 1

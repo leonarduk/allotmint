@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Check, ChevronLeft, ChevronRight, Copy, Pencil, RefreshCw } from "lucide-react";
-import type { ChatMessage } from "../api";
+import { Check, ChevronLeft, ChevronRight, Copy, Download, Pencil, RefreshCw } from "lucide-react";
+import type { ChatFile, ChatMessage } from "../api";
+import { downloadChatFile } from "../lib/chatFileDownload";
 import { CHAT_INPUT_STYLE } from "./chatInputStyle";
 
 // Assistant replies are Markdown (headings, bold, GFM tables). Raw HTML is not
@@ -166,6 +167,26 @@ function VersionSwitcher({ version, busy }: { version: ChatMessageVersion; busy:
   );
 }
 
+// Download buttons for the files the assistant exported with this reply (#9039).
+function ChatFiles({ files }: { files: ChatFile[] }) {
+  return (
+    <ul className="chat-message-files" aria-label="Exported files" style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
+      {files.map((file, i) => (
+        <li key={`${i}-${file.filename}`}>
+          <button
+            type="button"
+            onClick={(e) => downloadChatFile(file, e.currentTarget.ownerDocument)}
+            style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
+          >
+            <Download size={14} aria-hidden />
+            Download {file.filename}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export interface ChatMessageEditing {
   draft: string;
   onChange: (draft: string) => void;
@@ -175,6 +196,8 @@ export interface ChatMessageEditing {
 
 interface Props {
   message: ChatMessage;
+  /** Files the assistant exported with this reply. */
+  files?: ChatFile[];
   /** True while a reply is pending: editing, regenerating and switching versions are blocked, copying is not. */
   busy: boolean;
   /** Starts editing this message; only passed for the user's own messages. */
@@ -187,7 +210,7 @@ interface Props {
   version?: ChatMessageVersion;
 }
 
-export function ChatMessageItem({ message, busy, onEdit, onRegenerate, editing, version }: Props) {
+export function ChatMessageItem({ message, files, busy, onEdit, onRegenerate, editing, version }: Props) {
   const isUser = message.role === "user";
   return (
     <li
@@ -225,6 +248,7 @@ export function ChatMessageItem({ message, busy, onEdit, onRegenerate, editing, 
               </ReactMarkdown>
             </div>
           )}
+          {files && files.length > 0 && <ChatFiles files={files} />}
           <div className="chat-message-footer">
             {version && <VersionSwitcher version={version} busy={busy} />}
             <div className="chat-message-actions">

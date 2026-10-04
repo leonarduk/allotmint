@@ -418,6 +418,14 @@ transactions page"). That tool, `navigate_to_page`, is handled by this backend
 pages enabled for the user with each turn (`frontend/src/utils/chatPages.ts`),
 and the model can only open one of those.
 
+The chat can also hand over a report as a file ("export that as a spreadsheet").
+The `export_file` tool (`backend/chat/export_file_tool.py`) renders a table as
+CSV, Excel (`.xlsx`) or Word (`.docx`) in memory; `POST /chat` returns it
+base64-encoded in `files`, and the drawer shows a download button under the
+reply. Files are not saved with the conversation, and are capped at 5000 rows
+and 2 MB per reply. Like every chat tool it can be switched off on the admin
+page.
+
 ### Regenerating the docs screenshots
 
 `docs/assets/qa-screenshots/*.png` are captured against this repo's own bundled

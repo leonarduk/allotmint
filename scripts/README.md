@@ -320,6 +320,22 @@ python -m scripts.reconcile_holding_tickers --write data/accounts/alice/isa.json
 python -m scripts.reconcile_holding_tickers --write --all
 ```
 
+## classify_instruments.py
+
+Fill in `asset_class` (equity / bond / cash / commodity / property /
+multi-asset) and replace issuer sectors on funds and trusts across every
+instrument metadata file under `<data_root>/instruments`, applying the manual
+overrides in `<data_root>/instrument_classification_overrides.json`. Dry run
+unless `--write` is supplied; a write keeps each file's key order so the diff
+shows only the changed fields, and a second run is a no-op. See
+[docs/instrument-classification.md](../docs/instrument-classification.md).
+
+```bash
+python -m scripts.classify_instruments
+python -m scripts.classify_instruments --write
+python -m scripts.classify_instruments --instruments-dir ../allotmint-data/instruments --write
+```
+
 ## convert_untracked_holdings.py
 
 Record holdings that no transaction mentions (entered by hand before `/input`

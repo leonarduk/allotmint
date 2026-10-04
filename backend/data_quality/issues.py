@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator, Sequence
 
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, enrich_holding
+from backend.common.instrument_classification import ASSET_CLASSES, normalise_asset_class
 from backend.common.instruments import get_instrument_meta, resolve_instrument_ticker
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -59,6 +60,8 @@ class IssueType:
     MISSING_METADATA = "MISSING_METADATA"
     TICKER_MISMATCH = "TICKER_MISMATCH"
     IMPLAUSIBLE_BOOK_COST = "IMPLAUSIBLE_BOOK_COST"
+    # Held instrument whose metadata has no recognised asset class (#9196).
+    MISSING_ASSET_CLASS = "MISSING_ASSET_CLASS"
 
 
 SEVERITY = {
@@ -73,6 +76,7 @@ SEVERITY = {
     IssueType.MISSING_METADATA: "low",
     IssueType.TICKER_MISMATCH: "low",
     IssueType.IMPLAUSIBLE_BOOK_COST: "high",
+    IssueType.MISSING_ASSET_CLASS: "low",
 }
 
 # Issue types whose fix is a fetch/refetch of the cached series.
@@ -258,13 +262,41 @@ def _implausible_book_cost_issue(
     )
 
 
+def _missing_asset_class_issue(ticker: str, meta: dict[str, Any]) -> DataQualityIssue | None:
+    """Flag a held instrument whose metadata has no recognised asset class.
+
+    Keyed on the instrument, not the holding, so one gap held in several
+    accounts is reported once. Values such as "Fund" name a wrapper, not an
+    exposure, so they count as missing too (#9196).
+    """
+    if normalise_asset_class(meta.get("asset_class")) is not None:
+        return None
+    symbol, _, exchange = ticker.partition(".")
+    return DataQualityIssue(
+        id=_issue_id(IssueType.MISSING_ASSET_CLASS, symbol, exchange),
+        type=IssueType.MISSING_ASSET_CLASS,
+        severity=SEVERITY[IssueType.MISSING_ASSET_CLASS],
+        entity={"ticker": symbol, "exchange": exchange},
+        description=(
+            f"Held instrument {ticker} has asset class {meta.get('asset_class')!r}; "
+            f"expected one of {', '.join(ASSET_CLASSES)}."
+        ),
+        suggested_fix=(
+            "Run scripts/classify_instruments.py --write, or add the instrument to "
+            "instrument_classification_overrides.json."
+        ),
+        preview={"before": {"asset_class": meta.get("asset_class")}, "after": {"asset_class": "classified"}},
+        fixable=False,
+    )
+
+
 def aggregate_holding_issues(
     accounts_root: Path | None = None,
     *,
     instruments_root: Path | None = None,
 ) -> list[DataQualityIssue]:
     """Detect holdings-side issues: wrong exchange, unresolved ticker, missing
-    series, and implausible booked cost."""
+    series, missing asset class, and implausible booked cost."""
     issues: list[DataQualityIssue] = []
     price_cache: dict[str, float] = {}
     for owner, account, holding in iter_holdings(accounts_root):
@@ -333,6 +365,10 @@ def aggregate_holding_issues(
                     )
                 )
             continue
+
+        asset_class_issue = _missing_asset_class_issue(f"{symbol}.{exchange}", meta)
+        if asset_class_issue is not None:
+            issues.append(asset_class_issue)
 
         # Metadata exists; the fix is a missing series on the canonical pair.
         if resolved is not None:

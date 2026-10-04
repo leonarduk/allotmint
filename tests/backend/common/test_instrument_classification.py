@@ -1,0 +1,143 @@
+"""Tests for asset-class and fund-sector classification (#9196)."""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from backend.common import instrument_classification as ic
+
+
+def _meta(name, instrument_type=None, sector=None, **extra):
+    meta = {"ticker": extra.pop("ticker", "TEST.L"), "name": name, "sector": sector}
+    if instrument_type is not None:
+        meta["instrumentType"] = instrument_type
+    meta.update(extra)
+    return meta
+
+
+@pytest.mark.parametrize(
+    "meta,asset_class,sector",
+    [
+        # ETFs and a trust filed under their issuer's sector (the issue's examples).
+        (_meta("Vanguard FTSE All-World UCITS ETF (GBP)", "ETF", "Financials"), "equity", "Multi-sector"),
+        (
+            _meta("iShares IV plc Edge MSCI Europe Value Factor UCITS ETF", "ETF", "Financials"),
+            "equity",
+            "Multi-sector",
+        ),
+        (_meta("iShares VII plc MSCI UK Small CAP UCITS ETF", "ETF", "Financials"), "equity", "Multi-sector"),
+        (
+            _meta("Henderson Far East Income Ltd Ordinary NPV", "Investment Trust", "Financials"),
+            "equity",
+            "Multi-sector",
+        ),
+        (_meta("Ashoka India Equity Inv Trust Plc", "Investment Trust", "Miscellaneous"), "equity", "Multi-sector"),
+        # A wrapper sector marks a fund and is replaced too.
+        (_meta("Henderson Far East Income", None, "Investment Trust", asset_class="Equity"), "equity", "Multi-sector"),
+        # Bond, cash, commodity and property products.
+        (_meta("iShares IV plc GBP Ultrashort Bond UCITS ETF", "ETF", "Fixed Income"), "bond", None),
+        (_meta("Goldman Sachs ETF ICAV Access UK Gilts 1-10 Years", "ETF", "Real Estate"), "bond", "Fixed Income"),
+        (_meta("BioPharma Credit plc ORD USD0.01", "Investment Trust", "Financials"), "bond", "Fixed Income"),
+        (_meta("TwentyFour Income Fund Ltd", "Investment Trust", "Fixed Income"), "bond", None),
+        (_meta("Vanguard UK Gilt UCITS ETF", None, "Government Bond", asset_class="Bond"), "bond", None),
+        (_meta("WisdomTree Physical Gold (GBP)", "Equity", "Materials"), "commodity", "Commodities"),
+        (_meta("WisdomTree Energy", "ETF", "Commodities - Energy"), "commodity", None),
+        (
+            _meta("Schroder European Real Estate Investment Trust plc", "Investment Trust", "Real Estate"),
+            "property",
+            None,
+        ),
+        (_meta("Royal London Short Term Money Market Fund", "MUTUALFUND", None), "cash", "Cash"),
+        (_meta("Vanguard LifeStrategy 60% Equity Fund", "MUTUALFUND", None), "multi-asset", "Multi-asset"),
+        (_meta("Cash (GBP)", None, "", ticker="CASH.GBP"), "cash", "Cash"),
+        # Gold *miners* are equities, and an equity sector on an equity fund is kept.
+        (_meta("iShares V plc Gold Producers UCITS ETF", "ETF", "Materials"), "equity", None),
+        (_meta("SPDR MSCI World Consumer Staples UCITS ETF", "ETF", "Consumer Staples"), "equity", None),
+        # An equity fund mislabelled with an asset-class sector gets an exposure label.
+        (_meta("iShares plc MSCI Brazil UCITS ETF (Dist)", "ETF", "Fixed Income"), "equity", "Multi-sector"),
+        # Company shares keep their sector, even a financial one.
+        (_meta("Admiral Group Ord GBP0.01", "Equity", "Financials"), "equity", None),
+        (
+            {"ticker": "AAL.L", "name": "ANGLO AMERICAN PLC", "instrument_type": "EQUITY", "sector": "Basic Materials"},
+            "equity",
+            None,
+        ),
+        (_meta("British Land Co plc Ordinary 25p", "Equity", "Real Estate Investment Trusts"), "equity", None),
+    ],
+)
+def test_classify_instrument(meta, asset_class, sector) -> None:
+    result = ic.classify_instrument(meta)
+    assert result.get("asset_class") == asset_class
+    assert result.get("sector") == sector
+
+
+def test_yahoo_category_is_used_for_funds() -> None:
+    meta = {"ticker": "X.L", "name": "Some Fund", "instrument_type": "MUTUALFUND", "category": "GBP Government Bond"}
+    assert ic.classify_instrument(meta)["asset_class"] == "bond"
+
+
+def test_unknown_instrument_has_no_asset_class() -> None:
+    assert ic.classify_instrument({"ticker": "AAA.L", "name": "AAA.L", "instrument_type": "NONE"}) == {}
+
+
+def test_wrapper_values_are_not_asset_classes() -> None:
+    meta = {"ticker": "X.L", "name": "X", "asset_class": "Fund"}
+    assert ic.classify_instrument(meta) == {}
+
+
+def test_override_wins() -> None:
+    meta = _meta("iShares VI plc MSCI EUR HealthCare Sect UCITS ETF", "ETF", "Fixed Income")
+    result = ic.classify_instrument(meta, {"sector": "Health Care"})
+    assert result == {"asset_class": "equity", "sector": "Health Care"}
+
+    result = ic.classify_instrument(meta, {"asset_class": "Bonds"})
+    assert result == {"asset_class": "bond"}
+
+
+def test_classification_is_idempotent() -> None:
+    meta = _meta("Vanguard FTSE All-World UCITS ETF (GBP)", "ETF", "Financials")
+    once = ic.apply_classification(meta)
+    assert ic.classify_instrument(once) == {"asset_class": "equity"}
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("Equity", "equity"),
+        (" BONDS ", "bond"),
+        ("Fixed Income", "bond"),
+        ("Real Estate", "property"),
+        ("Multi Asset", "multi-asset"),
+        ("Fund", None),
+        ("ETF", None),
+        (None, None),
+        (3, None),
+    ],
+)
+def test_normalise_asset_class(value, expected) -> None:
+    assert ic.normalise_asset_class(value) == expected
+
+
+def test_load_overrides(tmp_path, caplog) -> None:
+    path = tmp_path / "overrides.json"
+    assert ic.load_classification_overrides(path) == {}
+
+    path.write_text(
+        json.dumps({"_comment": "ignored", "esih.l": {"sector": "Health Care"}, "BAD.L": "nope"}),
+        encoding="utf-8",
+    )
+    assert ic.load_classification_overrides(path) == {"ESIH.L": {"sector": "Health Care"}}
+
+    path.write_text("{not json", encoding="utf-8")
+    assert ic.load_classification_overrides(path) == {}
+    assert "Ignoring unreadable classification overrides" in caplog.text
+
+    path.write_text("[]", encoding="utf-8")
+    assert ic.load_classification_overrides(path) == {}
+
+
+def test_overrides_path_uses_data_root(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(ic.config, "data_root", tmp_path)
+    assert ic.overrides_path() == tmp_path / ic.OVERRIDES_FILENAME

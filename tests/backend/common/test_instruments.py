@@ -389,7 +389,7 @@ def test_fetch_metadata_from_yahoo_builds_normalized_payload(monkeypatch) -> Non
         "currency": "GBP",
         "sector": "Technology",
         "region": "United Kingdom",
-        "asset_class": "Equity",
+        "asset_class": "equity",
         "industry": "Software",
         "instrument_type": "EQUITY",
     }
@@ -426,8 +426,9 @@ def test_fetch_metadata_from_yahoo_falls_back_to_info_and_fast_info(monkeypatch,
         "name": "Beta Fund",
         "currency": "USD",
         "sector": "Index",
+        "category": "Index",
         "region": "US",
-        "asset_class": "Fund",
+        "asset_class": "equity",
         "industry": "Diversified",
         "instrument_type": "MUTUALFUND",
     }
@@ -536,20 +537,6 @@ def test_list_group_definitions_loads_json(monkeypatch, tmp_path) -> None:
 )
 def test_clean_str_variants(value, upper, expected) -> None:
     assert instruments._clean_str(value, upper=upper) == expected
-
-
-@pytest.mark.parametrize(
-    "quote_type,expected",
-    [
-        ("equity", "Equity"),
-        ("mutualfund", "Fund"),
-        ("cryptoCurrency", "Crypto"),
-        ("unknown_type", "Unknown Type"),
-        (None, None),
-    ],
-)
-def test_asset_class_from_quote_type_variants(quote_type, expected) -> None:
-    assert instruments._asset_class_from_quote_type(quote_type) == expected
 
 
 @pytest.mark.parametrize(

@@ -1121,4 +1121,4 @@ def test_get_security_meta_resolves_bare_watchlist_symbol(monkeypatch):
     meta = portfolio_utils.get_security_meta("PFE")
 
     assert meta is not None
-    assert meta["instrument_type"] == "Equity"
+    assert meta["instrument_type"] == "equity"

@@ -437,7 +437,7 @@ def test_resolve_instrument_type_resolves_bare_watchlist_symbol(
     symbols this fallback was meant to cover.
     """
 
-    assert prices._resolve_instrument_type("PFE") == "Equity"
+    assert prices._resolve_instrument_type("PFE") == "equity"
 
 
 def test_get_security_meta_resolves_bare_watchlist_symbol(
@@ -452,7 +452,7 @@ def test_get_security_meta_resolves_bare_watchlist_symbol(
     meta = prices.get_security_meta("PFE")
 
     assert meta is not None
-    assert meta["instrument_type"] == "Equity"
+    assert meta["instrument_type"] == "equity"
 
 
 def test_get_security_meta_caches_securities_across_calls(

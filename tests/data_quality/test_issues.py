@@ -365,3 +365,24 @@ def test_aggregate_holding_issues_book_check_does_not_mutate_holdings_file(monke
     aggregate_holding_issues(root)
 
     assert (root / "demo" / "isa.json").read_text(encoding="utf-8") == before
+
+
+def test_aggregate_holding_issues_flags_missing_asset_class(monkeypatch, tmp_path, accounts_root):
+    """A held instrument without a recognised asset class is MISSING_ASSET_CLASS (#9196)."""
+    metas = {
+        "VWRL.L": {"name": "Vanguard FTSE All-World", "asset_class": "equity"},
+        "MICC.L": {"name": "Magnum", "asset_class": "Fund"},
+        "PFE.N": {"name": "Pfizer"},
+    }
+    monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: metas.get(t, {}))
+    monkeypatch.setattr(issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None)
+    monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: True)
+
+    issues = aggregate_holding_issues(accounts_root)
+    missing = {i.id: i for i in issues if i.type == IssueType.MISSING_ASSET_CLASS}
+
+    assert set(missing) == {"MISSING_ASSET_CLASS:MICC:L", "MISSING_ASSET_CLASS:PFE:N"}
+    issue = missing["MISSING_ASSET_CLASS:PFE:N"]
+    assert issue.entity == {"ticker": "PFE", "exchange": "N"}
+    assert issue.severity == "low"
+    assert issue.fixable is False

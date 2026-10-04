@@ -46,7 +46,7 @@ def test_enrich_holding_instrument_type_falls_back_to_asset_class():
     # collapses to "Other". Regression test for #6858.
     holding = {"ticker": "VWRL.L", "units": 1}
     out = enrich_holding(holding, date.today(), {}, {})
-    assert out.get("instrument_type") == "Equity"
+    assert out.get("instrument_type") == "equity"
 
 
 def test_enrich_holding_normalises_sector_and_region_aliases():

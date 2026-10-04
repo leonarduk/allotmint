@@ -25,6 +25,7 @@ import { formatDateISO } from "../lib/date";
 import { money, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { completeTrackedChore } from "../choreCompletion";
+import { buildInvestingComUrl } from "../utils/urlUtils";
 
 function normaliseOptional(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -878,6 +879,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const metadataInputsDisabled =
     metadataSaving || refreshingMetadata || confirmingRefresh || !!refreshPreview;
   const exchangeForActions = deriveExchangeForActions();
+  const investingComUrl = buildInvestingComUrl(displayName, tkr);
 
   const tabOptions: { id: typeof activeTab; label: string }[] = [
     { id: "overview", label: "Overview" },
@@ -947,6 +949,16 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         <button onClick={toggleWatchlist} style={{ marginLeft: "1rem" }}>
           {inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
         </button>
+        {investingComUrl && (
+          <a
+            href={investingComUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginLeft: "1rem" }}
+          >
+            View on Investing.com
+          </a>
+        )}
         {baseTicker && instrumentExchange && (
           <DeleteSeriesButton ticker={baseTicker} exchange={instrumentExchange.toUpperCase()} />
         )}

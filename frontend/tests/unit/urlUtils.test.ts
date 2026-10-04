@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  buildInvestingComUrl,
   decodePathSegment,
   encodePathSegment,
   stripAuthCallbackParams,
@@ -138,5 +139,26 @@ describe("stripAuthCallbackParams", () => {
       document.title,
       "/callback",
     );
+  });
+});
+
+describe("buildInvestingComUrl", () => {
+  it("searches by instrument name when available", () => {
+    expect(buildInvestingComUrl("Vodafone Group PLC", "VOD.L")).toBe(
+      "https://www.investing.com/search/?q=Vodafone%20Group%20PLC",
+    );
+  });
+
+  it("falls back to the base ticker without the exchange suffix", () => {
+    expect(buildInvestingComUrl(null, "VOD.L")).toBe(
+      "https://www.investing.com/search/?q=VOD",
+    );
+    expect(buildInvestingComUrl("   ", "AAPL.N")).toBe(
+      "https://www.investing.com/search/?q=AAPL",
+    );
+  });
+
+  it("returns null when there is nothing to search for", () => {
+    expect(buildInvestingComUrl(undefined, "")).toBeNull();
   });
 });

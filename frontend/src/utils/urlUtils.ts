@@ -51,3 +51,21 @@ export function stripAuthCallbackParams(
     `${window.location.pathname}${search}`
   );
 }
+
+/**
+ * Build an investing.com link for an instrument.
+ *
+ * investing.com pages are keyed by name slugs (e.g. /equities/vodafone),
+ * which can't be derived from a ticker, so this links to its site search
+ * instead. The instrument name is preferred as the query because bare
+ * tickers are ambiguous across exchanges (e.g. "VOD" also matches the
+ * Nasdaq ADR); the base ticker (exchange suffix stripped) is the fallback.
+ */
+export function buildInvestingComUrl(
+  name: string | null | undefined,
+  ticker: string
+): string | null {
+  const query = name?.trim() || ticker.split('.')[0].trim();
+  if (!query) return null;
+  return `https://www.investing.com/search/?q=${encodeURIComponent(query)}`;
+}

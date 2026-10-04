@@ -30,17 +30,27 @@ from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
+# Private key carrying each account's file stem (``isa`` for ``<owner>/isa.json``)
+# so callers can find its ``<stem>_transactions.json`` even when the JSON's
+# ``account_type`` differs from the filename.  Not part of any API contract:
+# consumers that serialise account dicts must drop it first.
+ACCOUNT_STEM_KEY = "_account_stem"
+
 
 # ────────────────────────────────────────────────────────────────
 # Private helpers
 # ────────────────────────────────────────────────────────────────
 def _load_accounts_for_owner(owner: str, acct_names: list[str]) -> list[dict]:
-    """Load every <owner>/<account>.json and return the parsed dicts."""
+    """Load every <owner>/<account>.json and return the parsed dicts.
+
+    Each dict is a shallow copy tagged with its file stem under
+    :data:`ACCOUNT_STEM_KEY`.
+    """
     accounts: list[dict] = []
     for name in acct_names:
         try:
             acct = load_account(owner, name)
-            accounts.append(acct)
+            accounts.append({**acct, ACCOUNT_STEM_KEY: name})
         except FileNotFoundError:
             logger.warning("Account file missing: %s/%s.json", sanitise_log_value(owner), sanitise_log_value(name))
         except (OSError, ValueError, json.JSONDecodeError) as exc:

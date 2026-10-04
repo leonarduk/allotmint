@@ -52,6 +52,10 @@ export function humanizeForecastError(
       ctx.retirementAge != null
         ? `Death age (${ctx.deathAge}) must be after your retirement age (${ctx.retirementAge}).`
         : `Death age (${ctx.deathAge}) must be after your retirement age.`,
+    "retirement_age must not be before current_age": (ctx) =>
+      ctx.retirementAge != null
+        ? `Retirement age (${ctx.retirementAge}) can't be earlier than your current age.`
+        : "Retirement age can't be earlier than your current age.",
     "missing or invalid dob": () =>
       "We couldn't determine this owner's date of birth. Please check their profile details and try again.",
   };

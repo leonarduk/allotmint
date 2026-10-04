@@ -22,16 +22,6 @@ def test_async_builder(monkeypatch, tmp_path):
     asyncio.run(run())
 
 
-def test_schedule_refresh_without_running_loop_is_noop(monkeypatch, tmp_path):
-    """Called from a worker thread (no event loop), scheduling must not raise."""
-
-    monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
-
-    page_cache.schedule_refresh("no_loop_page", 60, lambda: {"value": 1})
-
-    assert "no_loop_page" not in page_cache._refresh_tasks
-
-
 def test_schedule_refresh_on_loop_after_off_loop_call_still_schedules(monkeypatch, tmp_path):
     """The no-loop guard must not stop a later on-loop call from scheduling."""
 
@@ -253,3 +243,13 @@ def test_cancel_refresh_tasks_handles_error():
         await page_cache.cancel_refresh_tasks()
 
     asyncio.run(run())
+
+
+def test_schedule_refresh_without_running_loop_is_noop(monkeypatch, tmp_path):
+    # Sync FastAPI handlers run in a worker thread with no event loop; this
+    # must not raise or the handler fails after its data was fetched.
+    monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+
+    page_cache.schedule_refresh("no_loop_page", 60, lambda: {"value": 1})
+
+    assert "no_loop_page" not in page_cache._refresh_tasks

@@ -33,7 +33,7 @@ from backend.common.instruments import (
     instrument_meta_path,
     resolve_instrument_ticker,
 )
-from backend.common.portfolio_loader import list_portfolios  # existing helper
+from backend.common.portfolio_loader import ACCOUNT_STEM_KEY, list_portfolios  # existing helper
 from backend.common.sector_labels import (
     CASH_SECTOR_LABEL,
     REGION_ALIASES,
@@ -571,7 +571,10 @@ def list_all_unique_tickers() -> List[str]:
         for acct_idx, acct in enumerate(accounts):
             owner = pf.get("owner", f"pf{pf_idx+1}")
             account_type = acct.get("account_type", "unknown").lower()
-            json_path = ACCOUNTS_DIR / owner / f"{account_type}.json"
+            # The file stem names the real file; account_type (e.g. "Stocks
+            # ISA") need not match it.  Virtual portfolios carry no stem.
+            file_stem = acct.get(ACCOUNT_STEM_KEY) or account_type
+            json_path = ACCOUNTS_DIR / owner / f"{file_stem}.json"
 
             holdings = acct.get("holdings", [])
             total_holdings += len(holdings)

@@ -115,7 +115,7 @@ def schedule_refresh(
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        logger.debug("No running event loop; skipping refresh scheduling for %s", sanitise_log_value(page_name))
+        logger.debug("No running event loop; skipping background refresh for %s", sanitise_log_value(page_name))
         return
 
     async def _call_builder() -> Any:

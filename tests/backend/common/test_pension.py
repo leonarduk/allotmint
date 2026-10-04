@@ -182,6 +182,37 @@ def test_forecast_pension_none_state_pension_matches_explicit_zero() -> None:
     assert result_none == result_zero
 
 
+def test_forecast_pension_early_retirement_defers_state_pension() -> None:
+    """Retiring before state pension age must not bring the state pension forward."""
+    result = forecast_pension(
+        dob="1990-01-01",
+        retirement_age=32,
+        death_age=36,
+        state_pension_annual=9000,
+        state_pension_age=34,
+        today=dt.date(2020, 1, 2),
+    )
+
+    incomes = {entry["age"]: entry["income"] for entry in result["forecast"]}
+    assert incomes == {30: 0.0, 31: 0.0, 32: 0.0, 33: 0.0, 34: 9000.0, 35: 9000.0}
+    # Not yet in payment at the chosen retirement age, so not in the breakdown...
+    assert result["retirement_income_breakdown"]["state_pension_annual"] == 0.0
+    # ...but the caller's figure and its start age are still reported.
+    assert result["state_pension_annual"] == pytest.approx(9000)
+    assert result["state_pension_age"] == 34
+
+
+def test_forecast_pension_state_pension_age_defaults_to_retirement_age() -> None:
+    kwargs = dict(
+        dob="1990-01-01",
+        retirement_age=32,
+        death_age=35,
+        state_pension_annual=9000,
+        today=dt.date(2020, 1, 2),
+    )
+    assert forecast_pension(**kwargs) == forecast_pension(state_pension_age=32, **kwargs)
+
+
 def test_dc_pension_pot_gbp_sums_sipp_accounts_only() -> None:
     accounts = [
         {"account_type": "isa", "value_estimate_gbp": 1000},

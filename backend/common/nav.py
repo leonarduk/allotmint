@@ -6,9 +6,13 @@ forbid scraping. RNS announcements can be read on the web, but machine access
 needs the paid LSEG feed. So NAVs come from pluggable :class:`NavProvider`
 implementations, and the first ones are data-fed:
 
-* :class:`CsvNavProvider` reads ``<data_root>/nav/navs.csv``. Each row is one
-  NAV (``ticker,nav,currency,nav_date,source``), typically copied from the
-  trust's RNS NAV announcement or factsheet.
+* :class:`CsvNavProvider` reads ``navs.csv``. Each row is one NAV
+  (``ticker,nav,currency,nav_date,source``), typically copied from the trust's
+  RNS NAV announcement or factsheet. It reads ``s3://$DATA_BUCKET/nav/navs.csv``
+  when ``DATA_BUCKET`` is set (the deployed Lambda). Otherwise it reads
+  ``<data_root>/nav/navs.csv``, and failing that the copy bundled in the image
+  under ``data/nav/navs.csv``. On Lambda ``data_root`` is ``/tmp/data``, which
+  is empty.
 * :class:`MetadataNavProvider` reads ``nav_per_share``/``nav_currency``/
   ``nav_as_of`` from the instrument metadata. These are the keys
   allotmint-pro's valuation profile also reads.
@@ -26,10 +30,13 @@ as a unit error instead of a number.
 from __future__ import annotations
 
 import csv
+import io
 import logging
 import math
+import os
 from dataclasses import asdict, dataclass, field
 from datetime import date
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Protocol, Sequence, Tuple
 
@@ -53,6 +60,14 @@ MIN_PLAUSIBLE_RATIO = 0.2
 MAX_PLAUSIBLE_RATIO = 5.0
 
 CSV_COLUMNS = ("ticker", "nav", "currency", "nav_date", "source")
+
+DATA_BUCKET_ENV = "DATA_BUCKET"
+NAV_S3_KEY = "nav/navs.csv"
+# The repo's data/ directory. In the Lambda image this is /var/task/data, which
+# the deploy workflow fills from the data bucket before building the image.
+_BUNDLED_CSV = Path(__file__).resolve().parents[2] / "data" / "nav" / "navs.csv"
+# S3 error codes that mean "no such file" rather than a failure.
+_S3_MISSING_CODES = frozenset({"NoSuchKey", "404", "NotFound"})
 
 PriceLookup = Callable[[str, str, date], Tuple[Optional[float], Optional[date]]]
 FxLookup = Callable[[str], Optional[float]]
@@ -128,11 +143,15 @@ def _newer(candidate: NavRecord, current: Optional[NavRecord]) -> bool:
     return current.nav_date is None or candidate.nav_date >= current.nav_date
 
 
-def _default_csv_path() -> Path:
-    return Path(config.data_root or "data") / "nav" / "navs.csv"
+def _default_csv_paths() -> Tuple[Path, ...]:
+    return (Path(config.data_root or "data") / "nav" / "navs.csv", _BUNDLED_CSV)
 
 
-def _record_from_row(row: Dict[str, Any], line: int, path: Path) -> Optional[NavRecord]:
+def _default_bucket() -> Optional[str]:
+    return os.getenv(DATA_BUCKET_ENV) or None
+
+
+def _record_from_row(row: Dict[str, Any], line: int, label: str) -> Optional[NavRecord]:
     nav = _parse_positive(row.get("nav"))
     currency = str(row.get("currency") or "").strip()
     if nav is None or not currency:
@@ -140,7 +159,7 @@ def _record_from_row(row: Dict[str, Any], line: int, path: Path) -> Optional[Nav
         # and logged rather than guessed.
         logger.warning(
             "Skipping %s line %s: needs a positive nav and an explicit currency",
-            sanitise_log_value(path),
+            sanitise_log_value(label),
             sanitise_log_value(line),
         )
         return None
@@ -148,42 +167,112 @@ def _record_from_row(row: Dict[str, Any], line: int, path: Path) -> Optional[Nav
     return NavRecord(nav=nav, currency=currency, nav_date=_parse_date(row.get("nav_date")), source=source)
 
 
+def parse_nav_csv(lines: Iterable[str], label: str) -> Dict[str, NavRecord]:
+    """The latest NAV per upper-cased ticker in CSV ``lines``; ``label`` names the source in logs."""
+    reader = csv.DictReader(lines)
+    missing = [column for column in CSV_COLUMNS[:4] if column not in (reader.fieldnames or ())]
+    if missing:
+        logger.error(
+            "Ignoring %s: header is missing column(s) %s", sanitise_log_value(label), sanitise_log_value(missing)
+        )
+        return {}
+    latest: Dict[str, NavRecord] = {}
+    for line, row in enumerate(reader, start=2):
+        ticker = str(row.get("ticker") or "").strip().upper()
+        record = _record_from_row(row, line, label) if ticker else None
+        if record is not None and _newer(record, latest.get(ticker)):
+            latest[ticker] = record
+    return latest
+
+
 def load_nav_csv(path: Path) -> Dict[str, NavRecord]:
     """Return the latest NAV per upper-cased ticker in ``path`` (``{}`` if it is absent)."""
     if not path.is_file():
         return {}
-    latest: Dict[str, NavRecord] = {}
     with path.open("r", encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        missing = [column for column in CSV_COLUMNS[:4] if column not in (reader.fieldnames or ())]
-        if missing:
-            logger.error(
-                "Ignoring %s: header is missing column(s) %s", sanitise_log_value(path), sanitise_log_value(missing)
-            )
-            return {}
-        for line, row in enumerate(reader, start=2):
-            ticker = str(row.get("ticker") or "").strip().upper()
-            record = _record_from_row(row, line, path) if ticker else None
-            if record is not None and _newer(record, latest.get(ticker)):
-                latest[ticker] = record
-    return latest
+        return parse_nav_csv(handle, str(path))
+
+
+@lru_cache(maxsize=1)
+def _s3_client():
+    """A process-wide S3 client, as in ``backend.common.instruments`` (#5082)."""
+    import boto3  # type: ignore
+
+    return boto3.client("s3")
+
+
+def _s3_error_code(exc: Exception) -> Optional[str]:
+    error = (getattr(exc, "response", None) or {}).get("Error", {})
+    code = error.get("Code") if isinstance(error, dict) else None
+    return code if isinstance(code, str) else None
+
+
+def load_nav_csv_s3(bucket: str, key: str = NAV_S3_KEY) -> Optional[Dict[str, NavRecord]]:
+    """NAVs from ``s3://bucket/key``, or ``None`` when the object does not exist.
+
+    Any other S3 error is raised so the caller can log it and fall back.
+    """
+    from botocore.exceptions import ClientError
+
+    try:
+        body = _s3_client().get_object(Bucket=bucket, Key=key)["Body"].read()
+    except ClientError as exc:
+        if _s3_error_code(exc) in _S3_MISSING_CODES:
+            return None
+        raise
+    return parse_nav_csv(io.StringIO(body.decode("utf-8")), f"s3://{bucket}/{key}")
 
 
 class CsvNavProvider:
-    """NAVs recorded by hand (or by an import job) in ``<data_root>/nav/navs.csv``."""
+    """NAVs recorded by hand (or by an import job) in ``navs.csv``.
+
+    Reads ``s3://$DATA_BUCKET/nav/navs.csv`` when a bucket is configured and
+    the object exists. Otherwise it reads the first local file in
+    ``paths_factory()`` that exists: ``<data_root>/nav/navs.csv``, then the
+    bundled copy. S3 results are cached for ``ttl_seconds``. A local file is
+    re-read as soon as its mtime changes.
+    """
 
     name = "csv"
 
-    def __init__(self, path_factory: Callable[[], Path] = _default_csv_path, ttl_seconds: float = 300) -> None:
-        self._path_factory = path_factory
-        self._cache: TTLCache[Dict[str, NavRecord]] = TTLCache(ttl_seconds, name="nav_csv")
+    def __init__(
+        self,
+        paths_factory: Callable[[], Sequence[Path]] = _default_csv_paths,
+        bucket_factory: Callable[[], Optional[str]] = _default_bucket,
+        ttl_seconds: float = 300,
+    ) -> None:
+        self._paths_factory = paths_factory
+        self._bucket_factory = bucket_factory
+        self._cache: TTLCache[Optional[Dict[str, NavRecord]]] = TTLCache(ttl_seconds, name="nav_csv")
 
     def latest_nav(self, ticker: str) -> Optional[NavRecord]:
-        path = self._path_factory()
-        # The mtime is part of the key, so an edited file is re-read at once.
-        mtime = path.stat().st_mtime_ns if path.is_file() else None
-        navs = self._cache.get_or_build((str(path), mtime), lambda: load_nav_csv(path))
+        bucket = self._bucket_factory()
+        navs = self._load_s3(bucket) if bucket else None
+        if navs is None:
+            navs = self._load_local()
         return navs.get(ticker.upper())
+
+    def _load_s3(self, bucket: str) -> Optional[Dict[str, NavRecord]]:
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        try:
+            return self._cache.get_or_build(("s3", bucket, NAV_S3_KEY), lambda: load_nav_csv_s3(bucket))
+        except (BotoCoreError, ClientError, UnicodeDecodeError) as exc:
+            logger.warning(
+                "Reading s3://%s/%s failed (%s); using the local NAV file",
+                sanitise_log_value(bucket),
+                sanitise_log_value(NAV_S3_KEY),
+                sanitise_log_value(exc),
+            )
+            return None
+
+    def _load_local(self) -> Dict[str, NavRecord]:
+        path = next((candidate for candidate in self._paths_factory() if candidate.is_file()), None)
+        if path is None:
+            return {}
+        # The mtime is part of the key, so an edited file is re-read at once.
+        key = ("file", str(path), path.stat().st_mtime_ns)
+        return self._cache.get_or_build(key, lambda: load_nav_csv(path)) or {}
 
 
 class MetadataNavProvider:
@@ -321,7 +410,7 @@ def nav_discount(
     result = NavDiscount(ticker=ticker, applicable=True)
     record = latest_nav(ticker, providers if providers is not None else default_providers())
     if record is None:
-        result.reason = "No NAV recorded for this fund; add one to nav/navs.csv in the data root."
+        result.reason = "No NAV recorded for this fund; add one to nav/navs.csv (see docs/NAV_DISCOUNT.md)."
         return result
     _apply_record(result, record, fx_lookup)
     if record.nav_date is None:

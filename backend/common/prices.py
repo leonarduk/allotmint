@@ -354,12 +354,77 @@ def refresh_universe() -> List[str]:
     return tickers
 
 
+def put_empty_snapshot_if_absent(client, bucket: str) -> bool:
+    """Write ``{}`` to ``PRICES_S3_KEY`` only if no snapshot exists; return whether it wrote.
+
+    Uses an S3 conditional write (``IfNoneMatch="*"``), so the existence check
+    and the write are one atomic call: a missing key is always created (the
+    post-deploy check needs it, #3685) and an existing snapshot -- however it
+    got there -- is never replaced with ``{}`` (#8805). Other errors raise.
+    """
+    try:
+        client.put_object(
+            Bucket=bucket,
+            Key=PRICES_S3_KEY,
+            Body=b"{}",
+            ContentType="application/json",
+            IfNoneMatch="*",
+        )
+        return True
+    except Exception as exc:
+        code = str(getattr(exc, "response", {}).get("Error", {}).get("Code", ""))
+        # 412: the key exists. 409: a concurrent write to the key won the race.
+        if code in {"PreconditionFailed", "412", "ConditionalRequestConflict", "409"}:
+            return False
+        raise
+
+
+def _upload_snapshot_to_s3(merged: Dict) -> None:
+    """Upload ``merged`` as the shared snapshot, never replacing one with ``{}``.
+
+    The key must always exist after a refresh so post-deploy checks don't wait
+    forever (#3685). But an empty ``merged`` -- nothing fetched and no local
+    seed, the normal case in a fresh Lambda container -- is only written when
+    no snapshot exists yet (an atomic conditional write); overwriting a good
+    snapshot with ``{}`` left every holding without a snapshot price (#8805).
+    """
+    _s3_bucket = os.getenv(DATA_BUCKET_ENV)
+    if not _s3_bucket:
+        logger.warning("DATA_BUCKET not set; skipping S3 upload of price snapshot")
+        return
+    try:
+        import boto3  # type: ignore
+
+        client = boto3.client("s3")
+        if not merged:
+            if put_empty_snapshot_if_absent(client, _s3_bucket):
+                logger.warning("No prices fetched; seeded an empty S3 price snapshot because none existed")
+            else:
+                logger.error("No prices fetched; keeping the existing S3 price snapshot rather than uploading {}")
+            return
+        client.put_object(
+            Bucket=_s3_bucket,
+            Key=PRICES_S3_KEY,
+            Body=json.dumps(merged, indent=2).encode("utf-8"),
+            ContentType="application/json",
+        )
+        logger.info(
+            "Uploaded price snapshot to s3://%s/%s", sanitise_log_value(_s3_bucket), sanitise_log_value(PRICES_S3_KEY)
+        )
+    except Exception as exc:
+        logger.warning("Failed to upload price snapshot to S3: %s", sanitise_log_value(exc))
+
+
 def refresh_prices() -> Dict:
     """
     Pulls latest close, 7- and 30-day % moves for every ticker in
     the current portfolios.  Writes to JSON and updates the cache.
     """
     tickers = refresh_universe()
+    if not tickers:
+        # Nothing held or watched is almost always a discovery failure (e.g.
+        # owners hidden from a user-less job, #8805), not a real empty book.
+        logger.error("Price refresh universe is empty: no held or watched tickers found")
     logger.info("Updating price snapshot for: %s", [sanitise_log_value(t) for t in tickers])
 
     refresh_progress.start(len(tickers))
@@ -408,29 +473,8 @@ def refresh_prices() -> Dict:
         )
 
     # ---- persist to S3 (primary store read by all Lambda instances) ---------
-    # Always upload — even when no fresh prices were fetched — so that the
-    # snapshot key always exists in S3. Without this, a refresh that runs
-    # during market-closed/offline windows (e.g. a CI deploy invocation)
-    # silently returns success without ever creating the key, and downstream
-    # consumers (and the deploy workflow's post-deploy snapshot check) wait
-    # indefinitely for a file that is never written. See issue #3685.
     if config.app_env == "aws":
-        _s3_bucket = os.getenv(DATA_BUCKET_ENV)
-        if _s3_bucket:
-            try:
-                import boto3  # type: ignore
-
-                boto3.client("s3").put_object(
-                    Bucket=_s3_bucket,
-                    Key=PRICES_S3_KEY,
-                    Body=json.dumps(merged, indent=2).encode("utf-8"),
-                    ContentType="application/json",
-                )
-                logger.info("Uploaded price snapshot to s3://%s/%s", _s3_bucket, PRICES_S3_KEY)
-            except Exception as exc:
-                logger.warning("Failed to upload price snapshot to S3: %s", sanitise_log_value(exc))
-        else:
-            logger.warning("DATA_BUCKET not set; skipping S3 upload of price snapshot")
+        _upload_snapshot_to_s3(merged)
 
     # ---- refresh in-memory cache -----------------------------------------
     # Use merged (which includes preserved seed prices) when available; leave

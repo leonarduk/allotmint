@@ -379,6 +379,105 @@ describe("Screener & Query page", () => {
     ).toBeChecked();
   });
 
+  // Expected default range (trailing 12 months, local dates).
+  const expectedDefaultRange = () => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const iso = (d: Date) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const today = new Date();
+    const yearAgo = new Date(today);
+    yearAgo.setFullYear(today.getFullYear() - 1);
+    if (yearAgo.getMonth() !== today.getMonth()) yearAgo.setDate(0);
+    return { start: iso(yearAgo), end: iso(today) };
+  };
+
+  it("clamps the default start to 28 Feb when today is 29 Feb", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2028, 1, 29, 12));
+    try {
+      window.history.pushState({}, "", "/");
+      const { i18n } = renderWithI18n(<ScreenerQuery />);
+      await screen.findByLabelText(i18n.t("query.start"));
+      expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(
+        "2028-02-29",
+      );
+      expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
+        "2027-02-28",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("defaults the date range to the trailing 12 months", async () => {
+    window.history.pushState({}, "", "/");
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText(i18n.t("query.start"));
+    const { start, end } = expectedDefaultRange();
+    expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(end);
+    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(start);
+  });
+
+  it("keeps the default end date when a link only carries a start date", async () => {
+    window.history.pushState({}, "", "/?start=2024-01-01");
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText(i18n.t("query.start"));
+    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
+      "2024-01-01",
+    );
+    expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(
+      expectedDefaultRange().end,
+    );
+  });
+
+  it("keeps the default start date when a link only carries an end date", async () => {
+    window.history.pushState({}, "", "/?end=2024-02-01");
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText(i18n.t("query.start"));
+    expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(
+      "2024-02-01",
+    );
+    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
+      expectedDefaultRange().start,
+    );
+  });
+
+  it("overrides both defaults when a link carries start and end", async () => {
+    window.history.pushState({}, "", "/?start=2024-01-01&end=2024-02-01");
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText(i18n.t("query.start"));
+    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
+      "2024-01-01",
+    );
+    expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(
+      "2024-02-01",
+    );
+  });
+
+  it("loading a saved query with blank dates clears the defaults", async () => {
+    window.history.pushState({}, "", "/");
+    listSavedQueries.mockResolvedValueOnce([
+      {
+        id: "2",
+        name: "NoDates",
+        params: { start: "", end: "", owners: [], tickers: [], metrics: [] },
+      },
+    ]);
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    fireEvent.click(await screen.findByText("NoDates"));
+    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue("");
+    expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue("");
+  });
+
+  it("ignores an invalid end date in the link and keeps the default", async () => {
+    window.history.pushState({}, "", "/?end=not-a-date");
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText(i18n.t("query.end"));
+    expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(
+      expectedDefaultRange().end,
+    );
+  });
+
   it("sanitizes malicious query parameters", async () => {
     window.history.pushState(
       {},
@@ -387,7 +486,10 @@ describe("Screener & Query page", () => {
     );
     const { i18n } = renderWithI18n(<ScreenerQuery />);
     await screen.findByLabelText(i18n.t("query.start"));
-    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue("");
+    // The invalid date is rejected and the default stays.
+    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
+      expectedDefaultRange().start,
+    );
     expect(screen.getByLabelText("Alice Example")).not.toBeChecked();
     expect(screen.getByLabelText("Bob Example")).not.toBeChecked();
   });

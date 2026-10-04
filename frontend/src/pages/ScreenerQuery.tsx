@@ -36,6 +36,23 @@ const METRIC_OPTIONS: { value: string; labelKey: string }[] = [
 
 type ResultRow = Record<string, string | number>;
 
+// Local (not UTC) YYYY-MM-DD, so "today" doesn't slip a day around midnight.
+function toLocalIsoDate(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// Default range: the trailing 12 months up to today, rather than two blank
+// date pickers the user has to fill in before the query does anything useful.
+function defaultDateRange(now: Date = new Date()): { start: string; end: string } {
+  const yearAgo = new Date(now);
+  yearAgo.setFullYear(now.getFullYear() - 1);
+  // If the day doesn't exist a year earlier (only 29 Feb), JS rolls into the
+  // next month; setDate(0) snaps back to the last day of the intended month.
+  if (yearAgo.getMonth() !== now.getMonth()) yearAgo.setDate(0);
+  return { start: toLocalIsoDate(yearAgo), end: toLocalIsoDate(now) };
+}
+
 function QuerySection() {
   const fetchOwners = useCallback(getOwners, []);
   const {
@@ -67,8 +84,11 @@ function QuerySection() {
   );
   const { t } = useTranslation();
 
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
+  // Computed once so start and end share the same "now" (two separate
+  // `new Date()` calls could straddle midnight).
+  const [initialRange] = useState(() => defaultDateRange());
+  const [start, setStart] = useState(initialRange.start);
+  const [end, setEnd] = useState(initialRange.end);
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [selectedTickers, setSelectedTickers] = useState<string[]>([]);
   const [metrics, setMetrics] = useState<string[]>([]);
@@ -167,8 +187,9 @@ function QuerySection() {
     });
     const parsed = schema.safeParse(raw);
     if (parsed.success) {
-      setStart(parsed.data.start ?? "");
-      setEnd(parsed.data.end ?? "");
+      // Only override the default range for dates the link actually carries.
+      if (parsed.data.start) setStart(parsed.data.start);
+      if (parsed.data.end) setEnd(parsed.data.end);
       setSelectedOwners(parsed.data.owners ?? []);
       setSelectedTickers(parsed.data.tickers ?? []);
       setMetrics(parsed.data.metrics ?? []);

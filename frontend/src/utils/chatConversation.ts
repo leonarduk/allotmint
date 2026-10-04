@@ -1,11 +1,14 @@
 import { useSyncExternalStore } from "react";
-import type { ChatMessage } from "../api";
+import type { ChatMessage, SavedChatTree } from "../api";
+import { isLogout, onAuthChange } from "../authEvents";
 
 // The chat conversation outlives ChatPanel: AppHeader (and so ChatPanel) is
 // mounted per page, so component state was lost on every navigation. Keeping
 // it here carries the conversation across pages; sessionStorage also carries
-// it across a reload of the same tab. It is cleared by startNewChat(), which
-// api.setAuthToken also calls on logout.
+// it across a reload of the same tab. It is cleared by resetChat(), which
+// also runs on logout via the authEvents subscriber below. The server copy
+// (#8870) is kept in step by utils/chatSync.ts, which learns of each change
+// through onChatChange().
 //
 // The conversation is a tree, so editing a message or regenerating a reply
 // keeps the earlier version as a sibling branch (#8842). `active` records the
@@ -15,6 +18,8 @@ import type { ChatMessage } from "../api";
 const STORAGE_KEY = "allotmint.chat.tree.v1";
 // Flat ChatMessage[] stored before #8842: migrated as a single branch.
 const LEGACY_STORAGE_KEY = "allotmint.chat.messages";
+// Where this tab's copy stands against the server's (#8870); see ChatSyncState.
+const SYNC_STORAGE_KEY = "allotmint.chat.sync.v1";
 const ROOT = "root";
 
 export interface ChatNode extends ChatMessage {
@@ -38,6 +43,18 @@ interface ChatTree {
 
 /** Opaque copy of the conversation, for rolling back a failed request. */
 export type ChatSnapshot = Readonly<ChatTree>;
+
+/** Where this tab's conversation stands against the saved one (#8870). */
+export interface ChatSyncState {
+  /** Whose saved conversation this is (GET /chat/conversation `owner`); null until first loaded. */
+  owner: string | null;
+  /** The saved revision this copy was loaded from or last saved as. */
+  revision: number;
+  /** Changed since then, so not yet saved. */
+  dirty: boolean;
+  /** "New chat" was pressed but the saved conversation is not yet archived. */
+  archivePending: boolean;
+}
 
 function isMessage(m: unknown): m is ChatMessage {
   const msg = m as Partial<ChatMessage> | null;
@@ -96,6 +113,24 @@ function readJson(key: string): unknown {
   return stored === null ? null : JSON.parse(stored);
 }
 
+function loadSyncState(stored: ChatTree): ChatSyncState {
+  try {
+    const raw = readJson(SYNC_STORAGE_KEY) as Partial<ChatSyncState> | null;
+    if (raw && typeof raw === "object") {
+      return {
+        owner: typeof raw.owner === "string" ? raw.owner : null,
+        revision: typeof raw.revision === "number" ? raw.revision : 0,
+        dirty: raw.dirty === true,
+        archivePending: raw.archivePending === true,
+      };
+    }
+  } catch {
+    // Unreadable: treated as never synced, below.
+  }
+  // Never synced: anything held locally has not been saved.
+  return { owner: null, revision: 0, dirty: stored.nodes.length > 0, archivePending: false };
+}
+
 function load(): ChatTree {
   try {
     const stored = readJson(STORAGE_KEY);
@@ -126,12 +161,19 @@ function activePath(tree: ChatTree): ChatPathEntry[] {
 }
 
 let tree: ChatTree = load();
+let syncState: ChatSyncState = loadSyncState(tree);
 // Derived once per change so useSyncExternalStore sees stable snapshots.
 let path: ChatPathEntry[] = activePath(tree);
 let messages: ChatMessage[] = path.map(({ role, content }) => ({ role, content }));
 const listeners = new Set<() => void>();
+let changeListener: (() => void) | null = null;
+// Bumped whenever the signed-in identity may have changed, so chatSync knows
+// to reload before trusting what it last loaded.
+let identityEpoch = 0;
 
-function set(next: ChatTree) {
+// `byUser` is false for changes that come from the server or a logout, which
+// must not be saved back.
+function set(next: ChatTree, byUser = true) {
   tree = next;
   path = activePath(next);
   messages = path.map(({ role, content }) => ({ role, content }));
@@ -142,6 +184,7 @@ function set(next: ChatTree) {
     // Storage unavailable or full: the in-memory conversation still works.
   }
   listeners.forEach((l) => l());
+  if (byUser) changeListener?.();
 }
 
 function addNode(parentId: string | null, message: ChatMessage): string {
@@ -212,9 +255,69 @@ export function restoreChat(snapshot: ChatSnapshot) {
   set(snapshot);
 }
 
+/** Clears the conversation in this tab only; the saved copy is left alone. */
 export function startNewChat() {
   set(emptyTree());
 }
+
+/**
+ * Logout: forgets the conversation and everything known about the saved
+ * copy, without touching the server, so the next user to sign in on this tab
+ * starts from their own saved conversation.
+ */
+export function resetChat() {
+  identityEpoch += 1;
+  setChatSyncState({ owner: null, revision: 0, dirty: false, archivePending: false });
+  set(emptyTree(), false);
+}
+
+/** The signed-in identity may have changed (a new token): reload before saving. */
+export function markChatIdentityChanged() {
+  identityEpoch += 1;
+}
+
+export function getChatIdentityEpoch(): number {
+  return identityEpoch;
+}
+
+/** Replaces the conversation with a saved one, without it counting as a change to save. */
+export function adoptSavedChat(saved: SavedChatTree) {
+  set(parseTree(saved), false);
+}
+
+export function getChatSyncState(): ChatSyncState {
+  return syncState;
+}
+
+export function setChatSyncState(next: ChatSyncState) {
+  syncState = next;
+  try {
+    sessionStorage.setItem(SYNC_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // Storage unavailable or full: the in-memory state still works.
+  }
+}
+
+/** Registers the one listener told of every change made by the user (utils/chatSync.ts). */
+export function onChatChange(listener: (() => void) | null) {
+  changeListener = listener;
+}
+
+// Clear on logout only, not on every token change: a reload re-applies the
+// stored token from null, and the Cognito refresh swaps in a new token for the
+// same user every hour. Registered at module load; main.tsx imports this
+// module statically (via AppHeader -> ChatPanel), so the subscriber is in
+// place before any logout can happen.
+//
+// Logout uses resetChat(), not startNewChat(): the latter counts as a change
+// by the user and would save an empty conversation over the saved one. The
+// saved copy stays with the user (#8870). Any other new token may be a
+// different user, so the chat sync reloads before it saves again and never
+// uploads one user's cached conversation into another's account.
+onAuthChange((change) => {
+  if (isLogout(change)) resetChat();
+  else if (change.nextToken !== null) markChatIdentityChanged();
+});
 
 function subscribe(listener: () => void) {
   listeners.add(listener);

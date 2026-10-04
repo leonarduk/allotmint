@@ -158,3 +158,40 @@ describe("chatConversation (#8842)", () => {
     expect(store.getChatPath()).toEqual([]);
   });
 });
+
+// Exercises the auth-change subscriber directly, independent of
+// api.setAuthToken (whose end-to-end behaviour is covered in api.test.ts).
+describe("chat conversation auth-change subscriber", () => {
+  let store: Store;
+  let emitAuthChange: typeof import("@/authEvents").emitAuthChange;
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    store = await freshStore();
+    // Same module graph as the fresh store, so this reaches its subscriber.
+    ({ emitAuthChange } = await import("@/authEvents"));
+    store.appendChatMessage({ role: "user", content: "What is my ISA worth?" });
+  });
+
+  it("clears the conversation on a logout event", async () => {
+    emitAuthChange({ previousToken: "token-for-user-a", nextToken: null });
+
+    expect(store.getChatPath()).toEqual([]);
+    expect(contents(await freshStore())).toEqual([]);
+  });
+
+  it("keeps the conversation when a token is applied from null", () => {
+    emitAuthChange({ previousToken: null, nextToken: "token-for-user-a" });
+
+    expect(contents(store)).toEqual(["What is my ISA worth?"]);
+  });
+
+  it("keeps the conversation on a token refresh", () => {
+    emitAuthChange({
+      previousToken: "token-for-user-a",
+      nextToken: "refreshed-token-for-user-a",
+    });
+
+    expect(contents(store)).toEqual(["What is my ISA worth?"]);
+  });
+});

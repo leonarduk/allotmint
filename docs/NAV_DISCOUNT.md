@@ -22,11 +22,33 @@ automatically. NAVs are therefore **recorded as data**, behind a pluggable
 
 | Provider | Reads | Notes |
 |---|---|---|
-| `CsvNavProvider` | `<data_root>/nav/navs.csv` | The main store. Each row is one published NAV. The file is re-read when it changes. |
+| `CsvNavProvider` | `s3://$DATA_BUCKET/nav/navs.csv` when `DATA_BUCKET` is set, else `<data_root>/nav/navs.csv`, else the bundled `data/nav/navs.csv` | The main store. Each row is one published NAV. The S3 copy is cached for 5 minutes; a local file is re-read when it changes. |
 | `MetadataNavProvider` | `nav_per_share`, `nav_currency`, `nav_as_of` in the instrument's metadata JSON | The same keys allotmint-pro's valuation profile reads. `nav_currency` is required. |
 
 The NAV with the latest date wins. A dated NAV beats an undated one. A licensed
 data feed can be added later as another provider without changing callers.
+
+### Getting `navs.csv` to the deployed app
+
+The file lives in allotmint-data at `nav/navs.csv`. Nothing syncs that repo
+to AWS automatically, so after editing it, upload it from the allotmint-data
+checkout:
+
+```bash
+aws s3 cp nav/navs.csv "s3://$DATA_BUCKET/nav/navs.csv"
+```
+
+The Lambda's `data_root` (`/tmp/data`) is empty, so S3 is the live source. A
+new upload is picked up within the 5-minute cache, with no redeploy. If the
+object is missing, the backend uses the copy baked into the image at
+`/var/task/data/nav/navs.csv`, as of the last deploy. If S3 fails for any
+other reason (for example, access denied), it logs a warning and uses the same
+baked-in copy.
+
+Retyping an instrument as `Investment Trust` changes its metadata JSON. That
+change must also reach `s3://$DATA_BUCKET/instruments/` (`METADATA_BUCKET`),
+or the deployed app keeps treating the instrument as an equity. See
+[DEPLOY.md](DEPLOY.md#investment-trust-navs-and-instrument-metadata).
 
 ### `navs.csv` format
 

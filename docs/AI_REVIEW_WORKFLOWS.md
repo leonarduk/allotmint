@@ -296,6 +296,22 @@ single review job, because a job's own check-run conclusion isn't finalized
 until the job completes — so no workflow can observe the other reviewers'
 conclusions in time when all run concurrently on the same push.
 
+How each reviewer's verdict is read (`.github/scripts/reconcile_changes_requested_label.sh`, #8812):
+
+- **Name matching.** Reviews run through the reusable `_ai-pr-review.yml`, so
+  GitHub names the check-run `ai-review / <Provider> AI code review`. The
+  script accepts that prefixed form (`<anything> / <Provider> AI code review`)
+  and also the bare `<Provider> AI code review`.
+- **Duplicate runs.** One head SHA can have several check-runs with the same
+  name. For example, a `labeled` event for a label other than "Deep Review
+  Required" starts a run whose `ai-review` job is skipped. Runs that concluded
+  `skipped`, `neutral` or `cancelled` carry no verdict, so they are ignored.
+  Of the remaining runs, the latest (by `started_at`) decides. If it is still
+  queued or in progress, the reviewer counts as pending. If no run remains,
+  the reviewer also counts as pending.
+- **Pagination.** Check-runs from every page are collected before the latest
+  is chosen.
+
 When the label is removed, `sync-changes-requested-label.yml` also posts a
 PR comment confirming all enabled AI reviews passed. If the label was not present
 (e.g. all reviews approved on the first pass), no comment is posted.

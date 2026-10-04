@@ -392,7 +392,15 @@ def _upload_snapshot_to_s3(merged: Dict) -> None:
             "Uploaded price snapshot to s3://%s/%s", sanitise_log_value(_s3_bucket), sanitise_log_value(PRICES_S3_KEY)
         )
     except Exception as exc:
-        logger.warning("Failed to upload price snapshot to S3: %s", sanitise_log_value(exc))
+        if merged:
+            # The previous snapshot, if any, is still in place.
+            logger.warning("Failed to upload price snapshot to S3: %s", sanitise_log_value(exc))
+        else:
+            # The conditional seed failed for a reason other than "key exists", so
+            # the key may be missing and the post-deploy check will fail (#3685, #8943).
+            logger.error(
+                "Failed to seed a missing S3 price snapshot; the key may not exist: %s", sanitise_log_value(exc)
+            )
 
 
 def refresh_prices() -> Dict:

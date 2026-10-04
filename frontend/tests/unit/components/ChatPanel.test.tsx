@@ -751,4 +751,138 @@ describe("ChatPanel", () => {
       expect(await screen.findByText("Not saved", {}, { timeout: 3000 })).toBeInTheDocument();
     });
   });
+
+  describe("saved chats history", () => {
+    const savedTree = {
+      nodes: [
+        { id: "1", parentId: null, role: "user", content: "current question" },
+        { id: "2", parentId: "1", role: "assistant", content: "current answer" },
+      ],
+      active: { root: "1", "1": "2" },
+      nextId: 3,
+    };
+    const chats = [
+      { id: "current", title: "current question", named: false, updated_at: "2026-10-04T09:00:00Z", messages: 2 },
+      { id: "r00000001", title: "ISA allowance", named: true, updated_at: "2026-10-01T09:00:00Z", messages: 4 },
+    ];
+
+    beforeEach(() => {
+      (api.getChatConversation as Mock).mockResolvedValue({ owner: "u1", revision: 2, conversation: savedTree });
+      (api.listSavedChats as Mock).mockResolvedValue({ chats });
+      (api.renameSavedChat as Mock).mockResolvedValue(undefined);
+      (api.deleteSavedChat as Mock).mockResolvedValue(undefined);
+      (api.openSavedChat as Mock).mockResolvedValue({
+        revision: 4,
+        conversation: {
+          nodes: [
+            { id: "1", parentId: null, role: "user", content: "isa question" },
+            { id: "2", parentId: "1", role: "assistant", content: "isa answer" },
+          ],
+          active: { root: "1", "1": "2" },
+          nextId: 3,
+        },
+        title: "ISA allowance",
+      });
+    });
+
+    async function openHistory() {
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+      await screen.findByText("current answer");
+      await user.click(screen.getByRole("button", { name: /^history$/i }));
+      const list = await screen.findByRole("list", { name: /saved chats/i });
+      await within(list).findByText("ISA allowance");
+      return { user, list };
+    }
+
+    it("lists the saved chats with their names", async () => {
+      const { list } = await openHistory();
+
+      expect(within(list).getByText("current question")).toBeInTheDocument();
+      expect(within(list).getByText(/current ·/i)).toBeInTheDocument();
+      expect(within(list).getByText(/4 messages/)).toBeInTheDocument();
+      // The current chat can't be deleted from here; archived ones can.
+      expect(within(list).queryByRole("button", { name: /delete current question/i })).not.toBeInTheDocument();
+      expect(within(list).getByRole("button", { name: /delete isa allowance/i })).toBeInTheDocument();
+    });
+
+    it("opens an archived chat in place of the current one", async () => {
+      const { user, list } = await openHistory();
+
+      await user.click(within(list).getByRole("button", { name: "ISA allowance" }));
+
+      expect(await screen.findByText("isa answer")).toBeInTheDocument();
+      expect(api.openSavedChat).toHaveBeenCalledWith("r00000001");
+      expect(screen.queryByText("current answer")).not.toBeInTheDocument();
+      expect(screen.queryByRole("list", { name: /saved chats/i })).not.toBeInTheDocument();
+    });
+
+    it("says so and stays on the list when opening fails", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      (api.openSavedChat as Mock).mockRejectedValue(new Error("down"));
+      const { user, list } = await openHistory();
+
+      await user.click(within(list).getByRole("button", { name: "ISA allowance" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't open that chat/i);
+      await user.click(screen.getByRole("button", { name: /back to chat/i }));
+      expect(screen.getByText("current answer")).toBeInTheDocument();
+    });
+
+    it("renames a chat", async () => {
+      const { user, list } = await openHistory();
+      const loads = (api.listSavedChats as Mock).mock.calls.length;
+
+      await user.click(within(list).getByRole("button", { name: /rename isa allowance/i }));
+      const input = within(list).getByLabelText(/chat name/i);
+      expect(input).toHaveValue("ISA allowance");
+      await user.clear(input);
+      await user.type(input, "ISA 2026{Enter}");
+
+      await waitFor(() => expect(api.renameSavedChat).toHaveBeenCalledWith("r00000001", "ISA 2026"));
+      // The list is reloaded to show the new name.
+      await waitFor(() => expect(api.listSavedChats).toHaveBeenCalledTimes(loads + 1));
+    });
+
+    it("starts an unnamed chat's rename from an empty box", async () => {
+      const { user, list } = await openHistory();
+
+      await user.click(within(list).getByRole("button", { name: /rename current question/i }));
+
+      expect(within(list).getByLabelText(/chat name/i)).toHaveValue("");
+    });
+
+    it("deletes one chat only after confirming", async () => {
+      const { user, list } = await openHistory();
+
+      await user.click(within(list).getByRole("button", { name: /delete isa allowance/i }));
+      const confirm = within(list).getByRole("group", { name: /confirm deleting isa allowance/i });
+      await user.click(within(confirm).getByRole("button", { name: /cancel/i }));
+      expect(api.deleteSavedChat).not.toHaveBeenCalled();
+
+      await user.click(within(list).getByRole("button", { name: /delete isa allowance/i }));
+      await user.click(within(list).getByRole("button", { name: /^delete$/i }));
+
+      await waitFor(() => expect(api.deleteSavedChat).toHaveBeenCalledWith("r00000001"));
+    });
+
+    it("says so when the list cannot be loaded", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      (api.listSavedChats as Mock).mockRejectedValue(new Error("down"));
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+      await screen.findByText("current answer");
+
+      await user.click(screen.getByRole("button", { name: /^history$/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't load your saved chats/i);
+    });
+
+    it("offers no history in a demo session", () => {
+      (isDemoSession as Mock).mockReturnValue(true);
+      render(<ChatPanel open onClose={() => {}} />);
+
+      expect(screen.queryByRole("button", { name: /^history$/i })).not.toBeInTheDocument();
+    });
+  });
 });

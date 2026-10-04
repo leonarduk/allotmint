@@ -99,6 +99,10 @@ def _save_counter(data: Dict[str, int]) -> None:
         json.dump(data, fh)
 
 
+class NewsQuotaExceeded(RuntimeError):
+    """Raised when the daily news request quota is exhausted."""
+
+
 def _can_request_news() -> bool:
     data = _load_counter()
     return data["count"] < cfg.news_requests_per_day
@@ -419,7 +423,7 @@ def get_cached_news(
     endpoint so that other modules can reuse the same logic synchronously.
     When ``cache_writer`` is provided it is invoked to persist fresh payloads;
     otherwise the helper writes to ``page_cache`` directly.  If the quota is
-    exhausted and no cached payload is available a ``RuntimeError`` is raised
+    exhausted and no cached payload is available ``NewsQuotaExceeded`` is raised
     when ``raise_on_quota_exhausted`` is true.
     """
 
@@ -431,7 +435,7 @@ def get_cached_news(
 
     def _call() -> List[Dict[str, str]]:
         if not _try_consume_quota():
-            raise RuntimeError("news quota exceeded")
+            raise NewsQuotaExceeded("news quota exceeded")
         return _fetch_news(tkr)
 
     def _schedule_refresh(initial_delay: float | None = None) -> None:
@@ -454,7 +458,7 @@ def get_cached_news(
 
     try:
         payload = _call()
-    except RuntimeError:
+    except NewsQuotaExceeded:
         if cached is not None:
             _warn_if_stale(page)
             stale = _is_cache_stale(page)
@@ -501,5 +505,5 @@ def get_news(
             cache_writer=lambda page, data: background_tasks.add_task(page_cache.save_cache, page, data),
             raise_on_quota_exhausted=True,
         )
-    except RuntimeError as exc:
+    except NewsQuotaExceeded as exc:
         raise HTTPException(status_code=429, detail="News request quota exceeded") from exc

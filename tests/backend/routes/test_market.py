@@ -51,7 +51,7 @@ def test_fetch_headlines_stops_on_quota_exhaustion(monkeypatch):
     def fake_get_cached_news(symbol: str) -> List[dict[str, str]]:
         calls.append(symbol)
         if symbol == stop_after:
-            raise RuntimeError("news quota exceeded")
+            raise market_module.NewsQuotaExceeded("news quota exceeded")
         return _make_payload(symbol, "fresh")
 
     monkeypatch.setattr(market_module, "get_cached_news", fake_get_cached_news)

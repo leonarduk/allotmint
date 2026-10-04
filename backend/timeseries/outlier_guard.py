@@ -138,10 +138,10 @@ def _log_dropped(dropped: pd.DataFrame, *, ticker: str, exchange: str) -> None:
         for day, close, source in zip(dropped["Date"], dropped["Close"], dropped["Source"])
     )
     logger.warning(
-        "Ignoring %d zero-volume cross-source price spike(s) for %s.%s (close vs both neighbours > %d%%): %s",
-        len(dropped),
+        "Ignoring %s zero-volume cross-source price spike(s) for %s.%s (close vs both neighbours > %s%%): %s",
+        sanitise_log_value(len(dropped)),
         sanitise_log_value(ticker),
         sanitise_log_value(exchange),
-        round(ZERO_VOLUME_SPIKE_THRESHOLD * 100),
+        sanitise_log_value(round(ZERO_VOLUME_SPIKE_THRESHOLD * 100)),
         sanitise_log_value(rows),
     )

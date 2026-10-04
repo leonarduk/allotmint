@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import * as api from "../api";
 import type { SavedChatSummary } from "../api";
 import { saveCurrentChat } from "../utils/chatSync";
+import { CHAT_INPUT_STYLE } from "./chatInputStyle";
 
 interface Props {
   /** Opens a chat: "current" just returns to it; any other id is an archived chat. */
@@ -113,7 +114,7 @@ export function ChatHistoryList({ onOpen, busy = false }: Props) {
                     if (e.key === "Enter") saveRename();
                     if (e.key === "Escape") setRenaming(null);
                   }}
-                  style={{ flex: 1 }}
+                  style={{ ...CHAT_INPUT_STYLE, flex: 1 }}
                 />
                 <button onClick={saveRename}>Save</button>
                 <button onClick={() => setRenaming(null)}>Cancel</button>

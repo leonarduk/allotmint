@@ -89,6 +89,10 @@ _ASSET_CLASS_ALIASES: dict[str, str] = {
 _FUND_TYPES = frozenset({"ETF", "ETC", "ETP", "FUND", "MUTUALFUND", "INVESTMENT TRUST", "OEIC", "UNIT TRUST"})
 _EQUITY_TYPES = frozenset({"EQUITY", "STOCK", "SHARE"})
 _CASH_TYPES = frozenset({"CASH", "MONEYMARKET", "MONEY MARKET"})
+_BOND_TYPES = frozenset({"BOND", "GILT"})
+# Index, currency, crypto and derivative quote types have no asset class in
+# this vocabulary; they are left unset (and flagged by MISSING_ASSET_CLASS if
+# held) rather than forced into one.
 
 _FUND_NAME_RE = re.compile(r"\b(UCITS|ETF|ETC|INVESTMENT TRUST|INV TRUST|OEIC|ICAV)\b|\bFUNDS?\b", re.IGNORECASE)
 
@@ -209,6 +213,8 @@ def derive_asset_class(meta: Mapping[str, Any]) -> Optional[str]:
 
     if instrument_type in _EQUITY_TYPES:
         return EQUITY
+    if instrument_type in _BOND_TYPES:
+        return BOND
     return normalise_asset_class(meta.get("asset_class"))
 
 
@@ -239,7 +245,16 @@ def classify_instrument(
     override = override or {}
     result: dict[str, Any] = {}
 
-    asset_class = normalise_asset_class(override.get("asset_class")) or derive_asset_class(meta)
+    override_class = override.get("asset_class")
+    asset_class = normalise_asset_class(override_class)
+    if override_class is not None and asset_class is None:
+        logger.warning(
+            "Ignoring unrecognised asset_class override %s for %s; expected one of %s",
+            sanitise_log_value(override_class),
+            sanitise_log_value(meta.get("ticker")),
+            ", ".join(ASSET_CLASSES),
+        )
+    asset_class = asset_class or derive_asset_class(meta)
     if asset_class is not None:
         result["asset_class"] = asset_class
 

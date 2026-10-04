@@ -83,6 +83,24 @@ def test_stock_keyword_marks_equity_fund() -> None:
     assert ic.classify_instrument(meta) == {"asset_class": "equity", "sector": "Multi-sector"}
 
 
+def test_bond_quote_type_without_keywords_is_bond() -> None:
+    meta = {"ticker": "X.L", "name": "US 10Y Note", "instrument_type": "BOND"}
+    assert ic.classify_instrument(meta)["asset_class"] == "bond"
+
+
+@pytest.mark.parametrize("quote_type", ["INDEX", "CURRENCY", "CRYPTOCURRENCY", "FUTURE", "OPTION"])
+def test_quote_types_outside_the_vocabulary_stay_unset(quote_type) -> None:
+    meta = {"ticker": "X.L", "name": "Something", "instrument_type": quote_type}
+    assert "asset_class" not in ic.classify_instrument(meta)
+
+
+def test_unrecognised_override_is_logged_and_ignored(caplog) -> None:
+    meta = _meta("Vanguard FTSE All-World UCITS ETF (GBP)", "ETF", "Financials")
+    result = ic.classify_instrument(meta, {"asset_class": "Fund"})
+    assert result["asset_class"] == "equity"
+    assert "Ignoring unrecognised asset_class override" in caplog.text
+
+
 def test_unknown_instrument_has_no_asset_class() -> None:
     assert ic.classify_instrument({"ticker": "AAA.L", "name": "AAA.L", "instrument_type": "NONE"}) == {}
 

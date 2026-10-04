@@ -28,7 +28,9 @@ rules:
    class ("Fixed Income"). If none of these match, the fund is equity. A bare
    "Gold" in the name does not count, because "Gold Producers" ETFs hold
    mining shares.
-4. **Company shares** (type Equity): `equity`.
+4. **Company shares** (type Equity): `equity`. A Yahoo `BOND` quote type is
+   `bond`. Index, currency, crypto and derivative quote types are left without
+   an asset class; if one is held, the data-quality audit flags it.
 5. **Fund sector.** If a fund's sector is missing, belongs to the issuer
    (Financials, Financial Services, Miscellaneous) or contradicts the asset
    class (an equity ETF filed under "Fixed Income"), it is replaced with an
@@ -66,7 +68,7 @@ it.
 ```
 
 Each entry may set `asset_class`, `sector` or both. Keys starting with `_` are
-ignored. Then run `python -m scripts.classify_instruments --write`.
+ignored. An `asset_class` outside the six values above is logged and ignored. Then run `python -m scripts.classify_instruments --write`.
 
 ## Gaps
 

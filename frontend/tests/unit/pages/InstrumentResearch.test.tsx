@@ -847,10 +847,13 @@ describe("InstrumentResearch page", () => {
     );
     expect(morningstar).toHaveAttribute("target", "_blank");
     expect(morningstar).toHaveAttribute("rel", "noopener noreferrer");
-    expect(screen.getByRole("link", { name: "View on Investing.com" })).toHaveAttribute(
+    const investing = screen.getByRole("link", { name: "View on Investing.com" });
+    expect(investing).toHaveAttribute(
       "href",
       "https://www.investing.com/search/?q=GB00BH4HKS39",
     );
+    expect(investing).toHaveAttribute("target", "_blank");
+    expect(investing).toHaveAttribute("rel", "noopener noreferrer");
   });
 
   it("falls back to a ticker search and hides Morningstar without an ISIN", async () => {

@@ -162,12 +162,32 @@ describe("PortfolioDashboard page", () => {
 
       // percent() falls back to an em-dash for TWR/IRR/day metrics.
       expect(screen.getAllByText("—").length).toBe(5);
-      // percentOrNa() falls back to "N/A" for the benchmark-relative metrics.
+      // FractionMetric falls back to "N/A" for the benchmark-relative metrics.
       expect(screen.getAllByText("N/A").length).toBe(4);
 
       const charts = screen.getAllByTestId("line-chart");
       expect(charts).toHaveLength(2);
       charts.forEach((chart) => expect(chart.dataset.points).toBe("0"));
+    });
+  });
+
+  // #8570: benchmark-relative metrics are fractions; no "|x| > 1 means
+  // percent" guess, and implausible values are N/A rather than rescaled.
+  describe("metric units (#8570)", () => {
+    it("renders genuine values above 100% and flags implausible ones", () => {
+      renderDashboard({
+        alpha: 1.5,
+        trackingError: 2.5,
+        maxDrawdown: 0.05,
+        volatility: 1.2,
+      });
+      expect(screen.getByTestId("metric-alpha")).toHaveTextContent("150.00%");
+      expect(screen.getByTestId("metric-volatility")).toHaveTextContent("120.00%");
+      for (const id of ["metric-tracking-error", "metric-max-drawdown"]) {
+        const el = screen.getByTestId(id);
+        expect(el).toHaveTextContent(/^N\/A$/);
+        expect(el).toHaveAttribute("data-unreliable", "true");
+      }
     });
   });
 });

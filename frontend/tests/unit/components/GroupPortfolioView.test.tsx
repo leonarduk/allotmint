@@ -1063,7 +1063,7 @@ describe("GroupPortfolioView", () => {
     const portfolioPayload = { name: "At a glance", accounts: [] };
 
     mockAllFetches(portfolioPayload, {
-      metrics: { alpha: 3.44, trackingError: 2.5, maxDrawdown: -12.34 },
+      metrics: { alpha: 0.0344, trackingError: 0.025, maxDrawdown: -0.1234 },
     });
     const allView = renderWithConfig(
       <GroupPortfolioView slug="all" owners={ownerFixtures} />,
@@ -1119,15 +1119,15 @@ describe("GroupPortfolioView", () => {
     warnSpy.mockRestore();
   });
 
-  it("renders whole-percentage metrics returned by the API", async () => {
+  it("renders fraction metrics returned by the API as percentages (#8570)", async () => {
     const mockPortfolio = { name: "At a glance", accounts: [] };
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const fetchMock = mockAllFetches(mockPortfolio, {
       metrics: {
-        alpha: 3.44,
-        trackingError: 2.5,
-        maxDrawdown: -12.34,
+        alpha: 0.0344,
+        trackingError: 0.025,
+        maxDrawdown: -0.1234,
       },
     });
 
@@ -1162,6 +1162,56 @@ describe("GroupPortfolioView", () => {
     expect(warnSpy).not.toHaveBeenCalled();
     warnSpy.mockRestore();
   });
+
+  // #8570: the old "|x| > 1 means percent, divide by 100" guess is gone.
+  // A genuine value above 100% is shown as-is, and an implausible value is
+  // N/A with an "unreliable" tooltip -- never silently rescaled.
+  it("renders genuine metrics above 100% instead of dividing by 100 (#8570)", async () => {
+    mockAllFetches(
+      { name: "At a glance", accounts: [] },
+      { metrics: { alpha: 1.5, trackingError: 1.5, maxDrawdown: -1 } },
+    );
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("group-metric-alpha")).toHaveTextContent("150.00%"),
+    );
+    expect(screen.getByTestId("group-metric-tracking-error")).toHaveTextContent("150.00%");
+    expect(screen.getByTestId("group-metric-max-drawdown")).toHaveTextContent("-100.00%");
+  });
+
+  it.each([
+    ["XIRR-style blow-up", { alpha: 14159.17, trackingError: 2.5, maxDrawdown: -1.5 }],
+    ["positive drawdown, negative tracking error", { alpha: -11, trackingError: -0.01, maxDrawdown: 0.05 }],
+  ])(
+    "renders implausible metrics as N/A with an unreliable tooltip (%s, #8570)",
+    async (_label, metrics) => {
+      mockAllFetches({ name: "At a glance", accounts: [] }, { metrics });
+
+      renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("group-metric-alpha")).toHaveAttribute(
+          "data-unreliable",
+          "true",
+        ),
+      );
+      for (const id of [
+        "group-metric-alpha",
+        "group-metric-tracking-error",
+        "group-metric-max-drawdown",
+      ]) {
+        const el = screen.getByTestId(id);
+        expect(el).toHaveTextContent(/^N\/A$/);
+        expect(el).toHaveAttribute("data-unreliable", "true");
+        expect(el).toHaveAttribute("title", expect.stringMatching(/looks unreliable/));
+      }
+      // The old guess would have shown 141.59% / 2.50% / -1.50% here.
+      expect(screen.queryByText("141.59%")).not.toBeInTheDocument();
+      expect(screen.queryByText("2.50%")).not.toBeInTheDocument();
+    },
+  );
 
   it("shows N/A for invalid performance metrics", async () => {
     const mockPortfolio = { name: "At a glance", accounts: [] };

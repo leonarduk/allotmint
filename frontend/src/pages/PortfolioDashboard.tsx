@@ -6,7 +6,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { percent, percentOrNa } from "../lib/money";
+import { percent } from "../lib/money";
+import FractionMetric from "../components/FractionMetric";
+import {
+  DRAWDOWN_RANGE,
+  RETURN_RANGE,
+  TRACKING_ERROR_RANGE,
+  VOLATILITY_RANGE,
+} from "../lib/metricPlausibility";
 // import metricStyles from "../styles/metrics.module.css";
 import { Link } from "react-router-dom";
 
@@ -76,25 +83,25 @@ function PortfolioDashboard({
         <div className="flex flex-col">
           <div className="text-sm text-gray-400">Alpha vs Benchmark</div>
           <div className="text-lg font-bold">
-            {percentOrNa(alpha)}
+            <FractionMetric value={alpha} range={RETURN_RANGE} testId="metric-alpha" />
           </div>
         </div>
         <div className="flex flex-col">
           <div className="text-sm text-gray-400">Tracking Error</div>
           <div className="text-lg font-bold">
-            {percentOrNa(trackingError)}
+            <FractionMetric value={trackingError} range={TRACKING_ERROR_RANGE} testId="metric-tracking-error" />
           </div>
         </div>
         <div className="flex flex-col">
           <div className="text-sm text-gray-400">Max Drawdown</div>
           <div className="text-lg font-bold">
-            {percentOrNa(maxDrawdown)}
+            <FractionMetric value={maxDrawdown} range={DRAWDOWN_RANGE} testId="metric-max-drawdown" />
           </div>
         </div>
         <div className="flex flex-col">
           <div className="text-sm text-gray-400">Volatility</div>
           <div className="text-lg font-bold">
-            {percentOrNa(volatility)}
+            <FractionMetric value={volatility} range={VOLATILITY_RANGE} testId="metric-volatility" />
           </div>
         </div>
       </div>

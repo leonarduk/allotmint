@@ -34,7 +34,13 @@ import { TopMoversSummary } from "./TopMoversSummary";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
 import LoadingStatus from "./skeletons/LoadingStatus";
-import { money, percent, percentOrNa } from "../lib/money";
+import { money, percent } from "../lib/money";
+import FractionMetric from "./FractionMetric";
+import {
+  DRAWDOWN_RANGE,
+  RETURN_RANGE,
+  TRACKING_ERROR_RANGE,
+} from "../lib/metricPlausibility";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
@@ -895,16 +901,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const portfolioLoading = loading || !portfolio;
   const loadingLabel = t("group.loadingPortfolio");
 
-  const safeAlpha =
-    alpha != null && Math.abs(alpha) > 1 ? alpha / 100 : alpha;
-  const safeTrackingError =
-    trackingError != null && Math.abs(trackingError) > 1
-      ? trackingError / 100
-      : trackingError;
-  const safeMaxDrawdown =
-    maxDrawdown != null && Math.abs(maxDrawdown) > 1
-      ? maxDrawdown / 100
-      : maxDrawdown;
+  // alpha / tracking error / max drawdown are FRACTIONS from the group
+  // routes; FractionMetric formats them directly and shows N/A for
+  // implausible values instead of guessing a unit (#8570).
 
   /* ── render ────────────────────────────────────────────── */
   const pricingDate = portfolio?.as_of
@@ -1106,7 +1105,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 Alpha vs Benchmark
               </div>
               <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-                {percentOrNa(safeAlpha)}
+                <FractionMetric value={alpha} range={RETURN_RANGE} testId="group-metric-alpha" />
               </div>
             </div>
           </div>
@@ -1123,7 +1122,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 Tracking Error
               </div>
               <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-                {percentOrNa(safeTrackingError)}
+                <FractionMetric
+                  value={trackingError}
+                  range={TRACKING_ERROR_RANGE}
+                  testId="group-metric-tracking-error"
+                />
               </div>
             </div>
           </div>
@@ -1143,7 +1146,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 {t("dashboard.maxDrawdown")}
               </div>
               <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-                {percentOrNa(safeMaxDrawdown)}
+                <FractionMetric
+                  value={maxDrawdown}
+                  range={DRAWDOWN_RANGE}
+                  testId="group-metric-max-drawdown"
+                />
               </div>
             </div>
           </div>

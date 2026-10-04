@@ -414,6 +414,8 @@ def _patch_real_scaling_env(monkeypatch, tmp_path, overrides, raw_close):
     (tmp_path / "data").mkdir()
     (tmp_path / "data" / "scaling_overrides.json").write_text(json.dumps(overrides))
     monkeypatch.setattr(config, "repo_root", tmp_path)
+    # The DATA_ROOT table outranks repo_root (#7787); keep it out of the way.
+    monkeypatch.setattr(config, "data_root", tmp_path / "no-data-root")
     monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
     monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {})
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {})

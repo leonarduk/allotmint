@@ -53,6 +53,54 @@ def apply_scaling(df: pd.DataFrame, scale: float, scale_volume: bool = False) ->
     return df
 
 
+def _scaling_overrides_path() -> Path:
+    """Locate ``scaling_overrides.json``: ``config.data_root`` first, then
+    ``<repo_root>/data``, then the copy bundled next to this package.
+
+    The configured data root (``DATA_ROOT``, e.g. ``../allotmint-data``) is
+    the live dataset and must win. Previously the repo-root candidate was
+    checked *after* it and overwrote it, so a deployment with its own
+    data-root table silently priced from the repo's fallback copy (#7787).
+    """
+    candidates = []
+    configured_data_root = getattr(config, "data_root", None)
+    if configured_data_root:
+        candidates.append(Path(str(configured_data_root)).expanduser() / "scaling_overrides.json")
+    configured_repo_root = getattr(config, "repo_root", None)
+    if configured_repo_root:
+        candidates.append(
+            Path(str(configured_repo_root)).expanduser() / "data" / "scaling_overrides.json"
+        )
+    bundled = Path(__file__).resolve().parents[2] / "data" / "scaling_overrides.json"
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return bundled
+
+
+def _infer_override_exchange(ticker: str, base: str, overrides: dict) -> str:
+    """Best-effort exchange for a ``get_scaling_override`` call that passed none.
+
+    Callers resolve LSE TIDMs with a trailing dot (``"AV."``, ``"BP."``, as
+    stored in the account data) to an *empty* exchange via
+    ``instrument_api._resolve_full_ticker``, so an ``"L"`` override for that
+    ticker would otherwise never match (#7787). Prefer an explicit suffix on
+    ``ticker`` (``"ADM.L"``); failing that, use the single exchange section of
+    the override table that lists ``base``. Ambiguous or absent -> ``""``.
+    """
+    parts = re.split(r"[.:]", ticker, maxsplit=1)
+    if len(parts) == 2 and parts[1]:
+        return parts[1].upper()
+    if not isinstance(overrides, dict):
+        return ""
+    matches = [
+        ex_key
+        for ex_key, table in overrides.items()
+        if ex_key != "*" and isinstance(table, dict) and base in table
+    ]
+    return str(matches[0]).upper() if len(matches) == 1 else ""
+
+
 def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional[float]) -> float:
     """Return the factor to multiply a fetched OHLC/quote value by to get GBP.
 
@@ -79,18 +127,7 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
     if requested_scaling is not None:
         return requested_scaling
 
-    path = Path(__file__).resolve().parents[2] / "data" / "scaling_overrides.json"
-    configured_data_root = getattr(config, "data_root", None)
-    if configured_data_root:
-        candidate = Path(str(configured_data_root)).expanduser()
-        candidate_path = candidate / "scaling_overrides.json"
-        if candidate_path.exists():
-            path = candidate_path
-    configured_repo_root = getattr(config, "repo_root", None)
-    if configured_repo_root:
-        candidate = Path(str(configured_repo_root)).expanduser() / "data" / "scaling_overrides.json"
-        if candidate.exists():
-            path = candidate
+    path = _scaling_overrides_path()
     try:
         with path.open() as f:
             ov = json.load(f)
@@ -98,7 +135,7 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
         ov = {}
 
     base = re.split(r"[.:]", ticker)[0].upper()
-    ex = (exchange or "").upper()
+    ex = (exchange or "").upper() or _infer_override_exchange(ticker, base, ov)
 
     # Overrides are applied at read time only (callers do
     # ``apply_scaling(df, get_scaling_override(...))`` on series loaded from

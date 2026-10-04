@@ -17,8 +17,10 @@ import {
 // to other devices.
 //
 // - Load: ensureChatLoaded() fetches the saved copy and adopts it, unless this
-//   tab holds unsaved changes for the same user, which are saved instead (a
-//   conflict then decides). A copy cached for a different user is discarded.
+//   tab holds unsaved changes, which are saved instead: for the same user a
+//   conflict then decides; before this tab's first sync, a different saved
+//   conversation is archived first, so neither copy is lost. A copy cached
+//   for a different user is discarded.
 // - Save: each change is saved after a short debounce, as a PUT naming the
 //   revision it was based on. A 409 means another tab or device saved first:
 //   the saved copy is adopted (last writer loses).
@@ -80,11 +82,12 @@ async function load(): Promise<void> {
     // Cached for someone else: never upload it into this account.
     adoptSavedChat(saved.conversation);
     setChatSyncState({ owner: saved.owner, revision: saved.revision, dirty: false, archivePending: false });
-  } else if (local.archivePending || (local.dirty && (sameUser || isEmpty(saved.conversation)))) {
-    // Unsaved local work: keep it and save it, below. Before any sync, a
-    // local conversation is only uploaded when nothing is saved yet.
+  } else if (local.archivePending || local.dirty) {
+    // Unsaved local work: keep it and save it, below. Before this tab's first
+    // sync (no owner yet) a different saved conversation is archived first.
     const revision = sameUser ? local.revision : saved.revision;
-    setChatSyncState({ ...local, owner: saved.owner, revision });
+    const archiveSaved = !sameUser && !isEmpty(saved.conversation);
+    setChatSyncState({ ...local, owner: saved.owner, revision, archivePending: local.archivePending || archiveSaved });
   } else {
     adoptSavedChat(saved.conversation);
     setChatSyncState({ owner: saved.owner, revision: saved.revision, dirty: false, archivePending: false });

@@ -145,6 +145,8 @@ def test_archive_retry_of_the_same_revision_does_not_duplicate_it(store, monkeyp
         b'{"revision": true}',
         b'{"revision": "3"}',
         b"[]",
+        b'{"revision": 2}',
+        b'{"revision": 2, "conversation": null}',
         b'{"revision": 2, "conversation": "x"}',
         b'{"revision": 2, "conversation": {"nodes": "x"}}',
         b'{"revision": 2, "conversation": {"nodes": [], "active": []}}',
@@ -157,6 +159,22 @@ def test_malformed_stored_revision_is_an_error(store, tmp_path: Path, bad: bytes
 
     with pytest.raises(ch.ChatHistoryUnavailable):
         ch.load_conversation(ALICE, store)
+
+
+def test_archive_gives_up_when_every_attempt_loses_a_race(store, monkeypatch) -> None:
+    ch.save_conversation(ALICE, _conversation("v1"), 0, store)
+
+    def always_loses(key, data, *, expect_tag):
+        raise ch._PreconditionFailed()
+
+    monkeypatch.setattr(store, "write", always_loses)
+
+    with pytest.raises(ch.ChatHistoryUnavailable):
+        ch.archive_conversation(ALICE, store)
+    # The conversation is still current, and its archive copy was written once.
+    monkeypatch.undo()
+    assert ch.load_conversation(ALICE, store)["revision"] == 1
+    assert [p.name for p in (store.root / ch.user_key(ALICE) / "archive").iterdir()] == ["r00000001.json"]
 
 
 def test_delete_history_removes_current_and_archives(store, tmp_path: Path) -> None:

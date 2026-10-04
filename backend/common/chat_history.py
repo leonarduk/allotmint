@@ -273,9 +273,10 @@ def _decode(stored: Optional[_Stored]) -> Dict[str, Any]:
     if not isinstance(revision, int) or isinstance(revision, bool) or revision < 0:
         raise ChatHistoryUnavailable("Stored chat conversation is malformed")
     conversation = doc.get("conversation")
-    # Only this module writes these documents, but a damaged one must not read
-    # as an empty conversation that the next save would then overwrite.
-    if conversation is not None and not (
+    # Only this module writes these documents, and always with a tree, so a
+    # missing or damaged one is an error: it must not read as an empty
+    # conversation that the next save would then overwrite.
+    if not (
         isinstance(conversation, dict)
         and isinstance(conversation.get("nodes", []), list)
         and isinstance(conversation.get("active", {}), dict)

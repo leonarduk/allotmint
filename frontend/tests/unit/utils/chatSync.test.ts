@@ -96,14 +96,18 @@ describe("loading", () => {
     expect(getChatSyncState()).toMatchObject({ owner: "alice", revision: 1, dirty: false });
   });
 
-  it("prefers the saved conversation over an unsynced local one", async () => {
+  it("keeps an unsynced local conversation and archives the different saved one", async () => {
     appendChatMessage(user("local"));
     getMock().mockResolvedValue(saved("alice", 2, tree("saved")));
+    (api.archiveChatConversation as Mock).mockResolvedValue({ revision: 3, archived: true });
 
     await ensureChatLoaded();
 
-    expect(contents()).toEqual(["saved"]);
-    expect(putMock()).not.toHaveBeenCalled();
+    // Neither copy is lost: the saved one goes to the archive, then the local one is saved.
+    expect(contents()).toEqual(["local"]);
+    expect(api.archiveChatConversation).toHaveBeenCalledTimes(1);
+    expect(putMock()).toHaveBeenCalledWith(expect.anything(), 3);
+    expect(getChatSyncState()).toMatchObject({ owner: "alice", revision: 4, dirty: false, archivePending: false });
   });
 
   it("saves unsaved changes for the same user instead of losing them", async () => {
@@ -163,9 +167,12 @@ describe("loading", () => {
     setChatReplyPending(false);
     await settle();
 
-    // Loaded again once the reply was in; nothing synced yet, so the saved chat wins.
+    // Loaded again once the reply was in. The new exchange is kept and the
+    // older saved chat archived, so neither is lost.
     expect(getMock()).toHaveBeenCalledTimes(2);
-    expect(contents()).toEqual(["older chat"]);
+    expect(contents()).toEqual(["quick question", "reply"]);
+    expect(api.archiveChatConversation).toHaveBeenCalledTimes(1);
+    expect(putMock()).toHaveBeenCalledTimes(1);
   });
 
   it("treats an unexpected response as a failed load", async () => {

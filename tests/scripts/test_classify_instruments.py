@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
+import pytest
+
+from backend.common import instrument_classification
+from backend.common.instrument_classification import load_classification_overrides
 from scripts import classify_instruments
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _write(path, payload):
@@ -74,3 +81,18 @@ def test_main_reads_overrides_file(tmp_path, capsys) -> None:
     out = capsys.readouterr().out
     assert "L/ESIH.json: asset_class: None -> 'equity'; sector: None -> 'Health Care'" in out
     assert "Would update 3 file(s)" in out
+
+
+def test_main_defaults_to_bundled_data_without_data_root(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(instrument_classification.config, "data_root", None)
+
+    assert classify_instruments.main([]) == 0
+    assert str(_REPO_ROOT / "data" / "instruments") in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("tree", ["data", "demo-data"])
+def test_committed_instrument_data_is_already_classified(tree) -> None:
+    """The bundled metadata matches the rules: a backfill run changes nothing."""
+    root = _REPO_ROOT / tree
+    overrides = load_classification_overrides(root / "instrument_classification_overrides.json")
+    assert classify_instruments.classify_all(root / "instruments", overrides) == {}

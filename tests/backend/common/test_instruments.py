@@ -425,7 +425,7 @@ def test_fetch_metadata_from_yahoo_falls_back_to_info_and_fast_info(monkeypatch,
     assert result == {
         "name": "Beta Fund",
         "currency": "USD",
-        "sector": "Index",
+        "sector": "Multi-sector",
         "category": "Index",
         "region": "US",
         "asset_class": "equity",

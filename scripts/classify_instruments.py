@@ -20,7 +20,6 @@ from backend.common.instrument_classification import (
     load_classification_overrides,
     overrides_path,
 )
-from backend.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +99,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
-    instruments_dir = args.instruments_dir or Path(config.data_root) / "instruments"
+    # overrides_path() resolves the data root, falling back to the bundled
+    # data/ directory when none is configured.
+    instruments_dir = args.instruments_dir or overrides_path().parent / "instruments"
     if not instruments_dir.is_dir():
         parser.error(f"instruments directory not found: {instruments_dir}")
     overrides = load_classification_overrides(args.overrides or overrides_path())

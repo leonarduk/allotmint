@@ -129,7 +129,7 @@ _ISSUER_SECTORS = frozenset({"financials", "financial services", "financial", "m
 
 # Sector values that name the wrapper, not the exposure. They also mark the
 # instrument as a fund when its type is missing.
-_WRAPPER_SECTORS = frozenset({"investment trust", "investment trusts", "etf", "etfs", "fund", "funds"})
+_WRAPPER_SECTORS = frozenset({"investment trust", "investment trusts", "etf", "etfs", "fund", "funds", "index"})
 
 # Sector values that are really an asset-class label; on a fund they must
 # agree with the derived asset class or they are replaced.

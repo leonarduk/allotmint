@@ -104,6 +104,15 @@ def schedule_refresh(
     if can_refresh is not None and not can_refresh():
         return
 
+    # Sync FastAPI handlers run in a worker thread with no event loop. Raising
+    # here would fail a request whose data was already fetched, so skip the
+    # background refresh and let the next request repopulate the cache.
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        logger.debug("No running event loop; skipping background refresh for %s", sanitise_log_value(page_name))
+        return
+
     async def _call_builder() -> Any:
         if inspect.iscoroutinefunction(builder):
             return await builder()

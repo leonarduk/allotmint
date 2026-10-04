@@ -387,8 +387,27 @@ describe("Screener & Query page", () => {
     const today = new Date();
     const yearAgo = new Date(today);
     yearAgo.setFullYear(today.getFullYear() - 1);
+    if (yearAgo.getMonth() !== today.getMonth()) yearAgo.setDate(0);
     return { start: iso(yearAgo), end: iso(today) };
   };
+
+  it("clamps the default start to 28 Feb when today is 29 Feb", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2028, 1, 29, 12));
+    try {
+      window.history.pushState({}, "", "/");
+      const { i18n } = renderWithI18n(<ScreenerQuery />);
+      await screen.findByLabelText(i18n.t("query.start"));
+      expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(
+        "2028-02-29",
+      );
+      expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
+        "2027-02-28",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it("defaults the date range to the trailing 12 months", async () => {
     window.history.pushState({}, "", "/");
@@ -458,13 +477,10 @@ describe("Screener & Query page", () => {
     );
     const { i18n } = renderWithI18n(<ScreenerQuery />);
     await screen.findByLabelText(i18n.t("query.start"));
-    // The invalid date is rejected and the default (a valid ISO date) stays.
-    expect(screen.getByLabelText(i18n.t("query.start"))).not.toHaveValue(
-      "not-a-date",
+    // The invalid date is rejected and the default stays.
+    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
+      expectedDefaultRange().start,
     );
-    expect(
-      (screen.getByLabelText(i18n.t("query.start")) as HTMLInputElement).value,
-    ).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(screen.getByLabelText("Alice Example")).not.toBeChecked();
     expect(screen.getByLabelText("Bob Example")).not.toBeChecked();
   });

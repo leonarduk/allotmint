@@ -379,6 +379,34 @@ describe("Screener & Query page", () => {
     ).toBeChecked();
   });
 
+  it("defaults the date range to the trailing 12 months", async () => {
+    window.history.pushState({}, "", "/");
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText(i18n.t("query.start"));
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const iso = (d: Date) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const today = new Date();
+    const yearAgo = new Date(today);
+    yearAgo.setFullYear(today.getFullYear() - 1);
+    expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(iso(today));
+    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
+      iso(yearAgo),
+    );
+  });
+
+  it("keeps the default end date when a link only carries a start date", async () => {
+    window.history.pushState({}, "", "/?start=2024-01-01");
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText(i18n.t("query.start"));
+    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
+      "2024-01-01",
+    );
+    expect(
+      (screen.getByLabelText(i18n.t("query.end")) as HTMLInputElement).value,
+    ).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
   it("sanitizes malicious query parameters", async () => {
     window.history.pushState(
       {},
@@ -387,7 +415,13 @@ describe("Screener & Query page", () => {
     );
     const { i18n } = renderWithI18n(<ScreenerQuery />);
     await screen.findByLabelText(i18n.t("query.start"));
-    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue("");
+    // The invalid date is rejected and the default (a valid ISO date) stays.
+    expect(screen.getByLabelText(i18n.t("query.start"))).not.toHaveValue(
+      "not-a-date",
+    );
+    expect(
+      (screen.getByLabelText(i18n.t("query.start")) as HTMLInputElement).value,
+    ).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(screen.getByLabelText("Alice Example")).not.toBeChecked();
     expect(screen.getByLabelText("Bob Example")).not.toBeChecked();
   });

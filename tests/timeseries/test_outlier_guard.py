@@ -33,9 +33,7 @@ def test_drops_isolated_zero_volume_spikes_from_issue_example(caplog):
 def test_tracking_error_inputs_become_plausible():
     df = _frame(VWRL_CLOSES, VWRL_VOLUMES)
     raw_returns = df["Close"].pct_change().dropna()
-    guarded_returns = (
-        drop_zero_volume_spikes(df, ticker="VWRL", exchange="L")["Close"].pct_change().dropna()
-    )
+    guarded_returns = drop_zero_volume_spikes(df, ticker="VWRL", exchange="L")["Close"].pct_change().dropna()
     assert raw_returns.std() * np.sqrt(252) > 4  # >400% annualised from the spikes
     assert guarded_returns.std() * np.sqrt(252) < 0.2
 

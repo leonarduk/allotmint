@@ -44,6 +44,7 @@ from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
+from backend.timeseries.outlier_guard import drop_zero_volume_spikes
 from backend.timeseries.source_basis import compatible_rows
 from backend.utils.fx_rates import (
     fallback_fx_rate_range,
@@ -812,7 +813,10 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
         _CACHE_FILE_MTIMES.clear()
 
     _invalidate_meta_caches_if_stale(ticker, exchange)
-    return _load_meta_timeseries_cached(ticker, exchange, days, _CACHE_ONLY.get()).copy()
+    df = _load_meta_timeseries_cached(ticker, exchange, days, _CACHE_ONLY.get())
+    # Filter isolated zero-volume spikes from mixed-source parquets (#7816);
+    # read-time only, the cached frame and stored parquet are left as-is.
+    return drop_zero_volume_spikes(df, ticker=ticker, exchange=exchange).copy()
 
 
 # ──────────────────────────────────────────────────────────────
@@ -834,6 +838,19 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
 # timeseries_for_ticker's default days=365, or scenario_tester's event-based
 # lookups) is unaffected -- see issue #7565.
 _MIN_CACHE_WINDOW_DAYS = 60
+
+
+def _guarded_range(
+    existing: pd.DataFrame, ticker: str, exchange: str, start_date: date, end_date: date
+) -> pd.DataFrame:
+    """Range of a parquet read directly (cache-only/offline), with the #7816 spike guard.
+
+    The live branch gets the guard via ``load_meta_timeseries``; applying it
+    here, inside the LRU cache, keeps every path guarded exactly once and logs
+    dropped rows once per cache fill rather than on every read.
+    """
+    guarded = drop_zero_volume_spikes(existing, ticker=ticker, exchange=exchange)
+    return _ensure_schema(apply_date_range(guarded, start_date, end_date))
 
 
 @lru_cache(maxsize=512)
@@ -859,7 +876,7 @@ def _memoized_range_cached(
             _queue_if_stale(ticker, exchange, existing)
         if existing.empty:
             return _empty_ts()
-        return _ensure_schema(apply_date_range(existing, start_date, end_date))
+        return _guarded_range(existing, ticker, exchange, start_date, end_date)
     span_days = (end_date - start_date).days + 1
     lookback = (date.today() - end_date).days
     days_needed = max(span_days + lookback, _MIN_CACHE_WINDOW_DAYS)
@@ -876,7 +893,7 @@ def _memoized_range_cached(
             # (it normalises internally for comparison but doesn't mutate the column).
             # _ensure_schema always coerces Date to datetime64[ms] via pd.to_datetime,
             # so the dtype is safe regardless of what apply_date_range returns.
-            return _ensure_schema(apply_date_range(existing, start_date, end_date))
+            return _guarded_range(existing, ticker, exchange, start_date, end_date)
         logger.warning("Offline mode: no cached data for %s.%s", _sanitize_for_log(ticker), _sanitize_for_log(exchange))
 
         # Temporarily disable offline mode so the live loader can fetch data.

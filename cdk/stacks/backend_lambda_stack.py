@@ -44,6 +44,17 @@ WRITABLE_ACCOUNTS_PREFIX = "writable-accounts"
 # Lambda environment variable below (issue #4930).
 METADATA_PREFIX = "instruments"
 
+# S3 prefix (relative to the data bucket) holding each user's saved chat
+# conversation and the ones archived by "New chat" (backend/common/
+# chat_history.py, #8870). They hold portfolio details, so they expire
+# CHAT_HISTORY_RETENTION_DAYS after their last save, and the superseded
+# versions every save leaves in this versioned bucket expire after
+# CHAT_HISTORY_NONCURRENT_DAYS, so "Delete my chat history" leaves nothing
+# behind for long.
+CHAT_HISTORY_PREFIX = "chat"
+CHAT_HISTORY_RETENTION_DAYS = 90
+CHAT_HISTORY_NONCURRENT_DAYS = 1
+
 # API Gateway access-log format for the backend HTTP API's default stage.
 # Deliberately logs claims/status/source IP only — never the raw bearer
 # token or Authorization header — so no credentials land in the logs.
@@ -236,6 +247,33 @@ class BackendLambdaStack(Stack):
             )
         )
 
+    @staticmethod
+    def _grant_chat_history_access(fn: _lambda.DockerImageFunction, *, bucket: s3.IBucket) -> None:
+        """Grant the saved-chat store (#8870) its object and list access, on chat/ only.
+
+        DeleteObject is granted nowhere else. ListBucket serves "Delete my
+        chat history" (listing a user's archive) and makes a missing
+        conversation a 404 rather than a 403.
+        """
+
+        fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+                resources=[bucket.arn_for_objects(f"{CHAT_HISTORY_PREFIX}/*")],
+            )
+        )
+        fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["s3:ListBucket"],
+                resources=[bucket.bucket_arn],
+                conditions={
+                    "StringLike": {
+                        "s3:prefix": [CHAT_HISTORY_PREFIX, f"{CHAT_HISTORY_PREFIX}/*"]
+                    }
+                },
+            )
+        )
+
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
@@ -304,7 +342,13 @@ class BackendLambdaStack(Stack):
             lifecycle_rules=[
                 s3.LifecycleRule(
                     noncurrent_version_expiration=Duration.days(noncurrent_expiry_days)
-                )
+                ),
+                s3.LifecycleRule(
+                    id="ExpireChatHistory",
+                    prefix=f"{CHAT_HISTORY_PREFIX}/",
+                    expiration=Duration.days(CHAT_HISTORY_RETENTION_DAYS),
+                    noncurrent_version_expiration=Duration.days(CHAT_HISTORY_NONCURRENT_DAYS),
+                ),
             ],
         )
 
@@ -461,6 +505,7 @@ class BackendLambdaStack(Stack):
             # bucket, mirroring TIMESERIES_CACHE_BASE above.
             "METADATA_BUCKET": bucket_name,
             "METADATA_PREFIX": METADATA_PREFIX,
+            "CHAT_HISTORY_STORAGE_URI": f"s3://{bucket_name}/{CHAT_HISTORY_PREFIX}",
         }
         if data_repo:
             backend_env["DATA_REPO"] = data_repo
@@ -521,6 +566,7 @@ class BackendLambdaStack(Stack):
             list_prefix=lambda_list_prefixes["backend"],
         )
         self._grant_timeseries_cache_access(backend_fn, bucket=data_bucket, allow_put=True)
+        self._grant_chat_history_access(backend_fn, bucket=data_bucket)
 
         # Lets GET /logs (backend/routes/logs.py::_read_cloudwatch_logs()) read
         # the Lambda's own recent output on AWS, where there is no writable

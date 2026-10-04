@@ -13,6 +13,7 @@ from backend.routes.analytics import router as analytics_router
 from backend.routes.approvals import router as approvals_router
 from backend.routes.aws_costs_admin import router as aws_costs_admin_router
 from backend.routes.chat import create_router as create_chat_router
+from backend.routes.chat_history import router as chat_history_router
 from backend.routes.compliance import router as compliance_router
 from backend.routes.config import router as config_router
 from backend.routes.data_explorer import router as data_explorer_router
@@ -86,6 +87,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(quest_router, dependencies=protected)
     app.include_router(trail_router, dependencies=protected)
     app.include_router(create_chat_router(app.state.limiter, cfg.chat_rate_limit), dependencies=protected)
+    app.include_router(chat_history_router, dependencies=protected)
     app.include_router(compliance_router)
     app.include_router(screener_router)
     app.include_router(create_signup_router(app.state.limiter, cfg.signup_rate_limit))

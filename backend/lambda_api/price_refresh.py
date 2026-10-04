@@ -70,8 +70,10 @@ def _seed_empty_snapshot() -> None:
         logger.info(
             "Seeded empty price snapshot to s3://%s/%s", sanitise_log_value(bucket), sanitise_log_value(PRICES_S3_KEY)
         )
-    except Exception as exc:  # pragma: no cover - upload failure is non-fatal
-        logger.warning("Failed to seed empty price snapshot to S3: %s", sanitise_log_value(exc))
+    except Exception as exc:
+        # Non-fatal, but anything other than "key exists" means the key may be
+        # missing and the post-deploy snapshot check will fail (#3685, #8943).
+        logger.error("Failed to seed empty price snapshot to S3; the key may not exist: %s", sanitise_log_value(exc))
 
 
 def lambda_handler(event, context):

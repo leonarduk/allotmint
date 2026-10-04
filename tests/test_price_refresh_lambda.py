@@ -187,6 +187,26 @@ def test_seed_empty_snapshot_swallows_boto3_error(monkeypatch):
     fn()
 
 
+def test_seed_empty_snapshot_logs_error_when_seed_fails(monkeypatch, caplog):
+    """Anything but "key exists" may leave the key missing (#3685), so it is logged at ERROR (#8943)."""
+    fn, mod = _get_seed_fn(monkeypatch)
+    monkeypatch.setattr(mod.config, "app_env", "aws")
+    monkeypatch.setenv("DATA_BUCKET", "test-bucket")
+
+    def put_object(**_kwargs):
+        raise ClientError({"Error": {"Code": "AccessDenied", "Message": "denied"}}, "PutObject")
+
+    monkeypatch.setitem(
+        sys.modules, "boto3", SimpleNamespace(client=lambda svc: SimpleNamespace(put_object=put_object))
+    )
+
+    with caplog.at_level("WARNING", logger=mod.logger.name):
+        fn()
+
+    assert [r.levelname for r in caplog.records] == ["ERROR"]
+    assert "Failed to seed empty price snapshot" in caplog.records[0].getMessage()
+
+
 def test_seed_empty_snapshot_keeps_an_existing_snapshot(monkeypatch, caplog):
     """A failed refresh must not overwrite the last good snapshot with {} (#8805)."""
     fn, mod = _get_seed_fn(monkeypatch)

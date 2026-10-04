@@ -43,6 +43,8 @@ GENUINELY_GBP_ETFS = [
 @pytest.fixture
 def real_overrides(monkeypatch):
     monkeypatch.setattr(th.config, "repo_root", REPO_ROOT)
+    # The DATA_ROOT table outranks repo_root; pin lookup to the checked-in copy.
+    monkeypatch.setattr(th.config, "data_root", None)
 
 
 def _stub_currency(monkeypatch, currency):

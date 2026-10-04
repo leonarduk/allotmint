@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { InstrumentValuationPanel } from '@/components/InstrumentValuationPanel';
-import { valuationCaveats } from '@/lib/valuationCaveats';
+import {
+  navDateLabel,
+  navUnreliability,
+  valuationCaveats,
+} from '@/lib/valuationCaveats';
 import * as api from '@/api';
 import type { InstrumentPosition, InstrumentValuation } from '@/types';
 
@@ -174,6 +178,80 @@ describe('InstrumentValuationPanel', () => {
     await vi.waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
+  it('marks a premium on a stale NAV with its age', async () => {
+    mockGetValuation.mockResolvedValue(
+      profile({
+        nav: {
+          nav_per_share: 100,
+          currency: 'GBp',
+          as_of: '2026-02-28',
+          source: 'metadata',
+          premium_discount: 0.044,
+          age_days: 218,
+          max_age_days: 31,
+          status: 'stale',
+        },
+      })
+    );
+
+    render(<InstrumentValuationPanel ticker="HFEL.L" positions={[]} />);
+
+    expect(await screen.findByText('Stale NAV')).toBeInTheDocument();
+    expect(rowValue('Premium/discount')).toBe('+4.4%Stale NAV');
+    expect(rowValue('NAV last updated')).toBe('2026-02-28 (218 days old)');
+    expect(
+      screen.getByText('Unreliable: the NAV is 218 days old (limit 31 days).')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Stale after 31 days')).toBeInTheDocument();
+  });
+
+  it('marks a premium on an undated book-value NAV', async () => {
+    mockGetValuation.mockResolvedValue(
+      profile({
+        nav: {
+          nav_per_share: 1.2,
+          currency: 'GBP',
+          as_of: null,
+          source: 'reported_book_value',
+          premium_discount: -0.389,
+          age_days: null,
+          max_age_days: 31,
+          status: 'undated',
+        },
+      })
+    );
+
+    render(<InstrumentValuationPanel ticker="SERE.L" positions={[]} />);
+
+    expect(await screen.findByText('Undated NAV')).toBeInTheDocument();
+    expect(rowValue('Premium/discount')).toBe('-38.9%Undated NAV');
+    expect(rowValue('NAV last updated')).toBe('unknown');
+  });
+
+  it('shows a current NAV without a warning badge', async () => {
+    mockGetValuation.mockResolvedValue(
+      profile({
+        nav: {
+          nav_per_share: 1.341,
+          currency: 'GBP',
+          as_of: '2026-10-01',
+          source: 'metadata',
+          premium_discount: -0.1611,
+          age_days: 1,
+          max_age_days: 31,
+          status: 'current',
+        },
+      })
+    );
+
+    render(<InstrumentValuationPanel ticker="UKW.L" positions={[]} />);
+
+    expect(await screen.findByText('Premium/discount')).toBeInTheDocument();
+    expect(rowValue('Premium/discount')).toBe('-16.1%');
+    expect(rowValue('NAV last updated')).toBe('2026-10-01 (1 day old)');
+    expect(screen.queryByText(/Unreliable/)).not.toBeInTheDocument();
+  });
+
   it('reports other errors', async () => {
     mockGetValuation.mockImplementation(() =>
       Promise.reject(Object.assign(new Error('boom'), { status: 500 }))
@@ -192,5 +270,36 @@ describe('valuationCaveats', () => {
     expect(valuationCaveats(null, [position('unknown')])).toEqual([
       'Cost basis is suspect or unknown for 1 position(s): alex/isa.',
     ]);
+  });
+});
+
+describe('NAV freshness helpers', () => {
+  const nav = (
+    overrides: Partial<InstrumentValuation['nav']>
+  ): InstrumentValuation['nav'] => ({
+    nav_per_share: 1,
+    currency: 'GBP',
+    as_of: '2026-10-04',
+    source: 'metadata',
+    premium_discount: 0,
+    ...overrides,
+  });
+
+  it('labels the NAV date with its age', () => {
+    expect(navDateLabel(nav({ as_of: null }))).toBe('unknown');
+    expect(navDateLabel(nav({}))).toBe('2026-10-04');
+    expect(navDateLabel(nav({ age_days: 0 }))).toBe('2026-10-04 (today)');
+    expect(navDateLabel(nav({ age_days: 40 }))).toBe(
+      '2026-10-04 (40 days old)'
+    );
+  });
+
+  it('treats an undated NAV as unreliable even from an older server', () => {
+    expect(navUnreliability(nav({ as_of: null }))?.badge).toBe('Undated NAV');
+    expect(navUnreliability(nav({}))).toBeNull();
+    expect(navUnreliability(nav({ status: 'current' }))).toBeNull();
+    expect(
+      navUnreliability(nav({ status: 'stale', age_days: 90 }))?.reason
+    ).toBe('Unreliable: the NAV is 90 days old.');
   });
 });

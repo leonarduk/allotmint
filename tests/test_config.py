@@ -7,7 +7,9 @@ from fastapi.testclient import TestClient
 from backend.app import create_app
 from backend.config import (
     ConfigValidationError,
+    _flatten_dict,
     _project_config_path,
+    build_config,
     config,
     demo_identity,
     local_login_identity,
@@ -25,6 +27,14 @@ def test_config_alias_settings():
 def test_config_loads_fundamentals_ttl():
     cfg = reload_config()
     assert cfg.fundamentals_cache_ttl_seconds == 86400
+
+
+def test_nav_max_age_days_is_read_from_market_data():
+    data: dict = {}
+    _flatten_dict({"market_data": {"nav_max_age_days": 14}}, data)
+
+    assert build_config(data, check_google_auth=False).nav_max_age_days == 14
+    assert build_config({}, check_google_auth=False).nav_max_age_days is None
 
 
 def test_uvicorn_port_default():

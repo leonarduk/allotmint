@@ -2,10 +2,18 @@ import { useEffect, useState } from 'react';
 import { getInstrumentValuation } from '../api';
 import type { InstrumentPosition, InstrumentValuation } from '../types';
 import { largeNumber, percent, quotedPrice } from '../lib/money';
-import { signedPct, valuationCaveats } from '../lib/valuationCaveats';
+import {
+  navDateLabel,
+  navUnreliability,
+  signedPct,
+  valuationCaveats,
+} from '../lib/valuationCaveats';
 import surfaceStyles from '../styles/surface.module.css';
 
-type Row = { label: string; value: string; hint?: string };
+type Row = { label: string; value: string; hint?: string; badge?: string };
+type Section = { title: string; rows: Row[]; warn?: boolean };
+
+const WARN_COLOR = '#b8860b';
 
 const ratio = (v: number | null | undefined, digits = 2) =>
   v == null || !Number.isFinite(v) ? '—' : v.toFixed(digits);
@@ -69,7 +77,7 @@ export function InstrumentValuationPanel({
   } = profile;
   const caveats = valuationCaveats(profile, positions);
 
-  const sections: { title: string; rows: Row[] }[] = [
+  const sections: Section[] = [
     {
       title: 'Valuation multiples',
       rows: [
@@ -149,8 +157,12 @@ export function InstrumentValuationPanel({
     },
   ];
   if (nav.nav_per_share != null) {
+    // Trust NAVs move daily: a stale or undated NAV makes the premium/discount
+    // unreliable, so say so on the figure itself, not only in the caveats.
+    const unreliable = navUnreliability(nav);
     sections.unshift({
       title: 'NAV',
+      warn: unreliable != null,
       rows: [
         {
           label: 'NAV per share',
@@ -159,8 +171,20 @@ export function InstrumentValuationPanel({
             ? (NAV_SOURCE_LABEL[nav.source] ?? nav.source)
             : undefined,
         },
-        { label: 'NAV date', value: nav.as_of ?? 'unknown' },
-        { label: 'Premium/discount', value: signedPct(nav.premium_discount) },
+        {
+          label: 'NAV last updated',
+          value: navDateLabel(nav),
+          hint:
+            nav.max_age_days != null
+              ? `Stale after ${nav.max_age_days} days`
+              : undefined,
+        },
+        {
+          label: 'Premium/discount',
+          value: signedPct(nav.premium_discount),
+          badge: unreliable?.badge,
+          hint: unreliable?.reason,
+        },
       ],
     });
   }
@@ -198,7 +222,15 @@ export function InstrumentValuationPanel({
         }}
       >
         {sections.map((section) => (
-          <div key={section.title} className={surfaceStyles.surfaceCard}>
+          <div
+            key={section.title}
+            className={surfaceStyles.surfaceCard}
+            style={
+              section.warn
+                ? { borderLeft: `4px solid ${WARN_COLOR}` }
+                : undefined
+            }
+          >
             <h3 className={surfaceStyles.surfaceCardTitle}>{section.title}</h3>
             <table
               aria-label={section.title}
@@ -231,6 +263,22 @@ export function InstrumentValuationPanel({
                       }}
                     >
                       {row.value}
+                      {row.badge && (
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            marginLeft: '0.5rem',
+                            padding: '0.1rem 0.5rem',
+                            borderRadius: '999px',
+                            fontSize: '0.7rem',
+                            backgroundColor: WARN_COLOR,
+                            color: '#fff',
+                            verticalAlign: 'middle',
+                          }}
+                        >
+                          {row.badge}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -12,6 +12,7 @@ import pytest
 
 from backend.common import instrument_api as ia
 from backend.common import portfolio_utils
+from backend.common.portfolio_loader import ACCOUNT_STEM_KEY
 
 
 def test_compute_var_with_normal_data():
@@ -873,6 +874,31 @@ def test_list_all_unique_tickers_logs_missing_and_counts_nulls(monkeypatch, capl
     assert any("Missing ticker" in message for message in warning_messages)
     info_messages = [rec.message for rec in caplog.records if rec.levelname == "INFO"]
     assert any("1 null tickers" in message for message in info_messages)
+
+
+def test_list_all_unique_tickers_names_account_file_by_stem(monkeypatch, caplog):
+    """The missing-ticker warning names the real file, not one built from account_type."""
+    portfolio = {
+        "owner": "alice",
+        "accounts": [
+            {
+                "account_type": "Stocks ISA",
+                ACCOUNT_STEM_KEY: "isa",
+                "holdings": [{"name": "No ticker"}],
+            }
+        ],
+    }
+
+    monkeypatch.setattr(portfolio_utils, "list_portfolios", lambda: [portfolio])
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+
+    with caplog.at_level("WARNING"):
+        portfolio_utils.list_all_unique_tickers()
+
+    warnings = [rec.getMessage() for rec in caplog.records if rec.levelname == "WARNING"]
+    expected = str(portfolio_utils.ACCOUNTS_DIR / "alice" / "isa.json")
+    assert any(expected in message for message in warnings)
+    assert not any("stocks isa.json" in message for message in warnings)
 
 
 def test_securities_are_not_built_at_import_time(monkeypatch):

@@ -23,6 +23,7 @@ from backend.common.constants import (
     OWNER,
 )
 from backend.common.holding_utils import enrich_holding
+from backend.common.portfolio_loader import ACCOUNT_STEM_KEY
 from backend.common.user_config import load_user_config
 from backend.config import config
 from backend.config import demo_identity as get_demo_identity
@@ -40,17 +41,31 @@ def _normalise_account_currency(value: object) -> str:
     return "GBP"
 
 
-def _holdings_with_derived_costs(owner: str, account: Dict[str, Any]) -> List[Any]:
+def _account_file_name(account: Dict[str, Any]) -> str:
+    """Return the name that locates ``account``'s ``<name>_transactions.json``.
+
+    Prefers the account's file stem (``isa`` for ``<owner>/isa.json``), which is
+    what ``build_owner_portfolio`` uses, and falls back to ``account_type`` when
+    the loader supplied no stem.  An ``account_type`` such as ``Stocks ISA``
+    need not match the filename, so using it alone silently skipped derived
+    costs and total returns on the group view.
+    """
+    stem = account.get(ACCOUNT_STEM_KEY)
+    if isinstance(stem, str) and stem.strip():
+        return stem.strip()
+    return str(account.get("account_type") or "").strip()
+
+
+def _holdings_with_derived_costs(owner: str, account: Dict[str, Any], account_name: str) -> List[Any]:
     """Return copies of ``account``'s holdings with transaction-derived costs filled.
 
     Mirrors ``build_owner_portfolio`` so a zero-cost holding shows the same cost
     on group and owner views (#8473).  The holdings are copied first so the
     fill never mutates the ``list_portfolios()`` data it was given.  The
-    account's transactions file is located by ``account_type`` (e.g. ``ISA`` ->
-    ``ISA_transactions.json``), matching case-insensitively.
+    account's transactions file is located by ``account_name`` (see
+    :func:`_account_file_name`), matching case-insensitively.
     """
     holdings = [dict(h) if isinstance(h, dict) else h for h in account.get(HOLDINGS) or []]
-    account_name = str(account.get("account_type") or "").strip()
     if account_name and holdings:
         owner_portfolio.fill_missing_costs(owner, account_name, holdings)
     return holdings
@@ -213,8 +228,11 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
             acct_copy = dict(acct)
             acct_copy[OWNER] = owner
             acct_copy["currency"] = _normalise_account_currency(acct_copy.get("currency"))
+            account_name = _account_file_name(acct_copy)
+            # The stem is loader-internal; AccountContract forbids extra keys.
+            acct_copy.pop(ACCOUNT_STEM_KEY, None)
 
-            holdings = _holdings_with_derived_costs(owner, acct_copy)
+            holdings = _holdings_with_derived_costs(owner, acct_copy, account_name)
             # Page request: price from the timeseries cache only; the
             # background snapshot refresh does the live fetching (#7898).
             with cache_only():
@@ -229,7 +247,6 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
                     )
                     for h in holdings
                 ]
-            account_name = str(acct_copy.get("account_type") or "").strip()
             if account_name:
                 owner_portfolio.add_total_returns(owner, account_name, acct_copy[HOLDINGS])
 

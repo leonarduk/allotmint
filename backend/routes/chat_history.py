@@ -1,6 +1,9 @@
 """The signed-in user's saved chat conversation (#8870).
 
-``GET/PUT/DELETE /chat/conversation`` and ``POST /chat/conversation/archive``.
+``GET/PUT/DELETE /chat/conversation`` and ``POST /chat/conversation/archive``,
+plus the saved chats list: ``GET /chat/conversation/history``, and per chat
+``PATCH`` (rename), ``DELETE`` and ``POST .../open`` under
+``/chat/conversation/history/{chat_id}``.
 Every handler is keyed by the authenticated user, so a caller can only reach
 their own conversation; storage lives in :mod:`backend.common.chat_history`.
 
@@ -70,6 +73,12 @@ class ConversationPut(BaseModel):
     conversation: ConversationIn
 
 
+class RenameIn(BaseModel):
+    """An empty title clears the name, so the chat is listed under its first question."""
+
+    title: str = Field(max_length=1000)
+
+
 def _check_limits(conversation: ConversationIn) -> None:
     if len(conversation.nodes) > MAX_NODES:
         raise HTTPException(status_code=413, detail=f"A saved chat can have at most {MAX_NODES} messages")
@@ -89,6 +98,21 @@ def _unavailable(exc: chat_history.ChatHistoryUnavailable) -> JSONResponse:
     return JSONResponse(
         status_code=503,
         content={"detail": "Chat history storage is unavailable", "code": CODE_UNAVAILABLE},
+    )
+
+
+def _not_found() -> HTTPException:
+    return HTTPException(status_code=404, detail="No saved chat with that id")
+
+
+def _conflict(exc: chat_history.ChatConversationConflict) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={
+            "detail": "The chat was changed in another tab or device",
+            "code": CODE_CONFLICT,
+            "current": exc.current,
+        },
     )
 
 
@@ -133,14 +157,7 @@ async def put_conversation(request: Request, user: str = Depends(get_current_use
     try:
         revision = chat_history.save_conversation(user, payload.conversation.model_dump(), payload.revision)
     except chat_history.ChatConversationConflict as exc:
-        return JSONResponse(
-            status_code=409,
-            content={
-                "detail": "The chat was changed in another tab or device",
-                "code": CODE_CONFLICT,
-                "current": exc.current,
-            },
-        )
+        return _conflict(exc)
     except chat_history.ChatHistoryUnavailable as exc:
         return _unavailable(exc)
     return {"revision": revision}
@@ -167,3 +184,56 @@ def delete_conversation(user: str = Depends(get_current_user)):
     except chat_history.ChatHistoryUnavailable as exc:
         return _unavailable(exc)
     return Response(status_code=204)
+
+
+@router.get("/history")
+def list_history(user: str = Depends(get_current_user)):
+    """The user's saved chats, newest first: the current one (``id`` ``current``) then the archived ones."""
+
+    if is_demo_request():
+        return {"chats": []}
+    try:
+        return {"chats": chat_history.list_conversations(user)}
+    except chat_history.ChatHistoryUnavailable as exc:
+        return _unavailable(exc)
+
+
+@router.patch("/history/{chat_id}", status_code=204)
+def rename_chat(chat_id: str, body: RenameIn, user: str = Depends(get_current_user)):
+    _forbid_demo()
+    try:
+        chat_history.rename_conversation(user, chat_id, chat_history.clean_title(body.title))
+    except chat_history.ChatConversationNotFound:
+        raise _not_found() from None
+    except chat_history.ChatHistoryUnavailable as exc:
+        return _unavailable(exc)
+    return Response(status_code=204)
+
+
+@router.delete("/history/{chat_id}", status_code=204)
+def delete_chat(chat_id: str, user: str = Depends(get_current_user)):
+    """Delete one archived chat; the current one is put away with "New chat" (404 here)."""
+
+    _forbid_demo()
+    try:
+        chat_history.delete_conversation(user, chat_id)
+    except chat_history.ChatConversationNotFound:
+        raise _not_found() from None
+    except chat_history.ChatHistoryUnavailable as exc:
+        return _unavailable(exc)
+    return Response(status_code=204)
+
+
+@router.post("/history/{chat_id}/open")
+def open_chat(chat_id: str, user: str = Depends(get_current_user)):
+    """Make an archived chat the current one; the current one is archived, as by "New chat"."""
+
+    _forbid_demo()
+    try:
+        return chat_history.open_conversation(user, chat_id)
+    except chat_history.ChatConversationNotFound:
+        raise _not_found() from None
+    except chat_history.ChatConversationConflict as exc:
+        return _conflict(exc)
+    except chat_history.ChatHistoryUnavailable as exc:
+        return _unavailable(exc)

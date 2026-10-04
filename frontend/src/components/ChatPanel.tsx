@@ -14,11 +14,13 @@ import {
 import {
   deleteSavedChatHistory,
   ensureChatLoaded,
+  openSavedChat,
   setChatReplyPending,
   startNewSavedChat,
   useChatSaveFailed,
 } from "../utils/chatSync";
 import { isDemoSession } from "../demoAuth";
+import { ChatHistoryList } from "./ChatHistoryList";
 import { ChatMessageItem } from "./ChatMessageItem";
 
 interface Props {
@@ -74,6 +76,9 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
   const [editing, setEditing] = useState<{ index: number; draft: string } | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // "history" lists the saved chats in place of the conversation.
+  const [view, setView] = useState<"chat" | "history">("chat");
+  const [opening, setOpening] = useState(false);
   const saveFailed = useChatSaveFailed();
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -186,6 +191,26 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
     }
   };
 
+  // Opens a saved chat from the history list; the current one is archived.
+  const openChat = async (id: string) => {
+    setError(null);
+    if (id !== "current") {
+      setOpening(true);
+      try {
+        await openSavedChat(id);
+      } catch (e) {
+        console.warn("Saved chat could not be opened", e);
+        setError("Couldn't open that chat. Please try again.");
+        return;
+      } finally {
+        setOpening(false);
+      }
+      setInput("");
+      setEditing(null);
+    }
+    setView("chat");
+  };
+
   const selectVersion = (id: string, offset: number) => {
     if (sending) return;
     setEditing(null);
@@ -248,6 +273,18 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             {!isDemoSession() && (
               <button
+                onClick={() => {
+                  setError(null);
+                  setView(view === "history" ? "chat" : "history");
+                }}
+                disabled={sending || opening}
+                aria-pressed={view === "history"}
+              >
+                {view === "history" ? "Back to chat" : "History"}
+              </button>
+            )}
+            {!isDemoSession() && (
+              <button
                 onClick={() => setConfirmingDelete(true)}
                 disabled={sending || deleting || confirmingDelete}
               >
@@ -260,8 +297,9 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
                 setInput("");
                 setEditing(null);
                 setError(null);
+                setView("chat");
               }}
-              disabled={sending || messages.length === 0}
+              disabled={sending || opening || messages.length === 0}
             >
               New chat
             </button>
@@ -296,80 +334,89 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
             </button>
           </div>
         )}
-        <div style={{ flex: 1, overflowY: "auto", marginBottom: "1rem" }}>
-          {messages.length === 0 && (
-            <div style={{ color: "var(--drawer-muted-color)" }}>
-              Ask about your portfolios, prices, or holdings.
+        {view === "history" ? (
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            {error && <div role="alert">{error}</div>}
+            <ChatHistoryList onOpen={(id) => void openChat(id)} busy={opening} />
+          </div>
+        ) : (
+          <>
+            <div style={{ flex: 1, overflowY: "auto", marginBottom: "1rem" }}>
+              {messages.length === 0 && (
+                <div style={{ color: "var(--drawer-muted-color)" }}>
+                  Ask about your portfolios, prices, or holdings.
+                </div>
+              )}
+              <ul
+                style={{
+                  listStyle: "none",
+                  padding: 0,
+                  margin: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.75rem",
+                }}
+              >
+                {path.map((m, i) => (
+                  <ChatMessageItem
+                    key={m.id}
+                    message={m}
+                    busy={sending}
+                    version={
+                      m.versionCount > 1
+                        ? {
+                            current: m.version,
+                            count: m.versionCount,
+                            onSelect: (offset) => selectVersion(m.id, offset),
+                          }
+                        : undefined
+                    }
+                    onEdit={
+                      m.role === "user" ? () => setEditing({ index: i, draft: m.content }) : undefined
+                    }
+                    onRegenerate={
+                      m.role === "assistant" && path[i - 1]?.role === "user"
+                        ? () => void regenerate(i)
+                        : undefined
+                    }
+                    editing={
+                      editing?.index === i
+                        ? {
+                            draft: editing.draft,
+                            onChange: (draft) => setEditing({ index: i, draft }),
+                            onSave: () => void saveEdit(),
+                            onCancel: () => setEditing(null),
+                          }
+                        : undefined
+                    }
+                  />
+                ))}
+              </ul>
+              {sending && (
+                <div role="status" style={{ color: "var(--drawer-muted-color)", marginTop: "0.75rem" }}>
+                  Thinking…
+                </div>
+              )}
+              {error && <div role="alert">{error}</div>}
+              <div ref={bottomRef} />
             </div>
-          )}
-          <ul
-            style={{
-              listStyle: "none",
-              padding: 0,
-              margin: 0,
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.75rem",
-            }}
-          >
-            {path.map((m, i) => (
-              <ChatMessageItem
-                key={m.id}
-                message={m}
-                busy={sending}
-                version={
-                  m.versionCount > 1
-                    ? {
-                        current: m.version,
-                        count: m.versionCount,
-                        onSelect: (offset) => selectVersion(m.id, offset),
-                      }
-                    : undefined
-                }
-                onEdit={
-                  m.role === "user" ? () => setEditing({ index: i, draft: m.content }) : undefined
-                }
-                onRegenerate={
-                  m.role === "assistant" && path[i - 1]?.role === "user"
-                    ? () => void regenerate(i)
-                    : undefined
-                }
-                editing={
-                  editing?.index === i
-                    ? {
-                        draft: editing.draft,
-                        onChange: (draft) => setEditing({ index: i, draft }),
-                        onSave: () => void saveEdit(),
-                        onCancel: () => setEditing(null),
-                      }
-                    : undefined
-                }
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                aria-label="chat message"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void send();
+                }}
+                style={{ flex: 1 }}
+                disabled={sending}
               />
-            ))}
-          </ul>
-          {sending && (
-            <div role="status" style={{ color: "var(--drawer-muted-color)", marginTop: "0.75rem" }}>
-              Thinking…
+              <button onClick={() => void send()} disabled={sending || !input.trim()}>
+                Send
+              </button>
             </div>
-          )}
-          {error && <div role="alert">{error}</div>}
-          <div ref={bottomRef} />
-        </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <input
-            aria-label="chat message"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void send();
-            }}
-            style={{ flex: 1 }}
-            disabled={sending}
-          />
-          <button onClick={() => void send()} disabled={sending || !input.trim()}>
-            Send
-          </button>
-        </div>
+          </>
+        )}
       </div>
     </>
   );

@@ -5,8 +5,10 @@ The table values for ADM/AV/CLIG/HICL are pinned by
 behaviours that the data fix alone does not:
 
 - the configured ``DATA_ROOT`` table (the live dataset, e.g.
-  ``../allotmint-data/scaling_overrides.json``) must win over the repo's
-  fallback copy, which previously shadowed it whenever ``repo_root`` was set;
+  ``../allotmint-data/scaling_overrides.json``) is overlaid on the repo's
+  table: DATA_ROOT wins per symbol, repo-only symbols (e.g. ``SGLN``) are kept.
+  Previously the repo copy replaced the DATA_ROOT table whenever
+  ``repo_root`` was set;
 - a caller that passes no exchange (``routes/timeseries_meta`` passes ``""``)
   must still pick up an ``"L"`` override for ``"AV"`` / ``"AV."``.
 """
@@ -35,26 +37,96 @@ def _write_overrides(directory: Path, table: dict) -> None:
     (directory / "scaling_overrides.json").write_text(json.dumps(table))
 
 
-def test_data_root_table_wins_over_repo_copy(monkeypatch, tmp_path, gbp_metadata):
+BUNDLED = Path(th.__file__).resolve().parents[2] / "data" / "scaling_overrides.json"
+
+
+def _point_at(monkeypatch, tmp_path, data_table=None, repo_table=None):
+    """Configure data_root / repo_root, writing only the tables given."""
     data_root = tmp_path / "allotmint-data"
     repo_root = tmp_path / "repo"
-    _write_overrides(data_root, {"L": {"BP": 0.01}})
-    _write_overrides(repo_root / "data", {"L": {"GSK": 0.01}})
+    if data_table is not None:
+        _write_overrides(data_root, data_table)
+    if repo_table is not None:
+        _write_overrides(repo_root / "data", repo_table)
     monkeypatch.setattr(th.config, "data_root", data_root)
     monkeypatch.setattr(th.config, "repo_root", repo_root)
+    return data_root / "scaling_overrides.json", repo_root / "data" / "scaling_overrides.json"
 
-    assert th._scaling_overrides_path() == data_root / "scaling_overrides.json"
+
+def test_repo_only_symbol_kept_when_data_root_table_lacks_it(monkeypatch, tmp_path, gbp_metadata):
+    """SGLN is only in the repo table; the DATA_ROOT table must not drop it."""
+    data_file, repo_file = _point_at(
+        monkeypatch, tmp_path, data_table={"L": {"BP": 0.01}}, repo_table={"L": {"SGLN": 0.01}}
+    )
+
+    assert th._scaling_override_paths() == [repo_file, data_file]
+    assert th.get_scaling_override("SGLN.L", "L", None) == pytest.approx(0.01)
     assert th.get_scaling_override("BP.L", "L", None) == pytest.approx(0.01)
 
 
-def test_repo_copy_used_when_data_root_has_no_table(monkeypatch, tmp_path, gbp_metadata):
+def test_data_root_entry_overrides_repo_entry_for_same_symbol(monkeypatch, tmp_path, gbp_metadata):
+    _point_at(monkeypatch, tmp_path, data_table={"L": {"ERNS": 1}}, repo_table={"L": {"ERNS": 0.01, "GSK": 0.01}})
+
+    merged, _sources = th._load_scaling_overrides()
+    assert merged == {"L": {"ERNS": 1, "GSK": 0.01}}
+    assert th.get_scaling_override("ERNS.L", "L", None) == pytest.approx(1.0)
+    assert th.get_scaling_override("GSK.L", "L", None) == pytest.approx(0.01)
+
+
+def test_data_root_sections_merge_case_insensitively(monkeypatch, tmp_path, gbp_metadata):
+    _point_at(monkeypatch, tmp_path, data_table={"l": {"BP": 0.01}}, repo_table={"L": {"SGLN": 0.01}})
+
+    merged, _sources = th._load_scaling_overrides()
+    assert merged == {"L": {"SGLN": 0.01, "BP": 0.01}}
+
+
+def test_only_data_root_table_present(monkeypatch, tmp_path, gbp_metadata):
+    data_file, _repo_file = _point_at(monkeypatch, tmp_path, data_table={"L": {"BP": 0.01}})
+
+    assert th._scaling_override_paths() == ([BUNDLED, data_file] if BUNDLED.exists() else [data_file])
+    assert th.get_scaling_override("BP.L", "L", None) == pytest.approx(0.01)
+
+
+def test_only_repo_table_present(monkeypatch, tmp_path, gbp_metadata):
+    _data_file, repo_file = _point_at(monkeypatch, tmp_path, repo_table={"L": {"BP": 0.01}})
+
+    assert th._scaling_override_paths() == [repo_file]
+    assert th.get_scaling_override("BP.L", "L", None) == pytest.approx(0.01)
+
+
+def test_same_file_for_data_root_and_repo_is_read_once(monkeypatch, tmp_path):
     repo_root = tmp_path / "repo"
     _write_overrides(repo_root / "data", {"L": {"BP": 0.01}})
-    monkeypatch.setattr(th.config, "data_root", tmp_path / "empty-data-root")
     monkeypatch.setattr(th.config, "repo_root", repo_root)
+    monkeypatch.setattr(th.config, "data_root", repo_root / "data")
 
-    assert th._scaling_overrides_path() == repo_root / "data" / "scaling_overrides.json"
-    assert th.get_scaling_override("BP.L", "L", None) == pytest.approx(0.01)
+    assert th._scaling_override_paths() == [repo_root / "data" / "scaling_overrides.json"]
+
+
+# Shaped like allotmint-data/scaling_overrides.json: one big "L" section that
+# includes the tickers #7787 named, plus the non-pence factors it carries.
+ALLOTMINT_DATA_SHAPED = {
+    "L": {
+        "GAMA": 0.01,
+        "ADM": 0.01,
+        "AZN": 0.01,
+        "AV": 0.01,
+        "BP": 0.01,
+        "SN": 0.01,
+        "VOD": 0.01,
+        "ERNS": 1,
+        "IE00BYV1RG46": 100,
+    }
+}
+
+
+@pytest.mark.parametrize("ticker", ["BP.L", "AZN.L", "SN.L"])
+def test_data_root_shaped_table_scales_named_tickers(monkeypatch, tmp_path, gbp_metadata, ticker):
+    """Regression for #7787: the repo copy (which lacks these) must not shadow DATA_ROOT."""
+    _point_at(monkeypatch, tmp_path, data_table=ALLOTMINT_DATA_SHAPED, repo_table={"L": {"SGLN": 0.01}})
+
+    assert th.get_scaling_override(ticker, "L", None) == pytest.approx(0.01)
+    assert th.get_scaling_override(ticker, "", None) == pytest.approx(0.01)
 
 
 @pytest.mark.parametrize("ticker", ["AV", "AV.", "AV.L"])
@@ -91,6 +163,17 @@ def test_suffix_without_matching_section_falls_back_to_table_lookup():
     assert th._infer_override_exchange("AV.*", "AV", {"*": {"AV": 0.01}}) == ""
 
 
+def test_trailing_dot_ticker_listed_in_two_sections_is_ambiguous():
+    """``"AV."`` has an empty suffix, so only the table lookup applies to it."""
+    assert th._infer_override_exchange("AV.", "AV", {"L": {"AV": 0.01}, "N": {"AV": 1}}) == ""
+
+
+def test_section_key_case_is_consistent_between_branches():
+    table = {"l": {"ADM": 0.01}}
+    assert th._infer_override_exchange("ADM.L", "ADM", table) == "L"
+    assert th._infer_override_exchange("ADM.", "ADM", table) == "L"
+
+
 def test_share_class_ticker_not_scaled_by_unrelated_section(monkeypatch, tmp_path, gbp_metadata):
     _write_overrides(tmp_path, {"B": {"OTHER": 0.01}})
     monkeypatch.setattr(th.config, "data_root", tmp_path)
@@ -99,11 +182,10 @@ def test_share_class_ticker_not_scaled_by_unrelated_section(monkeypatch, tmp_pat
 
 
 def test_bundled_copy_used_when_no_configured_table(monkeypatch, tmp_path):
-    bundled = Path(th.__file__).resolve().parents[2] / "data" / "scaling_overrides.json"
     monkeypatch.setattr(th.config, "data_root", None)
     monkeypatch.setattr(th.config, "repo_root", None)
-    assert th._scaling_overrides_path() == bundled
+    assert th._scaling_override_paths() == [BUNDLED]
 
     monkeypatch.setattr(th.config, "data_root", tmp_path / "no-data-root")
     monkeypatch.setattr(th.config, "repo_root", tmp_path / "no-repo-root")
-    assert th._scaling_overrides_path() == bundled
+    assert th._scaling_override_paths() == [BUNDLED]

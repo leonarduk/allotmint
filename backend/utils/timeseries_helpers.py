@@ -53,55 +53,91 @@ def apply_scaling(df: pd.DataFrame, scale: float, scale_volume: bool = False) ->
     return df
 
 
-def _scaling_overrides_path() -> Path:
-    """Locate ``scaling_overrides.json``: ``config.data_root`` first, then
-    ``<repo_root>/data``, then the copy bundled next to this package.
+def _scaling_override_paths() -> list[Path]:
+    """Return the ``scaling_overrides.json`` files to read, lowest priority first.
 
-    The configured data root (``DATA_ROOT``, e.g. ``../allotmint-data``) is
-    the live dataset and must win. Previously the repo-root candidate was
-    checked *after* it and overwrote it, so a deployment with its own
-    data-root table silently priced from the repo's fallback copy (#7787).
+    The base table is ``<repo_root>/data/scaling_overrides.json``, or the copy
+    bundled next to this package when there is no repo-root table. The
+    configured data root (``DATA_ROOT``, e.g. ``../allotmint-data``) is the
+    live dataset and is overlaid on top of the base, so it wins on conflicts
+    while symbols only in the repo table (e.g. ``SGLN``) are kept. Previously
+    the repo copy silently replaced the data-root table (#7787). Files that do
+    not exist are skipped; the same file is never listed twice.
     """
-    candidates = []
-    configured_data_root = getattr(config, "data_root", None)
-    if configured_data_root:
-        candidates.append(Path(str(configured_data_root)).expanduser() / "scaling_overrides.json")
+    bundled = Path(__file__).resolve().parents[2] / "data" / "scaling_overrides.json"
+    base = bundled
     configured_repo_root = getattr(config, "repo_root", None)
     if configured_repo_root:
-        candidates.append(Path(str(configured_repo_root)).expanduser() / "data" / "scaling_overrides.json")
-    bundled = Path(__file__).resolve().parents[2] / "data" / "scaling_overrides.json"
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return bundled
+        repo_copy = Path(str(configured_repo_root)).expanduser() / "data" / "scaling_overrides.json"
+        if repo_copy.exists():
+            base = repo_copy
+    paths = [base] if base.exists() else []
+    configured_data_root = getattr(config, "data_root", None)
+    if configured_data_root:
+        data_copy = Path(str(configured_data_root)).expanduser() / "scaling_overrides.json"
+        if data_copy.exists() and all(data_copy.resolve() != p.resolve() for p in paths):
+            paths.append(data_copy)
+    return paths
+
+
+def _load_scaling_overrides() -> tuple[dict, list[Path]]:
+    """Load and merge the override tables from :func:`_scaling_override_paths`.
+
+    Later files are overlaid section by section and symbol by symbol, so a
+    ``DATA_ROOT`` entry replaces the repo entry for the same symbol without
+    dropping the repo's other symbols. Section (exchange) keys are upper-cased
+    so lookups are case-insensitive on the exchange. Unreadable or malformed
+    files are skipped. Files are read on every call (no cache), so edits to
+    either table take effect immediately.
+    """
+    merged: dict = {}
+    sources: list[Path] = []
+    for path in _scaling_override_paths():
+        try:
+            with path.open() as f:
+                table = json.load(f)
+        except Exception:
+            continue
+        if not isinstance(table, dict):
+            continue
+        sources.append(path)
+        for ex_key, section in table.items():
+            if not isinstance(section, dict):
+                continue
+            merged.setdefault(str(ex_key).upper(), {}).update(section)
+    return merged, sources
 
 
 def _infer_override_exchange(ticker: str, base: str, overrides: dict) -> str:
     """Best-effort exchange for a ``get_scaling_override`` call that passed none.
 
-    Callers resolve LSE TIDMs with a trailing dot (``"AV."``, ``"BP."``, as
-    stored in the account data) to an *empty* exchange via
-    ``instrument_api._resolve_full_ticker``, so an ``"L"`` override for that
-    ticker would otherwise never match (#7787). Prefer an explicit suffix on
-    ``ticker`` (``"ADM.L"``), but only when the table has a section for that
-    suffix which lists ``base`` -- a share-class suffix (``"BRK.B"``,
-    ``"BF.B"``) must not be mistaken for an exchange. Failing that, use the
-    single exchange section of the override table that lists ``base``.
-    Ambiguous or absent -> ``""``. The ``"*"`` section is never an inferred
-    exchange; ``get_scaling_override`` consults it separately.
+    Some callers pass no exchange (``routes/timeseries_meta`` passes ``""``),
+    so an ``"L"`` override for the ticker would otherwise never match (#7787).
+    An explicit suffix (``"ADM.L"``) is used only when the table has a section
+    for that suffix which lists ``base`` -- a share-class suffix (``"BRK.B"``,
+    ``"BF.B"``) must not be mistaken for an exchange. A padded LSE TIDM with a
+    trailing dot (``"AV."``, ``"BP."``) has an *empty* suffix, so it never
+    takes the suffix branch: it relies entirely on the fallback, which uses
+    the single exchange section of the table that lists ``base``. If no
+    section, or more than one, lists ``base`` the result is ``""``. The
+    ``"*"`` section is never an inferred exchange; ``get_scaling_override``
+    consults it separately. Section keys are compared upper-cased in both
+    branches (``_load_scaling_overrides`` already normalises them).
     """
     if not isinstance(overrides, dict):
         return ""
+    sections = {
+        str(ex_key).upper(): table
+        for ex_key, table in overrides.items()
+        if str(ex_key) != "*" and isinstance(table, dict)
+    }
     parts = re.split(r"[.:]", ticker, maxsplit=1)
     if len(parts) == 2 and parts[1]:
         suffix = parts[1].upper()
-        section = overrides.get(suffix)
-        if suffix != "*" and isinstance(section, dict) and base in section:
+        if base in sections.get(suffix, {}):
             return suffix
-    matches = [
-        ex_key for ex_key, table in overrides.items() if ex_key != "*" and isinstance(table, dict) and base in table
-    ]
-    return str(matches[0]).upper() if len(matches) == 1 else ""
+    matches = [ex_key for ex_key, table in sections.items() if base in table]
+    return matches[0] if len(matches) == 1 else ""
 
 
 def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional[float]) -> float:
@@ -130,12 +166,8 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
     if requested_scaling is not None:
         return requested_scaling
 
-    path = _scaling_overrides_path()
-    try:
-        with path.open() as f:
-            ov = json.load(f)
-    except Exception:
-        ov = {}
+    ov, sources = _load_scaling_overrides()
+    path = ", ".join(str(src) for src in sources) or "<no scaling_overrides.json>"
 
     base = re.split(r"[.:]", ticker)[0].upper()
     ex = (exchange or "").upper() or _infer_override_exchange(ticker, base, ov)

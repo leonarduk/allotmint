@@ -14,6 +14,10 @@ owner's email is taken from their existing person metadata rather than
 duplicating it in the recipient config. If no recipient config is present,
 every owner discovered by ``list_portfolios()`` is reported on.
 
+The handler runs inside :func:`backend.auth.system_job_context`: it has no
+request user, and with auth enabled (``config.lambda.yaml``) owner discovery
+would otherwise return no owners, so no report would ever be sent (#8805).
+
 Failure handling
 -----------------
 Per-owner failures are caught and logged so one broken portfolio does not stop
@@ -29,6 +33,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
+from backend.auth import system_job_context
 from backend.common.alerts import publish_sns_alert
 from backend.common.pension import (
     _age_from_dob,
@@ -197,6 +202,13 @@ def _build_report_for_owner(
 def lambda_handler(event, context):
     """Lambda handler invoked by the scheduled EventBridge rule."""
 
+    # A scheduled job has no request user; run it as a trusted system job so
+    # list_portfolios() sees every owner even with auth enabled (#8805).
+    with system_job_context():
+        return _run_report()
+
+
+def _run_report() -> Dict[str, Any]:
     today = dt.date.today()
 
     try:

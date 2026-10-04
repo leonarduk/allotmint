@@ -89,6 +89,9 @@ class FileChatStore:
     """Local-file store for development; one lock serialises the conditional writes."""
 
     root: Path
+    # Class-wide on purpose: get_chat_store() builds a new store per request,
+    # so a per-instance lock would serialise nothing. One process only, which
+    # is all the local dev server runs; Lambda uses S3ChatStore.
     _lock = threading.Lock()
 
     def _path(self, key: str) -> Path:

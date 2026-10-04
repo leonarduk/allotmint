@@ -107,7 +107,7 @@ class LocalTools:
         text, is_error, exported = export_file_tool.call(arguments)
         if exported is not None:
             total = sum(len(item.content) for item in self.files) + len(exported.content)
-            if total > export_file_tool.MAX_FILE_BYTES:
+            if total > export_file_tool.MAX_TURN_BYTES:
                 return "export_file: the files for this reply are too large in total", True
             self.files.append(exported)
         return text, is_error

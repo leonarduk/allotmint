@@ -46,6 +46,11 @@ def test_xlsx_keeps_types_and_stores_formula_text_as_text():
     assert values[1] == ["VOD.L", "L", True, "2026-09-01", 33]
     assert sheet.cell(row=4, column=1).data_type == "s"
     assert values[3][0] == "=1+1"
+    # What Excel reads: the cell is stored as a string, with no <f> formula element.
+    with zipfile.ZipFile(io.BytesIO(exported.content)) as package:
+        sheet_xml = package.read("xl/worksheets/sheet1.xml").decode()
+    assert "<f>" not in sheet_xml and "<f " not in sheet_xml
+    assert '<c r="A4" t="inlineStr"><is><t>=1+1</t></is></c>' in sheet_xml
 
 
 def test_docx_is_a_word_package_with_title_and_table():
@@ -131,6 +136,16 @@ def test_local_tools_limit_files_per_turn(monkeypatch):
     assert not local.call(TOOL_NAME, _args("csv"))[1]
     text, is_error = local.call(TOOL_NAME, _args("xlsx"))
     assert is_error and "at most 1 files" in text
+    assert len(local.files) == 1
+
+
+def test_local_tools_limit_total_bytes_per_turn(monkeypatch):
+    size = len(build_file(_args("csv")).content)
+    monkeypatch.setattr(export_file_tool, "MAX_TURN_BYTES", size * 2 - 1)
+    local = LocalTools(file_exports=True)
+    assert not local.call(TOOL_NAME, _args("csv"))[1]
+    text, is_error = local.call(TOOL_NAME, _args("csv"))
+    assert is_error and "too large in total" in text
     assert len(local.files) == 1
 
 

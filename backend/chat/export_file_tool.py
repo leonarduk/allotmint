@@ -28,9 +28,10 @@ TOOL_NAME = "export_file"
 
 MAX_ROWS = 5000
 MAX_COLUMNS = 50
-# Per file and per chat turn: the files travel base64-encoded in the JSON reply,
-# which must stay well under API Gateway/Lambda's 6 MB response limit.
+# The files travel base64-encoded in the JSON reply, which must stay well under
+# API Gateway/Lambda's 6 MB response limit; MAX_TURN_BYTES is what holds that.
 MAX_FILE_BYTES = 2 * 1024 * 1024
+MAX_TURN_BYTES = 2 * 1024 * 1024
 MAX_FILES_PER_TURN = 5
 
 FORMATS = {

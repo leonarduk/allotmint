@@ -885,4 +885,39 @@ describe("ChatPanel", () => {
       expect(screen.queryByRole("button", { name: /^history$/i })).not.toBeInTheDocument();
     });
   });
+
+  describe("detaching (#9025)", () => {
+    it("offers Detach in the drawer only when the host supports it", async () => {
+      const onDetach = vi.fn();
+      const user = userEvent.setup();
+      const { rerender } = render(<ChatPanel open onClose={() => {}} />);
+      expect(screen.queryByRole("button", { name: /detach/i })).not.toBeInTheDocument();
+
+      rerender(<ChatPanel open onClose={() => {}} onDetach={onDetach} />);
+      await user.click(screen.getByRole("button", { name: /detach/i }));
+
+      expect(onDetach).toHaveBeenCalled();
+    });
+
+    it("fills a detached window with Reattach instead of a backdrop and close button", async () => {
+      const onReattach = vi.fn();
+      const onClose = vi.fn();
+      const user = userEvent.setup();
+      render(<ChatPanel open variant="window" onClose={onClose} onReattach={onReattach} />);
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Chat" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "close" })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /reattach/i }));
+      expect(onReattach).toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("shows a notice about the panel, such as a blocked chat window", () => {
+      render(<ChatPanel open onClose={() => {}} notice="Your browser blocked the chat window." />);
+
+      expect(screen.getByRole("alert")).toHaveTextContent("Your browser blocked the chat window.");
+    });
+  });
 });

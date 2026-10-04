@@ -211,7 +211,11 @@ class S3ChatStore:
             for page in paginator.paginate(Bucket=self.bucket, Prefix=self._key(prefix)):
                 keys = [{"Key": obj["Key"]} for obj in page.get("Contents", [])]
                 if keys:
-                    client.delete_objects(Bucket=self.bucket, Delete={"Objects": keys, "Quiet": True})
+                    resp = client.delete_objects(Bucket=self.bucket, Delete={"Objects": keys, "Quiet": True})
+                    # Per-key failures come back in the response, not as an
+                    # exception; a partial delete must not report success.
+                    if resp.get("Errors"):
+                        raise ChatHistoryUnavailable(f"S3 failed to delete {len(resp['Errors'])} chat object(s)")
                     deleted += len(keys)
         except (ClientError, BotoCoreError) as exc:
             raise self._unavailable("delete", prefix, exc) from exc
@@ -267,6 +271,15 @@ def _decode(stored: Optional[_Stored]) -> Dict[str, Any]:
         raise ChatHistoryUnavailable("Stored chat conversation is not valid JSON") from exc
     revision = doc.get("revision") if isinstance(doc, dict) else None
     if not isinstance(revision, int) or isinstance(revision, bool) or revision < 0:
+        raise ChatHistoryUnavailable("Stored chat conversation is malformed")
+    conversation = doc.get("conversation")
+    # Only this module writes these documents, but a damaged one must not read
+    # as an empty conversation that the next save would then overwrite.
+    if conversation is not None and not (
+        isinstance(conversation, dict)
+        and isinstance(conversation.get("nodes", []), list)
+        and isinstance(conversation.get("active", {}), dict)
+    ):
         raise ChatHistoryUnavailable("Stored chat conversation is malformed")
     return doc
 

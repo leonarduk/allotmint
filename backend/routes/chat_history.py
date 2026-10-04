@@ -93,6 +93,10 @@ def _unavailable(exc: chat_history.ChatHistoryUnavailable) -> JSONResponse:
 
 
 async def _parse_put(request: Request) -> ConversationPut:
+    # Refuse a declared oversize body before reading it into memory.
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > MAX_DOCUMENT_BYTES:
+        raise HTTPException(status_code=413, detail="Chat conversation is too large to save")
     body = await request.body()
     if len(body) > MAX_DOCUMENT_BYTES:
         raise HTTPException(status_code=413, detail="Chat conversation is too large to save")

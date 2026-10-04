@@ -198,6 +198,10 @@ def test_limits_are_413(app, monkeypatch: pytest.MonkeyPatch) -> None:
     assert len(body) > 50
     assert client.put(URL, content=body, headers={"Content-Type": "application/json"}).status_code == 413
 
+    # A declared oversize body is refused before it is read.
+    resp = client.put(URL, content=b"{}", headers={"Content-Type": "application/json", "Content-Length": "999999999"})
+    assert resp.status_code == 413
+
     # Nothing was written by any of the refused saves.
     assert client.get(URL).json()["revision"] == 0
 

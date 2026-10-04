@@ -138,7 +138,18 @@ def test_archive_retry_of_the_same_revision_does_not_duplicate_it(store, monkeyp
     assert [p.name for p in archived] == ["r00000001.json"]
 
 
-@pytest.mark.parametrize("bad", [b'{"revision": -1}', b'{"revision": true}', b'{"revision": "3"}', b"[]"])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        b'{"revision": -1}',
+        b'{"revision": true}',
+        b'{"revision": "3"}',
+        b"[]",
+        b'{"revision": 2, "conversation": "x"}',
+        b'{"revision": 2, "conversation": {"nodes": "x"}}',
+        b'{"revision": 2, "conversation": {"nodes": [], "active": []}}',
+    ],
+)
 def test_malformed_stored_revision_is_an_error(store, tmp_path: Path, bad: bytes) -> None:
     path = tmp_path / ch.user_key(ALICE) / "current.json"
     path.parent.mkdir(parents=True)
@@ -285,3 +296,15 @@ def test_s3_write_failure_is_unavailable() -> None:
     stub.add_client_error("put_object", service_error_code="InternalError", http_status_code=500)
     with stub, pytest.raises(ch.ChatHistoryUnavailable):
         ch.save_conversation(ALICE, _conversation("hi"), 0, store)
+
+
+def test_s3_partial_delete_failure_is_unavailable_not_success() -> None:
+    store, stub = _s3_store()
+    prefix = f"chat/{ch.user_key(ALICE)}/"
+    stub.add_response("list_objects_v2", {"Contents": [{"Key": prefix + "current.json"}], "IsTruncated": False})
+    stub.add_response(
+        "delete_objects",
+        {"Errors": [{"Key": prefix + "current.json", "Code": "AccessDenied", "Message": "denied"}]},
+    )
+    with stub, pytest.raises(ch.ChatHistoryUnavailable):
+        ch.delete_history(ALICE, store)

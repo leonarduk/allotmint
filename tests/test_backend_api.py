@@ -1,3 +1,4 @@
+import json
 import shutil
 from pathlib import Path
 
@@ -13,7 +14,15 @@ from backend.common.instruments import get_instrument_meta
 
 
 @pytest.fixture
-def client(mock_google_verify, monkeypatch, tmp_path):
+def isolated_accounts_root(tmp_path):
+    """Return a private copy of the demo accounts the ``client`` fixture writes to."""
+    accounts_root = tmp_path / "accounts"
+    shutil.copytree(data_loader.resolve_paths(None, None).accounts_root, accounts_root)
+    return accounts_root
+
+
+@pytest.fixture
+def client(mock_google_verify, monkeypatch, isolated_accounts_root):
     """Return a TestClient with offline mode enabled."""
     previous = backend_config.offline_mode
     backend_config.offline_mode = True
@@ -24,8 +33,7 @@ def client(mock_google_verify, monkeypatch, tmp_path):
     # data/accounts tree. The app's own import-time temp copy is not enough:
     # any lifespan shutdown of the shared app deletes it, after which the
     # resolvers fall back to the repo's data dir.
-    accounts_root = tmp_path / "accounts"
-    shutil.copytree(data_loader.resolve_paths(None, None).accounts_root, accounts_root)
+    accounts_root = isolated_accounts_root
     monkeypatch.setattr(app.state, "accounts_root", accounts_root, raising=False)
     monkeypatch.setattr(app.state, "accounts_root_is_global", False, raising=False)
     monkeypatch.setattr(config_module.config, "accounts_root", accounts_root, raising=False)
@@ -461,6 +469,27 @@ def test_post_transaction_persists_and_updates_portfolio(client):
 
     after = client.get(f"/portfolio/{owner}").json()["total_value_estimate_gbp"]
     assert after == pytest.approx(before + 10.0)
+
+
+def _tracked_file_snapshot(path: Path) -> bytes | None:
+    return path.read_bytes() if path.exists() else None
+
+
+def test_client_fixture_writes_land_in_isolated_root(client, isolated_accounts_root):
+    """POST writes via ``client`` go to the fixture's tmp copy, never the tracked tree (#8913)."""
+    repo_accounts = Path(__file__).resolve().parents[1] / "data" / "accounts"
+    owner = _get_owners(client)[0]["owner"]
+    account = client.get(f"/portfolio/{owner}").json()["accounts"][0]["account_type"]
+    tx_file = f"{account}_transactions.json"
+    tracked_before = _tracked_file_snapshot(repo_accounts / owner / tx_file)
+
+    resp = _post_sample_tx(client, owner, account)
+    assert resp.status_code == 201
+
+    written = isolated_accounts_root / owner / tx_file
+    assert written.exists(), f"expected POST /transactions to write {written}"
+    assert any(t.get("ticker") == "ZZZZ.L" for t in json.loads(written.read_text())["transactions"])
+    assert _tracked_file_snapshot(repo_accounts / owner / tx_file) == tracked_before
 
 
 @pytest.mark.parametrize(

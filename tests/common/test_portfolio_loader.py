@@ -273,6 +273,8 @@ def test_list_portfolios_aggregates_owners(patched_portfolio_loader: list[OwnerS
                     "owner": row.owner,
                     "account": account.upper(),
                     "path": f"{row.owner}/{account}.json",
+                    # The file stem rides along for the group view (#9038 follow-up).
+                    portfolio_loader.ACCOUNT_STEM_KEY: account,
                 }
                 for account in row.accounts
             ],

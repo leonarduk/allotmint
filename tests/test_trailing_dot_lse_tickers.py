@@ -2,6 +2,7 @@
 
 import datetime as dt
 import json
+import logging
 
 import pytest
 
@@ -32,6 +33,10 @@ _LIST_ALL_UNIQUE_TICKERS = portfolio_utils.list_all_unique_tickers
         ("BP", None, "BP"),
         ("BP", "", "BP"),
         ("CASH.GBP", None, "CASH.GBP"),
+        ("A.", None, "A.L"),  # one-character EPICs are padded too
+        ("CASH.", None, "CASH"),  # 3+ characters: not a padded EPIC, so not LSE
+        ("FOO.", None, "FOO"),
+        ("FOO.", "N", "FOO.N"),  # stray dot dropped; the given exchange applies
         ("", None, ""),
         (None, "L", ""),
         (".", None, ""),
@@ -46,6 +51,12 @@ def test_split_ticker_never_returns_empty_exchange():
     assert split_ticker("BP.L") == ("BP", "L")
     assert split_ticker("BP") == ("BP", None)
     assert split_ticker("BP", "") == ("BP", None)
+
+
+@pytest.mark.parametrize("ticker", ["BP.", "bp.l", "BP", "CASH.", "CASH.GBP", "PFE.N", "A.", ""])
+def test_canonical_ticker_is_idempotent(ticker):
+    once = canonical_ticker(ticker)
+    assert canonical_ticker(once) == once
 
 
 @pytest.mark.parametrize("ticker", [".", "..", ".L", "   ", "", None])
@@ -106,6 +117,22 @@ def test_rebuild_does_not_duplicate_a_padded_epic_holding():
     doc = rebuild_holdings_document({"transactions": txs}, "steve", "sipp", existing)
 
     assert [h["ticker"] for h in doc["holdings"]] == ["BP.L"]
+
+
+def test_rebuild_collapsing_padded_and_suffixed_holdings_keeps_later_and_warns(caplog):
+    txs = [{"date": "2025-05-09", "ticker": "BP.", "type": "BUY", "units": 842.0, "price_gbp": 3.5}]
+    existing = {
+        "holdings": [
+            {"ticker": "BP.", "units": 842.0, "cost_basis_gbp": 0.0, "name": "older"},
+            {"ticker": "BP.L", "units": 842.0, "cost_basis_gbp": 0.0, "name": "newer"},
+        ]
+    }
+
+    with caplog.at_level(logging.WARNING, logger="backend.common.holdings_rebuild"):
+        doc = rebuild_holdings_document({"transactions": txs}, "steve", "sipp", existing)
+
+    assert [(h["ticker"], h.get("name")) for h in doc["holdings"]] == [("BP.L", "newer")]
+    assert any("are both BP.L" in r.getMessage() for r in caplog.records)
 
 
 def test_fill_missing_costs_matches_padded_epic_holding(tmp_path):

@@ -349,6 +349,29 @@ def _tracked_instruments(transactions: Sequence[Mapping[str, Any]], aliases: Map
     return keys
 
 
+def _holdings_by_ticker(old_holdings: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
+    """Key existing holdings by canonical ticker; the later of two that collapse wins.
+
+    ``BP.`` and ``BP.L`` are one instrument (#8600), so a document holding both
+    keeps only the later entry's carried-forward data. Log it, since the
+    earlier entry's fields are dropped.
+    """
+    previous: dict[str, Mapping[str, Any]] = {}
+    for h in old_holdings:
+        if not h.get("ticker"):
+            continue
+        key = canonical_ticker(str(h.get("ticker")))
+        if key in previous:
+            logger.warning(
+                "holdings %s and %s are both %s; keeping the later entry",
+                sanitise_log_value(previous[key].get("ticker")),
+                sanitise_log_value(h.get("ticker")),
+                sanitise_log_value(key),
+            )
+        previous[key] = h
+    return previous
+
+
 def rebuild_holdings_document(
     tx_data: Mapping[str, Any],
     owner: str,
@@ -359,7 +382,7 @@ def rebuild_holdings_document(
     transactions = [t for t in tx_data.get("transactions") or [] if isinstance(t, Mapping)]
     existing = existing if isinstance(existing, Mapping) else {}
     old_holdings = [h for h in existing.get("holdings") or [] if isinstance(h, Mapping)]
-    previous = {canonical_ticker(str(h.get("ticker"))): h for h in old_holdings if h.get("ticker")}
+    previous = _holdings_by_ticker(old_holdings)
 
     aliases = name_aliases(transactions, old_holdings)
     replay = replay_transactions(transactions, trade_cash=tx_data.get(TRADE_CASH_FLAG) is True, aliases=aliases)

@@ -434,24 +434,32 @@ def _post_sample_tx(client, owner: str, account: str, **overrides):
     return client.post("/transactions", json=payload)
 
 
-@pytest.mark.xfail(reason="To fix")
-def test_post_transaction_persists_and_updates_portfolio(client):
-    owners = _get_owners(client)
-    assert owners, "No owners returned"
-    owner = owners[0]["owner"]
+def _find_holding(portfolio: dict, account: str, ticker: str) -> dict | None:
+    for acct in portfolio.get("accounts", []):
+        if str(acct.get("account_type", "")).lower() != account.lower():
+            continue
+        for holding in acct.get("holdings", []):
+            if holding.get("ticker") == ticker:
+                return holding
+    return None
 
-    # Ensure the owner has at least one account
-    resp = client.post(
-        "/accounts",
-        json={"owner": owner, "account_type": "pension"},
-    )
-    assert resp.status_code in (200, 201)
 
+def test_post_transaction_persists_and_updates_portfolio(client, monkeypatch):
+    import backend.common.portfolio_utils as pu
+
+    # ZZZZ.L has no price data, so seed one. It differs from the £10 cost so
+    # the total below can only match if the holding is valued at this price.
+    price = 12.0
+    snapshot = {**pu._PRICE_SNAPSHOT, "ZZZZ.L": {"last_price": price, "is_stale": False}}
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", snapshot)
+
+    owner = _get_owners(client)[0]["owner"]
     portfolio = client.get(f"/portfolio/{owner}").json()
     accounts = portfolio.get("accounts", [])
     assert accounts, "Portfolio has no accounts"
     account = accounts[0]["account_type"]
     before = portfolio["total_value_estimate_gbp"]
+    assert _find_holding(portfolio, account, "ZZZZ.L") is None
 
     resp = _post_sample_tx(client, owner, account)
     assert resp.status_code == 201
@@ -459,8 +467,13 @@ def test_post_transaction_persists_and_updates_portfolio(client):
     txs = client.get(f"/transactions?owner={owner}").json()
     assert any(t.get("ticker") == "ZZZZ.L" for t in txs)
 
-    after = client.get(f"/portfolio/{owner}").json()["total_value_estimate_gbp"]
-    assert after == pytest.approx(before + 10.0)
+    after_portfolio = client.get(f"/portfolio/{owner}").json()
+    holding = _find_holding(after_portfolio, account, "ZZZZ.L")
+    assert holding is not None, "Posted BUY was not rebuilt into the account's holdings"
+    assert holding["units"] == pytest.approx(1.0)
+    assert holding["cost_basis_gbp"] == pytest.approx(10.0)
+    assert holding["market_value_gbp"] == pytest.approx(price)
+    assert after_portfolio["total_value_estimate_gbp"] == pytest.approx(before + price)
 
 
 @pytest.mark.parametrize(

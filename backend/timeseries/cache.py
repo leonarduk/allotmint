@@ -840,6 +840,19 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
 _MIN_CACHE_WINDOW_DAYS = 60
 
 
+def _guarded_range(
+    existing: pd.DataFrame, ticker: str, exchange: str, start_date: date, end_date: date
+) -> pd.DataFrame:
+    """Range of a parquet read directly (cache-only/offline), with the #7816 spike guard.
+
+    The live branch gets the guard via ``load_meta_timeseries``; applying it
+    here, inside the LRU cache, keeps every path guarded exactly once and logs
+    dropped rows once per cache fill rather than on every read.
+    """
+    guarded = drop_zero_volume_spikes(existing, ticker=ticker, exchange=exchange)
+    return _ensure_schema(apply_date_range(guarded, start_date, end_date))
+
+
 @lru_cache(maxsize=512)
 def _memoized_range_cached(
     ticker: str,
@@ -863,7 +876,7 @@ def _memoized_range_cached(
             _queue_if_stale(ticker, exchange, existing)
         if existing.empty:
             return _empty_ts()
-        return _ensure_schema(apply_date_range(existing, start_date, end_date))
+        return _guarded_range(existing, ticker, exchange, start_date, end_date)
     span_days = (end_date - start_date).days + 1
     lookback = (date.today() - end_date).days
     days_needed = max(span_days + lookback, _MIN_CACHE_WINDOW_DAYS)
@@ -880,7 +893,7 @@ def _memoized_range_cached(
             # (it normalises internally for comparison but doesn't mutate the column).
             # _ensure_schema always coerces Date to datetime64[ms] via pd.to_datetime,
             # so the dtype is safe regardless of what apply_date_range returns.
-            return _ensure_schema(apply_date_range(existing, start_date, end_date))
+            return _guarded_range(existing, ticker, exchange, start_date, end_date)
         logger.warning("Offline mode: no cached data for %s.%s", _sanitize_for_log(ticker), _sanitize_for_log(exchange))
 
         # Temporarily disable offline mode so the live loader can fetch data.
@@ -909,14 +922,8 @@ def _memoized_range(
     start_iso: str,
     end_iso: str,
 ) -> pd.DataFrame:
-    """LRU-cached range fetch that returns a copy to prevent mutation.
-
-    The cache-only and offline branches of ``_memoized_range_cached`` read the
-    parquet directly rather than via ``load_meta_timeseries``, so the
-    zero-volume spike guard (#7816) is applied here too.
-    """
-    df = _memoized_range_cached(ticker, exchange, start_iso, end_iso, _CACHE_ONLY.get())
-    return drop_zero_volume_spikes(df, ticker=ticker, exchange=exchange).copy()
+    """LRU-cached range fetch that returns a copy to prevent mutation."""
+    return _memoized_range_cached(ticker, exchange, start_iso, end_iso, _CACHE_ONLY.get()).copy()
 
 
 # ──────────────────────────────────────────────────────────────

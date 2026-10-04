@@ -149,12 +149,48 @@ def test_load_meta_timeseries_applies_guard(monkeypatch):
     assert len(raw) == len(VWRL_CLOSES)
 
 
-def test_memoized_range_applies_guard(monkeypatch):
+def _spike_log_count(caplog) -> int:
+    return sum("price spike(s)" in r.getMessage() for r in caplog.records)
+
+
+@pytest.fixture
+def fresh_range_cache():
+    cache._memoized_range_cached.cache_clear()
+    yield
+    cache._memoized_range_cached.cache_clear()
+
+
+def test_memoized_range_cache_only_branch_guards_once(monkeypatch, caplog, fresh_range_cache):
+    # The cache-only branch reads the parquet directly, so the guard runs
+    # inside the LRU cache: applied once, logged once, not on every read.
     raw = _frame(VWRL_CLOSES, VWRL_VOLUMES)
-    monkeypatch.setattr(cache, "_memoized_range_cached", lambda *a, **k: raw)
-    out = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
-    assert out["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
+    monkeypatch.setattr(cache, "_load_meta_parquet_cached", lambda path: raw)
+    monkeypatch.setattr(cache, "_queue_if_stale", lambda *a, **k: None)
+    token = cache._CACHE_ONLY.set(True)
+    try:
+        with caplog.at_level(logging.WARNING, logger="backend.timeseries.outlier_guard"):
+            first = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+            second = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+    finally:
+        cache._CACHE_ONLY.reset(token)
+    assert first["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
+    pd.testing.assert_frame_equal(first, second)
+    assert _spike_log_count(caplog) == 1
     assert len(raw) == len(VWRL_CLOSES)
+
+
+def test_memoized_range_live_branch_guards_once(monkeypatch, caplog, fresh_range_cache):
+    # The live branch is guarded by load_meta_timeseries; _memoized_range
+    # must not run the guard a second time on top.
+    raw = _frame(VWRL_CLOSES, VWRL_VOLUMES)
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache.config, "offline_mode", False)
+    monkeypatch.setattr(cache, "_invalidate_meta_caches_if_stale", lambda *a, **k: None)
+    monkeypatch.setattr(cache, "_load_meta_timeseries_cached", lambda *a, **k: raw)
+    with caplog.at_level(logging.WARNING, logger="backend.timeseries.outlier_guard"):
+        out = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+    assert out["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
+    assert _spike_log_count(caplog) == 1
 
 
 def test_source_comparison_handles_pd_na_and_nan():

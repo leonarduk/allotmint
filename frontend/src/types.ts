@@ -516,6 +516,7 @@ export interface InstrumentMetadata {
   currency?: string | null;
   instrument_type?: string | null;
   instrumentType?: string | null;
+  isin?: string | null;
 }
 
 export interface QuoteRow {

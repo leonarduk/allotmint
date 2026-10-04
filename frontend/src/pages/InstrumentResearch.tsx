@@ -25,6 +25,7 @@ import { formatDateISO } from "../lib/date";
 import { money, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { completeTrackedChore } from "../choreCompletion";
+import { buildInvestingComUrl, buildMorningstarUrl } from "../utils/urlUtils";
 
 function normaliseOptional(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -194,6 +195,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError] = useState<string | null>(null);
   const [instrumentExchange, setInstrumentExchange] = useState(initialExchange);
+  const [instrumentIsin, setInstrumentIsin] = useState("");
   type MetadataState = {
     name: string;
     sector: string;
@@ -288,6 +290,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
 
   useEffect(() => {
     setInstrumentExchange(initialExchange);
+    setInstrumentIsin("");
     setIsEditingMetadata(false);
     setMetadataSaving(false);
     setMetadataStatus(null);
@@ -422,6 +425,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           ),
         );
         if (matched) {
+          setInstrumentIsin(normaliseUppercase(matched.isin) ?? "");
           const name = normaliseOptional(matched.name) ?? matched.name;
           const sector = normaliseOptional(matched.sector);
           const currency = normaliseUppercase(matched.currency);
@@ -878,6 +882,8 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const metadataInputsDisabled =
     metadataSaving || refreshingMetadata || confirmingRefresh || !!refreshPreview;
   const exchangeForActions = deriveExchangeForActions();
+  const investingComUrl = buildInvestingComUrl(instrumentIsin, tkr);
+  const morningstarUrl = buildMorningstarUrl(instrumentIsin);
 
   const tabOptions: { id: typeof activeTab; label: string }[] = [
     { id: "overview", label: "Overview" },
@@ -947,6 +953,26 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         <button onClick={toggleWatchlist} style={{ marginLeft: "1rem" }}>
           {inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
         </button>
+        {investingComUrl && (
+          <a
+            href={investingComUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginLeft: "1rem" }}
+          >
+            View on Investing.com
+          </a>
+        )}
+        {morningstarUrl && (
+          <a
+            href={morningstarUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginLeft: "1rem" }}
+          >
+            View on Morningstar
+          </a>
+        )}
         {baseTicker && instrumentExchange && (
           <DeleteSeriesButton ticker={baseTicker} exchange={instrumentExchange.toUpperCase()} />
         )}

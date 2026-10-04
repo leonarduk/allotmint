@@ -20,7 +20,7 @@ vi.mock("@/api", () => ({
   getSeriesReferences: vi.fn(() => Promise.resolve({ can_delete: false })),
   deleteTimeseries: vi.fn(),
 }));
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
 import InstrumentResearch from "@/pages/InstrumentResearch";
@@ -832,6 +832,66 @@ describe("InstrumentResearch page", () => {
     expect(
       screen.getByText(/Declared currency \(metadata\):/),
     ).toHaveTextContent("Declared currency (metadata): USD");
+  });
+
+  it("links to Investing.com and Morningstar by ISIN when the catalogue has one", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme Corp", isin: "GB00BH4HKS39" },
+    ] as any);
+    renderPage();
+
+    const morningstar = await screen.findByRole("link", { name: "View on Morningstar" });
+    expect(morningstar).toHaveAttribute(
+      "href",
+      "https://global.morningstar.com/en-gb/search?query=GB00BH4HKS39",
+    );
+    expect(morningstar).toHaveAttribute("target", "_blank");
+    expect(morningstar).toHaveAttribute("rel", "noopener noreferrer");
+    const investing = screen.getByRole("link", { name: "View on Investing.com" });
+    expect(investing).toHaveAttribute(
+      "href",
+      "https://www.investing.com/search/?q=GB00BH4HKS39",
+    );
+    expect(investing).toHaveAttribute("target", "_blank");
+    expect(investing).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("falls back to a ticker search and hides Morningstar without an ISIN", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme Corp" },
+    ] as any);
+    renderPage();
+
+    expect(
+      await screen.findByRole("link", { name: "View on Investing.com" }),
+    ).toHaveAttribute("href", "https://www.investing.com/search/?q=AAA");
+    expect(screen.queryByRole("link", { name: "View on Morningstar" })).toBeNull();
+  });
+
+  it("clears the ISIN links when the ticker changes to one without an ISIN", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme Corp", isin: "GB00BH4HKS39" },
+    ] as any);
+    const tree = (ticker: string) => (
+      <configContext.Provider value={defaultConfig}>
+        <MemoryRouter>
+          <InstrumentResearch ticker={ticker} />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const { rerender } = render(tree("AAA"));
+    expect(
+      await screen.findByRole("link", { name: "View on Morningstar" }),
+    ).toBeInTheDocument();
+
+    rerender(tree("BBB"));
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "View on Investing.com" })).toHaveAttribute(
+        "href",
+        "https://www.investing.com/search/?q=BBB",
+      ),
+    );
+    expect(screen.queryByRole("link", { name: "View on Morningstar" })).toBeNull();
   });
 
   it("allows editing instrument metadata", async () => {

@@ -44,6 +44,7 @@ from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
+from backend.timeseries.outlier_guard import drop_zero_volume_spikes
 from backend.timeseries.source_basis import compatible_rows
 from backend.utils.fx_rates import (
     fallback_fx_rate_range,
@@ -812,7 +813,10 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
         _CACHE_FILE_MTIMES.clear()
 
     _invalidate_meta_caches_if_stale(ticker, exchange)
-    return _load_meta_timeseries_cached(ticker, exchange, days, _CACHE_ONLY.get()).copy()
+    df = _load_meta_timeseries_cached(ticker, exchange, days, _CACHE_ONLY.get())
+    # Filter isolated zero-volume spikes from mixed-source parquets (#7816);
+    # read-time only, the cached frame and stored parquet are left as-is.
+    return drop_zero_volume_spikes(df, ticker=ticker, exchange=exchange).copy()
 
 
 # ──────────────────────────────────────────────────────────────
@@ -905,8 +909,14 @@ def _memoized_range(
     start_iso: str,
     end_iso: str,
 ) -> pd.DataFrame:
-    """LRU-cached range fetch that returns a copy to prevent mutation."""
-    return _memoized_range_cached(ticker, exchange, start_iso, end_iso, _CACHE_ONLY.get()).copy()
+    """LRU-cached range fetch that returns a copy to prevent mutation.
+
+    The cache-only and offline branches of ``_memoized_range_cached`` read the
+    parquet directly rather than via ``load_meta_timeseries``, so the
+    zero-volume spike guard (#7816) is applied here too.
+    """
+    df = _memoized_range_cached(ticker, exchange, start_iso, end_iso, _CACHE_ONLY.get())
+    return drop_zero_volume_spikes(df, ticker=ticker, exchange=exchange).copy()
 
 
 # ──────────────────────────────────────────────────────────────

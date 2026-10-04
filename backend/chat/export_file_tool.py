@@ -88,7 +88,7 @@ class ExportError(ValueError):
 Cell = Any
 _FILENAME_UNSAFE = re.compile(r"[^A-Za-z0-9 _.-]+")
 # Characters XML 1.0 does not allow (all C0 controls except tab, LF and CR).
-_XML_INVALID = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f]")
+_XML_INVALID = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 # A spreadsheet treats text starting with one of these as a formula.
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 

@@ -423,6 +423,18 @@ describe("Screener & Query page", () => {
     );
   });
 
+  it("overrides both defaults when a link carries start and end", async () => {
+    window.history.pushState({}, "", "/?start=2024-01-01&end=2024-02-01");
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText(i18n.t("query.start"));
+    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
+      "2024-01-01",
+    );
+    expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(
+      "2024-02-01",
+    );
+  });
+
   it("loading a saved query with blank dates clears the defaults", async () => {
     window.history.pushState({}, "", "/");
     listSavedQueries.mockResolvedValueOnce([

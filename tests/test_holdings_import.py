@@ -440,3 +440,15 @@ def test_holdings_reconcile_hargreaves_is_read_only(client: TestClient, tmp_path
     ]
     assert body["cash_balance"] == {"stored_gbp": 100.0, "imported_gbp": 110.0, "delta_gbp": 10.0}
     assert account_file.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [("BP.", "BP.L"), ("av.", "AV.L"), ("SN. *R", "SN.L"), ("AZN.L", "AZN.L"), ("VWRL", "VWRL")],
+)
+def test_hargreaves_parse_canonicalises_padded_lse_epics(code, expected):
+    csv_data = f"Code,Stock,Units held,Price (pence),Cost (£)\n{code},Some plc,10,100,9\n"
+
+    [holding] = hargreaves.parse(csv_data.encode())
+
+    assert holding.ticker == expected

@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, Callable, Mapping, Sequence
 
+from backend.common.ticker_utils import canonical_ticker
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -136,7 +137,7 @@ def name_aliases(
     """Map instrument names to tickers so ticker-less trades join the right pool."""
     aliases: dict[str, str] = {}
     for record in [*existing, *transactions]:
-        ticker = str(record.get("ticker") or "").strip().upper()
+        ticker = canonical_ticker(str(record.get("ticker") or ""))
         name = _name(record)
         if ticker and name:
             aliases.setdefault(name, ticker)
@@ -144,7 +145,8 @@ def name_aliases(
 
 
 def _instrument_key(tx: Mapping[str, Any], aliases: Mapping[str, str]) -> str | None:
-    ticker = str(tx.get("ticker") or "").strip().upper()
+    # "BP." and "BP.L" are one LSE listing and must replay into one pool (#8600).
+    ticker = canonical_ticker(str(tx.get("ticker") or ""))
     if ticker:
         return ticker
     name = _name(tx)
@@ -357,7 +359,7 @@ def rebuild_holdings_document(
     transactions = [t for t in tx_data.get("transactions") or [] if isinstance(t, Mapping)]
     existing = existing if isinstance(existing, Mapping) else {}
     old_holdings = [h for h in existing.get("holdings") or [] if isinstance(h, Mapping)]
-    previous = {str(h.get("ticker") or "").upper(): h for h in old_holdings if h.get("ticker")}
+    previous = {canonical_ticker(str(h.get("ticker"))): h for h in old_holdings if h.get("ticker")}
 
     aliases = name_aliases(transactions, old_holdings)
     replay = replay_transactions(transactions, trade_cash=tx_data.get(TRADE_CASH_FLAG) is True, aliases=aliases)

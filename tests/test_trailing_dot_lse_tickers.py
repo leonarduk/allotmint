@@ -35,10 +35,16 @@ _LIST_ALL_UNIQUE_TICKERS = portfolio_utils.list_all_unique_tickers
         ("", None, ""),
         (None, "L", ""),
         (".", None, ""),
+        ("SN.", None, "SN.L"),
+        ("A.", None, "A.L"),
+        ("CASH.", None, "CASH"),  # 3+ chars: malformed, not a padded EPIC
+        ("FOO.", None, "FOO"),
+        ("FOO.", "L", "FOO"),
     ],
 )
 def test_canonical_ticker(ticker, exchange, expected):
     assert canonical_ticker(ticker, exchange) == expected
+    assert canonical_ticker(canonical_ticker(ticker, exchange)) == canonical_ticker(ticker, exchange)
 
 
 def test_split_ticker_never_returns_empty_exchange():
@@ -46,6 +52,9 @@ def test_split_ticker_never_returns_empty_exchange():
     assert split_ticker("BP.L") == ("BP", "L")
     assert split_ticker("BP") == ("BP", None)
     assert split_ticker("BP", "") == ("BP", None)
+    assert split_ticker("SN.") == ("SN", "L")
+    assert split_ticker("CASH.") == ("CASH", None)
+    assert split_ticker("FOO.") == ("FOO", None)
 
 
 @pytest.mark.parametrize("ticker", [".", "..", ".L", "   ", "", None])
@@ -106,6 +115,23 @@ def test_rebuild_does_not_duplicate_a_padded_epic_holding():
     doc = rebuild_holdings_document({"transactions": txs}, "steve", "sipp", existing)
 
     assert [h["ticker"] for h in doc["holdings"]] == ["BP.L"]
+
+
+def test_rebuild_collapsing_padded_and_suffixed_holdings_keeps_last_and_warns(caplog):
+    existing = {
+        "holdings": [
+            {"ticker": "BP.", "units": 10.0, "note": "padded"},
+            {"ticker": "AZN.L", "units": 5.0},
+            {"ticker": "BP.L", "units": 10.0, "note": "suffixed"},
+        ]
+    }
+
+    with caplog.at_level("WARNING", logger="backend.common.holdings_rebuild"):
+        doc = rebuild_holdings_document({"transactions": []}, "steve", "sipp", existing)
+
+    # The later BP.L entry wins, at the earlier BP. entry's position.
+    assert [(h["ticker"], h.get("note")) for h in doc["holdings"]] == [("BP.L", "suffixed"), ("AZN.L", None)]
+    assert "['BP.', 'BP.L'] collapse to BP.L" in caplog.text
 
 
 def test_fill_missing_costs_matches_padded_epic_holding(tmp_path):

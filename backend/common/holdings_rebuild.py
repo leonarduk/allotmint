@@ -349,6 +349,31 @@ def _tracked_instruments(transactions: Sequence[Mapping[str, Any]], aliases: Map
     return keys
 
 
+def _previous_holdings(old_holdings: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
+    """Key ``old_holdings`` by canonical ticker; the last of a collapsed group wins.
+
+    ``"BP."`` and ``"BP.L"`` share the key ``"BP.L"``, so a document holding
+    both keeps only the later entry (at the earlier one's position).
+    """
+    previous: dict[str, Mapping[str, Any]] = {}
+    raw_by_key: dict[str, list[str]] = {}
+    for holding in old_holdings:
+        raw = str(holding.get("ticker") or "")
+        if not raw:
+            continue
+        key = canonical_ticker(raw)
+        previous[key] = holding
+        raw_by_key.setdefault(key, []).append(raw)
+    for key, raws in raw_by_key.items():
+        if len(raws) > 1:
+            logger.warning(
+                "Holdings %s collapse to %s; keeping the last entry",
+                sanitise_log_value(raws),
+                sanitise_log_value(key),
+            )
+    return previous
+
+
 def rebuild_holdings_document(
     tx_data: Mapping[str, Any],
     owner: str,
@@ -359,7 +384,7 @@ def rebuild_holdings_document(
     transactions = [t for t in tx_data.get("transactions") or [] if isinstance(t, Mapping)]
     existing = existing if isinstance(existing, Mapping) else {}
     old_holdings = [h for h in existing.get("holdings") or [] if isinstance(h, Mapping)]
-    previous = {canonical_ticker(str(h.get("ticker"))): h for h in old_holdings if h.get("ticker")}
+    previous = _previous_holdings(old_holdings)
 
     aliases = name_aliases(transactions, old_holdings)
     replay = replay_transactions(transactions, trade_cash=tx_data.get(TRADE_CASH_FLAG) is True, aliases=aliases)

@@ -9,8 +9,10 @@ _FORCE_DEMO = os.getenv("TESTING") not in {None, "", "0", "false", "False"}
 
 # The London Stock Exchange pads two-letter EPICs with a trailing dot
 # (``BP.``, ``AV.``, ``SN.``) and brokers such as Hargreaves Lansdown export
-# them that way.  A trailing dot therefore means "LSE", never "no exchange".
+# them that way.  A trailing dot on a 1-2 character symbol therefore means
+# "LSE"; on a longer symbol it is malformed input, not a padded EPIC.
 LSE_EXCHANGE = "L"
+_PADDED_EPIC_MAX_LEN = 2
 
 
 def split_ticker(ticker: str | None, exchange: str | None = None) -> tuple[str, str | None]:
@@ -19,6 +21,10 @@ def split_ticker(ticker: str | None, exchange: str | None = None) -> tuple[str, 
     ``"BP.L"`` -> ``("BP", "L")``; ``"BP."`` -> ``("BP", "L")`` (padded LSE
     EPIC); ``"BP"`` with ``exchange="L"`` -> ``("BP", "L")``; ``"BP"`` ->
     ``("BP", None)``.  An explicit suffix on ``ticker`` wins over ``exchange``.
+
+    Only 1-2 character symbols are padded EPICs: a bare trailing dot on a
+    longer symbol (``"CASH."``, ``"FOO."``) is malformed and returns
+    ``(symbol, None)`` -- no exchange, even if ``exchange`` is given.
     """
     raw = (ticker or "").strip().upper()
     symbol, dot, suffix = raw.partition(".")
@@ -28,7 +34,7 @@ def split_ticker(ticker: str | None, exchange: str | None = None) -> tuple[str, 
     if suffix:
         return symbol, suffix
     if dot:
-        return symbol, LSE_EXCHANGE
+        return symbol, LSE_EXCHANGE if len(symbol) <= _PADDED_EPIC_MAX_LEN else None
     fallback = (exchange or "").strip().upper()
     return symbol, fallback or None
 

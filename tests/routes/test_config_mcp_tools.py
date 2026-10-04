@@ -205,3 +205,17 @@ def test_list_mcp_server_tools_reads_the_not_configured_marker_from_tool_meta(mo
         "odd": None,
         "plain": None,
     }
+
+
+def test_not_configured_marker_is_read_from_the_wire_form_the_server_sends():
+    """Pins the SDK contract: the JSON key is ``_meta``, the attribute ``meta``."""
+    from mcp import types
+
+    wire = {
+        "name": "search_web",
+        "inputSchema": {"type": "object"},
+        "_meta": {routes_config.NOT_CONFIGURED_META_KEY: "No key."},
+    }
+    tool = types.ListToolsResult.model_validate({"tools": [wire]}).tools[0]
+
+    assert routes_config._not_configured_reason(tool.meta) == "No key."

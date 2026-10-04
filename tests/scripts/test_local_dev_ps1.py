@@ -45,6 +45,9 @@ def test_shared_env_variable_reaches_child_processes(tmp_path):
     assert _child_sees(tmp_path, "ALLOTMINT_MCP_BRAVE_API_KEY=test-key\n", "ALLOTMINT_MCP_BRAVE_API_KEY") == "test-key"
 
 
-@pytest.mark.parametrize("line", ['KEY_9198="test-key"', "KEY_9198='test-key'", "KEY_9198 = test-key  "])
-def test_quotes_and_padding_are_stripped_like_bash_source(tmp_path, line):
+@pytest.mark.parametrize(
+    "line",
+    ['KEY_9198="test-key"', "KEY_9198='test-key'", "KEY_9198 = test-key  ", "export KEY_9198=test-key"],
+)
+def test_quotes_padding_and_export_are_handled_like_bash_source(tmp_path, line):
     assert _child_sees(tmp_path, f"# comment\n{line}\n", "KEY_9198") == "test-key"

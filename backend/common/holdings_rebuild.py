@@ -349,6 +349,36 @@ def _tracked_instruments(transactions: Sequence[Mapping[str, Any]], aliases: Map
     return keys
 
 
+def _holdings_by_ticker(old_holdings: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
+    """Key existing holdings by canonical ticker, keeping one entry per instrument.
+
+    ``BP.`` and ``BP.L`` are one instrument (#8600). When a document holds both,
+    keep the entry already stored under the canonical key (``BP.L``), whatever
+    the list order; if neither or both are, keep the later one. Log it, since
+    the other entry's carried-forward fields are dropped.
+    """
+    previous: dict[str, Mapping[str, Any]] = {}
+    for h in old_holdings:
+        if not h.get("ticker"):
+            continue
+        key = canonical_ticker(str(h.get("ticker")))
+        kept = previous.get(key)
+        if kept is not None:
+            kept_is_canonical = str(kept.get("ticker")).strip().upper() == key
+            new_is_canonical = str(h.get("ticker")).strip().upper() == key
+            winner = kept if kept_is_canonical and not new_is_canonical else h
+            logger.warning(
+                "holdings %s and %s are both %s; keeping %s",
+                sanitise_log_value(kept.get("ticker")),
+                sanitise_log_value(h.get("ticker")),
+                sanitise_log_value(key),
+                sanitise_log_value(winner.get("ticker")),
+            )
+            h = winner
+        previous[key] = h
+    return previous
+
+
 def rebuild_holdings_document(
     tx_data: Mapping[str, Any],
     owner: str,
@@ -359,7 +389,7 @@ def rebuild_holdings_document(
     transactions = [t for t in tx_data.get("transactions") or [] if isinstance(t, Mapping)]
     existing = existing if isinstance(existing, Mapping) else {}
     old_holdings = [h for h in existing.get("holdings") or [] if isinstance(h, Mapping)]
-    previous = {canonical_ticker(str(h.get("ticker"))): h for h in old_holdings if h.get("ticker")}
+    previous = _holdings_by_ticker(old_holdings)
 
     aliases = name_aliases(transactions, old_holdings)
     replay = replay_transactions(transactions, trade_cash=tx_data.get(TRADE_CASH_FLAG) is True, aliases=aliases)

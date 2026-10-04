@@ -350,24 +350,31 @@ def _tracked_instruments(transactions: Sequence[Mapping[str, Any]], aliases: Map
 
 
 def _holdings_by_ticker(old_holdings: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
-    """Key existing holdings by canonical ticker; the later of two that collapse wins.
+    """Key existing holdings by canonical ticker, keeping one entry per instrument.
 
-    ``BP.`` and ``BP.L`` are one instrument (#8600), so a document holding both
-    keeps only the later entry's carried-forward data. Log it, since the
-    earlier entry's fields are dropped.
+    ``BP.`` and ``BP.L`` are one instrument (#8600). When a document holds both,
+    keep the entry already stored under the canonical key (``BP.L``), whatever
+    the list order; if neither or both are, keep the later one. Log it, since
+    the other entry's carried-forward fields are dropped.
     """
     previous: dict[str, Mapping[str, Any]] = {}
     for h in old_holdings:
         if not h.get("ticker"):
             continue
         key = canonical_ticker(str(h.get("ticker")))
-        if key in previous:
+        kept = previous.get(key)
+        if kept is not None:
+            kept_is_canonical = str(kept.get("ticker")).strip().upper() == key
+            new_is_canonical = str(h.get("ticker")).strip().upper() == key
+            winner = kept if kept_is_canonical and not new_is_canonical else h
             logger.warning(
-                "holdings %s and %s are both %s; keeping the later entry",
-                sanitise_log_value(previous[key].get("ticker")),
+                "holdings %s and %s are both %s; keeping %s",
+                sanitise_log_value(kept.get("ticker")),
                 sanitise_log_value(h.get("ticker")),
                 sanitise_log_value(key),
+                sanitise_log_value(winner.get("ticker")),
             )
+            h = winner
         previous[key] = h
     return previous
 

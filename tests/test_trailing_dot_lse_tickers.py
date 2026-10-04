@@ -119,20 +119,19 @@ def test_rebuild_does_not_duplicate_a_padded_epic_holding():
     assert [h["ticker"] for h in doc["holdings"]] == ["BP.L"]
 
 
-def test_rebuild_collapsing_padded_and_suffixed_holdings_keeps_later_and_warns(caplog):
+@pytest.mark.parametrize("dotted_first", [True, False])
+def test_rebuild_collapsing_padded_and_suffixed_holdings_keeps_canonical_and_warns(caplog, dotted_first):
+    """BP. and BP.L in one document: the BP.L entry's data is kept whichever comes first."""
     txs = [{"date": "2025-05-09", "ticker": "BP.", "type": "BUY", "units": 842.0, "price_gbp": 3.5}]
-    existing = {
-        "holdings": [
-            {"ticker": "BP.", "units": 842.0, "cost_basis_gbp": 0.0, "name": "older"},
-            {"ticker": "BP.L", "units": 842.0, "cost_basis_gbp": 0.0, "name": "newer"},
-        ]
-    }
+    dotted = {"ticker": "BP.", "units": 842.0, "cost_basis_gbp": 0.0, "name": "dotted"}
+    canonical = {"ticker": "BP.L", "units": 842.0, "cost_basis_gbp": 0.0, "name": "canonical"}
+    holdings = [dotted, canonical] if dotted_first else [canonical, dotted]
 
     with caplog.at_level(logging.WARNING, logger="backend.common.holdings_rebuild"):
-        doc = rebuild_holdings_document({"transactions": txs}, "steve", "sipp", existing)
+        doc = rebuild_holdings_document({"transactions": txs}, "steve", "sipp", {"holdings": holdings})
 
-    assert [(h["ticker"], h.get("name")) for h in doc["holdings"]] == [("BP.L", "newer")]
-    assert any("are both BP.L" in r.getMessage() for r in caplog.records)
+    assert [(h["ticker"], h.get("name")) for h in doc["holdings"]] == [("BP.L", "canonical")]
+    assert any("are both BP.L; keeping BP.L" in r.getMessage() for r in caplog.records)
 
 
 def test_fill_missing_costs_matches_padded_epic_holding(tmp_path):

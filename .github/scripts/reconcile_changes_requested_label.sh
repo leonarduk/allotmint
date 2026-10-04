@@ -51,10 +51,62 @@ fi
 
 echo "PR #${PR_NUMBER} (${HEAD_SHA}) — enabled reviewers: ${ENABLED_CHECK_NAMES[*]}"
 
+# Fetch every check-run for the head SHA once, as one TSV line per run:
+#   name <TAB> started_at <TAB> id <TAB> status <TAB> conclusion
+# The --jq filter runs once per *page* under --paginate. So it only emits
+# per-run lines, and the choice of the latest run happens in bash below, after
+# all pages are collected. (A whole-array reduction such as `sort_by | last`
+# would give one answer per page and never equal "success" once a commit had
+# more than one page of check-runs.)
+#
+# Runs concluded skipped/neutral/cancelled are dropped: they carry no review
+# verdict. A no-op `labeled` event, for example, starts a DeepSeek PR Review
+# run whose ai-review job is skipped. That run reuses the same check name and
+# starts *after* the real review, so if it were kept it would hide the real
+# success and leave the label stuck (#8812). A run with no started_at yet
+# (queued) sorts last, so a pending re-review always counts as the latest
+# state.
+CHECK_RUNS=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100" --paginate \
+  --jq '.check_runs[]
+    | select(.conclusion != "skipped" and .conclusion != "neutral" and .conclusion != "cancelled")
+    | [.name, (.started_at // "9999-12-31T23:59:59Z"), (.id | tostring), .status, (.conclusion // "")]
+    | @tsv')
+
+# Prints the verdict of the latest verdict-bearing check-run for reviewer $1:
+# its conclusion if completed, "pending" if it hasn't completed or no such run
+# exists. Reviews run through the reusable _ai-pr-review.yml workflow, so
+# GitHub names the check-run "<caller job> / <job name>" (e.g.
+# "ai-review / DeepSeek AI code review"). Both that prefixed form and the
+# bare name are accepted, so a reviewer that is later called directly still
+# matches.
+latest_verdict() {
+  local want="$1"
+  local name started id status conclusion
+  local best_started="" best_id=0 best_status="" best_conclusion=""
+  while IFS=$'\t' read -r name started id status conclusion; do
+    [ -n "$name" ] || continue
+    if [ "$name" != "$want" ] && [[ "$name" != *" / ${want}" ]]; then
+      continue
+    fi
+    if [ -z "$best_started" ] || [[ "$started" > "$best_started" ]] ||
+      { [ "$started" = "$best_started" ] && [ "$id" -gt "$best_id" ]; }; then
+      best_started="$started"
+      best_id="$id"
+      best_status="$status"
+      best_conclusion="$conclusion"
+    fi
+  done <<<"$CHECK_RUNS"
+
+  if [ -z "$best_started" ] || [ "$best_status" != "completed" ] || [ -z "$best_conclusion" ]; then
+    echo "pending"
+  else
+    echo "$best_conclusion"
+  fi
+}
+
 ALL_SUCCESS=true
 for NAME in "${ENABLED_CHECK_NAMES[@]}"; do
-  CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
-    --jq "[.check_runs[] | select(.name == \"${NAME}\")] | sort_by(.started_at) | last | .conclusion // \"pending\"")
+  CONCLUSION=$(latest_verdict "$NAME")
   echo "  ${NAME}: ${CONCLUSION}"
   if [ "$CONCLUSION" != "success" ]; then
     ALL_SUCCESS=false

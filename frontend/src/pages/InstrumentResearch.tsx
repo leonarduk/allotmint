@@ -6,6 +6,7 @@ import { useInstrumentHistory, updateCachedInstrumentHistory } from "../hooks/us
 import { InstrumentDetail, InstrumentPositionsTable } from "../components/InstrumentDetail";
 import { InstrumentTransactions } from "../components/InstrumentTransactions";
 import { InstrumentValuationPanel } from "../components/InstrumentValuationPanel";
+import { InstrumentTechnicalsPanel } from "../components/InstrumentTechnicalsPanel";
 import {
   confirmInstrumentMetadata,
   getNews,
@@ -254,7 +255,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     return !!tkr && list.includes(tkr);
   });
   const [activeTab, setActiveTab] = useState<
-    "overview" | "timeseries" | "positions" | "fundamentals" | "news"
+    "overview" | "timeseries" | "positions" | "fundamentals" | "technicals" | "news"
   >("overview");
   const [fundamentals, setFundamentals] = useState<ScreenerResult | null>(null);
   const [fundamentalsLoading, setFundamentalsLoading] = useState(false);
@@ -884,6 +885,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     { id: "timeseries", label: "Timeseries" },
     { id: "positions", label: "Positions" },
     { id: "fundamentals", label: "Fundamentals" },
+    { id: "technicals", label: "Technicals" },
     { id: "news", label: "News" },
   ];
   const standalonePalette = {
@@ -1723,6 +1725,13 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
               );
             })()
           )}
+        </div>
+      )}
+
+      {activeTab === "technicals" && (
+        <div style={{ marginBottom: "2rem" }}>
+          <h2 style={{ marginBottom: "0.75rem" }}>Technicals</h2>
+          <InstrumentTechnicalsPanel ticker={tkr} />
         </div>
       )}
 

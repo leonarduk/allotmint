@@ -68,9 +68,7 @@ def _scaling_overrides_path() -> Path:
         candidates.append(Path(str(configured_data_root)).expanduser() / "scaling_overrides.json")
     configured_repo_root = getattr(config, "repo_root", None)
     if configured_repo_root:
-        candidates.append(
-            Path(str(configured_repo_root)).expanduser() / "data" / "scaling_overrides.json"
-        )
+        candidates.append(Path(str(configured_repo_root)).expanduser() / "data" / "scaling_overrides.json")
     bundled = Path(__file__).resolve().parents[2] / "data" / "scaling_overrides.json"
     for candidate in candidates:
         if candidate.exists():
@@ -94,9 +92,7 @@ def _infer_override_exchange(ticker: str, base: str, overrides: dict) -> str:
     if not isinstance(overrides, dict):
         return ""
     matches = [
-        ex_key
-        for ex_key, table in overrides.items()
-        if ex_key != "*" and isinstance(table, dict) and base in table
+        ex_key for ex_key, table in overrides.items() if ex_key != "*" and isinstance(table, dict) and base in table
     ]
     return str(matches[0]).upper() if len(matches) == 1 else ""
 

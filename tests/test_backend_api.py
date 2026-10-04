@@ -488,17 +488,19 @@ def test_post_transaction_persists_and_updates_portfolio(client, monkeypatch):
     assert after_portfolio["total_value_estimate_gbp"] == pytest.approx(before + price)
 
 
+_REPO_ACCOUNTS = Path(__file__).resolve().parents[1] / "data" / "accounts"
+
+
 def _tracked_file_snapshot(path: Path) -> bytes | None:
     return path.read_bytes() if path.exists() else None
 
 
 def test_client_fixture_writes_land_in_isolated_root(client, isolated_accounts_root):
     """POST writes via ``client`` go to the fixture's tmp copy, never the tracked tree (#8913)."""
-    repo_accounts = Path(__file__).resolve().parents[1] / "data" / "accounts"
     owner = _get_owners(client)[0]["owner"]
     account = client.get(f"/portfolio/{owner}").json()["accounts"][0]["account_type"]
     tx_file = f"{account}_transactions.json"
-    tracked_before = _tracked_file_snapshot(repo_accounts / owner / tx_file)
+    tracked_before = _tracked_file_snapshot(_REPO_ACCOUNTS / owner / tx_file)
 
     resp = _post_sample_tx(client, owner, account)
     assert resp.status_code == 201
@@ -506,7 +508,26 @@ def test_client_fixture_writes_land_in_isolated_root(client, isolated_accounts_r
     written = isolated_accounts_root / owner / tx_file
     assert written.exists(), f"expected POST /transactions to write {written}"
     assert any(t.get("ticker") == "ZZZZ.L" for t in json.loads(written.read_text())["transactions"])
-    assert _tracked_file_snapshot(repo_accounts / owner / tx_file) == tracked_before
+    assert _tracked_file_snapshot(_REPO_ACCOUNTS / owner / tx_file) == tracked_before
+
+
+def test_client_fixture_account_creation_lands_in_isolated_root(client, isolated_accounts_root):
+    """POST /accounts via ``client`` writes to the fixture's tmp copy, never the tracked tree."""
+    owner = _get_owners(client)[0]["owner"]
+    account_type = "isolationcheck"
+    account_file = f"{account_type}.json"
+    written = isolated_accounts_root / owner / account_file
+    assert not written.exists(), "account type must be new so POST /accounts returns 201, not 409"
+    tracked_before = _tracked_file_snapshot(_REPO_ACCOUNTS / owner / account_file)
+
+    resp = client.post("/accounts", json={"owner": owner, "account_type": account_type})
+    assert resp.status_code == 201
+
+    assert written.exists(), f"expected POST /accounts to write {written}"
+    doc = json.loads(written.read_text())
+    assert doc["owner"] == owner
+    assert doc["account_type"] == account_type
+    assert _tracked_file_snapshot(_REPO_ACCOUNTS / owner / account_file) == tracked_before
 
 
 @pytest.mark.parametrize(

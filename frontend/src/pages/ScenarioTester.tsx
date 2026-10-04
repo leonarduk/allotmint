@@ -115,12 +115,7 @@ export default function ScenarioTester() {
   const effectiveDate = reportingDate.trim() === "" ? null : reportingDate.trim();
 
   const { run: runPortfolioRequest, clear: clearPortfolioRequests } =
-    useDedupedRequest(
-      useCallback(
-        (owner: string) => getPortfolio(owner, { asOf: effectiveDate }),
-        [effectiveDate],
-      ),
-    );
+    useDedupedRequest<Portfolio>();
 
   const ensurePortfolioLoaded = useCallback(
     (owner: string) => {
@@ -131,7 +126,11 @@ export default function ScenarioTester() {
         [owner]: { status: "loading", asOf: effectiveDate ?? null },
       }));
 
-      runPortfolioRequest(requestKey)
+      // The dedupe key is owner+date, but the request itself must receive the
+      // bare owner; passing the key through produced /portfolio/{owner}:: (#8576).
+      runPortfolioRequest(requestKey, () =>
+        getPortfolio(owner, { asOf: effectiveDate }),
+      )
         .then((pf) => {
           if (pf === undefined) {
             return;

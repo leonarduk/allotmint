@@ -388,7 +388,8 @@
       "trend": "Trend",
       "type": "Type",
       "units": "Units",
-      "weightPct": "Weight %"
+      "weightPct": "Weight %",
+      "totalReturn": "Total return £"
     },
     "columnsLabel": "Columns:",
     "eligible": "Eligible",
@@ -429,7 +430,10 @@
       "all": "All"
     },
     "noPriceHistoryNotice_one": "{{count}} instrument has no price history",
-    "noPriceHistoryNotice_other": "{{count}} instruments have no price history"
+    "noPriceHistoryNotice_other": "{{count}} instruments have no price history",
+    "totalReturnHeaderTitle": "Capital gain plus dividends, interest and gains already realised on this position",
+    "totalReturnBreakdown": "Income received {{income}} · realised on sales {{realised}}",
+    "totalReturnNoTransactions": "No transactions recorded for this account — income unknown"
   },
   "instrumentadmin": {
     "actions": "Actions",

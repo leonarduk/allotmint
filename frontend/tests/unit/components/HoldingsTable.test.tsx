@@ -219,17 +219,46 @@ describe("HoldingsTable", () => {
             .getAllByRole("columnheader")
             .map((header) => header.textContent);
 
-        expect(headers.slice(0, 8)).toEqual([
+        expect(headers.slice(0, 9)).toEqual([
             "Ticker ▲",
             "Name",
             "Units",
             "Mkt £",
             "Gain £",
             "Gain %",
+            "Total return £",
             "Px £",
             "Cost £",
         ]);
         expect(screen.getByRole("columnheader", { name: "Trend (30d)" })).toBeInTheDocument();
+    });
+
+    it("shows total return with its income breakdown, and N/A when unknown (#9038)", async () => {
+        const withReturns = [
+            { ...holdings[0], income_gbp: 20, realised_gain_gbp: 40, total_return_gbp: 90, total_return_pct: 18 },
+            { ...holdings[1], income_gbp: 5, realised_gain_gbp: null, total_return_gbp: null, total_return_pct: null },
+        ];
+        renderWithConfig(<HoldingsTable holdings={withReturns} />);
+
+        const known = (await screen.findByText(withReturns[0].name)).closest("tr")!;
+        const knownCell = within(known).getByText(/\(18\.0%\)/);
+        expect(knownCell.textContent).toMatch(/90\.00/);
+        expect(knownCell.getAttribute("title")).toMatch(/20\.00/);
+
+        const unknown = screen.getByText(withReturns[1].name).closest("tr")!;
+        expect(within(unknown).getAllByText("N/A").length).toBeGreaterThan(0);
+        // Any unknown position withholds the footer total rather than understating it.
+        const footer = screen.getByText("Total").closest("tr")!;
+        expect(within(footer).queryByText(/90\.00/)).toBeNull();
+    });
+
+    it("shows a total return without a % when the % is unknown (#9038)", async () => {
+        const rows = [{ ...holdings[0], income_gbp: 0, realised_gain_gbp: 0, total_return_gbp: 12, total_return_pct: null }];
+        renderWithConfig(<HoldingsTable holdings={rows} />);
+
+        const row = (await screen.findByText(rows[0].name)).closest("tr")!;
+        const cell = within(row).getAllByText(/12\.00/)[0];
+        expect(cell.textContent).not.toMatch(/\(/);
     });
 
     it("renders shared group totals and expands grouped holdings", async () => {

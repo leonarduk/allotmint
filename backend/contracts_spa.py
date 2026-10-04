@@ -4,7 +4,7 @@ from typing import List
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SPA_RESPONSE_CONTRACT_VERSION = "2026-07-08"
+SPA_RESPONSE_CONTRACT_VERSION = "2026-10-04"
 
 
 class SpaContractBase(BaseModel):
@@ -142,6 +142,12 @@ class HoldingContract(SpaContractBase):
     gain_gbp: float | None = None
     gain_currency: str | None = None  # currency code e.g. "GBP", not a numeric value
     gain_pct: float | None = None
+    # Total return (#9038): capital gain plus income received and gains
+    # already realised on the position; see backend/common/position_returns.py.
+    income_gbp: float | None = None
+    realised_gain_gbp: float | None = None
+    total_return_gbp: float | None = None
+    total_return_pct: float | None = None
     current_price_gbp: float | None = None
     current_price_currency: str | None = None  # currency code e.g. "GBP"
     last_price_date: str | None = None

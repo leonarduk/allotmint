@@ -314,6 +314,30 @@
                           "null"
                         ]
                       },
+                      "income_gbp": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "realised_gain_gbp": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "total_return_gbp": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "total_return_pct": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
                       "current_price_gbp": {
                         "type": [
                           "number",
@@ -653,6 +677,30 @@
                         ]
                       },
                       "gain_pct": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "income_gbp": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "realised_gain_gbp": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "total_return_gbp": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "total_return_pct": {
                         "type": [
                           "number",
                           "null"

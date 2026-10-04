@@ -1,5 +1,5 @@
 {
-  "version": "2026-07-08",
+  "version": "2026-10-04",
   "config": {
     "app_env": "local",
     "google_auth_enabled": false,

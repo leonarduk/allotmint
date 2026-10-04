@@ -225,7 +225,8 @@
       "trend": "Tendencia",
       "type": "Tipo",
       "units": "Unidades",
-      "weightPct": "Peso %"
+      "weightPct": "Peso %",
+      "totalReturn": "Rentabilidad total £"
     },
     "columnsLabel": "Columnas:",
     "eligible": "Elegible",
@@ -266,7 +267,10 @@
       "all": "Todos"
     },
     "noPriceHistoryNotice_one": "{{count}} instrumento sin historial de precios",
-    "noPriceHistoryNotice_other": "{{count}} instrumentos sin historial de precios"
+    "noPriceHistoryNotice_other": "{{count}} instrumentos sin historial de precios",
+    "totalReturnHeaderTitle": "Ganancia de capital más dividendos, intereses y ganancias ya realizadas en esta posición",
+    "totalReturnBreakdown": "Ingresos recibidos {{income}} · realizado en ventas {{realised}}",
+    "totalReturnNoTransactions": "No hay transacciones registradas para esta cuenta — ingresos desconocidos"
   },
   "instrumentadmin": {
     "actions": "Acciones",

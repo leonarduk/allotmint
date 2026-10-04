@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const SPA_RESPONSE_CONTRACT_VERSION = "2026-07-08";
+export const SPA_RESPONSE_CONTRACT_VERSION = "2026-10-04";
 
 const nullableString = z.string().nullable().optional();
 const nullableNumber = z.number().nullable().optional();
@@ -74,6 +74,10 @@ export const holdingContractSchema = z
     gain_gbp: nullableNumber,
     gain_currency: nullableString,
     gain_pct: nullableNumber,
+    income_gbp: nullableNumber,
+    realised_gain_gbp: nullableNumber,
+    total_return_gbp: nullableNumber,
+    total_return_pct: nullableNumber,
     current_price_gbp: nullableNumber,
     current_price_currency: nullableString,
     last_price_date: nullableString,

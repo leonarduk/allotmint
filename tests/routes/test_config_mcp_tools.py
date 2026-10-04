@@ -103,22 +103,25 @@ def test_get_mcp_tools_merges_server_listing_config_and_local_tools(config_path,
 
     assert body["mcp_error"] is None
     assert body["tools"] == [
-        {"name": "delete_price_trigger", "description": "", "enabled": False},
+        {"name": "delete_price_trigger", "description": "", "enabled": False, "not_configured": None},
         {
             "name": "export_file",
             "description": "Save a table as a CSV, Excel or Word download.",
             "enabled": True,
+            "not_configured": None,
         },
         {
             "name": "get_nav_discount",
             "description": "NAV premium/discount for a closed-end fund.",
             "enabled": True,
+            "not_configured": None,
         },
-        {"name": "get_portfolio", "description": "Portfolio", "enabled": True},
+        {"name": "get_portfolio", "description": "Portfolio", "enabled": True, "not_configured": None},
         {
             "name": "navigate_to_page",
             "description": "Open a page of the app for the user.",
             "enabled": True,
+            "not_configured": None,
         },
     ]
 
@@ -146,3 +149,59 @@ def test_get_mcp_tools_without_a_server_url(config_path, monkeypatch):
     body = TestClient(create_app()).get("/config/mcp-tools").json()
 
     assert "MCP_SERVER_URL" in body["mcp_error"]
+
+
+def test_get_mcp_tools_passes_through_the_servers_not_configured_reason(config_path, monkeypatch):
+    monkeypatch.setenv("MCP_SERVER_URL", "http://localhost:8001/mcp")
+    reload_config()
+    reason = "Web search is not configured: set ALLOTMINT_MCP_BRAVE_API_KEY to a Brave Search API key."
+
+    async def listing(url):
+        return [
+            {"name": "search_web", "description": "Search", "not_configured": reason},
+            {"name": "get_portfolio", "description": "Portfolio", "not_configured": None},
+        ]
+
+    monkeypatch.setattr(routes_config, "_list_mcp_server_tools", listing)
+
+    tools = {tool["name"]: tool for tool in TestClient(create_app()).get("/config/mcp-tools").json()["tools"]}
+
+    assert tools["search_web"]["not_configured"] == reason
+    assert tools["search_web"]["enabled"] is True
+    assert tools["get_portfolio"]["not_configured"] is None
+    assert tools["navigate_to_page"]["not_configured"] is None
+
+
+def test_list_mcp_server_tools_reads_the_not_configured_marker_from_tool_meta(monkeypatch):
+    import contextlib
+
+    import anyio
+    from mcp import types
+
+    from backend.chat import mcp_tools_client
+
+    listed = [
+        types.Tool(name="search_web", input_schema={"type": "object"}, _meta={"allotmint/not_configured": " No key. "}),
+        types.Tool(name="get_portfolio", input_schema={"type": "object"}, _meta={"other": "x"}),
+        types.Tool(name="odd", input_schema={"type": "object"}, _meta={"allotmint/not_configured": 3}),
+        types.Tool(name="plain", input_schema={"type": "object"}),
+    ]
+
+    class Session:
+        async def list_tools(self):
+            return types.ListToolsResult(tools=listed)
+
+    @contextlib.asynccontextmanager
+    async def fake_session(url):
+        yield Session()
+
+    monkeypatch.setattr(mcp_tools_client, "mcp_session", fake_session)
+
+    tools = anyio.run(routes_config._list_mcp_server_tools, "http://localhost:8001/mcp")
+
+    assert {tool["name"]: tool["not_configured"] for tool in tools} == {
+        "search_web": "No key.",
+        "get_portfolio": None,
+        "odd": None,
+        "plain": None,
+    }

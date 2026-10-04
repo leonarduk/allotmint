@@ -717,15 +717,23 @@ export default function Support() {
               {mcpError && <p className="mb-1 text-sm text-amber-600">{mcpError}</p>}
               <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
                 {mcpTools.map((tool) => (
-                  <label key={tool.name} className="mb-1 block font-medium" title={tool.description}>
-                    <input
-                      type="checkbox"
-                      checked={tool.enabled}
-                      onChange={(e) => handleMcpToolChange(tool.name, e.target.checked)}
-                      className="mr-1"
-                    />
-                    {tool.name}
-                  </label>
+                  <div key={tool.name} className="mb-1">
+                    <label className="block font-medium" title={tool.description}>
+                      <input
+                        type="checkbox"
+                        checked={tool.enabled}
+                        onChange={(e) => handleMcpToolChange(tool.name, e.target.checked)}
+                        aria-describedby={tool.not_configured ? `mcp-tool-${tool.name}-status` : undefined}
+                        className="mr-1"
+                      />
+                      {tool.name}
+                    </label>
+                    {tool.not_configured && (
+                      <p id={`mcp-tool-${tool.name}-status`} className="ml-5 text-xs text-amber-600">
+                        {t("support.config.mcpToolNotConfigured")}: {tool.not_configured}
+                      </p>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>

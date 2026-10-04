@@ -1911,6 +1911,8 @@ export interface McpToolSwitch {
   name: string;
   description: string;
   enabled: boolean;
+  /** The MCP server's reason the tool cannot work yet (e.g. a missing API key); null when it can. */
+  not_configured?: string | null;
 }
 
 export interface McpToolsResponse {

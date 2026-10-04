@@ -12,11 +12,12 @@ setup() {
   mkdir -p "$REPO" "$PRO/allotmint_pro/mcp_server" "$BATS_TEST_TMPDIR/bin"
   cat >"$BATS_TEST_TMPDIR/bin/uvicorn" <<EOF
 #!/usr/bin/env bash
+echo "\${ALLOTMINT_MCP_BRAVE_API_KEY:-unset}" >"$BATS_TEST_TMPDIR/uvicorn.env"
 echo "\$PYTHONPATH \$*" >"$BATS_TEST_TMPDIR/uvicorn.args"
 EOF
   chmod +x "$BATS_TEST_TMPDIR/bin/uvicorn"
   PATH="$BATS_TEST_TMPDIR/bin:$PATH"
-  unset MCP_SERVER_URL MCP_SERVER_PORT START_MCP_SERVER ALLOTMINT_PRO_DIR
+  unset MCP_SERVER_URL MCP_SERVER_PORT START_MCP_SERVER ALLOTMINT_PRO_DIR ALLOTMINT_MCP_BRAVE_API_KEY
 }
 
 wait_for_stub() {
@@ -107,4 +108,14 @@ wait_for_stub() {
   [ -z "$MCP_SERVER_PID" ]
   [ "$MCP_SERVER_URL" = "http://localhost:59303/mcp" ]
   [ ! -f "$BATS_TEST_TMPDIR/uvicorn.args" ]
+}
+
+@test "the started server inherits the environment, e.g. the Brave search key (#9198)" {
+  MCP_SERVER_PORT=59309
+  export ALLOTMINT_MCP_BRAVE_API_KEY=test-key
+  start_local_mcp_server "$REPO" 2>/dev/null
+
+  wait_for_stub
+  run cat "$BATS_TEST_TMPDIR/uvicorn.env"
+  [ "$output" = "test-key" ]
 }

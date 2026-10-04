@@ -462,6 +462,25 @@ describe("Support page", () => {
     expect(await screen.findByText("MCP_SERVER_URL is not set")).toBeInTheDocument();
   });
 
+  it("marks an MCP tool the server reports as not configured, keeping its switch", async () => {
+    const reason = "Web search is not configured: set ALLOTMINT_MCP_BRAVE_API_KEY to a Brave Search API key.";
+    mockGetMcpTools.mockResolvedValue({
+      tools: [
+        { name: "get_portfolio", description: "Portfolio", enabled: true, not_configured: null },
+        { name: "search_web", description: "Search", enabled: true, not_configured: reason },
+      ],
+      mcp_error: null,
+    });
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+
+    const searchWeb = await screen.findByLabelText("search_web");
+    expect(searchWeb).toBeChecked();
+    expect(searchWeb).toHaveAccessibleDescription(`${en.support.config.mcpToolNotConfigured}: ${reason}`);
+    expect(screen.getByLabelText("get_portfolio")).not.toHaveAccessibleDescription();
+    expect(screen.getAllByText(new RegExp(en.support.config.mcpToolNotConfigured))).toHaveLength(1);
+  });
+
   it("separates switches from other parameters", async () => {
     render(<Support />, { wrapper: MemoryRouter });
     await expandSection(en.support.config.title);

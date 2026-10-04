@@ -5,7 +5,7 @@ import os
 from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 from fastapi import APIRouter, HTTPException
@@ -165,12 +165,32 @@ def read_config() -> Dict[str, Any]:
     return serialise_config(config_module.config)
 
 
-async def _list_mcp_server_tools(mcp_server_url: str) -> List[Dict[str, str]]:
+# _meta key the allotmint-pro MCP server sets on a tool that cannot work yet
+# (e.g. search_web without ALLOTMINT_MCP_BRAVE_API_KEY); its value is a reason
+# safe to show (#9198).
+NOT_CONFIGURED_META_KEY = "allotmint/not_configured"
+
+
+def _not_configured_reason(meta: Any) -> Optional[str]:
+    reason = meta.get(NOT_CONFIGURED_META_KEY) if isinstance(meta, dict) else None
+    if not isinstance(reason, str) or not reason.strip():
+        return None
+    return reason.strip()
+
+
+async def _list_mcp_server_tools(mcp_server_url: str) -> List[Dict[str, Any]]:
     from backend.chat.mcp_tools_client import mcp_session
 
     async with mcp_session(mcp_server_url) as session:
         result = await session.list_tools()
-    return [{"name": tool.name, "description": tool.description or ""} for tool in result.tools]
+    return [
+        {
+            "name": tool.name,
+            "description": tool.description or "",
+            "not_configured": _not_configured_reason(getattr(tool, "meta", None)),
+        }
+        for tool in result.tools
+    ]
 
 
 @router.get("/mcp-tools")
@@ -180,8 +200,10 @@ async def read_mcp_tools() -> Dict[str, Any]:
     Tools come from the MCP server's listing plus the chat backend's local
     ``navigate_to_page``, ``get_nav_discount`` and ``export_file``. The MCP server hides tools that are switched off, so
     names already in the config are added back; every tool is on unless the
-    config says false. ``mcp_error`` is set when the MCP server could not be
-    listed, in which case only the configured and local tools are returned.
+    config says false. ``not_configured`` is the MCP server's reason a listed
+    tool cannot work yet (e.g. a missing API key), else ``None``. ``mcp_error``
+    is set when the MCP server could not be listed, in which case only the
+    configured and local tools are returned.
     """
     from backend.chat import export_file_tool, nav_discount_tool
     from backend.chat.local_tools import NAVIGATE_TOOL_NAME
@@ -215,7 +237,10 @@ async def read_mcp_tools() -> Dict[str, Any]:
     for name in switches:
         tools.setdefault(name, {"name": name, "description": ""})
     return {
-        "tools": [{**tool, "enabled": switches.get(name, True) is not False} for name, tool in sorted(tools.items())],
+        "tools": [
+            {**tool, "enabled": switches.get(name, True) is not False, "not_configured": tool.get("not_configured")}
+            for name, tool in sorted(tools.items())
+        ],
         "mcp_error": mcp_error,
     }
 

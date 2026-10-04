@@ -34,3 +34,13 @@ setup() {
 
   [ -z "${LOADED_FROM:-}" ]
 }
+
+@test "exports credentials such as the MCP server's Brave key, with quotes stripped" {
+  printf 'ALLOTMINT_MCP_BRAVE_API_KEY="test-key"
+' >"$BATS_TEST_TMPDIR/shared.env"
+  unset ALLOTMINT_MCP_BRAVE_API_KEY
+  load_allotmint_env "$REPO"
+
+  run bash -c 'echo "$ALLOTMINT_MCP_BRAVE_API_KEY"'
+  [ "$output" = "test-key" ]
+}

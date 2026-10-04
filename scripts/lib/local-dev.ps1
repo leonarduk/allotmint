@@ -5,14 +5,20 @@
 # Sets the variables from the repo's .env, else the shared env file outside
 # every repo/worktree so credentials never need copying around (see
 # ALLOTMINT_ENV_FILE in docs/CONTRIBUTOR_RUNBOOK.md). A repo-local .env wins.
+# Child processes (e.g. the MCP server started by run-backend.ps1) inherit
+# these. One pair of surrounding quotes is stripped, as bash's `source` does
+# in load_env.sh, so KEY="value" means the same under both scripts.
 function Import-AllotmintEnv([string]$RepoRoot) {
   $sharedEnvFile = if ($env:ALLOTMINT_ENV_FILE) { $env:ALLOTMINT_ENV_FILE } else { Join-Path $env:USERPROFILE 'workspace\GitHub\allotmint\.env.shared' }
   $repoEnvFile = Join-Path $RepoRoot '.env'
   $envFile = if (Test-Path $repoEnvFile) { $repoEnvFile } elseif (Test-Path $sharedEnvFile) { $sharedEnvFile } else { $null }
   if (-not $envFile) { return }
   Get-Content $envFile | ForEach-Object {
-    if ($_ -match '^\s*([^#=]+?)\s*=\s*(.*)\s*$') {
-      Set-Item -Path "Env:$($matches[1])" -Value $matches[2]
+    if ($_ -match '^\s*([^#=]+?)\s*=\s*(.*?)\s*$') {
+      $name = $matches[1]
+      $value = $matches[2]
+      if ($value -match '^"(.*)"$' -or $value -match "^'(.*)'$") { $value = $matches[1] }
+      Set-Item -Path "Env:$name" -Value $value
     }
   }
 }

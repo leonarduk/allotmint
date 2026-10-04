@@ -202,6 +202,13 @@ def test_limits_are_413(app, monkeypatch: pytest.MonkeyPatch) -> None:
     resp = client.put(URL, content=b"{}", headers={"Content-Type": "application/json", "Content-Length": "999999999"})
     assert resp.status_code == 413
 
+    # Without a Content-Length (chunked), the size is checked once read.
+    def chunks():
+        yield body.encode()
+
+    resp = client.put(URL, content=chunks(), headers={"Content-Type": "application/json"})
+    assert resp.status_code == 413
+
     # Nothing was written by any of the refused saves.
     assert client.get(URL).json()["revision"] == 0
 

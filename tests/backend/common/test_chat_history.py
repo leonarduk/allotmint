@@ -177,6 +177,23 @@ def test_archive_gives_up_when_every_attempt_loses_a_race(store, monkeypatch) ->
     assert [p.name for p in (store.root / ch.user_key(ALICE) / "archive").iterdir()] == ["r00000001.json"]
 
 
+def test_archive_failing_after_the_copy_keeps_the_conversation_and_retries_cleanly(store, monkeypatch) -> None:
+    ch.save_conversation(ALICE, _conversation("v1"), 0, store)
+
+    def unavailable(key, data, *, expect_tag):
+        raise ch.ChatHistoryUnavailable("S3 write failed")
+
+    monkeypatch.setattr(store, "write", unavailable)
+    with pytest.raises(ch.ChatHistoryUnavailable):
+        ch.archive_conversation(ALICE, store)
+    monkeypatch.undo()
+
+    # Still current, so nothing is lost; the retry rewrites the same archive copy.
+    assert ch.load_conversation(ALICE, store)["revision"] == 1
+    assert ch.archive_conversation(ALICE, store) == {"revision": 2, "archived": True}
+    assert [p.name for p in (store.root / ch.user_key(ALICE) / "archive").iterdir()] == ["r00000001.json"]
+
+
 def test_delete_history_removes_current_and_archives(store, tmp_path: Path) -> None:
     ch.save_conversation(ALICE, _conversation("one"), 0, store)
     ch.archive_conversation(ALICE, store)

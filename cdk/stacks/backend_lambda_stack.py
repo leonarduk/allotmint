@@ -50,7 +50,10 @@ METADATA_PREFIX = "instruments"
 # CHAT_HISTORY_RETENTION_DAYS after their last save, and the superseded
 # versions every save leaves in this versioned bucket expire after
 # CHAT_HISTORY_NONCURRENT_DAYS, so "Delete my chat history" leaves nothing
-# behind for long.
+# behind for long. The repo owner agreed these privacy decisions before #8870
+# was implemented: 90-day retention, "New chat" archives rather than deletes,
+# and a separate "Delete history" control. Change them only with the same
+# sign-off.
 CHAT_HISTORY_PREFIX = "chat"
 CHAT_HISTORY_RETENTION_DAYS = 90
 CHAT_HISTORY_NONCURRENT_DAYS = 1

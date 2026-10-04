@@ -337,6 +337,11 @@ def _fetch_headlines() -> List[Dict[str, Any]]:
         except NewsQuotaExceeded:
             logger.warning("News quota exhausted while building market headlines; returning partial data")
             break
+        except Exception:
+            # One failing symbol must not blank the whole headline list, and
+            # an unexpected error must not masquerade as quota exhaustion.
+            logger.exception("Failed to fetch news for %s", sanitise_log_value(sym))
+            continue
 
         if not items:
             continue

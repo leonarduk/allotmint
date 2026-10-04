@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import List
 
 import pytest
 
 from backend.routes import market as market_module
+from backend.routes.news import NewsQuotaExceeded
+from backend.utils import page_cache
 
 
 def _make_payload(symbol: str, label: str) -> List[dict[str, str]]:
@@ -51,7 +54,7 @@ def test_fetch_headlines_stops_on_quota_exhaustion(monkeypatch):
     def fake_get_cached_news(symbol: str) -> List[dict[str, str]]:
         calls.append(symbol)
         if symbol == stop_after:
-            raise market_module.NewsQuotaExceeded("news quota exceeded")
+            raise NewsQuotaExceeded("news quota exceeded")
         return _make_payload(symbol, "fresh")
 
     monkeypatch.setattr(market_module, "get_cached_news", fake_get_cached_news)
@@ -61,6 +64,45 @@ def test_fetch_headlines_stops_on_quota_exhaustion(monkeypatch):
     assert calls == symbols[: symbols.index(stop_after) + 1]
     assert all(stop_after not in item["headline"] for item in headlines)
     assert all(item["headline"].endswith("fresh") for item in headlines)
+
+
+def test_fetch_headlines_skips_symbol_on_unexpected_error(monkeypatch):
+    """A non-quota error for one symbol must not be mistaken for quota
+    exhaustion and abort the remaining symbols."""
+
+    symbols = list(market_module.INDEX_SYMBOLS.values())
+    failing = symbols[0]
+    calls: list[str] = []
+
+    def fake_get_cached_news(symbol: str) -> list[dict[str, str]]:
+        calls.append(symbol)
+        if symbol == failing:
+            raise RuntimeError("no running event loop")
+        return _make_payload(symbol, "fresh")
+
+    monkeypatch.setattr(market_module, "get_cached_news", fake_get_cached_news)
+
+    headlines = market_module._fetch_headlines()
+
+    assert calls == symbols
+    expected = sorted(f"{sym} fresh" for sym in symbols[1:])
+    assert sorted(item["headline"] for item in headlines) == expected
+
+
+def test_fetch_headlines_serves_fresh_cache_off_event_loop_thread(monkeypatch, tmp_path):
+    """Regression: ``market_overview`` runs ``_fetch_headlines`` on a worker
+    thread with no event loop. Scheduling the background cache refresh there
+    used to raise ``RuntimeError`` and blank every headline."""
+
+    monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(market_module, "INDEX_SYMBOLS", {"One": "ONE"})
+    page_cache.save_cache("news_ONE", _make_payload("ONE", "cached"))
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        headlines = pool.submit(market_module._fetch_headlines).result()
+
+    assert [item["headline"] for item in headlines] == ["ONE cached"]
+    assert "news_ONE" not in page_cache._refresh_tasks
 
 
 @pytest.mark.asyncio

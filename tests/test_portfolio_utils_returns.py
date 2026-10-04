@@ -95,6 +95,25 @@ def test_compute_time_weighted_return_deposit_is_neutral(ledger_owner):
     assert result == pytest.approx(0.0)
 
 
+def test_compute_time_weighted_return_withdrawal_is_neutral(ledger_owner):
+    """#8461: a mid-window withdrawal must not read as a gain (or a loss).
+
+    £1,500 in, £1,000 of it in 10 units that rise 10% on 12 Jan, then £500
+    withdrawn on 20 Jan with flat prices: TWR is the 12 Jan move only.
+    """
+    closes = {"AAA.L": {"2026-01-05": 100.0, "2026-01-12": 110.0}}
+    transactions = [
+        _deposit("2026-01-05", 1500),
+        _buy("2026-01-05", 10, 1000),
+        {"date": "2026-01-20", "type": "WITHDRAWAL", "amount_minor": 50000},
+    ]
+    ledger_owner(transactions, closes)
+
+    result = pu.compute_time_weighted_return("owner", 365, pricing_date=date(2026, 2, 2))
+
+    assert result == pytest.approx(1600 / 1500 - 1)
+
+
 def test_compute_time_weighted_return_dividend_is_return(ledger_owner):
     closes = {"AAA.L": {"2026-01-05": 100.0}}
     transactions = [
@@ -209,6 +228,51 @@ def test_ledger_xirr_flows_weekend_window_start_opens_on_prior_close(ledger_owne
     assert pu.compute_xirr("owner", days, pricing_date=end) == pytest.approx(
         (1 + twr) ** (365 / held_days) - 1, abs=1e-6
     )
+
+
+def test_ledger_xirr_flows_zero_opening_value_has_no_opening_outflow(ledger_owner):
+    """Everything sold and withdrawn before the window: no opening outflow.
+
+    A zero opening flow would add nothing to the NPV, so it is dropped; the
+    re-entry deposit is then the first investor outflow. 5 units bought at
+    100 and closing at 120 is +20% over 1 Sep 2025 - 1 Jan 2026.
+    """
+    end = date(2026, 1, 1)
+    closes = {"AAA.L": {"2025-01-02": 100.0, "2025-09-01": 100.0, "2026-01-01": 120.0}}
+    transactions = [
+        _deposit("2025-01-02", 1000),
+        _buy("2025-01-02", 10, 1000),
+        {"date": "2025-02-03", "type": "SELL", "ticker": "AAA.L", "units": 10, "amount_minor": 100000},
+        {"date": "2025-02-03", "type": "WITHDRAWAL", "amount_minor": 100000},
+        _deposit("2025-09-01", 500),
+        _buy("2025-09-01", 5, 500),
+    ]
+    ledger_owner(transactions, closes)
+    perf = pu._owner_ledger_performance("owner", end)
+
+    flows = pu._ledger_xirr_flows(perf, 213)  # window opens after 2 Jun 2025, value 0 then
+
+    assert flows == [
+        (date(2025, 9, 1), pytest.approx(-500.0)),
+        (end, pytest.approx(600.0)),
+    ]
+    held_days = (end - date(2025, 9, 1)).days
+    assert pu.compute_xirr("owner", 213, pricing_date=end) == pytest.approx(1.2 ** (365 / held_days) - 1, abs=1e-6)
+
+
+def test_ledger_xirr_flows_close_dated_on_last_rebuilt_day(ledger_owner):
+    """A weekend ``end`` passed straight to the rebuild closes on Friday's value, dated Friday."""
+    closes = {"AAA.L": {"2025-01-01": 100.0, "2026-01-02": 110.0}}
+    ledger_owner([_deposit("2025-01-01", 1000), _buy("2025-01-01", 10, 1000)], closes)
+    ledgers = pu.ledger_performance.load_owner_ledgers("owner")
+    perf = pu.ledger_performance.build_ledger_performance(ledgers, date(2026, 1, 3))  # Saturday
+
+    flows = pu._ledger_xirr_flows(perf, 0)
+
+    assert flows == [
+        (date(2025, 1, 1), pytest.approx(-1000.0)),
+        (date(2026, 1, 2), pytest.approx(1100.0)),
+    ]
 
 
 def test_ledger_xirr_flows_untracked_cash_pays_out_income(ledger_owner):

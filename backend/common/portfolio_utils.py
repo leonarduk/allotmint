@@ -1874,8 +1874,12 @@ def _owner_ledger_performance(owner: str, pricing_date: date | None) -> ledger_p
     each day, so deposits and income are not mistaken for gains or losses.
     ``build_owner_portfolio`` raises ``FileNotFoundError`` for an unknown
     owner (the routes map it to 404); its holdings only supply the name
-    aliases that join ticker-less trades to the right instrument. Returns
-    ``None`` when the owner has no dated transactions.
+    aliases that join ticker-less trades to the right instrument.
+
+    Returns whatever ``build_ledger_performance`` does: ``None`` when no
+    ledger has a dated transaction on or before the reporting date. Callers
+    should go through ``_ledger_performance_for``, which also treats an
+    empty rebuild as no rebuild (#8467).
     """
     end = PricingDateCalculator(reporting_date=pricing_date).reporting_date
     pf = portfolio_mod.build_owner_portfolio(owner, pricing_date=end)
@@ -2047,6 +2051,12 @@ def _ledger_xirr_flows(perf: ledger_performance.LedgerPerformance, days: int) ->
     reporting date), so on a window with no flows XIRR is the chained TWR
     annualised over the calendar days from that opening close to ``end``.
 
+    The closing inflow is likewise dated on its close,
+    ``perf.values.index[-1]``. The rebuild's index is
+    ``bdate_range(first_ledger_day, end)``, so that is ``perf.end`` whenever
+    ``end`` is a business day (always, via ``_owner_ledger_performance``)
+    and the preceding Friday if a caller passes a weekend ``end``.
+
     ``perf`` must have a non-empty ``values`` series, which
     ``_ledger_performance_for`` guarantees (#8467).
     """
@@ -2056,6 +2066,10 @@ def _ledger_xirr_flows(perf: ledger_performance.LedgerPerformance, days: int) ->
         held = perf.values[perf.values.index <= pd.Timestamp(after)]
         # Empty when the window starts before inception: the opening deposits
         # are then flows inside the window, and there is no opening value.
+        # A zero close (everything sold and withdrawn before the window) is
+        # skipped too: a zero flow adds nothing to the NPV, so XIRR is the
+        # same either way, and the first real flow in the window (the next
+        # deposit) is then the investor's opening outlay.
         if not held.empty and held.iloc[-1]:
             flows.append((held.index[-1].date(), -float(held.iloc[-1])))
     for day, amount in _after(perf.flows, after).items():
@@ -2064,7 +2078,7 @@ def _ledger_xirr_flows(perf: ledger_performance.LedgerPerformance, days: int) ->
     for day, amount in _after(perf.income, after).items():
         if amount:
             flows.append((day.date(), float(amount)))
-    flows.append((perf.end, float(perf.values.iloc[-1])))
+    flows.append((perf.values.index[-1].date(), float(perf.values.iloc[-1])))
     return flows
 
 

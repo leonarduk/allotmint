@@ -20,7 +20,7 @@ vi.mock("@/api", () => ({
   getSeriesReferences: vi.fn(() => Promise.resolve({ can_delete: false })),
   deleteTimeseries: vi.fn(),
 }));
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
 import InstrumentResearch from "@/pages/InstrumentResearch";
@@ -861,6 +861,32 @@ describe("InstrumentResearch page", () => {
     expect(
       await screen.findByRole("link", { name: "View on Investing.com" }),
     ).toHaveAttribute("href", "https://www.investing.com/search/?q=AAA");
+    expect(screen.queryByRole("link", { name: "View on Morningstar" })).toBeNull();
+  });
+
+  it("clears the ISIN links when the ticker changes to one without an ISIN", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme Corp", isin: "GB00BH4HKS39" },
+    ] as any);
+    const tree = (ticker: string) => (
+      <configContext.Provider value={defaultConfig}>
+        <MemoryRouter>
+          <InstrumentResearch ticker={ticker} />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const { rerender } = render(tree("AAA"));
+    expect(
+      await screen.findByRole("link", { name: "View on Morningstar" }),
+    ).toBeInTheDocument();
+
+    rerender(tree("BBB"));
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "View on Investing.com" })).toHaveAttribute(
+        "href",
+        "https://www.investing.com/search/?q=BBB",
+      ),
+    );
     expect(screen.queryByRole("link", { name: "View on Morningstar" })).toBeNull();
   });
 

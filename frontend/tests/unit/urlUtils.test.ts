@@ -157,6 +157,9 @@ describe("buildInvestingComUrl", () => {
     expect(buildInvestingComUrl("not-an-isin", "AAPL.N")).toBe(
       "https://www.investing.com/search/?q=AAPL",
     );
+    expect(buildInvestingComUrl(null, "AAPL")).toBe(
+      "https://www.investing.com/search/?q=AAPL",
+    );
   });
 
   it("returns null when there is nothing to search for", () => {

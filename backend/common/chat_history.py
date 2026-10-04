@@ -4,7 +4,7 @@ Each user has one current conversation plus the conversations archived by
 "New chat", stored under a per-user prefix of ``CHAT_HISTORY_STORAGE_URI``:
 
 ``{base}/{user}/current.json``             the conversation the panel shows
-``{base}/{user}/archive/{stamp}.json``     one per "New chat"
+``{base}/{user}/archive/r{revision}.json`` one per "New chat"
 
 ``{user}`` is the SHA-256 of the lower-cased email, so neither object keys nor
 file names carry the address. ``{base}`` is ``s3://bucket/prefix`` in Lambda
@@ -265,7 +265,8 @@ def _decode(stored: Optional[_Stored]) -> Dict[str, Any]:
         doc = json.loads(stored.data)
     except json.JSONDecodeError as exc:
         raise ChatHistoryUnavailable("Stored chat conversation is not valid JSON") from exc
-    if not isinstance(doc, dict) or not isinstance(doc.get("revision"), int):
+    revision = doc.get("revision") if isinstance(doc, dict) else None
+    if not isinstance(revision, int) or isinstance(revision, bool) or revision < 0:
         raise ChatHistoryUnavailable("Stored chat conversation is malformed")
     return doc
 
@@ -328,8 +329,9 @@ def archive_conversation(email: str, store: Optional[ChatStore] = None) -> Dict[
         current = _decode(stored)
         if stored is None or not (current.get("conversation") or {}).get("nodes"):
             return {"revision": current["revision"], "archived": False}
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-        store.write_new(f"{user}/{ARCHIVE_DIR}/{stamp}-r{current['revision']}.json", stored.data)
+        # Named by revision, so a retry after a failed write below rewrites
+        # the same archive rather than adding a duplicate.
+        store.write_new(f"{user}/{ARCHIVE_DIR}/r{current['revision']:08d}.json", stored.data)
         revision = current["revision"] + 1
         body = json.dumps(_document(revision, empty_conversation())).encode("utf-8")
         try:

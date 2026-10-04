@@ -119,6 +119,35 @@ def test_archive_retries_when_a_write_lands_in_between(store, monkeypatch) -> No
     assert [json.loads(p.read_text())["conversation"]["nodes"][0]["content"] for p in archived] == ["v1", "v2"]
 
 
+def test_archive_retry_of_the_same_revision_does_not_duplicate_it(store, monkeypatch) -> None:
+    ch.save_conversation(ALICE, _conversation("v1"), 0, store)
+    real_write = store.write
+    calls = {"n": 0}
+
+    def flaky_write(key, data, *, expect_tag):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # A conditional write that fails without anything having changed.
+            raise ch._PreconditionFailed()
+        return real_write(key, data, expect_tag=expect_tag)
+
+    monkeypatch.setattr(store, "write", flaky_write)
+
+    assert ch.archive_conversation(ALICE, store) == {"revision": 2, "archived": True}
+    archived = list((store.root / ch.user_key(ALICE) / "archive").iterdir())
+    assert [p.name for p in archived] == ["r00000001.json"]
+
+
+@pytest.mark.parametrize("bad", [b'{"revision": -1}', b'{"revision": true}', b'{"revision": "3"}', b"[]"])
+def test_malformed_stored_revision_is_an_error(store, tmp_path: Path, bad: bytes) -> None:
+    path = tmp_path / ch.user_key(ALICE) / "current.json"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(bad)
+
+    with pytest.raises(ch.ChatHistoryUnavailable):
+        ch.load_conversation(ALICE, store)
+
+
 def test_delete_history_removes_current_and_archives(store, tmp_path: Path) -> None:
     ch.save_conversation(ALICE, _conversation("one"), 0, store)
     ch.archive_conversation(ALICE, store)

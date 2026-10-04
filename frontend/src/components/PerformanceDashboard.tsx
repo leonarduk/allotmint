@@ -25,6 +25,14 @@ import { percent } from "../lib/money";
 import { formatDateISO } from "../lib/date";
 import type { DrawdownExtrema, DrawdownSeriesPoint } from "../types";
 import InfoTip from "./InfoTip";
+import FractionMetric from "./FractionMetric";
+import {
+  classifyDrawdown,
+  DRAWDOWN_RANGE,
+  drawdownNeedsAttention,
+  RETURN_RANGE,
+  TRACKING_ERROR_RANGE,
+} from "../lib/metricPlausibility";
 
 type Props = {
   owner: string | null;
@@ -42,111 +50,9 @@ type Props = {
 // (see #7230) because "Alpha vs Benchmark" is not interpretable without it.
 const BENCHMARK_TICKER = "VWRL.L";
 
-// Every headline metric on this page is returned by the API as a FRACTION
-// (0.0596 = 5.96%) -- alpha, tracking error, max drawdown, TWR and XIRR
-// alike (see backend/common/portfolio_utils.py and #8570). They are
-// formatted directly from that unit; the old "|x| > 1 means percent, so
-// divide by 100" guess is gone because it turned a broken 14159.17 XIRR into
-// a believable 141.59% and a genuine 1.5 (150%) into 1.5%.
-//
-// Instead, values outside these bounds are treated as an unreliable
-// calculation and rendered as "N/A" with a tooltip, never rescaled.
-/** |TWR|, |XIRR| or |alpha| above 10 (1,000%) is not a believable return. */
-const MAX_PLAUSIBLE_ABS_RETURN = 10;
-/** Annualised tracking error is a std-dev (>= 0); above 2 (200%) is implausible. */
-const MAX_PLAUSIBLE_TRACKING_ERROR = 2;
-/** Drawdown is peak-relative, so it can only lie in [-1, 0] (-100%..0%). */
-const MIN_PLAUSIBLE_DRAWDOWN = -1;
-const MAX_PLAUSIBLE_DRAWDOWN = 0;
-
-type PlausibleRange = { min: number; max: number };
-
-const RETURN_RANGE: PlausibleRange = {
-  min: -MAX_PLAUSIBLE_ABS_RETURN,
-  max: MAX_PLAUSIBLE_ABS_RETURN,
-};
-const TRACKING_ERROR_RANGE: PlausibleRange = {
-  min: 0,
-  max: MAX_PLAUSIBLE_TRACKING_ERROR,
-};
-const DRAWDOWN_RANGE: PlausibleRange = {
-  min: MIN_PLAUSIBLE_DRAWDOWN,
-  max: MAX_PLAUSIBLE_DRAWDOWN,
-};
-
-const isFiniteNumber = (value: number | null | undefined): value is number =>
-  typeof value === "number" && Number.isFinite(value);
-
-const isPlausible = (value: number, range: PlausibleRange) =>
-  value >= range.min && value <= range.max;
-
-/**
- * Single source of truth for how a metric value is treated:
- * - "missing": null/undefined/NaN/Infinity -> plain "N/A";
- * - "unreliable": finite but outside the plausible range -> "N/A" with an
- *   "unreliable" tooltip (never rescaled);
- * - "ok": formatted as a percentage.
- * The drawdown tile, the drawdown details text, the warning and the
- * auto-expand all read this so they can never disagree (#8570 review).
- */
-type MetricState = "missing" | "unreliable" | "ok";
-
-const classifyMetric = (
-  value: number | null | undefined,
-  range: PlausibleRange,
-): MetricState => {
-  if (!isFiniteNumber(value)) return "missing";
-  return isPlausible(value, range) ? "ok" : "unreliable";
-};
-
-/** A plausible drawdown at or beyond -90% usually means bad price data. */
-const SEVERE_DRAWDOWN = -0.9;
-
-type DrawdownState = MetricState | "severe";
-
-/** Classify max drawdown; "severe" is a plausible value <= -90%. */
-const classifyDrawdown = (value: number | null | undefined): DrawdownState => {
-  const state = classifyMetric(value, DRAWDOWN_RANGE);
-  if (state === "ok" && (value as number) <= SEVERE_DRAWDOWN) return "severe";
-  return state;
-};
-
-/** Severe or unreliable drawdowns open the details panel automatically. */
-const drawdownNeedsAttention = (state: DrawdownState) =>
-  state === "severe" || state === "unreliable";
-
-type FractionMetricProps = {
-  value: number | null;
-  range: PlausibleRange;
-  testId: string;
-};
-
-/** Render a fraction-unit metric as a percentage, or "N/A" when unusable. */
-function FractionMetric({ value, range, testId }: FractionMetricProps) {
-  const { t, i18n } = useTranslation();
-  const na = t("dashboard.metricNotAvailable", "N/A");
-  const state = classifyMetric(value, range);
-  if (state === "missing") {
-    return <span data-testid={testId}>{na}</span>;
-  }
-  if (state === "unreliable") {
-    return (
-      <span
-        data-testid={testId}
-        data-unreliable="true"
-        title={t(
-          "dashboard.metricUnreliable",
-          "This calculation looks unreliable (the value is outside a plausible range), so it is not shown.",
-        )}
-      >
-        {na}
-      </span>
-    );
-  }
-  return (
-    <span data-testid={testId}>{percent((value as number) * 100, 2, i18n.language)}</span>
-  );
-}
+// Metric units (fractions) and plausibility handling live in
+// lib/metricPlausibility.ts and FractionMetric, shared with the group view
+// (#8570).
 
 export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [data, setData] = useState<PerformancePoint[]>([]);

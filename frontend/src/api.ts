@@ -70,7 +70,7 @@ import {
   awsCostsContractSchema,
 } from "./contracts/apiContracts";
 import { clearFetchCache } from "./utils/fetchCache";
-import { startNewChat } from "./utils/chatConversation";
+import { emitAuthChange } from "./authEvents";
 
 const cleanOptionalString = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
@@ -260,19 +260,19 @@ export function createClient(
     //
     // Guarded on an actual change so a token refresh for the same user (which
     // re-sets an identical value) does not throw the cache away for nothing.
-    if (t !== authToken) {
+    const previousToken = authToken;
+    if (t !== previousToken) {
       clearFetchCache();
       clearGroupInstrumentCache();
     }
-    // The chat conversation is kept in sessionStorage so it survives a reload,
-    // so it is cleared only on logout, not on every token change: a reload
-    // re-applies the stored token from null, and the Cognito refresh swaps in
-    // a new token for the same user every hour.
-    if (t === null && authToken !== null) startNewChat();
     authToken = t;
-    if (!storage) return;
-    if (t) storage.setItem(TOKEN_STORAGE_KEY, t);
-    else storage.removeItem(TOKEN_STORAGE_KEY);
+    if (storage) {
+      if (t) storage.setItem(TOKEN_STORAGE_KEY, t);
+      else storage.removeItem(TOKEN_STORAGE_KEY);
+    }
+    // Per-user state outside the API client (e.g. the chat conversation)
+    // reacts through authEvents, emitted once the new token is in place.
+    if (t !== previousToken) emitAuthChange({ previousToken, nextToken: t });
   };
 
   const getStoredAuthToken = () => storage?.getItem(TOKEN_STORAGE_KEY) ?? null;

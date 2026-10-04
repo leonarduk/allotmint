@@ -34,6 +34,7 @@ import {
   getChatMessages,
   startNewChat,
 } from "@/utils/chatConversation";
+import { onAuthChange } from "@/authEvents";
 
 const csvFile = new File(["ticker,units"], "holdings.csv", {
   type: "text/csv",
@@ -1304,6 +1305,29 @@ describe("cached responses do not survive an identity change", () => {
     setAuthToken("token-for-user-a");
 
     expect(readFetchCache("portfolio-group:all:")).toBeDefined();
+  });
+});
+
+describe("setAuthToken auth-change events (issue #8618)", () => {
+  afterEach(() => {
+    setAuthToken(null);
+  });
+
+  it("emits once per actual token change, with the previous token", () => {
+    setAuthToken(null);
+    const listener = vi.fn();
+    const unsubscribe = onAuthChange(listener);
+
+    setAuthToken("token-for-user-a");
+    // Re-setting the same token is not a change.
+    setAuthToken("token-for-user-a");
+    setAuthToken(null);
+    unsubscribe();
+
+    expect(listener.mock.calls).toEqual([
+      [{ previousToken: null, nextToken: "token-for-user-a" }],
+      [{ previousToken: "token-for-user-a", nextToken: null }],
+    ]);
   });
 });
 

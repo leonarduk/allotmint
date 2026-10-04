@@ -116,6 +116,12 @@ describe("PortfolioDashboard page", () => {
       expect(screen.getByText("-8.90%")).toBeInTheDocument();
       expect(screen.getByText("Volatility")).toBeInTheDocument();
       expect(screen.getByText("15.00%")).toBeInTheDocument();
+      // Pin each value to its own tile, so a wrong multiplier on any one
+      // metric can't be masked by the same text appearing elsewhere.
+      expect(screen.getByTestId("metric-alpha")).toHaveTextContent("1.20%");
+      expect(screen.getByTestId("metric-tracking-error")).toHaveTextContent("4.50%");
+      expect(screen.getByTestId("metric-max-drawdown")).toHaveTextContent("-8.90%");
+      expect(screen.getByTestId("metric-volatility")).toHaveTextContent("15.00%");
     });
 
     it("renders the value and cumulative-return charts with the supplied series", () => {

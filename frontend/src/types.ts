@@ -30,6 +30,14 @@ export interface Holding {
   gain_gbp?: number | null;
   gain_currency?: string | null;
   gain_pct?: number | null;
+  /** Dividends and interest received on this position, GBP (#9038). */
+  income_gbp?: number | null;
+  /** Gain already realised on units of this position that were sold, GBP. */
+  realised_gain_gbp?: number | null;
+  /** gain_gbp + realised_gain_gbp + income_gbp; null when any part is unknown. */
+  total_return_gbp?: number | null;
+  /** total_return_gbp over all cost put into the position, as a percentage. */
+  total_return_pct?: number | null;
   current_price_gbp?: number | null;
   current_price_currency?: string | null;
   /** Date of the last known price for this holding */

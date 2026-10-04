@@ -229,6 +229,9 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
                     )
                     for h in holdings
                 ]
+            account_name = str(acct_copy.get("account_type") or "").strip()
+            if account_name:
+                owner_portfolio.add_total_returns(owner, account_name, acct_copy[HOLDINGS])
 
             # compute account value in GBP for summary totals
             val_gbp = sum(float(h.get("market_value_gbp") or 0.0) for h in acct_copy[HOLDINGS])

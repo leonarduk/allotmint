@@ -29,6 +29,7 @@ from backend.common.data_loader import (
 from backend.common.holding_utils import enrich_holding
 from backend.common.holdings_rebuild import transaction_cost_hints
 from backend.common.path_utils import safe_join
+from backend.common.position_returns import attach_total_returns
 from backend.common.ticker_utils import canonical_ticker
 from backend.common.user_config import load_user_config
 from backend.config import config
@@ -157,6 +158,22 @@ def fill_missing_costs(owner: str, account: str, holdings: List[Any], accounts_r
             h["cost_basis_gbp"] = cost
         elif since and not h.get("acquired_date"):
             h["acquired_date"] = since
+
+
+def add_total_returns(owner: str, account: str, holdings: List[Any], accounts_root: Optional[Path] = None) -> None:
+    """Add income and total-return fields to enriched ``holdings`` in place (#9038).
+
+    Held tickers are matched to transaction pools with the same rules as
+    :func:`fill_missing_costs`, so income lands on the holding whose cost it
+    already explains.  Never writes to the data files.
+    """
+    transactions = _read_account_transactions(owner, account, accounts_root)
+    held_bases = _held_base_counts(holdings)
+    attach_total_returns(
+        holdings,
+        transactions,
+        lambda ticker, keys: _match_hint_key(ticker, keys, held_bases),
+    )
 
 
 # ───────────────────────── trades helpers ─────────────────────────
@@ -305,6 +322,7 @@ def build_owner_portfolio(
                 )
                 for h in holdings_raw
             ]
+        add_total_returns(owner, str(meta), enriched, accounts_root)
         val_gbp = sum(float(h.get("market_value_gbp") or 0.0) for h in enriched)
 
         accounts.append(

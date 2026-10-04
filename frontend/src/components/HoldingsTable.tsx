@@ -170,6 +170,7 @@ export function HoldingsTable({
     market: true,
     gain: true,
     gain_pct: true,
+    total_return: true,
   });
 
   const [sparkRange, setSparkRange] = useState<SparkRange>(30);
@@ -223,6 +224,19 @@ export function HoldingsTable({
     source === COST_BASIS_BOOK_SUSPECT
       ? t("holdingsTable.bookCostSuspect")
       : t("holdingsTable.gainNotAvailable");
+
+  // Breaks the total return into its parts (#9038); cash rows carry none.
+  const totalReturnTitle = (h: Holding): string | undefined => {
+    if (h.total_return_gbp === undefined) return undefined;
+    if (h.income_gbp == null) return t("holdingsTable.totalReturnNoTransactions");
+    return t("holdingsTable.totalReturnBreakdown", {
+      income: money(h.income_gbp, baseCurrency),
+      realised:
+        h.realised_gain_gbp == null
+          ? t("holdingsTable.notApplicable")
+          : money(h.realised_gain_gbp, baseCurrency),
+    });
+  };
 
 
   useEffect(() => {
@@ -331,6 +345,13 @@ export function HoldingsTable({
   const totalGainPct = totals.gainCost
     ? (totals.gain / totals.gainCost) * 100
     : null;
+  // Cash rows carry no total return (undefined); a null on any position means
+  // its income or gains are unknown, so the total is withheld (#9038).
+  const totalReturn = useMemo(() => {
+    const positions = sortedRows.filter((h) => h.total_return_gbp !== undefined);
+    if (!positions.length || positions.some((h) => h.total_return_gbp == null)) return null;
+    return positions.reduce((sum, h) => sum + (h.total_return_gbp ?? 0), 0);
+  }, [sortedRows]);
 
   const categoryLookup = useMemo(
     () => buildCategoryLookup(categoryDefinitions),
@@ -398,6 +419,7 @@ export function HoldingsTable({
     ["market", t("holdingsTable.columns.market")],
     ["gain", t("holdingsTable.columns.gain")],
     ["gain_pct", t("holdingsTable.columns.gainPct")],
+    ["total_return", t("holdingsTable.columns.totalReturn")],
   ];
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -502,6 +524,7 @@ export function HoldingsTable({
           visibleColumns.cost,
           visibleColumns.market,
           visibleColumns.gain,
+          visibleColumns.total_return,
         ].filter(Boolean).length);
   // Grouped mode walks the groups in their own (totals-sorted) order so each
   // group's rows stay contiguous under its header (#8529). Every grouped row
@@ -593,6 +616,9 @@ export function HoldingsTable({
           <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
             {percent(group.totals.gainPct, 1)}
           </td>
+        )}
+        {!relativeViewEnabled && visibleColumns.total_return && (
+          <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>—</td>
         )}
         <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>—</td>
         {!relativeViewEnabled && visibleColumns.cost && (
@@ -729,6 +755,9 @@ export function HoldingsTable({
                 />
               </th>
             )}
+            {!relativeViewEnabled && visibleColumns.total_return && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
+            )}
             <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             {!relativeViewEnabled && visibleColumns.cost && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
@@ -800,6 +829,14 @@ export function HoldingsTable({
                 onClick={() => sortBy("gain_pct")}
               >
                 {t("holdingsTable.columns.gainPct")}{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
+              </th>
+            )}
+            {!relativeViewEnabled && visibleColumns.total_return && (
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                title={t("holdingsTable.totalReturnHeaderTitle")}
+              >
+                {t("holdingsTable.columns.totalReturn")}
               </th>
             )}
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.price")}</th>
@@ -943,6 +980,20 @@ export function HoldingsTable({
                       </span>
                     ) : (
                       percent(h.gain_pct, 1)
+                    )}
+                  </td>
+                )}
+                {!relativeViewEnabled && visibleColumns.total_return && (
+                  <td
+                    className={`${tableStyles.cell} ${tableStyles.right} ${h.total_return_gbp == null ? "" : getPerformanceClass(h.total_return_gbp)}`}
+                    title={totalReturnTitle(h)}
+                  >
+                    {h.total_return_gbp === undefined ? (
+                      "—"
+                    ) : h.total_return_gbp === null ? (
+                      <span className={tableStyles.notApplicable}>{t("holdingsTable.notApplicable")}</span>
+                    ) : (
+                      `${money(h.total_return_gbp, baseCurrency)} (${percent(h.total_return_pct, 1)})`
                     )}
                   </td>
                 )}
@@ -1139,6 +1190,13 @@ export function HoldingsTable({
                 className={`${tableStyles.cell} ${tableStyles.right} font-semibold ${getPerformanceClass(totalGainPct)}`}
               >
                 {percent(totalGainPct, 1)}
+              </td>
+            )}
+            {!relativeViewEnabled && visibleColumns.total_return && (
+              <td
+                className={`${tableStyles.cell} ${tableStyles.right} font-semibold ${totalReturn === null ? "" : getPerformanceClass(totalReturn)}`}
+              >
+                {totalReturn === null ? "—" : money(totalReturn, baseCurrency)}
               </td>
             )}
             <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>—</td>

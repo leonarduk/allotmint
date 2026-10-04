@@ -226,7 +226,8 @@
       "trend": "Trend",
       "type": "Typ",
       "units": "Einheiten",
-      "weightPct": "Gewicht %"
+      "weightPct": "Gewicht %",
+      "totalReturn": "Gesamtrendite £"
     },
     "columnsLabel": "Spalten:",
     "eligible": "Berechtigt",
@@ -267,7 +268,10 @@
       "all": "Alle"
     },
     "noPriceHistoryNotice_one": "{{count}} Instrument ohne Preishistorie",
-    "noPriceHistoryNotice_other": "{{count}} Instrumente ohne Preishistorie"
+    "noPriceHistoryNotice_other": "{{count}} Instrumente ohne Preishistorie",
+    "totalReturnHeaderTitle": "Kursgewinn plus Dividenden, Zinsen und bereits realisierte Gewinne dieser Position",
+    "totalReturnBreakdown": "Erhaltene Erträge {{income}} · realisiert durch Verkäufe {{realised}}",
+    "totalReturnNoTransactions": "Keine Transaktionen für dieses Konto erfasst — Erträge unbekannt"
   },
   "instrumentadmin": {
     "actions": "Aktionen",

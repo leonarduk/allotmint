@@ -81,8 +81,11 @@ function QuerySection() {
   );
   const { t } = useTranslation();
 
-  const [start, setStart] = useState(() => defaultDateRange().start);
-  const [end, setEnd] = useState(() => defaultDateRange().end);
+  // Computed once so start and end share the same "now" (two separate
+  // `new Date()` calls could straddle midnight).
+  const [initialRange] = useState(() => defaultDateRange());
+  const [start, setStart] = useState(initialRange.start);
+  const [end, setEnd] = useState(initialRange.end);
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [selectedTickers, setSelectedTickers] = useState<string[]>([]);
   const [metrics, setMetrics] = useState<string[]>([]);

@@ -309,6 +309,8 @@
     "maxDrawdownDetailsHeading": "Max drawdown details",
     "maxDrawdownExplain": "Explain this drop",
     "maxDrawdownHide": "Hide drawdown details",
+    "metricNotAvailable": "N/A",
+    "metricUnreliable": "This calculation looks unreliable (the value is outside a plausible range), so it is not shown.",
     "metricsExplanationLink": "How are these calculated?",
     "drawdownRangeWithValues": "Largest drop runs from {{start}} ({{startValue}}) to {{end}} ({{endValue}}).",
     "drawdownRangeUnknown": "We couldn't identify the dates for this drawdown.",

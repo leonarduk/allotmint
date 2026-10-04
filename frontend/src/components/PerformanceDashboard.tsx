@@ -21,7 +21,7 @@ import {
   getGroupMaxDrawdown,
 } from "../api";
 import type { PerformancePoint } from "../types";
-import { percent, percentOrNa } from "../lib/money";
+import { percent } from "../lib/money";
 import { formatDateISO } from "../lib/date";
 import type { DrawdownExtrema, DrawdownSeriesPoint } from "../types";
 import InfoTip from "./InfoTip";
@@ -41,6 +41,74 @@ type Props = {
 // The benchmark alpha/tracking-error are measured against. Named on screen
 // (see #7230) because "Alpha vs Benchmark" is not interpretable without it.
 const BENCHMARK_TICKER = "VWRL.L";
+
+// Every headline metric on this page is returned by the API as a FRACTION
+// (0.0596 = 5.96%) -- alpha, tracking error, max drawdown, TWR and XIRR
+// alike (see backend/common/portfolio_utils.py and #8570). They are
+// formatted directly from that unit; the old "|x| > 1 means percent, so
+// divide by 100" guess is gone because it turned a broken 14159.17 XIRR into
+// a believable 141.59% and a genuine 1.5 (150%) into 1.5%.
+//
+// Instead, values outside these bounds are treated as an unreliable
+// calculation and rendered as "N/A" with a tooltip, never rescaled.
+/** |TWR|, |XIRR| or |alpha| above 10 (1,000%) is not a believable return. */
+const MAX_PLAUSIBLE_ABS_RETURN = 10;
+/** Annualised tracking error is a std-dev (>= 0); above 2 (200%) is implausible. */
+const MAX_PLAUSIBLE_TRACKING_ERROR = 2;
+/** Drawdown is peak-relative, so it can only lie in [-1, 0] (-100%..0%). */
+const MIN_PLAUSIBLE_DRAWDOWN = -1;
+const MAX_PLAUSIBLE_DRAWDOWN = 0;
+
+type PlausibleRange = { min: number; max: number };
+
+const RETURN_RANGE: PlausibleRange = {
+  min: -MAX_PLAUSIBLE_ABS_RETURN,
+  max: MAX_PLAUSIBLE_ABS_RETURN,
+};
+const TRACKING_ERROR_RANGE: PlausibleRange = {
+  min: 0,
+  max: MAX_PLAUSIBLE_TRACKING_ERROR,
+};
+const DRAWDOWN_RANGE: PlausibleRange = {
+  min: MIN_PLAUSIBLE_DRAWDOWN,
+  max: MAX_PLAUSIBLE_DRAWDOWN,
+};
+
+const isFiniteNumber = (value: number | null | undefined): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const isPlausible = (value: number, range: PlausibleRange) =>
+  value >= range.min && value <= range.max;
+
+type FractionMetricProps = {
+  value: number | null;
+  range: PlausibleRange;
+  testId: string;
+};
+
+/** Render a fraction-unit metric as a percentage, or "N/A" when unusable. */
+function FractionMetric({ value, range, testId }: FractionMetricProps) {
+  const { t, i18n } = useTranslation();
+  const na = t("dashboard.metricNotAvailable", "N/A");
+  if (!isFiniteNumber(value)) {
+    return <span data-testid={testId}>{na}</span>;
+  }
+  if (!isPlausible(value, range)) {
+    return (
+      <span
+        data-testid={testId}
+        data-unreliable="true"
+        title={t(
+          "dashboard.metricUnreliable",
+          "This calculation looks unreliable (the value is outside a plausible range), so it is not shown.",
+        )}
+      >
+        {na}
+      </span>
+    );
+  }
+  return <span data-testid={testId}>{percent(value * 100, 2, i18n.language)}</span>;
+}
 
 export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [data, setData] = useState<PerformancePoint[]>([]);
@@ -135,13 +203,11 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         setDrawdownSeries(mdRes.series ?? []);
         setDrawdownPeak(mdRes.peak ?? null);
         setDrawdownTrough(mdRes.trough ?? null);
-        const normalizedDrawdown =
-          mdRes.max_drawdown != null && Math.abs(mdRes.max_drawdown) > 1
-            ? mdRes.max_drawdown / 100
-            : mdRes.max_drawdown;
+        // max_drawdown is a fraction; a severe (<= -90%) or implausible
+        // value auto-expands the details so the user sees the warning.
         if (
-          typeof normalizedDrawdown === "number" &&
-          Math.abs(normalizedDrawdown) >= 0.9
+          isFiniteNumber(mdRes.max_drawdown) &&
+          Math.abs(mdRes.max_drawdown) >= 0.9
         ) {
           setShowDrawdownDetails(true);
         }
@@ -183,23 +249,6 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     return <p>{t("common.loading")}</p>;
   }
 
-  const safeAlpha =
-    alpha != null && Math.abs(alpha) > 1 ? alpha / 100 : alpha;
-  const safeTrackingError =
-    trackingError != null && Math.abs(trackingError) > 1
-      ? trackingError / 100
-      : trackingError;
-  const safeMaxDrawdown =
-    maxDrawdown != null && Math.abs(maxDrawdown) > 1
-      ? maxDrawdown / 100
-      : maxDrawdown;
-  const safeTwr =
-    timeWeightedReturn != null && Math.abs(timeWeightedReturn) > 1
-      ? timeWeightedReturn / 100
-      : timeWeightedReturn;
-  const safeXirr =
-    xirr != null && Math.abs(xirr) > 1 ? xirr / 100 : xirr;
-
   const formatSummaryDate = (value: string | null) => {
     if (!value) return "—";
     const parsed = new Date(value);
@@ -222,14 +271,14 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     }).format(value);
   };
 
-  const normalizedDrawdown = safeMaxDrawdown;
+  // Only quote the drawdown in the details text when it is plausible; an
+  // implausible value still triggers the "check your prices" warning below.
   const drawdownPercentText =
-    typeof normalizedDrawdown === "number"
-      ? percent(normalizedDrawdown * 100, 2, i18n.language)
+    isFiniteNumber(maxDrawdown) && isPlausible(maxDrawdown, DRAWDOWN_RANGE)
+      ? percent(maxDrawdown * 100, 2, i18n.language)
       : null;
   const severeDrawdown =
-    typeof normalizedDrawdown === "number" &&
-    Math.abs(normalizedDrawdown) >= 0.9;
+    isFiniteNumber(maxDrawdown) && Math.abs(maxDrawdown) >= 0.9;
 
   const drawdownRangeText =
     drawdownPeak && drawdownTrough
@@ -347,7 +396,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             </InfoTip>
           </div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-            {percentOrNa(safeAlpha)}
+            <FractionMetric value={alpha} range={RETURN_RANGE} testId="metric-alpha" />
           </div>
           <div style={{ fontSize: "0.75rem", color: "#777" }}>
             {t("dashboard.vsBenchmark", "vs {{ticker}}", { ticker: BENCHMARK_TICKER })}
@@ -368,7 +417,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             </InfoTip>
           </div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-            {percentOrNa(safeTrackingError)}
+            <FractionMetric value={trackingError} range={TRACKING_ERROR_RANGE} testId="metric-tracking-error" />
           </div>
           <div style={{ fontSize: "0.75rem", color: "#777" }}>
             {t("dashboard.vsBenchmark", "vs {{ticker}}", { ticker: BENCHMARK_TICKER })}
@@ -389,7 +438,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
             <span style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-              {percentOrNa(safeMaxDrawdown)}
+              <FractionMetric value={maxDrawdown} range={DRAWDOWN_RANGE} testId="metric-max-drawdown" />
             </span>
             {drawdownDetailsAvailable && (
               <button
@@ -427,7 +476,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             </InfoTip>
           </div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-            {percentOrNa(safeTwr)}
+            <FractionMetric value={timeWeightedReturn} range={RETURN_RANGE} testId="metric-twr" />
           </div>
         </div>
         <div>
@@ -444,7 +493,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             </InfoTip>
           </div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-            {percentOrNa(safeXirr)}
+            <FractionMetric value={xirr} range={RETURN_RANGE} testId="metric-xirr" />
           </div>
         </div>
       </div>

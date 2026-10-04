@@ -155,6 +155,125 @@ describe("PerformanceDashboard", () => {
     ).toBeInTheDocument();
   });
 
+  // #8570: every metric is a fraction from the API. It is formatted directly
+  // (no "|x| > 1 means percent" guessing) and implausible values show N/A.
+  describe("metric units and plausibility (#8570)", () => {
+    type Metrics = {
+      alpha: number;
+      trackingError: number;
+      maxDrawdown: number;
+      twr: number;
+      xirr: number;
+    };
+
+    const renderWith = async (m: Metrics) => {
+      vi.mocked(getAlphaVsBenchmark).mockResolvedValueOnce({
+        alpha_vs_benchmark: m.alpha,
+      });
+      vi.mocked(getTrackingError).mockResolvedValueOnce({
+        tracking_error: m.trackingError,
+      });
+      vi.mocked(getMaxDrawdown).mockResolvedValueOnce({
+        max_drawdown: m.maxDrawdown,
+        peak: null,
+        trough: null,
+        series: [],
+      });
+      vi.mocked(getPerformance).mockResolvedValueOnce({
+        history: [{ date: "2024-03-01", value: 1000 }],
+        time_weighted_return: m.twr,
+        xirr: m.xirr,
+        reportingDate: "2024-03-31",
+        previousDate: "2024-02-29",
+      });
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+      await screen.findByTestId("reporting-date-summary");
+    };
+
+    const testIds = {
+      alpha: "metric-alpha",
+      trackingError: "metric-tracking-error",
+      maxDrawdown: "metric-max-drawdown",
+      twr: "metric-twr",
+      xirr: "metric-xirr",
+    } as const;
+
+    it("formats normal fractions as percentages", async () => {
+      await renderWith({
+        alpha: 0.0123,
+        trackingError: 0.045,
+        maxDrawdown: -0.35,
+        twr: 0.0596,
+        xirr: 0.071,
+      });
+      expect(screen.getByTestId(testIds.alpha)).toHaveTextContent("1.23%");
+      expect(screen.getByTestId(testIds.trackingError)).toHaveTextContent("4.50%");
+      expect(screen.getByTestId(testIds.maxDrawdown)).toHaveTextContent("-35.00%");
+      expect(screen.getByTestId(testIds.twr)).toHaveTextContent("5.96%");
+      expect(screen.getByTestId(testIds.xirr)).toHaveTextContent("7.10%");
+    });
+
+    it("renders genuine values above 100% (1.5 -> 150.00%) instead of dividing by 100", async () => {
+      await renderWith({
+        alpha: 1.5,
+        trackingError: 1.5,
+        // Drawdown is bounded at -100%, so the full-loss edge is the
+        // largest genuine magnitude it can take.
+        maxDrawdown: -1,
+        twr: 1.5,
+        xirr: 1.5,
+      });
+      expect(screen.getByTestId(testIds.alpha)).toHaveTextContent("150.00%");
+      expect(screen.getByTestId(testIds.trackingError)).toHaveTextContent("150.00%");
+      expect(screen.getByTestId(testIds.maxDrawdown)).toHaveTextContent("-100.00%");
+      expect(screen.getByTestId(testIds.twr)).toHaveTextContent("150.00%");
+      expect(screen.getByTestId(testIds.xirr)).toHaveTextContent("150.00%");
+    });
+
+    it("renders implausible values (e.g. XIRR 14159.17) as N/A with an unreliable tooltip", async () => {
+      await renderWith({
+        alpha: 14159.17,
+        trackingError: 2.5,
+        maxDrawdown: -1.5,
+        twr: -14159.17,
+        xirr: 14159.17,
+      });
+      for (const id of Object.values(testIds)) {
+        const el = screen.getByTestId(id);
+        expect(el).toHaveTextContent(/^N\/A$/);
+        expect(el).toHaveAttribute("data-unreliable", "true");
+        expect(el).toHaveAttribute(
+          "title",
+          expect.stringMatching(/looks unreliable/),
+        );
+      }
+      expect(screen.queryByText("141.59%")).not.toBeInTheDocument();
+    });
+
+    it("renders missing values as plain N/A without the unreliable tooltip", async () => {
+      vi.mocked(getPerformance).mockResolvedValueOnce({
+        history: [{ date: "2024-03-01", value: 1000 }],
+        time_weighted_return: null,
+        xirr: null,
+        reportingDate: "2024-03-31",
+        previousDate: "2024-02-29",
+      });
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+      await screen.findByTestId("reporting-date-summary");
+      const xirrEl = screen.getByTestId(testIds.xirr);
+      expect(xirrEl).toHaveTextContent("N/A");
+      expect(xirrEl).not.toHaveAttribute("data-unreliable");
+    });
+  });
+
   describe("group scope (#7228)", () => {
     beforeEach(() => {
       vi.mocked(getGroupAlphaVsBenchmark).mockResolvedValue({

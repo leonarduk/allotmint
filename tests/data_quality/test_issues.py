@@ -386,3 +386,19 @@ def test_aggregate_holding_issues_flags_missing_asset_class(monkeypatch, tmp_pat
     assert issue.entity == {"ticker": "PFE", "exchange": "N"}
     assert issue.severity == "low"
     assert issue.fixable is False
+
+
+def test_missing_asset_class_reported_once_per_instrument(monkeypatch, tmp_path):
+    """The same unclassified instrument held in two accounts yields one issue."""
+    owner = tmp_path / "demo"
+    owner.mkdir()
+    for account in ("isa", "sipp"):
+        document = {"owner": "demo", "account_type": account, "holdings": [{"ticker": "PFE.N"}]}
+        (owner / f"{account}.json").write_text(json.dumps(document), encoding="utf-8")
+    monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: {"name": "Pfizer"})
+    monkeypatch.setattr(issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None)
+    monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: True)
+
+    issues = aggregate_holding_issues(tmp_path)
+
+    assert [i.id for i in issues if i.type == IssueType.MISSING_ASSET_CLASS] == ["MISSING_ASSET_CLASS:PFE:N"]

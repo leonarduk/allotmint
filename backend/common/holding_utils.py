@@ -166,7 +166,14 @@ def load_latest_closes(
             # guarantees "Date" (EXPECTED_COLS in backend/timeseries/cache.py),
             # so the fallback only matters for ad-hoc frames, and it fails safe:
             # an unparseable value gives close_date None, i.e. stale.
-            date_col = name_map.get("date") or df.columns[0]
+            date_col = name_map.get("date")
+            if date_col is None:
+                date_col = df.columns[0]
+                logger.warning(
+                    "no Date column for %s; reading close date from first column %s",
+                    sanitise_log_value(full),
+                    sanitise_log_value(date_col),
+                )
             df = df.sort_values(date_col)
             last = df.iloc[-1]
 

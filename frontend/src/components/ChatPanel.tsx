@@ -22,6 +22,7 @@ import {
 import { isDemoSession } from "../demoAuth";
 import { ChatHistoryList } from "./ChatHistoryList";
 import { ChatMessageItem } from "./ChatMessageItem";
+import { CHAT_INPUT_STYLE } from "./chatInputStyle";
 
 interface Props {
   open: boolean;
@@ -457,7 +458,7 @@ export function ChatPanel({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void send();
                 }}
-                style={{ flex: 1 }}
+                style={{ ...CHAT_INPUT_STYLE, flex: 1 }}
                 disabled={sending}
               />
               <button onClick={() => void send()} disabled={sending || !input.trim()}>

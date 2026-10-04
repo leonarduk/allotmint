@@ -533,3 +533,24 @@ def test_get_news_serves_fresh_cache_from_sync_route(monkeypatch, tmp_path):
     assert resp.status_code == 200
     assert resp.json() == [{**payload[0], "stale": False}]
     assert "news_ONE" not in page_cache._refresh_tasks
+
+
+def test_get_cached_news_rebuilds_stale_cache_off_event_loop(monkeypatch, tmp_path):
+    """Off the event loop no background refresh is scheduled, so a stale cache
+    must be rebuilt synchronously on the request instead of served forever."""
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+    page_cache.save_cache("news_ONE", [{"headline": "Old", "url": "https://example.test/old"}])
+    monkeypatch.setattr(page_cache, "is_stale", lambda page, ttl: True)
+    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: True)
+    fresh = [{"headline": "Fresh", "url": "https://example.test/fresh"}]
+    monkeypatch.setattr(news_module, "_fetch_news", lambda ticker: fresh)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        items = pool.submit(news_module.get_cached_news, "ONE").result()
+
+    assert items == [{**fresh[0], "stale": False}]
+    assert page_cache.load_cache("news_ONE") == fresh
+    assert "news_ONE" not in page_cache._refresh_tasks

@@ -3,13 +3,24 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi, Mock } from "vitest";
 import { ChatPanel } from "@/components/ChatPanel";
 import * as api from "@/api";
-import { getChatMessages, setChatMessages, startNewChat } from "@/utils/chatConversation";
+import { getChatMessages, resetChat, setChatMessages } from "@/utils/chatConversation";
+import { resetChatSyncForTests } from "@/utils/chatSync";
+import { isDemoSession } from "@/demoAuth";
 
 vi.mock("@/api");
+vi.mock("@/demoAuth", () => ({ isDemoSession: vi.fn(() => false) }));
+
+const EMPTY_SAVED = { owner: "u1", revision: 0, conversation: { nodes: [], active: {}, nextId: 1 } };
 
 describe("ChatPanel", () => {
   beforeEach(() => {
-    startNewChat();
+    resetChatSyncForTests();
+    resetChat();
+    (isDemoSession as Mock).mockReturnValue(false);
+    (api.getChatConversation as Mock).mockResolvedValue(EMPTY_SAVED);
+    (api.putChatConversation as Mock).mockResolvedValue({ revision: 1 });
+    (api.archiveChatConversation as Mock).mockResolvedValue({ revision: 1, archived: true });
+    (api.deleteChatHistory as Mock).mockResolvedValue(undefined);
   });
 
   it("renders nothing when closed", () => {
@@ -643,6 +654,101 @@ describe("ChatPanel", () => {
       resolve({ reply: "another answer" });
       await waitFor(() => expect(screen.getByText("another answer")).toBeInTheDocument());
       expect(within(items()[0]).getByRole("button", { name: /previous version/i })).toBeEnabled();
+    });
+  });
+
+  describe("saved conversation (#8870)", () => {
+    const savedTree = {
+      nodes: [
+        { id: "1", parentId: null, role: "user", content: "saved question" },
+        { id: "2", parentId: "1", role: "assistant", content: "saved answer" },
+      ],
+      active: { root: "1", "1": "2" },
+      nextId: 3,
+    };
+
+    it("shows the saved conversation when opened", async () => {
+      (api.getChatConversation as Mock).mockResolvedValue({ owner: "u1", revision: 2, conversation: savedTree });
+
+      render(<ChatPanel open onClose={() => {}} />);
+
+      expect(await screen.findByText("saved answer")).toBeInTheDocument();
+      expect(screen.getByText("saved question")).toBeInTheDocument();
+    });
+
+    it("New chat archives the saved conversation", async () => {
+      (api.getChatConversation as Mock).mockResolvedValue({ owner: "u1", revision: 2, conversation: savedTree });
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+      await screen.findByText("saved answer");
+
+      await user.click(screen.getByRole("button", { name: /new chat/i }));
+
+      expect(screen.queryByText("saved answer")).not.toBeInTheDocument();
+      await waitFor(() => expect(api.archiveChatConversation).toHaveBeenCalledTimes(1));
+      expect(api.deleteChatHistory).not.toHaveBeenCalled();
+    });
+
+    it("deletes the chat history only after confirming", async () => {
+      (api.getChatConversation as Mock).mockResolvedValue({ owner: "u1", revision: 2, conversation: savedTree });
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+      await screen.findByText("saved answer");
+
+      await user.click(screen.getByRole("button", { name: /delete history/i }));
+      const confirm = screen.getByRole("group", { name: /confirm deleting chat history/i });
+      await user.click(within(confirm).getByRole("button", { name: /cancel/i }));
+      expect(api.deleteChatHistory).not.toHaveBeenCalled();
+      expect(screen.getByText("saved answer")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /delete history/i }));
+      await user.click(
+        within(screen.getByRole("group", { name: /confirm deleting chat history/i })).getByRole("button", {
+          name: /^delete$/i,
+        }),
+      );
+
+      await waitFor(() => expect(screen.queryByText("saved answer")).not.toBeInTheDocument());
+      expect(api.deleteChatHistory).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("group", { name: /confirm deleting/i })).not.toBeInTheDocument();
+    });
+
+    it("says so and keeps the conversation when deleting fails", async () => {
+      (api.getChatConversation as Mock).mockResolvedValue({ owner: "u1", revision: 2, conversation: savedTree });
+      (api.deleteChatHistory as Mock).mockRejectedValue(new Error("down"));
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+      await screen.findByText("saved answer");
+
+      await user.click(screen.getByRole("button", { name: /delete history/i }));
+      await user.click(screen.getByRole("button", { name: /^delete$/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't delete your chat history/i);
+      expect(screen.getByText("saved answer")).toBeInTheDocument();
+    });
+
+    it("offers no history control in a demo session", () => {
+      (isDemoSession as Mock).mockReturnValue(true);
+      (api.getChatConversation as Mock).mockClear();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      expect(screen.queryByRole("button", { name: /delete history/i })).not.toBeInTheDocument();
+      expect(api.getChatConversation).not.toHaveBeenCalled();
+    });
+
+    it("shows a Not saved hint when saving fails, and chat keeps working", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      (api.putChatConversation as Mock).mockRejectedValue(new Error("down"));
+      (api.postChat as Mock).mockResolvedValueOnce({ reply: "still answering" });
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+      await waitFor(() => expect(api.getChatConversation).toHaveBeenCalled());
+
+      await user.type(screen.getByLabelText(/chat message/i), "hello");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      expect(await screen.findByText("still answering")).toBeInTheDocument();
+      expect(await screen.findByText("Not saved", {}, { timeout: 3000 })).toBeInTheDocument();
     });
   });
 });

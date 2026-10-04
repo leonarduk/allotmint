@@ -167,6 +167,9 @@ let path: ChatPathEntry[] = activePath(tree);
 let messages: ChatMessage[] = path.map(({ role, content }) => ({ role, content }));
 const listeners = new Set<() => void>();
 let changeListener: (() => void) | null = null;
+// Told of every change to the conversation or its sync state, whoever made
+// it, so utils/chatWindow.ts can mirror it into a detached chat window (#9025).
+const stateListeners = new Set<() => void>();
 // Bumped whenever the signed-in identity may have changed, so chatSync knows
 // to reload before trusting what it last loaded.
 let identityEpoch = 0;
@@ -184,6 +187,7 @@ function set(next: ChatTree, byUser = true) {
     // Storage unavailable or full: the in-memory conversation still works.
   }
   listeners.forEach((l) => l());
+  stateListeners.forEach((l) => l());
   if (byUser) changeListener?.();
 }
 
@@ -296,11 +300,30 @@ export function setChatSyncState(next: ChatSyncState) {
   } catch {
     // Storage unavailable or full: the in-memory state still works.
   }
+  stateListeners.forEach((l) => l());
 }
 
 /** Registers the one listener told of every change made by the user (utils/chatSync.ts). */
 export function onChatChange(listener: (() => void) | null) {
   changeListener = listener;
+}
+
+/** Subscribes to every change to the conversation or its sync state; returns the unsubscribe. */
+export function onChatStateChange(listener: () => void): () => void {
+  stateListeners.add(listener);
+  return () => {
+    stateListeners.delete(listener);
+  };
+}
+
+/**
+ * Takes on the conversation and sync state of another window of this tab's
+ * chat (#9025), without it counting as a change to save: the window that
+ * made the change saves it.
+ */
+export function adoptChatFromWindow(raw: unknown, sync: ChatSyncState) {
+  setChatSyncState(sync);
+  set(parseTree(raw), false);
 }
 
 // Clear on logout only, not on every token change: a reload re-applies the

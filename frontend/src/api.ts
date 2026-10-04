@@ -2714,3 +2714,41 @@ export const archiveChatConversation = (): Promise<{ revision: number; archived:
 export const deleteChatHistory = async (): Promise<void> => {
   await fetchText(`${API_BASE}/chat/conversation`, { method: "DELETE" });
 };
+
+/** One saved chat in the history list: the current one (`id` "current") or an archived one. */
+export type SavedChatSummary = {
+  id: string;
+  /** The name given to it, or its first question when it has none (`named` false). */
+  title: string;
+  named: boolean;
+  updated_at: string | null;
+  messages: number;
+};
+
+/** The saved chats, newest first: the current one (unless empty), then the archived ones. */
+export const listSavedChats = (): Promise<{ chats: SavedChatSummary[] }> =>
+  fetchJson<{ chats: SavedChatSummary[] }>(`${API_BASE}/chat/conversation/history`);
+
+const savedChatUrl = (id: string) => `${API_BASE}/chat/conversation/history/${encodeURIComponent(id)}`;
+
+/** Names a saved chat; an empty title clears the name. */
+export const renameSavedChat = async (id: string, title: string): Promise<void> => {
+  await fetchText(savedChatUrl(id), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+};
+
+/** Deletes one archived chat. */
+export const deleteSavedChat = async (id: string): Promise<void> => {
+  await fetchText(savedChatUrl(id), { method: "DELETE" });
+};
+
+/** Makes an archived chat the current one; the current one is archived, as by "New chat". */
+export const openSavedChat = (
+  id: string,
+): Promise<{ revision: number; conversation: SavedChatTree; title: string | null }> =>
+  fetchJson<{ revision: number; conversation: SavedChatTree; title: string | null }>(`${savedChatUrl(id)}/open`, {
+    method: "POST",
+  });

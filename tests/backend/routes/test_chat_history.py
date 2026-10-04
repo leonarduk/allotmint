@@ -229,3 +229,74 @@ def test_storage_failure_is_503_with_a_code(app, monkeypatch: pytest.MonkeyPatch
     ]
     assert [r.status_code for r in responses] == [503] * 4
     assert all(r.json()["code"] == "chat_history_unavailable" for r in responses)
+
+
+HISTORY = f"{URL}/history"
+
+
+def _archive(client, text: str, revision: int) -> None:
+    client.put(URL, json={"revision": revision, "conversation": _conversation(text)})
+    client.post(f"{URL}/archive")
+
+
+def test_history_lists_rename_open_and_delete(app) -> None:
+    client = _client_as(app, ALICE)
+    _archive(client, "first", 0)
+    _archive(client, "second", 2)
+
+    chats = client.get(HISTORY).json()["chats"]
+    assert [(c["id"], c["title"]) for c in chats] == [("r00000003", "second"), ("r00000001", "first")]
+
+    assert client.patch(f"{HISTORY}/r00000001", json={"title": "  My  ISA "}).status_code == 204
+    assert client.get(HISTORY).json()["chats"][1]["title"] == "My ISA"
+
+    opened = client.post(f"{HISTORY}/r00000001/open")
+    assert opened.status_code == 200
+    body = opened.json()
+    assert body["title"] == "My ISA"
+    assert client.get(URL).json()["revision"] == body["revision"]
+
+    assert client.delete(f"{HISTORY}/r00000003").status_code == 204
+    assert [c["id"] for c in client.get(HISTORY).json()["chats"]] == ["current"]
+
+
+def test_history_unknown_or_invalid_ids_are_404(app) -> None:
+    client = _client_as(app, ALICE)
+    _archive(client, "q", 0)
+
+    for chat_id in ("r00000009", "current", "nope"):
+        assert client.delete(f"{HISTORY}/{chat_id}").status_code == 404
+        assert client.post(f"{HISTORY}/{chat_id}/open").status_code == 404
+    assert client.patch(f"{HISTORY}/r00000009", json={"title": "x"}).status_code == 404
+    # Bob cannot reach Alice's archived chat.
+    bob = _client_as(app, BOB)
+    assert bob.get(HISTORY).json() == {"chats": []}
+    assert bob.patch(f"{HISTORY}/r00000001", json={"title": "x"}).status_code == 404
+
+
+def test_history_demo_sessions_list_nothing_and_cannot_write(app) -> None:
+    _archive(_client_as(app, ALICE), "real", 0)
+
+    demo = _client_as(app, ALICE, demo=True)
+    assert demo.get(HISTORY).json() == {"chats": []}
+    assert demo.patch(f"{HISTORY}/r00000001", json={"title": "x"}).status_code == 403
+    assert demo.delete(f"{HISTORY}/r00000001").status_code == 403
+    assert demo.post(f"{HISTORY}/r00000001/open").status_code == 403
+
+
+def test_history_storage_failure_is_503(app, monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken(*_args, **_kwargs):
+        raise routes.chat_history.ChatHistoryUnavailable("S3 read failed")
+
+    for name in ("list_conversations", "rename_conversation", "delete_conversation", "open_conversation"):
+        monkeypatch.setattr(routes.chat_history, name, broken)
+    client = _client_as(app, ALICE)
+
+    responses = [
+        client.get(HISTORY),
+        client.patch(f"{HISTORY}/r00000001", json={"title": "x"}),
+        client.delete(f"{HISTORY}/r00000001"),
+        client.post(f"{HISTORY}/r00000001/open"),
+    ]
+    assert [r.status_code for r in responses] == [503] * 4
+    assert all(r.json()["code"] == "chat_history_unavailable" for r in responses)

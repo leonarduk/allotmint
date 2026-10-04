@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import * as api from "../api";
 import type { ChatContext, ChatMessage, ChatPage } from "../api";
 import {
@@ -14,11 +14,13 @@ import {
 import {
   deleteSavedChatHistory,
   ensureChatLoaded,
+  openSavedChat,
   setChatReplyPending,
   startNewSavedChat,
   useChatSaveFailed,
 } from "../utils/chatSync";
 import { isDemoSession } from "../demoAuth";
+import { ChatHistoryList } from "./ChatHistoryList";
 import { ChatMessageItem } from "./ChatMessageItem";
 
 interface Props {
@@ -30,7 +32,32 @@ interface Props {
   context?: ChatContext;
   /** Called with a page's path when the assistant opens it. */
   onNavigate?: (path: string) => void;
+  /** "window" fills a detached chat window (#9025); the default is a drawer over the page. */
+  variant?: "drawer" | "window";
+  /** Offered in the drawer: moves the chat into its own window. */
+  onDetach?: () => void;
+  /** Offered in a detached window: moves the chat back into the main window. */
+  onReattach?: () => void;
+  /** A message about the panel itself, e.g. that the chat window was blocked. */
+  notice?: string | null;
 }
+
+const DRAWER_STYLE: CSSProperties = {
+  position: "fixed",
+  top: 0,
+  right: 0,
+  width: "min(560px, 100vw)",
+  height: "100%",
+  borderLeft: "1px solid var(--drawer-border-color)",
+  boxShadow: "-2px 0 5px rgba(0,0,0,0.3)",
+  zIndex: 1000,
+};
+
+// Fixed rather than 100vh, so the body's margin cannot add a scrollbar.
+const WINDOW_STYLE: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+};
 
 // Map a failed send to fixed wording rather than echoing the backend's error
 // text (#7721; #7131 precedent). The `code` POST /chat sends with a 502/503
@@ -65,7 +92,17 @@ function chatErrorMessage(e: unknown): string {
   return "Cannot reach server";
 }
 
-export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Props) {
+export function ChatPanel({
+  open,
+  onClose,
+  pages = [],
+  context,
+  onNavigate,
+  variant = "drawer",
+  onDetach,
+  onReattach,
+  notice,
+}: Props) {
   const messages = useChatMessages();
   const path = useChatPath();
   const [input, setInput] = useState("");
@@ -74,6 +111,9 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
   const [editing, setEditing] = useState<{ index: number; draft: string } | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // "history" lists the saved chats in place of the conversation.
+  const [view, setView] = useState<"chat" | "history">("chat");
+  const [opening, setOpening] = useState(false);
   const saveFailed = useChatSaveFailed();
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -186,42 +226,59 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
     }
   };
 
+  // Opens a saved chat from the history list; the current one is archived.
+  const openChat = async (id: string) => {
+    setError(null);
+    if (id !== "current") {
+      setOpening(true);
+      try {
+        await openSavedChat(id);
+      } catch (e) {
+        console.warn("Saved chat could not be opened", e);
+        setError("Couldn't open that chat. Please try again.");
+        return;
+      } finally {
+        setOpening(false);
+      }
+      setInput("");
+      setEditing(null);
+    }
+    setView("chat");
+  };
+
   const selectVersion = (id: string, offset: number) => {
     if (sending) return;
     setEditing(null);
     selectChatVersion(id, offset);
   };
 
+  const isWindow = variant === "window";
+
   return (
     <>
+      {!isWindow && (
+        <div
+          onClick={onClose}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background: "rgba(0,0,0,0.3)",
+            zIndex: 999,
+          }}
+        />
+      )}
       <div
-        onClick={onClose}
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          background: "rgba(0,0,0,0.3)",
-          zIndex: 999,
-        }}
-      />
-      <div
-        role="dialog"
+        role={isWindow ? "region" : "dialog"}
         aria-label="Chat"
         style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          width: "min(560px, 100vw)",
-          height: "100%",
+          ...(isWindow ? WINDOW_STYLE : DRAWER_STYLE),
           boxSizing: "border-box",
           background: "var(--drawer-bg)",
           color: "var(--drawer-color)",
-          borderLeft: "1px solid var(--drawer-border-color)",
-          boxShadow: "-2px 0 5px rgba(0,0,0,0.3)",
           padding: "1rem",
-          zIndex: 1000,
           display: "flex",
           flexDirection: "column",
         }}
@@ -248,6 +305,18 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             {!isDemoSession() && (
               <button
+                onClick={() => {
+                  setError(null);
+                  setView(view === "history" ? "chat" : "history");
+                }}
+                disabled={sending || opening}
+                aria-pressed={view === "history"}
+              >
+                {view === "history" ? "Back to chat" : "History"}
+              </button>
+            )}
+            {!isDemoSession() && (
+              <button
                 onClick={() => setConfirmingDelete(true)}
                 disabled={sending || deleting || confirmingDelete}
               >
@@ -260,25 +329,43 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
                 setInput("");
                 setEditing(null);
                 setError(null);
+                setView("chat");
               }}
-              disabled={sending || messages.length === 0}
+              disabled={sending || opening || messages.length === 0}
             >
               New chat
             </button>
-            <button
-              onClick={onClose}
-              aria-label="close"
-              style={{
-                background: "none",
-                border: "none",
-                fontSize: "1.2rem",
-                cursor: "pointer",
-              }}
-            >
-              ×
-            </button>
+            {onDetach && (
+              <button onClick={onDetach} title="Open the chat in its own window">
+                Detach
+              </button>
+            )}
+            {onReattach && (
+              <button onClick={onReattach} title="Move the chat back into the main window">
+                Reattach
+              </button>
+            )}
+            {!isWindow && (
+              <button
+                onClick={onClose}
+                aria-label="close"
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            )}
           </div>
         </div>
+        {notice && (
+          <div role="alert" style={{ marginBottom: "1rem" }}>
+            {notice}
+          </div>
+        )}
         {confirmingDelete && (
           <div
             role="group"
@@ -296,80 +383,89 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
             </button>
           </div>
         )}
-        <div style={{ flex: 1, overflowY: "auto", marginBottom: "1rem" }}>
-          {messages.length === 0 && (
-            <div style={{ color: "var(--drawer-muted-color)" }}>
-              Ask about your portfolios, prices, or holdings.
+        {view === "history" ? (
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            {error && <div role="alert">{error}</div>}
+            <ChatHistoryList onOpen={(id) => void openChat(id)} busy={opening} />
+          </div>
+        ) : (
+          <>
+            <div style={{ flex: 1, overflowY: "auto", marginBottom: "1rem" }}>
+              {messages.length === 0 && (
+                <div style={{ color: "var(--drawer-muted-color)" }}>
+                  Ask about your portfolios, prices, or holdings.
+                </div>
+              )}
+              <ul
+                style={{
+                  listStyle: "none",
+                  padding: 0,
+                  margin: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.75rem",
+                }}
+              >
+                {path.map((m, i) => (
+                  <ChatMessageItem
+                    key={m.id}
+                    message={m}
+                    busy={sending}
+                    version={
+                      m.versionCount > 1
+                        ? {
+                            current: m.version,
+                            count: m.versionCount,
+                            onSelect: (offset) => selectVersion(m.id, offset),
+                          }
+                        : undefined
+                    }
+                    onEdit={
+                      m.role === "user" ? () => setEditing({ index: i, draft: m.content }) : undefined
+                    }
+                    onRegenerate={
+                      m.role === "assistant" && path[i - 1]?.role === "user"
+                        ? () => void regenerate(i)
+                        : undefined
+                    }
+                    editing={
+                      editing?.index === i
+                        ? {
+                            draft: editing.draft,
+                            onChange: (draft) => setEditing({ index: i, draft }),
+                            onSave: () => void saveEdit(),
+                            onCancel: () => setEditing(null),
+                          }
+                        : undefined
+                    }
+                  />
+                ))}
+              </ul>
+              {sending && (
+                <div role="status" style={{ color: "var(--drawer-muted-color)", marginTop: "0.75rem" }}>
+                  Thinking…
+                </div>
+              )}
+              {error && <div role="alert">{error}</div>}
+              <div ref={bottomRef} />
             </div>
-          )}
-          <ul
-            style={{
-              listStyle: "none",
-              padding: 0,
-              margin: 0,
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.75rem",
-            }}
-          >
-            {path.map((m, i) => (
-              <ChatMessageItem
-                key={m.id}
-                message={m}
-                busy={sending}
-                version={
-                  m.versionCount > 1
-                    ? {
-                        current: m.version,
-                        count: m.versionCount,
-                        onSelect: (offset) => selectVersion(m.id, offset),
-                      }
-                    : undefined
-                }
-                onEdit={
-                  m.role === "user" ? () => setEditing({ index: i, draft: m.content }) : undefined
-                }
-                onRegenerate={
-                  m.role === "assistant" && path[i - 1]?.role === "user"
-                    ? () => void regenerate(i)
-                    : undefined
-                }
-                editing={
-                  editing?.index === i
-                    ? {
-                        draft: editing.draft,
-                        onChange: (draft) => setEditing({ index: i, draft }),
-                        onSave: () => void saveEdit(),
-                        onCancel: () => setEditing(null),
-                      }
-                    : undefined
-                }
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                aria-label="chat message"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void send();
+                }}
+                style={{ flex: 1 }}
+                disabled={sending}
               />
-            ))}
-          </ul>
-          {sending && (
-            <div role="status" style={{ color: "var(--drawer-muted-color)", marginTop: "0.75rem" }}>
-              Thinking…
+              <button onClick={() => void send()} disabled={sending || !input.trim()}>
+                Send
+              </button>
             </div>
-          )}
-          {error && <div role="alert">{error}</div>}
-          <div ref={bottomRef} />
-        </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <input
-            aria-label="chat message"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void send();
-            }}
-            style={{ flex: 1 }}
-            disabled={sending}
-          />
-          <button onClick={() => void send()} disabled={sending || !input.trim()}>
-            Send
-          </button>
-        </div>
+          </>
+        )}
       </div>
     </>
   );

@@ -24,7 +24,8 @@ import {
 // - Save: each change is saved after a short debounce, as a PUT naming the
 //   revision it was based on. A 409 means another tab or device saved first:
 //   the saved copy is adopted (last writer loses).
-// - New chat archives the saved copy; deleteSavedChatHistory() deletes it all.
+// - New chat archives the saved copy; openSavedChat() swaps an archived one
+//   back in (archiving this one); deleteSavedChatHistory() deletes it all.
 // - Failures never break chat: the conversation carries on locally, the
 //   failure is logged and shown as a "not saved" hint, and the next change
 //   retries.
@@ -214,6 +215,32 @@ export async function deleteSavedChatHistory(): Promise<void> {
   adoptSavedChat({ nodes: [], active: {}, nextId: 1 });
   updateSync({ revision: 0, dirty: false, archivePending: false });
   setFailed(false);
+}
+
+/**
+ * Saves anything unsaved here, so the server's copy of the current chat is
+ * this tab's. Rejects when that could not be done.
+ */
+export async function saveCurrentChat(): Promise<void> {
+  await flush();
+  const { dirty, archivePending } = getChatSyncState();
+  if (syncEnabled() && (dirty || archivePending || failed)) {
+    throw new Error("The current chat could not be saved");
+  }
+}
+
+/**
+ * Opens archived chat `id` here: saves this conversation first, so the server
+ * archives it as it is now, then adopts the opened one. Rejects, leaving the
+ * conversation as it was, when either step fails.
+ */
+export async function openSavedChat(id: string): Promise<void> {
+  await saveCurrentChat();
+  const epoch = getChatIdentityEpoch();
+  const opened = await api.openSavedChat(id);
+  if (epoch !== getChatIdentityEpoch()) return;
+  adoptSavedChat(opened.conversation);
+  updateSync({ revision: opened.revision, dirty: false, archivePending: false });
 }
 
 function subscribeStatus(listener: () => void) {

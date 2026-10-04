@@ -104,6 +104,17 @@ def schedule_refresh(
     if can_refresh is not None and not can_refresh():
         return
 
+    # Callers running on a worker thread (e.g. via ``run_in_executor``) have
+    # no running event loop, so ``asyncio.create_task`` would raise
+    # ``RuntimeError``. The caller has already fetched its data
+    # synchronously, so skip the background refresh rather than failing it;
+    # a later call from the event loop thread will schedule it.
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        logger.debug("No running event loop; skipping refresh scheduling for %s", sanitise_log_value(page_name))
+        return
+
     async def _call_builder() -> Any:
         if inspect.iscoroutinefunction(builder):
             return await builder()

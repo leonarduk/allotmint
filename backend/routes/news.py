@@ -30,6 +30,12 @@ NEWS_TTL = 900  # seconds
 # normal refresh interval (``NEWS_TTL``) and the user is seeing stale stories.
 NEWS_MAX_STALENESS = 24 * 60 * 60  # 1 day
 BASE_URL = "https://www.alphavantage.co/query"
+
+
+class NewsQuotaExceeded(RuntimeError):
+    """Raised when the daily news request quota has been used up."""
+
+
 COUNTER_FILE: Path = page_cache.CACHE_DIR / "news_requests.json"
 
 _FINANCE_KEYWORDS = (
@@ -431,7 +437,7 @@ def get_cached_news(
 
     def _call() -> List[Dict[str, str]]:
         if not _try_consume_quota():
-            raise RuntimeError("news quota exceeded")
+            raise NewsQuotaExceeded("news quota exceeded")
         return _fetch_news(tkr)
 
     def _schedule_refresh(initial_delay: float | None = None) -> None:

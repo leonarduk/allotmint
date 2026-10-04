@@ -22,6 +22,16 @@ def test_async_builder(monkeypatch, tmp_path):
     asyncio.run(run())
 
 
+def test_schedule_refresh_without_running_loop_is_noop(monkeypatch, tmp_path):
+    """Called from a worker thread (no event loop), scheduling must not raise."""
+
+    monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+
+    page_cache.schedule_refresh("no_loop_page", 60, lambda: {"value": 1})
+
+    assert "no_loop_page" not in page_cache._refresh_tasks
+
+
 def test_builder_error_logged_and_continues(monkeypatch, tmp_path, caplog):
     async def run():
         monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)

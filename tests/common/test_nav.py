@@ -74,7 +74,7 @@ def test_load_nav_csv_missing_file_is_empty(tmp_path):
 
 def test_csv_provider_rereads_an_edited_file(tmp_path):
     path = _write(tmp_path, "3IN.L,380.5,GBX,2026-09-30,RNS\n")
-    provider = CsvNavProvider(lambda: path)
+    provider = CsvNavProvider(lambda: (path,), bucket_factory=lambda: None)
     assert provider.latest_nav("3in.l").nav == 380.5
 
     path.write_text(HEADER + "3IN.L,390.0,GBX,2026-10-01,RNS\n", encoding="utf-8")

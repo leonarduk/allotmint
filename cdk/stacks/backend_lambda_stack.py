@@ -325,6 +325,12 @@ class BackendLambdaStack(Stack):
                 "accounts",
                 "alerts",
                 "instruments",
+                # nav/navs.csv (backend/common/nav.py::load_nav_csv_s3): without
+                # ListBucket a not-yet-uploaded file is a 403, not a NoSuchKey,
+                # so the provider would log a failure on every lookup instead of
+                # quietly using the bundled copy. GetObject is already
+                # covered by the bucket-wide read grant below.
+                "nav",
                 "prices",
                 "queries",
                 "timeseries/meta",
@@ -500,6 +506,7 @@ class BackendLambdaStack(Stack):
         # Audited S3 list prefixes used by backend code paths:
         # - accounts/        (auth + portfolio enumeration)
         # - alerts/          (alert fallback path)
+        # - nav/             (NAV store missing-vs-denied, backend/common/nav.py)
         # - prices/          (price snapshot loader)
         # - queries/         (saved query listing)
         # - timeseries/meta/ (timeseries admin listing)

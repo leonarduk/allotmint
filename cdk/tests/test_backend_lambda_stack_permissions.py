@@ -35,6 +35,8 @@ BACKEND_LIST_PREFIXES = (
     "accounts",
     "alerts",
     "instruments",
+    # nav/navs.csv: missing-vs-denied for backend/common/nav.py::load_nav_csv_s3.
+    "nav",
     "prices",
     "queries",
     "timeseries/meta",
@@ -842,6 +844,27 @@ def test_no_s3_grant_to_deploy_role_when_github_deploy_role_arn_absent(monkeypat
         "Expected no S3 grants for the deploy role in BackendLambdaStack when "
         f"GITHUB_DEPLOY_ROLE_ARN is unset, found: {statements}"
     )
+
+
+def test_backend_lambda_can_read_and_probe_the_nav_store() -> None:
+    """BackendLambda reads s3://$DATA_BUCKET/nav/navs.csv (backend/common/nav.py).
+
+    GetObject comes from the bucket-wide object grant (arn_for_objects("*")),
+    and ListBucket on nav/ makes a missing file a NoSuchKey rather than a 403.
+    """
+    template = _stack_template()
+    backend_role = _role_logical_id_for_lambda(template, "BackendLambda")
+
+    get_resources = _resources_for_s3_action(template, backend_role, "s3:GetObject")
+    assert any(
+        "PortfolioDataBucket" in arn and "'/*'" in arn for arn in get_resources
+    ), f"BackendLambda s3:GetObject must cover every object incl. nav/navs.csv: {get_resources}"
+
+    conditions = _conditions_for_s3_action(template, backend_role, "s3:ListBucket")
+    assert any(
+        {"nav", "nav/*"} <= set(condition.get("StringLike", {}).get("s3:prefix", []))
+        for condition in conditions
+    ), "BackendLambda s3:ListBucket must include the nav/ prefix"
 
 
 def _logs_statements_for_role_name(raw_template: dict, role_name: str) -> list[dict]:

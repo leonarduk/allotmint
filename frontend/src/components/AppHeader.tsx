@@ -8,7 +8,16 @@ import Menu from './Menu';
 import { InstrumentSearchBarToggle } from './InstrumentSearchBar';
 import { NotificationsDrawer } from './NotificationsDrawer';
 import { ChatPanel } from './ChatPanel';
+import {
+  canDetachChat,
+  openChatWindow,
+  prefersDetachedChat,
+  useChatWindowHost,
+} from '../utils/chatWindow';
 import UserAvatar from './UserAvatar';
+
+const CHAT_WINDOW_BLOCKED =
+  'Your browser blocked the chat window. Allow pop-ups for this site to detach the chat.';
 
 interface AppHeaderProps {
   selectedOwner?: string;
@@ -33,6 +42,7 @@ export default function AppHeader({
   const { t } = useTranslation();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatNotice, setChatNotice] = useState<string | null>(null);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { tabs, disabledTabs } = useConfig();
@@ -40,6 +50,31 @@ export default function AppHeader({
     () => buildChatPages(tabs, disabledTabs, (mode) => t(`app.modes.${mode}`)),
     [tabs, disabledTabs, t]
   );
+  const chatContext = useMemo(() => buildChatContext(pathname), [pathname]);
+  // While detached the chat lives in its own window (#9025): pages it opens
+  // load here and it stays open; Reattach brings the drawer back.
+  const chatDetached = useChatWindowHost({
+    pages: chatPages,
+    context: chatContext,
+    onNavigate: navigate,
+    onReattach: () => setChatOpen(true),
+  });
+
+  // Opens the chat window; when the browser blocks it, the drawer instead.
+  const detachChat = () => {
+    if (openChatWindow()) {
+      setChatOpen(false);
+      setChatNotice(null);
+    } else {
+      setChatOpen(true);
+      setChatNotice(CHAT_WINDOW_BLOCKED);
+    }
+  };
+
+  const openChat = () => {
+    if (chatDetached || (prefersDetachedChat() && canDetachChat())) detachChat();
+    else setChatOpen(true);
+  };
 
   return (
     <>
@@ -87,12 +122,16 @@ export default function AppHeader({
         </button>
         <button
           aria-label="chat"
-          onClick={() => setChatOpen(true)}
+          aria-pressed={chatDetached || undefined}
+          title={chatDetached ? 'Chat is open in its own window' : undefined}
+          onClick={openChat}
           style={{
             background: 'none',
             border: 'none',
             cursor: 'pointer',
             fontSize: '1.5rem',
+            borderRadius: '0.25rem',
+            outline: chatDetached ? '2px solid currentColor' : undefined,
           }}
         >
           💬
@@ -104,10 +143,15 @@ export default function AppHeader({
         onClose={() => setNotificationsOpen(false)}
       />
       <ChatPanel
-        open={chatOpen}
-        onClose={() => setChatOpen(false)}
+        open={chatOpen && !chatDetached}
+        onClose={() => {
+          setChatOpen(false);
+          setChatNotice(null);
+        }}
         pages={chatPages}
-        context={buildChatContext(pathname)}
+        context={chatContext}
+        onDetach={canDetachChat() ? detachChat : undefined}
+        notice={chatNotice}
         onNavigate={(path) => {
           // Close the drawer so the page the user asked for is visible; the
           // conversation is kept for when they reopen it.

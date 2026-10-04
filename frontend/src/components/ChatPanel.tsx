@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import * as api from "../api";
 import type { ChatContext, ChatMessage, ChatPage } from "../api";
 import {
@@ -32,7 +32,32 @@ interface Props {
   context?: ChatContext;
   /** Called with a page's path when the assistant opens it. */
   onNavigate?: (path: string) => void;
+  /** "window" fills a detached chat window (#9025); the default is a drawer over the page. */
+  variant?: "drawer" | "window";
+  /** Offered in the drawer: moves the chat into its own window. */
+  onDetach?: () => void;
+  /** Offered in a detached window: moves the chat back into the main window. */
+  onReattach?: () => void;
+  /** A message about the panel itself, e.g. that the chat window was blocked. */
+  notice?: string | null;
 }
+
+const DRAWER_STYLE: CSSProperties = {
+  position: "fixed",
+  top: 0,
+  right: 0,
+  width: "min(560px, 100vw)",
+  height: "100%",
+  borderLeft: "1px solid var(--drawer-border-color)",
+  boxShadow: "-2px 0 5px rgba(0,0,0,0.3)",
+  zIndex: 1000,
+};
+
+// Fixed rather than 100vh, so the body's margin cannot add a scrollbar.
+const WINDOW_STYLE: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+};
 
 // Map a failed send to fixed wording rather than echoing the backend's error
 // text (#7721; #7131 precedent). The `code` POST /chat sends with a 502/503
@@ -67,7 +92,17 @@ function chatErrorMessage(e: unknown): string {
   return "Cannot reach server";
 }
 
-export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Props) {
+export function ChatPanel({
+  open,
+  onClose,
+  pages = [],
+  context,
+  onNavigate,
+  variant = "drawer",
+  onDetach,
+  onReattach,
+  notice,
+}: Props) {
   const messages = useChatMessages();
   const path = useChatPath();
   const [input, setInput] = useState("");
@@ -217,36 +252,33 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
     selectChatVersion(id, offset);
   };
 
+  const isWindow = variant === "window";
+
   return (
     <>
+      {!isWindow && (
+        <div
+          onClick={onClose}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background: "rgba(0,0,0,0.3)",
+            zIndex: 999,
+          }}
+        />
+      )}
       <div
-        onClick={onClose}
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          background: "rgba(0,0,0,0.3)",
-          zIndex: 999,
-        }}
-      />
-      <div
-        role="dialog"
+        role={isWindow ? "region" : "dialog"}
         aria-label="Chat"
         style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          width: "min(560px, 100vw)",
-          height: "100%",
+          ...(isWindow ? WINDOW_STYLE : DRAWER_STYLE),
           boxSizing: "border-box",
           background: "var(--drawer-bg)",
           color: "var(--drawer-color)",
-          borderLeft: "1px solid var(--drawer-border-color)",
-          boxShadow: "-2px 0 5px rgba(0,0,0,0.3)",
           padding: "1rem",
-          zIndex: 1000,
           display: "flex",
           flexDirection: "column",
         }}
@@ -303,20 +335,37 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
             >
               New chat
             </button>
-            <button
-              onClick={onClose}
-              aria-label="close"
-              style={{
-                background: "none",
-                border: "none",
-                fontSize: "1.2rem",
-                cursor: "pointer",
-              }}
-            >
-              ×
-            </button>
+            {onDetach && (
+              <button onClick={onDetach} title="Open the chat in its own window">
+                Detach
+              </button>
+            )}
+            {onReattach && (
+              <button onClick={onReattach} title="Move the chat back into the main window">
+                Reattach
+              </button>
+            )}
+            {!isWindow && (
+              <button
+                onClick={onClose}
+                aria-label="close"
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            )}
           </div>
         </div>
+        {notice && (
+          <div role="alert" style={{ marginBottom: "1rem" }}>
+            {notice}
+          </div>
+        )}
         {confirmingDelete && (
           <div
             role="group"

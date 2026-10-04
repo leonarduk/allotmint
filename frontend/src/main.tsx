@@ -39,6 +39,8 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import DisabledFeature from './components/DisabledFeature';
 import AppHeader from './components/AppHeader';
+import DetachedChat from './components/DetachedChat';
+import { CHAT_WINDOW_PATH } from './utils/chatWindow';
 import DemoReadOnlyBanner from './components/DemoReadOnlyBanner';
 import {
   applyDemoTokenFromUrl,
@@ -549,6 +551,7 @@ export function Root({
                     />,
                   ]
             )}
+            <Route path={CHAT_WINDOW_PATH} element={<DetachedChat />} />
             <Route path="/goals" element={<Goals />} />
             <Route path="/smoke-test" element={<SmokeTest />} />
             {advancedAnalyticsEnabled ? (

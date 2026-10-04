@@ -252,7 +252,7 @@ def classify_instrument(
             "Ignoring unrecognised asset_class override %s for %s; expected one of %s",
             sanitise_log_value(override_class),
             sanitise_log_value(meta.get("ticker")),
-            ", ".join(ASSET_CLASSES),
+            sanitise_log_value(", ".join(ASSET_CLASSES)),
         )
     asset_class = asset_class or derive_asset_class(meta)
     if asset_class is not None:

@@ -474,6 +474,18 @@ def test_load_latest_closes_unparseable_date_is_none(monkeypatch):
     assert hu.load_latest_closes(["FOO.L"]) == {"FOO.L": (pytest.approx(10.0), None)}
 
 
+def test_load_latest_closes_missing_date_is_none_not_nat(monkeypatch):
+    """A NaT row date must come back as None (stale): NaT compares False with any date, so it would read as fresh."""
+    served = pd.DataFrame({"Date": [pd.Timestamp("2026-09-24"), pd.NaT], "Close_gbp": [9.0, 10.0]})
+    monkeypatch.setattr(hu, "load_meta_timeseries_range", lambda **_k: served)
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *a, **k: 1.0)
+
+    price, close_date = hu.load_latest_closes(["FOO.L"])["FOO.L"]
+
+    assert price == pytest.approx(10.0)
+    assert close_date is None
+
+
 def test_load_latest_closes_without_date_column_warns_and_fails_safe(monkeypatch, caplog):
     """No "Date" column: keep feed order (don't sort by price), warn, and report no close date (stale)."""
     served = pd.DataFrame({"Close_gbp": [10.0, 9.0]})

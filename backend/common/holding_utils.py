@@ -57,7 +57,9 @@ def _fx_to_base(from_ccy: str, to_ccy: str, cache: Dict[str, float]) -> float:
 
 
 def _parse_date(val) -> Optional[dt.date]:
-    if val is None:
+    # pd.NaT subclasses datetime and NaT.date() is NaT, which compares False
+    # with any date -- so a missing row date would read as fresh (#8595).
+    if val is None or val is pd.NaT:
         return None
     if isinstance(val, dt.date) and not isinstance(val, dt.datetime):
         return val

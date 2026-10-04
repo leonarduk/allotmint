@@ -64,6 +64,22 @@ def test_repo_only_symbol_kept_when_data_root_table_lacks_it(monkeypatch, tmp_pa
     assert th.get_scaling_override("BP.L", "L", None) == pytest.approx(0.01)
 
 
+@pytest.mark.parametrize("content", ['{"L": {"BP": 0.01', "[1, 2]"], ids=["truncated", "not-an-object"])
+def test_broken_data_root_table_falls_back_to_repo_with_warning(monkeypatch, tmp_path, caplog, content):
+    """A half-written live table must not be dropped silently (#7787)."""
+    data_file, repo_file = _point_at(monkeypatch, tmp_path, repo_table={"L": {"SGLN": 0.01}})
+    data_file.parent.mkdir(parents=True, exist_ok=True)
+    data_file.write_text(content)
+
+    with caplog.at_level("WARNING", logger=th.logger.name):
+        merged, sources = th._load_scaling_overrides()
+
+    assert sources == [repo_file]
+    assert merged == {"L": {"SGLN": 0.01}}
+    assert "scaling overrides table" in caplog.text
+    assert "allotmint-data" in caplog.text
+
+
 def test_data_root_entry_overrides_repo_entry_for_same_symbol(monkeypatch, tmp_path, gbp_metadata):
     _point_at(monkeypatch, tmp_path, data_table={"L": {"ERNS": 1}}, repo_table={"L": {"ERNS": 0.01, "GSK": 0.01}})
 

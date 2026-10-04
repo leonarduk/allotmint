@@ -87,8 +87,9 @@ def _load_scaling_overrides() -> tuple[dict, list[Path]]:
     ``DATA_ROOT`` entry replaces the repo entry for the same symbol without
     dropping the repo's other symbols. Section (exchange) keys are upper-cased
     so lookups are case-insensitive on the exchange. Unreadable or malformed
-    files are skipped. Files are read on every call (no cache), so edits to
-    either table take effect immediately.
+    files are skipped with a warning, so a broken live table can't silently
+    fall back to the repo copy unnoticed (#7787). Files are read on every call
+    (no cache), so edits to either table take effect immediately.
     """
     merged: dict = {}
     sources: list[Path] = []
@@ -96,9 +97,18 @@ def _load_scaling_overrides() -> tuple[dict, list[Path]]:
         try:
             with path.open() as f:
                 table = json.load(f)
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Ignoring unreadable scaling overrides table %s: %s",
+                sanitise_log_value(str(path)),
+                sanitise_log_value(type(exc).__name__),
+            )
             continue
         if not isinstance(table, dict):
+            logger.warning(
+                "Ignoring scaling overrides table %s: expected a JSON object",
+                sanitise_log_value(str(path)),
+            )
             continue
         sources.append(path)
         for ex_key, section in table.items():

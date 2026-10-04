@@ -91,10 +91,18 @@ def _spike_mask(close: np.ndarray, volume: np.ndarray, source: np.ndarray) -> np
 
 
 def _normalised_sources(df: pd.DataFrame) -> np.ndarray:
+    """Lower-cased, stripped source labels as plain ``str``; ``""`` when unknown.
+
+    Missing values (``None``, ``NaN``, ``pd.NA``) are mapped to ``""`` *before*
+    converting, so the elementwise ``!=`` in :func:`_spike_mask` only ever
+    compares Python strings and never propagates ``pd.NA``.
+    """
     if "Source" not in df.columns:
         return np.full(len(df), "", dtype=object)
-    src = df["Source"].astype("string").str.strip().str.lower().fillna("")
-    return src.to_numpy(dtype=object)
+    labels = [
+        "" if pd.api.types.is_scalar(value) and pd.isna(value) else str(value).strip().lower() for value in df["Source"]
+    ]
+    return np.asarray(labels, dtype=object)
 
 
 def drop_zero_volume_spikes(df: pd.DataFrame, *, ticker: str, exchange: str) -> pd.DataFrame:

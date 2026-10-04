@@ -155,3 +155,31 @@ def test_memoized_range_applies_guard(monkeypatch):
     out = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
     assert out["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
     assert len(raw) == len(VWRL_CLOSES)
+
+
+def test_source_comparison_handles_pd_na_and_nan():
+    sources = pd.array(["Stooq", pd.NA, "Stooq", "Stooq", "Yahoo", "Stooq"], dtype="string")
+    df = _frame([120.0, 160.0, 121.0, 120.5, 161.0, 120.8], [10, 0, 10, 10, 0, 10], sources=sources)
+    out = drop_zero_volume_spikes(df, ticker="X", exchange="L")
+    # The pd.NA-sourced spike is kept (unknown provenance); the Yahoo one goes.
+    assert out["Close"].tolist() == [120.0, 160.0, 121.0, 120.5, 120.8]
+
+    obj = _frame([120.0, 160.0, 121.0], [10, 0, 10], sources=["Stooq", np.nan, "Stooq"])
+    assert drop_zero_volume_spikes(obj, ticker="X", exchange="L") is obj
+
+
+def test_no_false_positives_on_clean_interleaved_stooq_yahoo_series():
+    # A year of realistic mixed-provenance data: Stooq rows trade volume,
+    # Yahoo rows are zero-volume, but every row is on the same price level.
+    rng = np.random.default_rng(7816)
+    n = 260
+    closes = 120.0 * np.cumprod(1 + rng.normal(0.0003, 0.009, n))
+    is_yahoo = rng.random(n) < 0.4
+    volumes = np.where(is_yahoo, 0, rng.integers(40_000, 150_000, n))
+    sources = np.where(is_yahoo, "Yahoo", "Stooq")
+    # Include a genuine zero-volume cross-source gap that does not revert.
+    closes[150:] *= 0.82
+    volumes[150], sources[150] = 0, "Yahoo"
+    df = _frame(closes.tolist(), volumes.tolist(), sources=sources.tolist())
+
+    assert drop_zero_volume_spikes(df, ticker="VWRL", exchange="L") is df

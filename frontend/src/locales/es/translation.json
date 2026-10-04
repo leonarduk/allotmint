@@ -421,7 +421,7 @@
       "otherAccountsHeading": "Otras cuentas (como referencia -- no incluidas en esta previsión)",
       "pensionPot": "Fondo de pensión actual",
       "pensionPotFromPortfolio": "De los datos actuales de tu cartera",
-      "statePensionHelper": "Tu pensión pública anual estimada. Por defecto, 0 £ (excluida); introduce tu propia estimación para incluirla.",
+      "statePensionHelper": "La nueva pensión pública completa para {{year}} es de {{weekly}} a la semana ({{annual}} al año) y requiere 35 años cotizados a la National Insurance. Consulta tu cifra en gov.uk/check-state-pension e introdúcela si es distinta.",
       "totalContribution": "Aportaciones mensuales totales: {{total}}"
     },
     "incomeBreakdownHeading": "Retirement income breakdown",

@@ -486,7 +486,6 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
     quote_type = _clean_str(info.get("quoteType"), upper=True)
 
     metadata: Dict[str, Any] = {
-        "ticker": full_ticker,
         "name": name or full_ticker,
         "currency": currency,
         "sector": sector,
@@ -496,8 +495,8 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
         "instrument_type": quote_type,
     }
     # Asset class and an exposure-based fund sector, not the issuer's (#9196).
-    metadata.update(classify_instrument(metadata, load_classification_overrides().get(full_ticker)))
-    metadata.pop("ticker")
+    classification_input = {**metadata, "ticker": full_ticker}
+    metadata.update(classify_instrument(classification_input, load_classification_overrides().get(full_ticker)))
 
     return {k: v for k, v in metadata.items() if v is not None}
 

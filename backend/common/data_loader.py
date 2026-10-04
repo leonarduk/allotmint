@@ -554,11 +554,16 @@ def _list_local_plots(
         # disable_auth branch below (which would expose every owner) nor to
         # the viewers-based checks further down (which read person.json data
         # a demo token must never widen access via). See #7408.
-        from backend.auth import is_demo_request
+        from backend.auth import is_demo_request, is_system_job
 
         if is_demo_request():
             demo_owner = config.demo_link_owner
             return isinstance(demo_owner, str) and owner.strip().lower() == demo_owner.strip().lower()
+
+        # A trusted, user-less system job (the scheduled price refresh) sees
+        # every owner even with auth enabled (#8805).
+        if user is None and is_system_job():
+            return True
 
         if config.disable_auth:
             if user is None:
@@ -862,7 +867,7 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
     # see exactly the configured demo owner and nothing else, checked before
     # -- and independently of -- the disable_auth/current_user filtering
     # below. See #7408.
-    from backend.auth import is_demo_request
+    from backend.auth import is_demo_request, is_system_job
 
     if is_demo_request():
         demo_owner = config.demo_link_owner
@@ -870,13 +875,16 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
             return []
         return [_build_owner_summary(demo_owner, owners[demo_owner], load_person_meta(demo_owner))]
 
+    system_job = current_user is None and is_system_job()
     results: List[Dict[str, Any]] = []
     for owner, accounts in sorted(owners.items()):
         # When authentication is enabled (``disable_auth`` explicitly ``False``)
         # and no user is authenticated, do not expose any accounts.  If the
         # configuration failed to load ``disable_auth`` will be ``None``;
         # treating that as "auth disabled" avoids filtering everything.
-        if config.disable_auth is False and current_user is None:
+        # Trusted system jobs are the exception: they have no user but must
+        # see every owner (#8805).
+        if config.disable_auth is False and current_user is None and not system_job:
             continue
         meta = load_person_meta(owner)
         if current_user:

@@ -2,7 +2,14 @@ import importlib
 import sys
 from types import SimpleNamespace
 
+from botocore.exceptions import ClientError
+
 import backend.common.prices as prices
+
+
+def _snapshot_exists_error():
+    """What S3 returns for a ``IfNoneMatch="*"`` put when the key already exists."""
+    return ClientError({"Error": {"Code": "PreconditionFailed", "Message": "exists"}}, "PutObject")
 
 
 def _import_lambda(monkeypatch, env_value):
@@ -162,6 +169,7 @@ def test_seed_empty_snapshot_puts_object(monkeypatch):
     assert put_calls[0]["Key"] == "prices/latest_prices.json"
     assert put_calls[0]["Body"] == b"{}"
     assert put_calls[0]["ContentType"] == "application/json"
+    assert put_calls[0]["IfNoneMatch"] == "*"  # never replaces an existing snapshot
 
 
 def test_seed_empty_snapshot_swallows_boto3_error(monkeypatch):
@@ -177,3 +185,43 @@ def test_seed_empty_snapshot_swallows_boto3_error(monkeypatch):
 
     # Must not raise
     fn()
+
+
+def test_seed_empty_snapshot_keeps_an_existing_snapshot(monkeypatch, caplog):
+    """A failed refresh must not overwrite the last good snapshot with {} (#8805)."""
+    fn, mod = _get_seed_fn(monkeypatch)
+    monkeypatch.setattr(mod.config, "app_env", "aws")
+    monkeypatch.setenv("DATA_BUCKET", "test-bucket")
+
+    attempts = []
+
+    def put_object(**kwargs):
+        attempts.append(kwargs)
+        raise _snapshot_exists_error()
+
+    monkeypatch.setitem(
+        sys.modules, "boto3", SimpleNamespace(client=lambda svc: SimpleNamespace(put_object=put_object))
+    )
+
+    with caplog.at_level("INFO", logger=mod.logger.name):
+        fn()
+
+    assert [a["IfNoneMatch"] for a in attempts] == ["*"]
+    assert any("already present" in r.getMessage() for r in caplog.records)
+    assert not any(r.levelname == "WARNING" for r in caplog.records)
+
+
+def test_lambda_handler_runs_refresh_as_system_job(monkeypatch):
+    """The user-less scheduled refresh runs inside system_job_context so it sees every owner (#8805)."""
+    from backend.auth import is_system_job
+
+    seen = []
+    monkeypatch.setattr(prices, "refresh_prices", lambda: seen.append(is_system_job()) or {"tickers": []})
+    monkeypatch.setenv("ALLOTMINT_ENABLE_TRADING_AGENT", "false")
+    sys.modules.pop("backend.lambda_api.price_refresh", None)
+    mod = importlib.import_module("backend.lambda_api.price_refresh")
+
+    mod.lambda_handler({}, {})
+
+    assert seen == [True]
+    assert is_system_job() is False

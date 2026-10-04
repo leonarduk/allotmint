@@ -10,9 +10,16 @@ Failure handling
 When invoked synchronously by the CDK deploy Trigger (REQUEST_RESPONSE), an
 unhandled exception causes CloudFormation to roll back the entire stack.  To
 avoid that regression, ``lambda_handler`` catches all exceptions from
-``refresh_prices()``, logs the error, writes an empty stub snapshot so the
-"price snapshot not yet seeded" CloudWatch warning is suppressed on subsequent
-cold starts, and returns normally.  Real prices will be populated on the next
+``refresh_prices()``, logs the error, writes an empty stub snapshot (only when
+no snapshot exists yet, so a good one is never replaced with ``{}``, #8805) so
+the "price snapshot not yet seeded" CloudWatch warning is suppressed on
+subsequent cold starts, and returns normally.
+
+System-job context
+------------------
+The handler runs inside :func:`backend.auth.system_job_context`: it has no
+request user, and with auth enabled owner discovery would otherwise hide every
+owner, leaving the refresh with no tickers (#8805).  Real prices will be populated on the next
 scheduled EventBridge invocation.
 """
 
@@ -22,8 +29,9 @@ import logging
 import os
 from datetime import UTC, datetime
 
+from backend.auth import system_job_context
 from backend.common.portfolio_utils import DATA_BUCKET_ENV, PRICES_S3_KEY
-from backend.common.prices import refresh_prices
+from backend.common.prices import put_empty_snapshot_if_absent, refresh_prices
 from backend.config import config
 from backend.logging_setup import sanitise_exception_traceback, sanitise_log_value
 
@@ -53,13 +61,15 @@ def _seed_empty_snapshot() -> None:
     try:
         import boto3  # type: ignore
 
-        boto3.client("s3").put_object(
-            Bucket=bucket,
-            Key=PRICES_S3_KEY,
-            Body=b"{}",
-            ContentType="application/json",
+        # Only seed a missing key, atomically: a failed refresh must not replace
+        # the last good snapshot with {} (#8805), but a missing key must still
+        # be created for the post-deploy check (#3685).
+        if not put_empty_snapshot_if_absent(boto3.client("s3"), bucket):
+            logger.info("Price snapshot already present; not seeding {}")
+            return
+        logger.info(
+            "Seeded empty price snapshot to s3://%s/%s", sanitise_log_value(bucket), sanitise_log_value(PRICES_S3_KEY)
         )
-        logger.info("Seeded empty price snapshot to s3://%s/%s", bucket, PRICES_S3_KEY)
     except Exception as exc:  # pragma: no cover - upload failure is non-fatal
         logger.warning("Failed to seed empty price snapshot to S3: %s", sanitise_log_value(exc))
 
@@ -69,9 +79,16 @@ def lambda_handler(event, context):
 
     Exceptions from ``refresh_prices()`` are caught so that a REQUEST_RESPONSE
     CDK Trigger failure does not roll back the CloudFormation stack.  An empty
-    stub is written to S3 on failure to suppress cold-start warnings until the
-    next successful scheduled refresh.
+    stub is written to S3 on failure, if no snapshot exists yet, to suppress
+    cold-start warnings until the next successful scheduled refresh.
     """
+    # The scheduled refresh has no request user; run it as a trusted system job
+    # so owner discovery returns every owner even with auth enabled (#8805).
+    with system_job_context():
+        return _run_refresh()
+
+
+def _run_refresh():
     _refresh_failed = False
     try:
         result = refresh_prices()

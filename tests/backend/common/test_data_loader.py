@@ -550,6 +550,21 @@ class TestListLocalPlots:
         ]
         assert all(entry["owner"] not in {"demo", ".idea"} for entry in result)
 
+    def test_system_job_sees_owners_with_auth_enabled(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A user-less system job (the price refresh) lists every owner even with auth on (#8805)."""
+        from backend.auth import system_job_context
+
+        data_root = tmp_path / "accounts"
+        self._configure(monkeypatch, tmp_path, data_root, disable_auth=False)
+        _write_owner(data_root, "carol", ["gamma"], viewers=[])
+
+        anonymous = _list_local_plots(data_root=data_root, current_user=None)
+        with system_job_context():
+            system = _list_local_plots(data_root=data_root, current_user=None)
+
+        assert "carol" not in {entry["owner"] for entry in anonymous}
+        assert {"owner": "carol", "accounts": ["gamma"]} in system
+
     @pytest.mark.xfail(reason="To fix")
     def test_overridden_demo_identity_hides_default_directory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

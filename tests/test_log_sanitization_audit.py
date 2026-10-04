@@ -7,43 +7,166 @@ call sites is grandfathered in via ``tests/data/log_sanitization_baseline.txt``
 (most are internal-only data or already-safe ``%r``/``str(exc)`` patterns
 that the AST scan can't distinguish without full dataflow analysis).
 
+Baseline entries are keyed on line-independent call identity,
+``path::enclosing_qualname::normalised call source`` (#8689), so adding or
+removing lines elsewhere in a file never turns a grandfathered call into a
+false positive. Identical calls in the same scope are counted: the baseline
+lists the key once per occurrence.
+
 The test only fails on *new* unwrapped call sites that aren't in the
 baseline -- i.e. it's a ratchet, not a full enforcement of every existing
 call. Adding a new logger call with a variable argument requires either
 wrapping it in ``sanitise_log_value`` or, if the value is provably internal
-(e.g. a loop counter), adding the ``file:line`` to the baseline file with a
-comment explaining why.
+(e.g. a loop counter), adding its key (as printed in the failure message, or
+by ``python scripts/build_tools/_scan_log_sanitisation.py``) to the baseline
+file with a comment explaining why.
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 
 from scripts.build_tools import _scan_log_sanitisation
-from scripts.build_tools._scan_log_sanitisation import find_unwrapped_log_calls
+from scripts.build_tools._scan_log_sanitisation import (
+    LogCallFinding,
+    find_unwrapped_log_call_findings,
+    find_unwrapped_log_calls,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = REPO_ROOT / "tests" / "data" / "log_sanitization_baseline.txt"
 
 
-def _load_baseline() -> set[str]:
-    lines = BASELINE_PATH.read_text(encoding="utf-8").splitlines()
-    return {line.strip() for line in lines if line.strip() and not line.startswith("#")}
+def _load_baseline(path: Path = BASELINE_PATH) -> Counter[str]:
+    """Return how many times each call key is listed in the baseline file."""
+
+    lines = (line.strip() for line in path.read_text(encoding="utf-8").splitlines())
+    return Counter(line for line in lines if line and not line.startswith("#"))
+
+
+def _unbaselined_findings(findings: list[LogCallFinding], baseline: Counter[str]) -> list[LogCallFinding]:
+    """Return findings whose key occurs more often than the baseline allows.
+
+    When a key is over its baselined count, every occurrence of it is
+    returned, since there's no line-independent way to tell which one is new.
+    """
+
+    excess = Counter(finding.key for finding in findings) - baseline
+    return [finding for finding in findings if finding.key in excess]
+
+
+def _format_findings(findings: list[LogCallFinding], baseline: Counter[str]) -> str:
+    current = Counter(finding.key for finding in findings)
+    lines = []
+    for finding in findings:
+        allowed = baseline[finding.key]
+        note = f" (found {current[finding.key]}, baseline allows {allowed})" if allowed else ""
+        lines.append(f"{finding.rel_path}:{finding.lineno}{note}\n    key: {finding.key}")
+    return "\n".join(lines)
 
 
 def test_no_new_unwrapped_logger_calls() -> None:
     baseline = _load_baseline()
-    current = {f"{rel_path}:{lineno}" for rel_path, lineno in find_unwrapped_log_calls()}
+    findings = find_unwrapped_log_call_findings()
+    new_findings = _unbaselined_findings(findings, baseline)
 
-    new_entries = current - baseline
-    assert not new_entries, (
-        "New logger.warning/error/info call(s) with an unsanitised argument found:\n"
-        + "\n".join(sorted(new_entries))
+    assert not new_findings, (
+        "New logger.warning/error/info/debug/exception call(s) with an unsanitised argument found:\n"
+        + _format_findings(new_findings, baseline)
         + "\n\nWrap user-controlled values in sanitise_log_value(...) from "
-        "backend.logging_setup, or add the file:line to "
-        "tests/data/log_sanitization_baseline.txt with a comment explaining "
-        "why the value can't carry attacker-controlled input."
+        "backend.logging_setup, or add the key line(s) above to "
+        "tests/data/log_sanitization_baseline.txt (sorted, with a # comment "
+        "explaining why the value can't carry attacker-controlled input). "
+        "`python scripts/build_tools/_scan_log_sanitisation.py` prints every "
+        "current key."
     )
+
+
+def _point_scanner_at(monkeypatch, tmp_path: Path) -> Path:
+    fake_backend = tmp_path / "backend"
+    fake_backend.mkdir()
+    monkeypatch.setattr(_scan_log_sanitisation, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(_scan_log_sanitisation, "BACKEND_ROOT", fake_backend)
+    monkeypatch.setattr(_scan_log_sanitisation, "EXCLUDED_FILES", set())
+    return fake_backend
+
+
+_GRANDFATHERED_SOURCE = (
+    "import logging\n"
+    "\n"
+    "logger = logging.getLogger(__name__)\n"
+    "\n"
+    "\n"
+    "class Store:\n"
+    "    def load(self, path):\n"
+    "        logger.warning('read failed for %s', path)\n"
+    "        logger.warning('read failed for %s', path)\n"
+    "\n"
+    "\n"
+    "def handler(owner):\n"
+    "    logger.debug(\n"
+    "        'owner lookup failed for %s',\n"
+    "        owner,\n"
+    "    )\n"
+)
+_DUPLICATE_KEY = "backend/example.py::Store.load::logger.warning('read failed for %s', path)"
+
+
+def test_baseline_survives_lines_shifting_above_grandfathered_calls(monkeypatch, tmp_path) -> None:
+    """Inserting lines above a grandfathered call must not flag it as new (#8689)."""
+
+    fake_backend = _point_scanner_at(monkeypatch, tmp_path)
+    module = fake_backend / "example.py"
+    module.write_text(_GRANDFATHERED_SOURCE, encoding="utf-8")
+    baseline_file = tmp_path / "baseline.txt"
+    keys = sorted(finding.key for finding in find_unwrapped_log_call_findings())
+    baseline_file.write_text("# comment lines are ignored\n" + "\n".join(keys) + "\n", encoding="utf-8")
+    baseline = _load_baseline(baseline_file)
+    assert sum(baseline.values()) == 3
+    assert baseline[_DUPLICATE_KEY] == 2
+
+    shifted = _GRANDFATHERED_SOURCE.replace("import logging\n", "import logging\n" + "\n" * 5, 1)
+    # Re-wrapping the multi-line call onto one line doesn't change its key either.
+    shifted = shifted.replace(
+        "logger.debug(\n        'owner lookup failed for %s',\n        owner,\n    )",
+        'logger.debug("owner lookup failed for %s", owner)',
+    )
+    module.write_text(shifted, encoding="utf-8")
+
+    findings = find_unwrapped_log_call_findings()
+    assert [finding.lineno for finding in findings] == [13, 14, 18]
+    assert _unbaselined_findings(findings, baseline) == []
+
+
+def test_baseline_still_flags_genuinely_new_unwrapped_calls(monkeypatch, tmp_path) -> None:
+    """A new unwrapped call -- including an extra copy of a baselined duplicate -- must fail."""
+
+    fake_backend = _point_scanner_at(monkeypatch, tmp_path)
+    module = fake_backend / "example.py"
+    module.write_text(_GRANDFATHERED_SOURCE, encoding="utf-8")
+    baseline = Counter(finding.key for finding in find_unwrapped_log_call_findings())
+
+    module.write_text(
+        _GRANDFATHERED_SOURCE + "    logger.exception(\n        'unexpected error for %s',\n        owner,\n    )\n",
+        encoding="utf-8",
+    )
+    new_findings = _unbaselined_findings(find_unwrapped_log_call_findings(), baseline)
+    assert [(finding.lineno, finding.key) for finding in new_findings] == [
+        (17, "backend/example.py::handler::logger.exception('unexpected error for %s', owner)")
+    ]
+    assert "backend/example.py:17\n" in _format_findings(new_findings, baseline)
+
+    tripled = _GRANDFATHERED_SOURCE.replace(
+        "        logger.warning('read failed for %s', path)\n" * 2,
+        "        logger.warning('read failed for %s', path)\n" * 3,
+        1,
+    )
+    module.write_text(tripled, encoding="utf-8")
+    new_findings = _unbaselined_findings(find_unwrapped_log_call_findings(), baseline)
+    assert [finding.lineno for finding in new_findings] == [8, 9, 10]
+    assert {finding.key for finding in new_findings} == {_DUPLICATE_KEY}
+    assert "found 3, baseline allows 2" in _format_findings(new_findings, baseline)
 
 
 def test_find_unwrapped_log_calls_flags_multi_line_debug_and_exception_calls(monkeypatch, tmp_path) -> None:

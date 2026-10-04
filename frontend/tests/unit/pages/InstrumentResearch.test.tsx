@@ -834,6 +834,36 @@ describe("InstrumentResearch page", () => {
     ).toHaveTextContent("Declared currency (metadata): USD");
   });
 
+  it("links to Investing.com and Morningstar by ISIN when the catalogue has one", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme Corp", isin: "GB00BH4HKS39" },
+    ] as any);
+    renderPage();
+
+    const morningstar = await screen.findByRole("link", { name: "View on Morningstar" });
+    expect(morningstar).toHaveAttribute(
+      "href",
+      "https://global.morningstar.com/en-gb/search?query=GB00BH4HKS39",
+    );
+    expect(morningstar).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: "View on Investing.com" })).toHaveAttribute(
+      "href",
+      "https://www.investing.com/search/?q=GB00BH4HKS39",
+    );
+  });
+
+  it("falls back to a ticker search and hides Morningstar without an ISIN", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme Corp" },
+    ] as any);
+    renderPage();
+
+    expect(
+      await screen.findByRole("link", { name: "View on Investing.com" }),
+    ).toHaveAttribute("href", "https://www.investing.com/search/?q=AAA");
+    expect(screen.queryByRole("link", { name: "View on Morningstar" })).toBeNull();
+  });
+
   it("allows editing instrument metadata", async () => {
     renderPage();
 

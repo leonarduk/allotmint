@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildInvestingComUrl,
+  buildMorningstarUrl,
   decodePathSegment,
   encodePathSegment,
   stripAuthCallbackParams,
@@ -143,9 +144,9 @@ describe("stripAuthCallbackParams", () => {
 });
 
 describe("buildInvestingComUrl", () => {
-  it("searches by instrument name when available", () => {
-    expect(buildInvestingComUrl("Vodafone Group PLC", "VOD.L")).toBe(
-      "https://www.investing.com/search/?q=Vodafone%20Group%20PLC",
+  it("searches by ISIN when available", () => {
+    expect(buildInvestingComUrl("gb00bh4hks39", "VOD.L")).toBe(
+      "https://www.investing.com/search/?q=GB00BH4HKS39",
     );
   });
 
@@ -153,12 +154,26 @@ describe("buildInvestingComUrl", () => {
     expect(buildInvestingComUrl(null, "VOD.L")).toBe(
       "https://www.investing.com/search/?q=VOD",
     );
-    expect(buildInvestingComUrl("   ", "AAPL.N")).toBe(
+    expect(buildInvestingComUrl("not-an-isin", "AAPL.N")).toBe(
       "https://www.investing.com/search/?q=AAPL",
     );
   });
 
   it("returns null when there is nothing to search for", () => {
     expect(buildInvestingComUrl(undefined, "")).toBeNull();
+  });
+});
+
+describe("buildMorningstarUrl", () => {
+  it("searches Morningstar by ISIN", () => {
+    expect(buildMorningstarUrl(" GB00BH4HKS39 ")).toBe(
+      "https://global.morningstar.com/en-gb/search?query=GB00BH4HKS39",
+    );
+  });
+
+  it("returns null without a valid ISIN", () => {
+    expect(buildMorningstarUrl(null)).toBeNull();
+    expect(buildMorningstarUrl("")).toBeNull();
+    expect(buildMorningstarUrl("VOD")).toBeNull();
   });
 });

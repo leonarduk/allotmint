@@ -846,6 +846,7 @@ describe("InstrumentResearch page", () => {
       "https://global.morningstar.com/en-gb/search?query=GB00BH4HKS39",
     );
     expect(morningstar).toHaveAttribute("target", "_blank");
+    expect(morningstar).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getByRole("link", { name: "View on Investing.com" })).toHaveAttribute(
       "href",
       "https://www.investing.com/search/?q=GB00BH4HKS39",

@@ -160,6 +160,18 @@ describe("buildInvestingComUrl", () => {
     expect(buildInvestingComUrl(null, "AAPL")).toBe(
       "https://www.investing.com/search/?q=AAPL",
     );
+    expect(buildInvestingComUrl(null, "vod.l")).toBe(
+      "https://www.investing.com/search/?q=VOD",
+    );
+  });
+
+  it("strips only the exchange suffix, keeping dotted share classes", () => {
+    expect(buildInvestingComUrl(null, "BRK.B.N")).toBe(
+      "https://www.investing.com/search/?q=BRK.B",
+    );
+    expect(buildInvestingComUrl(null, "PBR-A.N")).toBe(
+      "https://www.investing.com/search/?q=PBR-A",
+    );
   });
 
   it("returns null when there is nothing to search for", () => {

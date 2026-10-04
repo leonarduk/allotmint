@@ -68,13 +68,17 @@ function normaliseIsin(isin: string | null | undefined): string | null {
  * The ISIN is preferred as the query because it identifies the security
  * unambiguously; stored instrument names carry share-class noise (e.g.
  * "Vodafone Group plc USD0.20 20/21") that returns no results. The base
- * ticker (exchange suffix stripped) is the fallback.
+ * ticker is the fallback: only the final ".EXCHANGE" segment is stripped,
+ * so a dotted share class survives (BRK.B.N -> BRK.B).
  */
 export function buildInvestingComUrl(
   isin: string | null | undefined,
   ticker: string
 ): string | null {
-  const query = normaliseIsin(isin) ?? ticker.split('.')[0].trim();
+  const trimmed = ticker.trim().toUpperCase();
+  const lastDot = trimmed.lastIndexOf('.');
+  const baseTicker = lastDot > 0 ? trimmed.slice(0, lastDot) : trimmed;
+  const query = normaliseIsin(isin) ?? baseTicker;
   if (!query) return null;
   return `https://www.investing.com/search/?q=${encodeURIComponent(query)}`;
 }

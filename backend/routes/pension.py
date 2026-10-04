@@ -18,6 +18,34 @@ __all__ = ["DEFINED_CONTRIBUTION_ACCOUNT_MARKERS", "router"]
 router = APIRouter(tags=["pension"])
 
 
+def _load_dob(owner: str, accounts_root) -> tuple[str, float]:
+    # load_person_metadata already returns a typed PersonMetadata instance.
+    try:
+        meta = load_person_metadata(owner, accounts_root)
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="missing or invalid dob") from exc
+
+    dob = meta.dob
+    current_age = _age_from_dob(dob)
+    if current_age is None:
+        raise HTTPException(status_code=400, detail="missing or invalid dob")
+    return dob, current_age
+
+
+@router.get("/pension/profile")
+def pension_profile(
+    request: Request,
+    owner: str = Query(..., description="Portfolio owner"),
+):
+    """Age facts the forecast form needs before any forecast has been run."""
+    dob, current_age = _load_dob(owner, resolve_accounts_root(request))
+    return {
+        "dob": dob,
+        "current_age": current_age,
+        "state_pension_age": state_pension_age_uk(dob),
+    }
+
+
 @router.get("/pension/forecast")
 def pension_forecast(
     request: Request,
@@ -30,21 +58,18 @@ def pension_forecast(
     contribution_monthly: float | None = Query(None, ge=0),
     investment_growth_pct: float = Query(5.0),
     desired_income_annual: float | None = Query(None, ge=0),
+    retirement_age: int | None = Query(
+        None,
+        ge=0,
+        description="Age you plan to stop work; defaults to your UK state pension age",
+    ),
 ):
     accounts_root = resolve_accounts_root(request)
+    dob, current_age = _load_dob(owner, accounts_root)
 
-    # load_person_metadata already returns a typed PersonMetadata instance.
-    try:
-        meta = load_person_metadata(owner, accounts_root)
-    except (FileNotFoundError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail="missing or invalid dob") from exc
-
-    dob = meta.dob
-    current_age = _age_from_dob(dob)
-    if current_age is None:
-        raise HTTPException(status_code=400, detail="missing or invalid dob")
-
-    retirement_age = state_pension_age_uk(dob)
+    state_pension_age = state_pension_age_uk(dob)
+    if retirement_age is None:
+        retirement_age = state_pension_age
     if death_age <= retirement_age:
         raise HTTPException(status_code=400, detail="death_age must exceed retirement_age")
 
@@ -112,6 +137,7 @@ def pension_forecast(
             investment_growth_pct=investment_growth_pct,
             desired_income_annual=desired_income_annual,
             initial_pot=pension_pot,
+            state_pension_age=state_pension_age,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

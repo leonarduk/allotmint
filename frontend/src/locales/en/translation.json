@@ -662,6 +662,19 @@
     "select": "Select an owner."
   },
   "pensionForecast": {
+    "ages": {
+      "ageNowHelper": "From the date of birth on file ({{dob}}).",
+      "ageNowLabel": "Age now",
+      "ageNowUnknown": "Add a date of birth to this owner's profile to see it.",
+      "retirementAgeHelper": "When you stop work and start drawing your pension. Defaults to your State Pension age ({{spa}}), which is when the State Pension starts whatever you choose. Private pensions can usually be accessed from 55 (57 from April 2028).",
+      "retirementAgeHelperNoSpa": "When you stop work and start drawing your pension. Leave blank to use your State Pension age.",
+      "retirementAgeLabel": "Retirement age",
+      "retirementAgePlaceholder": "State pension age",
+      "statePensionStartsLater": "Retiring at {{retirementAge}} means your State Pension isn't paid until {{spa}}, so it isn't included in the income at retirement above."
+    },
+    "allowance": {
+      "helper": "You + employer: {{total}} a month. Combined contributions are capped by the pension annual allowance of {{monthlyLimit}} a month ({{annualLimit}} a year, including tax relief); it can be lower for very high earners or once you've drawn a pension flexibly."
+    },
     "birthDate": "Birth date: {{dob}}",
     "currentAge": "Current age: {{age}}",
     "employerContributionLabel": "Employer contribution",
@@ -682,7 +695,7 @@
       "otherAccountsHeading": "Other accounts (for reference -- not included in this forecast)",
       "pensionPot": "Current pension pot",
       "pensionPotFromPortfolio": "From your latest portfolio data",
-      "statePensionHelper": "Your expected annual State Pension. Defaults to £0 (excluded); enter your own estimate to include it.",
+      "statePensionHelper": "Full new State Pension for {{year}} is {{weekly}} a week ({{annual}} a year), which needs 35 qualifying years of National Insurance. Check your own figure at gov.uk/check-state-pension and enter it if it differs.",
       "totalContribution": "Total monthly contributions: {{total}}"
     },
     "incomeBreakdownHeading": "Retirement income breakdown",
@@ -696,6 +709,19 @@
       "monthly": "Monthly (£)",
       "share": "Share",
       "source": "Source"
+    },
+    "livingStandards": {
+      "amount": "≈ {{monthly}}/month ({{annual}}/year)",
+      "comfortable": "Comfortable",
+      "helper": "After-tax spending for a homeowner with no rent or mortgage. Add housing costs on top if you'll still have them. Source: Pensions UK via Which?.",
+      "household": {
+        "couple": "Couple",
+        "single": "Single"
+      },
+      "householdLabel": "Household",
+      "legend": "Typical retirement spending ({{year}} Retirement Living Standards)",
+      "minimum": "Minimum",
+      "moderate": "Moderate"
     },
     "monthlyContribution": "Monthly Contribution (£):",
     "pensionPot": "Pension pot",

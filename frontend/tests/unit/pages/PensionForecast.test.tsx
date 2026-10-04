@@ -26,6 +26,7 @@ const mockUseRoute = vi.hoisted(() => vi.fn(() => routeState));
 const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockGetPensionForecast = vi.hoisted(() => vi.fn());
 const mockGetPortfolio = vi.hoisted(() => vi.fn());
+const mockGetPensionProfile = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -34,6 +35,7 @@ vi.mock("@/api", async () => {
     getOwners: mockGetOwners,
     getPensionForecast: mockGetPensionForecast,
     getPortfolio: mockGetPortfolio,
+    getPensionProfile: mockGetPensionProfile,
   };
 });
 
@@ -46,6 +48,8 @@ function renderWithI18n(ui: ReactElement) {
   i18n.use(initReactI18next).init({
     lng: "en",
     resources: { en: { translation: en } },
+    // Match src/i18n.ts -- React already escapes, so "2026/27" stays literal.
+    interpolation: { escapeValue: false },
   });
   return render(<I18nextProvider i18n={i18n}>{ui}</I18nextProvider>);
 }
@@ -71,6 +75,9 @@ describe("PensionForecast page", () => {
       total_value_estimate_gbp: 0,
       accounts: [],
     });
+    // Default: no dob on file, so the form falls back to its "unknown" age
+    // copy and leaves the retirement age for the backend to default.
+    mockGetPensionProfile.mockRejectedValue(new Error("missing or invalid dob"));
   });
 
   afterEach(() => {
@@ -197,7 +204,8 @@ describe("PensionForecast page", () => {
         expect.objectContaining({
           owner: "beth",
           investmentGrowthPct: 7,
-          contributionMonthly: 100,
+          // employee £100 + default employer £150
+          contributionMonthly: 250,
           desiredIncomeAnnual: 36000,
         }),
       ),
@@ -723,24 +731,122 @@ describe("PensionForecast page", () => {
     renderWithI18n(<PensionForecast />);
 
     const form = document.querySelector("form")!;
-    const statePension = within(form).getByLabelText(/state pension/i) as HTMLInputElement;
-    expect(statePension.value).toBe("0");
+    const statePension = within(form).getByLabelText(/state pension \(/i) as HTMLInputElement;
+    expect(statePension.value).toBe("12548");
     expect(
-      within(form).getByText(/your expected annual state pension/i),
+      within(form).getByText(/full new state pension for 2026\/27/i),
     ).toBeInTheDocument();
     expect(
       within(form).getAllByText(/starting example value/i).length,
     ).toBeGreaterThan(0);
   });
 
-  // This only exercises the default-submit case -- it does NOT render the
-  // blank-field case or compare two requests, so it can't by itself prove
-  // "unchanged behaviour". What it does prove: the field's new default of
-  // "0" is sent as an explicit statePensionAnnual: 0. The None-vs-0
-  // equivalence on the wire is a backend fact, not something the frontend
-  // can observe -- it's covered directly by
-  // test_forecast_pension_none_state_pension_matches_explicit_zero in
-  // tests/backend/common/test_pension.py (#7211 review follow-up).
+  it("caps your and your employer's contributions at the £5,000/month annual allowance combined", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const savings = screen.getByLabelText(/monthly savings/i) as HTMLInputElement;
+    const employer = screen.getByLabelText(
+      en.pensionForecast.employerContributionLabel,
+    ) as HTMLInputElement;
+    expect(savings).toHaveAttribute("max", "5000");
+    expect(employer).toHaveAttribute("max", "5000");
+
+    fireEvent.change(savings, { target: { value: "4000" } });
+    expect(savings.value).toBe("4000");
+    // Employer default is £150 -> asking for £2,000 is clamped to the £1,000 left.
+    fireEvent.change(employer, { target: { value: "2000" } });
+    expect(employer.value).toBe("1000");
+    fireEvent.change(savings, { target: { value: "4500" } });
+    expect(savings.value).toBe("4000");
+    expect(
+      screen.getByText(/you \+ employer: £5,000\.00 a month/i),
+    ).toBeInTheDocument();
+  });
+
+  it("offers minimum/moderate/comfortable retirement spending presets for single and couple households", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const spending = screen.getByLabelText(
+      /monthly spending in retirement/i,
+    ) as HTMLInputElement;
+
+    await userEvent.click(screen.getByRole("button", { name: /^moderate/i }));
+    // £32,700/yr single -> £2,725/month, rounded to the slider's £10 step.
+    expect(spending.value).toBe("2730");
+    expect(screen.getByRole("button", { name: /^moderate/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /^couple$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^comfortable/i }));
+    // £62,700/yr couple -> £5,225/month.
+    expect(spending.value).toBe("5230");
+    expect(screen.getByText(/£62,700\/year/)).toBeInTheDocument();
+  });
+
+  it("shows age now and defaults the retirement age to the state pension age, sending a changed age with the forecast", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
+    mockGetPensionProfile.mockResolvedValue({
+      dob: "1980-06-01",
+      current_age: 46.3,
+      state_pension_age: 67,
+    });
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
+      current_age: 46.3,
+      retirement_age: 60,
+      state_pension_age: 67,
+      dob: "1980-06-01",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: {
+        state_pension_annual: 0,
+        defined_benefit_annual: 0,
+        defined_contribution_annual: 1000,
+      },
+      retirement_income_total_annual: 1000,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const retirementAge = (await screen.findByDisplayValue("67")) as HTMLInputElement;
+    expect(retirementAge).toBe(screen.getByLabelText(/^retirement age$/i));
+    expect(screen.getByText("46")).toBeInTheDocument();
+    expect(screen.getByText(/state pension age \(67\)/i)).toBeInTheDocument();
+    expect(mockGetPensionProfile).toHaveBeenCalledWith("alex");
+
+    fireEvent.change(retirementAge, { target: { value: "60" } });
+    await userEvent.click(screen.getByRole("button", { name: /^forecast$/i }));
+
+    await vi.waitFor(() =>
+      expect(mockGetPensionForecast).toHaveBeenCalledWith(
+        expect.objectContaining({ retirementAge: 60 }),
+      ),
+    );
+    expect(
+      await screen.findByText(/retiring at 60 means your state pension isn't paid until 67/i),
+    ).toBeInTheDocument();
+  });
+
   // The extraction of `humanizeForecastError` into `@/utils/forecastErrors`
   // is a pure refactor: the page's behaviour is unchanged, and these tests
   // exercise the shared utility directly so its contract stays pinned even
@@ -814,7 +920,7 @@ describe("PensionForecast page", () => {
     });
   });
 
-  it("submits the default state pension value ('0') as an explicit statePensionAnnual: 0", async () => {
+  it("submits the default state pension value as the full new State Pension", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alex", full_name: "Alex Example", accounts: [] },
     ]);
@@ -840,7 +946,7 @@ describe("PensionForecast page", () => {
 
     await vi.waitFor(() =>
       expect(mockGetPensionForecast).toHaveBeenCalledWith(
-        expect.objectContaining({ statePensionAnnual: 0 }),
+        expect.objectContaining({ statePensionAnnual: 12548 }),
       ),
     );
   });

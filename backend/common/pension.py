@@ -138,12 +138,16 @@ def forecast_pension(
     annuity_multiple: float = DEFAULT_ANNUITY_MULTIPLE,
     initial_pot: float = 0.0,
     today: Optional[dt.date] = None,
+    state_pension_age: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Return a simple year-by-year pension income forecast.
 
     Each entry in ``db_pensions`` should contain ``annual_income_gbp`` and
     ``normal_retirement_age`` fields.  The state pension amount, if provided,
-    is assumed to start at ``retirement_age``.  ``contribution_annual`` and
+    starts at ``state_pension_age`` (defaulting to ``retirement_age``), so
+    retiring early never brings it forward; it only counts towards the
+    retirement income breakdown if it is already in payment at
+    ``retirement_age``.  ``contribution_annual`` and
     ``investment_growth_pct`` are used to project the size of a defined
     contribution pot, starting from ``initial_pot``.  ``desired_income_annual``
     is compared against the projected pot (via ``annuity_multiple``) to
@@ -167,6 +171,7 @@ def forecast_pension(
         }
 
     pensions = db_pensions or []
+    state_start_age = retirement_age if state_pension_age is None else state_pension_age
     forecast: list[Dict[str, float]] = []
     pot = initial_pot
     pot_at_retirement = initial_pot
@@ -185,7 +190,7 @@ def forecast_pension(
 
         # income forecast (defined benefit + state)
         income = 0.0
-        if state_pension_annual is not None and age >= retirement_age:
+        if state_pension_annual is not None and age >= state_start_age:
             income += state_pension_annual
         for p in pensions:
             try:
@@ -198,6 +203,7 @@ def forecast_pension(
 
     desired_income_value = float(desired_income_annual) if desired_income_annual is not None else None
     state_income = float(state_pension_annual or 0.0)
+    state_income_at_retirement = state_income if retirement_age >= state_start_age else 0.0
     db_income_retirement = 0.0
     for pension in pensions:
         try:
@@ -211,7 +217,7 @@ def forecast_pension(
                 continue
     dc_income_retirement = pot_at_retirement / annuity_multiple if annuity_multiple else 0.0
     breakdown = {
-        "state_pension_annual": state_income,
+        "state_pension_annual": state_income_at_retirement,
         "defined_benefit_annual": db_income_retirement,
         "defined_contribution_annual": float(dc_income_retirement),
     }
@@ -224,6 +230,7 @@ def forecast_pension(
         "retirement_income_breakdown": breakdown,
         "retirement_income_total_annual": total_income,
         "state_pension_annual": state_income,
+        "state_pension_age": state_start_age,
         "contribution_annual": float(contribution_annual),
         "desired_income_annual": desired_income_value,
         "annuity_multiple_used": float(annuity_multiple),

@@ -50,6 +50,61 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
     assert called["initial_pot"] == 150
 
 
+def test_pension_route_accepts_custom_retirement_age(monkeypatch):
+    called = {}
+
+    def fake_forecast(**kwargs):
+        called.update(kwargs)
+        return {"forecast": [], "projected_pot_gbp": 0.0}
+
+    monkeypatch.setattr(
+        "backend.routes.pension.load_person_metadata",
+        lambda owner, root=None: PersonMetadata(dob="1980-01-01"),
+    )
+    monkeypatch.setattr("backend.routes.pension.forecast_pension", fake_forecast)
+    monkeypatch.setattr(
+        "backend.routes.pension.build_owner_portfolio",
+        lambda owner, *, pricing_date=None, root=None: {"accounts": []},
+    )
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get(
+            "/pension/forecast",
+            params={"owner": "alice", "death_age": 90, "retirement_age": 60},
+        )
+    assert resp.status_code == 200
+    assert called["retirement_age"] == 60
+    # The state pension still starts at state pension age, not at 60.
+    assert called["state_pension_age"] == state_pension_age_uk("1980-01-01")
+    assert resp.json()["retirement_age"] == 60
+
+
+def test_pension_profile_returns_age_facts(monkeypatch):
+    monkeypatch.setattr(
+        "backend.routes.pension.load_person_metadata",
+        lambda owner, root=None: PersonMetadata(dob="1980-01-01"),
+    )
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get("/pension/profile", params={"owner": "alice"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["dob"] == "1980-01-01"
+    assert isinstance(body["current_age"], float)
+    assert body["state_pension_age"] == state_pension_age_uk("1980-01-01")
+
+
+def test_pension_profile_missing_dob(monkeypatch):
+    monkeypatch.setattr(
+        "backend.routes.pension.load_person_metadata",
+        lambda owner, root=None: PersonMetadata(),
+    )
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get("/pension/profile", params={"owner": "bob"})
+    assert resp.status_code == 400
+
+
 def test_pension_route_missing_dob(monkeypatch):
     monkeypatch.setattr("backend.routes.pension.load_person_metadata", lambda owner, root=None: PersonMetadata())
     app = create_app()

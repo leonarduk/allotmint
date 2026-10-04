@@ -417,7 +417,7 @@
       "otherAccountsHeading": "Outras contas (como referência -- não incluídas nesta previsão)",
       "pensionPot": "Fundo de aposentadoria atual",
       "pensionPotFromPortfolio": "Dos dados atuais da sua carteira",
-      "statePensionHelper": "A sua pensão estatal anual esperada. Padrão: 0 £ (excluída); indique a sua própria estimativa para a incluir.",
+      "statePensionHelper": "A nova pensão estatal completa para {{year}} é de {{weekly}} por semana ({{annual}} por ano) e exige 35 anos de contribuições para a National Insurance. Verifique o seu valor em gov.uk/check-state-pension e indique-o se for diferente.",
       "totalContribution": "Contribuições mensais totais: {{total}}"
     },
     "incomeBreakdownHeading": "Retirement income breakdown",

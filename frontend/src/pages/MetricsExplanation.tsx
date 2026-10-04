@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -10,6 +10,10 @@ import {
   getMaxDrawdown,
   getTrackingError,
 } from "../api";
+import {
+  TECHNICALS_GLOSSARY,
+  TECHNICALS_GLOSSARY_ANCHOR,
+} from "../lib/technicalsGlossary";
 import type {
   AlphaResponse,
   MaxDrawdownResponse,
@@ -43,6 +47,15 @@ const formatNumber = (value: number | null | undefined) => {
 export default function MetricsExplanation() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
+  const { hash } = useLocation();
+
+  // InfoTip "Learn more" links point at an entry (e.g. #golden-death-cross).
+  // A client-side navigation does not scroll to the fragment by itself.
+  useEffect(() => {
+    if (!hash) return;
+    const target = document.getElementById(decodeURIComponent(hash.slice(1)));
+    target?.scrollIntoView?.({ block: "start" });
+  }, [hash]);
   const owner = searchParams.get("owner");
   const group = searchParams.get("group");
   const benchmark = searchParams.get("benchmark") ?? "VWRL.L";
@@ -729,6 +742,30 @@ export default function MetricsExplanation() {
               {t("metricsExplanation.sections.plot.sunlight.detail", "The share of crops priced from fresh (not stale) market data today.")}
             </p>
           </div>
+        </div>
+      </section>
+
+      <section className="space-y-4" id={TECHNICALS_GLOSSARY_ANCHOR}>
+        <h2 className="text-2xl font-semibold">
+          {t("metricsExplanation.sections.technicals.title", "Technical analysis")}
+        </h2>
+        <p>
+          {t(
+            "metricsExplanation.sections.technicals.intro",
+            "Terms on an instrument's Technicals tab. They are worked out from past daily closing prices and describe what the price has done; they do not predict what it will do, and they are not buy or sell recommendations."
+          )}
+        </p>
+        <div className="space-y-4">
+          {TECHNICALS_GLOSSARY.map((entry) => (
+            <div id={entry.id} key={entry.id}>
+              <h3 className="text-lg font-semibold">
+                {t(`metricsExplanation.sections.technicals.${entry.key}.title`, entry.title)}
+              </h3>
+              <p className="text-sm text-gray-300">
+                {t(`metricsExplanation.sections.technicals.${entry.key}.detail`, entry.detail)}
+              </p>
+            </div>
+          ))}
         </div>
       </section>
 

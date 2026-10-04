@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { InstrumentTechnicalsPanel } from '@/components/InstrumentTechnicalsPanel';
 import * as api from '@/api';
 import type { InstrumentTechnicals } from '@/types';
@@ -100,6 +100,36 @@ describe('InstrumentTechnicalsPanel', () => {
       'ADBE.N',
       expect.any(AbortSignal)
     );
+  });
+
+  it('explains the jargon with info tips linking to the glossary', async () => {
+    mockGetTechnicals.mockResolvedValue(technicals());
+
+    render(<InstrumentTechnicalsPanel ticker="ADBE.N" />);
+
+    const trend = await screen.findByRole('table', { name: 'Trend' });
+    expect(
+      within(trend).getByText('Death cross (50 below 200)')
+    ).toBeInTheDocument();
+    const crossTip = within(trend).getByRole('button', {
+      name: 'What does Golden cross and death cross mean?',
+    });
+    fireEvent.click(crossTip);
+    expect(crossTip).toHaveAttribute('aria-expanded', 'true');
+    const popover = document.getElementById(
+      crossTip.getAttribute('aria-controls')!
+    )!;
+    expect(popover.textContent).toMatch(/death cross is when it falls below/);
+    expect(within(popover).getByRole('link')).toHaveAttribute(
+      'href',
+      '/metrics-explained#golden-death-cross'
+    );
+    expect(
+      screen.getByRole('link', { name: 'What do these terms mean?' })
+    ).toHaveAttribute('href', '/metrics-explained#technical-analysis');
+    expect(
+      screen.getByRole('button', { name: /What does RSI .* mean\?/ })
+    ).toBeInTheDocument();
   });
 
   it('lists data-quality warnings above the numbers', async () => {

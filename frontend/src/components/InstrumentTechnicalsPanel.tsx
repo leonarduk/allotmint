@@ -1,11 +1,43 @@
 import { useEffect, useState } from 'react';
+import { Link, useInRouterContext } from 'react-router-dom';
 import { getInstrumentTechnicals } from '../api';
 import type { InstrumentTechnicals } from '../types';
 import { percent } from '../lib/money';
 import { signedPct } from '../lib/valuationCaveats';
+import {
+  TECHNICALS_GLOSSARY_ANCHOR,
+  technicalsTerm,
+  type TechnicalsTerm,
+} from '../lib/technicalsGlossary';
+import InfoTip from './InfoTip';
 import surfaceStyles from '../styles/surface.module.css';
 
-type Row = { label: string; value: string; hint?: string };
+type Row = {
+  label: string;
+  value: string;
+  hint?: string;
+  /** Glossary term explained by the row's InfoTip. */
+  term?: TechnicalsTerm;
+};
+
+const GLOSSARY_PATH = '/metrics-explained';
+
+function TermTip({ term }: { term: TechnicalsTerm }) {
+  const entry = technicalsTerm(term);
+  return (
+    <InfoTip
+      label={`What does ${entry.title} mean?`}
+      to={`${GLOSSARY_PATH}#${entry.id}`}
+    >
+      {entry.short}
+    </InfoTip>
+  );
+}
+
+const CROSS_LABEL: Record<string, string> = {
+  golden: 'Golden cross (50 above 200)',
+  death: 'Death cross (50 below 200)',
+};
 
 const num = (v: number | null | undefined, digits = 2) =>
   v == null || !Number.isFinite(v) ? '—' : v.toFixed(digits);
@@ -27,6 +59,7 @@ const RETURN_LABELS: Record<string, string> = {
 };
 
 export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
+  const inRouterContext = useInRouterContext();
   const [data, setData] = useState<InstrumentTechnicals | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +111,7 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
   const level = (v: number | null) => (v == null ? '—' : `${num(v)}${units}`);
   const benchmarkName = rs.benchmark.name ?? rs.benchmark.ticker;
 
-  const sections: { title: string; rows: Row[] }[] = [
+  const sections: { title: string; term?: TechnicalsTerm; rows: Row[] }[] = [
     {
       title: 'Trend',
       rows: [
@@ -86,25 +119,32 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
           label: 'Trend',
           value: label(ma.trend),
           hint: 'Price vs 50- and 200-day averages',
+          term: 'trend',
         },
         {
           label: '20-day average',
           value: level(ma.sma_20),
           hint: vsHint(ma.vs_sma_20),
+          term: 'movingAverage',
         },
         {
           label: '50-day average',
           value: level(ma.sma_50),
           hint: vsHint(ma.vs_sma_50),
+          term: 'movingAverage',
         },
         {
           label: '200-day average',
           value: level(ma.sma_200),
           hint: vsHint(ma.vs_sma_200),
+          term: 'movingAverage',
         },
         {
           label: '50/200 cross',
-          value: label(ma.cross_state),
+          value: ma.cross_state
+            ? (CROSS_LABEL[ma.cross_state] ?? label(ma.cross_state))
+            : '—',
+          term: 'cross',
           hint: ma.last_cross_date
             ? `Last ${ma.last_cross} cross ${ma.last_cross_date}`
             : undefined,
@@ -118,16 +158,19 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
           label: `RSI (${rsi.period})`,
           value: num(rsi.value, 0),
           hint: label(rsi.zone),
+          term: 'rsi',
         },
         {
           label: 'MACD (12/26/9)',
           value: num(macd.macd),
           hint: `Signal ${num(macd.signal)}`,
+          term: 'macd',
         },
-        { label: 'MACD histogram', value: num(macd.histogram) },
+        { label: 'MACD histogram', value: num(macd.histogram), term: 'macd' },
         {
           label: 'Last MACD crossover',
           value: withDate(macd.last_crossover, macd.last_crossover_date),
+          term: 'macd',
         },
       ],
     },
@@ -138,6 +181,7 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
           label: '52-week high',
           value: level(range.high),
           hint: range.high_date ?? undefined,
+          term: 'range',
         },
         {
           label: '52-week low',
@@ -149,6 +193,7 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
           label: 'Position in range',
           value: pct(range.position),
           hint: '0% = at the low, 100% = at the high',
+          term: 'range',
         },
         {
           label: 'Bollinger %B (20, 2σ)',
@@ -157,11 +202,13 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
             bb.lower != null
               ? `Bands ${num(bb.lower)} – ${num(bb.upper)}`
               : undefined,
+          term: 'bollinger',
         },
       ],
     },
     {
       title: 'Returns',
+      term: 'returns',
       rows: [
         ...Object.entries(RETURN_LABELS).map(([key, text]) => ({
           label: text,
@@ -171,11 +218,13 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
           label: `vs ${rs.benchmark.ticker} (3m)`,
           value: signedPct(rs.excess_3m),
           hint: benchmarkName,
+          term: 'relativeStrength',
         },
         {
           label: `vs ${rs.benchmark.ticker} (12m)`,
           value: signedPct(rs.excess_1y),
           hint: benchmarkName,
+          term: 'relativeStrength',
         },
       ],
     },
@@ -217,6 +266,17 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
               <li key={s}>{s}</li>
             ))}
           </ul>
+          <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
+            {inRouterContext ? (
+              <Link to={`${GLOSSARY_PATH}#${TECHNICALS_GLOSSARY_ANCHOR}`}>
+                What do these terms mean?
+              </Link>
+            ) : (
+              <a href={`${GLOSSARY_PATH}#${TECHNICALS_GLOSSARY_ANCHOR}`}>
+                What do these terms mean?
+              </a>
+            )}
+          </p>
         </div>
       )}
       <div
@@ -228,7 +288,10 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
       >
         {sections.map((section) => (
           <div key={section.title} className={surfaceStyles.surfaceCard}>
-            <h3 className={surfaceStyles.surfaceCardTitle}>{section.title}</h3>
+            <h3 className={surfaceStyles.surfaceCardTitle}>
+              <span>{section.title}</span>
+              {section.term && <TermTip term={section.term} />}
+            </h3>
             <table
               aria-label={section.title}
               style={{ width: '100%', borderCollapse: 'collapse' }}
@@ -245,7 +308,8 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
                         fontWeight: 500,
                       }}
                     >
-                      {row.label}
+                      <span>{row.label}</span>
+                      {row.term && <TermTip term={row.term} />}
                       {row.hint && (
                         <div style={{ fontSize: '0.75rem', fontWeight: 400 }}>
                           {row.hint}

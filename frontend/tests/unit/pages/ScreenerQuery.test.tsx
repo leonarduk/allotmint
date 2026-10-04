@@ -469,6 +469,15 @@ describe("Screener & Query page", () => {
     expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue("");
   });
 
+  it("ignores an invalid end date in the link and keeps the default", async () => {
+    window.history.pushState({}, "", "/?end=not-a-date");
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText(i18n.t("query.end"));
+    expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(
+      expectedDefaultRange().end,
+    );
+  });
+
   it("sanitizes malicious query parameters", async () => {
     window.history.pushState(
       {},

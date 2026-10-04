@@ -47,8 +47,8 @@ function toLocalIsoDate(d: Date): string {
 function defaultDateRange(now: Date = new Date()): { start: string; end: string } {
   const yearAgo = new Date(now);
   yearAgo.setFullYear(now.getFullYear() - 1);
-  // 29 Feb has no counterpart a year earlier and JS rolls it to 1 Mar;
-  // clamp back to 28 Feb so the window stays exactly 12 months.
+  // If the day doesn't exist a year earlier (only 29 Feb), JS rolls into the
+  // next month; setDate(0) snaps back to the last day of the intended month.
   if (yearAgo.getMonth() !== now.getMonth()) yearAgo.setDate(0);
   return { start: toLocalIsoDate(yearAgo), end: toLocalIsoDate(now) };
 }

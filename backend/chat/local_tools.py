@@ -13,6 +13,9 @@ URL.
 
 With ``data_tools=True`` (the chat route sets it) it also offers in-process
 data tools, currently ``get_nav_discount`` (``backend.chat.nav_discount_tool``).
+With ``file_exports=True`` it offers ``export_file``
+(``backend.chat.export_file_tool``), which saves a table as a CSV, Excel or
+Word file; the files are collected in ``files`` for ``POST /chat`` to return.
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
 from mcp.types import Tool
 
-from backend.chat import nav_discount_tool
+from backend.chat import export_file_tool, nav_discount_tool
 from backend.chat.tool_switches import enabled_tools
 
 NAVIGATE_TOOL_NAME = "navigate_to_page"
@@ -36,15 +39,18 @@ class ChatPage:
 
 @dataclass
 class LocalTools:
-    """Local tools for one chat turn, plus the navigation they requested."""
+    """Local tools for one chat turn, plus the navigation and files they produced."""
 
     pages: Sequence[ChatPage] = ()
     data_tools: bool = False
+    file_exports: bool = False
     navigate_to: Optional[str] = field(default=None, init=False)
+    files: List[export_file_tool.ExportedFile] = field(default_factory=list, init=False)
 
     def tools(self) -> List[Tool]:
         data_tools = [nav_discount_tool.TOOL] if self.data_tools else []
-        return self._navigate_tools() + data_tools
+        export_tools = [export_file_tool.TOOL] if self.file_exports else []
+        return self._navigate_tools() + data_tools + export_tools
 
     def _navigate_tools(self) -> List[Tool]:
         if not self.pages:
@@ -74,6 +80,8 @@ class LocalTools:
     def handles(self, name: str) -> bool:
         if name == nav_discount_tool.TOOL_NAME:
             return self.data_tools
+        if name == export_file_tool.TOOL_NAME:
+            return self.file_exports
         return bool(self.pages) and name == NAVIGATE_TOOL_NAME
 
     def call(self, name: str, arguments: Mapping[str, Any]) -> Tuple[str, bool]:
@@ -81,6 +89,8 @@ class LocalTools:
 
         if name == nav_discount_tool.TOOL_NAME and self.data_tools:
             return nav_discount_tool.call(arguments)
+        if name == export_file_tool.TOOL_NAME and self.file_exports:
+            return self._export_file(arguments)
         if name != NAVIGATE_TOOL_NAME:
             return f"Unknown local tool {name}", True
         path = arguments.get("path")
@@ -90,6 +100,17 @@ class LocalTools:
             return f"Unknown page {path!r}; choose one of: {allowed}", True
         self.navigate_to = page.path
         return f"Opening {page.label} ({page.path}) for the user.", False
+
+    def _export_file(self, arguments: Mapping[str, Any]) -> Tuple[str, bool]:
+        if len(self.files) >= export_file_tool.MAX_FILES_PER_TURN:
+            return f"export_file: at most {export_file_tool.MAX_FILES_PER_TURN} files per reply", True
+        text, is_error, exported = export_file_tool.call(arguments)
+        if exported is not None:
+            total = sum(len(item.content) for item in self.files) + len(exported.content)
+            if total > export_file_tool.MAX_FILE_BYTES:
+                return "export_file: the files for this reply are too large in total", True
+            self.files.append(exported)
+        return text, is_error
 
 
 def merge_tool_lists(mcp_tools: Sequence[Tool], local: Optional[LocalTools]) -> List[Tool]:

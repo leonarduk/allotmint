@@ -1,3 +1,5 @@
+import base64
+
 import httpx
 import httpx2
 import pytest
@@ -158,7 +160,7 @@ def test_post_chat_returns_agent_reply(client: TestClient, monkeypatch: pytest.M
     )
 
     assert resp.status_code == 200
-    assert resp.json() == {"reply": "hello back", "navigate_to": None}
+    assert resp.json() == {"reply": "hello back", "navigate_to": None, "files": []}
     assert captured["message"] == "hi"
     assert captured["history"] == [{"role": "user", "content": "prev"}]
     assert captured["mcp_server_url"] == "https://example.com/mcp"
@@ -189,7 +191,29 @@ def test_post_chat_returns_navigation_requested_by_the_model(
     )
 
     assert resp.status_code == 200
-    assert resp.json() == {"reply": "Opening Transactions.", "navigate_to": "/transactions"}
+    assert resp.json() == {"reply": "Opening Transactions.", "navigate_to": "/transactions", "files": []}
+
+
+def test_post_chat_returns_files_saved_by_the_model(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
+
+    async def exporting_run_chat_turn(message, history, *, cfg, mcp_server_url, local_tools=None, system_prompt=None):
+        _, is_error = local_tools.call(
+            "export_file",
+            {"filename": "audit", "format": "csv", "columns": ["ticker", "days"], "rows": [["VOD.L", 3]]},
+        )
+        assert not is_error
+        return "Your file is ready."
+
+    monkeypatch.setattr(chat_module, "run_configured_chat_turn", exporting_run_chat_turn)
+
+    resp = client.post("/chat", json={"message": "export the audit as csv"})
+
+    assert resp.status_code == 200
+    (file,) = resp.json()["files"]
+    assert file["filename"] == "audit.csv"
+    assert file["media_type"] == "text/csv"
+    assert base64.b64decode(file["content_base64"]).decode("utf-8-sig").splitlines() == ["ticker,days", "VOD.L,3"]
 
 
 @pytest.mark.parametrize("path", ["//evil.example.com", "https://evil.example.com", "transactions"])

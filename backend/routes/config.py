@@ -178,12 +178,12 @@ async def read_mcp_tools() -> Dict[str, Any]:
     """Every chat assistant tool with its admin on/off switch (``mcp.mcp_tools``).
 
     Tools come from the MCP server's listing plus the chat backend's local
-    ``navigate_to_page`` and ``get_nav_discount``. The MCP server hides tools that are switched off, so
+    ``navigate_to_page``, ``get_nav_discount`` and ``export_file``. The MCP server hides tools that are switched off, so
     names already in the config are added back; every tool is on unless the
     config says false. ``mcp_error`` is set when the MCP server could not be
     listed, in which case only the configured and local tools are returned.
     """
-    from backend.chat import nav_discount_tool
+    from backend.chat import export_file_tool, nav_discount_tool
     from backend.chat.local_tools import NAVIGATE_TOOL_NAME
 
     cfg = config_module.config
@@ -207,6 +207,10 @@ async def read_mcp_tools() -> Dict[str, Any]:
     tools.setdefault(
         nav_discount_tool.TOOL_NAME,
         {"name": nav_discount_tool.TOOL_NAME, "description": "NAV premium/discount for a closed-end fund."},
+    )
+    tools.setdefault(
+        export_file_tool.TOOL_NAME,
+        {"name": export_file_tool.TOOL_NAME, "description": "Save a table as a CSV, Excel or Word download."},
     )
     for name in switches:
         tools.setdefault(name, {"name": name, "description": ""})

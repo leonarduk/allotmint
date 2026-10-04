@@ -340,7 +340,7 @@ def _fetch_headlines() -> List[Dict[str, Any]]:
         except Exception:
             # One failing symbol must not blank the whole headline list, and
             # an unexpected error must not masquerade as quota exhaustion.
-            logger.exception("Failed to fetch news for %s", sym)
+            logger.exception("Failed to fetch news for %s", sanitise_log_value(sym))
             continue
 
         if not items:

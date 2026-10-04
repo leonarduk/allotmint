@@ -146,6 +146,14 @@ class _RootResolution(Enum):
     NONE = auto()
 
 
+def _global_demo_root() -> Optional[Path]:
+    """Return the resolved bundled demo accounts root (``data/accounts``), if resolvable."""
+    try:
+        return data_loader.resolve_paths(None, None).accounts_root.resolve()
+    except Exception:
+        return None
+
+
 def _resolve_local_root(request: Request) -> Tuple[Optional[Path], _RootResolution]:
     """Resolve the on-disk accounts root for ``request``.
 
@@ -164,6 +172,12 @@ def _resolve_local_root(request: Request) -> Tuple[Optional[Path], _RootResoluti
         else:
             if state_path.exists() and not state_is_global:
                 resolved_state = state_path.resolve()
+                # ``resolve_accounts_root`` clears ``accounts_root_is_global``
+                # whenever the cached root exists, including after it fell back
+                # to the bundled demo dataset, so the flag alone can't be
+                # trusted: never treat the repo's demo data dir as writable.
+                if resolved_state == _global_demo_root():
+                    return resolved_state, _RootResolution.GLOBAL_READONLY
                 request.app.state.accounts_root = resolved_state
                 request.app.state.accounts_root_is_global = False
                 return resolved_state, _RootResolution.WRITABLE
@@ -180,16 +194,13 @@ def _resolve_local_root(request: Request) -> Tuple[Optional[Path], _RootResoluti
     if not configured_path.exists():
         return configured_path, _RootResolution.NONE
 
-    try:
-        global_root = data_loader.resolve_paths(None, None).accounts_root.resolve()
-    except Exception:
-        global_root = None
-    else:
+    global_root = _global_demo_root()
+    if global_root is not None:
         try:
             configured_resolved = configured_path.resolve()
         except FileNotFoundError:
             configured_resolved = configured_path
-        if global_root is not None and configured_resolved == global_root:
+        if configured_resolved == global_root:
             return configured_resolved, _RootResolution.GLOBAL_READONLY
 
     try:

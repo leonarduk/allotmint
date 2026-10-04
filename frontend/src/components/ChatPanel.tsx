@@ -8,10 +8,17 @@ import {
   restoreChat,
   selectChatVersion,
   snapshotChat,
-  startNewChat,
   useChatMessages,
   useChatPath,
 } from "../utils/chatConversation";
+import {
+  deleteSavedChatHistory,
+  ensureChatLoaded,
+  setChatReplyPending,
+  startNewSavedChat,
+  useChatSaveFailed,
+} from "../utils/chatSync";
+import { isDemoSession } from "../demoAuth";
 import { ChatMessageItem } from "./ChatMessageItem";
 
 interface Props {
@@ -65,7 +72,16 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ index: number; draft: string } | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const saveFailed = useChatSaveFailed();
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Picks up the conversation saved on the server (#8870); a failure leaves
+  // the local one in place and shows the "Not saved" hint.
+  useEffect(() => {
+    if (open) void ensureChatLoaded();
+  }, [open]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView?.({ block: "end" });
@@ -85,6 +101,8 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
     onFail?: () => void,
   ) => {
     const before = snapshotChat();
+    // Not saved until the reply is in: on failure it is rolled back anyway.
+    setChatReplyPending(true);
     place();
     setSending(true);
     setError(null);
@@ -101,6 +119,7 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
       setError(chatErrorMessage(e));
     } finally {
       setSending(false);
+      setChatReplyPending(false);
     }
   };
 
@@ -148,6 +167,23 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
 
     setEditing(null);
     await submit(prompt.content, messages.slice(0, index - 1), () => endChatPathAt(prompt.id));
+  };
+
+  // Deletes the saved history (this conversation and every archived one). On
+  // failure the conversation is kept and the error shown.
+  const deleteHistory = async () => {
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteSavedChatHistory();
+      setInput("");
+      setEditing(null);
+    } catch {
+      setError("Couldn't delete your chat history. Please try again.");
+    } finally {
+      setDeleting(false);
+      setConfirmingDelete(false);
+    }
   };
 
   const selectVersion = (id: string, offset: number) => {
@@ -198,11 +234,29 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
             marginBottom: "1rem",
           }}
         >
-          <strong>Chat</strong>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
+            <strong>Chat</strong>
+            {saveFailed && (
+              <span
+                title="Your chat couldn't be saved to your account. It is still kept in this tab, and saving is retried on your next change."
+                style={{ color: "var(--drawer-muted-color)", fontSize: "0.85em" }}
+              >
+                Not saved
+              </span>
+            )}
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            {!isDemoSession() && (
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                disabled={sending || deleting || confirmingDelete}
+              >
+                Delete history
+              </button>
+            )}
             <button
               onClick={() => {
-                startNewChat();
+                startNewSavedChat();
                 setInput("");
                 setEditing(null);
                 setError(null);
@@ -225,6 +279,23 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
             </button>
           </div>
         </div>
+        {confirmingDelete && (
+          <div
+            role="group"
+            aria-label="Confirm deleting chat history"
+            style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}
+          >
+            <span style={{ flex: "1 1 12rem" }}>
+              Delete your saved chat history, including chats you started over with New chat? This can't be undone.
+            </span>
+            <button onClick={() => void deleteHistory()} disabled={deleting}>
+              Delete
+            </button>
+            <button onClick={() => setConfirmingDelete(false)} disabled={deleting}>
+              Cancel
+            </button>
+          </div>
+        )}
         <div style={{ flex: 1, overflowY: "auto", marginBottom: "1rem" }}>
           {messages.length === 0 && (
             <div style={{ color: "var(--drawer-muted-color)" }}>

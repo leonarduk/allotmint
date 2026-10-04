@@ -401,8 +401,9 @@ export function createClient(
         ? "The backend service is temporarily unavailable. Please try again."
         : `HTTP ${res.status} - ${res.statusText} (${safeUrl})`;
       let code: string | undefined;
+      let body: any;
       try {
-        const body = await res.json();
+        body = await res.json();
         // A stable machine-readable failure code (e.g. POST /chat's
         // "mcp_unreachable") that callers can map to their own wording.
         if (typeof body?.code === "string") code = body.code;
@@ -420,6 +421,9 @@ export function createClient(
       (err as any).status = res.status;
       (err as any).headers = res.headers;
       (err as any).code = code;
+      // The parsed error body, for callers that need more than `detail`
+      // (e.g. the current document a 409 from PUT /chat/conversation carries).
+      (err as any).body = body;
       throw err;
     }
     return res;
@@ -2641,10 +2645,10 @@ export const CHAT_FETCH_TIMEOUT_MS = 300000;
 
 /**
  * Send one chat turn to the backend's tool-calling agent (Bedrock, Ollama or
- * DeepSeek). `history` is resent in full each call -- there is no
- * server-side session/persistence yet, so the caller owns the running
- * conversation. `pages` are the pages the assistant may open; the reply's
- * `navigate_to` is always one of them.
+ * DeepSeek). `history` is resent in full each call: POST /chat never reads
+ * the saved conversation (see getChatConversation), so the caller owns the
+ * running conversation. `pages` are the pages the assistant may open; the
+ * reply's `navigate_to` is always one of them.
  */
 export const postChat = (
   message: string,
@@ -2661,3 +2665,52 @@ export const postChat = (
     },
     CHAT_FETCH_TIMEOUT_MS,
   );
+
+// Saved chat conversation (#8870): one per user, kept on the server so it
+// survives the tab and follows the user to other devices. The tree is the
+// one utils/chatConversation.ts holds; utils/chatSync.ts does the syncing.
+
+export type SavedChatNode = ChatMessage & { id: string; parentId: string | null };
+
+export type SavedChatTree = {
+  nodes: SavedChatNode[];
+  active: Record<string, string>;
+  nextId: number;
+};
+
+export type SavedChatConversation = {
+  /** Opaque id of the signed-in user (a hash, never the email). */
+  owner: string;
+  /** 0 when nothing is saved; a save must name the revision it was based on. */
+  revision: number;
+  conversation: SavedChatTree;
+};
+
+export const getChatConversation = (): Promise<SavedChatConversation> =>
+  fetchJson<SavedChatConversation>(`${API_BASE}/chat/conversation`);
+
+/**
+ * Replace the saved conversation. Rejects with status 409 when `revision` is
+ * no longer current (another tab or device saved first); the error's
+ * `body.current` then holds the saved `{ revision, conversation }`.
+ */
+export const putChatConversation = (
+  conversation: SavedChatTree,
+  revision: number,
+): Promise<{ revision: number }> =>
+  fetchJson<{ revision: number }>(`${API_BASE}/chat/conversation`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ revision, conversation }),
+  });
+
+/** "New chat": archives the saved conversation and starts an empty one. */
+export const archiveChatConversation = (): Promise<{ revision: number; archived: boolean }> =>
+  fetchJson<{ revision: number; archived: boolean }>(`${API_BASE}/chat/conversation/archive`, {
+    method: "POST",
+  });
+
+/** Deletes the user's saved chat history: the current conversation and every archived one. */
+export const deleteChatHistory = async (): Promise<void> => {
+  await fetchText(`${API_BASE}/chat/conversation`, { method: "DELETE" });
+};

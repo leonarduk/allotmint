@@ -165,6 +165,29 @@ describe("ScenarioTester page", () => {
     expect(mockGetPortfolio).toHaveBeenCalledTimes(1);
   });
 
+  it("requests the bare owner, not the owner::date dedupe key (#8576)", async () => {
+    mockGetEvents.mockResolvedValueOnce([]);
+    mockGetOwners.mockResolvedValueOnce([
+      { owner: "alex", accounts: ["isa"], full_name: "Alex Leonard" },
+      { owner: "beth", accounts: ["isa"], full_name: "Beth Leonard" },
+    ]);
+    mockGetPortfolio.mockResolvedValue({ accounts: [] } as any);
+
+    render(<ScenarioTester />);
+
+    await screen.findByText("Beth Leonard");
+    fireEvent.click(
+      screen.getByRole("button", { name: /select all portfolios/i }),
+    );
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledTimes(2));
+    const owners = mockGetPortfolio.mock.calls.map(([owner]) => owner);
+    expect(owners.sort()).toEqual(["alex", "beth"]);
+    for (const owner of owners) {
+      expect(owner).not.toContain("::");
+    }
+  });
+
   it("does not refetch a loaded portfolio when a second owner is selected (#7105)", async () => {
     mockGetEvents.mockResolvedValueOnce([]);
     mockGetOwners.mockResolvedValueOnce([

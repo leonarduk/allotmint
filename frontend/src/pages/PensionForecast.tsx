@@ -11,8 +11,10 @@ import {
 import {
   getOwners,
   getPensionForecast,
+  getPensionProfile,
   getPortfolio,
   type PensionIncomeBreakdown,
+  type PensionProfileResponse,
 } from "../api";
 import type { OwnerSummary } from "../types";
 import { useTranslation } from "react-i18next";
@@ -23,18 +25,36 @@ import {
   countsTowardPensionForecast,
 } from "../utils/accountTypes";
 import { humanizeForecastError } from "../utils/forecastErrors";
+import {
+  FULL_NEW_STATE_PENSION_ANNUAL_GBP,
+  FULL_NEW_STATE_PENSION_WEEKLY_GBP,
+  LIVING_STANDARDS,
+  PENSION_ANNUAL_ALLOWANCE_GBP,
+  PENSION_MONTHLY_ALLOWANCE_GBP,
+  RETIREMENT_LIVING_STANDARDS_ANNUAL_GBP,
+  UK_PENSION_FIGURES_TAX_YEAR,
+  livingStandardMonthly,
+  type Household,
+} from "../utils/ukPensionFigures";
 
 export default function PensionForecast() {
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const { selectedOwner, setSelectedOwner } = useRoute();
   const [owner, setOwner] = useState("");
   const [deathAge, setDeathAge] = useState(90);
-  // Defaults to "0" (not blank) so the field always shows a concrete starting
-  // value per #7211. This intentionally reproduces the *existing* behaviour:
-  // an empty field was already sent as `undefined`, which the backend treats
-  // as 0 income from state pension (see backend/routes/pension.py). Making
-  // that explicit doesn't change what a first-time user's forecast computes.
-  const [statePension, setStatePension] = useState<string>("0");
+  // Defaults to the full new State Pension -- a known, published figure --
+  // rather than £0, which silently left the largest retirement income source
+  // most people have out of the forecast. Users with fewer than 35 qualifying
+  // NI years can overwrite it with their own gov.uk forecast.
+  const [statePension, setStatePension] = useState<string>(
+    String(FULL_NEW_STATE_PENSION_ANNUAL_GBP),
+  );
+  // Age facts loaded per owner before any forecast runs, so the form can show
+  // "age now" and default the retirement age to the owner's state pension age.
+  const [profile, setProfile] = useState<PensionProfileResponse | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [plannedRetirementAge, setPlannedRetirementAge] = useState<string>("");
+  const [household, setHousehold] = useState<Household>("single");
   const [monthlySavings, setMonthlySavings] = useState(250);
   const [monthlySpending, setMonthlySpending] = useState(2000);
   const [employerContributionMonthly, setEmployerContributionMonthly] =
@@ -53,6 +73,9 @@ export default function PensionForecast() {
   const [currentAge, setCurrentAge] = useState<number | null>(null);
   const [retirementAge, setRetirementAge] = useState<number | null>(null);
   const [dob, setDob] = useState<string | null>(null);
+  const [forecastStatePensionAge, setForecastStatePensionAge] = useState<
+    number | null
+  >(null);
   const [earliestRetirementAge, setEarliestRetirementAge] =
     useState<number | null>(null);
   const [retirementIncomeBreakdown, setRetirementIncomeBreakdown] =
@@ -77,6 +100,16 @@ export default function PensionForecast() {
     [],
   );
 
+  const wholePoundFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: "GBP",
+        maximumFractionDigits: 0,
+      }),
+    [],
+  );
+
   const percentFormatter = useMemo(
     () =>
       new Intl.NumberFormat(undefined, {
@@ -88,6 +121,18 @@ export default function PensionForecast() {
   );
 
   const totalMonthlyContribution = monthlySavings + employerContributionMonthly;
+
+  // Your and your employer's contributions share one annual allowance
+  // (£60,000/yr = £5,000/month), so each slider is capped at whatever the
+  // other one leaves.
+  const handleMonthlySavingsChange = (value: number) =>
+    setMonthlySavings(
+      Math.min(value, PENSION_MONTHLY_ALLOWANCE_GBP - employerContributionMonthly),
+    );
+  const handleEmployerContributionChange = (value: number) =>
+    setEmployerContributionMonthly(
+      Math.min(value, PENSION_MONTHLY_ALLOWANCE_GBP - monthlySavings),
+    );
 
   useEffect(() => {
     getOwners()
@@ -147,6 +192,33 @@ export default function PensionForecast() {
         // Portfolio fetch failing shouldn't break the page -- the snapshot
         // card just falls back to its "run a forecast" copy.
         if (!cancelled) setPortfolioPensionPot(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [owner]);
+
+  useEffect(() => {
+    setProfile(null);
+    setProfileError(null);
+    setPlannedRetirementAge("");
+    if (!owner) return;
+    let cancelled = false;
+    Promise.resolve()
+      .then(() => getPensionProfile(owner))
+      .then((p) => {
+        if (cancelled || !p) return;
+        setProfile(p);
+        setPlannedRetirementAge(String(p.state_pension_age));
+      })
+      .catch((ex: any) => {
+        if (cancelled) return;
+        // A 400 means no usable dob on file: the form still works, the
+        // backend defaults the retirement age itself and reports the dob
+        // problem on Forecast. Anything else (outage, auth) is surfaced
+        // rather than passed off as a missing dob.
+        if (ex?.status === 400) return;
+        setProfileError(ex instanceof Error ? ex.message : String(ex));
       });
     return () => {
       cancelled = true;
@@ -226,16 +298,32 @@ export default function PensionForecast() {
   // until then, fall back to the portfolio-derived figure (#7211).
   const displayedPensionPot = pensionPot ?? portfolioPensionPot;
 
+  const displayedCurrentAge = currentAge ?? profile?.current_age ?? null;
+  const displayedDob = dob ?? profile?.dob ?? null;
+  const displayedStatePensionAge =
+    forecastStatePensionAge ?? profile?.state_pension_age ?? null;
+  // The forecast's breakdown only counts the state pension once it's being
+  // paid, so flag when the chosen retirement age comes before it.
+  const statePensionStartsLater =
+    retirementAge != null &&
+    forecastStatePensionAge != null &&
+    retirementAge < forecastStatePensionAge;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const res = await getPensionForecast({
         owner,
         deathAge,
+        retirementAge: plannedRetirementAge
+          ? Number(plannedRetirementAge)
+          : undefined,
         statePensionAnnual: statePension
           ? parseFloat(statePension)
           : undefined,
-        contributionMonthly: monthlySavings,
+        // Employer money goes into the same pot, so it has to be part of the
+        // projection -- previously only the employee slider was sent.
+        contributionMonthly: totalMonthlyContribution,
         desiredIncomeAnnual: monthlySpending * 12,
         investmentGrowthPct: selectedCareerPath.investmentGrowthPct,
       });
@@ -245,6 +333,7 @@ export default function PensionForecast() {
       setCurrentAge(res.current_age);
       setRetirementAge(res.retirement_age);
       setDob(res.dob || null);
+      setForecastStatePensionAge(res.state_pension_age ?? null);
       setEarliestRetirementAge(res.earliest_retirement_age);
       setRetirementIncomeBreakdown(res.retirement_income_breakdown ?? null);
       setRetirementIncomeTotal(res.retirement_income_total_annual ?? null);
@@ -259,7 +348,13 @@ export default function PensionForecast() {
       const status =
         typeof ex?.status === "number" ? (ex.status as number) : undefined;
       setErr(
-        humanizeForecastError(rawMessage, { deathAge, retirementAge, status }),
+        humanizeForecastError(rawMessage, {
+          deathAge,
+          retirementAge: plannedRetirementAge
+            ? Number(plannedRetirementAge)
+            : retirementAge,
+          status,
+        }),
       );
       setData([]);
       setEarliestRetirementAge(null);
@@ -534,10 +629,10 @@ export default function PensionForecast() {
               id="monthly-savings"
               label="Monthly savings"
               min={0}
-              max={2000}
+              max={PENSION_MONTHLY_ALLOWANCE_GBP}
               step={50}
               value={monthlySavings}
-              onChange={(value) => setMonthlySavings(value)}
+              onChange={handleMonthlySavingsChange}
               formatValue={(value) => currencyFormatter.format(value)}
               getValueText={(value) => currencyFormatter.format(value)}
               // £250/£150 starting values below aren't derived from this
@@ -550,25 +645,151 @@ export default function PensionForecast() {
               id="employer-contribution"
               label={t("pensionForecast.employerContributionLabel")}
               min={0}
-              max={2000}
+              max={PENSION_MONTHLY_ALLOWANCE_GBP}
               step={50}
               value={employerContributionMonthly}
-              onChange={(value) => setEmployerContributionMonthly(value)}
+              onChange={handleEmployerContributionChange}
               formatValue={(value) => currencyFormatter.format(value)}
               getValueText={(value) => currencyFormatter.format(value)}
               helper={t("pensionForecast.header.contributionDefaultHelper")}
             />
-            <SliderControl
-              id="monthly-spending"
-              label="Monthly spending in retirement"
-              min={500}
-              max={6000}
-              step={50}
-              value={monthlySpending}
-              onChange={(value) => setMonthlySpending(value)}
-              formatValue={(value) => currencyFormatter.format(value)}
-              getValueText={(value) => currencyFormatter.format(value)}
-            />
+            <p
+              className={`text-xs ${
+                totalMonthlyContribution >= PENSION_MONTHLY_ALLOWANCE_GBP
+                  ? "font-medium text-amber-700"
+                  : "text-slate-500"
+              }`}
+              role="note"
+            >
+              {t("pensionForecast.allowance.helper", {
+                total: currencyFormatter.format(totalMonthlyContribution),
+                monthlyLimit: currencyFormatter.format(PENSION_MONTHLY_ALLOWANCE_GBP),
+                annualLimit: currencyFormatter.format(PENSION_ANNUAL_ALLOWANCE_GBP),
+              })}
+            </p>
+            <div className="space-y-3">
+              <SliderControl
+                id="monthly-spending"
+                label="Monthly spending in retirement"
+                min={500}
+                max={6000}
+                step={10}
+                value={monthlySpending}
+                onChange={(value) => setMonthlySpending(value)}
+                formatValue={(value) => currencyFormatter.format(value)}
+                getValueText={(value) => currencyFormatter.format(value)}
+              />
+              <fieldset className="space-y-2">
+                <legend className="text-xs font-medium text-slate-600">
+                  {t("pensionForecast.livingStandards.legend", {
+                    year: UK_PENSION_FIGURES_TAX_YEAR,
+                  })}
+                </legend>
+                <div
+                  className="inline-flex rounded-full border border-slate-300 p-0.5 text-xs"
+                  role="group"
+                  aria-label={t("pensionForecast.livingStandards.householdLabel")}
+                >
+                  {(["single", "couple"] as const).map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      aria-pressed={household === h}
+                      onClick={() => setHousehold(h)}
+                      className={`rounded-full px-3 py-1 font-medium transition ${
+                        household === h
+                          ? "bg-slate-900 text-white"
+                          : "bg-transparent text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      {t(`pensionForecast.livingStandards.household.${h}`)}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {LIVING_STANDARDS.map((standard) => {
+                    const monthly = livingStandardMonthly(household, standard);
+                    const selected = monthlySpending === monthly;
+                    return (
+                      <button
+                        key={standard}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setMonthlySpending(monthly)}
+                        className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
+                          selected
+                            ? "border-blue-500 bg-blue-50 text-blue-900"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-400"
+                        }`}
+                      >
+                        <span className="block font-semibold">
+                          {t(`pensionForecast.livingStandards.${standard}`)}
+                        </span>
+                        <span className="block">
+                          {t("pensionForecast.livingStandards.amount", {
+                            monthly: wholePoundFormatter.format(monthly),
+                            annual: wholePoundFormatter.format(
+                              RETIREMENT_LIVING_STANDARDS_ANNUAL_GBP[household][standard],
+                            ),
+                          })}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-slate-500">
+                  {t("pensionForecast.livingStandards.helper")}
+                </p>
+              </fieldset>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <p className="block text-sm font-medium text-slate-700" id="age-now-label">
+                  {t("pensionForecast.ages.ageNowLabel")}
+                </p>
+                <p
+                  className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900"
+                  aria-labelledby="age-now-label"
+                >
+                  {displayedCurrentAge != null
+                    ? Math.floor(displayedCurrentAge)
+                    : "—"}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {displayedDob
+                    ? t("pensionForecast.ages.ageNowHelper", { dob: displayedDob })
+                    : profileError
+                      ? t("pensionForecast.ages.ageNowLoadFailed", {
+                          error: profileError,
+                        })
+                      : t("pensionForecast.ages.ageNowUnknown")}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700" htmlFor="retirement-age">
+                  {t("pensionForecast.ages.retirementAgeLabel")}
+                </label>
+                <input
+                  id="retirement-age"
+                  type="number"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  value={plannedRetirementAge}
+                  onChange={(e) => setPlannedRetirementAge(e.target.value)}
+                  min={displayedCurrentAge != null ? Math.floor(displayedCurrentAge) : 40}
+                  // Matches the backend's `le=100` on retirement_age.
+                  max={100}
+                  placeholder={t("pensionForecast.ages.retirementAgePlaceholder")}
+                  aria-describedby="retirement-age-description"
+                />
+                <p id="retirement-age-description" className="text-xs text-slate-500">
+                  {displayedStatePensionAge != null
+                    ? t("pensionForecast.ages.retirementAgeHelper", {
+                        spa: displayedStatePensionAge,
+                      })
+                    : t("pensionForecast.ages.retirementAgeHelperNoSpa")}
+                </p>
+              </div>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 {/* Relabelled from "Death age" -- blunt phrasing for this
@@ -607,7 +828,11 @@ export default function PensionForecast() {
                   aria-describedby="state-pension-description"
                 />
                 <p id="state-pension-description" className="text-xs text-slate-500">
-                  {t("pensionForecast.header.statePensionHelper")}
+                  {t("pensionForecast.header.statePensionHelper", {
+                    year: UK_PENSION_FIGURES_TAX_YEAR,
+                    weekly: currencyFormatter.format(FULL_NEW_STATE_PENSION_WEEKLY_GBP),
+                    annual: wholePoundFormatter.format(FULL_NEW_STATE_PENSION_ANNUAL_GBP),
+                  })}
                 </p>
               </div>
             </div>
@@ -708,6 +933,14 @@ export default function PensionForecast() {
                   ))}
                 </tbody>
               </table>
+              {statePensionStartsLater && (
+                <p className="mt-3 text-xs text-slate-600">
+                  {t("pensionForecast.ages.statePensionStartsLater", {
+                    retirementAge,
+                    spa: forecastStatePensionAge,
+                  })}
+                </p>
+              )}
             </div>
           )}
           {!retirementIncomeBreakdown && retirementIncomeTotal != null && (

@@ -421,7 +421,7 @@
       "otherAccountsHeading": "Altri conti (come riferimento -- non inclusi in questa previsione)",
       "pensionPot": "Montante pensionistico attuale",
       "pensionPotFromPortfolio": "Dai dati attuali del tuo portafoglio",
-      "statePensionHelper": "La tua pensione statale annua prevista. Predefinito: 0 £ (esclusa); inserisci una tua stima per includerla.",
+      "statePensionHelper": "La nuova pensione statale piena per il {{year}} è di {{weekly}} a settimana ({{annual}} all'anno) e richiede 35 anni di contributi National Insurance. Verifica il tuo importo su gov.uk/check-state-pension e inseriscilo se è diverso.",
       "totalContribution": "Contributi mensili totali: {{total}}"
     },
     "incomeBreakdownHeading": "Retirement income breakdown",

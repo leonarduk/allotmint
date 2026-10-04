@@ -123,8 +123,10 @@ describe("PerformanceDashboard", () => {
     ).toBeInTheDocument();
   });
 
-  it("auto-expands suspicious drawdowns", async () => {
-    vi.mocked(getMaxDrawdown).mockResolvedValueOnce({
+  it("auto-expands a plausible severe drawdown (-0.95) and shows the >90% warning", async () => {
+    // mockResolvedValue (not Once): if the component ever re-fetched, a Once
+    // override would fall back to the -0.35 default on the second call.
+    vi.mocked(getMaxDrawdown).mockResolvedValue({
       max_drawdown: -0.95,
       peak: { date: "2024-02-01", value: 2100 },
       trough: { date: "2024-03-10", value: 100, drawdown: -0.952 },
@@ -151,8 +153,256 @@ describe("PerformanceDashboard", () => {
     );
 
     expect(
-      await screen.findByText(/Drops larger than 90%/i),
+      await screen.findByTestId("drawdown-severe-warning"),
+    ).toHaveTextContent(/Drops larger than 90%/i);
+    // Details opened without a click, and the plausible value is quoted.
+    expect(screen.getByText("Max drawdown details")).toBeInTheDocument();
+    expect(screen.getByTestId("metric-max-drawdown")).toHaveTextContent("-95.00%");
+    expect(
+      screen.getByText(/The portfolio fell -95.00% from its peak/),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("drawdown-unreliable-warning"),
+    ).not.toBeInTheDocument();
+    expect(getMaxDrawdown).toHaveBeenCalledTimes(1);
+  });
+
+  // #8570: every metric is a fraction from the API. It is formatted directly
+  // (no "|x| > 1 means percent" guessing) and implausible values show N/A.
+  describe("metric units and plausibility (#8570)", () => {
+    type Metrics = {
+      alpha: number;
+      trackingError: number;
+      maxDrawdown: number;
+      twr: number;
+      xirr: number;
+    };
+
+    const renderWith = async (m: Metrics) => {
+      // Persistent overrides (not mockResolvedValueOnce) so a re-fetch could
+      // not silently fall back to the beforeEach defaults; the call-count
+      // assertions below also prove the component fetched exactly once.
+      vi.mocked(getAlphaVsBenchmark).mockResolvedValue({
+        alpha_vs_benchmark: m.alpha,
+      });
+      vi.mocked(getTrackingError).mockResolvedValue({
+        tracking_error: m.trackingError,
+      });
+      vi.mocked(getMaxDrawdown).mockResolvedValue({
+        max_drawdown: m.maxDrawdown,
+        peak: null,
+        trough: null,
+        series: [],
+      });
+      vi.mocked(getPerformance).mockResolvedValue({
+        history: [{ date: "2024-03-01", value: 1000 }],
+        time_weighted_return: m.twr,
+        xirr: m.xirr,
+        reportingDate: "2024-03-31",
+        previousDate: "2024-02-29",
+      });
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+      await screen.findByTestId("reporting-date-summary");
+      for (const fn of [
+        getAlphaVsBenchmark,
+        getTrackingError,
+        getMaxDrawdown,
+        getPerformance,
+      ]) {
+        expect(fn).toHaveBeenCalledTimes(1);
+      }
+    };
+
+    const testIds = {
+      alpha: "metric-alpha",
+      trackingError: "metric-tracking-error",
+      maxDrawdown: "metric-max-drawdown",
+      twr: "metric-twr",
+      xirr: "metric-xirr",
+    } as const;
+
+    it("formats normal fractions as percentages", async () => {
+      await renderWith({
+        alpha: 0.0123,
+        trackingError: 0.045,
+        maxDrawdown: -0.35,
+        twr: 0.0596,
+        xirr: 0.071,
+      });
+      expect(screen.getByTestId(testIds.alpha)).toHaveTextContent("1.23%");
+      expect(screen.getByTestId(testIds.trackingError)).toHaveTextContent("4.50%");
+      expect(screen.getByTestId(testIds.maxDrawdown)).toHaveTextContent("-35.00%");
+      expect(screen.getByTestId(testIds.twr)).toHaveTextContent("5.96%");
+      expect(screen.getByTestId(testIds.xirr)).toHaveTextContent("7.10%");
+    });
+
+    it("renders genuine values above 100% (1.5 -> 150.00%) instead of dividing by 100", async () => {
+      await renderWith({
+        alpha: 1.5,
+        trackingError: 1.5,
+        // Drawdown is bounded at -100%, so the full-loss edge is the
+        // largest genuine magnitude it can take.
+        maxDrawdown: -1,
+        twr: 1.5,
+        xirr: 1.5,
+      });
+      expect(screen.getByTestId(testIds.alpha)).toHaveTextContent("150.00%");
+      expect(screen.getByTestId(testIds.trackingError)).toHaveTextContent("150.00%");
+      expect(screen.getByTestId(testIds.maxDrawdown)).toHaveTextContent("-100.00%");
+      expect(screen.getByTestId(testIds.twr)).toHaveTextContent("150.00%");
+      expect(screen.getByTestId(testIds.xirr)).toHaveTextContent("150.00%");
+    });
+
+    it("renders implausible values (e.g. XIRR 14159.17) as N/A with an unreliable tooltip", async () => {
+      await renderWith({
+        alpha: 14159.17,
+        trackingError: 2.5,
+        maxDrawdown: -1.5,
+        twr: -14159.17,
+        xirr: 14159.17,
+      });
+      for (const id of Object.values(testIds)) {
+        const el = screen.getByTestId(id);
+        expect(el).toHaveTextContent(/^N\/A$/);
+        expect(el).toHaveAttribute("data-unreliable", "true");
+        expect(el).toHaveAttribute(
+          "title",
+          expect.stringMatching(/looks unreliable/),
+        );
+      }
+      expect(screen.queryByText("141.59%")).not.toBeInTheDocument();
+    });
+
+    it("renders missing values as plain N/A without the unreliable tooltip", async () => {
+      vi.mocked(getPerformance).mockResolvedValue({
+        history: [{ date: "2024-03-01", value: 1000 }],
+        time_weighted_return: null,
+        xirr: null,
+        reportingDate: "2024-03-31",
+        previousDate: "2024-02-29",
+      });
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+      await screen.findByTestId("reporting-date-summary");
+      const xirrEl = screen.getByTestId(testIds.xirr);
+      expect(xirrEl).toHaveTextContent("N/A");
+      expect(xirrEl).not.toHaveAttribute("data-unreliable");
+    });
+  });
+
+  describe("drawdown and non-finite edge cases (#8570 review)", () => {
+    const mockMetrics = (overrides: {
+      maxDrawdown?: number;
+      alpha?: number;
+      trackingError?: number;
+      twr?: number;
+      xirr?: number;
+    }) => {
+      vi.mocked(getAlphaVsBenchmark).mockResolvedValue({
+        alpha_vs_benchmark: overrides.alpha ?? 0.01,
+      });
+      vi.mocked(getTrackingError).mockResolvedValue({
+        tracking_error: overrides.trackingError ?? 0.02,
+      });
+      vi.mocked(getMaxDrawdown).mockResolvedValue({
+        max_drawdown: overrides.maxDrawdown ?? -0.35,
+        peak: { date: "2024-02-01", value: 2100 },
+        trough: { date: "2024-03-10", value: 1300, drawdown: -0.38 },
+        series: [
+          { date: "2024-02-01", portfolio_value: 2100, running_max: 2100, drawdown: 0 },
+          { date: "2024-03-10", portfolio_value: 1300, running_max: 2100, drawdown: -0.381 },
+        ],
+      });
+      vi.mocked(getPerformance).mockResolvedValue({
+        history: [{ date: "2024-03-01", value: 1000 }],
+        time_weighted_return: overrides.twr ?? 0.04,
+        xirr: overrides.xirr ?? 0.05,
+        reportingDate: "2024-03-31",
+        previousDate: "2024-02-29",
+      });
+    };
+
+    const renderDashboard = async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+      await screen.findByTestId("reporting-date-summary");
+      expect(getMaxDrawdown).toHaveBeenCalledTimes(1);
+      expect(getPerformance).toHaveBeenCalledTimes(1);
+    };
+
+    it.each([
+      ["positive drawdown", 0.05],
+      ["drawdown beyond -100%", -1.5],
+    ])(
+      "%s (%s): tile, details and warning all treat it as unreliable",
+      async (_label, value) => {
+        mockMetrics({ maxDrawdown: value });
+        await renderDashboard();
+
+        const tile = screen.getByTestId("metric-max-drawdown");
+        expect(tile).toHaveTextContent(/^N\/A$/);
+        expect(tile).toHaveAttribute("data-unreliable", "true");
+
+        // Auto-expanded, with the unreliable warning -- not the ">90% drop"
+        // copy, and no quoted percentage anywhere in the details.
+        expect(screen.getByText("Max drawdown details")).toBeInTheDocument();
+        expect(
+          screen.getByTestId("drawdown-unreliable-warning"),
+        ).toHaveTextContent(/impossible value/);
+        expect(
+          screen.queryByTestId("drawdown-severe-warning"),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByText(/The portfolio fell/)).not.toBeInTheDocument();
+      },
+    );
+
+    it("does not auto-expand or warn for an ordinary drawdown", async () => {
+      mockMetrics({ maxDrawdown: -0.35 });
+      await renderDashboard();
+      expect(screen.getByTestId("metric-max-drawdown")).toHaveTextContent("-35.00%");
+      expect(screen.queryByText("Max drawdown details")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("drawdown-severe-warning")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("drawdown-unreliable-warning")).not.toBeInTheDocument();
+    });
+
+    it.each([
+      ["NaN", Number.NaN],
+      ["Infinity", Number.POSITIVE_INFINITY],
+      ["-Infinity", Number.NEGATIVE_INFINITY],
+    ])("renders %s as the missing (plain N/A) state for every metric", async (_label, value) => {
+      mockMetrics({
+        alpha: value,
+        trackingError: value,
+        maxDrawdown: value,
+        twr: value,
+        xirr: value,
+      });
+      await renderDashboard();
+      for (const id of [
+        "metric-alpha",
+        "metric-tracking-error",
+        "metric-max-drawdown",
+        "metric-twr",
+        "metric-xirr",
+      ]) {
+        const el = screen.getByTestId(id);
+        expect(el).toHaveTextContent(/^N\/A$/);
+        expect(el).not.toHaveAttribute("data-unreliable");
+      }
+      expect(screen.queryByText(/NaN|Infinity|∞/)).not.toBeInTheDocument();
+      // A non-finite drawdown is "missing", so nothing auto-expands.
+      expect(screen.queryByText("Max drawdown details")).not.toBeInTheDocument();
+    });
   });
 
   describe("group scope (#7228)", () => {
@@ -195,6 +445,13 @@ describe("PerformanceDashboard", () => {
       expect(getGroupMaxDrawdown).toHaveBeenCalledWith("all", 365);
       expect(getPerformance).not.toHaveBeenCalled();
       expect(getAlphaVsBenchmark).not.toHaveBeenCalled();
+
+      // Group endpoints return fractions too (#8570 unit audit).
+      expect(screen.getByTestId("metric-alpha")).toHaveTextContent("3.00%");
+      expect(screen.getByTestId("metric-tracking-error")).toHaveTextContent("4.00%");
+      expect(screen.getByTestId("metric-max-drawdown")).toHaveTextContent("-20.00%");
+      expect(screen.getByTestId("metric-twr")).toHaveTextContent("6.00%");
+      expect(screen.getByTestId("metric-xirr")).toHaveTextContent("7.00%");
     });
 
     it("hides the owner-only diagnostics link in group scope", async () => {

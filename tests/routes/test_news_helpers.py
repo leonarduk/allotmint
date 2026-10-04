@@ -337,3 +337,32 @@ def test_get_cached_news_reuses_fresh_cache(monkeypatch):
     ]
     assert len(scheduled) == 1
     _assert_refresh_call(scheduled[0], page="news_CACHED", delay=42.0)
+
+
+def test_get_cached_news_succeeds_without_running_event_loop(monkeypatch):
+    # Uses the real ``schedule_refresh`` (other tests stub it) to cover sync
+    # callers such as the ``/news`` handler, which run without an event loop.
+    saved: dict[str, Any] = {}
+    monkeypatch.setattr(news_module.page_cache, "load_cache", lambda page: None)
+    monkeypatch.setattr(news_module.page_cache, "save_cache", lambda page, data: saved.update({page: data}))
+    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: True)
+    monkeypatch.setattr(news_module, "_can_request_news", lambda: True)
+    monkeypatch.setattr(
+        news_module,
+        "_fetch_news",
+        lambda ticker: [{"headline": "ADBE beats", "url": "https://example.com/adbe"}],
+    )
+
+    items = news_module.get_cached_news("adbe.n", raise_on_quota_exhausted=True)
+
+    assert [item["headline"] for item in items] == ["ADBE beats"]
+    assert "news_ADBE.N" in saved
+
+
+def test_get_cached_news_raises_news_quota_exceeded(monkeypatch):
+    monkeypatch.setattr(news_module.page_cache, "load_cache", lambda page: None)
+    monkeypatch.setattr(news_module.page_cache, "schedule_refresh", lambda *a, **k: None)
+    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: False)
+
+    with pytest.raises(news_module.NewsQuotaExceeded):
+        news_module.get_cached_news("limited", raise_on_quota_exhausted=True)

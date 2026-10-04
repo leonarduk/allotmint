@@ -114,6 +114,24 @@ def test_screener_success(monkeypatch):
     assert saved["data"][0]["ticker"] == "ABC"
 
 
+def test_screener_sync_route_without_stubbed_schedule_refresh(monkeypatch, tmp_path):
+    """Regression: the sync route runs on FastAPI's threadpool with no event
+    loop, where ``schedule_refresh`` used to raise and turn every request into
+    a 500. ``schedule_refresh`` is deliberately not stubbed."""
+
+    monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+
+    def fake_screen(symbols, **kwargs):
+        return [Fundamentals(ticker=symbols[0], peg_ratio=1, roe=2)]
+
+    monkeypatch.setattr(screener, "screen", fake_screen)
+
+    resp = _client().get("/screener", params={"tickers": "ABC"})
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["ticker"] == "ABC"
+
+
 def test_screener_cached_path(monkeypatch):
     client = _client()
     monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)

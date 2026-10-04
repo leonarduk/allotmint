@@ -14,7 +14,7 @@ from fastapi import APIRouter, Query
 
 from backend import config_module
 from backend.logging_setup import sanitise_log_value
-from backend.routes.news import get_cached_news
+from backend.routes.news import NewsQuotaExceeded, get_cached_news
 from backend.utils.lazy_import import lazy_import
 
 # yfinance is only needed when market endpoints are called, not at import time.
@@ -334,9 +334,14 @@ def _fetch_headlines() -> List[Dict[str, Any]]:
     for sym in INDEX_SYMBOLS.values():
         try:
             items = get_cached_news(sym)
-        except RuntimeError:
+        except NewsQuotaExceeded:
             logger.warning("News quota exhausted while building market headlines; returning partial data")
             break
+        except Exception:
+            # One failing symbol must not blank the whole headline list, and
+            # an unexpected error must not masquerade as quota exhaustion.
+            logger.exception("Failed to fetch news for %s", sanitise_log_value(sym))
+            continue
 
         if not items:
             continue

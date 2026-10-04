@@ -2400,6 +2400,7 @@ export interface PensionForecastResponse {
   current_age: number;
   retirement_age: number;
   dob: string;
+  state_pension_age?: number | null;
   earliest_retirement_age: number | null;
   retirement_income_breakdown?: PensionIncomeBreakdown | null;
   retirement_income_total_annual?: number | null;
@@ -2409,9 +2410,21 @@ export interface PensionForecastResponse {
   annuity_multiple_used?: number | null;
 }
 
+export interface PensionProfileResponse {
+  dob: string;
+  current_age: number;
+  state_pension_age: number;
+}
+
+export const getPensionProfile = (owner: string) =>
+  fetchJson<PensionProfileResponse>(
+    `${API_BASE}/pension/profile?${new URLSearchParams({ owner }).toString()}`,
+  );
+
 export const getPensionForecast = ({
   owner,
   deathAge,
+  retirementAge,
   statePensionAnnual,
   contributionAnnual,
   contributionMonthly,
@@ -2420,6 +2433,7 @@ export const getPensionForecast = ({
 }: {
   owner: string;
   deathAge: number;
+  retirementAge?: number;
   statePensionAnnual?: number;
   contributionAnnual?: number;
   contributionMonthly?: number;
@@ -2430,6 +2444,9 @@ export const getPensionForecast = ({
     owner,
     death_age: String(deathAge),
   });
+  if (retirementAge !== undefined) {
+    params.set("retirement_age", String(retirementAge));
+  }
   if (statePensionAnnual !== undefined) {
     params.set("state_pension_annual", String(statePensionAnnual));
   }

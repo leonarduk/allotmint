@@ -528,3 +528,58 @@ def _make_frozen_date(frozen_today: dt.date):
             return frozen_today
 
     return _FrozenDate
+
+
+def test_get_scaling_override_rejects_non_pence_pound_factor(monkeypatch, tmp_path):
+    """A typo'd factor (0.1) is ignored and the instrument's GBX currency
+    metadata decides instead, so the price is not silently mis-scaled (#8597)."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "scaling_overrides.json").write_text('{"L": {"ADM": 0.1}}')
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=tmp_path))
+    monkeypatch.setattr(
+        "backend.common.instruments.get_instrument_meta",
+        lambda symbol: {"currency": "GBX"},
+    )
+
+    assert th.get_scaling_override("ADM", "L", None) == 0.01
+
+
+def test_get_scaling_override_invalid_factor_falls_through_to_next_candidate(monkeypatch, tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "scaling_overrides.json").write_text('{"L": {"ADM": 0.1, "*": 0.01}}')
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=tmp_path))
+
+    assert th.get_scaling_override("ADM", "L", None) == 0.01
+
+
+def test_is_valid_override_factor():
+    assert th.is_valid_override_factor(0.01)
+    assert th.is_valid_override_factor(1)
+    assert th.is_valid_override_factor(100)
+    # Deliberate contract (#8597): overrides only convert pence <-> pounds, so
+    # arbitrary factors such as 1.25 or 5 are rejected rather than honoured.
+    for bad in (0.1, 0.001, 10, 0.5, 1.25, 5, 0.0, -0.01):
+        assert not th.is_valid_override_factor(bad), bad
+
+
+def test_get_scaling_override_invalid_factor_falls_through_across_exchanges(monkeypatch, tmp_path):
+    """An invalid per-exchange factor falls through to a valid global ("*") entry."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "scaling_overrides.json").write_text('{"L": {"ADM": 0.1}, "*": {"ADM": 0.01}}')
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=tmp_path))
+
+    assert th.get_scaling_override("ADM", "L", None) == 0.01
+
+
+def test_get_scaling_override_honours_valid_factor_on_another_exchange(monkeypatch, tmp_path):
+    """A valid entry for a different exchange is used when the ticker's own is invalid."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "scaling_overrides.json").write_text('{"L": {"ABC": 0.1}, "N": {"ABC": 100}, "*": {"ABC": 1}}')
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=tmp_path))
+
+    assert th.get_scaling_override("ABC", "N", None) == 100.0
+    assert th.get_scaling_override("ABC", "L", None) == 1.0

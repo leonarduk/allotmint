@@ -324,6 +324,11 @@ def _patch_book_cost_env(monkeypatch, current_price):
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {})
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: None)
     monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *a, **k: (current_price, "mock"))
+    monkeypatch.setattr(
+        holding_utils,
+        "_get_dated_price_for_date_scaled",
+        lambda ticker, exchange, d, *a, **k: (current_price, "mock", d if current_price is not None else None),
+    )
     monkeypatch.setattr(holding_utils, "_derived_cost_basis_close_px", lambda *a, **k: None)
 
 

@@ -16,32 +16,133 @@ def portfolio_series():
 
 
 @pytest.fixture
-def sample_transactions():
-    return [
-        {"date": "2024-01-02", "type": "deposit", "amount_minor": 1000},
-        {"date": "2024-02-01", "kind": "withdrawal", "amount_minor": 500},
-        {"date": "2023-12-15", "type": "deposit", "amount_minor": 2000},
+def ledger_owner(monkeypatch):
+    """Back the single-owner TWR/XIRR path with an in-memory ledger and closes (#8461).
+
+    Call it with ``(transactions, closes, trade_cash=True)``; ``closes`` maps
+    an instrument key to ``{"YYYY-MM-DD": gbp_close}``.
+    """
+
+    def install(transactions, closes, *, trade_cash=True):
+        monkeypatch.setattr(
+            pu.portfolio_mod,
+            "build_owner_portfolio",
+            lambda owner, *, pricing_date=None, **_: {"accounts": []},
+        )
+        ledgers = [pu.ledger_performance.AccountLedger("isa", transactions, trade_cash)] if transactions else []
+        monkeypatch.setattr(pu.ledger_performance, "load_owner_ledgers", lambda owner: ledgers)
+
+        def load(key, start, end):
+            points = closes.get(key, {})
+            return pd.Series({pd.Timestamp(day): price for day, price in points.items()}, dtype=float)
+
+        monkeypatch.setattr(pu.ledger_performance, "load_gbp_closes", load)
+
+    return install
+
+
+def _deposit(day, pounds):
+    return {"date": day, "type": "DEPOSIT", "amount_minor": int(pounds * 100)}
+
+
+def _buy(day, units, pounds):
+    return {"date": day, "type": "BUY", "ticker": "AAA.L", "units": units, "amount_minor": int(pounds * 100)}
+
+
+# One GBP instrument; see tests/backend/common/test_ledger_performance.py for the hand-worked figures.
+LEDGER_END = date(2026, 2, 27)
+LEDGER_CLOSES = {"AAA.L": {"2026-01-29": 100.0, "2026-01-30": 110.0, "2026-02-12": 99.0}}
+LEDGER_TRANSACTIONS = [
+    _deposit("2026-01-29", 1000),
+    _buy("2026-01-29", 10, 1000),
+    _deposit("2026-02-11", 1100),
+    _buy("2026-02-12", 10, 1100),
+    {"date": "2026-02-13", "type": "DIVIDEND", "amount_minor": 3000},
+]
+
+
+def test_compute_time_weighted_return_with_cashflows(ledger_owner):
+    """#8461: the deposits (£2,100 in, £2,010 held at the end) are not a loss.
+
+    +10% in January, -10% on 12 Feb, then the £30 dividend:
+    1.1 * 0.9 * 2010 / 1980 - 1 = 2010 / 2000 - 1.
+    """
+    ledger_owner(LEDGER_TRANSACTIONS, LEDGER_CLOSES)
+
+    result = pu.compute_time_weighted_return("owner", 365, pricing_date=LEDGER_END)
+
+    assert result == pytest.approx(2010 / 2000 - 1)
+
+
+def test_compute_time_weighted_return_window_uses_calendar_days(ledger_owner):
+    ledger_owner(LEDGER_TRANSACTIONS, LEDGER_CLOSES)
+
+    # 16 days before 27 Feb is 11 Feb, so the window is 12 Feb onwards.
+    result = pu.compute_time_weighted_return("owner", 16, pricing_date=LEDGER_END)
+
+    assert result == pytest.approx(0.9 * 2010 / 1980 - 1)
+
+
+def test_compute_time_weighted_return_deposit_is_neutral(ledger_owner):
+    """#8461: a mid-window deposit with flat prices must leave TWR at zero,
+    where the old current-holdings series read it as a loss of the deposit.
+    """
+    closes = {"AAA.L": {"2026-01-05": 100.0}}
+    ledger_owner([_deposit("2026-01-05", 1000), _buy("2026-01-05", 10, 1000), _deposit("2026-01-20", 500)], closes)
+
+    result = pu.compute_time_weighted_return("owner", 365, pricing_date=date(2026, 2, 2))
+
+    assert result == pytest.approx(0.0)
+
+
+def test_compute_time_weighted_return_withdrawal_is_neutral(ledger_owner):
+    """#8461: a mid-window withdrawal must not read as a gain (or a loss).
+
+    £1,500 in, £1,000 of it in 10 units that rise 10% on 12 Jan, then £500
+    withdrawn on 20 Jan with flat prices: TWR is the 12 Jan move only.
+    """
+    closes = {"AAA.L": {"2026-01-05": 100.0, "2026-01-12": 110.0}}
+    transactions = [
+        _deposit("2026-01-05", 1500),
+        _buy("2026-01-05", 10, 1000),
+        {"date": "2026-01-20", "type": "WITHDRAWAL", "amount_minor": 50000},
     ]
+    ledger_owner(transactions, closes)
+
+    result = pu.compute_time_weighted_return("owner", 365, pricing_date=date(2026, 2, 2))
+
+    assert result == pytest.approx(1600 / 1500 - 1)
 
 
-def test_compute_time_weighted_return_with_cashflows(monkeypatch, portfolio_series, sample_transactions):
-    monkeypatch.setattr(
-        pu,
-        "_portfolio_value_series",
-        lambda owner, days=365, *, pricing_date=None, **_: portfolio_series,
-    )
-    monkeypatch.setattr(
-        pu,
-        "load_transactions",
-        lambda owner, *, scaffold_missing=False: sample_transactions,
-    )
+def test_compute_time_weighted_return_dividend_is_return(ledger_owner):
+    closes = {"AAA.L": {"2026-01-05": 100.0}}
+    transactions = [
+        _deposit("2026-01-05", 1000),
+        _buy("2026-01-05", 10, 1000),
+        {"date": "2026-01-20", "type": "DIVIDEND", "ticker": "AAA.L", "amount_minor": 3000},
+    ]
+    ledger_owner(transactions, closes)
 
-    result = pu.compute_time_weighted_return("owner")
+    result = pu.compute_time_weighted_return("owner", 365, pricing_date=date(2026, 2, 2))
 
-    assert result == pytest.approx(0.089523, rel=1e-4)
+    assert result == pytest.approx(0.03)
 
 
-def test_compute_time_weighted_return_requires_two_points(monkeypatch):
+def test_compute_time_weighted_return_unknown_owner_raises(monkeypatch):
+    def missing(owner, *, pricing_date=None, **_):
+        raise FileNotFoundError(owner)
+
+    monkeypatch.setattr(pu.portfolio_mod, "build_owner_portfolio", missing)
+
+    with pytest.raises(FileNotFoundError):
+        pu.compute_time_weighted_return("ghost")
+    with pytest.raises(FileNotFoundError):
+        pu.compute_xirr("ghost")
+
+
+def test_compute_time_weighted_return_requires_two_points(monkeypatch, ledger_owner):
+    """No dated ledger rows: falls back to the current-holdings series."""
+    ledger_owner([], {})
     idx = pd.Index([date(2024, 1, 1)])
     series = pd.Series([1000.0], index=idx)
     monkeypatch.setattr(
@@ -54,6 +155,18 @@ def test_compute_time_weighted_return_requires_two_points(monkeypatch):
     assert pu.compute_time_weighted_return("owner") is None
 
 
+def test_compute_time_weighted_return_without_ledger_uses_holdings_series(monkeypatch, ledger_owner, portfolio_series):
+    ledger_owner([], {})
+    monkeypatch.setattr(
+        pu,
+        "_portfolio_value_series",
+        lambda owner, days=365, *, pricing_date=None, **_: portfolio_series,
+    )
+    monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: [])
+
+    assert pu.compute_time_weighted_return("owner") == pytest.approx(0.10)
+
+
 @pytest.fixture
 def one_year_series():
     start = date(2024, 1, 1)
@@ -62,25 +175,125 @@ def one_year_series():
     return pd.Series([1000.0, 1100.0], index=idx)
 
 
-def test_compute_xirr_simple_contribution(monkeypatch, one_year_series):
-    monkeypatch.setattr(
-        pu,
-        "_portfolio_value_series",
-        lambda owner, days=365, *, pricing_date=None, **_: one_year_series,
-    )
-    transactions = [
-        {"date": "2024-01-01", "type": "DEPOSIT", "amount_minor": 100000},
-        {"date": "2023-12-01", "type": "deposit", "amount_minor": 1000},
-        {"date": "2025-02-01", "kind": "WITHDRAWAL", "amount_minor": 1000},
+def test_compute_xirr_simple_contribution(ledger_owner):
+    """£1,000 invested on 1 Jan 2025 is worth £1,100 a year later: 10%."""
+    closes = {"AAA.L": {"2025-01-01": 100.0, "2026-01-01": 110.0}}
+    ledger_owner([_deposit("2025-01-01", 1000), _buy("2025-01-01", 10, 1000)], closes)
+
+    result = pu.compute_xirr("owner", 365, pricing_date=date(2026, 1, 1))
+
+    assert result == pytest.approx(0.10, abs=1e-6)
+
+
+def test_ledger_xirr_flows_open_with_window_value(ledger_owner):
+    """#8461: a window starting after inception opens with the value then held,
+    and a later deposit is an investor outflow on its own day.
+    """
+    closes = {"AAA.L": {"2025-01-01": 100.0, "2025-06-02": 105.0, "2026-01-01": 120.0}}
+    transactions = [_deposit("2025-01-01", 1000), _buy("2025-01-01", 10, 1000), _deposit("2025-09-01", 500)]
+    ledger_owner(transactions, closes)
+    perf = pu._owner_ledger_performance("owner", date(2026, 1, 1))
+
+    flows = pu._ledger_xirr_flows(perf, 213)  # window opens 2 Jun 2025
+
+    assert flows == [
+        (date(2025, 6, 2), pytest.approx(-1050.0)),
+        (date(2025, 9, 1), pytest.approx(-500.0)),
+        (date(2026, 1, 1), pytest.approx(1700.0)),
     ]
-    monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: transactions)
-
-    result = pu.compute_xirr("owner")
-
-    assert result == pytest.approx(0.10, abs=1e-3)
 
 
-def test_compute_xirr_requires_cashflows(monkeypatch, one_year_series):
+def test_ledger_xirr_flows_weekend_window_start_opens_on_prior_close(ledger_owner):
+    """#8461: a window starting on a Saturday opens with Friday's close, dated Friday.
+
+    TWR's first chained return (Monday) divides by Friday's close, so the
+    XIRR opening outflow is dated on that close too; dating it on the
+    Saturday would shorten the holding period by a day and overstate XIRR.
+    """
+    end = date(2026, 1, 1)
+    closes = {"AAA.L": {"2025-01-01": 100.0, "2025-06-06": 105.0, "2026-01-01": 120.0}}
+    ledger_owner([_deposit("2025-01-01", 1000), _buy("2025-01-01", 10, 1000)], closes)
+    days = (end - date(2025, 6, 7)).days  # window opens after Saturday 7 Jun 2025
+    perf = pu._owner_ledger_performance("owner", end)
+
+    flows = pu._ledger_xirr_flows(perf, days)
+
+    assert flows == [
+        (date(2025, 6, 6), pytest.approx(-1050.0)),
+        (end, pytest.approx(1200.0)),
+    ]
+    twr = pu.compute_time_weighted_return("owner", days, pricing_date=end)
+    assert twr == pytest.approx(1200 / 1050 - 1)
+    held_days = (end - date(2025, 6, 6)).days
+    assert pu.compute_xirr("owner", days, pricing_date=end) == pytest.approx(
+        (1 + twr) ** (365 / held_days) - 1, abs=1e-6
+    )
+
+
+def test_ledger_xirr_flows_zero_opening_value_has_no_opening_outflow(ledger_owner):
+    """Everything sold and withdrawn before the window: no opening outflow.
+
+    A zero opening flow would add nothing to the NPV, so it is dropped; the
+    re-entry deposit is then the first investor outflow. 5 units bought at
+    100 and closing at 120 is +20% over 1 Sep 2025 - 1 Jan 2026.
+    """
+    end = date(2026, 1, 1)
+    closes = {"AAA.L": {"2025-01-02": 100.0, "2025-09-01": 100.0, "2026-01-01": 120.0}}
+    transactions = [
+        _deposit("2025-01-02", 1000),
+        _buy("2025-01-02", 10, 1000),
+        {"date": "2025-02-03", "type": "SELL", "ticker": "AAA.L", "units": 10, "amount_minor": 100000},
+        {"date": "2025-02-03", "type": "WITHDRAWAL", "amount_minor": 100000},
+        _deposit("2025-09-01", 500),
+        _buy("2025-09-01", 5, 500),
+    ]
+    ledger_owner(transactions, closes)
+    perf = pu._owner_ledger_performance("owner", end)
+
+    flows = pu._ledger_xirr_flows(perf, 213)  # window opens after 2 Jun 2025, value 0 then
+
+    assert flows == [
+        (date(2025, 9, 1), pytest.approx(-500.0)),
+        (end, pytest.approx(600.0)),
+    ]
+    held_days = (end - date(2025, 9, 1)).days
+    assert pu.compute_xirr("owner", 213, pricing_date=end) == pytest.approx(1.2 ** (365 / held_days) - 1, abs=1e-6)
+
+
+def test_ledger_xirr_flows_close_dated_on_last_rebuilt_day(ledger_owner):
+    """A weekend ``end`` passed straight to the rebuild closes on Friday's value, dated Friday."""
+    closes = {"AAA.L": {"2025-01-01": 100.0, "2026-01-02": 110.0}}
+    ledger_owner([_deposit("2025-01-01", 1000), _buy("2025-01-01", 10, 1000)], closes)
+    ledgers = pu.ledger_performance.load_owner_ledgers("owner")
+    perf = pu.ledger_performance.build_ledger_performance(ledgers, date(2026, 1, 3))  # Saturday
+
+    flows = pu._ledger_xirr_flows(perf, 0)
+
+    assert flows == [
+        (date(2025, 1, 1), pytest.approx(-1000.0)),
+        (date(2026, 1, 2), pytest.approx(1100.0)),
+    ]
+
+
+def test_ledger_xirr_flows_untracked_cash_pays_out_income(ledger_owner):
+    """Without trade cash, buys are investor outflows and dividends inflows."""
+    closes = {"AAA.L": {"2025-01-01": 100.0}}
+    transactions = [_buy("2025-01-01", 10, 1000), {"date": "2025-07-01", "type": "DIVIDEND", "amount_minor": 5000}]
+    ledger_owner(transactions, closes, trade_cash=False)
+    perf = pu._owner_ledger_performance("owner", date(2026, 1, 1))
+
+    flows = pu._ledger_xirr_flows(perf, 0)
+
+    assert flows == [
+        (date(2025, 1, 1), pytest.approx(-1000.0)),
+        (date(2025, 7, 1), pytest.approx(50.0)),
+        (date(2026, 1, 1), pytest.approx(1000.0)),
+    ]
+
+
+def test_compute_xirr_requires_cashflows(monkeypatch, ledger_owner, one_year_series):
+    """No dated ledger rows: the fallback has only a closing value, so no XIRR."""
+    ledger_owner([], {})
     monkeypatch.setattr(
         pu,
         "_portfolio_value_series",
@@ -655,6 +868,21 @@ def test_compute_owner_performance_group_unknown_slug_raises(monkeypatch):
         pu.compute_owner_performance("bogus", group=True)
 
 
+def _forbid_ledger_rebuild(monkeypatch):
+    """Fail if group=True touches the single-owner ledger rebuild (#8461).
+
+    Groups stay on the legacy current-holdings value series and its
+    include_missing_members contract (#7228) until the follow-up.
+    """
+
+    def no_ledger_rebuild(*args, **kwargs):
+        raise AssertionError("group=True must use the legacy group value series, not the ledger rebuild (#8461)")
+
+    monkeypatch.setattr(pu, "_owner_ledger_performance", no_ledger_rebuild)
+    monkeypatch.setattr(pu.ledger_performance, "load_owner_ledgers", no_ledger_rebuild)
+    monkeypatch.setattr(pu.ledger_performance, "build_ledger_performance", no_ledger_rebuild)
+
+
 def test_compute_time_weighted_return_group_pools_member_cashflows(monkeypatch, portfolio_series):
     """#7228 review MUST FIX 3: pin the exact combined figure (not just
     "differs from the single-owner result") -- hand-computed below by
@@ -668,6 +896,7 @@ def test_compute_time_weighted_return_group_pools_member_cashflows(monkeypatch, 
         return portfolio_series
 
     monkeypatch.setattr(pu, "_portfolio_value_series", fake_series)
+    _forbid_ledger_rebuild(monkeypatch)
     monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "lucy"])
 
     per_owner_txs = {
@@ -686,20 +915,6 @@ def test_compute_time_weighted_return_group_pools_member_cashflows(monkeypatch, 
     #   twr = (1 + r1) * (1 + r2) - 1 = 1.03 * 22/21 - 1
     assert group_result == pytest.approx(0.07904761904761903)
 
-    monkeypatch.setattr(
-        pu,
-        "_portfolio_value_series",
-        lambda name, days=365, *, group=False, pricing_date=None: portfolio_series,
-    )
-    monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: per_owner_txs["steve"])
-    owner_result = pu.compute_time_weighted_return("steve")
-
-    # Single-owner: only £10 flows on day 2, so
-    #   r1 = (1050 - 10) / 1000 - 1 = 0.04; r2 unchanged;
-    #   twr = 1.04 * 22/21 - 1.
-    assert owner_result == pytest.approx(0.08952380952380956)
-    assert group_result != owner_result
-
 
 def test_compute_time_weighted_return_group_reports_missing_members(monkeypatch, portfolio_series):
     """#7228 review MUST FIX 1: a missing member ledger must be surfaced,
@@ -713,6 +928,7 @@ def test_compute_time_weighted_return_group_reports_missing_members(monkeypatch,
         "_portfolio_value_series",
         lambda name, days=365, *, group=False, pricing_date=None: portfolio_series,
     )
+    _forbid_ledger_rebuild(monkeypatch)
     monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "ghost"])
     monkeypatch.setattr(
         pu,
@@ -737,6 +953,7 @@ def test_compute_xirr_group_pools_member_cashflows(monkeypatch, one_year_series)
         return one_year_series
 
     monkeypatch.setattr(pu, "_portfolio_value_series", fake_series)
+    _forbid_ledger_rebuild(monkeypatch)
     monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "lucy"])
 
     per_owner_txs = {
@@ -758,6 +975,7 @@ def test_compute_xirr_group_reports_missing_members(monkeypatch, one_year_series
         "_portfolio_value_series",
         lambda name, days=365, *, group=False, pricing_date=None: one_year_series,
     )
+    _forbid_ledger_rebuild(monkeypatch)
     monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "ghost"])
     monkeypatch.setattr(
         pu,

@@ -993,7 +993,9 @@ export function HoldingsTable({
                     ) : h.total_return_gbp === null ? (
                       <span className={tableStyles.notApplicable}>{t("holdingsTable.notApplicable")}</span>
                     ) : (
-                      `${money(h.total_return_gbp, baseCurrency)} (${percent(h.total_return_pct, 1)})`
+                      h.total_return_pct == null
+                        ? money(h.total_return_gbp, baseCurrency)
+                        : `${money(h.total_return_gbp, baseCurrency)} (${percent(h.total_return_pct, 1)})`
                     )}
                   </td>
                 )}

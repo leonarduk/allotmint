@@ -115,6 +115,13 @@ def test_add_total_returns_matches_held_tickers_and_skips_cash(tmp_path):
     assert "income_gbp" not in holdings[2]
 
 
+def test_ticker_less_position_is_unknown_not_cash(tmp_path):
+    _write_transactions(tmp_path, "steve", "ISA", TXS)
+    holdings = [{"ticker": "", "name": "Mystery Fund", "market_value_gbp": 10.0, "gain_gbp": 1.0}]
+    add_total_returns("steve", "isa", holdings, tmp_path)
+    assert all(holdings[0][key] is None for key in TOTAL_RETURN_FIELDS)
+
+
 def test_add_total_returns_without_transactions_file_reports_unknown(tmp_path):
     (tmp_path / "steve").mkdir()
     holdings = [{"ticker": "KO.N", "market_value_gbp": 330.0, "gain_gbp": 30.0}]

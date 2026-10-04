@@ -52,7 +52,8 @@ class PositionReturn:
 def _amount_gbp(tx: Mapping[str, Any]) -> Optional[float]:
     # Income rows are recorded unsigned or negative depending on the importer;
     # like holdings_rebuild._apply_cash and ledger_performance, take the
-    # magnitude so both conventions count as money received.
+    # magnitude so both conventions count as money received.  Interest paid
+    # is a separate type (INTEREST_CHARGE) and never reaches this function.
     try:
         value = float(tx.get("amount_minor"))  # type: ignore[arg-type]
     except (TypeError, ValueError):
@@ -151,9 +152,10 @@ def attach_total_returns(
         if not isinstance(h, dict):
             continue
         ticker = str(h.get("ticker") or "").strip().upper()
-        if not ticker or ticker.split(".", 1)[0] == "CASH":
+        if ticker.split(".", 1)[0] == "CASH":
             continue
-        if returns is None:
+        # A position with no ticker can't be matched to a pool: unknown, not cash.
+        if not ticker or returns is None:
             clear_total_return(h)
             continue
         key = match_key(ticker, pool_keys)

@@ -252,6 +252,15 @@ describe("HoldingsTable", () => {
         expect(within(footer).queryByText(/90\.00/)).toBeNull();
     });
 
+    it("shows a total return without a % when the % is unknown (#9038)", async () => {
+        const rows = [{ ...holdings[0], income_gbp: 0, realised_gain_gbp: 0, total_return_gbp: 12, total_return_pct: null }];
+        renderWithConfig(<HoldingsTable holdings={rows} />);
+
+        const row = (await screen.findByText(rows[0].name)).closest("tr")!;
+        const cell = within(row).getAllByText(/12\.00/)[0];
+        expect(cell.textContent).not.toMatch(/\(/);
+    });
+
     it("renders shared group totals and expands grouped holdings", async () => {
         const groupedHoldings = holdings.map((holding) => ({
             ...holding,

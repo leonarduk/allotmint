@@ -107,6 +107,19 @@ def test_lambda_handler_sends_report_for_each_portfolio(monkeypatch, stub_enviro
     assert stub_environment["alerts"] == []
 
 
+def test_lambda_handler_lists_portfolios_as_system_job(monkeypatch, stub_environment):
+    """The user-less scheduled report must see every owner with auth enabled (#8805)."""
+    from backend.auth import is_system_job
+
+    seen = []
+    monkeypatch.setattr(lam, "list_portfolios", lambda: seen.append(is_system_job()) or [])
+
+    lam.lambda_handler({}, {})
+
+    assert seen == [True]
+    assert is_system_job() is False
+
+
 def test_lambda_handler_skips_owner_missing_email(monkeypatch, stub_environment):
     monkeypatch.setattr(lam, "list_portfolios", lambda: [_portfolio(email=None)])
 

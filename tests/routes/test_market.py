@@ -1,6 +1,6 @@
 """Tests for the market overview helpers and HTTP endpoint."""
 
-import time
+import threading
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -360,36 +360,35 @@ def test_market_overview_uk_region_handles_fetch_errors(monkeypatch):
 
 
 def test_market_overview_fetchers_run_concurrently(monkeypatch):
-    """The three fetchers must overlap in wall-clock time, not run one after
-    another - a purely sequential implementation would take >= 3x as long."""
+    """The three fetchers must run at the same time, not one after another.
 
-    delay = 0.2
+    Each fake fetcher waits on a 3-party barrier, which only releases once all
+    three are inside a fetcher at once, so a sequential implementation times
+    the barrier out. This checks overlap directly rather than wall-clock time,
+    which flaked on loaded CI runners (#8695).
+    """
 
-    def slow_indexes():
-        time.sleep(delay)
-        return {}
+    barrier = threading.Barrier(3, timeout=5)
+    passed: list[str] = []
 
-    def slow_sectors():
-        time.sleep(delay)
-        return []
+    def meet(name, result):
+        def fetch():
+            # _safe swallows exceptions, so a broken barrier would not fail the
+            # request -- record who got through and assert on that instead.
+            barrier.wait()
+            passed.append(name)
+            return result
 
-    def slow_headlines():
-        time.sleep(delay)
-        return []
+        return fetch
 
-    monkeypatch.setattr(market, "_fetch_indexes", slow_indexes)
-    monkeypatch.setattr(market, "_fetch_sectors", slow_sectors)
-    monkeypatch.setattr(market, "_fetch_headlines", slow_headlines)
+    monkeypatch.setattr(market, "_fetch_indexes", meet("indexes", {}))
+    monkeypatch.setattr(market, "_fetch_sectors", meet("sectors", []))
+    monkeypatch.setattr(market, "_fetch_headlines", meet("headlines", []))
 
-    client = _client()
-    start = time.monotonic()
-    resp = client.get("/market/overview")
-    elapsed = time.monotonic() - start
+    resp = _client().get("/market/overview")
 
     assert resp.status_code == 200
-    # Sequential execution would take roughly 3 * delay; concurrent execution
-    # should take roughly 1 * delay. Use 2x delay as a generous cutoff.
-    assert elapsed < delay * 2
+    assert sorted(passed) == ["headlines", "indexes", "sectors"], "fetchers did not overlap"
 
 
 # ---------------------------------------------------------------------------

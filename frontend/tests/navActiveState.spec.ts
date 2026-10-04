@@ -39,13 +39,15 @@ const toRgbString = (page: Page, color: string): Promise<string> =>
   }, color);
 
 // Reads the computed background/text/border colors that Tailwind's
-// `bg-gray-100 text-gray-900 border-blue-600` utility classes resolve to in
+// `bg-[var(--menu-active-bg)] text-[var(--menu-text-active)] border-blue-600`
+// utility classes (theme-aware since #8609) resolve to in
 // the current theme, via a throwaway off-screen element — avoids hard-coding
 // palette values that would drift if Tailwind's color space/version changes.
 const referenceActiveClassColors = (page: Page) =>
   page.evaluate(() => {
     const el = document.createElement('div');
-    el.className = 'bg-gray-100 text-gray-900 border-blue-600 border-b-2';
+    el.className =
+      'bg-[var(--menu-active-bg)] text-[var(--menu-text-active)] border-blue-600 border-b-2';
     el.style.position = 'absolute';
     el.style.visibility = 'hidden';
     document.body.appendChild(el);

@@ -420,4 +420,229 @@ describe("ChatPanel", () => {
       await waitFor(() => expect(screen.getByText("third answer")).toBeInTheDocument());
     });
   });
+
+  describe("regenerate (#8820)", () => {
+    const conversation = [
+      { role: "user" as const, content: "first question" },
+      { role: "assistant" as const, content: "first answer" },
+      { role: "user" as const, content: "second question" },
+      { role: "assistant" as const, content: "second answer" },
+    ];
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      setChatMessages(conversation);
+    });
+
+    const items = () =>
+      screen.getAllByRole("listitem").filter((li) => li.classList.contains("chat-message"));
+
+    it("offers Regenerate only on assistant replies", () => {
+      render(<ChatPanel open onClose={() => {}} />);
+
+      expect(within(items()[0]).queryByRole("button", { name: /regenerate reply/i })).not.toBeInTheDocument();
+      expect(within(items()[1]).getByRole("button", { name: /regenerate reply/i })).toBeInTheDocument();
+      expect(within(items()[3]).getByRole("button", { name: /regenerate reply/i })).toBeInTheDocument();
+    });
+
+    it("regenerates the last reply for the same question", async () => {
+      (api.postChat as Mock).mockResolvedValueOnce({ reply: "better second answer" });
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[3]).getByRole("button", { name: /regenerate reply/i }));
+
+      await waitFor(() => expect(screen.getByText("better second answer")).toBeInTheDocument());
+      expect(api.postChat).toHaveBeenCalledWith("second question", conversation.slice(0, 2), [], undefined);
+      expect(getChatMessages()).toEqual([
+        ...conversation.slice(0, 3),
+        { role: "assistant", content: "better second answer" },
+      ]);
+    });
+
+    it("drops every later turn when regenerating an earlier reply", async () => {
+      (api.postChat as Mock).mockResolvedValueOnce({ reply: "better first answer" });
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[1]).getByRole("button", { name: /regenerate reply/i }));
+
+      await waitFor(() => expect(screen.getByText("better first answer")).toBeInTheDocument());
+      expect(api.postChat).toHaveBeenCalledWith("first question", [], [], undefined);
+      expect(getChatMessages()).toEqual([
+        { role: "user", content: "first question" },
+        { role: "assistant", content: "better first answer" },
+      ]);
+      expect(screen.queryByText("second question")).not.toBeInTheDocument();
+    });
+
+    it("restores the conversation, old reply included, when regenerating fails", async () => {
+      (api.postChat as Mock).mockRejectedValueOnce(Object.assign(new Error("x"), { status: 502 }));
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[1]).getByRole("button", { name: /regenerate reply/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't reach its AI service/i);
+      expect(getChatMessages()).toEqual(conversation);
+      expect(screen.getByText("second answer")).toBeInTheDocument();
+    });
+
+    it("disables Regenerate while a reply is pending", async () => {
+      let resolve: (v: { reply: string }) => void = () => {};
+      (api.postChat as Mock).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[3]).getByRole("button", { name: /regenerate reply/i }));
+
+      for (const button of screen.getAllByRole("button", { name: /regenerate reply/i })) {
+        expect(button).toBeDisabled();
+      }
+      resolve({ reply: "new answer" });
+      await waitFor(() => expect(screen.getByText("new answer")).toBeInTheDocument());
+    });
+
+    it("closes an open edit box when a regenerate starts", async () => {
+      (api.postChat as Mock).mockResolvedValueOnce({ reply: "new answer" });
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[0]).getByRole("button", { name: /edit message/i }));
+      expect(screen.getByLabelText(/edited message/i)).toBeInTheDocument();
+      await user.click(within(items()[3]).getByRole("button", { name: /regenerate reply/i }));
+
+      await waitFor(() => expect(screen.getByText("new answer")).toBeInTheDocument());
+      expect(screen.queryByLabelText(/edited message/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("versions (#8842)", () => {
+    const conversation = [
+      { role: "user" as const, content: "first question" },
+      { role: "assistant" as const, content: "first answer" },
+      { role: "user" as const, content: "second question" },
+      { role: "assistant" as const, content: "second answer" },
+    ];
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      setChatMessages(conversation);
+    });
+
+    const items = () =>
+      screen.getAllByRole("listitem").filter((li) => li.classList.contains("chat-message"));
+
+    const editFirstQuestion = async (user: ReturnType<typeof userEvent.setup>, text: string) => {
+      await user.click(within(items()[0]).getByRole("button", { name: /edit message/i }));
+      const box = screen.getByLabelText(/edited message/i);
+      await user.clear(box);
+      await user.type(box, text);
+      await user.click(screen.getByRole("button", { name: /save & regenerate/i }));
+    };
+
+    it("shows no version control until a message has another version", () => {
+      render(<ChatPanel open onClose={() => {}} />);
+
+      expect(screen.queryByRole("group", { name: /message versions/i })).not.toBeInTheDocument();
+    });
+
+    it("keeps the original after an edit and flips back to it with its later turns", async () => {
+      (api.postChat as Mock).mockResolvedValueOnce({ reply: "new answer" });
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await editFirstQuestion(user, "better question");
+      await waitFor(() => expect(screen.getByText("new answer")).toBeInTheDocument());
+
+      const versions = within(items()[0]).getByRole("group", { name: /message versions/i });
+      expect(versions).toHaveTextContent("2 / 2");
+      expect(within(versions).getByRole("button", { name: /next version/i })).toBeDisabled();
+
+      await user.click(within(versions).getByRole("button", { name: /previous version/i }));
+
+      expect(getChatMessages()).toEqual(conversation);
+      expect(screen.getByText("second answer")).toBeInTheDocument();
+      expect(within(items()[0]).getByRole("group", { name: /message versions/i })).toHaveTextContent(
+        "1 / 2",
+      );
+    });
+
+    it("keeps the old reply after a regenerate and flips between them", async () => {
+      (api.postChat as Mock).mockResolvedValueOnce({ reply: "better second answer" });
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[3]).getByRole("button", { name: /regenerate reply/i }));
+      await waitFor(() => expect(screen.getByText("better second answer")).toBeInTheDocument());
+      expect(within(items()[3]).getByRole("group", { name: /message versions/i })).toHaveTextContent(
+        "2 / 2",
+      );
+
+      await user.click(within(items()[3]).getByRole("button", { name: /previous version/i }));
+
+      expect(screen.getByText("second answer")).toBeInTheDocument();
+      expect(screen.queryByText("better second answer")).not.toBeInTheDocument();
+    });
+
+    it("continues the selected version and sends only its turns as history", async () => {
+      (api.postChat as Mock)
+        .mockResolvedValueOnce({ reply: "new answer" })
+        .mockResolvedValueOnce({ reply: "third answer" });
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await editFirstQuestion(user, "better question");
+      await waitFor(() => expect(screen.getByText("new answer")).toBeInTheDocument());
+      await user.click(within(items()[0]).getByRole("button", { name: /previous version/i }));
+
+      await user.type(screen.getByLabelText(/chat message/i), "third question");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      await waitFor(() => expect(screen.getByText("third answer")).toBeInTheDocument());
+      expect(api.postChat).toHaveBeenLastCalledWith("third question", conversation, [], undefined);
+    });
+
+    it("leaves no new version behind when an edit fails", async () => {
+      (api.postChat as Mock).mockRejectedValueOnce(Object.assign(new Error("x"), { status: 502 }));
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await editFirstQuestion(user, "better question");
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't reach its AI service/i);
+      expect(getChatMessages()).toEqual(conversation);
+      expect(screen.queryByRole("group", { name: /message versions/i })).not.toBeInTheDocument();
+    });
+
+    it("leaves no new version behind when a regenerate fails", async () => {
+      (api.postChat as Mock).mockRejectedValueOnce(Object.assign(new Error("x"), { status: 502 }));
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[3]).getByRole("button", { name: /regenerate reply/i }));
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(getChatMessages()).toEqual(conversation);
+      expect(screen.queryByRole("group", { name: /message versions/i })).not.toBeInTheDocument();
+    });
+
+    it("disables version switching while a reply is pending", async () => {
+      (api.postChat as Mock).mockResolvedValueOnce({ reply: "new answer" });
+      let resolve: (v: { reply: string }) => void = () => {};
+      (api.postChat as Mock).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await editFirstQuestion(user, "better question");
+      await waitFor(() => expect(screen.getByText("new answer")).toBeInTheDocument());
+      await user.type(screen.getByLabelText(/chat message/i), "another");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      expect(within(items()[0]).getByRole("button", { name: /previous version/i })).toBeDisabled();
+      resolve({ reply: "another answer" });
+      await waitFor(() => expect(screen.getByText("another answer")).toBeInTheDocument());
+      expect(within(items()[0]).getByRole("button", { name: /previous version/i })).toBeEnabled();
+    });
+  });
 });

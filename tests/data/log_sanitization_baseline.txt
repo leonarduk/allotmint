@@ -81,7 +81,6 @@ backend/common/prices.py::get_price_snapshot::logger.debug('Could not resolve ex
 backend/common/prices.py::load_latest_prices::logger.debug('Could not resolve exchange for %s; defaulting to L', full)
 backend/common/prices.py::load_prices_for_tickers._fetch_one::logger.debug('Could not resolve exchange for %s; defaulting to L', full)
 backend/common/prices.py::refresh_prices::logger.info('Updating price snapshot for: %s', [sanitise_log_value(t) for t in tickers])
-backend/common/prices.py::refresh_prices::logger.info('Uploaded price snapshot to s3://%s/%s', _s3_bucket, PRICES_S3_KEY)
 backend/common/signup_provision.py::_read_person_email::logger.warning('Could not read %s: %s', person_path, sanitise_log_value(exc))
 backend/common/signup_provision.py::_read_person_email::logger.warning('Malformed person.json at %s: %s', person_path, sanitise_log_value(exc))
 backend/common/signup_provision.py::_read_person_email::logger.warning('person.json at %s is not an object', person_path)
@@ -101,7 +100,6 @@ backend/config.py::load_config::logger.exception('Failed to read config file %s'
 # parser in this function) and can't carry attacker-controlled string content.
 backend/importers/hargreaves.py::skip_non_datatable_rows::logger.debug('Parsing %d rows', len(lines))
 backend/importers/hargreaves.py::skip_non_datatable_rows::logger.debug('Returning %d rows', len(data))
-backend/lambda_api/price_refresh.py::_seed_empty_snapshot::logger.info('Seeded empty price snapshot to s3://%s/%s', bucket, PRICES_S3_KEY)
 backend/nudges.py::_build_nudge_message::logger.debug('Failed to build nudge message for %s: %s', user, exc)
 backend/reports.py::FileTemplateStore.get_template::logger.warning('failed to load report template %s: %s', path, sanitise_log_value(exc))
 backend/reports.py::FileTemplateStore.get_template::logger.warning('invalid template definition in %s: %s', path, sanitise_log_value(exc))

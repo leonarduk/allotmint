@@ -5,6 +5,7 @@ from botocore.exceptions import ClientError
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
+from backend.chat.local_tools import BASE_SYSTEM_PROMPT
 from backend.config import config
 from backend.routes import chat as chat_module
 
@@ -213,11 +214,14 @@ def test_post_chat_passes_page_context_as_system_prompt(client: TestClient, monk
     resp = client.post("/chat", json={"message": "buy?", "context": {"path": "/research/ARG.TO", "ticker": "ARG.TO"}})
 
     assert resp.status_code == 200
+    assert captured["system_prompt"].startswith(BASE_SYSTEM_PROMPT)
     assert "/research/ARG.TO" in captured["system_prompt"]
     assert "ARG.TO" in captured["system_prompt"]
 
 
-def test_post_chat_without_context_sends_no_system_prompt(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_post_chat_without_context_sends_only_the_base_system_prompt(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(config, "mcp_server_url", "https://example.com/mcp")
     captured = {}
 
@@ -228,7 +232,7 @@ def test_post_chat_without_context_sends_no_system_prompt(client: TestClient, mo
     monkeypatch.setattr(chat_module, "run_configured_chat_turn", fake_run_chat_turn)
 
     assert client.post("/chat", json={"message": "hi"}).status_code == 200
-    assert captured["system_prompt"] is None
+    assert captured["system_prompt"] == BASE_SYSTEM_PROMPT
 
 
 @pytest.mark.parametrize("context", [{"path": "//evil.example"}, {"path": "/research/X", "ticker": "a b;drop"}])

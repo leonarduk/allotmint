@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Check, Copy, Pencil } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, Pencil, RefreshCw } from "lucide-react";
 import type { ChatMessage } from "../api";
 
 // Assistant replies are Markdown (headings, bold, GFM tables). Raw HTML is not
@@ -125,6 +125,46 @@ function EditForm({ draft, disabled, onChange, onSave, onCancel }: EditFormProps
   );
 }
 
+export interface ChatMessageVersion {
+  /** 1-based position of this version. */
+  current: number;
+  count: number;
+  /** Switches to the version `offset` steps away (-1 previous, +1 next). */
+  onSelect: (offset: number) => void;
+}
+
+// "‹ 2 / 3 ›" switcher for a message that has been edited or regenerated
+// (#8842). Always visible, unlike the hover actions, so the user can see that
+// other versions exist.
+function VersionSwitcher({ version, busy }: { version: ChatMessageVersion; busy: boolean }) {
+  const { current, count, onSelect } = version;
+  return (
+    <div className="chat-message-versions" role="group" aria-label="Message versions">
+      <button
+        type="button"
+        className="chat-message-action"
+        aria-label="Previous version"
+        onClick={() => onSelect(-1)}
+        disabled={busy || current <= 1}
+      >
+        <ChevronLeft size={14} aria-hidden />
+      </button>
+      <span aria-live="polite" title={`Version ${current} of ${count}`}>
+        {current} / {count}
+      </span>
+      <button
+        type="button"
+        className="chat-message-action"
+        aria-label="Next version"
+        onClick={() => onSelect(1)}
+        disabled={busy || current >= count}
+      >
+        <ChevronRight size={14} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
 export interface ChatMessageEditing {
   draft: string;
   onChange: (draft: string) => void;
@@ -134,15 +174,19 @@ export interface ChatMessageEditing {
 
 interface Props {
   message: ChatMessage;
-  /** True while a reply is pending: editing is blocked, copying is not. */
+  /** True while a reply is pending: editing, regenerating and switching versions are blocked, copying is not. */
   busy: boolean;
   /** Starts editing this message; only passed for the user's own messages. */
   onEdit?: () => void;
+  /** Asks for a new reply in place of this one; only passed for assistant replies. */
+  onRegenerate?: () => void;
   /** Set while this message is being edited. */
   editing?: ChatMessageEditing;
+  /** Set when the message has more than one version. */
+  version?: ChatMessageVersion;
 }
 
-export function ChatMessageItem({ message, busy, onEdit, editing }: Props) {
+export function ChatMessageItem({ message, busy, onEdit, onRegenerate, editing, version }: Props) {
   const isUser = message.role === "user";
   return (
     <li
@@ -180,20 +224,35 @@ export function ChatMessageItem({ message, busy, onEdit, editing }: Props) {
               </ReactMarkdown>
             </div>
           )}
-          <div className="chat-message-actions">
-            <CopyButton text={message.content} />
-            {onEdit && (
-              <button
-                type="button"
-                className="chat-message-action"
-                aria-label="Edit message"
-                title="Edit"
-                onClick={onEdit}
-                disabled={busy}
-              >
-                <Pencil size={14} aria-hidden />
-              </button>
-            )}
+          <div className="chat-message-footer">
+            {version && <VersionSwitcher version={version} busy={busy} />}
+            <div className="chat-message-actions">
+              <CopyButton text={message.content} />
+              {onEdit && (
+                <button
+                  type="button"
+                  className="chat-message-action"
+                  aria-label="Edit message"
+                  title="Edit"
+                  onClick={onEdit}
+                  disabled={busy}
+                >
+                  <Pencil size={14} aria-hidden />
+                </button>
+              )}
+              {onRegenerate && (
+                <button
+                  type="button"
+                  className="chat-message-action"
+                  aria-label="Regenerate reply"
+                  title="Regenerate"
+                  onClick={onRegenerate}
+                  disabled={busy}
+                >
+                  <RefreshCw size={14} aria-hidden />
+                </button>
+              )}
+            </div>
           </div>
         </>
       )}

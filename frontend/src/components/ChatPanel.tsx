@@ -2,10 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import * as api from "../api";
 import type { ChatContext, ChatMessage, ChatPage } from "../api";
 import {
+  addChatVersion,
   appendChatMessage,
-  setChatMessages,
+  endChatPathAt,
+  restoreChat,
+  selectChatVersion,
+  snapshotChat,
   startNewChat,
   useChatMessages,
+  useChatPath,
 } from "../utils/chatConversation";
 import { ChatMessageItem } from "./ChatMessageItem";
 
@@ -55,6 +60,7 @@ function chatErrorMessage(e: unknown): string {
 
 export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Props) {
   const messages = useChatMessages();
+  const path = useChatPath();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,12 +73,19 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
 
   if (!open) return null;
 
-  // Posts `text` as the next user turn after `history`. `onFail` puts the
-  // conversation back: an unanswered message left in `messages` would make the
-  // next send's history end in two consecutive "user" turns, which the backend
-  // rejects with a 400 (#7897).
-  const submit = async (text: string, history: ChatMessage[], onFail: () => void) => {
-    setChatMessages([...history, { role: "user", content: text }]);
+  // Posts `text` as the next user turn after `history`. `place` puts that turn
+  // in the conversation; the reply is appended after it. On failure the
+  // conversation is restored exactly as it was before `place`, so no
+  // unanswered turn is left behind: history ending in two consecutive "user"
+  // turns is rejected by the backend with a 400 (#7897).
+  const submit = async (
+    text: string,
+    history: ChatMessage[],
+    place: () => void,
+    onFail?: () => void,
+  ) => {
+    const before = snapshotChat();
+    place();
     setSending(true);
     setError(null);
     try {
@@ -83,7 +96,8 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
         onNavigate(navigate_to);
       }
     } catch (e) {
-      onFail();
+      restoreChat(before);
+      onFail?.();
       setError(chatErrorMessage(e));
     } finally {
       setSending(false);
@@ -94,32 +108,52 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
     const text = input.trim();
     if (!text || sending) return;
 
-    const history = messages;
     setInput("");
-    // Drop the unanswered message and hand its text back for a retry.
-    await submit(text, history, () => {
-      setChatMessages(history);
-      setInput(text);
-    });
+    // Hand the unanswered message's text back for a retry.
+    await submit(
+      text,
+      messages,
+      () => appendChatMessage({ role: "user", content: text }),
+      () => setInput(text),
+    );
   };
 
-  // Replaces the edited message and regenerates from there: every later turn
-  // is discarded and only the turns before it are sent as history (#8590).
+  // Adds the edited text as a new version of the message and regenerates from
+  // there, sending only the turns before it as history. The old version keeps
+  // its later turns, reachable through the version control (#8590, #8842).
   const saveEdit = async () => {
     if (!editing || sending) return;
     const { index } = editing;
+    const node = path[index];
     const text = editing.draft.trim();
-    if (!text) return;
+    if (!node || !text) return;
     setEditing(null);
-    if (text === messages[index]?.content) return;
+    if (text === node.content) return;
 
-    const previous = messages;
-    // On failure restore the pre-edit conversation and reopen the edit box
-    // with the edited text, so it can be retried.
-    await submit(text, messages.slice(0, index), () => {
-      setChatMessages(previous);
-      setEditing({ index, draft: text });
-    });
+    // On failure reopen the edit box with the edited text, so it can be retried.
+    await submit(
+      text,
+      messages.slice(0, index),
+      () => addChatVersion(node.id, { role: "user", content: text }),
+      () => setEditing({ index, draft: text }),
+    );
+  };
+
+  // Asks again for the reply at `index` without changing the question. The
+  // new reply becomes another version of it; the old one and its later turns
+  // are kept. A failure restores the old reply as the active one (#8820, #8842).
+  const regenerate = async (index: number) => {
+    const prompt = path[index - 1];
+    if (sending || prompt?.role !== "user") return;
+
+    setEditing(null);
+    await submit(prompt.content, messages.slice(0, index - 1), () => endChatPathAt(prompt.id));
+  };
+
+  const selectVersion = (id: string, offset: number) => {
+    if (sending) return;
+    setEditing(null);
+    selectChatVersion(id, offset);
   };
 
   return (
@@ -207,13 +241,27 @@ export function ChatPanel({ open, onClose, pages = [], context, onNavigate }: Pr
               gap: "0.75rem",
             }}
           >
-            {messages.map((m, i) => (
+            {path.map((m, i) => (
               <ChatMessageItem
-                key={i}
+                key={m.id}
                 message={m}
                 busy={sending}
+                version={
+                  m.versionCount > 1
+                    ? {
+                        current: m.version,
+                        count: m.versionCount,
+                        onSelect: (offset) => selectVersion(m.id, offset),
+                      }
+                    : undefined
+                }
                 onEdit={
                   m.role === "user" ? () => setEditing({ index: i, draft: m.content }) : undefined
+                }
+                onRegenerate={
+                  m.role === "assistant" && path[i - 1]?.role === "user"
+                    ? () => void regenerate(i)
+                    : undefined
                 }
                 editing={
                   editing?.index === i

@@ -29,6 +29,11 @@ import {
   readFetchCache,
   writeFetchCache,
 } from "@/utils/fetchCache";
+import {
+  appendChatMessage,
+  getChatMessages,
+  startNewChat,
+} from "@/utils/chatConversation";
 
 const csvFile = new File(["ticker,units"], "holdings.csv", {
   type: "text/csv",
@@ -1299,5 +1304,53 @@ describe("cached responses do not survive an identity change", () => {
     setAuthToken("token-for-user-a");
 
     expect(readFetchCache("portfolio-group:all:")).toBeDefined();
+  });
+});
+
+describe("chat conversation is scoped to the login session", () => {
+  const message = { role: "user" as const, content: "What is my ISA worth?" };
+
+  beforeEach(() => {
+    setAuthToken(null);
+    startNewChat();
+  });
+
+  afterEach(() => {
+    setAuthToken(null);
+    startNewChat();
+  });
+
+  it("clears the conversation on logout", () => {
+    setAuthToken("token-for-user-a");
+    appendChatMessage(message);
+
+    setAuthToken(null);
+
+    expect(getChatMessages()).toEqual([]);
+    // Nothing of the conversation, in any version, is left in storage (#8842).
+    expect(JSON.parse(sessionStorage.getItem("allotmint.chat.tree.v1") ?? "null")).toMatchObject({
+      nodes: [],
+      active: {},
+    });
+    expect(sessionStorage.getItem("allotmint.chat.messages")).toBeNull();
+  });
+
+  it("keeps the conversation when the stored token is re-applied on reload", () => {
+    appendChatMessage(message);
+
+    // main.tsx restores the stored token from a null start on every load.
+    setAuthToken("token-for-user-a");
+
+    expect(getChatMessages()).toEqual([message]);
+  });
+
+  it("keeps the conversation across a token refresh", () => {
+    setAuthToken("token-for-user-a");
+    appendChatMessage(message);
+
+    // The Cognito refresh swaps in a new token for the same user.
+    setAuthToken("refreshed-token-for-user-a");
+
+    expect(getChatMessages()).toEqual([message]);
   });
 });

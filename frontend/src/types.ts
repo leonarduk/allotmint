@@ -608,10 +608,80 @@ export interface ScreenerResult {
   ps_ratio?: number | null;
   ev_ebitda?: number | null;
   book_value?: number | null;
+  book_value_as_of?: string | null;
+  forward_pe?: number | null;
+  total_debt?: number | null;
+  total_cash?: number | null;
+  net_debt?: number | null;
+  price?: number | null;
+  currency?: string | null;
+  financial_currency?: string | null;
   revenue?: number | null;
   revenue_growth?: number | null;
   earnings_growth?: number | null;
   instrument_type?: string | null;
+}
+
+/**
+ * Valuation profile from GET /screener/valuation (allotmint-pro#259).
+ * Ratios are fractions (0.05 = 5%); a value no source supplies is null.
+ */
+export interface InstrumentValuation {
+  ticker: string;
+  name: string | null;
+  instrument_type: string | null;
+  is_closed_end_fund: boolean;
+  price: number | null;
+  price_currency: string | null;
+  valuation: {
+    pe_ratio: number | null;
+    forward_pe: number | null;
+    pb_ratio: number | null;
+    ev_ebitda: number | null;
+  };
+  nav: {
+    nav_per_share: number | null;
+    currency: string | null;
+    as_of: string | null;
+    /** "metadata" | "reported_book_value" | null */
+    source: string | null;
+    /** price / NAV - 1: negative is a discount. */
+    premium_discount: number | null;
+  };
+  income: {
+    dividend_yield: number | null;
+    payout_ratio: number | null;
+    dividend_cover: number | null;
+  };
+  balance_sheet: {
+    currency: string | null;
+    total_debt: number | null;
+    total_cash: number | null;
+    net_debt: number | null;
+    net_gearing: number | null;
+    /** Percent, as Yahoo reports it (45.4 = 45.4%). */
+    debt_to_equity: number | null;
+  };
+  benchmark: { ticker: string; name: string | null; source: string };
+  risk: {
+    volatility_1y: number | null;
+    beta_3y: number | null;
+    beta_weeks: number | null;
+    beta_provider: number | null;
+    max_drawdown: number | null;
+    max_drawdown_peak: string | null;
+    max_drawdown_trough: string | null;
+    history_start: string | null;
+    history_end: string | null;
+    history_years: number | null;
+  };
+  data_quality: {
+    price_last_date: string | null;
+    price_stale: boolean | null;
+    suspect_moves: { date: string; change: number }[];
+    warnings: string[];
+    price_snapshot?: { is_stale: boolean | null; last_price_date: string | null };
+  };
 }
 
 export interface SyntheticHolding {

@@ -63,6 +63,26 @@ def test_load_latest_prices_handles_errors(monkeypatch, caplog):
     assert "latest price fetch failed" in caplog.text
 
 
+def test_load_latest_prices_names_unpriced_tickers(monkeypatch, caplog):
+    """A ticker with no cached/fetched data is named in a warning, not just counted (#8599)."""
+
+    def fake_range(ticker, exchange, start_date, end_date):
+        if ticker == "GOOD":
+            return pd.DataFrame({"Date": [1], "Close_gbp": [2.0]})
+        return pd.DataFrame()
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_range)
+
+    with caplog.at_level("WARNING", logger=holding_utils.logger.name):
+        prices = holding_utils.load_latest_prices(["GOOD.L", "GONE.L"])
+
+    assert prices == {"GOOD.L": 2.0}
+    messages = [
+        r.getMessage() for r in caplog.records if r.name == holding_utils.logger.name and r.levelname == "WARNING"
+    ]
+    assert messages == ["No latest price for 1 ticker(s): GONE.L"]
+
+
 def test_load_latest_prices_reports_progress_when_opted_in(monkeypatch):
     df = pd.DataFrame({"Date": [1], "Close_gbp": [2.0]})
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: df)
@@ -116,8 +136,41 @@ def test_enrich_holding_uses_scaling_override(monkeypatch):
 
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_load_meta_timeseries_range)
 
-    holding = {"ticker": "ADM.L", "units": 1, "cost_basis_gbp": 100}
+    holding = {"ticker": "ADM.L", "units": 1, "cost_basis_gbp": 10}
     enriched = holding_utils.enrich_holding(holding, dt.date(2024, 1, 3), {})
 
-    assert enriched["current_price_gbp"] == 200.0
+    # ADM.L's override is 0.01 (pence -> GBP): 2000p is GBP 20, not 200 (#8597).
+    assert enriched["current_price_gbp"] == 20.0
     assert enriched["gain_pct"] == pytest.approx(100.0)
+
+
+def test_load_latest_prices_cached_pence_series_with_typo_override(monkeypatch, tmp_path):
+    """#8597, cached-series path: the cached ADM.L series holds raw pence
+    (e.g. 3328 then 3588) and is never rewritten with an override applied, so
+    the scale is applied at read time. With a typo'd ``"ADM": 0.1`` override the
+    latest close used to come out as 3588 * 0.1 / 100 = 3.588. The validator
+    rejects 0.1, falls back to GBX metadata (0.01), and the same unchanged
+    cached series yields GBP 35.88 -- no backfill required.
+    """
+    from types import SimpleNamespace
+
+    from backend.utils import timeseries_helpers as th
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "scaling_overrides.json").write_text('{"L": {"ADM": 0.1}}')
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=tmp_path))
+    monkeypatch.setattr("backend.common.instruments.get_instrument_meta", lambda symbol: {"currency": "GBX"})
+
+    cached = pd.DataFrame(
+        {
+            "Date": [dt.date(2025, 10, 15), dt.date(2026, 10, 2)],
+            "Close": [3328.0, 3588.0],
+        }
+    )
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: cached)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"})
+
+    prices = holding_utils.load_latest_prices(["ADM.L"])
+
+    assert prices["ADM.L"] == pytest.approx(35.88)

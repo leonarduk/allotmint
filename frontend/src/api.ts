@@ -23,6 +23,7 @@ import type {
   Alert,
   PriceEntry,
   ScreenerResult,
+  InstrumentValuation,
   VirtualPortfolio,
   CustomQuery,
   SavedQuery,
@@ -69,6 +70,7 @@ import {
   awsCostsContractSchema,
 } from "./contracts/apiContracts";
 import { clearFetchCache } from "./utils/fetchCache";
+import { startNewChat } from "./utils/chatConversation";
 
 const cleanOptionalString = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
@@ -262,6 +264,11 @@ export function createClient(
       clearFetchCache();
       clearGroupInstrumentCache();
     }
+    // The chat conversation is kept in sessionStorage so it survives a reload,
+    // so it is cleared only on logout, not on every token change: a reload
+    // re-applies the stored token from null, and the Cognito refresh swaps in
+    // a new token for the same user every hour.
+    if (t === null && authToken !== null) startNewChat();
     authToken = t;
     if (!storage) return;
     if (t) storage.setItem(TOKEN_STORAGE_KEY, t);
@@ -1147,6 +1154,13 @@ export const getScreener = (
     params.set("earnings_growth_min", String(criteria.earnings_growth_min));
   return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`, { signal });
 };
+
+/** Valuation profile (NAV, premium/discount, income, gearing, benchmark, risk) for one ticker. */
+export const getInstrumentValuation = (ticker: string, signal?: AbortSignal) =>
+  fetchJson<InstrumentValuation>(
+    `${API_BASE}/screener/valuation?${new URLSearchParams({ ticker }).toString()}`,
+    { signal },
+  );
 
 /**
  * Cheap up-front probe for whether the screener is available in this

@@ -183,17 +183,111 @@ def test_aggregate_series_issues_ticker_mismatch(monkeypatch):
     assert mismatch[0].entity == {"ticker": "ABC", "exchange": "L"}
 
 
-def test_aggregate_series_issues_stale(monkeypatch):
-    """A series whose last date is older than the threshold is STALE_SERIES."""
+@pytest.fixture(autouse=True)
+def _empty_refresh_universe(monkeypatch):
+    """Keep series tests off the real portfolios/triggers (#8599)."""
+    monkeypatch.setattr(issues_module, "_refresh_universe", lambda: [])
+
+
+def _patch_stale_cache(monkeypatch, pairs):
     df = pd.DataFrame(
         {"Date": ["2000-01-03", "2000-01-04"], "Close": [100.0, 101.0]},
     )
-    monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [("ABC", "L")])
+    monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: list(pairs))
     monkeypatch.setattr(issues_module, "load_cached_meta_timeseries_full", lambda t, e: df.copy())
     monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: {"name": "x"})
 
+
+def _stale_types(issues):
+    return {
+        f"{i.entity['ticker']}.{i.entity['exchange']}": i.type
+        for i in issues
+        if i.type in (IssueType.STALE_SERIES, IssueType.UNTRACKED_STALE_SERIES)
+    }
+
+
+def test_aggregate_series_issues_stale(monkeypatch):
+    """A stale series the refresh covers is STALE_SERIES with a refetch fix."""
+    _patch_stale_cache(monkeypatch, [("ABC", "L")])
+    monkeypatch.setattr(issues_module, "_refresh_universe", lambda: ["ABC.L"])
+
     issues = aggregate_series_issues(stale_max_age_days=5)
-    assert any(i.type == IssueType.STALE_SERIES for i in issues)
+
+    stale = [i for i in issues if i.type == IssueType.STALE_SERIES]
+    assert len(stale) == 1
+    assert stale[0].severity == "medium"
+    assert stale[0].fixable is True
+    assert stale[0].fix_payload == {"kind": "refetch", "ticker": "ABC", "exchange": "L"}
+
+
+def test_aggregate_series_issues_untracked_stale_is_separate(monkeypatch):
+    """A stale series nobody holds or watches is an orphan, not a refresh failure (#8599)."""
+    _patch_stale_cache(monkeypatch, [("SKG", "L")])
+
+    issues = aggregate_series_issues(stale_max_age_days=5)
+
+    assert _stale_types(issues) == {"SKG.L": IssueType.UNTRACKED_STALE_SERIES}
+    orphan = next(i for i in issues if i.type == IssueType.UNTRACKED_STALE_SERIES)
+    assert orphan.id == "UNTRACKED_STALE_SERIES:SKG:L"
+    assert orphan.severity == "low"
+    assert orphan.fixable is False
+    assert "not held or watched" in orphan.description
+
+
+def test_aggregate_series_issues_classifies_against_holdings_and_watchlist(monkeypatch, tmp_path):
+    """Held (from accounts_root), watched, bare-suffix and orphan series are split correctly."""
+    _patch_stale_cache(monkeypatch, [("VOD", "L"), ("WAT", "N"), ("AV", "L"), ("PBR", "N"), ("JPM", "N")])
+    owner = tmp_path / "demo"
+    owner.mkdir()
+    holdings = [{"ticker": "VOD.L"}, {"ticker": "AV."}, {"ticker": "PBR-A.N"}]
+    (owner / "isa.json").write_text(json.dumps({"owner": "demo", "holdings": holdings}), encoding="utf-8")
+    monkeypatch.setattr(issues_module, "_refresh_universe", lambda: ["WAT.N"])
+
+    issues = aggregate_series_issues(stale_max_age_days=5, accounts_root=tmp_path)
+
+    assert _stale_types(issues) == {
+        "VOD.L": IssueType.STALE_SERIES,
+        "WAT.N": IssueType.STALE_SERIES,
+        # A bare holding ticker matches on symbol so a suffix bug never hides a held series.
+        "AV.L": IssueType.STALE_SERIES,
+        # Same symbol root on a different line is still an orphan.
+        "PBR.N": IssueType.UNTRACKED_STALE_SERIES,
+        "JPM.N": IssueType.UNTRACKED_STALE_SERIES,
+    }
+
+
+def test_aggregate_series_issues_unknown_universe_reports_all_as_stale(monkeypatch, caplog):
+    """If the refresh universe can't be loaded, never under-report: everything stays STALE_SERIES."""
+    _patch_stale_cache(monkeypatch, [("SKG", "L")])
+
+    def _boom():
+        raise RuntimeError("portfolios unavailable")
+
+    monkeypatch.setattr(issues_module, "_refresh_universe", _boom)
+
+    with caplog.at_level("WARNING", logger=issues_module.__name__):
+        issues = aggregate_series_issues(stale_max_age_days=5)
+
+    assert _stale_types(issues) == {"SKG.L": IssueType.STALE_SERIES}
+    assert "refresh universe" in caplog.text
+
+
+def test_aggregate_issues_threads_accounts_root_to_series(monkeypatch, tmp_path):
+    """aggregate_issues classifies stale series against the request's accounts_root."""
+    _patch_stale_cache(monkeypatch, [("VOD", "L")])
+    monkeypatch.setattr(issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None)
+    monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: True)
+    monkeypatch.setattr(issues_module, "_implausible_book_cost_issue", lambda *a, **k: None)
+    owner = tmp_path / "demo"
+    owner.mkdir()
+    (owner / "isa.json").write_text(
+        json.dumps({"owner": "demo", "holdings": [{"ticker": "VOD.L"}]}),
+        encoding="utf-8",
+    )
+
+    issues = aggregate_issues(tmp_path, stale_max_age_days=5)
+
+    assert _stale_types(issues) == {"VOD.L": IssueType.STALE_SERIES}
 
 
 def test_aggregate_issues_dedupes_across_sources(monkeypatch, tmp_path, accounts_root):
@@ -230,6 +324,11 @@ def _patch_book_cost_env(monkeypatch, current_price):
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {})
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: None)
     monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *a, **k: (current_price, "mock"))
+    monkeypatch.setattr(
+        holding_utils,
+        "_get_dated_price_for_date_scaled",
+        lambda ticker, exchange, d, *a, **k: (current_price, "mock", d if current_price is not None else None),
+    )
     monkeypatch.setattr(holding_utils, "_derived_cost_basis_close_px", lambda *a, **k: None)
 
 

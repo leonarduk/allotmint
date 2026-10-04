@@ -1351,7 +1351,12 @@ describe("chat conversation is scoped to the login session", () => {
     setAuthToken(null);
 
     expect(getChatMessages()).toEqual([]);
-    expect(sessionStorage.getItem("allotmint.chat.messages")).toBe("[]");
+    // Nothing of the conversation, in any version, is left in storage (#8842).
+    expect(JSON.parse(sessionStorage.getItem("allotmint.chat.tree.v1") ?? "null")).toMatchObject({
+      nodes: [],
+      active: {},
+    });
+    expect(sessionStorage.getItem("allotmint.chat.messages")).toBeNull();
   });
 
   it("keeps the conversation when the stored token is re-applied on reload", () => {

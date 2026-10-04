@@ -271,11 +271,26 @@ h1 {
 /* Copy / Edit actions under each chat message (#8590). Hidden until the
    message is hovered or focused; opacity (not display) keeps the buttons in
    the tab order, and devices without hover always show them. */
+.chat-message-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+/* Version switcher (#8842): always visible, pushed to the left. */
+.chat-message-versions {
+    display: flex;
+    align-items: center;
+    gap: 0.1rem;
+    margin-right: auto;
+    font-size: 0.75rem;
+    color: var(--drawer-muted-color);
+    font-variant-numeric: tabular-nums;
+}
 .chat-message-actions {
     display: flex;
-    justify-content: flex-end;
     gap: 0.25rem;
-    margin-top: 0.25rem;
     opacity: 0;
     transition: opacity 0.15s;
 }

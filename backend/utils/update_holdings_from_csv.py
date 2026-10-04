@@ -11,6 +11,7 @@ from typing import Any, List, Mapping
 from backend import importers
 from backend.common.instruments import resolve_instrument_ticker
 from backend.common.path_utils import safe_join
+from backend.common.ticker_utils import canonical_ticker
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -47,7 +48,9 @@ def _normalise_ticker(ticker: object, provider: str) -> str:
             )
             return f"{value}.L"
         return resolved
-    return value
+    # HL exports padded two-letter LSE EPICs as "BP."; store them as "BP.L"
+    # rather than with an empty exchange (#8600).
+    return canonical_ticker(value)
 
 
 def _number(value: object) -> float:

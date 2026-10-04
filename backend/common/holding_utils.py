@@ -29,6 +29,7 @@ from backend.common.sector_labels import (
     normalise_optional_region,
     normalise_optional_sector,
 )
+from backend.common.ticker_utils import canonical_ticker
 from backend.common.user_config import UserConfig
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -56,7 +57,9 @@ def _fx_to_base(from_ccy: str, to_ccy: str, cache: Dict[str, float]) -> float:
 
 
 def _parse_date(val) -> Optional[dt.date]:
-    if val is None:
+    # pd.NaT subclasses datetime and NaT.date() is NaT, which compares False
+    # with any date -- so a missing row date would read as fresh (#8595).
+    if val is None or val is pd.NaT:
         return None
     if isinstance(val, dt.date) and not isinstance(val, dt.datetime):
         return val
@@ -80,6 +83,23 @@ def _is_pence_currency(raw: str) -> bool:
 def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False) -> dict[str, float]:
     """Return latest close prices in GBP for each requested ticker.
 
+    Thin wrapper over :func:`load_latest_closes` that drops the close dates;
+    see that function for the full contract.
+    """
+    closes = load_latest_closes(full_tickers, report_progress=report_progress)
+    return {key: price for key, (price, _close_date) in closes.items()}
+
+
+def load_latest_closes(
+    full_tickers: list[str], *, report_progress: bool = False
+) -> dict[str, tuple[float, Optional[dt.date]]]:
+    """Return ``(close_gbp, close_date)`` for each requested ticker.
+
+    ``close_date`` is the date of the row the close was read from (``None``
+    when the feed's date column can't be parsed). Callers use it to judge
+    staleness against the latest completed trading day (#8595) instead of
+    assuming every last close is stale.
+
     Contract:
     - Output values are always GBP-normalised regardless of source columns.
     - If ``Close_gbp``/``close_gbp`` exists, use it directly.
@@ -102,7 +122,7 @@ def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False
     progress display with an unrelated one (see
     :mod:`backend.common.refresh_progress`).
     """
-    result: dict[str, float] = {}
+    result: dict[str, tuple[float, Optional[dt.date]]] = {}
     if not full_tickers:
         return result
 
@@ -144,7 +164,19 @@ def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False
             if not close_gbp_col and not close_native_col:
                 continue
 
-            df = df.sort_values(df.columns[0])  # first column is Date in these feeds
+            # Sort by, and read the close date from, the named "Date" column. The
+            # timeseries cache guarantees it (EXPECTED_COLS in
+            # backend/timeseries/cache.py). An ad-hoc frame without one keeps its
+            # own row order -- sorting by some other column (e.g. the price)
+            # would pick the wrong row -- and has no close date, i.e. stale.
+            date_col = name_map.get("date")
+            if date_col is None:
+                logger.warning(
+                    "no Date column for %s; using last row in feed order, close date unknown",
+                    sanitise_log_value(full),
+                )
+            else:
+                df = df.sort_values(date_col)
             last = df.iloc[-1]
 
             selected_col = close_gbp_col or close_native_col
@@ -178,7 +210,7 @@ def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False
                 continue
 
             key = f"{ticker}.{exchange}"
-            result[key] = val
+            result[key] = (val, _parse_date(last[date_col]) if date_col is not None else None)
 
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning(
@@ -727,7 +759,11 @@ def enrich_holding(
     Produces the same keys in both paths.
     """
     out = dict(h)  # do not mutate caller
-    full = (out.get(TICKER) or "").upper()
+    # Canonical key so a padded LSE EPIC ("BP.") is priced and labelled as
+    # "BP.L" -- the key the price snapshot and timeseries cache use (#8600).
+    full = canonical_ticker(out.get(TICKER))
+    if full:
+        out[TICKER] = full
     meta = get_instrument_meta(full)
     ucfg = user_config or UserConfig(
         hold_days_min=config.hold_days_min,

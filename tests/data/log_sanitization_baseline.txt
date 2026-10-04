@@ -47,8 +47,8 @@ backend/common/dividends.py::_resolve_store::logger.warning('%s is not set; fall
 # Issue #5879: do not double-sanitise values prepared by the diagnostic helper.
 backend/common/errors.py::log_owner_not_found::logger.warning('owner lookup: no owner found for owner=%s%s', sanitise_log_value(owner), suffix)
 backend/common/holding_utils.py::get_effective_cost_basis_gbp::logger.debug('Could not resolve exchange for %s; defaulting to L', full)
-backend/common/holding_utils.py::load_latest_prices::logger.debug('Could not resolve exchange for %s; defaulting to L', full)
-backend/common/holding_utils.py::load_latest_prices::logger.info('Latest prices fetched: %d/%d', len(result), len(full_tickers))
+backend/common/holding_utils.py::load_latest_closes::logger.debug('Could not resolve exchange for %s; defaulting to L', full)
+backend/common/holding_utils.py::load_latest_closes::logger.info('Latest prices fetched: %d/%d', len(result), len(full_tickers))
 backend/common/instrument_api.py::price_change_pct::logger.warning('price_change_pct: change %.2f%% exceeds max %.2f%% for %s', pct, MAX_CHANGE_PCT, sanitise_log_value(ticker))
 backend/common/instrument_api.py::price_change_pct::logger.warning('price_change_pct: px_then %.4f below threshold for %s', px_then, sanitise_log_value(ticker))
 backend/common/instrument_groups.py::load_groups::logger.exception('Failed to load instrument groups from %s', path)

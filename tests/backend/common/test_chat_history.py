@@ -226,6 +226,8 @@ def test_store_from_uri_and_default(monkeypatch, tmp_path: Path) -> None:
     # A Windows drive letter is not a URL scheme.
     assert ch.store_from_uri(r"D:\data\chat") == ch.FileChatStore(root=Path(r"D:\data\chat"))
     assert ch.store_from_uri("D:/data/chat") == ch.FileChatStore(root=Path("D:/data/chat"))
+    # A Windows drive letter is a path, not a URI scheme.
+    assert ch.store_from_uri(r"D:\data\chat") == ch.FileChatStore(root=Path(r"D:\data\chat"))
     with pytest.raises(ValueError):
         ch.store_from_uri("ssm://nope")
 
@@ -346,3 +348,158 @@ def test_s3_partial_delete_failure_is_unavailable_not_success() -> None:
     )
     with stub, pytest.raises(ch.ChatHistoryUnavailable):
         ch.delete_history(ALICE, store)
+
+
+def _archived_ids(store) -> list:
+    return [c["id"] for c in ch.list_conversations(ALICE, store) if c["id"] != ch.CURRENT_ID]
+
+
+def test_list_shows_current_then_archived_newest_first(store) -> None:
+    ch.save_conversation(ALICE, _conversation("first   question\nhere", "a"), 0, store)
+    ch.archive_conversation(ALICE, store)
+    ch.save_conversation(ALICE, _conversation("second", "b"), 2, store)
+    ch.archive_conversation(ALICE, store)
+    ch.save_conversation(ALICE, _conversation("third"), 4, store)
+
+    chats = ch.list_conversations(ALICE, store)
+
+    assert [(c["id"], c["title"], c["named"], c["messages"]) for c in chats] == [
+        ("current", "third", False, 1),
+        ("r00000003", "second", False, 2),
+        ("r00000001", "first question here", False, 2),
+    ]
+    assert all(c["updated_at"] for c in chats)
+    assert ch.list_conversations(BOB, store) == []
+
+
+def test_list_leaves_out_an_empty_current_conversation(store) -> None:
+    ch.save_conversation(ALICE, _conversation("q"), 0, store)
+    ch.archive_conversation(ALICE, store)
+
+    assert _archived_ids(store) == ["r00000001"]
+    assert [c["id"] for c in ch.list_conversations(ALICE, store)] == ["r00000001"]
+
+
+def test_untitled_conversation_is_named_after_its_first_question_cut_short(store) -> None:
+    ch.save_conversation(ALICE, _conversation("x" * 200), 0, store)
+
+    (chat,) = ch.list_conversations(ALICE, store)
+    assert len(chat["title"]) == 60 and chat["title"].endswith("…")
+
+
+def test_rename_current_keeps_the_revision_and_survives_saves_and_archive(store) -> None:
+    ch.save_conversation(ALICE, _conversation("q"), 0, store)
+
+    ch.rename_conversation(ALICE, ch.CURRENT_ID, "ISA plan", store)
+    assert ch.load_conversation(ALICE, store)["revision"] == 1
+    # A tab saving from the revision it had still succeeds and keeps the name.
+    ch.save_conversation(ALICE, _conversation("q", "a"), 1, store)
+    ch.archive_conversation(ALICE, store)
+
+    (chat,) = ch.list_conversations(ALICE, store)
+    assert (chat["id"], chat["title"], chat["named"]) == ("r00000002", "ISA plan", True)
+
+
+def test_rename_archived_and_clear_the_name(store) -> None:
+    ch.save_conversation(ALICE, _conversation("q"), 0, store)
+    ch.archive_conversation(ALICE, store)
+
+    ch.rename_conversation(ALICE, "r00000001", "Pensions", store)
+    assert ch.list_conversations(ALICE, store)[0]["title"] == "Pensions"
+
+    ch.rename_conversation(ALICE, "r00000001", None, store)
+    assert ch.list_conversations(ALICE, store)[0]["title"] == "q"
+
+
+@pytest.mark.parametrize("chat_id", ["current", "r00000009", "../current", "r1", "archive/r00000001"])
+def test_rename_of_a_missing_or_invalid_id_is_not_found(store, chat_id) -> None:
+    with pytest.raises(ch.ChatConversationNotFound):
+        ch.rename_conversation(ALICE, chat_id, "x", store)
+
+
+def test_delete_one_archived_conversation(store) -> None:
+    for revision, text in ((0, "a"), (2, "b")):
+        ch.save_conversation(ALICE, _conversation(text), revision, store)
+        ch.archive_conversation(ALICE, store)
+
+    ch.delete_conversation(ALICE, "r00000001", store)
+
+    assert _archived_ids(store) == ["r00000003"]
+    with pytest.raises(ch.ChatConversationNotFound):
+        ch.delete_conversation(ALICE, "r00000001", store)
+    with pytest.raises(ch.ChatConversationNotFound):
+        ch.delete_conversation(ALICE, ch.CURRENT_ID, store)
+
+
+def test_users_cannot_reach_each_others_archived_conversations(store) -> None:
+    ch.save_conversation(ALICE, _conversation("alice"), 0, store)
+    ch.archive_conversation(ALICE, store)
+
+    for action in (
+        lambda: ch.rename_conversation(BOB, "r00000001", "x", store),
+        lambda: ch.delete_conversation(BOB, "r00000001", store),
+        lambda: ch.open_conversation(BOB, "r00000001", store),
+    ):
+        with pytest.raises(ch.ChatConversationNotFound):
+            action()
+    assert _archived_ids(store) == ["r00000001"]
+
+
+def test_open_swaps_the_archived_conversation_with_the_current_one(store) -> None:
+    ch.save_conversation(ALICE, _conversation("old", "reply"), 0, store)
+    ch.archive_conversation(ALICE, store)
+    ch.rename_conversation(ALICE, "r00000001", "Old one", store)
+    ch.save_conversation(ALICE, _conversation("newer"), 2, store)
+
+    opened = ch.open_conversation(ALICE, "r00000001", store)
+
+    assert opened["title"] == "Old one"
+    assert [n["content"] for n in opened["conversation"]["nodes"]] == ["old", "reply"]
+    current = ch.load_conversation(ALICE, store)
+    assert current == {"revision": opened["revision"], "conversation": opened["conversation"]}
+    # The opened chat is no longer listed as archived; the one it replaced is.
+    assert [(c["id"], c["title"]) for c in ch.list_conversations(ALICE, store)] == [
+        ("current", "Old one"),
+        ("r00000003", "newer"),
+    ]
+
+
+def test_open_with_an_empty_current_conversation_archives_nothing(store) -> None:
+    ch.save_conversation(ALICE, _conversation("old"), 0, store)
+    ch.archive_conversation(ALICE, store)
+
+    opened = ch.open_conversation(ALICE, "r00000001", store)
+
+    assert opened["revision"] == 3
+    assert [c["id"] for c in ch.list_conversations(ALICE, store)] == ["current"]
+
+
+def test_clean_title() -> None:
+    assert ch.clean_title("  ISA \n plan ") == "ISA plan"
+    assert ch.clean_title("   ") is None
+    assert len(ch.clean_title("x" * 500)) == ch.MAX_TITLE_CHARS
+
+
+def test_s3_list_keys_strips_the_store_prefix_and_delete_removes_one_object() -> None:
+    client = boto3.client("s3", region_name="eu-west-2")
+    store = ch.S3ChatStore(bucket="b", prefix="chat", client=client)
+    with Stubber(client) as stub:
+        stub.add_response(
+            "list_objects_v2",
+            {"Contents": [{"Key": "chat/u/archive/r00000001.json"}], "IsTruncated": False},
+            {"Bucket": "b", "Prefix": "chat/u/archive/"},
+        )
+        stub.add_response("delete_object", {}, {"Bucket": "b", "Key": "chat/u/archive/r00000001.json"})
+
+        assert store.list_keys("u/archive/") == ["u/archive/r00000001.json"]
+        store.delete("u/archive/r00000001.json")
+        stub.assert_no_pending_responses()
+
+
+def test_s3_list_failure_is_unavailable() -> None:
+    client = boto3.client("s3", region_name="eu-west-2")
+    store = ch.S3ChatStore(bucket="b", prefix="chat", client=client)
+    with Stubber(client) as stub:
+        stub.add_client_error("list_objects_v2", service_error_code="AccessDenied", http_status_code=403)
+        with pytest.raises(ch.ChatHistoryUnavailable):
+            store.list_keys("u/archive/")

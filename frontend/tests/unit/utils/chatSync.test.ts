@@ -15,6 +15,7 @@ import {
   deleteSavedChatHistory,
   ensureChatLoaded,
   flush,
+  openSavedChat,
   resetChatSyncForTests,
   setChatReplyPending,
   startNewSavedChat,
@@ -54,7 +55,9 @@ beforeEach(() => {
   resetChat();
   (isDemoSession as Mock).mockReturnValue(false);
   getMock().mockReset().mockResolvedValue(saved("alice", 0));
-  putMock().mockReset().mockImplementation((_tree, revision: number) => Promise.resolve({ revision: revision + 1 }));
+  putMock()
+    .mockReset()
+    .mockImplementation((_tree, revision: number) => Promise.resolve({ revision: revision + 1 }));
   (api.archiveChatConversation as Mock).mockReset().mockResolvedValue({ revision: 1, archived: true });
   (api.deleteChatHistory as Mock).mockReset().mockResolvedValue(undefined);
 });
@@ -396,5 +399,49 @@ describe("demo sessions", () => {
     expect(getMock()).not.toHaveBeenCalled();
     expect(putMock()).not.toHaveBeenCalled();
     expect(api.archiveChatConversation).not.toHaveBeenCalled();
+  });
+});
+
+describe("opening a saved chat", () => {
+  beforeEach(async () => {
+    getMock().mockResolvedValue(saved("alice", 3, tree("q", "a")));
+    await ensureChatLoaded();
+    (api.openSavedChat as Mock)
+      .mockReset()
+      .mockResolvedValue({ revision: 6, conversation: tree("old q", "old a"), title: "Old" });
+  });
+
+  it("saves unsaved changes first, then adopts the opened chat", async () => {
+    appendChatMessage(user("more"));
+
+    await openSavedChat("r00000001");
+
+    expect(putMock()).toHaveBeenCalledTimes(1);
+    expect(putMock().mock.invocationCallOrder[0]).toBeLessThan((api.openSavedChat as Mock).mock.invocationCallOrder[0]);
+    expect(api.openSavedChat).toHaveBeenCalledWith("r00000001");
+    expect(contents()).toEqual(["old q", "old a"]);
+    expect(getChatSyncState()).toMatchObject({ revision: 6, dirty: false, archivePending: false });
+    // Adopting it is not a change to save back.
+    await settle();
+    expect(putMock()).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not open when the current chat could not be saved", async () => {
+    putMock().mockRejectedValue(new Error("down"));
+    appendChatMessage(user("unsaved"));
+
+    await expect(openSavedChat("r00000001")).rejects.toThrow(/could not be saved/);
+
+    expect(api.openSavedChat).not.toHaveBeenCalled();
+    expect(contents()).toEqual(["q", "a", "unsaved"]);
+  });
+
+  it("keeps the conversation when opening fails", async () => {
+    (api.openSavedChat as Mock).mockRejectedValue(new Error("down"));
+
+    await expect(openSavedChat("r00000001")).rejects.toThrow("down");
+
+    expect(contents()).toEqual(["q", "a"]);
+    expect(getChatSyncState()).toMatchObject({ revision: 3 });
   });
 });

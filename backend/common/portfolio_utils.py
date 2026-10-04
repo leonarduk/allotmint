@@ -44,6 +44,7 @@ from backend.common.sector_labels import (
     normalise_region_label,
     normalise_sector_label,
 )
+from backend.common.ticker_utils import canonical_ticker
 from backend.common.virtual_portfolio import (
     VirtualPortfolio,
     list_virtual_portfolios,
@@ -578,7 +579,9 @@ def list_all_unique_tickers() -> List[str]:
             for h_idx, h in enumerate(holdings):
                 ticker = h.get("ticker")
                 if ticker:
-                    tickers.add(ticker.upper())
+                    # One key per instrument: "BP." and "BP.L" are the same
+                    # LSE listing and must not be refreshed twice (#8600).
+                    tickers.add(canonical_ticker(ticker))
                 else:
                     null_ticker_count += 1
                     logger.warning(

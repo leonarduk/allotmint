@@ -1,4 +1,5 @@
 import datetime as dt
+import logging
 
 import pandas as pd
 import pytest
@@ -441,3 +442,92 @@ def test_get_dated_price_reports_the_row_date_served(monkeypatch):
 
     assert (price, src, row_date) == (pytest.approx(99.88), "Yahoo", dt.date(2026, 9, 24))
     assert hu._get_price_for_date_scaled("FOO", "L", _REPORTING) == (pytest.approx(99.88), "Yahoo")
+
+
+# ── a latest-trading-day close counts as fresh (#8595) ───────────────────────
+def test_load_latest_closes_reports_the_row_date(monkeypatch):
+    served = pd.DataFrame({"Date": [pd.Timestamp("2026-09-24"), pd.Timestamp("2026-09-25")], "Close_gbp": [9.0, 10.0]})
+    monkeypatch.setattr(hu, "load_meta_timeseries_range", lambda **_k: served)
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *a, **k: 1.0)
+
+    assert hu.load_latest_closes(["FOO.L"]) == {"FOO.L": (pytest.approx(10.0), _REPORTING)}
+    assert hu.load_latest_prices(["FOO.L"]) == {"FOO.L": pytest.approx(10.0)}
+
+
+def test_load_latest_closes_finds_date_column_by_name(monkeypatch):
+    """Date not first and rows not in price order: sort and date both key on "Date"."""
+    served = pd.DataFrame({"Close_gbp": [10.0, 11.0], "Date": [pd.Timestamp("2026-09-25"), pd.Timestamp("2026-09-24")]})
+    monkeypatch.setattr(hu, "load_meta_timeseries_range", lambda **_k: served)
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *a, **k: 1.0)
+
+    price, close_date = hu.load_latest_closes(["FOO.L"])["FOO.L"]
+
+    assert close_date == _REPORTING
+    assert price == pytest.approx(10.0)
+
+
+def test_load_latest_closes_unparseable_date_is_none(monkeypatch):
+    served = pd.DataFrame({"Date": ["2026-09-24", "not-a-date"], "Close_gbp": [9.0, 10.0]})
+    monkeypatch.setattr(hu, "load_meta_timeseries_range", lambda **_k: served)
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *a, **k: 1.0)
+
+    assert hu.load_latest_closes(["FOO.L"]) == {"FOO.L": (pytest.approx(10.0), None)}
+
+
+def test_load_latest_closes_missing_date_is_none_not_nat(monkeypatch):
+    """A NaT row date must come back as None (stale): NaT compares False with any date, so it would read as fresh."""
+    served = pd.DataFrame({"Date": [pd.Timestamp("2026-09-24"), pd.NaT], "Close_gbp": [9.0, 10.0]})
+    monkeypatch.setattr(hu, "load_meta_timeseries_range", lambda **_k: served)
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *a, **k: 1.0)
+
+    price, close_date = hu.load_latest_closes(["FOO.L"])["FOO.L"]
+
+    assert price == pytest.approx(10.0)
+    assert close_date is None
+
+
+def test_load_latest_closes_without_date_column_warns_and_fails_safe(monkeypatch, caplog):
+    """No "Date" column: keep feed order (don't sort by price), warn, and report no close date (stale)."""
+    served = pd.DataFrame({"Close_gbp": [10.0, 9.0]})
+    monkeypatch.setattr(hu, "load_meta_timeseries_range", lambda **_k: served)
+    monkeypatch.setattr(hu, "get_scaling_override", lambda *a, **k: 1.0)
+
+    with caplog.at_level(logging.WARNING, logger=hu.logger.name):
+        result = hu.load_latest_closes(["FOO.L"])
+
+    assert result == {"FOO.L": (pytest.approx(9.0), None)}
+    assert any("no Date column for FOO.L" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.parametrize(
+    ("close_date", "expected_stale"),
+    [
+        (_REPORTING, False),  # Friday's close on a Saturday, no live quote
+        (dt.date(2026, 9, 24), True),  # Thursday's close: genuinely a day behind
+    ],
+)
+def test_enrich_holding_priced_from_last_close_without_live_quote(monkeypatch, close_date, expected_stale):
+    """End to end: snapshot built from the last close, then the holding enriched from it."""
+    from backend.common import prices
+
+    class FrozenDate(dt.date):
+        @classmethod
+        def today(cls):
+            return _TODAY
+
+    monkeypatch.setattr(prices, "date", FrozenDate)
+    monkeypatch.setattr(prices, "_load_latest_closes", lambda tickers, **_k: {"FOO.L": (100.0, close_date)})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("FOO", "L"))
+    monkeypatch.setattr(prices, "_close_on", lambda *a, **k: None)
+    snapshot = prices.get_price_snapshot(["FOO.L"])
+
+    _stub_enrich_env(monkeypatch, snapshot)
+    monkeypatch.setattr(hu, "_get_price_for_date_scaled", lambda *a, **k: (99.0, "Yahoo"))
+
+    holding = {TICKER: "FOO.L", UNITS: 10, COST_BASIS_GBP: 0.0, ACQUIRED_DATE: "2025-01-01"}
+    result = hu.enrich_holding(holding, _TODAY, price_cache={})
+
+    assert result["latest_source"] == "snapshot"
+    assert result["price"] == pytest.approx(100.0)
+    assert result["is_stale"] is expected_stale

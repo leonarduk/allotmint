@@ -34,6 +34,7 @@ import {
   getChatMessages,
   startNewChat,
 } from "@/utils/chatConversation";
+import { onAuthChange } from "@/authEvents";
 
 const csvFile = new File(["ticker,units"], "holdings.csv", {
   type: "text/csv",
@@ -1307,6 +1308,29 @@ describe("cached responses do not survive an identity change", () => {
   });
 });
 
+describe("setAuthToken auth-change events (issue #8618)", () => {
+  afterEach(() => {
+    setAuthToken(null);
+  });
+
+  it("emits once per actual token change, with the previous token", () => {
+    setAuthToken(null);
+    const listener = vi.fn();
+    const unsubscribe = onAuthChange(listener);
+
+    setAuthToken("token-for-user-a");
+    // Re-setting the same token is not a change.
+    setAuthToken("token-for-user-a");
+    setAuthToken(null);
+    unsubscribe();
+
+    expect(listener.mock.calls).toEqual([
+      [{ previousToken: null, nextToken: "token-for-user-a" }],
+      [{ previousToken: "token-for-user-a", nextToken: null }],
+    ]);
+  });
+});
+
 describe("chat conversation is scoped to the login session", () => {
   const message = { role: "user" as const, content: "What is my ISA worth?" };
 
@@ -1327,7 +1351,12 @@ describe("chat conversation is scoped to the login session", () => {
     setAuthToken(null);
 
     expect(getChatMessages()).toEqual([]);
-    expect(sessionStorage.getItem("allotmint.chat.messages")).toBe("[]");
+    // Nothing of the conversation, in any version, is left in storage (#8842).
+    expect(JSON.parse(sessionStorage.getItem("allotmint.chat.tree.v1") ?? "null")).toMatchObject({
+      nodes: [],
+      active: {},
+    });
+    expect(sessionStorage.getItem("allotmint.chat.messages")).toBeNull();
   });
 
   it("keeps the conversation when the stored token is re-applied on reload", () => {

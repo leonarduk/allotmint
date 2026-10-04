@@ -78,6 +78,11 @@ def test_yahoo_category_is_used_for_funds() -> None:
     assert ic.classify_instrument(meta)["asset_class"] == "bond"
 
 
+def test_stock_keyword_marks_equity_fund() -> None:
+    meta = {"ticker": "X.L", "name": "Vanguard Total World Stock ETF", "sector": "Fixed Income"}
+    assert ic.classify_instrument(meta) == {"asset_class": "equity", "sector": "Multi-sector"}
+
+
 def test_unknown_instrument_has_no_asset_class() -> None:
     assert ic.classify_instrument({"ticker": "AAA.L", "name": "AAA.L", "instrument_type": "NONE"}) == {}
 
@@ -141,3 +146,8 @@ def test_load_overrides(tmp_path, caplog) -> None:
 def test_overrides_path_uses_data_root(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(ic.config, "data_root", tmp_path)
     assert ic.overrides_path() == tmp_path / ic.OVERRIDES_FILENAME
+
+
+def test_overrides_path_falls_back_to_bundled_data(monkeypatch) -> None:
+    monkeypatch.setattr(ic.config, "data_root", None)
+    assert ic.overrides_path().parent.name == "data"

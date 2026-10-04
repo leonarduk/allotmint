@@ -117,7 +117,9 @@ _KEYWORD_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (MULTI_ASSET, re.compile(r"\bmulti[- ]asset\b|\bmixed asset\b|\ballocation\b|\blifestrategy\b", re.IGNORECASE)),
     (
         EQUITY,
-        re.compile(r"\bequit(y|ies)\b|\bMSCI\b|\bFTSE\b|\bS&P\b|\bstoxx\b|\bnasdaq\b|\bdividend\b", re.IGNORECASE),
+        re.compile(
+            r"\bequit(y|ies)\b|\bstocks?\b|\bMSCI\b|\bFTSE\b|\bS&P\b|\bstoxx\b|\bnasdaq\b|\bdividend\b", re.IGNORECASE
+        ),
     ),
 )
 
@@ -262,8 +264,13 @@ def apply_classification(
 
 
 def overrides_path() -> Path:
-    """Return the manual overrides file under the configured data root."""
-    return Path(config.data_root) / OVERRIDES_FILENAME
+    """Return the manual overrides file under the configured data root.
+
+    Falls back to the bundled ``data/`` directory when no data root is
+    configured, matching ``backend.common.instruments``.
+    """
+    data_root = config.data_root or Path(__file__).resolve().parents[2] / "data"
+    return Path(data_root) / OVERRIDES_FILENAME
 
 
 def load_classification_overrides(path: Optional[Path] = None) -> dict[str, dict[str, Any]]:

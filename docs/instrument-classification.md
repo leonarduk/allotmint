@@ -23,7 +23,7 @@ rules:
    name with UCITS, ETF, Fund or Investment Trust): the name decides first
    ("Gilts", "Bond", "Credit" mean bond; "Physical Gold" or "ETC" mean
    commodity; "Real Estate" means property; "LifeStrategy" or "Multi-Asset"
-   mean multi-asset; "MSCI", "FTSE" or "Equity" mean equity). Next comes the
+   mean multi-asset; "MSCI", "FTSE", "Stock" or "Equity" mean equity). Next comes the
    provider's category (Yahoo `category`), then a sector that names an asset
    class ("Fixed Income"). If none of these match, the fund is equity. A bare
    "Gold" in the name does not count, because "Gold Producers" ETFs hold
@@ -33,9 +33,12 @@ rules:
    (Financials, Financial Services, Miscellaneous) or contradicts the asset
    class (an equity ETF filed under "Fixed Income"), it is replaced with an
    exposure label: `Multi-sector` (equity), `Fixed Income` (bond), `Cash`,
-   `Commodities`, `Real Estate` (property) or `Multi-asset`. A real exposure
-   sector is kept, for example "Consumer Staples" on a sector ETF or
-   "Utilities" on a renewables trust.
+   `Commodities`, `Real Estate` (property) or `Multi-asset`. On an equity fund
+   a real sector is kept, for example "Consumer Staples" on a sector ETF or
+   "Utilities" on a renewables trust. On a bond, cash, commodity or property
+   product the sector is kept only if it names that asset class ("Government
+   Bond", "Commodities - Energy"); anything else, such as "Materials" on a gold
+   ETC, is replaced.
 
 The rules run in two places:
 

@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from backend.common import instruments
+from backend.common import instrument_classification, instruments
 
 
 @pytest.mark.parametrize(
@@ -432,6 +432,29 @@ def test_fetch_metadata_from_yahoo_falls_back_to_info_and_fast_info(monkeypatch,
         "industry": "Diversified",
         "instrument_type": "MUTUALFUND",
     }
+
+
+def test_fetch_metadata_from_yahoo_applies_classification_override(monkeypatch, tmp_path) -> None:
+    """Overrides are keyed by the upper-cased full ticker on the ingest path (#9196)."""
+    (tmp_path / "instrument_classification_overrides.json").write_text(
+        json.dumps({"ESIH.L": {"sector": "Health Care"}}), encoding="utf-8"
+    )
+    monkeypatch.setattr(instrument_classification.config, "data_root", tmp_path)
+
+    class _FakeTicker:
+        def __init__(self, symbol: str) -> None:
+            assert symbol == "ESIH.L"
+
+        def get_info(self):
+            return {"shortName": "iShares MSCI EUR HealthCare UCITS ETF", "quoteType": "ETF", "category": "Bond"}
+
+    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=_FakeTicker))
+
+    result = instruments._fetch_metadata_from_yahoo("esih", "l")
+
+    assert result["asset_class"] == "equity"
+    assert result["sector"] == "Health Care"
+    assert result["instrument_type"] == "ETF"
 
 
 def test_fetch_metadata_from_yahoo_rejects_unknown_exchange(monkeypatch) -> None:

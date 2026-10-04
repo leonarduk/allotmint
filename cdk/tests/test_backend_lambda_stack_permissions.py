@@ -51,7 +51,9 @@ BACKEND_LIST_PREFIXES = (
 )
 # accounts/ is required because refresh_prices() → list_all_unique_tickers() →
 # list_portfolios() → S3DataProvider.list_plots() calls list_objects_v2 on that prefix.
-PRICE_REFRESH_LIST_PREFIXES = ("accounts", "prices")
+# alerts/ lets refresh_universe() → price_triggers.watched_tickers() tell a missing
+# alerts/price_triggers.json (404) from denied access (403) (#8805).
+PRICE_REFRESH_LIST_PREFIXES = ("accounts", "alerts", "prices")
 TRADING_AGENT_LIST_PREFIXES = ("prices",)
 # dividend_refresh only touches AccountsStore (writable-accounts/); unlike
 # price_refresh it never calls list_portfolios(), so it needs no accounts/
@@ -278,7 +280,7 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
     refresh_conditions = _conditions_for_s3_action(template, refresh_role, "s3:ListBucket")
     assert (
         _expected_prefix_condition(PRICE_REFRESH_LIST_PREFIXES) in refresh_conditions
-    ), "PriceRefreshLambda s3:ListBucket must be conditioned to the accounts/ and prices/ prefixes"
+    ), "PriceRefreshLambda s3:ListBucket must be conditioned to the accounts/, alerts/ and prices/ prefixes"
 
     trading_conditions = _conditions_for_s3_action(template, trading_role, "s3:ListBucket")
     assert (

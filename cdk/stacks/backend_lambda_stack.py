@@ -360,7 +360,10 @@ class BackendLambdaStack(Stack):
             # S3DataProvider.list_plots() → list_all_unique_tickers() → list_portfolios().
             # Without this ListBucket on accounts/, list_objects_v2 returns AccessDenied,
             # refresh_prices() finds no tickers, and the snapshot is never written.
-            "price_refresh": ("accounts", "prices"),
+            # alerts/ lets price_triggers.watched_tickers() tell a missing
+            # alerts/price_triggers.json (404) from denied access (403), which
+            # otherwise drops every watched ticker from the refresh (#8805).
+            "price_refresh": ("accounts", "alerts", "prices"),
             "trading_agent": ("prices",),
             # dividend_refresh reads holdings/transactions via AccountsStore
             # (iter_transaction_documents() → ListBucket on writable-accounts/)

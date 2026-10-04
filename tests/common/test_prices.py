@@ -466,6 +466,129 @@ def test_refresh_prices_uploads_existing_snapshot_to_s3_when_all_prices_null(
     assert put_calls[0]["ContentType"] == "application/json"
 
 
+def test_refresh_universe_finds_held_tickers_with_auth_enabled_only_as_system_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End to end through list_all_unique_tickers -> list_portfolios -> _list_aws_plots (#8805).
+
+    With auth enabled and no request user, owner discovery hides every owner,
+    so the refresh universe is empty -- unless it runs as a system job, as the
+    scheduled PriceRefreshLambda does.
+    """
+    from backend.auth import system_job_context
+    from backend.common import data_loader, portfolio_loader, portfolio_utils
+
+    class _FakeS3Provider:
+        def list_plots(self, current_user=None):
+            return [{"owner": "alice", "accounts": ["isa"]}]
+
+    monkeypatch.setattr(data_loader.config, "disable_auth", False, raising=False)
+    monkeypatch.setattr(data_loader.config, "app_env", "aws", raising=False)
+    monkeypatch.setattr(data_loader, "S3DataProvider", _FakeS3Provider)
+    monkeypatch.setattr(data_loader, "load_person_meta", lambda owner: {})
+    monkeypatch.setattr(
+        portfolio_loader,
+        "_build_owner_portfolio",
+        lambda summary: {"owner": summary.owner, "person": {}, "accounts": [{"holdings": [{"ticker": "AAA.L"}]}]},
+    )
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+    monkeypatch.setattr(prices.price_triggers, "watched_tickers", lambda: [])
+
+    assert prices.refresh_universe() == []
+    with system_job_context():
+        assert prices.refresh_universe() == ["AAA.L"]
+
+
+def _empty_refresh(tmp_path, monkeypatch: pytest.MonkeyPatch, *, snapshot_exists: bool) -> list:
+    """Run refresh_prices with nothing fetched and no local seed (a fresh Lambda container).
+
+    The fake S3 honours ``IfNoneMatch="*"`` like the real one: 412 when the key exists.
+    """
+    from botocore.exceptions import ClientError
+
+    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: [])
+    monkeypatch.setattr(prices.price_triggers, "watched_tickers", lambda: [])
+    monkeypatch.setattr(prices, "get_price_snapshot", lambda _: {})
+    monkeypatch.setattr(prices, "refresh_fx_cache_for_tickers", lambda _: None)
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
+    monkeypatch.setattr(prices, "check_price_alerts", Mock())
+    monkeypatch.setattr(prices.config, "prices_json", tmp_path / "prices.json")
+    monkeypatch.setattr(prices.config, "app_env", "aws")
+    monkeypatch.setenv("DATA_BUCKET", "test-bucket")
+
+    written: list = []
+
+    def put_object(**kwargs):
+        if kwargs.get("IfNoneMatch") == "*" and snapshot_exists:
+            raise ClientError({"Error": {"Code": "PreconditionFailed", "Message": "exists"}}, "PutObject")
+        written.append(kwargs)
+
+    monkeypatch.setitem(
+        sys.modules, "boto3", SimpleNamespace(client=lambda svc: SimpleNamespace(put_object=put_object))
+    )
+
+    prices.refresh_prices()
+    return written
+
+
+def test_refresh_prices_keeps_existing_s3_snapshot_when_nothing_fetched(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An empty refresh must not replace a good S3 snapshot with {} (#8805)."""
+    with caplog.at_level("ERROR", logger=prices.logger.name):
+        written = _empty_refresh(tmp_path, monkeypatch, snapshot_exists=True)
+
+    assert written == []
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("universe is empty" in m for m in messages)
+    assert any("keeping the existing S3 price snapshot" in m for m in messages)
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        (None, True),  # key absent: written
+        ("PreconditionFailed", False),  # 412: key exists, kept
+        ("ConditionalRequestConflict", False),  # 409: a concurrent write won the race
+    ],
+)
+def test_put_empty_snapshot_if_absent(code, expected) -> None:
+    from botocore.exceptions import ClientError
+
+    calls = []
+
+    def put_object(**kwargs):
+        calls.append(kwargs)
+        if code:
+            raise ClientError({"Error": {"Code": code, "Message": code}}, "PutObject")
+
+    assert prices.put_empty_snapshot_if_absent(SimpleNamespace(put_object=put_object), "bucket") is expected
+    assert calls[0]["IfNoneMatch"] == "*"
+    assert calls[0]["Body"] == b"{}"
+
+
+def test_put_empty_snapshot_if_absent_raises_other_errors() -> None:
+    """Anything but 412/409 isn't "already exists", so it propagates to the caller's handler."""
+    from botocore.exceptions import ClientError
+
+    def put_object(**_kwargs):
+        raise ClientError({"Error": {"Code": "AccessDenied", "Message": "denied"}}, "PutObject")
+
+    with pytest.raises(ClientError):
+        prices.put_empty_snapshot_if_absent(SimpleNamespace(put_object=put_object), "bucket")
+
+
+def test_refresh_prices_seeds_missing_s3_snapshot_when_nothing_fetched(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no snapshot at all, {} is still written so the key exists (#3685) -- conditionally."""
+    written = _empty_refresh(tmp_path, monkeypatch, snapshot_exists=False)
+
+    assert len(written) == 1
+    assert json.loads(written[0]["Body"]) == {}
+    assert written[0]["IfNoneMatch"] == "*"
+
+
 def test_refresh_prices_partial_null_preserves_existing_prices(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Partial-outage refresh updates valid prices and preserves existing ones for null tickers."""
     seed = {

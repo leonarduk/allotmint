@@ -27,6 +27,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -228,6 +229,9 @@ class S3ChatStore:
 def store_from_uri(uri: str) -> ChatStore:
     """Return the store for a ``s3://bucket/prefix`` or ``file://`` / plain path base."""
 
+    # A Windows path such as ``D:\data\chat`` parses with scheme ``d``.
+    if re.match(r"^[A-Za-z]:[\\/]", uri):
+        return FileChatStore(root=Path(uri))
     parsed = urlparse(uri)
     if parsed.scheme == "s3":
         return S3ChatStore(bucket=parsed.netloc, prefix=parsed.path.strip("/"))

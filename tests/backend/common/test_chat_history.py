@@ -223,6 +223,9 @@ def test_store_from_uri_and_default(monkeypatch, tmp_path: Path) -> None:
     assert isinstance(s3, ch.S3ChatStore) and (s3.bucket, s3.prefix) == ("bucket", "chat")
     assert ch.store_from_uri(f"file://{tmp_path}") == ch.FileChatStore(root=tmp_path)
     assert ch.store_from_uri(str(tmp_path)) == ch.FileChatStore(root=tmp_path)
+    # A Windows drive letter is not a URL scheme.
+    assert ch.store_from_uri(r"D:\data\chat") == ch.FileChatStore(root=Path(r"D:\data\chat"))
+    assert ch.store_from_uri("D:/data/chat") == ch.FileChatStore(root=Path("D:/data/chat"))
     with pytest.raises(ValueError):
         ch.store_from_uri("ssm://nope")
 

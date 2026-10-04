@@ -83,14 +83,21 @@ def _infer_override_exchange(ticker: str, base: str, overrides: dict) -> str:
     stored in the account data) to an *empty* exchange via
     ``instrument_api._resolve_full_ticker``, so an ``"L"`` override for that
     ticker would otherwise never match (#7787). Prefer an explicit suffix on
-    ``ticker`` (``"ADM.L"``); failing that, use the single exchange section of
-    the override table that lists ``base``. Ambiguous or absent -> ``""``.
+    ``ticker`` (``"ADM.L"``), but only when the table has a section for that
+    suffix which lists ``base`` -- a share-class suffix (``"BRK.B"``,
+    ``"BF.B"``) must not be mistaken for an exchange. Failing that, use the
+    single exchange section of the override table that lists ``base``.
+    Ambiguous or absent -> ``""``. The ``"*"`` section is never an inferred
+    exchange; ``get_scaling_override`` consults it separately.
     """
-    parts = re.split(r"[.:]", ticker, maxsplit=1)
-    if len(parts) == 2 and parts[1]:
-        return parts[1].upper()
     if not isinstance(overrides, dict):
         return ""
+    parts = re.split(r"[.:]", ticker, maxsplit=1)
+    if len(parts) == 2 and parts[1]:
+        suffix = parts[1].upper()
+        section = overrides.get(suffix)
+        if suffix != "*" and isinstance(section, dict) and base in section:
+            return suffix
     matches = [
         ex_key for ex_key, table in overrides.items() if ex_key != "*" and isinstance(table, dict) and base in table
     ]

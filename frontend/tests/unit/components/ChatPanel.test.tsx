@@ -10,6 +10,10 @@ import { isDemoSession } from "@/demoAuth";
 vi.mock("@/api");
 vi.mock("@/demoAuth", () => ({ isDemoSession: vi.fn(() => false) }));
 
+// Every chat text field is bordered: without it, it vanishes in the light theme (#9048).
+const expectBordered = (field: HTMLElement) =>
+  expect(field.style.border).toBe("1px solid var(--input-border)");
+
 const EMPTY_SAVED = { owner: "u1", revision: 0, conversation: { nodes: [], active: {}, nextId: 1 } };
 
 describe("ChatPanel", () => {
@@ -21,6 +25,12 @@ describe("ChatPanel", () => {
     (api.putChatConversation as Mock).mockResolvedValue({ revision: 1 });
     (api.archiveChatConversation as Mock).mockResolvedValue({ revision: 1, archived: true });
     (api.deleteChatHistory as Mock).mockResolvedValue(undefined);
+  });
+
+  it("borders the message box so it shows in the light theme", () => {
+    render(<ChatPanel open onClose={() => {}} />);
+
+    expectBordered(screen.getByLabelText(/chat message/i));
   });
 
   it("renders nothing when closed", () => {
@@ -379,6 +389,15 @@ describe("ChatPanel", () => {
       await user.click(within(items()[0]).getByRole("button", { name: /copy message/i }));
 
       expect(await within(items()[0]).findByText("Copy failed")).toBeInTheDocument();
+    });
+
+    it("borders the edit box", async () => {
+      const user = userEvent.setup();
+      render(<ChatPanel open onClose={() => {}} />);
+
+      await user.click(within(items()[0]).getByRole("button", { name: /edit message/i }));
+
+      expectBordered(screen.getByLabelText(/edited message/i));
     });
 
     it("offers Edit only on the user's own messages", () => {
@@ -887,6 +906,14 @@ describe("ChatPanel", () => {
       await waitFor(() => expect(api.renameSavedChat).toHaveBeenCalledWith("r00000001", "ISA 2026"));
       // The list is reloaded to show the new name.
       await waitFor(() => expect(api.listSavedChats).toHaveBeenCalledTimes(loads + 1));
+    });
+
+    it("borders the rename box", async () => {
+      const { user, list } = await openHistory();
+
+      await user.click(within(list).getByRole("button", { name: /rename isa allowance/i }));
+
+      expectBordered(within(list).getByLabelText(/chat name/i));
     });
 
     it("starts an unnamed chat's rename from an empty box", async () => {

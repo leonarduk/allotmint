@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import { Check, ChevronLeft, ChevronRight, Copy, Download, Pencil, RefreshCw } from "lucide-react";
 import type { ChatFile, ChatMessage } from "../api";
 import { downloadChatFile } from "../lib/chatFileDownload";
+import { CHAT_INPUT_STYLE } from "./chatInputStyle";
 
 // Assistant replies are Markdown (headings, bold, GFM tables). Raw HTML is not
 // rendered (react-markdown's default), so model output cannot inject markup.
@@ -108,10 +109,10 @@ function EditForm({ draft, disabled, onChange, onSave, onCancel }: EditFormProps
           }
         }}
         style={{
+          ...CHAT_INPUT_STYLE,
           width: "100%",
           minWidth: "16rem",
           resize: "vertical",
-          font: "inherit",
         }}
       />
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>

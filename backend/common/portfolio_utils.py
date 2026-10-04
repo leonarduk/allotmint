@@ -1887,60 +1887,17 @@ def _portfolio_holdings(pf: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [h for acct in pf.get("accounts", []) for h in acct.get("holdings", []) if isinstance(h, dict)]
 
 
-def _group_ledger_performance(
-    slug: str, pricing_date: date | None
-) -> tuple[ledger_performance.LedgerPerformance | None, List[str]]:
-    """Ledger rebuild across every member of group ``slug`` (#8461).
-
-    Every member's account ledgers are replayed together, so the combined
-    daily value is what the household actually held and the flows are the
-    pooled external money in/out. ``group_members`` raises ``ValueError``
-    for an unknown slug (the routes map it to 404).
-
-    Returns ``(performance, missing_members)``. A member without any ledger
-    file is left out of the rebuild entirely -- their holdings as well as
-    their flows -- so the figure covers the remaining members only. Callers
-    MUST surface ``missing_members`` (the ``partial`` flag on the
-    ``/performance-group`` routes, #7228). ``performance`` is ``None`` when
-    no member has a ledger to replay.
-    """
-    end = PricingDateCalculator(reporting_date=pricing_date).reporting_date
-    ledgers: List[ledger_performance.AccountLedger] = []
-    missing: List[str] = []
-    for member in group_portfolio.group_members(slug):
-        member_ledgers = ledger_performance.load_owner_ledgers(member)
-        if member_ledgers:
-            ledgers.extend(member_ledgers)
-            continue
-        missing.append(member)
-        logger.warning(
-            "Group %s: no transaction ledger for member %s -- they are left out "
-            "of the group TWR/XIRR, which covers the other members only.",
-            sanitise_log_value(slug),
-            sanitise_log_value(member),
-        )
-    if not ledgers:
-        return None, missing
-    holdings = _portfolio_holdings(group_portfolio.build_group_portfolio(slug, pricing_date=end))
-    return ledger_performance.build_ledger_performance(ledgers, end, holdings=holdings), missing
-
-
-def _ledger_performance_for(
-    owner: str, pricing_date: date | None, *, group: bool
-) -> tuple[ledger_performance.LedgerPerformance | None, List[str]]:
-    """Ledger rebuild for an owner or a group; ``None`` when there is nothing to replay.
+def _ledger_performance_for(owner: str, pricing_date: date | None) -> ledger_performance.LedgerPerformance | None:
+    """Single-owner ledger rebuild; ``None`` when there is nothing to replay.
 
     An empty ``values`` series is treated like no rebuild at all, so callers
     fall back to the current-holdings series instead of indexing into it
     (#8467).
     """
-    if group:
-        perf, missing = _group_ledger_performance(owner, pricing_date)
-    else:
-        perf, missing = _owner_ledger_performance(owner, pricing_date), []
+    perf = _owner_ledger_performance(owner, pricing_date)
     if perf is None or perf.values.empty:
-        return None, missing
-    return perf, missing
+        return None
+    return perf
 
 
 def _ledger_window_start(perf: ledger_performance.LedgerPerformance, days: int) -> date | None:
@@ -1963,24 +1920,30 @@ def compute_time_weighted_return(
 ) -> float | None | tuple[float | None, List[str]]:
     """Compute time-weighted return for ``owner`` over ``days``.
 
-    The return is chained from the ledger rebuild in
+    For a single owner the return is chained from the ledger rebuild in
     :mod:`backend.common.ledger_performance` over the ``days`` calendar days
     to the reporting date (daily returns dated in ``(end - days, end]``):
-    deposits/withdrawals are neutral and dividends count as return. An
-    owner or group without dated transactions falls back to the
-    current-holdings value series, which is exact when nothing was traded.
+    deposits/withdrawals are neutral and dividends count as return (#8461).
+    An owner without dated transactions falls back to the current-holdings
+    value series, which is exact when nothing was traded.
 
-    Set ``group=True`` to treat ``owner`` as a group slug and replay every
-    member's ledgers together. Set ``include_missing_members=True`` to get
-    back ``(value, missing_members)`` -- the group members without a
-    transaction ledger, who are therefore left out of the figure. A
-    non-empty list means the figure is partial; callers must not present
-    it as covering the whole group without surfacing this (#7228).
+    Set ``group=True`` to treat ``owner`` as a group slug and compute the
+    combined time-weighted return across every member's cash flows. Groups
+    still use the current-holdings value series adjusted by the pooled
+    ledger cash flows (moving them to the ledger rebuild is a follow-up to
+    #8461). Set ``include_missing_members=True`` to get back
+    ``(value, missing_members)`` -- the group members whose transaction
+    ledger was missing and therefore excluded from the cash-flow
+    reconstruction, even though their holdings still count toward the value
+    series. A non-empty list means the returned figure is understated in
+    contributions (and so reads high); callers must not present it as exact
+    without surfacing this (#7228).
     """
-    perf, missing_members = _ledger_performance_for(owner, pricing_date, group=group)
-    if perf is not None:
-        value = ledger_performance.chained_return(perf.returns, _ledger_window_start(perf, days), perf.end)
-        return _with_missing(value, missing_members, include_missing_members)
+    if not group:
+        perf = _ledger_performance_for(owner, pricing_date)
+        if perf is not None:
+            value = ledger_performance.chained_return(perf.returns, _ledger_window_start(perf, days), perf.end)
+            return _with_missing(value, [], include_missing_members)
     value, missing_members = _series_time_weighted_return(owner, days, group=group, pricing_date=pricing_date)
     return _with_missing(value, missing_members, include_missing_members)
 
@@ -1990,9 +1953,10 @@ def _series_time_weighted_return(
 ) -> tuple[float | None, List[str]]:
     """TWR over the current-holdings value series, adjusted by ledger cash flows.
 
-    Only the fallback for owners/groups without dated transactions. The
-    series never received the flows it is adjusted by, so it is only exact
-    when nothing was traded, deposited or paid out in the window (#8461).
+    Used for groups (#7228) and as the fallback for owners without dated
+    transactions. The series never received the flows it is adjusted by, so
+    it is only exact when nothing was traded, deposited or paid out in the
+    window (#8461).
     """
     missing_members: List[str] = []
     total = _portfolio_value_series(owner, days, group=group, pricing_date=pricing_date)
@@ -2041,15 +2005,19 @@ def compute_xirr(
 ) -> float | None | tuple[float | None, List[str]]:
     """Compute XIRR for ``owner`` over ``days`` using cash flows.
 
-    The flows come from the ledger rebuild (see ``_ledger_xirr_flows``),
-    for a single owner or, with ``group=True``, every member of the group
-    replayed together. The fallback for owners/groups without dated
-    transactions and the ``include_missing_members`` contract are the same
-    as for ``compute_time_weighted_return`` (#7228).
+    For a single owner the flows come from the ledger rebuild (see
+    ``_ledger_xirr_flows``, #8461), with the same fallback as
+    ``compute_time_weighted_return``. Set ``group=True`` to treat ``owner``
+    as a group slug and compute the combined XIRR across every member's
+    cash flows on the current-holdings value series. Set
+    ``include_missing_members=True`` to get back ``(value, missing_members)``
+    -- see ``compute_time_weighted_return`` for why a non-empty list means
+    the returned figure is unreliable (#7228).
     """
-    perf, missing_members = _ledger_performance_for(owner, pricing_date, group=group)
-    if perf is not None:
-        return _with_missing(_solve_xirr(_ledger_xirr_flows(perf, days)), missing_members, include_missing_members)
+    if not group:
+        perf = _ledger_performance_for(owner, pricing_date)
+        if perf is not None:
+            return _with_missing(_solve_xirr(_ledger_xirr_flows(perf, days)), [], include_missing_members)
     flows, missing_members = _series_xirr_flows(owner, days, group=group, pricing_date=pricing_date)
     return _with_missing(_solve_xirr(flows), missing_members, include_missing_members)
 
@@ -2065,21 +2033,31 @@ def _ledger_xirr_flows(perf: ledger_performance.LedgerPerformance, days: int) ->
     Window convention, shared with ``compute_time_weighted_return`` (#8466,
     #8468): with ``after = end - days``, ``chained_return`` chains the daily
     returns dated strictly after ``after``. The first of those divides by
-    the close of the last business day on or before ``after``, which is
-    exactly the opening value taken here (``close_on_or_before``), and the
-    flows/income included are likewise those dated strictly after ``after``
-    (weekend ledger dates are rolled forward to Monday by the rebuild). So
-    on a window with no flows, XIRR is TWR annualised over ``days``.
-    Returns ``[]`` for an empty rebuild (#8467).
+    the close of the last business day on or before ``after``, so that close
+    is the opening value here, and the flows/income included are likewise
+    those dated strictly after ``after`` (weekend ledger dates are rolled
+    forward to Monday by the rebuild).
+
+    The opening outflow is dated on the business day whose close it is, not
+    on ``after`` itself. The two differ when ``after`` is a weekend: the
+    chained returns then cover Friday's close to ``end``, and dating the
+    Friday value on Saturday/Sunday would shorten the XIRR holding period by
+    one or two days relative to that, overstating a positive XIRR (and
+    understating a negative one). ``end`` is always a business day (the
+    reporting date), so on a window with no flows XIRR is the chained TWR
+    annualised over the calendar days from that opening close to ``end``.
+
+    ``perf`` must have a non-empty ``values`` series, which
+    ``_ledger_performance_for`` guarantees (#8467).
     """
-    if perf.values.empty:
-        return []
     after = _ledger_window_start(perf, days)
     flows: list[tuple[date, float]] = []
     if after is not None:
-        opening = ledger_performance.close_on_or_before(perf.values, after)
-        if opening:
-            flows.append((after, -opening))
+        held = perf.values[perf.values.index <= pd.Timestamp(after)]
+        # Empty when the window starts before inception: the opening deposits
+        # are then flows inside the window, and there is no opening value.
+        if not held.empty and held.iloc[-1]:
+            flows.append((held.index[-1].date(), -float(held.iloc[-1])))
     for day, amount in _after(perf.flows, after).items():
         if amount:
             flows.append((day.date(), -float(amount)))
@@ -2095,8 +2073,8 @@ def _series_xirr_flows(
 ) -> tuple[list[tuple[date, float]], List[str]]:
     """XIRR flows from the current-holdings value series plus ledger cash flows.
 
-    Still used for groups; see ``_series_time_weighted_return`` for why this
-    is only exact when nothing moved in the window (#8461).
+    Used for groups and the owner fallback; see ``_series_time_weighted_return``
+    for why this is only exact when nothing moved in the window (#8461).
     """
     missing_members: List[str] = []
     total = _portfolio_value_series(owner, days, group=group, pricing_date=pricing_date)

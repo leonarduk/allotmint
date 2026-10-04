@@ -184,6 +184,33 @@ def test_ledger_xirr_flows_open_with_window_value(ledger_owner):
     ]
 
 
+def test_ledger_xirr_flows_weekend_window_start_opens_on_prior_close(ledger_owner):
+    """#8461: a window starting on a Saturday opens with Friday's close, dated Friday.
+
+    TWR's first chained return (Monday) divides by Friday's close, so the
+    XIRR opening outflow is dated on that close too; dating it on the
+    Saturday would shorten the holding period by a day and overstate XIRR.
+    """
+    end = date(2026, 1, 1)
+    closes = {"AAA.L": {"2025-01-01": 100.0, "2025-06-06": 105.0, "2026-01-01": 120.0}}
+    ledger_owner([_deposit("2025-01-01", 1000), _buy("2025-01-01", 10, 1000)], closes)
+    days = (end - date(2025, 6, 7)).days  # window opens after Saturday 7 Jun 2025
+    perf = pu._owner_ledger_performance("owner", end)
+
+    flows = pu._ledger_xirr_flows(perf, days)
+
+    assert flows == [
+        (date(2025, 6, 6), pytest.approx(-1050.0)),
+        (end, pytest.approx(1200.0)),
+    ]
+    twr = pu.compute_time_weighted_return("owner", days, pricing_date=end)
+    assert twr == pytest.approx(1200 / 1050 - 1)
+    held_days = (end - date(2025, 6, 6)).days
+    assert pu.compute_xirr("owner", days, pricing_date=end) == pytest.approx(
+        (1 + twr) ** (365 / held_days) - 1, abs=1e-6
+    )
+
+
 def test_ledger_xirr_flows_untracked_cash_pays_out_income(ledger_owner):
     """Without trade cash, buys are investor outflows and dividends inflows."""
     closes = {"AAA.L": {"2025-01-01": 100.0}}
@@ -777,6 +804,21 @@ def test_compute_owner_performance_group_unknown_slug_raises(monkeypatch):
         pu.compute_owner_performance("bogus", group=True)
 
 
+def _forbid_ledger_rebuild(monkeypatch):
+    """Fail if group=True touches the single-owner ledger rebuild (#8461).
+
+    Groups stay on the legacy current-holdings value series and its
+    include_missing_members contract (#7228) until the follow-up.
+    """
+
+    def no_ledger_rebuild(*args, **kwargs):
+        raise AssertionError("group=True must use the legacy group value series, not the ledger rebuild (#8461)")
+
+    monkeypatch.setattr(pu, "_owner_ledger_performance", no_ledger_rebuild)
+    monkeypatch.setattr(pu.ledger_performance, "load_owner_ledgers", no_ledger_rebuild)
+    monkeypatch.setattr(pu.ledger_performance, "build_ledger_performance", no_ledger_rebuild)
+
+
 def test_compute_time_weighted_return_group_pools_member_cashflows(monkeypatch, portfolio_series):
     """#7228 review MUST FIX 3: pin the exact combined figure (not just
     "differs from the single-owner result") -- hand-computed below by
@@ -789,11 +831,8 @@ def test_compute_time_weighted_return_group_pools_member_cashflows(monkeypatch, 
         assert group is True
         return portfolio_series
 
-    def no_ledger_rebuild(owner, pricing_date):
-        raise AssertionError("group=True must stay on the group value series (#8461)")
-
     monkeypatch.setattr(pu, "_portfolio_value_series", fake_series)
-    monkeypatch.setattr(pu, "_owner_ledger_performance", no_ledger_rebuild)
+    _forbid_ledger_rebuild(monkeypatch)
     monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "lucy"])
 
     per_owner_txs = {
@@ -825,6 +864,7 @@ def test_compute_time_weighted_return_group_reports_missing_members(monkeypatch,
         "_portfolio_value_series",
         lambda name, days=365, *, group=False, pricing_date=None: portfolio_series,
     )
+    _forbid_ledger_rebuild(monkeypatch)
     monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "ghost"])
     monkeypatch.setattr(
         pu,
@@ -849,6 +889,7 @@ def test_compute_xirr_group_pools_member_cashflows(monkeypatch, one_year_series)
         return one_year_series
 
     monkeypatch.setattr(pu, "_portfolio_value_series", fake_series)
+    _forbid_ledger_rebuild(monkeypatch)
     monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "lucy"])
 
     per_owner_txs = {
@@ -870,6 +911,7 @@ def test_compute_xirr_group_reports_missing_members(monkeypatch, one_year_series
         "_portfolio_value_series",
         lambda name, days=365, *, group=False, pricing_date=None: one_year_series,
     )
+    _forbid_ledger_rebuild(monkeypatch)
     monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "ghost"])
     monkeypatch.setattr(
         pu,

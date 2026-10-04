@@ -4,14 +4,18 @@ import logging
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from backend.timeseries import cache
 from backend.timeseries.outlier_guard import drop_zero_volume_spikes
 
 
-def _frame(closes, volumes, start="2025-09-29"):
+def _frame(closes, volumes, sources=None, start="2025-09-29"):
+    """Build a frame; by default zero-volume rows are "Yahoo", others "Stooq"."""
     dates = pd.bdate_range(start, periods=len(closes))
-    return pd.DataFrame({"Date": dates, "Close": closes, "Volume": volumes})
+    if sources is None:
+        sources = ["Yahoo" if v == 0 else "Stooq" for v in volumes]
+    return pd.DataFrame({"Date": dates, "Close": closes, "Volume": volumes, "Source": sources})
 
 
 # The VWRL.L rows quoted on #7816: Stooq closes ~120 interleaved with
@@ -25,17 +29,15 @@ def test_drops_isolated_zero_volume_spikes_from_issue_example(caplog):
     with caplog.at_level(logging.WARNING, logger="backend.timeseries.outlier_guard"):
         out = drop_zero_volume_spikes(df, ticker="VWRL", exchange="L")
     assert out["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
-    assert "2 zero-volume price spike(s) for VWRL.L" in caplog.text
+    assert "2 zero-volume cross-source price spike(s) for VWRL.L" in caplog.text
     # Daily returns are now all small.
     assert out["Close"].pct_change().abs().max() < 0.02
 
 
-def test_tracking_error_inputs_become_plausible():
+def test_benchmark_return_volatility_becomes_plausible():
     df = _frame(VWRL_CLOSES, VWRL_VOLUMES)
     raw_returns = df["Close"].pct_change().dropna()
-    guarded_returns = (
-        drop_zero_volume_spikes(df, ticker="VWRL", exchange="L")["Close"].pct_change().dropna()
-    )
+    guarded_returns = drop_zero_volume_spikes(df, ticker="VWRL", exchange="L")["Close"].pct_change().dropna()
     assert raw_returns.std() * np.sqrt(252) > 4  # >400% annualised from the spikes
     assert guarded_returns.std() * np.sqrt(252) < 0.2
 
@@ -76,7 +78,37 @@ def test_keeps_edge_rows_and_adjacent_spikes():
 
 
 def test_missing_volume_column_counts_as_no_volume():
-    df = _frame([120.0, 160.0, 121.0], [0, 0, 0]).drop(columns="Volume")
+    df = _frame([120.0, 160.0, 121.0], [10, 0, 10]).drop(columns="Volume")
+    out = drop_zero_volume_spikes(df, ticker="X", exchange="L")
+    assert out["Close"].tolist() == [120.0, 121.0]
+
+
+def test_keeps_same_source_zero_volume_v_shaped_move():
+    # A genuine zero-volume round trip from one provider (halted / illiquid
+    # line) passes every price test but must not be dropped.
+    df = _frame([100.0, 80.0, 100.0, 101.0], [10, 0, 0, 11], sources=["Stooq"] * 4)
+    assert drop_zero_volume_spikes(df, ticker="X", exchange="L") is df
+
+
+def test_keeps_spike_when_source_matches_either_neighbour():
+    left = _frame([120.0, 160.0, 121.0], [10, 0, 10], sources=["Yahoo", "Yahoo", "Stooq"])
+    assert len(drop_zero_volume_spikes(left, ticker="X", exchange="L")) == 3
+    right = _frame([120.0, 160.0, 121.0], [10, 0, 10], sources=["Stooq", "Yahoo", "Yahoo"])
+    assert len(drop_zero_volume_spikes(right, ticker="X", exchange="L")) == 3
+
+
+def test_keeps_rows_when_source_missing_or_blank():
+    no_column = _frame(VWRL_CLOSES, VWRL_VOLUMES).drop(columns="Source")
+    assert drop_zero_volume_spikes(no_column, ticker="VWRL", exchange="L") is no_column
+
+    blank = _frame([120.0, 160.0, 121.0], [10, 0, 10], sources=["Stooq", None, "Stooq"])
+    assert len(drop_zero_volume_spikes(blank, ticker="X", exchange="L")) == 3
+    blank_neighbour = _frame([120.0, 160.0, 121.0], [10, 0, 10], sources=["", "Yahoo", "Stooq"])
+    assert len(drop_zero_volume_spikes(blank_neighbour, ticker="X", exchange="L")) == 3
+
+
+def test_source_comparison_ignores_case_and_whitespace():
+    df = _frame([120.0, 160.0, 121.0], [10, 0, 10], sources=["Stooq", "yahoo", " stooq "])
     out = drop_zero_volume_spikes(df, ticker="X", exchange="L")
     assert out["Close"].tolist() == [120.0, 121.0]
 
@@ -85,15 +117,16 @@ def test_handles_unsorted_dates_and_preserves_attrs():
     df = _frame(VWRL_CLOSES, VWRL_VOLUMES).iloc[::-1]
     df.attrs["source"] = "meta"
     out = drop_zero_volume_spikes(df, ticker="VWRL", exchange="L")
-    assert sorted(out["Close"].tolist()) == sorted([119.25, 120.52, 120.90, 120.73])
+    # Original (reversed) row order is preserved; only the spikes are removed.
+    assert out["Close"].tolist() == [120.73, 120.90, 120.52, 119.25]
     assert out.attrs == {"source": "meta"}
 
 
 def test_ignores_invalid_closes_when_choosing_neighbours():
     df = _frame([120.0, np.nan, 160.0, 0.0, 121.0], [10, 5, 0, 5, 11])
     out = drop_zero_volume_spikes(df, ticker="X", exchange="L")
-    assert len(out) == 4
-    assert 160.0 not in out["Close"].tolist()
+    # The 160 row is compared against 120 and 121 (the nearest valid closes).
+    assert out["Close"].tolist() == pytest.approx([120.0, np.nan, 0.0, 121.0], nan_ok=True)
 
 
 def test_short_or_empty_frames_returned_unchanged():
@@ -111,6 +144,9 @@ def test_load_meta_timeseries_applies_guard(monkeypatch):
     out = cache.load_meta_timeseries("VWRL", "L", 365)
     assert out["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
     assert len(raw) == len(VWRL_CLOSES)  # cached frame untouched
+    again = cache.load_meta_timeseries("VWRL", "L", 365)  # repeat cache hit
+    pd.testing.assert_frame_equal(again, out)
+    assert len(raw) == len(VWRL_CLOSES)
 
 
 def test_memoized_range_applies_guard(monkeypatch):

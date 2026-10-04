@@ -8,6 +8,7 @@ import logging
 import re
 from typing import Any, List
 
+from backend.common.ticker_utils import canonical_ticker
 from backend.logging_setup import sanitise_log_value
 from backend.routes.transactions import Transaction
 
@@ -113,9 +114,12 @@ def _parse_row(row: dict[str, str | None]) -> Transaction:
 
     Rows marked ``*R`` (transferred in) have the marker stripped and are
     flagged in ``comments`` -- see :func:`_mark_transfer_in`.  Like every other
-    row they stay untyped.
+    row they stay untyped.  The code is canonicalised, so HL's padded LSE
+    EPICs (``BP.``, ``AV.``) are stored as ``BP.L``/``AV.L`` rather than with an
+    empty exchange; a bare code stays bare.
     """
     code, code_marked = _strip_transfer_marker((row.get("Code") or row.get("code") or "").strip())
+    code = canonical_ticker(code)
     name, name_marked = _strip_transfer_marker(_first_text(row, _NAME_COLUMNS))
     units = _to_float(row.get("Units held") or row.get("Units"))
     price = _price_in_gbp(row, units)

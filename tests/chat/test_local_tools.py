@@ -74,3 +74,37 @@ def test_base_system_prompt_stops_the_model_denying_data_it_has_no_tool_for():
     assert "P/E" in BASE_SYSTEM_PROMPT and "dividend yield" in BASE_SYSTEM_PROMPT
     assert "do not claim AllotMint has no such data" in BASE_SYSTEM_PROMPT
     assert "source" in BASE_SYSTEM_PROMPT and "as-of date" in BASE_SYSTEM_PROMPT
+
+
+def test_base_system_prompt_carries_the_portfolio_review_playbook():
+    # #9125: every provider gets the review steps, so the playbook is not tied to one model.
+    from backend.chat.local_tools import (
+        BASE_SYSTEM_PROMPT,
+        CORE_SYSTEM_PROMPT,
+        PORTFOLIO_REVIEW_GUIDANCE,
+    )
+
+    assert BASE_SYSTEM_PROMPT.startswith(CORE_SYSTEM_PROMPT)
+    assert BASE_SYSTEM_PROMPT.endswith(PORTFOLIO_REVIEW_GUIDANCE)
+    for step in ("Holdings", "Screens", "News", "Constraints"):
+        assert step in PORTFOLIO_REVIEW_GUIDANCE
+    for heading in (
+        "Snapshot",
+        "What stands out",
+        "Options to consider",
+        "What to watch",
+        "Data caveats",
+    ):
+        assert heading in PORTFOLIO_REVIEW_GUIDANCE
+
+
+def test_review_playbook_is_decision_support_not_advice():
+    from backend.chat.local_tools import PORTFOLIO_REVIEW_GUIDANCE
+
+    assert "not personal recommendations" in PORTFOLIO_REVIEW_GUIDANCE
+    assert "do not tell the user to buy or sell" in PORTFOLIO_REVIEW_GUIDANCE
+    assert "not a regulated financial adviser" in PORTFOLIO_REVIEW_GUIDANCE
+    # Missing data is reported, never assumed; steps name capabilities, not tool names.
+    assert "do not assume" in PORTFOLIO_REVIEW_GUIDANCE
+    assert "say which steps you could not do" in PORTFOLIO_REVIEW_GUIDANCE
+    assert "screen_portfolio" not in PORTFOLIO_REVIEW_GUIDANCE

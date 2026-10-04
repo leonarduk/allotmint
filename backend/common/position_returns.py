@@ -50,6 +50,9 @@ class PositionReturn:
 
 
 def _amount_gbp(tx: Mapping[str, Any]) -> Optional[float]:
+    # Income rows are recorded unsigned or negative depending on the importer;
+    # like holdings_rebuild._apply_cash and ledger_performance, take the
+    # magnitude so both conventions count as money received.
     try:
         value = float(tx.get("amount_minor"))  # type: ignore[arg-type]
     except (TypeError, ValueError):
@@ -119,6 +122,8 @@ def apply_total_return(holding: Dict[str, Any], entry: Optional[PositionReturn])
         holding["total_return_pct"] = None
         return
     total = round(gain + realised + income, 2)
+    # enrich_holding sets gain_gbp = market_value_gbp - (the cost it used), so
+    # market - gain recovers exactly the cost behind the capital gain.
     invested = (market - gain) + entry.disposed_cost_gbp
     holding["total_return_gbp"] = total
     holding["total_return_pct"] = total / invested * 100.0 if invested > _EPS else None

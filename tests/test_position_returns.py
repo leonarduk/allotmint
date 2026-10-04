@@ -1,11 +1,17 @@
 """Per-position total return: capital gain plus income and realised gains (#9038)."""
 
 import json
+from unittest.mock import patch
 
 import pytest
 
+from backend.common import group_portfolio
+from backend.common import portfolio as owner_portfolio
+from backend.common.account_models import OwnerSummaryRecord
+from backend.common.constants import ACCOUNTS, HOLDINGS
 from backend.common.portfolio import add_total_returns
-from backend.common.position_returns import apply_total_return, position_returns
+from backend.common.position_returns import TOTAL_RETURN_FIELDS, apply_total_return, position_returns
+from backend.config import config
 
 TXS = [
     {"date": "2022-01-10", "ticker": "KO.N", "type": "BUY", "units": 10.0, "price_gbp": 50.0},
@@ -115,3 +121,45 @@ def test_add_total_returns_without_transactions_file_reports_unknown(tmp_path):
     add_total_returns("steve", "isa", holdings, tmp_path)
     assert holdings[0]["income_gbp"] is None
     assert holdings[0]["total_return_gbp"] is None
+
+
+def test_group_portfolio_gets_same_total_return_as_owner_portfolio(tmp_path, monkeypatch):
+    """The group view locates transactions by ``account_type`` and matches the owner view."""
+    owner_dir = tmp_path / "steve"
+    owner_dir.mkdir()
+    (owner_dir / "ISA_transactions.json").write_text(json.dumps({"transactions": TXS}))
+    account = {
+        "owner": "steve",
+        "account_type": "ISA",
+        "currency": "GBP",
+        HOLDINGS: [{"ticker": "KO.N", "units": 6.0, "cost_basis_gbp": 300.0}],
+    }
+    (owner_dir / "isa.json").write_text(json.dumps(account))
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+
+    def priced(h, *_args, **_kwargs):  # isolate from pricing: 6 units now worth 330
+        return {**h, "market_value_gbp": 330.0, "gain_gbp": 30.0}
+
+    plots = [OwnerSummaryRecord(owner="steve", accounts=["isa"])]
+    with (
+        patch("backend.common.portfolio.list_plots", return_value=plots),
+        patch("backend.common.portfolio.enrich_holding", side_effect=priced),
+    ):
+        owner_pf = owner_portfolio.build_owner_portfolio("steve", tmp_path)
+
+    portfolios = [{"owner": "steve", ACCOUNTS: [account]}]
+    with (
+        patch("backend.common.portfolio_loader.list_portfolios", return_value=portfolios),
+        patch("backend.common.group_portfolio.data_loader.list_plots", return_value=plots),
+        patch("backend.common.group_portfolio.load_approvals", return_value={}),
+        patch("backend.common.group_portfolio.load_user_config", return_value={}),
+        patch("backend.common.group_portfolio.enrich_holding", side_effect=priced),
+        patch.object(group_portfolio.owner_portfolio, "build_owner_portfolio", return_value={}),
+    ):
+        group_pf = group_portfolio.build_group_portfolio("all")
+
+    owner_holding = owner_pf[ACCOUNTS][0][HOLDINGS][0]
+    group_holding = group_pf[ACCOUNTS][0][HOLDINGS][0]
+    assert group_holding["total_return_gbp"] == 90.0
+    for key in TOTAL_RETURN_FIELDS:
+        assert group_holding[key] == owner_holding[key]

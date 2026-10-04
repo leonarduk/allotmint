@@ -2,8 +2,8 @@
   "name": "Scottish Mortgage Investment Trust",
   "ticker": "SMT.L",
   "exchange": "L",
-  "asset_class": "Equity",
-  "sector": "Investment Trust",
+  "asset_class": "equity",
+  "sector": "Multi-sector",
   "region": "Global",
   "currency": "GBP"
 }

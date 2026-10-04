@@ -2,7 +2,7 @@
   "name": "Vanguard UK Gilt UCITS ETF",
   "ticker": "VGOV.L",
   "exchange": "L",
-  "asset_class": "Bond",
+  "asset_class": "bond",
   "sector": "Government Bond",
   "region": "United Kingdom",
   "currency": "GBP"

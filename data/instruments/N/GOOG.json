@@ -2,7 +2,7 @@
   "name": "Alphabet Inc. (Class C)",
   "ticker": "GOOG.N",
   "exchange": "N",
-  "asset_class": "Equity",
+  "asset_class": "equity",
   "sector": "Communication Services",
   "industry": "Internet Content & Information",
   "region": "North America",

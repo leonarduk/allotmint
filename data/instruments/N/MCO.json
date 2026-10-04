@@ -2,7 +2,7 @@
   "name": "Moody's Corporation",
   "ticker": "MCO.N",
   "exchange": "N",
-  "asset_class": "Equity",
+  "asset_class": "equity",
   "sector": "Financial Services",
   "industry": "Financial Data & Stock Exchanges",
   "region": "North America",

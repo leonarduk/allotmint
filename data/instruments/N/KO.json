@@ -2,7 +2,7 @@
   "name": "The Coca-Cola Company",
   "ticker": "KO.N",
   "exchange": "N",
-  "asset_class": "Equity",
+  "asset_class": "equity",
   "sector": "Consumer Defensive",
   "industry": "Beverages - Non-Alcoholic",
   "region": "North America",

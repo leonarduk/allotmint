@@ -2,7 +2,7 @@
   "name": "Pfizer Inc.",
   "ticker": "PFE.N",
   "exchange": "N",
-  "asset_class": "Equity",
+  "asset_class": "equity",
   "sector": "Healthcare",
   "industry": "Pharmaceuticals",
   "region": "North America",

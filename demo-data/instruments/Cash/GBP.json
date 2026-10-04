@@ -3,5 +3,6 @@
   "ticker": "CASH.GBP",
   "exchange": "GBP",
   "asset_class": "cash",
-  "currency": "GBP"
+  "currency": "GBP",
+  "sector": "Cash"
 }

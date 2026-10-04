@@ -2,7 +2,7 @@
   "name": "Occidental Petroleum Corporation",
   "ticker": "OXY.N",
   "exchange": "N",
-  "asset_class": "Equity",
+  "asset_class": "equity",
   "sector": "Energy",
   "industry": "Oil & Gas E&P",
   "region": "North America",

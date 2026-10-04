@@ -161,20 +161,19 @@ def load_latest_closes(
             if not close_gbp_col and not close_native_col:
                 continue
 
-            # Sort by, and later read the close date from, the same column: the
-            # named "Date" column, else the first column. The timeseries cache
-            # guarantees "Date" (EXPECTED_COLS in backend/timeseries/cache.py),
-            # so the fallback only matters for ad-hoc frames, and it fails safe:
-            # an unparseable value gives close_date None, i.e. stale.
+            # Sort by, and read the close date from, the named "Date" column. The
+            # timeseries cache guarantees it (EXPECTED_COLS in
+            # backend/timeseries/cache.py). An ad-hoc frame without one keeps its
+            # own row order -- sorting by some other column (e.g. the price)
+            # would pick the wrong row -- and has no close date, i.e. stale.
             date_col = name_map.get("date")
             if date_col is None:
-                date_col = df.columns[0]
                 logger.warning(
-                    "no Date column for %s; reading close date from first column %s",
+                    "no Date column for %s; using last row in feed order, close date unknown",
                     sanitise_log_value(full),
-                    sanitise_log_value(date_col),
                 )
-            df = df.sort_values(date_col)
+            else:
+                df = df.sort_values(date_col)
             last = df.iloc[-1]
 
             selected_col = close_gbp_col or close_native_col
@@ -208,7 +207,7 @@ def load_latest_closes(
                 continue
 
             key = f"{ticker}.{exchange}"
-            result[key] = (val, _parse_date(last[date_col]))
+            result[key] = (val, _parse_date(last[date_col]) if date_col is not None else None)
 
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning(

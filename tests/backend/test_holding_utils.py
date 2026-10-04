@@ -475,15 +475,15 @@ def test_load_latest_closes_unparseable_date_is_none(monkeypatch):
 
 
 def test_load_latest_closes_without_date_column_warns_and_fails_safe(monkeypatch, caplog):
-    """No "Date" column: the first column is used, a warning is logged, and a non-date reads as None (stale)."""
-    served = pd.DataFrame({"Close_gbp": [9.0, 10.0]})
+    """No "Date" column: keep feed order (don't sort by price), warn, and report no close date (stale)."""
+    served = pd.DataFrame({"Close_gbp": [10.0, 9.0]})
     monkeypatch.setattr(hu, "load_meta_timeseries_range", lambda **_k: served)
     monkeypatch.setattr(hu, "get_scaling_override", lambda *a, **k: 1.0)
 
     with caplog.at_level(logging.WARNING, logger=hu.logger.name):
         result = hu.load_latest_closes(["FOO.L"])
 
-    assert result == {"FOO.L": (pytest.approx(10.0), None)}
+    assert result == {"FOO.L": (pytest.approx(9.0), None)}
     assert any("no Date column for FOO.L" in r.getMessage() for r in caplog.records)
 
 

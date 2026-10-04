@@ -776,7 +776,8 @@ export default function PensionForecast() {
                   value={plannedRetirementAge}
                   onChange={(e) => setPlannedRetirementAge(e.target.value)}
                   min={displayedCurrentAge != null ? Math.floor(displayedCurrentAge) : 40}
-                  max={80}
+                  // Matches the backend's `le=100` on retirement_age.
+                  max={100}
                   placeholder={t("pensionForecast.ages.retirementAgePlaceholder")}
                   aria-describedby="retirement-age-description"
                 />

@@ -778,6 +778,39 @@ describe("PensionForecast page", () => {
     expect(savings.value).toBe("0");
   });
 
+  it("doesn't flag a later State Pension when retiring at state pension age", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
+      current_age: 46,
+      retirement_age: 67,
+      state_pension_age: 67,
+      dob: "1980-06-01",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: {
+        state_pension_annual: 12548,
+        defined_benefit_annual: 0,
+        defined_contribution_annual: 0,
+      },
+      retirement_income_total_annual: 12548,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    await userEvent.click(screen.getByRole("button", { name: /^forecast$/i }));
+    await screen.findByText("Retirement income breakdown");
+    expect(
+      screen.queryByText(/state pension isn't paid until/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows a profile load failure instead of passing it off as a missing date of birth", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alex", full_name: "Alex Example", accounts: [] },

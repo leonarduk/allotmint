@@ -454,10 +454,14 @@ def test_post_transaction_persists_and_updates_portfolio(client, monkeypatch):
     monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", snapshot)
 
     owner = _get_owners(client)[0]["owner"]
+    # Post into a fresh, empty account: a transaction write rebuilds the whole
+    # account from its transaction log, so posting into a real account (CI
+    # syncs real data from S3) would also revalue its existing holdings.
+    account = "zztestacct"
+    resp = client.post("/accounts", json={"owner": owner, "account_type": account})
+    assert resp.status_code == 201
+
     portfolio = client.get(f"/portfolio/{owner}").json()
-    accounts = portfolio.get("accounts", [])
-    assert accounts, "Portfolio has no accounts"
-    account = accounts[0]["account_type"]
     before = portfolio["total_value_estimate_gbp"]
     assert _find_holding(portfolio, account, "ZZZZ.L") is None
 

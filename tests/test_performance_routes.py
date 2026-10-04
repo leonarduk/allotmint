@@ -368,3 +368,72 @@ def test_group_alpha_handles_near_zero_benchmark(client, monkeypatch):
         "benchmark_cumulative_return": None,
         "series": [],
     }
+
+
+# ---------------------------------------------------------------------------
+# Unit contract (#8570): every headline metric the Performance page reads is
+# a FRACTION (0.015 = 1.5%), on the owner AND the group routes. The frontend
+# formats these as ``value * 100`` with no "|x| > 1 means percent" guessing,
+# so a route that started returning percent would silently render 100x too
+# large. These tests run the real calculations end to end through the routes
+# (only the price/ledger inputs are faked) and pin the unit.
+# ---------------------------------------------------------------------------
+
+# Exactly one year apart (2024 is a leap year: Jan 1 -> Dec 31 is 365 days),
+# so XIRR over the window equals the simple return.
+_UNIT_DATES = pd.to_datetime(["2024-01-01", "2024-05-01", "2024-09-01", "2024-12-31"]).date
+_UNIT_VALUES = [100.0, 101.0, 99.99, 101.5]
+
+
+@pytest.fixture
+def unit_inputs(monkeypatch):
+    series = pd.Series(_UNIT_VALUES, index=_UNIT_DATES)
+
+    def fake_portfolio_value_series(name, days, *, group=False, pricing_date=None, **_):
+        return series
+
+    def fake_load_meta_timeseries(ticker, exchange, days):
+        # Flat benchmark: alpha == portfolio return, tracking error == the
+        # annualised std-dev of the portfolio's own period returns.
+        return pd.DataFrame({"Date": pd.to_datetime(list(_UNIT_DATES)), "Close": [100.0] * 4})
+
+    # A single 100.00 deposit on day one, so XIRR has a cash flow to solve.
+    txs = [{"date": "2024-01-01", "type": "DEPOSIT", "amount_minor": 10000}]
+
+    monkeypatch.setattr(portfolio_utils, "_portfolio_value_series", fake_portfolio_value_series)
+    monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
+    monkeypatch.setattr(portfolio_utils, "load_transactions", lambda owner: list(txs))
+    monkeypatch.setattr(portfolio_utils, "_group_transactions", lambda slug: (list(txs), []))
+    return series
+
+
+def _expected_unit_metrics(series: pd.Series) -> dict[str, float]:
+    rets = series.pct_change().dropna()
+    return {
+        "alpha_vs_benchmark": 0.015,  # 101.5 / 100 - 1, benchmark flat
+        "tracking_error": float(rets.std() * (252**0.5)),
+        "max_drawdown": 99.99 / 101.0 - 1,  # about -0.01
+        "time_weighted_return": 0.015,
+        "xirr": 0.015,
+    }
+
+
+@pytest.mark.parametrize("prefix", ["/performance/alice", "/performance-group/all"])
+@pytest.mark.parametrize(
+    "suffix, key",
+    [
+        ("alpha", "alpha_vs_benchmark"),
+        ("tracking-error", "tracking_error"),
+        ("max-drawdown", "max_drawdown"),
+        ("twr", "time_weighted_return"),
+        ("xirr", "xirr"),
+    ],
+)
+def test_performance_metrics_are_returned_as_fractions(client, unit_inputs, prefix, suffix, key):
+    resp = client.get(f"{prefix}/{suffix}")
+    assert resp.status_code == 200, resp.text
+    value = resp.json()[key]
+    expected = _expected_unit_metrics(unit_inputs)[key]
+    # A percent-unit response would be 100x this (e.g. 1.5 instead of 0.015).
+    assert value == pytest.approx(expected, rel=1e-4, abs=1e-6)
+    assert abs(value) < 1

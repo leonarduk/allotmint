@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  buildInvestingComUrl,
+  buildMorningstarUrl,
   decodePathSegment,
   encodePathSegment,
   stripAuthCallbackParams,
@@ -138,5 +140,55 @@ describe("stripAuthCallbackParams", () => {
       document.title,
       "/callback",
     );
+  });
+});
+
+describe("buildInvestingComUrl", () => {
+  it("searches by ISIN when available", () => {
+    expect(buildInvestingComUrl("gb00bh4hks39", "VOD.L")).toBe(
+      "https://www.investing.com/search/?q=GB00BH4HKS39",
+    );
+  });
+
+  it("falls back to the base ticker without the exchange suffix", () => {
+    expect(buildInvestingComUrl(null, "VOD.L")).toBe(
+      "https://www.investing.com/search/?q=VOD",
+    );
+    expect(buildInvestingComUrl("not-an-isin", "AAPL.N")).toBe(
+      "https://www.investing.com/search/?q=AAPL",
+    );
+    expect(buildInvestingComUrl(null, "AAPL")).toBe(
+      "https://www.investing.com/search/?q=AAPL",
+    );
+    expect(buildInvestingComUrl(null, "vod.l")).toBe(
+      "https://www.investing.com/search/?q=VOD",
+    );
+  });
+
+  it("strips only the exchange suffix, keeping dotted share classes", () => {
+    expect(buildInvestingComUrl(null, "BRK.B.N")).toBe(
+      "https://www.investing.com/search/?q=BRK.B",
+    );
+    expect(buildInvestingComUrl(null, "PBR-A.N")).toBe(
+      "https://www.investing.com/search/?q=PBR-A",
+    );
+  });
+
+  it("returns null when there is nothing to search for", () => {
+    expect(buildInvestingComUrl(undefined, "")).toBeNull();
+  });
+});
+
+describe("buildMorningstarUrl", () => {
+  it("searches Morningstar by ISIN", () => {
+    expect(buildMorningstarUrl(" GB00BH4HKS39 ")).toBe(
+      "https://global.morningstar.com/en-gb/search?query=GB00BH4HKS39",
+    );
+  });
+
+  it("returns null without a valid ISIN", () => {
+    expect(buildMorningstarUrl(null)).toBeNull();
+    expect(buildMorningstarUrl("")).toBeNull();
+    expect(buildMorningstarUrl("VOD")).toBeNull();
   });
 });

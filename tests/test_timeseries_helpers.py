@@ -51,6 +51,8 @@ def test_get_scaling_override_reads_override_file(tmp_path, monkeypatch):
     (data_dir / "scaling_overrides.json").write_text(json.dumps(overrides))
 
     monkeypatch.setattr(th.config, "repo_root", tmp_path)
+    # data_root takes precedence over repo_root (#7787); point it somewhere empty.
+    monkeypatch.setattr(th.config, "data_root", tmp_path / "no-data-root")
 
     value = th.get_scaling_override("ABC.L", "L", requested_scaling=None)
 

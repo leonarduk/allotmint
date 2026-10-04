@@ -106,6 +106,10 @@ class LedgerPerformance:
     instrument_pnl: pd.DataFrame
     names: Mapping[str, str] = field(default_factory=dict)
     unpriced: tuple[str, ...] = ()
+    # External money in (+) / out (-) at the start of each day, and income
+    # paid out of accounts whose cash is not tracked (see the module docstring).
+    flows: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
+    income: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
 
 
 @dataclass
@@ -417,7 +421,8 @@ def build_ledger_performance(
     transfer_flows = transfer_flows.fillna(0.0) * prices
     values = instrument_values.sum(axis=1) + cash
     flows = _daily(events.external, index) + transfer_flows.sum(axis=1)
-    returns, denominators = _chain_returns(values, flows, _daily(events.income, index))
+    paid_out = _daily(events.income, index)
+    returns, denominators = _chain_returns(values, flows, paid_out)
     trade_flows = _keyed_frame(events.trade_flows, index).reindex(columns=prices.columns, fill_value=0.0)
     income = _keyed_frame(events.attributed_income, index).reindex(columns=prices.columns, fill_value=0.0)
     pnl = (
@@ -437,6 +442,8 @@ def build_ledger_performance(
         instrument_pnl=pnl,
         names=dict(events.names),
         unpriced=unpriced,
+        flows=flows,
+        income=paid_out,
     )
 
 

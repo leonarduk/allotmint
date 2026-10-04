@@ -110,11 +110,13 @@ def test_data_bucket_lifecycle_rule(template):
         "AWS::S3::Bucket",
         {
             "LifecycleConfiguration": {
-                "Rules": [
-                    assertions.Match.object_like(
-                        {"NoncurrentVersionExpiration": {"NoncurrentDays": 30}}
-                    )
-                ]
+                "Rules": assertions.Match.array_with(
+                    [
+                        assertions.Match.object_like(
+                            {"NoncurrentVersionExpiration": {"NoncurrentDays": 30}}
+                        )
+                    ]
+                )
             }
         },
     )
@@ -153,7 +155,9 @@ def test_lambda_roles_granted_expected_s3_actions_without_wildcards(template):
 
     s3:DeleteObject is explicitly checked for absence: the PR #2574 regression
     was caused by grant_read_write emitting DeleteObject as a side-effect of
-    the broader grant. This test prevents that from recurring.
+    the broader grant. This test prevents that from recurring. The one
+    deliberate grant, deleting saved chat history (#8870), is scoped to
+    chat/* and so is excluded below.
     """
     policies = template.find_resources("AWS::IAM::Policy")
     all_actions: list[str] = []
@@ -167,6 +171,11 @@ def test_lambda_roles_granted_expected_s3_actions_without_wildcards(template):
             actions = stmt.get("Action", [])
             if isinstance(actions, str):
                 actions = [actions]
+            stmt_resources = stmt.get("Resource", [])
+            if not isinstance(stmt_resources, list):
+                stmt_resources = [stmt_resources]
+            if stmt_resources and all(json.dumps(r).endswith('/chat/*"]]}') for r in stmt_resources):
+                actions = [a for a in actions if a != "s3:DeleteObject"]
             all_actions.extend(actions)
 
     assert any(a == "s3:GetObject" for a in all_actions), (

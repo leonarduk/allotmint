@@ -1128,6 +1128,83 @@ def test_get_security_meta_canonicalises_legacy_asset_class(monkeypatch, stored,
     assert unheld["instrument_type"] == expected
 
 
+_LEGACY_ETF_META = {
+    "name": "Vanguard FTSE All-World UCITS ETF",
+    "instrumentType": "ETF",
+    "asset_class": "Equity",
+    "sector": "Financials",
+}
+_BANK_META = {
+    "name": "Lloyds Banking Group plc",
+    "instrumentType": "Equity",
+    "asset_class": "Equity",
+    "sector": "Financials",
+}
+
+
+def test_get_security_meta_corrects_legacy_issuer_sector_on_fund(monkeypatch):
+    """Un-backfilled metadata still files an ETF under its issuer's sector;
+    get_security_meta returns its exposure sector instead, held or not, while
+    a bank share keeps "Financials" (#9196).
+    """
+    metas = {"VWRL.L": _LEGACY_ETF_META, "LLOY.L": _BANK_META, "VUSA.L": _LEGACY_ETF_META}
+    monkeypatch.setattr(portfolio_utils, "_SECURITIES", None)
+    monkeypatch.setattr(
+        portfolio_utils,
+        "list_portfolios",
+        lambda: [
+            {
+                "accounts": [
+                    {
+                        "holdings": [
+                            {"ticker": "VWRL.L"},
+                            {"ticker": "LLOY.L"},
+                            # An HL export can carry the issuer sector itself.
+                            {"ticker": "VUSA.L", "sector": "Financial Services"},
+                        ]
+                    }
+                ]
+            }
+        ],
+    )
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda t: metas.get(t, {}))
+
+    fund = portfolio_utils.get_security_meta("VWRL.L")
+    assert fund["sector"] == "Multi-sector"
+    assert fund["asset_class"] == "equity"
+    assert portfolio_utils.get_security_meta("VUSA.L")["sector"] == "Multi-sector"
+    bank = portfolio_utils.get_security_meta("LLOY.L")
+    assert bank["sector"] == "Financials"
+    assert bank["asset_class"] == "equity"
+
+
+def test_aggregate_by_ticker_corrects_legacy_issuer_sector_on_fund(monkeypatch):
+    """Sector rows (holdings table, /allocation) get the fund's exposure sector."""
+    metas = {"VWRL.L": _LEGACY_ETF_META, "LLOY.L": _BANK_META}
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "VWRL.L", "units": 1.0, "market_value_gbp": 100.0, "cost_basis_gbp": 90.0},
+                    {"ticker": "LLOY.L", "units": 1.0, "market_value_gbp": 50.0, "cost_basis_gbp": 40.0},
+                ]
+            }
+        ]
+    }
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
+    monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda t: metas.get(t, {}))
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda t: {})
+
+    rows = {r["ticker"]: r for r in portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")}
+
+    assert rows["VWRL.L"]["sector"] == "Multi-sector"
+    assert rows["LLOY.L"]["sector"] == "Financials"
+    assert "_instrument_meta" not in rows["VWRL.L"]
+
+
 def test_get_security_meta_resolves_bare_watchlist_symbol(monkeypatch):
     """A bare watchlist symbol (e.g. "PFE") must resolve via the persisted
     exchange-qualified instrument record (e.g. ``data/instruments/N/PFE.json``

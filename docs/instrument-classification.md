@@ -68,6 +68,17 @@ case-insensitively:
 - Frontend: `translateInstrumentType` (`src/lib/instrumentType.ts`) and
   `assetClassLabel` (`src/lib/assetClass.ts`) look values up lower-cased.
 
+### Read-time fund sector correction
+
+Until a data root is backfilled, a fund can still carry its issuer's sector
+("Financials" on a Vanguard ETF). `exposure_sector()` applies the step 5 rules
+when metadata is read, so a fund whose sector is the issuer's, a wrapper or
+contradicts its asset class is reported with its exposure label. Company
+shares keep their sector. It is used by `enrich_holding`,
+`portfolio_utils.get_security_meta`, `aggregate_by_ticker` rows and
+`/instrument/search`. The admin instrument listing still shows the stored
+value, so what you edit is what is on disk.
+
 Overrides are read once per change of the overrides file (the file's
 modification time is checked), so edits take effect without a restart.
 

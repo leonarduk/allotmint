@@ -402,3 +402,26 @@ def test_missing_asset_class_reported_once_per_instrument(monkeypatch, tmp_path)
     issues = aggregate_holding_issues(tmp_path)
 
     assert [i.id for i in issues if i.type == IssueType.MISSING_ASSET_CLASS] == ["MISSING_ASSET_CLASS:PFE:N"]
+
+
+def test_missing_metadata_reports_only_the_metadata_issue(monkeypatch, tmp_path):
+    """A holding with no metadata record gets UNRESOLVED_TICKER/WRONG_EXCHANGE
+    and no MISSING_ASSET_CLASS: there is no record to classify yet, and the fix
+    (create or re-point the metadata) is classified on ingest (#9196). One
+    issue per missing record, not two.
+    """
+    owner = tmp_path / "demo"
+    owner.mkdir()
+    document = {"owner": "demo", "account_type": "isa", "holdings": [{"ticker": "GONE.L"}, {"ticker": "MOVED.L"}]}
+    (owner / "isa.json").write_text(json.dumps(document), encoding="utf-8")
+    monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: {})
+    monkeypatch.setattr(
+        issues_module,
+        "resolve_instrument_ticker",
+        lambda symbol, create_missing=False: "MOVED.N" if symbol == "MOVED" else None,
+    )
+    monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: True)
+
+    issues = aggregate_holding_issues(tmp_path)
+
+    assert sorted(i.type for i in issues) == [IssueType.UNRESOLVED_TICKER, IssueType.WRONG_EXCHANGE]

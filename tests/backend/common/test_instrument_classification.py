@@ -210,6 +210,33 @@ def test_resolve_instrument_type(meta, expected) -> None:
     assert ic.resolve_instrument_type(meta) == expected
 
 
+@pytest.mark.parametrize(
+    "meta,expected",
+    [
+        # Un-backfilled fund records: issuer or wrapper sector -> exposure label.
+        (_meta("Vanguard FTSE All-World UCITS ETF", "ETF", "Financials", asset_class="Equity"), "Multi-sector"),
+        (_meta("iShares Core UK Gilts UCITS ETF", "ETF", "Financial Services"), "Fixed Income"),
+        (_meta("Henderson Far East Income", None, "Investment Trust", asset_class="Equity"), "Multi-sector"),
+        (_meta("WisdomTree Physical Gold", "ETC", "Materials"), "Commodities"),
+        # An equity fund with a real sector keeps it.
+        (_meta("SPDR MSCI World Consumer Staples UCITS ETF", "ETF", "Consumer Staples"), "Consumer Staples"),
+        # Already backfilled: unchanged.
+        (_meta("Vanguard FTSE All-World UCITS ETF", "ETF", "Multi-sector", asset_class="equity"), "Multi-sector"),
+        # Company shares keep their sector, including Financials.
+        (_meta("Lloyds Banking Group plc", "Equity", "Financials", asset_class="Equity"), "Financials"),
+        (_meta("Lloyds Banking Group plc", "Equity", None), None),
+    ],
+)
+def test_exposure_sector(meta, expected) -> None:
+    assert ic.exposure_sector(meta) == expected
+
+
+def test_exposure_sector_matches_backfill() -> None:
+    """Read-time correction gives the same sector the backfill writes."""
+    meta = _meta("iShares VII plc MSCI UK Small CAP UCITS ETF", "ETF", "Financials", asset_class="Fund")
+    assert ic.exposure_sector(meta) == ic.classify_instrument(meta)["sector"]
+
+
 def test_cached_overrides_reread_only_when_file_changes(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(ic.config, "data_root", tmp_path)
     path = tmp_path / ic.OVERRIDES_FILENAME

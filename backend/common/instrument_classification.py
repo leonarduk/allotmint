@@ -276,6 +276,29 @@ def _fund_sector(sector: str, asset_class: str) -> Optional[str]:
     return None
 
 
+def exposure_sector(meta: Mapping[str, Any]) -> Optional[str]:
+    """Return the sector to show for persisted ``meta`` (read-time correction).
+
+    Metadata not yet backfilled by ``scripts/classify_instruments.py`` (a
+    stale S3 copy, an un-backfilled live data root) can still file a fund
+    under its issuer's sector: a Vanguard ETF as "Financials". For a fund
+    whose sector is the issuer's, a wrapper ("Investment Trust") or
+    contradicts its asset class, this returns the exposure label the backfill
+    would write (``"Multi-sector"``, ``"Fixed Income"``, ...), using the same
+    :func:`_fund_sector` rules. Any other sector, including a company's
+    "Financials", is returned unchanged; a blank sector on a non-fund gives
+    ``None``. The persisted asset class wins over a derived one so a manual
+    override that has been written to disk is respected.
+    """
+    sector = _text(meta, "sector")
+    if not is_fund(meta):
+        return sector or None
+    asset_class = normalise_asset_class(meta.get("asset_class") or meta.get("assetClass")) or derive_asset_class(meta)
+    if asset_class is None:
+        return sector or None
+    return _fund_sector(sector, asset_class) or sector or None
+
+
 def classify_instrument(
     meta: Mapping[str, Any],
     override: Optional[Mapping[str, Any]] = None,

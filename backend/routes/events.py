@@ -22,7 +22,7 @@ def _resolve_events_path() -> Path:
     if config.data_root:
         for rel in ("events/market_events.json", "events.json"):
             candidate = config.data_root / rel
-            if candidate.exists():
+            if candidate.is_file():
                 return candidate
     return _BUNDLED_EVENTS_PATH
 
@@ -52,6 +52,14 @@ except FileNotFoundError:
     logger.warning(
         "Scenario events file not found at %s; no events will be offered",
         sanitise_log_value(_events_path),
+    )
+    _EVENTS = []
+except (OSError, ValueError, KeyError, TypeError) as exc:
+    # A malformed catalogue must not take down the whole app at import time.
+    logger.error(
+        "Scenario events file %s is unreadable or malformed (%s); no events will be offered",
+        sanitise_log_value(_events_path),
+        sanitise_log_value(exc),
     )
     _EVENTS = []
 

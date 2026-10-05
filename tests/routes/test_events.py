@@ -1,5 +1,6 @@
 import importlib
 import json
+import logging
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -36,10 +37,10 @@ def test_list_events_filters_extra_fields(monkeypatch, tmp_path):
     reload_events_module()
 
 
-def test_list_events_missing_file(monkeypatch, tmp_path):
+def test_list_events_missing_file(monkeypatch, tmp_path, caplog):
     missing = tmp_path / "missing.json"
 
-    with monkeypatch.context() as patcher:
+    with monkeypatch.context() as patcher, caplog.at_level(logging.WARNING):
         patcher.setattr(events_module, "_events_path", missing, raising=False)
         reload_events_module()
         client = create_client()
@@ -48,6 +49,7 @@ def test_list_events_missing_file(monkeypatch, tmp_path):
 
     assert response.status_code == 200
     assert response.json() == []
+    assert "Scenario events file not found" in caplog.text
 
     reload_events_module()
 
@@ -94,5 +96,23 @@ def test_list_events_reads_market_events_layout(monkeypatch, tmp_path):
 
     assert response.status_code == 200
     assert response.json() == [{"id": "2020-03-16", "name": "2020-03-16: COVID-19 volatility"}]
+
+    reload_events_module()
+
+
+def test_list_events_malformed_file_degrades_to_empty(monkeypatch, tmp_path, caplog):
+    bad = tmp_path / "events.json"
+    bad.write_text(json.dumps({"events": [{"date": "2020-03-16"}]}))  # no description
+
+    with monkeypatch.context() as patcher, caplog.at_level(logging.ERROR):
+        patcher.setattr(events_module, "_events_path", bad, raising=False)
+        reload_events_module()
+        client = create_client()
+
+        response = client.get("/events")
+
+    assert response.status_code == 200
+    assert response.json() == []
+    assert "unreadable or malformed" in caplog.text
 
     reload_events_module()

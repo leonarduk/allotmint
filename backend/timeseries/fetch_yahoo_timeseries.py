@@ -14,7 +14,7 @@ from backend.timeseries.ticker_validator import (
     is_valid_ticker,
     record_skipped_ticker,
 )
-from backend.utils.timeseries_helpers import STANDARD_COLUMNS
+from backend.utils.timeseries_helpers import STANDARD_COLUMNS, round_price_columns
 
 # Setup logger
 logger = logging.getLogger("yahoo_timeseries")
@@ -97,10 +97,9 @@ def normalize_history(df: pd.DataFrame, ticker: str, source: str) -> pd.DataFram
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"]).dt.date
 
-    # Round price columns
-    for col in ["Open", "High", "Low", "Close"]:
-        if col in df.columns:
-            df[col] = df[col].round(2)
+    # Significant figures, not a fixed 2 dp, so sub-1 prices keep their
+    # precision (#9369).
+    round_price_columns(df)
 
     # Attach metadata columns
     df["Ticker"] = ticker

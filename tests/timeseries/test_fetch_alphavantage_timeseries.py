@@ -140,6 +140,36 @@ def test_fetch_range_success(monkeypatch):
     assert df["Ticker"].iloc[0] == "AAA"
 
 
+def test_fetch_range_keeps_sub_one_and_pence_precision(monkeypatch):
+    """Prices are stored to six significant figures, not 2 dp (#9369)."""
+    _patch_validation(monkeypatch)
+    payload = {
+        "Time Series (Daily)": {
+            "2024-01-02": {
+                "1. open": "0.9399",
+                "2. high": "0.9449",
+                "3. low": "0.9387",
+                "4. close": "0.9416",
+                "6. volume": "1000",
+            },
+            "2024-01-01": {
+                "1. open": "4567.25",
+                "2. high": "4580.5",
+                "3. low": "4551.0",
+                "4. close": "4573.5",
+                "6. volume": "2000",
+            },
+        }
+    }
+    monkeypatch.setattr(av.requests, "get", lambda *a, **k: FakeResp(payload=payload))
+
+    df = fetch_alphavantage_timeseries_range("AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo")
+
+    assert df["Close"].tolist() == [4573.5, 0.9416]
+    assert df["Open"].tolist() == [4567.25, 0.9399]
+    assert df["Close"].dtype == "float64"
+
+
 def test_fetch_range_invalid_ticker(monkeypatch):
     monkeypatch.setattr(av, "is_valid_ticker", lambda *a, **k: False)
     monkeypatch.setattr(av, "record_skipped_ticker", lambda *a, **k: None)

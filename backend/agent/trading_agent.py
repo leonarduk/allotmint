@@ -422,6 +422,46 @@ def _alert_on_drawdown(threshold: float = DRAWDOWN_ALERT_THRESHOLD) -> None:
             send_trade_alert(f"{owner} portfolio drawdown {max_dd*100:.2f}% exceeds {threshold*100:.2f}%")
 
 
+def _check_signal_compliance(sig: Dict, owners: Iterable[str], require_pro_checks: bool) -> tuple[bool, bool]:
+    """Run the compliance check for ``sig`` against every owner.
+
+    Returns ``(blocked, errored)``. An owner whose check raises (e.g. bad
+    imported transaction data) is logged and skipped rather than failing the
+    whole run, so one owner's data cannot take down signals for everyone.
+    The signal is then tagged as having skipped compliance, or blocked
+    outright when ``require_pro_checks`` demands that checks actually run.
+    """
+
+    errored = False
+    for owner in owners:
+        trade = {
+            "owner": owner,
+            "ticker": sig["ticker"],
+            "type": sig["action"].lower(),
+            "date": date.today().isoformat(),
+        }
+        try:
+            result = compliance.check_trade(trade)
+        except Exception:
+            logger.exception(
+                "Compliance check failed for %s on %s",
+                sanitise_log_value(owner),
+                sanitise_log_value(sig["ticker"]),
+            )
+            if require_pro_checks:
+                return True, True
+            errored = True
+            continue
+        if result.get("warnings"):
+            logger.warning(
+                "Compliance warnings for %s: %s",
+                sanitise_log_value(owner),
+                sanitise_log_value(result["warnings"]),
+            )
+            return True, errored
+    return False, errored
+
+
 def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List[Dict]:
     """Refresh prices, generate signals and publish alerts.
 
@@ -563,31 +603,16 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
         signals = [s for s in signals if s["action"] != "BUY" or s["ticker"] in allowed]
     allowed_signals: List[Dict] = []
     for sig in signals:
-        blocked = False
+        compliance_errored = False
         if not compliance_unavailable:
-            for owner in owners:
-                trade = {
-                    "owner": owner,
-                    "ticker": sig["ticker"],
-                    "type": sig["action"].lower(),
-                    "date": date.today().isoformat(),
-                }
-                result = compliance.check_trade(trade)
-                if result.get("warnings"):
-                    logger.warning(
-                        "Compliance warnings for %s: %s",
-                        sanitise_log_value(owner),
-                        sanitise_log_value(result["warnings"]),
-                    )
-                    blocked = True
-                    break
-        if blocked:
-            continue
+            blocked, compliance_errored = _check_signal_compliance(sig, owners, cfg.require_pro_checks)
+            if blocked:
+                continue
         ticker = sig["ticker"]
         price = snapshot[ticker]["last_price"]
 
         checks_skipped: List[str] = []
-        if compliance_unavailable:
+        if compliance_unavailable or compliance_errored:
             checks_skipped.append("compliance")
         if screening_unavailable and fundamental_screen_applicable and sig["action"] == "BUY":
             checks_skipped.append("fundamental_screen")

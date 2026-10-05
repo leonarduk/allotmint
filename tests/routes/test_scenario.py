@@ -77,14 +77,15 @@ def test_run_historical_scenario_valid_horizons(monkeypatch):
 
     captured = {}
 
-    def fake_apply_historical_event(portfolio, event_id=None, date=None, horizons=None):
-        captured["event_id"] = event_id
-        captured["date"] = date
-        captured["horizons"] = list(horizons or [])
+    def fake_apply_historical_event(portfolio, event=None, horizons=None):
+        captured["event"] = event
+        captured["horizons"] = dict(horizons)
         total = portfolio["total_value_estimate_gbp"]
-        return {h: {"total_value_estimate_gbp": total - h} for h in horizons or []}
+        return {label: {"total_value_gbp": total - days} for label, days in horizons.items()}
 
     monkeypatch.setattr(scenario, "apply_historical_event", fake_apply_historical_event)
+    event = {"id": "evt-1", "name": "Event", "date": "2020-02-19", "proxy_index": "SPY.N"}
+    monkeypatch.setattr(scenario, "get_event", lambda eid: event if eid == "evt-1" else None)
 
     results = scenario.run_historical_scenario(
         event_id="evt-1",
@@ -92,25 +93,27 @@ def test_run_historical_scenario_valid_horizons(monkeypatch):
         horizons=["1d, 1w", "30"],
     )
 
-    assert captured["event_id"] == "evt-1"
-    assert captured["date"] == "2024-01-01"
-    assert captured["horizons"] == [1, 7, 30]
+    assert captured["event"] is event
+    assert captured["horizons"] == {"1d": 1, "1w": 7, "30": 30}
     assert results == [
         {
             "owner": "alice",
             "baseline_total_value_gbp": 150.0,
             "horizons": {
-                1: {
+                "1d": {
                     "baseline_total_value_gbp": 150.0,
                     "shocked_total_value_gbp": 149.0,
+                    "coverage_pct": None,
                 },
-                7: {
+                "1w": {
                     "baseline_total_value_gbp": 150.0,
                     "shocked_total_value_gbp": 143.0,
+                    "coverage_pct": None,
                 },
-                30: {
+                "30": {
                     "baseline_total_value_gbp": 150.0,
                     "shocked_total_value_gbp": 120.0,
+                    "coverage_pct": None,
                 },
             },
         }
@@ -119,7 +122,7 @@ def test_run_historical_scenario_valid_horizons(monkeypatch):
 
 def test_run_historical_scenario_invalid_token():
     with pytest.raises(HTTPException) as excinfo:
-        scenario.run_historical_scenario(event_id="evt", horizons=["1d", "boom"])
+        scenario.run_historical_scenario(event_id="covid-2020", horizons=["1d", "boom"])
 
     assert excinfo.value.status_code == 400
     assert excinfo.value.detail == "invalid horizon"
@@ -131,3 +134,29 @@ def test_run_historical_scenario_missing_identifiers():
 
     assert excinfo.value.status_code == 400
     assert excinfo.value.detail == "event_id or date must be provided"
+
+
+def test_run_historical_scenario_unknown_event():
+    with pytest.raises(HTTPException) as excinfo:
+        scenario.run_historical_scenario(event_id="no-such-event", horizons=["1d"])
+
+    assert excinfo.value.status_code == 404
+
+
+def test_run_historical_scenario_event_without_date(monkeypatch):
+    monkeypatch.setattr(scenario, "get_event", lambda eid: {"id": eid, "name": "Undated", "date": None})
+    with pytest.raises(HTTPException) as excinfo:
+        scenario.run_historical_scenario(event_id="undated", horizons=["1d"])
+
+    assert excinfo.value.status_code == 422
+
+
+def test_run_historical_scenario_adhoc_date_uses_default_proxy():
+    assert scenario._resolve_event(None, "2022-09-26") == {  # pylint: disable=protected-access
+        "id": "2022-09-26",
+        "date": "2022-09-26",
+        "proxy_index": scenario._DEFAULT_PROXY_INDEX,  # pylint: disable=protected-access
+    }
+    with pytest.raises(HTTPException) as excinfo:
+        scenario.run_historical_scenario(event_id=None, date="not-a-date", horizons=["1d"])
+    assert excinfo.value.status_code == 400

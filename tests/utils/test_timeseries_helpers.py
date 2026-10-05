@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
+import pytest
 
 import backend.utils.timeseries_helpers as th
 
@@ -583,3 +584,40 @@ def test_get_scaling_override_honours_valid_factor_on_another_exchange(monkeypat
 
     assert th.get_scaling_override("ABC", "N", None) == 100.0
     assert th.get_scaling_override("ABC", "L", None) == 1.0
+
+
+def test_round_significant_scales_with_price_level():
+    """Six significant figures keep sub-1 and pence-scale precision alike (#9369)."""
+    values = pd.Series([0.94163, 0.941649, 2.3456789, 4573.54321, 123456.789, 0.0, -0.94163], name="Close")
+
+    out = th.round_significant(values)
+
+    assert out.tolist() == [0.94163, 0.941649, 2.34568, 4573.54, 123457.0, 0.0, -0.94163]
+    assert out.dtype == "float64"
+    assert out.name == "Close"
+
+
+def test_round_significant_passes_through_nan_inf_and_coerces_text():
+    values = pd.Series([np.nan, np.inf, "n/a", "0.9416"], index=[3, 4, 5, 6])
+
+    out = th.round_significant(values)
+
+    assert np.isnan(out[3]) and np.isinf(out[4]) and np.isnan(out[5])
+    assert out[6] == 0.9416
+    assert out.index.tolist() == [3, 4, 5, 6]
+
+
+def test_round_significant_rejects_non_positive_digits():
+    with pytest.raises(ValueError):
+        th.round_significant(pd.Series([1.0]), digits=0)
+
+
+def test_round_price_columns_leaves_volume_and_metadata_alone():
+    df = pd.DataFrame({"Close": [0.94163218], "Volume": [123456789], "Ticker": ["BPCR.L"]})
+
+    out = th.round_price_columns(df)
+
+    assert out is df
+    assert df.loc[0, "Close"] == 0.941632
+    assert df.loc[0, "Volume"] == 123456789
+    assert df.loc[0, "Ticker"] == "BPCR.L"

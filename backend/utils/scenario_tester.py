@@ -9,7 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import math
 from copy import deepcopy
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, Mapping
 
 import pandas as pd
 
@@ -18,6 +18,7 @@ from backend.common.constants import (
     EFFECTIVE_COST_BASIS_GBP,
 )
 from backend.common.prices import get_price_gbp
+from backend.common.sector_labels import is_cash_instrument
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.timeseries.total_return import PRICE_RETURN_BASIS, TOTAL_RETURN_BASIS, total_return_frame
 from backend.utils.timeseries_helpers import (
@@ -68,25 +69,6 @@ def apply_price_shock(portfolio: Dict[str, Any], ticker: str, pct_change: float)
     return shocked
 
 
-def _scale_portfolio(portfolio: Dict[str, Any], horizons: Iterable[int] | None = None) -> Dict[int, Dict[str, Any]]:
-    """Scale ``portfolio`` by a simple factor for each horizon."""
-
-    horizons = list(horizons or [1])
-    shocked: Dict[int, Dict[str, Any]] = {}
-    for horizon in horizons:
-        factor = max(0.0, 1 - horizon / 100.0)
-        pf_copy = deepcopy(portfolio)
-        for acct in pf_copy.get("accounts", []):
-            val = float(acct.get("value_estimate_gbp") or 0.0) * factor
-            acct["value_estimate_gbp"] = round(val, 2)
-        pf_copy["total_value_estimate_gbp"] = round(
-            sum(a.get("value_estimate_gbp") or 0.0 for a in pf_copy.get("accounts", [])),
-            2,
-        )
-        shocked[horizon] = pf_copy
-    return shocked
-
-
 # ---------------------------------------------------------------------------
 # Historical event application
 
@@ -124,8 +106,13 @@ def _close_column(df: pd.DataFrame) -> str | None:
     return nm.get("close_gbp") or nm.get("close") or nm.get("adj close") or nm.get("adj_close")
 
 
+# A close more than this many calendar days after the wanted date is not a
+# usable proxy for it (e.g. the instrument only started trading later).
+_MAX_PRICE_GAP_DAYS = 7
+
+
 def _price_on_or_after(df: pd.DataFrame, date_col: str, price_col: str, target: dt.date) -> float | None:
-    mask = df[date_col] >= target
+    mask = (df[date_col] >= target) & (df[date_col] <= target + dt.timedelta(days=_MAX_PRICE_GAP_DAYS))
     if not mask.any():
         return None
     try:
@@ -134,16 +121,21 @@ def _price_on_or_after(df: pd.DataFrame, date_col: str, price_col: str, target: 
         return None
 
 
-def _forward_returns(ticker: str, exchange: str, event_date: dt.date) -> tuple[Dict[str, float | None], str]:
-    """Total returns (price + reinvested dividends) from ``event_date`` per preset horizon.
+def _forward_returns(
+    ticker: str,
+    exchange: str,
+    event_date: dt.date,
+    horizons: Mapping[str, int] = _HORIZONS,
+) -> tuple[Dict[str, float | None], str]:
+    """Total returns (price + reinvested dividends) from ``event_date`` per horizon.
 
     Returns ``(returns, return_basis)``; the basis is ``"price"`` when the
     ticker has no stored corporate actions (see ``total_return_frame``).
     """
-    end = event_date + dt.timedelta(days=max(_HORIZONS.values()) + 5)
+    end = event_date + dt.timedelta(days=max(horizons.values()) + _MAX_PRICE_GAP_DAYS)
     df = load_meta_timeseries_range(ticker, exchange, start_date=event_date, end_date=end)
     if df is None or df.empty:
-        return {k: None for k in _HORIZONS}, PRICE_RETURN_BASIS
+        return {k: None for k in horizons}, PRICE_RETURN_BASIS
 
     df, basis = total_return_frame(df, ticker, exchange)
     scale = get_scaling_override(ticker, exchange, None)
@@ -154,7 +146,7 @@ def _forward_returns(ticker: str, exchange: str, event_date: dt.date) -> tuple[D
     date_col = nm.get("date") or nm.get("index") or df.columns[0]
     price_col = _close_column(df)
     if not price_col:
-        return {k: None for k in _HORIZONS}, basis
+        return {k: None for k in horizons}, basis
     df[date_col] = pd.to_datetime(df[date_col], errors="coerce").dt.date
     df[price_col] = pd.to_numeric(df[price_col], errors="coerce")
     df = df.sort_values(date_col)
@@ -164,7 +156,7 @@ def _forward_returns(ticker: str, exchange: str, event_date: dt.date) -> tuple[D
         base = None
 
     results: Dict[str, float | None] = {}
-    for label, days in _HORIZONS.items():
+    for label, days in horizons.items():
         tgt = event_date + dt.timedelta(days=days)
         end_price = _price_on_or_after(df, date_col, price_col, tgt)
         if end_price is not None and not math.isfinite(end_price):
@@ -176,78 +168,16 @@ def _forward_returns(ticker: str, exchange: str, event_date: dt.date) -> tuple[D
     return results, basis
 
 
-def apply_historical_event_portfolio(
-    portfolio: Dict[str, Any],
-    event: Any | None = None,
-    *,
-    event_id: str | None = None,
-    date: str | None = None,
-    horizons: Iterable[int] | None = None,
-) -> Dict[Any, Any]:
-    """Return shocked portfolio valuations for a historical event.
-
-    This helper aggregates holding-level returns into portfolio totals for a
-    number of preset horizons. It is primarily used by API endpoints that need
-    to display the portfolio value and change after an event.  When ``event`` is
-    omitted but an ``event_id`` or ``date`` is supplied a simple scaling
-    placeholder is returned instead.
-    """
-
-    if event is None and (event_id or date):
-        return _scale_portfolio(portfolio, horizons)
-
-    if event is None:
-        raise ValueError("event must be provided")
-
-    baseline = float(portfolio.get("total_value_estimate_gbp") or 0.0)
-    if baseline == 0.0:
-        baseline = sum(float(a.get("value_estimate_gbp") or 0.0) for a in portfolio.get("accounts", []))
-
-    proxy_val = getattr(event, "proxy", None)
-    if proxy_val is None and isinstance(event, dict):
-        proxy_val = event.get("proxy_index")
-    proxy_tkr, proxy_ex = _parse_full_ticker(proxy_val or "")
-
-    event_date = getattr(event, "date", None)
-    if event_date is None and isinstance(event, dict):
-        event_date = event.get("date")
-    proxy = _forward_returns(proxy_tkr, proxy_ex, event_date)
-
-    totals = {k: 0.0 for k in _HORIZONS}
-    price_basis: Dict[str, set[str]] = {k: set() for k in _HORIZONS}
-    cache: Dict[str, tuple[Dict[str, float | None], str]] = {}
-    for acct in portfolio.get("accounts", []):
-        for h in acct.get("holdings", []):
-            mv = float(h.get("market_value_gbp") or 0.0)
-            if mv == 0.0:
-                continue
-            tkr, ex = _parse_full_ticker((h.get("ticker") or "").upper())
-            key = f"{tkr}.{ex}"
-            if key not in cache:
-                cache[key] = _forward_returns(tkr, ex, event_date)
-            for label in _HORIZONS:
-                r, source = _horizon_return(label, (key, cache[key]), (f"{proxy_tkr}.{proxy_ex}", proxy))
-                totals[label] += mv * (1 + r)
-                if source is not None:
-                    price_basis[label].add(source)
-
-    result: Dict[str, Dict[str, Any]] = {}
-    for label in _HORIZONS:
-        total = round(totals[label], 2)
-        result[label] = {
-            "total_value_gbp": total,
-            "delta_gbp": round(total - baseline, 2),
-            "return_basis": PRICE_RETURN_BASIS if price_basis[label] else TOTAL_RETURN_BASIS,
-            "price_return_tickers": sorted(price_basis[label]),
-        }
-    return result
-
+# Below this share of invested value with real price history, a horizon is
+# reported as unavailable instead of being extrapolated from the few covered
+# holdings.
+_MIN_COVERAGE = 0.5
 
 _TickerReturns = tuple[str, tuple[Dict[str, float | None], str]]
 
 
-def _horizon_return(label: str, own: _TickerReturns, proxy: _TickerReturns) -> tuple[float, str | None]:
-    """A holding's return for ``label``, falling back to the proxy, then to 0.0.
+def _horizon_return(label: str, own: _TickerReturns, proxy: _TickerReturns) -> tuple[float | None, str | None]:
+    """A holding's return for ``label``, falling back to the proxy's; ``None`` when neither has one.
 
     Also returns the ticker whose price-basis return was used, or ``None``
     when the return used was a total return (or there was none at all).
@@ -256,7 +186,112 @@ def _horizon_return(label: str, own: _TickerReturns, proxy: _TickerReturns) -> t
         r = returns.get(label)
         if r is not None:
             return r, (ticker if basis == PRICE_RETURN_BASIS else None)
-    return 0.0, None
+    return None, None
+
+
+def _holding_returns(
+    portfolio: Dict[str, Any],
+    event_date: dt.date,
+    horizon_days: Mapping[str, int],
+    proxy: _TickerReturns,
+) -> tuple[list[tuple[float, Dict[str, float | None]]], Dict[str, set[str]]]:
+    """Return ``(rows, price_basis)`` for the portfolio's priced holdings.
+
+    ``rows`` holds ``(market_value, {label: return | None})`` per holding. A
+    holding's own forward return is used where available, then the proxy
+    index's; cash is held flat. ``None`` means neither had prices.
+    ``price_basis`` maps each label to the tickers whose return used for it was
+    price-only (no stored dividends).
+    """
+
+    rows: list[tuple[float, Dict[str, float | None]]] = []
+    price_basis: Dict[str, set[str]] = {k: set() for k in horizon_days}
+    cache: Dict[str, tuple[Dict[str, float | None], str]] = {}
+    for acct in portfolio.get("accounts", []):
+        for h in acct.get("holdings", []):
+            mv = float(h.get("market_value_gbp") or 0.0)
+            if mv == 0.0:
+                continue
+            full = (h.get("ticker") or "").upper()
+            if is_cash_instrument(full, h.get("instrument_type")):
+                rows.append((mv, {k: 0.0 for k in horizon_days}))
+                continue
+            tkr, ex = _parse_full_ticker(full)
+            key = f"{tkr}.{ex}"
+            if key not in cache:
+                cache[key] = _forward_returns(tkr, ex, event_date, horizon_days)
+            rets: Dict[str, float | None] = {}
+            for label in horizon_days:
+                rets[label], source = _horizon_return(label, (key, cache[key]), proxy)
+                if source is not None:
+                    price_basis[label].add(source)
+            rows.append((mv, rets))
+    return rows, price_basis
+
+
+def _shock_horizon(rows: list[tuple[float, Dict[str, float | None]]], label: str) -> tuple[float | None, float]:
+    """Return ``(change_in_holdings_value, coverage)`` for one horizon.
+
+    Holdings without any return move with the value-weighted return of those
+    that have one, provided at least ``_MIN_COVERAGE`` of the value is covered.
+    """
+
+    invested = sum(mv for mv, _ in rows)
+    covered = [(mv, rets[label]) for mv, rets in rows if rets[label] is not None]
+    covered_mv = sum(mv for mv, _ in covered)
+    coverage = covered_mv / invested if invested else 0.0
+    if coverage < _MIN_COVERAGE:
+        return None, coverage
+    covered_return = sum(mv * r for mv, r in covered) / covered_mv
+    return invested * covered_return, coverage
+
+
+def apply_historical_event_portfolio(
+    portfolio: Dict[str, Any],
+    event: Mapping[str, Any] | None,
+    *,
+    horizons: Mapping[str, int] | None = None,
+) -> Dict[str, Dict[str, Any]]:
+    """Return shocked portfolio valuations for a historical ``event``.
+
+    ``event`` must define ``date`` and ``proxy_index``. ``horizons`` maps a
+    result label to a day offset (defaults to ``_HORIZONS``). Each result has
+    ``total_value_gbp``, ``delta_gbp``, ``coverage_pct`` (share of invested
+    value with real price history), ``return_basis`` (``"total"`` unless some
+    return used was price-only) and ``price_return_tickers`` (those tickers).
+    Totals are ``None`` when coverage is too low to say anything, never a
+    fabricated number.
+    """
+
+    if not event or not event.get("date"):
+        raise ValueError("event with a date must be provided")
+    horizon_days = dict(horizons or _HORIZONS)
+
+    baseline = float(portfolio.get("total_value_estimate_gbp") or 0.0)
+    if baseline == 0.0:
+        baseline = sum(float(a.get("value_estimate_gbp") or 0.0) for a in portfolio.get("accounts", []))
+
+    event_date = _parse_date(event["date"])
+    proxy: _TickerReturns = ("", ({k: None for k in horizon_days}, TOTAL_RETURN_BASIS))
+    if event.get("proxy_index"):
+        proxy_tkr, proxy_ex = _parse_full_ticker(event["proxy_index"])
+        proxy = (f"{proxy_tkr}.{proxy_ex}", _forward_returns(proxy_tkr, proxy_ex, event_date, horizon_days))
+
+    rows, price_basis = _holding_returns(portfolio, event_date, horizon_days, proxy)
+    # Value not represented by a holding (e.g. an account total that includes
+    # unlisted items) is carried at baseline, so it never reads as a loss.
+    start = baseline or sum(mv for mv, _ in rows)
+    result: Dict[str, Dict[str, Any]] = {}
+    for label in horizon_days:
+        delta, coverage = _shock_horizon(rows, label)
+        result[label] = {
+            "total_value_gbp": None if delta is None else round(start + delta, 2),
+            "delta_gbp": None if delta is None else round(delta, 2),
+            "coverage_pct": round(coverage * 100, 1),
+            "return_basis": PRICE_RETURN_BASIS if price_basis[label] else TOTAL_RETURN_BASIS,
+            "price_return_tickers": sorted(price_basis[label]),
+        }
+    return result
 
 
 def _parse_date(val: Any) -> dt.date:
@@ -349,13 +384,9 @@ def apply_historical_returns(
     """Apply a historical event to ``portfolio``.
 
     Returns per-holding forward returns for the requested ``horizons`` in the
-    shape ``{ticker: {horizon: return}}``. If ``event`` is omitted but an
-    ``event_id`` or ``date`` is supplied a simple placeholder scaling is
-    applied instead.
+    shape ``{ticker: {horizon: return}}``. ``event`` (with ``date`` and
+    ``proxy_index``) is required; ``event_id``/``date`` alone are rejected.
     """
-
-    if event is None and (event_id or date):
-        return _scale_portfolio(portfolio, horizons)
 
     if event is None:
         raise ValueError("event must be provided")

@@ -44,8 +44,10 @@ BASIS_TOLERANCE = 0.02
 # treated as the traded price.
 DIVIDEND_ADJUSTED_SOURCES = frozenset({"Stooq"})
 # Per-date agreement required against a dividend-adjusted source: above
-# two-decimal rounding and auction/last-trade differences on the same day,
-# below a typical single distribution of an income holding.
+# auction/last-trade differences on the same day, below a typical single
+# distribution of an income holding. Fetchers now store six significant
+# figures (#9369); rows cached earlier at 2 dp can be up to 0.005 / price off
+# (0.5% at ~$1), so a sub-$1 line may still fail this check until re-fetched.
 DIVIDEND_BASIS_TOLERANCE = 0.005
 
 

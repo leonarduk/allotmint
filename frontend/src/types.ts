@@ -595,6 +595,8 @@ export interface ScenarioEvent {
 export interface ScenarioHorizonResult {
   baseline_total_value_gbp: number | null;
   shocked_total_value_gbp: number | null;
+  /** Share of invested value with real price history for the event (0-100). */
+  coverage_pct?: number | null;
 }
 
 export interface ScenarioResult {
@@ -904,10 +906,56 @@ export interface SavedQuery {
   params: CustomQuery;
 }
 
-export interface TradeSuggestion {
-  ticker: string;
-  action: string;
+/** Per-owner asset-class targets (percent) and drift band (pp). */
+export interface AllocationPolicy {
+  targets: Record<string, number>;
+  tolerance_pct: number;
+}
+
+export interface RebalanceClassRow {
+  asset_class: string;
+  label: string;
+  current_value: number;
+  current_pct: number;
+  target_pct: number | null;
+  drift_pct: number | null;
+  in_band: boolean | null;
+}
+
+export interface RebalanceTrade {
+  account_id: string;
+  account: string;
+  asset_class: string;
+  action: "buy" | "sell";
   amount: number;
+  ticker: string | null;
+}
+
+export interface RebalanceAccount {
+  id: string;
+  label: string;
+  value: number;
+  cash: number;
+}
+
+export interface RebalancePlan {
+  policy: AllocationPolicy;
+  total_value: number;
+  classes: RebalanceClassRow[];
+  unclassified_value: number;
+  unclassified_pct: number;
+  unpriced_tickers: string[];
+  accounts: RebalanceAccount[];
+  trades: RebalanceTrade[];
+  unfunded_amount: number;
+  notes: string[];
+}
+
+export interface NewCashPlan {
+  account_id: string;
+  account: string;
+  trades: RebalanceTrade[];
+  keep_as_cash: number;
 }
 
 export interface Quest {

@@ -17,8 +17,10 @@ not dividend-adjusted) together with its dividends and splits, and reports:
   dividend or split since the previous segment: the fabricated moves at
   overlap-window edges (or bad rows);
 * ``change``     - stored rows whose Close differs from raw by more than
-  rounding, ``add`` - raw dates the file lacks, ``drop`` - stored dates
-  Yahoo no longer has whose nearest ratio is off the raw basis;
+  rounding, ``refine`` - rows that differ by less (a stored close rounded to
+  2 dp before #9369 that the re-fetch now has at full precision), ``add`` -
+  raw dates the file lacks, ``drop`` - stored dates Yahoo no longer has whose
+  nearest ratio is off the raw basis;
 * ``divs``/``splits`` - events found for the corporate-actions store.
 
 Dry-run by default. ``--apply`` rewrites each meta file with the raw rows
@@ -43,12 +45,16 @@ from backend.timeseries.corporate_actions import DIVIDEND, SPLIT, empty_actions,
 
 logger = logging.getLogger(__name__)
 
-# Both sides are rounded to 2 dp, so a ratio can wobble by ~0.01 / price.
+# Stored rows written before #9369 are rounded to 2 dp (the re-fetch keeps six
+# significant figures), so a ratio can wobble by ~0.01 / price.
 RATIO_NOISE_FLOOR = 0.001
 ROUNDING = 0.01
 # A stored date Yahoo no longer returns is kept only if its nearest ratio is this close to 1.
 KEEP_TOLERANCE = 0.002
 CLOSE_CHANGE = 0.0051
+# Closes this close (relative) are the same value; anything further apart but
+# within CLOSE_CHANGE is a precision refinement, which ``--apply`` also writes.
+SAME_CLOSE_RTOL = 1e-9
 
 Fetcher = Callable[[str, str, pd.Timestamp, pd.Timestamp], tuple[pd.DataFrame, pd.DataFrame]]
 
@@ -70,6 +76,7 @@ class Rebase:
     segments: list[Segment] = field(default_factory=list)
     stray: int = 0
     changed: int = 0
+    refined: int = 0
     added: int = 0
     dropped: int = 0
     dividends: int = 0
@@ -146,7 +153,9 @@ def compare(path: Path, stored: pd.DataFrame, raw: pd.DataFrame, actions: pd.Dat
     s_close = pd.to_numeric(_by_day(stored)["Close"], errors="coerce")
     r_close = pd.to_numeric(_by_day(raw)["Close"], errors="coerce")
     shared = s_close.index.intersection(r_close.index)
-    report.changed = int(((s_close[shared] - r_close[shared]).abs() > CLOSE_CHANGE).sum())
+    diff = (s_close[shared] - r_close[shared]).abs()
+    report.changed = int((diff > CLOSE_CHANGE).sum())
+    report.refined = int(((diff <= CLOSE_CHANGE) & (diff > SAME_CLOSE_RTOL * r_close[shared].abs())).sum())
     report.added = len(r_close.index.difference(s_close.index))
     drop = _off_basis_unmatched(stored, raw, ratios)
     report.dropped = len(drop)
@@ -195,7 +204,7 @@ def rebase_file(path: Path, fetcher: Fetcher | None = None) -> Rebase:
 def format_header() -> str:
     return (
         f"{'file':<16} {'rows':>6} {'shared':>6} {'max|s/r-1|':>10} {'segments':>8} {'stray':>5} "
-        f"{'change':>6} {'add':>5} {'drop':>5} {'divs':>5} {'splits':>6}"
+        f"{'change':>6} {'refine':>6} {'add':>5} {'drop':>5} {'divs':>5} {'splits':>6}"
     )
 
 
@@ -204,7 +213,7 @@ def format_report(r: Rebase) -> str:
         return f"{r.path.name:<16} {r.rows:>6}  ERROR {r.error}"
     return (
         f"{r.path.name:<16} {r.rows:>6} {r.shared:>6} {r.max_dev:>10.4f} {len(r.segments):>8} {r.stray:>5} "
-        f"{r.changed:>6} {r.added:>5} {r.dropped:>5} {r.dividends:>5} {r.splits:>6}"
+        f"{r.changed:>6} {r.refined:>6} {r.added:>5} {r.dropped:>5} {r.dividends:>5} {r.splits:>6}"
     )
 
 
@@ -233,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:
             for line in format_segments(report):
                 print(line)
         if args.apply and not report.error:
-            if report.changed or report.added or report.dropped:
+            if report.changed or report.refined or report.added or report.dropped:
                 report.frame.to_parquet(path, index=False)
             symbol, exchange = ticker_from_path(path)
             record_corporate_actions(symbol, exchange, report.actions, base=str(args.directory.parent))

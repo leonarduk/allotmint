@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import Optional, Tuple
 
+import numpy as np
 import pandas as pd
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
@@ -15,6 +16,16 @@ from backend.logging_setup import sanitise_log_value
 from backend.utils.html_render import render_timeseries_html
 
 STANDARD_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]
+PRICE_COLUMNS = ("Open", "High", "Low", "Close")
+
+# Precision fetched OHLC prices are stored at (#9369). A fixed 2 dp quantised
+# low-priced lines into ~1% steps (BPCR.L at ~$0.94 had 15 distinct closes in
+# a year and 58% zero-change days), so precision scales with the price level
+# instead: 0.9416 keeps four decimals, 12345.6 (pence) keeps one. Six digits is
+# also what survives a float32 round trip -- the precision Yahoo's chart API
+# actually carries -- so float32 noise (0.9399999976 -> 0.94) is stripped and a
+# re-fetch of the same bar stays bit-identical.
+PRICE_SIGNIFICANT_DIGITS = 6
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +61,38 @@ def apply_scaling(df: pd.DataFrame, scale: float, scale_volume: bool = False) ->
         col = name_map["volume"]
         df[col] = pd.to_numeric(df[col], errors="coerce") * scale
 
+    return df
+
+
+def round_significant(values: pd.Series, digits: int = PRICE_SIGNIFICANT_DIGITS) -> pd.Series:
+    """Return ``values`` as float64 rounded to ``digits`` significant figures.
+
+    Non-numeric entries become NaN; zero, NaN and infinities pass through.
+    """
+    if digits < 1:
+        raise ValueError(f"digits must be >= 1, got {digits}")
+    numeric = pd.to_numeric(values, errors="coerce").to_numpy(dtype=float, copy=True)
+    nonzero = np.isfinite(numeric) & (numeric != 0)
+    if nonzero.any():
+        x = numeric[nonzero]
+        shift = digits - 1 - np.floor(np.log10(np.abs(x))).astype(int)
+        # Divide by an exact power of ten (10**k is exact for k <= 22) so the
+        # result is the double nearest the decimal, e.g. exactly 0.9416.
+        scaled_up = shift >= 0
+        rounded = np.empty_like(x)
+        up = 10.0 ** shift[scaled_up]
+        rounded[scaled_up] = np.round(x[scaled_up] * up) / up
+        down = 10.0 ** -shift[~scaled_up]
+        rounded[~scaled_up] = np.round(x[~scaled_up] / down) * down
+        numeric[nonzero] = rounded
+    return pd.Series(numeric, index=values.index, name=values.name, dtype="float64")
+
+
+def round_price_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Round ``df``'s OHLC columns in place to ``PRICE_SIGNIFICANT_DIGITS``; return ``df``."""
+    for col in PRICE_COLUMNS:
+        if col in df.columns:
+            df[col] = round_significant(df[col])
     return df
 
 

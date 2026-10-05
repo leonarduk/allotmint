@@ -10,8 +10,9 @@ from backend.utils import page_cache
 
 
 @pytest.fixture(autouse=True)
-def _news_provider_defaults(monkeypatch):
-    """Configure an AlphaVantage key and a fresh Yahoo cooldown per test.
+def _news_provider_defaults(monkeypatch, tmp_path):
+    """Configure an AlphaVantage key, a fresh Yahoo cooldown and throwaway
+    per-provider quota counters per test.
 
     With no key, ``fetch_news_alpha`` skips AlphaVantage entirely, so tests
     that mock its response need one set; tests for the no-key path override
@@ -19,6 +20,9 @@ def _news_provider_defaults(monkeypatch):
     in the next.
     """
     monkeypatch.setattr(news.cfg, "alpha_vantage_key", "test-key")
+    # Providers spend their own quota as they make requests; keep the counters
+    # (derived from COUNTER_FILE) out of the real data/cache directory.
+    monkeypatch.setattr(news, "COUNTER_FILE", tmp_path / "news_requests.json")
     monkeypatch.setattr(
         news,
         "_yahoo_cooldown",

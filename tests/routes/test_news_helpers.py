@@ -205,7 +205,7 @@ def test_get_cached_news_raises_on_quota_exhausted_without_cache(monkeypatch):
     monkeypatch.setattr(news_module.page_cache, "time_until_stale", lambda page, ttl: 0)
     monkeypatch.setattr(news_module.page_cache, "schedule_refresh", fake_schedule)
 
-    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: False)
+    monkeypatch.setattr(news_module, "_can_request_news", lambda: False)
 
     def fail_fetch(*args, **kwargs):  # pragma: no cover - defensive guard in test
         raise AssertionError("fetch should not be attempted when quota exhausted")
@@ -254,7 +254,7 @@ def test_get_cached_news_warns_when_serving_stale_on_quota(monkeypatch, caplog):
         "cache_age",
         lambda page: news_module.NEWS_MAX_STALENESS + 1,
     )
-    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: False)
+    monkeypatch.setattr(news_module, "_can_request_news", lambda: False)
 
     with caplog.at_level("WARNING"):
         result = news_module.get_cached_news("cached")
@@ -280,7 +280,7 @@ def test_get_cached_news_warns_when_serving_stale_on_empty_result(monkeypatch, c
         "cache_age",
         lambda page: news_module.NEWS_MAX_STALENESS + 1,
     )
-    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: True)
+    monkeypatch.setattr(news_module, "_can_request_news", lambda: True)
     monkeypatch.setattr(news_module, "_fetch_news", lambda t: [])
 
     with caplog.at_level("WARNING"):
@@ -324,9 +324,9 @@ def test_get_cached_news_reuses_fresh_cache(monkeypatch):
     monkeypatch.setattr(news_module.page_cache, "schedule_refresh", fake_schedule)
 
     def fail_try_quota():  # pragma: no cover - defensive guard in test
-        raise AssertionError("quota should not be consumed when cache fresh")
+        raise AssertionError("quota should not be checked when cache fresh")
 
-    monkeypatch.setattr(news_module, "_try_consume_quota", fail_try_quota)
+    monkeypatch.setattr(news_module, "_can_request_news", fail_try_quota)
     monkeypatch.setattr(news_module, "_fetch_news", fail_try_quota)
 
     result = news_module.get_cached_news("cached")
@@ -345,7 +345,6 @@ def test_get_cached_news_succeeds_without_running_event_loop(monkeypatch):
     saved: dict[str, Any] = {}
     monkeypatch.setattr(news_module.page_cache, "load_cache", lambda page: None)
     monkeypatch.setattr(news_module.page_cache, "save_cache", lambda page, data: saved.update({page: data}))
-    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: True)
     monkeypatch.setattr(news_module, "_can_request_news", lambda: True)
     monkeypatch.setattr(
         news_module,
@@ -362,7 +361,7 @@ def test_get_cached_news_succeeds_without_running_event_loop(monkeypatch):
 def test_get_cached_news_raises_news_quota_exceeded(monkeypatch):
     monkeypatch.setattr(news_module.page_cache, "load_cache", lambda page: None)
     monkeypatch.setattr(news_module.page_cache, "schedule_refresh", lambda *a, **k: None)
-    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: False)
+    monkeypatch.setattr(news_module, "_can_request_news", lambda: False)
 
     with pytest.raises(news_module.NewsQuotaExceeded):
         news_module.get_cached_news("limited", raise_on_quota_exhausted=True)

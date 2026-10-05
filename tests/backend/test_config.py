@@ -54,6 +54,8 @@ class TestOtherDefaultsConsistency:
             ("signup_rate_limit", "5/minute"),
             ("demo_link_mint_rate_limit", "5/minute"),
             ("news_requests_per_day", 25),
+            ("yahoo_news_requests_per_day", 500),
+            ("google_news_requests_per_day", 500),
             ("default_sector_region", "US"),
             ("demo_link_ttl_hours", 72),
             ("demo_link_enabled", False),
@@ -97,3 +99,8 @@ class TestChatProviderEnv:
         monkeypatch.setenv("CHAT_PROVIDER", "openai")
         with pytest.raises(ValueError, match="Unexpected CHAT_PROVIDER"):
             build_config({})
+
+
+def test_per_provider_news_quotas_are_read_from_config() -> None:
+    cfg = build_config({"yahoo_news_requests_per_day": 7, "google_news_requests_per_day": 9})
+    assert (cfg.yahoo_news_requests_per_day, cfg.google_news_requests_per_day) == (7, 9)

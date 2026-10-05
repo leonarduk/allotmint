@@ -7,8 +7,9 @@ from backend.utils import page_cache
 
 
 @pytest.fixture(autouse=True)
-def _news_provider_defaults(monkeypatch):
-    """Configure an AlphaVantage key and a fresh Yahoo cooldown per test.
+def _news_provider_defaults(monkeypatch, tmp_path):
+    """Configure an AlphaVantage key, a fresh Yahoo cooldown and throwaway
+    per-provider quota counters per test.
 
     With no key, ``fetch_news_alpha`` skips AlphaVantage entirely, so tests
     that mock its response need one set; tests for the no-key path override
@@ -16,6 +17,9 @@ def _news_provider_defaults(monkeypatch):
     in the next.
     """
     monkeypatch.setattr(news.cfg, "alpha_vantage_key", "test-key")
+    # Providers spend their own quota as they make requests; keep the counters
+    # (derived from COUNTER_FILE) out of the real data/cache directory.
+    monkeypatch.setattr(news, "COUNTER_FILE", tmp_path / "news_requests.json")
     monkeypatch.setattr(
         news,
         "_yahoo_cooldown",
@@ -50,6 +54,10 @@ def test_news_quota_enforced(monkeypatch, tmp_path):
     app = create_app()
     # create_app() reloads config, resetting the key the autouse fixture set.
     monkeypatch.setattr(news.cfg, "alpha_vantage_key", "test-key")
+    # Quotas are per provider; leave AlphaVantage as the only one with budget
+    # so exhausting it exhausts news as a whole.
+    monkeypatch.setattr(news.cfg, "yahoo_news_requests_per_day", 0)
+    monkeypatch.setattr(news.cfg, "google_news_requests_per_day", 0)
     client = TestClient(app)
     token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})

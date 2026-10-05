@@ -38,6 +38,8 @@ market_data:
   fundamentals_cache_ttl_seconds: 86400
   stooq_timeout: 10
   stooq_requests_per_minute: 60
+  # Daily news request budgets, each spent only when that provider is actually
+  # called. news_requests_per_day is AlphaVantage's (its free tier allows 25).
   news_requests_per_day: 25
   default_sector_region: US
   uk_sector_endpoint: https://www.londonstockexchange.com/api/sectors/ftse350

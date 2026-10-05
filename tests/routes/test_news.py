@@ -61,6 +61,7 @@ def test_fetch_news_yahoo(monkeypatch):
     def fake_get(url, params=None, timeout=10, **kwargs):
         captured["url"] = url
         captured["params"] = params
+        captured["impersonate"] = kwargs.get("impersonate")
 
         class Response:
             def raise_for_status(self):
@@ -83,7 +84,7 @@ def test_fetch_news_yahoo(monkeypatch):
 
         return Response()
 
-    monkeypatch.setattr(news_module.requests, "get", fake_get)
+    monkeypatch.setattr(news_module.curl_requests, "get", fake_get)
 
     items = news_module.fetch_news_yahoo("PFE")
     assert items == [
@@ -93,6 +94,8 @@ def test_fetch_news_yahoo(monkeypatch):
     query = captured["params"]["q"]
     assert query.startswith("PFE")
     assert "stock" in query.lower()
+    # Plain ``requests`` gets 429'd by Yahoo; the fetch must impersonate a browser.
+    assert captured["impersonate"] == news_module.YAHOO_IMPERSONATE
 
 
 def test_fetch_news_google(monkeypatch):
@@ -155,7 +158,7 @@ def test_fetch_news_yahoo_populates_published_at_and_source(monkeypatch):
 
         return Response()
 
-    monkeypatch.setattr(news_module.requests, "get", fake_get)
+    monkeypatch.setattr(news_module.curl_requests, "get", fake_get)
 
     items = news_module.fetch_news_yahoo("PFE")
     assert items == [
@@ -554,3 +557,187 @@ def test_get_cached_news_rebuilds_stale_cache_off_event_loop(monkeypatch, tmp_pa
     assert items == [{**fresh[0], "stale": False}]
     assert page_cache.load_cache("news_ONE") == fresh
     assert "news_ONE" not in page_cache._refresh_tasks
+
+
+def test_get_cached_news_shares_concurrent_fetch(monkeypatch, tmp_path):
+    """Concurrent callers for the same ticker must share one upstream fetch.
+
+    Without single-flighting, each request that misses the cache fetches on
+    its own, multiplying calls to Yahoo (and its 429s) and burning one quota
+    unit per caller.
+    """
+
+    import threading
+    from concurrent.futures import Future
+
+    monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(news_module, "COUNTER_FILE", tmp_path / "news_requests.json")
+    monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
+
+    callers = 4
+    started = threading.Event()
+    release = threading.Event()
+    fetch_calls = {"count": 0}
+
+    def slow_fetch(ticker: str) -> List[Dict[str, str]]:
+        fetch_calls["count"] += 1
+        started.set()
+        assert release.wait(timeout=5)
+        return [{"headline": f"{ticker} stock news", "url": "https://example.com/n"}]
+
+    monkeypatch.setattr(news_module, "_fetch_news", slow_fetch)
+
+    waiting = threading.Semaphore(0)
+
+    class SignallingFuture(Future):
+        """Signals when a follower starts blocking on the leader's result."""
+
+        def result(self, timeout=None):
+            waiting.release()
+            return super().result(timeout)
+
+    monkeypatch.setattr(news_module, "Future", SignallingFuture)
+
+    results: List[List[Dict[str, object]]] = []
+
+    def worker() -> None:
+        results.append(news_module.get_cached_news("ftse", cache_writer=lambda page, data: None))
+
+    threads = [threading.Thread(target=worker, daemon=True) for _ in range(callers)]
+    threads[0].start()
+    assert started.wait(timeout=5)
+    for thread in threads[1:]:
+        thread.start()
+    # Hold the leader's fetch open until every follower is blocked on it.
+    for _ in range(callers - 1):
+        assert waiting.acquire(timeout=5)
+
+    release.set()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert fetch_calls["count"] == 1
+    assert len(results) == callers
+    assert all(r == results[0] for r in results)
+    assert news_module._load_counter()["count"] == 1
+    assert news_module._inflight == {}
+
+
+def test_single_flight_propagates_errors_and_clears_entry():
+    def boom() -> List[Dict[str, str]]:
+        raise news_module.NewsQuotaExceeded("news quota exceeded")
+
+    with pytest.raises(news_module.NewsQuotaExceeded):
+        news_module._single_flight("news_X", boom)
+    assert "news_X" not in news_module._inflight
+    assert news_module._single_flight("news_X", lambda: []) == []
+
+
+def test_single_flight_follower_receives_leader_exception(monkeypatch):
+    """A follower blocked on the leader must see the leader's exception."""
+
+    import threading
+    from concurrent.futures import Future
+
+    started = threading.Event()
+    release = threading.Event()
+    follower_waiting = threading.Event()
+
+    class SignallingFuture(Future):
+        def result(self, timeout=None):
+            follower_waiting.set()
+            return super().result(timeout)
+
+    monkeypatch.setattr(news_module, "Future", SignallingFuture)
+
+    def failing_fetch() -> List[Dict[str, str]]:
+        started.set()
+        assert release.wait(timeout=5)
+        raise news_module.NewsQuotaExceeded("news quota exceeded")
+
+    errors: List[BaseException] = []
+
+    def run() -> None:
+        try:
+            news_module._single_flight("news_ERR", failing_fetch)
+        except BaseException as exc:
+            errors.append(exc)
+
+    leader = threading.Thread(target=run, daemon=True)
+    follower = threading.Thread(target=run, daemon=True)
+    leader.start()
+    assert started.wait(timeout=5)
+    follower.start()
+    assert follower_waiting.wait(timeout=5)
+    release.set()
+    leader.join(timeout=5)
+    follower.join(timeout=5)
+
+    assert len(errors) == 2
+    assert all(isinstance(exc, news_module.NewsQuotaExceeded) for exc in errors)
+    assert "news_ERR" not in news_module._inflight
+
+
+def test_yahoo_client_is_curl_cffi():
+    """``curl_requests`` must resolve to ``curl_cffi.requests``, not ``requests``.
+
+    The lazy proxy defers the import, so assert what it loads rather than
+    trusting the name.
+    """
+
+    import curl_cffi.requests
+
+    assert news_module.curl_requests.get is curl_cffi.requests.get
+    assert news_module.curl_requests.get is not news_module.requests.get
+
+
+def test_single_flight_caller_after_resolve_reuses_result(monkeypatch):
+    """A caller arriving after the leader resolves its future, but before the
+    entry is dropped, must reuse the result rather than fetch again.
+
+    Pins the ordering in ``_single_flight``: the future is resolved before the
+    in-flight entry is removed, so there is no window in which a new caller
+    finds no entry while the leader's result is still pending publication.
+    """
+
+    from concurrent.futures import Future
+
+    late_calls = {"fetch": 0}
+    late_results: List[List[Dict[str, str]]] = []
+    injected: List[bool] = []
+
+    def late_fetch() -> List[Dict[str, str]]:
+        late_calls["fetch"] += 1
+        return [{"headline": "late", "url": "https://example.com/late"}]
+
+    class LateCallerFuture(Future):
+        def set_result(self, result):
+            super().set_result(result)
+            # Runs after the leader resolves and before its ``finally`` pops.
+            # Only the leader's future injects the late caller.
+            if not injected:
+                injected.append(True)
+                late_results.append(news_module._single_flight("news_LATE", late_fetch))
+
+    monkeypatch.setattr(news_module, "Future", LateCallerFuture)
+
+    leader_result = [{"headline": "leader", "url": "https://example.com/leader"}]
+    assert news_module._single_flight("news_LATE", lambda: leader_result) == leader_result
+
+    assert late_calls["fetch"] == 0
+    assert late_results == [leader_result]
+    assert "news_LATE" not in news_module._inflight
+
+
+def test_single_flight_fetches_again_after_completion():
+    calls = {"count": 0}
+
+    def fetch() -> List[Dict[str, str]]:
+        calls["count"] += 1
+        return []
+
+    news_module._single_flight("news_AGAIN", fetch)
+    news_module._single_flight("news_AGAIN", fetch)
+
+    assert calls["count"] == 2
+    assert news_module._inflight == {}

@@ -531,6 +531,30 @@ describe("PerformanceDashboard", () => {
       ).not.toBeInTheDocument();
     });
 
+    // Group alpha/tracking error are computed by the backend from the
+    // combined group portfolio series (see getGroupAlphaVsBenchmark /
+    // getGroupTrackingError in api.ts), so they are meaningful aggregates
+    // and must be rendered as real values -- not averaged, and not blanked
+    // out as "unavailable". This pins that decision so a future change that
+    // starts nulling them for group scope fails loudly.
+    it("renders group alpha and tracking error as real aggregate values, not N/A", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      await screen.findByTestId("reporting-date-summary");
+      expect(screen.getByTestId("metric-alpha")).toHaveTextContent("3.00%");
+      expect(screen.getByTestId("metric-tracking-error")).toHaveTextContent(
+        "4.00%",
+      );
+      expect(screen.getByTestId("metric-alpha")).not.toHaveTextContent("N/A");
+      expect(screen.getByTestId("metric-tracking-error")).not.toHaveTextContent(
+        "N/A",
+      );
+    });
+
     // DeepSeek review round 2 (#7228): a single failing group metric
     // endpoint used to blank the entire dashboard via Promise.all. These
     // cases confirm each metric degrades to "unavailable" independently

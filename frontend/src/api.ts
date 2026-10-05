@@ -954,6 +954,18 @@ export const getReturnComparison = (owner: string, days = 365) =>
     `${API_BASE}/returns/compare?owner=${encodeURIComponent(owner)}&days=${days}`,
   );
 
+/**
+ * Group-scope alpha vs benchmark.
+ *
+ * Valid for group scope: the backend computes this from the *combined* group
+ * portfolio series (the same series `getGroupPerformance` charts), not by
+ * averaging each member's alpha. A group's alpha is therefore a real
+ * aggregate figure, not the mean of its members' alphas, and it is safe to
+ * render alongside the owner-scoped value from {@link getAlphaVsBenchmark}.
+ *
+ * Owner-scoped alpha is unchanged and still comes from
+ * {@link getAlphaVsBenchmark} (`/performance/{owner}/alpha`).
+ */
 export const getGroupAlphaVsBenchmark = (
   slug: string,
   benchmark: string,
@@ -963,6 +975,15 @@ export const getGroupAlphaVsBenchmark = (
     `${API_BASE}/performance-group/${slug}/alpha?benchmark=${benchmark}&days=${days}`,
   );
 
+/**
+ * Group-scope tracking error.
+ *
+ * Valid for group scope, for the same reason as
+ * {@link getGroupAlphaVsBenchmark}: the backend derives it from the combined
+ * group portfolio's daily returns against the benchmark, not by averaging
+ * per-owner tracking errors. Owner-scoped tracking error is unchanged and
+ * still comes from {@link getTrackingError}.
+ */
 export const getGroupTrackingError = (
   slug: string,
   benchmark: string,

@@ -1119,6 +1119,33 @@ describe("GroupPortfolioView", () => {
     warnSpy.mockRestore();
   });
 
+  // Group alpha/tracking error are computed by the backend from the combined
+  // group portfolio series (see getGroupAlphaVsBenchmark /
+  // getGroupTrackingError in api.ts), so they are meaningful aggregates and
+  // must be rendered as real values -- not averaged, and not blanked out as
+  // "unavailable". This pins that decision for the group view.
+  it("renders group alpha and tracking error as real aggregate values, not N/A", async () => {
+    mockAllFetches(
+      { name: "At a glance", accounts: [] },
+      { metrics: { alpha: 0.0344, trackingError: 0.025, maxDrawdown: -0.1234 } },
+    );
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("group-metric-alpha")).toHaveTextContent(
+        "3.44%",
+      ),
+    );
+    expect(screen.getByTestId("group-metric-tracking-error")).toHaveTextContent(
+      "2.50%",
+    );
+    expect(screen.getByTestId("group-metric-alpha")).not.toHaveTextContent("N/A");
+    expect(
+      screen.getByTestId("group-metric-tracking-error"),
+    ).not.toHaveTextContent("N/A");
+  });
+
   it("renders fraction metrics returned by the API as percentages (#8570)", async () => {
     const mockPortfolio = { name: "At a glance", accounts: [] };
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});

@@ -105,6 +105,11 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     setPerfUnavailable(false);
     const reqDays = days === 0 ? 36500 : days;
     const opts = asOf ? { asOf } : undefined;
+    // Group alpha/tracking error are computed by the backend from the
+    // *combined* group portfolio series (see getGroupAlphaVsBenchmark /
+    // getGroupTrackingError in api.ts), so they are meaningful aggregates --
+    // not an average of each member's alpha -- and are rendered the same way
+    // as the owner-scoped values. Owner scope is unchanged.
     const alphaPromise = activeGroup
       ? getGroupAlphaVsBenchmark(activeGroup, BENCHMARK_TICKER, reqDays)
       : getAlphaVsBenchmark(activeOwner as string, BENCHMARK_TICKER, reqDays, opts);

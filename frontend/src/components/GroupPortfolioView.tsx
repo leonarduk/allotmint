@@ -626,6 +626,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       if (isFresh(cached, BENCHMARK_METRICS_TTL_MS)) return;
     }
 
+    // These three are all valid for group scope: the backend computes alpha
+    // and tracking error from the combined group portfolio series (see
+    // getGroupAlphaVsBenchmark / getGroupTrackingError in api.ts), not by
+    // averaging per-owner values, so they are meaningful aggregates here.
     runDeduped(cacheKey, () =>
       Promise.all([
         getGroupAlphaVsBenchmark(slug, "VWRL.L"),

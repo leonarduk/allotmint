@@ -92,6 +92,10 @@ export default function MetricsExplanation() {
     setLoading(true);
     setError(null);
 
+    // Group alpha/tracking error come from the combined group portfolio
+    // series (see getGroupAlphaVsBenchmark / getGroupTrackingError in
+    // api.ts), so they are valid aggregates -- not an average of each
+    // member's alpha -- and are shown here exactly as for an owner.
     const loadMetrics = group
       ? Promise.all([
           getGroupAlphaVsBenchmark(group, benchmark, days),

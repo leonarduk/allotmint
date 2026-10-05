@@ -502,5 +502,20 @@ describe("Screener", () => {
     );
     expect(screen.getByLabelText("Min Market Cap")).toHaveAttribute("step", "1");
   });
+
+  it("never sends a decimal for an integer-typed filter", async () => {
+    mockGetScreener.mockResolvedValueOnce([]);
+    render(<Screener />);
+
+    fireEvent.change(await screen.findByLabelText("Min Avg Volume"), {
+      target: { value: "1500.6" },
+    });
+    fireEvent.submit(screen.getByText("Run").closest("form")!);
+
+    await waitFor(() => expect(mockGetScreener).toHaveBeenCalled());
+    expect(mockGetScreener.mock.calls.at(-1)![1]).toMatchObject({
+      avg_volume_min: 1501,
+    });
+  });
 });
 

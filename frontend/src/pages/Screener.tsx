@@ -116,11 +116,14 @@ const DEFAULT_WATCHLIST: WatchlistName = "FTSE 100";
 
 function toCriteria(filters: FilterValues): ScreenerCriteria {
   const criteria: ScreenerCriteria = {};
-  for (const { param } of FILTER_FIELDS) {
+  for (const { param, kind } of FILTER_FIELDS) {
     const raw = filters[param]?.trim();
     if (!raw) continue;
     const value = Number(raw);
-    if (Number.isFinite(value)) criteria[param] = value;
+    if (!Number.isFinite(value)) continue;
+    // step="1" blocks a decimal on interactive submit, but not on a
+    // programmatic one -- round so an int-typed param can never 422.
+    criteria[param] = kind === "integer" ? Math.round(value) : value;
   }
   return criteria;
 }

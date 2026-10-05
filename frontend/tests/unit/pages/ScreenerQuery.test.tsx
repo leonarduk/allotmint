@@ -319,6 +319,37 @@ describe("Screener & Query page", () => {
     expect(screen.queryByLabelText("PFE")).not.toBeInTheDocument();
   });
 
+  it("updates the ticker list when the selected owner changes", async () => {
+    // Distinct, non-overlapping ticker sets per owner so a stale list (or a
+    // list that ignores the current selection) is detectable: if the ticker
+    // options don't react to the owner change, MSFT will never appear and/or
+    // AAPL will linger.
+    getPortfolio.mockImplementation((owner: string) =>
+      Promise.resolve(
+        makePortfolio(owner, owner === "alice" ? ["AAPL"] : ["MSFT"]),
+      ),
+    );
+
+    renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText("Alice Example");
+
+    // No owner selected == all owners in scope, so both owners' tickers show.
+    expect(await screen.findByLabelText("AAPL")).toBeInTheDocument();
+    expect(await screen.findByLabelText("MSFT")).toBeInTheDocument();
+
+    // Select Alice: only her holding should remain.
+    fireEvent.click(screen.getByLabelText("Alice Example"));
+    await screen.findByLabelText("AAPL");
+    expect(screen.queryByLabelText("MSFT")).not.toBeInTheDocument();
+
+    // Switch to Bob: the list must re-scope to Bob's holdings, dropping
+    // Alice's ticker and surfacing Bob's.
+    fireEvent.click(screen.getByLabelText("Alice Example"));
+    fireEvent.click(screen.getByLabelText("Bob Example"));
+    expect(await screen.findByLabelText("MSFT")).toBeInTheDocument();
+    expect(screen.queryByLabelText("AAPL")).not.toBeInTheDocument();
+  });
+
   it("shows an empty state when the in-scope owner has no holdings", async () => {
     getPortfolio.mockResolvedValue(makePortfolio("alice", []));
     const { i18n } = renderWithI18n(<ScreenerQuery />);

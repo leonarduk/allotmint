@@ -355,9 +355,14 @@ def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc))
     except TypeError as exc:
         # e.g. an unknown key in the ``trading_agent`` section, which reaches
-        # TradingAgentConfig(**...) as an unexpected keyword argument.
-        logger.error("Rejected invalid config update: %s", sanitise_log_value(exc))
-        raise HTTPException(status_code=400, detail=f"Invalid configuration: {exc}")
+        # TradingAgentConfig(**...) as an unexpected keyword argument. The raw
+        # exception message can name internal classes/arguments, so it is
+        # logged server-side only and never echoed back to the client.
+        logger.exception("Rejected invalid config update: %s", sanitise_log_value(exc))
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid configuration: one or more fields have incorrect types or unknown keys",
+        )
 
     if has_changes:
         try:

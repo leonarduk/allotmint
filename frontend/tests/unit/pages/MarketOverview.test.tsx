@@ -8,15 +8,16 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (_k: string, opts?: any) => opts?.defaultValue ?? _k }),
 }));
 
-// vi.hoisted ensures mockBar is initialised before vi.mock factories run.
-const mockBar = vi.hoisted(() => vi.fn(() => null));
+// vi.hoisted ensures mocks are initialised before vi.mock factories run.
+const mockBar = vi.hoisted(() => vi.fn(({ children }: any) => <>{children}</>));
+const mockCell = vi.hoisted(() => vi.fn(() => null));
 
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
   BarChart: ({ data, children }: any) => (
     <div>
       {data.map((d: any) => (
-        <div key={d.name}>{d.name}</div>
+        <div key={d.name ?? d.sector}>{d.name}</div>
       ))}
       {children}
     </div>
@@ -25,7 +26,7 @@ vi.mock("recharts", () => ({
   XAxis: () => null,
   YAxis: () => null,
   Tooltip: () => null,
-  Cell: () => null,
+  Cell: mockCell,
 }));
 
 const mockGetMarketOverview = vi.mocked(api.getMarketOverview);
@@ -132,5 +133,39 @@ describe("MarketOverview", () => {
 
     expect(screen.getByText("Level: 6,123.45")).toBeInTheDocument();
     expect(screen.getByText("Change: -0.22%")).toBeInTheDocument();
+  });
+
+  it("colours sector bars by sign and labels the axis as % change (#7817)", async () => {
+    mockCell.mockClear();
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: {},
+      sectors: [
+        { sector: "Energy", change: 1.1, source: "lse" },
+        { sector: "Real Estate", change: -0.1, source: "lse" },
+        { sector: "Utilities", change: 0, source: "lse" },
+      ],
+      headlines: [],
+    });
+    render(<MarketOverview />);
+    expect(
+      await screen.findByRole("heading", { name: "Sector % Change" }),
+    ).toBeInTheDocument();
+    const sectorFills = mockCell.mock.calls.map(([props]: any) => props.fill);
+    expect(sectorFills).toEqual(["#16a34a", "#dc2626", "#16a34a"]);
+    expect(
+      screen.queryByText(/showing US sector ETF performance/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("discloses when sector data comes from the US ETF fallback", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: {},
+      sectors: [{ sector: "Energy", change: 0.5, source: "us_etf" }],
+      headlines: [],
+    });
+    render(<MarketOverview />);
+    expect(
+      await screen.findByText(/showing US sector ETF performance/),
+    ).toBeInTheDocument();
   });
 });

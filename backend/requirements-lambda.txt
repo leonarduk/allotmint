@@ -19,7 +19,7 @@ protobuf>=7.36.2,<8  # >=6.31.1 fixes CVE-2025-4565; 6.31.0+ includes protocolbu
 cryptography~=50.0.1
 cffi~=2.1.1
 setuptools~=84.0.0
-pytz~=2026.3
+pytz~=2026.4
 trio~=0.34.0
 outcome~=1.3.0
 sniffio~=1.3.1

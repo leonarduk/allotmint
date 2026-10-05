@@ -131,12 +131,8 @@ def _safe_identifier(value: str) -> str:
     return cleaned
 
 
-def corporate_actions_path(ticker: str, exchange: str, *, base: str | None = None) -> str:
-    """Path of the actions file for ``ticker``/``exchange`` (same stem as its meta file).
-
-    Raises ``ValueError`` for an identifier that is not a plain ticker/exchange code.
-    """
-    name = f"{_safe_identifier(ticker)}_{_safe_identifier(exchange)}.parquet"
+def _actions_root(base: str | None) -> str:
+    """The store's directory: an ``s3://`` prefix, or a normalised local directory."""
     if base is None:
         # Lazy: ``cache`` imports the fetchers, which import this module.
         from backend.timeseries.cache import _cache_path
@@ -146,18 +142,41 @@ def corporate_actions_path(ticker: str, exchange: str, *, base: str | None = Non
         root = "/".join([base.rstrip("/"), ACTIONS_DIR])
     else:
         root = str(Path(base, ACTIONS_DIR))
+    return root.rstrip("/") if root.startswith("s3://") else os.path.normpath(root)
+
+
+def _actions_filename(ticker: str, exchange: str) -> str:
+    return f"{_safe_identifier(ticker)}_{_safe_identifier(exchange)}.parquet"
+
+
+def corporate_actions_path(ticker: str, exchange: str, *, base: str | None = None) -> str:
+    """Path of the actions file for ``ticker``/``exchange`` (same stem as its meta file).
+
+    Raises ``ValueError`` for an identifier that is not a plain ticker/exchange code,
+    or a local path that would escape the store directory.
+    """
+    root = _actions_root(base)
+    name = _actions_filename(ticker, exchange)
     if root.startswith("s3://"):
-        return "/".join([root.rstrip("/"), name])
-    directory = os.path.normpath(root)
-    path = os.path.normpath(os.path.join(directory, name))
-    if not path.startswith(directory + os.sep):
-        raise ValueError(f"Corporate actions path escapes {sanitise_log_value(directory)!r}")
+        return f"{root}/{name}"
+    path = os.path.normpath(os.path.join(root, name))
+    if not path.startswith(root + os.sep):
+        raise ValueError(f"Corporate actions path escapes {sanitise_log_value(root)!r}")
     return path
 
 
 def load_corporate_actions(ticker: str, exchange: str, *, base: str | None = None) -> pd.DataFrame:
     """Stored events for ``ticker``/``exchange``; empty when none are stored."""
-    path = corporate_actions_path(ticker, exchange, base=base)
+    root = _actions_root(base)
+    name = _actions_filename(ticker, exchange)
+    if root.startswith("s3://"):
+        path = f"{root}/{name}"
+    else:
+        # Normalise and confine in the same function as the read, so path-injection
+        # analysis (CodeQL py/path-injection) sees the guard on the value it reads.
+        path = os.path.normpath(os.path.join(root, name))
+        if not path.startswith(root + os.sep):
+            raise ValueError(f"Corporate actions path escapes {sanitise_log_value(root)!r}")
     try:
         frame = pd.read_parquet(path)
     except FileNotFoundError:
@@ -212,13 +231,20 @@ def record_corporate_actions(
     """Merge fetched ``actions`` into the store; return ``True`` when the file was written."""
     if actions is None or actions.empty:
         return False
-    path = corporate_actions_path(ticker, exchange, base=base)
     existing = load_corporate_actions(ticker, exchange, base=base)
     merged, changed = merge_actions(existing, actions)
     if not changed:
         return False
-    if not path.startswith("s3://"):
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
+    root = _actions_root(base)
+    name = _actions_filename(ticker, exchange)
+    if root.startswith("s3://"):
+        path = f"{root}/{name}"
+    else:
+        # Normalise and confine in the same function as the write (see load_corporate_actions).
+        path = os.path.normpath(os.path.join(root, name))
+        if not path.startswith(root + os.sep):
+            raise ValueError(f"Corporate actions path escapes {sanitise_log_value(root)!r}")
+        os.makedirs(root, exist_ok=True)
     merged.to_parquet(path, index=False)
     logger.info(
         "Stored %s corporate action(s) for %s.%s",

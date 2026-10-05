@@ -137,6 +137,9 @@ class _ProviderQuota:
         # Serialises read-modify-write across the executor threads that run
         # concurrent fetches (not across processes).
         self._lock = threading.Lock()
+        # Date exhaustion was last announced at INFO, so a provider out of
+        # budget logs once a day rather than once per skipped fetch.
+        self._exhaustion_logged_on: Optional[str] = None
 
     @property
     def path(self) -> Path:
@@ -173,13 +176,26 @@ class _ProviderQuota:
     def available(self) -> bool:
         return self.load()["count"] < self.limit
 
+    def _log_exhausted(self, today: str) -> None:
+        """Log a skip for an exhausted budget: INFO once per day, then DEBUG."""
+
+        level = logging.DEBUG if self._exhaustion_logged_on == today else logging.INFO
+        self._exhaustion_logged_on = today
+        logging.getLogger(__name__).log(
+            level,
+            "%s news quota exhausted for today (limit %d); skipping %s until tomorrow",
+            self.name,
+            self.limit,
+            self.name,
+        )
+
     def try_consume(self) -> bool:
         """Spend one request if any remain today; return whether it was spent."""
 
         with self._lock:
             data = self.load()
             if data["count"] >= self.limit:
-                logging.getLogger(__name__).debug("%s news quota exhausted for today (%d)", self.name, self.limit)
+                self._log_exhausted(data["date"])
                 return False
             data["count"] += 1
             self.save(data)

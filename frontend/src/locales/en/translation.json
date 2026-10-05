@@ -374,6 +374,7 @@
     "clearFilters": "Clear filters",
     "horizontalScroll": "Scroll holdings columns horizontally",
     "columns": {
+      "sector": "Sector",
       "acquired": "Acquired",
       "ccy": "CCY",
       "cost": "Cost £",

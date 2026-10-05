@@ -209,6 +209,7 @@
     "clearFilters": "Filter löschen",
     "horizontalScroll": "Bestandsspalten horizontal scrollen",
     "columns": {
+      "sector": "Sektor",
       "acquired": "Erworben",
       "ccy": "Währung",
       "cost": "Kosten £",

@@ -219,9 +219,10 @@ describe("HoldingsTable", () => {
             .getAllByRole("columnheader")
             .map((header) => header.textContent);
 
-        expect(headers.slice(0, 9)).toEqual([
+        expect(headers.slice(0, 10)).toEqual([
             "Ticker ▲",
             "Name",
+            "Sector",
             "Units",
             "Mkt £",
             "Gain £",
@@ -981,6 +982,35 @@ describe("HoldingsTable", () => {
         );
 
         expect(footerColumnCount).toBe(headerColumnCount);
+    });
+
+    it("shows each holding's sector, with a dash when unknown, and sorts by it", async () => {
+        const sectorHoldings: Holding[] = [
+            { ...holdings[0], ticker: "TECH", sector: "Technology" },
+            { ...holdings[0], ticker: "BANK", sector: "Financials" },
+            { ...holdings[0], ticker: "NONE", sector: "  " },
+        ];
+        renderWithConfig(<HoldingsTable holdings={sectorHoldings} />);
+
+        const sectorHeader = await screen.findByRole("columnheader", { name: "Sector" });
+        const tickerOrder = () =>
+            screen
+                .getAllByRole("row")
+                .map((row) => within(row).queryByRole("button")?.textContent)
+                .filter((ticker): ticker is string => ["TECH", "BANK", "NONE"].includes(ticker ?? ""));
+        const sectorOf = (ticker: string) => {
+            const row = screen.getByRole("button", { name: ticker }).closest("tr")!;
+            const cells = within(row).getAllByRole("cell");
+            return cells[2].textContent;
+        };
+
+        expect(sectorOf("TECH")).toBe("Technology");
+        expect(sectorOf("BANK")).toBe("Financials");
+        expect(sectorOf("NONE")).toBe("—");
+
+        await userEvent.click(sectorHeader);
+        expect(sectorHeader).toHaveTextContent("Sector ▲");
+        expect(tickerOrder()).toEqual(["NONE", "BANK", "TECH"]);
     });
 
     it("renders one sparkline per holding", async () => {

@@ -208,6 +208,7 @@
     "clearFilters": "Effacer les filtres",
     "horizontalScroll": "Faire défiler horizontalement les colonnes des positions",
     "columns": {
+      "sector": "Secteur",
       "acquired": "Acquis",
       "ccy": "Devise",
       "cost": "Coût £",

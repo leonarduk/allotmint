@@ -208,6 +208,7 @@
     "clearFilters": "Limpiar filtros",
     "horizontalScroll": "Desplazar horizontalmente las columnas de posiciones",
     "columns": {
+      "sector": "Sector",
       "acquired": "Adquirido",
       "ccy": "Moneda",
       "cost": "Coste £",

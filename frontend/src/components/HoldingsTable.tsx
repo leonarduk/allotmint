@@ -49,16 +49,17 @@ import type {
 
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
 const ESTIMATED_ROW_HEIGHT = 32;
-// Columns rendered unconditionally in every header/body row: ticker, name, price,
-// weight %, trend, ccy, type, acquired, days held, stage, eligible. Everything
+// Columns rendered unconditionally in every header/body row: ticker, name, sector,
+// price, weight %, trend, ccy, type, acquired, days held, stage, eligible. Everything
 // else is gated on showAccount / relative view / visibleColumns / forward ranges.
-const ALWAYS_VISIBLE_COLUMN_COUNT = 11;
+const ALWAYS_VISIBLE_COLUMN_COUNT = 12;
 
 // Every column HoldingsTable can sort on. sortBy() only accepts these, so a new
 // sortable column fails to compile until it gets a GROUP_SORT_KEYS entry.
 type HoldingsSortKey =
   | "ticker"
   | "name"
+  | "sector"
   | "gain"
   | "gain_pct"
   | "cost"
@@ -74,6 +75,7 @@ type HoldingsSortKey =
 const GROUP_SORT_KEYS: Record<HoldingsSortKey, keyof RowWithCost | null> = {
   ticker: "ticker",
   name: "name",
+  sector: "sector",
   gain: "gain_gbp",
   gain_pct: "gain_pct",
   cost: "cost",
@@ -285,6 +287,9 @@ export function HoldingsTable({
   const totalMarket = computed.reduce((sum, h) => sum + (h.market ?? 0), 0);
   const rows = computed.map((h) => ({
     ...h,
+    // Blank, not null, so the string sort never compares a string with null.
+    // Sector grouping already treats a blank sector as unknown.
+    sector: h.sector?.trim() ?? "",
     weight_pct: totalMarket ? ((h.market ?? 0) / totalMarket) * 100 : 0,
   }));
 
@@ -558,7 +563,7 @@ export function HoldingsTable({
         <th
           scope="row"
           className={`${tableStyles.cell} ${tableStyles.groupCell}`}
-          colSpan={2}
+          colSpan={3}
         >
           <button
             type="button"
@@ -731,6 +736,7 @@ export function HoldingsTable({
                 onChange={(e) => handleFilterChange("name", e.target.value)}
               />
             </th>
+            <th className={tableStyles.cell}></th>
             {!relativeViewEnabled && visibleColumns.units && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>
                 <input
@@ -808,6 +814,9 @@ export function HoldingsTable({
             </th>
             <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => sortBy("name")}>
               {t("holdingsTable.columns.name")}{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
+            </th>
+            <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => sortBy("sector")}>
+              {t("holdingsTable.columns.sector")}{sortKey === "sector" ? (asc ? " ▲" : " ▼") : ""}
             </th>
             {!relativeViewEnabled && visibleColumns.units && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.units")}</th>
@@ -941,6 +950,7 @@ export function HoldingsTable({
                   </button>
                 </td>
                 <td className={`${tableStyles.cell} ${tableStyles.name}`}>{h.name}</td>
+                <td className={tableStyles.cell}>{h.sector || "—"}</td>
                 {!relativeViewEnabled && visibleColumns.units && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {new Intl.NumberFormat(i18n.language).format(h.units ?? 0)}
@@ -1169,7 +1179,7 @@ export function HoldingsTable({
         </tbody>
         <tfoot>
           <tr>
-            <td className={`${tableStyles.cell} font-semibold`} colSpan={showAccount ? 3 : 2}>
+            <td className={`${tableStyles.cell} font-semibold`} colSpan={showAccount ? 4 : 3}>
               {t("holdingsTable.totalRowLabel")}
             </td>
             {!relativeViewEnabled && visibleColumns.units && (

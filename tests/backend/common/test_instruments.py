@@ -502,7 +502,15 @@ def test_every_supported_exchange_has_a_region() -> None:
 
     no_region = {"FX"}
 
-    assert set(instruments._YAHOO_SUFFIXES) - no_region == set(instruments._EXCHANGE_REGIONS)
+    supported = set(instruments._YAHOO_SUFFIXES) - no_region
+    regions = set(instruments._EXCHANGE_REGIONS)
+    assert supported == regions, (
+        f"Exchanges without a region: {sorted(supported - regions)}; "
+        f"regions for unsupported exchanges: {sorted(regions - supported)}. "
+        "Add the region to _EXCHANGE_REGIONS, or add the code to no_region if it "
+        "has none (e.g. a currency pair)."
+    )
+    assert all(isinstance(region, str) and region.strip() for region in instruments._EXCHANGE_REGIONS.values())
 
 
 def test_fetch_metadata_from_yahoo_rejects_unknown_exchange(monkeypatch) -> None:

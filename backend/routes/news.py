@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import html
 import json
 import logging
+import re
 import threading
 import time
 from concurrent.futures import Future
+from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -17,7 +20,7 @@ import requests
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from backend import config_module
-from backend.common.instruments import get_instrument_meta
+from backend.common.instruments import _build_yahoo_symbol, get_instrument_meta
 from backend.common.url_validator import validate_external_url
 from backend.logging_setup import sanitise_log_value
 from backend.utils import page_cache
@@ -210,42 +213,143 @@ def _lookup_instrument_name(ticker: str) -> Optional[str]:
     return None
 
 
-def _build_fallback_query(ticker: str) -> tuple[str, Optional[str]]:
-    """Return a finance-focused query string and optional instrument name."""
+# Exchange codes this app appends to tickers (``ADBE.N``, ``AZN.L``); see
+# ``backend.common.instruments._yahoo_suffix_for_exchange``.
+_EXCHANGE_CODES = frozenset(
+    {"L", "LSE", "UK", "N", "NYSE", "O", "NASDAQ", "US", "PA", "PARIS", "DE", "XETRA", "TO", "TSX", "AX", "ASX", "F"}
+)
+# Instrument-master names carry share-class and par-value noise after the
+# company name ("Adobe Inc Comm Stk US$.0001 *R"); cut at the first of these.
+_SHARE_CLASS_TOKENS = frozenset({"class", "cl", "ord", "ordinary", "shs", "stk", "npv", "adr", "ads", "cdi", "reg"})
+_COMMON_STOCK_PREFIXES = frozenset({"com", "comm", "common"})
+_COMMON_STOCK_SUFFIXES = frozenset({"stk", "stock", "shs", "shares"})
+# Par values: "US$0.01", "$.0001", "GBP0.25", "0.25", and UK pence such as
+# "10p". A bare integer is not one: "S&P 500" and "FTSE 100" are names.
+_PAR_VALUE = re.compile(
+    r"^(?:US\$|\$|£|€|GBP|GBX|USD|EUR)\d*\.?\d+p?$|^\d*\.\d+p?$|^\d+p$|^US\$",
+    re.IGNORECASE,
+)
+_LEGAL_SUFFIXES = frozenset(
+    {
+        "inc",
+        "corp",
+        "corporation",
+        "plc",
+        "p.l.c",
+        "ltd",
+        "limited",
+        "co",
+        "company",
+        "sa",
+        "ag",
+        "nv",
+        "se",
+        "llc",
+        "lp",
+    }
+)
+
+
+@dataclass(frozen=True)
+class _NewsSubject:
+    """The instrument a news search is about, in the forms each provider needs."""
+
+    symbol: str
+    exchange: Optional[str]
+    name: Optional[str]
+
+
+def _split_ticker(ticker: str) -> tuple[str, Optional[str]]:
+    """Split ``ADBE.N`` into ``("ADBE", "N")``; leave ``^FTSE``/``PFE`` whole."""
 
     tkr = ticker.strip().upper()
-    instrument_name = _lookup_instrument_name(tkr)
-
-    parts: List[str] = []
-    if tkr:
-        parts.append(tkr)
-    if instrument_name:
-        parts.append(instrument_name)
-    parts.extend(["stock", "shares"])
-
-    seen: set[str] = set()
-    deduped: List[str] = []
-    for part in parts:
-        if part and part not in seen:
-            deduped.append(part)
-            seen.add(part)
-
-    return (" ".join(deduped) if deduped else tkr), instrument_name
+    symbol, sep, exchange = tkr.rpartition(".")
+    if sep and symbol and exchange in _EXCHANGE_CODES:
+        return symbol, exchange
+    return tkr, None
 
 
-def _is_finance_related(headline: str, ticker: str, instrument_name: Optional[str]) -> bool:
+def _cut_share_class_noise(tokens: List[str]) -> List[str]:
+    for idx, token in enumerate(tokens):
+        lower = token.lower().strip(".,")
+        following = tokens[idx + 1].lower().strip(".,") if idx + 1 < len(tokens) else ""
+        if (
+            lower in _SHARE_CLASS_TOKENS
+            or (lower in _COMMON_STOCK_PREFIXES and following in _COMMON_STOCK_SUFFIXES)
+            or _PAR_VALUE.match(token)
+        ):
+            return tokens[:idx]
+    return tokens
+
+
+def _normalise_instrument_name(name: Optional[str]) -> Optional[str]:
+    """Reduce an instrument-master name to the company name used in headlines.
+
+    ``"Adobe Inc Comm Stk US$.0001 *R"`` -> ``"Adobe"``;
+    ``"Alphabet Inc. (Class A)"`` -> ``"Alphabet"``.
+    """
+
+    if not name:
+        return None
+    text = re.sub(r"\([^)]*\)", " ", html.unescape(name))
+    tokens = [token for token in text.split() if not token.startswith("*")]
+    tokens = _cut_share_class_noise(tokens)
+    while tokens and tokens[-1].lower().strip(".,") in _LEGAL_SUFFIXES:
+        tokens.pop()
+    cleaned = " ".join(tokens).strip(" ,.-")
+    return cleaned or None
+
+
+def _news_subject(ticker: str) -> _NewsSubject:
+    symbol, exchange = _split_ticker(ticker)
+    name = _normalise_instrument_name(_lookup_instrument_name(ticker.strip().upper()))
+    return _NewsSubject(symbol=symbol, exchange=exchange, name=name)
+
+
+def _google_query(subject: _NewsSubject) -> str:
+    """``"Adobe" OR ADBE stock``: either identifier, anchored to finance."""
+
+    symbol = subject.symbol.lstrip("^")
+    if subject.name and subject.name.upper() != symbol:
+        return f'"{subject.name}" OR {symbol} stock'
+    return f"{symbol} stock"
+
+
+def _yahoo_query(subject: _NewsSubject) -> str:
+    """Yahoo's search resolves its own symbols best (``ADBE``, ``AZN.L``)."""
+
+    if subject.exchange is None:
+        return subject.symbol
+    try:
+        return _build_yahoo_symbol(subject.symbol, subject.exchange)
+    except ValueError:
+        return subject.symbol
+
+
+def _alpha_ticker(ticker: str) -> str:
+    """AlphaVantage form of ``ticker`` (``ADBE.N`` -> ``ADBE``, ``AZN.L`` -> ``AZN.LON``)."""
+
+    symbol, exchange = _split_ticker(ticker)
+    if exchange is None:
+        return symbol
+    # Deferred: the timeseries module imports pandas, which news otherwise avoids.
+    from backend.timeseries.fetch_alphavantage_timeseries import _build_symbol
+
+    return _build_symbol(symbol, exchange)
+
+
+def _is_finance_related(headline: str, subject: _NewsSubject) -> bool:
     """Return True when ``headline`` appears relevant to the instrument."""
 
-    text_lower = headline.lower()
-    upper_headline = headline.upper()
-    symbol = ticker.strip().upper()
-    if symbol and symbol in upper_headline:
+    symbol = subject.symbol.lstrip("^")
+    # Case-sensitive on purpose: tickers that are also words ("IT", "ALL",
+    # "ON") would otherwise match ordinary prose in almost every headline.
+    if symbol and re.search(rf"(?<![A-Za-z0-9]){re.escape(symbol)}(?![A-Za-z0-9])", headline):
         return True
 
-    if instrument_name:
-        lowered_name = instrument_name.lower()
-        if lowered_name and lowered_name in text_lower:
-            return True
+    text_lower = headline.lower()
+    if subject.name and subject.name.lower() in text_lower:
+        return True
 
     return any(keyword in text_lower for keyword in _FINANCE_KEYWORDS)
 
@@ -296,8 +400,8 @@ def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
         )
         return []
     clean_ticker = ticker.strip().upper()
-    query, instrument_name = _build_fallback_query(clean_ticker)
-    params = {"q": query, "quotesCount": 0, "newsCount": 10}
+    subject = _news_subject(clean_ticker)
+    params = {"q": _yahoo_query(subject), "quotesCount": 0, "newsCount": 10}
     resp = curl_requests.get(
         endpoint,
         params=params,
@@ -324,7 +428,7 @@ def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
             _parse_epoch_time(item.get("providerPublishTime")),
             item.get("publisher"),
         )
-        if news_item is not None and _is_finance_related(news_item["headline"], clean_ticker, instrument_name):
+        if news_item is not None and _is_finance_related(news_item["headline"], subject):
             out.append(news_item)
     return out
 
@@ -335,8 +439,8 @@ def fetch_news_google(ticker: str) -> List[Dict[str, str]]:
     endpoint = cfg.google_news_endpoint or "https://news.google.com/rss/search"
     validate_external_url(endpoint)
     clean_ticker = ticker.strip().upper()
-    query, instrument_name = _build_fallback_query(clean_ticker)
-    params = {"q": query, "hl": "en-US", "gl": "US", "ceid": "US:en"}
+    subject = _news_subject(clean_ticker)
+    params = {"q": _google_query(subject), "hl": "en-US", "gl": "US", "ceid": "US:en"}
     resp = requests.get(endpoint, params=params, timeout=10, allow_redirects=False)
     resp.raise_for_status()
     root = ET.fromstring(resp.text)
@@ -348,7 +452,7 @@ def fetch_news_google(ticker: str) -> List[Dict[str, str]]:
             _parse_rss_time(item.findtext("pubDate")),
             item.findtext("source"),
         )
-        if news_item is not None and _is_finance_related(news_item["headline"], clean_ticker, instrument_name):
+        if news_item is not None and _is_finance_related(news_item["headline"], subject):
             out.append(news_item)
     return out
 
@@ -435,7 +539,7 @@ def fetch_news_alpha(ticker: str) -> List[Dict[str, str]]:
         return []
     params = {
         "function": "NEWS_SENTIMENT",
-        "tickers": ticker,
+        "tickers": _alpha_ticker(ticker),
         "sort": "LATEST",
         "apikey": cfg.alpha_vantage_key,
     }

@@ -16,6 +16,7 @@ import {
   clearGroupInstrumentCache,
 } from "../api";
 import { clearFetchCache } from "../utils/fetchCache";
+import { MCP_TOOL_SETUP_DOCS_URL } from "../utils/docsLinks";
 import { useConfig } from "../ConfigContext";
 import { useAuth } from "../AuthContext";
 import { useUser } from "../UserContext";
@@ -736,7 +737,15 @@ export default function Support() {
                     </label>
                     {tool.not_configured && (
                       <p id={mcpToolStatusId(tool.name)} className="ml-5 text-xs text-amber-600">
-                        {t("support.config.mcpToolNotConfigured")}: {tool.not_configured}
+                        {t("support.config.mcpToolNotConfigured")}: {tool.not_configured}{" "}
+                        <a
+                          href={MCP_TOOL_SETUP_DOCS_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline"
+                        >
+                          {t("support.config.mcpToolSetupLink")}
+                        </a>
                       </p>
                     )}
                   </div>

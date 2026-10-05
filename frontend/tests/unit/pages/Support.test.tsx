@@ -34,6 +34,7 @@ vi.mock("@/api", async () => {
 import Support from "@/pages/Support";
 import en from "@/locales/en/translation.json";
 import { setAuthToken, UNAUTHORIZED_EVENT } from "@/api";
+import { MCP_TOOL_SETUP_DOCS_URL } from "@/utils/docsLinks";
 
 async function expandSection(title: string) {
   const heading = await screen.findByRole("heading", { name: title });
@@ -476,7 +477,15 @@ describe("Support page", () => {
 
     const searchWeb = await screen.findByLabelText("search_web");
     expect(searchWeb).toBeChecked();
-    expect(searchWeb).toHaveAccessibleDescription(`${en.support.config.mcpToolNotConfigured}: ${reason}`);
+    expect(searchWeb).toHaveAccessibleDescription(
+      `${en.support.config.mcpToolNotConfigured}: ${reason} ${en.support.config.mcpToolSetupLink}`,
+    );
+    const setupLinks = screen.getAllByRole("link", { name: en.support.config.mcpToolSetupLink });
+    expect(setupLinks).toHaveLength(1);
+    // The anchor itself is checked against the runbook in docsLinks.test.ts.
+    expect(setupLinks[0]).toHaveAttribute("href", MCP_TOOL_SETUP_DOCS_URL);
+    expect(setupLinks[0]).toHaveAttribute("target", "_blank");
+    expect(setupLinks[0]).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getByLabelText("get_portfolio")).not.toHaveAccessibleDescription();
     expect(screen.getAllByText(new RegExp(en.support.config.mcpToolNotConfigured))).toHaveLength(1);
     // The note's id comes from the tool name, not its list position.
@@ -495,7 +504,9 @@ describe("Support page", () => {
 
     const tool = await screen.findByLabelText("web search.v2");
     expect(tool).toHaveAttribute("aria-describedby", "mcp-tool-status-web-search-v2");
-    expect(tool).toHaveAccessibleDescription(`${en.support.config.mcpToolNotConfigured}: missing key`);
+    expect(tool).toHaveAccessibleDescription(
+      `${en.support.config.mcpToolNotConfigured}: missing key ${en.support.config.mcpToolSetupLink}`,
+    );
   });
 
   it("separates switches from other parameters", async () => {

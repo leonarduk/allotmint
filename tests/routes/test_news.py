@@ -111,9 +111,8 @@ def test_fetch_news_yahoo(monkeypatch):
         {"headline": "One stock update", "url": "https://example.com/1"},
         {"headline": "Two shares story", "url": "https://example.com/2"},
     ]
-    query = captured["params"]["q"]
-    assert query.startswith("PFE")
-    assert "stock" in query.lower()
+    # Yahoo's search resolves its own symbols best, so the query is the symbol.
+    assert captured["params"]["q"] == "PFE"
     # Plain ``requests`` gets 429'd by Yahoo; the fetch must impersonate a browser.
     assert captured["impersonate"] == news_module.YAHOO_IMPERSONATE
 
@@ -878,3 +877,141 @@ def test_fetch_news_falls_through_to_google_during_yahoo_cooldown(monkeypatch, c
     with caplog.at_level("ERROR", logger=news_module.__name__):
         assert news_module._fetch_news("PFE") == google
     assert not [r for r in caplog.records if r.levelname == "ERROR"]
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("Adobe Inc Comm Stk US$.0001 *R", "Adobe"),
+        ("United Parcel Service Class &#39;B&#39; Com Stock US$0.01 (CDI) *R", "United Parcel Service"),
+        ("Alphabet Inc. (Class A)", "Alphabet"),
+        ("AstraZeneca PLC Ord Shs $0.25", "AstraZeneca"),
+        ("Rio Tinto Ord 10p", "Rio Tinto"),
+        # Pence par value without a preceding "Ord".
+        ("Rio Tinto 10p", "Rio Tinto"),
+        ("Rolls-Royce Holdings plc Ord 20p", "Rolls-Royce Holdings"),
+        # Bare integers are part of index/fund names, not par values.
+        ("Vanguard S&P 500 UCITS ETF", "Vanguard S&P 500 UCITS ETF"),
+        ("iShares Core FTSE 100 UCITS ETF", "iShares Core FTSE 100 UCITS ETF"),
+        ("BP p.l.c.", "BP"),
+        ("Moody's Corporation", "Moody's"),
+        ("Lloyds Banking Group plc", "Lloyds Banking Group"),
+        # "Stock" alone is part of a fund's name, not share-class noise.
+        ("Vanguard Total World Stock ETF", "Vanguard Total World Stock ETF"),
+        ("Vanguard FTSE All-World UCITS ETF (GBP)", "Vanguard FTSE All-World UCITS ETF"),
+        ("Inc", None),
+        (None, None),
+    ],
+)
+def test_normalise_instrument_name(raw, expected):
+    assert news_module._normalise_instrument_name(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("ticker", "expected"),
+    [
+        ("ADBE.N", ("ADBE", "N")),
+        ("azn.l", ("AZN", "L")),
+        ("VUSA.LSE", ("VUSA", "LSE")),
+        ("^FTSE", ("^FTSE", None)),
+        ("PFE", ("PFE", None)),
+        # Share-class dots are part of the symbol, not an exchange code.
+        ("BRK.B", ("BRK.B", None)),
+    ],
+)
+def test_split_ticker(ticker, expected):
+    assert news_module._split_ticker(ticker) == expected
+
+
+def _stub_instrument_name(monkeypatch, names):
+    monkeypatch.setattr(news_module, "get_instrument_meta", lambda ticker: {"name": names.get(ticker)})
+
+
+@pytest.mark.parametrize(
+    ("ticker", "name", "google", "yahoo"),
+    [
+        ("ADBE.N", "Adobe Inc Comm Stk US$.0001 *R", '"Adobe" OR ADBE stock', "ADBE"),
+        ("AZN.L", "AstraZeneca PLC", '"AstraZeneca" OR AZN stock', "AZN.L"),
+        ("^FTSE", None, "FTSE stock", "^FTSE"),
+    ],
+)
+def test_provider_queries_drop_suffix_and_name_noise(monkeypatch, ticker, name, google, yahoo):
+    _stub_instrument_name(monkeypatch, {ticker: name})
+    subject = news_module._news_subject(ticker)
+
+    assert news_module._google_query(subject) == google
+    assert news_module._yahoo_query(subject) == yahoo
+
+
+@pytest.mark.parametrize(
+    ("ticker", "expected"),
+    [("ADBE.N", "ADBE"), ("AZN.L", "AZN.LON"), ("PFE", "PFE")],
+)
+def test_alpha_vantage_ticker_uses_alpha_vantage_suffixes(monkeypatch, ticker, expected):
+    captured = {}
+
+    def fake_get(url, params=None, timeout=10, **kwargs):
+        captured["tickers"] = params["tickers"]
+
+        class Response:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"feed": []}
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", fake_get)
+    news_module.fetch_news_alpha(ticker)
+
+    assert captured["tickers"] == expected
+
+
+def test_relevance_filter_matches_clean_name_and_bare_symbol():
+    subject = news_module._NewsSubject(symbol="ADBE", exchange="N", name="Adobe")
+
+    assert news_module._is_finance_related("Adobe beats on Firefly demand", subject)
+    assert news_module._is_finance_related("Why ADBE fell today", subject)
+    # Whole-symbol matches only: "ADBEX" is not ADBE.
+    assert not news_module._is_finance_related("ADBEX launches new gadget", subject)
+    assert not news_module._is_finance_related("Celebrity gossip roundup", subject)
+
+
+def test_fetch_news_google_uses_clean_query_and_keeps_name_only_headlines(monkeypatch):
+    _stub_instrument_name(monkeypatch, {"ADBE.N": "Adobe Inc Comm Stk US$.0001 *R"})
+    captured = {}
+    xml = """
+        <rss><channel>
+          <item><title>Adobe unveils new AI tools</title><link>https://example.com/a</link></item>
+          <item><title>Celebrity gossip roundup</title><link>https://example.com/b</link></item>
+        </channel></rss>
+    """
+
+    def fake_get(url, params=None, timeout=10, **kwargs):
+        captured["q"] = params["q"]
+
+        class Response:
+            text = xml
+
+            def raise_for_status(self):
+                return None
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", fake_get)
+
+    items = news_module.fetch_news_google("ADBE.N")
+
+    assert captured["q"] == '"Adobe" OR ADBE stock'
+    # Passes on the clean name alone: no symbol, no finance keyword.
+    assert items == [{"headline": "Adobe unveils new AI tools", "url": "https://example.com/a"}]
+
+
+def test_relevance_symbol_match_is_case_sensitive():
+    """Tickers that are ordinary words must not match prose ("all", "it")."""
+
+    subject = news_module._NewsSubject(symbol="ALL", exchange="N", name=None)
+
+    assert news_module._is_finance_related("ALL raises dividend outlook", subject)
+    assert not news_module._is_finance_related("All the gadgets we loved this year", subject)

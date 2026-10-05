@@ -559,6 +559,7 @@
       "mcpTools": "Strumenti MCP",
       "mcpToolsHint": "Strumenti che l'assistente di chat può usare. Sono tutti attivi per impostazione predefinita; deseleziona per disattivarne uno.",
       "mcpToolNotConfigured": "Non configurato",
+      "mcpToolSetupLink": "Come configurarlo",
       "mcpToolsUnavailable": "Impossibile caricare l'elenco degli strumenti MCP."
     },
     "dataExplorer": {

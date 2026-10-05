@@ -1,4 +1,5 @@
 import backend.routes.market as market
+from tests.yahoo_chart_fakes import FakeChartTicker
 
 
 def test_fetch_indexes_includes_ftse(monkeypatch):
@@ -6,7 +7,7 @@ def test_fetch_indexes_includes_ftse(monkeypatch):
 
     def fake_Tickers(symbols):
         assert "^FTSE" in symbols and "^FTMC" in symbols
-        tickers = {sym: type("T", (), {"info": {"regularMarketPrice": price}})() for sym, price in prices.items()}
+        tickers = {sym: FakeChartTicker({"regularMarketPrice": price}) for sym, price in prices.items()}
         return type("TT", (), {"tickers": tickers})()
 
     monkeypatch.setattr(market.yf, "Tickers", fake_Tickers)

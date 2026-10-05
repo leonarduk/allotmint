@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 router = APIRouter(tags=["events"])
 logger = logging.getLogger(__name__)
@@ -26,6 +27,10 @@ def _resolve_events_path() -> Path:
     return _BUNDLED_EVENTS_PATH
 
 
+def _market_event(event: dict[str, Any]) -> dict[str, str]:
+    return {"id": event["date"], "name": f"{event['date']}: {event['description']}"}
+
+
 def _normalise_events(raw: Any) -> list[dict[str, str]]:
     """Return ``[{id, name}]`` from either supported events file layout.
 
@@ -34,10 +39,7 @@ def _normalise_events(raw: Any) -> list[dict[str, str]]:
       (``events/market_events.json``); the date doubles as the event id.
     """
     if isinstance(raw, dict):
-        return [
-            {"id": e["date"], "name": f"{e['date']}: {e['description']}"}
-            for e in raw.get("events", [])
-        ]
+        return [_market_event(e) for e in raw.get("events", [])]
     return [{"id": e["id"], "name": e["name"]} for e in raw]
 
 
@@ -47,7 +49,10 @@ try:
     with _events_path.open() as fh:
         _EVENTS = _normalise_events(json.load(fh))
 except FileNotFoundError:
-    logger.warning("Scenario events file not found at %s; no events will be offered", _events_path)
+    logger.warning(
+        "Scenario events file not found at %s; no events will be offered",
+        sanitise_log_value(_events_path),
+    )
     _EVENTS = []
 
 

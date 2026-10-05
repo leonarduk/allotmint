@@ -396,3 +396,21 @@ def test_empty_portfolio_is_unavailable_not_zero(monkeypatch):
     result = sc_tester.apply_historical_event_portfolio(portfolio, {"date": "2020-02-19"}, horizons={"1y": 365})
 
     assert result["1y"]["total_value_gbp"] is None
+
+
+def test_value_outside_holdings_is_carried_at_baseline(monkeypatch):
+    """delta_gbp reconciles with the account-level baseline (#9461)."""
+    _old_only_returns(monkeypatch, -0.1)
+    portfolio = {
+        "total_value_estimate_gbp": 1000.0,
+        "accounts": [
+            {
+                "value_estimate_gbp": 1000.0,
+                "holdings": [{"ticker": "OLD.L", "market_value_gbp": 600.0}],
+            }
+        ],
+    }
+
+    result = sc_tester.apply_historical_event_portfolio(portfolio, {"date": "2020-02-19"}, horizons={"1m": 30})
+
+    assert result == {"1m": {"total_value_gbp": 940.0, "delta_gbp": -60.0, "coverage_pct": 100.0}}

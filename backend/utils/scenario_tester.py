@@ -200,7 +200,7 @@ def _holding_returns(
 
 
 def _shock_horizon(rows: list[tuple[float, Dict[str, float | None]]], label: str) -> tuple[float | None, float]:
-    """Return ``(shocked_total, coverage)`` for one horizon.
+    """Return ``(change_in_holdings_value, coverage)`` for one horizon.
 
     Holdings without any return move with the value-weighted return of those
     that have one, provided at least ``_MIN_COVERAGE`` of the value is covered.
@@ -213,7 +213,7 @@ def _shock_horizon(rows: list[tuple[float, Dict[str, float | None]]], label: str
     if coverage < _MIN_COVERAGE:
         return None, coverage
     covered_return = sum(mv * r for mv, r in covered) / covered_mv
-    return invested * (1 + covered_return), coverage
+    return invested * covered_return, coverage
 
 
 def apply_historical_event_portfolio(
@@ -246,12 +246,15 @@ def apply_historical_event_portfolio(
         proxy_returns = _forward_returns(proxy_tkr, proxy_ex, event_date, horizon_days)
 
     rows = _holding_returns(portfolio, event_date, horizon_days, proxy_returns)
+    # Value not represented by a holding (e.g. an account total that includes
+    # unlisted items) is carried at baseline, so it never reads as a loss.
+    start = baseline or sum(mv for mv, _ in rows)
     result: Dict[str, Dict[str, float | None]] = {}
     for label in horizon_days:
-        total, coverage = _shock_horizon(rows, label)
+        delta, coverage = _shock_horizon(rows, label)
         result[label] = {
-            "total_value_gbp": None if total is None else round(total, 2),
-            "delta_gbp": None if total is None else round(total - baseline, 2),
+            "total_value_gbp": None if delta is None else round(start + delta, 2),
+            "delta_gbp": None if delta is None else round(delta, 2),
             "coverage_pct": round(coverage * 100, 1),
         }
     return result

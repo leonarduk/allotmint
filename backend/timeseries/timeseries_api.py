@@ -40,11 +40,14 @@ def _fetch_yahoo(ticker: str, period: str, interval: str) -> pd.DataFrame:
         sanitise_log_value(period),
         sanitise_log_value(interval),
     )
-    # Traded prices, not dividend-adjusted (#9340); Dividends/Stock Splits
-    # and Adj Close come back as their own columns.
+    # Traded prices, not dividend-adjusted (#9340). Dividends/Stock Splits were
+    # already in this response (yfinance's default ``actions=True``);
+    # ``auto_adjust=False`` also adds ``Adj Close``, which is dropped so the
+    # endpoint's columns stay exactly as before.
     df = yf.Ticker(ticker).history(period=period, interval=interval, **YAHOO_HISTORY_KWARGS)
     if df.empty:
         raise ValueError("No data returned from Yahoo Finance")
+    df = df.drop(columns=["Adj Close"], errors="ignore")
     df.reset_index(inplace=True)
     df.insert(0, "Ticker", ticker)
     return df

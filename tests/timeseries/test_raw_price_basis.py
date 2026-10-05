@@ -141,6 +141,23 @@ def test_download_endpoint_requests_traded_prices(mock_ticker_cls):
     assert stock.history.call_args.kwargs["auto_adjust"] is False
 
 
+@patch("backend.timeseries.timeseries_api.yf.Ticker")
+def test_download_endpoint_response_columns_unchanged(mock_ticker_cls):
+    """``auto_adjust=False`` adds ``Adj Close``; the /timeseries payload must keep its old columns."""
+    frame = _history_frame()
+    frame.insert(4, "Adj Close", [0.98])
+    frame["Dividends"] = [0.0]
+    frame["Stock Splits"] = [0.0]
+    stock = Mock()
+    stock.history.return_value = frame
+    mock_ticker_cls.return_value = stock
+
+    df = timeseries_api._fetch_yahoo("ABC.L", "5d", "1d")
+
+    assert list(df.columns) == ["Ticker", "Date", "Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"]
+    assert df["Close"].tolist() == [1.0]  # traded close, not the adjusted one
+
+
 def test_fetch_stores_traded_close_not_adjusted_close(cache_base):
     days = pd.bdate_range("2024-03-01", periods=5)
     closes = pd.Series([100.0, 101.0, 102.0, 100.0, 101.0], index=days)

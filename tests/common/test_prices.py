@@ -859,3 +859,48 @@ def test_refresh_prices_persists_snapshot_when_fx_refresh_fails(tmp_path, monkey
     prices.refresh_prices()
 
     assert json.loads(output_path.read_text()) == snapshot
+
+
+def _stub_refresh(monkeypatch: pytest.MonkeyPatch, tmp_path, snapshot: Dict) -> None:
+    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: list(snapshot))
+    monkeypatch.setattr(prices, "get_price_snapshot", lambda _ts: snapshot)
+    monkeypatch.setattr(prices, "refresh_fx_cache_for_tickers", lambda _ts: None)
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
+    monkeypatch.setattr(prices, "check_price_alerts", Mock())
+    monkeypatch.setattr(prices.config, "prices_json", tmp_path / "prices.json")
+    monkeypatch.setattr(prices, "_price_cache", {})
+
+
+def test_refresh_prices_refreshes_boe_rates_when_online(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The scheduled refresh keeps the stored Bank of England series current (#9322)."""
+    calls = []
+    _stub_refresh(monkeypatch, tmp_path, {})
+    monkeypatch.setattr(prices, "refresh_boe_series", lambda: calls.append("boe") or {})
+    monkeypatch.setattr(prices.config, "offline_mode", False)
+
+    prices.refresh_prices()
+
+    assert calls == ["boe"]
+
+
+def test_refresh_prices_skips_boe_rates_offline(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _stub_refresh(monkeypatch, tmp_path, {})
+    monkeypatch.setattr(prices, "refresh_boe_series", lambda: pytest.fail("BoE fetched offline"))
+    monkeypatch.setattr(prices.config, "offline_mode", True)
+
+    prices.refresh_prices()
+
+
+def test_refresh_prices_persists_snapshot_when_boe_refresh_fails(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    snapshot = {"XYZ.L": {"last_price": 145.0, "last_price_date": "2024-04-01"}}
+
+    def failing_boe():
+        raise ConnectionError("boe unreachable")
+
+    _stub_refresh(monkeypatch, tmp_path, snapshot)
+    monkeypatch.setattr(prices, "refresh_boe_series", failing_boe)
+    monkeypatch.setattr(prices.config, "offline_mode", False)
+
+    prices.refresh_prices()
+
+    assert json.loads((tmp_path / "prices.json").read_text()) == snapshot

@@ -14,6 +14,16 @@ import {
   Cell,
 } from 'recharts';
 
+// Shared sign colours (#7817): the index and sector charts must never
+// disagree about which way is up.
+const POSITIVE_COLOR = '#16a34a';
+const NEGATIVE_COLOR = '#dc2626';
+const changeColor = (change: number | null | undefined) =>
+  (change ?? 0) >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR;
+const SECTOR_ROW_HEIGHT = 36;
+const SECTOR_LABEL_WIDTH = 160;
+const formatPctTick = (value: unknown) => `${Number(value).toFixed(1)}%`;
+
 export const IndexTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const { value, change } = payload[0].payload;
@@ -75,6 +85,8 @@ export default function MarketOverview() {
     })
   );
 
+  const usesUsSectorFallback = data.sectors.some((s) => s.source === 'us_etf');
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-4 text-2xl">{pageHeading}</h1>
@@ -89,18 +101,12 @@ export default function MarketOverview() {
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={indexData}>
             <XAxis dataKey="name" />
-            <YAxis tickFormatter={(value) => `${Number(value).toFixed(1)}%`} />
+            <YAxis tickFormatter={formatPctTick} />
             <Tooltip content={<IndexTooltip />} />
             <Bar dataKey="change">
-              {indexData.map((entry) => {
-                const changeValue = entry.change ?? 0;
-                return (
-                  <Cell
-                    key={entry.name}
-                    fill={changeValue >= 0 ? '#16a34a' : '#dc2626'}
-                  />
-                );
-              })}
+              {indexData.map((entry) => (
+                <Cell key={entry.name} fill={changeColor(entry.change)} />
+              ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -138,24 +144,67 @@ export default function MarketOverview() {
 
       <div className="mb-8">
         <h2 className="mb-2 text-xl">
-          {t('market.sectorPerformance', {
-            defaultValue: 'Sector Performance',
-          })}
+          {t('market.sectorChange', { defaultValue: 'Sector % Change' })}
         </h2>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data.sectors}>
-            <XAxis
-              dataKey="sector"
-              interval={0}
-              angle={-45}
-              textAnchor="end"
-              height={100}
-            />
-            <YAxis />
-            <Tooltip contentStyle={{ backgroundColor: '#fff', color: '#213547' }} />
-            <Bar dataKey="change" fill="#82ca9d" />
-          </BarChart>
-        </ResponsiveContainer>
+        {usesUsSectorFallback && (
+          <p className="mb-2 text-sm text-gray-500">
+            {t('market.sectorUsFallback', {
+              defaultValue:
+                'UK sector data is unavailable; showing US sector ETF performance instead.',
+            })}
+          </p>
+        )}
+        {/* Horizontal bars: sector names are long ("Communication Services"),
+            and rotated X-axis labels were clipped on desktop and collided at
+            phone width (#7817). Category labels on the Y axis stay legible. */}
+        {data.sectors.length === 0 ? (
+          <EmptyState
+            message={t('market.noSectors', {
+              defaultValue: 'No sector data available',
+            })}
+          />
+        ) : (
+          <ResponsiveContainer
+            width="100%"
+            height={Math.max(200, data.sectors.length * SECTOR_ROW_HEIGHT + 30)}
+          >
+            <BarChart
+              data={data.sectors}
+              layout="vertical"
+              margin={{ top: 5, right: 20, bottom: 5, left: 5 }}
+            >
+              <XAxis
+                type="number"
+                tickFormatter={formatPctTick}
+                height={45}
+                label={{
+                  value: t('market.changePct', { defaultValue: '% Change' }),
+                  position: 'insideBottom',
+                  offset: 0,
+                }}
+              />
+              <YAxis
+                type="category"
+                dataKey="sector"
+                interval={0}
+                width={SECTOR_LABEL_WIDTH}
+                tick={{ fontSize: 12 }}
+              />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#fff', color: '#213547' }}
+                formatter={(value) => [
+                  `${Number(value).toFixed(2)}%`,
+                  t('market.changePct', { defaultValue: '% Change' }),
+                ]}
+              />
+              <Bar dataKey="change">
+                {data.sectors.map((entry) => (
+                  <Cell key={entry.sector} fill={changeColor(entry.change)} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       <div>

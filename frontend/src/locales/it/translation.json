@@ -383,7 +383,10 @@
     "indexChange": "Variazione % degli indici",
     "indexLevels": "Livelli degli indici",
     "latestHeadlines": "Ultime notizie",
-    "sectorPerformance": "Rendimento dei settori"
+    "noSectors": "Nessun dato settoriale disponibile",
+    "sectorChange": "Variazione % dei settori",
+    "sectorPerformance": "Rendimento dei settori",
+    "sectorUsFallback": "I dati settoriali del Regno Unito non sono disponibili; viene mostrato il rendimento degli ETF settoriali statunitensi."
   },
   "movers": {
     "deltaGbpHeader": "Variazione di valore (£, {{period}})",

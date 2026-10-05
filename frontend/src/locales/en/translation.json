@@ -581,7 +581,10 @@
     "indexChange": "Index % Change",
     "indexLevels": "Index Levels",
     "latestHeadlines": "Latest Headlines",
-    "sectorPerformance": "Sector Performance"
+    "noSectors": "No sector data available",
+    "sectorChange": "Sector % Change",
+    "sectorPerformance": "Sector Performance",
+    "sectorUsFallback": "UK sector data is unavailable; showing US sector ETF performance instead."
   },
   "metricsExplanation": {
     "activeReturn": "Active return",

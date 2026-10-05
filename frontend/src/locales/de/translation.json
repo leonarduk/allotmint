@@ -384,7 +384,10 @@
     "indexChange": "Indexveränderung in %",
     "indexLevels": "Indexstände",
     "latestHeadlines": "Neueste Schlagzeilen",
-    "sectorPerformance": "Sektorentwicklung"
+    "noSectors": "Keine Sektordaten verfügbar",
+    "sectorChange": "Sektorveränderung in %",
+    "sectorPerformance": "Sektorentwicklung",
+    "sectorUsFallback": "UK-Sektordaten sind nicht verfügbar; stattdessen wird die Entwicklung von US-Sektor-ETFs angezeigt."
   },
   "metricsExplanation": {
     "activeReturn": "Active Return",

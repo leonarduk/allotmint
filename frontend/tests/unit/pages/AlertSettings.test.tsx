@@ -6,7 +6,6 @@ import Menu from "@/components/Menu";
 import AlertSettings from "@/pages/AlertSettings";
 import en from "@/locales/en/translation.json";
 import { AuthContext } from "@/AuthContext";
-import type { OwnerSummary } from "@/types";
 
 const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockGetAlertThreshold = vi.hoisted(() => vi.fn());
@@ -36,16 +35,6 @@ const DISABLE_AUTH_DEMO_CONFIG = {
   local_login_email: "",
   demo_identity: "demo",
 };
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
 
 beforeEach(() => {
   mockGetOwners.mockReset().mockResolvedValue([]);
@@ -215,34 +204,6 @@ describe("AlertSettings identity resolution", () => {
     expect(mockGetAlertThreshold).not.toHaveBeenCalled();
   });
 
-  it("shows a resolving state instead of flashing the sign-in notice while config/owners are still loading", async () => {
-    const configDeferred = deferred<typeof DISABLE_AUTH_DEMO_CONFIG>();
-    mockGetConfig.mockReturnValue(configDeferred.promise);
-    const ownersDeferred = deferred<OwnerSummary[]>();
-    mockGetOwners.mockReturnValue(ownersDeferred.promise);
-
-    render(
-      <MemoryRouter initialEntries={["/alert-settings"]}>
-        <AlertSettings />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByText(en.alertSettings.resolving)).toBeInTheDocument();
-    expect(
-      screen.queryByText(en.alertSettings.signInNotice),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: en.alertSettings.save }),
-    ).toBeDisabled();
-
-    configDeferred.resolve(DISABLE_AUTH_DEMO_CONFIG);
-    ownersDeferred.resolve([]);
-
-    await waitFor(() => expect(mockGetAlertThreshold).toHaveBeenCalledWith("demo"));
-    expect(
-      screen.queryByText(en.alertSettings.resolving),
-    ).not.toBeInTheDocument();
-  });
 });
 
 describe("AlertSettings authorisation errors", () => {

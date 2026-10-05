@@ -29,6 +29,14 @@ except ModuleNotFoundError as exc:
         raise
     instrument_valuation = None
 
+# Likewise for the technicals module (allotmint-pro: instrument technicals).
+try:
+    from allotmint_pro.screener.technicals import instrument_technicals
+except ModuleNotFoundError as exc:
+    if not missing_package(exc):
+        raise
+    instrument_technicals = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -379,3 +387,24 @@ def valuation(ticker: str = Query(..., description="Full ticker, e.g. UKW.L")) -
     data_quality["price_snapshot"] = _price_snapshot_flags(symbol)
     profile["data_quality"] = data_quality
     return profile
+
+
+@router.get("/technicals")
+def technicals(ticker: str = Query(..., description="Full ticker, e.g. ADBE.N")) -> Dict[str, Any]:
+    """Technical indicators for one instrument from its daily closes.
+
+    Moving averages and trend, RSI, MACD, Bollinger bands, the 52-week range,
+    period returns and relative strength against the valuation benchmark,
+    with plain-language ``signals`` and data-quality warnings. The same
+    readings back the assistant's ``get_instrument_technicals`` MCP tool.
+    """
+
+    require_core(instrument_technicals, "Instrument technicals")
+
+    symbol = ticker.strip().upper()
+    if not symbol or symbol.startswith("."):
+        raise HTTPException(status_code=400, detail="No ticker supplied")
+    try:
+        return instrument_technicals(symbol).model_dump()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e

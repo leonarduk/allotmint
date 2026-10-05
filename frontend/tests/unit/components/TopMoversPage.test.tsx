@@ -410,6 +410,36 @@ describe("TopMoversPage", () => {
     expect(enTranslation.movers.signalWindowNote.toLowerCase()).not.toContain("hover");
   });
 
+  it("does not attach a dangling aria-describedby from the Signal header to the distant window note (#7292)", async () => {
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findAllByText("AAA");
+
+    // The window note is still rendered and visible to all users...
+    expect(
+      screen.getByText(enTranslation.movers.windowNote),
+    ).toBeInTheDocument();
+
+    // ...but the Signal column header must not reference it via
+    // aria-describedby, since the note lives above the table and the
+    // cross-region reference produced confusing screen-reader output.
+    const signalHeader = screen.getByRole("columnheader", {
+      name: /signal/i,
+    });
+    expect(signalHeader).not.toHaveAttribute("aria-describedby");
+
+    // Guard against a dangling pointer: no element in the tree may still
+    // reference the window-note id via aria-describedby.
+    const dangling = document.querySelectorAll(
+      '[aria-describedby~="movers-window-note"]',
+    );
+    expect(dangling).toHaveLength(0);
+  });
+
   it("surfaces a signal's reason and confidence without leaving the page when its badge is selected (#7231)", async () => {
     const signalWithConfidence: TradingSignal = {
       ticker: "AAA",

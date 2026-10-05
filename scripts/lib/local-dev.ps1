@@ -8,7 +8,10 @@
 # Child processes (e.g. the MCP server started by run-backend.ps1) inherit
 # these. As with bash's `source` in load_env.sh, an `export ` prefix is
 # allowed and one pair of surrounding quotes is stripped, so `KEY="value"` and
-# `export KEY=value` mean the same under both scripts.
+# `export KEY=value` mean the same under both scripts. This is not a full
+# shell parser: escapes are not interpreted and an inline `# comment` after an
+# unquoted value is kept as part of the value, so keep comments on their own
+# lines.
 function Import-AllotmintEnv([string]$RepoRoot) {
   $sharedEnvFile = if ($env:ALLOTMINT_ENV_FILE) { $env:ALLOTMINT_ENV_FILE } else { Join-Path $env:USERPROFILE 'workspace\GitHub\allotmint\.env.shared' }
   $repoEnvFile = Join-Path $RepoRoot '.env'

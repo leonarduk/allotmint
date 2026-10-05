@@ -56,7 +56,8 @@ def test_history_start_defaults_to_2007_and_is_configurable(fx_store, monkeypatc
 def test_new_currency_is_seeded_from_the_history_start(fx_store, live):
     assert cache.refresh_fx_cache("EUR") is True
 
-    assert live == [("EUR", "GBP", date(2007, 1, 1), date.today())]
+    # Up to the last completed weekday: today's rate is still moving.
+    assert live == [("EUR", "GBP", date(2007, 1, 1), cache._last_close_target())]
     stored = cache.load_fx_history("EUR")
     assert stored["Date"].min().date() <= date(2007, 1, 2)
 

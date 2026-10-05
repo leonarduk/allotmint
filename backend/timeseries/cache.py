@@ -1076,15 +1076,15 @@ def fx_reference_currencies() -> list[str]:
     return [c.strip().upper() for c in currencies if isinstance(c, str) and c.strip()]
 
 
-def _fx_fetch_windows(curr: str, existing: pd.DataFrame, today: date) -> list[tuple[date, date]]:
-    """Date ranges a refresh of ``curr`` should fetch: new days after the cache, then any missing history."""
+def _fx_fetch_windows(curr: str, existing: pd.DataFrame, end: date) -> list[tuple[date, date]]:
+    """Date ranges a refresh of ``curr`` should fetch: new days up to ``end``, then any missing history."""
     start = fx_history_start()
     if existing.empty:
-        return [(start, today)] if start <= today else []
+        return [(start, end)] if start <= end else []
     windows = []
     after_last = existing["Date"].max().date() + timedelta(days=1)
-    if after_last <= today:
-        windows.append((after_last, today))
+    if after_last <= end:
+        windows.append((after_last, end))
     first = existing["Date"].min().date()
     with _FX_LOCK:
         tried = curr in _FX_BACKFILL_TRIED
@@ -1108,11 +1108,12 @@ def _fetch_fx_window(curr: str, start: date, end: date) -> pd.DataFrame:
 def refresh_fx_cache(curr: str) -> bool:
     """Add live ``curr``->GBP rates to the FX cache; return whether the file changed.
 
-    Fetches from the day after the last cached rate to today and -- once per
-    process -- backfills from :func:`fx_history_start` up to the first cached
-    rate when the stored history starts later (a new currency fetches the
-    whole span in one go). Stored dates are never rewritten. Like
-    _rolling_cache, a fetch that adds no dates leaves the file untouched.
+    Fetches from the day after the last cached rate to the last completed
+    weekday (today's rate is still moving) and -- once per process --
+    backfills from :func:`fx_history_start` up to the first cached rate when
+    the stored history starts later (a new currency fetches the whole span in
+    one go). Stored dates are never rewritten. Like _rolling_cache, a fetch
+    that adds no dates leaves the file untouched.
     """
     curr = (curr or "").strip().upper()
     if curr in ("GBP", "GBX") or not re.fullmatch(r"[A-Z]{3}", curr):
@@ -1120,7 +1121,7 @@ def refresh_fx_cache(curr: str) -> bool:
     path = _fx_cache_path(curr)
     with _fx_write_lock(curr):
         existing = _read_fx_parquet(path)
-        fetched = [_fetch_fx_window(curr, s, e) for s, e in _fx_fetch_windows(curr, existing, date.today())]
+        fetched = [_fetch_fx_window(curr, s, e) for s, e in _fx_fetch_windows(curr, existing, _last_close_target())]
         frames = [f for f in (existing, *fetched) if not f.empty]
         if not frames:
             return False

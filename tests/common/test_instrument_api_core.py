@@ -187,6 +187,26 @@ def test_instrument_summaries_populate_grouping(monkeypatch):
     assert by_ticker["CCC.L"]["grouping"] == "Region C"
 
 
+def test_instrument_summaries_workers_inherit_cache_only(monkeypatch):
+    """#9383: the _price_and_changes pool must honour the caller's cache_only()."""
+    from backend.timeseries.cache import cache_only, is_cache_only
+
+    holdings = [{"ticker": f"T{i}.L", "name": f"T{i}", "units": 1.0, "market_value_gbp": 1.0} for i in range(12)]
+    monkeypatch.setattr(ia, "build_group_portfolio", lambda slug, **_: {"accounts": [{"holdings": holdings}]})
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: {})
+    seen = []
+
+    def record_price_and_changes(ticker: str) -> dict:
+        seen.append(is_cache_only())
+        return {"last_price_gbp": None, "change_7d_pct": None, "change_30d_pct": None}
+
+    monkeypatch.setattr(ia, "_price_and_changes", record_price_and_changes)
+
+    with cache_only():
+        ia.instrument_summaries_for_group("demo")
+    assert seen == [True] * len(holdings)
+
+
 def test_instrument_summaries_fetches_prices_concurrently(monkeypatch):
     """Regression test: per-ticker price/change fetches must run concurrently,
     not one at a time.

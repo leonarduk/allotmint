@@ -30,7 +30,7 @@ Runtime options live in `config.yaml`:
 Additional runtime settings are supplied via environment variables. Copy
 `.env.example` to `.env` and fill in values such as:
 
-- `ALPHA_VANTAGE_KEY`: API key for Alpha Vantage data (example: `demo`).
+- `ALPHA_VANTAGE_KEY`: API key for Alpha Vantage data. Leave unset to skip Alpha Vantage for news (Yahoo and Google are used instead); the public `demo` key only returns data for `IBM`.
 - `SNS_TOPIC_ARN`: publish alerts to an AWS SNS topic (e.g.
   `arn:aws:sns:us-east-1:123456789012:allotmint`).
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: forward alerts to Telegram;

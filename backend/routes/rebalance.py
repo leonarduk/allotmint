@@ -9,7 +9,12 @@ from pydantic import BaseModel
 
 from backend.auth import get_active_user
 from backend.common import portfolio as portfolio_mod
-from backend.common.allocation_policy import load_allocation_policy, parse_policy, save_allocation_policy
+from backend.common.allocation_policy import (
+    SettingsUnreadableError,
+    load_allocation_policy,
+    parse_policy,
+    save_allocation_policy,
+)
 from backend.common.authz import ensure_owner_access
 from backend.common.errors import raise_owner_not_found
 from backend.common.rebalance_plan import bucket_holdings, build_plan, suggest_new_cash
@@ -58,7 +63,12 @@ def put_policy(
         policy = parse_policy(data)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    save_allocation_policy(owner, policy, accounts_root)
+    try:
+        save_allocation_policy(owner, policy, accounts_root)
+    except SettingsUnreadableError as exc:
+        raise HTTPException(
+            status_code=409, detail="Owner settings file is unreadable; fix or remove it before saving targets"
+        ) from exc
     return policy.to_dict()
 
 

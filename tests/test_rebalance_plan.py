@@ -1,11 +1,13 @@
 """Tests for asset-class drift and per-account trade planning (#9446)."""
 
 import json
+import random
 
 import pytest
 
 from backend.common.allocation_policy import (
     AllocationPolicy,
+    SettingsUnreadableError,
     load_allocation_policy,
     parse_policy,
     save_allocation_policy,
@@ -90,6 +92,19 @@ def test_load_policy_ignores_invalid_stored_policy(tmp_path):
     owner_dir = tmp_path / "alex"
     owner_dir.mkdir()
     (owner_dir / "settings.json").write_text(json.dumps({"allocation_policy": {"targets": {"equity": 10}}}))
+    assert load_allocation_policy("alex", tmp_path).targets == {}
+
+
+def test_save_policy_refuses_to_overwrite_corrupt_settings(tmp_path):
+    owner_dir = tmp_path / "alex"
+    owner_dir.mkdir()
+    settings = owner_dir / "settings.json"
+    settings.write_text('{"hold_days_min": 30,')  # truncated JSON
+
+    with pytest.raises(SettingsUnreadableError):
+        save_allocation_policy("alex", _policy(5, equity=100), tmp_path)
+    assert settings.read_text() == '{"hold_days_min": 30,'
+    # Reads degrade to "no policy" instead of failing the page.
     assert load_allocation_policy("alex", tmp_path).targets == {}
 
 
@@ -265,6 +280,59 @@ def test_literal_cash_is_spent_before_cash_class_funds_are_sold():
     assert by_key[("sell", "cash")]["ticker"] == "MMF1"
     assert by_key[("buy", "equity")]["amount"] == 400.0
     assert not any(t["ticker"] and t["ticker"].startswith("CASH") for t in trades)
+
+
+def _assert_accounts_self_funded(holdings, trades):
+    """Every account's buys are covered by its own sales plus its own literal cash."""
+    for account in holdings.accounts:
+        mine = [t for t in trades if t["account_id"] == account.id]
+        buys = sum(t["amount"] for t in mine if t["action"] == "buy")
+        sells = sum(t["amount"] for t in mine if t["action"] == "sell")
+        assert buys <= sells + account.cash + 0.01 * (len(mine) + 1), (account.label, mine)
+        for t in mine:
+            if t["action"] == "sell":
+                assert t["amount"] <= account.class_values.get(t["asset_class"], 0.0) + 0.01
+
+
+def test_cash_in_one_account_never_funds_a_buy_in_another():
+    # ISA has spare cash; SIPP has none. Whatever SIPP buys must come from
+    # SIPP's own sales, never from the ISA's cash.
+    holdings = bucket_holdings(
+        _portfolio(
+            ("ISA", [_h("CASH.GBP", 400, instrument_type="Cash"), _h("EQ1", 600, "equity")]),
+            ("SIPP", [_h("EQ2", 1000, "equity")]),
+        )
+    )
+    trades = suggest_account_trades(holdings, _policy(5, equity=70, bond=20, cash=10))["trades"]
+    _assert_accounts_self_funded(holdings, trades)
+    sipp = [t for t in trades if t["account"] == "SIPP"]
+    sipp_sold = sum(t["amount"] for t in sipp if t["action"] == "sell")
+    sipp_bought = sum(t["amount"] for t in sipp if t["action"] == "buy")
+    assert sipp_bought == pytest.approx(sipp_sold, abs=0.02)
+
+
+def test_buys_are_self_funded_per_account_across_random_portfolios():
+    rng = random.Random(9446)
+    classes = ["equity", "bond", "property", "commodity", "cash"]
+    for _ in range(300):
+        accounts = []
+        for name in ("ISA", "SIPP", "GIA")[: rng.randint(1, 3)]:
+            holdings = [_h(f"{name}-{c}", rng.choice([0, rng.uniform(1, 5000)]), c) for c in classes]
+            holdings.append(_h(f"CASH.{name}", rng.choice([0, rng.uniform(1, 3000)]), instrument_type="Cash"))
+            accounts.append((name, holdings))
+        weights = [rng.choice([0, rng.randint(1, 10)]) for _ in classes] or [1]
+        if not any(weights):
+            weights[0] = 1
+        total = sum(weights)
+        targets = {c: w * 100 / total for c, w in zip(classes, weights) if w}
+        drift = sum(targets.values()) - 100
+        targets[next(iter(targets))] -= drift
+        policy = AllocationPolicy(targets=targets, tolerance_pct=rng.choice([0.5, 2, 5, 10]))
+
+        holdings = bucket_holdings(_portfolio(*accounts))
+        trades = suggest_account_trades(holdings, policy)["trades"]
+        _assert_accounts_self_funded(holdings, trades)
+        assert not any(t["ticker"] and t["ticker"].startswith("CASH.") for t in trades)
 
 
 def test_held_class_without_target_is_sold_when_out_of_band():

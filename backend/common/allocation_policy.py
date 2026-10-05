@@ -86,15 +86,22 @@ def _settings_path(owner: str, accounts_root: Path | None) -> Path:
     return resolve_owner_dir(owner, accounts_root) / "settings.json"
 
 
+class SettingsUnreadableError(RuntimeError):
+    """``settings.json`` exists but cannot be parsed as a JSON object."""
+
+
 def _read_settings(path: Path) -> dict[str, Any]:
+    """Return the settings object; raise :class:`SettingsUnreadableError` if corrupt."""
+
     if not path.exists():
         return {}
     try:
         data = json.loads(path.read_text())
     except (OSError, ValueError) as exc:
-        logger.warning("Unreadable settings file %s: %s", sanitise_log_value(str(path)), sanitise_log_value(exc))
-        return {}
-    return data if isinstance(data, dict) else {}
+        raise SettingsUnreadableError(f"Unreadable settings file {path.name}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise SettingsUnreadableError(f"Settings file {path.name} is not a JSON object")
+    return data
 
 
 def load_allocation_policy(owner: str, accounts_root: Path | None = None) -> AllocationPolicy:
@@ -105,7 +112,13 @@ def load_allocation_policy(owner: str, accounts_root: Path | None = None) -> All
     so the page can prompt for a new one instead of failing outright.
     """
 
-    raw = _read_settings(_settings_path(owner, accounts_root)).get(POLICY_KEY)
+    try:
+        raw = _read_settings(_settings_path(owner, accounts_root)).get(POLICY_KEY)
+    except SettingsUnreadableError as exc:
+        logger.warning(
+            "Treating allocation policy as unset for %s: %s", sanitise_log_value(owner), sanitise_log_value(exc)
+        )
+        return AllocationPolicy()
     if not isinstance(raw, Mapping):
         return AllocationPolicy()
     try:
@@ -118,7 +131,11 @@ def load_allocation_policy(owner: str, accounts_root: Path | None = None) -> All
 
 
 def save_allocation_policy(owner: str, policy: AllocationPolicy, accounts_root: Path | None = None) -> None:
-    """Persist ``policy`` for ``owner``, preserving other settings keys."""
+    """Persist ``policy`` for ``owner``, preserving other settings keys.
+
+    Raises :class:`SettingsUnreadableError` rather than overwriting a corrupt
+    ``settings.json``, which would silently drop every other setting in it.
+    """
 
     path = _settings_path(owner, accounts_root)
     data = _read_settings(path)

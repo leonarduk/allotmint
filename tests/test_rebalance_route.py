@@ -120,3 +120,11 @@ def test_owner_routes_unknown_owner_returns_404(monkeypatch, tmp_path):
     ]:
         assert getattr(client, method)(path).status_code == 404, path
     assert client.put("/rebalance/nobody/policy", json={"targets": {}}).status_code == 404
+
+
+def test_policy_put_refuses_corrupt_settings_file(monkeypatch, tmp_path):
+    client = _owner_client(monkeypatch, tmp_path)
+    (tmp_path / "alex" / "settings.json").write_text("{not json")
+    resp = client.put("/rebalance/alex/policy", json={"targets": {"equity": 100}})
+    assert resp.status_code == 409
+    assert (tmp_path / "alex" / "settings.json").read_text() == "{not json"

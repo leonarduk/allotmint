@@ -97,6 +97,42 @@ describe("ScenarioTester page", () => {
     expect(screen.getByText("-10.00%")).toBeInTheDocument();
   });
 
+  it("flags partially priced horizons and shows unavailable ones as a dash", async () => {
+    mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
+    mockRunScenario.mockResolvedValueOnce([
+      {
+        owner: "Test Owner",
+        horizons: {
+          "1m": {
+            baseline_total_value_gbp: 100,
+            shocked_total_value_gbp: 80,
+            coverage_pct: 62.4,
+          },
+          "1y": {
+            baseline_total_value_gbp: 100,
+            shocked_total_value_gbp: null,
+            coverage_pct: 30,
+          },
+        },
+      } as ScenarioResult,
+    ]);
+
+    render(<ScenarioTester />);
+    await screen.findByRole("option", { name: "Event 1" });
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "e1" },
+    });
+    fireEvent.click(screen.getByLabelText("1m"));
+    fireEvent.click(screen.getByLabelText("1y"));
+    fireEvent.click(screen.getByText("Run stress test"));
+
+    await screen.findByText("Test Owner");
+    expect(screen.getByText("-20.00%")).toBeInTheDocument();
+    expect(screen.getByText("62% priced")).toBeInTheDocument();
+    expect(screen.getByText("30% priced")).toBeInTheDocument();
+    expect(screen.queryByText(new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(0))).toBeNull();
+  });
+
   it("disables Apply button until valid inputs provided", async () => {
     mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
     mockRunScenario.mockResolvedValueOnce([

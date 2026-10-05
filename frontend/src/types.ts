@@ -595,6 +595,8 @@ export interface ScenarioEvent {
 export interface ScenarioHorizonResult {
   baseline_total_value_gbp: number | null;
   shocked_total_value_gbp: number | null;
+  /** Share of invested value with real price history for the event (0-100). */
+  coverage_pct?: number | null;
 }
 
 export interface ScenarioResult {

@@ -116,3 +116,25 @@ def test_list_events_malformed_file_degrades_to_empty(monkeypatch, tmp_path, cap
     assert "unreadable or malformed" in caplog.text
 
     reload_events_module()
+
+
+def test_get_event_returns_bundled_date_and_proxy():
+    event = events_module.get_event("covid-2020")
+    assert event["date"] and event["proxy_index"]
+    assert events_module.get_event("gfc-2008")["date"] != event["date"]
+    assert events_module.get_event("missing") is None
+
+
+def test_event_details_market_layout_qualifies_bare_us_tickers():
+    details = events_module._event_details(  # pylint: disable=protected-access
+        {
+            "proxy_index": {"ticker": "SPY"},
+            "events": [
+                {"date": "2020-03-16", "description": "COVID"},
+                {"date": "2022-09-26", "description": "Gilts", "reference_index": "ISF.L"},
+            ],
+        }
+    )
+    assert details["2020-03-16"]["proxy_index"] == "SPY.N"
+    assert details["2022-09-26"]["proxy_index"] == "ISF.L"
+    assert details["2020-03-16"]["date"] == "2020-03-16"

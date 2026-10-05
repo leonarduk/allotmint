@@ -689,3 +689,55 @@ def test_yahoo_client_is_curl_cffi():
 
     assert news_module.curl_requests.get is curl_cffi.requests.get
     assert news_module.curl_requests.get is not news_module.requests.get
+
+
+def test_single_flight_caller_after_resolve_reuses_result(monkeypatch):
+    """A caller arriving after the leader resolves its future, but before the
+    entry is dropped, must reuse the result rather than fetch again.
+
+    Pins the ordering in ``_single_flight``: the future is resolved before the
+    in-flight entry is removed, so there is no window in which a new caller
+    finds no entry while the leader's result is still pending publication.
+    """
+
+    from concurrent.futures import Future
+
+    late_calls = {"fetch": 0}
+    late_results: List[List[Dict[str, str]]] = []
+    injected: List[bool] = []
+
+    def late_fetch() -> List[Dict[str, str]]:
+        late_calls["fetch"] += 1
+        return [{"headline": "late", "url": "https://example.com/late"}]
+
+    class LateCallerFuture(Future):
+        def set_result(self, result):
+            super().set_result(result)
+            # Runs after the leader resolves and before its ``finally`` pops.
+            # Only the leader's future injects the late caller.
+            if not injected:
+                injected.append(True)
+                late_results.append(news_module._single_flight("news_LATE", late_fetch))
+
+    monkeypatch.setattr(news_module, "Future", LateCallerFuture)
+
+    leader_result = [{"headline": "leader", "url": "https://example.com/leader"}]
+    assert news_module._single_flight("news_LATE", lambda: leader_result) == leader_result
+
+    assert late_calls["fetch"] == 0
+    assert late_results == [leader_result]
+    assert "news_LATE" not in news_module._inflight
+
+
+def test_single_flight_fetches_again_after_completion():
+    calls = {"count": 0}
+
+    def fetch() -> List[Dict[str, str]]:
+        calls["count"] += 1
+        return []
+
+    news_module._single_flight("news_AGAIN", fetch)
+    news_module._single_flight("news_AGAIN", fetch)
+
+    assert calls["count"] == 2
+    assert news_module._inflight == {}

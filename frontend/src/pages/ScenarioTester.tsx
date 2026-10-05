@@ -419,7 +419,7 @@ export default function ScenarioTester() {
 
   return (
     <div className="container mx-auto flex flex-col gap-6 p-4">
-      <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
         <header className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <h1 className="text-xl font-semibold">Scenario workspace</h1>
           <div className="flex flex-wrap gap-2">
@@ -486,7 +486,7 @@ export default function ScenarioTester() {
         </div>
       </section>
 
-      <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
         <h2 className="mb-3 text-lg font-semibold">Reporting date</h2>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
           <label className="flex items-center gap-2 text-sm">
@@ -525,7 +525,7 @@ export default function ScenarioTester() {
         </div>
       </section>
 
-      <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
         <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <h2 className="text-lg font-semibold">Scenario positions</h2>
           <div className="flex flex-wrap gap-2">
@@ -714,7 +714,7 @@ export default function ScenarioTester() {
         )}
       </section>
 
-      <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
         <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <h2 className="text-lg font-semibold">Save scenario</h2>
           <button
@@ -732,7 +732,7 @@ export default function ScenarioTester() {
         </p>
       </section>
 
-      <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
         <h2 className="mb-3 text-lg font-semibold">Historical stress test</h2>
         <p className="mb-4 text-sm text-slate-600">
           Apply historical events to your underlying portfolios. This uses the

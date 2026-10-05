@@ -50,3 +50,21 @@ def test_list_events_missing_file(monkeypatch, tmp_path):
     assert response.json() == []
 
     reload_events_module()
+
+
+def test_list_events_falls_back_to_bundled_catalogue(monkeypatch, tmp_path):
+    # data_root without events.json (e.g. a separate user-data checkout)
+    with monkeypatch.context() as patcher:
+        patcher.delattr(events_module, "_events_path", raising=False)
+        patcher.setattr(events_module.config, "data_root", tmp_path)
+        reload_events_module()
+        client = create_client()
+
+        response = client.get("/events")
+
+    assert response.status_code == 200
+    ids = [e["id"] for e in response.json()]
+    assert ids, "expected bundled events when data_root has no events.json"
+    assert "covid-2020" in ids
+
+    reload_events_module()

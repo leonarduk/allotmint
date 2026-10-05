@@ -446,7 +446,7 @@ async def market_sectors_by_region(
     try:
         rows = await loop.run_in_executor(None, market_sectors.fetch_region_sectors, resolved)
     except Exception as exc:
-        logger.exception("Sector fetch failed for region %s", resolved)
+        logger.exception("Sector fetch failed for region %s", sanitise_log_value(resolved))
         raise HTTPException(status_code=502, detail="Sector data is unavailable") from exc
     return {"region": resolved, "sectors": rows}
 
@@ -465,6 +465,6 @@ async def market_sector_detail(region: str, sector: str) -> Dict[str, Any]:
     try:
         detail = await loop.run_in_executor(None, market_sectors.fetch_sector_detail, resolved, name)
     except Exception as exc:
-        logger.exception("Sector detail fetch failed for %s/%s", resolved, sanitise_log_value(name))
+        logger.exception("Sector detail fetch failed for %s/%s", sanitise_log_value(resolved), sanitise_log_value(name))
         raise HTTPException(status_code=502, detail="Sector data is unavailable") from exc
     return dict(detail)

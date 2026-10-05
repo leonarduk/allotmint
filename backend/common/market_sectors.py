@@ -22,6 +22,7 @@ from typing import Dict, List, Literal, Optional, Sequence, Tuple, TypedDict
 
 import pandas as pd
 
+from backend.logging_setup import sanitise_log_value
 from backend.utils.lazy_import import lazy_import
 
 yf = lazy_import("yfinance")
@@ -471,7 +472,11 @@ def fetch_region_sectors(region: Region) -> List[RegionSector]:
             change = _basket_change(closes, [t for t, _ in definition["constituents"]])
             source = "basket"
         if change is None:
-            logger.warning("No sector change for %s/%s: close data missing", region, sector)
+            logger.warning(
+                "No sector change for %s/%s: close data missing",
+                sanitise_log_value(region),
+                sanitise_log_value(sector),
+            )
             continue
         out.append({"sector": sector, "change": change, "source": source})
     return out

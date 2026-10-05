@@ -140,6 +140,7 @@ def test_get_mcp_tools_reports_an_unreachable_server(config_path, monkeypatch):
     assert "Could not list the MCP server's tools" in body["mcp_error"]
     assert "internal-host" not in body["mcp_error"]
     assert [tool["name"] for tool in body["tools"]] == ["export_file", "get_nav_discount", "navigate_to_page"]
+    assert all(tool["not_configured"] is None for tool in body["tools"])
 
 
 def test_get_mcp_tools_without_a_server_url(config_path, monkeypatch):

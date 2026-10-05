@@ -495,6 +495,16 @@ def test_fetch_metadata_from_yahoo_applies_classification_override(monkeypatch, 
     assert result["instrument_type"] == "ETF"
 
 
+def test_every_supported_exchange_has_a_region() -> None:
+    """Adding an exchange to ``_YAHOO_SUFFIXES`` without a region would
+    silently give its new instruments ``region=None``; currency pairs have no
+    region by design."""
+
+    no_region = {"FX"}
+
+    assert set(instruments._YAHOO_SUFFIXES) - no_region == set(instruments._EXCHANGE_REGIONS)
+
+
 def test_fetch_metadata_from_yahoo_rejects_unknown_exchange(monkeypatch) -> None:
     monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=lambda symbol: None))
 

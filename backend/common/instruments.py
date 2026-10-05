@@ -371,31 +371,33 @@ def _clean_str(value: Any, *, upper: bool = False) -> Optional[str]:
     return text.upper() if upper else text
 
 
+# App exchange code -> Yahoo Finance ticker suffix. Mirrors
+# ``backend.timeseries.fetch_yahoo_timeseries.get_yahoo_suffix`` so metadata
+# and historical fetches stay consistent. Every code here except currency
+# pairs (``FX``) also needs an ``_EXCHANGE_REGIONS`` entry.
+_YAHOO_SUFFIXES: Dict[str, str] = {
+    "LSE": ".L",
+    "L": ".L",
+    "UK": ".L",
+    "NASDAQ": "",
+    "NYSE": "",
+    "N": "",
+    "US": "",
+    "PARIS": ".PA",
+    "XETRA": ".DE",
+    "DE": ".DE",
+    "TSX": ".TO",
+    "TO": ".TO",
+    "ASX": ".AX",
+    "F": ".F",
+    "FX": "=X",
+}
+
+
 def _yahoo_suffix_for_exchange(exchange: str) -> str:
-    """Return the Yahoo Finance suffix for ``exchange``.
+    """Return the Yahoo Finance suffix for ``exchange`` (see ``_YAHOO_SUFFIXES``)."""
 
-    The mapping mirrors ``backend.timeseries.fetch_yahoo_timeseries.get_yahoo_suffix``
-    so that metadata and historical fetches remain consistent.
-    """
-
-    exchange_map = {
-        "LSE": ".L",
-        "L": ".L",
-        "UK": ".L",
-        "NASDAQ": "",
-        "NYSE": "",
-        "N": "",
-        "US": "",
-        "PARIS": ".PA",
-        "XETRA": ".DE",
-        "DE": ".DE",
-        "TSX": ".TO",
-        "TO": ".TO",
-        "ASX": ".AX",
-        "F": ".F",
-        "FX": "=X",
-    }
-    suffix = exchange_map.get(exchange.upper())
+    suffix = _YAHOO_SUFFIXES.get(exchange.upper())
     if suffix is None:
         raise ValueError(f"Unsupported exchange: '{exchange}'")
     return suffix

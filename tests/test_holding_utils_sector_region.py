@@ -46,7 +46,67 @@ def test_enrich_holding_instrument_type_falls_back_to_asset_class():
     # collapses to "Other". Regression test for #6858.
     holding = {"ticker": "VWRL.L", "units": 1}
     out = enrich_holding(holding, date.today(), {}, {})
-    assert out.get("instrument_type") == "Equity"
+    assert out.get("instrument_type") == "equity"
+
+
+@pytest.mark.parametrize("stored", ["Equity", "equity", " EQUITY "])
+def test_enrich_holding_canonicalises_legacy_asset_class(monkeypatch, stored):
+    # Instrument metadata persisted before #9196 (e.g. a stale S3 copy or an
+    # un-backfilled live data root) spells the asset class "Equity". It must
+    # enrich exactly like a reclassified "equity" record.
+    from backend.common import holding_utils
+
+    monkeypatch.setattr(
+        holding_utils,
+        "get_instrument_meta",
+        lambda t: {"name": "Vanguard FTSE All-World", "asset_class": stored} if t == "VWRL.L" else {},
+    )
+    out = enrich_holding({"ticker": "VWRL.L", "units": 1}, date.today(), {}, {})
+    assert out["asset_class"] == "equity"
+    assert out["instrument_type"] == "equity"
+
+
+_LEGACY_ETF_META = {
+    "name": "Vanguard FTSE All-World UCITS ETF",
+    "instrumentType": "ETF",
+    "asset_class": "Equity",
+    "sector": "Financials",
+}
+
+
+def _patch_instrument_meta(monkeypatch, metas):
+    """Serve ``metas`` from both enrich_holding's and get_security_meta's lookups."""
+    from backend.common import holding_utils, portfolio_utils
+
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda t: metas.get(t, {}))
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda t: metas.get(t, {}))
+    monkeypatch.setattr(portfolio_utils, "_SECURITIES", None)
+
+
+def test_enrich_holding_corrects_legacy_issuer_sector_on_fund(monkeypatch):
+    # Un-backfilled metadata (stale S3 copy / live data root) still files the
+    # ETF under its issuer's sector. Read-time correction gives its exposure
+    # sector, and the legacy "Equity" asset class comes out canonical (#9196).
+    _patch_instrument_meta(monkeypatch, {"VWRL.L": _LEGACY_ETF_META})
+    out = enrich_holding({"ticker": "VWRL.L", "units": 1}, date.today(), {}, {})
+    assert out["sector"] == "Multi-sector"
+    assert out["asset_class"] == "equity"
+    assert out["instrument_type"] == "ETF"
+
+
+def test_enrich_holding_corrects_issuer_sector_carried_on_the_holding(monkeypatch):
+    # An HL export can put the issuer sector on the holding row itself.
+    _patch_instrument_meta(monkeypatch, {"VWRL.L": {**_LEGACY_ETF_META, "sector": None}})
+    out = enrich_holding({"ticker": "VWRL.L", "units": 1, "sector": "Financial Services"}, date.today(), {}, {})
+    assert out["sector"] == "Multi-sector"
+
+
+def test_enrich_holding_keeps_financials_on_a_bank_share(monkeypatch):
+    bank = {"name": "Lloyds Banking Group plc", "instrumentType": "Equity", "asset_class": "Equity"}
+    _patch_instrument_meta(monkeypatch, {"LLOY.L": {**bank, "sector": "Financials"}})
+    out = enrich_holding({"ticker": "LLOY.L", "units": 0}, date.today(), {}, {})
+    assert out["sector"] == "Financials"
+    assert out["asset_class"] == "equity"
 
 
 def test_enrich_holding_normalises_sector_and_region_aliases():

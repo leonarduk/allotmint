@@ -2,7 +2,7 @@
   "name": "Chubb Limited",
   "ticker": "CB.N",
   "exchange": "N",
-  "asset_class": "Equity",
+  "asset_class": "equity",
   "sector": "Financial Services",
   "industry": "Insurance - Property & Casualty",
   "region": "North America",

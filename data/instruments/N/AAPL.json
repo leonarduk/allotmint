@@ -2,7 +2,7 @@
   "name": "Apple Inc.",
   "ticker": "AAPL.N",
   "exchange": "N",
-  "asset_class": "Equity",
+  "asset_class": "equity",
   "sector": "Technology",
   "industry": "Consumer Electronics",
   "region": "North America",

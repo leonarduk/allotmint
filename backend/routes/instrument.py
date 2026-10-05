@@ -25,6 +25,7 @@ from markupsafe import Markup
 from backend.common import instrument_api, nav
 from backend.common.constants import ACQUIRED_DATE, COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP, UNITS
 from backend.common.holding_utils import is_cost_basis_unreliable
+from backend.common.instrument_classification import exposure_sector
 from backend.common.instruments import list_instruments
 from backend.common.portfolio import build_owner_portfolio
 from backend.common.portfolio_loader import list_portfolios
@@ -152,7 +153,9 @@ def search_instruments(
         name = inst.get("name") or ""
         if q_lower not in ticker.lower() and q_lower not in name.lower():
             continue
-        if sector_lower and (inst.get("sector") or "").lower() != sector_lower:
+        # A fund's exposure sector, not its issuer's, before backfill (#9196).
+        inst_sector = exposure_sector(inst)
+        if sector_lower and (inst_sector or "").lower() != sector_lower:
             continue
         if region_lower and (inst.get("region") or "").lower() != region_lower:
             continue
@@ -160,7 +163,7 @@ def search_instruments(
             {
                 "ticker": ticker,
                 "name": name,
-                "sector": inst.get("sector"),
+                "sector": inst_sector,
                 "region": inst.get("region"),
             }
         )

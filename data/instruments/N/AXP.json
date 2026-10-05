@@ -2,7 +2,7 @@
   "name": "American Express Company",
   "ticker": "AXP.N",
   "exchange": "N",
-  "asset_class": "Equity",
+  "asset_class": "equity",
   "sector": "Financial Services",
   "industry": "Credit Services",
   "region": "North America",

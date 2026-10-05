@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from backend.common import instruments
+from backend.common import instrument_classification, instruments
 
 
 @pytest.mark.parametrize(
@@ -389,7 +389,7 @@ def test_fetch_metadata_from_yahoo_builds_normalized_payload(monkeypatch) -> Non
         "currency": "GBP",
         "sector": "Technology",
         "region": "United Kingdom",
-        "asset_class": "Equity",
+        "asset_class": "equity",
         "industry": "Software",
         "instrument_type": "EQUITY",
     }
@@ -425,12 +425,36 @@ def test_fetch_metadata_from_yahoo_falls_back_to_info_and_fast_info(monkeypatch,
     assert result == {
         "name": "Beta Fund",
         "currency": "USD",
-        "sector": "Index",
+        "sector": "Multi-sector",
+        "category": "Index",
         "region": "US",
-        "asset_class": "Fund",
+        "asset_class": "equity",
         "industry": "Diversified",
         "instrument_type": "MUTUALFUND",
     }
+
+
+def test_fetch_metadata_from_yahoo_applies_classification_override(monkeypatch, tmp_path) -> None:
+    """Overrides are keyed by the upper-cased full ticker on the ingest path (#9196)."""
+    (tmp_path / "instrument_classification_overrides.json").write_text(
+        json.dumps({"ESIH.L": {"sector": "Health Care"}}), encoding="utf-8"
+    )
+    monkeypatch.setattr(instrument_classification.config, "data_root", tmp_path)
+
+    class _FakeTicker:
+        def __init__(self, symbol: str) -> None:
+            assert symbol == "ESIH.L"
+
+        def get_info(self):
+            return {"shortName": "iShares MSCI EUR HealthCare UCITS ETF", "quoteType": "ETF", "category": "Bond"}
+
+    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=_FakeTicker))
+
+    result = instruments._fetch_metadata_from_yahoo("esih", "l")
+
+    assert result["asset_class"] == "equity"
+    assert result["sector"] == "Health Care"
+    assert result["instrument_type"] == "ETF"
 
 
 def test_fetch_metadata_from_yahoo_rejects_unknown_exchange(monkeypatch) -> None:
@@ -536,20 +560,6 @@ def test_list_group_definitions_loads_json(monkeypatch, tmp_path) -> None:
 )
 def test_clean_str_variants(value, upper, expected) -> None:
     assert instruments._clean_str(value, upper=upper) == expected
-
-
-@pytest.mark.parametrize(
-    "quote_type,expected",
-    [
-        ("equity", "Equity"),
-        ("mutualfund", "Fund"),
-        ("cryptoCurrency", "Crypto"),
-        ("unknown_type", "Unknown Type"),
-        (None, None),
-    ],
-)
-def test_asset_class_from_quote_type_variants(quote_type, expected) -> None:
-    assert instruments._asset_class_from_quote_type(quote_type) == expected
 
 
 @pytest.mark.parametrize(

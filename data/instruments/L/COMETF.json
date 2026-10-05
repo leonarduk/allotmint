@@ -2,6 +2,6 @@
   "name": "Commodity ETF",
   "ticker": "COMETF.L",
   "exchange": "L",
-  "asset_class": "Commodity",
+  "asset_class": "commodity",
   "sector": "Commodity"
 }

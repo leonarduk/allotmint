@@ -189,13 +189,15 @@ def clear_instrument_meta_cache():
     pytest-xdist which test ran first differs per worker, so this showed up
     as a flaky test_get_security_meta_includes_sector_and_region.
     """
-    from backend.common import instruments
+    from backend.common import instrument_classification, instruments
 
     def _clear():
         for name in ("get_instrument_meta", "_persisted_metadata_exchanges"):
             clear = getattr(getattr(instruments, name, None), "cache_clear", None)
             if clear is not None:
                 clear()
+        # Classification overrides are cached per file mtime (#9196).
+        instrument_classification.clear_overrides_cache()
 
     _clear()
     yield

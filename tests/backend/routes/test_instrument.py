@@ -65,6 +65,35 @@ async def test_search_instruments_validation_and_trim(monkeypatch):
     ]
 
 
+def test_search_instruments_reports_fund_exposure_sector(monkeypatch):
+    """Un-backfilled fund metadata filed under the issuer's sector is shown
+    and filtered by its exposure sector; a bank keeps "Financials" (#9196).
+    """
+    monkeypatch.setattr(
+        instrument,
+        "list_instruments",
+        lambda: [
+            {
+                "ticker": "VWRL.L",
+                "name": "Vanguard FTSE All-World UCITS ETF",
+                "instrumentType": "ETF",
+                "asset_class": "Equity",
+                "sector": "Financials",
+                "region": "Global",
+            },
+            {"ticker": "LLOY.L", "name": "Lloyds Banking Group", "sector": "Financials", "region": "UK"},
+        ],
+    )
+
+    financials = instrument.search_instruments(q="l", sector="Financials", region=None)
+    funds = instrument.search_instruments(q="vwrl", sector="Multi-sector", region=None)
+
+    assert [r["ticker"] for r in financials] == ["LLOY.L"]
+    assert funds == [
+        {"ticker": "VWRL.L", "name": "Vanguard FTSE All-World UCITS ETF", "sector": "Multi-sector", "region": "Global"}
+    ]
+
+
 @pytest.mark.asyncio
 @pytest.mark.anyio("asyncio")
 async def test_instrument_empty_template(monkeypatch):

@@ -255,13 +255,13 @@ def _resolve_instrument_type(ticker: str, holding: Optional[Dict] = None) -> Opt
     holding value is only used when canonical metadata has nothing.
     """
 
+    from backend.common.instrument_classification import resolve_instrument_type
     from backend.common.instruments import get_instrument_meta, resolve_instrument_ticker
 
     resolved_ticker = resolve_instrument_ticker(ticker, create_missing=False) or ticker
     meta = get_instrument_meta(resolved_ticker) or {}
-    resolved = (
-        meta.get("instrumentType") or meta.get("instrument_type") or meta.get("assetClass") or meta.get("asset_class")
-    )
+    # Case-insensitive asset-class fallback: legacy "Equity" == "equity" (#9196).
+    resolved = resolve_instrument_type(meta)
     if resolved:
         return resolved
     if holding is not None:

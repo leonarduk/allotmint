@@ -2,7 +2,7 @@
   "name": "GSK plc",
   "ticker": "GSK.L",
   "exchange": "L",
-  "asset_class": "Equity",
+  "asset_class": "equity",
   "sector": "Healthcare",
   "region": "United Kingdom",
   "currency": "GBP"

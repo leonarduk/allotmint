@@ -2,7 +2,7 @@
   "name": "Vanguard FTSE All-World UCITS ETF",
   "ticker": "VWRL.L",
   "exchange": "L",
-  "asset_class": "Equity",
+  "asset_class": "equity",
   "sector": "Global Equity",
   "region": "Global",
   "currency": "USD"

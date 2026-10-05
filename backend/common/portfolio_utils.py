@@ -27,6 +27,7 @@ from backend.common import portfolio as portfolio_mod
 from backend.common.account_scaffold import load_transactions
 from backend.common.data_loader import DATA_BUCKET_ENV
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, _get_price_for_date_scaled, is_cost_basis_unreliable
+from backend.common.instrument_classification import canonical_asset_class, exposure_sector, resolve_instrument_type
 from backend.common.instruments import (
     decode_html_entities,
     get_instrument_meta,
@@ -456,21 +457,18 @@ def _meta_from_file(ticker: str) -> Dict[str, str] | None:
 
     return {
         "name": data.get("name", t),
-        "sector": data.get("sector"),
+        # A fund's exposure, not its issuer's sector, even before backfill (#9196).
+        "sector": exposure_sector(data),
         "region": data.get("region"),
         "currency": data.get("currency"),
-        "asset_class": data.get("asset_class"),
+        # Canonical casing, so legacy "Equity" and new "equity" agree (#9196).
+        "asset_class": canonical_asset_class(data.get("asset_class")),
         "industry": data.get("industry"),
         # Canonical instrument_type, with the same camelCase and
         # asset-class fallbacks used elsewhere (see
         # backend/common/holding_utils.py's canonical enrichment) --
         # raw holding documents rarely carry this field. See allotmint#6876.
-        "instrument_type": (
-            data.get("instrumentType")
-            or data.get("instrument_type")
-            or data.get("assetClass")
-            or data.get("asset_class")
-        ),
+        "instrument_type": resolve_instrument_type(data),
     }
 
 
@@ -501,10 +499,10 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                     "name": holding_name or file_meta.get("name", tkr),
                     "exchange": h.get("exchange"),
                     "isin": h.get("isin"),
-                    "sector": h.get("sector") or file_meta.get("sector"),
+                    "sector": exposure_sector({**file_meta, "sector": h.get("sector") or file_meta.get("sector")}),
                     "region": h.get("region") or file_meta.get("region"),
                     "currency": h.get("currency") or file_meta.get("currency"),
-                    "asset_class": h.get("asset_class") or file_meta.get("asset_class"),
+                    "asset_class": canonical_asset_class(h.get("asset_class") or file_meta.get("asset_class")),
                     "industry": h.get("industry") or file_meta.get("industry"),
                     # Canonical instrument metadata wins over the raw holding
                     # value (which is usually absent for CSV-import and
@@ -730,6 +728,8 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
                 },
             )
             row["exchange"] = exch
+            # Kept for the read-time fund sector correction below (#9196).
+            row.setdefault("_instrument_meta", instrument_meta)
             row.setdefault("_grouping_from_fallback", False)
             row.setdefault("_currency_source", None)
             row.setdefault("_sector_source", None)
@@ -978,7 +978,18 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
             r["day_change_currency"] = base_currency
         # One canonical label per sector/region on every row, so the holdings
         # table, /allocation and the sector/region aggregates agree (#8530).
-        r["sector"] = normalise_optional_sector(r.get("sector"))
+        # A fund filed under its issuer's sector in un-backfilled metadata
+        # shows its exposure sector instead (#9196).
+        classification_meta = r.pop("_instrument_meta", None) or {}
+        r["sector"] = normalise_optional_sector(
+            exposure_sector(
+                {
+                    **classification_meta,
+                    "name": classification_meta.get("name") or r.get("name"),
+                    "sector": r.get("sector"),
+                }
+            )
+        )
         r["region"] = normalise_optional_region(r.get("region"))
         if not _first_nonempty_str(r.get("grouping")):
             fallback = _first_nonempty_str(

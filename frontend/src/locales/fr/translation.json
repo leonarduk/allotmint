@@ -369,10 +369,12 @@
   "instrumentType": {
     "bond": "Obligation",
     "cash": "Espèces",
+    "commodity": "Matière première",
     "equity": "Action",
     "etf": "ETF",
     "fund": "Fonds",
     "investmentTrust": "Fiducie de placement",
+    "multiAsset": "Multi-actifs",
     "other": "Autre",
     "realEstate": "Immobilier"
   },

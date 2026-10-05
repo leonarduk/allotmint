@@ -21,6 +21,7 @@ from backend.common.constants import (
     UNITS,
 )
 from backend.common.currency import CurrencyNormaliser
+from backend.common.instrument_classification import canonical_asset_class, exposure_sector, resolve_instrument_type
 from backend.common.instruments import get_instrument_meta
 from backend.common.numeric_utils import is_nan
 from backend.common.sector_labels import (
@@ -829,19 +830,29 @@ def enrich_holding(
         logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(full))
 
     out["currency"] = meta.get("currency")
-    out["instrument_type"] = (
-        meta.get("instrumentType") or meta.get("instrument_type") or meta.get("assetClass") or meta.get("asset_class")
-    )
+    # Legacy "Equity" and post-#9196 "equity" asset classes resolve alike.
+    out["instrument_type"] = resolve_instrument_type(meta)
     out["name"] = out.get("name") or meta.get("name") or full
+    stored_asset_class = out.get("asset_class") or meta.get("assetClass") or meta.get("asset_class")
     # Canonical labels so per-holding consumers (e.g. /allocation) bucket the
     # same exposure together, matching the sector/region aggregates (#8530).
-    out["sector"] = normalise_optional_sector(out.get("sector") or meta.get("sector"))
+    # A fund still filed under its issuer's sector in un-backfilled metadata
+    # gets its exposure sector instead (#9196).
+    sector = exposure_sector(
+        {
+            **meta,
+            "name": out["name"],
+            "sector": out.get("sector") or meta.get("sector"),
+            "asset_class": stored_asset_class,
+        }
+    )
+    out["sector"] = normalise_optional_sector(sector)
     out["region"] = normalise_optional_region(out.get("region") or meta.get("region"))
     if is_cash_instrument(full, out.get("instrument_type")):
         # Cash that _is_cash() doesn't catch (e.g. CASH.USD in a GBP account)
         # still gets the same "Cash" sector as aggregate_by_ticker rows (#8530).
         out["sector"] = CASH_SECTOR_LABEL
-    out["asset_class"] = out.get("asset_class") or meta.get("assetClass") or meta.get("asset_class")
+    out["asset_class"] = canonical_asset_class(stored_asset_class)
 
     units = float(out.get(UNITS, 0) or 0.0)
     if units <= 0:

@@ -11,6 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from backend.common.instrument_classification import cached_classification_overrides, classify_instrument
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -369,27 +370,6 @@ def _clean_str(value: Any, *, upper: bool = False) -> Optional[str]:
     return text.upper() if upper else text
 
 
-def _asset_class_from_quote_type(quote_type: Optional[str]) -> Optional[str]:
-    if not quote_type:
-        return None
-    mapping = {
-        "EQUITY": "Equity",
-        "ETF": "Fund",
-        "MUTUALFUND": "Fund",
-        "INDEX": "Index",
-        "CURRENCY": "Currency",
-        "CRYPTOCURRENCY": "Crypto",
-        "FUTURE": "Derivative",
-        "OPTION": "Derivative",
-        "BOND": "Bond",
-        "MONEYMARKET": "Cash",
-    }
-    key = quote_type.upper()
-    if key in mapping:
-        return mapping[key]
-    return quote_type.replace("_", " ").title()
-
-
 def _yahoo_suffix_for_exchange(exchange: str) -> str:
     """Return the Yahoo Finance suffix for ``exchange``.
 
@@ -499,22 +479,24 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
         except Exception:  # pragma: no cover - best effort fallback
             currency = None
 
-    sector = _clean_str(info.get("sector") or info.get("category"))
+    category = _clean_str(info.get("category"))
+    sector = _clean_str(info.get("sector")) or category
     industry = _clean_str(info.get("industry") or info.get("industryDisp"))
     region = _clean_str(info.get("region") or info.get("country") or info.get("market"))
     quote_type = _clean_str(info.get("quoteType"), upper=True)
-    asset_class = _asset_class_from_quote_type(quote_type) if quote_type else None
 
     metadata: Dict[str, Any] = {
         "name": name or full_ticker,
         "currency": currency,
         "sector": sector,
         "region": region,
-        "asset_class": asset_class,
         "industry": industry,
+        "category": category,
+        "instrument_type": quote_type,
     }
-    if quote_type:
-        metadata["instrument_type"] = quote_type
+    # Asset class and an exposure-based fund sector, not the issuer's (#9196).
+    classification_input = {**metadata, "ticker": full_ticker}
+    metadata.update(classify_instrument(classification_input, cached_classification_overrides().get(full_ticker)))
 
     return {k: v for k, v in metadata.items() if v is not None}
 

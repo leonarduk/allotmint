@@ -369,10 +369,12 @@
   "instrumentType": {
     "bond": "Legame",
     "cash": "Contanti",
+    "commodity": "Materia prima",
     "equity": "Equità",
     "etf": "ETF",
     "fund": "Finanziare",
     "investmentTrust": "Fiducia degli investimenti",
+    "multiAsset": "Multi-asset",
     "other": "Altro",
     "realEstate": "Immobiliare"
   },

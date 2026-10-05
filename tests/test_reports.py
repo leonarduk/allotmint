@@ -380,6 +380,29 @@ def test_overview_non_dict_account_entries_are_skipped(monkeypatch):
     assert asset_rows[0]["label"] == "Equity"
 
 
+def test_overview_merges_legacy_and_canonical_asset_class_casing():
+    """Legacy "Equity" and post-#9196 "equity" holdings share one row."""
+    ctx = _preloaded_context(
+        {
+            "total_value_estimate_gbp": 600.0,
+            "accounts": [
+                {
+                    "account_type": "ISA",
+                    "value_estimate_gbp": 600.0,
+                    "holdings": [
+                        {"asset_class": "Equity", "market_value_gbp": 200.0},
+                        {"asset_class": "equity", "market_value_gbp": 300.0},
+                        {"asset_class": "Fund", "market_value_gbp": 100.0},
+                    ],
+                },
+            ],
+        }
+    )
+    result = reports._build_portfolio_overview_section(ctx, reports.PORTFOLIO_OVERVIEW_SECTION)
+    asset_rows = {r["label"]: r["value"] for r in result if r["category"] == "asset_class"}
+    assert asset_rows == {"Equity": 500.0, "Fund": 100.0}
+
+
 # ---------------------------------------------------------------------------
 # Sectors / regions edge cases
 # ---------------------------------------------------------------------------

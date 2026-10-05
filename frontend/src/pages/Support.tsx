@@ -36,6 +36,12 @@ const UI_KEYS = new Set(["theme", "relative_view_enabled"]);
 // Rendered by the MCP tools section, not the generic parameter list.
 const MCP_TOOLS_KEY = "mcp_tools";
 
+// DOM id for an MCP tool's "not configured" note: derived from the tool name
+// (stable across reorders), with characters not safe in an id replaced.
+function mcpToolStatusId(toolName: string): string {
+  return `mcp-tool-status-${toolName.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+}
+
 type ConfigValue = string | boolean | Record<string, unknown>;
 type ConfigState = Record<string, ConfigValue>;
 
@@ -716,20 +722,20 @@ export default function Support() {
               <p className="mb-1 text-sm opacity-80">{t("support.config.mcpToolsHint")}</p>
               {mcpError && <p className="mb-1 text-sm text-amber-600">{mcpError}</p>}
               <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
-                {mcpTools.map((tool, index) => (
+                {mcpTools.map((tool) => (
                   <div key={tool.name} className="mb-1">
                     <label className="block font-medium" title={tool.description}>
                       <input
                         type="checkbox"
                         checked={tool.enabled}
                         onChange={(e) => handleMcpToolChange(tool.name, e.target.checked)}
-                        aria-describedby={tool.not_configured ? `mcp-tool-status-${index}` : undefined}
+                        aria-describedby={tool.not_configured ? mcpToolStatusId(tool.name) : undefined}
                         className="mr-1"
                       />
                       {tool.name}
                     </label>
                     {tool.not_configured && (
-                      <p id={`mcp-tool-status-${index}`} className="ml-5 text-xs text-amber-600">
+                      <p id={mcpToolStatusId(tool.name)} className="ml-5 text-xs text-amber-600">
                         {t("support.config.mcpToolNotConfigured")}: {tool.not_configured}
                       </p>
                     )}

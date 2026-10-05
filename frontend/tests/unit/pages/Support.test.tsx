@@ -479,6 +479,23 @@ describe("Support page", () => {
     expect(searchWeb).toHaveAccessibleDescription(`${en.support.config.mcpToolNotConfigured}: ${reason}`);
     expect(screen.getByLabelText("get_portfolio")).not.toHaveAccessibleDescription();
     expect(screen.getAllByText(new RegExp(en.support.config.mcpToolNotConfigured))).toHaveLength(1);
+    // The note's id comes from the tool name, not its list position.
+    expect(searchWeb).toHaveAttribute("aria-describedby", "mcp-tool-status-search_web");
+  });
+
+  it("derives a safe note id from MCP tool names with characters invalid in an id", async () => {
+    mockGetMcpTools.mockResolvedValue({
+      tools: [
+        { name: "web search.v2", description: "Search", enabled: true, not_configured: "missing key" },
+      ],
+      mcp_error: null,
+    });
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+
+    const tool = await screen.findByLabelText("web search.v2");
+    expect(tool).toHaveAttribute("aria-describedby", "mcp-tool-status-web-search-v2");
+    expect(tool).toHaveAccessibleDescription(`${en.support.config.mcpToolNotConfigured}: missing key`);
   });
 
   it("separates switches from other parameters", async () => {

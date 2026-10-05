@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from backend.common.instrument_classification import cached_classification_overrides, classify_instrument
+from backend.common.yahoo_chart import chart_quote
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -410,6 +411,72 @@ def _build_yahoo_symbol(symbol: str, exchange: str) -> str:
     return f"{normalized}{suffix}"
 
 
+# Market a listing trades in, by app exchange code. Yahoo's chart and search
+# endpoints carry no region, so it is derived from the listing exchange.
+_EXCHANGE_REGIONS: Dict[str, str] = {
+    "L": "United Kingdom",
+    "LSE": "United Kingdom",
+    "UK": "United Kingdom",
+    "N": "US",
+    "NYSE": "US",
+    "NASDAQ": "US",
+    "US": "US",
+    "PARIS": "France",
+    "XETRA": "Germany",
+    "DE": "Germany",
+    "F": "Germany",
+    "TSX": "Canada",
+    "TO": "Canada",
+    "ASX": "Australia",
+}
+_FUND_QUOTE_TYPES = frozenset({"ETF", "MUTUALFUND"})
+
+
+def _chart_fields(stock: Any, full_ticker: str) -> Dict[str, Any]:
+    """Name, currency and instrument type from Yahoo's crumb-free chart endpoint."""
+
+    try:
+        return chart_quote(stock)
+    except Exception as exc:  # noqa: BLE001 - best effort; other sources still apply
+        logger.debug("Yahoo chart metadata failed for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(exc))
+        return {}
+
+
+def _search_quote(yf: Any, yahoo_symbol: str, full_ticker: str) -> Dict[str, Any]:
+    """Sector, industry and names from Yahoo's crumb-free search endpoint."""
+
+    try:
+        quotes = yf.Search(
+            yahoo_symbol,
+            max_results=5,
+            news_count=0,
+            lists_count=0,
+            include_cb=False,
+            recommended=0,
+            raise_errors=False,
+        ).quotes
+    except Exception as exc:  # noqa: BLE001 - best effort; other sources still apply
+        logger.debug(
+            "Yahoo search metadata failed for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(exc)
+        )
+        return {}
+    for quote in quotes or []:
+        if isinstance(quote, dict) and str(quote.get("symbol", "")).upper() == yahoo_symbol.upper():
+            return quote
+    return {}
+
+
+def _fund_category(stock: Any, full_ticker: str) -> Optional[str]:
+    """Yahoo's fund ``category`` via ``quoteSummary``: may 401, so best effort."""
+
+    try:
+        info = stock.get_info()
+    except Exception as exc:  # noqa: BLE001 - category is optional enrichment
+        logger.debug("yfinance get_info failed for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(exc))
+        return None
+    return _clean_str(info.get("category")) if isinstance(info, dict) else None
+
+
 def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str, Any]]:
     try:
         import yfinance as yf  # type: ignore
@@ -445,45 +512,25 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
         )
         return None
 
-    info: Dict[str, Any] = {}
-    try:
-        fetched = stock.get_info()
-        if isinstance(fetched, dict):
-            info = fetched
-    except Exception as exc:  # pragma: no cover - best effort fallback
-        logger.debug("yfinance get_info failed for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(exc))
-        try:
-            fetched_attr = getattr(stock, "info", None)
-            if isinstance(fetched_attr, dict):
-                info = fetched_attr
-        except Exception as exc_attr:  # pragma: no cover - best effort fallback
-            logger.debug(
-                "yfinance info attribute failed for %s: %s",
-                sanitise_log_value(full_ticker),
-                sanitise_log_value(exc_attr),
-            )
+    # Chart and search endpoints need no crumb; ``.info`` (``quoteSummary``)
+    # fails with ``401 Invalid Crumb`` when Yahoo rejects yfinance's handshake.
+    chart = _chart_fields(stock, full_ticker)
+    found = _search_quote(yf, yahoo_symbol, full_ticker)
 
     name = _clean_str(
-        info.get("shortName") or info.get("longName") or info.get("displayName") or info.get("name") or full_ticker,
+        chart.get("shortName")
+        or found.get("shortname")
+        or chart.get("longName")
+        or found.get("longname")
+        or full_ticker,
     )
-
-    currency = _clean_str(info.get("currency"), upper=True)
-    if not currency:
-        try:
-            fast = getattr(stock, "fast_info", None)
-            if fast is not None:
-                if isinstance(fast, dict):
-                    currency = _clean_str(fast.get("currency"), upper=True)
-                else:
-                    currency = _clean_str(getattr(fast, "currency", None), upper=True)
-        except Exception:  # pragma: no cover - best effort fallback
-            currency = None
-
-    category = _clean_str(info.get("category"))
-    sector = _clean_str(info.get("sector")) or category
-    industry = _clean_str(info.get("industry") or info.get("industryDisp"))
-    region = _clean_str(info.get("region") or info.get("country") or info.get("market"))
-    quote_type = _clean_str(info.get("quoteType"), upper=True)
+    currency = _clean_str(chart.get("currency"), upper=True)
+    quote_type = _clean_str(chart.get("quoteType") or found.get("quoteType"), upper=True)
+    # Only funds need ``category``, and only ``quoteSummary`` has it.
+    category = _fund_category(stock, full_ticker) if quote_type in _FUND_QUOTE_TYPES else None
+    sector = _clean_str(found.get("sectorDisp") or found.get("sector")) or category
+    industry = _clean_str(found.get("industryDisp") or found.get("industry"))
+    region = _EXCHANGE_REGIONS.get(exchange.upper())
 
     metadata: Dict[str, Any] = {
         "name": name or full_ticker,

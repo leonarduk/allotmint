@@ -631,6 +631,9 @@ export interface ScreenerResult {
   instrument_type?: string | null;
 }
 
+/** NAV freshness from the valuation profile (allotmint#9197). */
+export type NavStatus = 'current' | 'stale' | 'undated';
+
 /**
  * Valuation profile from GET /screener/valuation (allotmint-pro#259).
  * Ratios are fractions (0.05 = 5%); a value no source supplies is null.
@@ -656,6 +659,12 @@ export interface InstrumentValuation {
     source: string | null;
     /** price / NAV - 1: negative is a discount. */
     premium_discount: number | null;
+    /** Days since as_of; null when undated. Absent from older servers. */
+    age_days?: number | null;
+    /** The configured NAV age limit, in days. */
+    max_age_days?: number | null;
+    /** Only a "current" NAV's premium/discount is reliable. */
+    status?: NavStatus | null;
   };
   income: {
     dividend_yield: number | null;

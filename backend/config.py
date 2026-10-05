@@ -185,6 +185,9 @@ class Config:
     alpha_vantage_enabled: Optional[bool] = None
     alpha_vantage_key: Optional[str] = None
     fundamentals_cache_ttl_seconds: Optional[int] = None
+    # Max age (days) of an investment trust NAV before its premium/discount is
+    # marked stale; None uses allotmint-pro's default (31).
+    nav_max_age_days: Optional[int] = None
     stooq_timeout: Optional[int] = None
     news_requests_per_day: int = 25
     yahoo_news_endpoint: Optional[str] = None
@@ -653,6 +656,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         uk_sector_endpoint=data.get("uk_sector_endpoint"),
         alpha_vantage_key=data.get("alpha_vantage_key"),
         fundamentals_cache_ttl_seconds=data.get("fundamentals_cache_ttl_seconds"),
+        nav_max_age_days=data.get("nav_max_age_days"),
         stooq_timeout=data.get("stooq_timeout"),
         news_requests_per_day=data.get("news_requests_per_day", 25),
         max_trades_per_month=data.get("max_trades_per_month"),

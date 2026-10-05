@@ -429,8 +429,30 @@ never in `config.yaml`. The admin page's **MCP tools** list (Support →
 Configuration) shows "Not configured" with the reason under any tool the MCP
 server reports as missing its credential, so you can check without asking
 the assistant. This needs an allotmint-pro that reports it; older servers
-show nothing. The deployed `McpServerLambda` does not receive these keys yet
-(leonarduk/allotmint-pro#358).
+show nothing.
+
+The deployed `McpServerLambda` reads the same keys from SSM SecureStrings,
+`/allotmint/mcp/brave-api-key` and `/allotmint/mcp/github-token`, once per
+cold start (leonarduk/allotmint-pro#381; these names apply once that is
+deployed). The stack passes only the parameter names, never the values, and
+grants `ssm:GetParameter` on exactly those two parameters (allotmint-pro's
+`cdk/stacks/mcp_server_secrets.py`).
+
+- Create or rotate them in the same AWS account and region as the deployed
+  stack (SSM parameters are regional):
+  `aws ssm put-parameter --type SecureString --overwrite --name <parameter> --value <secret>`.
+  No redeploy is needed, but only new cold starts read the value: warm
+  instances keep the old one until Lambda recycles them.
+- Encrypt with the default `aws/ssm` key: its key policy already lets roles in
+  the account decrypt through SSM, so no `kms:Decrypt` grant is needed. A
+  parameter encrypted with your own KMS key also needs `kms:Decrypt` on that
+  key for the Lambda's role.
+- Until a parameter exists, or if the Lambda can't read it, its tool shows
+  "Not configured" on the admin page, and the cause is logged by parameter
+  name and error code (e.g. `ParameterNotFound`, `AccessDeniedException`) in
+  `McpServerLambdaLogGroup`.
+
+See "Credentials in Lambda" in allotmint-pro's `allotmint_pro/mcp_server/README.md`.
 
 Besides the MCP data tools, the chat can open pages of the app ("go to the
 transactions page"). That tool, `navigate_to_page`, is handled by this backend

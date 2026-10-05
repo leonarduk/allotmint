@@ -287,6 +287,21 @@ def _get_close(row: pd.Series) -> float | None:
     return None
 
 
+def _last_date(df: pd.DataFrame) -> dt.date | None:
+    """The date of ``df``'s last row, or ``None`` when the frame carries no dates.
+
+    Cache frames carry their dates in a ``Date`` column (RangeIndex); older
+    callers pass a date index. A frame with neither (a bare numeric index)
+    yields ``None`` instead of an integer that cannot be compared to a date.
+    """
+    columns = {str(col).lower(): col for col in df.columns}
+    raw = df[columns["date"]].iloc[-1] if "date" in columns else df.index[-1]
+    if not isinstance(raw, (dt.date, str)):
+        return None
+    ts = pd.to_datetime(raw, errors="coerce")
+    return None if pd.isna(ts) else ts.date()
+
+
 def _calc_return(ticker: str, exchange: str | None, start: dt.date, horizon: int) -> float | None:
     """Calculate the total return (price + reinvested dividends) for ``ticker.exchange`` over ``horizon`` days.
 
@@ -305,11 +320,9 @@ def _calc_return(ticker: str, exchange: str | None, start: dt.date, horizon: int
     df = apply_scaling(df, scale)
 
     # Ensure the data covers (most of) the requested horizon.
-    # Cache frames carry their dates in a ``Date`` column (RangeIndex); older
-    # callers pass a date index.
-    last = df["Date"].iloc[-1] if "Date" in df.columns else df.index[-1]
-    if isinstance(last, pd.Timestamp):
-        last = last.date()
+    last = _last_date(df)
+    if last is None:
+        return None
     expected_end = start + dt.timedelta(days=horizon)
     # Allow a few calendar days of tolerance for weekends/holidays.
     if (expected_end - last).days > 3:

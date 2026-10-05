@@ -34,9 +34,23 @@ from backend.timeseries.corporate_actions import stored_dividends
 logger = logging.getLogger(__name__)
 
 
+def _naive_days(dates: Any) -> pd.DatetimeIndex:
+    """``dates`` as a normalised, tz-naive ``DatetimeIndex``.
+
+    A tz-aware date keeps its wall-clock day (``tz_localize(None)``), so closes
+    and dividends compare on the same calendar days whichever side carries a
+    timezone. Mixing the two would otherwise misalign them and silently leave
+    the reinvestment factor at 1.0 while still reporting basis ``"total"``.
+    """
+    index = pd.DatetimeIndex(pd.to_datetime(dates))
+    if index.tz is not None:
+        index = index.tz_localize(None)
+    return index.normalize()
+
+
 def _clean_closes(closes: pd.Series) -> pd.Series:
     values = pd.to_numeric(closes, errors="coerce")
-    values.index = pd.to_datetime(values.index).normalize()
+    values.index = _naive_days(values.index)
     values = values[values.notna() & (values > 0)]
     values = values[~values.index.duplicated(keep="last")]
     return values.sort_index().astype(float)
@@ -55,7 +69,7 @@ def dividends_on_trading_days(closes: pd.Series, dividends: pd.Series | None) ->
     if dividends is None or dividends.empty or closes.empty:
         return paid
     divs = pd.to_numeric(dividends, errors="coerce").dropna()
-    divs.index = pd.to_datetime(divs.index).normalize()
+    divs.index = _naive_days(divs.index)
     positions = closes.index.searchsorted(divs.index, side="left")
     for pos, amount in zip(positions, divs.to_numpy()):
         if 0 < pos < len(closes):
@@ -128,7 +142,7 @@ def reinvestment_factor(closes: pd.Series, dividends: pd.Series | None) -> pd.Se
 def _factor_on(dates: Any, closes: pd.Series, dividends: pd.Series) -> np.ndarray:
     """The reinvestment factor of ``closes`` aligned to ``dates`` (1.0 before the first close)."""
     factor = reinvestment_factor(closes, dividends)
-    keys = pd.DatetimeIndex(pd.to_datetime(dates)).normalize()
+    keys = _naive_days(dates)
     if factor.empty:
         return np.ones(len(keys))
     return factor.reindex(keys, method="ffill").fillna(1.0).to_numpy()
@@ -178,7 +192,8 @@ def total_return_closes(
     if dividends is None:
         return closes, PRICE_RETURN_BASIS
     values = pd.to_numeric(closes, errors="coerce")
-    return values * _factor_on(closes.index, values, dividends), TOTAL_RETURN_BASIS
+    factor = pd.Series(_factor_on(values.index, values, dividends), index=values.index)
+    return values * factor, TOTAL_RETURN_BASIS
 
 
 def total_return_closes_for(
@@ -195,6 +210,20 @@ def total_return_closes_for(
     return total_return_closes(closes, symbol, exchange, load_dividends=load_dividends)
 
 
+def _frame_dates(df: pd.DataFrame, columns: dict[str, Any]) -> Any:
+    """The dates of ``df``'s rows: its ``Date`` column, else a non-numeric index, else ``None``.
+
+    A numeric index (e.g. the ``RangeIndex`` of a cache frame that lost its
+    ``Date`` column) would parse as 1970 epoch offsets, never matching a
+    dividend, so it is refused rather than read as dates.
+    """
+    if "date" in columns:
+        return df[columns["date"]]
+    if pd.api.types.is_numeric_dtype(df.index):
+        return None
+    return df.index
+
+
 def total_return_frame(
     df: pd.DataFrame,
     ticker: str,
@@ -208,7 +237,9 @@ def total_return_frame(
     in) and scales ``Close`` and each converted ``Close_<ccy>`` column; open,
     high, low and volume are untouched. Dates come from a ``Date`` column, or
     the index when there is none. Returns ``(df, "price")`` unchanged when the
-    frame is empty, has no native ``Close`` or the ticker has no actions file.
+    frame is empty, has no native ``Close``, has no dates (no ``Date`` column
+    and a numeric index such as a ``RangeIndex``) or the ticker has no actions
+    file.
     """
     if df is None or df.empty:
         return df, PRICE_RETURN_BASIS
@@ -217,12 +248,17 @@ def total_return_frame(
     if native is None:
         _report_price_fallback(ticker, exchange, "no native Close column to scale")
         return df, PRICE_RETURN_BASIS
+    dates = _frame_dates(df, columns)
+    if dates is None:
+        _report_price_fallback(ticker, exchange, "no Date column or date index to align dividends to")
+        return df, PRICE_RETURN_BASIS
     dividends = _dividends_for(ticker, exchange, load_dividends)
     if dividends is None:
         return df, PRICE_RETURN_BASIS
-    dates = df[columns["date"]] if "date" in columns else df.index
-    closes = pd.Series(pd.to_numeric(df[native], errors="coerce").to_numpy(), index=pd.to_datetime(dates))
-    factor = _factor_on(closes.index, closes, dividends)
+    closes = pd.Series(pd.to_numeric(df[native], errors="coerce").to_numpy(), index=_naive_days(dates))
+    # Each row's factor comes from that row's date and native close; keyed by the
+    # frame's own index so every close column is scaled row-for-row by label.
+    factor = pd.Series(_factor_on(closes.index, closes, dividends), index=df.index)
     out = df.copy()
     for lower, col in columns.items():
         if lower == _NATIVE_CLOSE or lower.startswith(_CONVERTED_CLOSE_PREFIX):

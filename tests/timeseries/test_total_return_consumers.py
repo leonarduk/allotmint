@@ -151,6 +151,55 @@ def test_total_return_frame_without_native_close_stays_on_price(store):
     assert out is df
 
 
+def test_total_return_frame_scales_rows_by_label_not_position(store):
+    """Out-of-order rows on a sliced (non-zero-based) index get their own date's factor."""
+    store("PAY", "L", {EX_DATE: 2.0})
+    df = _frame(Close_gbp=[c * 0.5 for c in CLOSES])
+    df.index = range(10, 15)
+    shuffled = df.iloc[[4, 0, 3, 1, 2]]
+
+    out, basis = tr.total_return_frame(shuffled, "PAY", "L")
+
+    assert basis == tr.TOTAL_RETURN_BASIS
+    expected = dict(zip(range(10, 15), TOTAL_LEVELS))
+    assert out.index.tolist() == shuffled.index.tolist()
+    assert out["Close"].tolist() == pytest.approx([expected[i] for i in out.index])
+    assert out["Close_gbp"].tolist() == pytest.approx([expected[i] * 0.5 for i in out.index])
+
+
+def test_total_return_frame_without_dates_stays_on_price(store, caplog):
+    """A RangeIndex frame with no Date column must not be read as 1970 dates and reported as total."""
+    store("PAY", "L", {EX_DATE: 2.0})
+    df = pd.DataFrame({"Close": CLOSES})
+
+    with caplog.at_level(logging.INFO, logger=tr.__name__):
+        out, basis = tr.total_return_frame(df, "PAY", "L")
+
+    assert basis == tr.PRICE_RETURN_BASIS
+    assert out is df
+    assert "no Date column or date index" in caplog.text
+
+
+@pytest.mark.parametrize("tz", ["UTC", "Europe/London", "America/New_York"])
+def test_total_return_frame_tz_aware_dates_match_naive_dividends(store, tz):
+    store("PAY", "L", {EX_DATE: 2.0})
+    df = pd.DataFrame({"Date": DATES.tz_localize(tz), "Close": CLOSES})
+
+    out, basis = tr.total_return_frame(df, "PAY", "L")
+
+    assert basis == tr.TOTAL_RETURN_BASIS
+    assert out["Close"].tolist() == pytest.approx(TOTAL_LEVELS)
+
+
+def test_total_return_closes_tz_aware_dividends_match_naive_closes(store):
+    dividends = pd.Series([2.0], index=pd.DatetimeIndex([EX_DATE]).tz_localize("UTC"))
+
+    levels, basis = tr.total_return_closes(_closes(), "PAY", "L", load_dividends=lambda t, e: dividends)
+
+    assert basis == tr.TOTAL_RETURN_BASIS
+    assert levels.tolist() == pytest.approx(TOTAL_LEVELS)
+
+
 # ───────────────────────────── scenarios ──────────────────────────────
 
 
@@ -190,6 +239,15 @@ def test_calc_return_uses_total_return(store, monkeypatch):
     ret = scenario_tester._calc_return("PAY", "L", DATES[0].date(), 4)
 
     assert ret == pytest.approx(TOTAL_LEVELS[-1] / 100.0 - 1.0)
+
+
+def test_calc_return_without_dates_returns_none(store, monkeypatch):
+    """No Date column and a RangeIndex: no horizon check possible, so no return (not a TypeError)."""
+    store("PAY", "L", {EX_DATE: 2.0})
+    monkeypatch.setattr(scenario_tester, "load_meta_timeseries_range", lambda *a, **k: pd.DataFrame({"Close": CLOSES}))
+    _no_scaling(monkeypatch)
+
+    assert scenario_tester._calc_return("PAY", "L", DATES[0].date(), 4) is None
 
 
 def test_historical_event_portfolio_reports_price_fallbacks(store, monkeypatch):
@@ -251,6 +309,26 @@ def test_var_without_corporate_actions_is_price_var(store):
 
     assert basis == tr.PRICE_RETURN_BASIS
     assert var == pytest.approx(portfolio_utils.compute_var(df))
+
+
+def test_custom_query_var_runs_on_total_returns(store, monkeypatch):
+    """/custom-query/run end to end through the real compute_var_with_basis (no VaR mock)."""
+    from backend.routes import query
+
+    store("PAY", "L", {DATES[1]: 5.0})
+    frame = pd.DataFrame({"Date": DATES, "Close": [100.0, 95.0, 95.0, 95.0, 95.0]})
+    monkeypatch.setattr(query, "list_portfolios", lambda: [])
+    monkeypatch.setattr(query, "load_meta_timeseries_range", lambda *a, **k: frame.copy())
+    q = query.CustomQuery(
+        start=DATES[0].date(), end=DATES[-1].date(), tickers=["PAY.L", "NOFILE.L"], metrics=[query.Metric.VAR]
+    )
+
+    rows = {row["ticker"]: row for row in query.run_query(q)["results"]}
+
+    assert rows["PAY.L"]["return_basis"] == tr.TOTAL_RETURN_BASIS
+    assert rows["PAY.L"]["var"] == pytest.approx(0.0)
+    assert rows["NOFILE.L"]["return_basis"] == tr.PRICE_RETURN_BASIS
+    assert rows["NOFILE.L"]["var"] == pytest.approx(portfolio_utils.compute_var(frame))
 
 
 # ───────────────────────────── alpha / tracking error ──────────────────────────────

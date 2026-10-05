@@ -271,10 +271,20 @@ def test_keeps_flat_bar_when_ohlc_missing_or_nan():
     assert drop_zero_volume_spikes(nan_low, ticker="VHYL", exchange="L") is nan_low
 
 
-def test_flat_spike_dropped_without_source_column():
+def test_flat_spike_dropped_without_source_column(caplog):
     df = VHYL.drop(columns="Source")
-    out = drop_zero_volume_spikes(df, ticker="VHYL", exchange="L")
+    with caplog.at_level(logging.WARNING, logger="backend.timeseries.outlier_guard"):
+        out = drop_zero_volume_spikes(df, ticker="VHYL", exchange="L")
     assert out["Close"].tolist() == [58.01, 58.69]
+    # The drop is still logged when there is no Source column to report.
+    assert "2025-10-01=78.41" in caplog.text
+
+
+def test_keeps_flat_zero_volume_level_shift():
+    # A flat untraded bar that the next row confirms is a real move, not a spike.
+    df = VHYL.copy()
+    df.loc[2, ["Open", "High", "Low", "Close"]] = [78.0, 79.2, 77.9, 78.9]
+    assert drop_zero_volume_spikes(df, ticker="VHYL", exchange="L") is df
 
 
 def test_flat_spike_at_edge_is_kept():
@@ -283,3 +293,10 @@ def test_flat_spike_at_edge_is_kept():
     edge.loc[0, "Date"] = pd.Timestamp("2025-09-25")
     # [58.01, 58.01, 78.41]: the flat bar is the last row, so it has one neighbour.
     assert drop_zero_volume_spikes(edge, ticker="VHYL", exchange="L") is edge
+
+
+def test_flat_spike_at_start_is_kept():
+    first = pd.concat([VHYL.iloc[[1]], VHYL.iloc[[0, 2]]], ignore_index=True)
+    first.loc[0, "Date"] = pd.Timestamp("2025-09-25")
+    # [78.41, 58.01, 58.69]: the flat bar is the first row, so it has one neighbour.
+    assert drop_zero_volume_spikes(first, ticker="VHYL", exchange="L") is first

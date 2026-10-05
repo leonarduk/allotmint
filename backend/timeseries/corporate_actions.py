@@ -36,6 +36,8 @@ changes.
 from __future__ import annotations
 
 import logging
+import os
+import re
 from pathlib import Path
 
 import numpy as np
@@ -47,6 +49,10 @@ logger = logging.getLogger(__name__)
 
 ACTIONS_DIR = "corporate_actions"
 ACTION_COLUMNS = ["Date", "Action", "Value", "Currency", "Source"]
+
+# Ticker/exchange identifiers become a file name: allowlist them so a caller
+# cannot steer the path outside ``corporate_actions/`` (``..``, separators).
+_SAFE_IDENTIFIER_RE = re.compile(r"[A-Z0-9][A-Z0-9._-]{0,19}")
 
 DIVIDEND = "dividend"
 SPLIT = "split"
@@ -118,17 +124,35 @@ def _normalise(frame: pd.DataFrame) -> pd.DataFrame:
     return frame.sort_values(["Date", "Action"]).reset_index(drop=True)
 
 
-def corporate_actions_path(ticker: str, exchange: str, *, base: str | None = None) -> str:
-    """Path of the actions file for ``ticker``/``exchange`` (same stem as its meta file)."""
-    name = f"{ticker.upper()}_{exchange.upper()}.parquet"
-    if base is not None:
-        if base.startswith("s3://"):
-            return "/".join([base.rstrip("/"), ACTIONS_DIR, name])
-        return str(Path(base, ACTIONS_DIR, name))
-    # Lazy: ``cache`` imports the fetchers, which import this module.
-    from backend.timeseries.cache import _cache_path
+def _safe_identifier(value: str) -> str:
+    cleaned = str(value).strip().upper()
+    if not _SAFE_IDENTIFIER_RE.fullmatch(cleaned):
+        raise ValueError(f"Unsafe ticker/exchange identifier: {sanitise_log_value(value)!r}")
+    return cleaned
 
-    return _cache_path(ACTIONS_DIR, name)
+
+def corporate_actions_path(ticker: str, exchange: str, *, base: str | None = None) -> str:
+    """Path of the actions file for ``ticker``/``exchange`` (same stem as its meta file).
+
+    Raises ``ValueError`` for an identifier that is not a plain ticker/exchange code.
+    """
+    name = f"{_safe_identifier(ticker)}_{_safe_identifier(exchange)}.parquet"
+    if base is None:
+        # Lazy: ``cache`` imports the fetchers, which import this module.
+        from backend.timeseries.cache import _cache_path
+
+        root = _cache_path(ACTIONS_DIR)
+    elif base.startswith("s3://"):
+        root = "/".join([base.rstrip("/"), ACTIONS_DIR])
+    else:
+        root = str(Path(base, ACTIONS_DIR))
+    if root.startswith("s3://"):
+        return "/".join([root.rstrip("/"), name])
+    directory = os.path.normpath(root)
+    path = os.path.normpath(os.path.join(directory, name))
+    if not path.startswith(directory + os.sep):
+        raise ValueError(f"Corporate actions path escapes {sanitise_log_value(directory)!r}")
+    return path
 
 
 def load_corporate_actions(ticker: str, exchange: str, *, base: str | None = None) -> pd.DataFrame:

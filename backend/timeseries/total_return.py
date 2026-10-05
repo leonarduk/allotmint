@@ -31,8 +31,9 @@ def dividends_on_trading_days(closes: pd.Series, dividends: pd.Series | None) ->
     """Dividend per trading day of ``closes`` (0 where none); ex-dates snap to the next close.
 
     Dividends whose ex-date falls on or before the first close are dropped:
-    whoever holds from that close does not receive them. So are those after
-    the last close.
+    the first close is already ex-dividend when the ex-date equals it, so a
+    holder from that close is not entitled (only a holder from the previous,
+    out-of-window close is). Those after the last close are dropped too.
     """
     closes = _clean_closes(closes)
     paid = pd.Series(0.0, index=closes.index)
@@ -43,7 +44,7 @@ def dividends_on_trading_days(closes: pd.Series, dividends: pd.Series | None) ->
     positions = closes.index.searchsorted(divs.index, side="left")
     for pos, amount in zip(positions, divs.to_numpy()):
         if 0 < pos < len(closes):
-            paid.iloc[pos] += float(amount)
+            paid.iloc[int(pos)] += float(amount)
     return paid
 
 

@@ -295,3 +295,15 @@ def test_history_currency_reads_yfinance_mapping_metadata():
     assert fetch_yahoo_timeseries._history_currency(Mock(history_metadata={"currency": "USD"})) == "USD"
     assert fetch_yahoo_timeseries._history_currency(Mock(history_metadata=None)) is None
     assert fetch_yahoo_timeseries._history_currency(Mock(history_metadata=_HistoryMetadata({"currency": ""}))) is None
+
+
+@pytest.mark.parametrize("ticker, exchange", [("../ABC", "L"), ("ABC", "../L"), ("..", "L"), ("A/B", "L"), ("", "L")])
+def test_corporate_actions_path_rejects_unsafe_identifiers(cache_base, ticker, exchange):
+    with pytest.raises(ValueError):
+        corporate_actions.corporate_actions_path(ticker, exchange)
+
+
+def test_corporate_actions_path_stays_under_actions_dir(tmp_path):
+    path = corporate_actions.corporate_actions_path("brk.b", "n", base=str(tmp_path))
+
+    assert path == str(tmp_path / "corporate_actions" / "BRK.B_N.parquet")

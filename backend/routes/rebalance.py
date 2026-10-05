@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -12,35 +12,15 @@ from backend.common import portfolio as portfolio_mod
 from backend.common.allocation_policy import load_allocation_policy, parse_policy, save_allocation_policy
 from backend.common.authz import ensure_owner_access
 from backend.common.errors import raise_owner_not_found
-from backend.common.rebalance import suggest_trades
 from backend.common.rebalance_plan import bucket_holdings, build_plan, suggest_new_cash
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 router = APIRouter(tags=["rebalance"])
 
 
-class RebalanceRequest(BaseModel):
-    actual: Dict[str, float]
-    target: Dict[str, float]
-
-
-class TradeSuggestion(BaseModel):
-    ticker: str
-    action: str
-    amount: float
-
-
 class AllocationPolicyBody(BaseModel):
     targets: Dict[str, float] = {}
     tolerance_pct: Optional[float] = None
-
-
-@router.post("/rebalance", response_model=List[TradeSuggestion])
-def rebalance(req: RebalanceRequest) -> List[TradeSuggestion]:
-    try:
-        return suggest_trades(req.actual, req.target)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _resolve_owner(request: Request, owner: str, identity: Optional[str]) -> Tuple[str, Path]:

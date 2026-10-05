@@ -268,6 +268,37 @@ def test_new_cash_is_buy_only_in_chosen_account_and_reduces_drift():
     assert amounts == {"bond": (440.0, "BD2"), "equity": (60.0, "EQ2")}
 
 
+def _total_abs_drift(holdings, policy, extra=None):
+    extra = extra or {}
+    total = holdings.total + sum(extra.values())
+    return sum(
+        abs((holdings.class_total(c) + extra.get(c, 0.0)) / total * 100 - pct) for c, pct in policy.targets.items()
+    )
+
+
+def test_new_cash_reduces_total_absolute_drift():
+    holdings = bucket_holdings(
+        _portfolio(("ISA", [_h("EQ1", 900, "equity"), _h("BD1", 50, "bond"), _h("PR1", 50, "property")]))
+    )
+    policy = _policy(5, equity=60, bond=30, property=10)
+    before = _total_abs_drift(holdings, policy)
+    result = suggest_new_cash(holdings, policy, 300, "0")
+    bought = {t["asset_class"]: t["amount"] for t in result["trades"]}
+    after = _total_abs_drift(holdings, policy, bought)
+    assert sum(bought.values()) == pytest.approx(300)
+    assert after < before
+
+
+def test_water_fill_never_allocates_more_than_the_gaps():
+    # Amount larger than every positive gap: each gap is filled exactly and
+    # the remainder is left unallocated (the caller keeps it as cash).
+    assert _water_fill({"a": 100, "b": 40, "c": 10}, 200) == {
+        "a": pytest.approx(100),
+        "b": pytest.approx(40),
+        "c": pytest.approx(10),
+    }
+
+
 def test_new_cash_allocates_to_cash_target_as_keep():
     holdings = bucket_holdings(_portfolio(("ISA", [_h("EQ1", 1000, "equity")])))
     result = suggest_new_cash(holdings, _policy(5, equity=50, cash=50), 400, "0")

@@ -5,24 +5,6 @@ from fastapi.testclient import TestClient
 from backend.common.rebalance import suggest_trades
 
 
-def test_rebalance_route():
-    from backend.routes import rebalance as rebalance_route
-
-    app = FastAPI()
-    app.include_router(rebalance_route.router)
-    client = TestClient(app)
-
-    sample_actual = {"AAA": 100.0, "BBB": 50.0}
-    sample_target = {"AAA": 0.6, "BBB": 0.4}
-
-    resp = client.post("/rebalance", json={"actual": sample_actual, "target": sample_target})
-    assert resp.status_code == 200
-    assert resp.json() == [
-        {"ticker": "AAA", "action": "sell", "amount": 10.0},
-        {"ticker": "BBB", "action": "buy", "amount": 10.0},
-    ]
-
-
 def test_suggest_trades_valid_target_sum():
     actual = {"AAA": 100.0, "BBB": 50.0}
     target = {"AAA": 0.5, "BBB": 0.5}
@@ -40,17 +22,6 @@ def test_suggest_trades_invalid_target_sum():
         suggest_trades(actual, target)
 
 
-def test_rebalance_route_invalid_target_sum():
-    from backend.routes import rebalance as rebalance_route
-
-    app = FastAPI()
-    app.include_router(rebalance_route.router)
-    client = TestClient(app)
-
-    resp = client.post("/rebalance", json={"actual": {"AAA": 100.0}, "target": {"AAA": 0.9}})
-    assert resp.status_code == 400
-
-
 def test_suggest_trades_negative_target_weight():
     actual = {"AAA": 100.0, "BBB": 50.0}
     target = {"AAA": -0.1, "BBB": 1.1}
@@ -63,20 +34,6 @@ def test_suggest_trades_target_weight_over_one():
     target = {"AAA": 1.5, "BBB": -0.5}
     with pytest.raises(ValueError, match="AAA"):
         suggest_trades(actual, target)
-
-
-def test_rebalance_route_negative_target_weight():
-    from backend.routes import rebalance as rebalance_route
-
-    app = FastAPI()
-    app.include_router(rebalance_route.router)
-    client = TestClient(app)
-
-    resp = client.post(
-        "/rebalance",
-        json={"actual": {"AAA": 100.0, "BBB": 50.0}, "target": {"AAA": -0.1, "BBB": 1.1}},
-    )
-    assert resp.status_code == 400
 
 
 # ---------------------------------------------------------------- #9446 routes
@@ -145,9 +102,21 @@ def test_new_cash_route(monkeypatch, tmp_path):
     assert resp.status_code == 400
 
 
-def test_owner_routes_unknown_owner(monkeypatch, tmp_path):
-    from backend.common.errors import OwnerNotFoundError
+def test_owner_routes_unknown_owner_returns_404(monkeypatch, tmp_path):
+    from fastapi.responses import JSONResponse
+
+    from backend.common.errors import AppError
 
     client = _owner_client(monkeypatch, tmp_path)
-    with pytest.raises(OwnerNotFoundError):
-        client.get("/rebalance/nobody/plan")
+    # Mirror the app-level AppError handler (backend/bootstrap/middleware.py).
+    client.app.add_exception_handler(
+        AppError,
+        lambda request, exc: JSONResponse(status_code=exc.status_code, content={"detail": exc.safe_detail}),
+    )
+    for method, path in [
+        ("get", "/rebalance/nobody/policy"),
+        ("get", "/rebalance/nobody/plan"),
+        ("get", "/rebalance/nobody/new-cash?amount=1&account=0"),
+    ]:
+        assert getattr(client, method)(path).status_code == 404, path
+    assert client.put("/rebalance/nobody/policy", json={"targets": {}}).status_code == 404

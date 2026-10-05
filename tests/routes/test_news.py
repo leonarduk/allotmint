@@ -1214,3 +1214,24 @@ def test_get_cached_news_lost_quota_race_without_cache_raises(monkeypatch, tmp_p
     with pytest.raises(news_module.NewsQuotaExceeded):
         news_module.get_cached_news("PFE", raise_on_quota_exhausted=True)
     assert page_cache.load_cache("news_PFE") is None
+
+
+def test_exhausted_quota_logs_info_once_per_day(monkeypatch, caplog):
+    monkeypatch.setattr(news_module, "date", _FakeDate)
+    monkeypatch.setattr(news_module.cfg, "yahoo_news_requests_per_day", 0)
+    quota = news_module._ProviderQuota("Yahoo", "yahoo_news_requests_per_day", 500, "yahoo")
+
+    with caplog.at_level("DEBUG", logger=news_module.__name__):
+        assert quota.try_consume() is False
+        assert quota.try_consume() is False
+
+        class _NextDay(_FakeDate):
+            _value = date(2023, 1, 2)
+
+        monkeypatch.setattr(news_module, "date", _NextDay)
+        assert quota.try_consume() is False
+
+    exhausted = [r for r in caplog.records if "news quota exhausted" in r.getMessage()]
+    # First skip of each day at INFO, repeats the same day at DEBUG.
+    assert [r.levelname for r in exhausted] == ["INFO", "DEBUG", "INFO"]
+    assert "Yahoo news quota exhausted for today (limit 0); skipping Yahoo until tomorrow" in exhausted[0].getMessage()

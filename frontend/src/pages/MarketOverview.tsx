@@ -4,6 +4,7 @@ import { getMarketOverview } from '../api';
 import type { MarketOverview as MarketOverviewData } from '../types';
 import EmptyState from '../components/EmptyState';
 import SectorPerformance from '../components/market/SectorPerformance';
+import { changeColor, formatPctTick } from '../components/market/chartFormat';
 import { formatPublishedAt } from '../lib/date';
 import {
   ResponsiveContainer,
@@ -91,18 +92,12 @@ export default function MarketOverview() {
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={indexData}>
             <XAxis dataKey="name" />
-            <YAxis tickFormatter={(value) => `${Number(value).toFixed(1)}%`} />
+            <YAxis tickFormatter={formatPctTick} />
             <Tooltip content={<IndexTooltip />} />
             <Bar dataKey="change">
-              {indexData.map((entry) => {
-                const changeValue = entry.change ?? 0;
-                return (
-                  <Cell
-                    key={entry.name}
-                    fill={changeValue >= 0 ? '#16a34a' : '#dc2626'}
-                  />
-                );
-              })}
+              {indexData.map((entry) => (
+                <Cell key={entry.name} fill={changeColor(entry.change)} />
+              ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>

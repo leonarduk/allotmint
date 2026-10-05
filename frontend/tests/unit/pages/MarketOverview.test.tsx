@@ -8,15 +8,17 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (_k: string, opts?: any) => opts?.defaultValue ?? _k }),
 }));
 
-// vi.hoisted ensures mockBar is initialised before vi.mock factories run.
-const mockBar = vi.hoisted(() => vi.fn(() => null));
+// vi.hoisted ensures mocks are initialised before vi.mock factories run.
+const mockBar = vi.hoisted(() => vi.fn(({ children }: any) => <>{children}</>));
+const mockCell = vi.hoisted(() => vi.fn(() => null));
+const mockXAxis = vi.hoisted(() => vi.fn(() => null));
 
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
   BarChart: ({ data, children }: any) => (
     <div>
       {data.map((d: any) => (
-        <div key={d.name}>{d.name}</div>
+        <div key={d.name ?? d.sector}>{d.name}</div>
       ))}
       {children}
     </div>
@@ -24,10 +26,10 @@ vi.mock("recharts", () => ({
   Bar: mockBar,
   LineChart: ({ children }: any) => <div>{children}</div>,
   Line: () => null,
-  XAxis: () => null,
+  XAxis: mockXAxis,
   YAxis: () => null,
   Tooltip: () => null,
-  Cell: () => null,
+  Cell: mockCell,
 }));
 
 const mockGetMarketOverview = vi.mocked(api.getMarketOverview);
@@ -146,6 +148,63 @@ describe("MarketOverview", () => {
 
     expect(screen.getByText("Level: 6,123.45")).toBeInTheDocument();
     expect(screen.getByText("Change: -0.22%")).toBeInTheDocument();
+  });
+
+  it("colours sector bars by sign and labels the axis as % change (#7817)", async () => {
+    mockCell.mockClear();
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
+    mockGetMarketSectors.mockResolvedValueOnce({
+      region: "us",
+      sectors: [
+        { sector: "Energy", change: 1.1, source: "etf" },
+        { sector: "Real Estate", change: -0.1, source: "etf" },
+        { sector: "Utilities", change: 0, source: "etf" },
+      ],
+    });
+    render(<MarketOverview />);
+    expect(
+      await screen.findByRole("heading", { name: "Sector % Change" }),
+    ).toBeInTheDocument();
+    await screen.findByRole("button", { name: /Real Estate/ });
+    const sectorFills = mockCell.mock.calls
+      .map(([props]: any) => props)
+      .filter((props: any) => "strokeWidth" in props)
+      .map((props: any) => props.fill);
+    expect(sectorFills).toEqual(["#16a34a", "#dc2626", "#16a34a"]);
+    expect(screen.queryByText(/equal-weighted baskets/)).not.toBeInTheDocument();
+  });
+
+  it("discloses when sector moves are constituent baskets", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
+    mockGetMarketSectors.mockResolvedValueOnce({
+      region: "uk",
+      sectors: [{ sector: "Energy", change: 0.5, source: "basket" }],
+    });
+    render(<MarketOverview />);
+    expect(await screen.findByText(/equal-weighted baskets/)).toBeInTheDocument();
+  });
+
+  it("labels the sector value axis with % units (#7817)", async () => {
+    mockXAxis.mockClear();
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
+    mockGetMarketSectors.mockResolvedValueOnce({
+      region: "us",
+      sectors: [{ sector: "Energy", change: 1.234, source: "etf" }],
+    });
+    render(<MarketOverview />);
+    await screen.findByRole("button", { name: /Energy/ });
+    const valueAxis = mockXAxis.mock.calls
+      .map(([props]: any) => props)
+      .find((props: any) => props.type === "number");
+    expect(valueAxis).toBeDefined();
+    expect(valueAxis.tickFormatter(1.234)).toBe("1.2%");
+    expect(valueAxis.label.value).toBe("% Change");
+  });
+
+  it("shows an empty state instead of a blank chart when there are no sectors", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
+    render(<MarketOverview />);
+    expect(await screen.findByText("No sector data available")).toBeInTheDocument();
   });
 });
 

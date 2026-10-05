@@ -11,7 +11,9 @@ import {
 } from 'recharts';
 import { getMarketSectors } from '../../api';
 import type { RegionSectors, SectorRegion } from '../../types';
+import EmptyState from '../EmptyState';
 import SectorDetailPanel from './SectorDetailPanel';
+import { changeColor, formatPctTick } from './chartFormat';
 
 const REGION_OPTIONS: { key: SectorRegion; label: string }[] = [
   { key: 'global', label: 'Global' },
@@ -19,8 +21,10 @@ const REGION_OPTIONS: { key: SectorRegion; label: string }[] = [
   { key: 'uk', label: 'UK' },
 ];
 
-const BAR_FILL = '#82ca9d';
-const SELECTED_FILL = '#2f855a';
+const SECTOR_ROW_HEIGHT = 36;
+const SECTOR_LABEL_WIDTH = 160;
+// Bars keep their sign colour (#7817); the selected one gets an outline.
+const SELECTED_STROKE = '#1f2937';
 
 interface RegionToggleProps {
   active: SectorRegion | undefined;
@@ -57,18 +61,38 @@ interface SectorChartProps {
 }
 
 function SectorChart({ data, selected, onSelect }: SectorChartProps) {
+  const { t } = useTranslation();
+  const pctLabel = t('market.changePct', { defaultValue: '% Change' });
+  // Horizontal bars: sector names are long ("Communication Services"), and
+  // rotated X-axis labels were clipped on desktop and collided at phone
+  // width (#7817). Category labels on the Y axis stay legible.
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data.sectors}>
+    <ResponsiveContainer
+      width="100%"
+      height={Math.max(200, data.sectors.length * SECTOR_ROW_HEIGHT + 30)}
+    >
+      <BarChart
+        data={data.sectors}
+        layout="vertical"
+        margin={{ top: 5, right: 20, bottom: 5, left: 5 }}
+      >
         <XAxis
+          type="number"
+          tickFormatter={formatPctTick}
+          height={45}
+          label={{ value: pctLabel, position: 'insideBottom', offset: 0 }}
+        />
+        <YAxis
+          type="category"
           dataKey="sector"
           interval={0}
-          angle={-45}
-          textAnchor="end"
-          height={100}
+          width={SECTOR_LABEL_WIDTH}
+          tick={{ fontSize: 12 }}
         />
-        <YAxis />
-        <Tooltip contentStyle={{ backgroundColor: '#fff', color: '#213547' }} />
+        <Tooltip
+          contentStyle={{ backgroundColor: '#fff', color: '#213547' }}
+          formatter={(value) => [`${Number(value).toFixed(2)}%`, pctLabel]}
+        />
         <Bar
           dataKey="change"
           cursor="pointer"
@@ -87,12 +111,42 @@ function SectorChart({ data, selected, onSelect }: SectorChartProps) {
           {data.sectors.map((row) => (
             <Cell
               key={row.sector}
-              fill={row.sector === selected ? SELECTED_FILL : BAR_FILL}
+              fill={changeColor(row.change)}
+              stroke={row.sector === selected ? SELECTED_STROKE : undefined}
+              strokeWidth={row.sector === selected ? 2 : 0}
             />
           ))}
         </Bar>
       </BarChart>
     </ResponsiveContainer>
+  );
+}
+
+function SectorBody({ data, selected, onSelect }: SectorChartProps) {
+  const { t } = useTranslation();
+  if (data.sectors.length === 0) {
+    return (
+      <EmptyState
+        message={t('market.noSectors', {
+          defaultValue: 'No sector data available',
+        })}
+      />
+    );
+  }
+  const usesBasket = data.sectors.some((row) => row.source === 'basket');
+  return (
+    <>
+      {usesBasket && (
+        <p className="mb-2 text-sm text-gray-500">
+          {t('market.sectorBasketNote', {
+            defaultValue:
+              'Sector moves are equal-weighted baskets of representative large constituents.',
+          })}
+        </p>
+      )}
+      <SectorChart data={data} selected={selected} onSelect={onSelect} />
+      <SectorButtons data={data} selected={selected} onSelect={onSelect} />
+    </>
   );
 }
 
@@ -152,9 +206,7 @@ export default function SectorPerformance() {
     <div className="mb-8">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl">
-          {t('market.sectorPerformance', {
-            defaultValue: 'Sector Performance',
-          })}
+          {t('market.sectorChange', { defaultValue: 'Sector % Change' })}
         </h2>
         <RegionToggle active={activeRegion} onSelect={setRequested} />
       </div>
@@ -162,12 +214,7 @@ export default function SectorPerformance() {
       {!error && !data && <p>{t('common.loading')}</p>}
       {!error && data && (
         <>
-          <SectorChart data={data} selected={selected} onSelect={setSelected} />
-          <SectorButtons
-            data={data}
-            selected={selected}
-            onSelect={setSelected}
-          />
+          <SectorBody data={data} selected={selected} onSelect={setSelected} />
           {selected && (
             <SectorDetailPanel
               region={data.region}

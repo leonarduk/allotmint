@@ -8,6 +8,15 @@ vi.mock("@/api");
 const mockGetScreener = vi.mocked(api.getScreener);
 const mockCheckScreenerAvailable = vi.mocked(api.checkScreenerAvailable);
 
+// The page defaults to the FTSE 100 watchlist, so the free-text Tickers
+// input only appears once "Custom" is chosen.
+async function enterCustomTickers(value: string) {
+  fireEvent.change(await screen.findByLabelText("Watchlist"), {
+    target: { value: "Custom" },
+  });
+  fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value } });
+}
+
 describe("Screener", () => {
   beforeEach(() => {
     // Default every test to an available screener unless a test overrides
@@ -37,7 +46,7 @@ describe("Screener", () => {
     // Success bullet 2: unavailability (or, here, "don't know yet") must be
     // stated before any input is requested -- the 24-filter form must not
     // flash on screen, fully interactive, before the probe settles.
-    expect(screen.queryByLabelText(/Tickers/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Watchlist")).not.toBeInTheDocument();
     expect(
       screen.getByText(/checking screener availability/i),
     ).toBeInTheDocument();
@@ -51,7 +60,7 @@ describe("Screener", () => {
     expect(
       await screen.findByText(/doesn't include the fundamentals screener/i),
     ).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Tickers/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Watchlist")).not.toBeInTheDocument();
     // The gate copy must never leak the internal package name or repo URL.
     expect(screen.queryByText(/allotmint-pro/i)).not.toBeInTheDocument();
     expect(screen.queryByText("github.com", { exact: false })).not.toBeInTheDocument();
@@ -60,7 +69,7 @@ describe("Screener", () => {
   it("renders the form once the gate check resolves available", async () => {
     render(<Screener />);
 
-    expect(await screen.findByLabelText(/Tickers/i)).toBeInTheDocument();
+    expect(await screen.findByLabelText("Watchlist")).toBeInTheDocument();
   });
 
   it("sanitizes a 402 raised mid-submit instead of showing the raw backend detail", async () => {
@@ -75,9 +84,7 @@ describe("Screener", () => {
 
     render(<Screener />);
 
-    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
-      target: { value: "AAA" },
-    });
+    await enterCustomTickers("AAA");
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
 
     expect(
@@ -123,9 +130,7 @@ describe("Screener", () => {
 
     render(<Screener />);
 
-    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
-      target: { value: "AAA" },
-    });
+    await enterCustomTickers("AAA");
     fireEvent.change(screen.getByLabelText(/Max LT D\/E/i), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText(/Min Interest Coverage/i), { target: { value: "5" } });
     fireEvent.change(screen.getByLabelText(/Min Current Ratio/i), { target: { value: "1" } });
@@ -196,9 +201,7 @@ describe("Screener", () => {
 
     render(<Screener />);
 
-    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
-      target: { value: "AAA" },
-    });
+    await enterCustomTickers("AAA");
     fireEvent.change(screen.getByLabelText("Max P/B"), { target: { value: "2" } });
     fireEvent.change(screen.getByLabelText("Max P/S"), { target: { value: "4" } });
     fireEvent.change(screen.getByLabelText("Max EV/EBITDA"), { target: { value: "10" } });
@@ -269,9 +272,7 @@ describe("Screener", () => {
     ]);
 
     render(<Screener />);
-    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
-      target: { value: "AAA" },
-    });
+    await enterCustomTickers("AAA");
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
 
     const tip = await screen.findByRole("button", { name: "What does PEG mean?" });
@@ -322,9 +323,7 @@ describe("Screener", () => {
     mockGetScreener.mockResolvedValueOnce([row as never]);
 
     const { container } = render(<Screener />);
-    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
-      target: { value: "AAA" },
-    });
+    await enterCustomTickers("AAA");
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
     await screen.findByText("AAA");
 
@@ -412,9 +411,7 @@ describe("Screener", () => {
     ]);
 
     render(<Screener />);
-    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
-      target: { value: "CASH" },
-    });
+    await enterCustomTickers("CASH");
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
 
     expect(await screen.findAllByText("CASH")).toHaveLength(2);
@@ -423,6 +420,87 @@ describe("Screener", () => {
     );
     expect(keyWarnings).toEqual([]);
     errorSpy.mockRestore();
+  });
+  it("prefills a conservative default screen against the FTSE 100", async () => {
+    mockGetScreener.mockResolvedValueOnce([]);
+    render(<Screener />);
+
+    expect(await screen.findByLabelText("Watchlist")).toHaveValue("FTSE 100");
+    expect(screen.getByLabelText("Max P/E")).toHaveValue(25);
+    expect(screen.getByLabelText("Min Current Ratio")).toHaveValue(1);
+    expect(screen.getByLabelText("Min ROE")).toHaveValue(0.1);
+    // Unit-ambiguous metrics stay blank rather than guessing a scale.
+    expect(screen.getByLabelText("Max D/E")).toHaveValue(null);
+    expect(screen.getByLabelText("Min Dividend Yield")).toHaveValue(null);
+
+    fireEvent.submit(screen.getByText("Run").closest("form")!);
+
+    await waitFor(() => expect(mockGetScreener).toHaveBeenCalled());
+    const [symbols, criteria] = mockGetScreener.mock.calls.at(-1)!;
+    expect(symbols).toContain("AZN.L");
+    expect(criteria).toEqual({ pe_max: 25, current_ratio_min: 1, roe_min: 0.1 });
+    expect(
+      await screen.findByText(/no tickers matched these filters/i),
+    ).toBeInTheDocument();
+  });
+
+  it("clears and restores the default filters", async () => {
+    render(<Screener />);
+
+    fireEvent.change(await screen.findByLabelText("Max Beta"), {
+      target: { value: "1.2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByLabelText("Max P/E")).toHaveValue(null);
+    expect(screen.getByLabelText("Max Beta")).toHaveValue(null);
+
+    fireEvent.change(screen.getByLabelText("Watchlist"), {
+      target: { value: "S&P 500" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
+    expect(screen.getByLabelText("Watchlist")).toHaveValue("FTSE 100");
+    expect(screen.getByLabelText("Max P/E")).toHaveValue(25);
+  });
+
+  it("labels the 52-week-high filter as a high, not a low", async () => {
+    mockGetScreener.mockResolvedValueOnce([]);
+    render(<Screener />);
+
+    fireEvent.change(await screen.findByLabelText("Max 52W High"), {
+      target: { value: "150" },
+    });
+    expect(screen.queryByLabelText("Max 52W Low")).not.toBeInTheDocument();
+    fireEvent.submit(screen.getByText("Run").closest("form")!);
+
+    await waitFor(() => expect(mockGetScreener).toHaveBeenCalled());
+    expect(mockGetScreener.mock.calls.at(-1)![1]).toMatchObject({
+      high_52w_max: 150,
+    });
+  });
+
+  it("explains instead of silently ignoring Run with no custom tickers", async () => {
+    mockGetScreener.mockClear();
+    render(<Screener />);
+
+    fireEvent.change(await screen.findByLabelText("Watchlist"), {
+      target: { value: "Custom" },
+    });
+    fireEvent.submit(screen.getByText("Run").closest("form")!);
+
+    expect(
+      await screen.findByText(/enter at least one ticker/i),
+    ).toBeInTheDocument();
+    expect(mockGetScreener).not.toHaveBeenCalled();
+  });
+
+  it("marks fraction-scaled filters with their scale", async () => {
+    render(<Screener />);
+
+    expect(await screen.findByLabelText("Min Gross Margin")).toHaveAttribute(
+      "placeholder",
+      "0.10 = 10%",
+    );
+    expect(screen.getByLabelText("Min Market Cap")).toHaveAttribute("step", "1");
   });
 });
 

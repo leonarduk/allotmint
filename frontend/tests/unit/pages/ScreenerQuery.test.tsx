@@ -159,7 +159,13 @@ describe("Screener & Query page", () => {
     getScreener.mockResolvedValue(mockScreenerData);
     renderWithI18n(<ScreenerQuery />);
 
-    fireEvent.change(await screen.findByLabelText(en.screener.tickers), {
+    fireEvent.change(await screen.findByLabelText("Watchlist"), {
+      target: { value: "Custom" },
+    });
+    // Start from a blank slate so the exact-criteria assertion below isn't
+    // coupled to the page's default filters.
+    fireEvent.click(screen.getByRole("button", { name: en.screener.clearFilters }));
+    fireEvent.change(screen.getByLabelText(en.screener.tickers), {
       target: { value: "AAA" },
     });
     fireEvent.change(screen.getByLabelText(en.screener.maxPeg), {

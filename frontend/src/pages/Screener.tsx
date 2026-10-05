@@ -58,43 +58,84 @@ function RatioHeaderInfoTip({ column }: { column: string }) {
   );
 }
 
+type ScreenerCriteria = NonNullable<Parameters<typeof getScreener>[1]>;
+type FilterParam = keyof ScreenerCriteria;
+
+// "fraction": the backend compares against a ratio (0.1 = 10%), so typing
+// "10" for 10% silently filters everything out -- show the scale inline.
+// "integer": the backend declares these as `int` query params, so a decimal
+// would be rejected with a 422.
+type FilterKind = "fraction" | "integer";
+
+const FILTER_FIELDS: { param: FilterParam; labelKey: string; kind?: FilterKind }[] = [
+  { param: "peg_max", labelKey: "maxPeg" },
+  { param: "pe_max", labelKey: "maxPe" },
+  { param: "pb_max", labelKey: "maxPb" },
+  { param: "ps_max", labelKey: "maxPs" },
+  { param: "ev_ebitda_max", labelKey: "maxEvEbitda" },
+  { param: "revenue_growth_min", labelKey: "minRevenueGrowth", kind: "fraction" },
+  { param: "earnings_growth_min", labelKey: "minEarningsGrowth", kind: "fraction" },
+  { param: "de_max", labelKey: "maxDe" },
+  { param: "lt_de_max", labelKey: "maxLtDe" },
+  { param: "interest_coverage_min", labelKey: "minInterestCoverage" },
+  { param: "current_ratio_min", labelKey: "minCurrentRatio" },
+  { param: "quick_ratio_min", labelKey: "minQuickRatio" },
+  { param: "fcf_min", labelKey: "minFcf" },
+  { param: "eps_min", labelKey: "minEps" },
+  { param: "gross_margin_min", labelKey: "minGrossMargin", kind: "fraction" },
+  { param: "operating_margin_min", labelKey: "minOperatingMargin", kind: "fraction" },
+  { param: "net_margin_min", labelKey: "minNetMargin", kind: "fraction" },
+  { param: "ebitda_margin_min", labelKey: "minEbitdaMargin", kind: "fraction" },
+  { param: "roa_min", labelKey: "minRoa", kind: "fraction" },
+  { param: "roe_min", labelKey: "minRoe", kind: "fraction" },
+  { param: "roi_min", labelKey: "minRoi", kind: "fraction" },
+  { param: "dividend_yield_min", labelKey: "minDividendYield" },
+  { param: "dividend_payout_ratio_max", labelKey: "maxDividendPayoutRatio", kind: "fraction" },
+  { param: "beta_max", labelKey: "maxBeta" },
+  { param: "shares_outstanding_min", labelKey: "minSharesOutstanding", kind: "integer" },
+  { param: "float_shares_min", labelKey: "minFloatShares", kind: "integer" },
+  { param: "market_cap_min", labelKey: "minMarketCap", kind: "integer" },
+  { param: "high_52w_max", labelKey: "max52WeekHigh" },
+  { param: "low_52w_min", labelKey: "min52WeekLow" },
+  { param: "avg_volume_min", labelKey: "minAvgVolume", kind: "integer" },
+];
+
+type FilterValues = Partial<Record<FilterParam, string>>;
+
+// A conservative "profitable, reasonably valued, solvent" starting point.
+// Deliberately limited to metrics that are widely populated and whose scale
+// is unambiguous (trailing P/E, current ratio, ROE as a fraction); D/E and
+// dividend yield are left blank because data vendors disagree on whether
+// they are ratios or percentages.
+const DEFAULT_FILTERS: FilterValues = {
+  pe_max: "25",
+  current_ratio_min: "1",
+  roe_min: "0.1",
+};
+const DEFAULT_WATCHLIST: WatchlistName = "FTSE 100";
+
+function toCriteria(filters: FilterValues): ScreenerCriteria {
+  const criteria: ScreenerCriteria = {};
+  for (const { param, kind } of FILTER_FIELDS) {
+    const raw = filters[param]?.trim();
+    if (!raw) continue;
+    const value = Number(raw);
+    if (!Number.isFinite(value)) continue;
+    // step="1" blocks a decimal on interactive submit, but not on a
+    // programmatic one -- round so an int-typed param can never 422.
+    criteria[param] = kind === "integer" ? Math.round(value) : value;
+  }
+  return criteria;
+}
+
 export function Screener() {
   const [watchlist, setWatchlist] = useState<WatchlistName | "Custom">(
-    "Custom",
+    DEFAULT_WATCHLIST,
   );
   const [tickers, setTickers] = useState("");
-  const [pegMax, setPegMax] = useState("");
-  const [peMax, setPeMax] = useState("");
-  const [deMax, setDeMax] = useState("");
-  const [ltDeMax, setLtDeMax] = useState("");
-  const [interestCoverageMin, setInterestCoverageMin] = useState("");
-  const [currentRatioMin, setCurrentRatioMin] = useState("");
-  const [quickRatioMin, setQuickRatioMin] = useState("");
-  const [fcfMin, setFcfMin] = useState("");
-  const [epsMin, setEpsMin] = useState("");
-  const [grossMarginMin, setGrossMarginMin] = useState("");
-  const [operatingMarginMin, setOperatingMarginMin] = useState("");
-  const [netMarginMin, setNetMarginMin] = useState("");
-  const [ebitdaMarginMin, setEbitdaMarginMin] = useState("");
-  const [roaMin, setRoaMin] = useState("");
-  const [roeMin, setRoeMin] = useState("");
-  const [roiMin, setRoiMin] = useState("");
-  const [dividendYieldMin, setDividendYieldMin] = useState("");
-  const [dividendPayoutRatioMax, setDividendPayoutRatioMax] = useState("");
-  const [betaMax, setBetaMax] = useState("");
-  const [sharesOutstandingMin, setSharesOutstandingMin] = useState("");
-  const [floatSharesMin, setFloatSharesMin] = useState("");
-  const [marketCapMin, setMarketCapMin] = useState("");
-  const [high52wMax, setHigh52wMax] = useState("");
-  const [low52wMin, setLow52wMin] = useState("");
-  const [avgVolumeMin, setAvgVolumeMin] = useState("");
-  const [pbMax, setPbMax] = useState("");
-  const [psMax, setPsMax] = useState("");
-  const [evEbitdaMax, setEvEbitdaMax] = useState("");
-  const [revenueGrowthMin, setRevenueGrowthMin] = useState("");
-  const [earningsGrowthMin, setEarningsGrowthMin] = useState("");
-
+  const [filters, setFilters] = useState<FilterValues>(DEFAULT_FILTERS);
   const [rows, setRows] = useState<ScreenerResult[]>([]);
+  const [hasRun, setHasRun] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ScreenerResult | null>(null);
@@ -135,72 +176,22 @@ export function Screener() {
             .map((t) => t.trim())
             .filter(Boolean)
         : WATCHLISTS[watchlist];
-    if (!symbols.length) return;
+    if (!symbols.length) {
+      setError(
+        t("screener.noTickers", "Enter at least one ticker, or pick a watchlist."),
+      );
+      return;
+    }
 
     setLoading(true);
     setError(null);
     try {
-      const data = await getScreener(symbols, {
-        peg_max: pegMax ? parseFloat(pegMax) : undefined,
-        pe_max: peMax ? parseFloat(peMax) : undefined,
-        de_max: deMax ? parseFloat(deMax) : undefined,
-        lt_de_max: ltDeMax ? parseFloat(ltDeMax) : undefined,
-        interest_coverage_min: interestCoverageMin
-          ? parseFloat(interestCoverageMin)
-          : undefined,
-        current_ratio_min: currentRatioMin
-          ? parseFloat(currentRatioMin)
-          : undefined,
-        quick_ratio_min: quickRatioMin
-          ? parseFloat(quickRatioMin)
-          : undefined,
-        fcf_min: fcfMin ? parseFloat(fcfMin) : undefined,
-        eps_min: epsMin ? parseFloat(epsMin) : undefined,
-        gross_margin_min: grossMarginMin
-          ? parseFloat(grossMarginMin)
-          : undefined,
-        operating_margin_min: operatingMarginMin
-          ? parseFloat(operatingMarginMin)
-          : undefined,
-        net_margin_min: netMarginMin ? parseFloat(netMarginMin) : undefined,
-        ebitda_margin_min: ebitdaMarginMin
-          ? parseFloat(ebitdaMarginMin)
-          : undefined,
-        roa_min: roaMin ? parseFloat(roaMin) : undefined,
-        roe_min: roeMin ? parseFloat(roeMin) : undefined,
-        roi_min: roiMin ? parseFloat(roiMin) : undefined,
-        dividend_yield_min: dividendYieldMin
-          ? parseFloat(dividendYieldMin)
-          : undefined,
-        dividend_payout_ratio_max: dividendPayoutRatioMax
-          ? parseFloat(dividendPayoutRatioMax)
-          : undefined,
-        beta_max: betaMax ? parseFloat(betaMax) : undefined,
-        shares_outstanding_min: sharesOutstandingMin
-          ? parseFloat(sharesOutstandingMin)
-          : undefined,
-        float_shares_min: floatSharesMin
-          ? parseFloat(floatSharesMin)
-          : undefined,
-        market_cap_min: marketCapMin
-          ? parseFloat(marketCapMin)
-          : undefined,
-        high_52w_max: high52wMax ? parseFloat(high52wMax) : undefined,
-        low_52w_min: low52wMin ? parseFloat(low52wMin) : undefined,
-        avg_volume_min: avgVolumeMin ? parseFloat(avgVolumeMin) : undefined,
-        pb_max: pbMax ? parseFloat(pbMax) : undefined,
-        ps_max: psMax ? parseFloat(psMax) : undefined,
-        ev_ebitda_max: evEbitdaMax ? parseFloat(evEbitdaMax) : undefined,
-        revenue_growth_min: revenueGrowthMin
-          ? parseFloat(revenueGrowthMin)
-          : undefined,
-        earnings_growth_min: earningsGrowthMin
-          ? parseFloat(earningsGrowthMin)
-          : undefined,
-      });
+      const data = await getScreener(symbols, toCriteria(filters));
       setRows(data);
+      setHasRun(true);
     } catch (e) {
       setRows([]);
+      setHasRun(false);
       const status = (e as { status?: number } | undefined)?.status;
       if (status === 402) {
         // Genuinely unavailable in this deployment -- never surface the raw
@@ -289,338 +280,44 @@ export function Screener() {
               />
             </label>
           )}
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.maxPeg")}
-            <input
-              aria-label={t("screener.maxPeg")}
-              type="number"
-              value={pegMax}
-              onChange={(e) => setPegMax(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.maxPe")}
-            <input
-              aria-label={t("screener.maxPe")}
-              type="number"
-              value={peMax}
-              onChange={(e) => setPeMax(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.maxPb")}
-            <input
-              aria-label={t("screener.maxPb")}
-              type="number"
-              value={pbMax}
-              onChange={(e) => setPbMax(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.maxPs")}
-            <input
-              aria-label={t("screener.maxPs")}
-              type="number"
-              value={psMax}
-              onChange={(e) => setPsMax(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.maxEvEbitda")}
-            <input
-              aria-label={t("screener.maxEvEbitda")}
-              type="number"
-              value={evEbitdaMax}
-              onChange={(e) => setEvEbitdaMax(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minRevenueGrowth")}
-            <input
-              aria-label={t("screener.minRevenueGrowth")}
-              type="number"
-              value={revenueGrowthMin}
-              onChange={(e) => setRevenueGrowthMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minEarningsGrowth")}
-            <input
-              aria-label={t("screener.minEarningsGrowth")}
-              type="number"
-              value={earningsGrowthMin}
-              onChange={(e) => setEarningsGrowthMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.maxDe")}
-            <input
-              aria-label={t("screener.maxDe")}
-              type="number"
-              value={deMax}
-              onChange={(e) => setDeMax(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.maxLtDe")}
-            <input
-              aria-label={t("screener.maxLtDe")}
-              type="number"
-              value={ltDeMax}
-              onChange={(e) => setLtDeMax(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minInterestCoverage")}
-            <input
-              aria-label={t("screener.minInterestCoverage")}
-              type="number"
-              value={interestCoverageMin}
-              onChange={(e) => setInterestCoverageMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minCurrentRatio")}
-            <input
-              aria-label={t("screener.minCurrentRatio")}
-              type="number"
-              value={currentRatioMin}
-              onChange={(e) => setCurrentRatioMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minQuickRatio")}
-            <input
-              aria-label={t("screener.minQuickRatio")}
-              type="number"
-              value={quickRatioMin}
-              onChange={(e) => setQuickRatioMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minFcf")}
-            <input
-              aria-label={t("screener.minFcf")}
-              type="number"
-              value={fcfMin}
-              onChange={(e) => setFcfMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minEps")}
-            <input
-              aria-label={t("screener.minEps")}
-              type="number"
-              value={epsMin}
-              onChange={(e) => setEpsMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minGrossMargin")}
-            <input
-              aria-label={t("screener.minGrossMargin")}
-              type="number"
-              value={grossMarginMin}
-              onChange={(e) => setGrossMarginMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minOperatingMargin")}
-            <input
-              aria-label={t("screener.minOperatingMargin")}
-              type="number"
-              value={operatingMarginMin}
-              onChange={(e) => setOperatingMarginMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minNetMargin")}
-            <input
-              aria-label={t("screener.minNetMargin")}
-              type="number"
-              value={netMarginMin}
-              onChange={(e) => setNetMarginMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minEbitdaMargin")}
-            <input
-              aria-label={t("screener.minEbitdaMargin")}
-              type="number"
-              value={ebitdaMarginMin}
-              onChange={(e) => setEbitdaMarginMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minRoa")}
-            <input
-              aria-label={t("screener.minRoa")}
-              type="number"
-              value={roaMin}
-              onChange={(e) => setRoaMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minRoe")}
-            <input
-              aria-label={t("screener.minRoe")}
-              type="number"
-              value={roeMin}
-              onChange={(e) => setRoeMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minRoi")}
-            <input
-              aria-label={t("screener.minRoi")}
-              type="number"
-              value={roiMin}
-              onChange={(e) => setRoiMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minDividendYield")}
-            <input
-              aria-label={t("screener.minDividendYield")}
-              type="number"
-              value={dividendYieldMin}
-              onChange={(e) => setDividendYieldMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.maxDividendPayoutRatio")}
-            <input
-              aria-label={t("screener.maxDividendPayoutRatio")}
-              type="number"
-              value={dividendPayoutRatioMax}
-              onChange={(e) => setDividendPayoutRatioMax(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.maxBeta")}
-            <input
-              aria-label={t("screener.maxBeta")}
-              type="number"
-              value={betaMax}
-              onChange={(e) => setBetaMax(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minSharesOutstanding")}
-            <input
-              aria-label={t("screener.minSharesOutstanding")}
-              type="number"
-              value={sharesOutstandingMin}
-              onChange={(e) => setSharesOutstandingMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minFloatShares")}
-            <input
-              aria-label={t("screener.minFloatShares")}
-              type="number"
-              value={floatSharesMin}
-              onChange={(e) => setFloatSharesMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minMarketCap")}
-            <input
-              aria-label={t("screener.minMarketCap")}
-              type="number"
-              value={marketCapMin}
-              onChange={(e) => setMarketCapMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.max52WeekLow")}
-            <input
-              aria-label={t("screener.max52WeekLow")}
-              type="number"
-              value={high52wMax}
-              onChange={(e) => setHigh52wMax(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.min52WeekLow")}
-            <input
-              aria-label={t("screener.min52WeekLow")}
-              type="number"
-              value={low52wMin}
-              onChange={(e) => setLow52wMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
-          <label style={{ marginRight: "0.5rem" }}>
-            {t("screener.minAvgVolume")}
-            <input
-              aria-label={t("screener.minAvgVolume")}
-              type="number"
-              value={avgVolumeMin}
-              onChange={(e) => setAvgVolumeMin(e.target.value)}
-              step="any"
-              style={{ marginLeft: "0.25rem" }}
-            />
-          </label>
+          {FILTER_FIELDS.map(({ param, labelKey, kind }) => {
+            const label = t(`screener.${labelKey}`);
+            return (
+              <label key={param} style={{ marginRight: "0.5rem" }}>
+                {label}
+                <input
+                  aria-label={label}
+                  type="number"
+                  value={filters[param] ?? ""}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, [param]: e.target.value }))
+                  }
+                  step={kind === "integer" ? "1" : "any"}
+                  min={kind === "integer" ? "0" : undefined}
+                  placeholder={
+                    kind === "fraction"
+                      ? t("screener.fractionHint", "0.10 = 10%")
+                      : undefined
+                  }
+                  style={{ marginLeft: "0.25rem" }}
+                />
+              </label>
+            );
+          })}
           <button type="submit" disabled={loading} style={{ marginLeft: "0.5rem" }}>
             {loading ? t("screener.loading") : t("screener.run")}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setWatchlist(DEFAULT_WATCHLIST);
+              setFilters(DEFAULT_FILTERS);
+            }}
+          >
+            {t("screener.resetDefaults", "Reset to defaults")}
+          </button>
+          <button type="button" onClick={() => setFilters({})}>
+            {t("screener.clearFilters", "Clear filters")}
           </button>
         </form>
       )}
@@ -629,6 +326,14 @@ export function Screener() {
         <p style={{ color: "red" }}>{error}</p>
       )}
       {loading && <p>{t("screener.loading")}</p>}
+      {hasRun && !loading && rows.length === 0 && (
+        <p role="status">
+          {t(
+            "screener.noResults",
+            "No tickers matched these filters. Try loosening or clearing some.",
+          )}
+        </p>
+      )}
 
       {rows.length > 0 && !loading && (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>

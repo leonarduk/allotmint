@@ -439,7 +439,12 @@ same AWS account and region as the deployed stack (SSM parameters are
 regional), with
 `aws ssm put-parameter --type SecureString --overwrite --name <parameter> --value <secret>`;
 new cold starts pick them up without a redeploy. Until a parameter exists,
-its tool shows "Not configured" on the admin page. See "Credentials in
+its tool shows "Not configured" on the admin page. The stack grants the
+Lambda `ssm:GetParameter` on exactly those two parameters; that is enough with
+the default `aws/ssm` key, but a parameter encrypted with your own KMS key
+also needs `kms:Decrypt` on that key. A parameter the Lambda can't read is
+logged by name and error code (e.g. `ParameterNotFound`,
+`AccessDeniedException`) in `McpServerLambdaLogGroup`. See "Credentials in
 Lambda" in allotmint-pro's `allotmint_pro/mcp_server/README.md`.
 
 Besides the MCP data tools, the chat can open pages of the app ("go to the

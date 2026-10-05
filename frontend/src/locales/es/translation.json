@@ -369,10 +369,12 @@
   "instrumentType": {
     "bond": "Bono",
     "cash": "Efectivo",
+    "commodity": "Materia prima",
     "equity": "Acción",
     "etf": "ETF",
     "fund": "Fondo",
     "investmentTrust": "Fideicomiso de inversión",
+    "multiAsset": "Multiactivo",
     "other": "Otro",
     "realEstate": "Bienes raíces"
   },

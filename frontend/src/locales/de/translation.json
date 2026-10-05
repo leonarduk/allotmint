@@ -370,10 +370,12 @@
   "instrumentType": {
     "bond": "Anleihe",
     "cash": "Bargeld",
+    "commodity": "Rohstoff",
     "equity": "Aktie",
     "etf": "ETF",
     "fund": "Fonds",
     "investmentTrust": "Investmentgesellschaft",
+    "multiAsset": "Multi-Asset",
     "other": "Andere",
     "realEstate": "Immobilien"
   },

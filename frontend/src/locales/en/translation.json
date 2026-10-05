@@ -567,10 +567,12 @@
   "instrumentType": {
     "bond": "Bond",
     "cash": "Cash",
+    "commodity": "Commodity",
     "equity": "Equity",
     "etf": "ETF",
     "fund": "Fund",
     "investmentTrust": "Investment Trust",
+    "multiAsset": "Multi-asset",
     "other": "Other",
     "realEstate": "Real Estate"
   },

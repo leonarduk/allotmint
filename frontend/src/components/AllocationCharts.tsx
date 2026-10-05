@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { FC } from "react";
+import { assetClassLabel } from "../lib/assetClass";
 
 /**
  * Build a three-level hierarchy (asset_class -> industry -> region) from
@@ -20,7 +21,8 @@ export interface AllocationNode {
 }
 
 function addToTree(root: Record<string, AllocationNode>, inst: InstrumentSummary) {
-  const ac = inst.asset_class ?? "Unknown";
+  // Case-insensitive: legacy "Equity" and canonical "equity" share a node.
+  const ac = assetClassLabel(inst.asset_class);
   const ind = inst.industry ?? "Unknown";
   const reg = inst.region ?? "Unknown";
 

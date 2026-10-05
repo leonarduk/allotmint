@@ -10,6 +10,23 @@ from backend.utils import page_cache
 
 
 @pytest.fixture(autouse=True)
+def _news_provider_defaults(monkeypatch):
+    """Configure an AlphaVantage key and a fresh Yahoo cooldown per test.
+
+    With no key, ``fetch_news_alpha`` skips AlphaVantage entirely, so tests
+    that mock its response need one set; tests for the no-key path override
+    it. A fresh cooldown keeps a 429 tripped in one test from silencing Yahoo
+    in the next.
+    """
+    monkeypatch.setattr(news.cfg, "alpha_vantage_key", "test-key")
+    monkeypatch.setattr(
+        news,
+        "_yahoo_cooldown",
+        news._ProviderCooldown(news.YAHOO_COOLDOWN_DEFAULT, news.YAHOO_COOLDOWN_MAX),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _isolated_news_quota(monkeypatch, tmp_path):
     """Point the daily news quota at a throwaway counter file.
 
@@ -119,6 +136,9 @@ def test_parse_alpha_time_legacy_format():
 def test_fallback_helpers_filter_finance_headlines(monkeypatch):
     def fake_yahoo(url, params=None, timeout=10, **kwargs):
         class Response:
+            status_code = 200
+            headers: Dict[str, str] = {}
+
             def raise_for_status(self):
                 return None
 

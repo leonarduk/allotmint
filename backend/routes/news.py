@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import time
 from concurrent.futures import Future
 from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -43,6 +44,14 @@ COUNTER_FILE: Path = page_cache.CACHE_DIR / "news_requests.json"
 # triggers almost immediately. ``curl_cffi`` impersonates Chrome's TLS and
 # HTTP/2 fingerprint, the same approach yfinance uses for its own calls.
 YAHOO_IMPERSONATE = "chrome"
+# After a 429, skip Yahoo for this long (or for the response's numeric
+# ``Retry-After``, capped at ``YAHOO_COOLDOWN_MAX``). Retrying straight away,
+# once per ticker, only keeps the IP flagged.
+YAHOO_COOLDOWN_DEFAULT = 300  # seconds
+YAHOO_COOLDOWN_MAX = 3600  # seconds
+# AlphaVantage answers with one of these keys instead of ``feed`` when the key
+# is invalid, rate-limited, or (for ``demo``) not entitled to the ticker.
+_ALPHA_NOTICE_KEYS = ("Information", "Note", "Error Message")
 
 # Per-ticker in-flight fetches, so concurrent callers for the same ticker
 # share one upstream fetch (and one quota unit) instead of each hitting the
@@ -241,11 +250,51 @@ def _is_finance_related(headline: str, ticker: str, instrument_name: Optional[st
     return any(keyword in text_lower for keyword in _FINANCE_KEYWORDS)
 
 
+class _ProviderCooldown:
+    """Thread-safe "don't call this provider until" deadline."""
+
+    def __init__(self, default_seconds: int, max_seconds: int) -> None:
+        self._default = default_seconds
+        self._max = max_seconds
+        self._until = 0.0
+        self._lock = threading.Lock()
+
+    def remaining(self) -> float:
+        with self._lock:
+            return max(0.0, self._until - time.monotonic())
+
+    def trip(self, retry_after: object = None) -> int:
+        """Start (or extend) the cooldown and return its length in seconds."""
+
+        seconds = self._default
+        if isinstance(retry_after, str) and retry_after.strip().isdigit():
+            seconds = min(int(retry_after.strip()), self._max)
+        with self._lock:
+            self._until = max(self._until, time.monotonic() + seconds)
+        return seconds
+
+
+_yahoo_cooldown = _ProviderCooldown(YAHOO_COOLDOWN_DEFAULT, YAHOO_COOLDOWN_MAX)
+
+
 def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
-    """Fetch headlines from Yahoo Finance search API."""
+    """Fetch headlines from Yahoo Finance search API.
+
+    Returns ``[]`` without calling Yahoo while a 429 cooldown is active, and
+    starts one when Yahoo answers 429, so callers fall through to the next
+    provider instead of hammering a host that is already throttling us.
+    """
 
     endpoint = cfg.yahoo_news_endpoint or "https://query1.finance.yahoo.com/v1/finance/search"
     validate_external_url(endpoint)
+    remaining = _yahoo_cooldown.remaining()
+    if remaining > 0:
+        logging.getLogger(__name__).debug(
+            "Skipping Yahoo news for %s: rate-limit cooldown, %d seconds left",
+            sanitise_log_value(ticker),
+            int(remaining),
+        )
+        return []
     clean_ticker = ticker.strip().upper()
     query, instrument_name = _build_fallback_query(clean_ticker)
     params = {"q": query, "quotesCount": 0, "newsCount": 10}
@@ -256,6 +305,14 @@ def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
         allow_redirects=False,
         impersonate=YAHOO_IMPERSONATE,
     )
+    if resp.status_code == 429:
+        seconds = _yahoo_cooldown.trip(resp.headers.get("Retry-After"))
+        logging.getLogger(__name__).warning(
+            "Yahoo news rate-limited (429) for %s; skipping Yahoo for %d seconds",
+            sanitise_log_value(clean_ticker),
+            seconds,
+        )
+        return []
     resp.raise_for_status()
     data = resp.json()
     items = data.get("news", [])
@@ -348,34 +405,67 @@ def _parse_rss_time(value: Optional[str]) -> Optional[str]:
     return _isoformat(dt)
 
 
-def _fetch_news(ticker: str) -> List[Dict[str, str]]:
-    """Fetch news from AlphaVantage with fallbacks to Yahoo and Google."""
+def _log_alpha_notice(ticker: str, data: Dict[str, Any]) -> None:
+    """Log AlphaVantage's explanation when it returns a notice instead of a feed."""
 
+    for key in _ALPHA_NOTICE_KEYS:
+        message = data.get(key)
+        if message:
+            logging.getLogger(__name__).warning(
+                "AlphaVantage returned no news feed for %s (%s): %s",
+                sanitise_log_value(ticker),
+                key,
+                sanitise_log_value(message),
+            )
+            return
+
+
+def fetch_news_alpha(ticker: str) -> List[Dict[str, str]]:
+    """Fetch headlines from AlphaVantage ``NEWS_SENTIMENT``.
+
+    Returns ``[]`` without a request when no API key is configured: the
+    ``demo`` key only serves ``IBM``, so calling it for anything else always
+    wastes a round trip before the fallbacks run.
+    """
+
+    if not cfg.alpha_vantage_key:
+        logging.getLogger(__name__).debug(
+            "Skipping AlphaVantage news for %s: no API key configured", sanitise_log_value(ticker)
+        )
+        return []
     params = {
         "function": "NEWS_SENTIMENT",
         "tickers": ticker,
         "sort": "LATEST",
-        "apikey": cfg.alpha_vantage_key or "demo",
+        "apikey": cfg.alpha_vantage_key,
     }
+    resp = requests.get(BASE_URL, params=params, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+    feed = data.get("feed") or []
+    if not feed:
+        _log_alpha_notice(ticker, data)
+        return []
+    enriched: List[Dict[str, str]] = []
+    for item in feed:
+        news_item = _make_news_item(
+            item.get("title"),
+            item.get("url"),
+            _parse_alpha_time(item.get("time_published")),
+            item.get("source"),
+        )
+        if news_item is not None:
+            enriched.append(news_item)
+    return enriched
+
+
+def _fetch_news(ticker: str) -> List[Dict[str, str]]:
+    """Fetch news from AlphaVantage with fallbacks to Yahoo and Google."""
+
     try:
-        resp = requests.get(BASE_URL, params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-        feed = data.get("feed") or []
-        if feed:
-            enriched: List[Dict[str, str]] = []
-            for item in feed:
-                news_item = _make_news_item(
-                    item.get("title"),
-                    item.get("url"),
-                    _parse_alpha_time(item.get("time_published")),
-                    item.get("source"),
-                )
-                if news_item is None:
-                    continue
-                enriched.append(news_item)
-            if enriched:
-                return enriched
+        items = fetch_news_alpha(ticker)
+        if items:
+            return items
     except Exception as exc:  # pragma: no cover - defensive
         logging.getLogger(__name__).error(
             "Failed to fetch news for %s: %s", sanitise_log_value(ticker), sanitise_log_value(exc)

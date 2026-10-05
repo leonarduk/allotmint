@@ -1,8 +1,26 @@
+import pytest
 from fastapi.testclient import TestClient
 
 import backend.routes.news as news
 from backend.app import create_app
 from backend.utils import page_cache
+
+
+@pytest.fixture(autouse=True)
+def _news_provider_defaults(monkeypatch):
+    """Configure an AlphaVantage key and a fresh Yahoo cooldown per test.
+
+    With no key, ``fetch_news_alpha`` skips AlphaVantage entirely, so tests
+    that mock its response need one set; tests for the no-key path override
+    it. A fresh cooldown keeps a 429 tripped in one test from silencing Yahoo
+    in the next.
+    """
+    monkeypatch.setattr(news.cfg, "alpha_vantage_key", "test-key")
+    monkeypatch.setattr(
+        news,
+        "_yahoo_cooldown",
+        news._ProviderCooldown(news.YAHOO_COOLDOWN_DEFAULT, news.YAHOO_COOLDOWN_MAX),
+    )
 
 
 def test_news_quota_enforced(monkeypatch, tmp_path):
@@ -30,6 +48,8 @@ def test_news_quota_enforced(monkeypatch, tmp_path):
     monkeypatch.setattr(news.requests, "get", fake_get)
 
     app = create_app()
+    # create_app() reloads config, resetting the key the autouse fixture set.
+    monkeypatch.setattr(news.cfg, "alpha_vantage_key", "test-key")
     client = TestClient(app)
     token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})

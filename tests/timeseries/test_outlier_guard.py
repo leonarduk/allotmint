@@ -29,7 +29,7 @@ def test_drops_isolated_zero_volume_spikes_from_issue_example(caplog):
     with caplog.at_level(logging.WARNING, logger="backend.timeseries.outlier_guard"):
         out = drop_zero_volume_spikes(df, ticker="VWRL", exchange="L")
     assert out["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
-    assert "2 zero-volume cross-source price spike(s) for VWRL.L" in caplog.text
+    assert "2 zero-volume price spike(s) for VWRL.L" in caplog.text
     # Daily returns are now all small.
     assert out["Close"].pct_change().abs().max() < 0.02
 
@@ -95,6 +95,77 @@ def test_keeps_spike_when_source_matches_either_neighbour():
     assert len(drop_zero_volume_spikes(left, ticker="X", exchange="L")) == 3
     right = _frame([120.0, 160.0, 121.0], [10, 0, 10], sources=["Stooq", "Yahoo", "Yahoo"])
     assert len(drop_zero_volume_spikes(right, ticker="X", exchange="L")) == 3
+
+
+def _ohlc_frame(bars, volumes, sources, start="2025-09-26"):
+    """Frame from ``(open, high, low, close)`` tuples."""
+    frame = _frame([bar[3] for bar in bars], volumes, sources=sources, start=start)
+    for position, column in enumerate(("Open", "High", "Low")):
+        frame[column] = [bar[position] for bar in bars]
+    return frame
+
+
+# The VHYL.L rows quoted on #9294: a flat zero-volume Yahoo bar at 78.41
+# between ordinary Yahoo rows.
+VHYL_BARS = [
+    (57.92, 58.44, 57.87, 58.01),
+    (78.41, 78.41, 78.41, 78.41),
+    (58.67, 58.76, 58.47, 58.69),
+    (58.81, 59.04, 58.69, 58.81),
+]
+VHYL_VOLUMES = [77523, 0, 74571, 260144]
+
+
+def test_drops_same_source_flat_bar_spike_from_issue_example(caplog):
+    df = _ohlc_frame(VHYL_BARS, VHYL_VOLUMES, sources=["Yahoo"] * 4)
+    with caplog.at_level(logging.WARNING, logger="backend.timeseries.outlier_guard"):
+        out = drop_zero_volume_spikes(df, ticker="VHYL", exchange="L")
+    assert out["Close"].tolist() == [58.01, 58.69, 58.81]
+    assert "1 zero-volume price spike(s) for VHYL.L" in caplog.text
+    assert "78.41 (Yahoo)" in caplog.text
+
+
+def test_drops_flat_bar_spike_without_source_column(caplog):
+    df = _ohlc_frame(VHYL_BARS, VHYL_VOLUMES, sources=["Yahoo"] * 4).drop(columns="Source")
+    with caplog.at_level(logging.WARNING, logger="backend.timeseries.outlier_guard"):
+        out = drop_zero_volume_spikes(df, ticker="VHYL", exchange="L")
+    assert out["Close"].tolist() == [58.01, 58.69, 58.81]
+    assert "78.41 (unknown source)" in caplog.text
+
+
+def test_keeps_same_source_flat_bar_within_threshold():
+    # A flat zero-volume bar 10% off its neighbours is not a spike.
+    bars = [(100.0, 101.0, 99.0, 100.0), (110.0, 110.0, 110.0, 110.0), (100.5, 101.0, 100.0, 100.5)]
+    df = _ohlc_frame(bars, [10, 0, 12], sources=["Yahoo"] * 3)
+    assert drop_zero_volume_spikes(df, ticker="X", exchange="L") is df
+
+
+def test_keeps_same_source_zero_volume_spike_with_intraday_range():
+    # Same provider and a real high/low range: no evidence it is not a trade.
+    bars = [(100.0, 101.0, 99.0, 100.0), (130.0, 135.0, 128.0, 135.0), (100.5, 101.0, 100.0, 100.5)]
+    df = _ohlc_frame(bars, [10, 0, 12], sources=["Yahoo"] * 3)
+    assert drop_zero_volume_spikes(df, ticker="X", exchange="L") is df
+
+
+def test_keeps_flat_bar_spike_that_traded_or_does_not_revert():
+    traded = _ohlc_frame(VHYL_BARS, [77523, 5, 74571, 260144], sources=["Yahoo"] * 4)
+    assert drop_zero_volume_spikes(traded, ticker="X", exchange="L") is traded
+
+    level_shift = [(100.0, 101.0, 99.0, 100.0), (130.0, 130.0, 130.0, 130.0), (131.0, 132.0, 129.0, 131.0)]
+    shifted = _ohlc_frame(level_shift, [10, 0, 12], sources=["Yahoo"] * 3)
+    assert drop_zero_volume_spikes(shifted, ticker="X", exchange="L") is shifted
+
+
+def test_keeps_flat_bar_at_frame_edges():
+    bars = [(78.41,) * 4, *VHYL_BARS[2:], (78.41,) * 4]
+    df = _ohlc_frame(bars, [0, 74571, 260144, 0], sources=["Yahoo"] * 4)
+    assert drop_zero_volume_spikes(df, ticker="X", exchange="L") is df
+
+
+def test_missing_ohlc_value_is_not_a_flat_bar():
+    bars = [VHYL_BARS[0], (np.nan, 78.41, 78.41, 78.41), VHYL_BARS[2]]
+    df = _ohlc_frame(bars, [77523, 0, 74571], sources=["Yahoo"] * 3)
+    assert drop_zero_volume_spikes(df, ticker="X", exchange="L") is df
 
 
 def test_keeps_rows_when_source_missing_or_blank():

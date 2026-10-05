@@ -24,6 +24,7 @@ import type {
   PriceEntry,
   ScreenerResult,
   InstrumentValuation,
+  InstrumentTechnicals,
   VirtualPortfolio,
   CustomQuery,
   SavedQuery,
@@ -1163,6 +1164,13 @@ export const getScreener = (
 export const getInstrumentValuation = (ticker: string, signal?: AbortSignal) =>
   fetchJson<InstrumentValuation>(
     `${API_BASE}/screener/valuation?${new URLSearchParams({ ticker }).toString()}`,
+    { signal },
+  );
+
+/** Technical indicators (trend, RSI, MACD, Bollinger, 52-week range, relative strength) for one ticker. */
+export const getInstrumentTechnicals = (ticker: string, signal?: AbortSignal) =>
+  fetchJson<InstrumentTechnicals>(
+    `${API_BASE}/screener/technicals?${new URLSearchParams({ ticker }).toString()}`,
     { signal },
   );
 

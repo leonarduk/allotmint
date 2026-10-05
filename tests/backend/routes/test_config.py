@@ -421,6 +421,33 @@ async def test_update_config_empty_payload_env_toggle_requires_client_id(
     assert loader.cleared is False
 
 
+async def test_update_config_type_error_returns_generic_message(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A TypeError from validate_config_data (e.g. an unknown key in the
+    ``trading_agent`` section) must not leak internal Python details such as
+    class or argument names into the 400 response body."""
+    config_path = tmp_path / "config.yaml"
+    _write_config(config_path, {"auth": {"disable_auth": True}})
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+    _patch_loader(monkeypatch)
+
+    def _raise_type_error(_data: Dict[str, Any]) -> None:
+        raise TypeError("TradingAgentConfig.__init__() got an unexpected keyword argument 'foo'")
+
+    monkeypatch.setattr(routes_config.config_module, "validate_config_data", _raise_type_error)
+
+    with pytest.raises(HTTPException) as exc:
+        routes_config.update_config({"trading_agent": {"foo": "bar"}})
+
+    assert exc.value.status_code == 400
+    detail = exc.value.detail
+    assert "TradingAgentConfig" not in detail
+    assert "__init__" not in detail
+    assert "unexpected keyword argument" not in detail
+    assert "incorrect types or unknown keys" in detail
+
+
 async def test_update_config_treats_blank_google_auth_env_as_absent(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -317,7 +317,7 @@ export function TopMoversPage() {
             >
               {t("common.name")}
             </th>
-            <th className={tableStyles.cell} aria-describedby="movers-window-note">
+            <th className={tableStyles.cell}>
               {t("movers.signal")}
               <InfoTip
                 label={t("movers.signalInfoLabel", "What does the Signal column mean?")}

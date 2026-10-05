@@ -693,6 +693,77 @@ export interface InstrumentValuation {
   };
 }
 
+/**
+ * Technical indicators from GET /screener/technicals, computed from daily closes.
+ * Percentages are fractions (0.05 = 5%); price levels are in the quote's units.
+ * An indicator without enough history is null.
+ */
+export interface InstrumentTechnicals {
+  ticker: string;
+  name: string | null;
+  price: number | null;
+  price_currency: string | null;
+  as_of: string | null;
+  moving_averages: {
+    sma_20: number | null;
+    sma_50: number | null;
+    sma_200: number | null;
+    vs_sma_20: number | null;
+    vs_sma_50: number | null;
+    vs_sma_200: number | null;
+    /** "uptrend" | "downtrend" | "mixed" */
+    trend: string | null;
+    /** "golden" | "death" */
+    cross_state: string | null;
+    last_cross: string | null;
+    last_cross_date: string | null;
+  };
+  rsi: {
+    value: number | null;
+    period: number;
+    /** "overbought" | "oversold" | "neutral" */
+    zone: string | null;
+  };
+  macd: {
+    macd: number | null;
+    signal: number | null;
+    histogram: number | null;
+    /** "bullish" | "bearish" */
+    last_crossover: string | null;
+    last_crossover_date: string | null;
+  };
+  bollinger: {
+    upper: number | null;
+    middle: number | null;
+    lower: number | null;
+    /** 0 = lower band, 1 = upper band. */
+    percent_b: number | null;
+    bandwidth: number | null;
+  };
+  range_52w: {
+    high: number | null;
+    high_date: string | null;
+    low: number | null;
+    low_date: string | null;
+    /** 0 = at the low, 1 = at the high. */
+    position: number | null;
+    from_high: number | null;
+  };
+  returns: Record<string, number | null>;
+  relative_strength: {
+    benchmark: { ticker: string; name: string | null; source: string };
+    excess_3m: number | null;
+    excess_1y: number | null;
+  };
+  signals: string[];
+  data_quality: {
+    price_last_date: string | null;
+    price_stale: boolean | null;
+    data_points: number;
+    warnings: string[];
+  };
+}
+
 export interface SyntheticHolding {
   ticker: string;
   units: number;

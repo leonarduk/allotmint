@@ -1,139 +1,27 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import AppHeader from "../components/AppHeader";
 import PriceTriggersPanel from "../components/PriceTriggersPanel";
-import {
-  getAlertThreshold,
-  getConfig,
-  getOwners,
-  setAlertThreshold,
-} from "../api";
-import { useUser } from "../UserContext";
+import { getAlertThreshold, setAlertThreshold } from "../api";
 import { usePriceRefresh } from "../PriceRefreshContext";
 import { useDemoReadOnly } from "../hooks/useDemoReadOnly";
-import {
-  createOwnerDisplayLookup,
-  findOwnerForUser,
-  getOwnerDisplayName,
-  sanitizeOwners,
-} from "../utils/owners";
-import type { OwnerSummary } from "../types";
+import { useAlertIdentity } from "../hooks/useAlertIdentity";
 
 const HTTP_FORBIDDEN = 403;
 
-/**
- * The subset of GET /config this page needs. `disable_auth` and
- * `local_login_email` are part of the typed contract already;
- * `demo_identity` is a real field on the backend response (see
- * backend/routes/config.py -- it isn't in the SPA's secret-redaction list)
- * but isn't declared on configContractSchema, so it survives the schema's
- * `.passthrough()` at runtime without being typed. Cast for it explicitly
- * rather than widening the shared contract for one caller.
- */
-interface AlertIdentityConfig {
-  disable_auth: boolean;
-  local_login_email: string | null;
-  demo_identity?: string;
-}
-
 export default function AlertSettings() {
   const { t } = useTranslation();
-  const { profile } = useUser();
   const { lastRefresh } = usePriceRefresh();
   const { demoReadOnly, reason } = useDemoReadOnly();
 
-  // /alert-thresholds/{user} (backend/routes/alert_settings.py) is scoped to
-  // a single resolved IDENTITY, not to whichever owner's portfolio happens
-  // to be selected in the UI: an authenticated caller's identity is their
-  // own email; otherwise (auth disabled, as in the local/demo deployment)
-  // the backend falls back to `local_login_email` if configured, else the
-  // shared `demo_identity` -- see backend/auth.py
-  // `_resolve_identity_when_auth_disabled` and backend/config.py
-  // `demo_identity()`. A portfolio owner slug (e.g. "alice") is never a
-  // valid identity: /owners intentionally excludes "demo" from its list
-  // (see sanitizeOwners), so sending an owner slug here 403s unconditionally
-  // in this deployment's config (disable_auth=true, demo_identity="demo").
-  // `identity` (sent to the API) and `displayOwner` (shown on screen, for
-  // context) are therefore resolved separately (#7225 review).
-  const [configLoaded, setConfigLoaded] = useState(false);
-  const [identityConfig, setIdentityConfig] =
-    useState<AlertIdentityConfig | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    getConfig()
-      .then((cfg) => {
-        if (cancelled) return;
-        setIdentityConfig(cfg as unknown as AlertIdentityConfig);
-        setConfigLoaded(true);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setIdentityConfig(null);
-        setConfigLoaded(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const [ownersLoaded, setOwnersLoaded] = useState(false);
-  const [owners, setOwners] = useState<OwnerSummary[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    getOwners()
-      .then((os) => {
-        if (cancelled) return;
-        setOwners(sanitizeOwners(os));
-        setOwnersLoaded(true);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setOwners([]);
-        setOwnersLoaded(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Resolving is true until both fetches above have settled, so the page
-  // doesn't flash the sign-in notice on first paint before it knows whether
-  // an identity is actually available (#7225 review).
-  const resolving = !configLoaded || !ownersLoaded;
-
-  const identity = useMemo(() => {
-    if (profile?.email) return profile.email;
-    if (identityConfig?.disable_auth) {
-      return identityConfig.local_login_email || identityConfig.demo_identity || "";
-    }
-    return "";
-  }, [profile?.email, identityConfig]);
-
-  // Display-only: which owner's portfolio this identity corresponds to, if
-  // any, so the page can say whose alerts are being edited (never sent to
-  // the API -- see `identity` above). Matched strictly by the resolved
-  // identity's email -- NOT by the `?owner=` scope hint some pages append to
-  // the nav link, which names whichever owner's portfolio the user was
-  // *looking at*, not who the alert threshold will actually be saved for.
-  // Falling back to that hint here would show one person's name while
-  // silently writing to a different (usually shared/demo) identity's
-  // threshold (#7225 review round 3).
-  const displayOwner = useMemo(() => {
-    if (!identity) return "";
-    const matched = findOwnerForUser(owners, { email: identity });
-    if (!matched) return identity;
-    return getOwnerDisplayName(createOwnerDisplayLookup(owners), matched.owner, identity);
-  }, [identity, owners]);
+  const { identity, displayOwner, resolving, forbidden, saveDisabled, setForbidden } =
+    useAlertIdentity();
 
   const [threshold, setThreshold] = useState<number | "">("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
-  // Set when the backend rejects this identity as an authorisation mismatch.
-  // Kept distinct from `status` so the UI can explain the real reason Save
-  // is unavailable instead of a generic sign-in notice.
-  const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
     setForbidden(false);
@@ -157,7 +45,7 @@ export default function AlertSettings() {
     return () => {
       cancelled = true;
     };
-  }, [identity]);
+  }, [identity, setForbidden]);
 
   async function save() {
     if (threshold === "" || !identity || forbidden) return;
@@ -174,8 +62,6 @@ export default function AlertSettings() {
       }
     }
   }
-
-  const saveDisabled = resolving || !identity || forbidden;
 
   return (
     <div style={{ padding: "1rem" }}>

@@ -333,7 +333,7 @@ async def test_intraday_returns_prices(monkeypatch):
     df.index.name = "Datetime"
 
     class DummyTicker:
-        def history(self, period: str, interval: str):
+        def history(self, period: str, interval: str, **_kwargs):
             assert period == "2d"
             assert interval == "5m"
             return df
@@ -356,7 +356,7 @@ async def test_intraday_returns_prices(monkeypatch):
 @pytest.mark.anyio("asyncio")
 async def test_intraday_no_data(monkeypatch):
     class EmptyTicker:
-        def history(self, period: str, interval: str):
+        def history(self, period: str, interval: str, **_kwargs):
             assert period == "2d"
             assert interval == "5m"
             empty = pd.DataFrame(columns=["Close"])

@@ -166,6 +166,23 @@ priority — this is additive, not a breaking change.
 | `HEADLINE_MAX_AGE_HOURS` | Optional | `72` | Sets the maximum age of headlines shown in Market Overview. Read once at startup; a running process must be restarted for a change to take effect. |
 | `TIMESERIES_CACHE_BASE` | Optional | `TIMESERIES_CACHE_BASE=./data/timeseries` | Overrides the configured timeseries cache directory. |
 
+### Timeseries cache layout and price basis
+
+Under the timeseries cache base (`<data root>/timeseries` in allotmint-data):
+
+| Path | Contents |
+| --- | --- |
+| `meta/<SYMBOL>_<EXCHANGE>.parquet` | Daily `Date, Open, High, Low, Close, Volume, Ticker, Source`. Prices are the **traded price** (#9340): Yahoo is called with `auto_adjust=False`, so `Close` is split-adjusted (history restated in post-split units, matching holdings' unit counts) but **not** dividend-adjusted. |
+| `corporate_actions/<SYMBOL>_<EXCHANGE>.parquet` | One row per event: `Date` (ex-date), `Action` (`dividend`, `split`, `capital_gain`), `Value` (cash per share in the price's units, or the split ratio), `Currency`, `Source`. Filled from the same Yahoo call as the prices and merged incrementally; read with `backend.timeseries.corporate_actions.load_dividends`. |
+
+Valuations use `Close` as stored. For total return (price plus reinvested
+dividends) use `backend.timeseries.total_return.total_return_index`; never
+store a total-return or dividend-adjusted series as `Close`. Stooq
+back-adjusts for dividends, so `backend.timeseries.source_basis` only lets
+its rows into a cached series when every shared date matches the traded
+price. `scripts/repair_dividend_basis_timeseries.py` reports (and with
+`--apply` repairs) files stored on the old dividend-adjusted basis.
+
 ### Local auth-enabled mode
 
 | Variable | Required when | Example | What it controls |

@@ -33,6 +33,7 @@ from backend.common.portfolio_utils import get_security_meta
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import load_meta_timeseries_range
+from backend.timeseries.fetch_yahoo_timeseries import YAHOO_PRICE_BASIS
 from backend.utils.fx_rates import fetch_fx_rate_range
 from backend.utils.lazy_import import lazy_import
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override, resolve_date_range
@@ -638,7 +639,7 @@ def intraday(
     detail_ticker = ticker.upper()
     try:
         stock = yf.Ticker(full)
-        df = stock.history(period="2d", interval="5m")
+        df = stock.history(period="2d", interval="5m", **YAHOO_PRICE_BASIS)
     except Exception as exc:  # pragma: no cover - network/IO errors
         raise HTTPException(502, str(exc))
     if df.empty:

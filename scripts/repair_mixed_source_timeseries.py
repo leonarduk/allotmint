@@ -2,9 +2,11 @@
 
 Before #8597 the meta fetcher and rolling cache could fill one provider's
 gaps with another provider's rows, even when the two used different
-adjustment bases (Stooq back-adjusts for dividends, Yahoo's Close barely
-does). ADM.L ended up with Stooq rows ~25% below the Yahoo rows on
-neighbouring days.
+adjustment bases (Stooq back-adjusts for dividends; Yahoo is now fetched as
+the traded price, see #9340). ADM.L ended up with Stooq rows ~25% below the
+Yahoo rows on neighbouring days. Same-source re-basing from the old
+dividend-adjusted Yahoo fetches is handled by
+``scripts/repair_dividend_basis_timeseries.py``.
 
 For every ``<SYMBOL>_<EXCHANGE>.parquet`` with more than one ``Source``:
 

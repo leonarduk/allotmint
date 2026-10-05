@@ -231,6 +231,42 @@ def test_both_sides_out_of_band_are_traded_and_funded():
     ]
 
 
+def test_cash_class_fund_is_sold_only_to_fund_buys():
+    # A money-market fund classified as cash is a sellable instrument, not
+    # literal cash: it must be sold before its value can fund a buy.
+    holdings = bucket_holdings(_portfolio(("ISA", [_h("MMF1", 500, "cash", "ETF"), _h("EQ1", 500, "equity")])))
+    assert holdings.accounts[0].cash == 0.0
+    trades = suggest_account_trades(holdings, _policy(5, equity=90, cash=10))["trades"]
+    assert sorted((t["action"], t["asset_class"], t["amount"], t["ticker"]) for t in trades) == [
+        ("buy", "equity", 400.0, "EQ1"),
+        ("sell", "cash", 400.0, "MMF1"),
+    ]
+
+    # Nothing to buy: the fund is left alone even though cash is over target.
+    assert suggest_account_trades(holdings, _policy(50, equity=90, cash=10))["trades"] == []
+
+
+def test_literal_cash_is_spent_before_cash_class_funds_are_sold():
+    holdings = bucket_holdings(
+        _portfolio(
+            (
+                "ISA",
+                [
+                    _h("CASH.GBP", 100, instrument_type="Cash"),
+                    _h("MMF1", 400, "cash", "ETF"),
+                    _h("EQ1", 500, "equity"),
+                ],
+            )
+        )
+    )
+    trades = suggest_account_trades(holdings, _policy(5, equity=90, cash=10))["trades"]
+    by_key = {(t["action"], t["asset_class"]): t for t in trades}
+    assert by_key[("sell", "cash")]["amount"] == 300.0
+    assert by_key[("sell", "cash")]["ticker"] == "MMF1"
+    assert by_key[("buy", "equity")]["amount"] == 400.0
+    assert not any(t["ticker"] and t["ticker"].startswith("CASH") for t in trades)
+
+
 def test_held_class_without_target_is_sold_when_out_of_band():
     holdings = bucket_holdings(_portfolio(("ISA", [_h("EQ1", 800, "equity"), _h("GLD", 200, "commodity")])))
     trades = suggest_account_trades(holdings, _policy(5, equity=100))["trades"]

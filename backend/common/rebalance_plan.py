@@ -37,18 +37,28 @@ class AccountBucket:
 
     id: str
     label: str
+    # Literal cash (CASH.<ccy>) only; money-market funds classified as cash
+    # are in class_values["cash"] but must be sold before they can fund buys.
     cash: float = 0.0
     class_values: dict[str, float] = field(default_factory=dict)
     # asset class -> {ticker: value}, used for ticker hints on trades
     class_tickers: dict[str, dict[str, float]] = field(default_factory=dict)
+    literal_cash_tickers: set[str] = field(default_factory=set)
 
     def add(self, asset_class: str, ticker: str, value: float) -> None:
         self.class_values[asset_class] = self.class_values.get(asset_class, 0.0) + value
         tickers = self.class_tickers.setdefault(asset_class, {})
         tickers[ticker] = tickers.get(ticker, 0.0) + value
 
+    @property
+    def cash_fund_value(self) -> float:
+        """Value classified as cash that is a sellable instrument (e.g. a money-market fund)."""
+        return max(self.class_values.get(CASH, 0.0) - self.cash, 0.0)
+
     def ticker_hint(self, asset_class: str) -> str | None:
-        tickers = self.class_tickers.get(asset_class)
+        tickers = {
+            t: v for t, v in self.class_tickers.get(asset_class, {}).items() if t not in self.literal_cash_tickers
+        }
         if not tickers:
             return None
         return max(tickers.items(), key=lambda item: (item[1], item[0]))[0]
@@ -104,8 +114,9 @@ def bucket_holdings(portfolio: Mapping[str, Any]) -> Holdings:
                 continue
             asset_class = _holding_class(holding, ticker)
             bucket.add(asset_class, ticker, value)
-            if asset_class == CASH and is_cash_instrument(ticker, holding.get("instrument_type")):
+            if is_cash_instrument(ticker, holding.get("instrument_type")):
                 bucket.cash += value
+                bucket.literal_cash_tickers.add(ticker)
         accounts.append(bucket)
     return Holdings(accounts=accounts, unpriced=sorted(unpriced))
 
@@ -182,14 +193,36 @@ def _sell_trades(holdings: Holdings, deltas: Mapping[str, float]) -> tuple[list[
     return trades, proceeds
 
 
-def _deployable_cash(holdings: Holdings, policy: AllocationPolicy) -> dict[str, float]:
-    """Cash above the cash target, attributed to accounts pro rata to their cash."""
+def _cash_funding(
+    holdings: Holdings, policy: AllocationPolicy, deltas: Mapping[str, float], proceeds: Mapping[str, float]
+) -> tuple[dict[str, float], list[dict[str, Any]]]:
+    """Fund buys from the cash class above its target, per account.
 
-    total_cash = sum(a.cash for a in holdings.accounts)
-    excess = total_cash - policy.targets.get(CASH, 0.0) / 100.0 * holdings.total
-    if total_cash <= 0 or excess <= 0:
-        return {}
-    return {a.id: excess * a.cash / total_cash for a in holdings.accounts if a.cash > 0}
+    Literal cash is spent first, pro rata to each account's cash. Cash-class
+    funds (money-market) are sold only for whatever buys sales and literal
+    cash still leave unfunded, pro rata to each account's fund holdings.
+    """
+
+    excess = holdings.class_total(CASH) - policy.targets.get(CASH, 0.0) / 100.0 * holdings.total
+    if excess <= 0:
+        return {}, []
+    funding: dict[str, float] = {}
+    total_literal = sum(a.cash for a in holdings.accounts)
+    from_literal = min(excess, total_literal)
+    for account in holdings.accounts:
+        if account.cash > 0:
+            funding[account.id] = from_literal * account.cash / total_literal
+
+    total_funds = sum(a.cash_fund_value for a in holdings.accounts)
+    still_needed = sum(d for d in deltas.values() if d > 0) - sum(proceeds.values()) - from_literal
+    to_sell = min(excess - from_literal, max(still_needed, 0.0), total_funds)
+    trades: list[dict[str, Any]] = []
+    for account in holdings.accounts if to_sell >= MIN_TRADE_GBP else []:
+        amount = to_sell * account.cash_fund_value / total_funds
+        if amount >= MIN_TRADE_GBP:
+            trades.append(_trade(account, CASH, "sell", amount))
+            funding[account.id] = funding.get(account.id, 0.0) + amount
+    return funding, trades
 
 
 def _buy_trades(
@@ -217,18 +250,20 @@ def suggest_account_trades(holdings: Holdings, policy: AllocationPolicy) -> dict
     """Per-account trades that bring out-of-band classes back to target.
 
     Within each account, buys never exceed that account's sell proceeds plus
-    its share of cash above the cash target. Literal cash is never sold.
+    its share of cash above the cash target. Literal cash is never sold;
+    a cash-class fund is sold only when it is needed to fund buys.
     """
 
     if not policy.targets or holdings.total <= 0:
         return {"trades": [], "unfunded_amount": 0.0}
     deltas = _class_deltas(holdings, policy)
     sells, proceeds = _sell_trades(holdings, deltas)
+    cash_funding, fund_sells = _cash_funding(holdings, policy, deltas, proceeds)
     funding = dict(proceeds)
-    for account_id, amount in _deployable_cash(holdings, policy).items():
+    for account_id, amount in cash_funding.items():
         funding[account_id] = funding.get(account_id, 0.0) + amount
     buys, unfunded = _buy_trades(holdings, deltas, funding)
-    return {"trades": sells + buys, "unfunded_amount": round(unfunded, 2)}
+    return {"trades": sells + fund_sells + buys, "unfunded_amount": round(unfunded, 2)}
 
 
 def _water_fill(gaps: Mapping[str, float], amount: float) -> dict[str, float]:
@@ -274,7 +309,8 @@ def suggest_new_cash(holdings: Holdings, policy: AllocationPolicy, amount: float
 
 
 def _cash_after_trades(holdings: Holdings, trades: Iterable[Mapping[str, Any]]) -> float:
-    net_sold = sum(t["amount"] if t["action"] == "sell" else -t["amount"] for t in trades)
+    # Selling a cash-class fund only moves value within the cash class.
+    net_sold = sum(t["amount"] if t["action"] == "sell" else -t["amount"] for t in trades if t["asset_class"] != CASH)
     return holdings.class_total(CASH) + net_sold
 
 

@@ -412,6 +412,26 @@ themselves have already succeeded.
 These can also live in `.env.shared`. Pick a model that supports tool
 calling; reasoning-only models such as `deepseek-r1` on Ollama don't.
 
+Some MCP tools need their own credential in the **MCP server's** environment.
+Both start paths pass the env along: the scripts above export the variables
+from `.env` / `.env.shared` (bash `source`, or `Import-AllotmintEnv` in
+`scripts/lib/local-dev.ps1`), and the MCP server process inherits them. Put
+these keys in the same env file as the chat settings and restart the backend
+script (or `run-mcp-server`) to pick them up:
+
+| Variable | Tool | Without it |
+| --- | --- | --- |
+| `ALLOTMINT_MCP_BRAVE_API_KEY` | `search_web` ([Brave Search API](https://brave.com/search/api/) subscription token) | Each call reports "Web search is not configured", so the assistant's portfolio review skips its news step (#9198). |
+| `ALLOTMINT_MCP_GITHUB_TOKEN` | `create_github_issue` (fine-grained token with Issues write access to the repo set in `mcp_github_repo`) | Each call reports that issue creation is not configured. |
+
+These are secrets: keep them in your gitignored `.env` or in `.env.shared`,
+never in `config.yaml`. The admin page's **MCP tools** list (Support →
+Configuration) shows "Not configured" with the reason under any tool the MCP
+server reports as missing its credential, so you can check without asking
+the assistant. This needs an allotmint-pro that reports it; older servers
+show nothing. The deployed `McpServerLambda` does not receive these keys yet
+(leonarduk/allotmint-pro#358).
+
 Besides the MCP data tools, the chat can open pages of the app ("go to the
 transactions page"). That tool, `navigate_to_page`, is handled by this backend
 (`backend/chat/local_tools.py`), not the MCP server. The drawer sends the menu

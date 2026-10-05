@@ -558,6 +558,7 @@
       "title": "Configuration",
       "mcpTools": "Outils MCP",
       "mcpToolsHint": "Outils que l'assistant de chat peut utiliser. Tous sont activés par défaut ; décochez-en un pour le désactiver.",
+      "mcpToolNotConfigured": "Non configuré",
       "mcpToolsUnavailable": "Impossible de charger la liste des outils MCP."
     },
     "dataExplorer": {

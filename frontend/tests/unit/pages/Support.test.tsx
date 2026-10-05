@@ -462,6 +462,42 @@ describe("Support page", () => {
     expect(await screen.findByText("MCP_SERVER_URL is not set")).toBeInTheDocument();
   });
 
+  it("marks an MCP tool the server reports as not configured, keeping its switch", async () => {
+    const reason = "Web search is not configured: set ALLOTMINT_MCP_BRAVE_API_KEY to a Brave Search API key.";
+    mockGetMcpTools.mockResolvedValue({
+      tools: [
+        { name: "get_portfolio", description: "Portfolio", enabled: true, not_configured: null },
+        { name: "search_web", description: "Search", enabled: true, not_configured: reason },
+      ],
+      mcp_error: null,
+    });
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+
+    const searchWeb = await screen.findByLabelText("search_web");
+    expect(searchWeb).toBeChecked();
+    expect(searchWeb).toHaveAccessibleDescription(`${en.support.config.mcpToolNotConfigured}: ${reason}`);
+    expect(screen.getByLabelText("get_portfolio")).not.toHaveAccessibleDescription();
+    expect(screen.getAllByText(new RegExp(en.support.config.mcpToolNotConfigured))).toHaveLength(1);
+    // The note's id comes from the tool name, not its list position.
+    expect(searchWeb).toHaveAttribute("aria-describedby", "mcp-tool-status-search_web");
+  });
+
+  it("derives a safe note id from MCP tool names with characters invalid in an id", async () => {
+    mockGetMcpTools.mockResolvedValue({
+      tools: [
+        { name: "web search.v2", description: "Search", enabled: true, not_configured: "missing key" },
+      ],
+      mcp_error: null,
+    });
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+
+    const tool = await screen.findByLabelText("web search.v2");
+    expect(tool).toHaveAttribute("aria-describedby", "mcp-tool-status-web-search-v2");
+    expect(tool).toHaveAccessibleDescription(`${en.support.config.mcpToolNotConfigured}: missing key`);
+  });
+
   it("separates switches from other parameters", async () => {
     render(<Support />, { wrapper: MemoryRouter });
     await expandSection(en.support.config.title);

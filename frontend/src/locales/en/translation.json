@@ -914,6 +914,7 @@
       "title": "Configuration",
       "mcpTools": "MCP tools",
       "mcpToolsHint": "Tools the chat assistant can use. All are on by default; untick to switch one off.",
+      "mcpToolNotConfigured": "Not configured",
       "mcpToolsUnavailable": "Could not load the MCP tool list."
     },
     "dataExplorer": {

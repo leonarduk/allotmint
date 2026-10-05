@@ -555,9 +555,10 @@ def fetch_sector_detail(region: Region, sector: str) -> SectorDetail:
             }
         )
 
+    recent = headline.tail(HISTORY_POINTS)
+    dates = pd.DatetimeIndex(recent.index).strftime("%Y-%m-%d")
     history: List[HistoryPoint] = [
-        {"date": pd.Timestamp(idx).date().isoformat(), "value": float(val)}
-        for idx, val in headline.tail(HISTORY_POINTS).items()
+        {"date": day, "value": float(val)} for day, val in zip(dates, recent.to_numpy(), strict=True)
     ]
     return {
         "region": region,

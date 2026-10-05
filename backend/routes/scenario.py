@@ -1,11 +1,13 @@
 """Simple scenario testing endpoint."""
 
+import datetime as _dt
 from typing import List
 
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.common.data_loader import ProviderUnavailable, list_plots
 from backend.common.portfolio import build_owner_portfolio
+from backend.routes.events import get_event
 from backend.utils.scenario_tester import (
     _HORIZONS,
     apply_price_shock,
@@ -53,6 +55,26 @@ def run_scenario(
     return results
 
 
+# Fallback proxy for an ad-hoc ``date`` with no catalogue entry.
+_DEFAULT_PROXY_INDEX = "SPY.N"
+
+
+def _resolve_event(event_id: str | None, date: str | None) -> dict:
+    """Return the event to replay: the catalogue entry for ``event_id`` or an ad-hoc ``date``."""
+    if event_id is not None:
+        event = get_event(event_id)
+        if event is None:
+            raise HTTPException(status_code=404, detail="unknown event")
+        if not event.get("date"):
+            raise HTTPException(status_code=422, detail="event has no date")
+        return event
+    try:
+        _dt.date.fromisoformat(str(date))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="invalid date") from exc
+    return {"id": date, "date": date, "proxy_index": _DEFAULT_PROXY_INDEX}
+
+
 @router.get("/scenario/historical")
 def run_historical_scenario(
     event_id: str | None = Query(None, description="Historical event identifier"),
@@ -89,7 +111,8 @@ def run_historical_scenario(
                 raise HTTPException(status_code=400, detail="invalid horizon") from exc
             label_pairs.append((tok, days))
 
-    parsed = [days for _, days in label_pairs]
+    horizon_days = dict(label_pairs)
+    event = _resolve_event(event_id, date)
 
     results = []
     try:
@@ -107,16 +130,14 @@ def run_historical_scenario(
             baseline = sum(a.get("value_estimate_gbp") or 0.0 for a in pf.get("accounts", []))
             pf["total_value_estimate_gbp"] = baseline
 
-        shocked = apply_historical_event(pf, event_id=event_id, date=date, horizons=parsed)
+        shocked = apply_historical_event(pf, event=event, horizons=horizon_days)
         horizon_map = {}
-        for label, days in label_pairs:
-            shocked_pf = shocked.get(days) or shocked.get(label) or shocked.get(str(days)) or {}
-            val = shocked_pf.get("total_value_estimate_gbp")
-            if val is None:
-                val = shocked_pf.get("total_value_gbp")
-            horizon_map[days] = {
+        for label in horizon_days:
+            shocked_label = shocked.get(label) or {}
+            horizon_map[label] = {
                 "baseline_total_value_gbp": baseline,
-                "shocked_total_value_gbp": val,
+                "shocked_total_value_gbp": shocked_label.get("total_value_gbp"),
+                "coverage_pct": shocked_label.get("coverage_pct"),
             }
 
         results.append(

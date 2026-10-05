@@ -38,7 +38,9 @@ import type {
   TimeseriesSummary,
   ScenarioResult,
   ScenarioEvent,
-  TradeSuggestion,
+  NewCashPlan,
+  AllocationPolicy,
+  RebalancePlan,
   QuestResponse,
   TrailResponse,
   SectorContribution,
@@ -2167,16 +2169,25 @@ export const recomputeValueAtRisk = (
   );
 };
 
-/** Request trade suggestions to rebalance a portfolio. */
-export const getRebalance = (
-  actual: Record<string, number>,
-  target: Record<string, number>,
-) =>
-  fetchJson<TradeSuggestion[]>(`${API_BASE}/rebalance`, {
-    method: "POST",
+/** Save the owner's asset-class targets (percent) and drift tolerance (pp). */
+export const saveAllocationPolicy = (owner: string, policy: AllocationPolicy) =>
+  fetchJson<AllocationPolicy>(`${API_BASE}/rebalance/${encodeURIComponent(owner)}/policy`, {
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ actual, target }),
+    body: JSON.stringify(policy),
   });
+
+/** Drift against the stored policy plus per-account trade suggestions. */
+export const getRebalancePlan = (owner: string) =>
+  fetchJson<RebalancePlan>(`${API_BASE}/rebalance/${encodeURIComponent(owner)}/plan`);
+
+/** Buy-only allocation of a new cash contribution into one account. */
+export const getNewCashPlan = (owner: string, amount: number, accountId: string) => {
+  const params = new URLSearchParams({ amount: String(amount), account: accountId });
+  return fetchJson<NewCashPlan>(
+    `${API_BASE}/rebalance/${encodeURIComponent(owner)}/new-cash?${params.toString()}`,
+  );
+};
 
 /** Fetch per-ticker VaR contribution breakdown for an owner. */
 export const getVarBreakdown = (

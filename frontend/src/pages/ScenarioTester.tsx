@@ -804,6 +804,8 @@ export default function ScenarioTester() {
                         baseline != null && shocked != null
                           ? ((shocked - baseline) / baseline) * 100.0
                           : null;
+                      const coverage = data?.coverage_pct ?? null;
+                      const partial = coverage != null && coverage < 100;
                       return (
                         <Fragment key={h}>
                           <td className="p-2 text-right">
@@ -812,10 +814,22 @@ export default function ScenarioTester() {
                           <td className="p-2 text-right">
                             {shocked != null ? fmt.format(shocked) : "—"}
                           </td>
-                          <td className="p-2 text-right">
+                          <td
+                            className="p-2 text-right"
+                            title={
+                              partial
+                                ? `${coverage.toFixed(0)}% of holdings by value have price history for this event`
+                                : undefined
+                            }
+                          >
                             {pct != null
                               ? `${pct.toFixed(2)}%`
                               : "—"}
+                            {partial && (
+                              <span className="block text-xs text-slate-500">
+                                {coverage.toFixed(0)}% priced
+                              </span>
+                            )}
                           </td>
                         </Fragment>
                       );
@@ -824,6 +838,12 @@ export default function ScenarioTester() {
                 ))}
               </tbody>
             </table>
+            <p className="mt-2 text-xs text-slate-500">
+              Each holding replays its own prices from the event date. Holdings
+              without history follow the event's proxy index, then the rest of
+              the portfolio; "—" means under half of the portfolio has price
+              history for that date.
+            </p>
           </div>
         )}
       </section>

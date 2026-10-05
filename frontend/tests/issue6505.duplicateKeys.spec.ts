@@ -236,48 +236,52 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     expect(warnings).toEqual([]);
   });
 
-  test('rebalance page renders aggregated duplicate holdings without warnings', async ({ page }) => {
+  test('rebalance page renders duplicate trade suggestions without warnings', async ({ page }) => {
     const warnings = collectDuplicateKeyWarnings(page);
     await applyAuth(page);
     await setupCoreMocks(page);
-    await page.route('**://localhost:6468/portfolio/**', async (route) => {
+    // Two identical suggestions (same account, class and action) must render
+    // as two rows without colliding React keys.
+    const trade = {
+      account_id: '0',
+      account: 'ISA',
+      asset_class: 'equity',
+      action: 'buy',
+      amount: 10,
+      ticker: 'PFE',
+    };
+    await page.route('**://localhost:6468/rebalance/*/plan', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          owner: 'demo-owner',
-          as_of: '2026-01-01',
-          trades_this_month: 0,
-          trades_remaining: 10,
-          total_value_estimate_gbp: 3,
-          accounts: [
+          policy: { targets: { equity: 100 }, tolerance_pct: 5 },
+          total_value: 3,
+          classes: [
             {
-              account_type: 'ISA',
-              currency: 'GBP',
-              value_estimate_gbp: 3,
-              holdings: [
-                { ticker: 'CASH', name: 'Cash GBP', units: 2, market_value_gbp: 2 },
-                { ticker: 'CASH', name: 'Cash L', units: 1, market_value_gbp: 1 },
-              ],
+              asset_class: 'cash',
+              label: 'Cash',
+              current_value: 3,
+              current_pct: 100,
+              target_pct: 0,
+              drift_pct: 100,
+              in_band: false,
             },
           ],
+          unclassified_value: 0,
+          unclassified_pct: 0,
+          unpriced_tickers: [],
+          accounts: [{ id: '0', label: 'ISA', value: 3, cash: 3 }],
+          trades: [trade, trade],
+          unfunded_amount: 0,
+          notes: [],
         }),
-      });
-    });
-    await page.route('**://localhost:6468/rebalance', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([
-          { ticker: 'CASH', action: 'sell', amount: 10 },
-          { ticker: 'PFE', action: 'buy', amount: 10 },
-        ]),
       });
     });
 
     await page.goto(`${baseUrl}/rebalance`);
-    // Input rows aggregate by ticker; expect exactly one CASH input row.
-    await expect(page.getByLabel(/Target weight \(%\) for CASH/)).toHaveCount(1);
+    const trades = page.getByRole('region', { name: 'Suggested trades' });
+    await expect(trades.getByText('PFE', { exact: true })).toHaveCount(2);
     expect(warnings).toEqual([]);
   });
 

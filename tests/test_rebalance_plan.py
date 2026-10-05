@@ -1,0 +1,453 @@
+"""Tests for asset-class drift and per-account trade planning (#9446)."""
+
+import json
+import random
+
+import pytest
+
+from backend.common.allocation_policy import (
+    AllocationPolicy,
+    SettingsUnreadableError,
+    load_allocation_policy,
+    parse_policy,
+    save_allocation_policy,
+)
+from backend.common.rebalance_plan import (
+    UNCLASSIFIED,
+    _water_fill,
+    bucket_holdings,
+    build_plan,
+    suggest_account_trades,
+    suggest_new_cash,
+)
+
+
+def _h(ticker, value, asset_class=None, instrument_type=None):
+    return {
+        "ticker": ticker,
+        "market_value_gbp": value,
+        "asset_class": asset_class,
+        "instrument_type": instrument_type,
+    }
+
+
+def _portfolio(*accounts):
+    return {"accounts": [{"account_type": name, "holdings": list(holdings)} for name, holdings in accounts]}
+
+
+def _policy(tolerance=5.0, **targets):
+    return AllocationPolicy(targets={k.replace("_", "-"): v for k, v in targets.items()}, tolerance_pct=tolerance)
+
+
+def _by_account(trades):
+    grouped = {}
+    for trade in trades:
+        grouped.setdefault(trade["account"], []).append(trade)
+    return grouped
+
+
+# ----------------------------------------------------------------- policy
+
+
+def test_parse_policy_normalises_aliases_and_drops_zero_targets():
+    policy = parse_policy({"targets": {"Equities": 60, "Fixed Income": 40, "cash": 0}, "tolerance_pct": 3})
+    assert policy.targets == {"equity": 60.0, "bond": 40.0}
+    assert policy.tolerance_pct == 3.0
+
+
+@pytest.mark.parametrize(
+    "data, match",
+    [
+        ({"targets": {"equity": 60, "bond": 30}}, "total 100"),
+        ({"targets": {"equity": -10, "bond": 110}}, "between 0% and 100%"),
+        ({"targets": {"fund": 100}}, "Unknown asset class"),
+        ({"targets": {"equity": 50, "equities": 50}}, "more than once"),
+        ({"targets": {"equity": 100}, "tolerance_pct": -1}, "tolerance_pct"),
+    ],
+)
+def test_parse_policy_rejects_invalid(data, match):
+    with pytest.raises(ValueError, match=match):
+        parse_policy(data)
+
+
+def test_parse_policy_allows_empty_targets():
+    assert parse_policy({}).targets == {}
+
+
+def test_policy_round_trips_and_preserves_other_settings(tmp_path):
+    owner_dir = tmp_path / "alex"
+    owner_dir.mkdir()
+    (owner_dir / "settings.json").write_text(json.dumps({"hold_days_min": 30}))
+
+    save_allocation_policy("alex", _policy(4, equity=70, bond=30), tmp_path)
+
+    stored = json.loads((owner_dir / "settings.json").read_text())
+    assert stored["hold_days_min"] == 30
+    loaded = load_allocation_policy("alex", tmp_path)
+    assert loaded.targets == {"equity": 70.0, "bond": 30.0}
+    assert loaded.tolerance_pct == 4.0
+
+
+def test_load_policy_ignores_invalid_stored_policy(tmp_path):
+    owner_dir = tmp_path / "alex"
+    owner_dir.mkdir()
+    (owner_dir / "settings.json").write_text(json.dumps({"allocation_policy": {"targets": {"equity": 10}}}))
+    assert load_allocation_policy("alex", tmp_path).targets == {}
+
+
+def test_save_policy_refuses_to_overwrite_corrupt_settings(tmp_path):
+    owner_dir = tmp_path / "alex"
+    owner_dir.mkdir()
+    settings = owner_dir / "settings.json"
+    settings.write_text('{"hold_days_min": 30,')  # truncated JSON
+
+    with pytest.raises(SettingsUnreadableError):
+        save_allocation_policy("alex", _policy(5, equity=100), tmp_path)
+    assert settings.read_text() == '{"hold_days_min": 30,'
+    # Reads degrade to "no policy" instead of failing the page.
+    assert load_allocation_policy("alex", tmp_path).targets == {}
+
+
+def test_load_policy_missing_owner_raises(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        load_allocation_policy("nobody", tmp_path)
+
+
+# ----------------------------------------------------------------- bucketing
+
+
+def test_bucket_holdings_cash_unclassified_and_unpriced():
+    holdings = bucket_holdings(
+        _portfolio(
+            (
+                "ISA",
+                [
+                    _h("CASH.GBP", 100, instrument_type="Cash"),
+                    _h("AAA", 300, "Equity"),
+                    _h("ZZZ", None, "equity"),
+                ],
+            ),
+            ("SIPP", [_h("BBB", 200, "bond"), _h("QQQ", 50, None)]),
+        )
+    )
+    assert holdings.total == pytest.approx(650)
+    assert holdings.class_total("cash") == pytest.approx(100)
+    assert holdings.class_total("equity") == pytest.approx(300)
+    assert holdings.class_total(UNCLASSIFIED) == pytest.approx(50)
+    assert holdings.unpriced == ["ZZZ"]
+    assert holdings.accounts[0].cash == pytest.approx(100)
+
+
+def test_plan_without_policy_shows_current_weights_only():
+    plan = build_plan(_portfolio(("ISA", [_h("AAA", 750, "equity"), _h("CASH.GBP", 250)])), AllocationPolicy())
+    rows = {row["asset_class"]: row for row in plan["classes"]}
+    assert rows["equity"]["current_pct"] == 75.0
+    assert rows["equity"]["target_pct"] is None
+    assert rows["equity"]["in_band"] is None
+    assert plan["trades"] == []
+
+
+def test_unclassified_bucket_is_reported_not_dropped():
+    plan = build_plan(
+        _portfolio(("ISA", [_h("AAA", 800, "equity"), _h("QQQ", 200, None)])),
+        _policy(equity=100),
+    )
+    assert plan["unclassified_value"] == 200.0
+    assert plan["unclassified_pct"] == 20.0
+    assert any("no asset class" in note for note in plan["notes"])
+
+
+# ----------------------------------------------------------------- trades
+
+
+def test_in_band_classes_produce_no_trades():
+    holdings = bucket_holdings(_portfolio(("ISA", [_h("AAA", 620, "equity"), _h("BBB", 380, "bond")])))
+    result = suggest_account_trades(holdings, _policy(5, equity=60, bond=40))
+    assert result["trades"] == []
+
+
+def test_out_of_band_trades_stay_within_each_account():
+    holdings = bucket_holdings(
+        _portfolio(
+            ("ISA", [_h("EQ1", 800, "equity"), _h("BD1", 200, "bond")]),
+            ("SIPP", [_h("EQ2", 800, "equity"), _h("BD2", 200, "bond")]),
+        )
+    )
+    trades = suggest_account_trades(holdings, _policy(5, equity=60, bond=40))["trades"]
+
+    by_account = _by_account(trades)
+    assert set(by_account) == {"ISA", "SIPP"}
+    for account_trades in by_account.values():
+        sells = sum(t["amount"] for t in account_trades if t["action"] == "sell")
+        buys = sum(t["amount"] for t in account_trades if t["action"] == "buy")
+        assert sells == pytest.approx(200)
+        assert buys == pytest.approx(sells)
+    isa = {(t["action"], t["asset_class"]): t for t in by_account["ISA"]}
+    assert isa[("sell", "equity")]["ticker"] == "EQ1"
+    assert isa[("buy", "bond")]["ticker"] == "BD1"
+
+
+def test_buys_never_exceed_account_cash_plus_sells():
+    # ISA has the spare cash; SIPP has nothing to fund a buy with.
+    holdings = bucket_holdings(
+        _portfolio(
+            ("ISA", [_h("CASH.GBP", 400, instrument_type="Cash"), _h("EQ1", 300, "equity")]),
+            ("SIPP", [_h("EQ2", 300, "equity")]),
+        )
+    )
+    result = suggest_account_trades(holdings, _policy(5, equity=100))
+    by_account = _by_account(result["trades"])
+    assert "SIPP" not in by_account
+    isa_buys = sum(t["amount"] for t in by_account["ISA"] if t["action"] == "buy")
+    assert isa_buys == pytest.approx(400)
+    assert result["unfunded_amount"] == 0.0
+
+
+def test_cash_is_never_sold_and_only_excess_cash_is_deployed():
+    holdings = bucket_holdings(
+        _portfolio(("ISA", [_h("CASH.GBP", 300, instrument_type="Cash"), _h("EQ1", 700, "equity")]))
+    )
+    trades = suggest_account_trades(holdings, _policy(5, equity=90, cash=10))["trades"]
+    assert all(not (t["asset_class"] == "cash" and t["action"] == "sell") for t in trades)
+    assert all(not t["ticker"] or not t["ticker"].startswith("CASH") for t in trades)
+    buys = [t for t in trades if t["action"] == "buy"]
+    # Equity needs +200 to reach 900; cash above its 10% target is exactly 200.
+    assert buys == [
+        {
+            "account_id": "0",
+            "account": "ISA",
+            "asset_class": "equity",
+            "action": "buy",
+            "amount": 200.0,
+            "ticker": "EQ1",
+        }
+    ]
+
+
+def test_unfunded_when_only_buy_side_is_out_of_band():
+    holdings = bucket_holdings(
+        _portfolio(("ISA", [_h("EQ1", 840, "equity"), _h("PR1", 100, "property"), _h("BD1", 60, "bond")]))
+    )
+    # equity +4pp and property +2pp are inside a 5pp band, so nothing is sold;
+    # bond is -6pp (out of band, needs +60) and there is no cash to fund it.
+    result = suggest_account_trades(holdings, _policy(5, equity=80, property=8, bond=12))
+    assert result["trades"] == []
+    assert result["unfunded_amount"] == pytest.approx(60.0)
+
+
+def test_both_sides_out_of_band_are_traded_and_funded():
+    holdings = bucket_holdings(_portfolio(("ISA", [_h("EQ1", 900, "equity"), _h("BD1", 100, "bond")])))
+    assert suggest_account_trades(holdings, _policy(2, equity=88, bond=12))["trades"] == []
+    result = suggest_account_trades(holdings, _policy(1, equity=88, bond=12))
+    assert result["unfunded_amount"] == 0.0
+    assert sorted((t["action"], t["asset_class"], t["amount"]) for t in result["trades"]) == [
+        ("buy", "bond", 20.0),
+        ("sell", "equity", 20.0),
+    ]
+
+
+def test_cash_class_fund_is_sold_only_to_fund_buys():
+    # A money-market fund classified as cash is a sellable instrument, not
+    # literal cash: it must be sold before its value can fund a buy.
+    holdings = bucket_holdings(_portfolio(("ISA", [_h("MMF1", 500, "cash", "ETF"), _h("EQ1", 500, "equity")])))
+    assert holdings.accounts[0].cash == 0.0
+    trades = suggest_account_trades(holdings, _policy(5, equity=90, cash=10))["trades"]
+    assert sorted((t["action"], t["asset_class"], t["amount"], t["ticker"]) for t in trades) == [
+        ("buy", "equity", 400.0, "EQ1"),
+        ("sell", "cash", 400.0, "MMF1"),
+    ]
+
+    # Nothing to buy: the fund is left alone even though cash is over target.
+    assert suggest_account_trades(holdings, _policy(50, equity=90, cash=10))["trades"] == []
+
+
+def test_literal_cash_is_spent_before_cash_class_funds_are_sold():
+    holdings = bucket_holdings(
+        _portfolio(
+            (
+                "ISA",
+                [
+                    _h("CASH.GBP", 100, instrument_type="Cash"),
+                    _h("MMF1", 400, "cash", "ETF"),
+                    _h("EQ1", 500, "equity"),
+                ],
+            )
+        )
+    )
+    trades = suggest_account_trades(holdings, _policy(5, equity=90, cash=10))["trades"]
+    by_key = {(t["action"], t["asset_class"]): t for t in trades}
+    assert by_key[("sell", "cash")]["amount"] == 300.0
+    assert by_key[("sell", "cash")]["ticker"] == "MMF1"
+    assert by_key[("buy", "equity")]["amount"] == 400.0
+    assert not any(t["ticker"] and t["ticker"].startswith("CASH") for t in trades)
+
+
+def _assert_accounts_self_funded(holdings, trades):
+    """Every account's buys are covered by its own sales plus its own literal cash."""
+    for account in holdings.accounts:
+        mine = [t for t in trades if t["account_id"] == account.id]
+        buys = sum(t["amount"] for t in mine if t["action"] == "buy")
+        sells = sum(t["amount"] for t in mine if t["action"] == "sell")
+        assert buys <= sells + account.cash + 0.01 * (len(mine) + 1), (account.label, mine)
+        for t in mine:
+            if t["action"] == "sell":
+                assert t["amount"] <= account.class_values.get(t["asset_class"], 0.0) + 0.01
+
+
+def test_cash_in_one_account_never_funds_a_buy_in_another():
+    # ISA has spare cash; SIPP has none. Whatever SIPP buys must come from
+    # SIPP's own sales, never from the ISA's cash.
+    holdings = bucket_holdings(
+        _portfolio(
+            ("ISA", [_h("CASH.GBP", 400, instrument_type="Cash"), _h("EQ1", 600, "equity")]),
+            ("SIPP", [_h("EQ2", 1000, "equity")]),
+        )
+    )
+    trades = suggest_account_trades(holdings, _policy(5, equity=70, bond=20, cash=10))["trades"]
+    _assert_accounts_self_funded(holdings, trades)
+    sipp = [t for t in trades if t["account"] == "SIPP"]
+    sipp_sold = sum(t["amount"] for t in sipp if t["action"] == "sell")
+    sipp_bought = sum(t["amount"] for t in sipp if t["action"] == "buy")
+    assert sipp_bought == pytest.approx(sipp_sold, abs=0.02)
+
+
+def test_buys_are_self_funded_per_account_across_random_portfolios():
+    rng = random.Random(9446)
+    classes = ["equity", "bond", "property", "commodity", "cash"]
+    for _ in range(300):
+        accounts = []
+        for name in ("ISA", "SIPP", "GIA")[: rng.randint(1, 3)]:
+            holdings = [_h(f"{name}-{c}", rng.choice([0, rng.uniform(1, 5000)]), c) for c in classes]
+            holdings.append(_h(f"CASH.{name}", rng.choice([0, rng.uniform(1, 3000)]), instrument_type="Cash"))
+            accounts.append((name, holdings))
+        weights = [rng.choice([0, rng.randint(1, 10)]) for _ in classes] or [1]
+        if not any(weights):
+            weights[0] = 1
+        total = sum(weights)
+        targets = {c: w * 100 / total for c, w in zip(classes, weights) if w}
+        drift = sum(targets.values()) - 100
+        targets[next(iter(targets))] -= drift
+        policy = AllocationPolicy(targets=targets, tolerance_pct=rng.choice([0.5, 2, 5, 10]))
+
+        holdings = bucket_holdings(_portfolio(*accounts))
+        trades = suggest_account_trades(holdings, policy)["trades"]
+        _assert_accounts_self_funded(holdings, trades)
+        assert not any(t["ticker"] and t["ticker"].startswith("CASH.") for t in trades)
+
+
+def test_held_class_without_target_is_sold_when_out_of_band():
+    holdings = bucket_holdings(_portfolio(("ISA", [_h("EQ1", 800, "equity"), _h("GLD", 200, "commodity")])))
+    trades = suggest_account_trades(holdings, _policy(5, equity=100))["trades"]
+    assert {(t["action"], t["asset_class"], t["amount"]) for t in trades} == {
+        ("sell", "commodity", 200.0),
+        ("buy", "equity", 200.0),
+    }
+
+
+# ----------------------------------------------------------------- new cash
+
+
+def test_water_fill_tops_up_largest_gaps_first():
+    assert _water_fill({"a": 100, "b": 40, "c": 10}, 50) == {"a": pytest.approx(50)}
+    allocation = _water_fill({"a": 100, "b": 40, "c": 10}, 80)
+    assert allocation == {"a": pytest.approx(70), "b": pytest.approx(10)}
+    assert _water_fill({"a": -5}, 10) == {}
+
+
+def test_new_cash_is_buy_only_in_chosen_account_and_reduces_drift():
+    portfolio = _portfolio(
+        ("ISA", [_h("EQ1", 700, "equity"), _h("BD1", 100, "bond")]),
+        ("SIPP", [_h("EQ2", 200, "equity"), _h("BD2", 100, "bond")]),
+    )
+    policy = _policy(5, equity=60, bond=40)
+    holdings = bucket_holdings(portfolio)
+    result = suggest_new_cash(holdings, policy, 500, "1")
+
+    assert result["account"] == "SIPP"
+    assert all(t["action"] == "buy" and t["account"] == "SIPP" for t in result["trades"])
+    assert sum(t["amount"] for t in result["trades"]) + result["keep_as_cash"] == pytest.approx(500)
+    # After the 500 the total is 1600: bond needs 640 (holds 200), equity 960
+    # (holds 900). Those gaps sum to exactly 500, so both are fully closed.
+    amounts = {t["asset_class"]: (t["amount"], t["ticker"]) for t in result["trades"]}
+    assert amounts == {"bond": (440.0, "BD2"), "equity": (60.0, "EQ2")}
+
+
+def _total_abs_drift(holdings, policy, extra=None):
+    extra = extra or {}
+    total = holdings.total + sum(extra.values())
+    return sum(
+        abs((holdings.class_total(c) + extra.get(c, 0.0)) / total * 100 - pct) for c, pct in policy.targets.items()
+    )
+
+
+def test_new_cash_reduces_total_absolute_drift():
+    holdings = bucket_holdings(
+        _portfolio(("ISA", [_h("EQ1", 900, "equity"), _h("BD1", 50, "bond"), _h("PR1", 50, "property")]))
+    )
+    policy = _policy(5, equity=60, bond=30, property=10)
+    before = _total_abs_drift(holdings, policy)
+    result = suggest_new_cash(holdings, policy, 300, "0")
+    bought = {t["asset_class"]: t["amount"] for t in result["trades"]}
+    after = _total_abs_drift(holdings, policy, bought)
+    assert sum(bought.values()) == pytest.approx(300)
+    assert after < before
+
+
+def test_water_fill_never_allocates_more_than_the_gaps():
+    # Amount larger than every positive gap: each gap is filled exactly and
+    # the remainder is left unallocated (the caller keeps it as cash).
+    assert _water_fill({"a": 100, "b": 40, "c": 10}, 200) == {
+        "a": pytest.approx(100),
+        "b": pytest.approx(40),
+        "c": pytest.approx(10),
+    }
+
+
+def test_new_cash_allocates_to_cash_target_as_keep():
+    holdings = bucket_holdings(_portfolio(("ISA", [_h("EQ1", 1000, "equity")])))
+    result = suggest_new_cash(holdings, _policy(5, equity=50, cash=50), 400, "0")
+    assert result["trades"] == []
+    assert result["keep_as_cash"] == 400.0
+
+
+@pytest.mark.parametrize(
+    "policy, amount, account, match",
+    [
+        (AllocationPolicy(), 100, "0", "Set target"),
+        (_policy(equity=100), 0, "0", "positive"),
+        (_policy(equity=100), float("nan"), "0", "positive"),
+        (_policy(equity=100), 100, "9", "Unknown account"),
+    ],
+)
+def test_new_cash_rejects_invalid_input(policy, amount, account, match):
+    holdings = bucket_holdings(_portfolio(("ISA", [_h("EQ1", 100, "equity")])))
+    with pytest.raises(ValueError, match=match):
+        suggest_new_cash(holdings, policy, amount, account)
+
+
+def test_plan_notes_cash_only_when_still_overweight_after_trades():
+    deployed = build_plan(
+        _portfolio(("ISA", [_h("CASH.GBP", 500, instrument_type="Cash"), _h("EQ1", 500, "equity")])),
+        _policy(5, equity=90, cash=10),
+    )
+    # Equity needs +400, exactly the cash above its 10% target.
+    assert [(t["action"], t["amount"]) for t in deployed["trades"]] == [("buy", 400.0)]
+    assert not any("Cash would still be" in note for note in deployed["notes"])
+
+    idle = build_plan(
+        _portfolio(
+            (
+                "ISA",
+                [
+                    _h("CASH.GBP", 600, instrument_type="Cash"),
+                    _h("EQ1", 200, "equity"),
+                    _h("BD1", 200, "bond"),
+                ],
+            )
+        ),
+        _policy(20, equity=40, bond=30, cash=30),
+    )
+    # Equity -20pp and bond -10pp sit inside the 20pp band, so no trades, but
+    # cash is +30pp over target.
+    assert idle["trades"] == []
+    assert any("Cash would still be 60.00%" in note for note in idle["notes"])

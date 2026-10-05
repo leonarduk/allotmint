@@ -71,7 +71,11 @@ from backend.common.portfolio_utils import (
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.boe_rates import refresh_boe_series
-from backend.timeseries.cache import load_meta_timeseries_range, refresh_fx_cache_for_tickers
+from backend.timeseries.cache import (
+    load_meta_timeseries_range,
+    map_in_caller_context,
+    refresh_fx_cache_for_tickers,
+)
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import _nearest_weekday
 
@@ -598,7 +602,7 @@ def load_prices_for_tickers(
     frames: List[pd.DataFrame] = []
     if ticker_list:
         with ThreadPoolExecutor(max_workers=min(8, len(ticker_list))) as pool:
-            for df in pool.map(_fetch_one, ticker_list):
+            for df in map_in_caller_context(pool, _fetch_one, ticker_list):
                 if df is not None:
                     frames.append(df)
 

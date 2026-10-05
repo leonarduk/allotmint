@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.common.instrument_api import top_movers
+from backend.timeseries.cache import cache_only
 
 router = APIRouter(tags=["movers"])
 
@@ -21,4 +22,6 @@ def get_movers(
     tlist = [t.strip() for t in tickers.split(",") if t.strip()]
     if not tlist:
         raise HTTPException(status_code=400, detail="No tickers provided")
-    return top_movers(tlist, days, limit)
+    # Page request: cached prices only, never a live provider fetch (#9383).
+    with cache_only():
+        return top_movers(tlist, days, limit)

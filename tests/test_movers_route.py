@@ -46,3 +46,21 @@ def test_movers_requires_nonempty_tickers():
     resp = client.get("/movers?tickers= , , &days=7")
     assert resp.status_code == 400
     assert resp.json() == {"detail": "No tickers provided"}
+
+
+def test_movers_reads_prices_cache_only(monkeypatch):
+    """GET /movers is a page request and must not fetch prices live (#9383)."""
+    from backend.routes import movers
+    from backend.timeseries.cache import is_cache_only
+
+    seen = []
+
+    def fake_top_movers(tickers, days, limit):
+        seen.append(is_cache_only())
+        return {"gainers": [], "losers": []}
+
+    monkeypatch.setattr(movers, "top_movers", fake_top_movers)
+
+    resp = _client().get("/movers?tickers=AAA&days=90")
+    assert resp.status_code == 200
+    assert seen == [True]

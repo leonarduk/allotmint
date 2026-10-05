@@ -17,8 +17,9 @@ from backend.utils import page_cache
 
 
 @pytest.fixture(autouse=True)
-def _news_provider_defaults(monkeypatch):
-    """Configure an AlphaVantage key and a fresh Yahoo cooldown per test.
+def _news_provider_defaults(monkeypatch, tmp_path):
+    """Configure an AlphaVantage key, a fresh Yahoo cooldown and throwaway
+    per-provider quota counters per test.
 
     With no key, ``fetch_news_alpha`` skips AlphaVantage entirely, so tests
     that mock its response need one set; tests for the no-key path override
@@ -26,6 +27,9 @@ def _news_provider_defaults(monkeypatch):
     in the next.
     """
     monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", "test-key")
+    # Providers spend their own quota as they make requests; keep the counters
+    # (derived from COUNTER_FILE) out of the real data/cache directory.
+    monkeypatch.setattr(news_module, "COUNTER_FILE", tmp_path / "news_requests.json")
     monkeypatch.setattr(
         news_module,
         "_yahoo_cooldown",
@@ -43,33 +47,55 @@ class _FakeDate(date):
         return cls(cls._value.year, cls._value.month, cls._value.day)
 
 
-def test_counter_helpers(monkeypatch, tmp_path):
+def test_provider_quota_counts_per_day(monkeypatch, tmp_path):
     counter_path = tmp_path / "news_requests.json"
     monkeypatch.setattr(news_module, "COUNTER_FILE", counter_path)
     monkeypatch.setattr(news_module, "date", _FakeDate)
     monkeypatch.setattr(news_module.cfg, "news_requests_per_day", 2)
+    quota = news_module._ALPHA_QUOTA
 
-    data = news_module._load_counter()
-    assert data == {"date": "2023-01-01", "count": 0}
+    assert quota.path == counter_path
+    assert quota.load() == {"date": "2023-01-01", "count": 0}
 
-    news_module._save_counter({"date": "2023-01-01", "count": 1})
+    quota.save({"date": "2023-01-01", "count": 1})
     assert json.loads(counter_path.read_text()) == {"date": "2023-01-01", "count": 1}
+    assert quota.available() is True
 
-    loaded = news_module._load_counter()
-    assert loaded == {"date": "2023-01-01", "count": 1}
-    assert news_module._can_request_news() is True
-
-    assert news_module._try_consume_quota() is True
-    assert news_module._load_counter()["count"] == 2
-
-    assert news_module._can_request_news() is False
-    assert news_module._try_consume_quota() is False
+    assert quota.try_consume() is True
+    assert quota.load()["count"] == 2
+    assert quota.available() is False
+    assert quota.try_consume() is False
 
     class _NextDay(_FakeDate):
         _value = date(2023, 1, 2)
 
     monkeypatch.setattr(news_module, "date", _NextDay)
-    assert news_module._load_counter() == {"date": "2023-01-02", "count": 0}
+    assert quota.load() == {"date": "2023-01-02", "count": 0}
+
+
+def test_provider_quotas_use_separate_counters_and_limits(monkeypatch, tmp_path):
+    monkeypatch.setattr(news_module, "COUNTER_FILE", tmp_path / "news_requests.json")
+    monkeypatch.setattr(news_module.cfg, "news_requests_per_day", 1)
+    monkeypatch.setattr(news_module.cfg, "yahoo_news_requests_per_day", 3)
+
+    assert news_module._ALPHA_QUOTA.try_consume() is True
+    assert news_module._ALPHA_QUOTA.try_consume() is False
+    # Exhausting AlphaVantage leaves Yahoo's own budget untouched.
+    assert news_module._YAHOO_QUOTA.try_consume() is True
+    assert news_module._YAHOO_QUOTA.path == tmp_path / "news_requests_yahoo.json"
+    assert news_module._GOOGLE_QUOTA.path == tmp_path / "news_requests_google.json"
+    assert json.loads((tmp_path / "news_requests.json").read_text())["count"] == 1
+    assert json.loads((tmp_path / "news_requests_yahoo.json").read_text())["count"] == 1
+
+
+def test_provider_quota_resets_unreadable_counter(monkeypatch, tmp_path, caplog):
+    counter_path = tmp_path / "news_requests.json"
+    counter_path.write_text("{not json")
+    monkeypatch.setattr(news_module, "COUNTER_FILE", counter_path)
+
+    with caplog.at_level("WARNING", logger=news_module.__name__):
+        assert news_module._ALPHA_QUOTA.load()["count"] == 0
+    assert any("unreadable AlphaVantage news quota" in r.getMessage() for r in caplog.records)
 
 
 def test_fetch_news_yahoo(monkeypatch):
@@ -363,6 +389,10 @@ def test_get_news_quota_and_cache(monkeypatch, tmp_path):
 
     app = create_app()
     monkeypatch.setattr(news_module.cfg, "news_requests_per_day", 2)
+    # Quotas are per provider; leave AlphaVantage as the only one with budget
+    # so exhausting it exhausts news as a whole.
+    monkeypatch.setattr(news_module.cfg, "yahoo_news_requests_per_day", 0)
+    monkeypatch.setattr(news_module.cfg, "google_news_requests_per_day", 0)
     # create_app() reloads config, resetting the key the autouse fixture set.
     monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", "test-key")
 
@@ -427,7 +457,7 @@ def test_get_cached_news_cold_cache_fetches_once(monkeypatch):
         return True
 
     monkeypatch.setattr(news_module, "_fetch_news", fake_fetch)
-    monkeypatch.setattr(news_module, "_try_consume_quota", fake_quota)
+    monkeypatch.setattr(news_module, "_can_request_news", fake_quota)
 
     first = news_module.get_cached_news("cold")
     assert first == [{"headline": "COLD headline", "url": "https://example.com", "stale": False}]
@@ -449,7 +479,7 @@ def test_get_cached_news_flags_stale_cache_on_quota_exhaustion(monkeypatch):
     monkeypatch.setattr(page_cache, "is_stale", lambda page, ttl: True)
     monkeypatch.setattr(page_cache, "cache_age", lambda page: news_module.NEWS_MAX_STALENESS + 1)
     monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
-    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: False)
+    monkeypatch.setattr(news_module, "_can_request_news", lambda: False)
 
     items = news_module.get_cached_news("stale")
     assert items == [
@@ -470,7 +500,7 @@ def test_get_cached_news_does_not_flag_recent_cache_on_quota_exhaustion(monkeypa
     monkeypatch.setattr(page_cache, "is_stale", lambda page, ttl: True)
     monkeypatch.setattr(page_cache, "cache_age", lambda page: news_module.NEWS_MAX_STALENESS - 1)
     monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
-    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: False)
+    monkeypatch.setattr(news_module, "_can_request_news", lambda: False)
 
     items = news_module.get_cached_news("recent")
     assert items == [
@@ -571,7 +601,7 @@ def test_get_cached_news_rebuilds_stale_cache_off_event_loop(monkeypatch, tmp_pa
     monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
     page_cache.save_cache("news_ONE", [{"headline": "Old", "url": "https://example.test/old"}])
     monkeypatch.setattr(page_cache, "is_stale", lambda page, ttl: True)
-    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: True)
+    monkeypatch.setattr(news_module, "_can_request_news", lambda: True)
     fresh = [{"headline": "Fresh", "url": "https://example.test/fresh"}]
     monkeypatch.setattr(news_module, "_fetch_news", lambda ticker: fresh)
 
@@ -610,6 +640,13 @@ def test_get_cached_news_shares_concurrent_fetch(monkeypatch, tmp_path):
         return [{"headline": f"{ticker} stock news", "url": "https://example.com/n"}]
 
     monkeypatch.setattr(news_module, "_fetch_news", slow_fetch)
+    gate_calls = {"count": 0}
+
+    def counting_gate() -> bool:
+        gate_calls["count"] += 1
+        return True
+
+    monkeypatch.setattr(news_module, "_can_request_news", counting_gate)
 
     waiting = threading.Semaphore(0)
 
@@ -643,7 +680,8 @@ def test_get_cached_news_shares_concurrent_fetch(monkeypatch, tmp_path):
     assert fetch_calls["count"] == 1
     assert len(results) == callers
     assert all(r == results[0] for r in results)
-    assert news_module._load_counter()["count"] == 1
+    # One fetch means one pass through the quota gate, not one per caller.
+    assert gate_calls["count"] == 1
     assert news_module._inflight == {}
 
 
@@ -1015,3 +1053,164 @@ def test_relevance_symbol_match_is_case_sensitive():
 
     assert news_module._is_finance_related("ALL raises dividend outlook", subject)
     assert not news_module._is_finance_related("All the gadgets we loved this year", subject)
+
+
+def _empty_yahoo(*args, **kwargs):
+    return _yahoo_response(200)
+
+
+def _set_quota_limits(monkeypatch, alpha: int, yahoo: int, google: int) -> None:
+    monkeypatch.setattr(news_module.cfg, "news_requests_per_day", alpha)
+    monkeypatch.setattr(news_module.cfg, "yahoo_news_requests_per_day", yahoo)
+    monkeypatch.setattr(news_module.cfg, "google_news_requests_per_day", google)
+
+
+def test_skipped_alpha_vantage_spends_no_alpha_quota(monkeypatch):
+    """The bug: with no key, every fetch still spent AlphaVantage's 25/day."""
+
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+    monkeypatch.setattr(news_module.curl_requests, "get", _empty_yahoo)
+
+    items = news_module._fetch_news("PFE")
+
+    assert items == [{"headline": "PFE stock update", "url": "https://example.com/pfe"}]
+    assert news_module._ALPHA_QUOTA.load()["count"] == 0
+    assert news_module._YAHOO_QUOTA.load()["count"] == 1
+    assert news_module._GOOGLE_QUOTA.load()["count"] == 0
+
+
+def test_yahoo_cooldown_spends_no_yahoo_quota(monkeypatch):
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+    news_module._yahoo_cooldown.trip()
+    google = [{"headline": "PFE shares rise", "url": "https://example.com/g"}]
+
+    def fake_google_get(url, params=None, timeout=10, **kwargs):
+        class Response:
+            text = "<rss><channel><item><title>PFE shares rise</title><link>https://example.com/g</link></item></channel></rss>"
+
+            def raise_for_status(self):
+                return None
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", fake_google_get)
+
+    assert news_module._fetch_news("PFE") == google
+    assert news_module._YAHOO_QUOTA.load()["count"] == 0
+    assert news_module._GOOGLE_QUOTA.load()["count"] == 1
+
+
+def test_exhausted_provider_is_skipped_without_a_request(monkeypatch):
+    _set_quota_limits(monkeypatch, alpha=0, yahoo=1, google=1)
+
+    def fail_alpha_get(*args, **kwargs):
+        raise AssertionError("AlphaVantage must not be called once its quota is spent")
+
+    monkeypatch.setattr(news_module.requests, "get", fail_alpha_get)
+    monkeypatch.setattr(news_module.curl_requests, "get", _empty_yahoo)
+
+    assert news_module._fetch_news("PFE") == [{"headline": "PFE stock update", "url": "https://example.com/pfe"}]
+    assert news_module._YAHOO_QUOTA.load()["count"] == 1
+
+
+@pytest.mark.parametrize(
+    ("key", "limits", "cooldown", "expected"),
+    [
+        # Only Google has budget: news is still available.
+        (None, (0, 0, 1), False, True),
+        # AlphaVantage budget is irrelevant without a key.
+        (None, (5, 0, 0), False, False),
+        ("test-key", (5, 0, 0), False, True),
+        # Yahoo budget is unusable while it is cooling down after a 429.
+        (None, (0, 5, 0), True, False),
+        (None, (0, 5, 0), False, True),
+    ],
+)
+def test_can_request_news_needs_one_usable_provider(monkeypatch, key, limits, cooldown, expected):
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", key)
+    _set_quota_limits(monkeypatch, *limits)
+    if cooldown:
+        news_module._yahoo_cooldown.trip()
+
+    assert news_module._can_request_news() is expected
+
+
+def test_get_cached_news_raises_only_when_every_provider_is_exhausted(monkeypatch, tmp_path):
+    monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+    _set_quota_limits(monkeypatch, alpha=25, yahoo=0, google=0)
+
+    with pytest.raises(news_module.NewsQuotaExceeded):
+        news_module.get_cached_news("PFE", raise_on_quota_exhausted=True)
+
+
+def test_fetch_news_raises_when_no_provider_could_spend(monkeypatch):
+    """The gate passed, but every budget was gone by the time providers ran."""
+
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+    _set_quota_limits(monkeypatch, alpha=25, yahoo=0, google=0)
+
+    def fail_get(*args, **kwargs):
+        raise AssertionError("no provider should make a request without quota")
+
+    monkeypatch.setattr(news_module.requests, "get", fail_get)
+    monkeypatch.setattr(news_module.curl_requests, "get", fail_get)
+
+    with pytest.raises(news_module.NewsQuotaExceeded):
+        news_module._fetch_news("PFE")
+    # The per-fetch spend record is cleared afterwards.
+    assert news_module._spent_quota.get() is None
+
+
+def test_fetch_news_empty_after_a_real_request_is_not_quota_exhaustion(monkeypatch):
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+    _set_quota_limits(monkeypatch, alpha=0, yahoo=0, google=1)
+
+    def empty_google(url, params=None, timeout=10, **kwargs):
+        class Response:
+            text = "<rss><channel></channel></rss>"
+
+            def raise_for_status(self):
+                return None
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", empty_google)
+
+    # Google spent its last unit and found nothing: a genuine empty result.
+    assert news_module._fetch_news("PFE") == []
+    assert news_module._GOOGLE_QUOTA.load()["count"] == 1
+
+
+def test_get_cached_news_lost_quota_race_serves_cache_instead_of_caching_empty(monkeypatch, tmp_path):
+    """Gate says yes, a concurrent fetch takes the last unit, providers spend nothing."""
+
+    monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+    _set_quota_limits(monkeypatch, alpha=0, yahoo=0, google=0)
+    # Stale verdict from before the concurrent fetch drained the budget.
+    monkeypatch.setattr(news_module, "_can_request_news", lambda: True)
+
+    cached = [{"headline": "Cached", "url": "https://example.com/cached"}]
+    page_cache.save_cache("news_PFE", cached)
+    monkeypatch.setattr(page_cache, "is_stale", lambda page, ttl: True)
+
+    result = news_module.get_cached_news("PFE")
+
+    assert result == [{**cached[0], "stale": False}]
+    # The cache keeps the good payload rather than being overwritten with [].
+    assert page_cache.load_cache("news_PFE") == cached
+
+
+def test_get_cached_news_lost_quota_race_without_cache_raises(monkeypatch, tmp_path):
+    monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+    _set_quota_limits(monkeypatch, alpha=0, yahoo=0, google=0)
+    monkeypatch.setattr(news_module, "_can_request_news", lambda: True)
+
+    with pytest.raises(news_module.NewsQuotaExceeded):
+        news_module.get_cached_news("PFE", raise_on_quota_exhausted=True)
+    assert page_cache.load_cache("news_PFE") is None

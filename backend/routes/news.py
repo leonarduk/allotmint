@@ -9,6 +9,7 @@ import re
 import threading
 import time
 from concurrent.futures import Future
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -110,41 +111,95 @@ def _make_news_item(
     return item
 
 
-def _load_counter() -> Dict[str, int]:
-    today = date.today().isoformat()
-    if COUNTER_FILE.exists():
-        try:
-            with COUNTER_FILE.open("r", encoding="utf-8") as fh:
-                data = json.load(fh)
-                if data.get("date") == today:
-                    return {"date": today, "count": int(data.get("count", 0))}
-        except (OSError, json.JSONDecodeError):
-            pass
-    return {"date": today, "count": 0}
-
-
-def _save_counter(data: Dict[str, int]) -> None:
-    COUNTER_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with COUNTER_FILE.open("w", encoding="utf-8") as fh:
-        json.dump(data, fh)
-
-
 class NewsQuotaExceeded(RuntimeError):
-    """Raised when the daily news request quota is exhausted."""
+    """Raised when no news provider can make a request today."""
+
+
+# Providers that spent quota (made a request) during the current
+# ``_fetch_news`` call; ``None`` outside one.
+_spent_quota: ContextVar[Optional[List[str]]] = ContextVar("_news_spent_quota", default=None)
+
+
+class _ProviderQuota:
+    """Daily request budget for one news provider, persisted to a JSON file.
+
+    Each provider spends its own budget, and only when it actually makes a
+    request: a provider that is skipped (no AlphaVantage key, Yahoo cooling
+    down after a 429) costs nothing. ``news_requests_per_day`` (25) matches
+    AlphaVantage's free tier; Yahoo and Google have their own limits.
+    """
+
+    def __init__(self, name: str, limit_attr: str, default_limit: int, file_suffix: str = "") -> None:
+        self.name = name
+        self._limit_attr = limit_attr
+        self._default_limit = default_limit
+        self._file_suffix = file_suffix
+        # Serialises read-modify-write across the executor threads that run
+        # concurrent fetches (not across processes).
+        self._lock = threading.Lock()
+
+    @property
+    def path(self) -> Path:
+        # Derived from ``COUNTER_FILE`` at call time so tests can redirect it.
+        if not self._file_suffix:
+            return COUNTER_FILE
+        return COUNTER_FILE.with_name(f"{COUNTER_FILE.stem}_{self._file_suffix}{COUNTER_FILE.suffix}")
+
+    @property
+    def limit(self) -> int:
+        value = getattr(cfg, self._limit_attr, None)
+        return int(value) if value is not None else self._default_limit
+
+    def load(self) -> Dict[str, Any]:
+        today = date.today().isoformat()
+        try:
+            with self.path.open("r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if isinstance(data, dict) and data.get("date") == today:
+                return {"date": today, "count": int(data.get("count", 0))}
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError, TypeError) as exc:
+            logging.getLogger(__name__).warning(
+                "Resetting unreadable %s news quota counter: %s", self.name, sanitise_log_value(exc)
+            )
+        return {"date": today, "count": 0}
+
+    def save(self, data: Dict[str, Any]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+
+    def available(self) -> bool:
+        return self.load()["count"] < self.limit
+
+    def try_consume(self) -> bool:
+        """Spend one request if any remain today; return whether it was spent."""
+
+        with self._lock:
+            data = self.load()
+            if data["count"] >= self.limit:
+                logging.getLogger(__name__).debug("%s news quota exhausted for today (%d)", self.name, self.limit)
+                return False
+            data["count"] += 1
+            self.save(data)
+        spent = _spent_quota.get()
+        if spent is not None:
+            spent.append(self.name)
+        return True
+
+
+_ALPHA_QUOTA = _ProviderQuota("AlphaVantage", "news_requests_per_day", 25)
+_YAHOO_QUOTA = _ProviderQuota("Yahoo", "yahoo_news_requests_per_day", 500, "yahoo")
+_GOOGLE_QUOTA = _ProviderQuota("Google", "google_news_requests_per_day", 500, "google")
 
 
 def _can_request_news() -> bool:
-    data = _load_counter()
-    return data["count"] < cfg.news_requests_per_day
+    """Return whether at least one provider could make a request right now."""
 
-
-def _try_consume_quota() -> bool:
-    data = _load_counter()
-    if data["count"] >= cfg.news_requests_per_day:
-        return False
-    data["count"] += 1
-    _save_counter(data)
-    return True
+    alpha = bool(cfg.alpha_vantage_key) and _ALPHA_QUOTA.available()
+    yahoo = _yahoo_cooldown.remaining() <= 0 and _YAHOO_QUOTA.available()
+    return alpha or yahoo or _GOOGLE_QUOTA.available()
 
 
 def _isoformat(dt: Optional[datetime]) -> Optional[str]:
@@ -399,6 +454,8 @@ def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
             int(remaining),
         )
         return []
+    if not _YAHOO_QUOTA.try_consume():
+        return []
     clean_ticker = ticker.strip().upper()
     subject = _news_subject(clean_ticker)
     params = {"q": _yahoo_query(subject), "quotesCount": 0, "newsCount": 10}
@@ -438,6 +495,8 @@ def fetch_news_google(ticker: str) -> List[Dict[str, str]]:
 
     endpoint = cfg.google_news_endpoint or "https://news.google.com/rss/search"
     validate_external_url(endpoint)
+    if not _GOOGLE_QUOTA.try_consume():
+        return []
     clean_ticker = ticker.strip().upper()
     subject = _news_subject(clean_ticker)
     params = {"q": _google_query(subject), "hl": "en-US", "gl": "US", "ceid": "US:en"}
@@ -537,6 +596,8 @@ def fetch_news_alpha(ticker: str) -> List[Dict[str, str]]:
             "Skipping AlphaVantage news for %s: no API key configured", sanitise_log_value(ticker)
         )
         return []
+    if not _ALPHA_QUOTA.try_consume():
+        return []
     params = {
         "function": "NEWS_SENTIMENT",
         "tickers": _alpha_ticker(ticker),
@@ -564,7 +625,31 @@ def fetch_news_alpha(ticker: str) -> List[Dict[str, str]]:
 
 
 def _fetch_news(ticker: str) -> List[Dict[str, str]]:
-    """Fetch news from AlphaVantage with fallbacks to Yahoo and Google."""
+    """Fetch news from AlphaVantage with fallbacks to Yahoo and Google.
+
+    Raises ``NewsQuotaExceeded`` when no provider made a request. The
+    ``_can_request_news`` gate is checked before the chain runs, but another
+    fetch can take the last unit of a provider's budget in between; without
+    this check that race would come back as an empty result (and be cached
+    as one) instead of as quota exhaustion.
+    """
+
+    spent: List[str] = []
+    token = _spent_quota.set(spent)
+    try:
+        items = _fetch_from_providers(ticker)
+    finally:
+        _spent_quota.reset(token)
+    if not items and not spent:
+        logging.getLogger(__name__).info(
+            "No news provider had quota left for %s by the time it ran", sanitise_log_value(ticker)
+        )
+        raise NewsQuotaExceeded("news quota exceeded")
+    return items
+
+
+def _fetch_from_providers(ticker: str) -> List[Dict[str, str]]:
+    """Run the provider chain, returning the first non-empty result."""
 
     try:
         items = fetch_news_alpha(ticker)
@@ -686,7 +771,9 @@ def get_cached_news(
     page = f"news_{tkr}"
 
     def _fetch_once() -> List[Dict[str, str]]:
-        if not _try_consume_quota():
+        # Providers spend their own quota as they make requests; this only
+        # refuses the fetch when none of them could make one.
+        if not _can_request_news():
             raise NewsQuotaExceeded("news quota exceeded")
         return _fetch_news(tkr)
 

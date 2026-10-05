@@ -13,7 +13,6 @@ from typing import Any, Callable, Dict, List, Optional
 
 import defusedxml.ElementTree as ET
 import requests
-from curl_cffi import requests as curl_requests
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from backend import config_module
@@ -21,6 +20,11 @@ from backend.common.instruments import get_instrument_meta
 from backend.common.url_validator import validate_external_url
 from backend.logging_setup import sanitise_log_value
 from backend.utils import page_cache
+from backend.utils.lazy_import import lazy_import
+
+# Only needed for the Yahoo fallback, so keep it off the import path
+# (Lambda cold start), matching how ``market.py`` loads yfinance.
+curl_requests = lazy_import("curl_cffi.requests")
 
 cfg = getattr(config_module, "settings", config_module.config)
 config = cfg

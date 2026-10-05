@@ -631,3 +631,48 @@ def test_single_flight_propagates_errors_and_clears_entry():
         news_module._single_flight("news_X", boom)
     assert "news_X" not in news_module._inflight
     assert news_module._single_flight("news_X", lambda: []) == []
+
+
+def test_single_flight_follower_receives_leader_exception(monkeypatch):
+    """A follower blocked on the leader must see the leader's exception."""
+
+    import threading
+    from concurrent.futures import Future
+
+    started = threading.Event()
+    release = threading.Event()
+    follower_waiting = threading.Event()
+
+    class SignallingFuture(Future):
+        def result(self, timeout=None):
+            follower_waiting.set()
+            return super().result(timeout)
+
+    monkeypatch.setattr(news_module, "Future", SignallingFuture)
+
+    def failing_fetch() -> List[Dict[str, str]]:
+        started.set()
+        assert release.wait(timeout=5)
+        raise news_module.NewsQuotaExceeded("news quota exceeded")
+
+    errors: List[BaseException] = []
+
+    def run() -> None:
+        try:
+            news_module._single_flight("news_ERR", failing_fetch)
+        except BaseException as exc:
+            errors.append(exc)
+
+    leader = threading.Thread(target=run, daemon=True)
+    follower = threading.Thread(target=run, daemon=True)
+    leader.start()
+    assert started.wait(timeout=5)
+    follower.start()
+    assert follower_waiting.wait(timeout=5)
+    release.set()
+    leader.join(timeout=5)
+    follower.join(timeout=5)
+
+    assert len(errors) == 2
+    assert all(isinstance(exc, news_module.NewsQuotaExceeded) for exc in errors)
+    assert "news_ERR" not in news_module._inflight

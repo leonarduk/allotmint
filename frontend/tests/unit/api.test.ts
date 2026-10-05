@@ -1272,20 +1272,19 @@ describe("checkScreenerAvailable", () => {
   });
 });
 
-describe("group alpha/tracking error are combined-series aggregates", () => {
-  // Decision (follow-up to PR #7285): the group endpoints compute alpha and
-  // tracking error from the *combined* group portfolio series, not by
-  // averaging each member's alpha. They are therefore meaningful aggregates
-  // and must be requested/returned as real values for group scope -- the
-  // frontend must not null them out. These tests pin the request shape and
-  // the pass-through of the backend's aggregate value.
+describe("group alpha/tracking error API helpers (request shape and pass-through)", () => {
+  // These tests only pin which endpoint each helper calls and that the
+  // backend's value is passed through unmodified (#7306). They cannot tell a
+  // combined-series figure from an averaged one -- that aggregation semantic
+  // is verified on the backend in
+  // tests/common/test_group_alpha_combined_series.py.
   beforeEach(() => {
     localStorage.clear();
     setAuthToken(null);
     setApiBase(DEFAULT_API_BASE);
   });
 
-  it("requests group alpha from the combined-series endpoint and returns its value", async () => {
+  it("requests group alpha from /performance-group/{slug}/alpha and passes its value through", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ alpha_vs_benchmark: 0.0344 }),
@@ -1303,7 +1302,7 @@ describe("group alpha/tracking error are combined-series aggregates", () => {
     );
   });
 
-  it("requests group tracking error from the combined-series endpoint and returns its value", async () => {
+  it("requests group tracking error from /performance-group/{slug}/tracking-error and passes its value through", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ tracking_error: 0.025 }),

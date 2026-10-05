@@ -453,6 +453,9 @@ def test_refresh_fx_cache_for_tickers_refreshes_each_foreign_currency_live(cache
         return pd.DataFrame({"Date": pd.bdate_range(end - timedelta(days=7), end).date, "Rate": 0.8})
 
     monkeypatch.setattr(cache, "fetch_fx_rate_range_live", fake_live)
+    # Only the held currencies here; the always-refreshed reference currencies
+    # are covered in test_fx_history_store.py.
+    monkeypatch.setattr(cache.config, "fx_reference_currencies", [])
 
     cache.refresh_fx_cache_for_tickers(["AAPL.N", "KO.N", "GSK.L", "CASH"])
 
@@ -478,6 +481,7 @@ def test_lambda_skip_is_logged_once(cache, monkeypatch, caplog):
 def test_refresh_fx_cache_for_tickers_continues_past_a_failing_currency(cache, monkeypatch, caplog):
     """One currency's failed refresh is logged and doesn't stop the others (or refresh_prices)."""
     monkeypatch.setattr(cache, "get_instrument_meta", lambda full: {"currency": full.rsplit(".", 1)[1]})
+    monkeypatch.setattr(cache.config, "fx_reference_currencies", [])
     refreshed = []
 
     def flaky(curr):

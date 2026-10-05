@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.routes import quotes
+from tests.yahoo_chart_fakes import FakeChartTicker
 
 
 def test_get_quotes_includes_name(monkeypatch):
@@ -10,17 +11,13 @@ def test_get_quotes_includes_name(monkeypatch):
 
     def fake_Tickers(symbols):
         assert symbols == "AAA"
-        ticker = type(
-            "T",
-            (),
+        ticker = FakeChartTicker(
             {
-                "info": {
-                    "regularMarketPrice": 100.0,
-                    "shortName": "Acme",
-                    "currency": "USD",
-                }
-            },
-        )()
+                "regularMarketPrice": 100.0,
+                "shortName": "Acme",
+                "currency": "USD",
+            }
+        )
         return type("TT", (), {"tickers": {"AAA": ticker}})()
 
     monkeypatch.setattr(quotes.yf, "Tickers", fake_Tickers)
@@ -56,18 +53,14 @@ def test_get_quotes_includes_currency_and_quote_type(monkeypatch):
 
     def fake_Tickers(symbols):
         assert symbols == "^FTSE"
-        ticker = type(
-            "T",
-            (),
+        ticker = FakeChartTicker(
             {
-                "info": {
-                    "regularMarketPrice": 10878.0,
-                    "shortName": "FTSE 100",
-                    "currency": "GBP",
-                    "quoteType": "INDEX",
-                }
-            },
-        )()
+                "regularMarketPrice": 10878.0,
+                "shortName": "FTSE 100",
+                "currency": "GBP",
+                "instrumentType": "INDEX",
+            }
+        )
         return type("TT", (), {"tickers": {"^FTSE": ticker}})()
 
     monkeypatch.setattr(quotes.yf, "Tickers", fake_Tickers)
@@ -90,18 +83,14 @@ def test_get_quotes_prefers_long_name_over_truncated_short_name(monkeypatch):
 
     def fake_Tickers(symbols):
         assert symbols == "VUSA.L"
-        ticker = type(
-            "T",
-            (),
+        ticker = FakeChartTicker(
             {
-                "info": {
-                    "regularMarketPrice": 107.02,
-                    "shortName": "VANGUARD FUNDS PLC VANGUARD S&P",
-                    "longName": "Vanguard S&P 500 UCITS ETF",
-                    "currency": "GBp",
-                }
-            },
-        )()
+                "regularMarketPrice": 107.02,
+                "shortName": "VANGUARD FUNDS PLC VANGUARD S&P",
+                "longName": "Vanguard S&P 500 UCITS ETF",
+                "currency": "GBp",
+            }
+        )
         return type("TT", (), {"tickers": {"VUSA.L": ticker}})()
 
     monkeypatch.setattr(quotes.yf, "Tickers", fake_Tickers)
@@ -122,18 +111,14 @@ def test_get_quotes_falls_back_to_short_name_when_long_name_missing(monkeypatch)
 
     def fake_Tickers(symbols):
         assert symbols == "GC=F"
-        ticker = type(
-            "T",
-            (),
+        ticker = FakeChartTicker(
             {
-                "info": {
-                    "regularMarketPrice": 4647.10,
-                    "shortName": "Gold Dec 26",
-                    "longName": None,
-                    "currency": "USD",
-                }
-            },
-        )()
+                "regularMarketPrice": 4647.10,
+                "shortName": "Gold Dec 26",
+                "longName": None,
+                "currency": "USD",
+            }
+        )
         return type("TT", (), {"tickers": {"GC=F": ticker}})()
 
     monkeypatch.setattr(quotes.yf, "Tickers", fake_Tickers)
@@ -156,18 +141,14 @@ def test_get_quotes_labels_pence_as_gbx_without_scaling_price(monkeypatch):
 
     def fake_Tickers(symbols):
         assert symbols == "BP.L"
-        ticker = type(
-            "T",
-            (),
+        ticker = FakeChartTicker(
             {
-                "info": {
-                    "regularMarketPrice": 517.05,
-                    "shortName": "BP p.l.c.",
-                    "currency": "GBp",
-                    "quoteType": "EQUITY",
-                }
-            },
-        )()
+                "regularMarketPrice": 517.05,
+                "shortName": "BP p.l.c.",
+                "currency": "GBp",
+                "instrumentType": "EQUITY",
+            }
+        )
         return type("TT", (), {"tickers": {"BP.L": ticker}})()
 
     monkeypatch.setattr(quotes.yf, "Tickers", fake_Tickers)

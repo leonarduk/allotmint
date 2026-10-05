@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from backend.bootstrap.middleware import register_middleware
 from backend.config import config
 from backend.routes import quotes as quotes_module
+from tests.yahoo_chart_fakes import FakeChartTicker
 
 
 def _make_client():
@@ -38,15 +39,11 @@ def test_quotes_returns_502_on_yfinance_error(monkeypatch, caplog):
 
 
 def test_quotes_excludes_missing_regular_market_price(monkeypatch):
-    class FakeTicker:
-        def __init__(self, info):
-            self.info = info
-
     def fake_tickers(symbols):
         return SimpleNamespace(
             tickers={
-                "PFE": FakeTicker({"regularMarketPrice": 100.0}),
-                "MSFT": FakeTicker({}),
+                "PFE": FakeChartTicker({"regularMarketPrice": 100.0}),
+                "MSFT": FakeChartTicker({}),
             }
         )
 
@@ -67,20 +64,15 @@ def test_quotes_no_symbols_returns_empty_list():
     assert resp.json() == []
 
 
-def test_quotes_skips_symbol_whose_info_raises(monkeypatch):
-    """A single symbol's `.info` access raising a live-fetch error must not
-    prevent the other symbols' quotes from being returned (#8094)."""
+def test_quotes_skips_symbol_whose_fetch_raises(monkeypatch):
+    """A single symbol's live chart fetch raising must not prevent the other
+    symbols' quotes from being returned (#8094)."""
 
-    class BoomTicker:
-        @property
-        def info(self):
-            raise RuntimeError("rate limited")
-
-    class OkTicker:
-        info = {"regularMarketPrice": 100.0, "shortName": "OK Inc", "currency": "USD"}
+    boom = FakeChartTicker(error=RuntimeError("rate limited"))
+    ok = FakeChartTicker({"regularMarketPrice": 100.0, "shortName": "OK Inc", "currency": "USD"})
 
     def fake_tickers(symbols):
-        return SimpleNamespace(tickers={"BOOM": BoomTicker(), "PFE": OkTicker()})
+        return SimpleNamespace(tickers={"BOOM": boom, "PFE": ok})
 
     monkeypatch.setattr("backend.routes.quotes.yf.Tickers", fake_tickers)
     monkeypatch.setattr(quotes_module.config, "offline_mode", False)
@@ -93,16 +85,11 @@ def test_quotes_skips_symbol_whose_info_raises(monkeypatch):
 
 
 def test_quotes_returns_502_when_every_symbol_fails(monkeypatch):
-    """If every requested symbol's `.info` access raises, surface a
+    """If every requested symbol's live fetch raises, surface a
     structured 502 rather than a misleadingly successful empty list."""
 
-    class BoomTicker:
-        @property
-        def info(self):
-            raise RuntimeError("boom")
-
     def fake_tickers(symbols):
-        return SimpleNamespace(tickers={"BOOM": BoomTicker()})
+        return SimpleNamespace(tickers={"BOOM": FakeChartTicker(error=RuntimeError("boom"))})
 
     monkeypatch.setattr("backend.routes.quotes.yf.Tickers", fake_tickers)
     monkeypatch.setattr(quotes_module.config, "offline_mode", False)

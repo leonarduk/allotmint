@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.routes import market
+from tests.yahoo_chart_fakes import FakeChartTicker
 
 
 def _client() -> TestClient:
@@ -26,13 +27,14 @@ def test_fetch_indexes_with_mocked_yfinance(monkeypatch):
         assert requested == " ".join(market.INDEX_SYMBOLS.values())
         tickers = {}
         for idx, (name, sym) in enumerate(symbols, start=1):
-            info = {
-                "regularMarketPrice": idx * 100,
-                "regularMarketChangePercent": idx / 10 if idx % 2 else None,
-            }
+            # Odd indexes report a previous close (so a change %); even ones
+            # don't, which must fall back to a 0.0 change.
+            metadata = {"regularMarketPrice": idx * 100}
+            if idx % 2:
+                metadata["chartPreviousClose"] = 80.0 * idx
             if sym == last_symbol:
-                info["regularMarketPrice"] = None
-            tickers[sym] = SimpleNamespace(info=info)
+                metadata["regularMarketPrice"] = None
+            tickers[sym] = FakeChartTicker(metadata)
         return SimpleNamespace(tickers=tickers)
 
     monkeypatch.setattr(market.yf, "Tickers", fake_tickers)
@@ -45,7 +47,8 @@ def test_fetch_indexes_with_mocked_yfinance(monkeypatch):
             continue
         expected[name] = {
             "value": float(idx * 100),
-            "change": float(idx / 10) if idx % 2 else 0.0,
+            # (100 * idx - 80 * idx) / (80 * idx) * 100
+            "change": 25.0 if idx % 2 else 0.0,
         }
 
     assert result == expected

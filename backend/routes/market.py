@@ -13,6 +13,7 @@ import requests
 from fastapi import APIRouter, Query
 
 from backend import config_module
+from backend.common.yahoo_chart import chart_quote
 from backend.logging_setup import sanitise_log_value
 from backend.routes.news import NewsQuotaExceeded, get_cached_news
 from backend.utils.lazy_import import lazy_import
@@ -107,7 +108,12 @@ def _fetch_indexes() -> Dict[str, IndexPayload]:
     tickers = yf.Tickers(" ".join(INDEX_SYMBOLS.values())).tickers
     out: Dict[str, IndexPayload] = {}
     for name, sym in INDEX_SYMBOLS.items():
-        info = getattr(tickers.get(sym), "info", {})
+        ticker = tickers.get(sym)
+        if ticker is None:
+            continue
+        # Chart endpoint, not ``.info``: ``quoteSummary`` fails with
+        # ``401 Invalid Crumb`` when Yahoo rejects yfinance's crumb handshake.
+        info = chart_quote(ticker)
         price = info.get("regularMarketPrice")
         change = info.get("regularMarketChangePercent")
         if price is not None:

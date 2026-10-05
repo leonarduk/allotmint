@@ -16,6 +16,23 @@ from backend.routes import news as news_module
 from backend.utils import page_cache
 
 
+@pytest.fixture(autouse=True)
+def _news_provider_defaults(monkeypatch):
+    """Configure an AlphaVantage key and a fresh Yahoo cooldown per test.
+
+    With no key, ``fetch_news_alpha`` skips AlphaVantage entirely, so tests
+    that mock its response need one set; tests for the no-key path override
+    it. A fresh cooldown keeps a 429 tripped in one test from silencing Yahoo
+    in the next.
+    """
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", "test-key")
+    monkeypatch.setattr(
+        news_module,
+        "_yahoo_cooldown",
+        news_module._ProviderCooldown(news_module.YAHOO_COOLDOWN_DEFAULT, news_module.YAHOO_COOLDOWN_MAX),
+    )
+
+
 class _FakeDate(date):
     """Helper used to override ``date.today`` within tests."""
 
@@ -64,6 +81,9 @@ def test_fetch_news_yahoo(monkeypatch):
         captured["impersonate"] = kwargs.get("impersonate")
 
         class Response:
+            status_code = 200
+            headers: Dict[str, str] = {}
+
             def raise_for_status(self):
                 return None
 
@@ -141,6 +161,9 @@ def test_fetch_news_google(monkeypatch):
 def test_fetch_news_yahoo_populates_published_at_and_source(monkeypatch):
     def fake_get(url, params=None, timeout=10, **kwargs):
         class Response:
+            status_code = 200
+            headers: Dict[str, str] = {}
+
             def raise_for_status(self):
                 return None
 
@@ -341,6 +364,8 @@ def test_get_news_quota_and_cache(monkeypatch, tmp_path):
 
     app = create_app()
     monkeypatch.setattr(news_module.cfg, "news_requests_per_day", 2)
+    # create_app() reloads config, resetting the key the autouse fixture set.
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", "test-key")
 
     with TestClient(app) as client:
         first = client.get("/news", params={"ticker": "ABC"})
@@ -741,3 +766,115 @@ def test_single_flight_fetches_again_after_completion():
 
     assert calls["count"] == 2
     assert news_module._inflight == {}
+
+
+def test_fetch_news_alpha_skips_request_without_key(monkeypatch):
+    """No key means no request: ``demo`` only serves IBM, so it always misses."""
+
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+
+    def fail_get(*args, **kwargs):
+        raise AssertionError("AlphaVantage must not be called without a key")
+
+    monkeypatch.setattr(news_module.requests, "get", fail_get)
+
+    assert news_module.fetch_news_alpha("AAPL") == []
+
+
+@pytest.mark.parametrize("notice_key", ["Information", "Note", "Error Message"])
+def test_fetch_news_alpha_logs_notice_instead_of_feed(monkeypatch, caplog, notice_key):
+    def fake_get(url, params=None, timeout=10, **kwargs):
+        class Response:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {notice_key: "Thank you for using Alpha Vantage! Rate limit reached."}
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", fake_get)
+
+    with caplog.at_level("WARNING", logger=news_module.__name__):
+        assert news_module.fetch_news_alpha("AAPL") == []
+
+    messages = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert any(notice_key in m and "Rate limit reached" in m for m in messages)
+
+
+def _yahoo_response(status_code: int, headers: Dict[str, str] | None = None):
+    class Response:
+        def __init__(self) -> None:
+            self.status_code = status_code
+            self.headers = headers or {}
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"news": [{"title": "PFE stock update", "link": "https://example.com/pfe"}]}
+
+    return Response()
+
+
+def test_fetch_news_yahoo_429_starts_cooldown_and_skips_later_calls(monkeypatch, caplog):
+    calls = {"count": 0}
+
+    def fake_get(url, params=None, timeout=10, **kwargs):
+        calls["count"] += 1
+        return _yahoo_response(429, {"Retry-After": "120"})
+
+    monkeypatch.setattr(news_module.curl_requests, "get", fake_get)
+
+    with caplog.at_level("WARNING", logger=news_module.__name__):
+        assert news_module.fetch_news_yahoo("PFE") == []
+        assert news_module.fetch_news_yahoo("AZN") == []
+
+    assert calls["count"] == 1
+    assert 0 < news_module._yahoo_cooldown.remaining() <= 120
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert "429" in warnings[0] and "120 seconds" in warnings[0]
+
+
+def test_fetch_news_yahoo_resumes_after_cooldown(monkeypatch):
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(news_module.time, "monotonic", lambda: clock["now"])
+    responses = [_yahoo_response(429), _yahoo_response(200)]
+    monkeypatch.setattr(news_module.curl_requests, "get", lambda *a, **k: responses.pop(0))
+
+    assert news_module.fetch_news_yahoo("PFE") == []
+    clock["now"] += news_module.YAHOO_COOLDOWN_DEFAULT + 1
+
+    assert news_module.fetch_news_yahoo("PFE") == [{"headline": "PFE stock update", "url": "https://example.com/pfe"}]
+
+
+@pytest.mark.parametrize(
+    ("retry_after", "expected"),
+    [
+        (None, news_module.YAHOO_COOLDOWN_DEFAULT),
+        ("not-a-number", news_module.YAHOO_COOLDOWN_DEFAULT),
+        ("Wed, 21 Oct 2026 07:28:00 GMT", news_module.YAHOO_COOLDOWN_DEFAULT),
+        ("30", 30),
+        ("999999", news_module.YAHOO_COOLDOWN_MAX),
+    ],
+)
+def test_provider_cooldown_trip_parses_retry_after(retry_after, expected):
+    cooldown = news_module._ProviderCooldown(news_module.YAHOO_COOLDOWN_DEFAULT, news_module.YAHOO_COOLDOWN_MAX)
+    assert cooldown.trip(retry_after) == expected
+
+
+def test_fetch_news_falls_through_to_google_during_yahoo_cooldown(monkeypatch, caplog):
+    monkeypatch.setattr(news_module, "fetch_news_alpha", lambda ticker: [])
+    news_module._yahoo_cooldown.trip()
+
+    def fail_get(*args, **kwargs):
+        raise AssertionError("Yahoo must not be called during cooldown")
+
+    monkeypatch.setattr(news_module.curl_requests, "get", fail_get)
+    google = [{"headline": "PFE shares rise", "url": "https://example.com/g"}]
+    monkeypatch.setattr(news_module, "fetch_news_google", lambda ticker: google)
+
+    with caplog.at_level("ERROR", logger=news_module.__name__):
+        assert news_module._fetch_news("PFE") == google
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from unittest.mock import Mock, patch
 
@@ -25,6 +26,22 @@ from backend.timeseries.fetch_yahoo_timeseries import (
 )
 
 
+class _HistoryMetadata(Mapping):
+    """Like yfinance 1.7's ``HistoryMetadata``: a read-only Mapping, *not* a dict."""
+
+    def __init__(self, data: dict):
+        self._data = dict(data)
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __len__(self):
+        return len(self._data)
+
+
 class FakeYahooTicker:
     """Mimics ``yfinance.Ticker.history`` adjustment semantics without the network.
 
@@ -37,7 +54,7 @@ class FakeYahooTicker:
     def __init__(self, closes: pd.Series, dividends: dict[pd.Timestamp, float], currency: str = "GBP"):
         self.closes = closes
         self.dividends = dividends
-        self.history_metadata = {"currency": currency}
+        self.history_metadata = _HistoryMetadata({"currency": currency})
         self.calls: list[dict] = []
 
     def _adjusted(self) -> pd.Series:
@@ -269,3 +286,12 @@ def test_overlap_refetch_after_ex_date_leaves_earlier_closes_unchanged(cache_bas
     assert stored.index.max() == days[-1]
     assert stored.to_dict() == closes.to_dict()
     assert load_dividends("ABC", "L").to_dict() == {pd.Timestamp(ex_date.date()): 3.0}
+
+
+def test_history_currency_reads_yfinance_mapping_metadata():
+    """yfinance 1.7 returns HistoryMetadata (a Mapping, not a dict); the currency must still be read."""
+    stock = Mock(history_metadata=_HistoryMetadata({"currency": "GBp"}))
+    assert fetch_yahoo_timeseries._history_currency(stock) == "GBp"
+    assert fetch_yahoo_timeseries._history_currency(Mock(history_metadata={"currency": "USD"})) == "USD"
+    assert fetch_yahoo_timeseries._history_currency(Mock(history_metadata=None)) is None
+    assert fetch_yahoo_timeseries._history_currency(Mock(history_metadata=_HistoryMetadata({"currency": ""}))) is None

@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 
 import pandas as pd
@@ -115,7 +116,8 @@ def _history_currency(stock: yf.Ticker) -> str | None:
     except Exception as exc:
         logger.debug("No Yahoo history metadata: %s", sanitise_log_value(exc))
         return None
-    if not isinstance(metadata, dict):
+    # yfinance 1.7 returns a ``HistoryMetadata`` Mapping, not a dict.
+    if not isinstance(metadata, Mapping):
         return None
     currency = metadata.get("currency")
     return currency if isinstance(currency, str) and currency else None

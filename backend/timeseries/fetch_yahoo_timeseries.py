@@ -5,6 +5,10 @@ import pandas as pd
 import yfinance as yf
 
 from backend.logging_setup import sanitise_log_value
+from backend.timeseries.corporate_actions import (
+    actions_from_history,
+    record_corporate_actions,
+)
 from backend.timeseries.ticker_validator import (
     is_valid_ticker,
     record_skipped_ticker,
@@ -13,6 +17,19 @@ from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
 # Setup logger
 logger = logging.getLogger("yahoo_timeseries")
+
+# Price basis of every Yahoo history call (#9340). Never rely on yfinance's
+# default, which is ``auto_adjust=True``: that returns a dividend-adjusted
+# Close re-based as of the moment of the fetch, so each rolling overlap
+# re-fetch after an ex-date planted a fake price step in the cache.
+#
+# With ``auto_adjust=False`` the ``Close`` is the traded price, *still
+# split-adjusted* by Yahoo (pre-split history is restated in post-split
+# units, which is what holdings' unit counts are in) but not adjusted for
+# dividends. Dividends and splits come back as separate columns
+# (``actions=True``) and are stored by ``corporate_actions``.
+YAHOO_PRICE_BASIS = {"auto_adjust": False}
+YAHOO_HISTORY_KWARGS = {**YAHOO_PRICE_BASIS, "actions": True}
 
 
 def _build_full_ticker(ticker: str, exchange: str) -> str:
@@ -91,7 +108,69 @@ def normalize_history(df: pd.DataFrame, ticker: str, source: str) -> pd.DataFram
     return df[STANDARD_COLUMNS]
 
 
-def fetch_yahoo_timeseries_range(ticker: str, exchange: str, start_date: date, end_date: date) -> pd.DataFrame:
+def _history_currency(stock: yf.Ticker) -> str | None:
+    """Price currency Yahoo reported with the last ``history`` call, if any."""
+    try:
+        metadata = stock.history_metadata
+    except Exception as exc:
+        logger.debug("No Yahoo history metadata: %s", sanitise_log_value(exc))
+        return None
+    if not isinstance(metadata, dict):
+        return None
+    currency = metadata.get("currency")
+    return currency if isinstance(currency, str) and currency else None
+
+
+def fetch_yahoo_history(full_ticker: str, start_date: date, end_date: date) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Daily traded prices for ``full_ticker`` plus the dividends/splits in that window.
+
+    Returns ``(prices, actions)``: ``prices`` in ``STANDARD_COLUMNS`` on the
+    raw basis (see ``YAHOO_HISTORY_KWARGS``), ``actions`` in
+    ``corporate_actions.ACTION_COLUMNS``. Raises ``ValueError`` when Yahoo
+    returns no rows.
+    """
+    stock = yf.Ticker(full_ticker)
+    raw = stock.history(
+        start=start_date,
+        end=end_date + pd.Timedelta(days=1),  # include end_date
+        interval="1d",
+        **YAHOO_HISTORY_KWARGS,
+    )
+    if raw.empty:
+        raise ValueError(f"No data returned for {full_ticker} between {start_date} and {end_date}")
+    actions = actions_from_history(raw, currency=_history_currency(stock), source="Yahoo")
+    return normalize_history(raw, full_ticker, "Yahoo"), actions
+
+
+def _store_actions(ticker: str, exchange: str, actions: pd.DataFrame) -> None:
+    """Persist fetched dividends/splits; a failure here must not lose the prices."""
+    if actions.empty:
+        return
+    symbol = ticker.split(".")[0]
+    try:
+        record_corporate_actions(symbol, exchange, actions)
+    except Exception as exc:
+        logger.warning(
+            "Could not store corporate actions for %s.%s: %s",
+            sanitise_log_value(symbol),
+            sanitise_log_value(exchange),
+            sanitise_log_value(exc),
+        )
+
+
+def fetch_yahoo_timeseries_range(
+    ticker: str,
+    exchange: str,
+    start_date: date,
+    end_date: date,
+    *,
+    store_actions: bool = True,
+) -> pd.DataFrame:
+    """Traded (``auto_adjust=False``) daily prices for ``ticker`` between the dates.
+
+    Dividends and splits returned by the same call are merged into the
+    ``corporate_actions`` store unless ``store_actions`` is ``False``.
+    """
     if not is_valid_ticker(ticker, exchange):
         logger.info(
             "Skipping Yahoo fetch for unrecognized ticker %s.%s",
@@ -104,18 +183,15 @@ def fetch_yahoo_timeseries_range(ticker: str, exchange: str, start_date: date, e
     logger.debug("Fetching Yahoo data for %s from %s to %s", sanitise_log_value(full_ticker), start_date, end_date)
 
     try:
-        stock = yf.Ticker(full_ticker)
-        df = stock.history(start=start_date, end=end_date + pd.Timedelta(days=1), interval="1d")  # include end_date
-        if df.empty:
-            raise ValueError(f"No data returned for {full_ticker} between {start_date} and {end_date}")
-
-        logger.info("Fetched %d rows for %s", len(df), sanitise_log_value(full_ticker))
-
-        return normalize_history(df, full_ticker, "Yahoo")
-
+        prices, actions = fetch_yahoo_history(full_ticker, start_date, end_date)
     except Exception as e:
         logger.error("Failed to fetch Yahoo data for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(e))
         raise
+
+    logger.info("Fetched %s rows for %s", sanitise_log_value(len(prices)), sanitise_log_value(full_ticker))
+    if store_actions:
+        _store_actions(ticker, exchange, actions)
+    return prices
 
 
 def fetch_yahoo_timeseries_period(
@@ -149,7 +225,7 @@ def fetch_yahoo_timeseries_period(
 
     try:
         stock = yf.Ticker(full_ticker)
-        df = stock.history(period=period, interval=interval)
+        df = stock.history(period=period, interval=interval, **YAHOO_PRICE_BASIS)
         if df.empty:
             raise ValueError(f"No data returned for {full_ticker}")
 

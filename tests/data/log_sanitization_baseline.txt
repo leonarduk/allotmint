@@ -158,5 +158,4 @@ backend/timeseries/fetch_stooq_timeseries.py::fetch_stooq_timeseries_range::logg
 backend/timeseries/fetch_stooq_timeseries.py::fetch_stooq_timeseries_range::logger.info('Fetched %d rows for %s', len(df), sanitise_log_value(full_ticker))
 backend/timeseries/fetch_yahoo_timeseries.py::fetch_yahoo_timeseries_period::logger.debug('Fetching Yahoo data for %s with period=%r, interval=%r', sanitise_log_value(full_ticker), safe_period, safe_interval)
 backend/timeseries/fetch_yahoo_timeseries.py::fetch_yahoo_timeseries_range::logger.debug('Fetching Yahoo data for %s from %s to %s', sanitise_log_value(full_ticker), start_date, end_date)
-backend/timeseries/fetch_yahoo_timeseries.py::fetch_yahoo_timeseries_range::logger.info('Fetched %d rows for %s', len(df), sanitise_log_value(full_ticker))
 backend/utils/telegram_utils.py::send_message::logger.debug('Missing Telegram configuration: %s', ', '.join(missing), extra={'skip_telegram': True})

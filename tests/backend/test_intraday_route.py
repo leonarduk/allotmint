@@ -9,7 +9,7 @@ import backend.routes.instrument as instrument
 
 def test_intraday_route(monkeypatch):
     class FakeTicker:
-        def history(self, period, interval):
+        def history(self, period, interval, **_kwargs):
             assert period == "2d"
             assert interval == "5m"
             idx = pd.date_range(datetime(2024, 1, 1), periods=3, freq="5min")

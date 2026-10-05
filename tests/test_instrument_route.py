@@ -496,7 +496,7 @@ def test_intraday_route(monkeypatch):
     app = create_app()
 
     class FakeTicker:
-        def history(self, period: str, interval: str):
+        def history(self, period: str, interval: str, **_kwargs):
             return pd.DataFrame(
                 {
                     "Datetime": [pd.Timestamp("2024-01-02T10:00:00")],
@@ -517,7 +517,7 @@ def test_intraday_route_history_error(monkeypatch):
     app = create_app()
 
     class FakeTicker:
-        def history(self, period: str, interval: str):
+        def history(self, period: str, interval: str, **_kwargs):
             raise RuntimeError("history boom")
 
     with patch("backend.routes.instrument.yf.Ticker", return_value=FakeTicker()):
@@ -533,7 +533,7 @@ def test_intraday_route_history_empty(monkeypatch):
     app = create_app()
 
     class FakeTicker:
-        def history(self, period: str, interval: str):
+        def history(self, period: str, interval: str, **_kwargs):
             return pd.DataFrame()
 
     with patch("backend.routes.instrument.yf.Ticker", return_value=FakeTicker()):

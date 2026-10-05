@@ -295,6 +295,19 @@ AllotMint depends heavily on realistic local/demo data.
 - Local page-cache files are written under `data/cache/` (or the active data root equivalent).
 - The local startup script will try to sync data from S3 when `DATA_BUCKET` is set; otherwise it skips the sync.
 
+### Stored market reference data (timeseries cache)
+
+Under the timeseries cache base (`paths.timeseries_cache_base`, normally `{data_root}/timeseries`), alongside the per-instrument `meta/{TICKER}_{EXCHANGE}.parquet` price files:
+
+| Path | Columns | Contents | Written by | Read with (no network) |
+| --- | --- | --- | --- | --- |
+| `fx/{CCY}.parquet` | `Date`, `Rate` | Daily rate as **GBP per 1 unit of `CCY`** (Yahoo `{CCY}GBP=X` close). The single canonical FX store, from `fx_history_start` (default 2007-01-01). | `refresh_fx_cache` / `refresh_fx_cache_for_tickers` in `backend/timeseries/cache.py` | `backend.timeseries.cache.load_fx_history(curr, start=None, end=None)` |
+| `boe/{SERIES}.parquet` | `Date`, `Value`, `Series`, `Units`, `Source` | Bank of England IADB daily series, in percent, from 2007-06-01: `IUDBEDR` Bank Rate, `IUDSNPY` / `IUDMNPY` / `IUDLNPY` 5/10/20-year nominal par gilt yields. One row per BoE publication day. | `refresh_boe_series` in `backend/timeseries/boe_rates.py` | `backend.timeseries.boe_rates.load_boe_series(code, start=None, end=None)` (long) or `load_boe_rates(codes=None, start=None, end=None)` (wide) |
+
+- Both are refreshed by the scheduled price refresh (`refresh_prices` in `backend/common/prices.py`), never on request paths, and skipped in offline mode. Refreshes only append dates after the last stored one; FX also backfills (once per process) when a file starts after `fx_history_start`.
+- `fx_reference_currencies` (default `USD, EUR, CAD`) are always refreshed; any other currency an instrument is priced in is added automatically. Both keys are optional `config.yaml` settings.
+- The synthetic `{CCY}GBP.FX` instruments (the currency links on the holdings and instrument tables) are served from `fx/{CCY}.parquet`; there are no `meta/{CCY}GBP_FX.parquet` copies.
+
 ### Practical guidance
 
 - If you already have the companion data repo or a synced local dataset, set `DATA_ROOT` to that location before starting the backend.

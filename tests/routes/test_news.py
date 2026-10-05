@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from datetime import date
 from typing import Dict, List
 
@@ -1235,3 +1236,33 @@ def test_exhausted_quota_logs_info_once_per_day(monkeypatch, caplog):
     # First skip of each day at INFO, repeats the same day at DEBUG.
     assert [r.levelname for r in exhausted] == ["INFO", "DEBUG", "INFO"]
     assert "Yahoo news quota exhausted for today (limit 0); skipping Yahoo until tomorrow" in exhausted[0].getMessage()
+
+
+def test_missing_alpha_key_logs_info_once_until_a_key_is_seen(monkeypatch, caplog):
+    monkeypatch.setattr(news_module, "_missing_alpha_key_logged", threading.Event())
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+
+    def fake_alpha_get(url, params=None, timeout=10, **kwargs):
+        class Response:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"feed": []}
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", fake_alpha_get)
+
+    with caplog.at_level("DEBUG", logger=news_module.__name__):
+        news_module.fetch_news_alpha("PFE")
+        news_module.fetch_news_alpha("AZN.L")
+        # A key appears (config reload), then is removed again.
+        monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", "test-key")
+        news_module.fetch_news_alpha("PFE")
+        monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+        news_module.fetch_news_alpha("PFE")
+
+    no_key = [r.levelname for r in caplog.records if "no API key configured" in r.getMessage()]
+    assert no_key == ["INFO", "DEBUG", "INFO"]
+    assert any("set ALPHA_VANTAGE_KEY" in r.getMessage() for r in caplog.records if r.levelname == "INFO")

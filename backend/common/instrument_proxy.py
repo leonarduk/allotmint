@@ -377,7 +377,9 @@ def validate_proxy(
     ``long_history_columns`` overrides :data:`LONG_HISTORY_COLUMNS`. Never
     raises on bad data.
     """
-    raw = meta.get("proxy") if isinstance(meta, Mapping) else None
+    if not isinstance(meta, Mapping):
+        return []
+    raw = meta.get("proxy")
     if raw is None:
         return []
     if not isinstance(raw, Mapping):
@@ -453,8 +455,8 @@ def _to_gbp(close: pd.Series, currency: str, *, ticker: str) -> pd.Series:
     aligned = rates.reindex(rates.index.union(close.index)).ffill().reindex(close.index)
     if aligned.isna().any():
         logger.warning(
-            "Dropping %d %s closes before the first stored %s rate",
-            int(aligned.isna().sum()),
+            "Dropping %s %s closes before the first stored %s rate",
+            sanitise_log_value(int(aligned.isna().sum())),
             sanitise_log_value(ticker),
             sanitise_log_value(norm.canonical),
         )
@@ -485,7 +487,12 @@ def _proxy_ticker_series(ticker: str, segments: list[DailySegment], start: date,
     """One GBP series for ``ticker``, each date converted by the segment whose window covers it."""
     raw = _scaled_close(ticker, start, end)
     if raw.empty:
-        logger.warning("Proxy series %s has no stored prices in %s..%s", sanitise_log_value(ticker), start, end)
+        logger.warning(
+            "Proxy series %s has no stored prices in %s..%s",
+            sanitise_log_value(ticker),
+            sanitise_log_value(start),
+            sanitise_log_value(end),
+        )
         return raw
     parts = []
     for seg in segments:
@@ -523,6 +530,19 @@ def _source_label(members: list[DailySegment]) -> str:
     return "proxy:" + "+".join(seg.ticker for seg in members)
 
 
+def _level_row(levels: pd.DataFrame, day: pd.Timestamp) -> pd.Series:
+    """Row of ``levels`` for ``day`` as a ``Series`` (ticker -> GBP level).
+
+    ``levels`` is indexed by a de-duplicated grid (built from a ``set``), so a
+    scalar ``.loc`` lookup always yields one row; a ``DataFrame`` here would
+    mean that invariant was broken.
+    """
+    row = levels.loc[day]
+    if not isinstance(row, pd.Series):
+        raise TypeError(f"levels index has duplicate entries for {day}")
+    return row
+
+
 def _step_back(proxy: Proxy, levels: pd.DataFrame, d_prev: pd.Timestamp, d_next: pd.Timestamp):
     """``(return d_prev->d_next, members used)``, or ``None`` when no proxy covers the step.
 
@@ -534,7 +554,7 @@ def _step_back(proxy: Proxy, levels: pd.DataFrame, d_prev: pd.Timestamp, d_next:
     for members in candidates:
         if members is None:
             continue
-        ret = _blended_return(levels.loc[d_prev], levels.loc[d_next], members)
+        ret = _blended_return(_level_row(levels, d_prev), _level_row(levels, d_next), members)
         if ret is not None and ret > -1.0:
             return ret, members
     return None
@@ -550,9 +570,11 @@ def _chain_backwards(proxy: Proxy, series: dict[str, pd.Series], anchor: pd.Time
     rows: list[tuple[pd.Timestamp, float, str]] = []
     for i in range(len(grid) - 1, 0, -1):
         prev_members = _window_members(proxy, grid[i - 1].date())
-        step = _step_back(proxy, levels, grid[i - 1], grid[i]) if prev_members else None
+        if prev_members is None:
+            break  # outside every window
+        step = _step_back(proxy, levels, grid[i - 1], grid[i])
         if step is None:
-            break  # outside every window, or no proxy close on both days
+            break  # no proxy close on both days
         level = level / (1.0 + step[0])
         rows.append((grid[i - 1], level, _source_label(prev_members)))
     rows.reverse()
@@ -648,7 +670,9 @@ def long_history_annual(ticker: str) -> pd.Series:
     columns = [c.column for c in proxy.long_history]
     missing = [c for c in ["year", *columns] if c not in table.columns]
     if missing:
-        logger.warning("Long-history CSV %s lacks columns %s", sanitise_log_value(str(path)), missing)
+        logger.warning(
+            "Long-history CSV %s lacks columns %s", sanitise_log_value(str(path)), sanitise_log_value(missing)
+        )
         return empty
     table = table[["year", *columns]].apply(pd.to_numeric, errors="coerce").dropna()
     weights = pd.Series({c.column: c.weight for c in proxy.long_history})

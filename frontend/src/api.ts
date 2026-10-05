@@ -954,6 +954,22 @@ export const getReturnComparison = (owner: string, days = 365) =>
     `${API_BASE}/returns/compare?owner=${encodeURIComponent(owner)}&days=${days}`,
   );
 
+/**
+ * Group-scope alpha vs benchmark.
+ *
+ * Valid for group scope: the backend computes this from the *combined* group
+ * portfolio series, not by averaging each member's alpha. Call chain:
+ * `backend/routes/performance.py:group_alpha` ->
+ * `backend/common/portfolio_utils.py:compute_group_alpha_vs_benchmark` ->
+ * `_alpha_vs_benchmark(group=True)` -> `_portfolio_value_series(group=True)`,
+ * which values the holdings of `group_portfolio.build_group_portfolio` (every
+ * member's accounts merged) and sums them into one daily series. A group's
+ * alpha is therefore a real aggregate figure, not the mean of its members'
+ * alphas. Pinned by `tests/common/test_group_alpha_combined_series.py`.
+ *
+ * Owner-scoped alpha is unchanged and still comes from
+ * {@link getAlphaVsBenchmark} (`/performance/{owner}/alpha`).
+ */
 export const getGroupAlphaVsBenchmark = (
   slug: string,
   benchmark: string,
@@ -963,6 +979,18 @@ export const getGroupAlphaVsBenchmark = (
     `${API_BASE}/performance-group/${slug}/alpha?benchmark=${benchmark}&days=${days}`,
   );
 
+/**
+ * Group-scope tracking error.
+ *
+ * Valid for group scope, for the same reason as
+ * {@link getGroupAlphaVsBenchmark}: `backend/routes/performance.py:group_tracking_error`
+ * -> `backend/common/portfolio_utils.py:compute_group_tracking_error` ->
+ * `_tracking_error(group=True)` derives it from the combined group
+ * portfolio's daily returns (`_portfolio_value_series(group=True)`) against
+ * the benchmark, not by averaging per-owner tracking errors. Pinned by
+ * `tests/common/test_group_alpha_combined_series.py`. Owner-scoped tracking
+ * error is unchanged and still comes from {@link getTrackingError}.
+ */
 export const getGroupTrackingError = (
   slug: string,
   benchmark: string,

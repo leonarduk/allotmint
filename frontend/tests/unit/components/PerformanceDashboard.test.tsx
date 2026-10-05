@@ -531,6 +531,30 @@ describe("PerformanceDashboard", () => {
       ).not.toBeInTheDocument();
     });
 
+    // Group alpha/tracking error are valid group-scope figures (the backend
+    // derives them from the combined group series -- see the docstrings on
+    // getGroupAlphaVsBenchmark / getGroupTrackingError in api.ts and the
+    // backend test tests/common/test_group_alpha_combined_series.py). This
+    // test only pins that the dashboard renders the API's values rather than
+    // nulling them for group scope; it does not verify aggregation semantics.
+    it("renders the group alpha and tracking error values returned by the API, not N/A", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      await screen.findByTestId("reporting-date-summary");
+      expect(screen.getByTestId("metric-alpha")).toHaveTextContent("3.00%");
+      expect(screen.getByTestId("metric-tracking-error")).toHaveTextContent(
+        "4.00%",
+      );
+      expect(screen.getByTestId("metric-alpha")).not.toHaveTextContent("N/A");
+      expect(screen.getByTestId("metric-tracking-error")).not.toHaveTextContent(
+        "N/A",
+      );
+    });
+
     // DeepSeek review round 2 (#7228): a single failing group metric
     // endpoint used to blank the entire dashboard via Promise.all. These
     // cases confirm each metric degrades to "unavailable" independently

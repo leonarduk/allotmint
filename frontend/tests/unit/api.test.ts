@@ -27,6 +27,10 @@ import {
   putChatConversation,
   archiveChatConversation,
   deleteChatHistory,
+  getAlphaVsBenchmark,
+  getTrackingError,
+  getGroupAlphaVsBenchmark,
+  getGroupTrackingError,
 } from "@/api";
 import {
   clearFetchCache,
@@ -1265,6 +1269,81 @@ describe("checkScreenerAvailable", () => {
 
     await expect(checkScreenerAvailable()).resolves.toBe(true);
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("group alpha/tracking error API helpers (request shape and pass-through)", () => {
+  // These tests only pin which endpoint each helper calls and that the
+  // backend's value is passed through unmodified (#7306). They cannot tell a
+  // combined-series figure from an averaged one -- that aggregation semantic
+  // is verified on the backend in
+  // tests/common/test_group_alpha_combined_series.py.
+  beforeEach(() => {
+    localStorage.clear();
+    setAuthToken(null);
+    setApiBase(DEFAULT_API_BASE);
+  });
+
+  it("requests group alpha from /performance-group/{slug}/alpha and passes its value through", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ alpha_vs_benchmark: 0.0344 }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(
+      getGroupAlphaVsBenchmark("all", "VWRL.L", 365),
+    ).resolves.toEqual({ alpha_vs_benchmark: 0.0344 });
+
+    const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      `${DEFAULT_API_BASE}/performance-group/all/alpha?benchmark=VWRL.L&days=365`,
+    );
+  });
+
+  it("requests group tracking error from /performance-group/{slug}/tracking-error and passes its value through", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ tracking_error: 0.025 }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(
+      getGroupTrackingError("all", "VWRL.L", 365),
+    ).resolves.toEqual({ tracking_error: 0.025 });
+
+    const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      `${DEFAULT_API_BASE}/performance-group/all/tracking-error?benchmark=VWRL.L&days=365`,
+    );
+  });
+
+  it("leaves owner-scoped alpha and tracking error on their own endpoints", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ alpha_vs_benchmark: 0.01 }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ tracking_error: 0.02 }),
+      });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await getAlphaVsBenchmark("jane", "VWRL.L", 365);
+    await getTrackingError("jane", "VWRL.L", 365);
+
+    const urls = mockFetch.mock.calls.map(([url]) => url as string);
+    expect(urls[0]).toBe(
+      `${DEFAULT_API_BASE}/performance/jane/alpha?benchmark=VWRL.L&days=365`,
+    );
+    expect(urls[1]).toBe(
+      `${DEFAULT_API_BASE}/performance/jane/tracking-error?benchmark=VWRL.L&days=365`,
+    );
   });
 });
 

@@ -1,6 +1,7 @@
 from datetime import date
 from unittest.mock import Mock, patch
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -9,6 +10,7 @@ from backend.timeseries.fetch_yahoo_timeseries import (
     fetch_yahoo_timeseries_period,
     fetch_yahoo_timeseries_range,
     get_yahoo_suffix,
+    normalize_history,
 )
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
@@ -69,8 +71,9 @@ def test_fetch_yahoo_timeseries_range_normalizes(mock_ticker_cls):
         df = fetch_yahoo_timeseries_range("abc", "l", start_date=date(2024, 1, 1), end_date=date(2024, 1, 1))
     assert list(df.columns) == STANDARD_COLUMNS
     assert df.loc[0, "Date"] == date(2024, 1, 1)
-    assert df.loc[0, "Open"] == 1.12
-    assert df.loc[0, "High"] == 2.35
+    # Six significant figures, not 2 dp (#9369).
+    assert df.loc[0, "Open"] == 1.123
+    assert df.loc[0, "High"] == 2.345
     assert df.loc[0, "Ticker"] == "ABC.L"
     assert df.loc[0, "Source"] == "Yahoo"
 
@@ -159,3 +162,40 @@ def test_fetch_yahoo_timeseries_period_exception(mock_ticker_cls):
     mock_ticker_cls.return_value = mock_stock
     with pytest.raises(Exception):
         fetch_yahoo_timeseries_period("abc", "l", period="1mo", interval="1d")
+
+
+def _raw_bar(open_, high, low, close) -> pd.DataFrame:
+    raw = pd.DataFrame(
+        {"Open": [open_], "High": [high], "Low": [low], "Close": [close], "Volume": [1000]},
+        index=pd.to_datetime(["2026-09-30"]),
+    )
+    raw.index.name = "Date"
+    return raw
+
+
+def test_normalize_history_keeps_sub_one_precision():
+    """BPCR.L-style ~$0.94 quote keeps its 4th decimal instead of a 1% tick (#9369)."""
+    df = normalize_history(_raw_bar(0.9399, 0.9449, 0.9387, 0.9416), "BPCR.L", "Yahoo")
+
+    assert df.loc[0, "Close"] == 0.9416
+    assert df[["Open", "High", "Low", "Close"]].iloc[0].tolist() == [0.9399, 0.9449, 0.9387, 0.9416]
+    assert df["Close"].dtype == "float64"
+
+
+def test_normalize_history_keeps_pence_scale_precision():
+    """A >1000p LSE close keeps its decimal pence (six significant figures)."""
+    df = normalize_history(_raw_bar(4567.25, 4580.5, 4551.0, 4573.5), "ULVR.L", "Yahoo")
+
+    assert df.loc[0, "Close"] == 4573.5
+    assert df.loc[0, "Open"] == 4567.25
+    assert df["Open"].dtype == "float64"
+
+
+def test_normalize_history_strips_float32_noise():
+    """Yahoo's float32-derived values are cleaned, so a re-fetch is bit-identical."""
+    noisy = float(np.float32(0.9416))  # 0.9416000247001648
+    assert noisy != 0.9416
+
+    df = normalize_history(_raw_bar(noisy, noisy, noisy, noisy), "BPCR.L", "Yahoo")
+
+    assert df[["Open", "High", "Low", "Close"]].iloc[0].tolist() == [0.9416] * 4

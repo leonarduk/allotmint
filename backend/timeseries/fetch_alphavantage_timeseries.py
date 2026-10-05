@@ -9,7 +9,7 @@ from backend import config_module
 from backend.common.url_validator import validate_external_url
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
-from backend.utils.timeseries_helpers import STANDARD_COLUMNS
+from backend.utils.timeseries_helpers import STANDARD_COLUMNS, round_price_columns
 
 cfg = getattr(config_module, "settings", config_module.config)
 config = cfg
@@ -141,9 +141,7 @@ def fetch_alphavantage_timeseries_range(
         df.rename(columns={"index": "Date"}, inplace=True)
         df["Date"] = pd.to_datetime(df["Date"]).dt.date
 
-        for col in ["Open", "High", "Low", "Close"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").round(2)
+        round_price_columns(df)  # significant figures, not 2 dp (#9369)
         if "Volume" in df.columns:
             df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
 

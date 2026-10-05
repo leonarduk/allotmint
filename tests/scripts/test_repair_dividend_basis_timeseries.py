@@ -114,3 +114,39 @@ def test_main_apply_rewrites_raw_rows_and_stores_dividends(mixed_file, monkeypat
     assert stored.tolist() == [round(c, 2) for c in RAW.tolist()]
     dividends = load_dividends("ABC", "L", base=str(mixed_file.parent.parent))
     assert dividends.to_dict() == {DAYS[45]: 0.5}
+
+
+def _precise_fetcher(closes: list[float]):
+    def fetch(symbol, exchange, start, end):
+        prices = _meta(closes, DAYS[: len(closes)])
+        for column in ("Open", "High", "Low", "Close"):
+            prices[column] = closes  # unrounded, unlike _meta
+        return prices, pd.DataFrame(columns=["Date", "Action", "Value", "Currency", "Source"])
+
+    return fetch
+
+
+def test_precision_only_differences_count_as_refined_and_are_applied(tmp_path, monkeypatch):
+    """A 2 dp stored sub-$1 series is rewritten at the re-fetch's precision (#9369)."""
+    meta = tmp_path / "timeseries" / "meta"
+    meta.mkdir(parents=True)
+    path = meta / "ABC_L.parquet"
+    precise = [0.9416, 0.9372, 0.9449, 0.94]
+    _meta(precise, DAYS[:4]).to_parquet(path, index=False)  # _meta rounds to 2 dp
+    monkeypatch.setattr(repair, "fetch_raw", _precise_fetcher(precise))
+
+    report = repair.rebase_file(path, fetcher=_precise_fetcher(precise))
+    assert (report.changed, report.refined, report.added) == (0, 3, 0)
+
+    repair.main([str(meta), "--apply"])
+
+    assert pd.read_parquet(path)["Close"].tolist() == precise
+
+
+def test_identical_closes_are_not_refined(tmp_path):
+    path = tmp_path / "ABC_L.parquet"
+    _meta([0.94, 0.95], DAYS[:2]).to_parquet(path, index=False)
+
+    report = repair.rebase_file(path, fetcher=_precise_fetcher([0.94, 0.95]))
+
+    assert (report.changed, report.refined) == (0, 0)

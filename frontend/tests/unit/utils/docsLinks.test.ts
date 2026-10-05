@@ -4,8 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import { DOCS_BASE_URL, MCP_TOOL_SETUP_DOCS_URL } from "@/utils/docsLinks";
 
-// The repo root is the frontend's parent; vitest runs from frontend/.
-const REPO_ROOT = path.resolve(process.cwd(), "..");
+// Resolved from this file (frontend/tests/unit/utils/), not the working
+// directory, so it holds wherever vitest is started from.
+const REPO_ROOT = path.resolve(__dirname, "../../../..");
 
 // GitHub's anchor for a plain-text heading: lower-cased, punctuation dropped,
 // spaces to hyphens. Not a full slugger: it does not strip inline markup or add

@@ -429,8 +429,16 @@ never in `config.yaml`. The admin page's **MCP tools** list (Support →
 Configuration) shows "Not configured" with the reason under any tool the MCP
 server reports as missing its credential, so you can check without asking
 the assistant. This needs an allotmint-pro that reports it; older servers
-show nothing. The deployed `McpServerLambda` does not receive these keys yet
-(leonarduk/allotmint-pro#358).
+show nothing.
+
+The deployed `McpServerLambda` reads the same keys from SSM SecureStrings,
+`/allotmint/mcp/brave-api-key` and `/allotmint/mcp/github-token`, at cold
+start; the stack passes only the parameter names and never the values
+(leonarduk/allotmint-pro#381, once deployed). Create or rotate them with
+`aws ssm put-parameter --type SecureString --overwrite --name <parameter> --value <secret>`;
+new cold starts pick them up without a redeploy. Until a parameter exists,
+its tool shows "Not configured" on the admin page. See "Credentials in
+Lambda" in allotmint-pro's `allotmint_pro/mcp_server/README.md`.
 
 Besides the MCP data tools, the chat can open pages of the app ("go to the
 transactions page"). That tool, `navigate_to_page`, is handled by this backend

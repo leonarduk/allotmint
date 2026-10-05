@@ -300,3 +300,27 @@ def test_flat_spike_at_start_is_kept():
     first.loc[0, "Date"] = pd.Timestamp("2025-09-25")
     # [78.41, 58.01, 58.69]: the flat bar is the first row, so it has one neighbour.
     assert drop_zero_volume_spikes(first, ticker="VHYL", exchange="L") is first
+
+
+def test_unrounded_sub_one_bar_is_not_mistaken_for_flat():
+    """A ~$0.94 bar with a sub-cent range was flat only because of 2 dp rounding (#9369).
+
+    Stored at full precision it keeps its intraday range, so the flat-bar test
+    no longer drops a real (if illiquid) zero-volume session.
+    """
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2026-09-28", "2026-09-29", "2026-09-30"]),
+            "Open": [0.80, 0.9399, 0.80],
+            "High": [0.81, 0.9449, 0.81],
+            "Low": [0.79, 0.9387, 0.79],
+            "Close": [0.80, 0.9416, 0.80],
+            "Volume": [5000, 0, 5000],
+            "Source": ["Yahoo", "Yahoo", "Yahoo"],
+        }
+    )
+    assert drop_zero_volume_spikes(df, ticker="BPCR", exchange="L") is df
+
+    flat = df.copy()
+    flat.loc[1, ["Open", "High", "Low", "Close"]] = 0.9416
+    assert drop_zero_volume_spikes(flat, ticker="BPCR", exchange="L")["Close"].tolist() == [0.80, 0.80]

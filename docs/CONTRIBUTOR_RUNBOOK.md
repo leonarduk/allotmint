@@ -434,7 +434,9 @@ show nothing.
 The deployed `McpServerLambda` reads the same keys from SSM SecureStrings,
 `/allotmint/mcp/brave-api-key` and `/allotmint/mcp/github-token`, at cold
 start; the stack passes only the parameter names and never the values
-(leonarduk/allotmint-pro#381, once deployed). Create or rotate them with
+(leonarduk/allotmint-pro#381, once deployed). Create or rotate them, in the
+same AWS account and region as the deployed stack (SSM parameters are
+regional), with
 `aws ssm put-parameter --type SecureString --overwrite --name <parameter> --value <secret>`;
 new cold starts pick them up without a redeploy. Until a parameter exists,
 its tool shows "Not configured" on the admin page. See "Credentials in

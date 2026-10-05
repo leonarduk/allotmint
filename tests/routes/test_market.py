@@ -289,7 +289,7 @@ def test_fetch_headlines_propagates_stale_flag_from_get_cached_news(monkeypatch)
     monkeypatch.setattr(page_cache, "is_stale", lambda page, ttl: True)
     monkeypatch.setattr(page_cache, "cache_age", lambda page: news_module.NEWS_MAX_STALENESS + 1)
     monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
-    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: False)
+    monkeypatch.setattr(news_module, "_can_request_news", lambda: False)
 
     client = _client()
     resp = client.get("/market/overview")

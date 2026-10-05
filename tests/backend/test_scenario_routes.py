@@ -30,13 +30,17 @@ def _client(monkeypatch, list_plots_return, build_map=None):
         lambda pf, ticker, pct: {"total_value_estimate_gbp": pf["total_value_estimate_gbp"] * (1 + pct)},
     )
 
-    def fake_historical(pf, event_id=None, date=None, horizons=None):
-        results = {}
-        for h in horizons or []:
-            results[h] = {"total_value_estimate_gbp": pf["total_value_estimate_gbp"] * (1 + h / 1000)}
-        return results
+    def fake_historical(pf, event=None, horizons=None):
+        return {
+            label: {"total_value_gbp": pf["total_value_estimate_gbp"] * (1 + days / 1000)}
+            for label, days in horizons.items()
+        }
 
     monkeypatch.setattr("backend.routes.scenario.apply_historical_event", fake_historical)
+    monkeypatch.setattr(
+        "backend.routes.scenario.get_event",
+        lambda eid: {"id": eid, "name": eid, "date": "2020-02-19", "proxy_index": "SPY.N"},
+    )
     return TestClient(app)
 
 
@@ -71,7 +75,6 @@ def test_run_scenario_derives_baseline(monkeypatch):
     assert data["delta_gbp"] == 12.0
 
 
-@pytest.mark.xfail(reason="Scenario data structure changed")
 def test_historical_scenario_parses_tokens(monkeypatch):
     client = _client(monkeypatch, [{"owner": "alice", "accounts": ["acc1"]}])
     resp = client.get("/scenario/historical", params={"event_id": "evt", "horizons": "1d,1w"})

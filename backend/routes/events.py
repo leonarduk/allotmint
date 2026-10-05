@@ -31,6 +31,31 @@ def _market_event(event: dict[str, Any]) -> dict[str, str]:
     return {"id": event["date"], "name": f"{event['date']}: {event['description']}"}
 
 
+def _us_ticker(ticker: Any) -> str | None:
+    """market_events.json names bare US tickers (e.g. ``SPY``); qualify them as NYSE."""
+    if isinstance(ticker, dict):
+        ticker = ticker.get("ticker")
+    if not ticker:
+        return None
+    return ticker if "." in ticker else f"{ticker}.N"
+
+
+def _event_details(raw: Any) -> dict[str, dict[str, Any]]:
+    """Return ``{id: {id, name, date, proxy_index}}`` for the scenario engine."""
+    if isinstance(raw, dict):
+        default_proxy = _us_ticker(raw.get("proxy_index"))
+        details = {}
+        for e in raw.get("events", []):
+            listed = _market_event(e)
+            proxy = _us_ticker(e.get("reference_index")) or default_proxy
+            details[listed["id"]] = {**listed, "date": e["date"], "proxy_index": proxy}
+        return details
+    return {
+        e["id"]: {"id": e["id"], "name": e["name"], "date": e.get("date"), "proxy_index": e.get("proxy_index")}
+        for e in raw
+    }
+
+
 def _normalise_events(raw: Any) -> list[dict[str, str]]:
     """Return ``[{id, name}]`` from either supported events file layout.
 
@@ -47,13 +72,16 @@ _events_path = globals().get("_events_path") or _resolve_events_path()
 
 try:
     with _events_path.open() as fh:
-        _EVENTS = _normalise_events(json.load(fh))
+        _raw_events = json.load(fh)
+    _EVENTS = _normalise_events(_raw_events)
+    _EVENT_DETAILS = _event_details(_raw_events)
 except FileNotFoundError:
     logger.warning(
         "Scenario events file not found at %s; no events will be offered",
         sanitise_log_value(_events_path),
     )
     _EVENTS = []
+    _EVENT_DETAILS = {}
 except (OSError, ValueError, KeyError, TypeError) as exc:
     # A malformed catalogue must not take down the whole app at import time.
     logger.error(
@@ -62,6 +90,12 @@ except (OSError, ValueError, KeyError, TypeError) as exc:
         sanitise_log_value(exc),
     )
     _EVENTS = []
+    _EVENT_DETAILS = {}
+
+
+def get_event(event_id: str) -> dict[str, Any] | None:
+    """Return the full catalogue entry (incl. ``date``/``proxy_index``) for ``event_id``."""
+    return _EVENT_DETAILS.get(event_id)
 
 
 @router.get("/events")

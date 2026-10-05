@@ -1266,3 +1266,26 @@ def test_missing_alpha_key_logs_info_once_until_a_key_is_seen(monkeypatch, caplo
     no_key = [r.levelname for r in caplog.records if "no API key configured" in r.getMessage()]
     assert no_key == ["INFO", "DEBUG", "INFO"]
     assert any("set ALPHA_VANTAGE_KEY" in r.getMessage() for r in caplog.records if r.levelname == "INFO")
+
+
+def test_yahoo_cooldown_skip_logs_info_once_per_cooldown(monkeypatch, caplog):
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(news_module.time, "monotonic", lambda: clock["now"])
+
+    def fail_get(*args, **kwargs):
+        raise AssertionError("Yahoo must not be called during cooldown")
+
+    monkeypatch.setattr(news_module.curl_requests, "get", fail_get)
+
+    with caplog.at_level("DEBUG", logger=news_module.__name__):
+        news_module._yahoo_cooldown.trip("60")
+        news_module.fetch_news_yahoo("PFE")
+        news_module.fetch_news_yahoo("AZN.L")
+        # The first cooldown ends; a fresh 429 starts a new one.
+        clock["now"] += 120
+        news_module._yahoo_cooldown.trip("60")
+        news_module.fetch_news_yahoo("PFE")
+
+    skips = [r for r in caplog.records if "rate-limit cooldown" in r.getMessage()]
+    assert [r.levelname for r in skips] == ["INFO", "DEBUG", "INFO"]
+    assert "60 seconds left" in skips[0].getMessage()

@@ -432,6 +432,9 @@ class _ProviderCooldown:
         self._default = default_seconds
         self._max = max_seconds
         self._until = 0.0
+        # Deadline whose first skip has been announced; a new or extended
+        # cooldown has a different deadline, so its first skip is announced too.
+        self._announced_until = 0.0
         self._lock = threading.Lock()
 
     def remaining(self) -> float:
@@ -447,6 +450,15 @@ class _ProviderCooldown:
         with self._lock:
             self._until = max(self._until, time.monotonic() + seconds)
         return seconds
+
+    def claim_first_skip(self) -> bool:
+        """Return True for the first skip of the current cooldown, else False."""
+
+        with self._lock:
+            if self._announced_until == self._until:
+                return False
+            self._announced_until = self._until
+            return True
 
 
 _yahoo_cooldown = _ProviderCooldown(YAHOO_COOLDOWN_DEFAULT, YAHOO_COOLDOWN_MAX)
@@ -464,7 +476,10 @@ def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
     validate_external_url(endpoint)
     remaining = _yahoo_cooldown.remaining()
     if remaining > 0:
-        logging.getLogger(__name__).debug(
+        # INFO for the first skip of each cooldown, DEBUG for the rest.
+        level = logging.INFO if _yahoo_cooldown.claim_first_skip() else logging.DEBUG
+        logging.getLogger(__name__).log(
+            level,
             "Skipping Yahoo news for %s: rate-limit cooldown, %d seconds left",
             sanitise_log_value(ticker),
             int(remaining),

@@ -280,8 +280,12 @@ def test_historical_event_portfolio_all_total_return(store, monkeypatch):
 
     result = scenario_tester.apply_historical_event_portfolio(portfolio, {"date": DATES[0].date()})
 
-    assert result["1w"]["return_basis"] == tr.TOTAL_RETURN_BASIS
-    assert result["1w"]["price_return_tickers"] == []
+    assert result["1d"]["total_value_gbp"] is not None
+    assert result["1d"]["return_basis"] == tr.TOTAL_RETURN_BASIS
+    assert result["1d"]["price_return_tickers"] == []
+    # A horizon with no value has no basis to report.
+    assert result["1y"]["total_value_gbp"] is None
+    assert result["1y"]["return_basis"] is None
 
 
 # ───────────────────────────── VaR ──────────────────────────────

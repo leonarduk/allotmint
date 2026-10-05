@@ -286,7 +286,7 @@ def test_apply_historical_event_portfolio_no_data_is_none_not_zero(monkeypatch):
         "total_value_gbp": None,
         "delta_gbp": None,
         "coverage_pct": 0.0,
-        "return_basis": "total",
+        "return_basis": None,
         "price_return_tickers": [],
     }
 
@@ -424,7 +424,7 @@ def test_low_coverage_horizon_is_unavailable(monkeypatch):
             "total_value_gbp": None,
             "delta_gbp": None,
             "coverage_pct": 30.0,
-            "return_basis": "total",
+            "return_basis": None,
             "price_return_tickers": [],
         }
     }

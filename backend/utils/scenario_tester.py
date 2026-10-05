@@ -246,6 +246,13 @@ def _shock_horizon(rows: list[tuple[float, Dict[str, float | None]]], label: str
     return invested * covered_return, coverage
 
 
+def _horizon_basis(delta: float | None, price_tickers: set[str]) -> str | None:
+    """``return_basis`` for one horizon; ``None`` when there is no value to describe."""
+    if delta is None:
+        return None
+    return PRICE_RETURN_BASIS if price_tickers else TOTAL_RETURN_BASIS
+
+
 def apply_historical_event_portfolio(
     portfolio: Dict[str, Any],
     event: Mapping[str, Any] | None,
@@ -258,7 +265,8 @@ def apply_historical_event_portfolio(
     result label to a day offset (defaults to ``_HORIZONS``). Each result has
     ``total_value_gbp``, ``delta_gbp``, ``coverage_pct`` (share of invested
     value with real price history), ``return_basis`` (``"total"`` unless some
-    return used was price-only) and ``price_return_tickers`` (those tickers).
+    return used was price-only; ``None`` when the horizon has no value) and
+    ``price_return_tickers`` (those tickers).
     Totals are ``None`` when coverage is too low to say anything, never a
     fabricated number.
     """
@@ -288,7 +296,7 @@ def apply_historical_event_portfolio(
             "total_value_gbp": None if delta is None else round(start + delta, 2),
             "delta_gbp": None if delta is None else round(delta, 2),
             "coverage_pct": round(coverage * 100, 1),
-            "return_basis": PRICE_RETURN_BASIS if price_basis[label] else TOTAL_RETURN_BASIS,
+            "return_basis": _horizon_basis(delta, price_basis[label]),
             "price_return_tickers": sorted(price_basis[label]),
         }
     return result

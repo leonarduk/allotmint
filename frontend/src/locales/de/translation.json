@@ -628,6 +628,7 @@
       "mcpTools": "MCP-Tools",
       "mcpToolsHint": "Tools, die der Chat-Assistent nutzen kann. Standardmäßig sind alle aktiv; Häkchen entfernen, um eines abzuschalten.",
       "mcpToolNotConfigured": "Nicht konfiguriert",
+      "mcpToolSetupLink": "So wird es konfiguriert",
       "mcpToolsUnavailable": "Die MCP-Toolliste konnte nicht geladen werden."
     },
     "dataExplorer": {

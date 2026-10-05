@@ -36,6 +36,10 @@ const UI_KEYS = new Set(["theme", "relative_view_enabled"]);
 // Rendered by the MCP tools section, not the generic parameter list.
 const MCP_TOOLS_KEY = "mcp_tools";
 
+// Where a "not configured" MCP tool's credentials are explained (#9314).
+const MCP_TOOL_SETUP_DOCS_URL =
+  "https://github.com/leonarduk/allotmint/blob/main/docs/CONTRIBUTOR_RUNBOOK.md#running-the-chat-mcp-agent-locally";
+
 // DOM id for an MCP tool's "not configured" note: derived from the tool name
 // (stable across reorders), with characters not safe in an id replaced.
 function mcpToolStatusId(toolName: string): string {
@@ -736,7 +740,15 @@ export default function Support() {
                     </label>
                     {tool.not_configured && (
                       <p id={mcpToolStatusId(tool.name)} className="ml-5 text-xs text-amber-600">
-                        {t("support.config.mcpToolNotConfigured")}: {tool.not_configured}
+                        {t("support.config.mcpToolNotConfigured")}: {tool.not_configured}{" "}
+                        <a
+                          href={MCP_TOOL_SETUP_DOCS_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline"
+                        >
+                          {t("support.config.mcpToolSetupLink")}
+                        </a>
                       </p>
                     )}
                   </div>

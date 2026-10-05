@@ -476,7 +476,17 @@ describe("Support page", () => {
 
     const searchWeb = await screen.findByLabelText("search_web");
     expect(searchWeb).toBeChecked();
-    expect(searchWeb).toHaveAccessibleDescription(`${en.support.config.mcpToolNotConfigured}: ${reason}`);
+    expect(searchWeb).toHaveAccessibleDescription(
+      `${en.support.config.mcpToolNotConfigured}: ${reason} ${en.support.config.mcpToolSetupLink}`,
+    );
+    const setupLinks = screen.getAllByRole("link", { name: en.support.config.mcpToolSetupLink });
+    expect(setupLinks).toHaveLength(1);
+    expect(setupLinks[0]).toHaveAttribute(
+      "href",
+      "https://github.com/leonarduk/allotmint/blob/main/docs/CONTRIBUTOR_RUNBOOK.md#running-the-chat-mcp-agent-locally",
+    );
+    expect(setupLinks[0]).toHaveAttribute("target", "_blank");
+    expect(setupLinks[0]).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getByLabelText("get_portfolio")).not.toHaveAccessibleDescription();
     expect(screen.getAllByText(new RegExp(en.support.config.mcpToolNotConfigured))).toHaveLength(1);
     // The note's id comes from the tool name, not its list position.
@@ -495,7 +505,9 @@ describe("Support page", () => {
 
     const tool = await screen.findByLabelText("web search.v2");
     expect(tool).toHaveAttribute("aria-describedby", "mcp-tool-status-web-search-v2");
-    expect(tool).toHaveAccessibleDescription(`${en.support.config.mcpToolNotConfigured}: missing key`);
+    expect(tool).toHaveAccessibleDescription(
+      `${en.support.config.mcpToolNotConfigured}: missing key ${en.support.config.mcpToolSetupLink}`,
+    );
   });
 
   it("separates switches from other parameters", async () => {

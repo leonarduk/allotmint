@@ -676,3 +676,16 @@ def test_single_flight_follower_receives_leader_exception(monkeypatch):
     assert len(errors) == 2
     assert all(isinstance(exc, news_module.NewsQuotaExceeded) for exc in errors)
     assert "news_ERR" not in news_module._inflight
+
+
+def test_yahoo_client_is_curl_cffi():
+    """``curl_requests`` must resolve to ``curl_cffi.requests``, not ``requests``.
+
+    The lazy proxy defers the import, so assert what it loads rather than
+    trusting the name.
+    """
+
+    import curl_cffi.requests
+
+    assert news_module.curl_requests.get is curl_cffi.requests.get
+    assert news_module.curl_requests.get is not news_module.requests.get

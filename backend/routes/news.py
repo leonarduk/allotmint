@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+from concurrent.futures import Future
 from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -11,6 +13,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import defusedxml.ElementTree as ET
 import requests
+from curl_cffi import requests as curl_requests
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from backend import config_module
@@ -31,6 +34,17 @@ NEWS_TTL = 900  # seconds
 NEWS_MAX_STALENESS = 24 * 60 * 60  # 1 day
 BASE_URL = "https://www.alphavantage.co/query"
 COUNTER_FILE: Path = page_cache.CACHE_DIR / "news_requests.json"
+# Yahoo rate-limits (429) requests that don't look like a browser, which
+# plain ``requests`` (``python-requests/x.y`` UA, non-browser TLS fingerprint)
+# triggers almost immediately. ``curl_cffi`` impersonates Chrome's TLS and
+# HTTP/2 fingerprint, the same approach yfinance uses for its own calls.
+YAHOO_IMPERSONATE = "chrome"
+
+# Per-ticker in-flight fetches, so concurrent callers for the same ticker
+# share one upstream fetch (and one quota unit) instead of each hitting the
+# providers. Entries exist only while a fetch is running.
+_inflight_lock = threading.Lock()
+_inflight: Dict[str, "Future[List[Dict[str, str]]]"] = {}
 
 _FINANCE_KEYWORDS = (
     "stock",
@@ -231,7 +245,13 @@ def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
     clean_ticker = ticker.strip().upper()
     query, instrument_name = _build_fallback_query(clean_ticker)
     params = {"q": query, "quotesCount": 0, "newsCount": 10}
-    resp = requests.get(endpoint, params=params, timeout=10, allow_redirects=False)
+    resp = curl_requests.get(
+        endpoint,
+        params=params,
+        timeout=10,
+        allow_redirects=False,
+        impersonate=YAHOO_IMPERSONATE,
+    )
     resp.raise_for_status()
     data = resp.json()
     items = data.get("news", [])
@@ -369,6 +389,40 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
     return []
 
 
+def _single_flight(key: str, fetch: Callable[[], List[Dict[str, str]]]) -> List[Dict[str, str]]:
+    """Run ``fetch`` once per ``key`` across concurrent callers.
+
+    The first caller for ``key`` runs ``fetch``; callers arriving while it is
+    still running block on its result (or its exception) instead of starting
+    their own upstream request. Once it finishes the entry is dropped, so a
+    later call fetches again. This only covers the in-flight window: callers
+    that arrive after it but before the cache file is written (``/news``
+    persists via a background task) will still fetch.
+    """
+
+    with _inflight_lock:
+        future = _inflight.get(key)
+        is_leader = future is None
+        if future is None:
+            future = Future()
+            _inflight[key] = future
+
+    if not is_leader:
+        return future.result()
+
+    try:
+        result = fetch()
+    except BaseException as exc:
+        future.set_exception(exc)
+        raise
+    else:
+        future.set_result(result)
+        return result
+    finally:
+        with _inflight_lock:
+            _inflight.pop(key, None)
+
+
 def _is_cache_stale(page: str) -> bool:
     """Return True when the cache for ``page`` exceeds ``NEWS_MAX_STALENESS``."""
 
@@ -433,10 +487,13 @@ def get_cached_news(
 
     page = f"news_{tkr}"
 
-    def _call() -> List[Dict[str, str]]:
+    def _fetch_once() -> List[Dict[str, str]]:
         if not _try_consume_quota():
             raise NewsQuotaExceeded("news quota exceeded")
         return _fetch_news(tkr)
+
+    def _call() -> List[Dict[str, str]]:
+        return _single_flight(page, _fetch_once)
 
     def _schedule_refresh(initial_delay: float | None = None) -> None:
         page_cache.schedule_refresh(

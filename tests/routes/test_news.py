@@ -61,6 +61,7 @@ def test_fetch_news_yahoo(monkeypatch):
     def fake_get(url, params=None, timeout=10, **kwargs):
         captured["url"] = url
         captured["params"] = params
+        captured["impersonate"] = kwargs.get("impersonate")
 
         class Response:
             def raise_for_status(self):
@@ -83,7 +84,7 @@ def test_fetch_news_yahoo(monkeypatch):
 
         return Response()
 
-    monkeypatch.setattr(news_module.requests, "get", fake_get)
+    monkeypatch.setattr(news_module.curl_requests, "get", fake_get)
 
     items = news_module.fetch_news_yahoo("PFE")
     assert items == [
@@ -93,6 +94,8 @@ def test_fetch_news_yahoo(monkeypatch):
     query = captured["params"]["q"]
     assert query.startswith("PFE")
     assert "stock" in query.lower()
+    # Plain ``requests`` gets 429'd by Yahoo; the fetch must impersonate a browser.
+    assert captured["impersonate"] == news_module.YAHOO_IMPERSONATE
 
 
 def test_fetch_news_google(monkeypatch):
@@ -155,7 +158,7 @@ def test_fetch_news_yahoo_populates_published_at_and_source(monkeypatch):
 
         return Response()
 
-    monkeypatch.setattr(news_module.requests, "get", fake_get)
+    monkeypatch.setattr(news_module.curl_requests, "get", fake_get)
 
     items = news_module.fetch_news_yahoo("PFE")
     assert items == [
@@ -554,3 +557,77 @@ def test_get_cached_news_rebuilds_stale_cache_off_event_loop(monkeypatch, tmp_pa
     assert items == [{**fresh[0], "stale": False}]
     assert page_cache.load_cache("news_ONE") == fresh
     assert "news_ONE" not in page_cache._refresh_tasks
+
+
+def test_get_cached_news_shares_concurrent_fetch(monkeypatch, tmp_path):
+    """Concurrent callers for the same ticker must share one upstream fetch.
+
+    Without single-flighting, each request that misses the cache fetches on
+    its own, multiplying calls to Yahoo (and its 429s) and burning one quota
+    unit per caller.
+    """
+
+    import threading
+    from concurrent.futures import Future
+
+    monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(news_module, "COUNTER_FILE", tmp_path / "news_requests.json")
+    monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
+
+    callers = 4
+    started = threading.Event()
+    release = threading.Event()
+    fetch_calls = {"count": 0}
+
+    def slow_fetch(ticker: str) -> List[Dict[str, str]]:
+        fetch_calls["count"] += 1
+        started.set()
+        assert release.wait(timeout=5)
+        return [{"headline": f"{ticker} stock news", "url": "https://example.com/n"}]
+
+    monkeypatch.setattr(news_module, "_fetch_news", slow_fetch)
+
+    waiting = threading.Semaphore(0)
+
+    class SignallingFuture(Future):
+        """Signals when a follower starts blocking on the leader's result."""
+
+        def result(self, timeout=None):
+            waiting.release()
+            return super().result(timeout)
+
+    monkeypatch.setattr(news_module, "Future", SignallingFuture)
+
+    results: List[List[Dict[str, object]]] = []
+
+    def worker() -> None:
+        results.append(news_module.get_cached_news("ftse", cache_writer=lambda page, data: None))
+
+    threads = [threading.Thread(target=worker, daemon=True) for _ in range(callers)]
+    threads[0].start()
+    assert started.wait(timeout=5)
+    for thread in threads[1:]:
+        thread.start()
+    # Hold the leader's fetch open until every follower is blocked on it.
+    for _ in range(callers - 1):
+        assert waiting.acquire(timeout=5)
+
+    release.set()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert fetch_calls["count"] == 1
+    assert len(results) == callers
+    assert all(r == results[0] for r in results)
+    assert news_module._load_counter()["count"] == 1
+    assert news_module._inflight == {}
+
+
+def test_single_flight_propagates_errors_and_clears_entry():
+    def boom() -> List[Dict[str, str]]:
+        raise news_module.NewsQuotaExceeded("news quota exceeded")
+
+    with pytest.raises(news_module.NewsQuotaExceeded):
+        news_module._single_flight("news_X", boom)
+    assert "news_X" not in news_module._inflight
+    assert news_module._single_flight("news_X", lambda: []) == []

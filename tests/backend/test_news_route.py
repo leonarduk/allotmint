@@ -138,7 +138,7 @@ def test_fallback_helpers_filter_finance_headlines(monkeypatch):
 
         return Response()
 
-    monkeypatch.setattr(news.requests, "get", fake_yahoo)
+    monkeypatch.setattr(news.curl_requests, "get", fake_yahoo)
     yahoo_items = news.fetch_news_yahoo("PFE")
     assert yahoo_items == [{"headline": "PFE stock jumps on earnings", "url": "https://example.com/finance"}]
 

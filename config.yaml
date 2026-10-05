@@ -117,3 +117,4 @@ trading_agent:
   min_sharpe: null
   max_volatility: null
 cors_origins: http://localhost:3000,http://localhost:2568
+mcp_github_repo: leonarduk/allotmint

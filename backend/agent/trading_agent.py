@@ -23,12 +23,14 @@ from backend.common.portfolio_utils import (
     compute_owner_performance,
     list_all_unique_tickers,
 )
+from backend.common.ticker_utils import split_ticker
 from backend.common.trade_metrics import (
     TRADE_LOG_PATH,
     load_and_compute_metrics,
 )
 from backend.config import TradingAgentConfig, config
 from backend.logging_setup import sanitise_log_value
+from backend.timeseries.total_return import total_return_frame
 from backend.utils.telegram_utils import redact_token, send_message
 
 try:
@@ -113,6 +115,18 @@ def _price_column(df: pd.DataFrame) -> Optional[str]:
         if col in df.columns:
             return col
     return None
+
+
+def _daily_returns(tdf: pd.DataFrame, col: str, ticker: str) -> tuple[pd.Series, str]:
+    """Daily total returns of ``tdf[col]`` for volatility/Sharpe, with their ``return_basis`` (#9370).
+
+    Price returns when ``ticker`` has no stored corporate actions. Price-level
+    readings (last price, RSI, moving averages, 7-day change) stay on the
+    traded closes.
+    """
+    symbol, exchange = split_ticker(ticker)
+    tr_df, basis = total_return_frame(tdf, symbol, exchange or "")
+    return tr_df[col].pct_change().dropna(), basis
 
 
 def _join_with_and(items: Sequence[str]) -> str:
@@ -529,7 +543,7 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
             if pd.notna(sma_200_val):
                 sma_200 = float(sma_200_val)
 
-        returns = tdf[col].pct_change().dropna()
+        returns, return_basis = _daily_returns(tdf, col, tkr)
         volatility = float(returns.std(ddof=1)) if len(returns) >= 2 else None
         sharpe = None
         if volatility and volatility > 0:
@@ -549,6 +563,7 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
             "sma_200": sma_200,
             "volatility": volatility,
             "sharpe": sharpe,
+            "return_basis": return_basis,
         }
 
     signals = generate_signals(snapshot)

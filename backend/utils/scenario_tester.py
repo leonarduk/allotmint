@@ -20,6 +20,7 @@ from backend.common.constants import (
 from backend.common.prices import get_price_gbp
 from backend.common.sector_labels import is_cash_instrument
 from backend.timeseries.cache import load_meta_timeseries_range
+from backend.timeseries.total_return import PRICE_RETURN_BASIS, TOTAL_RETURN_BASIS, total_return_frame
 from backend.utils.timeseries_helpers import (
     apply_scaling,
     get_scaling_override,
@@ -125,12 +126,18 @@ def _forward_returns(
     exchange: str,
     event_date: dt.date,
     horizons: Mapping[str, int] = _HORIZONS,
-) -> Dict[str, float | None]:
+) -> tuple[Dict[str, float | None], str]:
+    """Total returns (price + reinvested dividends) from ``event_date`` per horizon.
+
+    Returns ``(returns, return_basis)``; the basis is ``"price"`` when the
+    ticker has no stored corporate actions (see ``total_return_frame``).
+    """
     end = event_date + dt.timedelta(days=max(horizons.values()) + _MAX_PRICE_GAP_DAYS)
     df = load_meta_timeseries_range(ticker, exchange, start_date=event_date, end_date=end)
     if df is None or df.empty:
-        return {k: None for k in horizons}
+        return {k: None for k in horizons}, PRICE_RETURN_BASIS
 
+    df, basis = total_return_frame(df, ticker, exchange)
     scale = get_scaling_override(ticker, exchange, None)
     df = apply_scaling(df, scale)
     df = df.copy().reset_index()
@@ -139,7 +146,7 @@ def _forward_returns(
     date_col = nm.get("date") or nm.get("index") or df.columns[0]
     price_col = _close_column(df)
     if not price_col:
-        return {k: None for k in horizons}
+        return {k: None for k in horizons}, basis
     df[date_col] = pd.to_datetime(df[date_col], errors="coerce").dt.date
     df[price_col] = pd.to_numeric(df[price_col], errors="coerce")
     df = df.sort_values(date_col)
@@ -158,7 +165,7 @@ def _forward_returns(
             results[label] = end_price / base - 1.0
         else:
             results[label] = None
-    return results
+    return results, basis
 
 
 # Below this share of invested value with real price history, a horizon is
@@ -166,21 +173,40 @@ def _forward_returns(
 # holdings.
 _MIN_COVERAGE = 0.5
 
+_TickerReturns = tuple[str, tuple[Dict[str, float | None], str]]
+
+
+def _horizon_return(label: str, own: _TickerReturns, proxy: _TickerReturns) -> tuple[float | None, str | None]:
+    """A holding's return for ``label``, falling back to the proxy's; ``None`` when neither has one.
+
+    Also returns the ticker whose price-basis return was used, or ``None``
+    when the return used was a total return (or there was none at all).
+    """
+    for ticker, (returns, basis) in (own, proxy):
+        r = returns.get(label)
+        if r is not None:
+            return r, (ticker if basis == PRICE_RETURN_BASIS else None)
+    return None, None
+
 
 def _holding_returns(
     portfolio: Dict[str, Any],
     event_date: dt.date,
     horizon_days: Mapping[str, int],
-    proxy_returns: Mapping[str, float | None],
-) -> list[tuple[float, Dict[str, float | None]]]:
-    """Return ``(market_value, {label: return | None})`` for each priced holding.
+    proxy: _TickerReturns,
+) -> tuple[list[tuple[float, Dict[str, float | None]]], Dict[str, set[str]]]:
+    """Return ``(rows, price_basis)`` for the portfolio's priced holdings.
 
-    A holding's own forward return is used where available, then the proxy
+    ``rows`` holds ``(market_value, {label: return | None})`` per holding. A
+    holding's own forward return is used where available, then the proxy
     index's; cash is held flat. ``None`` means neither had prices.
+    ``price_basis`` maps each label to the tickers whose return used for it was
+    price-only (no stored dividends).
     """
 
     rows: list[tuple[float, Dict[str, float | None]]] = []
-    cache: Dict[str, Dict[str, float | None]] = {}
+    price_basis: Dict[str, set[str]] = {k: set() for k in horizon_days}
+    cache: Dict[str, tuple[Dict[str, float | None], str]] = {}
     for acct in portfolio.get("accounts", []):
         for h in acct.get("holdings", []):
             mv = float(h.get("market_value_gbp") or 0.0)
@@ -194,9 +220,13 @@ def _holding_returns(
             key = f"{tkr}.{ex}"
             if key not in cache:
                 cache[key] = _forward_returns(tkr, ex, event_date, horizon_days)
-            own = cache[key]
-            rows.append((mv, {k: own.get(k) if own.get(k) is not None else proxy_returns.get(k) for k in horizon_days}))
-    return rows
+            rets: Dict[str, float | None] = {}
+            for label in horizon_days:
+                rets[label], source = _horizon_return(label, (key, cache[key]), proxy)
+                if source is not None:
+                    price_basis[label].add(source)
+            rows.append((mv, rets))
+    return rows, price_basis
 
 
 def _shock_horizon(rows: list[tuple[float, Dict[str, float | None]]], label: str) -> tuple[float | None, float]:
@@ -216,19 +246,29 @@ def _shock_horizon(rows: list[tuple[float, Dict[str, float | None]]], label: str
     return invested * covered_return, coverage
 
 
+def _horizon_basis(delta: float | None, price_tickers: set[str]) -> str | None:
+    """``return_basis`` for one horizon; ``None`` when there is no value to describe."""
+    if delta is None:
+        return None
+    return PRICE_RETURN_BASIS if price_tickers else TOTAL_RETURN_BASIS
+
+
 def apply_historical_event_portfolio(
     portfolio: Dict[str, Any],
     event: Mapping[str, Any] | None,
     *,
     horizons: Mapping[str, int] | None = None,
-) -> Dict[str, Dict[str, float | None]]:
+) -> Dict[str, Dict[str, Any]]:
     """Return shocked portfolio valuations for a historical ``event``.
 
     ``event`` must define ``date`` and ``proxy_index``. ``horizons`` maps a
     result label to a day offset (defaults to ``_HORIZONS``). Each result has
-    ``total_value_gbp``, ``delta_gbp`` and ``coverage_pct`` (share of invested
-    value with real price history). Totals are ``None`` when coverage is too
-    low to say anything, never a fabricated number.
+    ``total_value_gbp``, ``delta_gbp``, ``coverage_pct`` (share of invested
+    value with real price history), ``return_basis`` (``"total"`` unless some
+    return used was price-only; ``None`` when the horizon has no value) and
+    ``price_return_tickers`` (those tickers).
+    Totals are ``None`` when coverage is too low to say anything, never a
+    fabricated number.
     """
 
     if not event or not event.get("date"):
@@ -240,22 +280,24 @@ def apply_historical_event_portfolio(
         baseline = sum(float(a.get("value_estimate_gbp") or 0.0) for a in portfolio.get("accounts", []))
 
     event_date = _parse_date(event["date"])
-    proxy_returns: Dict[str, float | None] = {k: None for k in horizon_days}
+    proxy: _TickerReturns = ("", ({k: None for k in horizon_days}, TOTAL_RETURN_BASIS))
     if event.get("proxy_index"):
         proxy_tkr, proxy_ex = _parse_full_ticker(event["proxy_index"])
-        proxy_returns = _forward_returns(proxy_tkr, proxy_ex, event_date, horizon_days)
+        proxy = (f"{proxy_tkr}.{proxy_ex}", _forward_returns(proxy_tkr, proxy_ex, event_date, horizon_days))
 
-    rows = _holding_returns(portfolio, event_date, horizon_days, proxy_returns)
+    rows, price_basis = _holding_returns(portfolio, event_date, horizon_days, proxy)
     # Value not represented by a holding (e.g. an account total that includes
     # unlisted items) is carried at baseline, so it never reads as a loss.
     start = baseline or sum(mv for mv, _ in rows)
-    result: Dict[str, Dict[str, float | None]] = {}
+    result: Dict[str, Dict[str, Any]] = {}
     for label in horizon_days:
         delta, coverage = _shock_horizon(rows, label)
         result[label] = {
             "total_value_gbp": None if delta is None else round(start + delta, 2),
             "delta_gbp": None if delta is None else round(delta, 2),
             "coverage_pct": round(coverage * 100, 1),
+            "return_basis": _horizon_basis(delta, price_basis[label]),
+            "price_return_tickers": sorted(price_basis[label]),
         }
     return result
 
@@ -288,20 +330,42 @@ def _get_close(row: pd.Series) -> float | None:
     return None
 
 
+def _last_date(df: pd.DataFrame) -> dt.date | None:
+    """The date of ``df``'s last row, or ``None`` when the frame carries no dates.
+
+    Cache frames carry their dates in a ``Date`` column (RangeIndex); older
+    callers pass a date index. A frame with neither (a bare numeric index)
+    yields ``None`` instead of an integer that cannot be compared to a date.
+    """
+    columns = {str(col).lower(): col for col in df.columns}
+    raw = df[columns["date"]].iloc[-1] if "date" in columns else df.index[-1]
+    if not isinstance(raw, (dt.date, str)):
+        return None
+    ts = pd.to_datetime(raw, errors="coerce")
+    return None if pd.isna(ts) else ts.date()
+
+
 def _calc_return(ticker: str, exchange: str | None, start: dt.date, horizon: int) -> float | None:
-    """Calculate percentage return for ``ticker.exchange`` over ``horizon`` days."""
+    """Calculate the total return (price + reinvested dividends) for ``ticker.exchange`` over ``horizon`` days.
+
+    Price return when the ticker has no stored corporate actions; this
+    per-holding map has no field to report the basis in, so callers needing it
+    use ``apply_historical_event_portfolio``.
+    """
     end = start + dt.timedelta(days=horizon)
     df = load_meta_timeseries_range(ticker, exchange or "", start_date=start, end_date=end)
     if df.empty or len(df) < 2:
         return None
 
+    # Basis deliberately dropped: the fallback is logged by total_return_frame.
+    df, _basis = total_return_frame(df, ticker, exchange or "")
     scale = get_scaling_override(ticker, exchange or "", None)
     df = apply_scaling(df, scale)
 
     # Ensure the data covers (most of) the requested horizon.
-    last = df.index[-1]
-    if isinstance(last, pd.Timestamp):
-        last = last.date()
+    last = _last_date(df)
+    if last is None:
+        return None
     expected_end = start + dt.timedelta(days=horizon)
     # Allow a few calendar days of tolerance for weekends/holidays.
     if (expected_end - last).days > 3:

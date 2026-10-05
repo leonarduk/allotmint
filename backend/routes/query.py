@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from backend.common.path_utils import safe_join
 from backend.common.portfolio_loader import list_portfolios
-from backend.common.portfolio_utils import compute_var, get_security_meta
+from backend.common.portfolio_utils import compute_var_with_basis, get_security_meta
 from backend.config import config, demo_identity
 from backend.timeseries.cache import load_meta_timeseries_range
 
@@ -228,10 +228,11 @@ def run_query(q: CustomQuery):
             )
         row = {"ticker": t}
         if needs_timeseries:
-            if df is not None:
-                row[Metric.VAR.value] = compute_var(df)
-            else:
-                row[Metric.VAR.value] = None
+            # VaR from total returns (#9370); return_basis says "price" when the
+            # ticker has no stored corporate actions.
+            var, basis = compute_var_with_basis(df, ticker=sym, exchange=exch)
+            row[Metric.VAR.value] = var
+            row["return_basis"] = basis
         if Metric.META in q.metrics:
             meta = get_security_meta(t) or {}
             row.update(meta)

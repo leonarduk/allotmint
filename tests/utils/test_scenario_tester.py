@@ -138,9 +138,10 @@ def test_forward_returns_empty(monkeypatch):
     monkeypatch.setattr(sc_tester, "apply_scaling", fake_scale)
 
     event_date = dt.date(2024, 1, 1)
-    returns = sc_tester._forward_returns("ABC", "L", event_date)
+    returns, basis = sc_tester._forward_returns("ABC", "L", event_date)
 
     assert returns == {k: None for k in sc_tester._HORIZONS}
+    assert basis == "price"
     assert called["scaling"] is False
 
 
@@ -154,8 +155,10 @@ def test_forward_returns_with_data(monkeypatch):
     monkeypatch.setattr(sc_tester, "get_scaling_override", lambda *a, **k: 1.0)
     monkeypatch.setattr(sc_tester, "apply_scaling", lambda d, s: d)
 
-    returns = sc_tester._forward_returns("ABC", "L", event_date)
+    returns, basis = sc_tester._forward_returns("ABC", "L", event_date)
 
+    # No stored corporate actions for ABC.L, so it falls back to price return.
+    assert basis == "price"
     assert returns["1d"] == pytest.approx(0.10)
     assert returns["1w"] == pytest.approx(0.20)
     assert returns["1m"] == pytest.approx(0.30)
@@ -173,7 +176,7 @@ def test_forward_returns_nonfinite_prices(monkeypatch):
     monkeypatch.setattr(sc_tester, "get_scaling_override", lambda *a, **k: 1.0)
     monkeypatch.setattr(sc_tester, "apply_scaling", lambda d, s: d)
 
-    returns = sc_tester._forward_returns("ABC", "L", event_date)
+    returns, _basis = sc_tester._forward_returns("ABC", "L", event_date)
 
     assert returns["1d"] is None
     assert returns["1w"] == pytest.approx(0.20)
@@ -235,7 +238,7 @@ def test_apply_historical_event_portfolio_aggregates_returns(monkeypatch):
     }
 
     def fake_forward_returns(ticker, exchange, event_date, horizons=sc_tester._HORIZONS):
-        return returns_map[(ticker, exchange)]
+        return returns_map[(ticker, exchange)], "total"
 
     monkeypatch.setattr(sc_tester, "_forward_returns", fake_forward_returns)
 
@@ -273,13 +276,19 @@ def test_apply_historical_event_portfolio_no_data_is_none_not_zero(monkeypatch):
     monkeypatch.setattr(
         sc_tester,
         "_forward_returns",
-        lambda t, e, d, horizons=sc_tester._HORIZONS: {k: None for k in horizons},
+        lambda t, e, d, horizons=sc_tester._HORIZONS: ({k: None for k in horizons}, "total"),
     )
     event = {"date": "2008-09-15", "proxy_index": "SPY.N"}
 
     result = sc_tester.apply_historical_event_portfolio(_single_holding("AAA.L"), event)
 
-    assert result["1y"] == {"total_value_gbp": None, "delta_gbp": None, "coverage_pct": 0.0}
+    assert result["1y"] == {
+        "total_value_gbp": None,
+        "delta_gbp": None,
+        "coverage_pct": 0.0,
+        "return_basis": None,
+        "price_return_tickers": [],
+    }
 
 
 def test_apply_historical_event_portfolio_holds_cash_flat(monkeypatch):
@@ -287,7 +296,7 @@ def test_apply_historical_event_portfolio_holds_cash_flat(monkeypatch):
 
     def fake_forward_returns(ticker, exchange, event_date, horizons=sc_tester._HORIZONS):
         calls.append(ticker)
-        return {k: -0.5 for k in horizons}
+        return {k: -0.5 for k in horizons}, "total"
 
     monkeypatch.setattr(sc_tester, "_forward_returns", fake_forward_returns)
     portfolio = {
@@ -305,7 +314,15 @@ def test_apply_historical_event_portfolio_holds_cash_flat(monkeypatch):
 
     result = sc_tester.apply_historical_event_portfolio(portfolio, event, horizons={"1m": 30})
 
-    assert result == {"1m": {"total_value_gbp": 150.0, "delta_gbp": -50.0, "coverage_pct": 100.0}}
+    assert result == {
+        "1m": {
+            "total_value_gbp": 150.0,
+            "delta_gbp": -50.0,
+            "coverage_pct": 100.0,
+            "return_basis": "total",
+            "price_return_tickers": [],
+        }
+    }
     assert "CASH" not in calls
 
 
@@ -314,14 +331,22 @@ def test_apply_historical_event_portfolio_custom_horizons(monkeypatch):
 
     def fake_forward_returns(ticker, exchange, event_date, horizons=sc_tester._HORIZONS):
         seen[ticker] = (event_date, dict(horizons))
-        return {k: days / 100 for k, days in horizons.items()}
+        return {k: days / 100 for k, days in horizons.items()}, "total"
 
     monkeypatch.setattr(sc_tester, "_forward_returns", fake_forward_returns)
     event = {"date": "2020-02-19", "proxy_index": "SPY.N"}
 
     result = sc_tester.apply_historical_event_portfolio(_single_holding("AAA.L"), event, horizons={"10": 10})
 
-    assert result == {"10": {"total_value_gbp": 110.0, "delta_gbp": 10.0, "coverage_pct": 100.0}}
+    assert result == {
+        "10": {
+            "total_value_gbp": 110.0,
+            "delta_gbp": 10.0,
+            "coverage_pct": 100.0,
+            "return_basis": "total",
+            "price_return_tickers": [],
+        }
+    }
     assert seen["AAA"] == (dt.date(2020, 2, 19), {"10": 10})
     assert seen["SPY"][0] == dt.date(2020, 2, 19)
 
@@ -332,7 +357,7 @@ def test_forward_returns_ignores_prices_far_from_target(monkeypatch):
     dates = [event_date + dt.timedelta(days=d) for d in [60, 90, 365]]
     _no_scaling(monkeypatch, pd.DataFrame({"Date": dates, "Close_gbp": [100, 110, 120]}).set_index("Date"))
 
-    returns = sc_tester._forward_returns("NEW", "L", event_date)
+    returns, _basis = sc_tester._forward_returns("NEW", "L", event_date)
 
     assert all(v is None for v in returns.values())
 
@@ -343,7 +368,7 @@ def test_forward_returns_tolerates_weekend_gaps(monkeypatch):
     dates = [event_date, event_date + dt.timedelta(days=368)]
     _no_scaling(monkeypatch, pd.DataFrame({"Date": dates, "Close_gbp": [100, 90]}).set_index("Date"))
 
-    returns = sc_tester._forward_returns("ABC", "L", event_date)
+    returns, _basis = sc_tester._forward_returns("ABC", "L", event_date)
 
     assert returns["1y"] == pytest.approx(-0.1)
     assert returns["1d"] is None
@@ -365,7 +390,7 @@ def _two_holdings(covered_mv, uncovered_mv):
 
 def _old_only_returns(monkeypatch, ret):
     def fake_forward_returns(ticker, exchange, event_date, horizons=sc_tester._HORIZONS):
-        return {k: ret if ticker == "OLD" else None for k in horizons}
+        return {k: ret if ticker == "OLD" else None for k in horizons}, "total"
 
     monkeypatch.setattr(sc_tester, "_forward_returns", fake_forward_returns)
 
@@ -377,7 +402,15 @@ def test_uncovered_holdings_follow_covered_return(monkeypatch):
 
     result = sc_tester.apply_historical_event_portfolio(_two_holdings(800.0, 200.0), event, horizons={"1m": 30})
 
-    assert result == {"1m": {"total_value_gbp": 800.0, "delta_gbp": -200.0, "coverage_pct": 80.0}}
+    assert result == {
+        "1m": {
+            "total_value_gbp": 800.0,
+            "delta_gbp": -200.0,
+            "coverage_pct": 80.0,
+            "return_basis": "total",
+            "price_return_tickers": [],
+        }
+    }
 
 
 def test_low_coverage_horizon_is_unavailable(monkeypatch):
@@ -386,7 +419,15 @@ def test_low_coverage_horizon_is_unavailable(monkeypatch):
 
     result = sc_tester.apply_historical_event_portfolio(_two_holdings(300.0, 700.0), event, horizons={"1m": 30})
 
-    assert result == {"1m": {"total_value_gbp": None, "delta_gbp": None, "coverage_pct": 30.0}}
+    assert result == {
+        "1m": {
+            "total_value_gbp": None,
+            "delta_gbp": None,
+            "coverage_pct": 30.0,
+            "return_basis": None,
+            "price_return_tickers": [],
+        }
+    }
 
 
 def test_empty_portfolio_is_unavailable_not_zero(monkeypatch):
@@ -413,4 +454,12 @@ def test_value_outside_holdings_is_carried_at_baseline(monkeypatch):
 
     result = sc_tester.apply_historical_event_portfolio(portfolio, {"date": "2020-02-19"}, horizons={"1m": 30})
 
-    assert result == {"1m": {"total_value_gbp": 940.0, "delta_gbp": -60.0, "coverage_pct": 100.0}}
+    assert result == {
+        "1m": {
+            "total_value_gbp": 940.0,
+            "delta_gbp": -60.0,
+            "coverage_pct": 100.0,
+            "return_basis": "total",
+            "price_return_tickers": [],
+        }
+    }

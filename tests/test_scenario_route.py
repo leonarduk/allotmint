@@ -122,7 +122,7 @@ def test_historical_scenario_events_give_different_results(monkeypatch):
     }
 
     def fake_forward_returns(ticker, exchange, event_date, horizons=sc_tester._HORIZONS):
-        return {label: returns_by_date[event_date][label] for label in horizons}
+        return {label: returns_by_date[event_date][label] for label in horizons}, "total"
 
     monkeypatch.setattr(sc_tester, "_forward_returns", fake_forward_returns)
     _patch_single_owner(
@@ -156,7 +156,7 @@ def test_historical_scenario_missing_prices_are_null_not_zero(monkeypatch):
     monkeypatch.setattr(
         sc_tester,
         "_forward_returns",
-        lambda ticker, exchange, event_date, horizons=sc_tester._HORIZONS: {k: None for k in horizons},
+        lambda ticker, exchange, event_date, horizons=sc_tester._HORIZONS: ({k: None for k in horizons}, "total"),
     )
     _patch_single_owner(
         monkeypatch,
@@ -203,7 +203,7 @@ def test_market_event_date_id_runs_through_historical_route(monkeypatch):
 
     def fake_forward_returns(ticker, exchange, event_date, horizons=sc_tester._HORIZONS):
         seen.append((ticker, exchange, event_date))
-        return {label: 0.05 for label in horizons}
+        return {label: 0.05 for label in horizons}, "total"
 
     monkeypatch.setattr(sc_tester, "_forward_returns", fake_forward_returns)
     _patch_single_owner(

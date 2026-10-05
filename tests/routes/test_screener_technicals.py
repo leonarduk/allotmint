@@ -64,3 +64,21 @@ def test_technicals_maps_value_errors_to_400(monkeypatch):
     resp = _client().get("/screener/technicals", params={"ticker": ".L"})
 
     assert resp.status_code == 400
+
+
+def test_technicals_passes_return_basis_through_unchanged(monkeypatch):
+    """#9370: the period returns are computed in allotmint-pro (total return,
+    with ``return_basis``); this route must surface them untouched, so it has
+    no return maths of its own and must not reshape or filter the payload."""
+    payload = {
+        "ticker": "VHYL.L",
+        "returns": {"1m": 0.012, "1y": 0.081},
+        "return_basis": "total",
+        "rsi": {"value": 55.0, "zone": "neutral"},
+    }
+    monkeypatch.setattr(screener, "instrument_technicals", lambda t: SimpleNamespace(model_dump=lambda: payload))
+
+    resp = _client().get("/screener/technicals", params={"ticker": "VHYL.L"})
+
+    assert resp.status_code == 200
+    assert resp.json() == payload

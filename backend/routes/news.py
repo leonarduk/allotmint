@@ -599,6 +599,29 @@ def _log_alpha_notice(ticker: str, data: Dict[str, Any]) -> None:
             return
 
 
+# Set once the missing-key skip has been announced at INFO; cleared when a key
+# is seen, so removing it again (config reload) is announced again.
+_missing_alpha_key_logged = threading.Event()
+
+
+def _log_missing_alpha_key(ticker: str) -> None:
+    """Log the no-key skip at INFO once per process, then DEBUG.
+
+    The key is static configuration, so one INFO line says why AlphaVantage
+    isn't used without repeating it for every fetch.
+    """
+
+    if _missing_alpha_key_logged.is_set():
+        logging.getLogger(__name__).debug(
+            "Skipping AlphaVantage news for %s: no API key configured", sanitise_log_value(ticker)
+        )
+        return
+    _missing_alpha_key_logged.set()
+    logging.getLogger(__name__).info(
+        "AlphaVantage news disabled: no API key configured (set ALPHA_VANTAGE_KEY); using Yahoo and Google"
+    )
+
+
 def fetch_news_alpha(ticker: str) -> List[Dict[str, str]]:
     """Fetch headlines from AlphaVantage ``NEWS_SENTIMENT``.
 
@@ -608,10 +631,9 @@ def fetch_news_alpha(ticker: str) -> List[Dict[str, str]]:
     """
 
     if not cfg.alpha_vantage_key:
-        logging.getLogger(__name__).debug(
-            "Skipping AlphaVantage news for %s: no API key configured", sanitise_log_value(ticker)
-        )
+        _log_missing_alpha_key(ticker)
         return []
+    _missing_alpha_key_logged.clear()
     if not _ALPHA_QUOTA.try_consume():
         return []
     params = {

@@ -465,6 +465,61 @@ def test_run_pro_absent_tags_checks_skipped_and_warns_once(monkeypatch, caplog):
     assert len(screening_warnings) == 1
 
 
+def _setup_raising_compliance(monkeypatch, require_pro_checks: bool) -> list[str]:
+    """Two owners where alice's compliance check raises and bob's passes."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        return pd.DataFrame({"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]})
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}, {"owner": "bob"}])
+
+    calls: list[str] = []
+
+    def fake_check(trade):
+        calls.append(trade["owner"])
+        if trade["owner"] == "alice":
+            raise ValueError("invalid ticker or exchange")
+        return {"owner": trade["owner"], "warnings": []}
+
+    monkeypatch.setattr(trading_agent, "compliance", SimpleNamespace(check_trade=fake_check))
+    monkeypatch.setattr(trading_agent, "screen", lambda tickers, **kw: [])
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "pe_max", None)
+    monkeypatch.setattr(cfg, "de_max", None)
+    monkeypatch.setattr(cfg, "require_pro_checks", require_pro_checks)
+    return calls
+
+
+def test_run_tags_signal_when_one_owners_compliance_check_raises(monkeypatch, caplog):
+    """One owner's broken data must not fail the whole run (#9447)."""
+    calls = _setup_raising_compliance(monkeypatch, require_pro_checks=False)
+
+    with caplog.at_level("ERROR"):
+        signals = trading_agent.run()
+
+    assert [s["ticker"] for s in signals] == ["AAA"]
+    assert signals[0]["checks_skipped"] == ["compliance"]
+    # the remaining owner is still checked after the failure
+    assert calls == ["alice", "bob"]
+    assert any("Compliance check failed" in r.message for r in caplog.records)
+
+
+def test_run_blocks_signal_when_compliance_raises_and_pro_checks_required(monkeypatch):
+    _setup_raising_compliance(monkeypatch, require_pro_checks=True)
+
+    assert trading_agent.run() == []
+
+
 def test_run_require_pro_checks_raises_when_pro_absent(monkeypatch):
     monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
 

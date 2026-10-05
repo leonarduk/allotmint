@@ -68,3 +68,31 @@ def test_list_events_falls_back_to_bundled_catalogue(monkeypatch, tmp_path):
     assert "covid-2020" in ids
 
     reload_events_module()
+
+
+def test_list_events_reads_market_events_layout(monkeypatch, tmp_path):
+    events_dir = tmp_path / "events"
+    events_dir.mkdir()
+    (events_dir / "market_events.json").write_text(
+        json.dumps(
+            {
+                "proxy_index": {"ticker": "SPY"},
+                "events": [
+                    {"date": "2020-03-16", "description": "COVID-19 volatility"},
+                ],
+            }
+        )
+    )
+
+    with monkeypatch.context() as patcher:
+        patcher.delattr(events_module, "_events_path", raising=False)
+        patcher.setattr(events_module.config, "data_root", tmp_path)
+        reload_events_module()
+        client = create_client()
+
+        response = client.get("/events")
+
+    assert response.status_code == 200
+    assert response.json() == [{"id": "2020-03-16", "name": "2020-03-16: COVID-19 volatility"}]
+
+    reload_events_module()

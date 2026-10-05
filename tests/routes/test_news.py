@@ -887,6 +887,12 @@ def test_fetch_news_falls_through_to_google_during_yahoo_cooldown(monkeypatch, c
         ("Alphabet Inc. (Class A)", "Alphabet"),
         ("AstraZeneca PLC Ord Shs $0.25", "AstraZeneca"),
         ("Rio Tinto Ord 10p", "Rio Tinto"),
+        # Pence par value without a preceding "Ord".
+        ("Rio Tinto 10p", "Rio Tinto"),
+        ("Rolls-Royce Holdings plc Ord 20p", "Rolls-Royce Holdings"),
+        # Bare integers are part of index/fund names, not par values.
+        ("Vanguard S&P 500 UCITS ETF", "Vanguard S&P 500 UCITS ETF"),
+        ("iShares Core FTSE 100 UCITS ETF", "iShares Core FTSE 100 UCITS ETF"),
         ("BP p.l.c.", "BP"),
         ("Moody's Corporation", "Moody's"),
         ("Lloyds Banking Group plc", "Lloyds Banking Group"),
@@ -1000,3 +1006,12 @@ def test_fetch_news_google_uses_clean_query_and_keeps_name_only_headlines(monkey
     assert captured["q"] == '"Adobe" OR ADBE stock'
     # Passes on the clean name alone: no symbol, no finance keyword.
     assert items == [{"headline": "Adobe unveils new AI tools", "url": "https://example.com/a"}]
+
+
+def test_relevance_symbol_match_is_case_sensitive():
+    """Tickers that are ordinary words must not match prose ("all", "it")."""
+
+    subject = news_module._NewsSubject(symbol="ALL", exchange="N", name=None)
+
+    assert news_module._is_finance_related("ALL raises dividend outlook", subject)
+    assert not news_module._is_finance_related("All the gadgets we loved this year", subject)

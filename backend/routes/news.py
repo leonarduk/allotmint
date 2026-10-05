@@ -223,7 +223,12 @@ _EXCHANGE_CODES = frozenset(
 _SHARE_CLASS_TOKENS = frozenset({"class", "cl", "ord", "ordinary", "shs", "stk", "npv", "adr", "ads", "cdi", "reg"})
 _COMMON_STOCK_PREFIXES = frozenset({"com", "comm", "common"})
 _COMMON_STOCK_SUFFIXES = frozenset({"stk", "stock", "shs", "shares"})
-_PAR_VALUE = re.compile(r"^(?:US\$|\$|£|€|GBP|GBX|USD|EUR)?\d*\.?\d+$|^US\$", re.IGNORECASE)
+# Par values: "US$0.01", "$.0001", "GBP0.25", "0.25", and UK pence such as
+# "10p". A bare integer is not one: "S&P 500" and "FTSE 100" are names.
+_PAR_VALUE = re.compile(
+    r"^(?:US\$|\$|£|€|GBP|GBX|USD|EUR)\d*\.?\d+p?$|^\d*\.\d+p?$|^\d+p$|^US\$",
+    re.IGNORECASE,
+)
 _LEGAL_SUFFIXES = frozenset(
     {
         "inc",
@@ -337,6 +342,8 @@ def _is_finance_related(headline: str, subject: _NewsSubject) -> bool:
     """Return True when ``headline`` appears relevant to the instrument."""
 
     symbol = subject.symbol.lstrip("^")
+    # Case-sensitive on purpose: tickers that are also words ("IT", "ALL",
+    # "ON") would otherwise match ordinary prose in almost every headline.
     if symbol and re.search(rf"(?<![A-Za-z0-9]){re.escape(symbol)}(?![A-Za-z0-9])", headline):
         return True
 

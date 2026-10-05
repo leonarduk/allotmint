@@ -152,9 +152,10 @@ def test_forward_returns_empty(monkeypatch):
     monkeypatch.setattr(sc_tester, "apply_scaling", fake_scale)
 
     event_date = dt.date(2024, 1, 1)
-    returns = sc_tester._forward_returns("ABC", "L", event_date)
+    returns, basis = sc_tester._forward_returns("ABC", "L", event_date)
 
     assert returns == {k: None for k in sc_tester._HORIZONS}
+    assert basis == "price"
     assert called["scaling"] is False
 
 
@@ -168,8 +169,10 @@ def test_forward_returns_with_data(monkeypatch):
     monkeypatch.setattr(sc_tester, "get_scaling_override", lambda *a, **k: 1.0)
     monkeypatch.setattr(sc_tester, "apply_scaling", lambda d, s: d)
 
-    returns = sc_tester._forward_returns("ABC", "L", event_date)
+    returns, basis = sc_tester._forward_returns("ABC", "L", event_date)
 
+    # No stored corporate actions for ABC.L, so it falls back to price return.
+    assert basis == "price"
     assert returns["1d"] == pytest.approx(0.10)
     assert returns["1w"] == pytest.approx(0.20)
     assert returns["1m"] == pytest.approx(0.30)
@@ -187,7 +190,7 @@ def test_forward_returns_nonfinite_prices(monkeypatch):
     monkeypatch.setattr(sc_tester, "get_scaling_override", lambda *a, **k: 1.0)
     monkeypatch.setattr(sc_tester, "apply_scaling", lambda d, s: d)
 
-    returns = sc_tester._forward_returns("ABC", "L", event_date)
+    returns, _basis = sc_tester._forward_returns("ABC", "L", event_date)
 
     assert returns["1d"] is None
     assert returns["1w"] == pytest.approx(0.20)
@@ -249,7 +252,7 @@ def test_apply_historical_event_portfolio_aggregates_returns(monkeypatch):
     }
 
     def fake_forward_returns(ticker, exchange, event_date):
-        return returns_map[(ticker, exchange)]
+        return returns_map[(ticker, exchange)], "total"
 
     monkeypatch.setattr(sc_tester, "_forward_returns", fake_forward_returns)
 

@@ -180,7 +180,7 @@ def _setup_run_query(monkeypatch):
         "load_meta_timeseries_range",
         lambda *a, **k: pd.DataFrame({"close": [1, 2]}),
     )
-    monkeypatch.setattr(query, "compute_var", lambda df: 1)
+    monkeypatch.setattr(query, "compute_var_with_basis", lambda df, **k: (1, "total"))
     monkeypatch.setattr(query, "get_security_meta", lambda t: {"name": "ABC"})
 
 
@@ -191,13 +191,13 @@ def test_run_query_skips_timeseries_when_no_metrics(monkeypatch):
         calls["loader"] += 1
         return pd.DataFrame({"Close": [1, 2]})
 
-    def fake_compute(df):
+    def fake_compute(df, **kwargs):
         calls["compute"] += 1
-        return 123
+        return 123, "total"
 
     monkeypatch.setattr(query, "_resolve_tickers", lambda q: ["ABC.L"])
     monkeypatch.setattr(query, "load_meta_timeseries_range", fake_loader)
-    monkeypatch.setattr(query, "compute_var", fake_compute)
+    monkeypatch.setattr(query, "compute_var_with_basis", fake_compute)
     monkeypatch.setattr(query, "get_security_meta", lambda t: {})
 
     client = make_client()
@@ -226,6 +226,7 @@ def test_run_query_json(monkeypatch):
     assert resp.status_code == 200
     data = resp.json()
     assert data["results"][0]["var"] == 1
+    assert data["results"][0]["return_basis"] == "total"
     assert data["results"][0]["name"] == "ABC"
 
 
@@ -243,7 +244,7 @@ def test_run_query_csv(monkeypatch):
     assert resp.status_code == 200
     assert "text/csv" in resp.headers["content-type"]
     lines = resp.text.strip().splitlines()
-    assert lines[0] == "ticker,var,name"
+    assert lines[0] == "ticker,var,return_basis,name"
     assert "ABC.L" in lines[1]
 
 
@@ -334,7 +335,7 @@ def test_run_query_saves_named_query_local(monkeypatch, tmp_path):
         "load_meta_timeseries_range",
         lambda *a, **k: pd.DataFrame({"Close": [1, 2]}),
     )
-    monkeypatch.setattr(query, "compute_var", lambda df: None)
+    monkeypatch.setattr(query, "compute_var_with_basis", lambda df, **k: (None, "price"))
     monkeypatch.setattr(query, "get_security_meta", lambda t: {})
     monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
     monkeypatch.setattr(query.config, "app_env", "local")
@@ -363,7 +364,7 @@ def test_run_query_saves_named_query_aws(monkeypatch):
         "load_meta_timeseries_range",
         lambda *a, **k: pd.DataFrame({"Close": [1, 2]}),
     )
-    monkeypatch.setattr(query, "compute_var", lambda df: None)
+    monkeypatch.setattr(query, "compute_var_with_basis", lambda df, **k: (None, "price"))
     monkeypatch.setattr(query, "get_security_meta", lambda t: {})
     monkeypatch.setattr(query, "_save_query_s3", fake_save)
     monkeypatch.setattr(query.config, "app_env", "aws")

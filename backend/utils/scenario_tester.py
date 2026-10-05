@@ -19,6 +19,7 @@ from backend.common.constants import (
 )
 from backend.common.prices import get_price_gbp
 from backend.timeseries.cache import load_meta_timeseries_range
+from backend.timeseries.total_return import PRICE_RETURN_BASIS, TOTAL_RETURN_BASIS, total_return_frame
 from backend.utils.timeseries_helpers import (
     apply_scaling,
     get_scaling_override,
@@ -133,12 +134,18 @@ def _price_on_or_after(df: pd.DataFrame, date_col: str, price_col: str, target: 
         return None
 
 
-def _forward_returns(ticker: str, exchange: str, event_date: dt.date) -> Dict[str, float | None]:
+def _forward_returns(ticker: str, exchange: str, event_date: dt.date) -> tuple[Dict[str, float | None], str]:
+    """Total returns (price + reinvested dividends) from ``event_date`` per preset horizon.
+
+    Returns ``(returns, return_basis)``; the basis is ``"price"`` when the
+    ticker has no stored corporate actions (see ``total_return_frame``).
+    """
     end = event_date + dt.timedelta(days=max(_HORIZONS.values()) + 5)
     df = load_meta_timeseries_range(ticker, exchange, start_date=event_date, end_date=end)
     if df is None or df.empty:
-        return {k: None for k in _HORIZONS}
+        return {k: None for k in _HORIZONS}, PRICE_RETURN_BASIS
 
+    df, basis = total_return_frame(df, ticker, exchange)
     scale = get_scaling_override(ticker, exchange, None)
     df = apply_scaling(df, scale)
     df = df.copy().reset_index()
@@ -147,7 +154,7 @@ def _forward_returns(ticker: str, exchange: str, event_date: dt.date) -> Dict[st
     date_col = nm.get("date") or nm.get("index") or df.columns[0]
     price_col = _close_column(df)
     if not price_col:
-        return {k: None for k in _HORIZONS}
+        return {k: None for k in _HORIZONS}, basis
     df[date_col] = pd.to_datetime(df[date_col], errors="coerce").dt.date
     df[price_col] = pd.to_numeric(df[price_col], errors="coerce")
     df = df.sort_values(date_col)
@@ -166,7 +173,7 @@ def _forward_returns(ticker: str, exchange: str, event_date: dt.date) -> Dict[st
             results[label] = end_price / base - 1.0
         else:
             results[label] = None
-    return results
+    return results, basis
 
 
 def apply_historical_event_portfolio(
@@ -204,37 +211,52 @@ def apply_historical_event_portfolio(
     event_date = getattr(event, "date", None)
     if event_date is None and isinstance(event, dict):
         event_date = event.get("date")
-    proxy_returns = _forward_returns(proxy_tkr, proxy_ex, event_date)
+    proxy = _forward_returns(proxy_tkr, proxy_ex, event_date)
 
     totals = {k: 0.0 for k in _HORIZONS}
-    cache: Dict[str, Dict[str, float | None]] = {}
+    price_basis: Dict[str, set[str]] = {k: set() for k in _HORIZONS}
+    cache: Dict[str, tuple[Dict[str, float | None], str]] = {}
     for acct in portfolio.get("accounts", []):
         for h in acct.get("holdings", []):
             mv = float(h.get("market_value_gbp") or 0.0)
             if mv == 0.0:
                 continue
-            full = (h.get("ticker") or "").upper()
-            tkr, ex = _parse_full_ticker(full)
+            tkr, ex = _parse_full_ticker((h.get("ticker") or "").upper())
             key = f"{tkr}.{ex}"
             if key not in cache:
                 cache[key] = _forward_returns(tkr, ex, event_date)
-            rets = cache[key]
             for label in _HORIZONS:
-                r = rets.get(label)
-                if r is None:
-                    r = proxy_returns.get(label)
-                if r is None:
-                    r = 0.0
+                r, source = _horizon_return(label, (key, cache[key]), (f"{proxy_tkr}.{proxy_ex}", proxy))
                 totals[label] += mv * (1 + r)
+                if source is not None:
+                    price_basis[label].add(source)
 
-    result: Dict[str, Dict[str, float]] = {}
+    result: Dict[str, Dict[str, Any]] = {}
     for label in _HORIZONS:
         total = round(totals[label], 2)
         result[label] = {
             "total_value_gbp": total,
             "delta_gbp": round(total - baseline, 2),
+            "return_basis": PRICE_RETURN_BASIS if price_basis[label] else TOTAL_RETURN_BASIS,
+            "price_return_tickers": sorted(price_basis[label]),
         }
     return result
+
+
+_TickerReturns = tuple[str, tuple[Dict[str, float | None], str]]
+
+
+def _horizon_return(label: str, own: _TickerReturns, proxy: _TickerReturns) -> tuple[float, str | None]:
+    """A holding's return for ``label``, falling back to the proxy, then to 0.0.
+
+    Also returns the ticker whose price-basis return was used, or ``None``
+    when the return used was a total return (or there was none at all).
+    """
+    for ticker, (returns, basis) in (own, proxy):
+        r = returns.get(label)
+        if r is not None:
+            return r, (ticker if basis == PRICE_RETURN_BASIS else None)
+    return 0.0, None
 
 
 def _parse_date(val: Any) -> dt.date:
@@ -266,17 +288,26 @@ def _get_close(row: pd.Series) -> float | None:
 
 
 def _calc_return(ticker: str, exchange: str | None, start: dt.date, horizon: int) -> float | None:
-    """Calculate percentage return for ``ticker.exchange`` over ``horizon`` days."""
+    """Calculate the total return (price + reinvested dividends) for ``ticker.exchange`` over ``horizon`` days.
+
+    Price return when the ticker has no stored corporate actions; this
+    per-holding map has no field to report the basis in, so callers needing it
+    use ``apply_historical_event_portfolio``.
+    """
     end = start + dt.timedelta(days=horizon)
     df = load_meta_timeseries_range(ticker, exchange or "", start_date=start, end_date=end)
     if df.empty or len(df) < 2:
         return None
 
+    # Basis deliberately dropped: the fallback is logged by total_return_frame.
+    df, _basis = total_return_frame(df, ticker, exchange or "")
     scale = get_scaling_override(ticker, exchange or "", None)
     df = apply_scaling(df, scale)
 
     # Ensure the data covers (most of) the requested horizon.
-    last = df.index[-1]
+    # Cache frames carry their dates in a ``Date`` column (RangeIndex); older
+    # callers pass a date index.
+    last = df["Date"].iloc[-1] if "Date" in df.columns else df.index[-1]
     if isinstance(last, pd.Timestamp):
         last = last.date()
     expected_end = start + dt.timedelta(days=horizon)

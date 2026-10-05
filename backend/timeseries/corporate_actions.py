@@ -167,6 +167,12 @@ def corporate_actions_path(ticker: str, exchange: str, *, base: str | None = Non
 
 def load_corporate_actions(ticker: str, exchange: str, *, base: str | None = None) -> pd.DataFrame:
     """Stored events for ``ticker``/``exchange``; empty when none are stored."""
+    actions = _read_actions(ticker, exchange, base=base)
+    return empty_actions() if actions is None else actions
+
+
+def _read_actions(ticker: str, exchange: str, *, base: str | None = None) -> pd.DataFrame | None:
+    """Stored events, or ``None`` when there is no readable file (absent or unreadable)."""
     root = _actions_root(base)
     name = _actions_filename(ticker, exchange)
     if root.startswith("s3://"):
@@ -180,14 +186,14 @@ def load_corporate_actions(ticker: str, exchange: str, *, base: str | None = Non
     try:
         frame = pd.read_parquet(path)
     except FileNotFoundError:
-        return empty_actions()
+        return None
     except Exception as exc:
         logger.warning(
             "Could not read corporate actions %s: %s",
             sanitise_log_value(path),
             sanitise_log_value(exc),
         )
-        return empty_actions()
+        return None
     return _normalise(frame)
 
 
@@ -195,6 +201,17 @@ def load_dividends(ticker: str, exchange: str, *, base: str | None = None) -> pd
     """Cash dividend per share indexed by ex-date (summed when two share a date)."""
     actions = load_corporate_actions(ticker, exchange, base=base)
     return dividends_series(actions)
+
+
+def stored_dividends(ticker: str, exchange: str, *, base: str | None = None) -> pd.Series | None:
+    """Dividends for ``ticker``/``exchange``, or ``None`` when no actions file is stored.
+
+    Unlike :func:`load_dividends`, this tells "no file" (dividend history
+    unknown) apart from "a file with no dividends" (an empty series: none
+    paid). Total-return consumers must not treat the first as the second.
+    """
+    actions = _read_actions(ticker, exchange, base=base)
+    return None if actions is None else dividends_series(actions)
 
 
 def dividends_series(actions: pd.DataFrame) -> pd.Series:

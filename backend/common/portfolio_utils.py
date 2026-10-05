@@ -58,6 +58,7 @@ from backend.timeseries.cache import (
     load_meta_timeseries,
     load_meta_timeseries_range,
 )
+from backend.timeseries.total_return import PRICE_RETURN_BASIS, total_return_frame
 from backend.utils.fx_rates import fallback_fx_rate, fetch_fx_rate_range
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
@@ -75,29 +76,61 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────
 # Risk helpers
 # ──────────────────────────────────────────────────────────────
-def compute_var(df: pd.DataFrame, confidence: float = 0.95) -> float | None:
+def compute_var(
+    df: pd.DataFrame,
+    confidence: float = 0.95,
+    *,
+    ticker: str | None = None,
+    exchange: str | None = None,
+) -> float | None:
     """Simple Value-at-Risk calculation from a price series.
 
     Returns the 1-day VaR for a notional single unit position based on the
     historical distribution of daily percentage returns. ``None`` is returned
-    when the input ``DataFrame`` does not contain enough data.
+    when the input ``DataFrame`` does not contain enough data. See
+    :func:`compute_var_with_basis` for the return basis.
+    """
+
+    value, _basis = compute_var_with_basis(df, confidence, ticker=ticker, exchange=exchange)
+    return value
+
+
+def compute_var_with_basis(
+    df: pd.DataFrame,
+    confidence: float = 0.95,
+    *,
+    ticker: str | None = None,
+    exchange: str | None = None,
+) -> tuple[float | None, str]:
+    """``(VaR, return_basis)``: :func:`compute_var` plus the basis of its daily returns.
+
+    Given ``ticker``/``exchange`` the returns are total returns (price plus
+    reinvested stored dividends, #9370), else -- or with no stored corporate
+    actions -- price returns. The loss is scaled by the last *traded* close,
+    the price the position is valued at.
     """
 
     if df is None or df.empty or "Close" not in df.columns:
-        return None
+        return None, PRICE_RETURN_BASIS
 
     closes = pd.to_numeric(df["Close"], errors="coerce").dropna()
     if len(closes) < 2:
-        return None
+        return None, PRICE_RETURN_BASIS
 
-    returns = closes.pct_change().dropna()
+    basis = PRICE_RETURN_BASIS
+    return_closes = closes
+    if ticker and exchange:
+        tr_df, basis = total_return_frame(df, ticker, exchange)
+        return_closes = pd.to_numeric(tr_df["Close"], errors="coerce").dropna()
+
+    returns = return_closes.pct_change().dropna()
     if returns.empty:
-        return None
+        return None, basis
 
     var_pct = np.quantile(returns, 1 - confidence)
     last_price = float(closes.iloc[-1])
     var = -var_pct * last_price
-    return float(var)
+    return float(var), basis
 
 
 # ──────────────────────────────────────────────────────────────
@@ -1523,6 +1556,32 @@ def _portfolio_value_series(
     return total
 
 
+def _benchmark_daily_returns(benchmark: str, effective_days: int, reporting_date: date) -> tuple[pd.Series | None, str]:
+    """Daily total returns of ``benchmark`` up to ``reporting_date``, with their basis (#9370).
+
+    ``(None, "price")`` when the benchmark has no usable closes. Price returns
+    (basis ``"price"``) when it has no stored corporate actions.
+    """
+    bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
+    df = load_meta_timeseries(bench_tkr, bench_exch, effective_days)
+    if df.empty or "Close" not in df.columns or "Date" not in df.columns:
+        return None, PRICE_RETURN_BASIS
+    df, basis = total_return_frame(df[["Date", "Close"]], bench_tkr, bench_exch)
+    df = df.copy()
+    df["Date"] = pd.to_datetime(df["Date"]).dt.date
+    df = df[df["Date"] <= reporting_date]
+    return df.set_index("Date")["Close"].pct_change().dropna(), basis
+
+
+def _return_bases(benchmark_basis: str) -> dict[str, str]:
+    """The ``return_basis`` fields of an alpha / tracking-error breakdown.
+
+    The portfolio side stays on price: it is the holdings' units times their
+    traded closes (``_portfolio_value_series``, shared with max drawdown).
+    """
+    return {"portfolio_return_basis": PRICE_RETURN_BASIS, "benchmark_return_basis": benchmark_basis}
+
+
 def _alpha_vs_benchmark(
     name: str,
     benchmark: str,
@@ -1542,23 +1601,18 @@ def _alpha_vs_benchmark(
         }
     port_ret = total.pct_change().dropna()
 
-    bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
     effective_days = _effective_days(
         days,
         requested_pricing_date=pricing_date,
         reporting_date=calc.reporting_date,
     )
-    df = load_meta_timeseries(bench_tkr, bench_exch, effective_days)
-    if df.empty or "Close" not in df.columns or "Date" not in df.columns:
+    bench_ret, bench_basis = _benchmark_daily_returns(benchmark, effective_days, calc.reporting_date)
+    if bench_ret is None:
         return None, {
             "series": [],
             "portfolio_cumulative_return": None,
             "benchmark_cumulative_return": None,
         }
-    df = df[["Date", "Close"]].copy()
-    df["Date"] = pd.to_datetime(df["Date"]).dt.date
-    df = df[df["Date"] <= calc.reporting_date]
-    bench_ret = df.set_index("Date")["Close"].pct_change().dropna()
 
     port_ret, bench_ret = port_ret.align(bench_ret, join="inner")
     if port_ret.empty:
@@ -1602,6 +1656,7 @@ def _alpha_vs_benchmark(
         "series": breakdown_series,
         "portfolio_cumulative_return": float(port_cum_series.iloc[-1]),
         "benchmark_cumulative_return": float(bench_cum_series.iloc[-1]),
+        **_return_bases(bench_basis),
     }
     return value, breakdown
 
@@ -1621,19 +1676,14 @@ def _tracking_error(
         return None, {"active_returns": [], "daily_active_standard_deviation": None}
     port_ret = total.pct_change().dropna()
 
-    bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
     effective_days = _effective_days(
         days,
         requested_pricing_date=pricing_date,
         reporting_date=calc.reporting_date,
     )
-    df = load_meta_timeseries(bench_tkr, bench_exch, effective_days)
-    if df.empty or "Close" not in df.columns or "Date" not in df.columns:
+    bench_ret, bench_basis = _benchmark_daily_returns(benchmark, effective_days, calc.reporting_date)
+    if bench_ret is None:
         return None, {"active_returns": [], "daily_active_standard_deviation": None}
-    df = df[["Date", "Close"]].copy()
-    df["Date"] = pd.to_datetime(df["Date"]).dt.date
-    df = df[df["Date"] <= calc.reporting_date]
-    bench_ret = df.set_index("Date")["Close"].pct_change().dropna()
 
     port_ret, bench_ret = port_ret.align(bench_ret, join="inner")
     if port_ret.empty:
@@ -1665,6 +1715,7 @@ def _tracking_error(
     breakdown = {
         "active_returns": active_rows,
         "daily_active_standard_deviation": float(std),
+        **_return_bases(bench_basis),
     }
     return annualised, breakdown
 

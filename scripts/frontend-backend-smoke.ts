@@ -381,6 +381,14 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
+    "path": "/market/sectors"
+  },
+  {
+    "method": "GET",
+    "path": "/market/sectors/{region}/{sector}"
+  },
+  {
+    "method": "GET",
     "path": "/metrics/{owner}"
   },
   {
@@ -773,6 +781,8 @@ const SAMPLE_PATH_VALUES: Record<string, string> = {
   name: 'test',
   exchange: 'NASDAQ',
   ticker: 'PFE',
+  region: 'us',
+  sector: 'Energy',
 };
 
 function chooseFixtureOwner(payload: unknown): string | null {

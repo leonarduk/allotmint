@@ -10,9 +10,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Literal, Optional, TypedDict
 
 import requests
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from backend import config_module
+from backend.common import market_sectors
 from backend.common.yahoo_chart import chart_quote
 from backend.logging_setup import sanitise_log_value
 from backend.routes.news import NewsQuotaExceeded, get_cached_news
@@ -374,7 +375,11 @@ def _safe(func, default):
 
 @router.get("/market/overview")
 async def market_overview(
-    region: Optional[str] = Query(None, description="Set to 'uk' to use London sector data.")
+    region: Optional[str] = Query(None, description="Set to 'uk' to use London sector data."),
+    sectors: bool = Query(
+        True,
+        description="Set to false to skip sector data, e.g. when the caller loads it from /market/sectors.",
+    ),
 ) -> Dict[str, Any]:
     """Return index levels, sector performance and latest headlines."""
 
@@ -382,6 +387,8 @@ async def market_overview(
     region_value = region if isinstance(region, str) else None
     selected_region = (region_value or default_region).lower()
     fetcher = _fetch_uk_sectors if selected_region == "uk" else _fetch_sectors
+    if not sectors:
+        fetcher = _no_sectors
 
     # Each fetcher does blocking network I/O, so run them on the default
     # executor's thread pool and await them together instead of one after
@@ -399,9 +406,65 @@ async def market_overview(
     # this becomes a bottleneck, give this route (or the app) a dedicated
     # `ThreadPoolExecutor` instead of relying on the shared default.
     loop = asyncio.get_running_loop()
-    indexes, sectors, headlines = await asyncio.gather(
+    indexes, sector_rows, headlines = await asyncio.gather(
         loop.run_in_executor(None, _safe, _fetch_indexes, {}),
         loop.run_in_executor(None, _safe, fetcher, []),
         loop.run_in_executor(None, _safe, _fetch_headlines, []),
     )
-    return {"indexes": indexes, "sectors": sectors, "headlines": headlines}
+    return {"indexes": indexes, "sectors": sector_rows, "headlines": headlines}
+
+
+def _no_sectors() -> List[SectorPayload]:
+    return []
+
+
+def _resolve_region(region: Optional[str]) -> market_sectors.Region:
+    """Map the query value (or the configured default) to a sector region.
+
+    An explicit unknown value is a client error; an unknown configured default
+    falls back to ``us`` so a bad config can't take the page down.
+    """
+
+    if region is not None:
+        resolved = market_sectors.normalise_region(region)
+        if resolved is None:
+            allowed = ", ".join(market_sectors.REGIONS)
+            raise HTTPException(status_code=400, detail=f"Unknown region; expected one of: {allowed}")
+        return resolved
+    default = getattr(cfg, "default_sector_region", None)
+    return market_sectors.normalise_region(default) or "us"
+
+
+@router.get("/market/sectors")
+async def market_sectors_by_region(
+    region: Optional[str] = Query(None, description="global, us or uk; defaults to default_sector_region."),
+) -> Dict[str, Any]:
+    """Return today's % change per GICS sector for one region."""
+
+    resolved = _resolve_region(region)
+    loop = asyncio.get_running_loop()
+    try:
+        rows = await loop.run_in_executor(None, market_sectors.fetch_region_sectors, resolved)
+    except Exception as exc:
+        logger.exception("Sector fetch failed for region %s", resolved)
+        raise HTTPException(status_code=502, detail="Sector data is unavailable") from exc
+    return {"region": resolved, "sectors": rows}
+
+
+@router.get("/market/sectors/{region}/{sector}")
+async def market_sector_detail(region: str, sector: str) -> Dict[str, Any]:
+    """Return returns, recent history and representative constituents for a sector."""
+
+    resolved = market_sectors.normalise_region(region)
+    if resolved is None:
+        raise HTTPException(status_code=404, detail="Unknown region")
+    name = market_sectors.find_sector(resolved, sector)
+    if name is None:
+        raise HTTPException(status_code=404, detail="No detail available for this sector")
+    loop = asyncio.get_running_loop()
+    try:
+        detail = await loop.run_in_executor(None, market_sectors.fetch_sector_detail, resolved, name)
+    except Exception as exc:
+        logger.exception("Sector detail fetch failed for %s/%s", resolved, sanitise_log_value(name))
+        raise HTTPException(status_code=502, detail="Sector data is unavailable") from exc
+    return dict(detail)

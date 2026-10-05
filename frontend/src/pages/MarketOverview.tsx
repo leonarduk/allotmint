@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { getMarketOverview } from '../api';
 import type { MarketOverview as MarketOverviewData } from '../types';
 import EmptyState from '../components/EmptyState';
+import SectorPerformance from '../components/market/SectorPerformance';
 import { formatPublishedAt } from '../lib/date';
 import {
   ResponsiveContainer,
@@ -36,7 +37,8 @@ export default function MarketOverview() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getMarketOverview()
+    // Sectors are loaded per region by <SectorPerformance />.
+    getMarketOverview({ includeSectors: false })
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
@@ -136,27 +138,7 @@ export default function MarketOverview() {
         </table>
       </div>
 
-      <div className="mb-8">
-        <h2 className="mb-2 text-xl">
-          {t('market.sectorPerformance', {
-            defaultValue: 'Sector Performance',
-          })}
-        </h2>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data.sectors}>
-            <XAxis
-              dataKey="sector"
-              interval={0}
-              angle={-45}
-              textAnchor="end"
-              height={100}
-            />
-            <YAxis />
-            <Tooltip contentStyle={{ backgroundColor: '#fff', color: '#213547' }} />
-            <Bar dataKey="change" fill="#82ca9d" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      <SectorPerformance />
 
       <div>
         <h2 className="mb-2 text-xl">

@@ -179,6 +179,11 @@ class Config:
     theme: Optional[str] = None
     timeseries_cache_base: Optional[str] = None
     fx_proxy_url: Optional[str] = None
+    # First date (ISO) of the stored FX history in ``{timeseries}/fx/`` and the
+    # currencies always kept there (#9322); None uses the defaults in
+    # backend/timeseries/cache.py (2007-01-01; USD, EUR, CAD).
+    fx_history_start: Optional[str] = None
+    fx_reference_currencies: Optional[List[str]] = None
     default_sector_region: str = "US"
     uk_sector_endpoint: Optional[str] = None
 
@@ -652,6 +657,8 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         theme=data.get("theme"),
         timeseries_cache_base=timeseries_cache_base,
         fx_proxy_url=data.get("fx_proxy_url"),
+        fx_history_start=str(data["fx_history_start"]) if data.get("fx_history_start") else None,
+        fx_reference_currencies=_parse_str_list(data.get("fx_reference_currencies")),
         default_sector_region=data.get("default_sector_region", "US"),
         uk_sector_endpoint=data.get("uk_sector_endpoint"),
         alpha_vantage_key=data.get("alpha_vantage_key"),

@@ -804,6 +804,11 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     """Load Meta timeseries with in-process caching and mutation safety."""
     global OFFLINE_MODE
 
+    fx_curr = _fx_instrument_currency(ticker, exchange)
+    if fx_curr is not None:
+        cutoff, today = _weekday_range(datetime.today().date() - timedelta(days=1), days)
+        return _fx_instrument_timeseries(fx_curr, ticker, cutoff, today)
+
     # If offline mode toggles, clear in-memory cache
     if OFFLINE_MODE != config.offline_mode:
         OFFLINE_MODE = config.offline_mode
@@ -923,6 +928,10 @@ def _memoized_range(
     end_iso: str,
 ) -> pd.DataFrame:
     """LRU-cached range fetch that returns a copy to prevent mutation."""
+    fx_curr = _fx_instrument_currency(ticker, exchange)
+    if fx_curr is not None:
+        start, end = date.fromisoformat(start_iso[:10]), date.fromisoformat(end_iso[:10])
+        return _fx_instrument_timeseries(fx_curr, ticker, start, end)
     return _memoized_range_cached(ticker, exchange, start_iso, end_iso, _CACHE_ONLY.get()).copy()
 
 
@@ -934,19 +943,33 @@ def _memoized_range(
 # _convert_to_base_currency reads. Only the refresh paths write it
 # (refresh_prices on the schedule, the refresh queue locally); cache-only page
 # requests read it so converting a USD holding never calls Yahoo inline.
+#
+# This is the canonical FX history store (#9322): load_fx_history reads it for
+# MCP tools, and the synthetic ``{CCY}GBP.FX`` instruments are served from it
+# rather than from a separate ``meta/{CCY}GBP_FX.parquet`` copy.
 
-# History seeded on the first refresh of a currency: cost-basis lookups can
-# ask for a rate years back.
-_FX_CACHE_HISTORY_DAYS = 3650
+# Default first date of the stored history (``config.fx_history_start``
+# overrides it): 2007 covers the 2008 crisis for stress tests and backtests.
+_DEFAULT_FX_HISTORY_START = date(2007, 1, 1)
+# Currencies refreshed on every scheduled refresh even when nothing held is
+# priced in them (``config.fx_reference_currencies`` overrides the list).
+_DEFAULT_FX_REFERENCE_CURRENCIES = ("USD", "EUR", "CAD")
+# A stored history starting within this many days of the configured start
+# counts as complete (the start may be a holiday with no rate).
+_FX_BACKFILL_TOLERANCE_DAYS = 7
 
 # How long a cache-only reader reuses its in-process copy of an FX file before
 # re-reading it (an S3 GET on Lambda). Writes from this process drop the copy.
 _FX_FRAME_TTL_SECONDS = 300.0
 _FX_FRAMES: Dict[str, tuple[pd.DataFrame, float]] = {}
-_FX_LOCK = threading.Lock()  # guards _FX_FRAMES only; never held across I/O
+_FX_LOCK = threading.Lock()  # guards the in-process FX dicts/sets; never held across I/O
 # Serialise read-merge-write per currency, so a hung fetch for one currency
 # doesn't stall the others.
 _FX_WRITE_LOCKS: Dict[str, threading.Lock] = {}
+# Currencies whose backfill to the history start was already attempted in this
+# process: Yahoo may have nothing that early, and retrying on every refresh
+# would repeat a multi-year fetch for no new rows.
+_FX_BACKFILL_TRIED: set[str] = set()
 
 
 def _fx_write_lock(curr: str) -> threading.Lock:
@@ -1033,37 +1056,78 @@ def cached_fx_rate_to_gbp(curr: str) -> float | None:
     return float(cached["Rate"].iloc[-1])
 
 
-def refresh_fx_cache(curr: str) -> bool:
-    """Append live ``curr``->GBP rates to the FX cache; return whether the file changed.
+def fx_history_start() -> date:
+    """First date the FX cache holds: ``config.fx_history_start`` (ISO date) or 2007-01-01."""
+    raw = getattr(config, "fx_history_start", None)
+    if isinstance(raw, date):
+        return raw
+    if raw:
+        try:
+            return date.fromisoformat(str(raw).strip())
+        except ValueError:
+            logger.warning("Ignoring invalid fx_history_start %s; using the default", sanitise_log_value(raw))
+    return _DEFAULT_FX_HISTORY_START
 
-    Fetches from the day after the last cached rate (or
-    ``_FX_CACHE_HISTORY_DAYS`` back for a new currency) to today. Like
-    _rolling_cache, a fetch that adds no dates leaves the file untouched.
+
+def fx_reference_currencies() -> list[str]:
+    """Currencies the scheduled refresh keeps in the FX cache whether or not anything held uses them."""
+    raw = getattr(config, "fx_reference_currencies", None)
+    currencies = _DEFAULT_FX_REFERENCE_CURRENCIES if raw is None else raw
+    return [c.strip().upper() for c in currencies if isinstance(c, str) and c.strip()]
+
+
+def _fx_fetch_windows(curr: str, existing: pd.DataFrame, end: date) -> list[tuple[date, date]]:
+    """Date ranges a refresh of ``curr`` should fetch: new days up to ``end``, then any missing history."""
+    start = fx_history_start()
+    if existing.empty:
+        return [(start, end)] if start <= end else []
+    windows = []
+    after_last = existing["Date"].max().date() + timedelta(days=1)
+    if after_last <= end:
+        windows.append((after_last, end))
+    first = existing["Date"].min().date()
+    with _FX_LOCK:
+        tried = curr in _FX_BACKFILL_TRIED
+        _FX_BACKFILL_TRIED.add(curr)
+    if not tried and (first - start).days > _FX_BACKFILL_TOLERANCE_DAYS:
+        windows.append((start, first - timedelta(days=1)))
+    return windows
+
+
+def _fetch_fx_window(curr: str, start: date, end: date) -> pd.DataFrame:
+    """Live ``curr``->GBP rates for ``start``..``end`` in the cache schema; empty on a failed fetch."""
+    live = fetch_fx_rate_range_live(curr, "GBP", start, end)
+    if live.empty:
+        return pd.DataFrame(columns=["Date", "Rate"])
+    live = live[["Date", "Rate"]].copy()
+    live["Date"] = pd.to_datetime(live["Date"]).astype("datetime64[ms]")
+    live["Rate"] = pd.to_numeric(live["Rate"], errors="coerce")
+    return live.dropna(subset=["Rate"])
+
+
+def refresh_fx_cache(curr: str) -> bool:
+    """Add live ``curr``->GBP rates to the FX cache; return whether the file changed.
+
+    Fetches from the day after the last cached rate to the last completed
+    weekday (today's rate is still moving) and -- once per process --
+    backfills from :func:`fx_history_start` up to the first cached rate when
+    the stored history starts later (a new currency fetches the whole span in
+    one go). Stored dates are never rewritten. Like _rolling_cache, a fetch
+    that adds no dates leaves the file untouched.
     """
     curr = (curr or "").strip().upper()
     if curr in ("GBP", "GBX") or not re.fullmatch(r"[A-Z]{3}", curr):
         return False
     path = _fx_cache_path(curr)
-    today = date.today()
     with _fx_write_lock(curr):
         existing = _read_fx_parquet(path)
-        start = (
-            existing["Date"].max().date() + timedelta(days=1)
-            if not existing.empty
-            else today - timedelta(days=_FX_CACHE_HISTORY_DAYS)
-        )
-        if start > today:
+        fetched = [_fetch_fx_window(curr, s, e) for s, e in _fx_fetch_windows(curr, existing, _last_close_target())]
+        frames = [f for f in (existing, *fetched) if not f.empty]
+        if not frames:
             return False
-        live = fetch_fx_rate_range_live(curr, "GBP", start, today)
-        if live.empty:
-            return False
-        live = live[["Date", "Rate"]].copy()
-        live["Date"] = pd.to_datetime(live["Date"]).astype("datetime64[ms]")
-        live["Rate"] = pd.to_numeric(live["Rate"], errors="coerce")
-        frames = [f for f in (existing, live.dropna(subset=["Rate"])) if not f.empty]
         combined = (
             pd.concat(frames, ignore_index=True)
-            .drop_duplicates(subset="Date", keep="last")
+            .drop_duplicates(subset="Date", keep="first")
             .sort_values("Date")
             .reset_index(drop=True)
         )
@@ -1074,18 +1138,88 @@ def refresh_fx_cache(curr: str) -> bool:
         with _FX_LOCK:
             _FX_FRAMES.pop(curr, None)
     logger.info(
-        "FX cache for %s now runs to %s",
+        "FX cache for %s now runs %s to %s",
         sanitise_log_value(curr),
+        sanitise_log_value(combined["Date"].min().date()),
         sanitise_log_value(combined["Date"].max().date()),
     )
     return True
 
 
+def load_fx_history(curr: str, start: date | None = None, end: date | None = None) -> pd.DataFrame:
+    """Stored daily ``curr``->GBP rates (``Date``, ``Rate`` = GBP per unit of ``curr``), without fetching.
+
+    Reads the canonical FX cache only (never Yahoo), for MCP tools and
+    backtests. GBP, an invalid code, or a never-refreshed currency returns an
+    empty frame.
+    """
+    curr = (curr or "").strip().upper()
+    if curr == "GBP" or not re.fullmatch(r"[A-Z]{3}", curr):
+        return pd.DataFrame(columns=["Date", "Rate"])
+    fx = _cached_fx_frame(curr)
+    if fx.empty:
+        return pd.DataFrame(columns=["Date", "Rate"])
+    days = fx["Date"].dt.date
+    keep = (days >= (start or date.min)) & (days <= (end or date.max))
+    return fx.loc[keep, ["Date", "Rate"]].reset_index(drop=True)
+
+
+# Synthetic FX instruments the frontend links to (``USDGBP.FX``, see
+# frontend/src/lib/fx.ts): ``{CCY}GBP`` on exchange ``FX``.
+_FX_INSTRUMENT_RE = re.compile(r"([A-Z]{3})GBP")
+
+
+def _fx_instrument_currency(ticker: str, exchange: str) -> str | None:
+    """``curr`` when ``ticker.exchange`` is the synthetic ``{curr}GBP.FX`` instrument, else None."""
+    if (exchange or "").upper() != "FX":
+        return None
+    match = _FX_INSTRUMENT_RE.fullmatch((ticker or "").upper())
+    if match is None or match.group(1) == "GBP":
+        return None
+    return match.group(1)
+
+
+def _fx_instrument_timeseries(curr: str, ticker: str, start: date, end: date) -> pd.DataFrame:
+    """OHLC view of the FX cache for ``{curr}GBP.FX``, so instrument pages and the FX store agree (#9322).
+
+    Read-only: a stale or missing cache queues the currency for the
+    background FX refresh instead of fetching, and no
+    ``meta/{curr}GBP_FX.parquet`` copy is written.
+    """
+    cached = _cached_fx_frame(curr)
+    if cached.empty or cached["Date"].max().date() < min(end, _last_close_target()):
+        refresh_queue.enqueue_fx(curr)
+    if cached.empty:
+        return _empty_ts()
+    days = cached["Date"].dt.date
+    window = cached[(days >= start) & (days <= end)]
+    if window.empty:
+        return _empty_ts()
+    rate = window["Rate"].to_numpy()
+    frame = pd.DataFrame(
+        {
+            "Date": window["Date"].to_numpy(),
+            "Open": rate,
+            "High": rate,
+            "Low": rate,
+            "Close": rate,
+            "Volume": 0.0,
+            "Ticker": ticker.upper(),
+            "Source": "fx-cache",
+        }
+    )
+    return _ensure_schema(frame)
+
+
 def refresh_fx_cache_for_tickers(full_tickers: list[str]) -> None:
-    """Refresh the FX cache for every non-GBP currency among ``full_tickers`` (``SYM.EXCH``)."""
+    """Refresh the FX cache for every non-GBP currency among ``full_tickers`` (``SYM.EXCH``).
+
+    The :func:`fx_reference_currencies` are always included, so the stored
+    history covers the major currencies even when nothing held uses them.
+    """
     if config.offline_mode:
         return
-    currencies = set()
+    currencies = set(fx_reference_currencies())
     for full in full_tickers:
         sym, _, exch = (full or "").rpartition(".")
         if not sym:

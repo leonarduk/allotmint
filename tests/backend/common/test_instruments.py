@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from backend.common import instrument_classification, instruments
+from tests.yahoo_chart_fakes import FakeChartTicker
 
 
 @pytest.mark.parametrize(
@@ -361,26 +362,50 @@ def test_save_instrument_meta_handles_read_only_filesystem(monkeypatch, tmp_path
     )
 
 
+class _MetaTicker(FakeChartTicker):
+    """Chart-endpoint ticker; ``get_info`` (quoteSummary) only when given ``info``."""
+
+    def __init__(self, metadata, info=None, info_error=None):
+        super().__init__(metadata)
+        self._info = info
+        self._info_error = info_error
+        self.info_calls = 0
+
+    def get_info(self):
+        self.info_calls += 1
+        if self._info_error is not None:
+            raise self._info_error
+        if self._info is None:
+            raise AssertionError("quoteSummary (.info) must not be called for this instrument")
+        return dict(self._info)
+
+
+def _fake_yfinance(monkeypatch, expected_symbol, ticker, quotes):
+    searches = []
+
+    def fake_ticker(symbol):
+        assert symbol == expected_symbol
+        return ticker
+
+    def fake_search(query, **kwargs):
+        searches.append((query, kwargs))
+        return SimpleNamespace(quotes=quotes)
+
+    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=fake_ticker, Search=fake_search))
+    return searches
+
+
 def test_fetch_metadata_from_yahoo_builds_normalized_payload(monkeypatch) -> None:
-    expected_info = {
-        "shortName": "Alpha plc  ",
-        "currency": "gbp",
-        "sector": " Technology ",
-        "industry": " Software",
-        "region": "United Kingdom ",
-        "quoteType": "EQUITY",
-    }
-
-    def fake_ticker(symbol: str):
-        assert symbol == "ABC.L"
-
-        class _FakeTicker:
-            def get_info(self):
-                return dict(expected_info)
-
-        return _FakeTicker()
-
-    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=fake_ticker))
+    ticker = _MetaTicker({"shortName": "Alpha plc  ", "currency": "gbp", "instrumentType": "EQUITY"})
+    searches = _fake_yfinance(
+        monkeypatch,
+        "ABC.L",
+        ticker,
+        [
+            {"symbol": "ABC", "sector": "Wrong listing"},
+            {"symbol": "ABC.L", "sectorDisp": " Technology ", "industryDisp": " Software", "quoteType": "EQUITY"},
+        ],
+    )
 
     result = instruments._fetch_metadata_from_yahoo("abc", "L")
 
@@ -393,45 +418,62 @@ def test_fetch_metadata_from_yahoo_builds_normalized_payload(monkeypatch) -> Non
         "industry": "Software",
         "instrument_type": "EQUITY",
     }
+    # Equities never touch quoteSummary, the endpoint that 401s.
+    assert ticker.info_calls == 0
+    assert searches[0][0] == "ABC.L"
+    assert searches[0][1]["news_count"] == 0
 
 
-@pytest.mark.parametrize("fast_info_kind", ["object", "dict"])
-def test_fetch_metadata_from_yahoo_falls_back_to_info_and_fast_info(monkeypatch, fast_info_kind: str) -> None:
-    def build_fast_info():
-        if fast_info_kind == "object":
-            return SimpleNamespace(currency="usd")
-        return {"currency": "usd"}
+def test_fetch_metadata_from_yahoo_fetches_category_only_for_funds(monkeypatch) -> None:
+    ticker = _MetaTicker(
+        {"longName": "Royal London Short Term Money Mkt Y Acc", "currency": "GBP", "instrumentType": "MUTUALFUND"},
+        info={"category": " GBP Money Market "},
+    )
+    _fake_yfinance(monkeypatch, "RLSTM.L", ticker, [])
 
-    class _FallbackTicker:
-        info = {
-            "longName": "Beta Fund",
-            "industryDisp": " Diversified ",
-            "country": "US ",
-            "quoteType": "MUTUALFUND",
-            "category": " Index ",
-        }
+    result = instruments._fetch_metadata_from_yahoo("rlstm", "L")
 
-        def __init__(self, symbol: str) -> None:
-            assert symbol == "BETA"
-            self.fast_info = build_fast_info()
+    assert ticker.info_calls == 1
+    assert result["category"] == "GBP Money Market"
+    # The category is what lets classification see a money-market fund as cash.
+    assert result["asset_class"] == "cash"
+    assert result["name"] == "Royal London Short Term Money Mkt Y Acc"
 
-        def get_info(self):
-            raise RuntimeError("boom")
 
-    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=_FallbackTicker))
+def test_fetch_metadata_from_yahoo_survives_fund_category_401(monkeypatch) -> None:
+    ticker = _MetaTicker(
+        {"longName": "Beta Fund", "currency": "usd", "instrumentType": "ETF"},
+        info_error=RuntimeError("HTTP Error 401: Invalid Crumb"),
+    )
+    _fake_yfinance(monkeypatch, "BETA", ticker, [])
 
     result = instruments._fetch_metadata_from_yahoo("beta", "NASDAQ")
 
+    assert ticker.info_calls == 1
     assert result == {
         "name": "Beta Fund",
         "currency": "USD",
         "sector": "Multi-sector",
-        "category": "Index",
         "region": "US",
         "asset_class": "equity",
-        "industry": "Diversified",
-        "instrument_type": "MUTUALFUND",
+        "instrument_type": "ETF",
     }
+
+
+def test_fetch_metadata_from_yahoo_falls_back_when_chart_and_search_fail(monkeypatch) -> None:
+    ticker = _MetaTicker({}, info=None)
+    ticker._error = RuntimeError("chart down")
+
+    def failing_search(query, **kwargs):
+        raise RuntimeError("search down")
+
+    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=lambda symbol: ticker, Search=failing_search))
+
+    result = instruments._fetch_metadata_from_yahoo("gamma", "L")
+
+    assert result["name"] == "GAMMA.L"
+    assert result["region"] == "United Kingdom"
+    assert ticker.info_calls == 0
 
 
 def test_fetch_metadata_from_yahoo_applies_classification_override(monkeypatch, tmp_path) -> None:
@@ -440,21 +482,35 @@ def test_fetch_metadata_from_yahoo_applies_classification_override(monkeypatch, 
         json.dumps({"ESIH.L": {"sector": "Health Care"}}), encoding="utf-8"
     )
     monkeypatch.setattr(instrument_classification.config, "data_root", tmp_path)
-
-    class _FakeTicker:
-        def __init__(self, symbol: str) -> None:
-            assert symbol == "ESIH.L"
-
-        def get_info(self):
-            return {"shortName": "iShares MSCI EUR HealthCare UCITS ETF", "quoteType": "ETF", "category": "Bond"}
-
-    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=_FakeTicker))
+    ticker = _MetaTicker(
+        {"shortName": "iShares MSCI EUR HealthCare UCITS ETF", "instrumentType": "ETF"},
+        info={"category": "Bond"},
+    )
+    _fake_yfinance(monkeypatch, "ESIH.L", ticker, [])
 
     result = instruments._fetch_metadata_from_yahoo("esih", "l")
 
     assert result["asset_class"] == "equity"
     assert result["sector"] == "Health Care"
     assert result["instrument_type"] == "ETF"
+
+
+def test_every_supported_exchange_has_a_region() -> None:
+    """Adding an exchange to ``_YAHOO_SUFFIXES`` without a region would
+    silently give its new instruments ``region=None``; currency pairs have no
+    region by design."""
+
+    no_region = {"FX"}
+
+    supported = set(instruments._YAHOO_SUFFIXES) - no_region
+    regions = set(instruments._EXCHANGE_REGIONS)
+    assert supported == regions, (
+        f"Exchanges without a region: {sorted(supported - regions)}; "
+        f"regions for unsupported exchanges: {sorted(regions - supported)}. "
+        "Add the region to _EXCHANGE_REGIONS, or add the code to no_region if it "
+        "has none (e.g. a currency pair)."
+    )
+    assert all(isinstance(region, str) and region.strip() for region in instruments._EXCHANGE_REGIONS.values())
 
 
 def test_fetch_metadata_from_yahoo_rejects_unknown_exchange(monkeypatch) -> None:

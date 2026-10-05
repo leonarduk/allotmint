@@ -70,6 +70,7 @@ from backend.common.portfolio_utils import (
 # ──────────────────────────────────────────────────────────────
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
+from backend.timeseries.boe_rates import refresh_boe_series
 from backend.timeseries.cache import load_meta_timeseries_range, refresh_fx_cache_for_tickers
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import _nearest_weekday
@@ -423,6 +424,25 @@ def _upload_snapshot_to_s3(merged: Dict) -> None:
             )
 
 
+def _refresh_reference_data(tickers: List[str]) -> None:
+    """Refresh the FX cache and the stored Bank of England series alongside the prices.
+
+    Page requests convert non-GBP closes from the FX cache only (#7917), and
+    MCP tools read FX history and BoE rates from the data root only (#9322).
+    A failure here must not stop the price snapshot being persisted.
+    """
+    try:
+        refresh_fx_cache_for_tickers(tickers)
+    except Exception as exc:
+        logger.warning("FX cache refresh failed: %s", sanitise_log_value(exc))
+    if config.offline_mode:
+        return
+    try:
+        refresh_boe_series()
+    except Exception as exc:
+        logger.warning("Bank of England rates refresh failed: %s", sanitise_log_value(exc))
+
+
 def refresh_prices() -> Dict:
     """
     Pulls latest close, 7- and 30-day % moves for every ticker in
@@ -442,12 +462,7 @@ def refresh_prices() -> Dict:
     finally:
         refresh_progress.finish()
 
-    # Page requests convert non-GBP closes from the FX cache only (#7917).
-    # A failure here must not stop the price snapshot being persisted below.
-    try:
-        refresh_fx_cache_for_tickers(tickers)
-    except Exception as exc:
-        logger.warning("FX cache refresh failed: %s", sanitise_log_value(exc))
+    _refresh_reference_data(tickers)
 
     # ---- persist to disk --------------------------------------------------
     if not config.prices_json:

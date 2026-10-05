@@ -36,6 +36,6 @@ requests>=2.34.2,<3
 peewee~=4.5.1
 PyJWT~=2.15.0
 python-multipart~=0.0.32
-google-auth~=2.58.1
+google-auth~=2.59.1
 zipp>=4.1.0 # not directly required, pinned by Snyk to avoid a vulnerability
 pyasn1>=0.6.4 # not directly required, pinned by Snyk to avoid a vulnerability

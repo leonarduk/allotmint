@@ -383,6 +383,7 @@
     "indexChange": "Variación % de los índices",
     "indexLevels": "Niveles de índices",
     "latestHeadlines": "Últimos titulares",
+    "noSectors": "No hay datos de sectores disponibles",
     "sectorChange": "Variación % por sector",
     "sectorPerformance": "Rendimiento por sector",
     "sectorUsFallback": "Los datos de sectores del Reino Unido no están disponibles; se muestra el rendimiento de ETF sectoriales de EE. UU."

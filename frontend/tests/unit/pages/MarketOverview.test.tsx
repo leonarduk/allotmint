@@ -11,6 +11,7 @@ vi.mock("react-i18next", () => ({
 // vi.hoisted ensures mocks are initialised before vi.mock factories run.
 const mockBar = vi.hoisted(() => vi.fn(({ children }: any) => <>{children}</>));
 const mockCell = vi.hoisted(() => vi.fn(() => null));
+const mockXAxis = vi.hoisted(() => vi.fn(() => null));
 
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
@@ -23,7 +24,7 @@ vi.mock("recharts", () => ({
     </div>
   ),
   Bar: mockBar,
-  XAxis: () => null,
+  XAxis: mockXAxis,
   YAxis: () => null,
   Tooltip: () => null,
   Cell: mockCell,
@@ -167,5 +168,32 @@ describe("MarketOverview", () => {
     expect(
       await screen.findByText(/showing US sector ETF performance/),
     ).toBeInTheDocument();
+  });
+
+  it("labels the sector value axis with % units (#7817)", async () => {
+    mockXAxis.mockClear();
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: {},
+      sectors: [{ sector: "Energy", change: 1.234, source: "lse" }],
+      headlines: [],
+    });
+    render(<MarketOverview />);
+    await screen.findByRole("heading", { name: "Sector % Change" });
+    const valueAxis = mockXAxis.mock.calls
+      .map(([props]: any) => props)
+      .find((props: any) => props.type === "number");
+    expect(valueAxis).toBeDefined();
+    expect(valueAxis.tickFormatter(1.234)).toBe("1.2%");
+    expect(valueAxis.label.value).toBe("% Change");
+  });
+
+  it("shows an empty state instead of a blank chart when there are no sectors", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: {},
+      sectors: [],
+      headlines: [],
+    });
+    render(<MarketOverview />);
+    expect(await screen.findByText("No sector data available")).toBeInTheDocument();
   });
 });

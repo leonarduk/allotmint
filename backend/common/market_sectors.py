@@ -505,13 +505,16 @@ def _basket_index(closes: pd.DataFrame, symbols: Sequence[str]) -> pd.Series:
     """Equal-weighted index of ``symbols`` rebased to 100 at its first date.
 
     Each constituent is forward-filled across other exchanges' holidays and
-    rebased on its own first close, so mixed listings line up.
+    rebased on its own first close, so mixed listings line up. Constituents
+    with no data at all are dropped first, so one dead ticker can't blank the
+    whole index.
     """
 
     columns = [s for s in symbols if s in closes]
     if not columns:
         return pd.Series(dtype=float)
-    frame = closes[columns].apply(pd.to_numeric, errors="coerce").ffill().dropna(how="any")
+    numeric = closes[columns].apply(pd.to_numeric, errors="coerce").dropna(axis=1, how="all")
+    frame = numeric.ffill().dropna(how="any")
     if frame.empty:
         return pd.Series(dtype=float)
     rebased = frame.divide(frame.iloc[0]).multiply(100.0)

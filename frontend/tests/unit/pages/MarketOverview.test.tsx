@@ -224,7 +224,7 @@ describe("MarketOverview sectors (#9381)", () => {
     const sectorBar = mockBar.mock.calls
       .map((call: any[]) => call[0])
       .find((props: any) => typeof props.onClick === "function");
-    sectorBar.onClick({ payload: { sector: "Utilities" } });
+    sectorBar.onClick({}, 0);
 
     await waitFor(() =>
       expect(mockGetSectorDetail).toHaveBeenCalledWith("us", "Utilities", expect.any(AbortSignal)),

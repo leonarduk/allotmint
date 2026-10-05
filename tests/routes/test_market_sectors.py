@@ -121,6 +121,16 @@ def test_fetch_sector_detail_uk_builds_equal_weight_index(monkeypatch, small_uni
     assert detail["returns"]["1D"] == pytest.approx(10.0)
 
 
+def test_basket_index_ignores_constituent_without_data(monkeypatch, small_universe):
+    frame = _closes({"SHEL.L": [10.0, 11.0], "BP.L": [None, None]})
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    detail = market_sectors.fetch_sector_detail("uk", "Energy")
+
+    assert [p["value"] for p in detail["history"]] == [100.0, pytest.approx(110.0)]
+    assert detail["returns"]["1D"] == pytest.approx(10.0)
+
+
 def test_sectors_endpoint_uses_configured_default_region(monkeypatch):
     monkeypatch.setattr(market.cfg, "default_sector_region", "UK", raising=False)
     calls = []

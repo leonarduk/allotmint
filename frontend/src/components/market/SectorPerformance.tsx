@@ -72,11 +72,15 @@ function SectorChart({ data, selected, onSelect }: SectorChartProps) {
         <Bar
           dataKey="change"
           cursor="pointer"
-          onClick={(entry: {
-            sector?: string;
-            payload?: { sector?: string };
-          }) => {
-            const sector = entry.sector ?? entry.payload?.sector;
+          // Recharts v3 passes the bar item (row under `payload`) and its
+          // index; fall back to the index so a payload shape change can't
+          // silently break selection.
+          onClick={(
+            entry: { payload?: { sector?: string } },
+            index: number
+          ) => {
+            const sector =
+              entry?.payload?.sector ?? data.sectors[index]?.sector;
             if (sector) onSelect(sector);
           }}
         >
@@ -131,6 +135,9 @@ export default function SectorPerformance() {
     const controller = new AbortController();
     setError(null);
     setSelected(null);
+    // Drop the previous region's bars so they aren't shown under the new
+    // region's toggle while the fetch is in flight.
+    setData(null);
     getMarketSectors(requested, controller.signal)
       .then(setData)
       .catch((e) => {

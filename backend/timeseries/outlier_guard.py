@@ -17,21 +17,29 @@ these hold:
   neighbour but stays near the next;
 * those two neighbours agree with each other within
   :data:`NEIGHBOUR_AGREEMENT_TOLERANCE` -- the series returns to where it was;
-* its ``Source`` is known and differs from the ``Source`` of **both**
-  neighbours -- the spike is a row spliced in from another provider.
+* there is evidence the row is not a real trade -- **either**:
 
-The ``Source`` condition is what separates the defect from a genuine
+  * its ``Source`` is known and differs from the ``Source`` of **both**
+    neighbours -- the spike is a row spliced in from another provider; **or**
+  * it is a flat bar (``Open == High == Low == Close``) -- a placeholder or
+    stale quote, not a session that traded (#9294, e.g. ``VHYL.L`` on
+    2025-10-01: a single Yahoo row at 78.41 between Yahoo rows at ~58).
+
+The provenance/flat-bar condition is what separates the defect from a genuine
 zero-volume V-shaped move such as ``[100, 80, 100, 101]`` from a single
 provider (a halted or very illiquid line): price alone cannot tell those
-apart, provenance can. When the frame has no ``Source`` column, or the row or
-either neighbour has a blank/missing ``Source``, the row is **kept** -- the
+apart, provenance or bar shape can. When the frame has no ``Source`` column,
+or the row or either neighbour has a blank/missing ``Source``, the
+cross-source test fails and the row is **kept** unless it is a flat bar -- the
 guard prefers leaving a possibly-bad print in place to silently discarding a
-possibly-real one.
+possibly-real one. The flat-bar test needs ``Open``, ``High`` and ``Low``
+columns with finite values; a row missing any of them is never treated as
+flat.
 
 Known limits of the heuristic:
 
 * A bad row whose source matches a neighbour (e.g. a zero-volume Yahoo spike
-  between a Yahoo row and a Stooq row) is kept.
+  between a Yahoo row and a Stooq row) is kept unless it is a flat bar.
 * The first and last rows of the frame have only one neighbour and are always
   kept: without the second neighbour a bad print cannot be told apart from the
   start of a real move. Once the next close arrives the row gains its second
@@ -40,8 +48,12 @@ Known limits of the heuristic:
   each bad row against the other (within 15%), so neither is flagged.
 * Because the decision depends on neighbouring rows, whether a boundary row is
   dropped can depend on the requested date range.
-* A cross-source spike smaller than 15% (or one where the neighbours differ by
+* A spike smaller than 15% (or one where the neighbours differ by
   more than 5%) is not caught.
+* A genuine single-provider zero-volume round trip *is* dropped if its bar is
+  flat. A provider that prints a flat, untraded bar 15%+ away from two
+  agreeing neighbours is quoting a placeholder, not a price, so this is
+  accepted as the cheaper error.
 
 The guard filters what is *returned*; it never rewrites the cached parquet.
 Repairing the stored rows is a data change, not a code one.
@@ -67,10 +79,11 @@ ZERO_VOLUME_SPIKE_THRESHOLD = 0.15
 NEIGHBOUR_AGREEMENT_TOLERANCE = 0.05
 
 
-def _spike_mask(close: np.ndarray, volume: np.ndarray, source: np.ndarray) -> np.ndarray:
-    """Flag isolated zero-volume, cross-source spikes in date-ordered valid ``close``.
+def _spike_mask(close: np.ndarray, volume: np.ndarray, source: np.ndarray, flat: np.ndarray) -> np.ndarray:
+    """Flag isolated zero-volume spikes in date-ordered valid ``close``.
 
-    ``source`` holds normalised source labels with ``""`` for unknown.
+    ``source`` holds normalised source labels with ``""`` for unknown; ``flat``
+    marks rows whose Open, High and Low all equal Close.
     """
     prev_close = np.concatenate(([np.nan], close[:-1]))
     next_close = np.concatenate((close[1:], [np.nan]))
@@ -87,7 +100,23 @@ def _spike_mask(close: np.ndarray, volume: np.ndarray, source: np.ndarray) -> np
     )
     # NaN comparisons (the first/last row's missing neighbour) are False, so
     # edge rows are never flagged.
-    return no_volume & off_prev & off_next & neighbours_agree & cross_source
+    return no_volume & off_prev & off_next & neighbours_agree & (cross_source | flat)
+
+
+def _flat_bars(df: pd.DataFrame, close: np.ndarray) -> np.ndarray:
+    """``True`` where Open, High and Low are all finite and equal to ``close``.
+
+    ``close`` is the numeric Close in ``df`` row order. Frames missing any of
+    the OHLC columns have no flat bars.
+    """
+    flat = np.ones(len(df), dtype=bool)
+    for column in ("Open", "High", "Low"):
+        if column not in df.columns:
+            return np.zeros(len(df), dtype=bool)
+        values = pd.to_numeric(df[column], errors="coerce").to_numpy(dtype=float)
+        # isclose with NaN is False, so a missing price never counts as flat.
+        flat &= np.isclose(values, close, rtol=1e-9, atol=0.0)
+    return flat
 
 
 def _normalised_sources(df: pd.DataFrame) -> np.ndarray:
@@ -106,21 +135,21 @@ def _normalised_sources(df: pd.DataFrame) -> np.ndarray:
 
 
 def drop_zero_volume_spikes(df: pd.DataFrame, *, ticker: str, exchange: str) -> pd.DataFrame:
-    """Return ``df`` without isolated zero-volume, cross-source price spikes.
+    """Return ``df`` without isolated zero-volume cross-source or flat-bar price spikes.
 
     Returns the input object unchanged when nothing is dropped (the common
     case), otherwise a new frame. ``df`` itself is never mutated, but the
     unchanged input is returned as-is, so callers handing out a frame shared
     through an LRU cache must still ``.copy()`` the result. Rows without a
     positive numeric Close are ignored when picking neighbours and are kept.
-    Frames without a ``Source`` column are returned unchanged.
+    Without a ``Source`` column only flat bars can be dropped.
     """
     if df.empty or "Close" not in df.columns or "Date" not in df.columns:
         return df
-    if "Source" not in df.columns:
-        return df
     order = np.argsort(pd.to_datetime(df["Date"]).to_numpy(), kind="stable")
-    close = pd.to_numeric(df["Close"], errors="coerce").to_numpy(dtype=float)[order]
+    raw_close = pd.to_numeric(df["Close"], errors="coerce").to_numpy(dtype=float)
+    flat = _flat_bars(df, raw_close)[order]
+    close = raw_close[order]
     if "Volume" in df.columns:
         volume = pd.to_numeric(df["Volume"], errors="coerce").to_numpy(dtype=float)[order]
     else:
@@ -129,7 +158,7 @@ def drop_zero_volume_spikes(df: pd.DataFrame, *, ticker: str, exchange: str) -> 
     valid = ~np.isnan(close) & (close > 0)
     if valid.sum() < 3:
         return df
-    spike_positions = order[valid][_spike_mask(close[valid], volume[valid], source[valid])]
+    spike_positions = order[valid][_spike_mask(close[valid], volume[valid], source[valid], flat[valid])]
     if spike_positions.size == 0:
         return df
     _log_dropped(df.iloc[spike_positions], ticker=ticker, exchange=exchange)
@@ -141,12 +170,13 @@ def drop_zero_volume_spikes(df: pd.DataFrame, *, ticker: str, exchange: str) -> 
 
 
 def _log_dropped(dropped: pd.DataFrame, *, ticker: str, exchange: str) -> None:
+    sources = dropped["Source"] if "Source" in dropped.columns else [None] * len(dropped)
     rows = ", ".join(
         f"{pd.Timestamp(day).date().isoformat()}={float(close):g} ({source})"
-        for day, close, source in zip(dropped["Date"], dropped["Close"], dropped["Source"])
+        for day, close, source in zip(dropped["Date"], dropped["Close"], sources)
     )
     logger.warning(
-        "Ignoring %s zero-volume cross-source price spike(s) for %s.%s (close vs both neighbours > %s%%): %s",
+        "Ignoring %s zero-volume price spike(s) for %s.%s (close vs both neighbours > %s%%): %s",
         sanitise_log_value(len(dropped)),
         sanitise_log_value(ticker),
         sanitise_log_value(exchange),

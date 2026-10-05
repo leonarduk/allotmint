@@ -29,7 +29,7 @@ def test_drops_isolated_zero_volume_spikes_from_issue_example(caplog):
     with caplog.at_level(logging.WARNING, logger="backend.timeseries.outlier_guard"):
         out = drop_zero_volume_spikes(df, ticker="VWRL", exchange="L")
     assert out["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
-    assert "2 zero-volume cross-source price spike(s) for VWRL.L" in caplog.text
+    assert "2 zero-volume price spike(s) for VWRL.L" in caplog.text
     # Daily returns are now all small.
     assert out["Close"].pct_change().abs().max() < 0.02
 
@@ -219,3 +219,67 @@ def test_no_false_positives_on_clean_interleaved_stooq_yahoo_series():
     df = _frame(closes.tolist(), volumes.tolist(), sources=sources.tolist())
 
     assert drop_zero_volume_spikes(df, ticker="VWRL", exchange="L") is df
+
+
+# The VHYL.L rows quoted on #9294: a flat, zero-volume Yahoo bar at 78.41
+# between Yahoo bars at ~58. Same source throughout, so only the flat-bar
+# test can catch it.
+VHYL = pd.DataFrame(
+    {
+        "Date": pd.to_datetime(["2025-09-26", "2025-10-01", "2025-10-08"]),
+        "Open": [57.92, 78.41, 58.67],
+        "High": [58.44, 78.41, 58.76],
+        "Low": [57.87, 78.41, 58.47],
+        "Close": [58.01, 78.41, 58.69],
+        "Volume": [77523, 0, 74571],
+        "Source": ["Yahoo", "Yahoo", "Yahoo"],
+    }
+)
+
+
+def test_drops_same_source_flat_zero_volume_spike_from_vhyl_example(caplog):
+    with caplog.at_level(logging.WARNING, logger="backend.timeseries.outlier_guard"):
+        out = drop_zero_volume_spikes(VHYL, ticker="VHYL", exchange="L")
+    assert out["Close"].tolist() == [58.01, 58.69]
+    assert "1 zero-volume price spike(s) for VHYL.L" in caplog.text
+    assert "2025-10-01=78.41" in caplog.text
+
+
+def test_keeps_same_source_flat_zero_volume_bar_within_threshold():
+    df = VHYL.copy()
+    df.loc[1, ["Open", "High", "Low", "Close"]] = 62.0  # ~7% off: not a spike
+    assert drop_zero_volume_spikes(df, ticker="VHYL", exchange="L") is df
+
+
+def test_keeps_same_source_non_flat_zero_volume_spike():
+    df = VHYL.copy()
+    df.loc[1, "High"] = 79.10  # an intraday range: not a placeholder bar
+    assert drop_zero_volume_spikes(df, ticker="VHYL", exchange="L") is df
+
+
+def test_keeps_flat_spike_with_volume():
+    df = VHYL.copy()
+    df.loc[1, "Volume"] = 1200
+    assert drop_zero_volume_spikes(df, ticker="VHYL", exchange="L") is df
+
+
+def test_keeps_flat_bar_when_ohlc_missing_or_nan():
+    no_open = VHYL.drop(columns="Open")
+    assert drop_zero_volume_spikes(no_open, ticker="VHYL", exchange="L") is no_open
+    nan_low = VHYL.copy()
+    nan_low.loc[1, "Low"] = np.nan
+    assert drop_zero_volume_spikes(nan_low, ticker="VHYL", exchange="L") is nan_low
+
+
+def test_flat_spike_dropped_without_source_column():
+    df = VHYL.drop(columns="Source")
+    out = drop_zero_volume_spikes(df, ticker="VHYL", exchange="L")
+    assert out["Close"].tolist() == [58.01, 58.69]
+
+
+def test_flat_spike_at_edge_is_kept():
+    edge = VHYL.iloc[:2].reset_index(drop=True)
+    edge = pd.concat([VHYL.iloc[[0]], edge], ignore_index=True)
+    edge.loc[0, "Date"] = pd.Timestamp("2025-09-25")
+    # [58.01, 58.01, 78.41]: the flat bar is the last row, so it has one neighbour.
+    assert drop_zero_volume_spikes(edge, ticker="VHYL", exchange="L") is edge

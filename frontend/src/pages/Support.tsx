@@ -16,6 +16,7 @@ import {
   clearGroupInstrumentCache,
 } from "../api";
 import { clearFetchCache } from "../utils/fetchCache";
+import { MCP_TOOL_SETUP_DOCS_URL } from "../utils/docsLinks";
 import { useConfig } from "../ConfigContext";
 import { useAuth } from "../AuthContext";
 import { useUser } from "../UserContext";
@@ -35,10 +36,6 @@ const EMPTY_TABS = Object.fromEntries(TAB_KEYS.map((k) => [k, false])) as Record
 const UI_KEYS = new Set(["theme", "relative_view_enabled"]);
 // Rendered by the MCP tools section, not the generic parameter list.
 const MCP_TOOLS_KEY = "mcp_tools";
-
-// Where a "not configured" MCP tool's credentials are explained (#9314).
-const MCP_TOOL_SETUP_DOCS_URL =
-  "https://github.com/leonarduk/allotmint/blob/main/docs/CONTRIBUTOR_RUNBOOK.md#running-the-chat-mcp-agent-locally";
 
 // DOM id for an MCP tool's "not configured" note: derived from the tool name
 // (stable across reorders), with characters not safe in an id replaced.

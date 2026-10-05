@@ -34,6 +34,7 @@ vi.mock("@/api", async () => {
 import Support from "@/pages/Support";
 import en from "@/locales/en/translation.json";
 import { setAuthToken, UNAUTHORIZED_EVENT } from "@/api";
+import { MCP_TOOL_SETUP_DOCS_URL } from "@/utils/docsLinks";
 
 async function expandSection(title: string) {
   const heading = await screen.findByRole("heading", { name: title });
@@ -481,10 +482,8 @@ describe("Support page", () => {
     );
     const setupLinks = screen.getAllByRole("link", { name: en.support.config.mcpToolSetupLink });
     expect(setupLinks).toHaveLength(1);
-    expect(setupLinks[0]).toHaveAttribute(
-      "href",
-      "https://github.com/leonarduk/allotmint/blob/main/docs/CONTRIBUTOR_RUNBOOK.md#running-the-chat-mcp-agent-locally",
-    );
+    // The anchor itself is checked against the runbook in docsLinks.test.ts.
+    expect(setupLinks[0]).toHaveAttribute("href", MCP_TOOL_SETUP_DOCS_URL);
     expect(setupLinks[0]).toHaveAttribute("target", "_blank");
     expect(setupLinks[0]).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getByLabelText("get_portfolio")).not.toHaveAccessibleDescription();

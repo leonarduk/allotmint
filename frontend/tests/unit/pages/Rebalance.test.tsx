@@ -1,273 +1,276 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RebalancePlan } from '@/types';
 
 const mockGetOwners = vi.hoisted(() => vi.fn());
-const mockGetPortfolio = vi.hoisted(() => vi.fn());
-const mockGetRebalance = vi.hoisted(() => vi.fn());
+const mockGetRebalancePlan = vi.hoisted(() => vi.fn());
+const mockSaveAllocationPolicy = vi.hoisted(() => vi.fn());
+const mockGetNewCashPlan = vi.hoisted(() => vi.fn());
 
-vi.mock("@/api", () => ({
+vi.mock('@/api', () => ({
   getOwners: mockGetOwners,
-  getPortfolio: mockGetPortfolio,
-  getRebalance: mockGetRebalance,
+  getRebalancePlan: mockGetRebalancePlan,
+  saveAllocationPolicy: mockSaveAllocationPolicy,
+  getNewCashPlan: mockGetNewCashPlan,
 }));
 
-vi.mock("@/RouteContext", () => ({
+vi.mock('@/RouteContext', () => ({
   useRoute: () => ({
-    mode: "rebalance",
+    mode: 'rebalance',
     setMode: vi.fn(),
-    selectedOwner: "",
+    selectedOwner: '',
     setSelectedOwner: vi.fn(),
-    selectedGroup: "",
+    selectedGroup: '',
     setSelectedGroup: vi.fn(),
   }),
 }));
 
-describe("Rebalance page", () => {
+function makePlan(overrides: Partial<RebalancePlan> = {}): RebalancePlan {
+  return {
+    policy: { targets: { equity: 60, bond: 40 }, tolerance_pct: 5 },
+    total_value: 2000,
+    classes: [
+      {
+        asset_class: 'equity',
+        label: 'Equity',
+        current_value: 1600,
+        current_pct: 80,
+        target_pct: 60,
+        drift_pct: 20,
+        in_band: false,
+      },
+      {
+        asset_class: 'bond',
+        label: 'Bond',
+        current_value: 400,
+        current_pct: 20,
+        target_pct: 40,
+        drift_pct: -20,
+        in_band: false,
+      },
+    ],
+    unclassified_value: 0,
+    unclassified_pct: 0,
+    unpriced_tickers: [],
+    accounts: [
+      { id: '0', label: 'ISA', value: 1000, cash: 0 },
+      { id: '1', label: 'SIPP', value: 1000, cash: 0 },
+    ],
+    trades: [
+      {
+        account_id: '0',
+        account: 'ISA',
+        asset_class: 'equity',
+        action: 'sell',
+        amount: 200,
+        ticker: 'EQ1',
+      },
+      {
+        account_id: '0',
+        account: 'ISA',
+        asset_class: 'bond',
+        action: 'buy',
+        amount: 200,
+        ticker: 'BD1',
+      },
+      {
+        account_id: '1',
+        account: 'SIPP',
+        asset_class: 'equity',
+        action: 'sell',
+        amount: 200,
+        ticker: 'EQ2',
+      },
+      {
+        account_id: '1',
+        account: 'SIPP',
+        asset_class: 'bond',
+        action: 'buy',
+        amount: 200,
+        ticker: null,
+      },
+    ],
+    unfunded_amount: 0,
+    notes: [],
+    ...overrides,
+  };
+}
+
+async function renderPage() {
+  const { default: Rebalance } = await import('@/pages/Rebalance');
+  render(<Rebalance />);
+  await waitFor(() =>
+    expect(mockGetRebalancePlan).toHaveBeenCalledWith('alex')
+  );
+}
+
+describe('Rebalance page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
-    mockGetPortfolio.mockResolvedValue({
-      accounts: [
-        {
-          holdings: [
-            { ticker: "AAA", market_value_gbp: 2 },
-            { ticker: "BBB", market_value_gbp: 1 },
-          ],
-        },
-      ],
-    });
+    mockGetOwners.mockResolvedValue([{ owner: 'alex', accounts: [] }]);
+    mockGetRebalancePlan.mockResolvedValue(makePlan());
   });
 
-  it("shows weights in the input table and sends target percentages as fractional weights", async () => {
-    mockGetRebalance.mockResolvedValue([
-      { ticker: "AAA", action: "buy", amount: 10 },
-      { ticker: "BBB", action: "sell", amount: 10 },
-    ]);
+  it('shows per-class drift against stored targets without any input', async () => {
+    await renderPage();
+    const drift = await screen.findByRole('region', {
+      name: 'Allocation drift',
+    });
+    const equityRow = within(drift)
+      .getByText('Equity')
+      .closest('tr') as HTMLElement;
+    expect(within(equityRow).getByText('80.00%')).toBeInTheDocument();
+    expect(within(equityRow).getByText('60.00%')).toBeInTheDocument();
+    expect(within(equityRow).getByText('+20.00')).toBeInTheDocument();
+    expect(within(equityRow).getByText('Overweight')).toBeInTheDocument();
+    const bondRow = within(drift)
+      .getByText('Bond')
+      .closest('tr') as HTMLElement;
+    expect(within(bondRow).getByText('Underweight')).toBeInTheDocument();
+  });
 
-    const { default: Rebalance } = await import("@/pages/Rebalance");
-    render(<Rebalance />);
-
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
-    await screen.findByDisplayValue("66.67");
-
-    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
-
-    await waitFor(() => expect(mockGetRebalance).toHaveBeenCalledTimes(1));
-    const [actualPayload, targetPayload] = mockGetRebalance.mock.calls[0];
-    expect(actualPayload).toEqual({ AAA: 2, BBB: 1 });
-    expect(targetPayload.AAA + targetPayload.BBB).toBeCloseTo(1, 10);
-    expect(targetPayload.AAA).toBeCloseTo(2 / 3, 10);
-    expect(targetPayload.BBB).toBeCloseTo(1 / 3, 10);
-
-    expect(screen.getAllByRole("columnheader", { name: /current weight/i }).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByRole("columnheader", { name: /target weight/i }).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByRole("columnheader", { name: /trade value/i })).toBeInTheDocument();
-    expect(screen.getByDisplayValue("66.67%")).toHaveAttribute("readonly");
-    expect(screen.getByDisplayValue("33.33%")).toHaveAttribute("readonly");
+  it('groups suggested trades by account', async () => {
+    await renderPage();
+    const trades = await screen.findByRole('region', {
+      name: 'Suggested trades',
+    });
     expect(
-      screen.getByText(/Trade value is the amount of portfolio value/i),
+      within(trades).getByRole('heading', { name: 'ISA' })
     ).toBeInTheDocument();
-    expect(screen.getByText(/not number of units\/shares/i)).toBeInTheDocument();
-    expect(screen.getByText(/treated as no-change/i)).toBeInTheDocument();
-
-    // Both the input and trades tables scroll inside their own container so
-    // they cannot widen the page on a phone (#8612).
-    const tables = screen.getAllByRole("table");
-    expect(tables).toHaveLength(2);
-    for (const table of tables) {
-      expect(table.parentElement).toHaveClass("overflow-x-auto");
-    }
+    expect(
+      within(trades).getByRole('heading', { name: 'SIPP' })
+    ).toBeInTheDocument();
+    expect(within(trades).getAllByText('SELL')).toHaveLength(2);
+    expect(
+      within(trades).getByText('Choose an instrument')
+    ).toBeInTheDocument();
   });
 
-  it("prefills targets that sum to exactly 100% so the untouched prefill can be submitted", async () => {
-    // Weights 16.666.../16.666.../16.666.../50 round independently to
-    // 16.67+16.67+16.67+50.00 = 100.01, the same drift-above-100 failure as
-    // the issue's alex repro. The residual must be absorbed by the smallest
-    // holding (CCC) instead of failing the page's own validation.
-    mockGetPortfolio.mockResolvedValue({
-      accounts: [
-        {
-          holdings: [
-            { ticker: "AAA", market_value_gbp: 1 },
-            { ticker: "BBB", market_value_gbp: 1 },
-            { ticker: "CCC", market_value_gbp: 1 },
-            { ticker: "DDD", market_value_gbp: 3 },
-          ],
-        },
-      ],
-    });
-    mockGetRebalance.mockResolvedValue([]);
-    const { default: Rebalance } = await import("@/pages/Rebalance");
-    render(<Rebalance />);
+  it('shows an empty state when every class is in band', async () => {
+    mockGetRebalancePlan.mockResolvedValue(makePlan({ trades: [] }));
+    await renderPage();
+    expect(await screen.findByText(/No trades required/)).toBeInTheDocument();
+  });
 
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
-    await waitFor(() =>
-      expect(screen.getByLabelText("Target weight (%) for DDD")).toHaveValue(50),
+  it('shows the unclassified bucket and notes', async () => {
+    mockGetRebalancePlan.mockResolvedValue(
+      makePlan({
+        unclassified_value: 250,
+        unclassified_pct: 12.5,
+        notes: ['£250.00 (12.50%) is in holdings with no asset class.'],
+      })
     );
-    expect(screen.getByLabelText("Target weight (%) for AAA")).toHaveValue(16.67);
-    expect(screen.getByLabelText("Target weight (%) for BBB")).toHaveValue(16.67);
-    expect(screen.getByLabelText("Target weight (%) for CCC")).toHaveValue(16.66);
+    await renderPage();
+    expect(await screen.findByText('Unclassified')).toBeInTheDocument();
+    expect(screen.getByText('Needs an asset class')).toBeInTheDocument();
     expect(
-      screen.getByText(/Total target weight: 100.00% \(ready to rebalance\)/i),
+      screen.getByText(/is in holdings with no asset class/)
     ).toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
-
-    await waitFor(() => expect(mockGetRebalance).toHaveBeenCalledTimes(1));
+  it('prompts for targets and hides trades when no policy is stored', async () => {
+    mockGetRebalancePlan.mockResolvedValue(
+      makePlan({ policy: { targets: {}, tolerance_pct: 5 }, trades: [] })
+    );
+    await renderPage();
     expect(
-      screen.queryByText(/Target weights must total 100%/i),
+      await screen.findByText(/Save target allocations/)
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', { name: 'Suggested trades' })
     ).not.toBeInTheDocument();
   });
 
-  it("explains when target weights do not add up to 100%", async () => {
-    mockGetRebalance.mockResolvedValue([]);
-    const { default: Rebalance } = await import("@/pages/Rebalance");
-    render(<Rebalance />);
-
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
-    await screen.findByDisplayValue("66.67");
-    fireEvent.change(screen.getByLabelText("Target weight (%) for AAA"), {
-      target: { value: "30" },
+  it('only enables saving when targets total 100% and saves the parsed policy', async () => {
+    mockSaveAllocationPolicy.mockResolvedValue({
+      targets: { equity: 70, bond: 30 },
+      tolerance_pct: 3,
     });
+    await renderPage();
+    const equity = await screen.findByLabelText('Target % for Equity');
+    const save = screen.getByRole('button', { name: 'Save targets' });
+    expect(save).toBeEnabled();
 
-    expect(screen.getByText(/Total target weight: 63.33% \(must equal 100%\)/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
+    fireEvent.change(equity, { target: { value: '70' } });
+    expect(save).toBeDisabled();
+    expect(screen.getByText(/must equal 100%/)).toBeInTheDocument();
 
-    expect(mockGetRebalance).not.toHaveBeenCalled();
-    expect(
-      screen.getByText(/Target weights must total 100%. Current total is 63.33%./i),
-    ).toBeInTheDocument();
-  });
-
-  it("rejects a negative target weight even when the row totals still reach 100% (#7130)", async () => {
-    mockGetRebalance.mockResolvedValue([]);
-    const { default: Rebalance } = await import("@/pages/Rebalance");
-    render(<Rebalance />);
-
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
-    await screen.findByDisplayValue("66.67");
-    // -10 / 110 still sums to 100, so the sum check alone lets this through --
-    // and the backend would then suggest selling more AAA than is held.
-    fireEvent.change(screen.getByLabelText("Target weight (%) for AAA"), {
-      target: { value: "-10" },
+    fireEvent.change(screen.getByLabelText('Target % for Bond'), {
+      target: { value: '30' },
     });
-    fireEvent.change(screen.getByLabelText("Target weight (%) for BBB"), {
-      target: { value: "110" },
+    fireEvent.change(screen.getByLabelText(/Tolerance band/), {
+      target: { value: '3' },
     });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
 
-    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
-
-    expect(mockGetRebalance).not.toHaveBeenCalled();
-    expect(
-      screen.getByText("Target weight for AAA must be between 0% and 100%."),
-    ).toBeInTheDocument();
-  });
-
-  it("normalizes submitted targets to avoid backend precision 400s", async () => {
-    mockGetRebalance.mockResolvedValue([]);
-    const { default: Rebalance } = await import("@/pages/Rebalance");
-    render(<Rebalance />);
-
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
-    await screen.findByDisplayValue("66.67");
-    fireEvent.change(screen.getByLabelText("Target weight (%) for AAA"), {
-      target: { value: "67.67" },
-    });
-    fireEvent.change(screen.getByLabelText("Target weight (%) for BBB"), {
-      target: { value: "32.33" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
-    await waitFor(() => expect(mockGetRebalance).toHaveBeenCalledTimes(1));
-    const [, targetPayload] = mockGetRebalance.mock.calls[0];
-    expect(targetPayload.AAA + targetPayload.BBB).toBeCloseTo(1, 12);
-  });
-
-  it("does not perturb untouched tickers' targets when other tickers are edited (#7102)", async () => {
-    // AAA/BBB/CCC/DDD prefill to 16.67/16.67/16.66/50.00 (residual-absorbed
-    // to sum to exactly 100.00, per the #6654 fix). Only AAA and DDD are
-    // edited here; BBB is left exactly as prefilled, so its target must stay
-    // the *exact* unrounded current-weight fraction and must not be nudged
-    // by renormalizing the edited rows' rounding drift against it.
-    mockGetPortfolio.mockResolvedValue({
-      accounts: [
-        {
-          holdings: [
-            { ticker: "AAA", market_value_gbp: 1 },
-            { ticker: "BBB", market_value_gbp: 1 },
-            { ticker: "CCC", market_value_gbp: 1 },
-            { ticker: "DDD", market_value_gbp: 3 },
-          ],
-        },
-      ],
-    });
-    mockGetRebalance.mockResolvedValue([]);
-    const { default: Rebalance } = await import("@/pages/Rebalance");
-    render(<Rebalance />);
-
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
     await waitFor(() =>
-      expect(screen.getByLabelText("Target weight (%) for DDD")).toHaveValue(50),
+      expect(mockSaveAllocationPolicy).toHaveBeenCalledWith('alex', {
+        targets: { equity: 70, bond: 30 },
+        tolerance_pct: 3,
+      })
     );
-
-    fireEvent.change(screen.getByLabelText("Target weight (%) for AAA"), {
-      target: { value: "30" },
-    });
-    fireEvent.change(screen.getByLabelText("Target weight (%) for DDD"), {
-      target: { value: "36.67" },
-    });
-    // BBB (16.67) and CCC (16.66) are left exactly as prefilled.
-
-    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
-
-    await waitFor(() => expect(mockGetRebalance).toHaveBeenCalledTimes(1));
-    const [actualPayload, targetPayload] = mockGetRebalance.mock.calls[0];
-    const exactBbbFraction = actualPayload.BBB / (actualPayload.AAA + actualPayload.BBB + actualPayload.CCC + actualPayload.DDD);
-
-    // BBB was untouched, so its target must match its exact current-value
-    // fraction to well within the backend's 1e-6 dust threshold (#7102) —
-    // previously renormalization perturbed it by ~1e-4, well past that
-    // threshold, producing a phantom trade.
-    expect(Math.abs(targetPayload.BBB - exactBbbFraction)).toBeLessThan(1e-9);
-    expect(targetPayload.AAA + targetPayload.BBB + targetPayload.CCC + targetPayload.DDD).toBeCloseTo(1, 10);
+    await waitFor(() => expect(mockGetRebalancePlan).toHaveBeenCalledTimes(2));
   });
 
-  it("does not emit duplicate-key warnings when the rebalance API returns duplicate tickers (#6505)", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    // The rebalance API can return the same ticker under multiple exchanges
-    // (e.g. CASH/GBP and CASH/L); the trades table must not key by ticker alone.
-    mockGetPortfolio.mockResolvedValue({
-      accounts: [
+  it('can start the target editor from the current allocation', async () => {
+    await renderPage();
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Start from current allocation',
+      })
+    );
+    expect(screen.getByLabelText('Target % for Equity')).toHaveValue(80);
+    expect(screen.getByLabelText('Target % for Bond')).toHaveValue(20);
+  });
+
+  it('plans a buy-only contribution into the chosen account', async () => {
+    mockGetNewCashPlan.mockResolvedValue({
+      account_id: '1',
+      account: 'SIPP',
+      trades: [
         {
-          holdings: [
-            { ticker: "CASH", market_value_gbp: 2 },
-            { ticker: "PFE", market_value_gbp: 1 },
-          ],
+          account_id: '1',
+          account: 'SIPP',
+          asset_class: 'bond',
+          action: 'buy',
+          amount: 500,
+          ticker: 'BD2',
         },
       ],
+      keep_as_cash: 0,
     });
-    mockGetRebalance.mockResolvedValue([
-      { ticker: "CASH", action: "sell", amount: 10 },
-      { ticker: "CASH", action: "buy", amount: 5 },
-      { ticker: "PFE", action: "buy", amount: 10 },
-      { ticker: "PFE", action: "sell", amount: 5 },
-    ]);
-    const { default: Rebalance } = await import("@/pages/Rebalance");
-    render(<Rebalance />);
-
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
-    await screen.findByDisplayValue("66.67");
-
-    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
-    await waitFor(() => expect(mockGetRebalance).toHaveBeenCalledTimes(1));
-    // All four trade rows render, including the duplicate-ticker pairs.
-    expect(await screen.findAllByText("CASH")).toHaveLength(2);
-    expect(screen.getAllByText("PFE")).toHaveLength(2);
-
-    const keyWarnings = errorSpy.mock.calls.filter((args) =>
-      String(args[0]).includes("same key"),
+    await renderPage();
+    const form = await screen.findByRole('form', { name: 'Invest new cash' });
+    fireEvent.change(within(form).getByLabelText('Amount (£)'), {
+      target: { value: '500' },
+    });
+    fireEvent.change(within(form).getByLabelText('Into account'), {
+      target: { value: '1' },
+    });
+    fireEvent.click(
+      within(form).getByRole('button', { name: 'Plan contribution' })
     );
-    expect(keyWarnings).toEqual([]);
-    errorSpy.mockRestore();
+
+    await waitFor(() =>
+      expect(mockGetNewCashPlan).toHaveBeenCalledWith('alex', 500, '1')
+    );
+    expect(await within(form).findByText('BD2')).toBeInTheDocument();
+    expect(within(form).queryByText('SELL')).not.toBeInTheDocument();
+  });
+
+  it('reports plan load failures', async () => {
+    mockGetRebalancePlan.mockRejectedValue(new Error('boom'));
+    const { default: Rebalance } = await import('@/pages/Rebalance');
+    render(<Rebalance />);
+    expect(
+      await screen.findByText(/Unable to load rebalance plan for alex: boom/)
+    ).toBeInTheDocument();
   });
 });

@@ -1,12 +1,20 @@
 # backend/routes/rebalance.py
 from __future__ import annotations
 
-from typing import Dict, List
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from backend.auth import get_active_user
+from backend.common import portfolio as portfolio_mod
+from backend.common.allocation_policy import load_allocation_policy, parse_policy, save_allocation_policy
+from backend.common.authz import ensure_owner_access
+from backend.common.errors import raise_owner_not_found
 from backend.common.rebalance import suggest_trades
+from backend.common.rebalance_plan import bucket_holdings, build_plan, suggest_new_cash
+from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 router = APIRouter(tags=["rebalance"])
 
@@ -22,9 +30,77 @@ class TradeSuggestion(BaseModel):
     amount: float
 
 
+class AllocationPolicyBody(BaseModel):
+    targets: Dict[str, float] = {}
+    tolerance_pct: Optional[float] = None
+
+
 @router.post("/rebalance", response_model=List[TradeSuggestion])
 def rebalance(req: RebalanceRequest) -> List[TradeSuggestion]:
     try:
         return suggest_trades(req.actual, req.target)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _resolve_owner(request: Request, owner: str, identity: Optional[str]) -> Tuple[str, Path]:
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    if owner_dir is None:
+        raise_owner_not_found(owner)
+    ensure_owner_access(identity, owner_dir.name, accounts_root)
+    return owner_dir.name, accounts_root
+
+
+def _load_portfolio(owner: str, accounts_root: Path) -> Dict[str, Any]:
+    try:
+        return portfolio_mod.build_owner_portfolio(owner, accounts_root)
+    except FileNotFoundError:
+        raise_owner_not_found(owner)
+
+
+@router.get("/rebalance/{owner}/policy")
+def get_policy(owner: str, request: Request, identity: Optional[str] = Depends(get_active_user)):
+    owner, accounts_root = _resolve_owner(request, owner, identity)
+    return load_allocation_policy(owner, accounts_root).to_dict()
+
+
+@router.put("/rebalance/{owner}/policy")
+def put_policy(
+    owner: str,
+    body: AllocationPolicyBody,
+    request: Request,
+    identity: Optional[str] = Depends(get_active_user),
+):
+    owner, accounts_root = _resolve_owner(request, owner, identity)
+    data = body.model_dump(exclude_none=True)
+    try:
+        policy = parse_policy(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    save_allocation_policy(owner, policy, accounts_root)
+    return policy.to_dict()
+
+
+@router.get("/rebalance/{owner}/plan")
+def get_plan(owner: str, request: Request, identity: Optional[str] = Depends(get_active_user)):
+    owner, accounts_root = _resolve_owner(request, owner, identity)
+    policy = load_allocation_policy(owner, accounts_root)
+    return build_plan(_load_portfolio(owner, accounts_root), policy)
+
+
+@router.get("/rebalance/{owner}/new-cash")
+def get_new_cash_plan(
+    owner: str,
+    amount: float,
+    account: str,
+    request: Request,
+    identity: Optional[str] = Depends(get_active_user),
+):
+    owner, accounts_root = _resolve_owner(request, owner, identity)
+    policy = load_allocation_policy(owner, accounts_root)
+    holdings = bucket_holdings(_load_portfolio(owner, accounts_root))
+    try:
+        return suggest_new_cash(holdings, policy, amount, account)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

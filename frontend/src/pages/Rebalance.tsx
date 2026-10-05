@@ -1,296 +1,510 @@
-import { useEffect, useMemo, useState } from "react";
-import { getOwners, getPortfolio, getRebalance } from "../api";
-import type { OwnerSummary, Portfolio, TradeSuggestion } from "../types";
-import EmptyState from "../components/EmptyState";
-import { sanitizeOwners } from "../utils/owners";
-import { useRoute } from "../RouteContext";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  getNewCashPlan,
+  getOwners,
+  getRebalancePlan,
+  saveAllocationPolicy,
+} from '../api';
+import type {
+  NewCashPlan,
+  OwnerSummary,
+  RebalanceAccount,
+  RebalanceClassRow,
+  RebalancePlan,
+  RebalanceTrade,
+} from '../types';
+import EmptyState from '../components/EmptyState';
+import { sanitizeOwners } from '../utils/owners';
+import { useRoute } from '../RouteContext';
 
-type Row = { ticker: string; current: string; target: string };
-type ParsedRow = { currentValue: number; targetWeightPct: number };
-type TradeRow = TradeSuggestion & { currentWeightPct: number; targetWeightPct: number };
+/** Canonical asset classes, matching backend ASSET_CLASSES / ASSET_CLASS_LABELS. */
+const ASSET_CLASSES: Array<{ key: string; label: string }> = [
+  { key: 'equity', label: 'Equity' },
+  { key: 'bond', label: 'Bond' },
+  { key: 'cash', label: 'Cash' },
+  { key: 'commodity', label: 'Commodity' },
+  { key: 'property', label: 'Property' },
+  { key: 'multi-asset', label: 'Multi-asset' },
+];
+const LABELS = Object.fromEntries(ASSET_CLASSES.map((c) => [c.key, c.label]));
 
-const BLANK_ROW: Row = { ticker: "", current: "", target: "" };
-const percentFormatter = new Intl.NumberFormat("en-GB", {
+const pct = new Intl.NumberFormat('en-GB', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+const gbp = new Intl.NumberFormat('en-GB', {
+  style: 'currency',
+  currency: 'GBP',
+});
 
-function rowsFromPortfolio(portfolio: Portfolio): Row[] {
-  const totalsByTicker = new Map<string, number>();
+type DraftTargets = Record<string, string>;
 
-  for (const account of portfolio.accounts) {
-    for (const holding of account.holdings) {
-      const ticker = holding.ticker?.trim().toUpperCase();
-      if (!ticker) continue;
-      // Use market_value_gbp (GBP-denominated) as the primary source.
-      // Fall back to units * price only when price is expected to be GBP (e.g. LSE).
-      // market_value_currency is intentionally excluded: it is not guaranteed to be GBP
-      // and mixing currencies produces incorrect weights and invalid trade suggestions.
-      const value =
-        holding.market_value_gbp ??
-        (holding.price != null ? holding.units * holding.price : null);
-      if (value == null || !Number.isFinite(value) || value <= 0) continue;
-      totalsByTicker.set(ticker, (totalsByTicker.get(ticker) ?? 0) + value);
-    }
-  }
+const errorText = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
 
-  const entries = [...totalsByTicker.entries()].sort((a, b) => b[1] - a[1]);
-  if (!entries.length) return [BLANK_ROW];
-
-  const totalValue = entries.reduce((sum, [, value]) => sum + value, 0);
-  const rows: Row[] = entries.map(([ticker, current]) => ({
-    ticker,
-    current: current.toFixed(2),
-    target: totalValue > 0 ? ((current / totalValue) * 100).toFixed(2) : "0",
-  }));
-
-  // Rounding each weight to 2dp independently drifts the sum off 100
-  // (100.02 for alex's portfolio), which fails the page's own validation.
-  // Absorb the residual in one prefilled row so targets always sum to exactly
-  // 100.00. Prefer the smallest holding (entries are sorted descending) to
-  // minimize relative distortion; skip it only if the adjustment would go
-  // negative (degenerate tiny holding).
-  if (totalValue > 0 && rows.length > 1) {
-    const residual = 100 - rows.reduce((sum, row) => sum + parseFloat(row.target), 0);
-    for (let i = rows.length - 1; i >= 0; i--) {
-      const adjusted = parseFloat(rows[i].target) + residual;
-      if (adjusted >= 0) {
-        rows[i] = { ...rows[i], target: adjusted.toFixed(2) };
-        break;
-      }
-    }
-  }
-
-  return rows;
+function draftFromTargets(targets: Record<string, number>): DraftTargets {
+  return Object.fromEntries(
+    ASSET_CLASSES.map(({ key }) => [
+      key,
+      targets[key] != null ? String(targets[key]) : '',
+    ])
+  );
 }
 
-export default function Rebalance() {
+function sumDraft(draft: DraftTargets): number {
+  return Object.values(draft).reduce((sum, value) => {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? sum + parsed : sum;
+  }, 0);
+}
+
+function useOwnerSelection() {
   const route = useRoute();
-  const [rows, setRows] = useState<Row[]>([BLANK_ROW]);
-  const [trades, setTrades] = useState<TradeSuggestion[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
-  const [ownersLoading, setOwnersLoading] = useState(true);
   const [ownersError, setOwnersError] = useState<string | null>(null);
-  const [selectedOwner, setSelectedOwner] = useState("");
-  const [isPrefilling, setIsPrefilling] = useState(false);
-
-  const parsedRows = useMemo(() => {
-    const parsed = new Map<string, ParsedRow>();
-    for (const row of rows) {
-      const ticker = row.ticker.trim().toUpperCase();
-      if (!ticker) continue;
-      const currentValue = parseFloat(row.current);
-      const targetWeightPct = parseFloat(row.target);
-      if (!Number.isFinite(currentValue) || !Number.isFinite(targetWeightPct)) continue;
-      parsed.set(ticker, { currentValue, targetWeightPct });
-    }
-    return parsed;
-  }, [rows]);
-
-  const totalCurrentValue = useMemo(
-    () =>
-      [...parsedRows.values()].reduce(
-        (sum, parsed) => sum + Math.max(parsed.currentValue, 0),
-        0,
-      ),
-    [parsedRows],
-  );
-  const totalTargetWeightPct = useMemo(
-    () =>
-      [...parsedRows.values()].reduce(
-        (sum, parsed) => sum + parsed.targetWeightPct,
-        0,
-      ),
-    [parsedRows],
-  );
-
-  const tradeRows = useMemo<TradeRow[] | null>(() => {
-    if (!trades) return null;
-    return trades.map((trade) => {
-      const parsed = parsedRows.get(trade.ticker);
-      const currentWeightPct =
-        parsed && totalCurrentValue > 0 ? (parsed.currentValue / totalCurrentValue) * 100 : 0;
-      const targetWeightPct = parsed?.targetWeightPct ?? 0;
-      return {
-        ...trade,
-        currentWeightPct,
-        targetWeightPct,
-      };
-    });
-  }, [parsedRows, totalCurrentValue, trades]);
+  const [selectedOwner, setSelectedOwner] = useState('');
 
   useEffect(() => {
     let cancelled = false;
-    setOwnersLoading(true);
-    setOwnersError(null);
     getOwners()
       .then((list) => {
-        if (cancelled) return;
-        const sanitized = sanitizeOwners(Array.isArray(list) ? list : []);
-        setOwners(sanitized);
+        if (!cancelled)
+          setOwners(sanitizeOwners(Array.isArray(list) ? list : []));
       })
       .catch((error) => {
-        if (cancelled) return;
-        setOwners([]);
-        setOwnersError(error instanceof Error ? error.message : String(error));
-      })
-      .finally(() => {
-        if (!cancelled) setOwnersLoading(false);
+        if (!cancelled) setOwnersError(errorText(error));
       });
-
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const availableOwner = useMemo(() => {
-    if (!owners.length) return "";
+  useEffect(() => {
+    if (!owners.length) return;
     const routeOwner = route.selectedOwner?.trim();
-    if (routeOwner && owners.some((owner) => owner.owner === routeOwner)) {
-      return routeOwner;
-    }
-    return owners[0].owner;
+    const preferred =
+      routeOwner && owners.some((o) => o.owner === routeOwner)
+        ? routeOwner
+        : owners[0].owner;
+    setSelectedOwner((current) => current || preferred);
   }, [owners, route.selectedOwner]);
 
-  useEffect(() => {
-    if (!availableOwner) return;
-    setSelectedOwner((current) => current || availableOwner);
-  }, [availableOwner]);
+  const selectOwner = (owner: string) => {
+    setSelectedOwner(owner);
+    route.setSelectedOwner(owner);
+  };
+  return { owners, ownersError, selectedOwner, selectOwner };
+}
+
+function useRebalancePlan(owner: string) {
+  const [plan, setPlan] = useState<RebalancePlan | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    if (!owner) return;
+    setLoading(true);
+    setError(null);
+    try {
+      setPlan(await getRebalancePlan(owner));
+    } catch (err) {
+      setPlan(null);
+      setError(`Unable to load rebalance plan for ${owner}: ${errorText(err)}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [owner]);
 
   useEffect(() => {
-    if (!selectedOwner) return;
+    void reload(); // errors are captured into state inside reload
+  }, [reload]);
 
-    let cancelled = false;
-    setIsPrefilling(true);
-    setErr(null);
+  return { plan, loading, error, reload };
+}
 
-    getPortfolio(selectedOwner)
-      .then((portfolio) => {
-        if (cancelled) return;
-        setRows(rowsFromPortfolio(portfolio));
-        setTrades(null);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setErr(
-          `Unable to prefill portfolio holdings for ${selectedOwner}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setIsPrefilling(false);
+function TargetEditor({
+  owner,
+  plan,
+  onSaved,
+}: {
+  owner: string;
+  plan: RebalancePlan;
+  onSaved: () => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<DraftTargets>(() =>
+    draftFromTargets(plan.policy.targets)
+  );
+  const [tolerance, setTolerance] = useState(String(plan.policy.tolerance_pct));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft(draftFromTargets(plan.policy.targets));
+    setTolerance(String(plan.policy.tolerance_pct));
+  }, [plan.policy]);
+
+  const total = sumDraft(draft);
+  const totalOk = Math.abs(total - 100) <= 0.01;
+
+  const useCurrent = () => {
+    const current = Object.fromEntries(
+      plan.classes.map((row) => [row.asset_class, row.current_pct])
+    );
+    setDraft(draftFromTargets(current));
+  };
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    const targets: Record<string, number> = {};
+    for (const [key, value] of Object.entries(draft)) {
+      const parsed = parseFloat(value);
+      if (Number.isFinite(parsed) && parsed > 0) targets[key] = parsed;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await saveAllocationPolicy(owner, {
+        targets,
+        tolerance_pct: parseFloat(tolerance),
       });
+      await onSaved();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setSaving(false);
+    }
+  }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedOwner]);
+  return (
+    <form onSubmit={handleSave} className="mb-6" aria-label="Target allocation">
+      <h2 className="mb-2 text-xl">Target allocation</h2>
+      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+        Set the share of your whole portfolio each asset class should be. Trades
+        are only suggested for classes that drift further than the tolerance
+        band.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th className="px-2 py-1 text-left">Asset class</th>
+              <th className="px-2 py-1 text-left">Target %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ASSET_CLASSES.map(({ key, label }) => (
+              <tr key={key}>
+                <td className="px-2 py-1">{label}</td>
+                <td className="px-2 py-1">
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    max="100"
+                    className="w-full border p-1"
+                    value={draft[key] ?? ''}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, [key]: e.target.value }))
+                    }
+                    aria-label={`Target % for ${label}`}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p
+        className={`mt-2 text-xs ${totalOk ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
+      >
+        Total: {pct.format(total)}% {totalOk ? '' : '(must equal 100%)'}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <label className="text-sm" htmlFor="rebalance-tolerance">
+          Tolerance band (± percentage points)
+        </label>
+        <input
+          id="rebalance-tolerance"
+          type="number"
+          step="any"
+          min="0"
+          max="50"
+          className="w-24 border p-1"
+          value={tolerance}
+          onChange={(e) => setTolerance(e.target.value)}
+        />
+        <button
+          type="button"
+          onClick={useCurrent}
+          className="rounded bg-gray-200 px-2 py-1 text-slate-900"
+        >
+          Start from current allocation
+        </button>
+        <button
+          type="submit"
+          disabled={!totalOk || saving}
+          className="rounded bg-blue-500 px-4 py-2 text-white disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save targets'}
+        </button>
+      </div>
+      {error && (
+        <p className="mt-2 break-words text-sm text-red-600">{error}</p>
+      )}
+    </form>
+  );
+}
 
-  const addRow = () =>
-    setRows((prev) => [...prev, { ticker: "", current: "", target: "" }]);
+function driftStatus(row: RebalanceClassRow): {
+  text: string;
+  className: string;
+} {
+  if (row.in_band == null || row.drift_pct == null)
+    return { text: '—', className: '' };
+  if (row.in_band)
+    return { text: 'In band', className: 'text-green-600 dark:text-green-400' };
+  return row.drift_pct > 0
+    ? { text: 'Overweight', className: 'text-red-600 dark:text-red-400' }
+    : { text: 'Underweight', className: 'text-amber-600 dark:text-amber-400' };
+}
 
-  const removeRow = (index: number) =>
-    setRows((prev) => prev.filter((_, i) => i !== index));
+function DriftTable({ plan }: { plan: RebalancePlan }) {
+  return (
+    <section className="mb-6" aria-label="Allocation drift">
+      <h2 className="mb-2 text-xl">Drift</h2>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th className="px-2 py-1 text-left">Asset class</th>
+              <th className="px-2 py-1 text-right">Value</th>
+              <th className="px-2 py-1 text-right">Current %</th>
+              <th className="px-2 py-1 text-right">Target %</th>
+              <th className="px-2 py-1 text-right">Drift (pp)</th>
+              <th className="px-2 py-1 text-left">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plan.classes.map((row) => {
+              const status = driftStatus(row);
+              return (
+                <tr key={row.asset_class}>
+                  <td className="px-2 py-1">{row.label}</td>
+                  <td className="px-2 py-1 text-right">
+                    {gbp.format(row.current_value)}
+                  </td>
+                  <td className="px-2 py-1 text-right">
+                    {pct.format(row.current_pct)}%
+                  </td>
+                  <td className="px-2 py-1 text-right">
+                    {row.target_pct == null
+                      ? '—'
+                      : `${pct.format(row.target_pct)}%`}
+                  </td>
+                  <td className="px-2 py-1 text-right">
+                    {row.drift_pct == null
+                      ? '—'
+                      : `${row.drift_pct > 0 ? '+' : ''}${pct.format(row.drift_pct)}`}
+                  </td>
+                  <td className={`px-2 py-1 ${status.className}`}>
+                    {status.text}
+                  </td>
+                </tr>
+              );
+            })}
+            {plan.unclassified_value > 0 && (
+              <tr>
+                <td className="px-2 py-1">Unclassified</td>
+                <td className="px-2 py-1 text-right">
+                  {gbp.format(plan.unclassified_value)}
+                </td>
+                <td className="px-2 py-1 text-right">
+                  {pct.format(plan.unclassified_pct)}%
+                </td>
+                <td className="px-2 py-1 text-right">—</td>
+                <td className="px-2 py-1 text-right">—</td>
+                <td className="px-2 py-1 text-amber-600 dark:text-amber-400">
+                  Needs an asset class
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        Total {gbp.format(plan.total_value)} · tolerance ±
+        {pct.format(plan.policy.tolerance_pct)} pp
+      </p>
+    </section>
+  );
+}
 
-  const updateRow = (index: number, field: keyof Row, value: string) =>
-    setRows((r) => r.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+function TradeTable({ trades }: { trades: RebalanceTrade[] }) {
+  return (
+    <table className="w-full border-collapse">
+      <thead>
+        <tr>
+          <th className="px-2 py-1 text-left">Action</th>
+          <th className="px-2 py-1 text-left">Asset class</th>
+          <th className="px-2 py-1 text-right">Amount</th>
+          <th className="px-2 py-1 text-left">Suggested instrument</th>
+        </tr>
+      </thead>
+      <tbody>
+        {trades.map((t, index) => (
+          <tr key={`${t.action}-${t.asset_class}-${index}`}>
+            <td
+              className={`px-2 py-1 ${t.action === 'buy' ? 'text-green-600' : 'text-red-600'}`}
+            >
+              {t.action.toUpperCase()}
+            </td>
+            <td className="px-2 py-1">
+              {LABELS[t.asset_class] ?? t.asset_class}
+            </td>
+            <td className="px-2 py-1 text-right">{gbp.format(t.amount)}</td>
+            <td className="px-2 py-1">{t.ticker ?? 'Choose an instrument'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function SuggestedTrades({ plan }: { plan: RebalancePlan }) {
+  const byAccount = useMemo(() => {
+    const groups = new Map<
+      string,
+      { label: string; trades: RebalanceTrade[] }
+    >();
+    for (const trade of plan.trades) {
+      const group = groups.get(trade.account_id) ?? {
+        label: trade.account,
+        trades: [],
+      };
+      group.trades.push(trade);
+      groups.set(trade.account_id, group);
+    }
+    return [...groups.entries()];
+  }, [plan.trades]);
+
+  return (
+    <section className="mb-6" aria-label="Suggested trades">
+      <h2 className="mb-2 text-xl">Suggested trades</h2>
+      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+        Trades stay inside each account: buys are funded only by that
+        account&apos;s sales and its cash above your cash target. Nothing moves
+        between accounts.
+      </p>
+      {byAccount.length === 0 ? (
+        <EmptyState message="No trades required — every asset class is within its band." />
+      ) : (
+        byAccount.map(([id, group]) => (
+          <div key={id} className="mb-4 overflow-x-auto">
+            <h3 className="mb-1 font-medium">{group.label}</h3>
+            <TradeTable trades={group.trades} />
+          </div>
+        ))
+      )}
+    </section>
+  );
+}
+
+function NewCashPlanner({
+  owner,
+  accounts,
+}: {
+  owner: string;
+  accounts: RebalanceAccount[];
+}) {
+  const [amount, setAmount] = useState('');
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
+  const [result, setResult] = useState<NewCashPlan | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const actual: Record<string, number> = {};
-    const target: Record<string, number> = {};
-    const validRows: Array<{ ticker: string; current: number; weightPct: number }> = [];
-
-    for (const row of rows) {
-      if (!row.ticker) {
-        continue;
-      }
-      const current = parseFloat(row.current);
-      const weightPct = parseFloat(row.target);
-      if (Number.isNaN(current) || Number.isNaN(weightPct)) {
-        setErr("Please enter valid numbers for current value and target weight.");
-        setTrades(null);
-        return;
-      }
-      const normalizedTicker = row.ticker.trim().toUpperCase();
-      if (!normalizedTicker) continue;
-      validRows.push({ ticker: normalizedTicker, current, weightPct });
-    }
-
-    const outOfRangeRow = validRows.find((row) => row.weightPct < 0 || row.weightPct > 100);
-    if (outOfRangeRow) {
-      setErr(
-        `Target weight for ${outOfRangeRow.ticker} must be between 0% and 100%.`,
-      );
-      setTrades(null);
-      return;
-    }
-
-    const totalInputCurrent = validRows.reduce((sum, row) => sum + row.current, 0);
-    const totalInputTargetPct = validRows.reduce((sum, row) => sum + row.weightPct, 0);
-    if (Math.abs(totalInputTargetPct - 100) > 0.01) {
-      setErr(
-        `Target weights must total 100%. Current total is ${percentFormatter.format(totalInputTargetPct)}%.`,
-      );
-      setTrades(null);
-      return;
-    }
-
-    // No-change rows (target left equal to the shown current weight) get the
-    // *exact* unrounded current weight so they match `actual` precisely.
-    // Changed rows keep the user's entered (rounded) weight. Only the changed
-    // rows are then renormalized to absorb rounding drift, against the
-    // residual budget left over after the no-change rows — that way an exact
-    // no-change target is never perturbed by a common scale factor, which
-    // previously reintroduced a mismatch large enough to clear the backend's
-    // dust threshold and generate phantom trades (#7102).
-    const changedTargets: Record<string, number> = {};
-    for (const row of validRows) {
-      const exactCurrentWeightPct = totalInputCurrent > 0 ? (row.current / totalInputCurrent) * 100 : 0;
-      const roundedCurrentWeightPct = Number(exactCurrentWeightPct.toFixed(2));
-      const isNoChange = Math.abs(row.weightPct - roundedCurrentWeightPct) < 1e-9;
-      actual[row.ticker] = row.current;
-      if (isNoChange) {
-        target[row.ticker] = exactCurrentWeightPct / 100;
-      } else {
-        changedTargets[row.ticker] = row.weightPct / 100;
-      }
-    }
-    const noChangeTotal = Object.values(target).reduce((sum, value) => sum + value, 0);
-    const changedTotal = Object.values(changedTargets).reduce((sum, value) => sum + value, 0);
-    const residualBudget = 1 - noChangeTotal;
-    if (changedTotal > 0 && residualBudget > 0) {
-      const scale = residualBudget / changedTotal;
-      for (const ticker of Object.keys(changedTargets)) {
-        changedTargets[ticker] *= scale;
-      }
-    }
-    Object.assign(target, changedTargets);
-
+    setError(null);
     try {
-      const res = await getRebalance(actual, target);
-      setTrades(res);
-      setErr(null);
-    } catch (error) {
-      setTrades(null);
-      setErr(String(error));
+      setResult(await getNewCashPlan(owner, parseFloat(amount), accountId));
+    } catch (err) {
+      setResult(null);
+      setError(errorText(err));
     }
   }
+
+  return (
+    <form onSubmit={handleSubmit} className="mb-6" aria-label="Invest new cash">
+      <h2 className="mb-2 text-xl">Invest new cash</h2>
+      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+        Plan a contribution without selling anything: the money goes to the most
+        underweight classes first.
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="text-sm" htmlFor="new-cash-amount">
+          Amount (£)
+        </label>
+        <input
+          id="new-cash-amount"
+          type="number"
+          step="any"
+          min="0"
+          className="w-32 border p-1"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        <label className="text-sm" htmlFor="new-cash-account">
+          Into account
+        </label>
+        <select
+          id="new-cash-account"
+          className="rounded border p-1"
+          value={accountId}
+          onChange={(e) => setAccountId(e.target.value)}
+        >
+          {accounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          disabled={!(parseFloat(amount) > 0) || !accountId}
+          className="rounded bg-blue-500 px-4 py-2 text-white disabled:opacity-50"
+        >
+          Plan contribution
+        </button>
+      </div>
+      {error && (
+        <p className="mt-2 break-words text-sm text-red-600">{error}</p>
+      )}
+      {result && (
+        <div className="mt-3 overflow-x-auto">
+          {result.trades.length > 0 && <TradeTable trades={result.trades} />}
+          {result.keep_as_cash > 0 && (
+            <p className="mt-1 text-sm">
+              Keep {gbp.format(result.keep_as_cash)} as cash.
+            </p>
+          )}
+        </div>
+      )}
+    </form>
+  );
+}
+
+export default function Rebalance() {
+  const { owners, ownersError, selectedOwner, selectOwner } =
+    useOwnerSelection();
+  const { plan, loading, error, reload } = useRebalancePlan(selectedOwner);
+  const hasPolicy = plan != null && Object.keys(plan.policy.targets).length > 0;
 
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-4 text-2xl md:text-4xl">Rebalance Portfolio</h1>
       <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
-        Holdings are prefilled from your selected portfolio. You can edit values manually to run
-        custom or hypothetical rebalance scenarios.
-      </p>
-      <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
-        Target weight is entered as a percent (for example, 20 means 20%).
-      </p>
-      <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
-        Keeping a target equal to the shown current weight is treated as no-change for that ticker.
+        Compare your allocation by asset class against the targets you set, and
+        see which trades — or which contribution — would bring it back within
+        your tolerance band.
       </p>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <label className="text-sm font-medium" htmlFor="rebalance-owner-select">
@@ -300,12 +514,8 @@ export default function Rebalance() {
           id="rebalance-owner-select"
           className="rounded border p-1"
           value={selectedOwner}
-          onChange={(e) => {
-            const owner = e.target.value;
-            setSelectedOwner(owner);
-            route.setSelectedOwner(owner);
-          }}
-          disabled={ownersLoading || owners.length === 0}
+          onChange={(e) => selectOwner(e.target.value)}
+          disabled={owners.length === 0}
         >
           {owners.length === 0 && <option value="">No owners</option>}
           {owners.map((owner) => (
@@ -314,146 +524,44 @@ export default function Rebalance() {
             </option>
           ))}
         </select>
-        {ownersLoading && <span className="text-xs text-slate-500">Loading owners…</span>}
-        {isPrefilling && <span className="text-xs text-slate-500">Loading holdings…</span>}
+        {loading && <span className="text-xs text-slate-500">Loading…</span>}
       </div>
       {ownersError && (
-        <p className="mb-4 break-words text-sm text-red-600 [overflow-wrap:anywhere]">{ownersError}</p>
+        <p className="mb-4 break-words text-sm text-red-600">{ownersError}</p>
       )}
-
-      <form onSubmit={handleSubmit} className="mb-4 flex flex-col gap-2">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th>Ticker</th>
-                <th>Current value</th>
-                <th>Current weight</th>
-                <th>Target weight</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, idx) => (
-                <tr key={idx}>
-                  <td>
-                    <input
-                      type="text"
-                      className="w-full border p-1"
-                      value={row.ticker}
-                      onChange={(e) => updateRow(idx, "ticker", e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      step="any"
-                      className="w-full border p-1"
-                      value={row.current}
-                      onChange={(e) => updateRow(idx, "current", e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      className="w-full border p-1 opacity-80"
-                      value={
-                        Number.isFinite(parseFloat(row.current)) && totalCurrentValue > 0
-                          ? `${percentFormatter.format((parseFloat(row.current) / totalCurrentValue) * 100)}%`
-                          : "—"
-                      }
-                      readOnly
-                      aria-label={`Current weight for ${row.ticker || `row ${idx + 1}`}`}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      step="any"
-                      className="w-full border p-1"
-                      value={row.target}
-                      onChange={(e) => updateRow(idx, "target", e.target.value)}
-                      aria-label={`Target weight (%) for ${row.ticker || `row ${idx + 1}`}`}
-                    />
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="text-red-600"
-                      onClick={() => removeRow(idx)}
-                    >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p
-          className={`mt-2 text-xs ${
-            Math.abs(totalTargetWeightPct - 100) <= 0.01
-              ? "text-green-600 dark:text-green-400"
-              : "text-red-600 dark:text-red-400"
-          }`}
-        >
-          Total target weight: {percentFormatter.format(totalTargetWeightPct)}%
-          {Math.abs(totalTargetWeightPct - 100) <= 0.01
-            ? " (ready to rebalance)"
-            : " (must equal 100%)"}
-        </p>
-        <div className="mt-2 flex gap-2">
-          <button
-            type="button"
-            onClick={addRow}
-            className="rounded bg-gray-200 px-2 py-1"
-          >
-            Add ticker
-          </button>
-          <button
-            type="submit"
-            className="rounded bg-blue-500 px-4 py-2 text-white"
-          >
-            Rebalance
-          </button>
-        </div>
-      </form>
-      {err && <p className="break-words text-red-600 [overflow-wrap:anywhere]">{err}</p>}
-      {tradeRows && tradeRows.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th>Ticker</th>
-                <th>Current weight</th>
-                <th>Target weight</th>
-                <th>Action</th>
-                <th>Trade value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tradeRows.map((t, index) => (
-                <tr key={`${t.ticker}-${index}`}>
-                  <td>{t.ticker}</td>
-                  <td>{percentFormatter.format(t.currentWeightPct)}%</td>
-                  <td>{percentFormatter.format(t.targetWeightPct)}%</td>
-                  <td className={t.action === "buy" ? "text-green-600" : "text-red-600"}>
-                    {t.action.toUpperCase()}
-                  </td>
-                  <td>{t.amount.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {tradeRows && tradeRows.length > 0 && (
-        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-          Trade value is the amount of portfolio value to buy or sell for each ticker (not number
-          of units/shares).
+      {error && (
+        <p className="mb-4 break-words text-red-600 [overflow-wrap:anywhere]">
+          {error}
         </p>
       )}
-      {trades && trades.length === 0 && <EmptyState message="No trades required." />}
+      {plan && (
+        <>
+          <DriftTable plan={plan} />
+          {plan.notes.length > 0 && (
+            <ul
+              className="mb-6 list-disc pl-5 text-sm text-amber-700 dark:text-amber-300"
+              aria-label="Notes"
+            >
+              {plan.notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          )}
+          <TargetEditor owner={selectedOwner} plan={plan} onSaved={reload} />
+          {hasPolicy ? (
+            <>
+              <SuggestedTrades plan={plan} />
+              <NewCashPlanner
+                key={selectedOwner}
+                owner={selectedOwner}
+                accounts={plan.accounts}
+              />
+            </>
+          ) : (
+            <EmptyState message="Save target allocations to see drift status and suggested trades." />
+          )}
+        </>
+      )}
     </div>
   );
 }

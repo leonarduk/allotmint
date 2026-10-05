@@ -77,3 +77,77 @@ def test_rebalance_route_negative_target_weight():
         json={"actual": {"AAA": 100.0, "BBB": 50.0}, "target": {"AAA": -0.1, "BBB": 1.1}},
     )
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------- #9446 routes
+
+
+def _owner_client(monkeypatch, tmp_path):
+    from backend.routes import rebalance as rebalance_route
+
+    (tmp_path / "alex").mkdir()
+    portfolio = {
+        "accounts": [
+            {
+                "account_type": "ISA",
+                "holdings": [
+                    {"ticker": "CASH.GBP", "market_value_gbp": 200.0, "instrument_type": "Cash"},
+                    {"ticker": "EQ1", "market_value_gbp": 800.0, "asset_class": "equity"},
+                ],
+            }
+        ]
+    }
+    monkeypatch.setattr(rebalance_route.portfolio_mod, "build_owner_portfolio", lambda owner, root: portfolio)
+    app = FastAPI()
+    app.include_router(rebalance_route.router)
+    app.state.accounts_root = tmp_path
+    return TestClient(app)
+
+
+def test_policy_put_get_round_trip(monkeypatch, tmp_path):
+    client = _owner_client(monkeypatch, tmp_path)
+    assert client.get("/rebalance/alex/policy").json() == {"targets": {}, "tolerance_pct": 5.0}
+
+    resp = client.put("/rebalance/alex/policy", json={"targets": {"equity": 60, "bond": 40}, "tolerance_pct": 3})
+    assert resp.status_code == 200
+    assert client.get("/rebalance/alex/policy").json() == {
+        "targets": {"equity": 60.0, "bond": 40.0},
+        "tolerance_pct": 3.0,
+    }
+
+
+def test_policy_put_rejects_targets_not_summing_to_100(monkeypatch, tmp_path):
+    client = _owner_client(monkeypatch, tmp_path)
+    resp = client.put("/rebalance/alex/policy", json={"targets": {"equity": 60}})
+    assert resp.status_code == 400
+    assert "100%" in resp.json()["detail"]
+
+
+def test_plan_uses_stored_policy(monkeypatch, tmp_path):
+    client = _owner_client(monkeypatch, tmp_path)
+    client.put("/rebalance/alex/policy", json={"targets": {"equity": 50, "bond": 50}})
+    plan = client.get("/rebalance/alex/plan").json()
+    assert plan["total_value"] == 1000.0
+    assert [(t["account"], t["action"], t["asset_class"], t["amount"]) for t in plan["trades"]] == [
+        ("ISA", "sell", "equity", 300.0),
+        ("ISA", "buy", "bond", 500.0),
+    ]
+
+
+def test_new_cash_route(monkeypatch, tmp_path):
+    client = _owner_client(monkeypatch, tmp_path)
+    client.put("/rebalance/alex/policy", json={"targets": {"equity": 50, "bond": 50}})
+    resp = client.get("/rebalance/alex/new-cash", params={"amount": 100, "account": "0"})
+    assert resp.status_code == 200
+    assert [(t["asset_class"], t["amount"]) for t in resp.json()["trades"]] == [("bond", 100.0)]
+
+    resp = client.get("/rebalance/alex/new-cash", params={"amount": 100, "account": "7"})
+    assert resp.status_code == 400
+
+
+def test_owner_routes_unknown_owner(monkeypatch, tmp_path):
+    from backend.common.errors import OwnerNotFoundError
+
+    client = _owner_client(monkeypatch, tmp_path)
+    with pytest.raises(OwnerNotFoundError):
+        client.get("/rebalance/nobody/plan")

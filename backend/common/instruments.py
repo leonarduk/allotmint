@@ -11,7 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from backend.common.instrument_classification import classify_instrument, load_classification_overrides
+from backend.common.instrument_classification import cached_classification_overrides, classify_instrument
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -496,7 +496,7 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
     }
     # Asset class and an exposure-based fund sector, not the issuer's (#9196).
     classification_input = {**metadata, "ticker": full_ticker}
-    metadata.update(classify_instrument(classification_input, load_classification_overrides().get(full_ticker)))
+    metadata.update(classify_instrument(classification_input, cached_classification_overrides().get(full_ticker)))
 
     return {k: v for k, v in metadata.items() if v is not None}
 

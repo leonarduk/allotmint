@@ -53,6 +53,24 @@ The rules run in two places:
 The read path (`get_instrument_meta`) never reclassifies, so what is on disk
 (or in S3) is what callers see.
 
+### Legacy capitalised values
+
+Metadata written before #9196 spells asset classes `Equity`, `Bond`,
+`Commodity`. Until a data root is backfilled (or while a stale S3 copy is
+served), both spellings are in circulation, so consumers compare
+case-insensitively:
+
+- Backend: `canonical_asset_class()` and `resolve_instrument_type()` in
+  `instrument_classification.py` map `Equity` and `equity` to `equity`. They
+  are used by `enrich_holding`, `portfolio_utils.get_security_meta`,
+  `prices._resolve_instrument_type` and the report asset-class breakdown
+  (which shows `Equity`). An unrecognised label such as `Fund` is kept as is.
+- Frontend: `translateInstrumentType` (`src/lib/instrumentType.ts`) and
+  `assetClassLabel` (`src/lib/assetClass.ts`) look values up lower-cased.
+
+Overrides are read once per change of the overrides file (the file's
+modification time is checked), so edits take effect without a restart.
+
 ## Manual overrides
 
 When the rules get an instrument wrong, add it to

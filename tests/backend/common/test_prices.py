@@ -421,7 +421,32 @@ def test_get_security_meta_resolves_watchlist_only_symbol_from_canonical_metadat
     meta = prices.get_security_meta("GOLD.L")
 
     assert meta is not None
-    assert meta["instrument_type"] == "Commodity"
+    # Legacy capitalised asset class resolves to the canonical value (#9196).
+    assert meta["instrument_type"] == "commodity"
+
+
+@pytest.mark.parametrize(
+    "meta,expected",
+    [
+        # Persisted before #9196 (or a stale S3/live-data-root copy).
+        ({"asset_class": "Equity"}, "equity"),
+        ({"asset_class": "Bond"}, "bond"),
+        ({"assetClass": "Commodity"}, "commodity"),
+        # Reclassified by #9196.
+        ({"asset_class": "equity"}, "equity"),
+        # An explicit type always wins and is returned verbatim.
+        ({"instrumentType": "ETF", "asset_class": "Equity"}, "ETF"),
+    ],
+)
+def test_resolve_instrument_type_accepts_legacy_asset_class_casing(
+    monkeypatch: pytest.MonkeyPatch, meta: dict, expected: str
+) -> None:
+    monkeypatch.setattr(
+        "backend.common.instruments.get_instrument_meta",
+        lambda t: {"name": "Legacy", **meta} if t == "LEG.L" else {},
+    )
+
+    assert prices._resolve_instrument_type("LEG.L") == expected
 
 
 def test_resolve_instrument_type_resolves_bare_watchlist_symbol(

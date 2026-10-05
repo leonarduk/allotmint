@@ -27,6 +27,7 @@ from backend.common import portfolio as portfolio_mod
 from backend.common.account_scaffold import load_transactions
 from backend.common.data_loader import DATA_BUCKET_ENV
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, _get_price_for_date_scaled, is_cost_basis_unreliable
+from backend.common.instrument_classification import canonical_asset_class, resolve_instrument_type
 from backend.common.instruments import (
     decode_html_entities,
     get_instrument_meta,
@@ -459,18 +460,14 @@ def _meta_from_file(ticker: str) -> Dict[str, str] | None:
         "sector": data.get("sector"),
         "region": data.get("region"),
         "currency": data.get("currency"),
-        "asset_class": data.get("asset_class"),
+        # Canonical casing, so legacy "Equity" and new "equity" agree (#9196).
+        "asset_class": canonical_asset_class(data.get("asset_class")),
         "industry": data.get("industry"),
         # Canonical instrument_type, with the same camelCase and
         # asset-class fallbacks used elsewhere (see
         # backend/common/holding_utils.py's canonical enrichment) --
         # raw holding documents rarely carry this field. See allotmint#6876.
-        "instrument_type": (
-            data.get("instrumentType")
-            or data.get("instrument_type")
-            or data.get("assetClass")
-            or data.get("asset_class")
-        ),
+        "instrument_type": resolve_instrument_type(data),
     }
 
 
@@ -504,7 +501,7 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                     "sector": h.get("sector") or file_meta.get("sector"),
                     "region": h.get("region") or file_meta.get("region"),
                     "currency": h.get("currency") or file_meta.get("currency"),
-                    "asset_class": h.get("asset_class") or file_meta.get("asset_class"),
+                    "asset_class": canonical_asset_class(h.get("asset_class") or file_meta.get("asset_class")),
                     "industry": h.get("industry") or file_meta.get("industry"),
                     # Canonical instrument metadata wins over the raw holding
                     # value (which is usually absent for CSV-import and

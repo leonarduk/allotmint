@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
@@ -169,3 +170,66 @@ def test_overrides_path_uses_data_root(monkeypatch, tmp_path) -> None:
 def test_overrides_path_falls_back_to_bundled_data(monkeypatch) -> None:
     monkeypatch.setattr(ic.config, "data_root", None)
     assert ic.overrides_path().parent.name == "data"
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        # Metadata persisted before #9196 used capitalised spellings.
+        ("Equity", "equity"),
+        ("Bond", "bond"),
+        ("Commodity", "commodity"),
+        (" EQUITY ", "equity"),
+        ("equity", "equity"),
+        # Labels outside the vocabulary are kept, not dropped.
+        ("Fund", "Fund"),
+        (" Index ", "Index"),
+        ("", None),
+        (None, None),
+        (3, None),
+    ],
+)
+def test_canonical_asset_class(value, expected) -> None:
+    assert ic.canonical_asset_class(value) == expected
+
+
+@pytest.mark.parametrize(
+    "meta,expected",
+    [
+        ({"instrumentType": "ETF", "asset_class": "Equity"}, "ETF"),
+        ({"instrument_type": "Investment Trust"}, "Investment Trust"),
+        # Legacy and new asset classes resolve to the same instrument type.
+        ({"asset_class": "Equity"}, "equity"),
+        ({"asset_class": "equity"}, "equity"),
+        ({"assetClass": "Bond"}, "bond"),
+        ({"asset_class": "Fund"}, "Fund"),
+        ({}, None),
+    ],
+)
+def test_resolve_instrument_type(meta, expected) -> None:
+    assert ic.resolve_instrument_type(meta) == expected
+
+
+def test_cached_overrides_reread_only_when_file_changes(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(ic.config, "data_root", tmp_path)
+    path = tmp_path / ic.OVERRIDES_FILENAME
+    assert ic.cached_classification_overrides() == {}
+
+    path.write_text(json.dumps({"ESIH.L": {"sector": "Health Care"}}), encoding="utf-8")
+    calls = []
+    real_load = ic.load_classification_overrides
+    monkeypatch.setattr(ic, "load_classification_overrides", lambda p: calls.append(p) or real_load(p))
+
+    assert ic.cached_classification_overrides() == {"ESIH.L": {"sector": "Health Care"}}
+    assert ic.cached_classification_overrides() == {"ESIH.L": {"sector": "Health Care"}}
+    assert calls == [path]
+
+    path.write_text(json.dumps({"ESIH.L": {"sector": "Health"}}), encoding="utf-8")
+    stat = path.stat()
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+    assert ic.cached_classification_overrides() == {"ESIH.L": {"sector": "Health"}}
+    assert len(calls) == 2
+
+    ic.clear_overrides_cache()
+    ic.cached_classification_overrides()
+    assert len(calls) == 3

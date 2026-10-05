@@ -49,6 +49,23 @@ def test_enrich_holding_instrument_type_falls_back_to_asset_class():
     assert out.get("instrument_type") == "equity"
 
 
+@pytest.mark.parametrize("stored", ["Equity", "equity", " EQUITY "])
+def test_enrich_holding_canonicalises_legacy_asset_class(monkeypatch, stored):
+    # Instrument metadata persisted before #9196 (e.g. a stale S3 copy or an
+    # un-backfilled live data root) spells the asset class "Equity". It must
+    # enrich exactly like a reclassified "equity" record.
+    from backend.common import holding_utils
+
+    monkeypatch.setattr(
+        holding_utils,
+        "get_instrument_meta",
+        lambda t: {"name": "Vanguard FTSE All-World", "asset_class": stored} if t == "VWRL.L" else {},
+    )
+    out = enrich_holding({"ticker": "VWRL.L", "units": 1}, date.today(), {}, {})
+    assert out["asset_class"] == "equity"
+    assert out["instrument_type"] == "equity"
+
+
 def test_enrich_holding_normalises_sector_and_region_aliases():
     # Per-holding rows feed /allocation directly, so they must carry the same
     # canonical labels as the backend aggregates (#8530).

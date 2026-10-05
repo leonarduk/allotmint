@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
@@ -45,6 +46,16 @@ MULTI_ASSET = "multi-asset"
 
 #: Canonical ``asset_class`` values, in the order the issue lists them.
 ASSET_CLASSES: tuple[str, ...] = (EQUITY, BOND, CASH, COMMODITY, PROPERTY, MULTI_ASSET)
+
+#: Display label for each canonical ``asset_class`` (reports, charts).
+ASSET_CLASS_LABELS: dict[str, str] = {
+    EQUITY: "Equity",
+    BOND: "Bond",
+    CASH: "Cash",
+    COMMODITY: "Commodity",
+    PROPERTY: "Property",
+    MULTI_ASSET: "Multi-asset",
+}
 
 #: Sector label a fund gets when its own sector is missing or the issuer's.
 FUND_SECTOR_BY_ASSET_CLASS: dict[str, str] = {
@@ -155,6 +166,38 @@ def normalise_asset_class(value: Any) -> Optional[str]:
     if not isinstance(value, str):
         return None
     return _ASSET_CLASS_ALIASES.get(value.strip().lower())
+
+
+def canonical_asset_class(value: Any) -> Optional[str]:
+    """Return ``value`` as a canonical asset class, keeping unknown labels.
+
+    Read-path helper for metadata persisted before #9196, which spelled asset
+    classes "Equity"/"Bond"/"Commodity": those resolve to the same lowercase
+    value as freshly classified records, so consumers that bucket or compare
+    by asset class see one value whatever the stored casing. A label outside
+    the vocabulary ("Fund", "Index") is returned stripped but unchanged so
+    nothing is silently discarded; a missing or blank value returns ``None``.
+    """
+    canonical = normalise_asset_class(value)
+    if canonical is not None:
+        return canonical
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def resolve_instrument_type(meta: Mapping[str, Any]) -> Optional[str]:
+    """Return ``instrument_type`` for ``meta``, falling back to its asset class.
+
+    An explicit ``instrumentType``/``instrument_type`` is returned verbatim
+    (providers use "ETF", "EQUITY", "Investment Trust", ...). Without one, the
+    asset class stands in, canonicalised by :func:`canonical_asset_class` so a
+    legacy "Equity" and a new "equity" record resolve identically.
+    """
+    explicit = meta.get("instrumentType") or meta.get("instrument_type")
+    if explicit:
+        return explicit
+    return canonical_asset_class(meta.get("assetClass") or meta.get("asset_class"))
 
 
 def _instrument_type(meta: Mapping[str, Any]) -> str:
@@ -314,3 +357,38 @@ def load_classification_overrides(path: Optional[Path] = None) -> dict[str, dict
         if isinstance(entry, dict) and not str(ticker).startswith("_"):
             overrides[str(ticker).strip().upper()] = entry
     return overrides
+
+
+@lru_cache(maxsize=4)
+def _overrides_snapshot(path: str, mtime_ns: int) -> dict[str, dict[str, Any]]:
+    """Parse ``path`` once per modification time (see :func:`cached_classification_overrides`)."""
+    del mtime_ns  # cache key only: a changed file is re-read
+    return load_classification_overrides(Path(path))
+
+
+def cached_classification_overrides() -> dict[str, dict[str, Any]]:
+    """Return the configured overrides, re-reading the file only when it changes.
+
+    Used on the metadata-ingest path, which classifies one instrument per
+    call; a ``stat`` replaces a read-and-parse per instrument, and an edited
+    file is still picked up without a restart. Callers must not mutate the
+    returned mapping. :func:`clear_overrides_cache` resets it (tests).
+    """
+    target = overrides_path()
+    try:
+        mtime_ns = target.stat().st_mtime_ns
+    except FileNotFoundError:
+        return {}
+    except OSError as exc:
+        logger.warning(
+            "Ignoring unreadable classification overrides %s: %s",
+            sanitise_log_value(str(target)),
+            sanitise_log_value(exc),
+        )
+        return {}
+    return _overrides_snapshot(str(target), mtime_ns)
+
+
+def clear_overrides_cache() -> None:
+    """Drop cached overrides so the next lookup re-reads the file."""
+    _overrides_snapshot.cache_clear()

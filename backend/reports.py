@@ -32,6 +32,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
 
 from backend import report_periodic
 from backend.common import ledger_performance, portfolio_utils
+from backend.common.instrument_classification import ASSET_CLASS_LABELS, canonical_asset_class
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import cache_only
 
@@ -1194,7 +1195,10 @@ def _build_portfolio_overview_section(context: ReportContext, section: ReportSec
         for holding in holdings:
             if not isinstance(holding, dict):
                 continue
-            asset_class = str(holding.get("asset_class") or "Unknown").strip() or "Unknown"
+            # One bucket per asset class whatever its stored casing (#9196):
+            # legacy "Equity" and classified "equity" both report as "Equity".
+            canonical = canonical_asset_class(holding.get("asset_class")) or "Unknown"
+            asset_class = ASSET_CLASS_LABELS.get(canonical, canonical)
             raw_value = float(holding.get("market_value_gbp") or 0.0)
             asset_class_totals[asset_class] = asset_class_totals.get(asset_class, 0.0) + raw_value
 

@@ -38,6 +38,7 @@ from backend.timeseries.cache import (
     has_cached_meta_timeseries,
     is_cache_only,
     load_meta_timeseries_range,
+    map_in_caller_context,
     register_meta_cache_clearer,
 )
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
@@ -707,7 +708,7 @@ def top_movers(
     # concurrently rather than one ticker at a time.
     if candidates:
         with ThreadPoolExecutor(max_workers=min(_PRICE_FETCH_MAX_WORKERS, len(candidates))) as pool:
-            for row, anomaly in pool.map(_row_or_anomaly, candidates):
+            for row, anomaly in map_in_caller_context(pool, _row_or_anomaly, candidates):
                 if row is not None:
                     rows.append(row)
                 elif anomaly is not None:
@@ -858,7 +859,7 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
     price_and_changes: Dict[str, Dict[str, Any]] = {}
     if price_tickers:
         with ThreadPoolExecutor(max_workers=min(_PRICE_FETCH_MAX_WORKERS, len(price_tickers))) as pool:
-            price_and_changes = dict(zip(price_tickers, pool.map(_price_and_changes, price_tickers)))
+            price_and_changes = dict(zip(price_tickers, map_in_caller_context(pool, _price_and_changes, price_tickers)))
 
     for tkr, entry in by_ticker.items():
         if not tkr:

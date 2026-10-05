@@ -17,12 +17,13 @@ import re
 import threading
 import time
 from collections.abc import Iterator
+from concurrent.futures import Executor
 from contextlib import contextmanager
-from contextvars import ContextVar
+from contextvars import ContextVar, copy_context
 from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable, Dict
+from typing import Callable, Dict, Iterable, TypeVar
 from urllib.parse import quote
 
 import boto3
@@ -81,6 +82,23 @@ def cache_only() -> Iterator[None]:
 
 def is_cache_only() -> bool:
     return _CACHE_ONLY.get()
+
+
+_T = TypeVar("_T")
+_R = TypeVar("_R")
+
+
+def map_in_caller_context(pool: Executor, fn: Callable[[_T], _R], items: Iterable[_T]) -> Iterator[_R]:
+    """``pool.map`` that runs each call in a copy of the caller's context (#9383).
+
+    Executor worker threads don't inherit ContextVars, so a plain ``pool.map``
+    inside ``cache_only()`` silently runs its tasks with ``_CACHE_ONLY`` unset
+    and they read live. One copy per task: a Context can't be entered by two
+    threads at once.
+    """
+    items = list(items)
+    contexts = [copy_context() for _ in items]
+    return pool.map(lambda ctx, item: ctx.run(fn, item), contexts, items)
 
 
 logger = logging.getLogger(__name__)

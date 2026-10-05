@@ -285,3 +285,29 @@ def test_empty_mover_result_skips_signal_generation(monkeypatch, client):
     assert response.status_code == 200
     assert response.json()["entries"] == []
     assert response.json()["signals"] == []
+
+
+def test_watchlist_reads_prices_cache_only(monkeypatch, client):
+    """Movers and signal generation must not fetch prices live (#9383)."""
+
+    from backend.timeseries.cache import is_cache_only
+
+    monkeypatch.setattr(opportunities_mod, "_PORTFOLIO_ALLOWED_DAYS", {90})
+    seen: dict[str, bool] = {}
+
+    def fake_top_movers(tickers, days, limit, min_weight=0.0, weights=None):
+        seen["top_movers"] = is_cache_only()
+        return {"gainers": [{"ticker": "CO9383", "name": "C", "change_pct": 1.0}], "losers": []}
+
+    def fake_run(tickers, notify=False):
+        seen["trading_agent"] = is_cache_only()
+        return []
+
+    monkeypatch.setattr(opportunities_mod.instrument_api, "top_movers", fake_top_movers)
+    monkeypatch.setattr(opportunities_mod.trading_agent, "run", fake_run)
+
+    response = client.get("/opportunities", params={"tickers": "CO9383", "days": 90})
+
+    assert response.status_code == 200
+    assert seen == {"top_movers": True, "trading_agent": True}
+    assert is_cache_only() is False

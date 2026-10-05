@@ -16,6 +16,7 @@ from backend.common.ttl_cache import TTLCache
 from backend.config import config
 from backend.routes.portfolio import _ALLOWED_DAYS as _PORTFOLIO_ALLOWED_DAYS
 from backend.routes.portfolio import _calculate_weights_and_market_values, _enrich_movers_with_market_values
+from backend.timeseries.cache import cache_only
 
 router = APIRouter(tags=["opportunities"])
 
@@ -192,7 +193,13 @@ def get_opportunities(
             context = OpportunitiesContext(source="watchlist", tickers=parsed, days=days)
             return _build_opportunities_response(movers, context)
 
-    return _cached_opportunities_response(cache_key, _build)
+    # Page request: read cached prices only, never a live provider (#9383).
+    # Movers and signal generation do two-plus price reads per ticker, and a
+    # live read on a stale/missing file is a provider round trip each -- for a
+    # ~60-ticker watchlist that exceeded the frontend's 30s timeout. Stale
+    # tickers are still queued for background refresh by the cache layer.
+    with cache_only():
+        return _cached_opportunities_response(cache_key, _build)
 
 
 def _build_opportunities_response(

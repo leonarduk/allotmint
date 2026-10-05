@@ -410,6 +410,28 @@ def test_load_prices_for_tickers_fetches_concurrently(monkeypatch: pytest.Monkey
     assert elapsed < len(tickers) * SLEEP_SECONDS * 0.75
 
 
+def test_load_prices_for_tickers_workers_inherit_cache_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """#9383: the per-ticker fetch threads must honour the caller's cache_only()."""
+    from backend.timeseries.cache import cache_only, is_cache_only
+
+    monkeypatch.setattr(
+        prices.instrument_api,
+        "_resolve_full_ticker",
+        lambda full, cache: (full.split(".", 1)[0], "L"),
+    )
+    seen: List[bool] = []
+
+    def record_load(sym: str, exch: str, start_date: date, end_date: date) -> pd.DataFrame:
+        seen.append(is_cache_only())
+        return pd.DataFrame({"close": [1.0]})
+
+    monkeypatch.setattr(prices, "load_meta_timeseries_range", record_load)
+
+    with cache_only():
+        prices.load_prices_for_tickers([f"T{i}.L" for i in range(6)])
+    assert seen == [True] * 6
+
+
 def test_build_securities_from_portfolios(monkeypatch: pytest.MonkeyPatch) -> None:
     portfolios = [
         {

@@ -287,6 +287,32 @@ def test_top_movers_filter_and_anomalies(monkeypatch):
     assert all("AAA" not in v for v in (res["gainers"], res["losers"], res["anomalies"]))
 
 
+def test_top_movers_workers_inherit_cache_only(monkeypatch):
+    """#9383: pool workers must see the caller's cache_only(), not read live."""
+    from backend.timeseries.cache import cache_only, is_cache_only
+
+    _fixed_today(monkeypatch)
+    seen = []
+
+    def fake_change(t, d):
+        seen.append(is_cache_only())
+        return 1.0
+
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: (t, "L"))
+    monkeypatch.setattr(ia, "_close_on", lambda sym, ex, d: 100.0)
+    monkeypatch.setattr(ia, "price_change_pct", fake_change)
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: {})
+
+    tickers = [f"T{i}" for i in range(20)]
+    with cache_only():
+        ia.top_movers(tickers, 7)
+    assert seen == [True] * len(tickers)
+
+    seen.clear()
+    ia.top_movers(tickers, 7)
+    assert seen == [False] * len(tickers)
+
+
 def test_top_movers_includes_instrument_type(monkeypatch):
     """#6876: every gainer/loser row carries instrument_type from security meta."""
     _fixed_today(monkeypatch)

@@ -349,15 +349,9 @@ export interface NewsItem {
   stale?: boolean;
 }
 
-export interface SectorPerformance {
-  sector: string;
-  change: number;
-  source: 'lse' | 'us_etf';
-}
-
 export type SectorRegion = 'global' | 'us' | 'uk';
 
-/** One row of `GET /market/sectors` (#9381). */
+/** One sector row of `GET /market/sectors` and `/market/overview` (#9381). */
 export interface RegionSectorPerformance {
   sector: string;
   change: number;
@@ -395,7 +389,7 @@ export interface IndexPerformance {
 
 export interface MarketOverview {
   indexes: Record<string, IndexPerformance>;
-  sectors: SectorPerformance[];
+  sectors: RegionSectorPerformance[];
   headlines: NewsItem[];
 }
 

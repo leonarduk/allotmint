@@ -3,13 +3,13 @@ from __future__ import annotations
 """Market overview endpoint aggregating indexes, sectors and headlines."""
 
 import asyncio
+import functools
 import logging
 import math
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Literal, Optional, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict
 
-import requests
 from fastapi import APIRouter, HTTPException, Query
 
 from backend import config_module
@@ -33,21 +33,6 @@ INDEX_SYMBOLS = {
     "NASDAQ": "^IXIC",
     "FTSE 100": "^FTSE",
     "FTSE 250": "^FTMC",
-}
-
-UK_SECTOR_ENDPOINT_DEFAULT = "https://www.londonstockexchange.com/api/sectors/ftse350"
-US_SECTOR_ETFS = {
-    "Materials": "XLB",
-    "Energy": "XLE",
-    "Financials": "XLF",
-    "Industrials": "XLI",
-    "Technology": "XLK",
-    "Consumer Staples": "XLP",
-    "Utilities": "XLU",
-    "Consumer Discretionary": "XLY",
-    "Communication Services": "XLC",
-    "Real Estate": "XLRE",
-    "Health Care": "XLV",
 }
 
 
@@ -99,12 +84,6 @@ class IndexPayload(TypedDict):
     change: float
 
 
-class SectorPayload(TypedDict):
-    sector: str
-    change: float
-    source: Literal["lse", "us_etf"]
-
-
 def _fetch_indexes() -> Dict[str, IndexPayload]:
     tickers = yf.Tickers(" ".join(INDEX_SYMBOLS.values())).tickers
     out: Dict[str, IndexPayload] = {}
@@ -122,156 +101,6 @@ def _fetch_indexes() -> Dict[str, IndexPayload]:
                 "value": float(price),
                 "change": float(change) if change is not None else 0.0,
             }
-    return out
-
-
-def _fetch_sectors() -> List[SectorPayload]:
-    params = {"function": "SECTOR", "apikey": cfg.alpha_vantage_key or "demo"}
-    resp = requests.get("https://www.alphavantage.co/query", params=params, timeout=10)
-    resp.raise_for_status()
-    data = resp.json().get("Rank A: Real-Time Performance", {})
-    out: List[SectorPayload] = []
-    invalid_payload = not isinstance(data, dict)
-    for sector, change in data.items() if isinstance(data, dict) else []:
-        try:
-            out.append(
-                {
-                    "sector": sector,
-                    "change": float(str(change).rstrip("%")),
-                    "source": "lse",
-                }
-            )
-        except Exception:
-            continue
-
-    if isinstance(data, dict) and data and not out:
-        invalid_payload = True
-
-    if out:
-        return out
-
-    if invalid_payload or not data:
-        logger.warning("Falling back to US sector ETF data because LSE sector payload is empty/invalid")
-    return _fetch_us_sector_etf_changes()
-
-
-def _fetch_us_sector_etf_changes() -> List[SectorPayload]:
-    """Fallback US sector performance based on SPDR sector ETF recent closes."""
-
-    symbols = list(US_SECTOR_ETFS.values())
-    prices = yf.download(symbols, period="2d", interval="1d", progress=False, auto_adjust=False)
-    closes = prices.get("Close") if hasattr(prices, "get") else None
-    if closes is None:
-        logger.error("US sector ETF fallback returned no Close data")
-        return []
-
-    out: List[SectorPayload] = []
-    for sector, symbol in US_SECTOR_ETFS.items():
-        if symbol not in closes:
-            logger.warning("Skipping sector fallback for %s because %s close data is missing", sector, symbol)
-            continue
-
-        try:
-            series = closes[symbol].dropna()
-            if len(series) < 2:
-                logger.warning(
-                    "Skipping sector fallback for %s because %s has fewer than 2 closes",
-                    sector,
-                    symbol,
-                )
-                continue
-            previous_close = float(series.iloc[-2])
-            latest_close = float(series.iloc[-1])
-            if previous_close == 0:
-                logger.warning("Skipping sector fallback for %s because previous close is zero", sector)
-                continue
-            pct_change = ((latest_close - previous_close) / previous_close) * 100
-            out.append({"sector": sector, "change": pct_change, "source": "us_etf"})
-        except (TypeError, ValueError):
-            logger.warning("Skipping sector fallback for %s due to invalid close data", sector)
-            continue
-
-    if not out:
-        logger.error("Unable to compute sector ETF fallback changes; all symbols invalid/missing")
-    return out
-
-
-def _fetch_uk_sectors() -> List[SectorPayload]:
-    """Fetch FTSE sector performance data from the London Stock Exchange API."""
-
-    endpoint = getattr(cfg, "uk_sector_endpoint", None) or UK_SECTOR_ENDPOINT_DEFAULT
-    headers: Dict[str, str] = {}
-    user_agent = getattr(cfg, "selenium_user_agent", None)
-    if user_agent:
-        headers["User-Agent"] = user_agent
-
-    resp = requests.get(endpoint, headers=headers, timeout=10)
-    resp.raise_for_status()
-    payload = resp.json()
-
-    items: List[Dict[str, Any]] = []
-    if isinstance(payload, dict):
-        for key in (
-            "sectors",
-            "sectorPerformance",
-            "indexSectors",
-            "items",
-            "data",
-            "constituents",
-            "values",
-        ):
-            value = payload.get(key)
-            if isinstance(value, list):
-                items = value
-                break
-        else:
-            if all(isinstance(v, (int, float, str)) for v in payload.values()):
-                items = [{"name": name, "percentChange": value} for name, value in payload.items()]
-    elif isinstance(payload, list):
-        items = payload
-
-    out: List[SectorPayload] = []
-    for entry in items:
-        if not isinstance(entry, dict):
-            continue
-
-        name = entry.get("name") or entry.get("sector") or entry.get("sectorName") or entry.get("label")
-        if not name:
-            continue
-
-        change_raw: Any = (
-            entry.get("percentChange")
-            or entry.get("percentageChange")
-            or entry.get("change")
-            or entry.get("changePercent")
-            or entry.get("changePercentage")
-            or entry.get("pctChange")
-        )
-
-        if change_raw is None:
-            if isinstance(entry.get("performance"), dict):
-                perf = entry["performance"]
-                for key in ("percentChange", "percentageChange", "change", "pct", "value"):
-                    if perf.get(key) is not None:
-                        change_raw = perf[key]
-                        break
-            elif isinstance(entry.get("values"), dict):
-                values = entry["values"]
-                for key in ("percentChange", "percentageChange", "change", "pct"):
-                    if values.get(key) is not None:
-                        change_raw = values[key]
-                        break
-
-        if isinstance(change_raw, str):
-            change_raw = change_raw.strip().rstrip("%")
-
-        try:
-            change = float(change_raw)
-        except (TypeError, ValueError):
-            continue
-
-        out.append({"sector": name, "change": change, "source": "lse"})
-
     return out
 
 
@@ -375,7 +204,9 @@ def _safe(func, default):
 
 @router.get("/market/overview")
 async def market_overview(
-    region: Optional[str] = Query(None, description="Set to 'uk' to use London sector data."),
+    region: Optional[str] = Query(
+        None, description="Sector region: global, us or uk; defaults to default_sector_region."
+    ),
     sectors: bool = Query(
         True,
         description="Set to false to skip sector data, e.g. when the caller loads it from /market/sectors.",
@@ -383,12 +214,15 @@ async def market_overview(
 ) -> Dict[str, Any]:
     """Return index levels, sector performance and latest headlines."""
 
-    default_region = getattr(cfg, "default_sector_region", "US") or "US"
+    # Called directly (not via FastAPI), unset params are ``Query`` objects.
     region_value = region if isinstance(region, str) else None
-    selected_region = (region_value or default_region).lower()
-    fetcher = _fetch_uk_sectors if selected_region == "uk" else _fetch_sectors
-    if not sectors:
+    # Unlike /market/sectors, an unknown region here falls back to the
+    # default rather than failing the whole overview.
+    selected = market_sectors.normalise_region(region_value) or _default_region()
+    if sectors is False:
         fetcher = _no_sectors
+    else:
+        fetcher = functools.partial(market_sectors.fetch_region_sectors, selected)
 
     # Each fetcher does blocking network I/O, so run them on the default
     # executor's thread pool and await them together instead of one after
@@ -414,8 +248,14 @@ async def market_overview(
     return {"indexes": indexes, "sectors": sector_rows, "headlines": headlines}
 
 
-def _no_sectors() -> List[SectorPayload]:
+def _no_sectors() -> List[market_sectors.RegionSector]:
     return []
+
+
+def _default_region() -> market_sectors.Region:
+    """Return the configured sector region, or ``us`` if it's missing/unknown."""
+
+    return market_sectors.normalise_region(getattr(cfg, "default_sector_region", None)) or "us"
 
 
 def _resolve_region(region: Optional[str]) -> market_sectors.Region:
@@ -431,8 +271,7 @@ def _resolve_region(region: Optional[str]) -> market_sectors.Region:
             allowed = ", ".join(market_sectors.REGIONS)
             raise HTTPException(status_code=400, detail=f"Unknown region; expected one of: {allowed}")
         return resolved
-    default = getattr(cfg, "default_sector_region", None)
-    return market_sectors.normalise_region(default) or "us"
+    return _default_region()
 
 
 @router.get("/market/sectors")

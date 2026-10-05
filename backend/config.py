@@ -185,7 +185,6 @@ class Config:
     fx_history_start: Optional[str] = None
     fx_reference_currencies: Optional[List[str]] = None
     default_sector_region: str = "US"
-    uk_sector_endpoint: Optional[str] = None
 
     alpha_vantage_enabled: Optional[bool] = None
     alpha_vantage_key: Optional[str] = None
@@ -660,7 +659,6 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         fx_history_start=str(data["fx_history_start"]) if data.get("fx_history_start") else None,
         fx_reference_currencies=_parse_str_list(data.get("fx_reference_currencies")),
         default_sector_region=data.get("default_sector_region", "US"),
-        uk_sector_endpoint=data.get("uk_sector_endpoint"),
         alpha_vantage_key=data.get("alpha_vantage_key"),
         fundamentals_cache_ttl_seconds=data.get("fundamentals_cache_ttl_seconds"),
         nav_max_age_days=data.get("nav_max_age_days"),

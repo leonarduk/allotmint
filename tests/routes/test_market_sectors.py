@@ -185,7 +185,7 @@ def test_sector_detail_endpoint_404s_unknown(path):
 
 
 @patch("backend.routes.market._fetch_indexes", return_value={})
-@patch("backend.routes.market._fetch_sectors")
+@patch("backend.common.market_sectors.fetch_region_sectors")
 @patch("backend.routes.market._fetch_headlines", return_value=[])
 def test_overview_can_skip_sectors(mock_headlines, mock_sectors, mock_indexes):
     resp = _client().get("/market/overview", params={"sectors": "false"})

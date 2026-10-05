@@ -60,7 +60,6 @@ market_data:
   stooq_requests_per_minute: 60       # Rate limit for Stooq requests
   news_requests_per_day: 25           # Max AlphaVantage news requests per day (shared with market headlines)
   default_sector_region: US           # Default sector region on Market Overview (global, US or UK)
-  uk_sector_endpoint: https://www.londonstockexchange.com/api/sectors/ftse350 # LSE sector summary endpoint
   yahoo_news_endpoint: https://query1.finance.yahoo.com/v1/finance/search
   yahoo_news_key: ''
   yahoo_news_requests_per_day: 500

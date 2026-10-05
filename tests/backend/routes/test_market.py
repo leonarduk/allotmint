@@ -15,17 +15,6 @@ def _make_payload(symbol: str, label: str) -> List[dict[str, str]]:
     return [{"headline": f"{symbol} {label}", "url": f"https://example.com/{symbol.lower()}"}]
 
 
-class DummyResponse:
-    def __init__(self, payload):
-        self._payload = payload
-
-    def raise_for_status(self):
-        return None
-
-    def json(self):
-        return self._payload
-
-
 def test_fetch_headlines_uses_cached_helper(monkeypatch):
     symbols = list(market_module.INDEX_SYMBOLS.values())
     seen_fresh: set[str] = set()
@@ -107,103 +96,37 @@ def test_fetch_headlines_serves_fresh_cache_off_event_loop_thread(monkeypatch, t
 
 @pytest.mark.asyncio
 async def test_market_overview_selects_region(monkeypatch):
-    calls: list[object] = []
-
     indexes_result = {"S&P 500": {"value": 4300.0, "change": 1.2}}
-    sectors_us = [{"sector": "US Tech", "change": 0.5}]
-    sectors_uk = [{"sector": "UK Banks", "change": -0.3}]
+    sectors_by_region = {
+        "us": [{"sector": "Technology", "change": 0.5, "source": "etf"}],
+        "uk": [{"sector": "Financials", "change": -0.3, "source": "basket"}],
+    }
     headlines_result = [{"headline": "Example", "url": "https://example.com"}]
+    regions: list[str] = []
 
-    def tracking_safe(func, default):
-        try:
-            result = func()
-        except Exception:
-            return default
-        calls.append(func)
-        return result
+    def fake_fetch_region_sectors(region):
+        regions.append(region)
+        return sectors_by_region[region]
 
-    def fake_fetch_indexes():
-        return indexes_result
-
-    def fake_fetch_sectors():
-        return sectors_us
-
-    def fake_fetch_uk_sectors():
-        return sectors_uk
-
-    def fake_fetch_headlines():
-        return headlines_result
-
-    monkeypatch.setattr(market_module, "_safe", tracking_safe)
-    monkeypatch.setattr(market_module, "_fetch_indexes", fake_fetch_indexes)
-    monkeypatch.setattr(market_module, "_fetch_sectors", fake_fetch_sectors)
-    monkeypatch.setattr(market_module, "_fetch_uk_sectors", fake_fetch_uk_sectors)
-    monkeypatch.setattr(market_module, "_fetch_headlines", fake_fetch_headlines)
+    monkeypatch.setattr(market_module.cfg, "default_sector_region", "US", raising=False)
+    monkeypatch.setattr(market_module, "_fetch_indexes", lambda: indexes_result)
+    monkeypatch.setattr(market_module.market_sectors, "fetch_region_sectors", fake_fetch_region_sectors)
+    monkeypatch.setattr(market_module, "_fetch_headlines", lambda: headlines_result)
 
     result_default = await market_module.market_overview()
 
-    assert fake_fetch_sectors in calls
-    assert fake_fetch_uk_sectors not in calls
+    assert regions == ["us"]
     assert result_default == {
         "indexes": indexes_result,
-        "sectors": sectors_us,
+        "sectors": sectors_by_region["us"],
         "headlines": headlines_result,
     }
 
-    calls.clear()
-
+    regions.clear()
     result_uk = await market_module.market_overview(region="uk")
 
-    assert fake_fetch_uk_sectors in calls
-    assert fake_fetch_sectors not in calls
-    assert result_uk == {
-        "indexes": indexes_result,
-        "sectors": sectors_uk,
-        "headlines": headlines_result,
-    }
-
-
-def test_fetch_uk_sectors_flat_dict(monkeypatch):
-    payload = {"Energy": "1.2%", "Industrials": -0.5}
-    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
-
-    def fake_get(*args, **kwargs):
-        calls.append((args, kwargs))
-        return DummyResponse(payload)
-
-    monkeypatch.setattr(market_module.requests, "get", fake_get)
-
-    result = market_module._fetch_uk_sectors()
-
-    assert calls
-    assert calls[0][1]["timeout"] == 10
-    assert result == [
-        {"sector": "Energy", "change": 1.2, "source": "lse"},
-        {"sector": "Industrials", "change": -0.5, "source": "lse"},
-    ]
-
-
-def test_fetch_uk_sectors_nested_values(monkeypatch):
-    payload = {
-        "items": [
-            {"name": "Energy", "values": {"percentChange": "2.3%"}},
-            {"sector": "Financials", "values": {"pct": -1.1}},
-            {"label": "Utilities", "values": {"change": "0.5"}},
-        ]
-    }
-
-    def fake_get(*_, **__):
-        return DummyResponse(payload)
-
-    monkeypatch.setattr(market_module.requests, "get", fake_get)
-
-    result = market_module._fetch_uk_sectors()
-
-    assert result == [
-        {"sector": "Energy", "change": 2.3, "source": "lse"},
-        {"sector": "Financials", "change": -1.1, "source": "lse"},
-        {"sector": "Utilities", "change": 0.5, "source": "lse"},
-    ]
+    assert regions == ["uk"]
+    assert result_uk["sectors"] == sectors_by_region["uk"]
 
 
 def _iso(dt: datetime) -> str:
@@ -305,21 +228,3 @@ def test_sort_and_filter_headlines_keeps_undated_when_no_dated_items():
     undated = [{"headline": "A", "url": "https://example.com/a"}]
 
     assert market_module._sort_and_filter_headlines(undated) == undated
-
-
-def test_fetch_uk_sectors_skips_invalid_entries(monkeypatch):
-    payload = [
-        {"percentChange": 1.0},
-        {"name": "", "percentChange": "2.0"},
-        {"name": "Real Estate", "percentChange": "n/a"},
-        {"name": "Healthcare", "percentChange": "3.5%"},
-    ]
-
-    def fake_get(*_, **__):
-        return DummyResponse(payload)
-
-    monkeypatch.setattr(market_module.requests, "get", fake_get)
-
-    result = market_module._fetch_uk_sectors()
-
-    assert result == [{"sector": "Healthcare", "change": 3.5, "source": "lse"}]

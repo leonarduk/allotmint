@@ -385,8 +385,7 @@
     "latestHeadlines": "Derniers titres",
     "noSectors": "Aucune donnée sectorielle disponible",
     "sectorChange": "Variation en % des secteurs",
-    "sectorPerformance": "Performance des secteurs",
-    "sectorUsFallback": "Les données sectorielles britanniques sont indisponibles ; affichage de la performance des ETF sectoriels américains."
+    "sectorPerformance": "Performance des secteurs"
   },
   "movers": {
     "deltaGbpHeader": "Variation de valeur (£, {{period}})",

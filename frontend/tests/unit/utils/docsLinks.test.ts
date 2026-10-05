@@ -7,7 +7,10 @@ import { DOCS_BASE_URL, MCP_TOOL_SETUP_DOCS_URL } from "@/utils/docsLinks";
 // The repo root is the frontend's parent; vitest runs from frontend/.
 const REPO_ROOT = path.resolve(process.cwd(), "..");
 
-// GitHub's heading anchor: lower-cased, punctuation dropped, spaces to hyphens.
+// GitHub's anchor for a plain-text heading: lower-cased, punctuation dropped,
+// spaces to hyphens. Not a full slugger: it does not strip inline markup or add
+// GitHub's -1/-2 suffix for repeated headings, so link only to unique,
+// plain-text headings (the test below fails if a link's heading is missing).
 function githubSlug(heading: string): string {
   return heading
     .trim()
@@ -65,7 +68,7 @@ describe("docs links", () => {
     }
   });
 
-  it("slugs headings the way GitHub does", () => {
+  it("slugs plain-text headings the way GitHub does", () => {
     expect(githubSlug("Running the chat (MCP) agent locally")).toBe("running-the-chat-mcp-agent-locally");
   });
 

@@ -349,10 +349,37 @@ export interface NewsItem {
   stale?: boolean;
 }
 
-export interface SectorPerformance {
+export type SectorRegion = 'global' | 'us' | 'uk';
+
+/** One sector row of `GET /market/sectors` and `/market/overview` (#9381). */
+export interface RegionSectorPerformance {
   sector: string;
   change: number;
-  source: 'lse' | 'us_etf';
+  /** `etf`: proxy ETF day change; `basket`: equal-weighted constituents. */
+  source: 'etf' | 'basket';
+}
+
+export interface RegionSectors {
+  region: SectorRegion;
+  sectors: RegionSectorPerformance[];
+}
+
+export interface SectorConstituent {
+  ticker: string;
+  name: string;
+  price: number | null;
+  change: number | null;
+}
+
+/** `GET /market/sectors/{region}/{sector}` (#9381). */
+export interface SectorDetail {
+  region: SectorRegion;
+  sector: string;
+  basis: 'etf' | 'basket';
+  proxy: { ticker: string; name: string } | null;
+  returns: Record<'1D' | '1W' | '1M' | 'YTD', number | null>;
+  history: { date: string; value: number }[];
+  constituents: SectorConstituent[];
 }
 
 export interface IndexPerformance {
@@ -362,7 +389,7 @@ export interface IndexPerformance {
 
 export interface MarketOverview {
   indexes: Record<string, IndexPerformance>;
-  sectors: SectorPerformance[];
+  sectors: RegionSectorPerformance[];
   headlines: NewsItem[];
 }
 

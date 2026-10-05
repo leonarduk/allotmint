@@ -65,7 +65,6 @@ market_data:
   stooq_requests_per_minute: 60
   news_requests_per_day: 25
   default_sector_region: US
-  uk_sector_endpoint: https://www.londonstockexchange.com/api/sectors/ftse350
   yahoo_news_endpoint: https://query1.finance.yahoo.com/v1/finance/search
   yahoo_news_key: ""
   yahoo_news_requests_per_day: 500

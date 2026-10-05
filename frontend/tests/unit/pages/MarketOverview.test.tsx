@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import * as api from "@/api";
 import MarketOverview, { IndexTooltip } from "@/pages/MarketOverview";
 
@@ -24,6 +24,8 @@ vi.mock("recharts", () => ({
     </div>
   ),
   Bar: mockBar,
+  LineChart: ({ children }: any) => <div>{children}</div>,
+  Line: () => null,
   XAxis: mockXAxis,
   YAxis: () => null,
   Tooltip: () => null,
@@ -31,6 +33,18 @@ vi.mock("recharts", () => ({
 }));
 
 const mockGetMarketOverview = vi.mocked(api.getMarketOverview);
+const mockGetMarketSectors = vi.mocked(api.getMarketSectors);
+const mockGetSectorDetail = vi.mocked(api.getSectorDetail);
+
+const emptyOverview = { indexes: {}, sectors: [], headlines: [] };
+
+beforeEach(() => {
+  mockBar.mockClear();
+  mockGetMarketOverview.mockClear();
+  mockGetMarketSectors.mockReset();
+  mockGetSectorDetail.mockReset();
+  mockGetMarketSectors.mockResolvedValue({ region: "us", sectors: [] });
+});
 
 describe("MarketOverview", () => {
   it("renders UK index entries and shows empty headline message", async () => {
@@ -138,47 +152,47 @@ describe("MarketOverview", () => {
 
   it("colours sector bars by sign and labels the axis as % change (#7817)", async () => {
     mockCell.mockClear();
-    mockGetMarketOverview.mockResolvedValueOnce({
-      indexes: {},
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
+    mockGetMarketSectors.mockResolvedValueOnce({
+      region: "us",
       sectors: [
-        { sector: "Energy", change: 1.1, source: "lse" },
-        { sector: "Real Estate", change: -0.1, source: "lse" },
-        { sector: "Utilities", change: 0, source: "lse" },
+        { sector: "Energy", change: 1.1, source: "etf" },
+        { sector: "Real Estate", change: -0.1, source: "etf" },
+        { sector: "Utilities", change: 0, source: "etf" },
       ],
-      headlines: [],
     });
     render(<MarketOverview />);
     expect(
       await screen.findByRole("heading", { name: "Sector % Change" }),
     ).toBeInTheDocument();
-    const sectorFills = mockCell.mock.calls.map(([props]: any) => props.fill);
+    await screen.findByRole("button", { name: /Real Estate/ });
+    const sectorFills = mockCell.mock.calls
+      .map(([props]: any) => props)
+      .filter((props: any) => "strokeWidth" in props)
+      .map((props: any) => props.fill);
     expect(sectorFills).toEqual(["#16a34a", "#dc2626", "#16a34a"]);
-    expect(
-      screen.queryByText(/showing US sector ETF performance/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/equal-weighted baskets/)).not.toBeInTheDocument();
   });
 
-  it("discloses when sector data comes from the US ETF fallback", async () => {
-    mockGetMarketOverview.mockResolvedValueOnce({
-      indexes: {},
-      sectors: [{ sector: "Energy", change: 0.5, source: "us_etf" }],
-      headlines: [],
+  it("discloses when sector moves are constituent baskets", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
+    mockGetMarketSectors.mockResolvedValueOnce({
+      region: "uk",
+      sectors: [{ sector: "Energy", change: 0.5, source: "basket" }],
     });
     render(<MarketOverview />);
-    expect(
-      await screen.findByText(/showing US sector ETF performance/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/equal-weighted baskets/)).toBeInTheDocument();
   });
 
   it("labels the sector value axis with % units (#7817)", async () => {
     mockXAxis.mockClear();
-    mockGetMarketOverview.mockResolvedValueOnce({
-      indexes: {},
-      sectors: [{ sector: "Energy", change: 1.234, source: "lse" }],
-      headlines: [],
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
+    mockGetMarketSectors.mockResolvedValueOnce({
+      region: "us",
+      sectors: [{ sector: "Energy", change: 1.234, source: "etf" }],
     });
     render(<MarketOverview />);
-    await screen.findByRole("heading", { name: "Sector % Change" });
+    await screen.findByRole("button", { name: /Energy/ });
     const valueAxis = mockXAxis.mock.calls
       .map(([props]: any) => props)
       .find((props: any) => props.type === "number");
@@ -188,12 +202,105 @@ describe("MarketOverview", () => {
   });
 
   it("shows an empty state instead of a blank chart when there are no sectors", async () => {
-    mockGetMarketOverview.mockResolvedValueOnce({
-      indexes: {},
-      sectors: [],
-      headlines: [],
-    });
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
     render(<MarketOverview />);
     expect(await screen.findByText("No sector data available")).toBeInTheDocument();
+  });
+});
+
+describe("MarketOverview sectors (#9381)", () => {
+  it("asks the overview to skip sectors and loads the default region", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
+    mockGetMarketSectors.mockResolvedValueOnce({
+      region: "uk",
+      sectors: [{ sector: "Energy", change: 1.5, source: "basket" }],
+    });
+    render(<MarketOverview />);
+
+    expect(await screen.findByRole("button", { name: /Energy/ })).toBeInTheDocument();
+    expect(mockGetMarketOverview).toHaveBeenLastCalledWith({ includeSectors: false });
+    expect(mockGetMarketSectors).toHaveBeenCalledWith(undefined, expect.any(AbortSignal));
+    const toggle = screen.getByRole("group", { name: "Sector region" });
+    expect(within(toggle).getByRole("button", { name: "UK" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("refetches sectors when a different region is chosen", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
+    render(<MarketOverview />);
+    const toggle = await screen.findByRole("group", { name: "Sector region" });
+
+    fireEvent.click(within(toggle).getByRole("button", { name: "Global" }));
+
+    await waitFor(() =>
+      expect(mockGetMarketSectors).toHaveBeenLastCalledWith("global", expect.any(AbortSignal)),
+    );
+    expect(mockGetMarketOverview).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens sector detail when a sector is clicked", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
+    mockGetMarketSectors.mockResolvedValueOnce({
+      region: "us",
+      sectors: [{ sector: "Energy", change: -0.4, source: "etf" }],
+    });
+    mockGetSectorDetail.mockResolvedValueOnce({
+      region: "us",
+      sector: "Energy",
+      basis: "etf",
+      proxy: { ticker: "XLE", name: "Energy Select Sector SPDR" },
+      returns: { "1D": -0.4, "1W": 1.2, "1M": null, YTD: 5 },
+      history: [{ date: "2026-10-02", value: 90 }],
+      constituents: [{ ticker: "XOM", name: "Exxon Mobil", price: 110.5, change: -0.8 }],
+    });
+    render(<MarketOverview />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Energy/ }));
+
+    const panel = await screen.findByRole("region", { name: "Sector detail" });
+    expect(mockGetSectorDetail).toHaveBeenCalledWith("us", "Energy", expect.any(AbortSignal));
+    expect(await within(panel).findByText("Exxon Mobil")).toBeInTheDocument();
+    expect(within(panel).getByText(/Tracked via/)).toBeInTheDocument();
+    expect(within(panel).getByText("1.20%")).toBeInTheDocument();
+    expect(within(panel).getByText("—")).toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("region", { name: "Sector detail" })).not.toBeInTheDocument();
+  });
+
+  it("wires bar clicks to the same selection", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
+    mockGetMarketSectors.mockResolvedValueOnce({
+      region: "us",
+      sectors: [{ sector: "Utilities", change: 0.2, source: "etf" }],
+    });
+    mockGetSectorDetail.mockReturnValueOnce(new Promise(() => {}));
+    render(<MarketOverview />);
+    await screen.findByRole("button", { name: /Utilities/ });
+
+    const sectorBar = mockBar.mock.calls
+      .map((call: any[]) => call[0])
+      .find((props: any) => typeof props.onClick === "function");
+    sectorBar.onClick({}, 0);
+
+    await waitFor(() =>
+      expect(mockGetSectorDetail).toHaveBeenCalledWith("us", "Utilities", expect.any(AbortSignal)),
+    );
+  });
+
+  it("shows the backend error when sector detail fails", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
+    mockGetMarketSectors.mockResolvedValueOnce({
+      region: "uk",
+      sectors: [{ sector: "Energy", change: 0.1, source: "basket" }],
+    });
+    mockGetSectorDetail.mockRejectedValueOnce(new Error("Sector data is unavailable"));
+    render(<MarketOverview />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Energy/ }));
+
+    expect(await screen.findByText("Sector data is unavailable")).toBeInTheDocument();
   });
 });

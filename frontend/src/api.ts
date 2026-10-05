@@ -51,6 +51,9 @@ import type {
   Nudge,
   HoldingValue,
   MarketOverview,
+  RegionSectors,
+  SectorDetail,
+  SectorRegion,
   AnalyticsEventPayload,
   AnalyticsFunnelSummary,
   AnalyticsSource,
@@ -636,9 +639,32 @@ export const getNews = (ticker: string, signal?: AbortSignal) => {
   );
 };
 
-/** Aggregate market overview data. */
-export const getMarketOverview = () =>
-  fetchJson<MarketOverview>(`${API_BASE}/market/overview`);
+/**
+ * Aggregate market overview data. Pass `includeSectors: false` when the
+ * caller loads sectors itself via `getMarketSectors`, so the backend skips
+ * that fetch.
+ */
+export const getMarketOverview = (options: { includeSectors?: boolean } = {}) => {
+  const query = options.includeSectors === false ? "?sectors=false" : "";
+  return fetchJson<MarketOverview>(`${API_BASE}/market/overview${query}`);
+};
+
+/** Sector % change for a region; omit `region` for the configured default. */
+export const getMarketSectors = (region?: SectorRegion, signal?: AbortSignal) => {
+  const query = region ? `?${new URLSearchParams({ region }).toString()}` : "";
+  return fetchJson<RegionSectors>(`${API_BASE}/market/sectors${query}`, { signal });
+};
+
+/** Returns, recent history and representative constituents for one sector. */
+export const getSectorDetail = (
+  region: SectorRegion,
+  sector: string,
+  signal?: AbortSignal,
+) =>
+  fetchJson<SectorDetail>(
+    `${API_BASE}/market/sectors/${encodeURIComponent(region)}/${encodeURIComponent(sector)}`,
+    { signal },
+  );
 
 /** Retrieve top movers across tickers for a period. */
 export const getTopMovers = (

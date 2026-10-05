@@ -9,6 +9,7 @@ import re
 import threading
 import time
 from concurrent.futures import Future
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -114,6 +115,11 @@ class NewsQuotaExceeded(RuntimeError):
     """Raised when no news provider can make a request today."""
 
 
+# Providers that spent quota (made a request) during the current
+# ``_fetch_news`` call; ``None`` outside one.
+_spent_quota: ContextVar[Optional[List[str]]] = ContextVar("_news_spent_quota", default=None)
+
+
 class _ProviderQuota:
     """Daily request budget for one news provider, persisted to a JSON file.
 
@@ -177,7 +183,10 @@ class _ProviderQuota:
                 return False
             data["count"] += 1
             self.save(data)
-            return True
+        spent = _spent_quota.get()
+        if spent is not None:
+            spent.append(self.name)
+        return True
 
 
 _ALPHA_QUOTA = _ProviderQuota("AlphaVantage", "news_requests_per_day", 25)
@@ -616,7 +625,31 @@ def fetch_news_alpha(ticker: str) -> List[Dict[str, str]]:
 
 
 def _fetch_news(ticker: str) -> List[Dict[str, str]]:
-    """Fetch news from AlphaVantage with fallbacks to Yahoo and Google."""
+    """Fetch news from AlphaVantage with fallbacks to Yahoo and Google.
+
+    Raises ``NewsQuotaExceeded`` when no provider made a request. The
+    ``_can_request_news`` gate is checked before the chain runs, but another
+    fetch can take the last unit of a provider's budget in between; without
+    this check that race would come back as an empty result (and be cached
+    as one) instead of as quota exhaustion.
+    """
+
+    spent: List[str] = []
+    token = _spent_quota.set(spent)
+    try:
+        items = _fetch_from_providers(ticker)
+    finally:
+        _spent_quota.reset(token)
+    if not items and not spent:
+        logging.getLogger(__name__).info(
+            "No news provider had quota left for %s by the time it ran", sanitise_log_value(ticker)
+        )
+        raise NewsQuotaExceeded("news quota exceeded")
+    return items
+
+
+def _fetch_from_providers(ticker: str) -> List[Dict[str, str]]:
+    """Run the provider chain, returning the first non-empty result."""
 
     try:
         items = fetch_news_alpha(ticker)

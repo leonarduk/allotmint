@@ -1143,3 +1143,74 @@ def test_get_cached_news_raises_only_when_every_provider_is_exhausted(monkeypatc
 
     with pytest.raises(news_module.NewsQuotaExceeded):
         news_module.get_cached_news("PFE", raise_on_quota_exhausted=True)
+
+
+def test_fetch_news_raises_when_no_provider_could_spend(monkeypatch):
+    """The gate passed, but every budget was gone by the time providers ran."""
+
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+    _set_quota_limits(monkeypatch, alpha=25, yahoo=0, google=0)
+
+    def fail_get(*args, **kwargs):
+        raise AssertionError("no provider should make a request without quota")
+
+    monkeypatch.setattr(news_module.requests, "get", fail_get)
+    monkeypatch.setattr(news_module.curl_requests, "get", fail_get)
+
+    with pytest.raises(news_module.NewsQuotaExceeded):
+        news_module._fetch_news("PFE")
+    # The per-fetch spend record is cleared afterwards.
+    assert news_module._spent_quota.get() is None
+
+
+def test_fetch_news_empty_after_a_real_request_is_not_quota_exhaustion(monkeypatch):
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+    _set_quota_limits(monkeypatch, alpha=0, yahoo=0, google=1)
+
+    def empty_google(url, params=None, timeout=10, **kwargs):
+        class Response:
+            text = "<rss><channel></channel></rss>"
+
+            def raise_for_status(self):
+                return None
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", empty_google)
+
+    # Google spent its last unit and found nothing: a genuine empty result.
+    assert news_module._fetch_news("PFE") == []
+    assert news_module._GOOGLE_QUOTA.load()["count"] == 1
+
+
+def test_get_cached_news_lost_quota_race_serves_cache_instead_of_caching_empty(monkeypatch, tmp_path):
+    """Gate says yes, a concurrent fetch takes the last unit, providers spend nothing."""
+
+    monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+    _set_quota_limits(monkeypatch, alpha=0, yahoo=0, google=0)
+    # Stale verdict from before the concurrent fetch drained the budget.
+    monkeypatch.setattr(news_module, "_can_request_news", lambda: True)
+
+    cached = [{"headline": "Cached", "url": "https://example.com/cached"}]
+    page_cache.save_cache("news_PFE", cached)
+    monkeypatch.setattr(page_cache, "is_stale", lambda page, ttl: True)
+
+    result = news_module.get_cached_news("PFE")
+
+    assert result == [{**cached[0], "stale": False}]
+    # The cache keeps the good payload rather than being overwritten with [].
+    assert page_cache.load_cache("news_PFE") == cached
+
+
+def test_get_cached_news_lost_quota_race_without_cache_raises(monkeypatch, tmp_path):
+    monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
+    monkeypatch.setattr(news_module.cfg, "alpha_vantage_key", None)
+    _set_quota_limits(monkeypatch, alpha=0, yahoo=0, google=0)
+    monkeypatch.setattr(news_module, "_can_request_news", lambda: True)
+
+    with pytest.raises(news_module.NewsQuotaExceeded):
+        news_module.get_cached_news("PFE", raise_on_quota_exhausted=True)
+    assert page_cache.load_cache("news_PFE") is None

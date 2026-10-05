@@ -112,3 +112,32 @@ def test_events_route():
     with events_path.open() as fh:
         expected = [{"id": e["id"], "name": e["name"]} for e in json.load(fh)]
     assert data == expected
+
+
+def test_market_event_date_id_runs_through_historical_route(monkeypatch):
+    """IDs listed from events/market_events.json (dates) must be runnable."""
+    from backend.routes import events as events_route
+
+    event_id = events_route._market_event(  # pylint: disable=protected-access
+        {"date": "2020-03-16", "description": "COVID-19 volatility"}
+    )["id"]
+    monkeypatch.setattr(
+        scenario_route,
+        "list_plots",
+        lambda: [OwnerSummaryRecord(owner="alice", full_name="Alice Example", accounts=["acc1"])],
+    )
+    monkeypatch.setattr(
+        scenario_route,
+        "build_owner_portfolio",
+        lambda owner, *, pricing_date=None, **_: {
+            "total_value_estimate_gbp": 100.0,
+            "accounts": [{"value_estimate_gbp": 100.0}],
+        },
+    )
+
+    client = _auth_client()
+    resp = client.get(f"/scenario/historical?event_id={event_id}&horizons=1d")
+    assert resp.status_code == 200
+    horizon = resp.json()[0]["horizons"]["1"]
+    assert horizon["baseline_total_value_gbp"] == 100.0
+    assert horizon["shocked_total_value_gbp"] is not None

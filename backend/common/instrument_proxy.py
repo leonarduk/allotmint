@@ -35,13 +35,16 @@ Fields
     Currency of the scaled close, converted to GBP with the stored FX history
     (``timeseries/fx/<CCY>.parquet``, ``Rate`` = GBP per unit). When it is
     defaulted from metadata, a pence code (GBX/GBp) counts as GBP because the
-    read-path scaling already turned pence into pounds. An *explicit* pence
-    code on a segment means the scaled close really is in pence and is
-    multiplied by 0.01.
+    read-path scaling already turned pence into pounds. For such a ticker
+    (read-path factor 0.01) write ``"GBP"``: an explicit pence code would
+    scale twice, so :func:`validate_proxy` rejects it. An explicit pence code
+    is only accepted for a ticker with no pence override, where the scaled
+    close really is in pence and is multiplied by 0.01.
 ``long_history``
     Weighted columns of ``<data_root>/timeseries/long_history/annual_returns_gbp.csv``
     (decimal annual GBP total returns, one row per ``year``); weights sum to 1.
-    Valid columns are :data:`LONG_HISTORY_COLUMNS`.
+    Valid columns are :data:`LONG_HISTORY_COLUMNS`. Other CSV columns (e.g.
+    ``gbp_per_usd``, ``uk_cpi_inflation``) are not returns and are never valid.
 ``basis``
     ``price`` or ``total_return``: what the daily proxy series measures.
 ``rationale``, ``reviewed``
@@ -273,6 +276,36 @@ def _check_segment_fields(seg: Mapping[str, Any], where: str) -> list[str]:
     return problems
 
 
+def _check_pence_currency(seg: Mapping[str, Any], where: str) -> list[str]:
+    """Reject an explicit pence currency on a ticker whose read-path scaling is already 0.01.
+
+    The resolver applies ``get_scaling_override`` before the segment currency,
+    so ``GBX`` on such a ticker would divide by 100 twice. Literal pence stays
+    valid for a ticker with no pence override. Assumes ticker and currency
+    were already checked; never raises (a failed lookup is logged and skipped).
+    """
+    currency = seg.get("currency")
+    if not isinstance(currency, str) or not CurrencyNormaliser.from_raw(currency.strip()).is_pence:
+        return []
+    ticker = str(seg.get("ticker")).strip().upper()
+    try:
+        sym, exch = _split_ticker(ticker)
+        factor = float(get_scaling_override(sym, exch, None))
+    except Exception as exc:  # validate_proxy must never raise
+        logger.warning(
+            "Cannot check read-path scaling for proxy ticker %s: %s",
+            sanitise_log_value(ticker),
+            sanitise_log_value(exc),
+        )
+        return []
+    if math.isclose(factor, 0.01):
+        return [
+            f"{where}: currency {currency.strip()} on {ticker} would scale twice: "
+            "the 0.01 override is already applied; use GBP"
+        ]
+    return []
+
+
 def _windows_overlap(a: tuple[Optional[date], Optional[date]], b: tuple[Optional[date], Optional[date]]) -> bool:
     a_start, a_end = a[0] or date.min, a[1] or date.max
     b_start, b_end = b[0] or date.min, b[1] or date.max
@@ -315,6 +348,8 @@ def _validate_daily(raw: Any, known: Optional[set[str]], own: Optional[str]) -> 
             problems.append(f"{where}: segment must be a JSON object")
             continue
         seg_problems = _check_ticker(seg.get("ticker"), where, known, own) + _check_segment_fields(seg, where)
+        if not seg_problems:
+            seg_problems = _check_pence_currency(seg, where)
         problems.extend(seg_problems)
         if not seg_problems:
             parsed.append(_parse_segment(seg))
@@ -373,9 +408,9 @@ def validate_proxy(
 ) -> list[str]:
     """Problems with ``meta["proxy"]``, one message per violation; ``[]`` when valid or absent.
 
-    ``known_tickers`` (``SYMBOL.EXCHANGE``) enables the stored-series check;
-    ``long_history_columns`` overrides :data:`LONG_HISTORY_COLUMNS`. Never
-    raises on bad data.
+    ``known_tickers`` (``SYMBOL.EXCHANGE``) enables the stored-series check.
+    ``long_history_columns`` (e.g. the CSV header) can only narrow
+    :data:`LONG_HISTORY_COLUMNS`, never widen it. Never raises on bad data.
     """
     if not isinstance(meta, Mapping):
         return []
@@ -385,7 +420,11 @@ def validate_proxy(
     if not isinstance(raw, Mapping):
         return ["proxy must be a JSON object"]
     known = {str(t).strip().upper() for t in known_tickers} if known_tickers is not None else None
-    columns = frozenset(long_history_columns) if long_history_columns is not None else LONG_HISTORY_COLUMNS
+    columns = (
+        LONG_HISTORY_COLUMNS & {str(c).strip() for c in long_history_columns}
+        if long_history_columns is not None
+        else LONG_HISTORY_COLUMNS
+    )
     own = str(meta.get("ticker") or "").strip().upper() or None
     daily, long_history = raw.get("daily"), raw.get("long_history")
     problems: list[str] = []

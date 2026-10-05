@@ -162,6 +162,48 @@ def test_adjacent_windows_and_two_ticker_blend_are_valid() -> None:
     assert ip.validate_proxy({"ticker": "X.L", "proxy": _proxy_block(daily)}) == []
 
 
+def test_long_history_columns_can_narrow_but_never_widen() -> None:
+    # A caller passing the CSV header must not make an FX level a valid return column.
+    meta = _meta()
+    meta["proxy"]["long_history"] = [{"column": "gbp_per_usd", "weight": 1.0}]
+    problems = ip.validate_proxy(meta, long_history_columns=["gbp_per_usd", "uk_equity"])
+    assert any("unknown long-history column 'gbp_per_usd'" in p for p in problems), problems
+
+    meta["proxy"]["long_history"] = [{"column": "uk_equity", "weight": 1.0}]
+    assert ip.validate_proxy(meta, long_history_columns=[" gbp_per_usd", "uk_equity "]) == []
+    # Narrowing still works: a canonical column the caller excludes is rejected.
+    problems = ip.validate_proxy(meta, long_history_columns=["uk_cash"])
+    assert any("unknown long-history column 'uk_equity'" in p for p in problems), problems
+
+
+@pytest.mark.parametrize("currency", ["GBX", "GBp"])
+def test_explicit_pence_on_pence_override_ticker_is_double_scaling(monkeypatch, currency) -> None:
+    overrides = {("BUT", "L"): 0.01}  # like scaling_overrides.json "L": {"BUT": 0.01}
+    monkeypatch.setattr(ip, "get_scaling_override", lambda sym, exch, _req: overrides.get((sym, exch), 1.0))
+    daily = [{"ticker": "BUT.L", "weight": 1.0, "currency": currency}]
+    problems = ip.validate_proxy({"ticker": "X.L", "proxy": _proxy_block(daily)})
+    assert problems == [
+        f"proxy.daily[0]: currency {currency} on BUT.L would scale twice: "
+        "the 0.01 override is already applied; use GBP"
+    ]
+    # The supported spelling for a GBX line, and literal pence on a ticker with no override.
+    daily[0]["currency"] = "GBP"
+    assert ip.validate_proxy({"ticker": "X.L", "proxy": _proxy_block(daily)}) == []
+    daily[0].update(ticker="PX.L", currency=currency)
+    assert ip.validate_proxy({"ticker": "X.L", "proxy": _proxy_block(daily)}) == []
+
+
+def test_failed_scaling_lookup_is_logged_not_raised(monkeypatch, caplog) -> None:
+    def boom(sym, exch, _req):
+        raise RuntimeError("overrides unreadable")
+
+    monkeypatch.setattr(ip, "get_scaling_override", boom)
+    daily = [{"ticker": "BUT.L", "weight": 1.0, "currency": "GBX"}]
+    with caplog.at_level(logging.WARNING, logger=ip.__name__):
+        assert ip.validate_proxy({"ticker": "X.L", "proxy": _proxy_block(daily)}) == []
+    assert "Cannot check read-path scaling for proxy ticker BUT.L" in caplog.text
+
+
 @pytest.mark.parametrize("bad", ["not a dict", 42, ["list"]])
 def test_validate_never_raises_on_garbage(bad) -> None:
     assert ip.validate_proxy({"proxy": bad}) == ["proxy must be a JSON object"]

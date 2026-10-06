@@ -36,7 +36,8 @@ A successful fetch writes the file even when it found no events (#9567), so
 "checked: none paid" is told apart from "never checked" (no file). The file
 then records the date its events are confirmed complete from
 (``confirmed_from``, kept in the parquet's pandas metadata, ``DataFrame.attrs``):
-the start of the earliest fetch window merged into it. Fetch windows run up
+the start of the earliest fetch window merged into it, or the first day the
+provider returned prices for when that is later. Fetch windows run up
 to the day of the fetch and the rolling cache fetches contiguously, so the
 events from that date on are the full set. A file with no dividends is a
 confirmed non-payer only from ``confirmed_from``; a rolling fetch over the
@@ -108,14 +109,17 @@ def actions_from_history(
 
     With ``window_start`` (the start the history was requested from), a frame
     that carries Yahoo's ``Dividends`` column also records that it is the
-    complete set of events from that date (``attrs[CONFIRMED_FROM]``), even
-    when it is empty. A frame without that column confirms nothing.
+    complete set of events from the later of that date and the first price
+    row (``attrs[CONFIRMED_FROM]``), even when it is empty: the provider says
+    nothing about days before the history it has. A frame without that column
+    confirms nothing.
     """
     if raw is None or raw.empty:
         return empty_actions()
     actions = _events_in_history(raw, currency=currency, source=source)
     if window_start is not None and "Dividends" in raw.columns:
-        actions.attrs[CONFIRMED_FROM] = _iso_day(window_start)
+        first_row = _naive_dates(raw.reset_index().iloc[:, 0]).min()
+        actions.attrs[CONFIRMED_FROM] = max(_iso_day(window_start), _iso_day(first_row))
     return actions
 
 

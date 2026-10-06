@@ -229,6 +229,17 @@ def test_fetch_with_no_actions_writes_an_empty_file_with_the_schema(cache_base):
     assert corporate_actions.dividends_confirmed_from("ABC", "L") == pd.Timestamp(days[0].date())
 
 
+def test_confirmed_from_is_no_earlier_than_the_history_the_provider_has(cache_base):
+    """Yahoo returning one recent row says nothing about the years before it."""
+    days = pd.bdate_range("2024-03-01", periods=5)
+    fake = FakeYahooTicker(pd.Series(100.0, index=days), {})
+
+    with patch.object(fetch_yahoo_timeseries.yf, "Ticker", return_value=fake):
+        fetch_yahoo_timeseries_range("ABC", "L", date(1970, 1, 1), days[-1].date())
+
+    assert corporate_actions.dividends_confirmed_from("ABC", "L") == pd.Timestamp(days[0].date())
+
+
 def test_failed_fetch_writes_no_actions_file(cache_base):
     days = pd.bdate_range("2024-03-01", periods=5)
     fake = FakeYahooTicker(pd.Series(100.0, index=days), {})

@@ -367,6 +367,9 @@ function HoldingAssignments({
               <th className="px-2 py-1 text-left">
                 {t('sleeves.assign.col.holding')}
               </th>
+              <th className="px-2 py-1 text-left">
+                {t('sleeves.assign.col.sector')}
+              </th>
               <th className="px-2 py-1 text-right">
                 {t('sleeves.assign.col.value')}
               </th>
@@ -381,6 +384,7 @@ function HoldingAssignments({
                 <td className="px-2 py-1">
                   {h.name ? `${h.name} (${h.ticker})` : h.ticker}
                 </td>
+                <td className="px-2 py-1">{h.sector || '—'}</td>
                 <td className="px-2 py-1 text-right">{gbp.format(h.value)}</td>
                 <td className="px-2 py-1">
                   <select

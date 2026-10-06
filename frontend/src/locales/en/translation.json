@@ -3346,6 +3346,7 @@
       "sleeveFor": "Sleeve for {{ticker}}",
       "col": {
         "holding": "Holding",
+        "sector": "Sector",
         "value": "Value",
         "sleeve": "Sleeve"
       }

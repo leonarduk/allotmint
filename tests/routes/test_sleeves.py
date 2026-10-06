@@ -18,7 +18,13 @@ PORTFOLIO = {
             "_account_stem": "sipp",
             "holdings": [
                 {"ticker": "CORE.L", "name": "Core fund", "market_value_gbp": 900.0, "asset_class": "equity"},
-                {"ticker": "MOON.L", "name": "Moonshot", "market_value_gbp": 100.0, "asset_class": "equity"},
+                {
+                    "ticker": "MOON.L",
+                    "name": "Moonshot",
+                    "market_value_gbp": 100.0,
+                    "asset_class": "equity",
+                    "sector": "Technology",
+                },
             ],
         }
     ]
@@ -52,9 +58,9 @@ def test_listing_has_only_core_by_default(client):
     ]
     assert body["assignments"] == {}
     assert body["warnings"] == []
-    assert [(h["ticker"], h["value"], h["sleeve_id"]) for h in body["holdings"]] == [
-        ("CORE.L", 900.0, "core"),
-        ("MOON.L", 100.0, "core"),
+    assert [(h["ticker"], h["sector"], h["value"], h["sleeve_id"]) for h in body["holdings"]] == [
+        ("CORE.L", None, 900.0, "core"),
+        ("MOON.L", "Technology", 100.0, "core"),
     ]
 
 

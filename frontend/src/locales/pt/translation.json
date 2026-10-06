@@ -3353,6 +3353,7 @@
       "sleeveFor": "Bloco de {{ticker}}",
       "col": {
         "holding": "Posição",
+        "sector": "Setor",
         "value": "Valor",
         "sleeve": "Bloco"
       }

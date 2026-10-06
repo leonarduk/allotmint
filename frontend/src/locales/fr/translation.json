@@ -3353,6 +3353,7 @@
       "sleeveFor": "Poche pour {{ticker}}",
       "col": {
         "holding": "Position",
+        "sector": "Secteur",
         "value": "Valeur",
         "sleeve": "Poche"
       }

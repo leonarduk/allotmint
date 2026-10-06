@@ -19,7 +19,6 @@ const mockCreateStrategy = vi.hoisted(() => vi.fn());
 const mockUpdateStrategy = vi.hoisted(() => vi.fn());
 const mockDeleteStrategy = vi.hoisted(() => vi.fn());
 const mockDuplicateStrategy = vi.hoisted(() => vi.fn());
-const mockGetInvestmentPlan = vi.hoisted(() => vi.fn());
 
 vi.mock('@/api', () => ({
   getOwners: mockGetOwners,
@@ -32,8 +31,6 @@ vi.mock('@/api', () => ({
   updateStrategy: mockUpdateStrategy,
   deleteStrategy: mockDeleteStrategy,
   duplicateStrategy: mockDuplicateStrategy,
-  getInvestmentPlan: mockGetInvestmentPlan,
-  saveInvestmentPlan: vi.fn(),
 }));
 
 vi.mock('@/RouteContext', () => ({
@@ -175,52 +172,14 @@ describe('Strategy page', () => {
     mockGetOwners.mockResolvedValue([{ owner: 'alex', accounts: [] }]);
     mockGetRebalancePlan.mockResolvedValue(makePlan());
     mockGetStrategies.mockResolvedValue(makeStrategies());
-    mockGetInvestmentPlan.mockRejectedValue(
-      Object.assign(new Error('No plan'), { status: 404 })
-    );
   });
 
-  it('offers to switch the investment plan after applying a strategy', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    mockApplyStrategy.mockResolvedValue({});
-    mockGetInvestmentPlan.mockResolvedValue({
-      plan: {
-        owner: 'alex',
-        version: 1,
-        updated: '2026-10-06',
-        status: 'draft',
-        summary: '',
-        target: [{ class: 'equity', weight_pct: 100 }],
-        vehicles: {},
-        assumptions: [],
-        decisions: [],
-        open_questions: [],
-        evidence: [],
-        review: { triggers: [] },
-        disclaimer: '',
-      },
-      warnings: [],
-      rebalance: {
-        rebalance_targets: GB_50_50.targets,
-        tolerance_pct: 5,
-        plan_targets: { equity: 100 },
-        matches: false,
-        copy_supported: true,
-        rebalance_as_plan: GB_50_50.targets,
-      },
-      strategy: null,
-    });
+  it('does not show the investment plan panel', async () => {
     await renderPage();
-    const row = await strategyRow(GB_50_50.name);
-    fireEvent.click(
-      within(row).getByRole('button', { name: `Apply ${GB_50_50.name}` })
-    );
+    await screen.findByRole('region', { name: 'Strategies' });
     expect(
-      await screen.findByText(
-        `You applied ${GB_50_50.name}. Also update your investment plan to match?`
-      )
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Update plan' })).toBeEnabled();
+      screen.queryByRole('region', { name: 'Investment plan' })
+    ).not.toBeInTheDocument();
   });
 
   it('is titled Strategy', async () => {

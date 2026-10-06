@@ -813,8 +813,8 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
             row.setdefault("_region_source", None)
 
             row["units"] += _safe_num(h.get("units"))
-            if h.get("fx_rate_source") == "missing":
-                # Valued without a real FX rate (#9664); flagged by aggregate_by_currency.
+            if h.get("fx_rate_source") == FX_RATE_SOURCE_MISSING:
+                # No FX rate at all (#9664): enrichment left it unpriced; aggregate_by_currency flags it.
                 row["_fx_rate_missing"] = True
 
             _update_row_field(row, "currency", h.get("currency"), "holding")
@@ -1302,13 +1302,13 @@ def _quote_currency_key(row: dict) -> str:
 
 
 def _missing_fx_holdings(quote_currency: str, rows: List[dict]) -> List[dict]:
-    """``unconverted_holdings`` entries for ``rows`` valued without a real GBP rate.
+    """``unconverted_holdings`` entries for ``rows`` not valued at a stored GBP rate.
 
     A row is flagged when any of its holdings reports ``fx_rate_source ==
-    "missing"`` (#9664), or when its quote currency has no stored GBP rate at
-    all -- read from the FX cache only, never Yahoo (#8028). Such holdings
-    are still counted at whatever rate valued them, so they are flagged here
-    rather than silently trusted.
+    "missing"`` (#9664: no rate at all, so it is left unpriced), or when its
+    quote currency has no stored GBP rate -- read from the FX cache only,
+    never Yahoo (#8028) -- so it is at best valued at an approximate
+    fallback constant.
     """
     no_stored_rate = quote_currency not in ("GBP", UNKNOWN_CURRENCY_LABEL) and (
         cached_fx_rate_to_gbp(quote_currency) is None

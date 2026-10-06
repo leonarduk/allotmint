@@ -2,6 +2,7 @@ import pytest
 
 import backend.common.portfolio_utils as portfolio_utils
 from backend.common import instrument_api
+from backend.utils.fx_rates import FX_RATE_SOURCE_MISSING
 
 
 def _sample_portfolio():
@@ -496,7 +497,7 @@ def test_aggregate_by_currency_flags_holding_level_missing_fx_rate(monkeypatch):
 
     groups = _currency_groups(
         [
-            _holding("QXQ.N", 50, currency="USD", fx_rate_source="missing"),
+            _holding("QXQ.N", 50, currency="USD", fx_rate_source=FX_RATE_SOURCE_MISSING),
             _holding("QXR.N", 70, currency="USD", fx_rate_source="cache"),
         ]
     )
@@ -510,7 +511,7 @@ def test_aggregate_by_currency_flags_holding_level_missing_fx_rate(monkeypatch):
 @pytest.mark.usefixtures("_no_instrument_metadata")
 def test_aggregate_by_ticker_does_not_leak_fx_missing_marker():
     rows = portfolio_utils.aggregate_by_ticker(
-        {"accounts": [{"holdings": [_holding("QXS.N", 5, currency="USD", fx_rate_source="missing")]}]}
+        {"accounts": [{"holdings": [_holding("QXS.N", 5, currency="USD", fx_rate_source=FX_RATE_SOURCE_MISSING)]}]}
     )
 
     assert all("_fx_rate_missing" not in r for r in rows)

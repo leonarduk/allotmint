@@ -114,6 +114,40 @@ def test_portfolio_currencies(monkeypatch, tmp_path):
     assert sum(g["weight_pct"] for g in groups.values()) == pytest.approx(100.0)
 
 
+@pytest.mark.usefixtures("_offline_currency_meta")
+def test_portfolio_currencies_flags_unpriced_missing_fx_holding(monkeypatch, tmp_path):
+    """An enriched holding with no FX rate (#9664: unpriced, fx_rate_source "missing") is flagged, not valued."""
+    from backend.common import portfolio_utils
+    from backend.utils.fx_rates import FX_RATE_SOURCE_MISSING
+
+    monkeypatch.setattr(portfolio_utils, "cached_fx_rate_to_gbp", lambda ccy: {"JPY": 0.0052}.get(ccy))
+    holdings = [
+        {"ticker": "QXA.L", "currency": "GBP", "market_value_gbp": 100, "cost_gbp": 90, "gain_gbp": 10},
+        {
+            "ticker": "QXT.JP",
+            "currency": "JPY",
+            "fx_rate_source": FX_RATE_SOURCE_MISSING,
+            "market_value_gbp": None,
+            "cost_gbp": 30,
+            "gain_gbp": None,
+        },
+    ]
+    client = _client(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "backend.routes.portfolio.portfolio_mod.build_owner_portfolio",
+        lambda owner, root, pricing_date=None: {"accounts": [{"holdings": holdings}]},
+    )
+
+    resp = client.get("/portfolio/alice/currencies")
+    assert resp.status_code == 200
+    groups = {row["quote_currency"]: row for row in resp.json()}
+    assert groups["JPY"]["market_value_gbp"] == 0
+    assert groups["JPY"]["unconverted_holdings"] == [
+        {"ticker": "QXT.JP", "currency": "JPY", "reason": portfolio_utils.FX_MISSING_ALL_DATES}
+    ]
+    assert groups["GBP"]["weight_pct"] == pytest.approx(100.0)
+
+
 def test_portfolio_currencies_not_found(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     monkeypatch.setattr(

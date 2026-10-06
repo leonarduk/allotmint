@@ -76,7 +76,7 @@
   },
   "allocation": {
     "currency": "Währungen",
-    "currencyMissingFx": "Kein gespeicherter Wechselkurs für {{currencies}}: Diese Positionen werden mit einem Näherungskurs bewertet, ihr Anteil kann daher abweichen.",
+    "currencyMissingFx": "Kein gespeicherter Wechselkurs für {{currencies}}: Diese Positionen werden mit einem Näherungskurs bewertet oder ausgelassen, ihr Anteil kann daher abweichen.",
     "currencyNote": "Engagement nach Notierungswährung: die Währung, in der jede Position gehandelt wird, nicht das zugrunde liegende Engagement (ein in GBP notierter globaler Fonds zählt als GBP). Umfasst alle Konten dieser Gruppe.",
     "instrumentTypes": "Instrumenttypen",
     "region": "Regionen",

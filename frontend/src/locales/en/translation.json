@@ -598,6 +598,7 @@
       "3M": "90 days",
       "1Y": "1 year"
     },
+    "returnBasisNote": "Sector changes include reinvested dividends (total return); index changes are price only.",
     "sectorChange": "Sector % Change",
     "sectorPerformance": "Sector Performance"
   },

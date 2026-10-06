@@ -400,6 +400,7 @@
       "3M": "90 giorni",
       "1Y": "1 anno"
     },
+    "returnBasisNote": "Le variazioni dei settori includono i dividendi reinvestiti (rendimento totale); quelle degli indici sono solo di prezzo.",
     "sectorChange": "Variazione % dei settori",
     "sectorPerformance": "Rendimento dei settori"
   },

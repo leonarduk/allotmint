@@ -400,6 +400,7 @@
       "3M": "90 días",
       "1Y": "1 año"
     },
+    "returnBasisNote": "Las variaciones por sector incluyen dividendos reinvertidos (rentabilidad total); las de los índices son solo de precio.",
     "sectorChange": "Variación % por sector",
     "sectorPerformance": "Rendimiento por sector"
   },

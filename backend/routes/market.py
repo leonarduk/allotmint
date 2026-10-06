@@ -111,17 +111,18 @@ def _fetch_index_period_changes(period: market_sectors.Period) -> Dict[str, Inde
     quote, so ``value`` is the last close, not an intraday level.
     """
 
-    closes = market_sectors.download_period_closes(list(INDEX_SYMBOLS.values()), period)
+    history = market_sectors.download_period_history(list(INDEX_SYMBOLS.values()), period)
     out: Dict[str, IndexPayload] = {}
     for name, sym in INDEX_SYMBOLS.items():
-        series = market_sectors.series_for(closes, sym)
-        change = market_sectors.period_change(series, period)
+        change = market_sectors.period_change(market_sectors.series_for(history.total_return, sym), period)
         if change is None:
             logger.warning(
                 "No %s index change for %s: close data missing", sanitise_log_value(period), sanitise_log_value(sym)
             )
             continue
-        out[name] = {"value": float(series.iloc[-1]), "change": change}
+        # The level shown is the traded close, not the reinvested index.
+        traded = market_sectors.series_for(history.traded, sym)
+        out[name] = {"value": float(traded.iloc[-1]), "change": change}
     return out
 
 

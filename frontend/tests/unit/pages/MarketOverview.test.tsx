@@ -331,6 +331,9 @@ describe("MarketOverview change period", () => {
     ]);
     expect(within(group).getByRole("radio", { name: "1 day" })).toBeChecked();
     expect(mockGetMarketIndexes).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(/Sector changes include reinvested dividends/),
+    ).toBeInTheDocument();
   });
 
   it("refetches indexes and sectors for the chosen period", async () => {

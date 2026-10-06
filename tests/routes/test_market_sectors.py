@@ -17,13 +17,20 @@ def _client() -> TestClient:
     return TestClient(app)
 
 
-def _closes(data: dict, start: str = "2025-12-29") -> pd.DataFrame:
-    """Build a yfinance-shaped download frame with ``Close`` columns."""
+def _closes(data: dict, start: str = "2025-12-29", dividends: dict | None = None) -> pd.DataFrame:
+    """Build a yfinance-shaped download frame with ``Close`` (and ``Dividends``) columns."""
 
     length = len(next(iter(data.values())))
+    index = pd.bdate_range(start, periods=length)
     columns = pd.MultiIndex.from_product([["Close"], list(data)], names=["Price", "Ticker"])
     rows = list(zip(*data.values(), strict=True))
-    return pd.DataFrame(rows, columns=columns, index=pd.bdate_range(start, periods=length))
+    frame = pd.DataFrame(rows, columns=columns, index=index)
+    if dividends:
+        paid = pd.DataFrame(0.0, index=index, columns=pd.MultiIndex.from_product([["Dividends"], list(data)]))
+        for (symbol, row), amount in dividends.items():
+            paid.iloc[row, paid.columns.get_loc(("Dividends", symbol))] = amount
+        frame = pd.concat([frame, paid], axis=1)
+    return frame
 
 
 SMALL_UNIVERSE = {
@@ -132,6 +139,69 @@ def test_normalise_period(raw, expected):
     assert market_sectors.normalise_period(raw) == expected
 
 
+def test_fetch_region_sectors_reinvests_dividends(monkeypatch, small_universe):
+    # XLE flat at 100 but goes ex a 4 dividend inside the week: total return is +4%,
+    # where the traded price alone would show 0%.
+    frame = _closes(
+        {"XLE": [100.0] * 8, "XLU": [50.0] * 8},
+        dividends={("XLE", 4): 4.0},
+    )
+    calls = []
+
+    def fake_download(*_args, **kwargs):
+        calls.append(kwargs)
+        return frame
+
+    monkeypatch.setattr(market_sectors.yf, "download", fake_download)
+
+    rows = market_sectors.fetch_region_sectors("us", "1W")
+
+    assert rows[0] == {"sector": "Energy", "change": pytest.approx(4.0), "source": "etf"}
+    assert rows[1]["change"] == pytest.approx(0.0)
+    # Traded closes plus Yahoo's dividend column, never the re-based adjusted Close.
+    assert calls[0]["auto_adjust"] is False
+    assert calls[0]["actions"] is True
+
+
+def test_basket_change_reinvests_constituent_dividends(monkeypatch, small_universe):
+    frame = _closes(
+        {"SHEL.L": [10.0] * 8, "BP.L": [5.0] * 8},
+        dividends={("SHEL.L", 4): 0.5},
+    )
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    rows = market_sectors.fetch_region_sectors("uk", "1W")
+
+    # Mean of +5% (Shell's dividend) and 0% (BP).
+    assert rows == [{"sector": "Energy", "change": pytest.approx(2.5), "source": "basket"}]
+
+
+def test_sector_detail_reports_traded_price_and_total_return(monkeypatch, small_universe):
+    frame = _closes(
+        {"XLE": [100.0] * 8, "XOM": [50.0] * 8, "CVX": [None] * 8},
+        dividends={("XLE", 3): 2.0, ("XOM", 7): 1.0},
+    )
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    detail = market_sectors.fetch_sector_detail("us", "Energy")
+
+    assert detail["returns"]["1W"] == pytest.approx(2.0)
+    xom = detail["constituents"][0]
+    # Price is the traded close; the day change includes the dividend going ex.
+    assert xom["price"] == 50.0
+    assert xom["change"] == pytest.approx(2.0)
+
+
+def test_indexes_level_is_traded_close_even_with_dividends(monkeypatch):
+    monkeypatch.setattr(market, "INDEX_SYMBOLS", {"FTSE 100": "^FTSE"})
+    frame = _closes({"^FTSE": [100.0] * 8}, dividends={("^FTSE", 5): 1.0})
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    resp = _client().get("/market/indexes", params={"period": "1W"})
+
+    assert resp.json()["indexes"]["FTSE 100"] == {"value": 100.0, "change": pytest.approx(1.0)}
+
+
 def test_fetch_region_sectors_skips_sector_without_data(monkeypatch, small_universe):
     frame = _closes({"XLE": [100.0, 101.0], "XLU": [None, None]})
     monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
@@ -161,7 +231,7 @@ def test_fetch_sector_detail_etf_returns_and_constituents(monkeypatch, small_uni
     assert detail["returns"]["1D"] == pytest.approx((129 - 128) / 128 * 100)
     # 1W base is the last close on or before seven calendar days earlier.
     assert detail["returns"]["1W"] == pytest.approx((129 - 124) / 124 * 100)
-    assert detail["history"][-1]["value"] == 129.0
+    assert detail["history"][-1]["value"] == pytest.approx(129.0)
     assert detail["constituents"] == [
         {"ticker": "XOM", "name": "Exxon", "price": 55.0, "change": pytest.approx(10.0)},
         {"ticker": "CVX", "name": "Chevron", "price": None, "change": None},
@@ -291,7 +361,10 @@ def test_indexes_endpoint_computes_period_change_from_closes(monkeypatch):
     resp = _client().get("/market/indexes", params={"period": "1W"})
 
     assert resp.status_code == 200
-    assert resp.json() == {"period": "1W", "indexes": {"FTSE 100": {"value": 110.0, "change": pytest.approx(10.0)}}}
+    assert resp.json() == {
+        "period": "1W",
+        "indexes": {"FTSE 100": {"value": pytest.approx(110.0), "change": pytest.approx(10.0)}},
+    }
     assert windows == [(["^FTSE", "^FTMC"], "1mo")]
 
 

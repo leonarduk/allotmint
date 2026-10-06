@@ -294,12 +294,10 @@ describe('Rebalance page', () => {
     // Saving targets reloads the plan; the backend may list accounts in a
     // different order, so the selection must follow the account id, not its
     // position in the list.
-    mockGetRebalancePlan
-      .mockResolvedValueOnce(plan)
-      .mockResolvedValueOnce({
-        ...plan,
-        accounts: [...plan.accounts].reverse(),
-      });
+    mockGetRebalancePlan.mockResolvedValueOnce(plan).mockResolvedValueOnce({
+      ...plan,
+      accounts: [...plan.accounts].reverse(),
+    });
     mockSaveAllocationPolicy.mockResolvedValue(plan.policy);
     mockGetNewCashPlan.mockResolvedValue({
       account_id: 'sipp',
@@ -330,6 +328,40 @@ describe('Rebalance page', () => {
     );
     await waitFor(() =>
       expect(mockGetNewCashPlan).toHaveBeenCalledWith('alex', 100, 'sipp')
+    );
+  });
+
+  it('falls back to the first account if the chosen one disappears from a reloaded plan', async () => {
+    const plan = makePlan();
+    mockGetRebalancePlan.mockResolvedValueOnce(plan).mockResolvedValueOnce({
+      ...plan,
+      accounts: plan.accounts.filter((a) => a.id !== 'sipp'),
+    });
+    mockSaveAllocationPolicy.mockResolvedValue(plan.policy);
+    mockGetNewCashPlan.mockResolvedValue({
+      account_id: 'isa',
+      account: 'ISA',
+      trades: [],
+      keep_as_cash: 100,
+    });
+    await renderPage();
+    const form = await screen.findByRole('form', { name: 'Invest new cash' });
+    const select = within(form).getByLabelText(
+      'Into account'
+    ) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'sipp' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save targets' }));
+    await waitFor(() => expect(select.value).toBe('isa'));
+
+    fireEvent.change(within(form).getByLabelText('Amount (£)'), {
+      target: { value: '100' },
+    });
+    fireEvent.click(
+      within(form).getByRole('button', { name: 'Plan contribution' })
+    );
+    await waitFor(() =>
+      expect(mockGetNewCashPlan).toHaveBeenCalledWith('alex', 100, 'isa')
     );
   });
 

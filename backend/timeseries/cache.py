@@ -1035,8 +1035,10 @@ def _cached_fx_rates(curr: str, start: date, end: date, *, ticker: str, exchange
     Each day takes the latest cached rate on or before it; days before the
     first cached rate take that first rate. With no cache
     file at all this falls back to the same approximate constant a failed live
-    fetch returns. Either way the ticker is queued so the refresh brings the
-    FX cache up to date.
+    fetch returns -- or, for a currency with no constant, an empty frame, so
+    the caller leaves the prices unconverted (no ``Close_gbp``) instead of
+    multiplying them by a made-up 1.0 (#9664). Either way the ticker is queued
+    so the refresh brings the FX cache up to date.
     """
     if curr == "GBP":
         # The GBP leg of a cross-currency conversion: the unit rate, no lookup.
@@ -1327,6 +1329,14 @@ def _convert_to_base_currency(
 
     fx_from_instr = _load_rates(currency)
     if fx_from_instr.empty:
+        # No rate at all (#9664): the frame keeps its native prices and gets no
+        # Close_<base> column, so consumers can tell it was never converted.
+        logger.warning(
+            "No %s->GBP rate; %s.%s prices left unconverted",
+            _sanitize_for_log(currency),
+            _sanitize_for_log(ticker),
+            _sanitize_for_log(exchange),
+        )
         return df
 
     if base_currency == "GBP":

@@ -87,7 +87,8 @@ def test_cache_only_fx_to_base_ignores_invalid_currency_codes(fx_cache, no_live_
     with cache.cache_only():
         rate = portfolio_utils._fx_to_base("NOT-A-CCY", "GBP", {})
 
-    assert rate == 1.0
+    # No rate -- not a made-up 1.0 (#9664) -- and nothing queued.
+    assert rate is None
     assert refresh_queue.pending() == []
 
 
@@ -192,3 +193,122 @@ def test_group_field_aggregates_make_no_live_calls(usd_holding_without_changes, 
     (group,) = route("all", as_of=None)
 
     assert group["market_value_gbp"] == pytest.approx(150.0)
+
+
+# ── #9664: no fabricated 1.0 rate, and the source of every rate reported ──
+
+
+def test_cache_only_unknown_currency_with_no_cache_has_no_rate_and_is_queued(fx_cache, no_live_fx):
+    """JPY has no approximate constant: an empty FX cache means no rate, never 1.0."""
+    with cache.cache_only():
+        rate = portfolio_utils._fx_to_base("JPY", "GBP", {})
+        source = portfolio_utils.fx_rate_to_gbp_with_source("JPY")
+
+    assert rate is None
+    assert source == (None, fx_rates.FX_RATE_SOURCE_MISSING)
+    assert refresh_queue.pending() == [("JPY",)]
+
+
+@pytest.mark.parametrize(
+    ("seed", "currency", "expected"),
+    [
+        (True, "USD", (0.75, fx_rates.FX_RATE_SOURCE_CACHE)),
+        (False, "USD", (0.8, fx_rates.FX_RATE_SOURCE_FALLBACK)),
+        (False, "JPY", (None, fx_rates.FX_RATE_SOURCE_MISSING)),
+        (False, "GBP", (1.0, None)),
+    ],
+)
+def test_cache_only_fx_rate_source(fx_cache, no_live_fx, seed, currency, expected):
+    if seed:
+        _seed_fx(currency, cache._last_close_target(), rate=0.75)
+
+    with cache.cache_only():
+        rate, source = portfolio_utils.fx_rate_to_gbp_with_source(currency)
+
+    expected_rate, expected_source = expected
+    assert source == expected_source
+    assert rate == (None if expected_rate is None else pytest.approx(expected_rate))
+
+
+def test_live_fx_rate_source_reports_live_and_tagged_fallback(fx_cache, monkeypatch):
+    monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", lambda *_: pd.DataFrame({"Rate": [0.79]}))
+    assert portfolio_utils.fx_rate_to_gbp_with_source("USD") == (pytest.approx(0.79), fx_rates.FX_RATE_SOURCE_LIVE)
+
+    monkeypatch.setattr(fx_rates, "fetch_fx_rate_range_live", lambda *_: pd.DataFrame(columns=["Date", "Rate"]))
+    monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", fx_rates.fetch_fx_rate_range)
+    fx_rates.fetch_fx_rate_range.cache_clear()
+    assert portfolio_utils.fx_rate_to_gbp_with_source("USD") == (0.8, fx_rates.FX_RATE_SOURCE_FALLBACK)
+    assert portfolio_utils.fx_rate_to_gbp_with_source("JPY") == (None, fx_rates.FX_RATE_SOURCE_MISSING)
+
+
+def test_fx_to_base_never_returns_one_on_failure(fx_cache, monkeypatch):
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("yahoo down")
+
+    monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", boom)
+    for ccy in ("JPY", "CHF", "CAD", "AUD", "SGD"):
+        assert portfolio_utils._fx_to_base(ccy, "GBP", {}) is None
+    # A missing base leg is no rate either, not a 1.0 cross rate.
+    assert portfolio_utils._fx_to_base("USD", "JPY", {}) is None
+
+
+def test_cache_only_unknown_currency_series_is_left_detectably_unconverted(fx_cache, no_live_fx, monkeypatch):
+    """No JPY rate: the series keeps its native close and gets no Close_gbp column."""
+    monkeypatch.setattr(cache, "instrument_currency", lambda *_: "JPY")
+    end = cache._last_close_target()
+    df = pd.DataFrame({"Date": pd.bdate_range(end=end, periods=3), "Close": [1500.0, 1510.0, 1520.0]})
+
+    with cache.cache_only():
+        out = cache._convert_to_base_currency(df, "7203", "T", df["Date"].min().date(), end, "GBP")
+
+    assert "Close_gbp" not in out.columns
+    assert list(out["Close"]) == [1500.0, 1510.0, 1520.0]
+    assert refresh_queue.pending() == [("7203", "T")]
+
+
+def _enrich_in_currency(monkeypatch, currency: str, price: float = 10.0) -> dict:
+    from backend.common import holding_utils, instrument_api
+    from backend.common.constants import TICKER, UNITS
+
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": currency})
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda *_: ("FOO", "N"))
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+    monkeypatch.setattr(holding_utils, "_get_dated_price_for_date_scaled", lambda *_a, **_k: (price, "cache", None))
+    monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *_a, **_k: (price, "cache"))
+    monkeypatch.setattr(holding_utils, "get_effective_cost_basis_gbp", lambda *_a, **_k: 50.0)
+
+    holding = {TICKER: "FOO.N", UNITS: 10}
+    with cache.cache_only():
+        return holding_utils.enrich_holding(holding, cache._last_close_target(), price_cache={})
+
+
+@pytest.mark.parametrize(
+    ("seed", "currency", "source"),
+    [
+        (True, "USD", fx_rates.FX_RATE_SOURCE_CACHE),
+        (False, "USD", fx_rates.FX_RATE_SOURCE_FALLBACK),
+        (False, "GBP", None),
+        (False, "GBX", None),
+    ],
+)
+def test_enriched_holding_reports_fx_rate_source(fx_cache, no_live_fx, monkeypatch, seed, currency, source):
+    if seed:
+        _seed_fx(currency, cache._last_close_target(), rate=0.75)
+
+    enriched = _enrich_in_currency(monkeypatch, currency)
+
+    assert enriched["fx_rate_source"] == source
+    assert enriched["market_value_gbp"] == pytest.approx(100.0)
+
+
+def test_enriched_holding_with_missing_fx_rate_is_unpriced(fx_cache, no_live_fx, monkeypatch):
+    """A JPY holding with an empty FX cache is not valued at 1 JPY = 1 GBP (#9664)."""
+    enriched = _enrich_in_currency(monkeypatch, "JPY", price=1500.0)
+
+    assert enriched["fx_rate_source"] == fx_rates.FX_RATE_SOURCE_MISSING
+    assert enriched["current_price_gbp"] is None
+    assert enriched["market_value_gbp"] is None
+    assert enriched["gain_gbp"] is None
+    assert enriched["day_change_gbp"] is None
+    assert ("JPY",) in refresh_queue.pending()

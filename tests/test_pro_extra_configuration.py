@@ -12,7 +12,7 @@ def test_pro_extra_uses_explicit_ssh_authentication() -> None:
         pyproject = tomllib.load(pyproject_file)
 
     assert pyproject["project"]["optional-dependencies"]["pro"] == [
-        "allotmint-pro @ git+ssh://git@github.com/leonarduk/allotmint-pro.git"
+        "allotmint-pro @ git+ssh://git@github.com/leonarduk/allotmint-pro.git@v0.9.0"
     ]
 
 

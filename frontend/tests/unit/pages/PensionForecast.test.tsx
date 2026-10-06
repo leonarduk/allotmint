@@ -150,6 +150,10 @@ describe("PensionForecast page", () => {
     await screen.findByText(/birth date: 2013-03-11/i);
     expect(screen.getByText("Current age: 13")).toBeInTheDocument();
     expect(screen.queryByText("Current age: 14")).not.toBeInTheDocument();
+    // The "Age now" field must agree with the "Current age" line.
+    expect(
+      document.querySelector('[aria-labelledby="age-now-label"]'),
+    ).toHaveTextContent(/^13$/);
   });
 
   it("shows a whole-number current age, never the raw fractional value", async () => {

@@ -3257,7 +3257,9 @@
     "col": {
       "strategy": "Strategy",
       "actions": "Actions"
-    }
+    },
+    "rowMissing": "No price history for: {{missing}}",
+    "nothingCovered": "None of the strategies or your holdings have stored prices around {{date}}. Stored history starts in late 2000 for equity and 2008–2012 for most gilt funds; choose a later event."
   },
   "assetClasses": {
     "equity": "Equity",

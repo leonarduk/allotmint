@@ -3264,7 +3264,9 @@
     "col": {
       "strategy": "Strategia",
       "actions": "Azioni"
-    }
+    },
+    "rowMissing": "Nessuno storico dei prezzi per: {{missing}}",
+    "nothingCovered": "Nessuna strategia e nessuna delle tue posizioni ha prezzi salvati intorno al {{date}}. Lo storico salvato inizia a fine 2000 per le azioni e nel 2008–2012 per la maggior parte dei fondi di gilt; scegli un evento successivo."
   },
   "assetClasses": {
     "equity": "Azioni",

@@ -3264,7 +3264,9 @@
     "col": {
       "strategy": "Strategie",
       "actions": "Aktionen"
-    }
+    },
+    "rowMissing": "Keine Kursdaten für: {{missing}}",
+    "nothingCovered": "Für keine Strategie und keine Ihrer Positionen sind Kurse um den {{date}} gespeichert. Die gespeicherte Historie beginnt Ende 2000 für Aktien und 2008–2012 für die meisten Gilt-Fonds; wählen Sie ein späteres Ereignis."
   },
   "assetClasses": {
     "equity": "Aktien",

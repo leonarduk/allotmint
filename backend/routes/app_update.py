@@ -210,19 +210,29 @@ def _apply_update(status: AppUpdateStatus, stash: bool = False) -> AppUpdateResu
         _git("merge", "--ff-only", "--autostash", "@{u}")
         result = _build_result(previous)
         result.stashed = True
-        result.stash_restored, result.stash_message = _settle_autostash(stash_before)
+        result.stash_restored, result.stash_message = _settle_autostash(stash_before, previous)
         return result
     _git("merge", "--ff-only", "@{u}")
     return _build_result(previous)
 
 
-def _settle_autostash(stash_before: str | None) -> tuple[bool, str | None]:
+def _is_autostash_of(stash_commit: str, previous_head: str) -> bool:
+    """True when ``stash_commit`` is the autostash git made on top of ``previous_head``."""
+
+    # The stash reflog message (what ``git stash list`` shows) is exactly
+    # "autostash" for git's own autostash; the commit subject is "On <branch>: ...".
+    reflog_message = _git("stash", "list", "-n", "1", "--format=%gs")
+    return reflog_message == "autostash" and _git("rev-parse", f"{stash_commit}^1") == previous_head
+
+
+def _settle_autostash(stash_before: str | None, previous_head: str) -> tuple[bool, str | None]:
     """Check whether ``--autostash`` re-applied cleanly; clean up if not.
 
     git exits 0 even when re-applying the autostash conflicts: it leaves
     conflict markers in the tree and stores the changes as a new stash entry.
-    Only when both signals hold -- unmerged paths *and* a new top-of-stash
-    commit -- are the changes known to be safe in the stash, so only then is
+    Only when unmerged paths exist *and* the top of the stash is a new entry
+    that is provably git's autostash (reflog ``autostash``, parent the
+    pre-update HEAD) are the changes known to be safe in the stash, so only then is
     the tree reset to the updated commit to keep the running app importable.
     A cleanly re-applied stash must never reach the reset: it would discard
     the user's restored changes.
@@ -232,9 +242,9 @@ def _settle_autostash(stash_before: str | None) -> tuple[bool, str | None]:
     unmerged = _git("diff", "--name-only", "--diff-filter=U")
     if not unmerged:
         return True, None
-    if stash_after is None or stash_after == stash_before:
-        # Conflicts without a new stash entry: the changes may exist only in the
-        # conflicted files, so leave the tree for the user rather than reset it.
+    if stash_after is None or stash_after == stash_before or not _is_autostash_of(stash_after, previous_head):
+        # Conflicts without a new entry that is provably the autostash: the changes
+        # may exist only in the conflicted files, so leave the tree for the user.
         raise GitError(
             "Update applied but re-applying local changes conflicted and git did not store them in the stash; "
             f"resolve the conflicts in: {', '.join(unmerged.splitlines())}"

@@ -169,6 +169,44 @@ def test_update_with_stash_keeps_preexisting_stash_entry(repos):
     assert _run(checkout, "stash", "list", "--format=%s").splitlines() == ["On main: older"]
 
 
+def test_update_with_stash_conflict_keeps_preexisting_stash_entry(repos):
+    checkout, upstream = repos
+    (checkout / "README.md").write_text("older stash\n", encoding="utf-8")
+    _run(checkout, "stash", "push", "-q", "-m", "older")
+    _commit(upstream, "README.md", "v2\n")
+    _run(upstream, "push", "-q")
+    (checkout / "README.md").write_text("local edit\n", encoding="utf-8")
+
+    body = _client().post("/support/app-update?stash=true").json()
+    assert body["stash_restored"] is False
+    assert (checkout / "README.md").read_text(encoding="utf-8") == "v2\n"
+    assert _run(checkout, "stash", "list", "--format=%s").splitlines() == ["On main: autostash", "On main: older"]
+    assert _run(checkout, "show", "stash@{0}:README.md") == "local edit"
+
+
+def test_update_with_stash_on_clean_tree_does_not_stash(repos):
+    checkout, upstream = repos
+    _commit(upstream, "README.md", "v2\n")
+    _run(upstream, "push", "-q")
+
+    body = _client().post("/support/app-update?stash=true").json()
+    assert body["updated"] is True
+    assert body["stashed"] is False
+    assert _run(checkout, "stash", "list") == ""
+
+
+def test_update_with_stash_refuses_reset_when_stash_top_is_not_the_autostash(repos, monkeypatch):
+    checkout, upstream = repos
+    _commit(upstream, "README.md", "v2\n")
+    _run(upstream, "push", "-q")
+    (checkout / "README.md").write_text("local edit\n", encoding="utf-8")
+    monkeypatch.setattr(app_update, "_is_autostash_of", lambda *_: False)  # e.g. a concurrent unrelated stash
+
+    resp = _client().post("/support/app-update?stash=true")
+    assert resp.status_code == 502
+    assert "local edit" in (checkout / "README.md").read_text(encoding="utf-8")
+
+
 def test_update_with_stash_reports_conflicts_missing_from_stash(repos, monkeypatch):
     checkout, upstream = repos
     _commit(upstream, "README.md", "v2\n")

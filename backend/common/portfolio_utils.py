@@ -67,7 +67,15 @@ from backend.timeseries.total_return import (
     total_return_closes,
     total_return_frame,
 )
-from backend.utils.fx_rates import fallback_fx_rate, fetch_fx_rate_range
+from backend.utils.fx_rates import (
+    FX_RATE_SOURCE_CACHE,
+    FX_RATE_SOURCE_FALLBACK,
+    FX_RATE_SOURCE_LIVE,
+    FX_RATE_SOURCE_MISSING,
+    FX_SOURCE_ATTR,
+    fallback_fx_rate,
+    fetch_fx_rate_range,
+)
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 
@@ -179,36 +187,63 @@ def _first_nonempty_str_with_source(
     return None, None
 
 
-def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float]) -> float:
-    """Return ``base_currency`` per unit of ``currency`` using recent FX rates."""
+def _live_fx_rate_to_gbp(ccy: str) -> tuple[float | None, str | None]:
+    """Latest live ``ccy``->GBP rate and its source, or ``(None, None)`` when the fetch fails."""
+    end = date.today()
+    start = end - timedelta(days=7)
+    try:
+        df = fetch_fx_rate_range(ccy, "GBP", start, end)
+    except Exception as exc:
+        logger.warning("Failed to fetch FX rate for %s: %s", sanitise_log_value(ccy), sanitise_log_value(exc))
+        return None, None
+    if df.empty:
+        return None, None
+    rate = _safe_num(df["Rate"].iloc[-1], default=float("nan"))
+    if not math.isfinite(rate) or rate <= 0:
+        return None, None
+    # fetch_fx_rate_range tags a frame built from the approximate constants.
+    return rate, df.attrs.get(FX_SOURCE_ATTR, FX_RATE_SOURCE_LIVE)
 
-    def _rate_to_gbp(ccy: str) -> float:
+
+def fx_rate_to_gbp_with_source(currency: str | None) -> tuple[float | None, str | None]:
+    """Return ``(GBP per unit of currency, source)`` without ever inventing a rate (#9664).
+
+    Resolution order: the live rate (the FX cache instead on a cache-only page
+    request, #8028 -- never Yahoo, and a missing or stale cache is queued for
+    a background refresh), then an approximate ``FALLBACK_RATES`` constant
+    (source ``"fallback"``), else ``(None, "missing")``. GBP is ``(1.0, None)``.
+    """
+    ccy = (currency or "").strip().upper()
+    if not ccy or ccy == "GBP":
+        return 1.0, None
+    if is_cache_only():
+        cached = cached_fx_rate_to_gbp(ccy)
+        if cached is not None:
+            return cached, FX_RATE_SOURCE_CACHE
+    else:
+        rate, source = _live_fx_rate_to_gbp(ccy)
+        if rate is not None:
+            return rate, source
+    fallback = fallback_fx_rate(ccy, "GBP")
+    if fallback is not None:
+        return fallback, FX_RATE_SOURCE_FALLBACK
+    logger.warning("No FX rate for %s->GBP: no live, cached or fallback rate", sanitise_log_value(ccy))
+    return None, FX_RATE_SOURCE_MISSING
+
+
+def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float | None]) -> float | None:
+    """Return ``base_currency`` per unit of ``currency`` using recent FX rates.
+
+    ``None`` when either leg has no rate (#9664) -- never a fabricated 1.0.
+    ``cache`` memoises each currency's GBP rate (``None`` included) per call
+    site; see :func:`fx_rate_to_gbp_with_source` for the resolution order.
+    """
+
+    def _rate_to_gbp(ccy: str) -> float | None:
         ccy = ccy.upper()
-        if ccy in cache:
-            return cache[ccy]
-        if ccy == "GBP":
-            cache["GBP"] = 1.0
-            return 1.0
-        if is_cache_only():
-            # Page request (#8028): the FX cache, else the approximate
-            # constant -- never Yahoo. A missing or stale cache is queued for
-            # a background refresh.
-            cached = cached_fx_rate_to_gbp(ccy)
-            rate = cached if cached is not None else fallback_fx_rate(ccy, "GBP")
-            cache[ccy] = rate
-            return rate
-        end = date.today()
-        start = end - timedelta(days=7)
-        try:
-            df = fetch_fx_rate_range(ccy, "GBP", start, end)
-            if not df.empty:
-                rate = float(df["Rate"].iloc[-1])
-                cache[ccy] = rate
-                return rate
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("Failed to fetch FX rate for %s: %s", sanitise_log_value(ccy), sanitise_log_value(exc))
-        cache[ccy] = 1.0
-        return 1.0
+        if ccy not in cache:
+            cache[ccy], _source = fx_rate_to_gbp_with_source(ccy)
+        return cache[ccy]
 
     currency = (currency or "").upper()
     base_currency = base_currency.upper()
@@ -217,8 +252,8 @@ def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float
 
     cur_rate = _rate_to_gbp(currency)
     base_rate = _rate_to_gbp(base_currency)
-    if base_rate == 0:
-        return 1.0
+    if cur_rate is None or not base_rate:
+        return None
     return cur_rate / base_rate
 
 
@@ -656,7 +691,7 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
     and stripped by :func:`aggregate_by_ticker`.
     """
     base_currency = base_currency.upper()
-    fx_cache: Dict[str, float] = {}
+    fx_cache: Dict[str, float | None] = {}
     if isinstance(portfolio, VirtualPortfolio):
         portfolio = portfolio.as_portfolio_dict()
     from backend.common import instrument_api
@@ -892,23 +927,33 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
                             holding_price_gbp=h.get("current_price_gbp"),
                         )
 
-                        gbp_price = native_price * _fx_to_base(native_currency, "GBP", fx_cache)
+                        fx_rate = _fx_to_base(native_currency, "GBP", fx_cache)
+                        if fx_rate is None:
+                            # No FX rate (#9664): keep the row's enriched values
+                            # rather than value the native price at a made-up rate.
+                            logger.warning(
+                                "No %s->GBP rate; snapshot price for %s not applied",
+                                sanitise_log_value(native_currency),
+                                sanitise_log_value(full_tkr),
+                            )
+                        else:
+                            gbp_price = native_price * fx_rate
 
-                        if native_price == 0:
-                            logger.debug("Using zero snapshot price for %s", sanitise_log_value(full_tkr))
+                            if native_price == 0:
+                                logger.debug("Using zero snapshot price for %s", sanitise_log_value(full_tkr))
 
-                        row["last_price_gbp"] = gbp_price
-                        row["last_price_date"] = snap.get("last_price_date")
-                        row["last_price_time"] = snap.get("last_price_time")
-                        row["is_stale"] = snap.get("is_stale")
-                        row["market_value_gbp"] = round(row["units"] * gbp_price, 2)
-                        row["gain_gbp"] = (
-                            round(_costed_market_value(row, gbp_price) - row["cost_gbp"], 2)
-                            if row["cost_gbp"]
-                            else row["gain_gbp"]
-                        )
-                        row["_snapshot_native_price"] = native_price
-                        row["_snapshot_native_currency"] = native_currency
+                            row["last_price_gbp"] = gbp_price
+                            row["last_price_date"] = snap.get("last_price_date")
+                            row["last_price_time"] = snap.get("last_price_time")
+                            row["is_stale"] = snap.get("is_stale")
+                            row["market_value_gbp"] = round(row["units"] * gbp_price, 2)
+                            row["gain_gbp"] = (
+                                round(_costed_market_value(row, gbp_price) - row["cost_gbp"], 2)
+                                if row["cost_gbp"]
+                                else row["gain_gbp"]
+                            )
+                            row["_snapshot_native_price"] = native_price
+                            row["_snapshot_native_currency"] = native_currency
 
             if row.get("change_7d_pct") is None:
                 change_7d = snap.get("change_7d_pct") if isinstance(snap, dict) else None
@@ -986,6 +1031,12 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
             r["last_price_gbp"] = _safe_num(r.get("market_value_gbp")) / _safe_num(r.get("units"))
 
     rate = _fx_to_base("GBP", base_currency, fx_cache)
+    if rate is None:
+        # No GBP->base rate (#9664): report in GBP, labelled as such, rather
+        # than relabel GBP amounts as base_currency at a made-up 1.0.
+        logger.warning("No GBP->%s rate; reporting holdings in GBP", sanitise_log_value(base_currency))
+        base_currency = "GBP"
+        rate = 1.0
     for r in rows.values():
         snapshot_native_price = r.get("_snapshot_native_price")
         snapshot_native_currency = r.get("_snapshot_native_currency")

@@ -574,7 +574,7 @@
       "otherSwitches": "Altri interruttori",
       "save": "Salva",
       "tabsEnabled": "Schede abilitate",
-      "title": "Configurazione",
+      "title": "Interruttori e parametri",
       "mcpTools": "Strumenti MCP",
       "mcpToolsHint": "Strumenti che l'assistente di chat può usare. Sono tutti attivi per impostazione predefinita; deseleziona per disattivarne uno.",
       "mcpToolNotConfigured": "Non configurato",
@@ -621,7 +621,7 @@
       "sent": "Inviato"
     },
     "telegramMessage": "Messaggio del telegramma",
-    "title": "Supporto"
+    "title": "Configurazione"
   },
   "timeseries": {
     "loading": "Caricamento…"

@@ -643,7 +643,7 @@
       "otherSwitches": "Andere Schalter",
       "save": "Speichern",
       "tabsEnabled": "Tabs aktiviert",
-      "title": "Konfiguration",
+      "title": "Schalter & Parameter",
       "mcpTools": "MCP-Tools",
       "mcpToolsHint": "Tools, die der Chat-Assistent nutzen kann. Standardmäßig sind alle aktiv; Häkchen entfernen, um eines abzuschalten.",
       "mcpToolNotConfigured": "Nicht konfiguriert",
@@ -690,7 +690,7 @@
       "sent": "Gesendet"
     },
     "telegramMessage": "Telegram-Nachricht",
-    "title": "Support"
+    "title": "Konfiguration"
   },
   "timeseries": {
     "loading": "Laden…"

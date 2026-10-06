@@ -109,6 +109,48 @@ describe("PriceTriggersPanel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("limit of 100");
   });
 
+  it("scopes the list and new triggers to one ticker", async () => {
+    mockList.mockResolvedValue([row, { ...row, id: "def", ticker: "AZN.L", price: 99 }]);
+    render(
+      <PriceTriggersPanel identity="demo" disabled={false} ticker="AZN.L" latestPrice={101.234} />,
+    );
+    expect(await screen.findByText(/£99\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/£1\.50/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Ticker")).not.toBeInTheDocument();
+    expect(screen.getByText("Latest price: £101.23")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Price (£)"), { target: { value: "110" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add trigger" }));
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith("demo", expect.objectContaining({ ticker: "AZN.L", price: 110 })),
+    );
+  });
+
+  it("drops an in-progress edit when the scoped ticker changes", async () => {
+    mockList.mockResolvedValue([{ ...row, ticker: "AZN.L" }]);
+    const { rerender } = render(
+      <PriceTriggersPanel identity="demo" disabled={false} ticker="AZN.L" />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    expect(screen.getByLabelText("Price (£)")).toHaveValue(1.5);
+    expect(screen.getByRole("button", { name: "Update trigger" })).toBeInTheDocument();
+
+    rerender(<PriceTriggersPanel identity="demo" disabled={false} ticker="VOD.L" />);
+    expect(await screen.findByRole("button", { name: "Add trigger" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Price (£)")).toHaveValue(null);
+    fireEvent.change(screen.getByLabelText("Price (£)"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add trigger" }));
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith("demo", expect.objectContaining({ ticker: "VOD.L" })),
+    );
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("shows a ticker-specific empty state when scoped", async () => {
+    render(<PriceTriggersPanel identity="demo" disabled={false} ticker="AZN.L" />);
+    expect(await screen.findByText("No price alerts for AZN.L yet.")).toBeInTheDocument();
+  });
+
   it("disables editing controls when read-only", async () => {
     render(<PriceTriggersPanel identity="demo" disabled />);
     await screen.findByText("VOD.L");

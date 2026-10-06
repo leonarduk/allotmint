@@ -20,6 +20,7 @@ import type { NewsItem, InstrumentMetadata, ScreenerResult } from "../types";
 import EmptyState from "../components/EmptyState";
 import { InstrumentSearchBar } from "../components/InstrumentSearchBar";
 import { DeleteSeriesButton } from "../components/DeleteSeriesButton";
+import InstrumentAlertsSection from "../components/InstrumentAlertsSection";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import surfaceStyles from "../styles/surface.module.css";
 import { formatDateISO } from "../lib/date";
@@ -257,7 +258,13 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     return !!tkr && list.includes(tkr);
   });
   const [activeTab, setActiveTab] = useState<
-    "overview" | "timeseries" | "positions" | "fundamentals" | "technicals" | "news"
+    | "overview"
+    | "timeseries"
+    | "positions"
+    | "fundamentals"
+    | "technicals"
+    | "news"
+    | "alerts"
   >("overview");
   const [fundamentals, setFundamentals] = useState<ScreenerResult | null>(null);
   const [fundamentalsLoading, setFundamentalsLoading] = useState(false);
@@ -893,7 +900,23 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     { id: "fundamentals", label: "Fundamentals" },
     { id: "technicals", label: "Technicals" },
     { id: "news", label: "News" },
+    { id: "alerts", label: t("alertSettings.triggers.instrumentTitle") },
   ];
+  // Price triggers are matched against price-snapshot keys, which are full
+  // TICKER.EXCHANGE symbols -- prefer the resolved exchange over whatever
+  // suffix (if any) the URL carried so a bare /research/VOD still watches
+  // VOD.L. Without an exchange there is no key a trigger could ever match,
+  // so leave it empty rather than fall back to the bare ticker (which would
+  // hide existing alerts and create ones that never fire). The reference
+  // price is the GBP close, since trigger levels are GBP.
+  const alertExchange = deriveExchangeForActions();
+  const alertTicker =
+    baseTicker && alertExchange ? `${baseTicker}.${alertExchange}`.toUpperCase() : "";
+  const latestGbpClose =
+    typeof latestRawPriceEntry?.close_gbp === "number" &&
+    Number.isFinite(latestRawPriceEntry.close_gbp)
+      ? latestRawPriceEntry.close_gbp
+      : null;
   const standalonePalette = {
     positive: "#137333",
     negative: "#b3261e",
@@ -954,6 +977,13 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         )}
         <button onClick={toggleWatchlist} style={{ marginLeft: "1rem" }}>
           {inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("alerts")}
+          style={{ marginLeft: "1rem" }}
+        >
+          {t("alertSettings.triggers.instrumentTitle")}
         </button>
         {investingComUrl && (
           <a
@@ -1806,6 +1836,10 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             </div>
           )}
         </>
+      )}
+
+      {activeTab === "alerts" && (
+        <InstrumentAlertsSection ticker={alertTicker} latestPrice={latestGbpClose} />
       )}
     </div>
   );

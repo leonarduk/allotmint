@@ -314,3 +314,40 @@ def test_enriched_holding_with_missing_fx_rate_is_unpriced(fx_cache, no_live_fx,
     assert enriched["gain_gbp"] is None
     assert enriched["day_change_gbp"] is None
     assert ("JPY",) in refresh_queue.pending()
+
+
+def test_latest_and_live_prices_skip_a_currency_with_no_rate(fx_cache, no_live_fx, monkeypatch):
+    """_fx_to_base's None reaches CurrencyNormaliser.to_gbp as a ValueError, so a
+    JPY close with no rate is skipped -- not a crash, not valued at 1.0 (#9664)."""
+    from backend.common import holding_utils
+
+    native = pd.DataFrame({"Date": [cache._last_close_target()], "Close": [1500.0]})
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *_a, **_k: native)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "JPY"})
+
+    class Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "quoteResponse": {
+                    "result": [{"symbol": "7203.T", "regularMarketPrice": 1500.0, "regularMarketTime": 0}]
+                }
+            }
+
+    monkeypatch.setattr(holding_utils.requests, "get", lambda *_a, **_k: Resp())
+
+    with cache.cache_only():
+        assert holding_utils.load_latest_prices(["7203.T"]) == {}
+        assert holding_utils.load_live_prices(["7203.T"]) == {}
+
+
+def test_unparseable_symbol_without_currency_is_reported_as_gbp(caplog):
+    """No metadata currency and a symbol instrument_currency can't parse: the
+    same GBP default every other path applies, with a warning (#9664)."""
+    from backend.common import holding_utils
+
+    with caplog.at_level("WARNING"):
+        assert holding_utils._holding_fx_rate_source(None, "ABC.L", "L") is None
+    assert "assuming GBP" in caplog.text

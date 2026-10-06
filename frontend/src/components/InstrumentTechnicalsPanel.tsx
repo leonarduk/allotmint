@@ -26,12 +26,15 @@ const GLOSSARY_PATH = '/metrics-explained';
 function TermTip({ term }: { term: TechnicalsTerm }) {
   const { t } = useTranslation();
   const entry = technicalsTerm(term);
+  const glossaryKey = `metricsExplanation.sections.technicals.${entry.key}`;
   return (
     <InfoTip
-      label={t('instrumentTechnicals.whatDoesMean', { title: entry.title })}
+      label={t('instrumentTechnicals.whatDoesMean', {
+        title: t(`${glossaryKey}.title`),
+      })}
       to={`${GLOSSARY_PATH}#${entry.id}`}
     >
-      {entry.short}
+      {t(`${glossaryKey}.short`)}
     </InfoTip>
   );
 }

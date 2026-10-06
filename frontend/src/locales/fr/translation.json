@@ -159,7 +159,12 @@
     "featureDisabled": "Cette fonctionnalité n'est pas activée pour cette application.",
     "returnHome": "Retour à l'accueil",
     "glossaryLink": "Glossaire",
-    "instrumentCatalogueTruncated": "Affichage des {{shown}} premiers instruments sur {{total}}."
+    "instrumentCatalogueTruncated": "Affichage des {{shown}} premiers instruments sur {{total}}.",
+    "exportInstruments": "Exporter les instruments",
+    "exportInstrumentsCsvAria": "Exporter les instruments en CSV",
+    "exportCsv": "Exporter en CSV",
+    "exportInstrumentsPdfAria": "Exporter les instruments en PDF",
+    "exportPdf": "Exporter en PDF"
   },
   "approxTotal": "Total approximatif: £{{value}}",
   "asOf": "Au {{date}} • Transactions ce mois: {{trades}} / 20 (Restantes: {{remaining}})",
@@ -1114,7 +1119,52 @@
       },
       "technicals": {
         "title": "Analyse technique",
-        "intro": "Termes de l'onglet Technicals d'un instrument. Ils sont calculés à partir des cours de clôture quotidiens passés et décrivent ce que le cours a fait ; ils ne prédisent pas ce qu'il fera et ne constituent pas des recommandations d'achat ou de vente."
+        "intro": "Termes de l'onglet Technicals d'un instrument. Ils sont calculés à partir des cours de clôture quotidiens passés et décrivent ce que le cours a fait ; ils ne prédisent pas ce qu'il fera et ne constituent pas des recommandations d'achat ou de vente.",
+        "trend": {
+          "title": "Tendance",
+          "short": "Tendance haussière : le cours est au-dessus de sa moyenne à 50 jours et celle-ci est au-dessus de la moyenne à 200 jours. Tendance baissière : l'inverse pour les deux. Tout le reste est mitigé.",
+          "detail": "Un aperçu rapide de la direction à partir des moyennes mobiles. Une tendance haussière signifie que le cours est au-dessus de sa moyenne à 50 jours et que celle-ci est au-dessus de la moyenne à 200 jours ; une tendance baissière signifie que le cours est sous la moyenne à 50 jours et que celle-ci est sous la moyenne à 200 jours. Tout ce qui se situe entre les deux est mitigé. Les moyennes mobiles suivent le cours avec retard : une étiquette de tendance décrit donc les derniers mois, pas ce qui va suivre."
+        },
+        "movingAverage": {
+          "title": "Moyenne mobile (20, 50, 200 jours)",
+          "short": "Le cours de clôture moyen sur les 20, 50 ou 200 dernières séances. Le pourcentage indique de combien le cours du jour est au-dessus ou en dessous.",
+          "detail": "La moyenne des 20, 50 ou 200 dernières clôtures quotidiennes (soit environ un mois, un trimestre et dix mois de négociation). La moyenne à 20 jours suit de près le cours ; celle à 200 jours est une référence lente, à long terme. « Cours −8 % vs moyenne » signifie que la clôture du jour est 8 % sous cette moyenne."
+        },
+        "cross": {
+          "title": "Croix d'or et croix de la mort",
+          "short": "Une croix d'or se produit quand la moyenne à 50 jours passe au-dessus de celle à 200 jours ; une croix de la mort, quand elle passe en dessous. « Mort » signifie que la moyenne à 50 jours est actuellement sous celle à 200 jours — une tendance qui s'affaiblit, pas une prévision.",
+          "detail": "Moments nommés où la moyenne mobile à 50 jours croise celle à 200 jours. Croix d'or : la moyenne à 50 jours passe au-dessus de celle à 200 jours, donc les cours récents sont supérieurs à la moyenne de plus long terme. Croix de la mort : la moyenne à 50 jours passe en dessous. Ces noms paraissent dramatiques, mais une croix de la mort indique seulement que la moyenne à moyen terme est passée sous celle à long terme. Comme les deux moyennes sont décalées, un croisement survient souvent après qu'une grande partie du mouvement a eu lieu, et les croisements en marché sans tendance sont fréquemment inversés peu après. L'onglet indique de quel côté se trouve actuellement la moyenne à 50 jours et, lorsqu'il figure dans l'historique chargé, la date du dernier croisement."
+        },
+        "rsi": {
+          "title": "RSI (14 jours) et ses zones",
+          "short": "Le RSI (0–100) compare les gains récents aux pertes récentes sur 14 jours. À partir de 70, on parle de surachat et à 30 ou moins de survente : le mouvement a été fort, pas qu'il doive s'inverser.",
+          "detail": "L'indice de force relative compare l'ampleur moyenne des jours de hausse à celle des jours de baisse sur les 14 derniers jours (méthode de Wilder), sur une échelle de 0 à 100. Autour de 50, les gains et les pertes ont été équilibrés. 70 ou plus est conventionnellement appelé surachat et 30 ou moins survente. Ces étiquettes décrivent à quel point les mouvements récents ont été unilatéraux ; une action fortement orientée peut rester longtemps en surachat ou en survente."
+        },
+        "macd": {
+          "title": "MACD (12/26/9)",
+          "short": "Le MACD est l'écart entre les moyennes exponentielles à 12 et 26 jours ; la ligne de signal est une moyenne à 9 jours du MACD. Croisement haussier : le MACD passe au-dessus de la ligne de signal (l'élan s'améliore). Baissier : il passe en dessous.",
+          "detail": "Convergence/divergence des moyennes mobiles. La ligne MACD est la moyenne mobile exponentielle à 12 jours moins celle à 26 jours ; une valeur positive signifie que les cours à court terme sont au-dessus de la tendance de plus long terme. La ligne de signal est une moyenne à 9 jours de la ligne MACD, et l'histogramme est le MACD moins le signal. Un croisement haussier est le passage de la ligne MACD au-dessus de la ligne de signal (l'élan s'accélère) ; un croisement baissier, son passage en dessous. Les valeurs sont exprimées dans l'unité de cours de l'action : comparez-les dans le temps pour une même action plutôt qu'entre actions différentes."
+        },
+        "bollinger": {
+          "title": "Bandes de Bollinger et %B",
+          "short": "Les bandes se situent à deux écarts types au-dessus et en dessous de la moyenne à 20 jours. Le %B indique où se situe le cours entre elles : 0 % sur la bande inférieure, 100 % sur la supérieure ; en dehors de cette plage, il a clôturé au-delà d'une bande.",
+          "detail": "Les bandes de Bollinger sont tracées à deux écarts types au-dessus et en dessous de la moyenne mobile à 20 jours : elles s'élargissent quand le cours est volatil et se resserrent quand il est calme. Le %B situe la clôture du jour entre elles : 0 % est sur la bande inférieure, 50 % sur la moyenne, 100 % sur la bande supérieure. En dessous de 0 % ou au-dessus de 100 %, la clôture était hors des bandes — un mouvement exceptionnellement ample par rapport au dernier mois."
+        },
+        "range": {
+          "title": "Fourchette sur 52 semaines",
+          "short": "Les clôtures les plus haute et la plus basse de l'année écoulée. Position dans la fourchette : 0 % signifie au plus bas, 100 % au plus haut.",
+          "detail": "Les clôtures quotidiennes les plus haute et la plus basse des 365 derniers jours, avec les dates correspondantes. « Depuis le plus haut sur 52 semaines » indique de combien le cours actuel est sous ce plus haut. « Position dans la fourchette » situe le cours entre le plus bas (0 %) et le plus haut (100 %)."
+        },
+        "returns": {
+          "title": "Rendements",
+          "short": "La variation du cours de clôture sur 1, 3, 6 et 12 mois. Cours uniquement : les dividendes ne sont pas inclus.",
+          "detail": "La variation du cours de clôture entre la dernière clôture à la date de début de la période (ou avant) et la dernière clôture. Il s'agit de rendements de cours — les dividendes ne sont pas réintégrés — donc, pour une action à fort rendement, le rendement total sera plus élevé."
+        },
+        "relativeStrength": {
+          "title": "Force relative par rapport à l'indice de référence",
+          "short": "Le rendement de l'instrument moins celui de son indice de référence sur la même période. Positif signifie qu'il a fait mieux que l'indice de référence.",
+          "detail": "Le rendement de cours de l'instrument moins celui de son indice de référence sur les mêmes 3 ou 12 mois, les deux mesurés jusqu'à la même date de fin. L'indice de référence est celui utilisé dans l'onglet Données fondamentales : celui de l'instrument, s'il est défini, sinon un indice par défaut pour sa place de cotation. +5 % signifie qu'il a battu l'indice de référence de cinq points de pourcentage."
+        }
       }
     },
     "title": "Glossaire"
@@ -3004,5 +3054,220 @@
   "reportingCurrency": {
     "converted": "Montants en {{currency}}, convertis depuis la GBP au taux du jour (1 {{currency}} = £{{rate}}).",
     "unavailable": "Aucun taux GBP n'est enregistré pour {{currency}} : les montants sont affichés en GBP."
+  },
+  "targetFields": {
+    "inputFor": "{{inputLabel}} pour {{label}}",
+    "combineAria": "Regrouper les sous-classes de {{label}}",
+    "splitAria": "Diviser {{label}} par sous-classe",
+    "combine": "Regrouper",
+    "split": "Diviser",
+    "subClassSum": "{{value}}% (somme des sous-classes)",
+    "targetPct": "Cible %",
+    "assetClass": "Classe d'actifs",
+    "currentPct": "Actuel %",
+    "total": "Total : {{value}}%",
+    "mustEqual100": "(doit égaler 100%)"
+  },
+  "planPanel": {
+    "planTarget": "Cible du plan",
+    "class": "Classe",
+    "targetPct": "Cible %",
+    "vehicles": "Supports",
+    "noneSaved": "aucune enregistrée",
+    "targetsMatch": "Vos cibles de rééquilibrage correspondent à ce plan.",
+    "mismatchAria": "Écart entre le plan et le rééquilibrage",
+    "updatePrompt": "Mettre à jour vos cibles de rééquilibrage pour qu'elles correspondent à ce plan ?",
+    "targetsDiffer": "Vos cibles de rééquilibrage diffèrent de ce plan.",
+    "planLabel": "Plan :",
+    "rebalanceTargetsLabel": "Cibles de rééquilibrage :",
+    "updating": "Mise à jour…",
+    "updateTargets": "Mettre à jour les cibles de rééquilibrage",
+    "copyTarget": "Copier la cible du plan vers les cibles de rééquilibrage",
+    "notNow": "Pas maintenant",
+    "perAssetClassNote": "Les cibles de rééquilibrage sont définies par classe d'actifs ; le plan est donc comparé à ce niveau agrégé.",
+    "notRecorded": "non renseigné",
+    "yearsAgo": "il y a {{value}}",
+    "planGoals": "Objectifs du plan",
+    "goal": "Objectif",
+    "purpose": "Finalité",
+    "targetDate": "Date cible",
+    "yearsToGo": "Années restantes",
+    "amount": "Montant",
+    "priority": "Priorité",
+    "profileAndGoals": "Profil et objectifs",
+    "profileNote": "Tels que vous les avez saisis ; ce n'est pas une évaluation d'adéquation.",
+    "age": "Âge :",
+    "riskTolerance": "Tolérance au risque :",
+    "capacityForLoss": "Capacité à subir des pertes :",
+    "asOf": "au {{date}}",
+    "keyAssumptions": "Hypothèses clés",
+    "openQuestions": "Questions ouvertes",
+    "decisionsAndEvidence": "Décisions ({{decisions}}) et éléments probants ({{evidence}})",
+    "decisions": "Décisions",
+    "evidence": "Éléments probants",
+    "nextReview": "Prochaine revue :",
+    "notSet": "non définie",
+    "reviewTriggers": "Déclencheurs de revue",
+    "version": "version {{version}}",
+    "updated": "mis à jour le {{date}}",
+    "matchesStrategy": "Correspond à la stratégie :",
+    "investmentPlan": "Plan d'investissement",
+    "editPlan": "Modifier le plan",
+    "subtitle": "Vos propres décisions, consignées avec le raisonnement qui les sous-tend.",
+    "loading": "Chargement du plan…",
+    "loadError": "Impossible de charger le plan d'investissement : {{message}}",
+    "noPlan": "Aucun plan d'investissement enregistré pour {{owner}} pour le moment.",
+    "createPlan": "Créer un plan"
+  },
+  "strategy": {
+    "title": "Stratégie",
+    "intro": "Choisissez une allocation cible (une stratégie intégrée, une des vôtres ou des cibles personnalisées), puis comparez vos positions avec elle et voyez quelles opérations de rééquilibrage, ou quel versement, la ramèneraient dans votre bande de tolérance.",
+    "owner": "Titulaire du portefeuille",
+    "noOwners": "Aucun titulaire",
+    "loading": "Chargement…",
+    "saving": "Enregistrement…",
+    "notes": "Notes",
+    "loadPlanError": "Impossible de charger le plan de rééquilibrage pour {{owner}} : {{error}}",
+    "loadStrategiesError": "Impossible de charger les stratégies pour {{owner}} : {{error}}",
+    "emptyPolicy": "Appliquez une stratégie ou enregistrez des allocations cibles pour voir l'état des écarts et les opérations suggérées.",
+    "targets": {
+      "title": "Allocation cible",
+      "help": "Définissez la part de l'ensemble de votre portefeuille que chaque classe d'actifs doit représenter, ou appliquez une stratégie ci-dessus. Scindez Actions, Obligations ou Matières premières pour cibler des sous-classes, comme les petites capitalisations value, les gilts longs ou l'or. Des opérations de rééquilibrage ne sont suggérées que pour les classes qui s'écartent au-delà de la bande de tolérance.",
+      "tolerance": "Bande de tolérance (± points de pourcentage)",
+      "startFromCurrent": "Partir de l'allocation actuelle",
+      "save": "Enregistrer les cibles"
+    },
+    "drift": {
+      "ariaLabel": "Écart d'allocation",
+      "title": "Écart",
+      "col": {
+        "assetClass": "Classe d'actifs",
+        "value": "Valeur",
+        "current": "Actuel %",
+        "target": "Cible %",
+        "driftPp": "Écart (pp)",
+        "status": "Statut"
+      },
+      "needsSubClass": "Sous-classe requise",
+      "inBand": "Dans la bande",
+      "overweight": "Surpondéré",
+      "underweight": "Sous-pondéré",
+      "unclassified": "Non classé",
+      "needsAssetClass": "Classe d'actifs requise",
+      "totalLine": "Total {{total}} · tolérance ±{{tolerance}} pp"
+    },
+    "trades": {
+      "title": "Opérations suggérées",
+      "heading": "Opérations de rééquilibrage suggérées",
+      "help": "Les opérations restent au sein de chaque compte : les achats sont financés uniquement par les ventes de ce compte et ses liquidités au-delà de votre cible de liquidités. Rien ne circule entre les comptes.",
+      "none": "Aucune opération requise : chaque classe d'actifs est dans sa bande.",
+      "col": {
+        "action": "Action",
+        "assetClass": "Classe d'actifs",
+        "amount": "Montant",
+        "suggested": "Instrument suggéré"
+      },
+      "chooseInstrument": "Choisissez un instrument"
+    },
+    "newCash": {
+      "title": "Investir de nouvelles liquidités",
+      "help": "Planifiez un versement sans rien vendre : l'argent va d'abord aux classes les plus sous-pondérées.",
+      "amount": "Montant (£)",
+      "intoAccount": "Sur le compte",
+      "plan": "Planifier le versement",
+      "keepAsCash": "Conservez {{amount}} en liquidités."
+    }
+  },
+  "strategyLibrary": {
+    "title": "Stratégies",
+    "new": "Nouvelle stratégie",
+    "help": "Appliquer une stratégie fixe votre allocation cible sur ses pondérations. Les stratégies intégrées décrivent des mix publiés bien connus ; ce sont des repères, pas des recommandations.",
+    "builtinReadOnlyTip": "Les stratégies intégrées sont en lecture seule. Dupliquez-la pour créer une copie modifiable.",
+    "confirmReplace": "Remplacer vos cibles actuelles par {{name}} ?",
+    "confirmDelete": "Supprimer la stratégie {{name}} ?",
+    "applied": "{{name}} appliquée.",
+    "created": "{{name}} créée.",
+    "deleted": "{{name}} supprimée.",
+    "active": {
+      "label": "Stratégie active",
+      "prefix": "Stratégie active :",
+      "custom": "Personnalisée (cibles ne provenant pas d'une stratégie enregistrée)",
+      "none": "Aucune : appliquez une stratégie ou définissez des cibles ci-dessous.",
+      "deleted": "(supprimée)",
+      "modified": "Modifiée",
+      "modifiedHelp": "Vos cibles ont été modifiées depuis l'application de cette stratégie.",
+      "changedHelp": "La stratégie a été modifiée depuis son application ; appliquez-la à nouveau pour utiliser ses nouvelles pondérations."
+    },
+    "editor": {
+      "edit": "Modifier {{name}}",
+      "name": "Nom",
+      "description": "Description",
+      "inputLabel": "Stratégie %",
+      "save": "Enregistrer la stratégie",
+      "saving": "Enregistrement…",
+      "cancel": "Annuler"
+    },
+    "row": {
+      "builtin": "Intégrée",
+      "custom": "Personnalisée",
+      "active": "Active",
+      "apply": "Appliquer",
+      "applyAria": "Appliquer {{name}}",
+      "duplicate": "Dupliquer",
+      "duplicateAria": "Dupliquer {{name}}",
+      "edit": "Modifier",
+      "delete": "Supprimer",
+      "about": "À propos de cette stratégie",
+      "source": "Source :",
+      "ukMapping": "Équivalent britannique :"
+    }
+  },
+  "assetClasses": {
+    "equity": "Actions",
+    "bond": "Obligations",
+    "cash": "Liquidités",
+    "commodity": "Matières premières",
+    "property": "Immobilier",
+    "multi-asset": "Multi-actifs",
+    "unknown": "Inconnu",
+    "broad_equity": "Actions larges",
+    "small_cap_value": "Small-cap value",
+    "long_gilts": "Gilts longs",
+    "intermediate_gilts": "Gilts intermédiaires",
+    "short_gilts": "Gilts courts / ultra-courts",
+    "index_linked": "Indexées sur l’inflation",
+    "overseas_government": "Obligations d’État étrangères",
+    "corporate_bonds": "Entreprises / crédit",
+    "gold": "Or",
+    "commodities": "Autres matières premières"
+  },
+  "planForm": {
+    "errors": {
+      "version": "La version doit être un nombre entier supérieur ou égal à 1.",
+      "weightNotNumber": "La pondération cible de {{cls}} n’est pas un nombre.",
+      "duplicateClass": "{{cls}} apparaît plus d’une fois dans la cible.",
+      "sum": "Les pondérations cibles doivent totaliser 100 %, obtenu {{total}} %.",
+      "riskToleranceLevel": "Choisissez un niveau de tolérance au risque pour accompagner sa note.",
+      "capacityForLossLevel": "Choisissez un niveau de capacité à supporter des pertes pour accompagner sa note.",
+      "goalName": "L’objectif {{n}} doit avoir un nom.",
+      "goalAmount": "Le montant de l’objectif {{n}} doit être un nombre supérieur ou égal à 0.",
+      "goalPriority": "La priorité de l’objectif {{n}} doit être un nombre entier supérieur ou égal à 1."
+    }
+  },
+  "valuationCaveats": {
+    "navUnknown": "inconnue",
+    "navToday": "{{date}} (aujourd'hui)",
+    "navAge_one": "{{date}} ({{count}} jour)",
+    "navAge_other": "{{date}} ({{count}} jours)",
+    "staleBadge": "VL obsolète",
+    "staleReason": "Peu fiable : la VL date de {{age}} jours.",
+    "staleReasonLimit": "Peu fiable : la VL date de {{age}} jours (limite : {{limit}} jours).",
+    "tooManyDays": "trop",
+    "undatedBadge": "VL non datée",
+    "undatedReason": "Peu fiable : la date de la VL est inconnue, son ancienneté l'est donc aussi.",
+    "stalePrice": "Le dernier cours est signalé comme obsolète.",
+    "stalePriceAsOf": "Le dernier cours est signalé comme obsolète (au {{date}}).",
+    "suspectCostBasis": "Le prix de revient est douteux ou inconnu pour {{count}} position(s) : {{where}}.",
+    "suspectMove": "Variation d'un jour suspecte de {{change}} le {{date}}."
   }
 }

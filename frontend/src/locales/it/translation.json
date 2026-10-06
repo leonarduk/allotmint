@@ -159,7 +159,12 @@
     "featureDisabled": "Questa funzione non è abilitata per questa applicazione.",
     "returnHome": "Torna alla home",
     "glossaryLink": "Glossario",
-    "instrumentCatalogueTruncated": "Visualizzazione dei primi {{shown}} strumenti su {{total}}."
+    "instrumentCatalogueTruncated": "Visualizzazione dei primi {{shown}} strumenti su {{total}}.",
+    "exportInstruments": "Esporta strumenti",
+    "exportInstrumentsCsvAria": "Esporta strumenti in CSV",
+    "exportCsv": "Esporta CSV",
+    "exportInstrumentsPdfAria": "Esporta strumenti in PDF",
+    "exportPdf": "Esporta PDF"
   },
   "approxTotal": "Circa totale: £ {{value}}",
   "asOf": "A partire da {{date}} • operazioni questo mese: {{trades}} / 20 (rimanente: {{remaining}})",
@@ -1114,7 +1119,52 @@
       },
       "technicals": {
         "title": "Analisi tecnica",
-        "intro": "Termini della scheda Technicals di uno strumento. Sono calcolati dai prezzi di chiusura giornalieri passati e descrivono ciò che il prezzo ha fatto; non prevedono ciò che farà e non sono raccomandazioni di acquisto o vendita."
+        "intro": "Termini della scheda Technicals di uno strumento. Sono calcolati dai prezzi di chiusura giornalieri passati e descrivono ciò che il prezzo ha fatto; non prevedono ciò che farà e non sono raccomandazioni di acquisto o vendita.",
+        "trend": {
+          "title": "Tendenza",
+          "short": "Tendenza rialzista: il prezzo è sopra la media a 50 giorni e la media a 50 giorni è sopra quella a 200. Tendenza ribassista: entrambe al contrario. Tutto il resto è misto.",
+          "detail": "Una lettura rapida della direzione basata sulle medie mobili. Tendenza rialzista significa che il prezzo è sopra la media a 50 giorni e che questa è sopra la media a 200 giorni; tendenza ribassista significa che il prezzo è sotto la media a 50 giorni e che questa è sotto quella a 200. Tutto ciò che sta nel mezzo è misto. Le medie mobili sono in ritardo rispetto al prezzo, quindi un'etichetta di tendenza descrive gli ultimi mesi, non ciò che accadrà dopo."
+        },
+        "movingAverage": {
+          "title": "Media mobile (20, 50, 200 giorni)",
+          "short": "Il prezzo di chiusura medio degli ultimi 20, 50 o 200 giorni di negoziazione. La percentuale mostra di quanto il prezzo di oggi è sopra o sotto.",
+          "detail": "La media delle ultime 20, 50 o 200 chiusure giornaliere (circa un mese, un trimestre e dieci mesi di negoziazione). Quella a 20 giorni segue da vicino il prezzo; quella a 200 giorni è un riferimento lento, di lungo periodo. “Prezzo −8% vs media” significa che la chiusura di oggi è l'8% sotto quella media."
+        },
+        "cross": {
+          "title": "Golden cross e death cross",
+          "short": "Un golden cross si verifica quando la media a 50 giorni sale sopra quella a 200; un death cross quando scende sotto. “Death” significa che la media a 50 è attualmente sotto quella a 200: una tendenza che si indebolisce, non una previsione.",
+          "detail": "Momenti con un nome specifico in cui la media mobile a 50 giorni incrocia quella a 200. Golden cross: la media a 50 giorni sale sopra quella a 200, quindi i prezzi recenti sono più alti della media di periodo più lungo. Death cross: la media a 50 giorni scende sotto. I nomi suonano drammatici, ma un death cross indica soltanto che la media di medio periodo è scesa sotto quella di lungo periodo. Poiché entrambe le medie sono in ritardo, un incrocio arriva spesso dopo che gran parte del movimento è già avvenuta, e gli incroci in un mercato laterale vengono spesso annullati poco dopo. La scheda mostra da che parte si trova ora la media a 50 giorni e, se è avvenuto nello storico caricato, la data dell'ultimo incrocio."
+        },
+        "rsi": {
+          "title": "RSI (14 giorni) e le sue zone",
+          "short": "L'RSI (0–100) confronta i guadagni recenti con le perdite recenti su 14 giorni. Da 70 in su si parla di ipercomprato e a 30 o meno di ipervenduto: il movimento è stato forte, non che debba invertirsi.",
+          "detail": "L'indice di forza relativa confronta l'ampiezza media dei giorni in rialzo con quella dei giorni in ribasso negli ultimi 14 giorni (metodo di Wilder), su una scala da 0 a 100. Intorno a 50 significa che guadagni e perdite sono stati bilanciati. 70 o più è convenzionalmente detto ipercomprato e 30 o meno ipervenduto. Queste etichette descrivono quanto siano stati unilaterali i movimenti recenti; un titolo con un forte trend può restare a lungo ipercomprato o ipervenduto."
+        },
+        "macd": {
+          "title": "MACD (12/26/9)",
+          "short": "Il MACD è la differenza tra le medie esponenziali a 12 e 26 giorni; la linea di segnale è una media a 9 giorni del MACD. Incrocio rialzista: il MACD sale sopra la linea di segnale (lo slancio migliora). Ribassista: scende sotto.",
+          "detail": "Moving Average Convergence Divergence. La linea MACD è la media mobile esponenziale a 12 giorni meno quella a 26; un valore positivo significa che i prezzi di breve periodo sono sopra il trend di periodo più lungo. La linea di segnale è una media a 9 giorni della linea MACD e l'istogramma è il MACD meno il segnale. Un incrocio rialzista è la linea MACD che sale sopra la linea di segnale (lo slancio aumenta); un incrocio ribassista è quando scende sotto. I valori sono espressi nell'unità di prezzo del titolo, quindi confrontali nel tempo per un singolo titolo anziché tra titoli diversi."
+        },
+        "bollinger": {
+          "title": "Bande di Bollinger e %B",
+          "short": "Le bande si collocano a due deviazioni standard sopra e sotto la media a 20 giorni. Il %B mostra dove si trova il prezzo tra di esse: 0% sulla banda inferiore, 100% su quella superiore; fuori da questo intervallo ha chiuso oltre una banda.",
+          "detail": "Le bande di Bollinger sono tracciate a due deviazioni standard sopra e sotto la media mobile a 20 giorni, quindi si allargano quando il prezzo è volatile e si restringono quando è calmo. Il %B colloca la chiusura di oggi al loro interno: 0% è sulla banda inferiore, 50% sulla media, 100% sulla banda superiore. Sotto lo 0% o sopra il 100% significa che la chiusura è stata fuori dalle bande: un movimento insolitamente ampio rispetto all'ultimo mese."
+        },
+        "range": {
+          "title": "Intervallo a 52 settimane",
+          "short": "Le chiusure più alta e più bassa dell'ultimo anno. Posizione nell'intervallo: 0% significa al minimo, 100% al massimo.",
+          "detail": "Le chiusure giornaliere più alta e più bassa degli ultimi 365 giorni, con le date in cui sono avvenute. “Dal massimo a 52 settimane” indica di quanto il prezzo attuale è sotto quel massimo. “Posizione nell'intervallo” colloca il prezzo tra il minimo (0%) e il massimo (100%)."
+        },
+        "returns": {
+          "title": "Rendimenti",
+          "short": "La variazione del prezzo di chiusura su 1, 3, 6 e 12 mesi. Solo prezzo: i dividendi non sono inclusi.",
+          "detail": "La variazione del prezzo di chiusura dall'ultima chiusura alla data di inizio del periodo (o precedente) fino alla chiusura più recente. Sono rendimenti di prezzo (i dividendi non vengono reinvestiti), quindi per un titolo ad alto rendimento il rendimento totale sarà più alto."
+        },
+        "relativeStrength": {
+          "title": "Forza relativa rispetto al benchmark",
+          "short": "Il rendimento dello strumento meno quello del suo benchmark nello stesso periodo. Positivo significa che ha fatto meglio del benchmark.",
+          "detail": "Il rendimento di prezzo dello strumento meno quello del suo benchmark negli stessi 3 o 12 mesi, entrambi misurati fino alla stessa data finale. Il benchmark è quello usato nella scheda Fondamentali: quello proprio dello strumento, se impostato, altrimenti uno predefinito per la sua borsa di quotazione. +5% significa che ha battuto il benchmark di cinque punti percentuali."
+        }
       }
     },
     "title": "Glossario"
@@ -3004,5 +3054,220 @@
   "reportingCurrency": {
     "converted": "Importi in {{currency}}, convertiti da GBP al tasso odierno (1 {{currency}} = £{{rate}}).",
     "unavailable": "Nessun tasso GBP memorizzato per {{currency}}, quindi gli importi sono mostrati in GBP."
+  },
+  "targetFields": {
+    "inputFor": "{{inputLabel}} per {{label}}",
+    "combineAria": "Unisci le sottoclassi di {{label}}",
+    "splitAria": "Dividi {{label}} per sottoclasse",
+    "combine": "Unisci",
+    "split": "Dividi",
+    "subClassSum": "{{value}}% (somma delle sottoclassi)",
+    "targetPct": "Obiettivo %",
+    "assetClass": "Classe di attività",
+    "currentPct": "Attuale %",
+    "total": "Totale: {{value}}%",
+    "mustEqual100": "(deve essere 100%)"
+  },
+  "planPanel": {
+    "planTarget": "Obiettivo del piano",
+    "class": "Classe",
+    "targetPct": "Obiettivo %",
+    "vehicles": "Veicoli",
+    "noneSaved": "nessuno salvato",
+    "targetsMatch": "I tuoi obiettivi di ribilanciamento corrispondono a questo piano.",
+    "mismatchAria": "Mancata corrispondenza tra piano e ribilanciamento",
+    "updatePrompt": "Aggiornare i tuoi obiettivi di ribilanciamento per farli corrispondere a questo piano?",
+    "targetsDiffer": "I tuoi obiettivi di ribilanciamento differiscono da questo piano.",
+    "planLabel": "Piano:",
+    "rebalanceTargetsLabel": "Obiettivi di ribilanciamento:",
+    "updating": "Aggiornamento…",
+    "updateTargets": "Aggiorna obiettivi di ribilanciamento",
+    "copyTarget": "Copia l'obiettivo del piano negli obiettivi di ribilanciamento",
+    "notNow": "Non ora",
+    "perAssetClassNote": "Gli obiettivi di ribilanciamento sono definiti per classe di attività, quindi il piano viene confrontato aggregato a quel livello.",
+    "notRecorded": "non registrato",
+    "yearsAgo": "{{value}} fa",
+    "planGoals": "Obiettivi del piano",
+    "goal": "Obiettivo",
+    "purpose": "Scopo",
+    "targetDate": "Data obiettivo",
+    "yearsToGo": "Anni mancanti",
+    "amount": "Importo",
+    "priority": "Priorità",
+    "profileAndGoals": "Profilo e obiettivi",
+    "profileNote": "Come da te registrati; non è una valutazione di adeguatezza.",
+    "age": "Età:",
+    "riskTolerance": "Tolleranza al rischio:",
+    "capacityForLoss": "Capacità di sostenere perdite:",
+    "asOf": "al {{date}}",
+    "keyAssumptions": "Ipotesi principali",
+    "openQuestions": "Questioni aperte",
+    "decisionsAndEvidence": "Decisioni ({{decisions}}) ed evidenze ({{evidence}})",
+    "decisions": "Decisioni",
+    "evidence": "Evidenze",
+    "nextReview": "Prossima revisione:",
+    "notSet": "non impostata",
+    "reviewTriggers": "Fattori di revisione",
+    "version": "versione {{version}}",
+    "updated": "aggiornato il {{date}}",
+    "matchesStrategy": "Corrisponde alla strategia:",
+    "investmentPlan": "Piano di investimento",
+    "editPlan": "Modifica piano",
+    "subtitle": "Le tue decisioni, registrate con le motivazioni che le sostengono.",
+    "loading": "Caricamento del piano…",
+    "loadError": "Impossibile caricare il piano di investimento: {{message}}",
+    "noPlan": "Nessun piano di investimento salvato per {{owner}}.",
+    "createPlan": "Crea piano"
+  },
+  "strategy": {
+    "title": "Strategia",
+    "intro": "Scegli un'allocazione obiettivo (una strategia integrata, una tua o obiettivi personalizzati), poi confronta le tue posizioni e scopri quali operazioni di ribilanciamento, o quale contributo, la riporterebbero entro la tua banda di tolleranza.",
+    "owner": "Titolare del portafoglio",
+    "noOwners": "Nessun titolare",
+    "loading": "Caricamento…",
+    "saving": "Salvataggio…",
+    "notes": "Note",
+    "loadPlanError": "Impossibile caricare il piano di ribilanciamento per {{owner}}: {{error}}",
+    "loadStrategiesError": "Impossibile caricare le strategie per {{owner}}: {{error}}",
+    "emptyPolicy": "Applica una strategia o salva le allocazioni obiettivo per vedere lo stato degli scostamenti e le operazioni suggerite.",
+    "targets": {
+      "title": "Allocazione obiettivo",
+      "help": "Imposta la quota dell'intero portafoglio che ogni classe di attività deve avere, oppure applica una strategia qui sopra. Suddividi Azioni, Obbligazioni o Materie prime per puntare a sottoclassi, come small-cap value, gilt a lungo termine o oro. Le operazioni di ribilanciamento sono suggerite solo per le classi che si scostano oltre la banda di tolleranza.",
+      "tolerance": "Banda di tolleranza (± punti percentuali)",
+      "startFromCurrent": "Parti dall'allocazione attuale",
+      "save": "Salva obiettivi"
+    },
+    "drift": {
+      "ariaLabel": "Scostamento di allocazione",
+      "title": "Scostamento",
+      "col": {
+        "assetClass": "Classe di attività",
+        "value": "Valore",
+        "current": "Attuale %",
+        "target": "Obiettivo %",
+        "driftPp": "Scostamento (pp)",
+        "status": "Stato"
+      },
+      "needsSubClass": "Richiede una sottoclasse",
+      "inBand": "In banda",
+      "overweight": "Sovrappesato",
+      "underweight": "Sottopesato",
+      "unclassified": "Non classificato",
+      "needsAssetClass": "Richiede una classe di attività",
+      "totalLine": "Totale {{total}} · tolleranza ±{{tolerance}} pp"
+    },
+    "trades": {
+      "title": "Operazioni suggerite",
+      "heading": "Operazioni di ribilanciamento suggerite",
+      "help": "Le operazioni restano all'interno di ciascun conto: gli acquisti sono finanziati solo dalle vendite di quel conto e dalla sua liquidità oltre il tuo obiettivo di liquidità. Nulla si sposta tra i conti.",
+      "none": "Nessuna operazione necessaria: ogni classe di attività è entro la propria banda.",
+      "col": {
+        "action": "Azione",
+        "assetClass": "Classe di attività",
+        "amount": "Importo",
+        "suggested": "Strumento suggerito"
+      },
+      "chooseInstrument": "Scegli uno strumento"
+    },
+    "newCash": {
+      "title": "Investi nuova liquidità",
+      "help": "Pianifica un contributo senza vendere nulla: il denaro va prima alle classi più sottopesate.",
+      "amount": "Importo (£)",
+      "intoAccount": "Sul conto",
+      "plan": "Pianifica contributo",
+      "keepAsCash": "Mantieni {{amount}} in liquidità."
+    }
+  },
+  "strategyLibrary": {
+    "title": "Strategie",
+    "new": "Nuova strategia",
+    "help": "Applicare una strategia imposta la tua allocazione obiettivo sui suoi pesi. Le strategie integrate descrivono mix pubblicati noti; sono punti di riferimento, non raccomandazioni.",
+    "builtinReadOnlyTip": "Le strategie integrate sono di sola lettura. Duplicala per creare una copia modificabile.",
+    "confirmReplace": "Sostituire i tuoi obiettivi attuali con {{name}}?",
+    "confirmDelete": "Eliminare la strategia {{name}}?",
+    "applied": "{{name}} applicata.",
+    "created": "{{name}} creata.",
+    "deleted": "{{name}} eliminata.",
+    "active": {
+      "label": "Strategia attiva",
+      "prefix": "Strategia attiva:",
+      "custom": "Personalizzata (obiettivi non provenienti da una strategia salvata)",
+      "none": "Nessuna: applica una strategia o imposta gli obiettivi qui sotto.",
+      "deleted": "(eliminata)",
+      "modified": "Modificata",
+      "modifiedHelp": "I tuoi obiettivi sono stati modificati dopo l'applicazione di questa strategia.",
+      "changedHelp": "La strategia è stata modificata dopo l'applicazione; applicala di nuovo per usare i nuovi pesi."
+    },
+    "editor": {
+      "edit": "Modifica {{name}}",
+      "name": "Nome",
+      "description": "Descrizione",
+      "inputLabel": "Strategia %",
+      "save": "Salva strategia",
+      "saving": "Salvataggio…",
+      "cancel": "Annulla"
+    },
+    "row": {
+      "builtin": "Integrata",
+      "custom": "Personalizzata",
+      "active": "Attiva",
+      "apply": "Applica",
+      "applyAria": "Applica {{name}}",
+      "duplicate": "Duplica",
+      "duplicateAria": "Duplica {{name}}",
+      "edit": "Modifica",
+      "delete": "Elimina",
+      "about": "Informazioni su questa strategia",
+      "source": "Fonte:",
+      "ukMapping": "Corrispondenza nel Regno Unito:"
+    }
+  },
+  "assetClasses": {
+    "equity": "Azioni",
+    "bond": "Obbligazioni",
+    "cash": "Liquidità",
+    "commodity": "Materie prime",
+    "property": "Immobiliare",
+    "multi-asset": "Multi-asset",
+    "unknown": "Sconosciuto",
+    "broad_equity": "Azioni ampie",
+    "small_cap_value": "Small-cap value",
+    "long_gilts": "Gilt lunghi",
+    "intermediate_gilts": "Gilt intermedi",
+    "short_gilts": "Gilt brevi / ultrabrevi",
+    "index_linked": "Indicizzati all’inflazione",
+    "overseas_government": "Titoli di Stato esteri",
+    "corporate_bonds": "Societari / credito",
+    "gold": "Oro",
+    "commodities": "Altre materie prime"
+  },
+  "planForm": {
+    "errors": {
+      "version": "La versione deve essere un numero intero di almeno 1.",
+      "weightNotNumber": "Il peso obiettivo per {{cls}} non è un numero.",
+      "duplicateClass": "{{cls}} compare più di una volta nell’obiettivo.",
+      "sum": "I pesi obiettivo devono sommare al 100%, ottenuto {{total}}%.",
+      "riskToleranceLevel": "Scegli un livello di tolleranza al rischio da abbinare alla nota.",
+      "capacityForLossLevel": "Scegli un livello di capacità di sopportare perdite da abbinare alla nota.",
+      "goalName": "L’obiettivo {{n}} richiede un nome.",
+      "goalAmount": "L’importo dell’obiettivo {{n}} deve essere un numero di almeno 0.",
+      "goalPriority": "La priorità dell’obiettivo {{n}} deve essere un numero intero di almeno 1."
+    }
+  },
+  "valuationCaveats": {
+    "navUnknown": "sconosciuto",
+    "navToday": "{{date}} (oggi)",
+    "navAge_one": "{{date}} ({{count}} giorno fa)",
+    "navAge_other": "{{date}} ({{count}} giorni fa)",
+    "staleBadge": "NAV obsoleto",
+    "staleReason": "Non affidabile: il NAV ha {{age}} giorni.",
+    "staleReasonLimit": "Non affidabile: il NAV ha {{age}} giorni (limite {{limit}} giorni).",
+    "tooManyDays": "troppi",
+    "undatedBadge": "NAV senza data",
+    "undatedReason": "Non affidabile: la data del NAV è sconosciuta, quindi lo è anche la sua età.",
+    "stalePrice": "L'ultimo prezzo è segnalato come obsoleto.",
+    "stalePriceAsOf": "L'ultimo prezzo è segnalato come obsoleto (al {{date}}).",
+    "suspectCostBasis": "Il prezzo di carico è dubbio o sconosciuto per {{count}} posizione/i: {{where}}.",
+    "suspectMove": "Movimento giornaliero sospetto di {{change}} il {{date}}."
   }
 }

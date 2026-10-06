@@ -1,17 +1,17 @@
 // Draft state for the strategy page's target editors (#9543, #9653). A
 // splittable class (Equity, Bond, Commodity) is targeted either as a whole or by its sub-classes; the
 // backend rejects a policy that does both, so only the active level is saved.
-import { SUB_ASSET_CLASSES } from './assetClass';
+import { SUB_ASSET_CLASSES, assetClassOption } from './assetClass';
 import type { RebalancePlan } from '../types';
 
 /** Canonical asset classes, matching backend ASSET_CLASSES / ASSET_CLASS_LABELS. */
 export const ASSET_CLASSES: Array<{ key: string; label: string }> = [
-  { key: 'equity', label: 'Equity' },
-  { key: 'bond', label: 'Bond' },
-  { key: 'cash', label: 'Cash' },
-  { key: 'commodity', label: 'Commodity' },
-  { key: 'property', label: 'Property' },
-  { key: 'multi-asset', label: 'Multi-asset' },
+  assetClassOption('equity'),
+  assetClassOption('bond'),
+  assetClassOption('cash'),
+  assetClassOption('commodity'),
+  assetClassOption('property'),
+  assetClassOption('multi-asset'),
 ];
 
 const ALL_KEYS = ASSET_CLASSES.flatMap(({ key }) => [

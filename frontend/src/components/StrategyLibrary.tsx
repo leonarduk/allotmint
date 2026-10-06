@@ -2,6 +2,7 @@
 // user strategies, with Apply / Duplicate / Edit / Delete. Applying a
 // strategy replaces the owner's target allocation.
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   applyStrategy,
   createStrategy,
@@ -18,9 +19,6 @@ import {
 } from '../lib/allocationTargets';
 import { SUB_ASSET_CLASSES, allocationKeyLabel } from '../lib/assetClass';
 import TargetFields from './TargetFields';
-
-const BUILTIN_READ_ONLY_TIP =
-  'Built-in strategies are read-only. Duplicate it to make an editable copy.';
 
 const pct = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
 
@@ -67,32 +65,47 @@ function ActiveStrategyStatus({
   active: ActiveStrategy | null;
   hasTargets: boolean;
 }) {
+  const { t } = useTranslation();
   if (!active) {
     return (
-      <p className="mb-3 text-sm" aria-label="Active strategy">
-        <span className="font-medium">Active strategy:</span>{' '}
+      <p
+        className="mb-3 text-sm"
+        aria-label={t('strategyLibrary.active.label')}
+      >
+        <span className="font-medium">
+          {t('strategyLibrary.active.prefix')}
+        </span>{' '}
         {hasTargets
-          ? 'Custom (targets not from a saved strategy)'
-          : 'None — apply a strategy or set targets below.'}
+          ? t('strategyLibrary.active.custom')
+          : t('strategyLibrary.active.none')}
       </p>
     );
   }
   return (
-    <div className="mb-3 text-sm" aria-label="Active strategy">
+    <div
+      className="mb-3 text-sm"
+      aria-label={t('strategyLibrary.active.label')}
+    >
       <p>
-        <span className="font-medium">Active strategy:</span> {active.name}
-        {!active.exists && ' (deleted)'}
-        {active.modified && <Badge tone={TONES.modified}>Modified</Badge>}
+        <span className="font-medium">
+          {t('strategyLibrary.active.prefix')}
+        </span>{' '}
+        {active.name}
+        {!active.exists && ` ${t('strategyLibrary.active.deleted')}`}
+        {active.modified && (
+          <Badge tone={TONES.modified}>
+            {t('strategyLibrary.active.modified')}
+          </Badge>
+        )}
       </p>
       {active.modified && (
         <p className="text-xs text-amber-700 dark:text-amber-300">
-          Your targets have been changed since this strategy was applied.
+          {t('strategyLibrary.active.modifiedHelp')}
         </p>
       )}
       {active.strategy_changed && (
         <p className="text-xs text-amber-700 dark:text-amber-300">
-          The strategy has been edited since it was applied; apply it again to
-          use its new weights.
+          {t('strategyLibrary.active.changedHelp')}
         </p>
       )}
     </div>
@@ -114,6 +127,7 @@ function StrategyEditor({
   }) => Promise<void>;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [draft, setDraft] = useState(() =>
@@ -143,13 +157,19 @@ function StrategyEditor({
     <form
       onSubmit={handleSubmit}
       className="mb-4 rounded border p-3"
-      aria-label={initial ? `Edit ${initial.name}` : 'New strategy'}
+      aria-label={
+        initial
+          ? t('strategyLibrary.editor.edit', { name: initial.name })
+          : t('strategyLibrary.new')
+      }
     >
       <h3 className="mb-2 font-medium">
-        {initial ? `Edit ${initial.name}` : 'New strategy'}
+        {initial
+          ? t('strategyLibrary.editor.edit', { name: initial.name })
+          : t('strategyLibrary.new')}
       </h3>
       <label className="mb-2 block text-sm">
-        Name
+        {t('strategyLibrary.editor.name')}
         <input
           className="mt-1 block w-full border p-1"
           value={name}
@@ -158,7 +178,7 @@ function StrategyEditor({
         />
       </label>
       <label className="mb-2 block text-sm">
-        Description
+        {t('strategyLibrary.editor.description')}
         <textarea
           className="mt-1 block w-full border p-1"
           value={description}
@@ -170,7 +190,7 @@ function StrategyEditor({
         draft={draft}
         onChange={setDraft}
         current={current}
-        inputLabel="Strategy %"
+        inputLabel={t('strategyLibrary.editor.inputLabel')}
       />
       <div className="mt-2 flex gap-2">
         <button
@@ -178,14 +198,16 @@ function StrategyEditor({
           disabled={saving || !name.trim() || !draftTotalOk(draft)}
           className="rounded bg-blue-500 px-4 py-1 text-white disabled:opacity-50"
         >
-          {saving ? 'Saving…' : 'Save strategy'}
+          {saving
+            ? t('strategyLibrary.editor.saving')
+            : t('strategyLibrary.editor.save')}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="rounded bg-gray-200 px-3 py-1 text-slate-900"
         >
-          Cancel
+          {t('strategyLibrary.editor.cancel')}
         </button>
       </div>
       {error && (
@@ -205,8 +227,13 @@ function OwnedAction({
   label: string;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   return (
-    <span title={strategy.builtin ? BUILTIN_READ_ONLY_TIP : undefined}>
+    <span
+      title={
+        strategy.builtin ? t('strategyLibrary.builtinReadOnlyTip') : undefined
+      }
+    >
       <button
         type="button"
         disabled={strategy.builtin}
@@ -238,17 +265,22 @@ function StrategyRow({
   busy: boolean;
   actions: RowActions;
 }) {
+  const { t } = useTranslation();
   return (
     <li className="border-b py-2 last:border-b-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <span className="font-medium">{strategy.name}</span>
           {strategy.builtin ? (
-            <Badge tone={TONES.builtin}>Built-in</Badge>
+            <Badge tone={TONES.builtin}>
+              {t('strategyLibrary.row.builtin')}
+            </Badge>
           ) : (
-            <Badge tone={TONES.custom}>Custom</Badge>
+            <Badge tone={TONES.custom}>{t('strategyLibrary.row.custom')}</Badge>
           )}
-          {isActive && <Badge tone={TONES.active}>Active</Badge>}
+          {isActive && (
+            <Badge tone={TONES.active}>{t('strategyLibrary.row.active')}</Badge>
+          )}
           <p className="text-xs text-slate-600 dark:text-slate-300">
             {formatStrategyTargets(strategy.targets)}
           </p>
@@ -258,46 +290,57 @@ function StrategyRow({
             type="button"
             disabled={busy}
             onClick={() => actions.apply(strategy)}
-            aria-label={`Apply ${strategy.name}`}
+            aria-label={t('strategyLibrary.row.applyAria', {
+              name: strategy.name,
+            })}
             className="rounded bg-blue-500 px-2 py-1 text-sm text-white disabled:opacity-50"
           >
-            Apply
+            {t('strategyLibrary.row.apply')}
           </button>
           <button
             type="button"
             disabled={busy}
             onClick={() => actions.duplicate(strategy)}
-            aria-label={`Duplicate ${strategy.name}`}
+            aria-label={t('strategyLibrary.row.duplicateAria', {
+              name: strategy.name,
+            })}
             className="rounded bg-gray-200 px-2 py-1 text-sm text-slate-900 disabled:opacity-50"
           >
-            Duplicate
+            {t('strategyLibrary.row.duplicate')}
           </button>
           <OwnedAction
             strategy={strategy}
-            label="Edit"
+            label={t('strategyLibrary.row.edit')}
             onClick={() => actions.edit(strategy)}
           />
           <OwnedAction
             strategy={strategy}
-            label="Delete"
+            label={t('strategyLibrary.row.delete')}
             onClick={() => actions.remove(strategy)}
           />
         </div>
       </div>
       {(strategy.description || strategy.source || strategy.uk_mapping) && (
         <details className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-          <summary className="cursor-pointer">About this strategy</summary>
+          <summary className="cursor-pointer">
+            {t('strategyLibrary.row.about')}
+          </summary>
           {strategy.description && (
             <p className="mt-1">{strategy.description}</p>
           )}
           {strategy.source && (
             <p className="mt-1">
-              <span className="font-medium">Source:</span> {strategy.source}
+              <span className="font-medium">
+                {t('strategyLibrary.row.source')}
+              </span>{' '}
+              {strategy.source}
             </p>
           )}
           {strategy.uk_mapping && (
             <p className="mt-1">
-              <span className="font-medium">UK mapping:</span>{' '}
+              <span className="font-medium">
+                {t('strategyLibrary.row.ukMapping')}
+              </span>{' '}
               {strategy.uk_mapping}
             </p>
           )}
@@ -323,6 +366,7 @@ export default function StrategyLibrary({
   /** Reload strategies and the plan after anything changes. */
   onChanged: () => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState<Editing>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -350,26 +394,27 @@ export default function StrategyLibrary({
     apply: (s) => {
       if (
         replacesCustomTargets &&
-        !window.confirm(`Replace your current targets with ${s.name}?`)
+        !window.confirm(t('strategyLibrary.confirmReplace', { name: s.name }))
       )
         return;
       void run(async () => {
         await applyStrategy(owner, s.id);
-        return `Applied ${s.name}.`;
+        return t('strategyLibrary.applied', { name: s.name });
       });
     },
     duplicate: (s) =>
       void run(async () => {
         const copy = await duplicateStrategy(owner, s.id);
         setEditing({ strategy: copy });
-        return `Created ${copy.name}.`;
+        return t('strategyLibrary.created', { name: copy.name });
       }),
     edit: (s) => setEditing({ strategy: s }),
     remove: (s) => {
-      if (!window.confirm(`Delete strategy ${s.name}?`)) return;
+      if (!window.confirm(t('strategyLibrary.confirmDelete', { name: s.name })))
+        return;
       void run(async () => {
         await deleteStrategy(owner, s.id);
-        return `Deleted ${s.name}.`;
+        return t('strategyLibrary.deleted', { name: s.name });
       });
     },
   };
@@ -387,22 +432,20 @@ export default function StrategyLibrary({
   }
 
   return (
-    <section className="mb-6" aria-label="Strategies">
+    <section className="mb-6" aria-label={t('strategyLibrary.title')}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl">Strategies</h2>
+        <h2 className="text-xl">{t('strategyLibrary.title')}</h2>
         <button
           type="button"
           onClick={() => setEditing({ strategy: null })}
           className="rounded bg-gray-200 px-3 py-1 text-sm text-slate-900"
         >
-          New strategy
+          {t('strategyLibrary.new')}
         </button>
       </div>
       <ActiveStrategyStatus active={data.active} hasTargets={hasTargets} />
       <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-        Applying a strategy sets your target allocation to its weights. Built-in
-        strategies describe well-known published mixes; they are reference
-        points, not recommendations.
+        {t('strategyLibrary.help')}
       </p>
       {editing && (
         <StrategyEditor

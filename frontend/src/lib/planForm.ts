@@ -1,6 +1,8 @@
 // Form state for the structured investment plan editor (#9655). Every input
 // is held as text so a half-typed number survives re-renders; toPlan converts
 // back to the backend's InvestmentPlan shape (backend/common/investment_plan.py).
+import i18n from '../i18n';
+import { classKeyLabel } from './assetClass';
 import type {
   InvestmentPlan,
   InvestmentPlanGoalPurpose,
@@ -57,30 +59,31 @@ export const GOAL_PURPOSES = Object.keys(
 ) as InvestmentPlanGoalPurpose[];
 
 export const goalPurposeLabel = (key: string) =>
-  GOAL_PURPOSE_LABELS[key as InvestmentPlanGoalPurpose] ?? key;
+  key in GOAL_PURPOSE_LABELS ? i18n.t(`planEditor.purpose_${key}`) : key;
 
-/** Labels for plan class keys and the parent asset classes they roll up to. */
-const CLASS_LABELS: Record<string, string> = {
-  equity: 'Equity',
+/** Plan class keys and the parent asset classes they roll up to. */
+const CLASS_KEYS = new Set([
+  'equity',
   // Policy key the plan's equity maps to beside small_cap_value (#9653).
-  broad_equity: 'Broad equity',
-  small_cap_value: 'Small-cap value',
-  long_gilts: 'Long gilts',
-  intermediate_gilts: 'Intermediate gilts',
-  short_gilts: 'Short gilts / ultrashort',
-  index_linked: 'Index-linked',
-  overseas_government: 'Overseas government',
-  corporate_bonds: 'Corporate / credit',
-  gold: 'Gold',
-  commodities: 'Other commodities',
-  cash: 'Cash',
-  bond: 'Bond',
-  commodity: 'Commodity',
-  property: 'Property',
-  'multi-asset': 'Multi-asset',
-};
+  'broad_equity',
+  'small_cap_value',
+  'long_gilts',
+  'intermediate_gilts',
+  'short_gilts',
+  'index_linked',
+  'overseas_government',
+  'corporate_bonds',
+  'gold',
+  'commodities',
+  'cash',
+  'bond',
+  'commodity',
+  'property',
+  'multi-asset',
+]);
 
-export const classLabel = (key: string) => CLASS_LABELS[key] ?? key;
+export const classLabel = (key: string) =>
+  CLASS_KEYS.has(key) ? classKeyLabel(key) : key;
 
 export interface TargetRow {
   class: string;
@@ -384,48 +387,58 @@ export function targetTotal(rows: TargetRow[]): number {
 export function formErrors(form: PlanForm): string[] {
   const errors: string[] = [];
   if (!/^\d+$/.test(form.version.trim()) || Number(form.version) < 1)
-    errors.push('Version must be a whole number of at least 1.');
+    errors.push(i18n.t('planForm.errors.version'));
   const bad = form.target.filter(
     (t) => t.weight.trim() && !NUMBER_RE.test(t.weight.trim())
   );
   if (bad.length)
     errors.push(
-      `Target weight for ${classLabel(bad[0].class)} is not a number.`
+      i18n.t('planForm.errors.weightNotNumber', {
+        cls: classLabel(bad[0].class),
+      })
     );
   const classes = form.target.map((t) => t.class);
   const dupe = classes.find((c, i) => classes.indexOf(c) !== i);
   if (dupe)
-    errors.push(`${classLabel(dupe)} appears more than once in the target.`);
+    errors.push(
+      i18n.t('planForm.errors.duplicateClass', { cls: classLabel(dupe) })
+    );
   const total = targetTotal(form.target);
   if (!bad.length && Math.abs(total - 100) > TARGET_SUM_TOLERANCE_PCT)
     errors.push(
-      `Target weights must sum to 100%, got ${Math.round(total * 100) / 100}%.`
+      i18n.t('planForm.errors.sum', {
+        total: Math.round(total * 100) / 100,
+      })
     );
   return [...errors, ...profileErrors(form)];
 }
 
-function ratingError(fields: RatingFields, label: string): string[] {
-  return !fields.level && fields.note.trim()
-    ? [`Choose a ${label} level to go with its note.`]
-    : [];
+function ratingError(fields: RatingFields, message: string): string[] {
+  return !fields.level && fields.note.trim() ? [message] : [];
 }
 
 function goalErrors(goal: GoalRow, n: number): string[] {
   const errors: string[] = [];
   const amount = goal.amount.trim();
   const priority = goal.priority.trim();
-  if (!goal.name.trim()) errors.push(`Goal ${n} needs a name.`);
+  if (!goal.name.trim()) errors.push(i18n.t('planForm.errors.goalName', { n }));
   if (amount && !(NUMBER_RE.test(amount) && Number(amount) >= 0))
-    errors.push(`Goal ${n} amount must be a number of at least 0.`);
+    errors.push(i18n.t('planForm.errors.goalAmount', { n }));
   if (priority && !(/^\d+$/.test(priority) && Number(priority) >= 1))
-    errors.push(`Goal ${n} priority must be a whole number of at least 1.`);
+    errors.push(i18n.t('planForm.errors.goalPriority', { n }));
   return errors;
 }
 
 function profileErrors(form: PlanForm): string[] {
   return [
-    ...ratingError(form.risk_tolerance, 'risk tolerance'),
-    ...ratingError(form.capacity_for_loss, 'capacity for loss'),
+    ...ratingError(
+      form.risk_tolerance,
+      i18n.t('planForm.errors.riskToleranceLevel')
+    ),
+    ...ratingError(
+      form.capacity_for_loss,
+      i18n.t('planForm.errors.capacityForLossLevel')
+    ),
     ...form.goals.flatMap((g, i) =>
       isBlankGoal(g) ? [] : goalErrors(g, i + 1)
     ),

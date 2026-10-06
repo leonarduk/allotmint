@@ -1,3 +1,5 @@
+import i18n from '../i18n';
+
 // Mirrors backend/common/instrument_classification.py (#9196): asset classes
 // are stored lower-case ("equity") since #9196, but metadata persisted before
 // it (or a stale S3 copy) still says "Equity"/"Bond"/"Commodity". Every
@@ -25,14 +27,17 @@ const ASSET_CLASS_ALIASES: Record<string, string> = {
   allocation: 'multi-asset',
 };
 
-const ASSET_CLASS_LABELS: Record<string, string> = {
-  equity: 'Equity',
-  bond: 'Bond',
-  cash: 'Cash',
-  commodity: 'Commodity',
-  property: 'Property',
-  'multi-asset': 'Multi-asset',
-};
+/** Translated display label for a canonical class or sub-class key. */
+export const classKeyLabel = (key: string): string =>
+  i18n.t(`assetClasses.${key}`);
+
+/** A ``{ key, label }`` option whose label is translated when read. */
+const option = (key: string): { key: string; label: string } => ({
+  key,
+  get label() {
+    return classKeyLabel(key);
+  },
+});
 
 /** Canonical asset class for ``value``, or ``null`` when unrecognised. */
 export function normaliseAssetClass(value?: string | null): string | null {
@@ -47,10 +52,10 @@ export function normaliseAssetClass(value?: string | null): string | null {
  */
 export function assetClassLabel(
   value?: string | null,
-  fallback = 'Unknown'
+  fallback = i18n.t('assetClasses.unknown')
 ): string {
   const canonical = normaliseAssetClass(value);
-  if (canonical) return ASSET_CLASS_LABELS[canonical];
+  if (canonical) return classKeyLabel(canonical);
   const trimmed = typeof value === 'string' ? value.trim() : '';
   return trimmed || fallback;
 }
@@ -59,33 +64,23 @@ export function assetClassLabel(
 // Commodity can be targeted by sub-class on the strategy page. Keys match
 // allotmint-pro's backtest_portfolio asset-class blocks, except broad_equity,
 // which the backtest calls "equity" when it sits beside small_cap_value.
+export { option as assetClassOption };
+
 export const SUB_ASSET_CLASSES: Record<
   string,
   Array<{ key: string; label: string }>
 > = {
-  equity: [
-    { key: 'broad_equity', label: 'Broad equity' },
-    { key: 'small_cap_value', label: 'Small-cap value' },
-  ],
+  equity: [option('broad_equity'), option('small_cap_value')],
   bond: [
-    { key: 'long_gilts', label: 'Long gilts' },
-    { key: 'intermediate_gilts', label: 'Intermediate gilts' },
-    { key: 'short_gilts', label: 'Short gilts / ultrashort' },
-    { key: 'index_linked', label: 'Index-linked' },
-    { key: 'overseas_government', label: 'Overseas government' },
-    { key: 'corporate_bonds', label: 'Corporate / credit' },
+    option('long_gilts'),
+    option('intermediate_gilts'),
+    option('short_gilts'),
+    option('index_linked'),
+    option('overseas_government'),
+    option('corporate_bonds'),
   ],
-  commodity: [
-    { key: 'gold', label: 'Gold' },
-    { key: 'commodities', label: 'Other commodities' },
-  ],
+  commodity: [option('gold'), option('commodities')],
 };
-
-const SUB_ASSET_CLASS_LABELS: Record<string, string> = Object.fromEntries(
-  Object.values(SUB_ASSET_CLASSES).flatMap((subs) =>
-    subs.map(({ key, label }) => [key, label])
-  )
-);
 
 /** Parent asset class of a sub-class key, or ``null`` for anything else. */
 export function subAssetClassParent(key: string): string | null {
@@ -97,5 +92,7 @@ export function subAssetClassParent(key: string): string | null {
 
 /** Label for a rebalance target key: a sub-class or an asset class. */
 export function allocationKeyLabel(key: string): string {
-  return SUB_ASSET_CLASS_LABELS[key] ?? assetClassLabel(key, key);
+  return subAssetClassParent(key)
+    ? classKeyLabel(key)
+    : assetClassLabel(key, key);
 }

@@ -153,7 +153,12 @@
     "featureDisabled": "This feature isn't enabled for this application.",
     "returnHome": "Return home",
     "glossaryLink": "Glossary",
-    "instrumentCatalogueTruncated": "Showing first {{shown}} of {{total}} instruments."
+    "instrumentCatalogueTruncated": "Showing first {{shown}} of {{total}} instruments.",
+    "exportInstruments": "Export instruments",
+    "exportInstrumentsCsvAria": "Export instruments as CSV",
+    "exportCsv": "Export CSV",
+    "exportInstrumentsPdfAria": "Export instruments as PDF",
+    "exportPdf": "Export PDF"
   },
   "approxTotal": "Approx Total: £{{value}}",
   "asOf": "As of {{date}} • Trades this month: {{trades}} / 20 (Remaining: {{remaining}})",
@@ -1108,7 +1113,52 @@
       },
       "technicals": {
         "title": "Technical analysis",
-        "intro": "Terms on an instrument's Technicals tab. They are worked out from past daily closing prices and describe what the price has done; they do not predict what it will do, and they are not buy or sell recommendations."
+        "intro": "Terms on an instrument's Technicals tab. They are worked out from past daily closing prices and describe what the price has done; they do not predict what it will do, and they are not buy or sell recommendations.",
+        "trend": {
+          "title": "Trend",
+          "short": "Uptrend: the price is above its 50-day average and the 50-day is above the 200-day. Downtrend: both are the other way round. Anything else is mixed.",
+          "detail": "A quick read of direction from the moving averages. Uptrend means the price is above its 50-day average and the 50-day is above the 200-day; downtrend means the price is below the 50-day and the 50-day is below the 200-day. Anything in between is mixed. Moving averages lag the price, so a trend label describes the last few months, not what comes next."
+        },
+        "movingAverage": {
+          "title": "Moving average (20, 50, 200-day)",
+          "short": "The average closing price over the last 20, 50 or 200 trading days. The percentage shows how far today’s price is above or below it.",
+          "detail": "The average of the last 20, 50 or 200 daily closes (roughly one month, one quarter and ten months of trading). The 20-day follows the price closely; the 200-day is a slow, long-term reference. “Price −8% vs average” means today’s close is 8% below that average."
+        },
+        "cross": {
+          "title": "Golden cross and death cross",
+          "short": "A golden cross is when the 50-day average rises above the 200-day; a death cross is when it falls below. “Death” means the 50 is currently under the 200 — a weakening trend, not a forecast.",
+          "detail": "Named moments when the 50-day moving average crosses the 200-day. Golden cross: the 50-day moves above the 200-day, so recent prices are running higher than the longer-term average. Death cross: the 50-day moves below it. The names sound dramatic, but a death cross only says the medium-term average has dropped under the long-term one. Because both averages lag, a cross often comes after much of the move has happened, and crosses in a sideways market are frequently reversed soon after. The tab shows which side the 50-day is on now and, when it happened within the loaded history, the date of the last cross."
+        },
+        "rsi": {
+          "title": "RSI (14-day) and its zones",
+          "short": "RSI (0–100) compares recent gains with recent losses over 14 days. 70+ is called overbought and 30 or below oversold: the move has been strong, not that it must reverse.",
+          "detail": "The Relative Strength Index compares the average size of up days with the average size of down days over the last 14 days (Wilder’s method), on a 0–100 scale. Around 50 means gains and losses have been balanced. 70 or above is conventionally called overbought and 30 or below oversold. Those labels describe how one-sided recent moves have been; a strongly trending share can stay overbought or oversold for a long time."
+        },
+        "macd": {
+          "title": "MACD (12/26/9)",
+          "short": "MACD is the gap between 12-day and 26-day exponential averages; the signal line is a 9-day average of MACD. Bullish crossover: MACD rises above the signal line (momentum improving). Bearish: it falls below.",
+          "detail": "Moving Average Convergence Divergence. The MACD line is the 12-day exponential moving average minus the 26-day one; positive means short-term prices are above the longer-term trend. The signal line is a 9-day average of the MACD line, and the histogram is MACD minus signal. A bullish crossover is the MACD line moving above the signal line (momentum picking up); a bearish crossover is it moving below. The values are in the share’s price units, so compare them over time for one share rather than between shares."
+        },
+        "bollinger": {
+          "title": "Bollinger bands and %B",
+          "short": "Bands sit two standard deviations above and below the 20-day average. %B shows where the price is between them: 0% at the lower band, 100% at the upper; outside that range it has closed beyond a band.",
+          "detail": "Bollinger bands are drawn two standard deviations above and below the 20-day moving average, so they widen when the price is volatile and narrow when it is calm. %B places today’s close within them: 0% is on the lower band, 50% on the average, 100% on the upper band. Below 0% or above 100% means the close was outside the bands — an unusually large move relative to the last month."
+        },
+        "range": {
+          "title": "52-week range",
+          "short": "The highest and lowest closes over the past year. Position in range: 0% means at the low, 100% at the high.",
+          "detail": "The highest and lowest daily closes over the last 365 days, with the dates they happened. “From 52-week high” is how far the current price is below that high. “Position in range” places the price between the low (0%) and the high (100%)."
+        },
+        "returns": {
+          "title": "Returns",
+          "short": "The change in closing price over 1, 3, 6 and 12 months. Price only: dividends are not included.",
+          "detail": "The change in closing price from the last close on or before the start of the period to the latest close. These are price returns — dividends are not added back — so for a high-yielding share the total return will be higher."
+        },
+        "relativeStrength": {
+          "title": "Relative strength vs benchmark",
+          "short": "The instrument’s return minus its benchmark’s over the same period. Positive means it did better than the benchmark.",
+          "detail": "The instrument’s price return minus its benchmark’s over the same 3 or 12 months, both measured to the same end date. The benchmark is the one used on the Fundamentals tab: the instrument’s own, if set, otherwise a default for its listing exchange. +5% means it beat the benchmark by five percentage points."
+        }
       }
     },
     "title": "Glossary"
@@ -2997,5 +3047,220 @@
   "reportingCurrency": {
     "converted": "Amounts in {{currency}}, translated from GBP at today's rate (1 {{currency}} = £{{rate}}).",
     "unavailable": "No GBP rate for {{currency}} is stored, so amounts are shown in GBP."
+  },
+  "targetFields": {
+    "inputFor": "{{inputLabel}} for {{label}}",
+    "combineAria": "Combine {{label}} sub-classes",
+    "splitAria": "Split {{label}} by sub-class",
+    "combine": "Combine",
+    "split": "Split",
+    "subClassSum": "{{value}}% (sum of sub-classes)",
+    "targetPct": "Target %",
+    "assetClass": "Asset class",
+    "currentPct": "Current %",
+    "total": "Total: {{value}}%",
+    "mustEqual100": "(must equal 100%)"
+  },
+  "planPanel": {
+    "planTarget": "Plan target",
+    "class": "Class",
+    "targetPct": "Target %",
+    "vehicles": "Vehicles",
+    "noneSaved": "none saved",
+    "targetsMatch": "Your rebalance targets match this plan.",
+    "mismatchAria": "Plan and rebalance mismatch",
+    "updatePrompt": "Update your rebalance targets to match this plan?",
+    "targetsDiffer": "Your rebalance targets differ from this plan.",
+    "planLabel": "Plan:",
+    "rebalanceTargetsLabel": "Rebalance targets:",
+    "updating": "Updating…",
+    "updateTargets": "Update rebalance targets",
+    "copyTarget": "Copy plan target to rebalance targets",
+    "notNow": "Not now",
+    "perAssetClassNote": "Rebalance targets are set per asset class, so the plan is compared rolled up to that level.",
+    "notRecorded": "not recorded",
+    "yearsAgo": "{{value}} ago",
+    "planGoals": "Plan goals",
+    "goal": "Goal",
+    "purpose": "Purpose",
+    "targetDate": "Target date",
+    "yearsToGo": "Years to go",
+    "amount": "Amount",
+    "priority": "Priority",
+    "profileAndGoals": "Profile and goals",
+    "profileNote": "As you recorded them; not an assessment of suitability.",
+    "age": "Age:",
+    "riskTolerance": "Risk tolerance:",
+    "capacityForLoss": "Capacity for loss:",
+    "asOf": "as of {{date}}",
+    "keyAssumptions": "Key assumptions",
+    "openQuestions": "Open questions",
+    "decisionsAndEvidence": "Decisions ({{decisions}}) and evidence ({{evidence}})",
+    "decisions": "Decisions",
+    "evidence": "Evidence",
+    "nextReview": "Next review:",
+    "notSet": "not set",
+    "reviewTriggers": "Review triggers",
+    "version": "version {{version}}",
+    "updated": "updated {{date}}",
+    "matchesStrategy": "Matches strategy:",
+    "investmentPlan": "Investment plan",
+    "editPlan": "Edit plan",
+    "subtitle": "Your own decisions, recorded with the reasoning behind them.",
+    "loading": "Loading plan…",
+    "loadError": "Unable to load the investment plan: {{message}}",
+    "noPlan": "No investment plan saved for {{owner}} yet.",
+    "createPlan": "Create plan"
+  },
+  "strategy": {
+    "title": "Strategy",
+    "intro": "Choose a target allocation — a built-in strategy, one of your own, or custom targets — then compare your holdings against it and see which rebalancing trades, or which contribution, would bring it back within your tolerance band.",
+    "owner": "Portfolio owner",
+    "noOwners": "No owners",
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "notes": "Notes",
+    "loadPlanError": "Unable to load rebalance plan for {{owner}}: {{error}}",
+    "loadStrategiesError": "Unable to load strategies for {{owner}}: {{error}}",
+    "emptyPolicy": "Apply a strategy or save target allocations to see drift status and suggested trades.",
+    "targets": {
+      "title": "Target allocation",
+      "help": "Set the share of your whole portfolio each asset class should be, or apply a strategy above. Split Equity, Bond or Commodity to target sub-classes instead, such as small-cap value, long gilts or gold. Rebalancing trades are only suggested for classes that drift further than the tolerance band.",
+      "tolerance": "Tolerance band (± percentage points)",
+      "startFromCurrent": "Start from current allocation",
+      "save": "Save targets"
+    },
+    "drift": {
+      "ariaLabel": "Allocation drift",
+      "title": "Drift",
+      "col": {
+        "assetClass": "Asset class",
+        "value": "Value",
+        "current": "Current %",
+        "target": "Target %",
+        "driftPp": "Drift (pp)",
+        "status": "Status"
+      },
+      "needsSubClass": "Needs a sub-class",
+      "inBand": "In band",
+      "overweight": "Overweight",
+      "underweight": "Underweight",
+      "unclassified": "Unclassified",
+      "needsAssetClass": "Needs an asset class",
+      "totalLine": "Total {{total}} · tolerance ±{{tolerance}} pp"
+    },
+    "trades": {
+      "title": "Suggested trades",
+      "heading": "Suggested rebalancing trades",
+      "help": "Trades stay inside each account: buys are funded only by that account's sales and its cash above your cash target. Nothing moves between accounts.",
+      "none": "No trades required — every asset class is within its band.",
+      "col": {
+        "action": "Action",
+        "assetClass": "Asset class",
+        "amount": "Amount",
+        "suggested": "Suggested instrument"
+      },
+      "chooseInstrument": "Choose an instrument"
+    },
+    "newCash": {
+      "title": "Invest new cash",
+      "help": "Plan a contribution without selling anything: the money goes to the most underweight classes first.",
+      "amount": "Amount (£)",
+      "intoAccount": "Into account",
+      "plan": "Plan contribution",
+      "keepAsCash": "Keep {{amount}} as cash."
+    }
+  },
+  "strategyLibrary": {
+    "title": "Strategies",
+    "new": "New strategy",
+    "help": "Applying a strategy sets your target allocation to its weights. Built-in strategies describe well-known published mixes; they are reference points, not recommendations.",
+    "builtinReadOnlyTip": "Built-in strategies are read-only. Duplicate it to make an editable copy.",
+    "confirmReplace": "Replace your current targets with {{name}}?",
+    "confirmDelete": "Delete strategy {{name}}?",
+    "applied": "Applied {{name}}.",
+    "created": "Created {{name}}.",
+    "deleted": "Deleted {{name}}.",
+    "active": {
+      "label": "Active strategy",
+      "prefix": "Active strategy:",
+      "custom": "Custom (targets not from a saved strategy)",
+      "none": "None — apply a strategy or set targets below.",
+      "deleted": "(deleted)",
+      "modified": "Modified",
+      "modifiedHelp": "Your targets have been changed since this strategy was applied.",
+      "changedHelp": "The strategy has been edited since it was applied; apply it again to use its new weights."
+    },
+    "editor": {
+      "edit": "Edit {{name}}",
+      "name": "Name",
+      "description": "Description",
+      "inputLabel": "Strategy %",
+      "save": "Save strategy",
+      "saving": "Saving…",
+      "cancel": "Cancel"
+    },
+    "row": {
+      "builtin": "Built-in",
+      "custom": "Custom",
+      "active": "Active",
+      "apply": "Apply",
+      "applyAria": "Apply {{name}}",
+      "duplicate": "Duplicate",
+      "duplicateAria": "Duplicate {{name}}",
+      "edit": "Edit",
+      "delete": "Delete",
+      "about": "About this strategy",
+      "source": "Source:",
+      "ukMapping": "UK mapping:"
+    }
+  },
+  "assetClasses": {
+    "equity": "Equity",
+    "bond": "Bond",
+    "cash": "Cash",
+    "commodity": "Commodity",
+    "property": "Property",
+    "multi-asset": "Multi-asset",
+    "unknown": "Unknown",
+    "broad_equity": "Broad equity",
+    "small_cap_value": "Small-cap value",
+    "long_gilts": "Long gilts",
+    "intermediate_gilts": "Intermediate gilts",
+    "short_gilts": "Short gilts / ultrashort",
+    "index_linked": "Index-linked",
+    "overseas_government": "Overseas government",
+    "corporate_bonds": "Corporate / credit",
+    "gold": "Gold",
+    "commodities": "Other commodities"
+  },
+  "planForm": {
+    "errors": {
+      "version": "Version must be a whole number of at least 1.",
+      "weightNotNumber": "Target weight for {{cls}} is not a number.",
+      "duplicateClass": "{{cls}} appears more than once in the target.",
+      "sum": "Target weights must sum to 100%, got {{total}}%.",
+      "riskToleranceLevel": "Choose a risk tolerance level to go with its note.",
+      "capacityForLossLevel": "Choose a capacity for loss level to go with its note.",
+      "goalName": "Goal {{n}} needs a name.",
+      "goalAmount": "Goal {{n}} amount must be a number of at least 0.",
+      "goalPriority": "Goal {{n}} priority must be a whole number of at least 1."
+    }
+  },
+  "valuationCaveats": {
+    "navUnknown": "unknown",
+    "navToday": "{{date}} (today)",
+    "navAge_one": "{{date}} ({{count}} day old)",
+    "navAge_other": "{{date}} ({{count}} days old)",
+    "staleBadge": "Stale NAV",
+    "staleReason": "Unreliable: the NAV is {{age}} days old.",
+    "staleReasonLimit": "Unreliable: the NAV is {{age}} days old (limit {{limit}} days).",
+    "tooManyDays": "too many",
+    "undatedBadge": "Undated NAV",
+    "undatedReason": "Unreliable: the NAV date is unknown, so its age is too.",
+    "stalePrice": "Latest price is flagged stale.",
+    "stalePriceAsOf": "Latest price is flagged stale (as of {{date}}).",
+    "suspectCostBasis": "Cost basis is suspect or unknown for {{count}} position(s): {{where}}.",
+    "suspectMove": "Suspect one-day move of {{change}} on {{date}}."
   }
 }

@@ -120,6 +120,34 @@ def test_update_refuses_diverged_branch(repos):
     assert _run(checkout, "rev-parse", "HEAD") == before
 
 
+def test_update_refuses_detached_head(repos):
+    checkout, _ = repos
+    _run(checkout, "checkout", "-q", "--detach")
+
+    resp = _client().post("/support/app-update")
+    assert resp.status_code == 409
+    assert "detached" in resp.json()["detail"]
+
+
+def test_update_refuses_branch_without_upstream(repos):
+    checkout, _ = repos
+    _run(checkout, "checkout", "-q", "-b", "local-only")
+
+    resp = _client().post("/support/app-update")
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Branch 'local-only' has no upstream configured."
+
+
+def test_update_rejects_concurrent_request(repos):
+    assert app_update._update_lock.acquire(blocking=False)
+    try:
+        resp = _client().post("/support/app-update")
+    finally:
+        app_update._update_lock.release()
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "An update is already in progress."
+
+
 def test_status_without_git_checkout(tmp_path, monkeypatch):
     monkeypatch.setattr(app_update.config, "repo_root", tmp_path)
     monkeypatch.setattr(app_update.config, "disable_auth", True)

@@ -146,17 +146,17 @@ class InvestmentPlan(BaseModel):
     @field_validator("vehicles", mode="before")
     @classmethod
     def _vehicle_shorthand(cls, value: object) -> object:
-        """Accept ``"GLTL.L"`` as shorthand for ``{"ticker": "GLTL.L"}``."""
+        """Accept ``"GLTL.L"`` (alone or in a list) as shorthand for ``{"ticker": "GLTL.L"}``."""
         if not isinstance(value, dict):
             return value
-        return {
-            key: (
-                [{"ticker": item} if isinstance(item, str) else item for item in items]
-                if isinstance(items, list)
-                else items
-            )
-            for key, items in value.items()
-        }
+        normalised: dict[object, object] = {}
+        for key, items in value.items():
+            if isinstance(items, (str, dict)):
+                items = [items]
+            if isinstance(items, list):
+                items = [{"ticker": item} if isinstance(item, str) else item for item in items]
+            normalised[key] = items
+        return normalised
 
     @field_validator("vehicles")
     @classmethod
@@ -196,6 +196,7 @@ class InvestmentPlan(BaseModel):
 
 
 def plans_dir(data_root: Optional[Path] = None) -> Path:
+    """``<data_root>/plans``; ``data_root`` defaults to ``config.data_root``."""
     root = data_root or config.data_root or Path(__file__).resolve().parents[2] / "data"
     return Path(root) / PLANS_DIRNAME
 
@@ -252,6 +253,7 @@ def vehicle_warnings(plan: InvestmentPlan) -> list[str]:
 
 
 def _same_weights(a: dict[str, float], b: dict[str, float]) -> bool:
+    """Targets are equal up to float noise (not the policy's drift band: this compares targets, not holdings)."""
     keys = set(a) | set(b)
     return all(abs(a.get(k, 0.0) - b.get(k, 0.0)) <= TARGET_SUM_TOLERANCE_PCT for k in keys)
 
@@ -268,7 +270,10 @@ def compare_with_rebalance_targets(plan: InvestmentPlan, policy: AllocationPolic
     try:
         comparable = parse_policy({"targets": exact}).targets
         copy_supported = True
-    except ValueError:
+    except ValueError as exc:
+        # Only a vocabulary gap means "compare rolled up"; anything else is a real error.
+        if not str(exc).startswith("Unknown asset class"):
+            raise
         comparable = parse_policy({"targets": plan.parent_weights()}).targets
         copy_supported = False
     return {

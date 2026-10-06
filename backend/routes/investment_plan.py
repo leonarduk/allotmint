@@ -3,11 +3,14 @@
 
 Access follows the other ``/{owner}`` routes (e.g. ``/rebalance/{owner}``):
 the owner must exist under the accounts root and the caller must pass
-:func:`backend.common.authz.ensure_owner_access`.
+:func:`backend.common.authz.ensure_owner_access`. Plans are stored beside that
+same accounts root (``<accounts_root>/../plans``), so the root the route
+validated against is the root it reads and writes.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
@@ -39,7 +42,11 @@ def _validation_detail(exc: ValidationError) -> str:
     return "; ".join(parts)
 
 
-def _response(plan: InvestmentPlan, owner: str, accounts_root: Any) -> Dict[str, Any]:
+def _data_root(accounts_root: Path) -> Path:
+    return Path(accounts_root).parent
+
+
+def _response(plan: InvestmentPlan, owner: str, accounts_root: Path) -> Dict[str, Any]:
     policy = load_allocation_policy(owner, accounts_root)
     return {
         "plan": plan.to_dict(),
@@ -52,7 +59,7 @@ def _response(plan: InvestmentPlan, owner: str, accounts_root: Any) -> Dict[str,
 def get_investment_plan(owner: str, request: Request, identity: Optional[str] = Depends(get_active_user)):
     owner, accounts_root = _resolve_owner(request, owner, identity)
     try:
-        plan = load_plan(owner)
+        plan = load_plan(owner, _data_root(accounts_root))
     except PlanNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValidationError as exc:
@@ -72,12 +79,14 @@ def put_investment_plan(
     identity: Optional[str] = Depends(get_active_user),
 ):
     owner, accounts_root = _resolve_owner(request, owner, identity)
-    data = {**body, "owner": body.get("owner", owner)}
+    data = {**body, "owner": body.get("owner") or owner}
     try:
         plan = parse_plan(data, owner)
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=_validation_detail(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    save_plan(plan)
-    return _response(plan, owner, accounts_root)
+    # Build the response first so a failure there cannot follow a completed write.
+    response = _response(plan, owner, accounts_root)
+    save_plan(plan, _data_root(accounts_root))
+    return response

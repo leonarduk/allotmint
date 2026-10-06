@@ -28,7 +28,8 @@ def data_root(monkeypatch, tmp_path):
     for owner in ("alex", "bob"):
         (accounts / owner).mkdir(parents=True)
     (accounts / "alex" / "person.json").write_text(json.dumps({"owner": "alex"}))
-    monkeypatch.setattr(plan_mod.config, "data_root", tmp_path, raising=False)
+    # Point the configured data root elsewhere: the route must use the request's accounts root.
+    monkeypatch.setattr(plan_mod.config, "data_root", tmp_path / "elsewhere", raising=False)
     monkeypatch.setattr(plan_mod, "get_instrument_meta", lambda ticker: {"ticker": ticker})
     return tmp_path
 
@@ -61,11 +62,30 @@ def test_put_then_get_round_trip(data_root):
     assert body["rebalance"]["matches"] is False
 
 
-def test_put_defaults_owner_from_path(data_root):
+@pytest.mark.parametrize("owner_field", ["missing", None])
+def test_put_defaults_owner_from_path(data_root, owner_field):
     payload = {k: v for k, v in PLAN.items() if k != "owner"}
+    if owner_field is None:
+        payload["owner"] = None
     resp = _client(data_root).put("/plans/alex", json=payload)
     assert resp.status_code == 200
     assert resp.json()["plan"]["owner"] == "alex"
+
+
+def test_plan_stored_beside_request_accounts_root(data_root):
+    _client(data_root).put("/plans/alex", json=PLAN)
+    assert (data_root / "plans" / "alex.json").exists()
+    assert not (data_root / "elsewhere").exists()
+
+
+def test_put_does_not_write_when_response_fails(data_root, monkeypatch):
+    def boom(owner, root):
+        raise RuntimeError("policy unavailable")
+
+    monkeypatch.setattr(plan_route, "load_allocation_policy", boom)
+    with pytest.raises(RuntimeError):
+        _client(data_root).put("/plans/alex", json=PLAN)
+    assert not (data_root / "plans" / "alex.json").exists()
 
 
 def test_put_rejects_bad_weight_sum(data_root):

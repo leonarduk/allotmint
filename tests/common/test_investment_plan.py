@@ -167,3 +167,18 @@ def test_compare_copies_exact_keys_when_policy_accepts_them(monkeypatch):
     assert result["copy_supported"] is True
     assert result["matches"] is False
     assert result["plan_targets"]["long_gilts"] == 10
+
+
+def test_bare_string_vehicle_shorthand():
+    plan = parse_plan(plan_data(vehicles={"gold": "PHGP.L", "equity": {"note": "tbc"}}), "alex")
+    assert plan.vehicles["gold"][0].ticker == "PHGP.L"
+    assert plan.vehicles["equity"][0].note == "tbc"
+
+
+def test_compare_surfaces_errors_other_than_unknown_class(monkeypatch):
+    def broken(data):
+        raise ValueError("tolerance_pct must be a number")
+
+    monkeypatch.setattr(plan_mod, "parse_policy", broken)
+    with pytest.raises(ValueError, match="tolerance_pct"):
+        compare_with_rebalance_targets(parse_plan(plan_data(), "alex"), AllocationPolicy())

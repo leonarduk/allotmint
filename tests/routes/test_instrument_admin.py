@@ -121,7 +121,7 @@ def test_post_instrument_create(monkeypatch, tmp_path):
 
     saved = {}
 
-    def fake_save(t, e, body):
+    def fake_save(t, e, body, **_kwargs):
         saved["ticker"] = f"{t}.{e}"
         saved["body"] = body
 
@@ -143,7 +143,7 @@ def test_assign_group_updates_metadata(monkeypatch, tmp_path):
 
     saved: dict[str, Any] = {}
 
-    def fake_save(t, e, body):
+    def fake_save(t, e, body, **_kwargs):
         saved["ticker"] = f"{t}.{e}"
         saved["body"] = body
 
@@ -217,7 +217,7 @@ def test_put_instrument_update(monkeypatch, tmp_path):
 
     saved = {}
 
-    def fake_save(t, e, body):
+    def fake_save(t, e, body, **_kwargs):
         saved["ticker"] = f"{t}.{e}"
         saved["body"] = body
 
@@ -239,7 +239,7 @@ def test_clear_group_updates_metadata(monkeypatch, tmp_path):
 
     saved: dict[str, Any] = {}
 
-    def fake_save(t, e, body):
+    def fake_save(t, e, body, **_kwargs):
         saved["ticker"] = f"{t}.{e}"
         saved["body"] = body
 

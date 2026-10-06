@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from backend.common.instrument_classification import cached_classification_overrides, classify_instrument
+from backend.common.isin import check_isin_change
 from backend.common.yahoo_chart import chart_quote
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -291,15 +292,38 @@ def instrument_meta_path(ticker: str, exchange: str) -> Path:
     return _instrument_path(f"{sym}.{exch}")
 
 
+def _isin_on_disk(path: Path) -> Optional[str]:
+    """The ``isin`` currently stored at ``path``, or ``None`` if absent/unreadable."""
+    try:
+        stored = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as exc:
+        logger.warning(
+            "Cannot read existing instrument metadata at %s for the ISIN check: %s",
+            sanitise_log_value(path),
+            sanitise_log_value(exc),
+        )
+        return None
+    return stored.get("isin") if isinstance(stored, dict) else None
+
+
 def save_instrument_meta(
     ticker: str,
     exchange: str | Dict[str, Any],
     data: Optional[Dict[str, Any]] = None,
+    *,
+    allow_foreign_isin: bool = False,
 ) -> Optional[Path]:
     """Persist metadata for an instrument and optionally upload to S3.
 
     Supports calling as ``save_instrument_meta("ABC", "L", {...})`` or
     ``save_instrument_meta("ABC.L", {...})``.
+
+    Raises :class:`backend.common.isin.ForeignIsinError` (a ``ValueError``)
+    when ``data`` sets or changes the ISIN to one whose country prefix does
+    not fit ``exchange`` (a London line given ``US1101221083``, #9295), unless
+    ``allow_foreign_isin`` is set. An unchanged ISIN is never re-judged.
 
     Returns the path written on success, or ``None`` if the local filesystem
     write failed (e.g. a read-only filesystem in the Lambda runtime). A
@@ -324,6 +348,7 @@ def save_instrument_meta(
     data = _decode_metadata_name(data, source=f"save_instrument_meta:{ticker}.{exchange}")
 
     path = instrument_meta_path(ticker, exchange)  # type: ignore[arg-type]
+    check_isin_change(_isin_on_disk(path), data.get("isin"), exchange, allow_foreign_isin=allow_foreign_isin)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8") as fh:

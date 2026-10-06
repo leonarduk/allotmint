@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from backend.common import instrument_groups
 from backend.common.instruments import (
@@ -18,6 +18,7 @@ from backend.common.instruments import (
     list_instruments,
     save_instrument_meta,
 )
+from backend.common.isin import ForeignIsinError
 from backend.config import config
 
 router = APIRouter(
@@ -91,8 +92,27 @@ def get_instrument(exchange: str, ticker: str) -> dict[str, Any]:
     return meta
 
 
+_ALLOW_FOREIGN_ISIN = Query(
+    False,
+    description="Confirm an ISIN whose country prefix does not fit the exchange (e.g. a depositary interest).",
+)
+
+
+def _save(ticker: str, exchange: str, meta: dict[str, Any], allow_foreign_isin: bool) -> None:
+    """``save_instrument_meta`` with a foreign-prefix ISIN change reported as 422."""
+    try:
+        save_instrument_meta(ticker, exchange, meta, allow_foreign_isin=allow_foreign_isin)
+    except ForeignIsinError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @router.post("/admin/{exchange}/{ticker}")
-def create_instrument(exchange: str, ticker: str, body: dict[str, Any]) -> dict[str, str]:
+def create_instrument(
+    exchange: str,
+    ticker: str,
+    body: dict[str, Any],
+    allow_foreign_isin: bool = _ALLOW_FOREIGN_ISIN,
+) -> dict[str, str]:
     """Create metadata for a new instrument."""
 
     try:
@@ -107,12 +127,17 @@ def create_instrument(exchange: str, ticker: str, body: dict[str, Any]) -> dict[
         raise HTTPException(status_code=409, detail="Instrument already exists")
     if body.get("ticker") and body["ticker"] != f"{ticker}.{exchange}":
         raise HTTPException(status_code=400, detail="Ticker mismatch")
-    save_instrument_meta(ticker, exchange, body)
+    _save(ticker, exchange, body, allow_foreign_isin)
     return {"status": "created"}
 
 
 @router.put("/admin/{exchange}/{ticker}")
-def update_instrument(exchange: str, ticker: str, body: dict[str, Any]) -> dict[str, str]:
+def update_instrument(
+    exchange: str,
+    ticker: str,
+    body: dict[str, Any],
+    allow_foreign_isin: bool = _ALLOW_FOREIGN_ISIN,
+) -> dict[str, str]:
     """Update metadata for an existing instrument."""
 
     try:
@@ -139,7 +164,7 @@ def update_instrument(exchange: str, ticker: str, body: dict[str, Any]) -> dict[
 
     meta["ticker"] = canonical_ticker
     meta["exchange"] = exchange
-    save_instrument_meta(ticker, exchange, meta)
+    _save(ticker, exchange, meta, allow_foreign_isin)
     return {"status": "updated"}
 
 

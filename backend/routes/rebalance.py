@@ -39,7 +39,8 @@ def _resolve_owner(request: Request, owner: str, identity: Optional[str]) -> Tup
 
 def _load_portfolio(owner: str, accounts_root: Path) -> Dict[str, Any]:
     try:
-        return portfolio_mod.build_owner_portfolio(owner, accounts_root)
+        # Stems give each account a stable id across the plan/new-cash requests (#9496).
+        return portfolio_mod.build_owner_portfolio(owner, accounts_root, include_account_stem=True)
     except FileNotFoundError:
         raise_owner_not_found(owner)
 

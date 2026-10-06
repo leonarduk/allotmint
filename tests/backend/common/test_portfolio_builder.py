@@ -147,3 +147,33 @@ def test_build_owner_portfolio_prices_holdings_from_cache_only(monkeypatch, port
     assert seen, "enrich_holding was never called"
     assert seen == [True, True]
     assert importlib.import_module("backend.timeseries.cache").is_cache_only() is False
+
+
+def test_account_stem_is_opt_in(portfolio_stubs):
+    # AccountContract forbids extra keys, so /portfolio responses must not
+    # carry the stem; the rebalance plan asks for it as a stable id (#9496).
+    from backend.common.portfolio_loader import ACCOUNT_STEM_KEY
+
+    default = build_owner_portfolio(portfolio_stubs["owner"])
+    assert ACCOUNT_STEM_KEY not in default["accounts"][0]
+
+    tagged = build_owner_portfolio(portfolio_stubs["owner"], include_account_stem=True)
+    assert tagged["accounts"][0][ACCOUNT_STEM_KEY] == "account-one"
+
+
+def test_account_stems_match_file_names_and_are_stable_across_calls(monkeypatch, portfolio_stubs):
+    # The rebalance plan hands these out as account ids and receives them back
+    # on a later request, so they must come from the account files, not order.
+    from backend.common.portfolio_loader import ACCOUNT_STEM_KEY
+
+    owner = portfolio_stubs["owner"]
+    monkeypatch.setattr(
+        "backend.common.portfolio.list_plots",
+        lambda accounts_root=None: [OwnerSummaryRecord(owner=owner, accounts=["isa", "sipp"])],
+    )
+    first = build_owner_portfolio(owner, include_account_stem=True)
+    second = build_owner_portfolio(owner, include_account_stem=True)
+
+    stems = [a[ACCOUNT_STEM_KEY] for a in first["accounts"]]
+    assert stems == ["isa", "sipp"]
+    assert [a[ACCOUNT_STEM_KEY] for a in second["accounts"]] == stems

@@ -151,6 +151,24 @@ def owner_xirr(owner: str, days: int = 365, as_of: str | None = None):
         raise_owner_not_found(owner)
 
 
+@router.get("/performance/{owner}/fx-attribution")
+@handle_owner_not_found
+def owner_fx_attribution(owner: str, days: int = 365, as_of: str | None = None):
+    """Split ``owner``'s ledger P&L over the window into local, FX, income and other (#9804).
+
+    The window matches ``/performance/{owner}/twr``. ``fx_attribution`` is
+    ``None`` when the owner has no transaction ledger to rebuild. Cash is not
+    attributed: the ledger books every cash amount in GBP, so FX on foreign
+    cash balances is not modelled (``cash_fx_modelled: false``).
+    """
+    owner = _validate_owner_slug(owner, "owner")
+    try:
+        result = portfolio_utils.compute_fx_attribution(owner, days, pricing_date=_resolve_as_of(as_of))
+        return {"owner": owner, "fx_attribution": result}
+    except FileNotFoundError:
+        raise_owner_not_found(owner)
+
+
 @router.get("/performance/{owner}/holdings")
 @handle_owner_not_found
 def owner_holdings(owner: str, date: str):

@@ -25,7 +25,7 @@ def _patch_defaults(monkeypatch, tmp_path):
 def test_settings_path_missing(tmp_path, monkeypatch):
     _patch_defaults(monkeypatch, tmp_path)
     with pytest.raises(FileNotFoundError):
-        uc._settings_path("missing", tmp_path)
+        uc.settings_path("missing", tmp_path)
 
 
 @pytest.mark.parametrize("contents", [None, "{bad json"])

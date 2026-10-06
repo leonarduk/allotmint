@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import List, Optional
 
-from backend.common.data_loader import resolve_owner_dir
 from backend.common.portfolio_cache import invalidate_group_portfolios
+from backend.common.settings_file import SettingsUnreadableError, read_settings, settings_path
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_str_list(val: object) -> Optional[List[str]]:
@@ -40,20 +44,18 @@ class UserConfig:
         return asdict(self)
 
 
-def _settings_path(owner: str, accounts_root: Path | None = None) -> Path:
-    owner_dir = resolve_owner_dir(owner, accounts_root)
-    return owner_dir / "settings.json"
-
-
 def load_user_config(owner: str, accounts_root: Path | None = None) -> UserConfig:
-    """Load per-user configuration if present, falling back to defaults."""
-    path = _settings_path(owner, accounts_root)
-    data: dict[str, object] = {}
-    if path.exists():
-        try:
-            data = json.loads(path.read_text()) or {}
-        except Exception:
-            data = {}
+    """Load per-user configuration if present, falling back to defaults.
+
+    An unreadable ``settings.json`` is logged and treated as unset: this runs
+    on every portfolio build, so it must not fail page loads. Saving over such
+    a file is refused instead (see :func:`save_user_config`).
+    """
+    try:
+        data: dict[str, object] = read_settings(settings_path(owner, accounts_root))
+    except SettingsUnreadableError as exc:
+        logger.warning("Using default user config for %s: %s", sanitise_log_value(owner), sanitise_log_value(exc))
+        data = {}
     types = _parse_str_list(data.get("approval_exempt_types"))
     if types is None:
         types = config.approval_exempt_types
@@ -69,13 +71,14 @@ def load_user_config(owner: str, accounts_root: Path | None = None) -> UserConfi
 
 
 def save_user_config(owner: str, cfg: UserConfig | dict[str, object], accounts_root: Path | None = None) -> None:
-    path = _settings_path(owner, accounts_root)
-    existing: dict[str, object] = {}
-    if path.exists():
-        try:
-            existing = json.loads(path.read_text()) or {}
-        except Exception:
-            existing = {}
+    """Merge ``cfg`` into ``owner``'s ``settings.json``, preserving other keys.
+
+    Raises :class:`SettingsUnreadableError` rather than overwriting an
+    unreadable file, which would silently drop every other setting in it,
+    e.g. the rebalance ``allocation_policy`` (#9514).
+    """
+    path = settings_path(owner, accounts_root)
+    existing = read_settings(path)
 
     if isinstance(cfg, UserConfig):
         updates = {k: v for k, v in cfg.to_dict().items() if v is not None}

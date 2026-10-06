@@ -299,13 +299,12 @@ export default function PensionForecast() {
   // until then, fall back to the portfolio-derived figure (#7211).
   const displayedPensionPot = pensionPot ?? portfolioPensionPot;
 
-  const displayedCurrentAge = currentAge ?? profile?.current_age ?? null;
   const displayedDob = dob ?? profile?.dob ?? null;
-  // Prefer calendar age from the DOB: the API's fractional age (days / 365.25)
-  // can't be rounded or floored into the right whole number reliably.
-  const displayedWholeAge =
-    ageInWholeYears(displayedDob) ??
-    (displayedCurrentAge != null ? Math.floor(displayedCurrentAge) : null);
+  // Displayed ages come from the DOB only: the API's fractional age
+  // (days / 365.25) can't be rounded or floored into the right whole number
+  // reliably, so there is deliberately no fallback to it.
+  const displayedWholeAge = ageInWholeYears(displayedDob);
+  const forecastWholeAge = ageInWholeYears(dob);
   const displayedStatePensionAge =
     forecastStatePensionAge ?? profile?.state_pension_age ?? null;
   // The forecast's breakdown only counts the state pension once it's being
@@ -872,10 +871,10 @@ export default function PensionForecast() {
             </div>
           )}
           <div className="space-y-3 text-sm text-slate-700">
-            {currentAge !== null && dob && (
+            {currentAge !== null && dob && forecastWholeAge !== null && (
               <InfoLine
                 label={t("pensionForecast.currentAge", {
-                  age: ageInWholeYears(dob) ?? Math.floor(currentAge),
+                  age: forecastWholeAge,
                 })}
                 value={t("pensionForecast.birthDate", { dob })}
               />

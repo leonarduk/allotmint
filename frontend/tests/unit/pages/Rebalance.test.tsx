@@ -60,12 +60,12 @@ function makePlan(overrides: Partial<RebalancePlan> = {}): RebalancePlan {
     unclassified_pct: 0,
     unpriced_tickers: [],
     accounts: [
-      { id: '0', label: 'ISA', value: 1000, cash: 0 },
-      { id: '1', label: 'SIPP', value: 1000, cash: 0 },
+      { id: 'isa', label: 'ISA', value: 1000, cash: 0 },
+      { id: 'sipp', label: 'SIPP', value: 1000, cash: 0 },
     ],
     trades: [
       {
-        account_id: '0',
+        account_id: 'isa',
         account: 'ISA',
         asset_class: 'equity',
         action: 'sell',
@@ -74,7 +74,7 @@ function makePlan(overrides: Partial<RebalancePlan> = {}): RebalancePlan {
         name: 'Equity One',
       },
       {
-        account_id: '0',
+        account_id: 'isa',
         account: 'ISA',
         asset_class: 'bond',
         action: 'buy',
@@ -83,7 +83,7 @@ function makePlan(overrides: Partial<RebalancePlan> = {}): RebalancePlan {
         name: 'Bond One',
       },
       {
-        account_id: '1',
+        account_id: 'sipp',
         account: 'SIPP',
         asset_class: 'equity',
         action: 'sell',
@@ -92,7 +92,7 @@ function makePlan(overrides: Partial<RebalancePlan> = {}): RebalancePlan {
         name: null,
       },
       {
-        account_id: '1',
+        account_id: 'sipp',
         account: 'SIPP',
         asset_class: 'bond',
         action: 'buy',
@@ -253,11 +253,11 @@ describe('Rebalance page', () => {
 
   it('plans a buy-only contribution into the chosen account', async () => {
     mockGetNewCashPlan.mockResolvedValue({
-      account_id: '1',
+      account_id: 'sipp',
       account: 'SIPP',
       trades: [
         {
-          account_id: '1',
+          account_id: 'sipp',
           account: 'SIPP',
           asset_class: 'bond',
           action: 'buy',
@@ -274,14 +274,14 @@ describe('Rebalance page', () => {
       target: { value: '500' },
     });
     fireEvent.change(within(form).getByLabelText('Into account'), {
-      target: { value: '1' },
+      target: { value: 'sipp' },
     });
     fireEvent.click(
       within(form).getByRole('button', { name: 'Plan contribution' })
     );
 
     await waitFor(() =>
-      expect(mockGetNewCashPlan).toHaveBeenCalledWith('alex', 500, '1')
+      expect(mockGetNewCashPlan).toHaveBeenCalledWith('alex', 500, 'sipp')
     );
     expect(
       await within(form).findByRole('link', { name: /Bond Two/ })
@@ -412,6 +412,82 @@ describe('Rebalance page', () => {
 
     const trades = screen.getByRole('region', { name: 'Suggested trades' });
     expect(within(trades).getByText('Gold')).toBeInTheDocument();
+  });
+
+  it('keeps the chosen account when the plan reloads with accounts reordered (#9496)', async () => {
+    const plan = makePlan();
+    // Saving targets reloads the plan; the backend may list accounts in a
+    // different order, so the selection must follow the account id, not its
+    // position in the list.
+    mockGetRebalancePlan.mockResolvedValueOnce(plan).mockResolvedValueOnce({
+      ...plan,
+      accounts: [...plan.accounts].reverse(),
+    });
+    mockSaveAllocationPolicy.mockResolvedValue(plan.policy);
+    mockGetNewCashPlan.mockResolvedValue({
+      account_id: 'sipp',
+      account: 'SIPP',
+      trades: [],
+      keep_as_cash: 100,
+    });
+    await renderPage();
+    const form = await screen.findByRole('form', { name: 'Invest new cash' });
+    const select = within(form).getByLabelText(
+      'Into account'
+    ) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'sipp' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save targets' }));
+    await waitFor(() => expect(mockGetRebalancePlan).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(within(select).getAllByRole('option')[0]).toHaveTextContent('SIPP')
+    );
+
+    expect(select.value).toBe('sipp');
+    expect(select.selectedOptions[0]).toHaveTextContent('SIPP');
+    fireEvent.change(within(form).getByLabelText('Amount (£)'), {
+      target: { value: '100' },
+    });
+    fireEvent.click(
+      within(form).getByRole('button', { name: 'Plan contribution' })
+    );
+    await waitFor(() =>
+      expect(mockGetNewCashPlan).toHaveBeenCalledWith('alex', 100, 'sipp')
+    );
+  });
+
+  it('falls back to the first account if the chosen one disappears from a reloaded plan', async () => {
+    const plan = makePlan();
+    mockGetRebalancePlan.mockResolvedValueOnce(plan).mockResolvedValueOnce({
+      ...plan,
+      accounts: plan.accounts.filter((a) => a.id !== 'sipp'),
+    });
+    mockSaveAllocationPolicy.mockResolvedValue(plan.policy);
+    mockGetNewCashPlan.mockResolvedValue({
+      account_id: 'isa',
+      account: 'ISA',
+      trades: [],
+      keep_as_cash: 100,
+    });
+    await renderPage();
+    const form = await screen.findByRole('form', { name: 'Invest new cash' });
+    const select = within(form).getByLabelText(
+      'Into account'
+    ) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'sipp' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save targets' }));
+    await waitFor(() => expect(select.value).toBe('isa'));
+
+    fireEvent.change(within(form).getByLabelText('Amount (£)'), {
+      target: { value: '100' },
+    });
+    fireEvent.click(
+      within(form).getByRole('button', { name: 'Plan contribution' })
+    );
+    await waitFor(() =>
+      expect(mockGetNewCashPlan).toHaveBeenCalledWith('alex', 100, 'isa')
+    );
   });
 
   it('reports plan load failures', async () => {

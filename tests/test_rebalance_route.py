@@ -47,6 +47,7 @@ def _owner_client(monkeypatch, tmp_path):
         "accounts": [
             {
                 "account_type": "ISA",
+                "_account_stem": "isa",
                 "holdings": [
                     {"ticker": "CASH.GBP", "market_value_gbp": 200.0, "instrument_type": "Cash"},
                     {"ticker": "EQ1", "market_value_gbp": 800.0, "asset_class": "equity"},
@@ -54,7 +55,13 @@ def _owner_client(monkeypatch, tmp_path):
             }
         ]
     }
-    monkeypatch.setattr(rebalance_route.portfolio_mod, "build_owner_portfolio", lambda owner, root: portfolio)
+
+    def fake_build(owner, root, **kwargs):
+        # The plan's account ids are file stems, so the route must ask for them.
+        assert kwargs.get("include_account_stem") is True
+        return portfolio
+
+    monkeypatch.setattr(rebalance_route.portfolio_mod, "build_owner_portfolio", fake_build)
     app = FastAPI()
     app.include_router(rebalance_route.router)
     app.state.accounts_root = tmp_path
@@ -94,7 +101,7 @@ def test_plan_uses_stored_policy(monkeypatch, tmp_path):
 def test_new_cash_route(monkeypatch, tmp_path):
     client = _owner_client(monkeypatch, tmp_path)
     client.put("/rebalance/alex/policy", json={"targets": {"equity": 50, "bond": 50}})
-    resp = client.get("/rebalance/alex/new-cash", params={"amount": 100, "account": "0"})
+    resp = client.get("/rebalance/alex/new-cash", params={"amount": 100, "account": "isa"})
     assert resp.status_code == 200
     assert [(t["asset_class"], t["amount"]) for t in resp.json()["trades"]] == [("bond", 100.0)]
 
@@ -136,7 +143,7 @@ def test_sub_class_policy_round_trips_and_plans(monkeypatch, tmp_path):
     assert resp.status_code == 200
     plan = client.get("/rebalance/alex/plan").json()
     assert [row["asset_class"] for row in plan["classes"]] == ["equity", "long_gilts", "cash", "gold"]
-    resp = client.get("/rebalance/alex/new-cash", params={"amount": 100, "account": "0"})
+    resp = client.get("/rebalance/alex/new-cash", params={"amount": 100, "account": "isa"})
     assert {t["asset_class"] for t in resp.json()["trades"]} <= {"long_gilts", "gold"}
 
     resp = client.put("/rebalance/alex/policy", json={"targets": {"bond": 50, "long_gilts": 50}})

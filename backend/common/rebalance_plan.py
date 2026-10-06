@@ -27,6 +27,7 @@ from typing import Any, Iterable, Mapping
 
 from backend.common.allocation_policy import AllocationPolicy
 from backend.common.instrument_classification import ASSET_CLASS_LABELS, ASSET_CLASSES, CASH, normalise_asset_class
+from backend.common.portfolio_loader import ACCOUNT_STEM_KEY
 from backend.common.sector_labels import is_cash_instrument
 from backend.common.sub_asset_class import SUB_ASSET_CLASS_LABELS, SUB_ASSET_CLASS_PARENT, SUB_ASSET_CLASSES
 
@@ -122,6 +123,25 @@ def _holding_class(holding: Mapping[str, Any], ticker: str, split: frozenset[str
     return sub_class if SUB_ASSET_CLASS_PARENT.get(sub_class) == asset_class else asset_class
 
 
+def _account_id(account: Mapping[str, Any], seen: set[str]) -> str:
+    """Return the account's stable id: its file stem, never its list position.
+
+    The id goes to the frontend and comes back on a later request (the new-cash
+    plan), so a position-based id could point at a different account if the
+    order changed in between (#9496). Callers must build the portfolio with
+    ``include_account_stem=True``; a missing or repeated stem is a bug, so it
+    raises rather than falling back to the index.
+    """
+    stem = account.get(ACCOUNT_STEM_KEY)
+    if not isinstance(stem, str) or not stem.strip():
+        raise ValueError("Account has no stable id; build the portfolio with include_account_stem=True")
+    account_id = stem.strip()
+    if account_id in seen:
+        raise ValueError(f"Duplicate account id {account_id!r}")
+    seen.add(account_id)
+    return account_id
+
+
 def bucket_holdings(portfolio: Mapping[str, Any], split: frozenset[str] = frozenset()) -> Holdings:
     """Group the portfolio's priced holdings by account and asset class.
 
@@ -131,9 +151,10 @@ def bucket_holdings(portfolio: Mapping[str, Any], split: frozenset[str] = frozen
 
     accounts: list[AccountBucket] = []
     unpriced: set[str] = set()
+    seen_ids: set[str] = set()
     for index, account in enumerate(portfolio.get("accounts") or []):
         label = str(account.get("account_type") or f"Account {index + 1}")
-        bucket = AccountBucket(id=str(index), label=label)
+        bucket = AccountBucket(id=_account_id(account, seen_ids), label=label)
         for holding in account.get("holdings") or []:
             ticker = str(holding.get("ticker") or "").strip().upper()
             if not ticker:

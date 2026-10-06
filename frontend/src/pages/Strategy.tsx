@@ -560,7 +560,17 @@ export default function Strategy() {
   const current = useMemo(() => (plan ? currentWeights(plan) : {}), [plan]);
 
   // Targets and the active strategy's "modified" flag change together.
+  // Bumped whenever the targets may have changed, so the plan panel's
+  // plan-vs-targets comparison refreshes too.
+  const [targetsVersion, setTargetsVersion] = useState(0);
+  // The strategy just applied, so the plan panel can offer to switch the plan too (#9815).
+  const [appliedStrategy, setAppliedStrategy] = useState<{
+    name: string;
+    token: number;
+  } | null>(null);
+
   const reloadAll = useCallback(async () => {
+    setTargetsVersion((v) => v + 1);
     await Promise.all([reload(), reloadStrategies()]);
   }, [reload, reloadStrategies]);
 
@@ -616,9 +626,20 @@ export default function Strategy() {
           current={current}
           hasTargets={hasPolicy}
           onChanged={reloadAll}
+          onApplied={(s) =>
+            setAppliedStrategy((prev) => ({
+              name: s.name,
+              token: (prev?.token ?? 0) + 1,
+            }))
+          }
         />
       )}
-      <PlanPanel owner={selectedOwner} onTargetsCopied={reloadAll} />
+      <PlanPanel
+        owner={selectedOwner}
+        onTargetsCopied={reloadAll}
+        reloadToken={targetsVersion}
+        appliedStrategy={appliedStrategy}
+      />
       {plan && (
         <>
           <DriftTable plan={plan} />

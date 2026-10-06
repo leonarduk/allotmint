@@ -127,6 +127,111 @@ describe('PlanPanel', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('updates the plan target to match the rebalance targets', async () => {
+    const response = makeResponse({
+      rebalance_targets: { equity: 80, intermediate_gilts: 20 },
+      rebalance_as_plan: { equity: 80, intermediate_gilts: 20 },
+    });
+    mockGetInvestmentPlan.mockResolvedValue(response);
+    const updated = makeResponse({ matches: true });
+    updated.plan = {
+      ...updated.plan,
+      version: 2,
+      target: [
+        { class: 'equity', weight_pct: 80 },
+        { class: 'intermediate_gilts', weight_pct: 20 },
+      ],
+    };
+    mockSaveInvestmentPlan.mockResolvedValue(updated);
+    render(<PlanPanel owner="alex" />);
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Update plan to match rebalance targets',
+      })
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Your rebalance targets match this plan.')
+      ).toBeInTheDocument()
+    );
+    const [owner, saved] = mockSaveInvestmentPlan.mock.calls[0];
+    expect(owner).toBe('alex');
+    expect(saved.version).toBe(2);
+    expect(saved.target).toEqual([
+      { class: 'equity', weight_pct: 80 },
+      { class: 'intermediate_gilts', weight_pct: 20 },
+    ]);
+    expect(saved.summary).toBe(response.plan.summary);
+    expect(saved.decisions.at(-1).decision).toMatch(
+      /match rebalance targets: Equity 80%, Intermediate gilts 20%/
+    );
+  });
+
+  it('offers to switch the plan to a just-applied strategy', async () => {
+    const rebalance = {
+      rebalance_targets: { equity: 80, intermediate_gilts: 20 },
+      rebalance_as_plan: { equity: 80, intermediate_gilts: 20 },
+    };
+    mockGetInvestmentPlan.mockResolvedValue(makeResponse(rebalance));
+    mockSaveInvestmentPlan.mockResolvedValue(makeResponse({ matches: true }));
+    const { rerender } = render(<PlanPanel owner="alex" />);
+    await screen.findByText('Your rebalance targets differ from this plan.');
+
+    rerender(
+      <PlanPanel owner="alex" appliedStrategy={{ name: '80/20', token: 1 }} />
+    );
+    expect(
+      await screen.findByText(
+        'You applied 80/20. Also update your investment plan to match?'
+      )
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Update plan' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Your rebalance targets match this plan.')
+      ).toBeInTheDocument()
+    );
+    const saved = mockSaveInvestmentPlan.mock.calls[0][1];
+    expect(saved.target).toEqual([
+      { class: 'equity', weight_pct: 80 },
+      { class: 'intermediate_gilts', weight_pct: 20 },
+    ]);
+    expect(saved.decisions.at(-1).decision).toBe(
+      'Switched to the 80/20 strategy: Equity 80%, Intermediate gilts 20%'
+    );
+  });
+
+  it('lets the applied-strategy prompt be dismissed', async () => {
+    mockGetInvestmentPlan.mockResolvedValue(
+      makeResponse({ rebalance_as_plan: { equity: 100 } })
+    );
+    render(
+      <PlanPanel
+        owner="alex"
+        appliedStrategy={{ name: '100% equity', token: 1 }}
+      />
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Not now' }));
+    expect(
+      screen.getByText('Your rebalance targets differ from this plan.')
+    ).toBeInTheDocument();
+    expect(mockSaveInvestmentPlan).not.toHaveBeenCalled();
+  });
+
+  it('hides the update-plan button when the targets have no plan classes', async () => {
+    mockGetInvestmentPlan.mockResolvedValue(
+      makeResponse({ rebalance_as_plan: null })
+    );
+    render(<PlanPanel owner="alex" />);
+    await screen.findByText('Your rebalance targets differ from this plan.');
+    expect(
+      screen.queryByRole('button', { name: /Update plan/ })
+    ).not.toBeInTheDocument();
+  });
+
   it('copies the plan target to the rebalance targets when supported', async () => {
     const plan_targets = { equity: 40, long_gilts: 40, gold: 20 };
     mockGetInvestmentPlan.mockResolvedValue(

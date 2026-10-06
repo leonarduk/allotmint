@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { getInvestmentPlan, saveAllocationPolicy } from '../api';
+import {
+  getInvestmentPlan,
+  saveAllocationPolicy,
+  saveInvestmentPlan,
+} from '../api';
+import { localDateISO } from '../lib/date';
 import { classLabel, goalPurposeLabel } from '../lib/planForm';
 import type {
   InvestmentPlan,
@@ -32,12 +37,13 @@ type LoadState =
   | { kind: 'error'; message: string }
   | { kind: 'ready'; data: InvestmentPlanResponse };
 
-function useInvestmentPlan(owner: string) {
+function useInvestmentPlan(owner: string, reloadToken: number) {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
 
   const load = useCallback(async () => {
     if (!owner) return;
-    setState({ kind: 'loading' });
+    // Keep showing the current plan while refreshing after a targets change.
+    setState((prev) => (prev.kind === 'ready' ? prev : { kind: 'loading' }));
     try {
       setState({ kind: 'ready', data: await getInvestmentPlan(owner) });
     } catch (err) {
@@ -49,9 +55,14 @@ function useInvestmentPlan(owner: string) {
     }
   }, [owner]);
 
+  // A different owner's plan must not linger while the new one loads.
+  useEffect(() => {
+    setState({ kind: 'loading' });
+  }, [owner]);
+
   useEffect(() => {
     void load(); // errors are captured into state inside load
-  }, [load]);
+  }, [load, reloadToken]);
 
   return { state, setState, load };
 }
@@ -134,8 +145,154 @@ function useCopyToRebalance(
   return { copy, copying, error };
 }
 
+/**
+ * Writes the rebalance targets (e.g. a just-applied strategy) into the plan
+ * target as a new version, recording the change as a decision (#9815).
+ */
+function useUpdatePlanFromTargets(
+  owner: string,
+  plan: InvestmentPlan,
+  weights: Record<string, number> | null | undefined,
+  onUpdated: (data: InvestmentPlanResponse) => void,
+  strategyName?: string
+) {
+  const { t } = useTranslation();
+  const [updating, setUpdating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function update() {
+    if (!weights) return;
+    setUpdating(true);
+    setError(null);
+    const today = localDateISO();
+    const targets = formatTargets(weights, t);
+    try {
+      const data = await saveInvestmentPlan(owner, {
+        ...plan,
+        version: plan.version + 1,
+        updated: today,
+        target: Object.entries(weights).map(([cls, weight_pct]) => ({
+          class: cls,
+          weight_pct,
+        })),
+        decisions: [
+          ...plan.decisions,
+          {
+            date: today,
+            decision: strategyName
+              ? t('planPanel.decisionSwitched', { name: strategyName, targets })
+              : t('planPanel.decisionMatched', { targets }),
+            alternatives: [],
+          },
+        ],
+      });
+      onUpdated(data);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  return { update, updating, error };
+}
+
 const PRIMARY_BUTTON =
   'mt-2 rounded bg-blue-500 px-3 py-1 text-white disabled:opacity-50';
+
+/** Offers to carry the rebalance targets (e.g. an applied strategy) into the plan. */
+function UpdatePlanButton({
+  owner,
+  plan,
+  comparison,
+  onPlanUpdated,
+  strategyName,
+  label,
+}: {
+  owner: string;
+  plan: InvestmentPlan;
+  comparison: Comparison;
+  onPlanUpdated: (data: InvestmentPlanResponse) => void;
+  /** The strategy just applied, named in the recorded decision. */
+  strategyName?: string;
+  label: string;
+}) {
+  const { t } = useTranslation();
+  const { update, updating, error } = useUpdatePlanFromTargets(
+    owner,
+    plan,
+    comparison.rebalance_as_plan,
+    onPlanUpdated,
+    strategyName
+  );
+  if (!comparison.rebalance_as_plan) return null;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => void update()}
+        disabled={updating}
+        className={PRIMARY_BUTTON}
+      >
+        {updating ? t('planPanel.updatingPlan') : label}
+      </button>
+      {error && <p className="mt-1 break-words text-red-600">{error}</p>}
+    </>
+  );
+}
+
+/** Right after a strategy is applied: offers to switch the plan to it too (#9815). */
+function AppliedStrategyPrompt({
+  owner,
+  plan,
+  comparison,
+  strategyName,
+  onPlanUpdated,
+  onDismiss,
+}: {
+  owner: string;
+  plan: InvestmentPlan;
+  comparison: Comparison;
+  strategyName: string;
+  onPlanUpdated: (data: InvestmentPlanResponse) => void;
+  onDismiss: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div
+      className="mb-3 text-sm"
+      role="status"
+      aria-label={t('planPanel.appliedAria')}
+    >
+      <p className="text-amber-700 dark:text-amber-300">
+        {t('planPanel.appliedPrompt', { name: strategyName })}
+      </p>
+      <p>
+        {t('planPanel.planLabel')} {formatTargets(comparison.plan_targets, t)}
+      </p>
+      <p>
+        {strategyName}: {formatTargets(comparison.rebalance_targets, t)}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <UpdatePlanButton
+          owner={owner}
+          plan={plan}
+          comparison={comparison}
+          onPlanUpdated={onPlanUpdated}
+          strategyName={strategyName}
+          label={t('planPanel.updatePlan')}
+        />
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="mt-2 rounded bg-gray-200 px-3 py-1 text-slate-900"
+        >
+          {t('planPanel.notNow')}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Plan vs rebalance targets. Right after an active plan is saved with a
@@ -144,16 +301,24 @@ const PRIMARY_BUTTON =
  */
 function RebalanceComparison({
   owner,
+  plan,
   comparison,
   onCopied,
+  onPlanUpdated,
   offerSync,
   onDismiss,
+  appliedStrategy,
+  onDismissApplied,
 }: {
   owner: string;
+  plan: InvestmentPlan;
   comparison: Comparison;
   onCopied: () => Promise<void>;
+  onPlanUpdated: (data: InvestmentPlanResponse) => void;
   offerSync: boolean;
   onDismiss: () => void;
+  appliedStrategy: string | null;
+  onDismissApplied: () => void;
 }) {
   const { t } = useTranslation();
   const { copy, copying, error } = useCopyToRebalance(
@@ -167,6 +332,19 @@ function RebalanceComparison({
       <p className="mb-3 text-sm text-green-700 dark:text-green-400">
         {t('planPanel.targetsMatch')}
       </p>
+    );
+  }
+
+  if (appliedStrategy && comparison.rebalance_as_plan) {
+    return (
+      <AppliedStrategyPrompt
+        owner={owner}
+        plan={plan}
+        comparison={comparison}
+        strategyName={appliedStrategy}
+        onPlanUpdated={onPlanUpdated}
+        onDismiss={onDismissApplied}
+      />
     );
   }
 
@@ -187,8 +365,8 @@ function RebalanceComparison({
         {t('planPanel.rebalanceTargetsLabel')}{' '}
         {formatTargets(comparison.rebalance_targets, t)}
       </p>
-      {comparison.copy_supported ? (
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
+        {comparison.copy_supported && (
           <button
             type="button"
             onClick={() => void copy()}
@@ -201,17 +379,27 @@ function RebalanceComparison({
                 ? t('planPanel.updateTargets')
                 : t('planPanel.copyTarget')}
           </button>
-          {prompt && (
-            <button
-              type="button"
-              onClick={onDismiss}
-              className="mt-2 rounded bg-gray-200 px-3 py-1 text-slate-900"
-            >
-              {t('planPanel.notNow')}
-            </button>
-          )}
-        </div>
-      ) : (
+        )}
+        {!prompt && (
+          <UpdatePlanButton
+            owner={owner}
+            plan={plan}
+            comparison={comparison}
+            onPlanUpdated={onPlanUpdated}
+            label={t('planPanel.updatePlanToTargets')}
+          />
+        )}
+        {prompt && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="mt-2 rounded bg-gray-200 px-3 py-1 text-slate-900"
+          >
+            {t('planPanel.notNow')}
+          </button>
+        )}
+      </div>
+      {!comparison.copy_supported && (
         <p className="text-xs text-slate-500 dark:text-slate-400">
           {t('planPanel.perAssetClassNote')}
         </p>
@@ -381,14 +569,20 @@ function PlanBody({
   owner,
   data,
   onCopied,
+  onPlanUpdated,
   offerSync,
   onDismissSync,
+  appliedStrategy,
+  onDismissApplied,
 }: {
   owner: string;
   data: InvestmentPlanResponse;
   onCopied: () => Promise<void>;
+  onPlanUpdated: (data: InvestmentPlanResponse) => void;
   offerSync: boolean;
   onDismissSync: () => void;
+  appliedStrategy: string | null;
+  onDismissApplied: () => void;
 }) {
   const { t } = useTranslation();
   const { plan } = data;
@@ -409,10 +603,14 @@ function PlanBody({
       <TargetTable plan={plan} />
       <RebalanceComparison
         owner={owner}
+        plan={plan}
         comparison={data.rebalance}
         onCopied={onCopied}
+        onPlanUpdated={onPlanUpdated}
         offerSync={offerSync}
         onDismiss={onDismissSync}
+        appliedStrategy={appliedStrategy}
+        onDismissApplied={onDismissApplied}
       />
       {data.warnings.length > 0 && (
         <ul className="mb-3 list-disc pl-5 text-xs text-amber-700 dark:text-amber-300">
@@ -437,20 +635,33 @@ function PlanBody({
 export default function PlanPanel({
   owner,
   onTargetsCopied,
+  reloadToken = 0,
+  appliedStrategy = null,
 }: {
   owner: string;
   onTargetsCopied?: () => Promise<void> | void;
+  /** Bump to re-fetch the plan comparison after the rebalance targets change elsewhere. */
+  reloadToken?: number;
+  /** A strategy just applied on the page; `token` changes on every apply. */
+  appliedStrategy?: { name: string; token: number } | null;
 }) {
   const { t } = useTranslation();
-  const { state, setState, load } = useInvestmentPlan(owner);
+  const { state, setState, load } = useInvestmentPlan(owner, reloadToken);
   const [editing, setEditing] = useState(false);
   // Set when an active plan was just saved with a target that differs from the rebalance targets.
   const [offerSync, setOfferSync] = useState(false);
+  // Name of a just-applied strategy the plan could switch to as well.
+  const [offerApplied, setOfferApplied] = useState<string | null>(null);
 
   useEffect(() => {
     setEditing(false);
     setOfferSync(false);
+    setOfferApplied(null);
   }, [owner]);
+
+  useEffect(() => {
+    if (appliedStrategy) setOfferApplied(appliedStrategy.name);
+  }, [appliedStrategy]);
 
   // Refresh the comparison even if the page's own reload fails; that error
   // still propagates to the copy button's error message.
@@ -524,8 +735,14 @@ export default function PlanPanel({
               owner={owner}
               data={state.data}
               onCopied={handleCopied}
+              onPlanUpdated={(data) => {
+                setState({ kind: 'ready', data });
+                setOfferApplied(null);
+              }}
               offerSync={offerSync}
               onDismissSync={() => setOfferSync(false)}
+              appliedStrategy={offerApplied}
+              onDismissApplied={() => setOfferApplied(null)}
             />
           )}
         </>

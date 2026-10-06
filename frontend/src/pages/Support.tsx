@@ -27,6 +27,7 @@ import type { OwnerSummary } from "../types";
 import { orderedTabPlugins, type TabPluginId } from "../tabPlugins";
 import { usePriceRefresh } from "../PriceRefreshContext";
 import { sanitizeOwners } from "../utils/owners";
+import { APP_TAB_NAME } from "../tabNames";
 
 const TAB_KEYS = orderedTabPlugins.map((p) => p.id) as TabPluginId[];
 const EMPTY_TABS = Object.fromEntries(TAB_KEYS.map((k) => [k, false])) as Record<
@@ -451,8 +452,10 @@ export default function Support() {
   return (
     <div className="container mx-auto max-w-3xl space-y-8 p-4">
       <header>
+        {/* Switches to the named app tab, opening it if it isn't open (#9575). */}
         <Link
           to="/"
+          target={APP_TAB_NAME}
           className="mb-2 inline-block text-blue-500 hover:underline"
         >
           {t("app.userLink")}

@@ -94,25 +94,16 @@ function formatTargets(targets: Record<string, number>): string {
     .join(', ');
 }
 
-function RebalanceComparison({
-  owner,
-  comparison,
-  onCopied,
-}: {
-  owner: string;
-  comparison: InvestmentPlanResponse['rebalance'];
-  onCopied: () => Promise<void>;
-}) {
+type Comparison = InvestmentPlanResponse['rebalance'];
+
+/** Saves the plan target (in the policy's vocabulary) as the rebalance targets. */
+function useCopyToRebalance(
+  owner: string,
+  comparison: Comparison,
+  onCopied: () => Promise<void>
+) {
   const [copying, setCopying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  if (comparison.matches) {
-    return (
-      <p className="mb-3 text-sm text-green-700 dark:text-green-400">
-        Your rebalance targets match this plan.
-      </p>
-    );
-  }
 
   async function copy() {
     setCopying(true);
@@ -130,6 +121,45 @@ function RebalanceComparison({
     }
   }
 
+  return { copy, copying, error };
+}
+
+const PRIMARY_BUTTON =
+  'mt-2 rounded bg-blue-500 px-3 py-1 text-white disabled:opacity-50';
+
+/**
+ * Plan vs rebalance targets. Right after an active plan is saved with a
+ * different target (`offerSync`), asks whether to update the rebalance
+ * targets; otherwise reports the mismatch with a copy button (#9680).
+ */
+function RebalanceComparison({
+  owner,
+  comparison,
+  onCopied,
+  offerSync,
+  onDismiss,
+}: {
+  owner: string;
+  comparison: Comparison;
+  onCopied: () => Promise<void>;
+  offerSync: boolean;
+  onDismiss: () => void;
+}) {
+  const { copy, copying, error } = useCopyToRebalance(
+    owner,
+    comparison,
+    onCopied
+  );
+
+  if (comparison.matches) {
+    return (
+      <p className="mb-3 text-sm text-green-700 dark:text-green-400">
+        Your rebalance targets match this plan.
+      </p>
+    );
+  }
+
+  const prompt = offerSync && comparison.copy_supported;
   return (
     <div
       className="mb-3 text-sm"
@@ -137,19 +167,36 @@ function RebalanceComparison({
       aria-label="Plan and rebalance mismatch"
     >
       <p className="text-amber-700 dark:text-amber-300">
-        Your rebalance targets differ from this plan.
+        {prompt
+          ? 'Update your rebalance targets to match this plan?'
+          : 'Your rebalance targets differ from this plan.'}
       </p>
       <p>Plan: {formatTargets(comparison.plan_targets)}</p>
       <p>Rebalance targets: {formatTargets(comparison.rebalance_targets)}</p>
       {comparison.copy_supported ? (
-        <button
-          type="button"
-          onClick={() => void copy()}
-          disabled={copying}
-          className="mt-2 rounded bg-blue-500 px-3 py-1 text-white disabled:opacity-50"
-        >
-          {copying ? 'Copying…' : 'Copy plan target to rebalance targets'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void copy()}
+            disabled={copying}
+            className={PRIMARY_BUTTON}
+          >
+            {copying
+              ? 'Updating…'
+              : prompt
+                ? 'Update rebalance targets'
+                : 'Copy plan target to rebalance targets'}
+          </button>
+          {prompt && (
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="mt-2 rounded bg-gray-200 px-3 py-1 text-slate-900"
+            >
+              Not now
+            </button>
+          )}
+        </div>
       ) : (
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Rebalance targets are set per asset class, so the plan is compared
@@ -211,10 +258,14 @@ function PlanBody({
   owner,
   data,
   onCopied,
+  offerSync,
+  onDismissSync,
 }: {
   owner: string;
   data: InvestmentPlanResponse;
   onCopied: () => Promise<void>;
+  offerSync: boolean;
+  onDismissSync: () => void;
 }) {
   const { plan } = data;
   return (
@@ -228,6 +279,8 @@ function PlanBody({
         owner={owner}
         comparison={data.rebalance}
         onCopied={onCopied}
+        offerSync={offerSync}
+        onDismiss={onDismissSync}
       />
       {data.warnings.length > 0 && (
         <ul className="mb-3 list-disc pl-5 text-xs text-amber-700 dark:text-amber-300">
@@ -258,8 +311,13 @@ export default function PlanPanel({
 }) {
   const { state, setState, load } = useInvestmentPlan(owner);
   const [editing, setEditing] = useState(false);
+  // Set when an active plan was just saved with a target that differs from the rebalance targets.
+  const [offerSync, setOfferSync] = useState(false);
 
-  useEffect(() => setEditing(false), [owner]);
+  useEffect(() => {
+    setEditing(false);
+    setOfferSync(false);
+  }, [owner]);
 
   // Refresh the comparison even if the page's own reload fails; that error
   // still propagates to the copy button's error message.
@@ -298,6 +356,9 @@ export default function PlanPanel({
           onSaved={(data) => {
             setState({ kind: 'ready', data });
             setEditing(false);
+            setOfferSync(
+              data.plan.status === 'active' && !data.rebalance.matches
+            );
           }}
           onCancel={() => setEditing(false)}
         />
@@ -320,7 +381,13 @@ export default function PlanPanel({
             />
           )}
           {state.kind === 'ready' && (
-            <PlanBody owner={owner} data={state.data} onCopied={handleCopied} />
+            <PlanBody
+              owner={owner}
+              data={state.data}
+              onCopied={handleCopied}
+              offerSync={offerSync}
+              onDismissSync={() => setOfferSync(false)}
+            />
           )}
         </>
       )}

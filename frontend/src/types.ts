@@ -47,6 +47,13 @@ export interface Holding {
   /** Whether the current price may be stale */
   is_stale?: boolean | null;
   latest_source?: string | null;
+  /**
+   * Where the FX rate valuing a non-GBP holding came from (#9664): "live",
+   * "cache", "fallback" (an approximate constant) or "missing" (no rate --
+   * the holding is left unpriced); null for GBP/GBX holdings, and for a
+   * holding with no metadata currency and an unparseable symbol (treated as GBP).
+   */
+  fx_rate_source?: string | null;
   day_change_gbp?: number | null;
   day_change_currency?: string | null;
   instrument_type?: string | null;

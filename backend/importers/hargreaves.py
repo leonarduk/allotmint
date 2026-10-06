@@ -27,6 +27,11 @@ _NAME_COLUMNS = ("Stock", "Security", "Name", "Description")
 _TRANSFER_MARKER_RE = re.compile(r"^\s*\*R\b\s*|\s*\*R\s*$", re.IGNORECASE)
 TRANSFER_IN_COMMENT = "Transferred in (HL *R)"
 MISSING_COST_COMMENT = "cost basis missing from HL export"
+PRICE_FROM_VALUE_COMMENT = "price derived from Value (£) / units: labelled price disagreed"
+
+# Relative gap between ``units * price`` and ``Value (£)`` beyond which the
+# labelled price is not trusted (#9679).
+_VALUE_TOLERANCE = 0.05
 
 
 def _to_float(value: str | None) -> float | None:
@@ -58,12 +63,22 @@ def _first_number(row: dict[str, str | None], columns: tuple[str, ...]) -> float
 
 
 def _price_in_gbp(row: dict[str, str | None], units: float | None) -> float | None:
-    """Read a price and verify its GBP/GBX scale against market value.
+    """Read a price and verify it in GBP against market value; see :func:`_checked_price`."""
+    price, _derived = _checked_price(row, units)
+    return price
+
+
+def _checked_price(row: dict[str, str | None], units: float | None) -> tuple[float | None, bool]:
+    """Read a price, verify it against market value, and say whether it was derived.
 
     HL exports label prices in either pounds or pence.  The market-value
     column provides an independent check: if the labelled interpretation is
     about 100 times away but the alternative agrees, use the alternative.
     This protects imports when an export uses a stale or ambiguous heading.
+    When neither reading is within ``_VALUE_TOLERANCE`` of ``Value (£)`` --
+    e.g. a price quoted in USD (#9679) -- ``Value (£)`` is authoritative and
+    the price is derived as ``value / units``; the second element is then
+    ``True`` so the row can be flagged.
     """
     raw_pence = _first_number(row, _PENCE_PRICE_COLUMNS)
     raw_pounds = _first_number(row, _POUND_PRICE_COLUMNS)
@@ -83,14 +98,16 @@ def _price_in_gbp(row: dict[str, str | None], units: float | None) -> float | No
         or value_gbp is None
         or value_gbp <= 0
     ):
-        return labelled_price
+        return labelled_price, False
 
     alternative_price = raw_price if labelled_price != raw_price else raw_price / 100
     labelled_error = abs((units * labelled_price) - value_gbp) / value_gbp
     alternative_error = abs((units * alternative_price) - value_gbp) / value_gbp
     if labelled_error > 0.5 and alternative_error < 0.1:
-        return alternative_price
-    return labelled_price
+        return alternative_price, False
+    if labelled_error <= _VALUE_TOLERANCE:
+        return labelled_price, False
+    return value_gbp / units, True
 
 
 def _strip_transfer_marker(value: str) -> tuple[str, bool]:
@@ -122,12 +139,18 @@ def _parse_row(row: dict[str, str | None]) -> Transaction:
     code = canonical_ticker(code)
     name, name_marked = _strip_transfer_marker(_first_text(row, _NAME_COLUMNS))
     units = _to_float(row.get("Units held") or row.get("Units"))
-    price = _price_in_gbp(row, units)
+    price, price_derived = _checked_price(row, units)
     cost = _to_float(row.get("Cost (£)") or row.get("Cost"))
     amount_minor = cost * 100 if cost is not None else None
     position = add_position(ticker=code, price=price, units=units, amount_minor=amount_minor)
     if name:
         position.instrument_name = name
+    if price_derived:
+        _append_comment(position, PRICE_FROM_VALUE_COMMENT)
+        logger.warning(
+            "Hargreaves price for %s disagrees with Value (£); using Value (£) / units",
+            sanitise_log_value(code or name),
+        )
     if code_marked or name_marked:
         _mark_transfer_in(position)
     return position

@@ -80,6 +80,7 @@ export const holdingContractSchema = z.object({
   last_price_time: nullableString.optional(),
   is_stale: z.boolean().optional(),
   latest_source: nullableString.optional(),
+  fx_rate_source: nullableString.optional(),
   day_change_gbp: nullableNumber.optional(),
   day_change_currency: nullableString.optional(),
   instrument_type: nullableString.optional(),

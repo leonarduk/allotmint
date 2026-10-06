@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 from contextlib import contextmanager
 from dataclasses import asdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from enum import Enum, auto
 from pathlib import Path
@@ -24,6 +25,7 @@ from backend.common.accounts_store import (
 )
 from backend.common.authz import ensure_owner_access
 from backend.common.core_optional import require_core
+from backend.common.currency import CurrencyNormaliser
 from backend.common.holdings_rebuild import name_aliases, replay_transactions
 from backend.common.instruments import get_instrument_meta
 from backend.common.prices import get_price_gbp
@@ -875,25 +877,85 @@ def delete_transaction(request: Request, tx_id: str) -> dict:
     return {"status": "deleted"}
 
 
+# How far before a trade date an imported row may borrow the last stored FX
+# rate (weekends and market holidays have no fixing of their own).
+_IMPORT_FX_LOOKBACK_DAYS = 5
+
+
+class ImportPriceCurrencyError(ValueError):
+    """An imported row's native-currency price cannot be converted to GBP."""
+
+
+def _float_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _trade_date_fx_rate(currency: str, tx_date: str | None) -> float:
+    """GBP per unit of ``currency`` on ``tx_date``, from the stored FX history only.
+
+    Takes the latest stored rate on or up to ``_IMPORT_FX_LOOKBACK_DAYS``
+    before the trade date. Never fetches and never falls back to a constant
+    (#9664): no usable rate raises :class:`ImportPriceCurrencyError`.
+    """
+    from backend.timeseries.cache import load_fx_history
+
+    try:
+        trade_date = date.fromisoformat(str(tx_date or "")[:10])
+    except ValueError:
+        raise ImportPriceCurrencyError(
+            f"{currency} price needs a valid trade date for FX conversion (date={tx_date!r})"
+        ) from None
+    fx = load_fx_history(currency, trade_date - timedelta(days=_IMPORT_FX_LOOKBACK_DAYS), trade_date)
+    for _day, raw_rate in sorted(zip(fx["Date"], fx["Rate"]), key=lambda pair: pair[0], reverse=True):
+        rate = _float_or_none(raw_rate)
+        if rate is not None and rate > 0:
+            return rate
+    raise ImportPriceCurrencyError(f"No stored {currency}->GBP FX rate on or shortly before {trade_date.isoformat()}")
+
+
+def _coalesce_price_gbp(tx_data: Dict[str, Any]) -> None:
+    """Fill ``price_gbp`` from the importer's ``price``, converting non-GBP prices (#9679).
+
+    GBP, pence (the importer has already scaled it to pounds) and absent
+    currencies copy ``price`` across unchanged and drop it. Any other
+    currency is converted at the trade-date rate and keeps its native
+    ``price``/``currency`` on the record alongside ``price_gbp``.
+    """
+    price = tx_data.get("price")
+    price_gbp = tx_data.get("price_gbp")
+    if price is not None and price_gbp is not None and Decimal(str(price)) != Decimal(str(price_gbp)):
+        raise ValueError(f"Conflicting values for price ({price}) and price_gbp ({price_gbp})")
+    norm = CurrencyNormaliser.from_raw(tx_data.get("currency"))
+    if price is None or price_gbp is not None or norm.is_pence or norm.canonical == "GBP":
+        if price_gbp is None:
+            tx_data["price_gbp"] = price
+        tx_data.pop("price", None)
+        return
+    rate = _trade_date_fx_rate(norm.canonical, tx_data.get("date"))
+    tx_data["price_gbp"] = float(price) * rate
+
+
 def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
     """Normalise a parsed import ``Transaction`` into the persisted-record shape.
 
     Importers set ``price``/``reason_to_buy`` (hargreaves) while the
     persisted shape (matching ``TransactionCreate``) uses
-    ``price_gbp``/``reason`` -- coalesce rather than storing both. Bank-style
+    ``price_gbp``/``reason`` -- coalesce rather than storing both (see
+    :func:`_coalesce_price_gbp` for non-GBP prices). Bank-style
     rows (Moneyhub) carry no ticker/price/units at all; those fields persist
     as ``None``, which ``rebuild_account_holdings`` already treats as "no
     security impact" (#4965).
+
+    Raises :class:`ImportPriceCurrencyError` when a non-GBP price has no
+    stored trade-date FX rate.
     """
 
     tx_data = row.model_dump(mode="json", exclude={"owner", "account", "id"})
-    price = tx_data.get("price")
-    price_gbp = tx_data.get("price_gbp")
-    if price is not None and price_gbp is not None and Decimal(str(price)) != Decimal(str(price_gbp)):
-        raise ValueError(f"Conflicting values for price ({price}) and price_gbp ({price_gbp})")
-    if price_gbp is None:
-        tx_data["price_gbp"] = price
-    tx_data.pop("price", None)
+    _coalesce_price_gbp(tx_data)
     if not tx_data.get("reason"):
         tx_data["reason"] = tx_data.get("reason_to_buy")
     tx_data.pop("reason_to_buy", None)
@@ -961,7 +1023,11 @@ async def import_transactions(
             skipped.append({**row.model_dump(mode="json"), "skip_reason": str(exc.detail)})
             continue
 
-        tx_data = _tx_data_from_parsed(row)
+        try:
+            tx_data = _tx_data_from_parsed(row)
+        except ImportPriceCurrencyError as exc:
+            skipped.append({**row.model_dump(mode="json"), "skip_reason": str(exc)})
+            continue
         target = (row_owner, row_account)
         if target not in file_accounts:
             file_accounts[target] = _transactions_account_name(row_owner, row_account, store)
@@ -1045,7 +1111,11 @@ def import_moneyhub_transactions(
             skipped.append({**row.model_dump(mode="json"), "skip_reason": str(exc.detail)})
             continue
 
-        tx_data = _tx_data_from_parsed(row)
+        try:
+            tx_data = _tx_data_from_parsed(row)
+        except ImportPriceCurrencyError as exc:
+            skipped.append({**row.model_dump(mode="json"), "skip_reason": str(exc)})
+            continue
         if row_account not in file_accounts:
             file_accounts[row_account] = _transactions_account_name(owner, row_account, store)
         persisted.append(_persist_transaction(store, owner, file_accounts[row_account], tx_data))

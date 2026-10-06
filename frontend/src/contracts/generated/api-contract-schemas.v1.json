@@ -371,6 +371,12 @@
                           "null"
                         ]
                       },
+                      "fx_rate_source": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "day_change_gbp": {
                         "type": [
                           "number",
@@ -740,6 +746,12 @@
                         "type": "boolean"
                       },
                       "latest_source": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "fx_rate_source": {
                         "type": [
                           "string",
                           "null"

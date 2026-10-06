@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { getOwners, getTransactionsWithCompliance, requestApproval } from "../api";
 import type { OwnerSummary, TransactionWithCompliance } from "../types";
 import { OwnerSelector } from "../components/OwnerSelector";
 import { sanitizeOwners } from "../utils/owners";
 
 export default function TradeCompliance() {
+  const { t } = useTranslation();
   const { owner: ownerParam } = useParams<{ owner?: string }>();
   const navigate = useNavigate();
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -46,7 +48,7 @@ export default function TradeCompliance() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <h1>Trade compliance</h1>
+      <h1>{t("tradeCompliance.title")}</h1>
       <OwnerSelector
         owners={owners}
         selected={owner}
@@ -60,28 +62,30 @@ export default function TradeCompliance() {
         <table style={{ width: "100%", marginTop: "1rem" }}>
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Ticker</th>
-              <th>Type</th>
-              <th>Warnings</th>
+              <th>{t("tradeCompliance.date")}</th>
+              <th>{t("tradeCompliance.ticker")}</th>
+              <th>{t("tradeCompliance.type")}</th>
+              <th>{t("tradeCompliance.warnings")}</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {trades.map((t, idx) => (
+            {trades.map((trade, idx) => (
               <tr key={idx}>
-                <td>{t.date}</td>
-                <td>{t.ticker}</td>
-                <td>{t.type || t.kind}</td>
-                <td>{t.warnings.join("; ")}</td>
+                <td>{trade.date}</td>
+                <td>{trade.ticker}</td>
+                <td>{trade.type || trade.kind}</td>
+                <td>{trade.warnings.join("; ")}</td>
                 <td>
-                  {t.warnings.some((w) => w.includes("without approval")) &&
-                    t.ticker && (
+                  {trade.warnings.some((w) => w.includes("without approval")) &&
+                    trade.ticker && (
                       <button
-                        onClick={() => handleRequest(t.ticker!)}
-                        disabled={requested[t.ticker!]}
+                        onClick={() => handleRequest(trade.ticker!)}
+                        disabled={requested[trade.ticker!]}
                       >
-                        {requested[t.ticker!] ? "Requested" : "Request Approval"}
+                        {requested[trade.ticker!]
+                          ? t("tradeCompliance.requested")
+                          : t("tradeCompliance.requestApproval")}
                       </button>
                     )}
                 </td>

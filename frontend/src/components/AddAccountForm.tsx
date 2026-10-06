@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { createAccount } from "../api";
 import { useDemoReadOnly } from "../hooks/useDemoReadOnly";
 
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export function AddAccountForm({ owner, onCreated, onCancel }: Props) {
+  const { t } = useTranslation();
   const { demoReadOnly, reason } = useDemoReadOnly();
   const [accountType, setAccountType] = useState<string>(ACCOUNT_TYPES[0]);
   const [customType, setCustomType] = useState("");
@@ -27,11 +29,11 @@ export function AddAccountForm({ owner, onCreated, onCancel }: Props) {
     e.preventDefault();
 
     if (!resolvedType) {
-      setError("Please choose or enter an account type.");
+      setError(t("addAccountForm.typeRequired"));
       return;
     }
     if (!ACCOUNT_TYPE_PATTERN.test(resolvedType)) {
-      setError("Account type may only contain lowercase letters, numbers, '-' and '_'.");
+      setError(t("addAccountForm.typeInvalidChars"));
       return;
     }
 
@@ -47,11 +49,11 @@ export function AddAccountForm({ owner, onCreated, onCancel }: Props) {
     } catch (err) {
       const status = (err as { status?: number } | undefined)?.status;
       if (status === 409) {
-        setError(`An account of type "${resolvedType}" already exists.`);
+        setError(t("addAccountForm.alreadyExists", { type: resolvedType }));
       } else if (status === 400) {
-        setError("That account type is not valid. Please choose a different name.");
+        setError(t("addAccountForm.typeNotValid"));
       } else {
-        setError("Something went wrong creating the account. Please try again.");
+        setError(t("addAccountForm.createFailed"));
       }
     } finally {
       setSubmitting(false);
@@ -67,7 +69,7 @@ export function AddAccountForm({ owner, onCreated, onCancel }: Props) {
       )}
       <div>
         <label htmlFor="add-account-type" className="mb-1 block text-sm text-gray-300">
-          Account type
+          {t("addAccountForm.accountType")}
         </label>
         <select
           id="add-account-type"
@@ -80,27 +82,27 @@ export function AddAccountForm({ owner, onCreated, onCancel }: Props) {
               {type.toUpperCase()}
             </option>
           ))}
-          <option value="other">Other…</option>
+          <option value="other">{t("addAccountForm.other")}</option>
         </select>
       </div>
       {isCustom && (
         <div>
           <label htmlFor="add-account-custom-type" className="mb-1 block text-sm text-gray-300">
-            Custom account type
+            {t("addAccountForm.customType")}
           </label>
           <input
             id="add-account-custom-type"
             type="text"
             value={customType}
             onChange={(e) => setCustomType(e.target.value)}
-            placeholder="e.g. junior-isa"
+            placeholder={t("addAccountForm.customTypePlaceholder")}
             className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-white"
           />
         </div>
       )}
       <div>
         <label htmlFor="add-account-currency" className="mb-1 block text-sm text-gray-300">
-          Currency (optional)
+          {t("addAccountForm.currencyOptional")}
         </label>
         <input
           id="add-account-currency"
@@ -119,7 +121,7 @@ export function AddAccountForm({ owner, onCreated, onCancel }: Props) {
           title={reason()}
           className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 disabled:opacity-60"
         >
-          {submitting ? "Creating…" : "Add account"}
+          {submitting ? t("addAccountForm.creating") : t("addAccountForm.addAccount")}
         </button>
         {onCancel && (
           <button
@@ -127,7 +129,7 @@ export function AddAccountForm({ owner, onCreated, onCancel }: Props) {
             onClick={onCancel}
             className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
         )}
       </div>

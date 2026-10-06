@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   getEvents,
@@ -47,14 +48,15 @@ type ScenarioHoldingRow = {
 
 type CustomHolding = SyntheticHolding & { name?: string };
 
-const SUGGESTED_DATES: { date: string; label: string }[] = [
-  { date: "2020-03-16", label: "COVID-19 market low" },
-  { date: "2022-09-26", label: "UK gilt crisis" },
-  { date: "2022-03-08", label: "Energy shock" },
-  { date: "2023-03-13", label: "Banking turmoil" },
+const SUGGESTED_DATES: { date: string; labelKey: string }[] = [
+  { date: "2020-03-16", labelKey: "scenarioTester.suggested.covid" },
+  { date: "2022-09-26", labelKey: "scenarioTester.suggested.giltCrisis" },
+  { date: "2022-03-08", labelKey: "scenarioTester.suggested.energyShock" },
+  { date: "2023-03-13", labelKey: "scenarioTester.suggested.bankingTurmoil" },
 ];
 
 export default function ScenarioTester() {
+  const { t } = useTranslation();
   const [events, setEvents] = useState<ScenarioEvent[]>([]);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [portfolioStates, setPortfolioStates] = useState<Record<string, PortfolioState>>({});
@@ -227,7 +229,7 @@ export default function ScenarioTester() {
             aggregated.set(key, {
               key,
               ticker: rawTicker ? rawTicker.toUpperCase() : h.name ?? key,
-              name: (h.name ?? rawTicker) || "Unnamed holding",
+              name: (h.name ?? rawTicker) || t("scenarioTester.unnamedHolding"),
               units,
               marketValue: mv,
               owners: [owner],
@@ -253,8 +255,8 @@ export default function ScenarioTester() {
       const ticker = (holding.ticker || "").trim();
       return {
         key: `custom-${idx}`,
-        ticker: ticker ? ticker.toUpperCase() : `Custom ${idx + 1}`,
-        name: holding.ticker || holding.name || `Custom position ${idx + 1}`,
+        ticker: ticker ? ticker.toUpperCase() : t("scenarioTester.customTicker", { index: idx + 1 }),
+        name: holding.ticker || holding.name || t("scenarioTester.customPositionName", { index: idx + 1 }),
         units,
         marketValue: marketValue != null ? Number(marketValue) : null,
         owners: ["Custom"],
@@ -268,7 +270,7 @@ export default function ScenarioTester() {
     return [...existingRows, ...customs].sort((a, b) =>
       a.ticker.localeCompare(b.ticker),
     );
-  }, [selectedOwners, portfolioStates, removedKeys, customHoldings]);
+  }, [selectedOwners, portfolioStates, removedKeys, customHoldings, t]);
 
   const activeHoldings = useMemo(
     () =>
@@ -421,7 +423,7 @@ export default function ScenarioTester() {
     <div className="container mx-auto flex flex-col gap-6 p-4">
       <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
         <header className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <h1 className="text-xl font-semibold">Scenario workspace</h1>
+          <h1 className="text-xl font-semibold">{t("scenarioTester.title")}</h1>
           <div className="flex flex-wrap gap-2">
             <button
               className="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100"
@@ -429,7 +431,7 @@ export default function ScenarioTester() {
               onClick={handleSelectAllOwners}
               disabled={!ownersLoaded}
             >
-              Select all portfolios
+              {t("scenarioTester.selectAll")}
             </button>
             <button
               className="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100"
@@ -437,7 +439,7 @@ export default function ScenarioTester() {
               onClick={handleClearOwners}
               disabled={selectedOwners.length === 0}
             >
-              Clear selection
+              {t("scenarioTester.clearSelection")}
             </button>
           </div>
         </header>
@@ -452,9 +454,9 @@ export default function ScenarioTester() {
             const statusLabel = (() => {
               if (!selectedOwners.includes(owner.owner)) return null;
               if (!state) return "";
-              if (state.status === "loading") return "Loading…";
+              if (state.status === "loading") return t("scenarioTester.loading");
               if (state.status === "error") return state.error;
-              return "Loaded";
+              return t("scenarioTester.loaded");
             })();
             return (
               <label
@@ -475,22 +477,22 @@ export default function ScenarioTester() {
                   <span className="text-xs text-slate-500">{statusLabel}</span>
                 ) : null}
                 <span className="text-xs text-slate-500">
-                  Accounts: {owner.accounts?.length ?? 0}
+                  {t("scenarioTester.accounts", { count: owner.accounts?.length ?? 0 })}
                 </span>
               </label>
             );
           })}
           {owners.length === 0 && !ownerError && (
-            <p className="text-sm text-slate-500">Loading portfolios…</p>
+            <p className="text-sm text-slate-500">{t("scenarioTester.loadingPortfolios")}</p>
           )}
         </div>
       </section>
 
       <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold">Reporting date</h2>
+        <h2 className="mb-3 text-lg font-semibold">{t("scenarioTester.reportingDate")}</h2>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
           <label className="flex items-center gap-2 text-sm">
-            <span>Date:</span>
+            <span>{t("scenarioTester.date")}</span>
             <input
               type="date"
               value={reportingDate}
@@ -504,7 +506,7 @@ export default function ScenarioTester() {
             className="w-fit rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100"
             disabled={reportingDate.trim() === ""}
           >
-            Use latest data
+            {t("scenarioTester.useLatest")}
           </button>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -519,7 +521,7 @@ export default function ScenarioTester() {
                   : "bg-slate-100 text-slate-700 hover:bg-slate-200"
               }`}
             >
-              {item.label} ({item.date})
+              {t(item.labelKey)} ({item.date})
             </button>
           ))}
         </div>
@@ -527,7 +529,7 @@ export default function ScenarioTester() {
 
       <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
         <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <h2 className="text-lg font-semibold">Scenario positions</h2>
+          <h2 className="text-lg font-semibold">{t("scenarioTester.positions")}</h2>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -535,14 +537,14 @@ export default function ScenarioTester() {
               className="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100"
               disabled={removedKeys.size === 0}
             >
-              Restore removed holdings
+              {t("scenarioTester.restoreRemoved")}
             </button>
             <button
               type="button"
               onClick={handleAddCustomHolding}
               className="rounded border border-indigo-500 px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-50"
             >
-              Add custom position
+              {t("scenarioTester.addCustom")}
             </button>
             <button
               type="button"
@@ -550,27 +552,27 @@ export default function ScenarioTester() {
               className="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100"
               disabled={customHoldings.length === 0}
             >
-              Remove custom positions
+              {t("scenarioTester.removeCustom")}
             </button>
           </div>
         </div>
 
         {selectedOwners.length === 0 && customHoldings.length === 0 ? (
           <p className="text-sm text-slate-500">
-            Choose at least one portfolio or add a custom position to begin.
+            {t("scenarioTester.emptyState")}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full border border-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="p-2 text-left">Ticker</th>
-                  <th className="p-2 text-left">Name</th>
-                  <th className="p-2 text-right">Units</th>
-                  <th className="p-2 text-right">Market value (£)</th>
-                  <th className="p-2 text-left">Source</th>
-                  <th className="p-2 text-left">Owners</th>
-                  <th className="p-2 text-right">Actions</th>
+                  <th className="p-2 text-left">{t("scenarioTester.columns.ticker")}</th>
+                  <th className="p-2 text-left">{t("scenarioTester.columns.name")}</th>
+                  <th className="p-2 text-right">{t("scenarioTester.columns.units")}</th>
+                  <th className="p-2 text-right">{t("scenarioTester.columns.marketValue")}</th>
+                  <th className="p-2 text-left">{t("scenarioTester.columns.source")}</th>
+                  <th className="p-2 text-left">{t("scenarioTester.columns.owners")}</th>
+                  <th className="p-2 text-right">{t("scenarioTester.columns.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -632,10 +634,10 @@ export default function ScenarioTester() {
                               )
                             }
                             className="w-24 rounded border border-slate-300 px-2 py-1 text-right"
-                            placeholder="Price"
+                            placeholder={t("scenarioTester.pricePlaceholder")}
                           />
                         </td>
-                        <td className="p-2 align-top">Custom</td>
+                        <td className="p-2 align-top">{t("scenarioTester.source.custom")}</td>
                         <td className="p-2 align-top">—</td>
                         <td className="p-2 text-right align-top">
                           <button
@@ -643,7 +645,7 @@ export default function ScenarioTester() {
                             onClick={() => removeCustomHolding(row.customIndex ?? 0)}
                             className="rounded border border-red-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
                           >
-                            Remove
+                            {t("scenarioTester.remove")}
                           </button>
                         </td>
                       </tr>
@@ -669,7 +671,7 @@ export default function ScenarioTester() {
                           ? fmt.format(row.marketValue)
                           : "—"}
                       </td>
-                      <td className="p-2 align-top capitalize">{row.source}</td>
+                      <td className="p-2 align-top capitalize">{t(`scenarioTester.source.${row.source}`)}</td>
                       <td className="p-2 align-top text-xs text-slate-600">
                         {row.owners
                           .map((o) => getOwnerDisplayName(ownerLookup, o, o))
@@ -685,7 +687,7 @@ export default function ScenarioTester() {
                               : "border border-red-300 text-red-600 hover:bg-red-50"
                           }`}
                         >
-                          {row.isRemoved ? "Restore" : "Remove"}
+                          {row.isRemoved ? t("scenarioTester.restore") : t("scenarioTester.remove")}
                         </button>
                       </td>
                     </tr>
@@ -695,7 +697,7 @@ export default function ScenarioTester() {
               <tfoot>
                 <tr className="bg-slate-50">
                   <td className="p-2 font-semibold" colSpan={3}>
-                    Scenario total
+                    {t("scenarioTester.total")}
                   </td>
                   <td className="p-2 text-right font-semibold">
                     {fmt.format(totalMarketValue)}
@@ -706,8 +708,10 @@ export default function ScenarioTester() {
             </table>
             {combinedHoldings.length > MAX_SCENARIO_HOLDING_ROWS && (
               <p className="mt-2 text-xs text-slate-500">
-                Showing first {MAX_SCENARIO_HOLDING_ROWS.toLocaleString()}{" "}
-                holdings of {combinedHoldings.length.toLocaleString()}.
+                {t("scenarioTester.showingFirst", {
+                  shown: MAX_SCENARIO_HOLDING_ROWS.toLocaleString(),
+                  total: combinedHoldings.length.toLocaleString(),
+                })}
               </p>
             )}
           </div>
@@ -716,28 +720,25 @@ export default function ScenarioTester() {
 
       <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
         <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <h2 className="text-lg font-semibold">Save scenario</h2>
+          <h2 className="text-lg font-semibold">{t("scenarioTester.save.title")}</h2>
           <button
             type="button"
             onClick={downloadScenario}
             className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-indigo-700"
             disabled={activeHoldings.length === 0}
           >
-            Download scenario JSON
+            {t("scenarioTester.save.download")}
           </button>
         </div>
         <p className="text-sm text-slate-600">
-          The exported file summarises the selected portfolios, reporting date
-          and any custom adjustments so you can reload the scenario elsewhere.
+          {t("scenarioTester.save.description")}
         </p>
       </section>
 
       <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold">Historical stress test</h2>
+        <h2 className="mb-3 text-lg font-semibold">{t("scenarioTester.stress.title")}</h2>
         <p className="mb-4 text-sm text-slate-600">
-          Apply historical events to your underlying portfolios. This uses the
-          server-side scenario engine and always reflects the latest stored
-          portfolios.
+          {t("scenarioTester.stress.description")}
         </p>
         <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center">
           <select
@@ -745,7 +746,7 @@ export default function ScenarioTester() {
             onChange={(e) => setEventId(e.target.value)}
             className="rounded border border-slate-300 px-3 py-2 md:mr-2"
           >
-            <option value="">Select event</option>
+            <option value="">{t("scenarioTester.stress.selectEvent")}</option>
             {events.map((ev) => (
               <option key={ev.id} value={ev.id}>
                 {ev.name}
@@ -769,7 +770,7 @@ export default function ScenarioTester() {
             disabled={!canRun}
             className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400"
           >
-            Run stress test
+            {t("scenarioTester.stress.run")}
           </button>
         </div>
         {error && <div className="mb-3 text-sm text-red-500">{error}</div>}
@@ -778,16 +779,16 @@ export default function ScenarioTester() {
             <table className="min-w-full border border-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="p-2 text-left">Owner</th>
+                  <th className="p-2 text-left">{t("scenarioTester.stress.owner")}</th>
                   {horizons.flatMap((h) => [
                     <th key={`${h}-b`} className="p-2 text-right">
-                      {h} baseline (£)
+                      {t("scenarioTester.stress.baseline", { horizon: h })}
                     </th>,
                     <th key={`${h}-s`} className="p-2 text-right">
-                      {h} shocked (£)
+                      {t("scenarioTester.stress.shocked", { horizon: h })}
                     </th>,
                     <th key={`${h}-p`} className="p-2 text-right">
-                      {h} % impact
+                      {t("scenarioTester.stress.impact", { horizon: h })}
                     </th>,
                   ])}
                 </tr>
@@ -818,7 +819,9 @@ export default function ScenarioTester() {
                             className="p-2 text-right"
                             title={
                               partial
-                                ? `${coverage.toFixed(0)}% of holdings by value have price history for this event`
+                                ? t("scenarioTester.stress.coverageTitle", {
+                                    pct: coverage.toFixed(0),
+                                  })
                                 : undefined
                             }
                           >
@@ -827,7 +830,7 @@ export default function ScenarioTester() {
                               : "—"}
                             {partial && (
                               <span className="block text-xs text-slate-500">
-                                {coverage.toFixed(0)}% priced
+                                {t("scenarioTester.stress.priced", { pct: coverage.toFixed(0) })}
                               </span>
                             )}
                           </td>
@@ -839,10 +842,7 @@ export default function ScenarioTester() {
               </tbody>
             </table>
             <p className="mt-2 text-xs text-slate-500">
-              Each holding replays its own prices from the event date. Holdings
-              without history follow the event's proxy index, then the rest of
-              the portfolio; "—" means under half of the portfolio has price
-              history for that date.
+              {t("scenarioTester.stress.footnote")}
             </p>
           </div>
         )}

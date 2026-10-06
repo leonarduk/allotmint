@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { complianceForOwner, getOwners } from "../api";
 import type { OwnerSummary, ComplianceResult } from "../types";
 import { OwnerSelector } from "../components/OwnerSelector";
@@ -7,6 +8,7 @@ import EmptyState from "../components/EmptyState";
 import { sanitizeOwners } from "../utils/owners";
 
 export default function ComplianceWarnings() {
+  const { t } = useTranslation();
   const { owner: ownerParam } = useParams<{ owner?: string }>();
   const navigate = useNavigate();
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -38,7 +40,7 @@ export default function ComplianceWarnings() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <h1>Compliance warnings</h1>
+      <h1>{t("complianceWarnings.title")}</h1>
       <OwnerSelector
         owners={owners}
         selected={owner}
@@ -57,17 +59,20 @@ export default function ComplianceWarnings() {
               ))}
             </ul>
           ) : (
-            <EmptyState message="No warnings." />
+            <EmptyState message={t("complianceWarnings.none")} />
           )}
 
           {result.hold_countdowns &&
             Object.keys(result.hold_countdowns).length > 0 && (
               <div style={{ marginTop: "1rem" }}>
-                <h2>Holding periods</h2>
+                <h2>{t("complianceWarnings.holdingPeriods")}</h2>
                 <ul>
-                  {Object.entries(result.hold_countdowns).map(([t, d]) => (
-                    <li key={t}>
-                      {t}: {d} day{d === 1 ? "" : "s"} remaining
+                  {Object.entries(result.hold_countdowns).map(([ticker, days]) => (
+                    <li key={ticker}>
+                      {t("complianceWarnings.daysRemaining", {
+                        ticker,
+                        count: days,
+                      })}
                     </li>
                   ))}
                 </ul>
@@ -82,7 +87,11 @@ export default function ComplianceWarnings() {
                   const max = used + (result.trades_remaining ?? 0);
                   return (
                     <p>
-                      Trades this month: {used} / {max} ({result.trades_remaining} remaining)
+                      {t("complianceWarnings.tradesThisMonth", {
+                        used,
+                        max,
+                        remaining: result.trades_remaining,
+                      })}
                     </p>
                   );
                 })()}

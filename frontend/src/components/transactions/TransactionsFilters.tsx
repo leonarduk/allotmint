@@ -1,4 +1,5 @@
 import type { ChangeEventHandler } from "react";
+import { useTranslation } from "react-i18next";
 import type { OwnerSummary } from "@/types";
 import { Selector } from "@/components/Selector";
 import { getOwnerDisplayName } from "@/utils/owners";
@@ -38,6 +39,7 @@ export function TransactionsFilters({
   onEndChange,
   ownerAccountLocked = false,
 }: TransactionsFiltersProps) {
+  const { t } = useTranslation();
   return (
     <div style={{ marginBottom: "1rem" }}>
       <Selector
@@ -45,7 +47,7 @@ export function TransactionsFilters({
         value={owner}
         onChange={onOwnerChange}
         options={[
-          { value: "", label: "All" },
+          { value: "", label: t("transactionsFilters.all") },
           ...owners.map((entry) => ({
             value: entry.owner,
             label: getOwnerDisplayName(ownerLookup, entry.owner, entry.owner),
@@ -54,11 +56,11 @@ export function TransactionsFilters({
         disabled={ownerAccountLocked}
       />
       <Selector
-        label="Account"
+        label={t("transactionsFilters.account")}
         value={account}
         onChange={onAccountChange}
         options={[
-          { value: "", label: "All" },
+          { value: "", label: t("transactionsFilters.all") },
           ...accountOptions.map((option) => ({ value: option, label: option })),
         ]}
         disabled={ownerAccountLocked}

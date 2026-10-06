@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getInstrumentValuation } from '../api';
 import type { InstrumentPosition, InstrumentValuation } from '../types';
 import { largeNumber, percent, quotedPrice } from '../lib/money';
@@ -20,9 +21,9 @@ const ratio = (v: number | null | undefined, digits = 2) =>
 const pct = (v: number | null | undefined, digits = 1) =>
   v == null || !Number.isFinite(v) ? '—' : percent(v * 100, digits);
 
-const NAV_SOURCE_LABEL: Record<string, string> = {
-  metadata: 'recorded NAV',
-  reported_book_value: 'last reported net assets per share',
+const NAV_SOURCE_KEY: Record<string, string> = {
+  metadata: 'instrumentValuation.navSourceMetadata',
+  reported_book_value: 'instrumentValuation.navSourceBookValue',
 };
 
 export function InstrumentValuationPanel({
@@ -32,6 +33,7 @@ export function InstrumentValuationPanel({
   ticker: string;
   positions: InstrumentPosition[];
 }) {
+  const { t } = useTranslation();
   const [profile, setProfile] = useState<InstrumentValuation | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,16 +56,20 @@ export function InstrumentValuationPanel({
         if (e?.name === 'AbortError' || controller.signal.aborted) return;
         // 402 = not part of this deployment; the screener card already says so.
         if (e?.status !== 402)
-          setError(`Unable to load valuation: ${e?.message ?? String(err)}`);
+          setError(
+            t('instrumentValuation.loadError', {
+              message: e?.message ?? String(err),
+            })
+          );
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
     };
     void load();
     return () => controller.abort();
-  }, [ticker]);
+  }, [ticker, t]);
 
-  if (loading) return <div>Loading valuation...</div>;
+  if (loading) return <div>{t('instrumentValuation.loading')}</div>;
   if (error) return <div style={{ color: 'red' }}>{error}</div>;
   if (!profile) return null;
 
@@ -79,21 +85,21 @@ export function InstrumentValuationPanel({
 
   const sections: Section[] = [
     {
-      title: 'Valuation multiples',
+      title: t('instrumentValuation.multiples'),
       rows: [
-        { label: 'P/E (trailing)', value: ratio(valuation.pe_ratio) },
-        { label: 'P/E (forward)', value: ratio(valuation.forward_pe) },
-        { label: 'Price/Book', value: ratio(valuation.pb_ratio) },
-        { label: 'EV/EBITDA', value: ratio(valuation.ev_ebitda) },
+        { label: t('instrumentValuation.peTrailing'), value: ratio(valuation.pe_ratio) },
+        { label: t('instrumentValuation.peForward'), value: ratio(valuation.forward_pe) },
+        { label: t('instrumentValuation.priceBook'), value: ratio(valuation.pb_ratio) },
+        { label: t('instrumentValuation.evEbitda'), value: ratio(valuation.ev_ebitda) },
       ],
     },
     {
-      title: 'Income',
+      title: t('instrumentValuation.income'),
       rows: [
-        { label: 'Dividend yield', value: pct(income.dividend_yield, 2) },
-        { label: 'Payout ratio', value: pct(income.payout_ratio) },
+        { label: t('instrumentValuation.dividendYield'), value: pct(income.dividend_yield, 2) },
+        { label: t('instrumentValuation.payoutRatio'), value: pct(income.payout_ratio) },
         {
-          label: 'Dividend cover',
+          label: t('instrumentValuation.dividendCover'),
           value:
             income.dividend_cover == null
               ? '—'
@@ -102,22 +108,22 @@ export function InstrumentValuationPanel({
       ],
     },
     {
-      title: 'Balance sheet',
+      title: t('instrumentValuation.balanceSheet'),
       rows: [
         {
-          label: 'Net debt',
+          label: t('instrumentValuation.netDebt'),
           value:
             bs.net_debt == null
               ? '—'
               : `${largeNumber(bs.net_debt)} ${bs.currency ?? ''}`.trim(),
         },
         {
-          label: 'Net gearing',
+          label: t('instrumentValuation.netGearing'),
           value: pct(bs.net_gearing),
-          hint: 'Net debt / net assets',
+          hint: t('instrumentValuation.netGearingHint'),
         },
         {
-          label: 'Debt/Equity',
+          label: t('instrumentValuation.debtEquity'),
           // Unlike net_gearing (a fraction), debt_to_equity is already a
           // percent as Yahoo reports it (45.4 = 45.4%), so it is not scaled.
           value:
@@ -126,19 +132,23 @@ export function InstrumentValuationPanel({
       ],
     },
     {
-      title: 'Risk',
+      title: t('instrumentValuation.risk'),
       rows: [
-        { label: 'Volatility (1y)', value: pct(risk.volatility_1y) },
+        { label: t('instrumentValuation.volatility1y'), value: pct(risk.volatility_1y) },
         {
-          label: `Beta vs ${benchmark.ticker} (3y weekly)`,
+          label: t('instrumentValuation.beta', {
+            ticker: benchmark.ticker,
+          }),
           value: ratio(risk.beta_3y),
           hint:
             risk.beta_provider != null
-              ? `Provider beta: ${ratio(risk.beta_provider)}`
+              ? t('instrumentValuation.providerBeta', {
+                  value: ratio(risk.beta_provider),
+                })
               : undefined,
         },
         {
-          label: 'Max drawdown',
+          label: t('instrumentValuation.maxDrawdown'),
           value: pct(risk.max_drawdown),
           hint:
             risk.max_drawdown_peak && risk.max_drawdown_trough
@@ -146,9 +156,9 @@ export function InstrumentValuationPanel({
               : undefined,
         },
         {
-          label: 'History',
+          label: t('instrumentValuation.history'),
           value:
-            risk.history_years == null ? '—' : `${risk.history_years} years`,
+            risk.history_years == null ? '—' : t('instrumentValuation.years', { years: risk.history_years }),
           hint: risk.history_start
             ? `${risk.history_start} → ${risk.history_end}`
             : undefined,
@@ -161,26 +171,30 @@ export function InstrumentValuationPanel({
     // unreliable, so say so on the figure itself, not only in the caveats.
     const unreliable = navUnreliability(nav);
     sections.unshift({
-      title: 'NAV',
+      title: t('instrumentValuation.nav'),
       warn: unreliable != null,
       rows: [
         {
-          label: 'NAV per share',
+          label: t('instrumentValuation.navPerShare'),
           value: quotedPrice(nav.nav_per_share, nav.currency ?? ''),
           hint: nav.source
-            ? (NAV_SOURCE_LABEL[nav.source] ?? nav.source)
+            ? NAV_SOURCE_KEY[nav.source]
+            ? t(NAV_SOURCE_KEY[nav.source])
+            : nav.source
             : undefined,
         },
         {
-          label: 'NAV last updated',
+          label: t('instrumentValuation.navLastUpdated'),
           value: navDateLabel(nav),
           hint:
             nav.max_age_days != null
-              ? `Stale after ${nav.max_age_days} days`
+              ? t('instrumentValuation.staleAfter', {
+                  days: nav.max_age_days,
+                })
               : undefined,
         },
         {
-          label: 'Premium/discount',
+          label: t('instrumentValuation.premiumDiscount'),
           value: signedPct(nav.premium_discount),
           badge: unreliable?.badge,
           hint: unreliable?.reason,
@@ -190,23 +204,25 @@ export function InstrumentValuationPanel({
   }
 
   return (
-    <section aria-label="Valuation" style={{ marginBottom: '1.5rem' }}>
+    <section aria-label={t('instrumentValuation.ariaValuation')} style={{ marginBottom: '1.5rem' }}>
       <p style={{ margin: '0 0 0.75rem' }}>
-        Benchmark: <strong>{benchmark.name ?? benchmark.ticker}</strong> (
+        {t('instrumentValuation.benchmark')} <strong>{benchmark.name ?? benchmark.ticker}</strong> (
         {benchmark.ticker}
         {benchmark.source === 'exchange_default'
-          ? ', default for the listing exchange'
+          ? t('instrumentValuation.exchangeDefault')
           : ''}
         )
       </p>
       {caveats.length > 0 && (
         <div
           role="alert"
-          aria-label="Data quality"
+          aria-label={t('instrumentValuation.dataQuality')}
           className={surfaceStyles.surfaceCard}
           style={{ borderLeft: '4px solid #d97706', marginBottom: '1rem' }}
         >
-          <h3 className={surfaceStyles.surfaceCardTitle}>Data quality</h3>
+          <h3 className={surfaceStyles.surfaceCardTitle}>
+            {t('instrumentValuation.dataQuality')}
+          </h3>
           <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
             {caveats.map((c) => (
               <li key={c}>{c}</li>

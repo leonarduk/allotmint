@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ResponsiveContainer,
   BarChart,
@@ -19,6 +20,7 @@ interface VarDatum {
 }
 
 export default function RightRail({ owner }: RightRailProps) {
+  const { t } = useTranslation();
   const [varData, setVarData] = useState<VarDatum[]>([]);
   const [open, setOpen] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -50,7 +52,7 @@ export default function RightRail({ owner }: RightRailProps) {
   const content = (
     <div className="space-y-4">
       <div>
-        <h3 className="mb-2 text-lg font-semibold">Value at Risk</h3>
+        <h3 className="mb-2 text-lg font-semibold">{t("rightRail.valueAtRisk")}</h3>
         {varData.length > 0 ? (
           <ResponsiveContainer width="100%" height={120}>
             <BarChart data={varData}>
@@ -60,11 +62,11 @@ export default function RightRail({ owner }: RightRailProps) {
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <p className="text-sm text-gray-500">No data</p>
+          <p className="text-sm text-gray-500">{t("rightRail.noData")}</p>
         )}
       </div>
       <div>
-        <h3 className="mb-2 text-lg font-semibold">Alerts</h3>
+        <h3 className="mb-2 text-lg font-semibold">{t("rightRail.alerts")}</h3>
         {alerts.length > 0 ? (
           <ul className="list-disc pl-4 text-sm">
             {alerts.map((a, i) => (
@@ -74,15 +76,15 @@ export default function RightRail({ owner }: RightRailProps) {
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-gray-500">No alerts</p>
+          <p className="text-sm text-gray-500">{t("rightRail.noAlerts")}</p>
         )}
       </div>
       <div className="flex flex-col space-y-1 text-sm">
         <a href="/api-console" className="text-blue-600 hover:underline">
-          API Console
+          {t("rightRail.apiConsole")}
         </a>
         <a href="/help" className="text-blue-600 hover:underline">
-          Help
+          {t("rightRail.help")}
         </a>
       </div>
     </div>
@@ -95,7 +97,7 @@ export default function RightRail({ owner }: RightRailProps) {
       </aside>
       <button
         className="fixed bottom-4 right-4 rounded-full bg-blue-600 p-3 text-white shadow-xl xl:hidden"
-        aria-label="Open info panel"
+        aria-label={t("rightRail.openInfoPanel")}
         onClick={() => setOpen(true)}
       >
         ☰
@@ -111,7 +113,7 @@ export default function RightRail({ owner }: RightRailProps) {
               className="mb-2 text-sm text-gray-600"
               onClick={() => setOpen(false)}
             >
-              Close
+              {t("common.close")}
             </button>
             {content}
           </div>

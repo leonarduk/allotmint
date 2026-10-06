@@ -152,7 +152,7 @@ Never submit an issue that is missing any of these sections.
   - why it changed,
   - what you validated,
   - any known follow-up or risk.
-- If work implements a GitHub issue, include an auto-closing reference in the PR body (for example: `Closes #1234`).
+- Every PR body must reference a GitHub issue (for example: `Closes #1234`), enforced by the `require-issue-reference` check. If no issue exists yet, file one from the issue templates before opening the PR — never leave the template's `Closes #` blank.
 - If you changed UI behavior, attach screenshots.
 - If you changed operational workflows, mention the exact commands used for validation.
 - **When rebasing a PR branch**: rebase onto the target and force-push to the **same branch name**. The PR updates automatically. Do not create a new branch or a new PR — that duplicates review state and creates noise.

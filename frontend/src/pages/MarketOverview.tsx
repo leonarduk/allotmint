@@ -174,6 +174,14 @@ export default function MarketOverview() {
       <h1 className="mb-4 text-2xl">{pageHeading}</h1>
 
       <PeriodToggle value={period} onChange={selectPeriod} />
+      {/* Sector ETFs/baskets reinvest dividends; Yahoo's index tickers are
+          price indices, so the two charts are on different bases. */}
+      <p className="mb-4 text-sm text-gray-500">
+        {t('market.returnBasisNote', {
+          defaultValue:
+            'Sector changes include reinvested dividends (total return); index changes are price only.',
+        })}
+      </p>
 
       <div className="mb-8">
         {/* The bars plot % change, not raw level (#7106) -- heading must say

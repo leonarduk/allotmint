@@ -400,6 +400,7 @@
       "3M": "90 Tage",
       "1Y": "1 Jahr"
     },
+    "returnBasisNote": "Sektorveränderungen enthalten reinvestierte Dividenden (Gesamtrendite); Indexveränderungen sind reine Kursveränderungen.",
     "sectorChange": "Sektorveränderung in %",
     "sectorPerformance": "Sektorentwicklung"
   },

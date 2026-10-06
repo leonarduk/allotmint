@@ -12,17 +12,24 @@ Constituent lists are representative large holdings, not full index
 membership; the UI labels them as such. Changes are percentages in each
 instrument's own currency, so mixing listings (e.g. ``ASML`` and ``SHEL.L``)
 in one basket is safe.
+
+Changes are total return: each ETF or constituent has its dividends
+reinvested on the ex-date (``backend.timeseries.total_return``), so a
+high-yield sector isn't understated over longer periods. Headline indices
+(``^GSPC``, ``^FTSE``...) are price indices with no dividends on Yahoo, so
+their changes stay price return.
 """
 
 from __future__ import annotations
 
 import logging
 from datetime import date, timedelta
-from typing import Dict, List, Literal, Optional, Sequence, Tuple, TypedDict
+from typing import Any, Dict, List, Literal, NamedTuple, Optional, Sequence, Tuple, TypedDict
 
 import pandas as pd
 
 from backend.logging_setup import sanitise_log_value
+from backend.timeseries.total_return import total_return_index
 from backend.utils.lazy_import import lazy_import
 
 yf = lazy_import("yfinance")
@@ -430,16 +437,47 @@ def find_sector(region: Region, name: str) -> Optional[str]:
     return None
 
 
-def _download_closes(symbols: Sequence[str], period: str) -> pd.DataFrame:
-    """Return a ``date x ticker`` frame of daily closes (empty on no data)."""
+class PriceHistory(NamedTuple):
+    """Daily closes for a set of symbols, as traded and with dividends reinvested."""
 
-    frame = yf.download(list(symbols), period=period, interval="1d", progress=False, auto_adjust=False)
-    closes = frame.get("Close") if hasattr(frame, "get") else None
-    if closes is None:
+    traded: pd.DataFrame
+    total_return: pd.DataFrame
+
+
+def _field(frame: Any, name: str, symbols: Sequence[str]) -> pd.DataFrame:
+    """Return ``frame[name]`` as a ``date x ticker`` frame (empty when absent)."""
+
+    values = frame.get(name) if hasattr(frame, "get") else None
+    if values is None:
         return pd.DataFrame()
-    if isinstance(closes, pd.Series):
-        closes = closes.to_frame(name=symbols[0])
-    return closes
+    if isinstance(values, pd.Series):
+        values = values.to_frame(name=symbols[0])
+    return values
+
+
+def _total_return_frame(traded: pd.DataFrame, dividends: pd.DataFrame) -> pd.DataFrame:
+    """Each column of ``traded`` with its dividends reinvested on the ex-date.
+
+    Same basis as portfolio performance (#9340/#9370): traded closes plus
+    Yahoo's dividend column, never yfinance's re-based ``auto_adjust`` Close.
+    A column without dividends comes back unchanged (price return).
+    """
+
+    columns = {}
+    for symbol in traded.columns:
+        paid = dividends[symbol] if symbol in dividends else None
+        columns[symbol] = total_return_index(_series(traded, symbol), paid)
+    return pd.DataFrame(columns)
+
+
+def _download_history(symbols: Sequence[str], period: str) -> PriceHistory:
+    """Return traded and total-return daily closes for ``symbols`` (empty on no data)."""
+
+    frame = yf.download(list(symbols), period=period, interval="1d", progress=False, auto_adjust=False, actions=True)
+    traded = _field(frame, "Close", symbols)
+    if traded.empty:
+        return PriceHistory(traded, traded)
+    return PriceHistory(traded, _total_return_frame(traded, _field(frame, "Dividends", symbols)))
 
 
 def _series(closes: pd.DataFrame, symbol: str) -> pd.Series:
@@ -479,10 +517,14 @@ def period_change(series: pd.Series, period: Period) -> Optional[float]:
     return _pct_change(float(series.iloc[-1]), base)
 
 
-def download_period_closes(symbols: Sequence[str], period: Period) -> pd.DataFrame:
-    """Return daily closes for ``symbols`` covering ``period``'s look-back."""
+def download_period_history(symbols: Sequence[str], period: Period) -> PriceHistory:
+    """Return traded and total-return daily closes covering ``period``'s look-back.
 
-    return _download_closes(symbols, period=PERIOD_DOWNLOAD[period])
+    Instruments that pay no dividends (e.g. price indices such as ``^FTSE``)
+    have the same values in both frames.
+    """
+
+    return _download_history(symbols, period=PERIOD_DOWNLOAD[period])
 
 
 def series_for(closes: pd.DataFrame, symbol: str) -> pd.Series:
@@ -511,7 +553,7 @@ def fetch_region_sectors(region: Region, period: Period = "1D") -> List[RegionSe
         {d["proxy"][0] for d in universe.values() if d["proxy"]}
         | {t for d in universe.values() if not d["proxy"] for t, _ in d["constituents"]}
     )
-    closes = download_period_closes(symbols, period)
+    closes = download_period_history(symbols, period).total_return
 
     out: List[RegionSector] = []
     for sector, definition in universe.items():
@@ -576,7 +618,8 @@ def fetch_sector_detail(region: Region, sector: str) -> SectorDetail:
     constituents = definition["constituents"]
     proxy = definition["proxy"]
     symbols = [t for t, _ in constituents] + ([proxy[0]] if proxy else [])
-    closes = _download_closes(symbols, period="1y")
+    history_frames = _download_history(symbols, period="1y")
+    closes = history_frames.total_return
 
     if proxy:
         headline = _series(closes, proxy[0])
@@ -585,13 +628,15 @@ def fetch_sector_detail(region: Region, sector: str) -> SectorDetail:
 
     quotes: List[ConstituentQuote] = []
     for ticker, name in constituents:
-        series = _series(closes, ticker)
+        traded = _series(history_frames.traded, ticker)
         quotes.append(
             {
                 "ticker": ticker,
                 "name": name,
-                "price": float(series.iloc[-1]) if not series.empty else None,
-                "change": _day_change(series),
+                # Price is what it trades at; the change includes any dividend
+                # going ex that day, matching the sector's total-return basis.
+                "price": float(traded.iloc[-1]) if not traded.empty else None,
+                "change": _day_change(_series(closes, ticker)),
             }
         )
 

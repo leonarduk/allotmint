@@ -88,7 +88,7 @@ describe('planForm', () => {
     ]);
     expect(out.open_questions).toEqual(['Why?']);
     expect(out.review.next_review).toBeUndefined();
-    expect(JSON.parse(JSON.stringify(out))).not.toHaveProperty('disclaimer');
+    expect(out).not.toHaveProperty('disclaimer');
   });
 
   it('parses scalars into their JSON types', () => {
@@ -108,6 +108,18 @@ describe('planForm', () => {
         { class: 'cash', weight: '12.5' },
       ])
     ).toBe(72.5);
+  });
+
+  it('reports a target that does not sum to 100%', () => {
+    expect(
+      formErrors({
+        ...emptyPlanForm(),
+        target: [
+          { class: 'equity', weight: '60' },
+          { class: 'gold', weight: '30' },
+        ],
+      })
+    ).toEqual(['Target weights must sum to 100%, got 90%.']);
   });
 
   it('reports bad version, non-numeric weights and duplicate classes', () => {

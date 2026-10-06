@@ -92,6 +92,9 @@ export interface PlanForm {
   triggers: TextRow[];
 }
 
+/** Same slack as backend TARGET_SUM_TOLERANCE_PCT. */
+const TARGET_SUM_TOLERANCE_PCT = 0.01;
+
 const NUMBER_RE = /^-?\d+(\.\d+)?$/;
 
 /** Text -> scalar: numbers and true/false keep their JSON type; blank is undefined. */
@@ -240,7 +243,7 @@ export function toPlan(
       next_review: optional(form.next_review),
       triggers: texts(form.triggers),
     },
-    disclaimer: form.disclaimer,
+    ...(form.disclaimer ? { disclaimer: form.disclaimer } : {}),
   };
 }
 
@@ -268,5 +271,10 @@ export function formErrors(form: PlanForm): string[] {
   const dupe = classes.find((c, i) => classes.indexOf(c) !== i);
   if (dupe)
     errors.push(`${classLabel(dupe)} appears more than once in the target.`);
+  const total = targetTotal(form.target);
+  if (!bad.length && Math.abs(total - 100) > TARGET_SUM_TOLERANCE_PCT)
+    errors.push(
+      `Target weights must sum to 100%, got ${Math.round(total * 100) / 100}%.`
+    );
   return errors;
 }

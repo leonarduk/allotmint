@@ -62,6 +62,10 @@ describe('PlanEditor', () => {
 
   it('blocks the save on form errors without calling the API', () => {
     renderEditor();
+    change('Target weight % 1', '60');
+    fireEvent.click(screen.getByRole('button', { name: 'Save plan' }));
+    expect(screen.getByText(/must sum to 100%, got 60%/)).toBeVisible();
+    change('Target weight % 1', '100');
     change('Version', '0');
     fireEvent.click(screen.getByRole('button', { name: 'Save plan' }));
     expect(screen.getByText(/Version must be a whole number/)).toBeVisible();

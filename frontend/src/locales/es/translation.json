@@ -96,7 +96,7 @@
       "goals": "Requisitos",
       "holdings": "Posiciones",
       "insights": "Perspectivas",
-      "operations": "Operaciones",
+      "operations": "Administración",
       "other": "Otros",
       "preferences": "Configuración"
     },
@@ -123,16 +123,16 @@
       "scenario": "Probador de Escenarios",
       "screener": "Filtro y consulta",
       "settings": "Reglas de negociación",
-      "support": "Soporte",
+      "support": "Configuración",
       "taxtools": "Herramientas fiscales",
-      "timeseries": "Serie temporal",
+      "timeseries": "Editor de series temporales",
       "trade-compliance": "Cumplimiento de operaciones",
       "trading": "Operativa",
       "trail": "Registro de auditoría",
       "transactions": "Transacciones",
       "watchlist": "Lista de seguimiento"
     },
-    "operationsLink": "Operaciones",
+    "operationsLink": "Administración",
     "opensInSeparateTab": "(se abre en una pestaña aparte)",
     "refreshing": "Actualizando…",
     "refreshingProgress": "Actualizando… ({{completed}}/{{total}})",
@@ -573,7 +573,7 @@
       "otherSwitches": "Otros interruptores",
       "save": "Guardar",
       "tabsEnabled": "Pestañas habilitadas",
-      "title": "Configuración",
+      "title": "Interruptores y parámetros",
       "mcpTools": "Herramientas MCP",
       "mcpToolsHint": "Herramientas que puede usar el asistente de chat. Todas están activas por defecto; desmarca una para desactivarla.",
       "mcpToolNotConfigured": "No configurada",
@@ -620,7 +620,7 @@
       "sent": "Enviado"
     },
     "telegramMessage": "Mensaje de Telegram",
-    "title": "Soporte"
+    "title": "Configuración"
   },
   "timeseries": {
     "loading": "Cargando…"

@@ -16,6 +16,7 @@ import type {
   VarBreakdownResponse,
   AlphaResponse,
   TrackingErrorResponse,
+  UnconvertedHolding,
   MaxDrawdownResponse,
   ReturnComparisonResponse,
   Transaction,
@@ -927,6 +928,7 @@ export const getPerformance = (
       previous_value: number;
       next_value: number;
     }[];
+    unconverted_holdings?: UnconvertedHolding[];
   }>(
     `${API_BASE}/performance/${owner}?${params.toString()}`,
   );
@@ -1076,6 +1078,7 @@ export const getGroupPerformance = (
       previous_value: number;
       next_value: number;
     }[];
+    unconverted_holdings?: UnconvertedHolding[];
   }>(
     `${API_BASE}/performance-group/${slug}?${params.toString()}`,
   );
@@ -2662,6 +2665,50 @@ export const applyAppUpdate = () =>
     `${API_BASE}/support/app-update`,
     { method: "POST" },
     APP_UPDATE_TIMEOUT_MS,
+  );
+
+// ───────────── Local MCP server status / restart ─────────────
+// Only registered by the backend when app_env == "local"; on AWS the MCP
+// server is a Lambda, the route 404s and the Support page hides the panel.
+export interface McpServerStatus {
+  can_restart: boolean;
+  reason: string | null;
+  url: string | null;
+  port: number | null;
+  running: boolean;
+  pid: number | null;
+  parent_pid: number | null;
+  started_at: string | null;
+  pro_dir: string | null;
+  pro_commit: string | null;
+  code_changed: boolean;
+  code_changes: string[];
+  tool_count: number | null;
+  tools_error: string | null;
+  log_path: string | null;
+}
+
+export interface McpServerRestartResult {
+  restarted: boolean;
+  reason: string | null;
+  stopped_pids: number[];
+  pid: number | null;
+  tool_count: number | null;
+  log_lines: string[];
+  log_path: string | null;
+}
+
+// Restart waits up to 90s for the new server to answer tools/list.
+const MCP_SERVER_RESTART_TIMEOUT_MS = 150000;
+
+export const getMcpServerStatus = () =>
+  fetchJson<McpServerStatus>(`${API_BASE}/support/mcp-server/status`);
+
+export const restartMcpServer = () =>
+  fetchJson<McpServerRestartResult>(
+    `${API_BASE}/support/mcp-server/restart`,
+    { method: "POST" },
+    MCP_SERVER_RESTART_TIMEOUT_MS,
   );
 
 // ───────────── Account signup ─────────────

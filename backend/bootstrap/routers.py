@@ -28,6 +28,7 @@ from backend.routes.instrument_admin import router as instrument_admin_router
 from backend.routes.investment_plan import router as investment_plan_router
 from backend.routes.logs import router as logs_router
 from backend.routes.market import router as market_router
+from backend.routes.mcp_server_admin import router as mcp_server_admin_router
 from backend.routes.metrics import router as metrics_router
 from backend.routes.models import router as models_router
 from backend.routes.movers import router as movers_router
@@ -98,6 +99,9 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
         # Self-update pulls into the local git checkout; AWS runs an immutable
         # Lambda image, so the route only exists for local deployments.
         app.include_router(app_update_router, dependencies=protected)
+        # Same for the MCP server's status/restart: locally it is a process
+        # this machine runs; on AWS it is a Lambda (#9654).
+        app.include_router(mcp_server_admin_router, dependencies=protected)
     app.include_router(query_router, dependencies=protected)
     app.include_router(virtual_portfolio_router, dependencies=protected)
     app.include_router(metrics_router)

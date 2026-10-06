@@ -41,6 +41,40 @@
   enabled it is restricted to `auth.allowed_emails`. See
   `backend/routes/app_update.py`.
 
+## Restarting the Local MCP Server
+- **Screen**: the Support page's **MCP server** panel, next to the MCP tools
+  list (local deployments only — `server.app_env: local`; on AWS the MCP
+  server is a Lambda and the `/support/mcp-server` routes are not registered).
+- **Status**: whether the server listens on its port (from `MCP_SERVER_URL`,
+  else `MCP_SERVER_PORT`, else 8001), its PID and start time, the
+  allotmint-pro checkout and HEAD commit, the `tools/list` tool count, and a
+  warning when a newer commit or newer `.py` file exists in allotmint-pro or
+  allotmint `backend/` than the running process.
+- **Restart**: stops the server and starts a fresh one in the background by
+  running the same foreground launcher a terminal would
+  (`scripts/run-mcp-server.ps1` on Windows, `scripts/bash/run-mcp-server.sh`
+  elsewhere), so env loading, the allotmint-pro lookup and `PYTHONPATH` match.
+  Output is appended to `logs/mcp-server.log`. It then waits for the port and
+  a successful `tools/list` (90 s), and returns the new PID and tool count, or
+  the reason and the new log lines.
+- **What it will stop**: only the process listening on the configured local
+  port, and only if its command line contains
+  `allotmint_pro.mcp_server.app:app`. On Windows the venv launcher parent
+  `python.exe` with the same command line is stopped too; a shell or
+  `run-backend.ps1` that started it is not. A port held by anything else, or a
+  non-localhost `MCP_SERVER_URL`, refuses the restart.
+- **Platform differences**: the port owner is found with `Get-NetTCPConnection`
+  / `Win32_Process` on Windows and `lsof` / `ps` elsewhere (`lsof` must be
+  installed). Windows stops with `TerminateProcess`; elsewhere SIGTERM, then
+  SIGKILL if the port is still held after 15 s.
+- **Foreground terminals**: if the server was started with `run-mcp-server`
+  in a terminal, restarting ends that terminal's server; the new one runs in
+  the background. A server restarted from here is no longer tied to
+  `run-backend.ps1` / `run-local-api.sh`, so it keeps running after the
+  backend script exits.
+- **Access**: same owner gate as **Update app**. See
+  `backend/routes/mcp_server_admin.py`.
+
 ## Common Troubleshooting Steps
 - Verify that Python (3.11+) and Node.js versions meet project requirements
   (CI/CD uses Python 3.12).

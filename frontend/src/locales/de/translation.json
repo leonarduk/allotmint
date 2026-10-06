@@ -97,7 +97,7 @@
       "goals": "Anforderungen",
       "holdings": "Bestände",
       "insights": "Einblicke",
-      "operations": "Operationen",
+      "operations": "Verwaltung",
       "other": "Weitere",
       "preferences": "Einstellungen"
     },
@@ -124,16 +124,16 @@
       "scenario": "Szenario-Tester",
       "screener": "Filter & Abfrage",
       "settings": "Handelsregeln",
-      "support": "Hilfe",
+      "support": "Konfiguration",
       "taxtools": "Steuer-Tools",
-      "timeseries": "Zeitreihe",
+      "timeseries": "Zeitreihen-Editor",
       "trade-compliance": "Handels-Compliance",
       "trading": "Handel",
       "trail": "Prüfpfad",
       "transactions": "Transaktionen",
       "watchlist": "Beobachtungsliste"
     },
-    "operationsLink": "Betrieb",
+    "operationsLink": "Verwaltung",
     "opensInSeparateTab": "(öffnet in einem separaten Tab)",
     "refreshing": "Aktualisierung…",
     "refreshingProgress": "Aktualisierung… ({{completed}}/{{total}})",
@@ -643,7 +643,7 @@
       "otherSwitches": "Andere Schalter",
       "save": "Speichern",
       "tabsEnabled": "Tabs aktiviert",
-      "title": "Konfiguration",
+      "title": "Schalter & Parameter",
       "mcpTools": "MCP-Tools",
       "mcpToolsHint": "Tools, die der Chat-Assistent nutzen kann. Standardmäßig sind alle aktiv; Häkchen entfernen, um eines abzuschalten.",
       "mcpToolNotConfigured": "Nicht konfiguriert",
@@ -690,7 +690,7 @@
       "sent": "Gesendet"
     },
     "telegramMessage": "Telegram-Nachricht",
-    "title": "Support"
+    "title": "Konfiguration"
   },
   "timeseries": {
     "loading": "Laden…"

@@ -979,7 +979,7 @@ describe("ChatPanel", () => {
 
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(screen.getByRole("region", { name: "Chat" })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "close" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: /reattach/i }));
       expect(onReattach).toHaveBeenCalled();

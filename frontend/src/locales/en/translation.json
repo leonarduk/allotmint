@@ -1308,7 +1308,7 @@
     },
     "confirm": {
       "title": "Commit this draft?",
-      "body_one": "This will copy {{count}} draft account and their holdings into your saved portfolio. Your browser-local draft will be kept unchanged.",
+      "body_one": "This will copy {{count}} draft account and its holdings into your saved portfolio. Your browser-local draft will be kept unchanged.",
       "body_other": "This will copy {{count}} draft accounts and their holdings into your saved portfolio. Your browser-local draft will be kept unchanged.",
       "committing": "Committing…",
       "confirm": "Confirm commit",
@@ -1405,7 +1405,7 @@
     "detach": "Detach",
     "reattachTitle": "Move the chat back into the main window",
     "reattach": "Reattach",
-    "close": "close",
+    "close": "Close",
     "confirmDeleteHistory": "Confirm deleting chat history",
     "deleteHistoryPrompt": "Delete your saved chat history, including chats you started over with New chat? This can't be undone.",
     "delete": "Delete",

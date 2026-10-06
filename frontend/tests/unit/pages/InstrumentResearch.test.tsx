@@ -1130,6 +1130,28 @@ describe("InstrumentResearch page", () => {
     );
   });
 
+  it("refuses to create alerts on a bare ticker when the exchange is unknown", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([]);
+    mockUseInstrumentHistory.mockReturnValue({
+      data: { mini: { "30": [] }, positions: [], ticker: "AAA", prices: [] },
+      loading: false,
+      error: null,
+    } as any);
+    vi.mocked(api.getConfig).mockResolvedValue({ disable_auth: true, demo_identity: "demo" } as any);
+    vi.mocked(api.getOwners).mockResolvedValue([]);
+    vi.mocked(api.getPriceTriggers).mockReset().mockResolvedValue([]);
+
+    renderPage();
+    await waitFor(() => expect(mockListInstrumentMetadata).toHaveBeenCalled());
+    await userEvent.click(screen.getAllByRole("button", { name: "Price alerts" })[0]);
+
+    expect(
+      await screen.findByText(/Price alerts need the instrument's exchange/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add trigger" })).not.toBeInTheDocument();
+    expect(api.getPriceTriggers).not.toHaveBeenCalled();
+  });
+
   it("skips news updates when unmounted", async () => {
     let rejectNews: (err: unknown) => void = () => {};
     const newsPromise = new Promise<NewsItem[]>((_, reject) => {

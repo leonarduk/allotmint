@@ -54,6 +54,7 @@
       "edit": "Editar",
       "empty": "Ainda não há gatilhos de preço.",
       "enabled": "Ativo",
+      "exchangeUnknown": "Os alertas de preço precisam da bolsa do instrumento (ex. VOD.L), ainda desconhecida. Abra-o com o sufixo da bolsa ou defina-a no catálogo de instrumentos.",
       "instrumentDescription": "Receba um alerta quando {{ticker}} cruzar um nível de preço. Os níveis estão em GBP e são verificados a cada atualização de preços.",
       "instrumentEmpty": "Ainda não há alertas de preço para {{ticker}}.",
       "instrumentTitle": "Alertas de preço",

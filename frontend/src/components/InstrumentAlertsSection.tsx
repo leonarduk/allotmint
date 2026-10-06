@@ -5,7 +5,10 @@ import { useAlertIdentity } from '../hooks/useAlertIdentity';
 import { useDemoReadOnly } from '../hooks/useDemoReadOnly';
 
 interface Props {
-  /** Full ticker the alerts watch, in price-snapshot form (e.g. "VOD.L"). */
+  /**
+   * Full ticker the alerts watch, in price-snapshot form (e.g. "VOD.L").
+   * Empty when the exchange is unknown: no alert can be matched then.
+   */
   ticker: string;
   /** Latest GBP close, shown as a reference when picking a level. */
   latestPrice?: number | null;
@@ -24,6 +27,13 @@ export default function InstrumentAlertsSection({
   const { identity, resolving } = useAlertIdentity();
   const { demoReadOnly, reason } = useDemoReadOnly();
 
+  if (!ticker) {
+    return (
+      <p style={{ marginBottom: '1rem' }}>
+        {t('alertSettings.triggers.exchangeUnknown')}
+      </p>
+    );
+  }
   if (resolving) return null;
   if (!identity) {
     return (

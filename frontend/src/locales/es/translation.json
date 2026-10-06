@@ -54,6 +54,7 @@
       "edit": "Editar",
       "empty": "Aún no hay disparadores de precio.",
       "enabled": "Activo",
+      "exchangeUnknown": "Las alertas de precio necesitan el mercado del instrumento (p. ej. VOD.L), que aún no se conoce. Ábrelo con su sufijo de mercado o configúralo en el catálogo de instrumentos.",
       "instrumentDescription": "Recibe una alerta cuando {{ticker}} cruce un nivel de precio. Los niveles están en GBP y se comprueban en cada actualización de precios.",
       "instrumentEmpty": "Aún no hay alertas de precio para {{ticker}}.",
       "instrumentTitle": "Alertas de precio",

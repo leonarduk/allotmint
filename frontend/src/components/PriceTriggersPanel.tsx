@@ -90,6 +90,7 @@ export default function PriceTriggersPanel({
   // half-finished edit so it can't be saved against the wrong ticker.
   useEffect(() => {
     setEditingId(null);
+    setError(null);
     setForm(emptyForm(ticker));
   }, [ticker]);
 

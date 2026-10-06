@@ -54,6 +54,7 @@
       "edit": "Modifica",
       "empty": "Nessun trigger di prezzo.",
       "enabled": "Attivo",
+      "exchangeUnknown": "Gli avvisi di prezzo richiedono la borsa dello strumento (es. VOD.L), non ancora nota. Aprilo con il suffisso di borsa o impostala nel catalogo strumenti.",
       "instrumentDescription": "Ricevi un avviso quando {{ticker}} supera un livello di prezzo. I livelli sono in GBP e vengono verificati a ogni aggiornamento dei prezzi.",
       "instrumentEmpty": "Nessun avviso di prezzo per {{ticker}} per ora.",
       "instrumentTitle": "Avvisi di prezzo",

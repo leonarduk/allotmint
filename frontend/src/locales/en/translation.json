@@ -57,6 +57,7 @@
       "edit": "Edit",
       "empty": "No price triggers yet.",
       "enabled": "Enabled",
+      "exchangeUnknown": "Price alerts need the instrument's exchange (e.g. VOD.L), which isn't known yet. Open it with its exchange suffix or set it in the instrument catalogue.",
       "instrumentDescription": "Get an alert when {{ticker}} crosses a price level. Levels are in GBP and checked each time prices refresh.",
       "instrumentEmpty": "No price alerts for {{ticker}} yet.",
       "instrumentTitle": "Price alerts",

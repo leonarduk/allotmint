@@ -905,10 +905,13 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   // Price triggers are matched against price-snapshot keys, which are full
   // TICKER.EXCHANGE symbols -- prefer the resolved exchange over whatever
   // suffix (if any) the URL carried so a bare /research/VOD still watches
-  // VOD.L. The reference price is the GBP close, since trigger levels are GBP.
-  const alertTicker = (
-    baseTicker && instrumentExchange ? `${baseTicker}.${instrumentExchange}` : tkr
-  ).toUpperCase();
+  // VOD.L. Without an exchange there is no key a trigger could ever match,
+  // so leave it empty rather than fall back to the bare ticker (which would
+  // hide existing alerts and create ones that never fire). The reference
+  // price is the GBP close, since trigger levels are GBP.
+  const alertExchange = deriveExchangeForActions();
+  const alertTicker =
+    baseTicker && alertExchange ? `${baseTicker}.${alertExchange}`.toUpperCase() : "";
   const latestGbpClose =
     typeof latestRawPriceEntry?.close_gbp === "number" &&
     Number.isFinite(latestRawPriceEntry.close_gbp)

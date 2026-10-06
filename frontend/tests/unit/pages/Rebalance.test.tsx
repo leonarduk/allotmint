@@ -5,6 +5,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RebalancePlan } from '@/types';
 
@@ -70,6 +71,7 @@ function makePlan(overrides: Partial<RebalancePlan> = {}): RebalancePlan {
         action: 'sell',
         amount: 200,
         ticker: 'EQ1',
+        name: 'Equity One',
       },
       {
         account_id: '0',
@@ -78,6 +80,7 @@ function makePlan(overrides: Partial<RebalancePlan> = {}): RebalancePlan {
         action: 'buy',
         amount: 200,
         ticker: 'BD1',
+        name: 'Bond One',
       },
       {
         account_id: '1',
@@ -86,6 +89,7 @@ function makePlan(overrides: Partial<RebalancePlan> = {}): RebalancePlan {
         action: 'sell',
         amount: 200,
         ticker: 'EQ2',
+        name: null,
       },
       {
         account_id: '1',
@@ -94,6 +98,7 @@ function makePlan(overrides: Partial<RebalancePlan> = {}): RebalancePlan {
         action: 'buy',
         amount: 200,
         ticker: null,
+        name: null,
       },
     ],
     unfunded_amount: 0,
@@ -104,7 +109,7 @@ function makePlan(overrides: Partial<RebalancePlan> = {}): RebalancePlan {
 
 async function renderPage() {
   const { default: Rebalance } = await import('@/pages/Rebalance');
-  render(<Rebalance />);
+  render(<Rebalance />, { wrapper: MemoryRouter });
   await waitFor(() =>
     expect(mockGetRebalancePlan).toHaveBeenCalledWith('alex')
   );
@@ -150,6 +155,22 @@ describe('Rebalance page', () => {
     expect(
       within(trades).getByText('Choose an instrument')
     ).toBeInTheDocument();
+  });
+
+  it('names suggested instruments and links them to their research page', async () => {
+    await renderPage();
+    const trades = await screen.findByRole('region', {
+      name: 'Suggested trades',
+    });
+    const named = within(trades).getByRole('link', { name: /Equity One/ });
+    expect(named).toHaveAttribute('href', '/research/EQ1');
+    expect(named).toHaveTextContent('Equity One (EQ1)');
+    // Without a name the ticker alone is the link text.
+    expect(within(trades).getByRole('link', { name: 'EQ2' })).toHaveAttribute(
+      'href',
+      '/research/EQ2'
+    );
+    expect(within(trades).getAllByRole('link')).toHaveLength(3);
   });
 
   it('shows an empty state when every class is in band', async () => {
@@ -242,6 +263,7 @@ describe('Rebalance page', () => {
           action: 'buy',
           amount: 500,
           ticker: 'BD2',
+          name: 'Bond Two',
         },
       ],
       keep_as_cash: 0,
@@ -261,14 +283,16 @@ describe('Rebalance page', () => {
     await waitFor(() =>
       expect(mockGetNewCashPlan).toHaveBeenCalledWith('alex', 500, '1')
     );
-    expect(await within(form).findByText('BD2')).toBeInTheDocument();
+    expect(
+      await within(form).findByRole('link', { name: /Bond Two/ })
+    ).toHaveAttribute('href', '/research/BD2');
     expect(within(form).queryByText('SELL')).not.toBeInTheDocument();
   });
 
   it('reports plan load failures', async () => {
     mockGetRebalancePlan.mockRejectedValue(new Error('boom'));
     const { default: Rebalance } = await import('@/pages/Rebalance');
-    render(<Rebalance />);
+    render(<Rebalance />, { wrapper: MemoryRouter });
     expect(
       await screen.findByText(/Unable to load rebalance plan for alex: boom/)
     ).toBeInTheDocument();

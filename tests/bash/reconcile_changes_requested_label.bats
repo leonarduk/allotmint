@@ -5,6 +5,8 @@
 # 'Changes Requested' label is removed (see #4236), and how the latest verdict is
 # picked from the check-runs for the head SHA (see #8812).
 
+bats_require_minimum_version 1.5.0
+
 SCRIPT="$BATS_TEST_DIRNAME/../../.github/scripts/reconcile_changes_requested_label.sh"
 
 setup() {
@@ -167,7 +169,7 @@ write_fake_gh() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"enabled reviewers: DeepSeek AI code review"* ]]
   [[ "$output" == *"leaving 'Changes Requested' label as-is"* ]]
-  ! grep -q -- "--remove-label" "$CALL_LOG"
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
 }
 
 @test "a disabled reviewer's pending check-run does not block label removal" {
@@ -195,8 +197,8 @@ write_fake_gh() {
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"No AI reviewers are enabled; nothing to reconcile for PR #42."* ]]
-  ! grep -q -- "check-runs" "$CALL_LOG"
-  ! grep -q -- "--remove-label" "$CALL_LOG"
+  run ! grep -q -- "check-runs" "$CALL_LOG"
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
 }
 
 @test "one enabled reviewer still pending leaves the label in place" {
@@ -209,7 +211,7 @@ write_fake_gh() {
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"leaving 'Changes Requested' label as-is"* ]]
-  ! grep -q -- "--remove-label" "$CALL_LOG"
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
 }
 
 @test "an enabled reviewer with no check-run at all is treated as pending" {
@@ -223,7 +225,7 @@ write_fake_gh() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"DeepSeek AI code review: pending"* ]]
   [[ "$output" == *"leaving 'Changes Requested' label as-is"* ]]
-  ! grep -q -- "--remove-label" "$CALL_LOG"
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
 }
 
 @test "all enabled reviewers passing but label absent is a no-op" {
@@ -236,7 +238,7 @@ write_fake_gh() {
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"Label not present on PR #42; nothing to remove."* ]]
-  ! grep -q -- "--remove-label" "$CALL_LOG"
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
 }
 
 # --- #8812: check-run name matching and duplicate-run selection -------------
@@ -267,7 +269,7 @@ write_fake_gh() {
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"DeepSeek AI code review: pending"* ]]
-  ! grep -q -- "--remove-label" "$CALL_LOG"
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
 }
 
 @test "success followed by a later skipped duplicate counts as success (#8812)" {
@@ -318,7 +320,7 @@ JSON
   [ "$status" -eq 0 ]
   [[ "$output" == *"DeepSeek AI code review: failure"* ]]
   [[ "$output" == *"leaving 'Changes Requested' label as-is"* ]]
-  ! grep -q -- "--remove-label" "$CALL_LOG"
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
 }
 
 @test "an enabled reviewer with only skipped runs is treated as pending (#8812)" {
@@ -331,7 +333,7 @@ JSON
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"DeepSeek AI code review: pending"* ]]
-  ! grep -q -- "--remove-label" "$CALL_LOG"
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
 }
 
 @test "a later successful re-run supersedes an earlier failure (#8812)" {
@@ -359,7 +361,7 @@ JSON
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"DeepSeek AI code review: failure"* ]]
-  ! grep -q -- "--remove-label" "$CALL_LOG"
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
 }
 
 @test "an in-progress re-review after a success keeps the label until it finishes (#8812)" {
@@ -373,7 +375,7 @@ JSON
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"DeepSeek AI code review: pending"* ]]
-  ! grep -q -- "--remove-label" "$CALL_LOG"
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
 }
 
 @test "a queued run with no started_at counts as the latest, pending (#8812)" {
@@ -391,7 +393,7 @@ JSON
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"DeepSeek AI code review: pending"* ]]
-  ! grep -q -- "--remove-label" "$CALL_LOG"
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
 }
 
 @test "the verdict is chosen across all paginated pages, not per page (#8812)" {
@@ -432,4 +434,72 @@ JSON
   [[ "$output" == *"GPT AI code review: success"* ]]
   [[ "$output" == *"DeepSeek AI code review: success"* ]]
   grep -q -- "--remove-label Changes Requested" "$CALL_LOG"
+}
+
+# --- inline reconcile from the approving review job -------------------------
+# _ai-pr-review.yml calls the script while its own check-run is still in
+# progress, passing ASSUME_SUCCESS_CHECK/REVIEWED_SHA for its own verdict.
+
+@test "the calling reviewer's in-progress run counts as success for the reviewed head" {
+  export ENABLE_CLAUDE="false"
+  export ENABLE_GPT="false"
+  export ASSUME_SUCCESS_CHECK="DeepSeek AI code review"
+  export REVIEWED_SHA="sha123"
+  write_fake_gh "sha123" "true" \
+    "ai-review / DeepSeek AI code review=pending"
+
+  run bash "$SCRIPT" 42
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Counting DeepSeek AI code review as success"* ]]
+  [[ "$output" == *"DeepSeek AI code review: success"* ]]
+  grep -q -- "--remove-label Changes Requested" "$CALL_LOG"
+}
+
+@test "the assumption is ignored when a newer commit has been pushed" {
+  export ENABLE_CLAUDE="false"
+  export ENABLE_GPT="false"
+  export ASSUME_SUCCESS_CHECK="DeepSeek AI code review"
+  export REVIEWED_SHA="oldsha"
+  write_fake_gh "newsha" "true" \
+    "ai-review / DeepSeek AI code review=pending"
+
+  run bash "$SCRIPT" 42
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Not assuming DeepSeek AI code review"* ]]
+  [[ "$output" == *"DeepSeek AI code review: pending"* ]]
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
+}
+
+@test "the assumption covers only the calling reviewer, not the others" {
+  export ENABLE_GPT="false"
+  export ASSUME_SUCCESS_CHECK="DeepSeek AI code review"
+  export REVIEWED_SHA="sha123"
+  write_fake_gh "sha123" "true" \
+    "ai-review / DeepSeek AI code review=pending" \
+    "ai-review / Claude AI code review=pending"
+
+  run bash "$SCRIPT" 42
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"DeepSeek AI code review: success"* ]]
+  [[ "$output" == *"Claude AI code review: pending"* ]]
+  [[ "$output" == *"leaving 'Changes Requested' label as-is"* ]]
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
+}
+
+@test "the assumption cannot override another reviewer's failure" {
+  export ENABLE_GPT="false"
+  export ASSUME_SUCCESS_CHECK="DeepSeek AI code review"
+  export REVIEWED_SHA="sha123"
+  write_fake_gh "sha123" "true" \
+    "ai-review / DeepSeek AI code review=pending" \
+    "ai-review / Claude AI code review=failure"
+
+  run bash "$SCRIPT" 42
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Claude AI code review: failure"* ]]
+  run ! grep -q -- "--remove-label" "$CALL_LOG"
 }

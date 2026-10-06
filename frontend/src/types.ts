@@ -929,6 +929,8 @@ export interface RebalanceTrade {
   action: "buy" | "sell";
   amount: number;
   ticker: string | null;
+  /** Display name of the suggested instrument, when the holding has one. */
+  name: string | null;
 }
 
 export interface RebalanceAccount {

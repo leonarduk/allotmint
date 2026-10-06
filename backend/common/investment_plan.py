@@ -145,7 +145,8 @@ class PlanProfileRating(BaseModel):
 
 
 class PlanGoal(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    # Stripped so a whitespace-only name fails min_length rather than being saved.
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     name: str = Field(min_length=1)
     purpose: GoalPurpose

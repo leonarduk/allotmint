@@ -382,6 +382,25 @@ describe('PlanPanel', () => {
       expect(table.querySelector('tbody tr')).toHaveTextContent('1.5 ago');
     });
 
+    it('carries the profile through the raw JSON view', async () => {
+      mockGetInvestmentPlan.mockResolvedValue(withProfile());
+      render(<PlanPanel owner="alex" />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Edit plan' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Edit as JSON' }));
+
+      const editor = screen.getByLabelText('Plan JSON') as HTMLTextAreaElement;
+      const json = JSON.parse(editor.value);
+      expect(json.profile.goals[0].name).toBe('Joe university');
+      json.profile.goals[0].name = 'Joe degree';
+      fireEvent.change(editor, { target: { value: JSON.stringify(json) } });
+      fireEvent.click(screen.getByRole('button', { name: 'Back to form' }));
+
+      expect(screen.getByLabelText('Goal 1')).toHaveValue('Joe degree');
+      expect(screen.getByLabelText('Risk tolerance level')).toHaveValue(
+        'medium'
+      );
+    });
+
     it('omits the section for a plan without a profile', async () => {
       mockGetInvestmentPlan.mockResolvedValue(makeResponse());
       render(<PlanPanel owner="alex" />);

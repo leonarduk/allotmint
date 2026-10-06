@@ -41,8 +41,8 @@ export const PROFILE_LEVELS: InvestmentPlanProfileLevel[] = [
   'high',
 ];
 
-/** Goal purposes, in backend GoalPurpose order, with display labels. */
-export const GOAL_PURPOSES: Record<InvestmentPlanGoalPurpose, string> = {
+/** Display labels for goal purposes (the editor translates them via planEditor.purpose_*). */
+const GOAL_PURPOSE_LABELS: Record<InvestmentPlanGoalPurpose, string> = {
   retirement: 'Retirement',
   education: 'Education',
   house_deposit: 'House deposit',
@@ -51,8 +51,13 @@ export const GOAL_PURPOSES: Record<InvestmentPlanGoalPurpose, string> = {
   other: 'Other',
 };
 
+/** Goal purposes, in backend GoalPurpose order. */
+export const GOAL_PURPOSES = Object.keys(
+  GOAL_PURPOSE_LABELS
+) as InvestmentPlanGoalPurpose[];
+
 export const goalPurposeLabel = (key: string) =>
-  GOAL_PURPOSES[key as InvestmentPlanGoalPurpose] ?? key;
+  GOAL_PURPOSE_LABELS[key as InvestmentPlanGoalPurpose] ?? key;
 
 /** Labels for plan class keys and the parent asset classes they roll up to. */
 const CLASS_LABELS: Record<string, string> = {

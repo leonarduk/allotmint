@@ -305,6 +305,7 @@ def test_profile_round_trips(tmp_path):
         ({"risk_tolerance": {"level": "very high"}}, "risk_tolerance.level"),
         ({"goals": [{"name": "x", "purpose": "yacht"}]}, "purpose"),
         ({"goals": [{"name": "", "purpose": "other"}]}, "name"),
+        ({"goals": [{"name": "  ", "purpose": "other"}]}, "name"),
         ({"goals": [{"name": "x", "purpose": "other", "amount_gbp": -1}]}, "amount_gbp"),
         ({"goals": [{"name": "x", "purpose": "other", "priority": 0}]}, "priority"),
         ({"suitability": "high"}, "suitability"),

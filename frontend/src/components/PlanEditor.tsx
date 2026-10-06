@@ -468,6 +468,7 @@ function RatingInput({
   value: RatingFields;
   onChange: (value: RatingFields) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="text-sm">
       {label}
@@ -481,17 +482,17 @@ function RatingInput({
               level: e.target.value as RatingFields['level'],
             })
           }
-          aria-label={`${label} level`}
+          aria-label={t('planEditor.ratingLevel', { label })}
         >
-          <option value="">Not recorded</option>
+          <option value="">{t('planEditor.notRecorded')}</option>
           {PROFILE_LEVELS.map((level) => (
             <option key={level} value={level}>
-              {level}
+              {t(`planEditor.level_${level}`)}
             </option>
           ))}
         </select>
         <TextInput
-          label={`${label} note`}
+          label={t('planEditor.ratingNote', { label })}
           value={value.note}
           onChange={(note) => onChange({ ...value, note })}
         />
@@ -507,10 +508,12 @@ function GoalSection({
   rows: GoalRow[];
   onChange: (rows: GoalRow[]) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <RowList
-      title="Goals"
-      hint="What the money is for and when it's needed. Amount in GBP; priority 1 is highest."
+      title={t('planEditor.goalsTitle')}
+      itemName={t('planEditor.goalItem')}
+      hint={t('planEditor.goalsHint')}
       rows={rows}
       onChange={onChange}
       blank={(): GoalRow => ({
@@ -524,7 +527,7 @@ function GoalSection({
       renderRow={(row, patch, n) => (
         <>
           <TextInput
-            label={`Goal ${n}`}
+            label={t('planEditor.goal', { n })}
             value={row.name}
             onChange={(name) => patch({ name })}
           />
@@ -534,34 +537,34 @@ function GoalSection({
             onChange={(e) =>
               patch({ purpose: e.target.value as InvestmentPlanGoalPurpose })
             }
-            aria-label={`Goal purpose ${n}`}
+            aria-label={t('planEditor.goalPurpose', { n })}
           >
-            {Object.entries(GOAL_PURPOSES).map(([key, label]) => (
+            {GOAL_PURPOSES.map((key) => (
               <option key={key} value={key}>
-                {label}
+                {t(`planEditor.purpose_${key}`)}
               </option>
             ))}
           </select>
           <TextInput
-            label={`Goal target date ${n}`}
+            label={t('planEditor.goalTargetDate', { n })}
             type="date"
             value={row.target_date}
             onChange={(target_date) => patch({ target_date })}
           />
           <TextInput
-            label={`Goal amount £ ${n}`}
+            label={t('planEditor.goalAmount', { n })}
             type="number"
             value={row.amount}
             onChange={(amount) => patch({ amount })}
           />
           <TextInput
-            label={`Goal priority ${n}`}
+            label={t('planEditor.goalPriority', { n })}
             type="number"
             value={row.priority}
             onChange={(priority) => patch({ priority })}
           />
           <TextInput
-            label={`Goal note ${n}`}
+            label={t('planEditor.goalNote', { n })}
             value={row.note}
             onChange={(note) => patch({ note })}
           />
@@ -579,20 +582,21 @@ function ProfileSection({
   form: PlanForm;
   set: Patch<PlanForm>;
 }) {
+  const { t } = useTranslation();
   return (
     <fieldset className="mb-4">
-      <legend className="font-medium">Profile and goals</legend>
+      <legend className="font-medium">{t('planEditor.profileTitle')}</legend>
       <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
-        Your own view, recorded as you state it; nothing is scored from it.
+        {t('planEditor.profileHint')}
       </p>
       <div className="mb-2 grid gap-2 sm:grid-cols-2">
         <RatingInput
-          label="Risk tolerance"
+          label={t('planEditor.riskTolerance')}
           value={form.risk_tolerance}
           onChange={(risk_tolerance) => set({ risk_tolerance })}
         />
         <RatingInput
-          label="Capacity for loss"
+          label={t('planEditor.capacityForLoss')}
           value={form.capacity_for_loss}
           onChange={(capacity_for_loss) => set({ capacity_for_loss })}
         />

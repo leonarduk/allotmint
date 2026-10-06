@@ -60,6 +60,18 @@ describe('planForm', () => {
     ]);
   });
 
+  it('reads the backend vehicle shorthand of bare ticker strings', () => {
+    const vehicles = {
+      long_gilts: 'GLTL.L',
+      gold: ['SGLN.L', { note: 'or physical' }],
+    } as unknown as InvestmentPlan['vehicles'];
+    expect(fromPlan({ vehicles }).vehicles).toEqual([
+      { class: 'long_gilts', ticker: 'GLTL.L', note: '' },
+      { class: 'gold', ticker: 'SGLN.L', note: '' },
+      { class: 'gold', ticker: '', note: 'or physical' },
+    ]);
+  });
+
   it('drops blank rows and blank optional fields', () => {
     const form = {
       ...emptyPlanForm(),

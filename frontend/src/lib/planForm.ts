@@ -1,7 +1,7 @@
 // Form state for the structured investment plan editor (#9655). Every input
 // is held as text so a half-typed number survives re-renders; toPlan converts
 // back to the backend's InvestmentPlan shape (backend/common/investment_plan.py).
-import type { InvestmentPlan } from '../types';
+import type { InvestmentPlan, InvestmentPlanVehicle } from '../types';
 
 /** Plan class keys, in backend PLAN_CLASS_PARENT order. */
 export const PLAN_CLASSES = [
@@ -17,6 +17,9 @@ export const PLAN_CLASSES = [
   'commodities',
   'cash',
 ] as const;
+
+export const isPlanClass = (key: string) =>
+  (PLAN_CLASSES as readonly string[]).includes(key);
 
 export const PLAN_STATUSES: InvestmentPlan['status'][] = [
   'draft',
@@ -142,6 +145,21 @@ export function emptyPlanForm(): PlanForm {
   };
 }
 
+type VehicleInput = InvestmentPlanVehicle | string;
+
+/** Flatten vehicles, accepting the backend's shorthand: a ticker string, alone or in a list. */
+function vehicleRows(
+  vehicles: Record<string, VehicleInput | VehicleInput[]> | undefined
+): VehicleRow[] {
+  return Object.entries(vehicles ?? {}).flatMap(([cls, items]) =>
+    (Array.isArray(items) ? items : [items]).map((v) =>
+      typeof v === 'string'
+        ? { class: cls, ticker: v, note: '' }
+        : { class: cls, ticker: v.ticker ?? '', note: v.note ?? '' }
+    )
+  );
+}
+
 export function fromPlan(plan: Partial<InvestmentPlan>): PlanForm {
   const base = emptyPlanForm();
   return {
@@ -156,13 +174,7 @@ export function fromPlan(plan: Partial<InvestmentPlan>): PlanForm {
           weight: String(t.weight_pct),
         }))
       : base.target,
-    vehicles: Object.entries(plan.vehicles ?? {}).flatMap(([cls, list]) =>
-      list.map((v) => ({
-        class: cls,
-        ticker: v.ticker ?? '',
-        note: v.note ?? '',
-      }))
-    ),
+    vehicles: vehicleRows(plan.vehicles),
     assumptions: (plan.assumptions ?? []).map((a) => ({
       key: a.key,
       value: scalarText(a.value),
@@ -241,7 +253,7 @@ export function toPlan(
       .map((e) => ({
         as_of: e.as_of,
         metric: e.metric.trim(),
-        // Blank is left for the backend to reject as a missing value.
+        // A blank value is omitted from the JSON, so the backend reports it as missing.
         value: parseNumberOrText(e.value) as string | number,
         basis: optional(e.basis),
         source: optional(e.source),

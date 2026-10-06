@@ -1,10 +1,12 @@
 import { useState, type ReactNode } from 'react';
 import { saveInvestmentPlan } from '../api';
+import { localDateISO } from '../lib/date';
 import {
   PLAN_CLASSES,
   PLAN_STATUSES,
   classLabel,
   formErrors,
+  isPlanClass,
   fromPlan,
   targetTotal,
   toPlan,
@@ -22,7 +24,7 @@ const INPUT = 'w-full border p-1 text-sm';
 const SMALL_BUTTON = 'rounded bg-gray-200 px-2 py-1 text-sm text-slate-900';
 const pct = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDateISO();
 
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -71,7 +73,8 @@ function ClassSelect({
       onChange={(e) => onChange(e.target.value)}
       aria-label={label}
     >
-      {PLAN_CLASSES.map((key) => (
+      {/* Keep a class the list doesn't know (e.g. from pasted JSON) rather than show it as the first option. */}
+      {[...(isPlanClass(value) ? [] : [value]), ...PLAN_CLASSES].map((key) => (
         <option key={key} value={key}>
           {classLabel(key)}
         </option>

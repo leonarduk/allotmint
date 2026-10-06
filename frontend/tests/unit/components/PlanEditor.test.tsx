@@ -94,6 +94,25 @@ describe('PlanEditor', () => {
     expect(screen.getByLabelText('Target weight % 1')).toHaveValue(100);
   });
 
+  it('keeps a class the dropdown does not list when coming back from JSON', () => {
+    renderEditor();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit as JSON' }));
+    const json = screen.getByLabelText('Plan JSON') as HTMLTextAreaElement;
+    change(
+      'Plan JSON',
+      json.value.replace(
+        '"vehicles": {}',
+        '"vehicles": {"property": ["VPRO.L"]}'
+      )
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Back to form' }));
+    expect(screen.getByLabelText('Vehicle class 1')).toHaveValue('property');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit as JSON' }));
+    expect(
+      (screen.getByLabelText('Plan JSON') as HTMLTextAreaElement).value
+    ).toContain('"property"');
+  });
+
   it('stays in the JSON view when the JSON is invalid', () => {
     renderEditor();
     fireEvent.click(screen.getByRole('button', { name: 'Edit as JSON' }));

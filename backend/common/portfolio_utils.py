@@ -25,6 +25,7 @@ import pandas as pd
 from backend.common import group_portfolio, ledger_performance
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_scaffold import load_transactions
+from backend.common.currency import CurrencyNormaliser
 from backend.common.data_loader import DATA_BUCKET_ENV
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, _get_price_for_date_scaled, is_cost_basis_unreliable
 from backend.common.instrument_classification import canonical_asset_class, exposure_sector, resolve_instrument_type
@@ -54,7 +55,9 @@ from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
     cached_fx_rate_to_gbp,
+    instrument_currency,
     is_cache_only,
+    load_fx_history,
     load_meta_timeseries,
     load_meta_timeseries_range,
 )
@@ -1246,6 +1249,11 @@ def compute_owner_performance(
     Set ``group=True`` to treat ``owner`` as a group slug (see
     ``backend.common.group_portfolio``) and aggregate holdings across every
     member of that group instead of a single owner's holdings.
+
+    Holdings are valued in GBP through :func:`_gbp_holding_values`, the path
+    the max-drawdown series uses, so ``history[].value`` matches its
+    ``series[].portfolio_value``. Holdings missing FX rates on some or all dates are listed
+    under ``unconverted_holdings``.
     """
 
     calc = PricingDateCalculator(reporting_date=pricing_date)
@@ -1313,35 +1321,13 @@ def compute_owner_performance(
     # date carries forward that ticker's last known price. A ticker with no
     # price history yet at the start of the window still contributes 0
     # (via ``fillna(0)`` after the forward-fill) rather than NaN.
-    value_series: List[pd.Series] = []
-    for ticker, exchange, units in holdings:
-        df = load_meta_timeseries(ticker, exchange, effective_days)
-        if df.empty or "Date" not in df.columns or "Close" not in df.columns:
-            continue
-        df = df[["Date", "Close"]].copy()
-        df["Date"] = pd.to_datetime(df["Date"]).dt.date
-        scale = get_scaling_override(ticker, exchange, requested_scaling=None)
-        df = apply_scaling(df, scale)
-        # ``apply_scaling`` currently preserves row order, but enforce date
-        # ordering here to keep value reconstruction deterministic even if
-        # upstream transforms change.
-        df = df.sort_values("Date").reset_index(drop=True)
-        closes = pd.to_numeric(df["Close"], errors="coerce")
-
-        full_ticker = f"{ticker}.{exchange}".upper()
-        if full_ticker == "CASH.GBP":
-            closes = pd.Series(1.0, index=df["Date"])
-        else:
-            closes.index = df["Date"]
-
-        closes = closes.dropna()
-        if closes.empty:
-            continue
-        values = closes * units
-        # Guard against duplicate dates (shouldn't happen, but a duplicated
-        # index breaks ``reindex`` below).
-        values = values[~values.index.duplicated(keep="last")]
-        value_series.append(values)
+    # Holdings are valued in GBP by the same path as the max-drawdown series
+    # (#9678): pence scaled, other currencies at the stored FX rate per date.
+    window = _series_window(days, effective_days, calc.reporting_date)
+    per_holding, unconverted = _gbp_holding_values(holdings, effective_days, window, total_return=False)
+    # Guard against duplicate dates (shouldn't happen, but a duplicated index
+    # breaks ``reindex`` below).
+    value_series = [values[~values.index.duplicated(keep="last")] for values, _basis in per_holding]
 
     if value_series:
         all_dates = pd.Index(sorted(set().union(*(s.index for s in value_series))), name="Date")
@@ -1359,6 +1345,7 @@ def compute_owner_performance(
             "reporting_date": calc.reporting_date.isoformat(),
             "previous_date": calc.previous_pricing_date.isoformat(),
             "data_quality_issues": [],
+            UNCONVERTED_HOLDINGS_KEY: unconverted,
         }
 
     total = total.sort_index()
@@ -1379,6 +1366,7 @@ def compute_owner_performance(
             "reporting_date": calc.reporting_date.isoformat(),
             "previous_date": calc.previous_pricing_date.isoformat(),
             "data_quality_issues": data_quality_issues,
+            UNCONVERTED_HOLDINGS_KEY: unconverted,
         }
 
     perf["daily_return"] = perf["value"].pct_change()
@@ -1417,6 +1405,7 @@ def compute_owner_performance(
         "reporting_date": reporting_date_iso,
         "previous_date": previous_date_iso,
         "data_quality_issues": data_quality_issues,
+        UNCONVERTED_HOLDINGS_KEY: unconverted,
     }
 
 
@@ -1549,6 +1538,218 @@ def _sum_holding_values(value_series: list[pd.Series], days: int, reporting_date
     return total
 
 
+# Carry a stored FX rate over a short gap (a weekend, a bank holiday, a refresh
+# a few days late). Past that the rate counts as missing and the holding is
+# left out of the value series rather than summed in its own currency (#7786).
+_MAX_FX_GAP_FILL_DAYS = 5
+
+# Breakdown key listing the holdings whose closes could not be converted to
+# GBP on some dates (those dates count as missing prices) or on any date (the
+# holding is left out of the value series).
+UNCONVERTED_HOLDINGS_KEY = "unconverted_holdings"
+
+
+def _holding_currency(ticker: str, exchange: str) -> CurrencyNormaliser:
+    """The currency a holding's closes are quoted in.
+
+    ``CASH.<ccy>`` (or legacy ``<ccy>.CASH``) is in ``<ccy>``. Anything else
+    takes :func:`backend.timeseries.cache.instrument_currency` -- the metadata
+    currency, else the exchange's -- which the timeseries loader's own FX step
+    uses. An instrument with neither (no metadata currency, an exchange
+    missing from ``EXCHANGE_TO_CCY``) counts as GBP there, and so here, so this
+    series and ``ledger_performance.load_gbp_closes`` value it the same way.
+    """
+    if ticker.upper() == "CASH":
+        return CurrencyNormaliser.from_raw(exchange)
+    if exchange.upper() == "CASH":
+        return CurrencyNormaliser.from_raw(ticker)
+    return CurrencyNormaliser.from_raw(instrument_currency(ticker, exchange))
+
+
+def _gbp_rates(currency: str, index: pd.Index) -> pd.Series:
+    """GBP per unit of ``currency`` on each date of the sorted ``index``, from the stored FX history.
+
+    Reads ``timeseries/fx/<ccy>.parquet`` through
+    :func:`backend.timeseries.cache.load_fx_history` (never fetches). Each date
+    takes the latest rate at most :data:`_MAX_FX_GAP_FILL_DAYS` before it; a
+    date without one is NaN, as is every date when nothing is stored.
+    """
+    if currency == "GBP":
+        return pd.Series(1.0, index=index)
+    missing = pd.Series(float("nan"), index=index)
+    days = pd.DatetimeIndex(pd.to_datetime(index)).astype("datetime64[ns]")
+    if days.empty:
+        return missing
+    order = days.argsort(kind="stable")  # merge_asof needs ascending keys
+    days = days[order]
+    gap = pd.Timedelta(days=_MAX_FX_GAP_FILL_DAYS)
+    fx = load_fx_history(currency, (days.min() - gap).date(), days.max().date())
+    if fx.empty:
+        return missing
+    rates = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(fx["Date"]).astype("datetime64[ns]"),
+            "Rate": pd.to_numeric(fx["Rate"], errors="coerce"),
+        }
+    )
+    # One rate per date (the last stored, as the value series keeps the last
+    # duplicate close), in date order for merge_asof.
+    rates = rates.dropna().sort_values("Date", kind="stable").drop_duplicates("Date", keep="last")
+    merged = pd.merge_asof(pd.DataFrame({"Date": days}), rates, on="Date", direction="backward", tolerance=gap)
+    aligned = np.empty(len(index), dtype=float)
+    aligned[order] = merged["Rate"].to_numpy(dtype=float)
+    return pd.Series(aligned, index=index)
+
+
+def _closes_in_gbp(closes: pd.Series, ticker: str, exchange: str) -> tuple[pd.Series, str, pd.Index]:
+    """``(closes in GBP, currency, dates with no usable FX rate)``.
+
+    The conversion the dashboard and ``ledger_performance.load_gbp_closes``
+    apply: the instrument's scaling override (``scaling_overrides.json``, else
+    pence metadata) via :func:`get_scaling_override`, then for a non-sterling
+    currency the stored FX rate of each date (as ``instrument_proxy._to_gbp``
+    does, but with a bounded fill). Cash is 1.0 per unit of its currency and
+    is only converted. ``closes`` must be sorted by date.
+
+    Conversion is per date: a date with no rate within the fill window is
+    dropped from the returned closes (and listed as missing), so callers treat
+    it like a missing price. With no usable rate on any date the closes come
+    back empty: the holding cannot be valued in GBP at all.
+    """
+    norm = _holding_currency(ticker, exchange)
+    currency = "GBP" if norm.is_pence else norm.canonical
+    if _is_cash_holding(ticker, exchange):
+        scale = norm.pence_factor
+    else:
+        scale = get_scaling_override(ticker, exchange, None) or 1.0
+    rates = _gbp_rates(currency, closes.index)
+    missing = closes.index[rates.isna().to_numpy()]
+    converted = (closes * scale * rates).dropna()
+    return converted, currency, missing
+
+
+def _cash_closes(window_start: date, reporting_date: date) -> pd.Series:
+    """1.0 per unit on each business day of the window, for cash with no stored series."""
+    days = pd.bdate_range(window_start, reporting_date)
+    return pd.Series(1.0, index=[day.date() for day in days])
+
+
+def _window_closes(
+    ticker: str,
+    exchange: str,
+    effective_days: int,
+    window: tuple[date, date],
+    *,
+    total_return: bool,
+) -> tuple[pd.Series, str | None] | None:
+    """A holding's native closes up to the end of ``window`` with their return basis; ``None`` if unpriced.
+
+    With ``total_return`` the closes go through :func:`total_return_closes`
+    (dividends reinvested, in the closes' own currency, so before any
+    conversion). Cash with no stored series is 1.0 on each business day of
+    ``window`` (start, reporting date). Its basis is ``None``: it has no
+    income on either basis.
+    """
+    window_start, reporting_date = window
+    closes = _holding_closes(ticker, exchange, effective_days)
+    is_cash = _is_cash_holding(ticker, exchange)
+    if closes is None and is_cash:
+        closes = _cash_closes(window_start, reporting_date)
+    if closes is None:
+        return None
+    basis: str | None = None if is_cash else PRICE_RETURN_BASIS  # cash has no dividends to reinvest or miss
+    if is_cash:
+        closes = pd.Series(1.0, index=closes.index)  # a unit of cash is worth one unit of its currency
+    elif total_return:
+        closes, basis = total_return_closes(closes, ticker, exchange)
+    closes = closes.sort_index()
+    closes = closes[closes.index <= reporting_date]
+    if closes.empty:
+        return None
+    return closes, basis
+
+
+# ``reason`` of an ``unconverted_holdings`` entry.
+FX_MISSING_ALL_DATES = "no stored FX rate"  # left out of the series entirely
+FX_MISSING_SOME_DATES = "no stored FX rate on some dates"  # those dates treated as missing prices
+
+
+def _report_unconverted(
+    ticker: str,
+    exchange: str,
+    currency: str,
+    missing: pd.Index,
+    *,
+    excluded: bool,
+) -> dict[str, Any]:
+    """Log and describe a holding with dates that have no usable FX rate.
+
+    ``excluded`` when no date had a rate, so the holding is left out of the
+    series; otherwise only the ``missing`` dates lack a value.
+    """
+    first, last = min(missing), max(missing)
+    message = (
+        "Leaving out %s.%s: no stored %s->GBP rate on any of its %s dates (%s to %s)"
+        if excluded
+        else "Partly valuing %s.%s: no stored %s->GBP rate on %s dates (%s to %s)"
+    )
+    logger.warning(
+        message,
+        sanitise_log_value(ticker),
+        sanitise_log_value(exchange),
+        sanitise_log_value(currency),
+        sanitise_log_value(len(missing)),
+        sanitise_log_value(first),
+        sanitise_log_value(last),
+    )
+    return {
+        "ticker": f"{ticker}.{exchange}",
+        "currency": currency,
+        "reason": FX_MISSING_ALL_DATES if excluded else FX_MISSING_SOME_DATES,
+        "missing_fx_days": len(missing),
+        "first": pd.Timestamp(first).date().isoformat(),
+        "last": pd.Timestamp(last).date().isoformat(),
+    }
+
+
+def _series_window(days: int, effective_days: int, reporting_date: date) -> tuple[date, date]:
+    """``(start, reporting_date)`` of a ``days`` window, for cash with no stored series."""
+    return reporting_date - timedelta(days=days or effective_days), reporting_date
+
+
+def _gbp_holding_values(
+    holdings: List[tuple[str, str, float]],
+    effective_days: int,
+    window: tuple[date, date],
+    *,
+    total_return: bool,
+) -> tuple[list[tuple[pd.Series, str | None]], list[dict[str, Any]]]:
+    """Each holding's GBP value series with its return basis, plus the holdings missing FX rates.
+
+    The one GBP valuation path (#7786, #9678): the value series behind max
+    drawdown, alpha and tracking error and ``compute_owner_performance`` all
+    price holdings here. Closes come from :func:`_window_closes` and are
+    converted by :func:`_closes_in_gbp`. Dates with no usable FX rate are
+    absent from a holding's values, so each caller's gap handling for missing
+    prices applies to them; the holding is listed (with those dates) in the
+    second list, and left out entirely only when no date could be converted.
+    """
+    per_holding: list[tuple[pd.Series, str | None]] = []
+    unconverted: list[dict[str, Any]] = []
+    for ticker, exchange, units in holdings:
+        priced = _window_closes(ticker, exchange, effective_days, window, total_return=total_return)
+        if priced is None:
+            continue
+        closes, basis = priced
+        gbp_closes, currency, missing = _closes_in_gbp(closes, ticker, exchange)
+        if not missing.empty:
+            unconverted.append(_report_unconverted(ticker, exchange, currency, missing, excluded=gbp_closes.empty))
+        if gbp_closes.empty:
+            continue
+        per_holding.append((gbp_closes * units, basis))
+    return per_holding, unconverted
+
+
 def _holding_value_series(
     name: str,
     days: int,
@@ -1557,12 +1758,15 @@ def _holding_value_series(
     pricing_date: date | None,
     total_return: bool,
 ) -> tuple[pd.Series, list[tuple[pd.Series, str | None]]]:
-    """The summed portfolio value series plus each holding's ``(values, return_basis)``.
+    """The summed GBP portfolio value series plus each holding's ``(values, return_basis)``.
 
-    With ``total_return`` each holding's closes go through
-    :func:`total_return_closes` (dividends reinvested; price for a holding
-    without a corporate-actions file), otherwise they stay the traded closes.
-    A cash holding's basis is ``None``: it has no income on either basis.
+    Every holding is valued in pounds sterling (#7786): pence lines are
+    scaled and other currencies converted at the stored FX rate of each date
+    (:func:`_closes_in_gbp`), so the series agrees with the dashboard. Dates
+    with no usable FX rate count as missing prices; a holding with no usable
+    rate at all is left out. Either way it is listed under
+    ``total.attrs[UNCONVERTED_HOLDINGS_KEY]``. With
+    ``total_return`` the closes are first put on a total-return basis.
     """
     calc = PricingDateCalculator(reporting_date=pricing_date)
     holdings = _series_holdings(name, group=group, reporting_date=calc.reporting_date)
@@ -1571,24 +1775,16 @@ def _holding_value_series(
         requested_pricing_date=pricing_date,
         reporting_date=calc.reporting_date,
     )
-    per_holding: list[tuple[pd.Series, str | None]] = []
-    for ticker, exchange, units in holdings:
-        closes = _holding_closes(ticker, exchange, effective_days)
-        if closes is None:
-            continue
-        basis: str | None = PRICE_RETURN_BASIS
-        if _is_cash_holding(ticker, exchange):
-            basis = None  # flat at 1.0: no dividends to reinvest or to miss
-        elif total_return:
-            closes, basis = total_return_closes(closes, ticker, exchange)
-        values = (closes * units).sort_index()
-        values = values[values.index <= calc.reporting_date]
-        if values.empty:
-            continue
-        per_holding.append((values, basis))
-
+    window = _series_window(days, effective_days, calc.reporting_date)
+    per_holding, unconverted = _gbp_holding_values(holdings, effective_days, window, total_return=total_return)
     total = _sum_holding_values([values for values, _basis in per_holding], days, calc.reporting_date)
+    total.attrs[UNCONVERTED_HOLDINGS_KEY] = unconverted
     return total, per_holding
+
+
+def _unconverted_holdings(total: pd.Series) -> list[dict[str, Any]]:
+    """The holdings :func:`_holding_value_series` left out of ``total`` for want of FX rates."""
+    return list(total.attrs.get(UNCONVERTED_HOLDINGS_KEY, []))
 
 
 def _portfolio_value_series(
@@ -1598,10 +1794,11 @@ def _portfolio_value_series(
     group: bool = False,
     pricing_date: date | None = None,
 ) -> pd.Series:
-    """Daily value of the current holdings at their traded closes (price, no income).
+    """Daily GBP value of the current holdings at their traded closes (price, no income).
 
     Max drawdown and the TWR / XIRR / CAGR fallbacks read this; it stays on
     traded prices. Alpha and tracking error use :func:`_portfolio_return_series`.
+    Holdings missing FX rates on some or all dates are in :func:`_unconverted_holdings`.
     """
     total, _per_holding = _holding_value_series(name, days, group=group, pricing_date=pricing_date, total_return=False)
     return total
@@ -1654,11 +1851,14 @@ def _portfolio_return_series(
     No dividend is counted twice: the series values today's units at
     historical closes and never includes cash balances or ledger income
     (``DIVIDEND`` transactions only reach ``ledger_performance``), so the
-    reinvested stored dividends are the only income in it. Returns the series
-    and its ``portfolio_return_basis`` fields.
+    reinvested stored dividends are the only income in it. Dividends are
+    reinvested in each holding's own currency, then the closes are converted
+    to GBP like the price series (#7786). Returns the series and its
+    ``portfolio_return_basis`` fields, plus the holdings missing FX rates
+    under ``UNCONVERTED_HOLDINGS_KEY``.
     """
     total, per_holding = _holding_value_series(name, days, group=group, pricing_date=pricing_date, total_return=True)
-    return total, _portfolio_return_basis(per_holding)
+    return total, {**_portfolio_return_basis(per_holding), UNCONVERTED_HOLDINGS_KEY: _unconverted_holdings(total)}
 
 
 def _benchmark_daily_returns(benchmark: str, effective_days: int, reporting_date: date) -> tuple[pd.Series | None, str]:
@@ -1835,8 +2035,9 @@ def _max_drawdown(
     pricing_date: date | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
     total = _portfolio_value_series(name, days, group=group, pricing_date=pricing_date)
+    unconverted = {UNCONVERTED_HOLDINGS_KEY: _unconverted_holdings(total)}
     if total.empty:
-        return None, {"series": [], "peak": None, "trough": None}
+        return None, {"series": [], "peak": None, "trough": None, **unconverted}
     running_max = total.cummax()
     drawdown = total / running_max - 1
     min_drawdown = drawdown.min()
@@ -1878,7 +2079,7 @@ def _max_drawdown(
                         "value": peak_value,
                     }
 
-    breakdown = {"series": series, "peak": peak_info, "trough": trough_info}
+    breakdown = {"series": series, "peak": peak_info, "trough": trough_info, **unconverted}
     return value, breakdown
 
 

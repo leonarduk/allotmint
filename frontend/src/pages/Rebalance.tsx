@@ -445,6 +445,15 @@ function NewCashPlanner({
   const [result, setResult] = useState<NewCashPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Account ids are stable file stems (#9496), so a reloaded plan keeps the
+  // selection. If the selected account is gone, fall back to the first one
+  // rather than keep an id the select no longer shows and the API rejects.
+  useEffect(() => {
+    if (!accounts.some((a) => a.id === accountId)) {
+      setAccountId(accounts[0]?.id ?? '');
+    }
+  }, [accounts, accountId]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);

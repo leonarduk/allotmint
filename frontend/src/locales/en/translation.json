@@ -136,6 +136,7 @@
       "watchlist": "Watchlist"
     },
     "operationsLink": "Operations",
+    "opensInSeparateTab": "(opens in a separate tab)",
     "refreshing": "Refreshing…",
     "refreshingProgress": "Refreshing… ({{completed}}/{{total}})",
     "refreshingTicker": "Fetching {{ticker}}…",

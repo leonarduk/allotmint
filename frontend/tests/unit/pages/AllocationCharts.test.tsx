@@ -32,6 +32,7 @@ vi.mock("recharts", () => ({
 }));
 
 const mockGetGroupPortfolio = vi.mocked(api.getGroupPortfolio);
+const mockGetGroupCurrencies = vi.mocked(api.getGroupCurrencyContributions);
 
 const render = (ui: ReactNode, initialEntry = "/allocation") =>
   rtlRender(<MemoryRouter initialEntries={[initialEntry]}>{ui}</MemoryRouter>);
@@ -429,5 +430,100 @@ describe("AllocationCharts page", () => {
     await screen.findByText(/Instrument Types/);
 
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  describe("currency view (#9686)", () => {
+    const currencyRow = (quote_currency: string, market_value_gbp: number) => ({
+      quote_currency,
+      market_value_gbp,
+      gain_gbp: 0,
+      cost_gbp: market_value_gbp,
+      currency: "GBP",
+    });
+
+    it("fetches quote-currency exposure only when the view is opened", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupCurrencies.mockResolvedValueOnce([
+        currencyRow("GBP", 60),
+        currencyRow("USD", 300),
+        currencyRow("Unknown", 5),
+        currencyRow("EUR", 0),
+      ]);
+
+      render(<AllocationCharts />);
+      await screen.findByText(/Instrument Types/);
+      expect(mockGetGroupCurrencies).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Currencies" }));
+
+      await waitFor(() => expect(mockGetGroupCurrencies).toHaveBeenCalledWith("all"));
+      const slices = screen.getByTestId("pie-slices");
+      await waitFor(() =>
+        expect(within(slices).getAllByTestId("slice-row").map((el) => el.textContent)).toEqual([
+          "USD: 300",
+          "GBP: 60",
+          "Unknown currency: 5",
+        ]),
+      );
+      expect(screen.getByRole("button", { name: "Currencies" })).toBeDisabled();
+    });
+
+    it("labels the view as quote-currency exposure and hides the per-account filter", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupCurrencies.mockResolvedValueOnce([currencyRow("GBP", 100)]);
+
+      render(<AllocationCharts />, "/allocation?group=family&view=currency");
+
+      await waitFor(() => expect(mockGetGroupCurrencies).toHaveBeenCalledWith("family"));
+      expect(await screen.findByTestId("currency-exposure-note")).toHaveTextContent(
+        /quote currency.*GBP-listed global fund counts as GBP/,
+      );
+      expect(screen.queryByRole("checkbox", { name: "alice - taxable" })).not.toBeInTheDocument();
+    });
+
+    it("warns when a quote currency has no stored FX rate", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupCurrencies.mockResolvedValueOnce([
+        currencyRow("GBP", 100),
+        {
+          ...currencyRow("JPY", 20),
+          unconverted_holdings: [
+            { ticker: "AAA.JP", currency: "JPY", reason: "no stored FX rate" },
+            { ticker: "BBB.JP", currency: "JPY", reason: "no stored FX rate" },
+          ],
+        },
+      ]);
+
+      render(<AllocationCharts />, "/allocation?view=currency");
+
+      expect(await screen.findByTestId("currency-missing-fx")).toHaveTextContent(
+        "No stored exchange rate for JPY (2)",
+      );
+    });
+
+    it("shows no FX warning when every currency has a stored rate", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupCurrencies.mockResolvedValueOnce([
+        { ...currencyRow("USD", 100), unconverted_holdings: [] },
+      ]);
+
+      render(<AllocationCharts />, "/allocation?view=currency");
+
+      await waitFor(() => expect(mockGetGroupCurrencies).toHaveBeenCalled());
+      expect(await screen.findByText("USD: 100")).toBeInTheDocument();
+      expect(screen.queryByTestId("currency-missing-fx")).not.toBeInTheDocument();
+    });
+
+    it("shows the currency endpoint error without breaking other views", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupCurrencies.mockRejectedValueOnce(new Error("currency boom"));
+
+      render(<AllocationCharts />, "/allocation?view=currency");
+
+      expect(await screen.findByText("currency boom")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Instrument Types/ }));
+      expect(screen.queryByText("currency boom")).not.toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "alice - taxable" })).toBeInTheDocument();
+    });
   });
 });

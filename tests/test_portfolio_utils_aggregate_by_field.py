@@ -2,6 +2,7 @@ import pytest
 
 import backend.common.portfolio_utils as portfolio_utils
 from backend.common import instrument_api
+from backend.utils.fx_rates import FX_RATE_SOURCE_MISSING
 
 
 def _sample_portfolio():
@@ -370,3 +371,147 @@ def test_cash_instrument_type_is_labelled_cash_sector():
 
     sectors = {row["sector"] for row in portfolio_utils.aggregate_by_sector(portfolio)}
     assert sectors == {"Cash"}
+
+
+# ---------------------------------------------------------------------------
+# Quote-currency exposure (#9686)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _no_instrument_metadata(monkeypatch):
+    """Currency must come only from the holdings/tickers under test."""
+
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: {})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: {})
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda ticker, snapshot: (ticker, None))
+
+
+def _holding(ticker: str, value: float, **extra) -> dict:
+    return {"ticker": ticker, "market_value_gbp": value, "cost_gbp": value, "gain_gbp": 0, **extra}
+
+
+def _currency_groups(holdings: list[dict]) -> dict:
+    rows = portfolio_utils.aggregate_by_currency({"accounts": [{"holdings": holdings}]})
+    return {row["quote_currency"]: row for row in rows}
+
+
+@pytest.mark.usefixtures("_no_instrument_metadata")
+def test_aggregate_by_currency_folds_pence_into_gbp_and_weights_sum_to_100():
+    groups = _currency_groups(
+        [
+            _holding("QXA.L", 100, currency="GBP"),
+            _holding("QXB.L", 50, currency="GBX"),
+            _holding("QXC.L", 25, currency="GBp"),
+            _holding("QXD.N", 200, currency="USD"),
+            _holding("QXE.DE", 125, currency="eur"),
+        ]
+    )
+
+    assert set(groups) == {"GBP", "USD", "EUR"}
+    assert groups["GBP"]["market_value_gbp"] == pytest.approx(175)
+    assert groups["USD"]["market_value_gbp"] == pytest.approx(200)
+    assert groups["EUR"]["market_value_gbp"] == pytest.approx(125)
+    assert sum(g["weight_pct"] for g in groups.values()) == pytest.approx(100.0)
+    assert groups["USD"]["weight_pct"] == pytest.approx(40.0)
+    # ``currency`` stays the reporting currency, as on sector/region groups.
+    assert {g["currency"] for g in groups.values()} == {"GBP"}
+
+
+@pytest.mark.usefixtures("_no_instrument_metadata")
+def test_aggregate_by_currency_falls_back_to_exchange_then_unknown():
+    groups = _currency_groups(
+        [
+            _holding("QXF.N", 60),
+            _holding("QXG.SW", 30),
+            _holding("QXH.ZZ", 10),
+        ]
+    )
+
+    assert set(groups) == {"USD", "CHF", "Unknown"}
+    assert groups["Unknown"]["market_value_gbp"] == pytest.approx(10)
+    assert groups["Unknown"]["weight_pct"] == pytest.approx(10.0)
+
+
+@pytest.mark.usefixtures("_no_instrument_metadata")
+def test_aggregate_by_currency_prefers_holding_currency_over_exchange():
+    """A USD line listed in London is quoted in USD, not GBP."""
+
+    groups = _currency_groups([_holding("QXI.L", 40, currency="USD"), _holding("QXJ.L", 60)])
+
+    assert groups["USD"]["market_value_gbp"] == pytest.approx(40)
+    assert groups["GBP"]["market_value_gbp"] == pytest.approx(60)
+
+
+@pytest.mark.usefixtures("_no_instrument_metadata")
+@pytest.mark.parametrize("ticker", ["CASH.USD", "USD.CASH"])
+def test_aggregate_by_currency_uses_cash_ticker_currency(ticker):
+    groups = _currency_groups([_holding(ticker, 8, units=10, instrument_type="Cash")])
+
+    assert set(groups) == {"USD"}
+
+
+def test_aggregate_by_currency_uses_instrument_metadata(monkeypatch):
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: {"currency": "JPY"})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: {})
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda ticker, snapshot: (ticker, None))
+
+    groups = _currency_groups([_holding("QXK.L", 10)])
+
+    assert set(groups) == {"JPY"}
+
+
+@pytest.mark.usefixtures("_no_instrument_metadata")
+def test_aggregate_by_currency_flags_holdings_with_no_stored_fx_rate(monkeypatch):
+    """A currency with no stored GBP rate is reported in the #9671 shape, not silently trusted."""
+
+    monkeypatch.setattr(portfolio_utils, "cached_fx_rate_to_gbp", lambda ccy: {"USD": 0.79}.get(ccy))
+
+    groups = _currency_groups(
+        [
+            _holding("QXL.L", 100, currency="GBP"),
+            _holding("QXM.N", 50, currency="USD"),
+            _holding("QXN.JP", 20),
+            _holding("QXO.JP", 10),
+            _holding("QXP.ZZ", 5),
+        ]
+    )
+
+    key = portfolio_utils.UNCONVERTED_HOLDINGS_KEY
+    assert groups["GBP"][key] == []
+    assert groups["USD"][key] == []
+    assert groups["Unknown"][key] == []
+    assert groups["JPY"][key] == [
+        {"ticker": "QXN.JP", "currency": "JPY", "reason": portfolio_utils.FX_MISSING_ALL_DATES},
+        {"ticker": "QXO.JP", "currency": "JPY", "reason": portfolio_utils.FX_MISSING_ALL_DATES},
+    ]
+    # Flagged, not dropped: weights still cover every holding.
+    assert sum(g["weight_pct"] for g in groups.values()) == pytest.approx(100.0)
+
+
+@pytest.mark.usefixtures("_no_instrument_metadata")
+def test_aggregate_by_currency_flags_holding_level_missing_fx_rate(monkeypatch):
+    """A holding reporting fx_rate_source "missing" (#9664) is flagged even if its currency has a stored rate."""
+
+    monkeypatch.setattr(portfolio_utils, "cached_fx_rate_to_gbp", lambda ccy: 0.79)
+
+    groups = _currency_groups(
+        [
+            _holding("QXQ.N", 50, currency="USD", fx_rate_source=FX_RATE_SOURCE_MISSING),
+            _holding("QXR.N", 70, currency="USD", fx_rate_source="cache"),
+        ]
+    )
+
+    assert groups["USD"][portfolio_utils.UNCONVERTED_HOLDINGS_KEY] == [
+        {"ticker": "QXQ.N", "currency": "USD", "reason": portfolio_utils.FX_MISSING_ALL_DATES}
+    ]
+    assert groups["USD"]["market_value_gbp"] == pytest.approx(120)
+
+
+@pytest.mark.usefixtures("_no_instrument_metadata")
+def test_aggregate_by_ticker_does_not_leak_fx_missing_marker():
+    rows = portfolio_utils.aggregate_by_ticker(
+        {"accounts": [{"holdings": [_holding("QXS.N", 5, currency="USD", fx_rate_source=FX_RATE_SOURCE_MISSING)]}]}
+    )
+
+    assert all("_fx_rate_missing" not in r for r in rows)

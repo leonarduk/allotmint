@@ -31,6 +31,8 @@ import {
   getTrackingError,
   getGroupAlphaVsBenchmark,
   getGroupTrackingError,
+  getGroupCurrencyContributions,
+  getOwnerCurrencyContributions,
 } from "@/api";
 import {
   clearFetchCache,
@@ -1344,6 +1346,37 @@ describe("group alpha/tracking error API helpers (request shape and pass-through
     expect(urls[1]).toBe(
       `${DEFAULT_API_BASE}/performance/jane/tracking-error?benchmark=VWRL.L&days=365`,
     );
+  });
+});
+
+describe("quote-currency exposure endpoints (#9686)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setAuthToken(null);
+    setApiBase(DEFAULT_API_BASE);
+  });
+
+  it.each([
+    [() => getGroupCurrencyContributions("all"), "/portfolio-group/all/currencies"],
+    [
+      () => getGroupCurrencyContributions("all", { asOf: "2024-01-15" }),
+      "/portfolio-group/all/currencies?as_of=2024-01-15",
+    ],
+    [() => getOwnerCurrencyContributions("jane"), "/portfolio/jane/currencies"],
+    [
+      () => getOwnerCurrencyContributions("jane", { asOf: "2024-01-15" }),
+      "/portfolio/jane/currencies?as_of=2024-01-15",
+    ],
+  ])("requests %#", async (call, path) => {
+    const rows = [{ quote_currency: "USD", market_value_gbp: 10, gain_gbp: 0, cost_gbp: 10 }];
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(rows) });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(call()).resolves.toEqual(rows);
+
+    const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${DEFAULT_API_BASE}${path}`);
   });
 });
 

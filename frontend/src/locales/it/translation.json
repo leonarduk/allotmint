@@ -75,9 +75,13 @@
     }
   },
   "allocation": {
+    "currency": "Valute",
+    "currencyMissingFx": "Nessun tasso di cambio memorizzato per {{currencies}}: queste posizioni sono valutate a un tasso approssimativo o escluse, quindi la loro quota potrebbe non essere esatta.",
+    "currencyNote": "Esposizione per valuta di quotazione: la valuta in cui è quotata ogni posizione, non la sua esposizione sottostante (un fondo globale quotato in GBP conta come GBP). Include tutti i conti di questo gruppo.",
     "instrumentTypes": "Tipi di strumenti",
     "region": "Regioni",
-    "sector": "Industrie"
+    "sector": "Industrie",
+    "unknownCurrency": "Valuta sconosciuta"
   },
   "app": {
     "close": "Chiudi",

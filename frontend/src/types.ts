@@ -183,6 +183,8 @@ export type CurrencyContribution = {
   weight_pct?: number | null;
   /** Market value of holdings left out of gain/cost (unreliable cost basis, #8488). */
   unknown_cost_market_value_gbp?: number;
+  /** Holdings whose quote currency has no stored GBP rate (#9671 convention). */
+  unconverted_holdings?: UnconvertedHolding[];
 };
 
 export interface PerformancePoint {

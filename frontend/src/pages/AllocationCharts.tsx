@@ -67,6 +67,13 @@ const toCurrencySlices = (
     .filter((slice) => slice.value > 0)
     .sort((a, b) => b.value - a.value);
 
+/** Quote currencies with holdings that have no stored GBP rate, e.g. "JPY (2)". */
+const missingFxSummary = (rows: CurrencyContribution[]): string =>
+  rows
+    .filter((row) => (row.unconverted_holdings?.length ?? 0) > 0)
+    .map((row) => `${row.quote_currency} (${row.unconverted_holdings?.length})`)
+    .join(", ");
+
 /**
  * Quote-currency exposure for ``slug`` from the backend (#9686), which folds
  * GBX into GBP and resolves each holding's currency from its listing. Fetched
@@ -269,6 +276,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   };
   const chartData = chartDataByView[view];
   const isCurrencyView = view === "currency";
+  const missingFx = missingFxSummary(currencyRows ?? []);
 
   const total = chartData.reduce((sum, d) => sum + d.value, 0);
   const allKeys = portfolio?.accounts.map((acct, idx) => accountKey(acct, idx)) ?? [];
@@ -355,6 +363,11 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
       )}
       {error && <p className="text-red-500">{error}</p>}
       {isCurrencyView && currencyError && <p className="text-red-500">{currencyError}</p>}
+      {isCurrencyView && missingFx && (
+        <p className="mb-4 text-sm text-amber-700" role="status" data-testid="currency-missing-fx">
+          {t("allocation.currencyMissingFx", { currencies: missingFx })}
+        </p>
+      )}
       <div style={{ width: "100%", height: 400 }}>
         {supportsResizeObserver ? (
           <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>

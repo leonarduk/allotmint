@@ -109,6 +109,8 @@ def test_portfolio_currencies(monkeypatch, tmp_path):
     assert set(groups) == {"GBP", "USD"}
     assert groups["GBP"]["market_value_gbp"] == 150
     assert groups["USD"]["market_value_gbp"] == 250
+    assert groups["GBP"]["unconverted_holdings"] == []
+    assert isinstance(groups["USD"]["unconverted_holdings"], list)
     assert sum(g["weight_pct"] for g in groups.values()) == pytest.approx(100.0)
 
 

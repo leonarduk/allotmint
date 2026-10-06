@@ -76,6 +76,7 @@
   },
   "allocation": {
     "currency": "Moedas",
+    "currencyMissingFx": "Sem taxa de câmbio guardada para {{currencies}}: essas posições são avaliadas a uma taxa aproximada, pelo que a sua parte pode não ser exata.",
     "currencyNote": "Exposição por moeda de cotação: a moeda em que cada posição é cotada, não a sua exposição subjacente (um fundo global cotado em GBP conta como GBP). Abrange todas as contas deste grupo.",
     "instrumentTypes": "Tipos de instrumentos",
     "region": "Regiões",

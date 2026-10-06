@@ -1246,6 +1246,20 @@ def _quote_currency_key(row: dict) -> str:
     return CurrencyNormaliser.from_raw(raw).display_code
 
 
+def _missing_fx_holdings(quote_currency: str, tickers: List[str]) -> List[dict]:
+    """``unconverted_holdings`` entries for a quote currency with no stored GBP rate.
+
+    Reads the FX cache only (never Yahoo, #8028). Until #9664 lands such
+    holdings are still valued at the approximate fallback rate, so they are
+    flagged here rather than silently trusted.
+    """
+    if quote_currency in ("GBP", UNKNOWN_CURRENCY_LABEL):
+        return []
+    if cached_fx_rate_to_gbp(quote_currency) is not None:
+        return []
+    return [{"ticker": t, "currency": quote_currency, "reason": FX_MISSING_ALL_DATES} for t in tickers]
+
+
 def aggregate_by_currency(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
     """Return aggregated holdings grouped by quote currency (#9686).
 
@@ -1254,8 +1268,21 @@ def aggregate_by_currency(portfolio: dict | VirtualPortfolio, base_currency: str
     currency an instrument is *listed* in, not its underlying economic
     exposure: a GBP-quoted global tracker counts as GBP. GBX/GBp pence
     listings are folded into GBP.
+
+    Each group also lists, under ``UNCONVERTED_HOLDINGS_KEY``, its holdings
+    whose quote currency has no stored GBP rate (the #9671 convention).
     """
-    return _aggregate_by_field(portfolio, "quote_currency", base_currency, key_fn=_quote_currency_key)
+    tickers: Dict[str, List[str]] = defaultdict(list)
+
+    def _key(row: dict) -> str:
+        key = _quote_currency_key(row)
+        tickers[key].append(str(row.get("ticker") or ""))
+        return key
+
+    groups = _aggregate_by_field(portfolio, "quote_currency", base_currency, key_fn=_key)
+    for g in groups:
+        g[UNCONVERTED_HOLDINGS_KEY] = _missing_fx_holdings(g["quote_currency"], tickers[g["quote_currency"]])
+    return groups
 
 
 # ──────────────────────────────────────────────────────────────

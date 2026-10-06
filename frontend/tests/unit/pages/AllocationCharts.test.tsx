@@ -481,6 +481,39 @@ describe("AllocationCharts page", () => {
       expect(screen.queryByRole("checkbox", { name: "alice - taxable" })).not.toBeInTheDocument();
     });
 
+    it("warns when a quote currency has no stored FX rate", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupCurrencies.mockResolvedValueOnce([
+        currencyRow("GBP", 100),
+        {
+          ...currencyRow("JPY", 20),
+          unconverted_holdings: [
+            { ticker: "AAA.JP", currency: "JPY", reason: "no stored FX rate" },
+            { ticker: "BBB.JP", currency: "JPY", reason: "no stored FX rate" },
+          ],
+        },
+      ]);
+
+      render(<AllocationCharts />, "/allocation?view=currency");
+
+      expect(await screen.findByTestId("currency-missing-fx")).toHaveTextContent(
+        "No stored exchange rate for JPY (2)",
+      );
+    });
+
+    it("shows no FX warning when every currency has a stored rate", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupCurrencies.mockResolvedValueOnce([
+        { ...currencyRow("USD", 100), unconverted_holdings: [] },
+      ]);
+
+      render(<AllocationCharts />, "/allocation?view=currency");
+
+      await waitFor(() => expect(mockGetGroupCurrencies).toHaveBeenCalled());
+      expect(await screen.findByText("USD: 100")).toBeInTheDocument();
+      expect(screen.queryByTestId("currency-missing-fx")).not.toBeInTheDocument();
+    });
+
     it("shows the currency endpoint error without breaking other views", async () => {
       mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
       mockGetGroupCurrencies.mockRejectedValueOnce(new Error("currency boom"));

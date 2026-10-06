@@ -76,6 +76,7 @@
   },
   "allocation": {
     "currency": "Devises",
+    "currencyMissingFx": "Aucun taux de change enregistré pour {{currencies}} : ces positions sont valorisées à un taux approximatif, leur part peut donc être inexacte.",
     "currencyNote": "Exposition par devise de cotation : la devise dans laquelle chaque position est cotée, et non son exposition sous-jacente (un fonds mondial coté en GBP compte comme GBP). Couvre tous les comptes de ce groupe.",
     "instrumentTypes": "Types d'instruments",
     "region": "Régions",

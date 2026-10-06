@@ -458,3 +458,31 @@ def test_aggregate_by_currency_uses_instrument_metadata(monkeypatch):
     groups = _currency_groups([_holding("QXK.L", 10)])
 
     assert set(groups) == {"JPY"}
+
+
+@pytest.mark.usefixtures("_no_instrument_metadata")
+def test_aggregate_by_currency_flags_holdings_with_no_stored_fx_rate(monkeypatch):
+    """A currency with no stored GBP rate is reported in the #9671 shape, not silently trusted."""
+
+    monkeypatch.setattr(portfolio_utils, "cached_fx_rate_to_gbp", lambda ccy: {"USD": 0.79}.get(ccy))
+
+    groups = _currency_groups(
+        [
+            _holding("QXL.L", 100, currency="GBP"),
+            _holding("QXM.N", 50, currency="USD"),
+            _holding("QXN.JP", 20),
+            _holding("QXO.JP", 10),
+            _holding("QXP.ZZ", 5),
+        ]
+    )
+
+    key = portfolio_utils.UNCONVERTED_HOLDINGS_KEY
+    assert groups["GBP"][key] == []
+    assert groups["USD"][key] == []
+    assert groups["Unknown"][key] == []
+    assert groups["JPY"][key] == [
+        {"ticker": "QXN.JP", "currency": "JPY", "reason": portfolio_utils.FX_MISSING_ALL_DATES},
+        {"ticker": "QXO.JP", "currency": "JPY", "reason": portfolio_utils.FX_MISSING_ALL_DATES},
+    ]
+    # Flagged, not dropped: weights still cover every holding.
+    assert sum(g["weight_pct"] for g in groups.values()) == pytest.approx(100.0)

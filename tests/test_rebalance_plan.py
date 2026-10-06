@@ -187,6 +187,28 @@ def test_out_of_band_trades_stay_within_each_account():
     assert isa[("buy", "bond")]["ticker"] == "BD1"
 
 
+def test_trades_carry_the_hinted_instrument_name():
+    named = {**_h("EQ1", 800, "equity"), "name": "  Equity Fund One  "}
+    unnamed = _h("BD1", 200, "bond")
+    holdings = bucket_holdings(_portfolio(("ISA", [named, unnamed])))
+    trades = suggest_account_trades(holdings, _policy(5, equity=60, bond=40))["trades"]
+
+    by_key = {(t["action"], t["asset_class"]): t for t in trades}
+    assert by_key[("sell", "equity")]["name"] == "Equity Fund One"
+    assert by_key[("buy", "bond")]["ticker"] == "BD1"
+    assert by_key[("buy", "bond")]["name"] is None
+
+
+def test_trade_without_ticker_hint_has_no_name():
+    holdings = bucket_holdings(
+        _portfolio(("ISA", [{**_h("EQ1", 900, "equity"), "name": "Eq"}, _h("CASH.GBP", 100, instrument_type="Cash")]))
+    )
+    trades = suggest_account_trades(holdings, _policy(5, equity=60, bond=40))["trades"]
+    bond_buy = next(t for t in trades if t["asset_class"] == "bond")
+    assert bond_buy["ticker"] is None
+    assert bond_buy["name"] is None
+
+
 def test_buys_never_exceed_account_cash_plus_sells():
     # ISA has the spare cash; SIPP has nothing to fund a buy with.
     holdings = bucket_holdings(
@@ -220,6 +242,7 @@ def test_cash_is_never_sold_and_only_excess_cash_is_deployed():
             "action": "buy",
             "amount": 200.0,
             "ticker": "EQ1",
+            "name": None,
         }
     ]
 

@@ -25,6 +25,7 @@ from backend.routes.events import router as events_router
 from backend.routes.goals import router as goals_router
 from backend.routes.instrument import router as instrument_router
 from backend.routes.instrument_admin import router as instrument_admin_router
+from backend.routes.investment_plan import router as investment_plan_router
 from backend.routes.logs import router as logs_router
 from backend.routes.market import router as market_router
 from backend.routes.metrics import router as metrics_router
@@ -104,6 +105,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(agent_router)
     app.include_router(trading_agent_router, dependencies=protected)
     app.include_router(rebalance_router)
+    app.include_router(investment_plan_router)
     app.include_router(config_router)
     app.include_router(quotes_router)
     app.include_router(news_router)

@@ -15,6 +15,7 @@ import type {
   RebalanceTrade,
 } from '../types';
 import EmptyState from '../components/EmptyState';
+import PlanPanel from '../components/PlanPanel';
 import { sanitizeOwners } from '../utils/owners';
 import { useRoute } from '../RouteContext';
 import {
@@ -650,6 +651,7 @@ export default function Rebalance() {
           {error}
         </p>
       )}
+      <PlanPanel owner={selectedOwner} onTargetsCopied={reload} />
       {plan && (
         <>
           <DriftTable plan={plan} />

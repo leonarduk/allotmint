@@ -153,7 +153,9 @@ jobs:
           # DEFAULT_GLOBS -- so this list is DEFAULT_GLOBS (see
           # cicaid_devtools/lib/review_diff.py) plus allotmint's frontend
           # stack, kept as a superset so non-frontend PRs never regress to an
-          # empty diff again (#6280).
+          # empty diff again (#6280). "*.bats" is listed too: without it the
+          # reviewers never saw tests/bash/*.bats and reported shell-script
+          # changes as untested (#9516).
           DIFF=$(python3 -m cicaid_devtools.lib.review_diff \
             --base-ref "$BASE_REF" \
             --pr-title "$PR_TITLE" \
@@ -162,7 +164,7 @@ jobs:
             "*.py" "*.toml" "*.md" "*.yml" "*.yaml" "*.sh" "*.cfg" "*.ini" \
             "Dockerfile" "*.java" "*.xml" "*.properties" "*.ps1" "*.txt" \
             "*.ts" "*.tsx" "*.js" "*.jsx" "*.mjs" "*.cjs" "*.json" "*.css" \
-            "*.scss" "*.html")
+            "*.scss" "*.html" "*.bats")
           DELIM="EOF_$(uuidgen | tr -d '-')"
           {
             echo "diff<<$DELIM"
@@ -269,8 +271,20 @@ jobs:
             exit 0
           fi
 
-      - name: Create follow-up issues
+      # Re-reviews (each push re-runs the review) restate the same follow-up
+      # suggestions, so only the first approving review of a PR files them.
+      # See .github/scripts/followups_already_filed.sh.
+      - name: Check for follow-ups already filed for this PR
+        id: followups_gate
         if: steps.check_approval.outputs.approved == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.gh_token }}
+          REPO: ${{ github.repository }}
+          SINCE: ${{ github.event.pull_request.created_at }}
+        run: bash .github/scripts/followups_already_filed.sh "${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Create follow-up issues
+        if: steps.check_approval.outputs.approved == 'true' && steps.followups_gate.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.gh_token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -307,6 +321,25 @@ jobs:
             > /tmp/followups.json
           python3 -m cicaid_devtools.lib.followup_issues \
             /tmp/followups.json "${PR_NUMBER}" /tmp/${{ inputs.provider_id }}_review_body.md
+
+      # Clear a stale 'Changes Requested' label now, while this job still has a
+      # runner. sync-changes-requested-label.yml does the same after the run
+      # completes, but it needs its own runner (on 2026-10-05 it was cancelled
+      # unstarted and PR #9466 kept the label after its final review
+      # approved). This job's own check-run is still in progress, so its
+      # verdict is passed in; it only counts if this commit is still the head.
+      - name: Remove 'Changes Requested' label if all enabled reviews now pass
+        if: steps.check_approval.outputs.approved == 'true'
+        continue-on-error: true  # the workflow_run sync and the scheduled sweep remain as fallbacks
+        env:
+          GH_TOKEN: ${{ secrets.gh_token }}
+          REPO: ${{ github.repository }}
+          ENABLE_CLAUDE: ${{ vars.ENABLE_CLAUDE_REVIEW || 'true' }}
+          ENABLE_GPT: ${{ vars.ENABLE_GPT_REVIEW || 'true' }}
+          ENABLE_DEEPSEEK: ${{ vars.ENABLE_DEEPSEEK_REVIEW || 'true' }}
+          ASSUME_SUCCESS_CHECK: ${{ inputs.provider_name }} AI code review
+          REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/scripts/reconcile_changes_requested_label.sh "${{ github.event.pull_request.number }}"
 
       - name: Add 'Changes Requested' label if review failed
         if: steps.check_approval.outputs.approved == 'false'

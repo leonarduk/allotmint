@@ -57,7 +57,7 @@ function useEvents() {
 function ReturnCell({ value }: { value: StrategyStressHorizon | undefined }) {
   const { t } = useTranslation();
   if (!value || value.return_pct == null) {
-    const missing = (value?.missing ?? []).map(allocationKeyLabel).join(', ');
+    const missing = missingLabels(value?.missing ?? []);
     return (
       <td
         className="px-2 py-1 text-right text-slate-500 dark:text-slate-400"
@@ -66,7 +66,6 @@ function ReturnCell({ value }: { value: StrategyStressHorizon | undefined }) {
         }
       >
         {t('strategyStress.noData')}
-        {missing && <span className="block text-xs">{missing}</span>}
       </td>
     );
   }
@@ -87,6 +86,33 @@ function ReturnCell({ value }: { value: StrategyStressHorizon | undefined }) {
         </span>
       )}
     </td>
+  );
+}
+
+/** Asset-class labels, alphabetical, comma-separated. */
+function missingLabels(keys: string[]): string {
+  return keys
+    .map(allocationKeyLabel)
+    .sort((a, b) => a.localeCompare(b))
+    .join(', ');
+}
+
+/** Asset classes missing data at any horizon, listed once per row. */
+function rowMissing(row: StrategyStressRow): string {
+  const keys = new Set(
+    Object.values(row.horizons).flatMap((h) => h.missing ?? [])
+  );
+  return missingLabels([...keys]);
+}
+
+/** True when neither the portfolio nor any strategy has a single figure. */
+function nothingCovered(result: StrategyStressResult): boolean {
+  const rows = [
+    ...(result.portfolio ? [result.portfolio.horizons] : []),
+    ...result.strategies.map((row) => row.horizons),
+  ];
+  return rows.every((horizons) =>
+    Object.values(horizons).every((h) => h.return_pct == null)
   );
 }
 
@@ -123,6 +149,13 @@ function ResultTable({
     () => sortRows(result.strategies, sortBy),
     [result.strategies, sortBy]
   );
+  if (nothingCovered(result)) {
+    return (
+      <p className="text-sm text-amber-700 dark:text-amber-300" role="note">
+        {t('strategyStress.nothingCovered', { date: result.event.date })}
+      </p>
+    );
+  }
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-sm">
@@ -167,6 +200,13 @@ function ResultTable({
                 <span className="block text-xs text-slate-500 dark:text-slate-400">
                   {seriesLine(row)}
                 </span>
+                {rowMissing(row) && (
+                  <span className="block text-xs text-amber-700 dark:text-amber-300">
+                    {t('strategyStress.rowMissing', {
+                      missing: rowMissing(row),
+                    })}
+                  </span>
+                )}
               </td>
               {result.horizons.map((h) => (
                 <ReturnCell key={h} value={row.horizons[h]} />

@@ -137,7 +137,9 @@ describe('StrategyStressPanel', () => {
     renderPanel('/strategy?stress_event=covid');
     const row = (await screen.findByText('Swensen')).closest('tr')!;
     expect(within(row).getAllByText('Not enough data')).toHaveLength(2);
-    expect(within(row).getAllByText('Property')[0]).toBeInTheDocument();
+    expect(
+      within(row).getByText('No price history for: Property')
+    ).toBeInTheDocument();
     expect(within(row).queryByText(/%$/)).toBeNull();
   });
 
@@ -196,6 +198,44 @@ describe('StrategyStressPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Apply 60/40' }));
     expect(mockApplyStrategy).not.toHaveBeenCalled();
     confirm.mockRestore();
+  });
+
+  it('lists missing asset classes once per row, alphabetically by label', async () => {
+    mockRunStrategyStress.mockResolvedValue({
+      ...RESULT,
+      strategies: [
+        {
+          ...RESULT.strategies[1],
+          horizons: {
+            '1m': horizon(null, ['property', 'commodities']),
+            '1y': horizon(null, ['property', 'equity']),
+          },
+        },
+      ],
+    });
+    renderPanel('/strategy?stress_event=covid');
+    expect(
+      await screen.findByText(
+        'No price history for: Equity, Other commodities, Property'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('says so once when nothing has data for the event, instead of a table of blanks', async () => {
+    mockRunStrategyStress.mockResolvedValue({
+      ...RESULT,
+      event: { id: '1987-10-19', name: 'Black Monday', date: '1987-10-19' },
+      portfolio: {
+        baseline_total_value_gbp: 1000,
+        horizons: { '1m': horizon(null), '1y': horizon(null) },
+      },
+      strategies: [RESULT.strategies[1]],
+    });
+    renderPanel('/strategy?stress_event=1987-10-19');
+    expect(await screen.findByRole('note')).toHaveTextContent(
+      'stored prices around 1987-10-19'
+    );
+    expect(screen.queryByRole('table')).toBeNull();
   });
 
   it('shows the API error', async () => {

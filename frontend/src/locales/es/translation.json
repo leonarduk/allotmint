@@ -3267,7 +3267,9 @@
     "col": {
       "strategy": "Estrategia",
       "actions": "Acciones"
-    }
+    },
+    "rowMissing": "Sin historial de precios para: {{missing}}",
+    "nothingCovered": "Ninguna estrategia ni tus posiciones tienen precios guardados en torno al {{date}}. El historial guardado empieza a finales de 2000 para la renta variable y en 2008–2012 para la mayoría de fondos de gilts; elige un evento posterior."
   },
   "assetClasses": {
     "equity": "Renta variable",

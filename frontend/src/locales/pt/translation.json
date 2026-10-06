@@ -1962,7 +1962,8 @@
       "impact": "{{horizon}} % de impacto",
       "coverageTitle": "{{pct}}% das posições por valor têm histórico de preços para este evento",
       "priced": "{{pct}}% com preço",
-      "footnote": "Cada posição reproduz os seus próprios preços a partir da data do evento. As posições sem histórico seguem o índice de referência do evento e depois o resto da carteira; «—» significa que menos de metade da carteira tem histórico de preços para essa data."
+      "footnote": "Cada posição reproduz os seus próprios preços a partir da data do evento. As posições sem histórico seguem o índice de referência do evento e depois o resto da carteira; «—» significa que menos de metade da carteira tem histórico de preços para essa data.",
+      "compareStrategies": "Comparar estratégias para este evento →"
     }
   },
   "virtualPortfolio": {
@@ -3243,6 +3244,26 @@
       "about": "Sobre esta estratégia",
       "source": "Fonte:",
       "ukMapping": "Equivalente no Reino Unido:"
+    }
+  },
+  "strategyStress": {
+    "title": "Teste de stress",
+    "help": "Reproduz um evento histórico em cada estratégia, com a sua carteira atual primeiro para comparação. Cada classe de ativos é reproduzida no fundo substituto indicado sob a estratégia, mantido desde a data do evento sem rebalanceamento. Uma estratégia só mostra um valor quando todas as suas classes de ativos têm histórico de preços.",
+    "event": "Evento",
+    "customDate": "Data personalizada…",
+    "date": "Data do evento",
+    "run": "Executar teste de stress",
+    "running": "A executar…",
+    "portfolio": "A sua carteira atual",
+    "noData": "Dados insuficientes",
+    "missingTitle": "Sem histórico de preços guardado para: {{missing}}",
+    "priceOnlyTitle": "Apenas retorno de preço: uma série usada não tem dividendos guardados",
+    "priced": "{{pct}}% avaliado",
+    "sortBy": "Ordenar por {{horizon}}",
+    "footnote": "† apenas retorno de preço. Clique num horizonte para ordenar do melhor para o pior.",
+    "col": {
+      "strategy": "Estratégia",
+      "actions": "Ações"
     }
   },
   "assetClasses": {

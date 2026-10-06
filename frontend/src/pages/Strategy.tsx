@@ -22,6 +22,7 @@ import type {
 import EmptyState from '../components/EmptyState';
 import SleevesPanel from '../components/SleevesPanel';
 import StrategyLibrary from '../components/StrategyLibrary';
+import StrategyStressPanel from '../components/StrategyStressPanel';
 import TargetFields from '../components/TargetFields';
 import { sanitizeOwners } from '../utils/owners';
 import { useRoute } from '../RouteContext';
@@ -685,6 +686,15 @@ export default function Strategy() {
           owner={selectedOwner}
           data={strategies.data}
           current={current}
+          hasTargets={hasPolicy}
+          onChanged={reloadAll}
+        />
+      )}
+      {strategies.data && selectedOwner && (
+        <StrategyStressPanel
+          key={selectedOwner}
+          owner={selectedOwner}
+          data={strategies.data}
           hasTargets={hasPolicy}
           onChanged={reloadAll}
         />

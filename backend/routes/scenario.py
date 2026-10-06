@@ -134,8 +134,35 @@ def run_fx_scenario(
 _DEFAULT_PROXY_INDEX = "SPY.N"
 
 
-def _resolve_event(event_id: str | None, date: str | None) -> dict:
+def parse_horizons(horizons: List[str]) -> dict[str, int]:
+    """``{label: days}`` from horizon tokens (``1d``..``1y`` or day counts), comma-separated or not.
+
+    400 when no horizon is given or a token is neither a preset nor an integer.
+    """
+    tokens: list[str] = []
+    for item in horizons:
+        tokens.extend([t.strip().lower() for t in str(item).split(",") if t.strip()])
+
+    if not tokens:
+        raise HTTPException(status_code=400, detail="horizons must be provided")
+
+    label_pairs: list[tuple[str, int]] = []
+    for tok in tokens:
+        if tok in _HORIZONS:
+            label_pairs.append((tok, _HORIZONS[tok]))
+        else:
+            try:
+                days = int(tok)
+            except ValueError as exc:  # pragma: no cover - defensive
+                raise HTTPException(status_code=400, detail="invalid horizon") from exc
+            label_pairs.append((tok, days))
+    return dict(label_pairs)
+
+
+def resolve_event(event_id: str | None, date: str | None) -> dict:
     """Return the event to replay: the catalogue entry for ``event_id`` or an ad-hoc ``date``."""
+    if event_id is None and date is None:
+        raise HTTPException(status_code=400, detail="event_id or date must be provided")
     if event_id is not None:
         event = get_event(event_id)
         if event is None:
@@ -167,27 +194,8 @@ def run_historical_scenario(
     if event_id is None and date is None:
         raise HTTPException(status_code=400, detail="event_id or date must be provided")
 
-    # split comma separated horizons and convert tokens to day counts
-    tokens: list[str] = []
-    for item in horizons:
-        tokens.extend([t.strip().lower() for t in str(item).split(",") if t.strip()])
-
-    if not tokens:
-        raise HTTPException(status_code=400, detail="horizons must be provided")
-
-    label_pairs: list[tuple[str, int]] = []
-    for tok in tokens:
-        if tok in _HORIZONS:
-            label_pairs.append((tok, _HORIZONS[tok]))
-        else:
-            try:
-                days = int(tok)
-            except ValueError as exc:  # pragma: no cover - defensive
-                raise HTTPException(status_code=400, detail="invalid horizon") from exc
-            label_pairs.append((tok, days))
-
-    horizon_days = dict(label_pairs)
-    event = _resolve_event(event_id, date)
+    horizon_days = parse_horizons(horizons)
+    event = resolve_event(event_id, date)
 
     results = []
     try:

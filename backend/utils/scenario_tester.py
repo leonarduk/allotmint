@@ -286,6 +286,14 @@ def _forward_returns(
     return results, basis
 
 
+def instrument_forward_returns(
+    full_ticker: str, event_date: dt.date, horizons: Mapping[str, int]
+) -> tuple[Dict[str, float | None], str]:
+    """``_forward_returns`` for a ``"SYMBOL.EXCH"`` ticker; ``(returns, return_basis)``."""
+    ticker, exchange = _parse_full_ticker(full_ticker)
+    return _forward_returns(ticker, exchange, event_date, horizons)
+
+
 # Below this share of invested value with real price history, a horizon is
 # reported as unavailable instead of being extrapolated from the few covered
 # holdings.

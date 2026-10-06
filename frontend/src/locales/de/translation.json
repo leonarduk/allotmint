@@ -1962,7 +1962,8 @@
       "impact": "{{horizon}} % Auswirkung",
       "coverageTitle": "{{pct}}% der Bestände (nach Wert) haben eine Kurshistorie für dieses Ereignis",
       "priced": "{{pct}}% bewertet",
-      "footnote": "Jeder Bestand spielt seine eigenen Kurse ab dem Ereignisdatum nach. Bestände ohne Historie folgen dem Proxy-Index des Ereignisses, danach dem Rest des Portfolios; „—“ bedeutet, dass weniger als die Hälfte des Portfolios für dieses Datum eine Kurshistorie hat."
+      "footnote": "Jeder Bestand spielt seine eigenen Kurse ab dem Ereignisdatum nach. Bestände ohne Historie folgen dem Proxy-Index des Ereignisses, danach dem Rest des Portfolios; „—“ bedeutet, dass weniger als die Hälfte des Portfolios für dieses Datum eine Kurshistorie hat.",
+      "compareStrategies": "Strategien für dieses Ereignis vergleichen →"
     }
   },
   "virtualPortfolio": {
@@ -3243,6 +3244,26 @@
       "about": "Über diese Strategie",
       "source": "Quelle:",
       "ukMapping": "UK-Zuordnung:"
+    }
+  },
+  "strategyStress": {
+    "title": "Stresstest",
+    "help": "Spielt ein historisches Ereignis für jede Strategie durch, mit Ihrem aktuellen Portfolio zum Vergleich an erster Stelle. Jede Anlageklasse wird mit dem unter der Strategie genannten Ersatzfonds nachgebildet, ab dem Ereignisdatum ohne Umschichtung gehalten. Eine Strategie zeigt nur dann einen Wert, wenn für jede ihrer Anlageklassen Kursdaten vorliegen.",
+    "event": "Ereignis",
+    "customDate": "Eigenes Datum…",
+    "date": "Ereignisdatum",
+    "run": "Stresstest starten",
+    "running": "Läuft…",
+    "portfolio": "Ihr aktuelles Portfolio",
+    "noData": "Nicht genug Daten",
+    "missingTitle": "Keine gespeicherten Kursdaten für: {{missing}}",
+    "priceOnlyTitle": "Nur Kursrendite: Für eine verwendete Reihe sind keine Dividenden gespeichert",
+    "priced": "{{pct}} % bewertet",
+    "sortBy": "Nach {{horizon}} sortieren",
+    "footnote": "† nur Kursrendite. Klicken Sie auf einen Zeitraum, um die besten zuerst zu sortieren.",
+    "col": {
+      "strategy": "Strategie",
+      "actions": "Aktionen"
     }
   },
   "assetClasses": {

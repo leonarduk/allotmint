@@ -17,6 +17,7 @@ import {
   formatStrategyTargets,
   targetsFromDraft,
 } from '../lib/allocationTargets';
+import { confirmApply } from '../lib/strategyApply';
 import TargetFields from './TargetFields';
 
 const errorText = (error: unknown) =>
@@ -371,16 +372,9 @@ export default function StrategyLibrary({
     }
   }
 
-  const replacesCustomTargets =
-    hasTargets && (data.active == null || data.active.modified);
-
   const actions: RowActions = {
     apply: (s) => {
-      if (
-        replacesCustomTargets &&
-        !window.confirm(t('strategyLibrary.confirmReplace', { name: s.name }))
-      )
-        return;
+      if (!confirmApply(data, hasTargets, s.name, t)) return;
       void run(
         async () => {
           await applyStrategy(owner, s.id);

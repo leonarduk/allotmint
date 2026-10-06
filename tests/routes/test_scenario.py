@@ -152,7 +152,7 @@ def test_run_historical_scenario_event_without_date(monkeypatch):
 
 
 def test_run_historical_scenario_adhoc_date_uses_default_proxy():
-    assert scenario._resolve_event(None, "2022-09-26") == {  # pylint: disable=protected-access
+    assert scenario.resolve_event(None, "2022-09-26") == {
         "id": "2022-09-26",
         "date": "2022-09-26",
         "proxy_index": scenario._DEFAULT_PROXY_INDEX,  # pylint: disable=protected-access

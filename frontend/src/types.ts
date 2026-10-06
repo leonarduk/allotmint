@@ -1109,6 +1109,42 @@ export interface StrategyList {
   active: ActiveStrategy | null;
 }
 
+/** One horizon of a strategy stress row (#9824); percentages, null when unknown. */
+export interface StrategyStressHorizon {
+  /** Return over the horizon in percent; null when any sleeve has no data. */
+  return_pct: number | null;
+  /** Share of the weights (or, for the portfolio, of invested value) with data, 0-100. */
+  coverage_pct: number | null;
+  /** "total" or "price" (some series has no stored dividends); null with no value. */
+  return_basis: string | null;
+  /** Sleeves with no stand-in data for this horizon. */
+  missing: string[];
+}
+
+export interface StrategyStressRow {
+  id: string;
+  name: string;
+  builtin: boolean;
+  targets: Record<string, number>;
+  horizons: Record<string, StrategyStressHorizon>;
+  /** Sleeve -> the stand-in series used for it. */
+  series: Record<string, string[]>;
+}
+
+/** `POST /strategies/{owner}/stress`: every strategy and the portfolio through one event. */
+export interface StrategyStressResult {
+  event: { id: string | null; name: string | null; date: string };
+  horizons: string[];
+  portfolio: {
+    baseline_total_value_gbp: number;
+    horizons: Record<string, StrategyStressHorizon>;
+  } | null;
+  strategies: StrategyStressRow[];
+  /** allotmint-pro is extending the stand-in history. */
+  pro_history: boolean;
+  disclaimer: string;
+}
+
 export interface StrategyInput {
   name: string;
   description?: string;

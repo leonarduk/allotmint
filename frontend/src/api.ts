@@ -48,6 +48,7 @@ import type {
   Strategy,
   StrategyInput,
   StrategyList,
+  StrategyStressResult,
   Sleeve,
   SleeveInput,
   SleeveList,
@@ -2358,6 +2359,17 @@ export const applyStrategy = (owner: string, id: string) =>
     strategiesUrl(owner, id, "apply"),
     { method: "POST" },
   );
+
+/** Replay a historical event against every strategy and the owner's portfolio (#9824). */
+export const runStrategyStress = (
+  owner: string,
+  request: { event_id?: string; date?: string; horizons: string[] },
+) =>
+  fetchJson<StrategyStressResult>(`${strategiesUrl(owner)}/stress`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
 
 const sleevesUrl = (owner: string, ...parts: string[]) =>
   [`${API_BASE}/sleeves/${encodeURIComponent(owner)}`, ...parts.map(encodeURIComponent)].join("/");

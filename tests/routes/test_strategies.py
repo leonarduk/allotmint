@@ -138,3 +138,60 @@ def test_unknown_owner_and_access_denied(client, monkeypatch):
     monkeypatch.setattr(strategies_route, "ensure_owner_access", deny)
     with pytest.raises(PermissionDeniedError):
         client.get("/strategies/alex")
+
+
+@pytest.fixture()
+def stress_calls(monkeypatch):
+    calls = []
+
+    def fake(owner, event, horizons, accounts_root):
+        calls.append((owner, event, horizons, accounts_root))
+        return {"strategies": [], "portfolio": None}
+
+    monkeypatch.setattr(strategies_route, "stress_strategies", fake)
+    return calls
+
+
+def test_stress_passes_owner_event_and_default_horizons(client, stress_calls):
+    resp = client.post("/strategies/alex/stress", json={"date": "2020-02-19"})
+    assert resp.status_code == 200, resp.text
+    owner, event, horizons, root = stress_calls[0]
+    assert owner == "alex"
+    assert event["date"] == "2020-02-19"
+    assert horizons == {"1m": 30, "3m": 90, "1y": 365}
+    assert root == client.settings_path.parent.parent
+
+
+def test_stress_parses_horizons_like_the_scenario_route(client, stress_calls):
+    resp = client.post("/strategies/alex/stress", json={"date": "2020-02-19", "horizons": ["1w,60"]})
+    assert resp.status_code == 200, resp.text
+    assert stress_calls[0][2] == {"1w": 7, "60": 60}
+
+
+@pytest.mark.parametrize(
+    "body, status",
+    [
+        ({}, 400),  # no event
+        ({"date": "not-a-date"}, 400),
+        ({"event_id": "no-such-event"}, 404),
+        ({"date": "2020-02-19", "horizons": []}, 400),
+        ({"date": "2020-02-19", "horizons": ["0"]}, 400),
+        ({"date": "2020-02-19", "horizons": ["4000"]}, 400),
+        ({"date": "2020-02-19", "horizons": ["1d", "1w", "1m", "3m", "1y", "2", "3"]}, 400),
+    ],
+)
+def test_stress_rejects_bad_input(client, stress_calls, body, status):
+    assert client.post("/strategies/alex/stress", json=body).status_code == status
+    assert stress_calls == []
+
+
+def test_stress_is_owner_checked(client, stress_calls, monkeypatch):
+    def deny(identity, owner, root):
+        raise PermissionDeniedError("nope")
+
+    with pytest.raises(OwnerNotFoundError):
+        client.post("/strategies/nobody/stress", json={"date": "2020-02-19"})
+    monkeypatch.setattr(strategies_route, "ensure_owner_access", deny)
+    with pytest.raises(PermissionDeniedError):
+        client.post("/strategies/alex/stress", json={"date": "2020-02-19"})
+    assert stress_calls == []

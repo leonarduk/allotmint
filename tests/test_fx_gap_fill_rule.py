@@ -211,6 +211,40 @@ def test_cache_only_window_with_no_qualifying_rate_gets_nan_close_gbp_not_no_col
         assert queued == [("USCO", "N")]  # the stale FX cache is still queued for a refresh
 
 
+@pytest.mark.parametrize("cache_only", [False, True])
+def test_no_rate_at_all_leaves_no_close_gbp_on_the_live_and_cache_only_paths(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, cache_only: bool
+) -> None:
+    """The live path is empty only when the pair has no rate and no constant; cache-only agrees (#9664).
+
+    A live fetch covers its own window, so it can't be "stale": a failed fetch
+    falls back to the constant, and only a pair with no constant comes back
+    empty. With no FX file and no constant, the cache-only path ends up in the
+    same place, so neither path adds a ``Close_gbp`` column.
+    """
+    from backend.utils import fx_rates
+
+    monkeypatch.setattr(cache, "_memoized_range", lambda *_args: _closes_frame(JAN[:5]))
+    monkeypatch.setattr(cache, "_CACHE_BASE", str(tmp_path))
+    monkeypatch.setattr(cache, "_FX_FRAMES", {})
+    monkeypatch.setattr(cache, "get_instrument_meta", lambda _t: {"currency": "USD"})
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache.refresh_queue, "enqueue", lambda *_args: False)
+    monkeypatch.setattr(fx_rates, "FALLBACK_RATES", {})
+    monkeypatch.setattr(fx_rates, "fetch_fx_rate_range_live", lambda *_args: pd.DataFrame(columns=["Date", "Rate"]))
+    monkeypatch.setattr(cache, "fetch_fx_rate_range", fx_rates.fetch_fx_rate_range)
+    fx_rates.fetch_fx_rate_range.cache_clear()
+
+    if cache_only:
+        with cache.cache_only():
+            df = cache.load_meta_timeseries_range("USCO", "N", JAN[0], JAN[4])
+    else:
+        df = cache.load_meta_timeseries_range("USCO", "N", JAN[0], JAN[4])
+
+    assert "Close_gbp" not in df.columns
+    assert df["Close"].tolist() == [100.0] * 5
+
+
 def test_cross_currency_gap_in_the_base_leg_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     """USD prices in EUR: a date without a EUR rate in the window has no Close_eur."""
     eur = {day: 0.9 for day in JAN if day <= dt.date(2024, 1, 5)}

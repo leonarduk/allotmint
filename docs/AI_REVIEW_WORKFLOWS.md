@@ -323,13 +323,27 @@ The `workflow_run` trigger can miss a PR — e.g. the triggering review run is
 cancelled by a superseding push before its `completed` event fires, or the
 webhook delivery is dropped — leaving the label "stuck" even though the
 latest commit's reviews all later succeeded. To recover from this,
-`sync-changes-requested-label.yml` also runs on a `schedule` (every 30
-minutes) and via `workflow_dispatch` (for manual triggering). The scheduled
+`sync-changes-requested-label.yml` also runs on a `schedule` (at :17 and :47
+past each hour) and via `workflow_dispatch` (for manual triggering). GitHub
+treats schedules as best-effort; the old `*/30` cron, on the busiest minutes,
+ran only every 3-6 hours in practice. The scheduled
 run lists every open PR that still carries the `Changes Requested` label and
 re-runs the same reconciliation logic (shared via
 `.github/scripts/reconcile_changes_requested_label.sh`) against each one, so
 a PR whose reviews have actually passed gets its label cleared within the
 next scheduled sweep even if the triggering event was lost.
+
+The approving review job also reconciles the label itself, as its last step
+before finishing ("Remove 'Changes Requested' label if all enabled reviews now
+pass" in `_ai-pr-review.yml`). Its own check-run is still in progress at that
+point, so it passes its verdict to the reconcile script
+(`ASSUME_SUCCESS_CHECK`), which counts it only if the reviewed commit
+(`REVIEWED_SHA`) is still the PR head. This clears the label in the common case
+without needing a second runner: on 2026-10-05 the `workflow_run` sync job was
+cancelled before it got a runner, and PR #9466 kept the label after its final
+review approved. When several reviewers are enabled and approve at almost the
+same moment, each may still see the other as in progress; the `workflow_run`
+sync and the sweep then clear the label as before.
 
 `workflow_dispatch` also accepts an optional `pr_number` input to
 force-reconcile a single PR immediately, instead of waiting for the next

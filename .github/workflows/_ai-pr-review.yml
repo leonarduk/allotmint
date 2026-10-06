@@ -322,6 +322,25 @@ jobs:
           python3 -m cicaid_devtools.lib.followup_issues \
             /tmp/followups.json "${PR_NUMBER}" /tmp/${{ inputs.provider_id }}_review_body.md
 
+      # Clear a stale 'Changes Requested' label now, while this job still has a
+      # runner. sync-changes-requested-label.yml does the same after the run
+      # completes, but it needs its own runner (on 2026-10-05 it was cancelled
+      # unstarted and PR #9466 kept the label after its final review
+      # approved). This job's own check-run is still in progress, so its
+      # verdict is passed in; it only counts if this commit is still the head.
+      - name: Remove 'Changes Requested' label if all enabled reviews now pass
+        if: steps.check_approval.outputs.approved == 'true'
+        continue-on-error: true  # the workflow_run sync and the scheduled sweep remain as fallbacks
+        env:
+          GH_TOKEN: ${{ secrets.gh_token }}
+          REPO: ${{ github.repository }}
+          ENABLE_CLAUDE: ${{ vars.ENABLE_CLAUDE_REVIEW || 'true' }}
+          ENABLE_GPT: ${{ vars.ENABLE_GPT_REVIEW || 'true' }}
+          ENABLE_DEEPSEEK: ${{ vars.ENABLE_DEEPSEEK_REVIEW || 'true' }}
+          ASSUME_SUCCESS_CHECK: ${{ inputs.provider_name }} AI code review
+          REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/scripts/reconcile_changes_requested_label.sh "${{ github.event.pull_request.number }}"
+
       - name: Add 'Changes Requested' label if review failed
         if: steps.check_approval.outputs.approved == 'false'
         continue-on-error: true

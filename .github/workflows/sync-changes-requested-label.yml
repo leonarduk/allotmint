@@ -32,7 +32,10 @@ on:
     workflows: ["Claude PR Review", "GPT PR Review", "DeepSeek PR Review"]
     types: [completed]
   schedule:
-    - cron: "*/30 * * * *"
+    # Off the :00/:30 marks: GitHub schedules are best-effort and those minutes
+    # are its busiest, so "*/30" ran only every 3-6 hours in practice
+    # (about 20 runs in 4 days instead of ~190).
+    - cron: "17,47 * * * *"
   workflow_dispatch:
     inputs:
       pr_number:

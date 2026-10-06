@@ -10,8 +10,22 @@
 #     docs/AI_REVIEW_WORKFLOWS.md#stuck-label-fallback) where workflow_run never
 #     fires (e.g. the triggering run was cancelled before completion)
 #
+# Also called inline by _ai-pr-review.yml right after a reviewer approves,
+# while that job still holds its runner. That reviewer's own check-run is still
+# in progress at that point, so it passes its verdict in:
+#   ASSUME_SUCCESS_CHECK  reviewer check name to count as "success"
+#                         (e.g. "DeepSeek AI code review")
+#   REVIEWED_SHA          the commit that reviewer approved; the assumption is
+#                         applied only if it is still the PR's head, so a
+#                         newer push's pending review is never skipped.
+# Without this, clearing the label depended entirely on a separate
+# workflow_run job getting a runner, and on GitHub's best-effort schedule for
+# the fallback sweep; both failed on 2026-10-05 and left PR #9466 labelled
+# after its final review approved.
+#
 # Usage: reconcile_changes_requested_label.sh <pr_number>
 # Required env: GH_TOKEN, REPO, ENABLE_CLAUDE, ENABLE_GPT, ENABLE_DEEPSEEK
+# Optional env: ASSUME_SUCCESS_CHECK, REVIEWED_SHA (see above)
 set -euo pipefail
 
 PR_NUMBER="${1:?Usage: reconcile_changes_requested_label.sh <pr_number>}"
@@ -50,6 +64,16 @@ if [ "${#ENABLED_CHECK_NAMES[@]}" -eq 0 ]; then
 fi
 
 echo "PR #${PR_NUMBER} (${HEAD_SHA}) — enabled reviewers: ${ENABLED_CHECK_NAMES[*]}"
+
+ASSUMED_CHECK=""
+if [ -n "${ASSUME_SUCCESS_CHECK:-}" ]; then
+  if [ "${REVIEWED_SHA:-}" = "$HEAD_SHA" ]; then
+    ASSUMED_CHECK="$ASSUME_SUCCESS_CHECK"
+    echo "Counting ${ASSUMED_CHECK} as success (it approved ${HEAD_SHA} in the calling job)."
+  else
+    echo "Not assuming ${ASSUME_SUCCESS_CHECK}: it reviewed ${REVIEWED_SHA:-<unset>}, but the head is now ${HEAD_SHA}."
+  fi
+fi
 
 # Fetch every check-run for the head SHA once, as one TSV line per run:
 #   name <TAB> started_at <TAB> id <TAB> status <TAB> conclusion
@@ -106,7 +130,11 @@ latest_verdict() {
 
 ALL_SUCCESS=true
 for NAME in "${ENABLED_CHECK_NAMES[@]}"; do
-  CONCLUSION=$(latest_verdict "$NAME")
+  if [ -n "$ASSUMED_CHECK" ] && [ "$NAME" = "$ASSUMED_CHECK" ]; then
+    CONCLUSION="success"
+  else
+    CONCLUSION=$(latest_verdict "$NAME")
+  fi
   echo "  ${NAME}: ${CONCLUSION}"
   if [ "$CONCLUSION" != "success" ]; then
     ALL_SUCCESS=false

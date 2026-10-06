@@ -558,6 +558,32 @@ describe("Support page", () => {
     expect(accountsRoot).toHaveValue("/data/accounts");
   });
 
+  it("describes known config keys and leaves unknown ones bare", async () => {
+    mockGetConfig.mockResolvedValueOnce({
+      theme: "system",
+      app_env: "local",
+      offline_mode: true,
+      not_a_known_key: "x",
+      tabs: {},
+    });
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+    const descriptions = en.support.config.descriptions;
+
+    const appEnv = await screen.findByRole("textbox", { name: "app_env" });
+    expect(appEnv).toHaveAccessibleDescription(descriptions.app_env);
+    expect(
+      screen.getByRole("checkbox", { name: "offline_mode" })
+    ).toHaveAccessibleDescription(descriptions.offline_mode);
+    expect(
+      screen.getByRole("radio", { name: "dark" })
+    ).toHaveAccessibleDescription(descriptions.theme);
+
+    const unknown = screen.getByRole("textbox", { name: "not_a_known_key" });
+    expect(unknown).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByText(/support\.config\.descriptions/)).toBeNull();
+  });
+
   it("allows selecting theme via radio buttons", async () => {
     render(<Support />, { wrapper: MemoryRouter });
     await expandSection(en.support.config.title);

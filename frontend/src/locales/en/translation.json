@@ -945,6 +945,25 @@
       "reload": "Reload page",
       "noResponse": "No response from the backend ({{error}}). It may have restarted after updating; use Check for updates to confirm."
     },
+    "mcpServer": {
+      "title": "MCP server",
+      "running": "Running on port {{port}} (pid {{pid}}, started {{started}}).",
+      "stopped": "Not running on port {{port}}.",
+      "toolCount": "{{count}} tool(s) listed.",
+      "codeChanged": "Code changed since the server started; restart it to pick the changes up.",
+      "refresh": "Refresh status",
+      "checking": "Checking...",
+      "restart": "Restart MCP server",
+      "restarting": "Restarting...",
+      "confirmTitle": "Restart the MCP server?",
+      "confirmStop": "This stops the MCP server on port {{port}} (pid {{pid}}) and starts a new one.",
+      "confirmStart": "This starts a new MCP server on port {{port}}.",
+      "confirmBackground": "The new server runs in the background, logging to {{log}}. If the current one was started with run-mcp-server in a terminal, stopping it ends that terminal’s server; the new one does not run there.",
+      "confirm": "Confirm restart",
+      "restarted": "Restarted: pid {{pid}}, {{count}} tool(s).",
+      "failed": "Restart failed.",
+      "logLines": "MCP server log"
+    },
     "config": {
       "otherParams": "Other parameters",
       "otherSwitches": "Other Switches",

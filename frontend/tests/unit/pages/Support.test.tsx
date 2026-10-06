@@ -14,6 +14,7 @@ const mockRefreshPrices = vi.hoisted(() => vi.fn());
 const mockGetRefreshPricesProgress = vi.hoisted(() => vi.fn());
 const mockGetMcpTools = vi.hoisted(() => vi.fn());
 const mockGetAppUpdateStatus = vi.hoisted(() => vi.fn());
+const mockGetMcpServerStatus = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -30,6 +31,7 @@ vi.mock("@/api", async () => {
     getRefreshPricesProgress: mockGetRefreshPricesProgress,
     getMcpTools: mockGetMcpTools,
     getAppUpdateStatus: mockGetAppUpdateStatus,
+    getMcpServerStatus: mockGetMcpServerStatus,
   };
 });
 
@@ -73,6 +75,7 @@ beforeEach(() => {
   // Default to a non-local deployment: the update route 404s and the
   // section stays hidden (covered in AppUpdateSection.test.tsx).
   mockGetAppUpdateStatus.mockRejectedValue(Object.assign(new Error("Not Found"), { status: 404 }));
+  mockGetMcpServerStatus.mockRejectedValue(Object.assign(new Error("Not Found"), { status: 404 }));
   mockGetMcpTools.mockResolvedValue({
     tools: [
       { name: "get_portfolio", description: "Portfolio", enabled: true },

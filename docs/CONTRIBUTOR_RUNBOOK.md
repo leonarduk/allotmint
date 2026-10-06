@@ -447,6 +447,14 @@ bash scripts/bash/run-mcp-server.sh [port]         # macOS/Linux
 .\scripts\run-mcp-server.ps1 [-Port 8001]           # Windows PowerShell
 ```
 
+The MCP server imports the backend and allotmint-pro once at startup, so
+merged changes (new tools, fixes) need a restart. On a local run the Support
+page's **MCP server** panel (next to the MCP tools list) shows whether it is
+running, its PID and start time, the allotmint-pro commit, the tool count, and
+whether code changed after it started; **Restart** stops it and starts a fresh
+one in the background with the script above, logging to `logs/mcp-server.log`.
+See "Restarting the Local MCP Server" in `docs/TECHNICAL_SUPPORT.md`.
+
 On Windows its log may show `ConnectionResetError: [WinError 10054]`
 tracebacks after chat turns. They're harmless noise from asyncio's Windows
 event loop when the backend closes its per-turn MCP connection; the requests

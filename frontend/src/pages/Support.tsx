@@ -23,6 +23,7 @@ import { useUser } from "../UserContext";
 import { OwnerSelector } from "../components/OwnerSelector";
 import SectionCard from "../components/SectionCard";
 import AppUpdateSection from "../components/AppUpdateSection";
+import McpServerSection from "../components/McpServerSection";
 import type { OwnerSummary } from "../types";
 import { orderedTabPlugins, type TabPluginId } from "../tabPlugins";
 import { usePriceRefresh } from "../PriceRefreshContext";
@@ -785,6 +786,7 @@ export default function Support() {
                   </div>
                 ))}
               </div>
+              <McpServerSection onRestarted={loadMcpTools} />
             </div>
             <div>
               <h3 className="mb-1 font-semibold">{t("support.config.otherParams")}</h3>

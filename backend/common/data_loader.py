@@ -1202,7 +1202,10 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
             if not explicit_local_fallback:
                 return {}
 
-    if not explicit_local_fallback or not local_root:
+    # The S3 branch above has already returned unless an explicit data_root
+    # asked for local fallback, so reaching here means local data is wanted:
+    # local mode reads the default accounts root even without data_root.
+    if not local_root:
         return {}
 
     try:

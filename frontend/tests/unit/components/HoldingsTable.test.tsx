@@ -1066,6 +1066,49 @@ describe("HoldingsTable", () => {
         expect(price).toHaveClass("text-gray");
     });
 
+    describe("FX rate source marker (#9730)", () => {
+        const fxHolding = (ticker: string, fx_rate_source: string | null | undefined): Holding => ({
+            ticker,
+            name: `${ticker} Co`,
+            currency: "USD",
+            instrument_type: "Equity",
+            units: 1,
+            price: 80,
+            cost_basis_gbp: 100,
+            market_value_gbp: fx_rate_source === "missing" ? null : 80,
+            gain_gbp: fx_rate_source === "missing" ? null : -20,
+            current_price_gbp: fx_rate_source === "missing" ? null : 80,
+            acquired_date: "2024-01-01",
+            days_held: 10,
+            sell_eligible: true,
+            days_until_eligible: 0,
+            fx_rate_source,
+        });
+        const fallbackTitle = () => i18n.t("holdingsTable.fxRateFallback");
+        const missingTitle = () => i18n.t("holdingsTable.fxRateMissing");
+
+        it("marks a holding valued at an approximate fallback rate", () => {
+            render(<HoldingsTable holdings={[fxHolding("FBK", "fallback")]} />);
+            const marker = screen.getByTitle(fallbackTitle());
+            expect(marker).toHaveTextContent("≈");
+            expect(marker).toHaveAccessibleName(fallbackTitle());
+            expect(screen.queryByTitle(missingTitle())).toBeNull();
+        });
+
+        it("marks a holding with no FX rate distinctly", () => {
+            render(<HoldingsTable holdings={[fxHolding("MIS", "missing")]} />);
+            const marker = screen.getByTitle(missingTitle());
+            expect(marker).toHaveTextContent("FX");
+            expect(screen.queryByTitle(fallbackTitle())).toBeNull();
+        });
+
+        it.each(["live", "cache", null, undefined])("shows no marker for fx_rate_source %s", (source) => {
+            render(<HoldingsTable holdings={[fxHolding("OK", source)]} />);
+            expect(screen.queryByTitle(fallbackTitle())).toBeNull();
+            expect(screen.queryByTitle(missingTitle())).toBeNull();
+        });
+    });
+
     it("creates FX pair buttons for currency and skips GBX", async () => {
         const onSelect = vi.fn();
         render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect}/>);

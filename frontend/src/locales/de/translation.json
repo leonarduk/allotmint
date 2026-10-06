@@ -258,6 +258,8 @@
     "costBasisUnknown": "Kein Erwerbsdatum oder gebuchte Kosten erfasst — Kosten werden gleich dem aktuellen Wert angenommen",
     "gainNotAvailable": "Gewinn unbekannt — kein Erwerbsdatum oder gebuchte Kosten erfasst",
     "bookCostSuspect": "Gebuchte Kosten wirken im Vergleich zum Kurs unplausibel — Gewinn ausgeblendet, bis sie geprüft sind",
+    "fxRateFallback": "Mit einem ungefähren Wechselkurs bewertet — kein aktueller oder zwischengespeicherter Kurs verfügbar",
+    "fxRateMissing": "Kein Wechselkurs — wird erst nach Aktualisierung des Wechselkurs-Caches bewertet",
     "minimumGainPrompt": "Minimaler Gewinn %",
     "notApplicable": "N/A",
     "acquiredNotAvailable": "Kein Erwerbsdatum erfasst",

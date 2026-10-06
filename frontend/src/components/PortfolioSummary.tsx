@@ -4,6 +4,7 @@ import { money, percent } from "../lib/money";
 import { useConfig } from "../ConfigContext";
 import { isCashInstrument } from "../lib/instruments";
 import { isCostBasisUnreliable } from "../lib/costBasis";
+import { FX_RATE_SOURCE_MISSING } from "../lib/fxRateSource";
 import { LineChart, PiggyBank, TrendingUp, Wallet } from "lucide-react";
 
 export type PortfolioTotals = {
@@ -33,6 +34,14 @@ export type PortfolioTotals = {
    * precedence, so an unpriced holding with an unreliable cost basis is
    * reported under cost basis and the "N of M" counts never exceed M. */
   unpricedHoldingCount: number;
+  /** Non-cash holdings with no FX rate at all (fx_rate_source "missing",
+   * #9664): the backend leaves them unpriced, so they are already absent
+   * from totalValue -- this only says why (#9730). Counted whatever their
+   * cost basis, unlike unpricedHoldingCount. */
+  missingFxHoldingCount: number;
+  /** The part of unpricedHoldingCount whose missing price is a missing FX
+   * rate, so the gain note can name the cause (#9730). */
+  unpricedMissingFxCount: number;
 };
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -46,6 +55,8 @@ export function computePortfolioTotals(accounts: Account[]): PortfolioTotals {
   let unknownCostBasisCount = 0;
   let gainEligibleHoldingCount = 0;
   let unpricedHoldingCount = 0;
+  let missingFxHoldingCount = 0;
+  let unpricedMissingFxCount = 0;
 
   for (const acct of accounts) {
     totalValue += acct.value_estimate_gbp ?? 0;
@@ -64,6 +75,10 @@ export function computePortfolioTotals(accounts: Account[]): PortfolioTotals {
       }
       totalDayChange += dayChg;
       gainEligibleHoldingCount += 1;
+      const missingFx = !isCash && h.fx_rate_source === FX_RATE_SOURCE_MISSING;
+      if (missingFx) {
+        missingFxHoldingCount += 1;
+      }
 
       // A holding with no acquisition date and no booked cost has its cost
       // basis fabricated to equal market value (see backend/common/
@@ -84,6 +99,9 @@ export function computePortfolioTotals(accounts: Account[]): PortfolioTotals {
       // `0 - cost` and book its whole cost as a loss (headline -100%).
       if (!isCash && (h.market_value_gbp === null || h.market_value_gbp === undefined)) {
         unpricedHoldingCount += 1;
+        if (missingFx) {
+          unpricedMissingFxCount += 1;
+        }
         continue;
       }
 
@@ -119,15 +137,21 @@ export function computePortfolioTotals(accounts: Account[]): PortfolioTotals {
     unknownCostBasisCount,
     gainEligibleHoldingCount,
     unpricedHoldingCount,
+    missingFxHoldingCount,
+    unpricedMissingFxCount,
   };
 }
 
 function buildGainNote(
   unknownCostBasisCount: number,
   unpricedHoldingCount: number,
+  unpricedMissingFxCount: number,
   gainEligibleHoldingCount: number,
   allGainUnknown: boolean,
 ): string | undefined {
+  // Names a missing FX rate as the cause of a missing price (#9730).
+  const fxCause =
+    unpricedMissingFxCount > 0 ? ` (${unpricedMissingFxCount} with no FX rate)` : "";
   if (allGainUnknown) {
     const reason =
       unpricedHoldingCount === 0
@@ -135,16 +159,16 @@ function buildGainNote(
         : unknownCostBasisCount === 0
           ? "no price"
           : "no reliable cost basis or no price";
-    return `Gain unavailable for all ${gainEligibleHoldingCount} holdings (${reason})`;
+    return `Gain unavailable for all ${gainEligibleHoldingCount} holdings (${reason})${fxCause}`;
   }
   if (unknownCostBasisCount > 0 && unpricedHoldingCount > 0) {
-    return `Excludes ${unknownCostBasisCount} of ${gainEligibleHoldingCount} holdings with no reliable cost basis and ${unpricedHoldingCount} with no price`;
+    return `Excludes ${unknownCostBasisCount} of ${gainEligibleHoldingCount} holdings with no reliable cost basis and ${unpricedHoldingCount} with no price${fxCause}`;
   }
   if (unknownCostBasisCount > 0) {
     return `Excludes ${unknownCostBasisCount} of ${gainEligibleHoldingCount} holdings with no reliable cost basis`;
   }
   if (unpricedHoldingCount > 0) {
-    return `Excludes ${unpricedHoldingCount} of ${gainEligibleHoldingCount} holdings with no price`;
+    return `Excludes ${unpricedHoldingCount} of ${gainEligibleHoldingCount} holdings with no price${fxCause}`;
   }
   return undefined;
 }
@@ -163,6 +187,8 @@ export function PortfolioSummary({ totals }: Props) {
     unknownCostBasisCount,
     gainEligibleHoldingCount,
     unpricedHoldingCount,
+    missingFxHoldingCount,
+    unpricedMissingFxCount,
   } = totals;
   const { baseCurrency } = useConfig();
 
@@ -176,9 +202,16 @@ export function PortfolioSummary({ totals }: Props) {
   const gainNote = buildGainNote(
     unknownCostBasisCount,
     unpricedHoldingCount,
+    unpricedMissingFxCount,
     gainEligibleHoldingCount,
     allGainUnknown,
   );
+  // The backend leaves a holding with no FX rate unpriced, so it adds nothing
+  // to the total value; say so rather than let the total read as complete (#9730).
+  const valueNote =
+    missingFxHoldingCount > 0
+      ? `Excludes ${missingFxHoldingCount} ${missingFxHoldingCount === 1 ? "holding" : "holdings"} with no FX rate`
+      : undefined;
 
   return (
     <div
@@ -207,6 +240,7 @@ export function PortfolioSummary({ totals }: Props) {
         label="Total value"
         icon={<PiggyBank size={20} />}
         value={money(totalValue, baseCurrency)}
+        note={valueNote}
       />
       <SummaryCard
         label="Gain/loss"

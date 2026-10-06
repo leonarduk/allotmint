@@ -300,4 +300,77 @@ describe("PortfolioSummary", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  describe("missing FX rate (#9730)", () => {
+    const noFx = (ticker: string, overrides: Partial<Holding> = {}) =>
+      holding({
+        ticker,
+        market_value_gbp: null,
+        cost_basis_gbp: 1000,
+        gain_gbp: null,
+        gain_pct: null,
+        fx_rate_source: "missing",
+        ...overrides,
+      });
+
+    it("counts missing-FX holdings, overall and among the unpriced", () => {
+      const totals = computePortfolioTotals([
+        account([
+          holding({ ticker: "AAA.L", market_value_gbp: 100, cost_basis_gbp: 80, gain_gbp: 20 }),
+          holding({ ticker: "NOPRICE.L", market_value_gbp: null, gain_gbp: null }),
+          noFx("7203.T"),
+          // Unreliable cost basis takes precedence for the gain counts, but the
+          // holding still has no FX rate.
+          noFx("6758.T", { cost_basis_source: "unknown" }),
+        ]),
+      ]);
+      expect(totals.unpricedHoldingCount).toBe(2);
+      expect(totals.unpricedMissingFxCount).toBe(1);
+      expect(totals.missingFxHoldingCount).toBe(2);
+      expect(totals.totalValue).toBe(100);
+    });
+
+    it("names the FX cause in the gain note and notes the value exclusion", () => {
+      const totals = computePortfolioTotals([
+        account([
+          holding({ ticker: "AAA.L", market_value_gbp: 100, cost_basis_gbp: 80, gain_gbp: 20 }),
+          noFx("7203.T"),
+        ]),
+      ]);
+      render(<PortfolioSummary totals={totals} />);
+      expect(
+        screen.getByText("Excludes 1 of 2 holdings with no price (1 with no FX rate)"),
+      ).toBeInTheDocument();
+      const value = screen.getByText("Total value").parentElement!;
+      expect(value).toHaveTextContent("Excludes 1 holding with no FX rate");
+    });
+
+    it("adds no FX wording when no holding is missing a rate", () => {
+      const totals = computePortfolioTotals([
+        account([
+          holding({ ticker: "AAA.L", market_value_gbp: 100, cost_basis_gbp: 80, gain_gbp: 20 }),
+          holding({ ticker: "USD.N", market_value_gbp: 80, gain_gbp: 0, fx_rate_source: "fallback" }),
+          holding({ ticker: "NOPRICE.L", market_value_gbp: null, gain_gbp: null }),
+        ]),
+      ]);
+      expect(totals.missingFxHoldingCount).toBe(0);
+      render(<PortfolioSummary totals={totals} />);
+      expect(screen.getByText("Excludes 1 of 3 holdings with no price")).toBeInTheDocument();
+      expect(screen.queryByText(/no FX rate/)).toBeNull();
+    });
+
+    it("ignores cash, which carries no FX rate source", () => {
+      const totals = computePortfolioTotals([
+        account([
+          holding({
+            ticker: "CASH.USD",
+            instrument_type: "Cash",
+            market_value_gbp: null,
+            fx_rate_source: "missing",
+          }),
+        ]),
+      ]);
+      expect(totals.missingFxHoldingCount).toBe(0);
+    });
+  });
 });

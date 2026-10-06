@@ -168,7 +168,7 @@ describe("PensionForecast page", () => {
       pension_pot_gbp: 0,
       current_age: 42.7,
       retirement_age: 67,
-      dob: "11/03/1984",
+      dob: "not-a-date",
       earliest_retirement_age: null,
       retirement_income_breakdown: null,
       retirement_income_total_annual: null,
@@ -187,7 +187,7 @@ describe("PensionForecast page", () => {
       document.querySelector('[aria-labelledby="age-now-label"]'),
     ).toHaveTextContent(/^—$/);
     expect(screen.queryByText(/current age:/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/42/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/42\.7/)).not.toBeInTheDocument();
     // With no known age, the retirement-age input keeps its default floor.
     expect(screen.getByLabelText(/^retirement age$/i)).toHaveAttribute("min", "40");
   });

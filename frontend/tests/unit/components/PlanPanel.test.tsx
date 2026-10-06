@@ -368,6 +368,20 @@ describe('PlanPanel', () => {
       expect(screen.getByText(/not regulated advice/)).toBeInTheDocument();
     });
 
+    it('shows a goal date that has passed as years ago', async () => {
+      const response = withProfile();
+      mockGetInvestmentPlan.mockResolvedValue({
+        ...response,
+        horizon: {
+          age: 50,
+          goals: [{ index: 0, name: 'Joe university', years_to_goal: -1.5 }],
+        },
+      });
+      render(<PlanPanel owner="alex" />);
+      const table = await screen.findByRole('table', { name: 'Plan goals' });
+      expect(table.querySelector('tbody tr')).toHaveTextContent('1.5 ago');
+    });
+
     it('omits the section for a plan without a profile', async () => {
       mockGetInvestmentPlan.mockResolvedValue(makeResponse());
       render(<PlanPanel owner="alex" />);

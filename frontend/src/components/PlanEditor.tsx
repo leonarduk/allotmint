@@ -489,7 +489,7 @@ function GoalSection({
       hint="What the money is for and when it's needed. Amount in GBP; priority 1 is highest."
       rows={rows}
       onChange={onChange}
-      blank={() => ({
+      blank={(): GoalRow => ({
         name: '',
         purpose: 'retirement',
         target_date: '',

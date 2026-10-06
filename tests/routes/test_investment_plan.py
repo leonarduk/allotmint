@@ -238,3 +238,15 @@ def test_put_rejects_unknown_goal_purpose(data_root):
     resp = _client(data_root).put("/plans/alex", json=bad)
     assert resp.status_code == 400
     assert "profile.goals.0.purpose" in resp.json()["detail"]
+
+
+@pytest.mark.parametrize("person", [None, "{not json"])
+def test_horizon_survives_missing_or_corrupt_person_json(data_root, person):
+    path = data_root / "accounts" / "alex" / "person.json"
+    if person is None:
+        path.unlink()
+    else:
+        path.write_text(person)
+    body = _client(data_root).put("/plans/alex", json={**PLAN, "profile": PROFILE}).json()
+    assert body["horizon"]["age"] is None
+    assert body["horizon"]["goals"][0]["name"] == "House deposit"

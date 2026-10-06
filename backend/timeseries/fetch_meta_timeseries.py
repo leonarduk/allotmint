@@ -38,6 +38,7 @@ _METADATA_PATH_COMPONENT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 # ──────────────────────────────────────────────────────────────
 # Local imports
 # ──────────────────────────────────────────────────────────────
+from backend.timeseries.alternate_listing import apply_price_source
 from backend.timeseries.fetch_alphavantage_timeseries import (
     AlphaVantageRateLimitError,
     fetch_alphavantage_timeseries_range,
@@ -455,6 +456,16 @@ def fetch_meta_timeseries(
         record_skipped_ticker(ticker, exchange, reason="unknown")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
+    native = _fetch_from_providers(ticker, exchange, start_date, end_date, min_coverage)
+    # An instrument whose metadata names another listing as its price source
+    # gets that listing's converted closes where its own are missing (#9657).
+    return apply_price_source(native, ticker, exchange, start_date, end_date)
+
+
+def _fetch_from_providers(
+    ticker: str, exchange: str, start_date: date, end_date: date, min_coverage: float
+) -> pd.DataFrame:
+    """The instrument's own listing from Yahoo, then Stooq, Alpha Vantage and FT as needed."""
     label = f"{ticker}.{exchange}"
     # Weekday grid we want to fill
     expected_dates = set(pd.bdate_range(start_date, end_date).date)

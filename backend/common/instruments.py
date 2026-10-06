@@ -415,6 +415,7 @@ _YAHOO_SUFFIXES: Dict[str, str] = {
     "TO": ".TO",
     "ASX": ".AX",
     "F": ".F",
+    "MI": ".MI",
     "FX": "=X",
 }
 
@@ -455,6 +456,7 @@ _EXCHANGE_REGIONS: Dict[str, str] = {
     "TSX": "Canada",
     "TO": "Canada",
     "ASX": "Australia",
+    "MI": "Italy",
 }
 _FUND_QUOTE_TYPES = frozenset({"ETF", "MUTUALFUND"})
 

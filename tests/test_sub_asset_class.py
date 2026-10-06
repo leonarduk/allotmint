@@ -1,4 +1,4 @@
-"""Tests for bond/commodity sub-class derivation (#9543)."""
+"""Tests for equity/bond/commodity sub-class derivation (#9543, #9653)."""
 
 import json
 
@@ -9,6 +9,7 @@ from backend.common.sub_asset_class import (
     SUB_ASSET_CLASS_PARENT,
     SUB_ASSET_CLASSES,
     derive_bond_sub_class,
+    policy_targets,
     resolve_sub_asset_class,
 )
 
@@ -120,8 +121,41 @@ def test_unknown_bond_has_no_sub_class():
 
 
 def test_non_splittable_classes_have_no_sub_class():
-    assert resolve_sub_asset_class({"name": "UK Gilts 0-5yr"}, "equity") is None
+    assert resolve_sub_asset_class({"name": "UK Gilts 0-5yr"}, "property") is None
     assert resolve_sub_asset_class({"name": "UK Gilts 0-5yr"}, None) is None
+
+
+@pytest.mark.parametrize(
+    ("meta", "expected"),
+    [
+        ({"name": "iShares S&P Small-Cap 600 Value"}, "small_cap_value"),
+        ({"name": "SPDR MSCI USA Small Cap Value Weighted UCITS ETF"}, "small_cap_value"),
+        ({"name": "Avantis Global SmallCap Value"}, "small_cap_value"),
+        (
+            {"name": "Some Fund", "fund_facts": {"index": {"value": "MSCI World Small Cap Value Weighted"}}},
+            "small_cap_value",
+        ),
+        ({"name": "Vanguard FTSE All-World"}, "broad_equity"),
+        ({"name": "iShares MSCI World Small Cap"}, "broad_equity"),
+        ({"name": "Fidelity Value Fund"}, "broad_equity"),
+    ],
+)
+def test_equity_sub_class(meta, expected):
+    assert resolve_sub_asset_class(meta, "equity") == expected
+
+
+def test_equity_override_wins(_no_overrides):
+    _no_overrides.write_text(json.dumps({"ZPRV.L": {"sub_asset_class": "small_cap_value"}}))
+    assert resolve_sub_asset_class({"ticker": "ZPRV.L", "name": "Some US ETF"}, "equity") == "small_cap_value"
+
+
+def test_policy_targets_renames_equity_beside_an_equity_sub_class():
+    assert policy_targets({"equity": 20, "small_cap_value": 20, "gold": 60}) == {
+        "broad_equity": 20,
+        "small_cap_value": 20,
+        "gold": 60,
+    }
+    assert policy_targets({"equity": 40, "long_gilts": 60}) == {"equity": 40, "long_gilts": 60}
 
 
 def test_metadata_override_wins_over_derivation():

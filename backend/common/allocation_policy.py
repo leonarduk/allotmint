@@ -2,7 +2,7 @@
 
 The policy is a set of asset-class target weights (percent, summing to 100)
 plus an absolute drift tolerance in percentage points. A splittable class
-(Bond, Commodity) can instead be targeted by its sub-classes (``long_gilts``,
+(Equity, Bond, Commodity) can instead be targeted by its sub-classes (``long_gilts``,
 ``gold``, ...; see :mod:`backend.common.sub_asset_class`, #9543), but not both
 at once. It is stored under the
 ``allocation_policy`` key of the owner's ``settings.json`` -- the same file
@@ -51,13 +51,18 @@ class AllocationPolicy:
 
 
 def _target_key(key: Any) -> str:
-    """Canonical asset class or sub-class key for a target, or ``ValueError``."""
-    asset_class = normalise_asset_class(key)
-    if asset_class is not None:
-        return asset_class
+    """Canonical asset class or sub-class key for a target, or ``ValueError``.
+
+    An exact sub-class key wins over an asset-class alias: ``commodities`` is
+    both an alias of the Commodity class and the "other commodities"
+    sub-class, and in a target it means the sub-class (#9653).
+    """
     sub_class = key.strip().lower() if isinstance(key, str) else None
     if sub_class in SUB_ASSET_CLASS_PARENT:
         return sub_class
+    asset_class = normalise_asset_class(key)
+    if asset_class is not None:
+        return asset_class
     expected = ", ".join((*ASSET_CLASSES, *SUB_ASSET_CLASS_PARENT))
     raise ValueError(f"Unknown asset class {key!r}; expected one of {expected}")
 

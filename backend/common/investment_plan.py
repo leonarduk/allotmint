@@ -28,6 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from backend.common.allocation_policy import AllocationPolicy, parse_policy
 from backend.common.instruments import get_instrument_meta
 from backend.common.path_utils import safe_join
+from backend.common.sub_asset_class import policy_targets
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -271,9 +272,11 @@ def compare_with_rebalance_targets(plan: InvestmentPlan, policy: AllocationPolic
     When the rebalance policy accepts the plan's class keys as they are (the
     sub-class targets of #9543), the plan can be copied across verbatim and
     ``copy_supported`` is true. Otherwise the plan is compared rolled up to
-    top-level asset classes and the mismatch is reported only.
+    top-level asset classes and the mismatch is reported only. A plan that
+    pairs ``equity`` with ``small_cap_value`` compares with the policy's
+    ``broad_equity`` (see :func:`~backend.common.sub_asset_class.policy_targets`).
     """
-    exact = plan.target_weights()
+    exact = policy_targets(plan.target_weights())
     try:
         comparable = parse_policy({"targets": exact}).targets
         copy_supported = True

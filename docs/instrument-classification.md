@@ -99,15 +99,18 @@ it.
 Each entry may set `asset_class`, `sector` or both. Keys starting with `_` are
 ignored. An `asset_class` outside the six values above is logged and ignored. Then run `python -m scripts.classify_instruments --write`.
 
-## Sub-asset classes (Bond, Commodity)
+## Sub-asset classes (Equity, Bond, Commodity)
 
-The rebalance page can target Bond and Commodity by sub-class (#9543). Each
+The Strategy page (`/strategy`, formerly `/rebalance`) can target Equity, Bond
+and Commodity by sub-class (#9543, #9653). Each
 held instrument gets a `sub_asset_class` at read time from
 `backend/common/sub_asset_class.py`; nothing is written back to disk. The keys
 match the asset-class blocks of allotmint-pro's `backtest_portfolio` tool.
 
 | Parent | Sub-class key | Rule (first match wins) |
 | --- | --- | --- |
+| equity | `small_cap_value` | the name or index says "small cap ... value" ("Small Cap Value", "Small-Cap 600 Value", "SmallCap Value Weighted") |
+| equity | `broad_equity` | every other equity; the backtest calls this sleeve `equity` when it sits beside `small_cap_value` |
 | bond | `index_linked` | name/index mentions inflation-linked, index-linked, linkers or TIPS (so a US TIPS fund is index-linked, not overseas government) |
 | bond | `short_gilts` | name/index mentions ultrashort |
 | bond | `long_gilts` / `intermediate_gilts` / `short_gilts` | a gilt or UK government fund, banded by `fund_facts.effective_duration_years` (under 3 short, 3-10 intermediate, over 10 long); without a duration, the midpoint of `fund_facts.maturity_band` or a maturity range in the name ("0-5yr", "15+ Year") |
@@ -120,7 +123,7 @@ To override a sub-class, set `sub_asset_class` on the instrument file or add it
 to the override entry, for example `"TFIF.L": {"sub_asset_class": "corporate_bonds"}`.
 An override that belongs to a different parent class is logged and ignored.
 A bond with no recognised sub-class stays in Bond. When Bond is targeted by
-sub-class, the rebalance page shows it in a "Bond — no sub-class" row and a
+sub-class, the Strategy page shows it in a "Bond — no sub-class" row and a
 note. It counts towards the total but is never traded.
 
 ## Gaps

@@ -125,6 +125,8 @@ def total_return(closes: pd.Series, dividends: pd.Series | None) -> float | None
 
 TOTAL_RETURN_BASIS = "total"
 PRICE_RETURN_BASIS = "price"
+# A basket whose members are partly on each basis (a portfolio, #9571).
+MIXED_RETURN_BASIS = "mixed"
 
 DividendLoader = Callable[[str, str], "pd.Series | None"]
 

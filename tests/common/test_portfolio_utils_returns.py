@@ -4,6 +4,11 @@ import pytest
 from backend.common import instrument_api, portfolio_utils
 
 
+def _as_return_series(fake):
+    """Adapt a ``_portfolio_value_series`` fake to ``_portfolio_return_series`` (#9571)."""
+    return lambda *a, **k: (fake(*a, **k), {"portfolio_return_basis": "price", "portfolio_price_basis_share": 1.0})
+
+
 def test_compute_alpha_and_tracking_error(monkeypatch: pytest.MonkeyPatch) -> None:
     dates = pd.date_range("2024-01-01", periods=3, freq="D")
     portfolio_series = pd.Series([100.0, 110.0, 115.0], index=dates.date)
@@ -14,7 +19,7 @@ def test_compute_alpha_and_tracking_error(monkeypatch: pytest.MonkeyPatch) -> No
         assert group is False
         return portfolio_series
 
-    monkeypatch.setattr(portfolio_utils, "_portfolio_value_series", fake_portfolio_value_series)
+    monkeypatch.setattr(portfolio_utils, "_portfolio_return_series", _as_return_series(fake_portfolio_value_series))
 
     benchmark_df = pd.DataFrame({"Date": dates, "Close": [100.0, 108.0, 112.0]})
 
@@ -38,7 +43,7 @@ def test_compute_metrics_none_when_series_misaligned(monkeypatch: pytest.MonkeyP
     def fake_portfolio_value_series(name: str, days: int, *, group: bool = False, pricing_date=None, **_) -> pd.Series:
         return portfolio_series
 
-    monkeypatch.setattr(portfolio_utils, "_portfolio_value_series", fake_portfolio_value_series)
+    monkeypatch.setattr(portfolio_utils, "_portfolio_return_series", _as_return_series(fake_portfolio_value_series))
 
     # Simulate a benchmark that lacks the overlapping period with the portfolio values.
     benchmark_dates = pd.date_range("2024-02-01", periods=3, freq="D")
@@ -71,7 +76,7 @@ def test_compute_metrics_none_when_benchmark_data_entirely_missing(
     def fake_portfolio_value_series(name: str, days: int, *, group: bool = False, pricing_date=None, **_) -> pd.Series:
         return portfolio_series
 
-    monkeypatch.setattr(portfolio_utils, "_portfolio_value_series", fake_portfolio_value_series)
+    monkeypatch.setattr(portfolio_utils, "_portfolio_return_series", _as_return_series(fake_portfolio_value_series))
 
     def fake_load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
         return pd.DataFrame()
@@ -102,7 +107,7 @@ def test_group_metrics_and_max_drawdown(monkeypatch: pytest.MonkeyPatch) -> None
             return shared_series
         return shared_series
 
-    monkeypatch.setattr(portfolio_utils, "_portfolio_value_series", fake_portfolio_value_series)
+    monkeypatch.setattr(portfolio_utils, "_portfolio_return_series", _as_return_series(fake_portfolio_value_series))
 
     def fake_load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
         return benchmark_df.copy()

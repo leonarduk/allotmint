@@ -153,7 +153,9 @@ jobs:
           # DEFAULT_GLOBS -- so this list is DEFAULT_GLOBS (see
           # cicaid_devtools/lib/review_diff.py) plus allotmint's frontend
           # stack, kept as a superset so non-frontend PRs never regress to an
-          # empty diff again (#6280).
+          # empty diff again (#6280). "*.bats" is listed too: without it the
+          # reviewers never saw tests/bash/*.bats and reported shell-script
+          # changes as untested (#9516).
           DIFF=$(python3 -m cicaid_devtools.lib.review_diff \
             --base-ref "$BASE_REF" \
             --pr-title "$PR_TITLE" \
@@ -162,7 +164,7 @@ jobs:
             "*.py" "*.toml" "*.md" "*.yml" "*.yaml" "*.sh" "*.cfg" "*.ini" \
             "Dockerfile" "*.java" "*.xml" "*.properties" "*.ps1" "*.txt" \
             "*.ts" "*.tsx" "*.js" "*.jsx" "*.mjs" "*.cjs" "*.json" "*.css" \
-            "*.scss" "*.html")
+            "*.scss" "*.html" "*.bats")
           DELIM="EOF_$(uuidgen | tr -d '-')"
           {
             echo "diff<<$DELIM"

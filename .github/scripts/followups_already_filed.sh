@@ -21,8 +21,12 @@
 #
 # Usage: followups_already_filed.sh <pr_number>
 # Required env: GH_TOKEN, REPO
-# Optional env: SINCE (ISO-8601, e.g. the PR's created_at) to bound the scan;
-#   follow-ups for a PR can only be created after the PR was opened.
+# Optional env: SINCE (ISO-8601, e.g. the PR's created_at) to bound the scan.
+#   The API's `since` filters on updated_at, which is a superset here: a
+#   follow-up for a PR is created (so last updated) after the PR was opened.
+#   Unset, every ai-suggested issue is scanned (slower, still correct).
+# Closed follow-ups count too (state=all): once a suggestion has been filed and
+# triaged, a re-review must not re-file it even if it was closed.
 # Prints "skip=true" or "skip=false" (for $GITHUB_OUTPUT). If the lookup fails,
 # it warns and prints "skip=false", keeping the previous behaviour of filing.
 set -euo pipefail
@@ -37,6 +41,8 @@ MARKER="AI review of PR #${PR_NUMBER}."
 QUERY="repos/${REPO}/issues?labels=ai-suggested&state=all&per_page=100"
 if [ -n "${SINCE:-}" ]; then
   QUERY="${QUERY}&since=${SINCE}"
+else
+  echo "SINCE not set; scanning all ai-suggested issues for PR #${PR_NUMBER}." >&2
 fi
 
 # --jq runs per page under --paginate, so this emits one number per matching

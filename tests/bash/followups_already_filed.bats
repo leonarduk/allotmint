@@ -3,6 +3,8 @@
 # "Create follow-up issues" step of _ai-pr-review.yml so re-reviews of a PR
 # don't file duplicate follow-up issues.
 
+bats_require_minimum_version 1.5.0
+
 SCRIPT="$BATS_TEST_DIRNAME/../../.github/scripts/followups_already_filed.sh"
 
 setup() {
@@ -52,27 +54,27 @@ pages() {
 
 @test "skips when a follow-up for this PR already exists" {
   write_fake_gh "$(pages '[{"number":1,"body":"x\n\n_Follow-up from AI review of PR #42._"}]')"
-  run bash "$SCRIPT" 42
+  run --separate-stderr bash "$SCRIPT" 42
   [ "$status" -eq 0 ]
-  [[ "$output" == *"skip=true"* ]]
+  [ "$output" = "skip=true" ]
 }
 
 @test "matches the fallback body written when the LLM call fails" {
   write_fake_gh "$(pages '[{"number":1,"body":"Follow-up suggested by AI review of PR #42."}]')"
-  run bash "$SCRIPT" 42
-  [[ "$output" == *"skip=true"* ]]
+  run --separate-stderr bash "$SCRIPT" 42
+  [ "$output" = "skip=true" ]
 }
 
 @test "files when no follow-up for this PR exists" {
   write_fake_gh "$(pages '[{"number":1,"body":"_Follow-up from AI review of PR #41._"}]')"
-  run bash "$SCRIPT" 42
+  run --separate-stderr bash "$SCRIPT" 42
   [ "$status" -eq 0 ]
   [ "$output" = "skip=false" ]
 }
 
 @test "does not treat a longer PR number as a match" {
   write_fake_gh "$(pages '[{"number":1,"body":"_Follow-up from AI review of PR #420._"}]')"
-  run bash "$SCRIPT" 42
+  run --separate-stderr bash "$SCRIPT" 42
   [ "$output" = "skip=false" ]
 }
 
@@ -80,33 +82,33 @@ pages() {
   write_fake_gh "$(pages \
     '[{"number":1,"body":"unrelated"},{"number":2,"pull_request":{},"body":"_Follow-up from AI review of PR #42._"}]' \
     '[{"number":3,"body":null},{"number":4,"body":"_Follow-up from AI review of PR #42._"}]')"
-  run bash "$SCRIPT" 42
-  [[ "$output" == *"skip=true"* ]]
+  run --separate-stderr bash "$SCRIPT" 42
+  [ "$output" = "skip=true" ]
 }
 
 @test "a PR body mentioning the marker is not counted" {
   write_fake_gh "$(pages '[{"number":2,"pull_request":{},"body":"_Follow-up from AI review of PR #42._"}]')"
-  run bash "$SCRIPT" 42
+  run --separate-stderr bash "$SCRIPT" 42
   [ "$output" = "skip=false" ]
 }
 
 @test "passes SINCE through to the API query" {
   write_fake_gh "$(pages '[]')"
-  SINCE="2026-10-05T18:00:00Z" run bash "$SCRIPT" 42
+  SINCE="2026-10-05T18:00:00Z" run --separate-stderr bash "$SCRIPT" 42
   [ "$output" = "skip=false" ]
   grep -q "labels=ai-suggested&state=all&per_page=100&since=2026-10-05T18:00:00Z" "$CALL_LOG"
 }
 
 @test "fails open with a warning when the lookup fails" {
   write_fake_gh "$(pages '[]')"
-  FAKE_GH_FAIL=1 run bash "$SCRIPT" 42
+  FAKE_GH_FAIL=1 run --separate-stderr bash "$SCRIPT" 42
   [ "$status" -eq 0 ]
-  [[ "$output" == *"::warning"* ]]
-  [[ "$output" == *"skip=false"* ]]
+  [[ "$stderr" == *"::warning"* ]]
+  [ "$output" = "skip=false" ]
 }
 
 @test "rejects a non-numeric PR number" {
   write_fake_gh "$(pages '[]')"
-  run bash "$SCRIPT" '42"; rm -rf /'
+  run --separate-stderr bash "$SCRIPT" '42"; rm -rf /'
   [ "$status" -eq 1 ]
 }

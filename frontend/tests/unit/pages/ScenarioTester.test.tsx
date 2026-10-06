@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import ScenarioTester from "@/pages/ScenarioTester";
 import type { ScenarioResult } from "@/types";
 
@@ -18,6 +19,13 @@ vi.mock("@/api", () => ({
   runFxScenario: (params: any) => mockRunFxScenario(params),
 }));
 
+const renderPage = () =>
+  render(
+    <MemoryRouter>
+      <ScenarioTester />
+    </MemoryRouter>,
+  );
+
 describe("ScenarioTester page", () => {
   beforeEach(() => {
     // The page persists scenario.selectedOwners to localStorage, so without
@@ -35,9 +43,30 @@ describe("ScenarioTester page", () => {
     mockGetPortfolio.mockResolvedValue({ holdings: [], cash: [] } as any);
   });
 
+  it("links to the strategy stress test for the chosen event and horizons", async () => {
+    mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
+    renderPage();
+    expect(
+      screen.queryByRole("link", { name: /Compare strategies/ }),
+    ).toBeNull();
+    await screen.findByRole("option", { name: "Event 1" });
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "e1" },
+    });
+    const link = await screen.findByRole("link", {
+      name: /Compare strategies for this event/,
+    });
+    expect(link.getAttribute("href")).toBe("/strategy?stress_event=e1");
+    fireEvent.click(screen.getByLabelText("1w"));
+    fireEvent.click(screen.getByLabelText("1y"));
+    expect(link.getAttribute("href")).toBe(
+      "/strategy?stress_event=e1&horizons=1w%2C1y",
+    );
+  });
+
   it("fetches events and populates dropdown", async () => {
     mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
-    render(<ScenarioTester />);
+    renderPage();
     await waitFor(() => expect(mockGetEvents).toHaveBeenCalled());
     expect(
       await screen.findByRole("option", { name: "Event 1" }),
@@ -62,7 +91,7 @@ describe("ScenarioTester page", () => {
       } as ScenarioResult,
     ]);
 
-    render(<ScenarioTester />);
+    renderPage();
 
     await screen.findByRole("option", { name: "Event 1" });
 
@@ -120,7 +149,7 @@ describe("ScenarioTester page", () => {
       } as ScenarioResult,
     ]);
 
-    render(<ScenarioTester />);
+    renderPage();
     await screen.findByRole("option", { name: "Event 1" });
     fireEvent.change(screen.getByRole("combobox"), {
       target: { value: "e1" },
@@ -152,7 +181,7 @@ describe("ScenarioTester page", () => {
         delta_gbp: 10,
       } as ScenarioResult,
     ]);
-    render(<ScenarioTester />);
+    renderPage();
 
     await screen.findByRole("combobox");
     const runButton = screen.getByText("Run stress test");
@@ -173,7 +202,7 @@ describe("ScenarioTester page", () => {
     mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
     mockRunScenario.mockRejectedValueOnce(new Error("fail"));
 
-    render(<ScenarioTester />);
+    renderPage();
 
     await screen.findByRole("combobox");
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "e1" } });
@@ -193,7 +222,7 @@ describe("ScenarioTester page", () => {
       accounts: [],
     } as any);
 
-    render(<ScenarioTester />);
+    renderPage();
 
     await screen.findByText("Alex Leonard");
     const [ownerCheckbox] = screen.getAllByRole("checkbox");
@@ -212,7 +241,7 @@ describe("ScenarioTester page", () => {
     ]);
     mockGetPortfolio.mockResolvedValue({ accounts: [] } as any);
 
-    render(<ScenarioTester />);
+    renderPage();
 
     await screen.findByText("Beth Leonard");
     fireEvent.click(
@@ -235,7 +264,7 @@ describe("ScenarioTester page", () => {
     ]);
     mockGetPortfolio.mockResolvedValue({ accounts: [] } as any);
 
-    render(<ScenarioTester />);
+    renderPage();
 
     await screen.findByText("Alex Leonard");
     const checkboxes = screen.getAllByRole("checkbox");
@@ -259,7 +288,7 @@ describe("ScenarioTester page", () => {
     ]);
     mockGetPortfolio.mockResolvedValue({ accounts: [] } as any);
 
-    render(<ScenarioTester />);
+    renderPage();
 
     await screen.findByText("Beth Leonard");
     // Load the SECOND owner first, so "Select all" walks an unloaded owner
@@ -287,7 +316,7 @@ describe("ScenarioTester page", () => {
     // First attempt fails.
     mockGetPortfolio.mockRejectedValueOnce(new Error("network down"));
 
-    render(<ScenarioTester />);
+    renderPage();
 
     await screen.findByText("Alex Leonard");
     const [ownerCheckbox] = screen.getAllByRole("checkbox");
@@ -339,7 +368,7 @@ describe("ScenarioTester page", () => {
           ],
         },
       ]);
-      render(<ScenarioTester />);
+      renderPage();
 
       fireEvent.click(screen.getByRole("button", { name: "Run currency shock" }));
 
@@ -359,7 +388,7 @@ describe("ScenarioTester page", () => {
     });
 
     it("states the sign convention for the chosen currency", () => {
-      render(<ScenarioTester />);
+      renderPage();
 
       fireEvent.click(screen.getByRole("button", { name: "EUR" }));
 
@@ -375,7 +404,7 @@ describe("ScenarioTester page", () => {
       ["USD", "-100", "Enter a change above -100% and at most 1000%."],
       ["USD", "1001", "Enter a change above -100% and at most 1000%."],
     ])("blocks currency %s with change %s", (currency, pct, message) => {
-      render(<ScenarioTester />);
+      renderPage();
 
       fireEvent.change(screen.getByLabelText("Currency"), { target: { value: currency } });
       fireEvent.change(screen.getByLabelText(/Change in the GBP value of 1/), {
@@ -389,7 +418,7 @@ describe("ScenarioTester page", () => {
 
     it("shows the API error and no results when the shock fails", async () => {
       mockRunFxScenario.mockRejectedValueOnce(new Error("HTTP 400"));
-      render(<ScenarioTester />);
+      renderPage();
 
       fireEvent.click(screen.getByRole("button", { name: "Run currency shock" }));
 

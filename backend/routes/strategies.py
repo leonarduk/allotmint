@@ -10,10 +10,10 @@ root and the caller must pass :func:`backend.common.authz.ensure_owner_access`.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.auth import get_active_user
 from backend.common.authz import ensure_owner_access
@@ -31,7 +31,9 @@ from backend.common.strategies import (
     list_strategies,
     update_strategy,
 )
+from backend.common.strategy_stress import stress_strategies
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
+from backend.routes.scenario import parse_horizons, resolve_event
 
 router = APIRouter(tags=["strategies"])
 
@@ -46,6 +48,27 @@ class StrategyBody(BaseModel):
 
 class DuplicateBody(BaseModel):
     name: Optional[str] = None
+
+
+DEFAULT_STRESS_HORIZONS = ("1m", "3m", "1y")
+MAX_STRESS_HORIZONS = 6
+MAX_STRESS_HORIZON_DAYS = 3650
+
+
+class StressBody(BaseModel):
+    event_id: Optional[str] = None
+    date: Optional[str] = None
+    horizons: List[str] = Field(default_factory=lambda: list(DEFAULT_STRESS_HORIZONS))
+
+
+def _stress_horizons(raw: List[str]) -> Dict[str, int]:
+    """Parse horizons as ``/scenario/historical`` does, within 1 day to 10 years and at most six."""
+    horizons = parse_horizons(raw)
+    if len(horizons) > MAX_STRESS_HORIZONS:
+        raise HTTPException(status_code=400, detail=f"at most {MAX_STRESS_HORIZONS} horizons")
+    if any(not 1 <= days <= MAX_STRESS_HORIZON_DAYS for days in horizons.values()):
+        raise HTTPException(status_code=400, detail=f"horizons must be 1 to {MAX_STRESS_HORIZON_DAYS} days")
+    return horizons
 
 
 def _resolve_owner(request: Request, owner: str, identity: Optional[str]) -> Tuple[str, Path]:
@@ -79,6 +102,19 @@ def get_strategies(owner: str, request: Request, identity: Optional[str] = Depen
         "strategies": [s.to_dict() for s in list_strategies(owner, accounts_root)],
         "active": active_strategy(owner, accounts_root),
     }
+
+
+@router.post("/strategies/{owner}/stress")
+def post_stress(owner: str, body: StressBody, request: Request, identity: Optional[str] = Depends(get_active_user)):
+    """Replay a historical event against every strategy and the owner's portfolio (#9824).
+
+    Body: ``event_id`` (catalogue id) or ``date`` (ISO), and ``horizons``
+    (default 1m, 3m, 1y). See :func:`backend.common.strategy_stress.stress_strategies`.
+    """
+    owner, accounts_root = _resolve_owner(request, owner, identity)
+    horizons = _stress_horizons(body.horizons)
+    event = resolve_event(body.event_id, body.date)
+    return stress_strategies(owner, event, horizons, accounts_root)
 
 
 @router.get("/strategies/{owner}/{strategy_id}")

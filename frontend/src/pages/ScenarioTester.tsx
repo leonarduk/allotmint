@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import {
   getEvents,
@@ -783,6 +784,19 @@ export default function ScenarioTester() {
             {t("scenarioTester.stress.run")}
           </button>
         </div>
+        {eventId && (
+          <p className="mb-3 text-sm">
+            <Link
+              to={`/strategy?${new URLSearchParams({
+                stress_event: eventId,
+                ...(horizons.length ? { horizons: horizons.join(",") } : {}),
+              }).toString()}`}
+              className="text-indigo-700 underline"
+            >
+              {t("scenarioTester.stress.compareStrategies")}
+            </Link>
+          </p>
+        )}
         {error && <div className="mb-3 text-sm text-red-500">{error}</div>}
         {results && (
           <div className="overflow-auto">

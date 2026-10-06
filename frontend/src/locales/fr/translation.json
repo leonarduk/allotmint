@@ -1965,7 +1965,8 @@
       "impact": "{{horizon}} % d'impact",
       "coverageTitle": "{{pct}} % des positions en valeur disposent d'un historique de prix pour cet événement",
       "priced": "{{pct}} % valorisé",
-      "footnote": "Chaque position rejoue ses propres prix à partir de la date de l'événement. Les positions sans historique suivent l'indice de référence de l'événement, puis le reste du portefeuille ; « — » signifie que moins de la moitié du portefeuille dispose d'un historique de prix pour cette date."
+      "footnote": "Chaque position rejoue ses propres prix à partir de la date de l'événement. Les positions sans historique suivent l'indice de référence de l'événement, puis le reste du portefeuille ; « — » signifie que moins de la moitié du portefeuille dispose d'un historique de prix pour cette date.",
+      "compareStrategies": "Comparer les stratégies pour cet événement →"
     }
   },
   "virtualPortfolio": {
@@ -3246,6 +3247,26 @@
       "about": "À propos de cette stratégie",
       "source": "Source :",
       "ukMapping": "Équivalent britannique :"
+    }
+  },
+  "strategyStress": {
+    "title": "Test de résistance",
+    "help": "Rejoue un événement historique sur chaque stratégie, avec votre portefeuille actuel en premier pour comparaison. Chaque classe d'actifs est rejouée sur le fonds de substitution indiqué sous la stratégie, détenu depuis la date de l'événement sans rééquilibrage. Une stratégie n'affiche un chiffre que si chacune de ses classes d'actifs a un historique de prix.",
+    "event": "Événement",
+    "customDate": "Date personnalisée…",
+    "date": "Date de l'événement",
+    "run": "Lancer le test de résistance",
+    "running": "En cours…",
+    "portfolio": "Votre portefeuille actuel",
+    "noData": "Données insuffisantes",
+    "missingTitle": "Aucun historique de prix enregistré pour : {{missing}}",
+    "priceOnlyTitle": "Rendement de prix uniquement : une série utilisée n'a pas de dividendes enregistrés",
+    "priced": "{{pct}} % valorisé",
+    "sortBy": "Trier par {{horizon}}",
+    "footnote": "† rendement de prix uniquement. Cliquez sur un horizon pour trier du meilleur au moins bon.",
+    "col": {
+      "strategy": "Stratégie",
+      "actions": "Actions"
     }
   },
   "assetClasses": {

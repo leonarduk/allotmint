@@ -44,6 +44,8 @@ vi.mock('@/api', () => ({
   createSleeve: mockCreateSleeve,
   assignSleeve: mockAssignSleeve,
   applyStrategyToSleeve: mockApplyStrategyToSleeve,
+  getEvents: () => Promise.resolve([]),
+  runStrategyStress: vi.fn(),
   updateSleeve: vi.fn(),
   deleteSleeve: vi.fn(),
 }));

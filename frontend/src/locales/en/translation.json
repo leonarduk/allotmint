@@ -1958,7 +1958,8 @@
       "impact": "{{horizon}} % impact",
       "coverageTitle": "{{pct}}% of holdings by value have price history for this event",
       "priced": "{{pct}}% priced",
-      "footnote": "Each holding replays its own prices from the event date. Holdings without history follow the event's proxy index, then the rest of the portfolio; \"—\" means under half of the portfolio has price history for that date."
+      "footnote": "Each holding replays its own prices from the event date. Holdings without history follow the event's proxy index, then the rest of the portfolio; \"—\" means under half of the portfolio has price history for that date.",
+      "compareStrategies": "Compare strategies for this event →"
     }
   },
   "virtualPortfolio": {
@@ -3239,6 +3240,26 @@
       "about": "About this strategy",
       "source": "Source:",
       "ukMapping": "UK mapping:"
+    }
+  },
+  "strategyStress": {
+    "title": "Stress test",
+    "help": "Replay a historical event against every strategy, with your current portfolio first for comparison. Each asset class is replayed on the stand-in fund named under the strategy, held from the event date with no rebalancing. A strategy shows a figure only when every asset class in it has price history.",
+    "event": "Event",
+    "customDate": "Custom date…",
+    "date": "Event date",
+    "run": "Run stress test",
+    "running": "Running…",
+    "portfolio": "Your current portfolio",
+    "noData": "Not enough data",
+    "missingTitle": "No stored price history for: {{missing}}",
+    "priceOnlyTitle": "Price return only: a series used has no stored dividends",
+    "priced": "{{pct}}% priced",
+    "sortBy": "Sort by {{horizon}}",
+    "footnote": "† price return only. Click a horizon to sort best first.",
+    "col": {
+      "strategy": "Strategy",
+      "actions": "Actions"
     }
   },
   "assetClasses": {

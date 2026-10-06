@@ -1965,7 +1965,8 @@
       "impact": "{{horizon}} % impatto",
       "coverageTitle": "Il {{pct}}% delle posizioni per valore ha uno storico prezzi per questo evento",
       "priced": "{{pct}}% con prezzo",
-      "footnote": "Ogni posizione riproduce i propri prezzi dalla data dell'evento. Le posizioni senza storico seguono l'indice proxy dell'evento, poi il resto del portafoglio; «—» indica che meno della metà del portafoglio ha uno storico prezzi per quella data."
+      "footnote": "Ogni posizione riproduce i propri prezzi dalla data dell'evento. Le posizioni senza storico seguono l'indice proxy dell'evento, poi il resto del portafoglio; «—» indica che meno della metà del portafoglio ha uno storico prezzi per quella data.",
+      "compareStrategies": "Confronta le strategie per questo evento →"
     }
   },
   "virtualPortfolio": {
@@ -3246,6 +3247,26 @@
       "about": "Informazioni su questa strategia",
       "source": "Fonte:",
       "ukMapping": "Corrispondenza nel Regno Unito:"
+    }
+  },
+  "strategyStress": {
+    "title": "Stress test",
+    "help": "Ripete un evento storico su ogni strategia, con il tuo portafoglio attuale per primo come confronto. Ogni classe di attività viene simulata con il fondo sostitutivo indicato sotto la strategia, detenuto dalla data dell'evento senza ribilanciamento. Una strategia mostra un valore solo se tutte le sue classi di attività hanno uno storico dei prezzi.",
+    "event": "Evento",
+    "customDate": "Data personalizzata…",
+    "date": "Data dell'evento",
+    "run": "Esegui stress test",
+    "running": "In esecuzione…",
+    "portfolio": "Il tuo portafoglio attuale",
+    "noData": "Dati insufficienti",
+    "missingTitle": "Nessuno storico dei prezzi salvato per: {{missing}}",
+    "priceOnlyTitle": "Solo rendimento di prezzo: una serie usata non ha dividendi salvati",
+    "priced": "{{pct}}% valorizzato",
+    "sortBy": "Ordina per {{horizon}}",
+    "footnote": "† solo rendimento di prezzo. Fai clic su un orizzonte per ordinare dal migliore.",
+    "col": {
+      "strategy": "Strategia",
+      "actions": "Azioni"
     }
   },
   "assetClasses": {

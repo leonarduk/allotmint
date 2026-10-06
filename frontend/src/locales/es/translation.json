@@ -1965,7 +1965,8 @@
       "impact": "{{horizon}} % de impacto",
       "coverageTitle": "El {{pct}}% de las posiciones por valor tiene historial de precios para este evento",
       "priced": "{{pct}}% con precio",
-      "footnote": "Cada posición reproduce sus propios precios desde la fecha del evento. Las posiciones sin historial siguen el índice de referencia del evento y luego el resto de la cartera; «—» significa que menos de la mitad de la cartera tiene historial de precios para esa fecha."
+      "footnote": "Cada posición reproduce sus propios precios desde la fecha del evento. Las posiciones sin historial siguen el índice de referencia del evento y luego el resto de la cartera; «—» significa que menos de la mitad de la cartera tiene historial de precios para esa fecha.",
+      "compareStrategies": "Comparar estrategias para este evento →"
     }
   },
   "virtualPortfolio": {
@@ -3246,6 +3247,26 @@
       "about": "Acerca de esta estrategia",
       "source": "Fuente:",
       "ukMapping": "Equivalente en el Reino Unido:"
+    }
+  },
+  "strategyStress": {
+    "title": "Prueba de estrés",
+    "help": "Reproduce un evento histórico con cada estrategia, con tu cartera actual primero para comparar. Cada clase de activo se reproduce con el fondo sustituto indicado bajo la estrategia, mantenido desde la fecha del evento sin reequilibrar. Una estrategia solo muestra una cifra cuando todas sus clases de activo tienen historial de precios.",
+    "event": "Evento",
+    "customDate": "Fecha personalizada…",
+    "date": "Fecha del evento",
+    "run": "Ejecutar prueba de estrés",
+    "running": "Ejecutando…",
+    "portfolio": "Tu cartera actual",
+    "noData": "Datos insuficientes",
+    "missingTitle": "Sin historial de precios guardado para: {{missing}}",
+    "priceOnlyTitle": "Solo rentabilidad de precio: una serie usada no tiene dividendos guardados",
+    "priced": "{{pct}} % valorado",
+    "sortBy": "Ordenar por {{horizon}}",
+    "footnote": "† solo rentabilidad de precio. Haz clic en un horizonte para ordenar de mejor a peor.",
+    "col": {
+      "strategy": "Estrategia",
+      "actions": "Acciones"
     }
   },
   "assetClasses": {

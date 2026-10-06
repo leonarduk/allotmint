@@ -48,7 +48,8 @@ most :data:`FX_FFILL_DAYS` calendar days before it. Dates with no rate in that
 window are dropped: no rate or price is invented. Pence currencies are not
 supported on either side, because their stored closes depend on
 ``scaling_overrides.json``. Converted prices are rounded to six significant
-figures like every fetcher, ``Volume`` is the other listing's, and ``Source``
+figures like every fetcher, ``Volume`` is the other listing's, ``Ticker`` is
+the instrument's own, and ``Source``
 is :func:`backend.timeseries.source_basis.alternate_listing_source`, e.g.
 ``Yahoo:AIGE.MI→USD``. Dividends and splits on the other listing are never
 stored for the instrument; if Yahoo reports any, they are logged.
@@ -449,6 +450,8 @@ def apply_price_source(native: pd.DataFrame, ticker: str, exchange: str, start: 
             to_ccy=target,
             source=alternate_listing_source(source.full_ticker, target),
         )
+        # Stored as the instrument's own series; ``Source`` records the listing.
+        converted["Ticker"] = label
         stored = _window(_stored_series(ticker, exchange), start, end)
     except Exception as exc:
         logger.warning(

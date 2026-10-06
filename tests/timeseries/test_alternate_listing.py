@@ -320,6 +320,7 @@ def test_apply_fetches_converts_and_labels(monkeypatch, caplog):
 
     assert calls == ["AIGE.MI"]
     assert out["Source"].tolist() == ["Yahoo", LABEL, LABEL]
+    assert set(out["Ticker"]) == {"AIGE.L"}
     assert out["Close"].tolist()[1:] == [float(f"{c * 0.85 / 0.75:.6g}") for c in (5.1, 5.2)]
     assert "Ignoring 1 dividends on alternate listing AIGE.MI" in caplog.text
 

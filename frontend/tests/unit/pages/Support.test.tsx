@@ -95,6 +95,8 @@ describe("Support page", () => {
     render(<Support />, { wrapper: MemoryRouter });
     const link = await screen.findByRole("link", { name: en.app.userLink });
     expect(link).toHaveAttribute("href", "/");
+    // Switches to the named app tab rather than replacing this one (#9575).
+    expect(link).toHaveAttribute("target", "allotmint-app");
   });
 
   it("opens the local login override for its direct link", async () => {

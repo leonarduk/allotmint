@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import * as api from "../api";
 import type { SavedChatSummary } from "../api";
 import { saveCurrentChat } from "../utils/chatSync";
@@ -27,6 +28,7 @@ function formatWhen(iso: string | null): string {
 // The saved chats (#8870): the current one and those put away by "New chat",
 // newest first, each of which can be opened, renamed or deleted.
 export function ChatHistoryList({ onOpen, busy = false }: Props) {
+  const { t } = useTranslation();
   const [chats, setChats] = useState<SavedChatSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{
@@ -42,9 +44,9 @@ export function ChatHistoryList({ onOpen, busy = false }: Props) {
       setError(null);
     } catch (e) {
       console.warn("Saved chats could not be loaded", e);
-      setError("Couldn't load your saved chats. Please try again.");
+      setError(t("chatHistory.loadFailed"));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     // Save this tab's chat first, so the list shows it as it is now.
@@ -74,12 +76,12 @@ export function ChatHistoryList({ onOpen, busy = false }: Props) {
     void run(async () => {
       if (id === CURRENT) await saveCurrentChat();
       await api.renameSavedChat(id, draft.trim());
-    }, "Couldn't rename that chat. Please try again.");
+    }, t("chatHistory.renameFailed"));
   };
 
   const remove = (id: string) => {
     setConfirmingDelete(null);
-    void run(() => api.deleteSavedChat(id), "Couldn't delete that chat. Please try again.");
+    void run(() => api.deleteSavedChat(id), t("chatHistory.deleteFailed"));
   };
 
   const disabled = busy || working;
@@ -87,13 +89,13 @@ export function ChatHistoryList({ onOpen, busy = false }: Props) {
   return (
     <div>
       {error && <div role="alert">{error}</div>}
-      {chats === null && !error && <div role="status">Loading saved chats…</div>}
+      {chats === null && !error && <div role="status">{t("chatHistory.loading")}</div>}
       {chats?.length === 0 && (
         <div style={{ color: "var(--drawer-muted-color)" }}>
-          No saved chats yet. Each chat is saved as you go; New chat keeps the old one here.
+          {t("chatHistory.empty")}
         </div>
       )}
-      <ul aria-label="Saved chats" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+      <ul aria-label={t("chatHistory.savedChats")} style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {chats?.map((chat) => (
           <li
             key={chat.id}
@@ -105,7 +107,7 @@ export function ChatHistoryList({ onOpen, busy = false }: Props) {
             {renaming?.id === chat.id ? (
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <input
-                  aria-label="Chat name"
+                  aria-label={t("chatHistory.chatName")}
                   value={renaming.draft}
                   maxLength={120}
                   autoFocus
@@ -116,15 +118,15 @@ export function ChatHistoryList({ onOpen, busy = false }: Props) {
                   }}
                   style={{ ...CHAT_INPUT_STYLE, flex: 1 }}
                 />
-                <button onClick={saveRename}>Save</button>
-                <button onClick={() => setRenaming(null)}>Cancel</button>
+                <button onClick={saveRename}>{t("chatHistory.save")}</button>
+                <button onClick={() => setRenaming(null)}>{t("chatHistory.cancel")}</button>
               </div>
             ) : (
               <>
                 <button
                   onClick={() => onOpen(chat.id)}
                   disabled={disabled}
-                  title={chat.id === CURRENT ? "Back to this chat" : "Open this chat"}
+                  title={chat.id === CURRENT ? t("chatHistory.backToThisChat") : t("chatHistory.openThisChat")}
                   style={{
                     background: "none",
                     border: "none",
@@ -144,19 +146,19 @@ export function ChatHistoryList({ onOpen, busy = false }: Props) {
                     fontSize: "0.85em",
                   }}
                 >
-                  {chat.id === CURRENT && <strong>Current · </strong>}
-                  {chat.messages} message{chat.messages === 1 ? "" : "s"}
+                  {chat.id === CURRENT && <strong>{t("chatHistory.current")} · </strong>}
+                  {t("chatHistory.messageCount", { count: chat.messages })}
                   {chat.updated_at && ` · ${formatWhen(chat.updated_at)}`}
                 </div>
                 {confirmingDelete === chat.id ? (
                   <div
                     role="group"
-                    aria-label={`Confirm deleting ${chat.title}`}
+                    aria-label={t("chatHistory.confirmDeleting", { title: chat.title })}
                     style={{ display: "flex", gap: "0.5rem" }}
                   >
-                    <span style={{ flex: 1 }}>Delete this chat? This can't be undone.</span>
-                    <button onClick={() => remove(chat.id)}>Delete</button>
-                    <button onClick={() => setConfirmingDelete(null)}>Cancel</button>
+                    <span style={{ flex: 1 }}>{t("chatHistory.deletePrompt")}</span>
+                    <button onClick={() => remove(chat.id)}>{t("chatHistory.delete")}</button>
+                    <button onClick={() => setConfirmingDelete(null)}>{t("chatHistory.cancel")}</button>
                   </div>
                 ) : (
                   <div
@@ -174,17 +176,17 @@ export function ChatHistoryList({ onOpen, busy = false }: Props) {
                         })
                       }
                       disabled={disabled}
-                      aria-label={`Rename ${chat.title}`}
+                      aria-label={t("chatHistory.renameTitle", { title: chat.title })}
                     >
-                      Rename
+                      {t("chatHistory.rename")}
                     </button>
                     {chat.id !== CURRENT && (
                       <button
                         onClick={() => setConfirmingDelete(chat.id)}
                         disabled={disabled}
-                        aria-label={`Delete ${chat.title}`}
+                        aria-label={t("chatHistory.deleteTitle", { title: chat.title })}
                       >
-                        Delete
+                        {t("chatHistory.delete")}
                       </button>
                     )}
                   </div>

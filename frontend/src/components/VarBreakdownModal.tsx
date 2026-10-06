@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { VarBreakdown } from "../types";
 import type { VarScenario } from "../types";
@@ -20,6 +21,7 @@ export function VarBreakdownModal({
   onSelectScenarioDate,
   onClose,
 }: Props) {
+  const { t } = useTranslation();
   const hasRows = contributions.length > 0;
   const hasScenarios = scenarios.length > 0;
 
@@ -82,25 +84,33 @@ export function VarBreakdownModal({
           overflow: "auto",
         }}
       >
-        <h3>VaR Breakdown</h3>
+        <h3>{t("varBreakdown.title")}</h3>
         {varDate && (
           <p style={{ marginTop: 0 }}>
-            VaR quantile date: <strong>{varDate}</strong>
-            {varLossPercent != null ? ` (${varLossPercent.toFixed(2)}% loss)` : ""}
+            {t("varBreakdown.quantileDate")} <strong>{varDate}</strong>
+            {varLossPercent != null ? t("varBreakdown.lossPercent", {
+                  value: varLossPercent.toFixed(2),
+                }) : ""}
           </p>
         )}
         {hasScenarios ? (
           <div style={{ marginBottom: "1rem" }}>
-            <h4 style={{ margin: "0 0 0.5rem 0" }}>Historical dates driving this VaR</h4>
+            <h4 style={{ margin: "0 0 0.5rem 0" }}>
+              {t("varBreakdown.historicalDates")}
+            </h4>
             <ul style={{ margin: 0, paddingLeft: "1rem" }}>
               {scenarios.map((scenario) => (
                 <li key={scenario.date} style={{ marginBottom: "0.25rem" }}>
                   <span>
-                    {scenario.date} ({scenario.loss_percent.toFixed(2)}% loss)
+                    {scenario.date} (
+                    {t("varBreakdown.loss", {
+                      value: scenario.loss_percent.toFixed(2),
+                    })}
+                    )
                   </span>{" "}
                   {onSelectScenarioDate && (
                     <button type="button" onClick={() => onSelectScenarioDate(scenario.date)}>
-                      Show report
+                      {t("varBreakdown.showReport")}
                     </button>
                   )}
                 </li>
@@ -112,10 +122,10 @@ export function VarBreakdownModal({
           <table>
             <thead>
               <tr>
-                <th style={{ textAlign: "left", paddingRight: "1rem" }}>Ticker</th>
-                <th style={{ textAlign: "left", paddingRight: "1rem" }}>Stock</th>
-                <th style={{ textAlign: "right", paddingRight: "1rem" }}>Change</th>
-                <th style={{ textAlign: "right" }}>Amount</th>
+                <th style={{ textAlign: "left", paddingRight: "1rem" }}>{t("common.ticker")}</th>
+                <th style={{ textAlign: "left", paddingRight: "1rem" }}>{t("varBreakdown.stock")}</th>
+                <th style={{ textAlign: "right", paddingRight: "1rem" }}>{t("varBreakdown.change")}</th>
+                <th style={{ textAlign: "right" }}>{t("varBreakdown.amount")}</th>
               </tr>
             </thead>
             <tbody>
@@ -144,10 +154,10 @@ export function VarBreakdownModal({
             </tbody>
           </table>
         ) : (
-          <p style={{ margin: 0 }}>No contribution data available.</p>
+          <p style={{ margin: 0 }}>{t("varBreakdown.noContributions")}</p>
         )}
         <button onClick={onClose} style={{ marginTop: '1rem' }}>
-          Close
+          {t("common.close")}
         </button>
       </div>
     </div>

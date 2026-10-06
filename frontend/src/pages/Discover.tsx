@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CriteriaBuilder } from "../components/CriteriaBuilder";
 import type { Criterion } from "../components/CriteriaBuilder";
 import { Sparkline } from "../components/Sparkline";
@@ -9,10 +10,11 @@ import { Sparkline } from "../components/Sparkline";
  * additional behaviour beyond the rendered components.
  */
 export function Discover() {
+  const { t } = useTranslation();
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   return (
     <div>
-      <h1>Discover</h1>
+      <h1>{t("discover.title")}</h1>
       <CriteriaBuilder criteria={criteria} onChange={setCriteria} />
       {/* Static data is sufficient for testing purposes */}
       <Sparkline data={[1, 3, 2]} />

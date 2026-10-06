@@ -1,19 +1,20 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { requestAccountSignup } from "../api";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function SuccessView() {
+  const { t } = useTranslation();
   return (
     <div style={{ maxWidth: 480, margin: "2rem auto", padding: "1rem" }}>
-      <h1>Request received</h1>
+      <h1>{t("createAccount.receivedTitle")}</h1>
       <p role="status">
-        Thanks — your request has been received and is pending admin
-        approval. You will be contacted once your account has been set up.
+        {t("createAccount.receivedMessage")}
       </p>
-      <Link to="/" aria-label="Back to login">
-        Back to login
+      <Link to="/" aria-label={t("createAccount.backToLogin")}>
+        {t("createAccount.backToLogin")}
       </Link>
     </div>
   );
@@ -42,12 +43,12 @@ function CreateAccountForm({
   onNoteChange,
   onSubmit,
 }: CreateAccountFormProps) {
+  const { t } = useTranslation();
   return (
     <div style={{ maxWidth: 480, margin: "2rem auto", padding: "1rem" }}>
-      <h1>Create account</h1>
+      <h1>{t("createAccount.title")}</h1>
       <p>
-        Request access to AllotMint. An administrator will review your
-        request and set up your account.
+        {t("createAccount.intro")}
       </p>
       <form onSubmit={onSubmit} noValidate>
         {error && (
@@ -56,7 +57,7 @@ function CreateAccountForm({
           </div>
         )}
         <div style={{ marginBottom: "1rem" }}>
-          <label htmlFor="create-account-name">Full name</label>
+          <label htmlFor="create-account-name">{t("createAccount.fullName")}</label>
           <br />
           <input
             id="create-account-name"
@@ -68,7 +69,7 @@ function CreateAccountForm({
           />
         </div>
         <div style={{ marginBottom: "1rem" }}>
-          <label htmlFor="create-account-email">Email</label>
+          <label htmlFor="create-account-email">{t("createAccount.email")}</label>
           <br />
           <input
             id="create-account-email"
@@ -81,7 +82,7 @@ function CreateAccountForm({
         </div>
         <div style={{ marginBottom: "1rem" }}>
           <label htmlFor="create-account-note">
-            What would you like to use AllotMint for? (optional)
+            {t("createAccount.noteLabel")}
           </label>
           <br />
           <textarea
@@ -93,12 +94,12 @@ function CreateAccountForm({
           />
         </div>
         <button type="submit" disabled={submitting}>
-          {submitting ? "Submitting…" : "Request account"}
+          {submitting ? t("createAccount.submitting") : t("createAccount.requestAccount")}
         </button>
       </form>
       <p style={{ marginTop: "1rem" }}>
-        <Link to="/" aria-label="Back to login">
-          Back to login
+        <Link to="/" aria-label={t("createAccount.backToLogin")}>
+          {t("createAccount.backToLogin")}
         </Link>
       </p>
     </div>
@@ -106,6 +107,7 @@ function CreateAccountForm({
 }
 
 export default function CreateAccountPage() {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [note, setNote] = useState("");
@@ -120,11 +122,11 @@ export default function CreateAccountPage() {
     const trimmedEmail = email.trim();
 
     if (!trimmedName || !trimmedEmail) {
-      setError("Please enter your name and email address.");
+      setError(t("createAccount.nameEmailRequired"));
       return;
     }
     if (!EMAIL_PATTERN.test(trimmedEmail)) {
-      setError("Please enter a valid email address.");
+      setError(t("createAccount.invalidEmail"));
       return;
     }
 
@@ -147,7 +149,7 @@ export default function CreateAccountPage() {
       } else {
         console.error("Failed to submit account signup request", err);
       }
-      setError("Something went wrong submitting your request. Please try again.");
+      setError(t("createAccount.submitFailed"));
     } finally {
       setSubmitting(false);
     }

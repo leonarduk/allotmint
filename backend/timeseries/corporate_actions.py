@@ -31,6 +31,17 @@ Rows are filled from the same Yahoo ``history`` call that fetches prices,
 so no request path ever makes an extra network call for them. Writes merge
 incrementally (fetched rows win per key) and are skipped when nothing
 changes.
+
+A successful fetch writes the file even when it found no events (#9567), so
+"checked: none paid" is told apart from "never checked" (no file). The file
+then records the date its events are confirmed complete from
+(``confirmed_from``, kept in the parquet's pandas metadata, ``DataFrame.attrs``):
+the start of the earliest fetch window merged into it. Fetch windows run up
+to the day of the fetch and the rolling cache fetches contiguously, so the
+events from that date on are the full set. A file with no dividends is a
+confirmed non-payer only from ``confirmed_from``; a rolling fetch over the
+last few days confirms just those days. A file written before #9567 has no
+``confirmed_from``; its coverage stays unknown.
 """
 
 from __future__ import annotations
@@ -38,6 +49,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
@@ -53,6 +65,9 @@ ACTION_COLUMNS = ["Date", "Action", "Value", "Currency", "Source"]
 # Ticker/exchange identifiers become a file name: allowlist them so a caller
 # cannot steer the path outside ``corporate_actions/`` (``..``, separators).
 _SAFE_IDENTIFIER_RE = re.compile(r"[A-Z0-9][A-Z0-9._-]{0,19}")
+
+# ``DataFrame.attrs`` key: ISO date the stored events are complete from.
+CONFIRMED_FROM = "confirmed_from"
 
 DIVIDEND = "dividend"
 SPLIT = "split"
@@ -82,10 +97,29 @@ def _naive_dates(values) -> pd.Series:
     return dates.dt.normalize().astype("datetime64[ms]")
 
 
-def actions_from_history(raw: pd.DataFrame, *, currency: str | None, source: str) -> pd.DataFrame:
-    """Return the non-zero dividend/split/capital-gain events in a yfinance history frame."""
+def actions_from_history(
+    raw: pd.DataFrame,
+    *,
+    currency: str | None,
+    source: str,
+    window_start: "str | date | datetime | pd.Timestamp | None" = None,
+) -> pd.DataFrame:
+    """Return the non-zero dividend/split/capital-gain events in a yfinance history frame.
+
+    With ``window_start`` (the start the history was requested from), a frame
+    that carries Yahoo's ``Dividends`` column also records that it is the
+    complete set of events from that date (``attrs[CONFIRMED_FROM]``), even
+    when it is empty. A frame without that column confirms nothing.
+    """
     if raw is None or raw.empty:
         return empty_actions()
+    actions = _events_in_history(raw, currency=currency, source=source)
+    if window_start is not None and "Dividends" in raw.columns:
+        actions.attrs[CONFIRMED_FROM] = _iso_day(window_start)
+    return actions
+
+
+def _events_in_history(raw: pd.DataFrame, *, currency: str | None, source: str) -> pd.DataFrame:
     frame = raw.reset_index()
     date_col = "Date" if "Date" in frame.columns else frame.columns[0]
     parts = []
@@ -122,6 +156,30 @@ def _normalise(frame: pd.DataFrame) -> pd.DataFrame:
     frame = frame.loc[frame["Value"].notna()]
     frame = frame.drop_duplicates(subset=["Date", "Action"], keep="last")
     return frame.sort_values(["Date", "Action"]).reset_index(drop=True)
+
+
+def _iso_day(value: "str | date | datetime | pd.Timestamp") -> str:
+    stamp = pd.Timestamp(value)
+    if stamp.tzinfo is not None:
+        stamp = stamp.tz_localize(None)
+    return stamp.normalize().date().isoformat()
+
+
+def _confirmed_day(attrs: dict, origin: str) -> pd.Timestamp | None:
+    """``attrs[CONFIRMED_FROM]`` as a day; ``None`` when absent or unparseable (logged)."""
+    value = attrs.get(CONFIRMED_FROM)
+    if value is None or value == "":
+        return None
+    try:
+        return pd.Timestamp(_iso_day(value))
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "Ignoring unreadable %s in %s: %s",
+            CONFIRMED_FROM,
+            sanitise_log_value(origin),
+            sanitise_log_value(exc),
+        )
+        return None
 
 
 def _safe_identifier(value: str) -> str:
@@ -172,7 +230,10 @@ def load_corporate_actions(ticker: str, exchange: str, *, base: str | None = Non
 
 
 def _read_actions(ticker: str, exchange: str, *, base: str | None = None) -> pd.DataFrame | None:
-    """Stored events, or ``None`` when there is no readable file (absent or unreadable)."""
+    """Stored events, or ``None`` when there is no readable file (absent or unreadable).
+
+    A file's ``confirmed_from`` comes back as ``attrs[CONFIRMED_FROM]`` (a ``Timestamp``).
+    """
     root = _actions_root(base)
     name = _actions_filename(ticker, exchange)
     if root.startswith("s3://"):
@@ -194,7 +255,10 @@ def _read_actions(ticker: str, exchange: str, *, base: str | None = None) -> pd.
             sanitise_log_value(exc),
         )
         return None
-    return _normalise(frame)
+    confirmed = _confirmed_day(frame.attrs, path)
+    actions = _normalise(frame)
+    actions.attrs = {} if confirmed is None else {CONFIRMED_FROM: confirmed}
+    return actions
 
 
 def load_dividends(ticker: str, exchange: str, *, base: str | None = None) -> pd.Series:
@@ -209,9 +273,27 @@ def stored_dividends(ticker: str, exchange: str, *, base: str | None = None) -> 
     Unlike :func:`load_dividends`, this tells "no file" (dividend history
     unknown) apart from "a file with no dividends" (an empty series: none
     paid). Total-return consumers must not treat the first as the second.
+
+    The file's ``confirmed_from`` (when it has one) is carried as
+    ``attrs[CONFIRMED_FROM]``: an empty series then only means "none paid"
+    from that date on (see :func:`dividends_confirmed_from`).
     """
     actions = _read_actions(ticker, exchange, base=base)
-    return None if actions is None else dividends_series(actions)
+    if actions is None:
+        return None
+    series = dividends_series(actions)
+    series.attrs = dict(actions.attrs)
+    return series
+
+
+def dividends_confirmed_from(ticker: str, exchange: str, *, base: str | None = None) -> pd.Timestamp | None:
+    """Date the stored events for ``ticker``/``exchange`` are complete from.
+
+    ``None`` when there is no readable file, or the file predates #9567 and so
+    does not record which window it covers.
+    """
+    actions = _read_actions(ticker, exchange, base=base)
+    return None if actions is None else actions.attrs.get(CONFIRMED_FROM)
 
 
 def dividends_series(actions: pd.DataFrame) -> pd.Series:
@@ -238,6 +320,21 @@ def merge_actions(existing: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFra
     return merged, not (same_keys and same_values and same_meta)
 
 
+def _merged_confirmed_from(stored: pd.DataFrame | None, window_start: pd.Timestamp | None) -> pd.Timestamp | None:
+    """``confirmed_from`` after merging a fetch confirmed from ``window_start``.
+
+    A new file takes the window's start. An existing file keeps the earlier of
+    the two, except a pre-#9567 file (no ``confirmed_from``), whose coverage
+    stays unknown: its earlier rows came from windows nobody recorded.
+    """
+    if stored is None:
+        return window_start
+    current = stored.attrs.get(CONFIRMED_FROM)
+    if current is None or window_start is None:
+        return current
+    return min(current, window_start)
+
+
 def record_corporate_actions(
     ticker: str,
     exchange: str,
@@ -245,13 +342,27 @@ def record_corporate_actions(
     *,
     base: str | None = None,
 ) -> bool:
-    """Merge fetched ``actions`` into the store; return ``True`` when the file was written."""
-    if actions is None or actions.empty:
+    """Merge fetched ``actions`` into the store; return ``True`` when the file was written.
+
+    ``actions.attrs[CONFIRMED_FROM]`` (set by :func:`actions_from_history` for a
+    successful fetch) marks the frame as the complete set of events from that
+    date. Then even an empty frame writes the file (an empty, correctly typed
+    one when none is stored yet), so a confirmed non-payer is not read as
+    "dividend history unknown". Without it an empty frame writes nothing.
+    """
+    if actions is None:
         return False
-    existing = load_corporate_actions(ticker, exchange, base=base)
+    window_start = _confirmed_day(actions.attrs, "fetched actions")
+    if actions.empty and window_start is None:
+        return False
+    stored = _read_actions(ticker, exchange, base=base)
+    existing = empty_actions() if stored is None else stored
     merged, changed = merge_actions(existing, actions)
-    if not changed:
+    confirmed = _merged_confirmed_from(stored, window_start)
+    if not (changed or stored is None or confirmed != existing.attrs.get(CONFIRMED_FROM)):
         return False
+    merged = merged.copy()
+    merged.attrs = {} if confirmed is None else {CONFIRMED_FROM: confirmed.date().isoformat()}
     root = _actions_root(base)
     name = _actions_filename(ticker, exchange)
     if root.startswith("s3://"):

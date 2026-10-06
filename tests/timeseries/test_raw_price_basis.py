@@ -202,6 +202,95 @@ def test_fetch_stores_dividends_and_loader_reads_them(cache_base):
     assert expected.is_file()
 
 
+# ── confirmed non-payers (#9567) ──────────────────────────────
+
+
+def _actions_file(cache_base, ticker: str = "ABC", exchange: str = "L"):
+    return importlib.import_module("pathlib").Path(
+        cache_base._CACHE_BASE, "corporate_actions", f"{ticker}_{exchange}.parquet"
+    )
+
+
+def test_fetch_with_no_actions_writes_an_empty_file_with_the_schema(cache_base):
+    days = pd.bdate_range("2024-03-01", periods=5)
+    fake = FakeYahooTicker(pd.Series(100.0, index=days), {})
+
+    with patch.object(fetch_yahoo_timeseries.yf, "Ticker", return_value=fake):
+        fetch_yahoo_timeseries_range("ABC", "L", days[0].date(), days[-1].date())
+
+    path = _actions_file(cache_base)
+    assert path.is_file()
+    raw = pd.read_parquet(path)
+    assert raw.empty
+    assert raw.columns.tolist() == corporate_actions.ACTION_COLUMNS
+    assert raw.dtypes.to_dict() == corporate_actions.empty_actions().dtypes.to_dict()
+    dividends = corporate_actions.stored_dividends("ABC", "L")
+    assert dividends is not None and dividends.empty
+    assert corporate_actions.dividends_confirmed_from("ABC", "L") == pd.Timestamp(days[0].date())
+
+
+def test_failed_fetch_writes_no_actions_file(cache_base):
+    days = pd.bdate_range("2024-03-01", periods=5)
+    fake = FakeYahooTicker(pd.Series(100.0, index=days), {})
+
+    with patch.object(fetch_yahoo_timeseries.yf, "Ticker", return_value=fake):
+        with pytest.raises(ValueError):
+            # Yahoo returns no rows for a window after the history ends.
+            fetch_yahoo_timeseries_range("ABC", "L", date(2025, 1, 6), date(2025, 1, 10))
+
+    assert not _actions_file(cache_base).exists()
+    assert corporate_actions.stored_dividends("ABC", "L") is None
+
+
+def test_history_without_a_dividends_column_confirms_nothing(cache_base):
+    raw = _history_frame()
+
+    actions = corporate_actions.actions_from_history(raw, currency="GBP", source="Yahoo", window_start="2024-01-01")
+
+    assert actions.empty
+    assert corporate_actions.CONFIRMED_FROM not in actions.attrs
+    assert record_corporate_actions("ABC", "L", actions) is False
+    assert not _actions_file(cache_base).exists()
+
+
+def _confirmed(frame: pd.DataFrame, start: str) -> pd.DataFrame:
+    frame = frame.copy()
+    frame.attrs[corporate_actions.CONFIRMED_FROM] = start
+    return frame
+
+
+def test_later_rolling_windows_do_not_rewrite_and_earlier_ones_extend(cache_base):
+    empty = corporate_actions.empty_actions()
+
+    assert record_corporate_actions("ABC", "L", _confirmed(empty, "2024-06-03")) is True
+    # A later rolling window confirms nothing new: no rewrite.
+    assert record_corporate_actions("ABC", "L", _confirmed(empty, "2024-06-10")) is False
+    assert corporate_actions.dividends_confirmed_from("ABC", "L") == pd.Timestamp("2024-06-03")
+    # A full-history fetch moves the confirmed start back.
+    assert record_corporate_actions("ABC", "L", _confirmed(empty, "2000-01-03")) is True
+    assert corporate_actions.dividends_confirmed_from("ABC", "L") == pd.Timestamp("2000-01-03")
+    # ...and a dividend found later is merged without losing it.
+    assert record_corporate_actions("ABC", "L", _confirmed(_one_dividend(), "2024-01-01")) is True
+    assert corporate_actions.dividends_confirmed_from("ABC", "L") == pd.Timestamp("2000-01-03")
+    assert load_dividends("ABC", "L").tolist() == [1.0]
+
+
+def test_file_without_confirmed_from_keeps_its_coverage_unknown(cache_base):
+    """A pre-#9567 file's rows came from unrecorded windows: a recent fetch must not date it."""
+    assert record_corporate_actions("ABC", "L", _one_dividend()) is True
+    assert corporate_actions.dividends_confirmed_from("ABC", "L") is None
+
+    assert record_corporate_actions("ABC", "L", _confirmed(corporate_actions.empty_actions(), "2024-06-03")) is False
+    assert corporate_actions.dividends_confirmed_from("ABC", "L") is None
+
+
+def test_unparseable_confirmed_from_is_logged_and_ignored(cache_base, caplog):
+    with caplog.at_level(logging.WARNING):
+        assert record_corporate_actions("ABC", "L", _confirmed(corporate_actions.empty_actions(), "soon")) is False
+    assert "Ignoring unreadable confirmed_from" in caplog.text
+    assert not _actions_file(cache_base).exists()
+
+
 def test_store_actions_false_does_not_write(cache_base):
     days = pd.bdate_range("2024-03-01", periods=5)
     fake = FakeYahooTicker(pd.Series(100.0, index=days), {days[2]: 1.0})

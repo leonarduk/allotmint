@@ -29,7 +29,7 @@ import pandas as pd
 
 from backend.common.ticker_utils import split_ticker
 from backend.logging_setup import sanitise_log_value
-from backend.timeseries.corporate_actions import stored_dividends
+from backend.timeseries.corporate_actions import CONFIRMED_FROM, stored_dividends
 
 logger = logging.getLogger(__name__)
 
@@ -112,15 +112,25 @@ def total_return(closes: pd.Series, dividends: pd.Series | None) -> float | None
 # basis. ``return_basis`` says which basis the caller actually got:
 #
 # * ``"total"``: an actions file is stored for the ticker. A file with no
-#   dividends is a genuine total return that happens to equal price return.
+#   dividends is a genuine total return that happens to equal price return,
+#   provided it is confirmed from the first close on (#9567, see below).
 # * ``"price"``: no actions file (or no native ``Close`` to scale), so the
 #   dividend history is unknown. The closes come back unchanged rather than
 #   being treated as "no dividends paid".
+#
+# A file with no dividends whose ``confirmed_from`` is later than the first
+# close (a rolling fetch that only checked the last few days) is "unknown"
+# for the closes before it, so it is price basis too. A file without
+# ``confirmed_from`` (written before #9567) keeps reading as total.
 
 TOTAL_RETURN_BASIS = "total"
 PRICE_RETURN_BASIS = "price"
 
 DividendLoader = Callable[[str, str], "pd.Series | None"]
+
+# A no-dividend file confirmed from up to this long after the first close still
+# covers it: a fetch window starting on a weekend or holiday is no gap.
+CONFIRMED_GRACE = pd.Timedelta(days=7)
 
 # ``close`` plus the ``close_<ccy>`` columns ``load_meta_timeseries_range`` adds.
 _NATIVE_CLOSE = "close"
@@ -159,9 +169,13 @@ def _report_price_fallback(ticker: str, exchange: str, reason: str) -> None:
     )
 
 
-def _dividends_for(ticker: str, exchange: str, load_dividends: DividendLoader | None) -> pd.Series | None:
-    """Stored dividends, or ``None`` (reported) when the ticker has no actions file.
+def _dividends_for(
+    ticker: str, exchange: str, load_dividends: DividendLoader | None, first_close: pd.Timestamp | None = None
+) -> pd.Series | None:
+    """Stored dividends, or ``None`` (reported) when the dividend history before ``first_close`` is unknown.
 
+    That is when the ticker has no actions file, or its file has no dividends
+    but is only confirmed from after ``first_close`` (``attrs[CONFIRMED_FROM]``).
     ``load_dividends`` defaults to :func:`stored_dividends`, looked up at call time.
     """
     loader = load_dividends or stored_dividends
@@ -172,7 +186,19 @@ def _dividends_for(ticker: str, exchange: str, load_dividends: DividendLoader | 
         return None
     if dividends is None:
         _report_price_fallback(ticker, exchange, "no stored corporate actions")
+        return None
+    confirmed = dividends.attrs.get(CONFIRMED_FROM)
+    if dividends.empty and confirmed is not None and first_close is not None:
+        if pd.Timestamp(confirmed) > pd.Timestamp(first_close) + CONFIRMED_GRACE:
+            day = pd.Timestamp(confirmed).date().isoformat()
+            _report_price_fallback(ticker, exchange, f"no dividends stored, but only confirmed from {day}")
+            return None
     return dividends
+
+
+def _first_close(closes: pd.Series) -> pd.Timestamp | None:
+    clean = _clean_closes(closes)
+    return None if clean.empty else clean.index[0]
 
 
 def total_return_closes(
@@ -186,12 +212,13 @@ def total_return_closes(
 
     The result keeps the index, units and missing values of ``closes``; only
     the level changes after each ex-date. Without an actions file the closes
-    come back unchanged with basis ``"price"``.
+    come back unchanged with basis ``"price"``, as they do when the file has no
+    dividends but is only confirmed from after the first close.
     """
-    dividends = _dividends_for(ticker, exchange, load_dividends)
+    values = pd.to_numeric(closes, errors="coerce")
+    dividends = _dividends_for(ticker, exchange, load_dividends, _first_close(values))
     if dividends is None:
         return closes, PRICE_RETURN_BASIS
-    values = pd.to_numeric(closes, errors="coerce")
     factor = pd.Series(_factor_on(values.index, values, dividends), index=values.index)
     return values * factor, TOTAL_RETURN_BASIS
 
@@ -252,10 +279,10 @@ def total_return_frame(
     if dates is None:
         _report_price_fallback(ticker, exchange, "no Date column or date index to align dividends to")
         return df, PRICE_RETURN_BASIS
-    dividends = _dividends_for(ticker, exchange, load_dividends)
+    closes = pd.Series(pd.to_numeric(df[native], errors="coerce").to_numpy(), index=_naive_days(dates))
+    dividends = _dividends_for(ticker, exchange, load_dividends, _first_close(closes))
     if dividends is None:
         return df, PRICE_RETURN_BASIS
-    closes = pd.Series(pd.to_numeric(df[native], errors="coerce").to_numpy(), index=_naive_days(dates))
     # Each row's factor comes from that row's date and native close; keyed by the
     # frame's own index so every close column is scaled row-for-row by label.
     factor = pd.Series(_factor_on(closes.index, closes, dividends), index=df.index)

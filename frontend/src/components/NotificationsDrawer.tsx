@@ -65,10 +65,10 @@ export function NotificationsDrawer({ open, onClose }: Props) {
             marginBottom: "1rem",
           }}
         >
-          <strong>Alerts</strong>
+          <strong>{t("notificationsDrawer.alerts")}</strong>
           <button
             onClick={onClose}
-            aria-label="close"
+            aria-label={t("notificationsDrawer.close")}
             style={{
               background: "none",
               border: "none",
@@ -80,9 +80,9 @@ export function NotificationsDrawer({ open, onClose }: Props) {
           </button>
         </div>
         {alertLoading && <ListSkeleton rows={2} label={t("app.loading")} />}
-        {alertError && <div>Cannot reach server</div>}
+        {alertError && <div>{t("notificationsDrawer.cannotReachServer")}</div>}
         {!alertLoading && !alertError && alertList.length === 0 && (
-          <EmptyState message="No alerts" />
+          <EmptyState message={t("notificationsDrawer.noAlerts")} />
         )}
         {!alertLoading && !alertError && alertList.length > 0 && (
           <ul style={{ listStyle: "none", padding: 0 }}>
@@ -104,12 +104,12 @@ export function NotificationsDrawer({ open, onClose }: Props) {
           </ul>
         )}
         <div style={{ marginTop: "1rem" }}>
-          <strong>Nudges</strong>
+          <strong>{t("notificationsDrawer.nudges")}</strong>
         </div>
         {nudgeLoading && <ListSkeleton rows={2} label={t("app.loading")} />}
-        {nudgeError && <div>Cannot reach server</div>}
+        {nudgeError && <div>{t("notificationsDrawer.cannotReachServer")}</div>}
         {!nudgeLoading && !nudgeError && nudgeList.length === 0 && (
-          <EmptyState message="No nudges" />
+          <EmptyState message={t("notificationsDrawer.noNudges")} />
         )}
         {!nudgeLoading && !nudgeError && nudgeList.length > 0 && (
           <ul style={{ listStyle: "none", padding: 0 }}>
@@ -120,7 +120,7 @@ export function NotificationsDrawer({ open, onClose }: Props) {
                   {new Date(n.timestamp).toLocaleString()}
                 </div>
                 <div style={{ marginTop: "0.25rem" }}>
-                  <button onClick={() => api.snoozeNudges(n.id, 1)}>Snooze</button>
+                  <button onClick={() => api.snoozeNudges(n.id, 1)}>{t("notificationsDrawer.snooze")}</button>
                   <select
                     defaultValue={7}
                     onChange={(e) => {
@@ -130,9 +130,9 @@ export function NotificationsDrawer({ open, onClose }: Props) {
                     }}
                     style={{ marginLeft: "0.5rem" }}
                   >
-                    <option value={1}>Daily</option>
-                    <option value={3}>Every 3 days</option>
-                    <option value={7}>Weekly</option>
+                    <option value={1}>{t("notificationsDrawer.daily")}</option>
+                    <option value={3}>{t("notificationsDrawer.every3Days")}</option>
+                    <option value={7}>{t("notificationsDrawer.weekly")}</option>
                   </select>
                 </div>
               </li>

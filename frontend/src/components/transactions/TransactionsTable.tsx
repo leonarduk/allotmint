@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { formatDateISO } from "@/lib/date";
 import tableStyles from "@/styles/table.module.css";
 import type { Transaction } from "@/types";
@@ -62,6 +63,7 @@ export function TransactionsTable({
   onEdit,
   onDelete,
 }: TransactionsTableProps) {
+  const { t } = useTranslation();
   const { demoReadOnly, reason } = useDemoReadOnly();
   return (
     <>
@@ -76,7 +78,7 @@ export function TransactionsTable({
         }}
       >
         <label>
-          Rows per page:
+          {t("transactionsTable.rowsPerPage")}
           <select
             value={pageSize}
             onChange={(event) => onPageSizeChange(Number(event.target.value))}
@@ -95,7 +97,8 @@ export function TransactionsTable({
           disabled={!hasSelection || demoReadOnly}
           title={reason()}
         >
-          Delete selected{hasSelection ? ` (${selectedCount})` : ""}
+          {t("transactionsTable.deleteSelected")}
+          {hasSelection ? ` (${selectedCount})` : ""}
         </button>
         <div
           className="flex-wrap-row"
@@ -103,13 +106,16 @@ export function TransactionsTable({
         >
           <span>{showingRangeLabel}</span>
           <button type="button" onClick={onPreviousPage} disabled={isFirstPage}>
-            Previous
+            {t("transactionsTable.previous")}
           </button>
           <span>
-            Page {currentPageDisplay} of {totalPagesDisplay}
+            {t("transactionsTable.pageOf", {
+              current: currentPageDisplay,
+              total: totalPagesDisplay,
+            })}
           </span>
           <button type="button" onClick={onNextPage} disabled={isLastPage}>
-            Next
+            {t("transactionsTable.next")}
           </button>
         </div>
       </div>
@@ -122,26 +128,26 @@ export function TransactionsTable({
                 checked={isAllPageSelected && allPageIds.length > 0}
                 disabled={allPageIds.length === 0}
                 onChange={(event) => onToggleSelectAllOnPage(event.target.checked)}
-                aria-label="Select all transactions on this page"
+                aria-label={t("transactionsTable.selectAll")}
               />
             </th>
-            <th className={tableStyles.cell}>Date</th>
-            <th className={tableStyles.cell}>Owner</th>
-            <th className={tableStyles.cell}>Account</th>
-            <th className={tableStyles.cell}>Instrument</th>
-            <th className={tableStyles.cell}>Instrument name</th>
-            <th className={tableStyles.cell}>Type</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Amount</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Shares</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Gain/Loss</th>
-            <th className={tableStyles.cell}>Actions</th>
+            <th className={tableStyles.cell}>{t("transactionsTable.date")}</th>
+            <th className={tableStyles.cell}>{t("transactionsTable.owner")}</th>
+            <th className={tableStyles.cell}>{t("transactionsTable.account")}</th>
+            <th className={tableStyles.cell}>{t("transactionsTable.instrument")}</th>
+            <th className={tableStyles.cell}>{t("transactionsTable.instrumentName")}</th>
+            <th className={tableStyles.cell}>{t("transactionsTable.type")}</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("transactionsTable.amount")}</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("transactionsTable.shares")}</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("transactionsTable.gainLoss")}</th>
+            <th className={tableStyles.cell}>{t("transactionsTable.actions")}</th>
           </tr>
         </thead>
         <tbody>
           {transactions.length === 0 ? (
             <tr>
               <td className={tableStyles.cell} colSpan={11} style={{ textAlign: "center" }}>
-                No transactions found.
+                {t("transactionsTable.empty")}
               </td>
             </tr>
           ) : (
@@ -159,7 +165,9 @@ export function TransactionsTable({
                       onChange={(event) =>
                         transaction.id && onToggleSelect(transaction.id, event.target.checked)
                       }
-                      aria-label={`Select transaction ${transaction.id ?? key}`}
+                      aria-label={t("transactionsTable.selectTransaction", {
+                        id: transaction.id ?? key,
+                      })}
                     />
                   </td>
                   <td className={tableStyles.cell}>
@@ -198,7 +206,7 @@ export function TransactionsTable({
                         disabled={!transaction.id || demoReadOnly}
                         title={reason()}
                       >
-                        Edit
+                        {t("transactionsTable.edit")}
                       </button>
                       <button
                         type="button"
@@ -206,7 +214,7 @@ export function TransactionsTable({
                         disabled={!transaction.id || demoReadOnly}
                         title={reason()}
                       >
-                        Delete
+                        {t("transactionsTable.delete")}
                       </button>
                     </div>
                   </td>

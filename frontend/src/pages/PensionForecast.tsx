@@ -229,20 +229,23 @@ export default function PensionForecast() {
   const careerPathOptions = [
     {
       id: "steady",
-      label: "Steady climb",
-      helper: "Lower growth assumption",
+      label: t("pensionForecast.careerPath.steady.label", "Steady climb"),
+      helper: t("pensionForecast.careerPath.steady.helper", "Lower growth assumption"),
       investmentGrowthPct: 3,
     },
     {
       id: "balanced",
-      label: "Balanced pace",
-      helper: "Moderate long-term growth",
+      label: t("pensionForecast.careerPath.balanced.label", "Balanced pace"),
+      helper: t("pensionForecast.careerPath.balanced.helper", "Moderate long-term growth"),
       investmentGrowthPct: 5,
     },
     {
       id: "accelerated",
-      label: "Accelerated path",
-      helper: "Higher-risk, higher-reward growth",
+      label: t("pensionForecast.careerPath.accelerated.label", "Accelerated path"),
+      helper: t(
+        "pensionForecast.careerPath.accelerated.helper",
+        "Higher-risk, higher-reward growth",
+      ),
       investmentGrowthPct: 7,
     },
   ] as const;
@@ -465,7 +468,9 @@ export default function PensionForecast() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <h1 className="text-2xl md:text-4xl">Pension Forecast</h1>
+      <h1 className="text-2xl md:text-4xl">
+        {t("pensionForecast.title", "Pension Forecast")}
+      </h1>
       <section
         aria-labelledby="pension-snapshot-heading"
         className="rounded-3xl bg-slate-900 p-6 text-white shadow-sm"
@@ -599,19 +604,22 @@ export default function PensionForecast() {
         >
           <header className="space-y-2">
             <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Now
+              {t("pensionForecast.now.kicker", "Now")}
             </p>
             <h2 id="pension-now-heading" className="text-2xl font-semibold text-slate-900">
-              Adjust the plan to match your life today
+              {t("pensionForecast.now.heading", "Adjust the plan to match your life today")}
             </h2>
             <p className="text-sm text-slate-600">
-              Move the sliders to see how changes to your savings and spending affect your retirement outlook.
+              {t(
+                "pensionForecast.now.description",
+                "Move the sliders to see how changes to your savings and spending affect your retirement outlook.",
+              )}
             </p>
           </header>
           <div className="space-y-5">
             <SliderControl
               id="career-path"
-              label="Career path"
+              label={t("pensionForecast.careerPath.label", "Career path")}
               min={0}
               max={careerPathOptions.length - 1}
               step={1}
@@ -632,7 +640,7 @@ export default function PensionForecast() {
             />
             <SliderControl
               id="monthly-savings"
-              label="Monthly savings"
+              label={t("pensionForecast.monthlySavingsLabel", "Monthly savings")}
               min={0}
               max={PENSION_MONTHLY_ALLOWANCE_GBP}
               step={50}
@@ -675,7 +683,10 @@ export default function PensionForecast() {
             <div className="space-y-3">
               <SliderControl
                 id="monthly-spending"
-                label="Monthly spending in retirement"
+                label={t(
+                  "pensionForecast.monthlySpendingLabel",
+                  "Monthly spending in retirement",
+                )}
                 min={500}
                 max={6000}
                 step={10}
@@ -819,7 +830,7 @@ export default function PensionForecast() {
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700" htmlFor="state-pension">
-                  State pension (£/yr)
+                  {t("pensionForecast.statePensionLabel", "State pension (£/yr)")}
                 </label>
                 <input
                   id="state-pension"
@@ -845,7 +856,7 @@ export default function PensionForecast() {
               type="submit"
               className="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
             >
-              Forecast
+              {t("pensionForecast.forecastButton", "Forecast")}
             </button>
           </div>
         </section>
@@ -855,10 +866,10 @@ export default function PensionForecast() {
         >
           <header className="space-y-1">
             <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Future you
+              {t("pensionForecast.future.kicker", "Future you")}
             </p>
             <h2 id="pension-future-heading" className="text-2xl font-semibold text-slate-900">
-              See what retirement could look like
+              {t("pensionForecast.future.heading", "See what retirement could look like")}
             </h2>
           </header>
           {err && <p className="text-sm text-red-600">{err}</p>}
@@ -892,7 +903,9 @@ export default function PensionForecast() {
             )}
             {projectedPot !== null && retirementAge !== null && (
               <InfoLine
-                label={`Projected pot at ${retirementAge}`}
+                label={t("pensionForecast.projectedPot", "Projected pot at {{age}}", {
+                  age: retirementAge,
+                })}
                 value={currencyFormatter.format(projectedPot)}
               />
             )}

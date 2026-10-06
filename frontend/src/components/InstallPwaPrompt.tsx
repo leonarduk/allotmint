@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -6,6 +7,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export default function InstallPwaPrompt() {
+  const { t } = useTranslation();
   const [promptEvent, setPromptEvent] = useState<BeforeInstallPromptEvent | null>(
     null,
   );
@@ -33,7 +35,7 @@ export default function InstallPwaPrompt() {
           setPromptEvent(null);
         }}
       >
-        Install to Home Screen
+        {t("installPwaPrompt.install")}
       </button>
     </div>
   );

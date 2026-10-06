@@ -756,7 +756,7 @@ export function InstrumentDetail({
       {variant === "drawer" && (
         <div
           role="separator"
-          aria-label="Resize instrument details"
+          aria-label={t("instrumentDetail.resizeDetails")}
           aria-orientation="vertical"
           aria-valuemin={MIN_DRAWER_WIDTH}
           aria-valuemax={viewportWidth}
@@ -780,14 +780,14 @@ export function InstrumentDetail({
         />
       )}
       {onClose && variant === "drawer" && (
-        <button aria-label="Close instrument details" onClick={onClose} style={{ float: "right" }}>
+        <button aria-label={t("instrumentDetail.closeDetails")} onClick={onClose} style={{ float: "right" }}>
           ✕
         </button>
       )}
       {variant === "drawer" && canExpandDrawer(viewportWidth) && (
         <button
           type="button"
-          aria-label="Expand or restore instrument details"
+          aria-label={t("instrumentDetail.expandDetails")}
           onClick={toggleExpanded}
           style={{ float: "right", marginRight: "0.5rem" }}
         >
@@ -801,7 +801,7 @@ export function InstrumentDetail({
           to={`/research/${ticker}`}
           style={{ color: palette.link, float: "right", marginRight: "0.5rem" }}
         >
-          View full page
+          {t("instrumentDetail.viewFullPage")}
         </Link>
       )}
       {signal && (
@@ -809,12 +809,12 @@ export function InstrumentDetail({
           <strong>{signal.action.toUpperCase()}</strong> – {signal.reason}
           {signal.confidence != null && (
             <div>
-              Signal strength:{" "}
+              {t("instrumentDetail.signalStrength")}{" "}
               {signal.confidence >= 0.75
-                ? "Strong"
+                ? t("instrumentDetail.strengthStrong")
                 : signal.confidence >= 0.5
-                  ? "Moderate"
-                  : "Weak"}
+                  ? t("instrumentDetail.strengthModerate")
+                  : t("instrumentDetail.strengthWeak")}
               {` (${Math.round(signal.confidence * 100)}%)`}
             </div>
           )}

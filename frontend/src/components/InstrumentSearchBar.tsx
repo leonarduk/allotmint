@@ -32,6 +32,12 @@ const SECTORS = [
 
 const REGIONS = ["Africa", "Asia", "Europe", "North America", "South America", "Oceania", "UK", "US"];
 
+const camelKey = (label: string) =>
+  label
+    .split(" ")
+    .map((w, i) => (i === 0 ? w.toLowerCase() : w[0].toUpperCase() + w.slice(1).toLowerCase()))
+    .join("");
+
 interface InstrumentSearchBarProps {
   id?: string;
   onClose?: () => void;
@@ -44,6 +50,7 @@ function InstrumentSearchBarComponent({
   onNavigate,
 }: InstrumentSearchBarProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState("");
   const [region, setRegion] = useState("");
@@ -75,7 +82,7 @@ function InstrumentSearchBarComponent({
           if (err.name !== "AbortError") {
             console.error(err);
             setResults([]);
-            setError("Search failed");
+            setError(t("instrumentDetail.searchFailed"));
           }
         });
     }, 300);
@@ -83,7 +90,7 @@ function InstrumentSearchBarComponent({
       controller.abort();
       clearTimeout(timeout);
     };
-  }, [query, sector, region]);
+  }, [query, sector, region, t]);
 
   const navigateTo = (tkr: string) => {
     setQuery("");
@@ -118,7 +125,7 @@ function InstrumentSearchBarComponent({
 
         <input
           type="text"
-          placeholder="Search…"
+          placeholder={t("instrumentDetail.searchPlaceholder")}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -127,36 +134,36 @@ function InstrumentSearchBarComponent({
           }}
           onKeyDown={handleKeyDown}
           style={{ padding: "0.25rem" }}
-          aria-label="Search instruments"
+          aria-label={t("instrumentDetail.searchInstruments")}
         />
         <select
           value={sector}
           onChange={(e) => setSector(e.target.value)}
-          aria-label="Filter by sector"
+          aria-label={t("instrumentDetail.filterBySector")}
         >
-          <option value="">All sectors</option>
+          <option value="">{t("instrumentDetail.allSectors")}</option>
           {SECTORS.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {t(`instrumentDetail.sectors.${camelKey(s)}`)}
             </option>
           ))}
         </select>
         <select
           value={region}
           onChange={(e) => setRegion(e.target.value)}
-          aria-label="Filter by region"
+          aria-label={t("instrumentDetail.filterByRegion")}
         >
-          <option value="">All regions</option>
+          <option value="">{t("instrumentDetail.allRegions")}</option>
           {REGIONS.map((r) => (
             <option key={r} value={r}>
-              {r}
+              {t(`instrumentDetail.regions.${camelKey(r)}`)}
             </option>
           ))}
         </select>
         {onClose && (
           <button
             type="button"
-            aria-label="Close search"
+            aria-label={t("instrumentDetail.closeSearch")}
             onClick={onClose}
             style={{
               border: "1px solid #ccc",

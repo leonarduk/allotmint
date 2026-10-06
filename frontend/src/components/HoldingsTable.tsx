@@ -815,7 +815,7 @@ export function HoldingsTable({
           </tr>
           <tr>
             {showAccount && (
-              <th className={tableStyles.cell}>Account</th>
+              <th className={tableStyles.cell}>{t("holdingsTable.columns.account")}</th>
             )}
             <th
               className={`${tableStyles.cell} ${tableStyles.clickable}`}

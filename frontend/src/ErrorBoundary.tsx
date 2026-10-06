@@ -1,5 +1,6 @@
 import { Component } from "react";
 import type { ReactNode, ErrorInfo } from "react";
+import i18n from "./i18n";
 
 interface Props {
   children: ReactNode;
@@ -25,7 +26,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      return <div>Failed to load page</div>;
+      return <div>{i18n.t("errorBoundary.pageLoadFailed")}</div>;
     }
 
     return this.props.children;

@@ -23,14 +23,15 @@ import {
 } from 'recharts';
 
 export const IndexTooltip = ({ active, payload, label }: any) => {
+  const { t } = useTranslation();
   if (active && payload && payload.length) {
     const { value, change } = payload[0].payload;
     const safeChange = typeof change === 'number' ? change : 0;
     return (
       <div className="rounded border bg-white p-2 text-sm shadow text-gray-900">
         <p className="font-semibold">{label}</p>
-        <p>Level: {value.toLocaleString()}</p>
-        <p>Change: {safeChange.toFixed(2)}%</p>
+        <p>{t('market.tooltipLevel', { value: value.toLocaleString() })}</p>
+        <p>{t('market.tooltipChange', { value: safeChange.toFixed(2) })}</p>
       </div>
     );
   }

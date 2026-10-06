@@ -1,4 +1,5 @@
 import type { DayStamp } from '../gamified/seasonModel';
+import i18n from '../i18n';
 
 /**
  * The subset of a CSS-module class map these helpers need. CSS modules are
@@ -40,7 +41,7 @@ export function crateState(days: readonly DayStamp[]): {
   const fullyDone = tracked.filter((day) => day.stamped).length;
 
   if (tracked.length === 0) {
-    return { open: false, label: 'No chores tracked yet this week' };
+    return { open: false, label: i18n.t('plot.streak.crate.none') };
   }
 
   if (tracked.length < days.length) {
@@ -52,11 +53,11 @@ export function crateState(days: readonly DayStamp[]): {
     const engaged = tracked.filter((day) => day.stamped || day.partial).length;
     return {
       open: false,
-      label: `${engaged} of ${days.length} day${days.length === 1 ? '' : 's'} down — keep going to fill the crate`,
+      label: i18n.t('plot.streak.crate.progress', { engaged, count: days.length }),
     };
   }
 
   return fullyDone === tracked.length
-    ? { open: true, label: 'Full week of chores done' }
-    : { open: false, label: 'Finish every day this week to fill the crate' };
+    ? { open: true, label: i18n.t('plot.streak.crate.full') }
+    : { open: false, label: i18n.t('plot.streak.crate.finish') };
 }

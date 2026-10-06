@@ -268,6 +268,35 @@ describe('Menu', () => {
     expect(gateway).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
+  it('closes the open menus when the operations gateway is clicked (#9575)', () => {
+    // The gateway opens a new tab, so the source tab never changes route and
+    // the close-on-navigate effect never fires -- the click must close the
+    // dropdown and the mobile menu itself.
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter initialEntries={['/']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const mobileToggle = screen.getByRole('button', { name: i18n.t('app.menu') });
+    fireEvent.click(mobileToggle);
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    expect(preferencesToggle).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: operationsGatewayName() })
+    );
+
+    expect(preferencesToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.getByRole('button', { name: i18n.t('app.menu') })
+    ).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it('targets the first enabled operations entry, not always /support (#7226)', () => {
     // If Support specifically is disabled but a sibling like Data Admin
     // isn't, the gateway must not still point at /support -- that would

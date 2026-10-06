@@ -88,6 +88,13 @@ def test_put_does_not_write_when_response_fails(data_root, monkeypatch):
     assert not (data_root / "plans" / "alex.json").exists()
 
 
+@pytest.mark.parametrize("bad_owner", [0, "", False])
+def test_put_rejects_non_null_invalid_owner(data_root, bad_owner):
+    resp = _client(data_root).put("/plans/alex", json={**PLAN, "owner": bad_owner})
+    assert resp.status_code == 400
+    assert not (data_root / "plans" / "alex.json").exists()
+
+
 def test_put_rejects_missing_target(data_root):
     payload = {k: v for k, v in PLAN.items() if k != "target"}
     resp = _client(data_root).put("/plans/alex", json=payload)

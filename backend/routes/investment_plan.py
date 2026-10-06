@@ -11,13 +11,15 @@ validated against is the root it reads and writes.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import ValidationError
 
 from backend.auth import get_active_user
 from backend.common.allocation_policy import load_allocation_policy
+from backend.common.authz import ensure_owner_access
+from backend.common.errors import raise_owner_not_found
 from backend.common.investment_plan import (
     InvestmentPlan,
     PlanNotFoundError,
@@ -27,7 +29,7 @@ from backend.common.investment_plan import (
     save_plan,
     vehicle_warnings,
 )
-from backend.routes.rebalance import _resolve_owner
+from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 router = APIRouter(tags=["investment-plan"])
 
@@ -40,6 +42,16 @@ def _validation_detail(exc: ValidationError) -> str:
         msg = str(err.get("msg", "")).removeprefix("Value error, ")
         parts.append(f"{loc}: {msg}" if loc else msg)
     return "; ".join(parts)
+
+
+def _resolve_owner(request: Request, owner: str, identity: Optional[str]) -> Tuple[str, Path]:
+    """Canonical owner id and accounts root, after the owner-access check."""
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    if owner_dir is None:
+        raise_owner_not_found(owner)
+    ensure_owner_access(identity, owner_dir.name, accounts_root)
+    return owner_dir.name, accounts_root
 
 
 def _data_root(accounts_root: Path) -> Path:
@@ -79,7 +91,8 @@ def put_investment_plan(
     identity: Optional[str] = Depends(get_active_user),
 ):
     owner, accounts_root = _resolve_owner(request, owner, identity)
-    data = {**body, "owner": body.get("owner") or owner}
+    # Only a missing/null owner defaults to the path owner; any other value is validated.
+    data = {**body, "owner": owner if body.get("owner") is None else body["owner"]}
     try:
         plan = parse_plan(data, owner)
     except ValidationError as exc:

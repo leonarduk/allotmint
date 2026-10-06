@@ -196,7 +196,13 @@ class InvestmentPlan(BaseModel):
 
 
 def plans_dir(data_root: Optional[Path] = None) -> Path:
-    """``<data_root>/plans``; ``data_root`` defaults to ``config.data_root``."""
+    """``<data_root>/plans``; ``data_root`` defaults to ``config.data_root``.
+
+    The ``/plans/{owner}`` routes pass ``accounts_root.parent`` explicitly, so
+    storage follows the accounts root the request was authorised against. In
+    every standard config that is ``config.data_root`` (``accounts_root`` is
+    ``<data_root>/accounts``).
+    """
     root = data_root or config.data_root or Path(__file__).resolve().parents[2] / "data"
     return Path(root) / PLANS_DIRNAME
 

@@ -67,6 +67,41 @@ const toCurrencySlices = (
     .filter((slice) => slice.value > 0)
     .sort((a, b) => b.value - a.value);
 
+/**
+ * Quote-currency exposure for ``slug`` from the backend (#9686), which folds
+ * GBX into GBP and resolves each holding's currency from its listing. Fetched
+ * only once ``enabled`` (the view is open), and refetched after an error.
+ * Covers the whole group: the endpoint has no per-account filter.
+ */
+function useGroupCurrencyExposure(slug: string, enabled: boolean) {
+  const [rows, setRows] = useState<CurrencyContribution[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRows(null);
+    setError(null);
+  }, [slug]);
+
+  useEffect(() => {
+    if (!enabled || rows !== null) return;
+    let cancelled = false;
+    getGroupCurrencyContributions(slug)
+      .then((result) => {
+        if (cancelled) return;
+        setRows(result);
+        setError(null);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, slug, rows]);
+
+  return { rows, error };
+}
+
 export type AllocationChartsProps = {
   /** Portfolio group slug (defaults to "all"). */
   slug?: string;
@@ -89,11 +124,10 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const [assetData, setAssetData] = useState<{ name: string; value: number }[]>(
     [],
   );
-  // Quote-currency exposure comes from the backend (#9686), which folds GBX
-  // into GBP and resolves a holding's currency from its listing. It covers the
-  // whole group: the endpoint has no per-account filter.
-  const [currencyRows, setCurrencyRows] = useState<CurrencyContribution[] | null>(null);
-  const [currencyError, setCurrencyError] = useState<string | null>(null);
+  const { rows: currencyRows, error: currencyError } = useGroupCurrencyExposure(
+    resolvedSlug,
+    view === "currency",
+  );
   const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[] | null>(
     null,
@@ -203,26 +237,6 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
     setSectorData(sector);
     setRegionData(region);
   }, [portfolio, selectedAccounts, t]);
-
-  useEffect(() => {
-    setCurrencyRows(null);
-    setCurrencyError(null);
-  }, [resolvedSlug]);
-
-  useEffect(() => {
-    if (view !== "currency" || currencyRows !== null) return;
-    let cancelled = false;
-    getGroupCurrencyContributions(resolvedSlug)
-      .then((rows) => {
-        if (!cancelled) setCurrencyRows(rows);
-      })
-      .catch((e) => {
-        if (!cancelled) setCurrencyError(e instanceof Error ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [view, resolvedSlug, currencyRows]);
 
   useEffect(() => {
     if (!portfolio) return;

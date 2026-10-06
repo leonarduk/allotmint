@@ -466,12 +466,17 @@ describe('Menu', () => {
         </MemoryRouter>
       </configContext.Provider>
     );
-    expect(i18n.t('app.menuCategories.operations')).toBe('Admin');
+    expect(screen.getByRole('button', { name: 'Admin' })).toBeInTheDocument();
     // No "Settings" dropdown: nothing in the admin view is a setting.
     expect(
       screen.queryByRole('button', {
         name: i18n.t('app.menuCategories.preferences'),
       })
+    ).not.toBeInTheDocument();
+    // Top-level items sit outside any role="menu" container, so they are
+    // plain links/buttons rather than menuitems.
+    expect(
+      screen.queryByRole('menuitem', { name: backToAppName() })
     ).not.toBeInTheDocument();
     const logout = screen.getByRole('button', { name: i18n.t('app.logout') });
     fireEvent.click(logout);

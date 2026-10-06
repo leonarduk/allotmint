@@ -61,8 +61,8 @@ class CurrencyNormaliser:
     def to_gbp(
         self,
         value: float,
-        fx_cache: Optional[Dict[str, float]] = None,
-        fx_rate_resolver: Optional[Callable[[str, str, Dict[str, float]], float]] = None,
+        fx_cache: Optional[Dict[str, Optional[float]]] = None,
+        fx_rate_resolver: Optional[Callable[[str, str, Dict[str, Optional[float]]], Optional[float]]] = None,
     ) -> float:
         """Convert a scalar ``value`` in ``canonical`` currency to GBP."""
         if self.is_pence:
@@ -78,6 +78,9 @@ class CurrencyNormaliser:
 
         cache = fx_cache if fx_cache is not None else {}
         fx_rate = fx_rate_resolver(self.canonical, "GBP", cache)
+        if fx_rate is None:
+            # No rate at all (#9664): an error, never a silent 1.0.
+            raise ValueError(f"No FX rate for {self.canonical}->GBP")
 
         try:
             rate = float(fx_rate)

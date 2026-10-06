@@ -84,6 +84,11 @@ export const holdingContractSchema = z
     last_price_time: nullableString,
     is_stale: nullableBoolean,
     latest_source: nullableString,
+    // Where the FX rate valuing a non-GBP holding came from (#9664): "live",
+    // "cache", "fallback" (an approximate constant) or "missing" (no rate --
+    // the holding is left unpriced); null for GBP/GBX holdings, and for a
+    // holding with no metadata currency and an unparseable symbol (treated as GBP).
+    fx_rate_source: nullableString,
     day_change_gbp: nullableNumber,
     day_change_currency: nullableString,
     instrument_type: nullableString,

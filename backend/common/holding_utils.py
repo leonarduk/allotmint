@@ -36,10 +36,12 @@ from backend.common.user_config import UserConfig
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
+    instrument_currency,
     is_cache_only,
     load_meta_timeseries_range,
     register_meta_cache_clearer,
 )
+from backend.utils.fx_rates import FX_RATE_SOURCE_MISSING
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import (
     _nearest_weekday,
@@ -51,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 
 # ───────────── helpers ─────────────
-def _fx_to_base(from_ccy: str, to_ccy: str, cache: Dict[str, float]) -> float:
+def _fx_to_base(from_ccy: str, to_ccy: str, cache: Dict[str, Optional[float]]) -> Optional[float]:
     """Resolve FX via portfolio_utils lazily to avoid import cycles."""
     from backend.common import portfolio_utils
 
@@ -133,7 +135,7 @@ def load_latest_closes(
 
     from backend.common import instrument_api
 
-    fx_cache: Dict[str, float] = {}
+    fx_cache: Dict[str, Optional[float]] = {}
     unpriced: list[str] = []
 
     for i, full in enumerate(full_tickers):
@@ -254,7 +256,7 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
     url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
 
     try:
-        fx_cache: Dict[str, float] = {}
+        fx_cache: Dict[str, Optional[float]] = {}
         resp = requests.get(url, timeout=5)
         raise_for_status = getattr(resp, "raise_for_status", None)
         if callable(raise_for_status):
@@ -817,6 +819,7 @@ def enrich_holding(
         out["days_until_eligible"] = 0
         out["next_eligible_sell_date"] = None
         out["cost_basis_source"] = "cash"
+        out["fx_rate_source"] = None
 
         return out
 
@@ -875,6 +878,7 @@ def enrich_holding(
         out["price"] = None
         out["current_price_gbp"] = None
         out["cost_basis_source"] = "none"
+        out["fx_rate_source"] = None
         return out
 
     # No transaction/lot date on record: leave it genuinely null instead of
@@ -982,6 +986,18 @@ def enrich_holding(
                         change = (future_px / px) - 1
                         out["forward_30d_change_pct"] = round(change * 100, 4)
 
+    out["fx_rate_source"] = _holding_fx_rate_source(out.get("currency"), ticker, exchange)
+    if out["fx_rate_source"] == FX_RATE_SOURCE_MISSING and px is not None:
+        # The GBP price can only have come from an unconverted native close
+        # (#7722): treat the holding as unpriced rather than value it at an
+        # FX rate nobody has (#9664).
+        logger.warning(
+            "No %s->GBP rate for %s; leaving it unpriced",
+            sanitise_log_value(out.get("currency")),
+            sanitise_log_value(full),
+        )
+        px = prev_px = px_source = None
+
     out["price"] = px
     out["current_price_gbp"] = px
     out["latest_source"] = px_source
@@ -1059,6 +1075,37 @@ def enrich_holding(
 
     _flag_implausible_book_cost(out, units, ticker, exchange, acq, px, price_cache)
     return out
+
+
+def _holding_fx_rate_source(currency: object, ticker: str, exchange: str) -> Optional[str]:
+    """Where the FX rate valuing a holding quoted in ``currency`` comes from (#9664).
+
+    ``"live"``, ``"cache"``, ``"fallback"`` (an approximate constant) or
+    ``"missing"``; ``None`` for GBP and pence (GBX) instruments, which need no
+    FX. Without a currency in the metadata, the one the timeseries cache
+    converts from (exchange default) is used.
+    """
+    from backend.common import portfolio_utils  # local import to avoid circular
+
+    raw = currency
+    if not raw:
+        try:
+            raw = instrument_currency(ticker, exchange)
+        except ValueError as exc:
+            # An unparseable symbol has no metadata: same GBP default as
+            # CurrencyNormaliser gives a holding with no currency.
+            logger.warning(
+                "No currency for %s.%s; assuming GBP: %s",
+                sanitise_log_value(ticker),
+                sanitise_log_value(exchange),
+                sanitise_log_value(exc),
+            )
+            return None
+    normaliser = CurrencyNormaliser.from_raw(raw)
+    if normaliser.is_pence or normaliser.canonical == "GBP":
+        return None
+    _rate, source = portfolio_utils.fx_rate_to_gbp_with_source(normaliser.canonical)
+    return source
 
 
 def _is_cash(full: str, account_ccy: str = "GBP") -> bool:

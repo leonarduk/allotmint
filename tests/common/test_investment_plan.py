@@ -15,6 +15,7 @@ from backend.common.investment_plan import (
     compare_with_rebalance_targets,
     load_plan,
     parse_plan,
+    rebalance_weights,
     save_plan,
     vehicle_warnings,
 )
@@ -175,6 +176,40 @@ def test_compare_copies_exact_keys_when_policy_accepts_them(monkeypatch):
     assert result["plan_targets"]["long_gilts"] == 10
 
 
+def small_value_plan():
+    return parse_plan(
+        plan_data(
+            target=[
+                {"class": "equity", "weight_pct": 30},
+                {"class": "small_cap_value", "weight_pct": 10},
+                {"class": "long_gilts", "weight_pct": 25},
+                {"class": "index_linked", "weight_pct": 15},
+                {"class": "gold", "weight_pct": 20},
+            ]
+        ),
+        "alex",
+    )
+
+
+def test_rebalance_weights_folds_only_classes_the_policy_lacks():
+    assert rebalance_weights(small_value_plan()) == {
+        "equity": 40,
+        "long_gilts": 25,
+        "index_linked": 15,
+        "gold": 20,
+    }
+
+
+def test_compare_keeps_sub_class_split_when_plan_has_small_cap_value():
+    result = compare_with_rebalance_targets(small_value_plan(), AllocationPolicy({"equity": 60, "bond": 40}))
+    assert result["copy_supported"] is True
+    assert result["matches"] is False
+    assert result["plan_targets"] == {"equity": 40, "long_gilts": 25, "index_linked": 15, "gold": 20}
+
+    copied = AllocationPolicy(result["plan_targets"])
+    assert compare_with_rebalance_targets(small_value_plan(), copied)["matches"] is True
+
+
 def test_bare_string_vehicle_shorthand():
     plan = parse_plan(plan_data(vehicles={" Gold": "PHGP.L", "equity": {"note": "tbc"}}), "alex")
     assert plan.vehicles["gold"][0].ticker == "PHGP.L"
@@ -187,4 +222,41 @@ def test_compare_surfaces_errors_other_than_unknown_class(monkeypatch):
 
     monkeypatch.setattr(plan_mod, "parse_policy", broken)
     with pytest.raises(ValueError, match="tolerance_pct"):
+        compare_with_rebalance_targets(parse_plan(plan_data(), "alex"), AllocationPolicy())
+
+
+def test_compare_rolls_up_on_a_level_clash(monkeypatch):
+    real = plan_mod.parse_policy
+    calls = []
+
+    def clash_once(data):
+        calls.append(data)
+        if len(calls) == 1:
+            raise ValueError("Set Bond either as a whole or by sub-class, not both")
+        return real(data)
+
+    monkeypatch.setattr(plan_mod, "parse_policy", clash_once)
+    result = compare_with_rebalance_targets(parse_plan(plan_data(), "alex"), AllocationPolicy())
+    assert result["copy_supported"] is False
+    assert result["plan_targets"] == {"equity": 40, "bond": 40, "commodity": 20}
+
+
+def test_vocabulary_error_matches_the_real_policy_messages():
+    for targets in ({"bond": 50, "long_gilts": 50}, {"small_cap_value": 100}):
+        with pytest.raises(ValueError) as exc:
+            plan_mod.parse_policy({"targets": targets})
+        assert plan_mod._is_vocabulary_error(exc.value)
+
+
+def test_vocabulary_error_rejects_a_longer_message_that_mentions_a_level_clash():
+    compound = ValueError("Set Bond either as a whole or by sub-class, not both; targets must sum to 100%")
+    assert not plan_mod._is_vocabulary_error(compound)
+
+
+def test_compare_surfaces_other_errors_starting_with_set(monkeypatch):
+    def broken(data):
+        raise ValueError("Set targets must sum to 100%")
+
+    monkeypatch.setattr(plan_mod, "parse_policy", broken)
+    with pytest.raises(ValueError, match="sum to 100"):
         compare_with_rebalance_targets(parse_plan(plan_data(), "alex"), AllocationPolicy())

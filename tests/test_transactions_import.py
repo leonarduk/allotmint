@@ -10,7 +10,7 @@ from backend import importers
 from backend.app import create_app
 from backend.config import config
 from backend.importers import moneyhub
-from backend.routes.transactions import Transaction
+from backend.routes.transactions import Transaction, _tx_data_from_parsed
 from backend.timeseries import cache as timeseries_cache
 
 MONEYHUB_SAMPLE = Path(__file__).parent / "data" / "moneyhub_sample.csv"
@@ -318,7 +318,7 @@ def test_import_converts_non_gbp_price_at_trade_date_rate(tmp_path, monkeypatch)
     assert persisted["price_gbp"] == pytest.approx(80.0)
     assert persisted["price"] == pytest.approx(100.0)
     assert persisted["currency"] == "USD"
-    assert fx.calls and all(curr == "USD" and end == date(2024, 5, 4) for curr, _start, end in fx.calls)
+    assert fx.calls == [("USD", date(2024, 4, 29), date(2024, 5, 4))]
     stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())
     assert stored["transactions"][0]["price_gbp"] == pytest.approx(80.0)
 
@@ -375,3 +375,25 @@ def test_import_non_gbp_row_with_explicit_price_gbp_needs_no_fx(tmp_path, monkey
 
     [persisted] = data["persisted"]
     assert persisted["price_gbp"] == 80.0
+
+
+@pytest.mark.parametrize(
+    ("rate_day", "persisted"),
+    [("2024-04-29", True), ("2024-04-28", False)],
+    ids=["five-days-before-accepted", "six-days-before-rejected"],
+)
+def test_import_fx_lookback_window_boundary(tmp_path, monkeypatch, rate_day, persisted):
+    """A rate at most ``_IMPORT_FX_LOOKBACK_DAYS`` (5) before the trade date is used; an older one is not."""
+    client = _make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr(timeseries_cache, "load_fx_history", _fake_fx_history({"USD": {rate_day: 0.8}}))
+
+    data = _post_rows(client, monkeypatch, [_usd_row()])
+
+    assert len(data["persisted"]) == int(persisted)
+    assert len(data["skipped"]) == int(not persisted)
+
+
+def test_import_non_gbp_row_with_conflicting_price_gbp_still_raises():
+    """The price/price_gbp conflict check (#5419) runs before any currency handling."""
+    with pytest.raises(ValueError, match="Conflicting values"):
+        _tx_data_from_parsed(_usd_row(price=100.0, price_gbp=80.0))

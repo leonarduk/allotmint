@@ -886,6 +886,14 @@ class ImportPriceCurrencyError(ValueError):
     """An imported row's native-currency price cannot be converted to GBP."""
 
 
+def _float_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
 def _trade_date_fx_rate(currency: str, tx_date: str | None) -> float:
     """GBP per unit of ``currency`` on ``tx_date``, from the stored FX history only.
 
@@ -907,14 +915,6 @@ def _trade_date_fx_rate(currency: str, tx_date: str | None) -> float:
         if rate is not None and rate > 0:
             return rate
     raise ImportPriceCurrencyError(f"No stored {currency}->GBP FX rate on or shortly before {trade_date.isoformat()}")
-
-
-def _float_or_none(value: Any) -> float | None:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if math.isfinite(number) else None
 
 
 def _coalesce_price_gbp(tx_data: Dict[str, Any]) -> None:

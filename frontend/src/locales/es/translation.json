@@ -1905,7 +1905,14 @@
       "covid": "Mínimo de mercado por COVID-19",
       "giltCrisis": "Crisis de los gilts británicos",
       "energyShock": "Shock energético",
-      "bankingTurmoil": "Turbulencias bancarias"
+      "bankingTurmoil": "Turbulencias bancarias",
+      "dotComPeak": "Pico de las puntocom",
+      "dotComLow": "Mínimo del mercado bajista puntocom",
+      "lehman": "Quiebra de Lehman",
+      "gfcLow": "Mínimo de la crisis financiera",
+      "eurozone": "Crisis del euro / rebaja de EE. UU.",
+      "brexit": "Votación del Brexit",
+      "selloff2018": "Mínimo de la caída del T4 2018"
     },
     "positions": "Posiciones del escenario",
     "restoreRemoved": "Restaurar posiciones eliminadas",

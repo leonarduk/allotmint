@@ -1905,7 +1905,14 @@
       "covid": "COVID-19-Markttief",
       "giltCrisis": "Krise bei britischen Staatsanleihen",
       "energyShock": "Energieschock",
-      "bankingTurmoil": "Bankenturbulenzen"
+      "bankingTurmoil": "Bankenturbulenzen",
+      "dotComPeak": "Dotcom-Höhepunkt",
+      "dotComLow": "Tief nach der Dotcom-Blase",
+      "lehman": "Lehman-Pleite",
+      "gfcLow": "Tief der Finanzkrise",
+      "eurozone": "Eurokrise / US-Herabstufung",
+      "brexit": "Brexit-Referendum",
+      "selloff2018": "Tief des Ausverkaufs Q4 2018"
     },
     "positions": "Szenariopositionen",
     "restoreRemoved": "Entfernte Bestände wiederherstellen",

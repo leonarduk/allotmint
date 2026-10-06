@@ -1905,7 +1905,14 @@
       "covid": "Plus bas de marché COVID-19",
       "giltCrisis": "Crise des gilts britanniques",
       "energyShock": "Choc énergétique",
-      "bankingTurmoil": "Turbulences bancaires"
+      "bankingTurmoil": "Turbulences bancaires",
+      "dotComPeak": "Sommet de la bulle Internet",
+      "dotComLow": "Plus bas du marché baissier Internet",
+      "lehman": "Faillite de Lehman",
+      "gfcLow": "Plus bas de la crise financière",
+      "eurozone": "Crise de la zone euro / dégradation des États-Unis",
+      "brexit": "Vote du Brexit",
+      "selloff2018": "Plus bas de la chute du T4 2018"
     },
     "positions": "Positions du scénario",
     "restoreRemoved": "Restaurer les positions supprimées",

@@ -7,7 +7,7 @@ import {
   getOwners,
   getPortfolio,
 } from "../api";
-import type { CustomQuery } from "../types";
+import type { CustomQuery as CustomQueryParams } from "../types";
 import { useFetch } from "../hooks/useFetch";
 import { useSortableTable } from "../hooks/useSortableTable";
 import { SavedQueries } from "../components/SavedQueries";
@@ -212,7 +212,7 @@ export function CustomQuery() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const params: CustomQuery = {
+    const params: CustomQueryParams = {
       start,
       end,
       owners: selectedOwners,
@@ -235,7 +235,7 @@ export function CustomQuery() {
   function handleSave() {
     const name = window.prompt("Save query as:");
     if (!name) return;
-    const params: CustomQuery = {
+    const params: CustomQueryParams = {
       start,
       end,
       owners: selectedOwners,
@@ -271,7 +271,7 @@ export function CustomQuery() {
     void navigator.clipboard.writeText(buildCopyLink());
   }
 
-  function loadSaved(params: CustomQuery) {
+  function loadSaved(params: CustomQueryParams) {
     setStart(params.start ?? "");
     setEnd(params.end ?? "");
     setSelectedOwners(params.owners ?? []);

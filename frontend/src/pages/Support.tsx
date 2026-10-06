@@ -49,6 +49,11 @@ function configParamId(key: string): string {
   return `config-param-${key.replace(/[^A-Za-z0-9_-]/g, "-")}`;
 }
 
+// DOM id for a config key's description, referenced by aria-describedby.
+function configDescriptionId(key: string): string {
+  return `${configParamId(key)}-description`;
+}
+
 type ConfigValue = string | boolean | Record<string, unknown>;
 type ConfigState = Record<string, ConfigValue>;
 
@@ -75,6 +80,20 @@ function toTabState(cfg: Record<string, unknown>): Record<TabPluginId, boolean> 
 
 export default function Support() {
   const { t } = useTranslation();
+  // Unknown keys (e.g. one added to backend Config without a description)
+  // render no description rather than the raw i18n key.
+  const describeConfigKey = (key: string): string =>
+    t(`support.config.descriptions.${key}`, { defaultValue: "" });
+  const renderConfigDescription = (key: string, className: string) => {
+    const description = describeConfigKey(key);
+    return description ? (
+      <p id={configDescriptionId(key)} className={`text-xs opacity-80 ${className}`}>
+        {description}
+      </p>
+    ) : null;
+  };
+  const describedBy = (key: string): string | undefined =>
+    describeConfigKey(key) ? configDescriptionId(key) : undefined;
   const { refreshConfig } = useConfig();
   const { setUser } = useAuth();
   const { setProfile } = useUser();
@@ -714,15 +733,19 @@ export default function Support() {
                 {Object.entries(config)
                   .filter(([k, v]) => k !== "tabs" && k !== MCP_TOOLS_KEY && typeof v === "boolean")
                   .map(([key, value]) => (
-                    <label key={key} className="mb-1 block font-medium">
-                      <input
-                        type="checkbox"
-                        checked={value as boolean}
-                        onChange={(e) => handleConfigChange(key, e.target.checked)}
-                        className="mr-1"
-                      />
-                      {key}
-                    </label>
+                    <div key={key} className="mb-1">
+                      <label className="block font-medium">
+                        <input
+                          type="checkbox"
+                          checked={value as boolean}
+                          onChange={(e) => handleConfigChange(key, e.target.checked)}
+                          aria-describedby={describedBy(key)}
+                          className="mr-1"
+                        />
+                        {key}
+                      </label>
+                      {renderConfigDescription(key, "ml-5")}
+                    </div>
                   ))}
               </div>
             </div>
@@ -768,7 +791,8 @@ export default function Support() {
                   <div key={key} className="mb-2">
                     {key === "theme" && typeof value === "string" ? (
                       <div>
-                        <label className="mb-1 block font-medium">{key}</label>
+                        <label className="block font-medium">{key}</label>
+                        {renderConfigDescription(key, "mb-1")}
                         {["dark", "light", "system"].map((opt) => (
                           <label key={opt} className="mr-2">
                             <input
@@ -785,11 +809,13 @@ export default function Support() {
                       </div>
                     ) : (
                       <>
-                        <label htmlFor={configParamId(key)} className="mb-1 block font-medium">
+                        <label htmlFor={configParamId(key)} className="block font-medium">
                           {key}
                         </label>
+                        {renderConfigDescription(key, "mb-1")}
                         <input
                           id={configParamId(key)}
+                          aria-describedby={describedBy(key)}
                           type="text"
                           value={String(value ?? "")}
                           onChange={(e) => handleConfigChange(key, e.target.value)}

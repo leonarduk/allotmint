@@ -2,6 +2,12 @@ export function formatDateISO(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
+/** YYYY-MM-DD for the date in the browser's own timezone (formatDateISO is UTC). */
+export function localDateISO(date: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 const RELATIVE_UNITS: Array<{ limit: number; unit: Intl.RelativeTimeFormatUnit; secs: number }> = [
   { limit: 60, unit: 'second', secs: 1 },
   { limit: 3600, unit: 'minute', secs: 60 },

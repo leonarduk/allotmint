@@ -134,6 +134,7 @@
       "watchlist": "Beobachtungsliste"
     },
     "operationsLink": "Betrieb",
+    "opensInNewTab": "(öffnet in neuem Tab)",
     "refreshing": "Aktualisierung…",
     "refreshingProgress": "Aktualisierung… ({{completed}}/{{total}})",
     "refreshingTicker": "Lade {{ticker}}…",

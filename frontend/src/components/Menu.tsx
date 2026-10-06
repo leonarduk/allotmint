@@ -306,6 +306,10 @@ export default function Menu({
                       // always /support, so it never lands on a disabled
                       // route (<DisabledFeature />) when Support itself is
                       // turned off but a sibling like Data Admin isn't.
+                      // Opens in a new tab so the operations console sits
+                      // alongside the app instead of replacing it; the
+                      // route change never happens here, so close the menus
+                      // explicitly.
                       <li key="operations-gateway">
                         <Link
                           ref={assignFirstFocusable}
@@ -313,9 +317,19 @@ export default function Menu({
                           to={buildPathForMode(
                             firstOperationsEntry?.mode ?? 'support'
                           )}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => {
+                            setOpenCategory(null);
+                            setMobileMenuOpen(false);
+                          }}
                           className="block min-h-11 w-full rounded px-3 py-2 text-sm text-[var(--menu-text)]! transition-colors duration-150 hover:bg-[var(--menu-hover-bg)] hover:text-[var(--menu-text-active)]! focus:outline-none focus-visible:ring"
                         >
                           {t('app.operationsLink', 'Operations')}
+                          <span aria-hidden="true"> ↗</span>{' '}
+                          <span className="sr-only">
+                            {t('app.opensInNewTab', '(opens in new tab)')}
+                          </span>
                         </Link>
                       </li>
                     )}

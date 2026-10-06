@@ -661,6 +661,20 @@ export interface ScenarioResult {
   horizons: Record<string, ScenarioHorizonResult>;
 }
 
+/** One owner's result from `GET /scenario/fx` (#9725). All values are GBP. */
+export interface FxScenarioResult {
+  owner: string;
+  baseline_total_value_gbp: number;
+  shocked_total_value_gbp: number;
+  delta_gbp: number;
+  /** Baseline GBP value of the holdings quoted in the shocked currency. */
+  exposed_value_gbp: number;
+  /** Holdings not shocked because their quote currency is unknown. */
+  skipped_unknown_currency: number;
+  /** Holdings with no usable FX rate, left out of both totals. */
+  unconverted_holdings: UnconvertedHolding[];
+}
+
 export type ComplianceResult = {
   owner: string;
   warnings: string[];

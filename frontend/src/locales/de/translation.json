@@ -1232,5 +1232,27 @@
     "columnChangePct": "Änd. %",
     "columnVolume": "Vol.",
     "columnTime": "Zeit (Europe/London)"
+  },
+  "scenarioFx": {
+    "title": "Währungsschock",
+    "description": "Bewerten Sie Ihre Portfolios für eine Währungsbewegung gegenüber dem Pfund neu. Es werden die gespeicherten GBP-Werte verwendet; neue Kurse werden nicht abgerufen.",
+    "currency": "Währung",
+    "pctLabel": "Änderung des GBP-Werts von 1 {{currency}} (%)",
+    "signConvention": "Eine negative Änderung bedeutet, dass {{currency}} gegenüber GBP schwächer wird: In {{currency}} notierte Positionen, einschließlich {{currency}}-Bargeld, verlieren diesen Anteil ihres GBP-Werts. GBP- und GBX-Positionen bleiben unverändert.",
+    "run": "Währungsschock ausführen",
+    "owner": "Eigentümer",
+    "exposed": "{{currency}}-Engagement",
+    "baseline": "Ausgangswert",
+    "shocked": "Nach Schock",
+    "delta": "Änderung",
+    "impact": "% Auswirkung",
+    "unconverted": "Nicht bewertet und daher in keiner Summe enthalten (kein verwendbarer Wechselkurs): {{holdings}}",
+    "skippedUnknown_one": "{{count}} Position mit unbekannter Währung wurde nicht geschockt.",
+    "skippedUnknown_other": "{{count}} Positionen mit unbekannter Währung wurden nicht geschockt.",
+    "errors": {
+      "invalidCurrency": "Geben Sie einen dreistelligen Währungscode ein.",
+      "sterling": "GBP und GBX können sich nicht gegenüber GBP bewegen.",
+      "invalidPct": "Geben Sie eine Änderung über -100 % und höchstens 1000 % ein."
+    }
   }
 }

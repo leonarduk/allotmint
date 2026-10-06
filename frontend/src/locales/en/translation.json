@@ -1224,5 +1224,27 @@
     "columnChangePct": "Chg %",
     "columnVolume": "Vol",
     "columnTime": "Time (Europe/London)"
+  },
+  "scenarioFx": {
+    "title": "Currency shock",
+    "description": "Revalue your portfolios for one currency moving against sterling. Uses the GBP values already stored, so no new rates are fetched.",
+    "currency": "Currency",
+    "pctLabel": "Change in the GBP value of 1 {{currency}} (%)",
+    "signConvention": "A negative change means {{currency}} weakens against GBP: holdings quoted in {{currency}}, including {{currency}} cash, lose that share of their GBP value. GBP and GBX holdings never move.",
+    "run": "Run currency shock",
+    "owner": "Owner",
+    "exposed": "{{currency}} exposure",
+    "baseline": "Baseline",
+    "shocked": "Shocked",
+    "delta": "Change",
+    "impact": "% impact",
+    "unconverted": "Not valued, so left out of both totals (no usable FX rate): {{holdings}}",
+    "skippedUnknown_one": "{{count}} holding with an unknown currency was not shocked.",
+    "skippedUnknown_other": "{{count}} holdings with an unknown currency were not shocked.",
+    "errors": {
+      "invalidCurrency": "Enter a 3-letter currency code.",
+      "sterling": "GBP and GBX cannot move against GBP.",
+      "invalidPct": "Enter a change above -100% and at most 1000%."
+    }
   }
 }

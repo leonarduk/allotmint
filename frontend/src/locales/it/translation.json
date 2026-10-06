@@ -1231,5 +1231,27 @@
     "columnChangePct": "Var. %",
     "columnVolume": "Vol.",
     "columnTime": "Ora (Europe/London)"
+  },
+  "scenarioFx": {
+    "title": "Shock valutario",
+    "description": "Rivaluta i tuoi portafogli per il movimento di una valuta rispetto alla sterlina. Usa i valori in GBP già memorizzati, quindi non vengono recuperati nuovi tassi.",
+    "currency": "Valuta",
+    "pctLabel": "Variazione del valore in GBP di 1 {{currency}} (%)",
+    "signConvention": "Una variazione negativa significa che {{currency}} si indebolisce rispetto alla GBP: le posizioni quotate in {{currency}}, compresa la liquidità in {{currency}}, perdono quella quota del loro valore in GBP. Le posizioni in GBP e GBX non cambiano mai.",
+    "run": "Esegui shock valutario",
+    "owner": "Titolare",
+    "exposed": "Esposizione in {{currency}}",
+    "baseline": "Base",
+    "shocked": "Dopo lo shock",
+    "delta": "Variazione",
+    "impact": "% impatto",
+    "unconverted": "Non valorizzate, quindi escluse da entrambi i totali (nessun tasso di cambio utilizzabile): {{holdings}}",
+    "skippedUnknown_one": "{{count}} posizione con valuta sconosciuta non è stata sottoposta allo shock.",
+    "skippedUnknown_other": "{{count}} posizioni con valuta sconosciuta non sono state sottoposte allo shock.",
+    "errors": {
+      "invalidCurrency": "Inserisci un codice valuta di 3 lettere.",
+      "sterling": "GBP e GBX non possono muoversi rispetto alla GBP.",
+      "invalidPct": "Inserisci una variazione superiore a -100% e al massimo del 1000%."
+    }
   }
 }

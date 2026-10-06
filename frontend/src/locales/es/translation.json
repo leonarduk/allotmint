@@ -1231,5 +1231,27 @@
     "columnChangePct": "Var. %",
     "columnVolume": "Vol.",
     "columnTime": "Hora (Europe/London)"
+  },
+  "scenarioFx": {
+    "title": "Shock de divisa",
+    "description": "Revalorice sus carteras ante el movimiento de una divisa frente a la libra. Usa los valores en GBP ya almacenados, por lo que no se obtienen tipos nuevos.",
+    "currency": "Divisa",
+    "pctLabel": "Variación del valor en GBP de 1 {{currency}} (%)",
+    "signConvention": "Una variación negativa significa que {{currency}} se debilita frente a la GBP: las posiciones cotizadas en {{currency}}, incluido el efectivo en {{currency}}, pierden esa parte de su valor en GBP. Las posiciones en GBP y GBX no cambian.",
+    "run": "Ejecutar shock de divisa",
+    "owner": "Titular",
+    "exposed": "Exposición a {{currency}}",
+    "baseline": "Base",
+    "shocked": "Tras el shock",
+    "delta": "Variación",
+    "impact": "% impacto",
+    "unconverted": "Sin valorar, por lo que se excluyen de ambos totales (sin tipo de cambio utilizable): {{holdings}}",
+    "skippedUnknown_one": "{{count}} posición con divisa desconocida no se ha sometido al shock.",
+    "skippedUnknown_other": "{{count}} posiciones con divisa desconocida no se han sometido al shock.",
+    "errors": {
+      "invalidCurrency": "Introduzca un código de divisa de 3 letras.",
+      "sterling": "GBP y GBX no pueden moverse frente a la GBP.",
+      "invalidPct": "Introduzca una variación superior a -100 % y como máximo del 1000 %."
+    }
   }
 }

@@ -1231,5 +1231,27 @@
     "columnChangePct": "Var. %",
     "columnVolume": "Vol.",
     "columnTime": "Hora (Europe/London)"
+  },
+  "scenarioFx": {
+    "title": "Choque cambial",
+    "description": "Reavalie as suas carteiras para o movimento de uma moeda face à libra. Usa os valores em GBP já armazenados, pelo que não são obtidas novas taxas.",
+    "currency": "Moeda",
+    "pctLabel": "Variação do valor em GBP de 1 {{currency}} (%)",
+    "signConvention": "Uma variação negativa significa que {{currency}} se desvaloriza face à GBP: as posições cotadas em {{currency}}, incluindo numerário em {{currency}}, perdem essa parte do seu valor em GBP. As posições em GBP e GBX nunca se alteram.",
+    "run": "Executar choque cambial",
+    "owner": "Titular",
+    "exposed": "Exposição a {{currency}}",
+    "baseline": "Base",
+    "shocked": "Após choque",
+    "delta": "Variação",
+    "impact": "% impacto",
+    "unconverted": "Não avaliadas, por isso excluídas de ambos os totais (sem taxa de câmbio utilizável): {{holdings}}",
+    "skippedUnknown_one": "{{count}} posição com moeda desconhecida não foi sujeita ao choque.",
+    "skippedUnknown_other": "{{count}} posições com moeda desconhecida não foram sujeitas ao choque.",
+    "errors": {
+      "invalidCurrency": "Introduza um código de moeda de 3 letras.",
+      "sterling": "GBP e GBX não podem variar face à GBP.",
+      "invalidPct": "Introduza uma variação superior a -100% e no máximo de 1000%."
+    }
   }
 }

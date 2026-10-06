@@ -38,6 +38,7 @@ import type {
   MoverRow,
   TimeseriesSummary,
   ScenarioResult,
+  FxScenarioResult,
   ScenarioEvent,
   NewCashPlan,
   AllocationPolicy,
@@ -790,6 +791,24 @@ export const getGroupMovers = (
 export const getEvents = () => fetchJson<ScenarioEvent[]>(`${API_BASE}/events`);
 
 /** Apply a predefined scenario to all portfolios. */
+/**
+ * Revalue every portfolio for `currency` moving `pct` percent against GBP.
+ * `pct` is the change in the GBP value of one unit of `currency`:
+ * `{ currency: "USD", pct: -10 }` means USD weakens 10% against GBP.
+ */
+export const runFxScenario = ({
+  currency,
+  pct,
+}: {
+  currency: string;
+  pct: number;
+}) => {
+  const params = new URLSearchParams({ currency, pct: String(pct) });
+  return fetchJson<FxScenarioResult[]>(
+    `${API_BASE}/scenario/fx?${params.toString()}`,
+  );
+};
+
 export const runScenario = ({
   event_id,
   horizons,

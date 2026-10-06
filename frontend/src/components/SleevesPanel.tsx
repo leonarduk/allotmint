@@ -338,7 +338,7 @@ function HoldingAssignments({
 }) {
   const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
-  const holdings = data.holdings ?? [];
+  const holdings = data.holdings;
   if (holdings.length === 0) return null;
 
   async function assign(ticker: string, sleeveId: string) {

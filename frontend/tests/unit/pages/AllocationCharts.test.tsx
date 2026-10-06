@@ -535,6 +535,7 @@ describe("AllocationCharts page", () => {
         { id: "sleeve-1", name: "Speculative", size_pct: 10, targets: { equity: 100 }, strategy: null },
       ],
       assignments,
+      holdings: [],
     });
 
     it("groups value by each owner's sleeve tags", async () => {
@@ -565,6 +566,20 @@ describe("AllocationCharts page", () => {
         ]),
       );
       expect(screen.getByTestId("sleeve-note")).toBeInTheDocument();
+    });
+
+    it("shows everything as core when no owner has sleeves", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetSleeves.mockResolvedValue({
+        sleeves: [{ id: "core", name: "Core", size_pct: 100, targets: {}, strategy: null }],
+        assignments: {},
+        holdings: [],
+      });
+      render(<AllocationCharts />, "/allocation?view=sleeve");
+      const slices = await screen.findByTestId("pie-slices");
+      await waitFor(() =>
+        expect(within(slices).getAllByTestId("slice-row").map((el) => el.textContent)).toEqual(["Core: 100"]),
+      );
     });
 
     it("shows the error when sleeves cannot be loaded", async () => {

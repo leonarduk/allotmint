@@ -1182,10 +1182,19 @@ export interface RebalanceSleeveRow {
   current_value: number;
   size_current_pct: number;
   size_drift_pct: number;
+  /** Allowed size drift (pp): the drift tolerance or 25% of the target, whichever is smaller. */
+  size_band_pct: number;
   in_band: boolean | null;
-  strategy: { id: string; name: string } | null;
+  strategy: SleeveStrategy | null;
   /** The sleeve's own drift and trades; absent on the core row (the top-level plan). */
   plan?: RebalancePlan;
+}
+
+/** The strategy a sleeve's targets came from. */
+export interface SleeveStrategy {
+  id: string;
+  name: string;
+  applied_at?: string | null;
 }
 
 /** A share of the portfolio with its own targets (#9813). The core is sized by the rest. */
@@ -1194,7 +1203,7 @@ export interface Sleeve {
   name: string;
   size_pct: number;
   targets: Record<string, number>;
-  strategy: { id: string; name: string; applied_at?: string | null } | null;
+  strategy: SleeveStrategy | null;
 }
 
 export interface SleeveHolding {
@@ -1208,7 +1217,7 @@ export interface SleeveList {
   sleeves: Sleeve[];
   /** Ticker -> sleeve id; untagged tickers are in the core. */
   assignments: Record<string, string>;
-  holdings?: SleeveHolding[];
+  holdings: SleeveHolding[];
   /** Why stored sleeves were ignored on load (e.g. sizes no longer leave room for the core). */
   warnings?: string[];
 }

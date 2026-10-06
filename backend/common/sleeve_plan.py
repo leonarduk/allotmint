@@ -44,6 +44,17 @@ def sleeve_policy(setup: SleeveSetup, sleeve_id: str, policy: AllocationPolicy) 
     return AllocationPolicy(targets=dict(sleeve.targets), tolerance_pct=policy.tolerance_pct)
 
 
+#: A sleeve is out of band once its size drifts by the drift tolerance or by
+#: this share of its own target, whichever is smaller (the "5/25" rule). A
+#: flat 5pp band would let a 10% sleeve reach 15% unnoticed.
+SIZE_RELATIVE_BAND = 0.25
+
+
+def size_band(target_pct: float, tolerance_pct: float) -> float:
+    """Allowed size drift in pp for a sleeve with ``target_pct`` of the portfolio."""
+    return min(tolerance_pct, target_pct * SIZE_RELATIVE_BAND)
+
+
 def _pct(value: float, total: float) -> float:
     return value / total * 100.0 if total > 0 else 0.0
 
@@ -58,6 +69,7 @@ def _size_row(
 ) -> dict[str, Any]:
     current = _pct(value, total)
     drift = current - target
+    band = size_band(target, tolerance)
     return {
         "id": sleeve_id,
         "name": name,
@@ -65,14 +77,15 @@ def _size_row(
         "current_value": round(value, 2),
         "size_current_pct": round(current, 2),
         "size_drift_pct": round(drift, 2),
-        "in_band": abs(drift) <= tolerance if total > 0 else None,
+        "size_band_pct": round(band, 2),
+        "in_band": abs(drift) <= band if total > 0 else None,
     }
 
 
-def _size_notes(rows: list[dict[str, Any]], tolerance: float) -> list[str]:
+def _size_notes(rows: list[dict[str, Any]]) -> list[str]:
     return [
         f"The {row['name']} sleeve is {row['size_current_pct']:.2f}% of the portfolio against a "
-        f"{row['size_target_pct']:.2f}% target (more than {tolerance:g}pp out); move money between sleeves "
+        f"{row['size_target_pct']:.2f}% target (more than {row['size_band_pct']:g}pp out); move money between sleeves "
         "or change the sleeve size."
         for row in rows
         if row["in_band"] is False
@@ -105,7 +118,7 @@ def build_sleeved_plan(
     core["notes"] = [
         f"Drift and trades for the Core sleeve cover £{core['total_value']:,.2f} of the £{total:,.2f} portfolio; "
         "other sleeves are planned separately.",
-        *_size_notes(rows, tolerance),
+        *_size_notes(rows),
         *core["notes"],
     ]
     return core

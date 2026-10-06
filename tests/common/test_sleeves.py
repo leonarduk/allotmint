@@ -9,7 +9,7 @@ import pytest
 from backend.common.allocation_policy import AllocationPolicy
 from backend.common.rebalance_plan import build_plan
 from backend.common.settings_file import SettingsUnreadableError
-from backend.common.sleeve_plan import build_sleeved_plan, sleeve_new_cash, split_portfolio
+from backend.common.sleeve_plan import build_sleeved_plan, size_band, sleeve_new_cash, split_portfolio
 from backend.common.sleeves import (
     CORE_ID,
     CoreSleeveError,
@@ -262,3 +262,45 @@ def test_sleeve_sizes_cover_the_whole_portfolio(root):
     assert plan["portfolio_total"] == 1150.0
     assert sum(row["size_current_pct"] for row in plan["sleeves"]) == pytest.approx(100.0, abs=0.02)
     assert sum(row["current_value"] for row in plan["sleeves"]) == pytest.approx(1150.0)
+
+
+@pytest.mark.parametrize(
+    "target, tolerance, band",
+    [(10.0, 5.0, 2.5), (90.0, 5.0, 5.0), (2.0, 5.0, 0.5), (40.0, 3.0, 3.0)],
+)
+def test_size_band_is_the_smaller_of_absolute_and_relative(target, tolerance, band):
+    assert size_band(target, tolerance) == band
+
+
+def test_speculative_sleeve_at_14_against_10_is_flagged(root):
+    """The issue's own example: 4pp over a 10% target is out of band at a 5pp class tolerance."""
+    setup, sleeve = _setup(root)
+    portfolio = {
+        "accounts": [
+            {
+                "account_type": "SIPP",
+                "_account_stem": "sipp",
+                "holdings": [
+                    {"ticker": "CORE.L", "market_value_gbp": 860.0, "asset_class": "equity"},
+                    {"ticker": "MOON.L", "market_value_gbp": 140.0, "asset_class": "equity"},
+                ],
+            }
+        ]
+    }
+    plan = build_sleeved_plan(portfolio, AllocationPolicy(targets={"equity": 100.0}, tolerance_pct=5.0), setup)
+    core_row, spec_row = plan["sleeves"]
+    assert spec_row["size_current_pct"] == 14.0 and spec_row["size_band_pct"] == 2.5
+    assert spec_row["in_band"] is False
+    # The core is 86% against 90%: inside its 5pp band.
+    assert core_row["in_band"] is True
+    assert any("Speculative sleeve is 14.00%" in n and "2.5pp" in n for n in plan["notes"])
+
+
+def test_new_cash_into_a_sleeve_the_account_holds_nothing_in(root):
+    setup, sleeve = _setup(root)
+    portfolio = _portfolio()
+    portfolio["accounts"].append({"account_type": "ISA", "_account_stem": "isa", "holdings": []})
+    result = sleeve_new_cash(portfolio, AllocationPolicy(targets={"equity": 100.0}), setup, sleeve.id, 100.0, "isa")
+    assert result["account_id"] == "isa"
+    assert {t["asset_class"]: t["amount"] for t in result["trades"]} == {"equity": 70.0, "commodity": 30.0}
+    assert all(t["ticker"] is None for t in result["trades"])

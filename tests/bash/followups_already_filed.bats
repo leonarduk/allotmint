@@ -65,6 +65,22 @@ pages() {
   [ "$output" = "skip=true" ]
 }
 
+@test "a closed follow-up still blocks re-filing (state=all)" {
+  write_fake_gh "$(pages '[{"number":1,"state":"closed","body":"_Follow-up from AI review of PR #42._"}]')"
+  run --separate-stderr bash "$SCRIPT" 42
+  [ "$output" = "skip=true" ]
+  grep -q "state=all" "$CALL_LOG"
+}
+
+@test "without SINCE it scans everything and says so on stderr" {
+  write_fake_gh "$(pages '[]')"
+  run --separate-stderr bash "$SCRIPT" 42
+  [ "$status" -eq 0 ]
+  [ "$output" = "skip=false" ]
+  [[ "$stderr" == *"SINCE not set"* ]]
+  run ! grep -q "since=" "$CALL_LOG"
+}
+
 @test "files when no follow-up for this PR exists" {
   write_fake_gh "$(pages '[{"number":1,"body":"_Follow-up from AI review of PR #41._"}]')"
   run --separate-stderr bash "$SCRIPT" 42

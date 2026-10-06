@@ -25,6 +25,7 @@ import {
   countsTowardPensionForecast,
 } from "../utils/accountTypes";
 import { humanizeForecastError } from "../utils/forecastErrors";
+import { ageInWholeYears } from "../utils/age";
 import {
   FULL_NEW_STATE_PENSION_ANNUAL_GBP,
   FULL_NEW_STATE_PENSION_WEEKLY_GBP,
@@ -300,6 +301,11 @@ export default function PensionForecast() {
 
   const displayedCurrentAge = currentAge ?? profile?.current_age ?? null;
   const displayedDob = dob ?? profile?.dob ?? null;
+  // Prefer calendar age from the DOB: the API's fractional age (days / 365.25)
+  // can't be rounded or floored into the right whole number reliably.
+  const displayedWholeAge =
+    ageInWholeYears(displayedDob) ??
+    (displayedCurrentAge != null ? Math.floor(displayedCurrentAge) : null);
   const displayedStatePensionAge =
     forecastStatePensionAge ?? profile?.state_pension_age ?? null;
   // The forecast's breakdown only counts the state pension once it's being
@@ -751,9 +757,7 @@ export default function PensionForecast() {
                   className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900"
                   aria-labelledby="age-now-label"
                 >
-                  {displayedCurrentAge != null
-                    ? Math.floor(displayedCurrentAge)
-                    : "—"}
+                  {displayedWholeAge ?? "—"}
                 </p>
                 <p className="text-xs text-slate-500">
                   {displayedDob
@@ -775,7 +779,7 @@ export default function PensionForecast() {
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
                   value={plannedRetirementAge}
                   onChange={(e) => setPlannedRetirementAge(e.target.value)}
-                  min={displayedCurrentAge != null ? Math.floor(displayedCurrentAge) : 40}
+                  min={displayedWholeAge ?? 40}
                   // Matches the backend's `le=100` on retirement_age.
                   max={100}
                   placeholder={t("pensionForecast.ages.retirementAgePlaceholder")}
@@ -871,7 +875,7 @@ export default function PensionForecast() {
             {currentAge !== null && dob && (
               <InfoLine
                 label={t("pensionForecast.currentAge", {
-                  age: Math.round(currentAge),
+                  age: ageInWholeYears(dob) ?? Math.floor(currentAge),
                 })}
                 value={t("pensionForecast.birthDate", { dob })}
               />

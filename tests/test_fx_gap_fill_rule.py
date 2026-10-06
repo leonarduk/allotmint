@@ -184,6 +184,54 @@ def test_ledger_closes_and_series_closes_agree_date_for_date_over_a_ten_day_fx_g
     assert (entry["first"], entry["last"]) == ("2024-01-11", "2024-01-15")
 
 
+@pytest.mark.parametrize(
+    "window",
+    [
+        (dt.date(2024, 3, 1), dt.date(2024, 3, 5)),  # FX cache stale by more than the gap window
+        (dt.date(2023, 6, 1), dt.date(2023, 6, 5)),  # before the stored history starts
+    ],
+)
+def test_cache_only_window_with_no_qualifying_rate_gets_nan_close_gbp_not_no_column(
+    cached_usd, monkeypatch: pytest.MonkeyPatch, window
+) -> None:
+    """No column would mean "never converted", which readers answer with the native close (#7722)."""
+    start, end = window
+    days = [d.date() for d in pd.bdate_range(start, end)]
+    monkeypatch.setattr(cache, "_memoized_range", lambda *_args: _closes_frame(days))
+    queued: list[tuple[str, str]] = []
+    monkeypatch.setattr(cache.refresh_queue, "enqueue", lambda ticker, exchange: queued.append((ticker, exchange)))
+
+    with cache.cache_only():
+        df = cache.load_meta_timeseries_range("USCO", "N", start, end)
+
+    assert "Close_gbp" in df.columns
+    assert df["Close_gbp"].isna().all()
+    assert df["Close"].tolist() == [100.0] * len(days)
+    if start > JAN[-1]:
+        assert queued == [("USCO", "N")]  # the stale FX cache is still queued for a refresh
+
+
+def test_cross_currency_gap_in_the_base_leg_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """USD prices in EUR: a date without a EUR rate in the window has no Close_eur."""
+    eur = {day: 0.9 for day in JAN if day <= dt.date(2024, 1, 5)}
+
+    def fake_fx(base, quote, start, end):
+        rates = RATES if base == "USD" else eur
+        days = [day for day in rates if start <= day <= end]
+        return pd.DataFrame({"Date": days, "Rate": [rates[day] for day in days]})
+
+    monkeypatch.setattr(cache, "_memoized_range", lambda *_args: _closes_frame(JAN[:10]))
+    monkeypatch.setattr(cache, "fetch_fx_rate_range", fake_fx)
+    monkeypatch.setattr(cache, "get_instrument_meta", lambda _t: {"currency": "USD"})
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+
+    df = cache.load_meta_timeseries_range("USCO", "N", JAN[0], JAN[9], base_currency="EUR")
+
+    by_day = dict(zip(df["Date"].dt.date, df["Close_eur"]))
+    assert by_day[dt.date(2024, 1, 10)] == pytest.approx(100.0 * 0.8 / 0.9)
+    assert pd.isna(by_day[dt.date(2024, 1, 11)])  # EUR rate six days old
+
+
 # ──────────────────────────────────────────────────────────────
 # load_gbp_closes never falls back to the native close (#7722)
 # ──────────────────────────────────────────────────────────────

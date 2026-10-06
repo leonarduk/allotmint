@@ -1084,7 +1084,8 @@ def _cached_fx_rates(curr: str, start: date, end: date, *, ticker: str, exchange
     """Stored ``curr``->GBP rates that can apply to ``start``..``end``, from the FX cache, without fetching.
 
     Returns the stored rows themselves (from :data:`_MAX_FX_GAP_FILL_DAYS`
-    before ``start`` to ``end``), not one row per day: the caller aligns them
+    before ``start`` to ``end``; the latest stored row when none fall there),
+    not one row per day: the caller aligns them
     to its price dates with :func:`align_fx_rates`, once, so the gap window
     is applied exactly once (#9759). With no cache file at all this falls
     back to the same approximate constant a failed live fetch returns -- or,
@@ -1105,7 +1106,15 @@ def _cached_fx_rates(curr: str, start: date, end: date, *, ticker: str, exchange
         fx["Date"] = pd.to_datetime(fx["Date"])
         return fx
     days = cached["Date"].dt.date
-    return cached.loc[(days >= lookback) & (days <= end), ["Date", "Rate"]].reset_index(drop=True)
+    window = cached.loc[(days >= lookback) & (days <= end), ["Date", "Rate"]]
+    if window.empty:
+        # Rates are stored, but none can apply (the cache is stale, or the
+        # window is before the history starts). Hand back the latest stored
+        # row, which aligns to NaN, so the prices get NaN Close_gbp -- missing
+        # -- rather than no column, which means "never converted" and lets
+        # readers fall back to the native close (#7722).
+        window = cached[["Date", "Rate"]].tail(1)
+    return window.reset_index(drop=True)
 
 
 def cached_fx_rate_to_gbp(curr: str) -> float | None:

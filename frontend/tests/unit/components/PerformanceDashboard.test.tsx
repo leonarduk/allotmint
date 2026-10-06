@@ -13,6 +13,7 @@ import {
   getGroupAlphaVsBenchmark,
   getGroupTrackingError,
   getGroupMaxDrawdown,
+  getFxAttribution,
 } from "@/api";
 
 vi.mock("@/api", () => ({
@@ -24,11 +25,13 @@ vi.mock("@/api", () => ({
   getGroupAlphaVsBenchmark: vi.fn(),
   getGroupTrackingError: vi.fn(),
   getGroupMaxDrawdown: vi.fn(),
+  getFxAttribution: vi.fn(),
 }));
 
 describe("PerformanceDashboard", () => {
   beforeEach(() => {
     i18n.changeLanguage("en");
+    vi.mocked(getFxAttribution).mockResolvedValue({ owner: "jane", fx_attribution: null });
     vi.mocked(getAlphaVsBenchmark).mockResolvedValue({
       alpha_vs_benchmark: 0.01,
     });

@@ -368,7 +368,28 @@
     "timeWeightedReturnInfoLabel": "What does Time-Weighted Return mean?",
     "timeWeightedReturnInfo": "Time-weighted return measures the portfolio's compounded growth rate, independent of the timing and size of deposits and withdrawals.",
     "xirrInfoLabel": "What does XIRR mean?",
-    "xirrInfo": "XIRR is the annualised internal rate of return calculated from the portfolio's actual dated cash flows."
+    "xirrInfo": "XIRR is the annualised internal rate of return calculated from the portfolio's actual dated cash flows.",
+    "fxAttribution": {
+      "title": "Where the P&L came from",
+      "description": "The portfolio's GBP profit or loss over the selected range, split into local price moves, currency moves, income, and trading and other effects.",
+      "local": "Local price moves",
+      "fx": "Currency moves",
+      "income": "Income",
+      "other": "Trading & other",
+      "unattributed": "Unattributed",
+      "total": "Total P&L",
+      "byCurrency": "By quote currency",
+      "currency": "Currency",
+      "notApplicable": "n/a",
+      "quoteCurrencyNote": "By quote currency: GBP-listed foreign funds count as local.",
+      "cashNotModelled": "Cash is not included: the transaction ledger records cash in GBP, so currency moves on foreign cash balances are not measured.",
+      "coverage": "Covers {{share}} of portfolio value ({{ledger}} rebuilt from transaction ledgers, of {{portfolio}}).",
+      "coverageUnknown": "Coverage unknown: the portfolio has no current value to compare with.",
+      "unreconciled": "Holdings the transaction ledger does not reproduce, so they are not attributed: {{holdings}}",
+      "unconverted": "No stored FX rate on some days for {{holdings}}; those days' moves are unattributed.",
+      "noLedger": "No transaction ledger to attribute.",
+      "unavailable": "The P&L attribution is unavailable right now."
+    }
   },
   "goals": {
     "add": "Add Goal",

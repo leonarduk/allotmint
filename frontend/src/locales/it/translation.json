@@ -374,7 +374,28 @@
     "timeWeightedReturnInfoLabel": "Cosa significa il rendimento ponderato nel tempo?",
     "timeWeightedReturnInfo": "Il rendimento ponderato nel tempo misura il tasso di crescita composto del portafoglio, indipendentemente dal momento e dall'importo di versamenti e prelievi.",
     "xirrInfoLabel": "Cosa significa XIRR?",
-    "xirrInfo": "XIRR è il tasso interno di rendimento annualizzato, calcolato sui flussi di cassa datati effettivi del portafoglio."
+    "xirrInfo": "XIRR è il tasso interno di rendimento annualizzato, calcolato sui flussi di cassa datati effettivi del portafoglio.",
+    "fxAttribution": {
+      "title": "Da dove è venuto il risultato",
+      "description": "L'utile o la perdita in GBP del portafoglio nel periodo selezionato, suddiviso tra movimenti di prezzo locali, movimenti di cambio, proventi, e operazioni e altri effetti.",
+      "local": "Movimenti di prezzo locali",
+      "fx": "Movimenti di cambio",
+      "income": "Proventi",
+      "other": "Operazioni e altro",
+      "unattributed": "Non attribuito",
+      "total": "Risultato totale",
+      "byCurrency": "Per valuta di quotazione",
+      "currency": "Valuta",
+      "notApplicable": "n/d",
+      "quoteCurrencyNote": "Per valuta di quotazione: i fondi esteri quotati in GBP contano come locali.",
+      "cashNotModelled": "La liquidità non è inclusa: il registro delle transazioni registra la liquidità in GBP, quindi i movimenti di cambio sui saldi in valuta estera non sono misurati.",
+      "coverage": "Copre il {{share}} del valore del portafoglio ({{ledger}} ricostruito dai registri delle transazioni, su {{portfolio}}).",
+      "coverageUnknown": "Copertura sconosciuta: il portafoglio non ha un valore attuale con cui confrontare.",
+      "unreconciled": "Posizioni che il registro delle transazioni non riproduce, quindi non attribuite: {{holdings}}",
+      "unconverted": "Nessun tasso di cambio memorizzato in alcuni giorni per {{holdings}}; i movimenti di quei giorni non sono attribuiti.",
+      "noLedger": "Nessun registro delle transazioni da attribuire.",
+      "unavailable": "L'attribuzione del risultato non è disponibile al momento."
+    }
   },
   "goals": {
     "add": "Aggiungi obiettivo",

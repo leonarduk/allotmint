@@ -374,7 +374,28 @@
     "timeWeightedReturnInfoLabel": "O que significa o retorno ponderado no tempo?",
     "timeWeightedReturnInfo": "O retorno ponderado no tempo mede a taxa de crescimento composta da carteira, independentemente do momento e do montante dos depósitos e levantamentos.",
     "xirrInfoLabel": "O que significa XIRR?",
-    "xirrInfo": "A XIRR é a taxa interna de rentabilidade anualizada, calculada a partir dos fluxos de caixa datados reais da carteira."
+    "xirrInfo": "A XIRR é a taxa interna de rentabilidade anualizada, calculada a partir dos fluxos de caixa datados reais da carteira.",
+    "fxAttribution": {
+      "title": "De onde veio o resultado",
+      "description": "O ganho ou perda em GBP da carteira no período selecionado, dividido em movimentos de preço locais, movimentos cambiais, rendimentos, e negociação e outros efeitos.",
+      "local": "Movimentos de preço locais",
+      "fx": "Movimentos cambiais",
+      "income": "Rendimentos",
+      "other": "Negociação e outros",
+      "unattributed": "Não atribuído",
+      "total": "Resultado total",
+      "byCurrency": "Por moeda de cotação",
+      "currency": "Moeda",
+      "notApplicable": "n/d",
+      "quoteCurrencyNote": "Por moeda de cotação: fundos estrangeiros cotados em GBP contam como locais.",
+      "cashNotModelled": "O numerário não está incluído: o registo de transações regista o numerário em GBP, por isso os movimentos cambiais em saldos em moeda estrangeira não são medidos.",
+      "coverage": "Cobre {{share}} do valor da carteira ({{ledger}} reconstruído a partir dos registos de transações, de {{portfolio}}).",
+      "coverageUnknown": "Cobertura desconhecida: a carteira não tem um valor atual para comparar.",
+      "unreconciled": "Posições que o registo de transações não reproduz, por isso não são atribuídas: {{holdings}}",
+      "unconverted": "Sem taxa de câmbio guardada em alguns dias para {{holdings}}; os movimentos desses dias não são atribuídos.",
+      "noLedger": "Não há registo de transações para atribuir.",
+      "unavailable": "A atribuição do resultado não está disponível de momento."
+    }
   },
   "goals": {
     "add": "Adicionar meta",

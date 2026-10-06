@@ -374,7 +374,28 @@
     "timeWeightedReturnInfoLabel": "Was bedeutet zeitgewichtete Rendite?",
     "timeWeightedReturnInfo": "Die zeitgewichtete Rendite misst die aufgezinste Wachstumsrate des Portfolios, unabhängig von Zeitpunkt und Höhe von Ein- und Auszahlungen.",
     "xirrInfoLabel": "Was bedeutet XIRR?",
-    "xirrInfo": "XIRR ist der annualisierte interne Zinsfuß, berechnet aus den tatsächlichen, datierten Zahlungsströmen des Portfolios."
+    "xirrInfo": "XIRR ist der annualisierte interne Zinsfuß, berechnet aus den tatsächlichen, datierten Zahlungsströmen des Portfolios.",
+    "fxAttribution": {
+      "title": "Woher der Gewinn/Verlust kam",
+      "description": "Der Gewinn oder Verlust des Portfolios in GBP im gewählten Zeitraum, aufgeteilt in lokale Kursbewegungen, Währungsbewegungen, Erträge sowie Handel und Sonstiges.",
+      "local": "Lokale Kursbewegungen",
+      "fx": "Währungsbewegungen",
+      "income": "Erträge",
+      "other": "Handel & Sonstiges",
+      "unattributed": "Nicht zugeordnet",
+      "total": "Gesamt-G/V",
+      "byCurrency": "Nach Notierungswährung",
+      "currency": "Währung",
+      "notApplicable": "k. A.",
+      "quoteCurrencyNote": "Nach Notierungswährung: In GBP notierte Auslandsfonds zählen als lokal.",
+      "cashNotModelled": "Bargeld ist nicht enthalten: Das Transaktionsbuch erfasst Bargeld in GBP, daher werden Währungsbewegungen auf Fremdwährungsguthaben nicht gemessen.",
+      "coverage": "Deckt {{share}} des Portfoliowerts ab ({{ledger}} aus Transaktionsbüchern rekonstruiert, von {{portfolio}}).",
+      "coverageUnknown": "Abdeckung unbekannt: Das Portfolio hat keinen aktuellen Wert zum Vergleich.",
+      "unreconciled": "Positionen, die das Transaktionsbuch nicht nachbildet und die daher nicht zugeordnet werden: {{holdings}}",
+      "unconverted": "Kein gespeicherter Wechselkurs an einigen Tagen für {{holdings}}; die Bewegungen dieser Tage sind nicht zugeordnet.",
+      "noLedger": "Kein Transaktionsbuch zum Zuordnen.",
+      "unavailable": "Die G/V-Zuordnung ist derzeit nicht verfügbar."
+    }
   },
   "goals": {
     "add": "Ziel hinzufügen",

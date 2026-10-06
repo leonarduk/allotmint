@@ -132,7 +132,12 @@ export default function MarketOverview() {
     setIndexes(null);
     setIndexError(null);
     getMarketIndexes(next, controller.signal)
-      .then((res) => setIndexes(res.indexes))
+      .then((res) => {
+        // A response that resolved before the abort must not overwrite the
+        // newer period's bars.
+        if (controller.signal.aborted) return;
+        setIndexes(res.indexes);
+      })
       .catch((e) => {
         if (controller.signal.aborted) return;
         setIndexError(e instanceof Error ? e.message : String(e));

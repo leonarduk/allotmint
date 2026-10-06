@@ -366,6 +366,31 @@ describe("MarketOverview change period", () => {
     expect(mockGetMarketOverview).toHaveBeenCalledTimes(1);
   });
 
+  it("ignores a superseded period's late response", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
+    let resolveWeek: (value: any) => void = () => {};
+    mockGetMarketIndexes
+      .mockReturnValueOnce(new Promise((resolve) => (resolveWeek = resolve)))
+      .mockResolvedValueOnce({
+        period: "1Y",
+        indexes: { "FTSE 100": { value: 9000, change: 12.5 } },
+      });
+    render(<MarketOverview />);
+
+    fireEvent.click(await screen.findByRole("radio", { name: "1 week" }));
+    fireEvent.click(screen.getByRole("radio", { name: "1 year" }));
+    expect(await screen.findByText("12.50%")).toBeInTheDocument();
+
+    resolveWeek({
+      period: "1W",
+      indexes: { "FTSE 100": { value: 9100, change: 1.5 } },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(screen.getByText("12.50%")).toBeInTheDocument();
+    expect(screen.queryByText("1.50%")).not.toBeInTheDocument();
+  });
+
   it("shows the backend error when a period's indexes fail", async () => {
     mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);
     mockGetMarketIndexes.mockRejectedValueOnce(new Error("Index data is unavailable"));

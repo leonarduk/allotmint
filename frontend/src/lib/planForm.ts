@@ -98,6 +98,13 @@ const TARGET_SUM_TOLERANCE_PCT = 0.01;
 const NUMBER_RE = /^-?\d+(\.\d+)?$/;
 
 /** Text -> scalar: numbers and true/false keep their JSON type; blank is undefined. */
+/** Text -> number when it is one, else trimmed text; blank is undefined (evidence values take no booleans). */
+export function parseNumberOrText(text: string): string | number | undefined {
+  const trimmed = text.trim();
+  if (!trimmed) return undefined;
+  return NUMBER_RE.test(trimmed) ? Number(trimmed) : trimmed;
+}
+
 export function parseScalar(
   text: string
 ): string | number | boolean | undefined {
@@ -234,7 +241,8 @@ export function toPlan(
       .map((e) => ({
         as_of: e.as_of,
         metric: e.metric.trim(),
-        value: parseScalar(e.value) as string | number,
+        // Blank is left for the backend to reject as a missing value.
+        value: parseNumberOrText(e.value) as string | number,
         basis: optional(e.basis),
         source: optional(e.source),
       })),
@@ -250,8 +258,8 @@ export function toPlan(
 /** Sum of the target weights that parse as numbers. */
 export function targetTotal(rows: TargetRow[]): number {
   return rows.reduce((sum, r) => {
-    const value = parseFloat(r.weight);
-    return Number.isFinite(value) ? sum + value : sum;
+    const weight = r.weight.trim();
+    return NUMBER_RE.test(weight) ? sum + Number(weight) : sum;
   }, 0);
 }
 

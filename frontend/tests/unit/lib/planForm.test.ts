@@ -4,6 +4,7 @@ import {
   emptyPlanForm,
   formErrors,
   fromPlan,
+  parseNumberOrText,
   parseScalar,
   targetTotal,
   toPlan,
@@ -100,12 +101,36 @@ describe('planForm', () => {
     expect(parseScalar('')).toBeUndefined();
   });
 
+  it('keeps true/false as text in evidence values', () => {
+    expect(parseNumberOrText('true')).toBe('true');
+    expect(parseNumberOrText(' 40.6 ')).toBe(40.6);
+    expect(parseNumberOrText(' ')).toBeUndefined();
+    const out = toPlan(
+      {
+        ...emptyPlanForm(),
+        evidence: [
+          {
+            as_of: '2026-10-06',
+            metric: 'Hedged',
+            value: 'true',
+            basis: '',
+            source: '',
+          },
+        ],
+      },
+      'alex',
+      '2026-10-06'
+    );
+    expect(out.evidence[0].value).toBe('true');
+  });
+
   it('totals only numeric target weights', () => {
     expect(
       targetTotal([
         { class: 'equity', weight: '60' },
         { class: 'gold', weight: '' },
         { class: 'cash', weight: '12.5' },
+        { class: 'commodities', weight: '5abc' },
       ])
     ).toBe(72.5);
   });

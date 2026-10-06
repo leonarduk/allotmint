@@ -10,6 +10,7 @@ from backend.routes.agent import router as agent_router
 from backend.routes.alert_settings import router as alert_settings_router
 from backend.routes.alerts import router as alerts_router
 from backend.routes.analytics import router as analytics_router
+from backend.routes.app_update import router as app_update_router
 from backend.routes.approvals import router as approvals_router
 from backend.routes.aws_costs_admin import router as aws_costs_admin_router
 from backend.routes.chat import create_router as create_chat_router
@@ -92,6 +93,10 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(screener_router)
     app.include_router(create_signup_router(app.state.limiter, cfg.signup_rate_limit))
     app.include_router(support_router)
+    if cfg.app_env == "local":
+        # Self-update pulls into the local git checkout; AWS runs an immutable
+        # Lambda image, so the route only exists for local deployments.
+        app.include_router(app_update_router, dependencies=protected)
     app.include_router(query_router, dependencies=protected)
     app.include_router(virtual_portfolio_router, dependencies=protected)
     app.include_router(metrics_router)

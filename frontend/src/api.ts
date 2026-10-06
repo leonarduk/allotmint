@@ -2607,6 +2607,49 @@ export const checkPortfolioHealth = () =>
  */
 export const getLogs = () => fetchText(`${API_BASE}/logs`);
 
+// ───────────── Local app self-update ─────────────
+// Only registered by the backend when app_env == "local" (a git checkout);
+// on AWS the route 404s and the Support page hides the section.
+export interface AppUpdateStatus {
+  can_update: boolean;
+  reason: string | null;
+  branch: string | null;
+  upstream: string | null;
+  current_commit: string | null;
+  upstream_commit: string | null;
+  behind: number;
+  ahead: number;
+  dirty: boolean;
+}
+
+export interface AppUpdateResult {
+  updated: boolean;
+  previous_commit: string;
+  current_commit: string;
+  changed_files: string[];
+  dependencies_changed: string[];
+  backend_changed: boolean;
+  frontend_changed: boolean;
+}
+
+// git fetch/merge can be slower than an ordinary API call on a cold remote.
+const APP_UPDATE_TIMEOUT_MS = 120000;
+
+/** `fetch=false` skips `git fetch`, reporting only against the last-fetched upstream. */
+export const getAppUpdateStatus = (fetch: boolean) =>
+  fetchJson<AppUpdateStatus>(
+    `${API_BASE}/support/app-update/status?fetch=${fetch}`,
+    {},
+    APP_UPDATE_TIMEOUT_MS,
+  );
+
+export const applyAppUpdate = () =>
+  fetchJson<AppUpdateResult>(
+    `${API_BASE}/support/app-update`,
+    { method: "POST" },
+    APP_UPDATE_TIMEOUT_MS,
+  );
+
 // ───────────── Account signup ─────────────
 export interface AccountSignupRequest {
   name: string;

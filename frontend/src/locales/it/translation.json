@@ -90,7 +90,9 @@
     "unknownCurrency": "Valuta sconosciuta",
     "viewAllocation": "Vedi allocazione per {{dimension}}",
     "viewContribution": "Vedi contributo ai guadagni",
-    "chartsUnavailable": "I grafici non sono disponibili in questo ambiente."
+    "chartsUnavailable": "I grafici non sono disponibili in questo ambiente.",
+    "sleeve": "Comparti",
+    "sleeveNote": "Valore in ogni comparto (nucleo e ad es. speculativo) in base alle assegnazioni di ciascun titolare; configurali nella pagina Strategia."
   },
   "app": {
     "close": "Chiudi",

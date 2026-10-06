@@ -102,7 +102,7 @@ def _holdings(owner: str, accounts_root: Path, setup: SleeveSetup) -> list[dict[
     return sorted(rows.values(), key=lambda r: (-r["value"], r["ticker"]))
 
 
-def _listing(owner: str, accounts_root: Path, include_holdings: bool = True) -> Dict[str, Any]:
+def _listing(owner: str, accounts_root: Path) -> Dict[str, Any]:
     setup = load_sleeves(owner, accounts_root)
     core = {
         "id": CORE_ID,
@@ -111,13 +111,12 @@ def _listing(owner: str, accounts_root: Path, include_holdings: bool = True) -> 
         "targets": load_allocation_policy(owner, accounts_root).targets,
         "strategy": active_strategy(owner, accounts_root),
     }
-    body: Dict[str, Any] = {
+    return {
         "sleeves": [core, *(s.to_dict() for s in setup.sleeves)],
         "assignments": dict(sorted(setup.assignments.items())),
+        "holdings": _holdings(owner, accounts_root, setup),
+        "warnings": list(setup.warnings),
     }
-    if include_holdings:
-        body["holdings"] = _holdings(owner, accounts_root, setup)
-    return body
 
 
 @router.get("/sleeves/{owner}")
@@ -144,11 +143,15 @@ def put_assignment(
     identity: Optional[str] = Depends(get_active_user),
 ):
     owner, accounts_root = _resolve_owner(request, owner, identity)
+    held = {row["ticker"] for row in _holdings(owner, accounts_root, load_sleeves(owner, accounts_root))}
+    if body.sleeve_id not in (None, "", CORE_ID) and ticker.strip().upper() not in held:
+        # A tag for a ticker the owner does not hold would never match anything.
+        raise HTTPException(status_code=400, detail=f"{ticker!r} is not one of this owner's holdings")
     try:
         assign_ticker(owner, ticker, body.sleeve_id, accounts_root)
     except _STORE_ERRORS as exc:
         raise _http_error(exc) from exc
-    return _listing(owner, accounts_root, include_holdings=False)
+    return _listing(owner, accounts_root)
 
 
 @router.put("/sleeves/{owner}/{sleeve_id}")

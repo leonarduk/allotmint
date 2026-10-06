@@ -51,6 +51,7 @@ def test_listing_has_only_core_by_default(client):
         {"id": "core", "name": "Core", "size_pct": 100.0, "targets": {}, "strategy": None},
     ]
     assert body["assignments"] == {}
+    assert body["warnings"] == []
     assert [(h["ticker"], h["value"], h["sleeve_id"]) for h in body["holdings"]] == [
         ("CORE.L", 900.0, "core"),
         ("MOON.L", 100.0, "core"),
@@ -102,7 +103,7 @@ def test_errors(client, tmp_path):
     assert client.post("/sleeves/alex", json={"name": "S", "size_pct": 10}).status_code == 400
     assert client.put("/sleeves/alex/core", json={"size_pct": 5}).status_code == 403
     assert client.delete("/sleeves/alex/sleeve-missing").status_code == 404
-    assert client.put("/sleeves/alex/assignments/X", json={"sleeve_id": "sleeve-missing"}).status_code == 404
+    assert client.put("/sleeves/alex/assignments/MOON.L", json={"sleeve_id": "sleeve-missing"}).status_code == 404
     (tmp_path / "accounts" / "alex" / "settings.json").write_text("{bad")
     assert (
         client.post("/sleeves/alex", json={"name": "S", "size_pct": 10, "targets": {"equity": 100}}).status_code == 409
@@ -121,3 +122,19 @@ def test_access_denied(client, monkeypatch):
     monkeypatch.setattr(sleeves_route, "ensure_owner_access", deny)
     with pytest.raises(PermissionDeniedError):
         client.get("/sleeves/alex")
+
+
+def test_tagging_a_ticker_not_held_is_rejected(client):
+    sleeve = _create(client, targets={"equity": 100})
+    resp = client.put("/sleeves/alex/assignments/TYPO.L", json={"sleeve_id": sleeve["id"]})
+    assert resp.status_code == 400
+    assert "not one of this owner's holdings" in resp.json()["detail"]
+    # Untagging needs no holding, so a stale tag can always be cleared.
+    assert client.put("/sleeves/alex/assignments/TYPO.L", json={"sleeve_id": None}).status_code == 200
+
+
+def test_assignment_response_matches_listing(client):
+    sleeve = _create(client, targets={"equity": 100})
+    body = client.put("/sleeves/alex/assignments/MOON.L", json={"sleeve_id": sleeve["id"]}).json()
+    assert body == client.get("/sleeves/alex").json()
+    assert {h["ticker"]: h["sleeve_id"] for h in body["holdings"]}["MOON.L"] == sleeve["id"]

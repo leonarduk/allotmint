@@ -1209,6 +1209,8 @@ export interface SleeveList {
   /** Ticker -> sleeve id; untagged tickers are in the core. */
   assignments: Record<string, string>;
   holdings?: SleeveHolding[];
+  /** Why stored sleeves were ignored on load (e.g. sizes no longer leave room for the core). */
+  warnings?: string[];
 }
 
 export interface SleeveInput {

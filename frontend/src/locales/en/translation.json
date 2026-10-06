@@ -90,7 +90,9 @@
     "unknownCurrency": "Unknown currency",
     "viewAllocation": "View allocation by {{dimension}}",
     "viewContribution": "View gain contribution",
-    "chartsUnavailable": "Charts are unavailable in this environment."
+    "chartsUnavailable": "Charts are unavailable in this environment.",
+    "sleeve": "Sleeves",
+    "sleeveNote": "Value in each sleeve (core and e.g. speculative), from each owner's sleeve tags; set them up on the Strategy page."
   },
   "app": {
     "close": "Close",

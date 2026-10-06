@@ -90,7 +90,9 @@
     "unknownCurrency": "Devise inconnue",
     "viewAllocation": "Voir la répartition par {{dimension}}",
     "viewContribution": "Voir la contribution aux gains",
-    "chartsUnavailable": "Les graphiques ne sont pas disponibles dans cet environnement."
+    "chartsUnavailable": "Les graphiques ne sont pas disponibles dans cet environnement.",
+    "sleeve": "Poches",
+    "sleeveNote": "Valeur de chaque poche (cœur et p. ex. spéculative) d'après les affectations de chaque titulaire ; configurez-les sur la page Stratégie."
   },
   "app": {
     "close": "Fermer",

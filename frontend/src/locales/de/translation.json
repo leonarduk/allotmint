@@ -90,7 +90,9 @@
     "unknownCurrency": "Unbekannte Währung",
     "viewAllocation": "Allokation nach {{dimension}} anzeigen",
     "viewContribution": "Gewinnbeitrag anzeigen",
-    "chartsUnavailable": "Diagramme sind in dieser Umgebung nicht verfügbar."
+    "chartsUnavailable": "Diagramme sind in dieser Umgebung nicht verfügbar.",
+    "sleeve": "Segmente",
+    "sleeveNote": "Wert je Segment (Kern und z. B. spekulativ) anhand der Segment-Zuordnungen jedes Eigentümers; einrichten auf der Seite Strategie."
   },
   "app": {
     "close": "Schließen",

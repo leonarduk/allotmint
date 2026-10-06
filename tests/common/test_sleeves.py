@@ -159,7 +159,21 @@ def test_invalid_stored_sleeve_is_skipped(root):
     (root / "alex" / "settings.json").write_text(
         json.dumps({"sleeves": [{"id": "sleeve-x", "name": "X", "size_pct": 10, "targets": {"equity": 50}}]})
     )
-    assert load_sleeves("alex", root).sleeves == []
+    setup = load_sleeves("alex", root)
+    assert setup.sleeves == []
+    assert setup.warnings == [
+        "A saved sleeve was ignored because it is invalid: Target weights must total 100%, got 50.00%"
+    ]
+
+
+def test_oversized_stored_sleeves_are_dropped_with_a_warning(root):
+    big = {"name": "A", "size_pct": 60, "targets": {"equity": 100}}
+    (root / "alex" / "settings.json").write_text(
+        json.dumps({"sleeves": [{**big, "id": "sleeve-a"}, {**big, "id": "sleeve-b", "name": "B"}]})
+    )
+    setup = load_sleeves("alex", root)
+    assert setup.sleeves == []
+    assert len(setup.warnings) == 1 and "everything counts as core" in setup.warnings[0]
 
 
 # ------------------------------------------------------------------ plans
@@ -235,3 +249,16 @@ def test_sleeve_new_cash_targets_that_sleeve(root):
     assert {t["asset_class"]: t["amount"] for t in result["trades"]} == {"equity": 70.0, "commodity": 30.0}
     with pytest.raises(ValueError, match="Unknown sleeve"):
         sleeve_new_cash(_portfolio(), policy, setup, "sleeve-missing", 100.0, "sipp")
+
+
+def test_sleeve_sizes_cover_the_whole_portfolio(root):
+    """Cash and unclassified holdings count towards their sleeve, so current sizes add up to 100%."""
+    sleeve = _spec(root)
+    assign_ticker("alex", "MOON.L", sleeve.id, root)
+    assign_ticker("alex", "ODD.L", sleeve.id, root)
+    portfolio = _portfolio()
+    portfolio["accounts"][0]["holdings"].append({"ticker": "ODD.L", "market_value_gbp": 50.0})
+    plan = build_sleeved_plan(portfolio, AllocationPolicy(targets={"equity": 100.0}), load_sleeves("alex", root))
+    assert plan["portfolio_total"] == 1150.0
+    assert sum(row["size_current_pct"] for row in plan["sleeves"]) == pytest.approx(100.0, abs=0.02)
+    assert sum(row["current_value"] for row in plan["sleeves"]) == pytest.approx(1150.0)

@@ -78,6 +78,8 @@ class SleeveSetup:
 
     sleeves: list[Sleeve] = field(default_factory=list)
     assignments: dict[str, str] = field(default_factory=dict)
+    #: Stored sleeves that were ignored on load, so the page can say why they are missing.
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def core_size_pct(self) -> float:
@@ -137,6 +139,7 @@ def _check_total(sleeves: list[Sleeve]) -> None:
 
 def _parse_setup(owner: str, data: Mapping[str, Any]) -> SleeveSetup:
     sleeves: list[Sleeve] = []
+    warnings: list[str] = []
     raw_list = data.get(SLEEVES_KEY)
     for raw in raw_list if isinstance(raw_list, list) else []:
         try:
@@ -145,10 +148,12 @@ def _parse_setup(owner: str, data: Mapping[str, Any]) -> SleeveSetup:
             sleeves.append(_parse_sleeve(raw))
         except ValueError as exc:
             logger.warning("Skipping invalid sleeve for %s: %s", sanitise_log_value(owner), sanitise_log_value(exc))
+            warnings.append(f"A saved sleeve was ignored because it is invalid: {exc}")
     try:
         _check_total(sleeves)
     except ValueError as exc:
         logger.warning("Ignoring sleeves for %s: %s", sanitise_log_value(owner), sanitise_log_value(exc))
+        warnings.append(f"All saved sleeves were ignored, so everything counts as core: {exc}")
         sleeves = []
     raw_tags = data.get(ASSIGNMENTS_KEY)
     assignments = {
@@ -156,7 +161,7 @@ def _parse_setup(owner: str, data: Mapping[str, Any]) -> SleeveSetup:
         for ticker, sleeve_id in (raw_tags.items() if isinstance(raw_tags, Mapping) else [])
         if isinstance(sleeve_id, str) and str(ticker).strip()
     }
-    return SleeveSetup(sleeves=sleeves, assignments=assignments)
+    return SleeveSetup(sleeves=sleeves, assignments=assignments, warnings=warnings)
 
 
 def load_sleeves(owner: str, accounts_root: Optional[Path] = None) -> SleeveSetup:

@@ -438,6 +438,15 @@ export default function SleevesPanel({
         {t('sleeves.help')}
       </p>
       {error && <p className="break-words text-sm text-red-600">{error}</p>}
+      {data?.warnings?.map((warning) => (
+        <p
+          key={warning}
+          role="alert"
+          className="mb-2 break-words text-sm text-amber-700 dark:text-amber-300"
+        >
+          {warning}
+        </p>
+      ))}
       {data && (
         <>
           <div className="overflow-x-auto">

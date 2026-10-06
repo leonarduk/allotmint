@@ -90,7 +90,9 @@
     "unknownCurrency": "Divisa desconocida",
     "viewAllocation": "Ver asignación por {{dimension}}",
     "viewContribution": "Ver contribución a las ganancias",
-    "chartsUnavailable": "Los gráficos no están disponibles en este entorno."
+    "chartsUnavailable": "Los gráficos no están disponibles en este entorno.",
+    "sleeve": "Bloques",
+    "sleeveNote": "Valor en cada bloque (núcleo y, p. ej., especulativo) según las asignaciones de cada titular; configúrelos en la página Estrategia."
   },
   "app": {
     "close": "Cerrar",

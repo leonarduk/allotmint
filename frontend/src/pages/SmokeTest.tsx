@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { API_BASE, fetchJson } from '../api';
 
 const endpoints = ['/health', '/owners', '/groups'];
@@ -10,6 +11,7 @@ interface Result {
 }
 
 export default function SmokeTest() {
+  const { t } = useTranslation();
   const [results, setResults] = useState<Result[]>([]);
 
   useEffect(() => {
@@ -31,11 +33,11 @@ export default function SmokeTest() {
 
   return (
     <div style={{ padding: '1rem' }}>
-      <h1>Smoke test</h1>
-      <ul aria-label="Smoke test results">
+      <h1>{t('smokeTest.title')}</h1>
+      <ul aria-label={t('smokeTest.results')}>
         {results.map((r) => (
           <li key={r.path} style={{ color: r.ok ? 'green' : 'red' }}>
-            {r.path}: {r.ok ? 'ok' : 'failed'}{' '}
+            {r.path}: {r.ok ? t('smokeTest.ok') : t('smokeTest.failed')}{' '}
             {r.status !== undefined && `(${r.status})`}
           </li>
         ))}

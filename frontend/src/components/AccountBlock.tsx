@@ -3,6 +3,7 @@
  * ------------------------------------------------------------------ */
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Account } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
@@ -35,6 +36,7 @@ export function AccountBlock({
     instrumentType?: string | null;
   } | null>(null);
   const { baseCurrency } = useConfig();
+  const { t } = useTranslation();
 
   return (
     <div className="mb-4 min-w-0 p-2 md:mb-8 md:p-4">
@@ -54,7 +56,7 @@ export function AccountBlock({
       {selected && (
         <>
           <div className="mb-2">
-            Est&nbsp;Value:&nbsp;
+            {t("accountBlock.estValue")}
             {account.value_estimate_gbp != null
               ? new Intl.NumberFormat(undefined, {
                   style: "currency",
@@ -68,7 +70,7 @@ export function AccountBlock({
 
           {account.last_updated && (
             <div className="text-muted">
-              Last updated:&nbsp;
+              {t("accountBlock.lastUpdated")}
               {formatDateISO(new Date(account.last_updated))}
             </div>
           )}

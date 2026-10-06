@@ -468,8 +468,10 @@ export function TopMoversPage() {
           </table>
           {data.signals.length > MAX_TRADING_SIGNAL_ROWS && (
             <p style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "#64748b" }}>
-              Showing first {MAX_TRADING_SIGNAL_ROWS.toLocaleString()} signals of{" "}
-              {data.signals.length.toLocaleString()}.
+              {t("topMoversPage.showingFirst", {
+                shown: MAX_TRADING_SIGNAL_ROWS.toLocaleString(),
+                total: data.signals.length.toLocaleString(),
+              })}
             </p>
           )}
         </>

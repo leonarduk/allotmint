@@ -5,6 +5,7 @@ import {
   useState,
   type CSSProperties,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
@@ -28,25 +29,26 @@ type SortKey = 'value' | 'gain' | 'vigour' | 'name';
 
 const SORTS: {
   id: SortKey;
-  label: string;
+  labelKey: string;
   compare: (a: Crop, b: Crop) => number;
 }[] = [
   {
     id: 'value',
-    label: 'Plot share',
+    labelKey: 'plot.roster.sortShare',
     compare: (a, b) => b.valueGbp - a.valueGbp,
   },
-  { id: 'gain', label: 'Growth', compare: compareGainPctDesc },
-  { id: 'vigour', label: 'Vigour', compare: (a, b) => b.vigour - a.vigour },
+  { id: 'gain', labelKey: 'plot.roster.sortGrowth', compare: compareGainPctDesc },
+  { id: 'vigour', labelKey: 'plot.roster.sortVigour', compare: (a, b) => b.vigour - a.vigour },
   {
     id: 'name',
-    label: 'A–Z',
+    labelKey: 'plot.roster.sortAz',
     compare: (a, b) => a.ticker.localeCompare(b.ticker),
   },
 ];
 
 /** The collection screen: every holding as a crop tile, searchable and sortable. */
 export default function CropRoster({ basePath }: { basePath: string }) {
+  const { t } = useTranslation();
   const { snapshot, owner } = usePlotData();
   const [searchParams, setSearchParams] = useSearchParams();
   const [sort, setSort] = useState<SortKey>('value');
@@ -153,14 +155,12 @@ export default function CropRoster({ basePath }: { basePath: string }) {
     <div className={styles.stack}>
       <section className={`${styles.panel} ${styles.panelGlow}`}>
         <h2 className={styles.panelTitle}>
-          Growth stages
+          {t('plot.roster.growthStages')}
           <InfoTip
-            label="What do growth stages mean?"
+            label={t('plot.roster.growthStagesLabel')}
             to="/metrics-explained#growth-stages"
           >
-            A crop&apos;s stage is its total gain since purchase, not its day
-            change — Sown/Sprouting means little or no profit yet, Fruiting
-            and Bumper crop mean it has gained a lot.
+            {t('plot.roster.growthStagesTip')}
           </InfoTip>
         </h2>
         <ul className={styles.traitList}>
@@ -178,30 +178,32 @@ export default function CropRoster({ basePath }: { basePath: string }) {
           ))}
         </ul>
         <p className={styles.sectionNote}>
-          Stage comes from each holding&apos;s total gain, star rating from its
-          share of plot value.
+          {t('plot.roster.stageNote')}
         </p>
       </section>
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>
         <h2 className={styles.panelTitle}>
-          Crop roster ({visible.length}/{snapshot.crops.length}) ·{' '}
-          {snapshot.beds.length} bed{snapshot.beds.length === 1 ? '' : 's'}
+          {t('plot.roster.title', {
+            visible: visible.length,
+            total: snapshot.crops.length,
+          })}{' '}
+          · {t('plot.roster.bedCount', { count: snapshot.beds.length })}
         </h2>
 
         <label className={styles.searchLabel} htmlFor="plot-crop-search">
-          <span className={styles.srOnly}>Search crops</span>
+          <span className={styles.srOnly}>{t('plot.roster.searchLabel')}</span>
           <input
             id="plot-crop-search"
             type="search"
             className={styles.searchInput}
-            placeholder="Search ticker, name, bed or sector"
+            placeholder={t('plot.roster.searchPlaceholder')}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
 
-        <div className={styles.toolbar} role="group" aria-label="Sort crops">
+        <div className={styles.toolbar} role="group" aria-label={t('plot.roster.sortCrops')}>
           {availableSorts.map((entry) => (
             <button
               key={entry.id}
@@ -214,18 +216,17 @@ export default function CropRoster({ basePath }: { basePath: string }) {
               }
               onClick={() => setSort(entry.id)}
             >
-              {entry.label}
+              {t(entry.labelKey)}
             </button>
           ))}
         </div>
         {!vigourSortable && snapshot.crops.length > 0 && (
           <p className={styles.sectionNote}>
-            Vigour sort is hidden: no crop has a recorded move today, so every
-            crop would score the same.
+            {t('plot.roster.vigourHidden')}
           </p>
         )}
 
-        <div className={styles.toolbar} role="group" aria-label="Filter crops">
+        <div className={styles.toolbar} role="group" aria-label={t('plot.roster.filterCrops')}>
           <button
             type="button"
             aria-pressed={bedFilter === 'all'}
@@ -236,7 +237,7 @@ export default function CropRoster({ basePath }: { basePath: string }) {
             }
             onClick={() => setBedFilter('all')}
           >
-            All beds
+            {t('plot.roster.allBeds')}
           </button>
           {snapshot.beds.map((bed) => (
             <button
@@ -263,12 +264,13 @@ export default function CropRoster({ basePath }: { basePath: string }) {
             }
             onClick={() => setFavouritesOnly((current) => !current)}
           >
-            <span aria-hidden="true">★</span> Favourites ({favourites.size})
+            <span aria-hidden="true">★</span>{' '}
+            {t('plot.roster.favourites', { count: favourites.size })}
           </button>
         </div>
 
         {visible.length === 0 ? (
-          <p className={styles.emptyState}>No crops match those filters.</p>
+          <p className={styles.emptyState}>{t('plot.roster.noMatch')}</p>
         ) : (
           <div className={styles.cropGrid}>
             {visible.map((crop) => (

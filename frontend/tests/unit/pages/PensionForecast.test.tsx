@@ -156,6 +156,42 @@ describe("PensionForecast page", () => {
     ).toHaveTextContent(/^13$/);
   });
 
+  it("shows no age rather than the fractional API age when the DOB is malformed", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
+    // Displayed ages come from the DOB only (#9521): flooring the API's
+    // days / 365.25 age would be a day late on birthdays (#9526).
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
+      current_age: 42.7,
+      retirement_age: 67,
+      dob: "11/03/1984",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: null,
+      retirement_income_total_annual: null,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const btn = await screen.findByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+
+    await screen.findByText("Planned retirement age: 67");
+    expect(
+      document.querySelector('[aria-labelledby="age-now-label"]'),
+    ).toHaveTextContent(/^—$/);
+    expect(screen.queryByText(/current age:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/42/)).not.toBeInTheDocument();
+    // With no known age, the retirement-age input keeps its default floor.
+    expect(screen.getByLabelText(/^retirement age$/i)).toHaveAttribute("min", "40");
+  });
+
   it("shows a whole-number current age, never the raw fractional value", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alex", full_name: "Alex Example", accounts: [] },

@@ -7,8 +7,9 @@
  * 5 April and is when unused ISA and pension allowances actually expire.
  */
 
+import i18n from '../i18n';
 import {
-  ALLOWANCES_UNAVAILABLE_MESSAGE,
+  allowancesUnavailableMessage,
   clamp,
   formatGbp,
   type AllowanceMap,
@@ -64,19 +65,21 @@ export function seasonCountdown(season: Season, now: Date): SeasonCountdown {
   const remainingMs = deadline.getTime() - now.getTime();
 
   if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
-    return { days: 0, hours: 0, expired: true, label: 'Season closed' };
+    return { days: 0, hours: 0, expired: true, label: i18n.t('plot.model.seasonClosed') };
   }
 
   const days = Math.floor(remainingMs / 86_400_000);
   const hours = Math.floor((remainingMs % 86_400_000) / 3_600_000);
-  const dayPart = `${days} day${days === 1 ? '' : 's'}`;
-  const hourPart = `${hours} hour${hours === 1 ? '' : 's'}`;
+  const dayPart = i18n.t('plot.model.dayCount', { count: days });
+  const hourPart = i18n.t('plot.model.hourCount', { count: hours });
   return {
     days,
     hours,
     expired: false,
     label:
-      days > 0 ? `Ends in ${dayPart} and ${hourPart}` : `Ends in ${hourPart}`,
+      days > 0
+        ? i18n.t('plot.model.endsInDaysHours', { days: dayPart, hours: hourPart })
+        : i18n.t('plot.model.endsInHours', { hours: hourPart }),
   };
 }
 
@@ -134,10 +137,8 @@ interface GoalGroup {
  * Shared by every group whose figure is a plain count rather than money or a
  * level, so a goal never renders as a bare, unit-less number (#7194).
  */
-const pluralize = (value: number, unit: string): string => {
-  const rounded = Math.round(value);
-  return `${rounded} ${unit}${rounded === 1 ? '' : 's'}`;
-};
+const pluralize = (value: number, unit: 'crop' | 'day'): string =>
+  i18n.t(`plot.model.${unit}Count`, { count: Math.round(value) });
 
 /**
  * The shared per-category ladder both `buildSeasonGoals` (one row per tier,
@@ -159,56 +160,59 @@ function buildGoalGroups(
   return [
     {
       id: 'tend',
-      group: 'Tend the plot',
+      group: i18n.t('plot.goals.tend.group'),
       rewardIcon: '🌱',
-      rewardLabel: 'Grower badge',
+      rewardLabel: i18n.t('plot.goals.tend.reward'),
       tiers: [5, 10, 25, 50],
       current: snapshot.crops.length,
-      title: (target) => `Tend ${target} crops at once`,
+      title: (target) => i18n.t('plot.goals.tend.title', { target }),
       format: (value) => pluralize(value, 'crop'),
       chipFormat: (value) => String(Math.round(value)),
     },
     {
       id: 'grow',
-      group: 'Grow the plot',
+      group: i18n.t('plot.goals.grow.group'),
       rewardIcon: '🧺',
-      rewardLabel: 'Harvest badge',
+      rewardLabel: i18n.t('plot.goals.grow.reward'),
       tiers: [1_000, 10_000, 50_000, 250_000],
       current: snapshot.plotValueGbp,
-      title: (target) => `Grow the plot to ${formatGbp(target)}`,
+      title: (target) =>
+        i18n.t('plot.goals.grow.title', { amount: formatGbp(target) }),
       format: formatGbp,
     },
     {
       id: 'feed',
-      group: 'Feed the beds',
+      group: i18n.t('plot.goals.feed.group'),
       rewardIcon: '🌿',
-      rewardLabel: 'Feed badge',
+      rewardLabel: i18n.t('plot.goals.feed.reward'),
       tiers: [1_000, 5_000, 10_000, 20_000],
       current: allowanceUsed,
-      title: (target) => `Use ${formatGbp(target)} of this season's allowances`,
+      title: (target) =>
+        i18n.t('plot.goals.feed.title', { amount: formatGbp(target) }),
       format: formatGbp,
       unavailable: allowancesUnavailable,
     },
     {
       id: 'streak',
-      group: 'Keep the streak',
+      group: i18n.t('plot.goals.streak.group'),
       rewardIcon: '🔥',
-      rewardLabel: 'Streak badge',
+      rewardLabel: i18n.t('plot.goals.streak.reward'),
       tiers: [3, 7, 14, 30],
       current: snapshot.streak,
-      title: (target) => `Hold a ${target}-day chore streak`,
+      title: (target) => i18n.t('plot.goals.streak.title', { target }),
       format: (value) => pluralize(value, 'day'),
       chipFormat: (value) => pluralize(value, 'day'),
     },
     {
       id: 'rank',
-      group: 'Earn your rank',
+      group: i18n.t('plot.goals.rank.group'),
       rewardIcon: '🎖️',
-      rewardLabel: 'Rank badge',
+      rewardLabel: i18n.t('plot.goals.rank.reward'),
       tiers: [4, 8, 15, 25],
       current: snapshot.grower.level,
-      title: (target) => `Reach grower level ${target}`,
-      format: (value) => `Level ${Math.round(value)}`,
+      title: (target) => i18n.t('plot.goals.rank.title', { target }),
+      format: (value) =>
+        i18n.t('plot.model.level', { level: Math.round(value) }),
     },
   ];
 }
@@ -235,7 +239,7 @@ export function buildSeasonGoals(
       pct: target > 0 ? clamp((group.current / target) * 100, 0, 100) : 0,
       complete: !group.unavailable && group.current >= target,
       display: group.unavailable
-        ? ALLOWANCES_UNAVAILABLE_MESSAGE
+        ? allowancesUnavailableMessage()
         : group.format(group.current),
       rewardIcon: group.rewardIcon,
       rewardLabel: group.rewardLabel,

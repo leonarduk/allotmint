@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { API_BASE, setAuthToken } from './api';
 import { useUser } from './UserContext';
 import { useAuth } from './AuthContext';
@@ -32,6 +33,7 @@ export default function LoginPage({
   onSuccess,
   sessionExpired = false,
 }: Props) {
+  const { t } = useTranslation();
   const { setProfile } = useUser();
   const { setUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +122,7 @@ export default function LoginPage({
           aria-live="polite"
           style={{ marginBottom: '1rem', textAlign: 'center' }}
         >
-          Your session has expired. Please sign in again to continue.
+          {t('loginPage.sessionExpired')}
         </div>
       )}
       {awsUiAuthEnabled ? (
@@ -140,11 +142,11 @@ export default function LoginPage({
               setCognitoError(null);
               signInWithCognito(awsUiAuth).catch((err: unknown) => {
                 console.error('Cognito sign-in initiation failed:', err);
-                setCognitoError('Failed to start sign-in. Please try again.');
+                setCognitoError(t('loginPage.startFailed'));
               });
             }}
           >
-            Sign in
+            {t('loginPage.signIn')}
           </button>
         </div>
       ) : (
@@ -155,15 +157,15 @@ export default function LoginPage({
               aria-live="assertive"
               style={{ color: 'red', marginBottom: '1rem' }}
             >
-              Error: {error}
+              {t('loginPage.error', { message: error })}
             </div>
           )}
           <div id="google-signin"></div>
         </>
       )}
       <p style={{ marginTop: '1rem' }}>
-        Don&apos;t have an account?{' '}
-        <Link to="/create-account">Request access</Link>
+        {t('loginPage.noAccount')}{' '}
+        <Link to="/create-account">{t('loginPage.requestAccess')}</Link>
       </p>
     </div>
   );

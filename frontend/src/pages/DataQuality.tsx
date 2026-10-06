@@ -762,7 +762,7 @@ export default function DataQuality() {
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto", padding: "1rem" }}>
       <h1>{t("dataQuality.title")}</h1>
-      <nav role="tablist" aria-label="Data quality admin" className="mb-4 flex flex-wrap gap-2">
+      <nav role="tablist" aria-label={t("dataQuality.admin.tabsLabel", "Data quality admin")} className="mb-4 flex flex-wrap gap-2">
         {tabs.map((item, index) => (
           <button
             key={item.id}

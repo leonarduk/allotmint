@@ -92,7 +92,7 @@ export function FilterBar({
           }
         }}
       >
-        Clear all
+        {t("filterBar.clearAll")}
       </button>
     </div>
   );

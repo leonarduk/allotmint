@@ -19,19 +19,20 @@ const SIGNAL_COLUMN_COUNT = 5;
 // regardless of loading state (see below), so only the value column needs a
 // skeleton while `getTradingPageData` is in flight.
 const THRESHOLDS: {
+  labelKey: string;
   label: string;
   key: keyof TradingAgentSettings;
-  suffix?: string;
+  suffix?: 'days';
 }[] = [
-  { label: 'RSI buy below', key: 'rsi_buy' },
-  { label: 'RSI sell above', key: 'rsi_sell' },
-  { label: 'RSI lookback', key: 'rsi_window', suffix: ' days' },
-  { label: 'Short moving average', key: 'ma_short_window', suffix: ' days' },
-  { label: 'Long moving average', key: 'ma_long_window', suffix: ' days' },
-  { label: 'Maximum P/E', key: 'pe_max' },
-  { label: 'Maximum debt/equity', key: 'de_max' },
-  { label: 'Minimum Sharpe ratio', key: 'min_sharpe' },
-  { label: 'Maximum volatility', key: 'max_volatility' },
+  { labelKey: 'trading.thresholds.rsiBuy', label: 'RSI buy below', key: 'rsi_buy' },
+  { labelKey: 'trading.thresholds.rsiSell', label: 'RSI sell above', key: 'rsi_sell' },
+  { labelKey: 'trading.thresholds.rsiLookback', label: 'RSI lookback', key: 'rsi_window', suffix: 'days' },
+  { labelKey: 'trading.thresholds.shortMa', label: 'Short moving average', key: 'ma_short_window', suffix: 'days' },
+  { labelKey: 'trading.thresholds.longMa', label: 'Long moving average', key: 'ma_long_window', suffix: 'days' },
+  { labelKey: 'trading.thresholds.maxPe', label: 'Maximum P/E', key: 'pe_max' },
+  { labelKey: 'trading.thresholds.maxDe', label: 'Maximum debt/equity', key: 'de_max' },
+  { labelKey: 'trading.thresholds.minSharpe', label: 'Minimum Sharpe ratio', key: 'min_sharpe' },
+  { labelKey: 'trading.thresholds.maxVolatility', label: 'Maximum volatility', key: 'max_volatility' },
 ];
 
 type ThresholdTip = { label: string; text: string; to: string };
@@ -155,14 +156,17 @@ export default function Trading() {
     }
 
     const percent = Math.round(confidence * 100);
-    let label = 'Weak';
+    let label = t('trading.strength.weak', 'Weak');
     if (confidence >= 0.75) {
-      label = 'Strong';
+      label = t('trading.strength.strong', 'Strong');
     } else if (confidence >= 0.5) {
-      label = 'Moderate';
+      label = t('trading.strength.moderate', 'Moderate');
     }
 
-    return `${label} (${percent}%)`;
+    return t('trading.strength.label', '{{label}} ({{percent}}%)', {
+      label,
+      percent,
+    });
   };
 
   const renderChecksSkipped = (checksSkipped?: string[]) => {
@@ -278,14 +282,14 @@ export default function Trading() {
               </LoadingStatus>
             )}
             <dl className={styles.thresholdGrid}>
-              {THRESHOLDS.map(({ label, key, suffix }) => {
+              {THRESHOLDS.map(({ labelKey, label, key, suffix }) => {
                 const tip = getThresholdTip(key);
                 return (
                   <div key={key} className={styles.threshold}>
                     {/* The label is static copy, not data -- it renders
                         immediately instead of waiting behind the fetch. */}
                     <dt>
-                      {label}
+                      {t(labelKey, label)}
                       {tip && (
                         <InfoTip label={tip.label} to={tip.to}>
                           {tip.text}
@@ -298,9 +302,13 @@ export default function Trading() {
                           <TextSkeleton width="3rem" label="" />
                         </span>
                       ) : data?.settings?.[key] == null ? (
-                        'Not enabled'
+                        t('trading.notEnabled', 'Not enabled')
                       ) : (
-                        `${data.settings[key]}${suffix ?? ''}`
+                        suffix === 'days'
+                          ? t('trading.thresholdDays', '{{value}} days', {
+                              value: data.settings[key],
+                            })
+                          : `${data.settings[key]}`
                       )}
                     </dd>
                   </div>
@@ -322,11 +330,21 @@ export default function Trading() {
                     </caption>
                     <thead>
                       <tr>
-                        <th className={tableStyles.cell}>Ticker</th>
-                        <th className={tableStyles.cell}>Action</th>
-                        <th className={tableStyles.cell}>Strength</th>
-                        <th className={tableStyles.cell}>Summary</th>
-                        <th className={tableStyles.cell}>Why</th>
+                        <th className={tableStyles.cell}>
+{t('trading.columns.ticker', 'Ticker')}
+</th>
+                        <th className={tableStyles.cell}>
+{t('trading.columns.action', 'Action')}
+</th>
+                        <th className={tableStyles.cell}>
+{t('trading.columns.strengthHeader', 'Strength')}
+</th>
+                        <th className={tableStyles.cell}>
+{t('trading.columns.summary', 'Summary')}
+</th>
+                        <th className={tableStyles.cell}>
+{t('trading.columns.why', 'Why')}
+</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -358,11 +376,21 @@ export default function Trading() {
                   </caption>
                   <thead>
                     <tr>
-                      <th className={tableStyles.cell}>Ticker</th>
-                      <th className={tableStyles.cell}>Action</th>
-                      <th className={tableStyles.cell}>Strength</th>
-                      <th className={tableStyles.cell}>Summary</th>
-                      <th className={tableStyles.cell}>Why</th>
+                      <th className={tableStyles.cell}>
+{t('trading.columns.ticker', 'Ticker')}
+</th>
+                      <th className={tableStyles.cell}>
+{t('trading.columns.action', 'Action')}
+</th>
+                      <th className={tableStyles.cell}>
+{t('trading.columns.strengthHeader', 'Strength')}
+</th>
+                      <th className={tableStyles.cell}>
+{t('trading.columns.summary', 'Summary')}
+</th>
+                      <th className={tableStyles.cell}>
+{t('trading.columns.why', 'Why')}
+</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -396,8 +424,14 @@ export default function Trading() {
             )}
             {!loading && signals.length > MAX_TRADING_SIGNAL_ROWS && (
               <p>
-                Showing first {MAX_TRADING_SIGNAL_ROWS.toLocaleString()} signals of{' '}
-                {signals.length.toLocaleString()}.
+                {t(
+                  'trading.showingFirst',
+                  'Showing first {{shown}} signals of {{total}}.',
+                  {
+                    shown: MAX_TRADING_SIGNAL_ROWS.toLocaleString(),
+                    total: signals.length.toLocaleString(),
+                  }
+                )}
               </p>
             )}
             {selected && (

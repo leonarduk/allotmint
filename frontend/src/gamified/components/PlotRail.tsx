@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import styles from '../plot.module.css';
 
@@ -15,8 +16,9 @@ interface PlotRailProps {
 
 /** Left-hand navigation slabs, the arcade-menu equivalent of the app nav. */
 export default function PlotRail({ items }: PlotRailProps) {
+  const { t } = useTranslation();
   return (
-    <nav className={styles.rail} aria-label="Plot sections">
+    <nav className={styles.rail} aria-label={t('plot.rail.ariaLabel')}>
       {items.map((item) => (
         <NavLink
           key={item.to}

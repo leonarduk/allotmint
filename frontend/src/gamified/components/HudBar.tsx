@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { formatGbp, type PlotSnapshot } from '../plotModel';
@@ -26,57 +27,62 @@ export default function HudBar({
   badgesEarned = 0,
   badgesTotal = 0,
 }: HudBarProps) {
+  const { t } = useTranslation();
   const { grower, plotValueGbp, totalGainGbp, streak, rank } = snapshot;
   const gainClass = totalGainGbp >= 0 ? styles.hudChipGain : styles.hudChipLoss;
   // Built as one string rather than interpolated JSX children so it lands in
   // the DOM as a single text node (readable by screen readers and testable).
-  const xpLabel = `Level ${grower.level} · ${grower.xpIntoLevel}/${grower.xpForLevel} XP`;
+  const xpLabel = t('plot.hud.xpLabel', {
+    level: grower.level,
+    xp: grower.xpIntoLevel,
+    xpForLevel: grower.xpForLevel,
+  });
 
   return (
     <header className={styles.hud}>
       <h1 className={styles.hudTitle}>
-        <span>The Plot</span>
+        <span>{t('plot.hud.title')}</span>
         <span className={styles.hudRank}>{rank}</span>
       </h1>
 
       <div className={styles.hudSpacer} />
 
-      <span className={styles.hudChip} title="Total plot value">
+      <span className={styles.hudChip} title={t('plot.hud.plotValueTitle')}>
         <span aria-hidden="true">🧺</span>
         <span>{formatGbp(plotValueGbp)}</span>
-        <span className={styles.srOnly}>total plot value</span>
+        <span className={styles.srOnly}>{t('plot.hud.plotValueSr')}</span>
       </span>
 
       <span
         className={`${styles.hudChip} ${gainClass}`}
-        title="Unrealised gain across every bed"
+        title={t('plot.hud.gainTitle')}
       >
         <span aria-hidden="true">{totalGainGbp >= 0 ? '🌿' : '🥀'}</span>
         <span>{formatGbp(totalGainGbp)}</span>
-        <span className={styles.srOnly}>unrealised gain</span>
+        <span className={styles.srOnly}>{t('plot.hud.gainSr')}</span>
       </span>
 
       {streak > 0 && (
         <span
           className={styles.hudChip}
-          title="Consecutive days of chores done"
+          title={t('plot.hud.streakTitle')}
         >
           <span aria-hidden="true">🔥</span>
           <span>{streak}</span>
-          <span className={styles.srOnly}>day streak</span>
+          <span className={styles.srOnly}>{t('plot.hud.streakSr')}</span>
         </span>
       )}
 
       {badgesTotal > 0 && (
         <span
           className={styles.hudChip}
-          title="Season badges earned"
+          title={t('plot.hud.badgesTitle')}
         >
           <span aria-hidden="true">🏅</span>
           <span>
             {badgesEarned}/{badgesTotal}
           </span>
-          <span className={styles.srOnly}>season badges earned</span>
+          <span className={styles.srOnly}>{t('plot.hud.badgesSr')}</span>
         </span>
       )}
 
@@ -88,14 +94,18 @@ export default function HudBar({
           <span className={styles.hudXpLabel}>{xpLabel}</span>
           <Meter
             pct={grower.pct}
-            label={`Grower level ${grower.level}, ${grower.xpIntoLevel} of ${grower.xpForLevel} XP to the next level`}
+            label={t('plot.hud.meterLabel', {
+              level: grower.level,
+              xp: grower.xpIntoLevel,
+              xpForLevel: grower.xpForLevel,
+            })}
           />
         </div>
       </div>
 
       <Link className={styles.ghostButton} to={classicPath}>
         <span aria-hidden="true">📊</span>
-        Classic view
+        {t('plot.hud.classicView')}
       </Link>
     </header>
   );

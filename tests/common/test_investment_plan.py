@@ -170,7 +170,7 @@ def test_compare_copies_exact_keys_when_policy_accepts_them(monkeypatch):
 
 
 def test_bare_string_vehicle_shorthand():
-    plan = parse_plan(plan_data(vehicles={"gold": "PHGP.L", "equity": {"note": "tbc"}}), "alex")
+    plan = parse_plan(plan_data(vehicles={" Gold": "PHGP.L", "equity": {"note": "tbc"}}), "alex")
     assert plan.vehicles["gold"][0].ticker == "PHGP.L"
     assert plan.vehicles["equity"][0].note == "tbc"
 

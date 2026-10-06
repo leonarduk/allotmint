@@ -155,7 +155,7 @@ class InvestmentPlan(BaseModel):
                 items = [items]
             if isinstance(items, list):
                 items = [{"ticker": item} if isinstance(item, str) else item for item in items]
-            normalised[key] = items
+            normalised[key.strip().lower() if isinstance(key, str) else key] = items
         return normalised
 
     @field_validator("vehicles")

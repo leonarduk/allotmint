@@ -214,12 +214,14 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     defaultPath: () => '/instrumentadmin',
   },
   {
+    // The Strategy page (#9653). The mode id stays 'rebalance' so saved tab
+    // config keeps working; /rebalance redirects here (see LEGACY_SEGMENTS).
     mode: 'rebalance',
-    routeSegment: 'rebalance',
+    routeSegment: 'strategy',
     section: 'user',
     menuCategory: 'insights',
     priority: 86,
-    defaultPath: () => '/rebalance',
+    defaultPath: () => '/strategy',
   },
   {
     mode: 'dataadmin',
@@ -448,6 +450,19 @@ export function getPageManifestEntry(
   return pageManifestByMode[mode];
 }
 
+/** Old first path segments that still resolve, mapped to their current one. */
+export const LEGACY_SEGMENTS: Readonly<Record<string, string>> = {
+  rebalance: 'strategy',
+};
+
+/** The current path for a legacy URL (query string kept), or null. */
+export function legacyRedirectPath(pathname: string, search = ''): string | null {
+  const segments = pathname.split('/').filter(Boolean);
+  const replacement = segments[0] ? LEGACY_SEGMENTS[segments[0]] : undefined;
+  if (!replacement) return null;
+  return `/${[replacement, ...segments.slice(1)].join('/')}${search}`;
+}
+
 export function deriveRouteFromPathname(pathname: string): DerivedRoute {
   const segments = pathname.split('/').filter(Boolean);
   const [first, slug = ''] = segments;
@@ -460,7 +475,7 @@ export function deriveRouteFromPathname(pathname: string): DerivedRoute {
     return { mode: 'transactions', routeSegment: 'transactions', slug };
   }
 
-  const matchedRoute = pageManifestBySegment.get(first);
+  const matchedRoute = pageManifestBySegment.get(LEGACY_SEGMENTS[first] ?? first);
   if (!matchedRoute) {
     return { mode: 'movers', routeSegment: null, slug: slug || first };
   }

@@ -30,6 +30,8 @@ export const PLAN_STATUSES: InvestmentPlan['status'][] = [
 /** Labels for plan class keys and the parent asset classes they roll up to. */
 const CLASS_LABELS: Record<string, string> = {
   equity: 'Equity',
+  // Policy key the plan's equity maps to beside small_cap_value (#9653).
+  broad_equity: 'Broad equity',
   small_cap_value: 'Small-cap value',
   long_gilts: 'Long gilts',
   intermediate_gilts: 'Intermediate gilts',

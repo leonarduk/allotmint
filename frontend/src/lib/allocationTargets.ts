@@ -1,5 +1,5 @@
-// Draft state for the rebalance target editor (#9543). A splittable class
-// (Bond, Commodity) is targeted either as a whole or by its sub-classes; the
+// Draft state for the strategy page's target editors (#9543, #9653). A
+// splittable class (Equity, Bond, Commodity) is targeted either as a whole or by its sub-classes; the
 // backend rejects a policy that does both, so only the active level is saved.
 import { SUB_ASSET_CLASSES } from './assetClass';
 import type { RebalancePlan } from '../types';
@@ -70,6 +70,11 @@ export function draftTotal(draft: TargetDraft): number {
     (sum, key) => sum + parsePct(draft.values[key]),
     0
   );
+}
+
+/** Whether the active-level inputs total 100% (two-decimal slack, as the backend). */
+export function draftTotalOk(draft: TargetDraft): boolean {
+  return Math.abs(draftTotal(draft) - 100) <= 0.01;
 }
 
 /** Positive targets at the active level, as sent to the backend. */

@@ -40,6 +40,10 @@ import type {
   ScenarioEvent,
   NewCashPlan,
   AllocationPolicy,
+  ActiveStrategy,
+  Strategy,
+  StrategyInput,
+  StrategyList,
   InvestmentPlan,
   InvestmentPlanResponse,
   RebalancePlan,
@@ -2210,6 +2214,49 @@ export const getNewCashPlan = (owner: string, amount: number, accountId: string)
     `${API_BASE}/rebalance/${encodeURIComponent(owner)}/new-cash?${params.toString()}`,
   );
 };
+
+const strategiesUrl = (owner: string, id?: string, action?: string) =>
+  [`${API_BASE}/strategies/${encodeURIComponent(owner)}`, id && encodeURIComponent(id), action]
+    .filter(Boolean)
+    .join("/");
+
+/** Built-in and user strategies, plus the one last applied (#9653). */
+export const getStrategies = (owner: string) => fetchJson<StrategyList>(strategiesUrl(owner));
+
+/** Create a user strategy. */
+export const createStrategy = (owner: string, strategy: StrategyInput) =>
+  fetchJson<Strategy>(strategiesUrl(owner), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(strategy),
+  });
+
+/** Edit a user strategy; built-ins answer 403. */
+export const updateStrategy = (owner: string, id: string, strategy: Partial<StrategyInput>) =>
+  fetchJson<Strategy>(strategiesUrl(owner, id), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(strategy),
+  });
+
+/** Delete a user strategy; built-ins answer 403. */
+export const deleteStrategy = (owner: string, id: string) =>
+  fetchJson<{ status: string; id: string }>(strategiesUrl(owner, id), { method: "DELETE" });
+
+/** Copy any strategy as a new, editable user strategy. */
+export const duplicateStrategy = (owner: string, id: string, name?: string) =>
+  fetchJson<Strategy>(strategiesUrl(owner, id, "duplicate"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(name ? { name } : {}),
+  });
+
+/** Make a strategy's weights the owner's target allocation. */
+export const applyStrategy = (owner: string, id: string) =>
+  fetchJson<{ policy: AllocationPolicy; active: ActiveStrategy | null }>(
+    strategiesUrl(owner, id, "apply"),
+    { method: "POST" },
+  );
 
 /** The owner's investment plan record; rejects with `status` 404 when none is saved. */
 export const getInvestmentPlan = (owner: string) =>

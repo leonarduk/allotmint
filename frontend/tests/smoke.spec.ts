@@ -125,6 +125,7 @@ const ROUTES: RouteConfig[] = [
   { path: '/watchlist', assertion: { kind: 'mode', mode: 'watchlist' } },
   { path: '/market', assertion: { kind: 'mode', mode: 'market' } },
   { path: '/allocation', assertion: { kind: 'mode', mode: 'allocation' } },
+  { path: '/strategy', assertion: { kind: 'mode', mode: 'rebalance' } },
   { path: '/rebalance', assertion: { kind: 'mode', mode: 'rebalance' } },
   { path: '/movers', assertion: { kind: 'mode', mode: 'movers' } },
   {

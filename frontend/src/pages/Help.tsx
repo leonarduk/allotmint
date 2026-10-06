@@ -116,12 +116,13 @@ const HELP_PAGES: HelpPageEntry[] = [
     descriptionDefault: "How your holdings are split by asset class, sector and region.",
   },
   {
-    path: "/rebalance",
+    path: "/strategy",
     mode: "rebalance",
     titleKey: "app.modes.rebalance",
-    titleDefault: "Rebalance",
+    titleDefault: "Strategy",
     descriptionKey: "help.pages.rebalance",
-    descriptionDefault: "Suggested trades to bring your allocation back toward its targets.",
+    descriptionDefault:
+      "Pick a target allocation from built-in or your own strategies, then see drift and the rebalancing trades to bring your portfolio back toward it.",
   },
   {
     path: "/reports",

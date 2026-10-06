@@ -7,6 +7,7 @@ import {
   deriveModeFromLocation,
   deriveRouteFromPathname,
   getMenuEntries,
+  legacyRedirectPath,
   menuCategories,
   pageManifest,
   pageManifestByMode,
@@ -248,5 +249,16 @@ describe('page manifest', () => {
       getMenuEntries('user').some((entry) => entry.mode === 'help')
     ).toBe(true);
     expect(buildPathForMode('help')).toBe('/help');
+  });
+
+  it('serves the Strategy page at /strategy and keeps /rebalance working (#9653)', () => {
+    expect(buildPathForMode('rebalance')).toBe('/strategy');
+    expect(deriveModeFromPathname('/strategy')).toBe('rebalance');
+    expect(deriveModeFromPathname('/rebalance')).toBe('rebalance');
+    expect(legacyRedirectPath('/rebalance', '?owner=alex')).toBe(
+      '/strategy?owner=alex'
+    );
+    expect(legacyRedirectPath('/strategy')).toBeNull();
+    expect(legacyRedirectPath('/')).toBeNull();
   });
 });

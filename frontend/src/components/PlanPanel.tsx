@@ -223,6 +223,12 @@ function PlanBody({
         {plan.status} · version {plan.version} · updated {plan.updated}
       </p>
       {plan.summary && <p className="mb-3">{plan.summary}</p>}
+      {data.strategy && (
+        <p className="mb-2 text-sm">
+          <span className="font-medium">Matches strategy:</span>{' '}
+          {data.strategy.name}
+        </p>
+      )}
       <TargetTable plan={plan} />
       <RebalanceComparison
         owner={owner}

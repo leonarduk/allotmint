@@ -55,13 +55,18 @@ export function assetClassLabel(
   return trimmed || fallback;
 }
 
-// Mirrors backend/common/sub_asset_class.py (#9543): Bond and Commodity can
-// be targeted by sub-class on the rebalance page. Keys match allotmint-pro's
-// backtest_portfolio asset-class blocks.
+// Mirrors backend/common/sub_asset_class.py (#9543, #9653): Equity, Bond and
+// Commodity can be targeted by sub-class on the strategy page. Keys match
+// allotmint-pro's backtest_portfolio asset-class blocks, except broad_equity,
+// which the backtest calls "equity" when it sits beside small_cap_value.
 export const SUB_ASSET_CLASSES: Record<
   string,
   Array<{ key: string; label: string }>
 > = {
+  equity: [
+    { key: 'broad_equity', label: 'Broad equity' },
+    { key: 'small_cap_value', label: 'Small-cap value' },
+  ],
   bond: [
     { key: 'long_gilts', label: 'Long gilts' },
     { key: 'intermediate_gilts', label: 'Intermediate gilts' },

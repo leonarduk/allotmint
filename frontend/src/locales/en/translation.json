@@ -89,7 +89,8 @@
     "sector": "Industries",
     "unknownCurrency": "Unknown currency",
     "viewAllocation": "View allocation by {{dimension}}",
-    "viewContribution": "View gain contribution"
+    "viewContribution": "View gain contribution",
+    "chartsUnavailable": "Charts are unavailable in this environment."
   },
   "app": {
     "close": "Close",
@@ -148,7 +149,11 @@
     "relativeView": "Relative view",
     "research": "Research",
     "supportLink": "Support",
-    "userLink": "App"
+    "userLink": "App",
+    "featureDisabled": "This feature isn't enabled for this application.",
+    "returnHome": "Return home",
+    "glossaryLink": "Glossary",
+    "instrumentCatalogueTruncated": "Showing first {{shown}} of {{total}} instruments."
   },
   "approxTotal": "Approx Total: £{{value}}",
   "asOf": "As of {{date}} • Trades this month: {{trades}} / 20 (Remaining: {{remaining}})",
@@ -163,7 +168,9 @@
     "ticker": "Ticker",
     "cancel": "Cancel",
     "close": "Close",
-    "retry": "Retry"
+    "retry": "Retry",
+    "learnMore": "Learn more",
+    "all": "All"
   },
   "awsCostsAdmin": {
     "title": "AWS Costs",
@@ -305,7 +312,8 @@
           "undoFailed": "Undo failed: {{detail}}",
           "notReversible": "Not reversible"
         }
-      }
+      },
+      "tabsLabel": "Data quality admin"
     }
   },
   "dashboard": {
@@ -349,7 +357,18 @@
     "selectMember": "Select a member.",
     "timeWeightedReturn": "Time-Weighted Return",
     "trackingError": "Tracking Error",
-    "xirr": "XIRR"
+    "xirr": "XIRR",
+    "alphaVsBenchmarkInfoLabel": "What does Alpha vs Benchmark mean?",
+    "alphaVsBenchmarkInfo": "Alpha measures how much the portfolio's return differed from {{ticker}} over the selected period.",
+    "vsBenchmark": "vs {{ticker}}",
+    "trackingErrorInfoLabel": "What does Tracking Error mean?",
+    "trackingErrorInfo": "Tracking error measures how much the portfolio's daily returns varied from {{ticker}}'s, annualised.",
+    "maxDrawdownInfoLabel": "What does Max Drawdown mean?",
+    "maxDrawdownInfo": "Max drawdown is the largest peak-to-trough fall in portfolio value over the selected period.",
+    "timeWeightedReturnInfoLabel": "What does Time-Weighted Return mean?",
+    "timeWeightedReturnInfo": "Time-weighted return measures the portfolio's compounded growth rate, independent of the timing and size of deposits and withdrawals.",
+    "xirrInfoLabel": "What does XIRR mean?",
+    "xirrInfo": "XIRR is the annualised internal rate of return calculated from the portfolio's actual dated cash flows."
   },
   "goals": {
     "add": "Add Goal",
@@ -371,7 +390,26 @@
     "pricingAsOf": "Pricing as of {{date}}",
     "pricingDatePickerLabel": "Change pricing date",
     "resetPricingDate": "Reset to latest",
-    "select": "Select a group."
+    "select": "Select a group.",
+    "allAccounts": "All accounts",
+    "allPositions": "All positions",
+    "contribRegion": "Region",
+    "contribSector": "Sector",
+    "insightCashDrag": "{{percent}} of your portfolio is in cash",
+    "insightConcentration": "Top holding {{ticker}} is {{percent}} of your portfolio",
+    "insightDuplication": "You hold {{ticker}} in {{accountCount}} accounts",
+    "ownerTable": {
+      "portfolioPct": "Portfolio %",
+      "totalValue": "Total Value",
+      "stockPct": "Stock %",
+      "stockValue": "Stock Value",
+      "cashPct": "Cash %",
+      "cashValue": "Cash Value",
+      "dayChange": "Day Change",
+      "dayChangePct": "Day Change %",
+      "totalGain": "Total Gain",
+      "totalGainPct": "Total Gain %"
+    }
   },
   "holdingsTable": {
     "actualPurchaseCost": "Actual purchase cost",
@@ -404,7 +442,8 @@
       "type": "Type",
       "units": "Units",
       "weightPct": "Weight %",
-      "totalReturn": "Total return £"
+      "totalReturn": "Total return £",
+      "account": "Account"
     },
     "columnsLabel": "Columns:",
     "eligible": "Eligible",
@@ -546,7 +585,118 @@
     "save": "Save",
     "searchInstruments": "Search instruments",
     "sectorLabel": "Sector",
-    "showInstrumentSearch": "Show instrument search"
+    "showInstrumentSearch": "Show instrument search",
+    "allRegions": "All regions",
+    "allSectors": "All sectors",
+    "chooseTicker": "Choose a ticker from search to open research.",
+    "closeDetails": "Close instrument details",
+    "closeSearch": "Close search",
+    "expandDetails": "Expand or restore instrument details",
+    "filterByRegion": "Filter by region",
+    "filterBySector": "Filter by sector",
+    "instrumentTypeLabel": "Instrument type",
+    "instrumentTypePlaceholder": "Select a type",
+    "resizeDetails": "Resize instrument details",
+    "searchFailed": "Search failed",
+    "searchPlaceholder": "Search…",
+    "signalStrength": "Signal strength:",
+    "strengthStrong": "Strong",
+    "strengthModerate": "Moderate",
+    "strengthWeak": "Weak",
+    "viewFullPage": "View full page",
+    "sectors": {
+      "energy": "Energy",
+      "materials": "Materials",
+      "industrials": "Industrials",
+      "consumerDiscretionary": "Consumer Discretionary",
+      "consumerStaples": "Consumer Staples",
+      "healthCare": "Health Care",
+      "financials": "Financials",
+      "informationTechnology": "Information Technology",
+      "communicationServices": "Communication Services",
+      "utilities": "Utilities",
+      "realEstate": "Real Estate"
+    },
+    "regions": {
+      "africa": "Africa",
+      "asia": "Asia",
+      "europe": "Europe",
+      "northAmerica": "North America",
+      "southAmerica": "South America",
+      "oceania": "Oceania",
+      "uk": "UK",
+      "us": "US"
+    },
+    "research": {
+      "invalidTicker": "Invalid ticker",
+      "viewScreener": "View Screener",
+      "watchlist": "Watchlist",
+      "removeFromWatchlist": "Remove from Watchlist",
+      "addToWatchlist": "Add to Watchlist",
+      "viewOnInvesting": "View on Investing.com",
+      "viewOnMorningstar": "View on Morningstar",
+      "summary": "Summary",
+      "transactions": "Transactions",
+      "loadingFundamentals": "Loading fundamentals...",
+      "fundamentalsNotAvailable": "Fundamentals data is not available for this instrument.",
+      "fundamentalsTableAria": "{{section}} fundamentals",
+      "fundamentalsLoadError": "Unable to load fundamentals: {{message}}",
+      "loadingNews": "Loading news...",
+      "noNews": "No news available",
+      "tabs": {
+        "overview": "Overview",
+        "timeseries": "Timeseries",
+        "fundamentals": "Fundamentals",
+        "technicals": "Technicals",
+        "news": "News"
+      },
+      "section": {
+        "keyFacts": "Key Facts",
+        "performance": "Performance",
+        "risk": "Risk",
+        "valuation": "Valuation",
+        "financialHealth": "Financial Health",
+        "profitability": "Profitability",
+        "shareholderMetrics": "Shareholder Metrics"
+      },
+      "label": {
+        "exchange": "Exchange",
+        "lastClose": "Last Close",
+        "asOf": "As of",
+        "coverage": "Coverage",
+        "dataPoints": "Data Points",
+        "change7d": "7d Change",
+        "change30d": "30d Change",
+        "averageDailyReturn30d": "Average Daily Return (30d)",
+        "annualisedVolatility30d": "Annualised Volatility (30d)",
+        "worstDay30d": "Worst Day (30d)",
+        "pegRatio": "PEG Ratio",
+        "peRatio": "P/E Ratio (trailing)",
+        "marketCap": "Market Cap",
+        "freeCashFlow": "Free Cash Flow",
+        "earningsPerShare": "Earnings Per Share",
+        "debtEquity": "Debt/Equity",
+        "longTermDebtEquity": "Long-Term Debt/Equity",
+        "interestCoverage": "Interest Coverage",
+        "currentRatio": "Current Ratio",
+        "quickRatio": "Quick Ratio",
+        "grossMargin": "Gross Margin",
+        "operatingMargin": "Operating Margin",
+        "netMargin": "Net Margin",
+        "ebitdaMargin": "EBITDA Margin",
+        "roa": "ROA",
+        "roe": "ROE",
+        "roi": "ROI",
+        "dividendYield": "Dividend Yield",
+        "dividendPayoutRatio": "Dividend Payout Ratio",
+        "beta": "Beta",
+        "sharesOutstanding": "Shares Outstanding",
+        "floatShares": "Float Shares",
+        "high52w": "52 Week High",
+        "low52w": "52 Week Low",
+        "averageVolume": "Average Volume"
+      }
+    }
   },
   "instrumentTable": {
     "columns": {
@@ -564,7 +714,8 @@
       "trend": "Trend",
       "sparklineAria": "Price trend for {{ticker}}",
       "type": "Type",
-      "units": "Units"
+      "units": "Units",
+      "groupActions": "Group"
     },
     "exchangesLabel": "Exchanges:",
     "groupTotals": {
@@ -576,7 +727,32 @@
     },
     "noInstruments": "No instruments.",
     "ungrouped": "Ungrouped",
-    "unknownSector": "Unknown sector"
+    "unknownSector": "Unknown sector",
+    "columnToggle": {
+      "trend": "Trend",
+      "units": "Units",
+      "cost": "Cost",
+      "market": "Market",
+      "gain": "Gain",
+      "gainPct": "Gain %"
+    },
+    "groupActions": {
+      "ariaLabel": "Change group for {{ticker}}",
+      "assign": "Assign to {{group}}",
+      "clear": "Clear assignment",
+      "create": "Create new group…",
+      "placeholder": "Change…",
+      "prompt": "Enter new group name",
+      "saving": "Saving…"
+    },
+    "groupToggle": "Toggle {{group}}",
+    "uncategorised": "Uncategorised",
+    "viewMode": {
+      "category": "By category",
+      "flat": "Flat list",
+      "grouped": "Group totals"
+    },
+    "viewModeLabel": "View:"
   },
   "instrumentType": {
     "bond": "Bond",
@@ -606,7 +782,24 @@
     },
     "returnBasisNote": "Sector changes include reinvested dividends (total return); index changes are price only.",
     "sectorChange": "Sector % Change",
-    "sectorPerformance": "Sector Performance"
+    "sectorPerformance": "Sector Performance",
+    "index": "Index",
+    "level": "Level",
+    "changePct": "% Change",
+    "noHeadlines": "No headlines available",
+    "staleHeadline": "Stale",
+    "staleHeadlineTooltip": "This headline is from a cache that has not refreshed recently; live news fetches may be failing or rate-limited.",
+    "tooltipLevel": "Level: {{value}}",
+    "tooltipChange": "Change: {{value}}%",
+    "ticker": "Ticker",
+    "name": "Name",
+    "price": "Price",
+    "sectorProxy": "Tracked via {{ticker}} ({{name}}). Chart shows its closing price.",
+    "sectorBasket": "No sector ETF for this market: performance is an equal-weighted basket of the constituents below. Chart is rebased to 100.",
+    "representativeConstituents": "Representative constituents (not full index membership)",
+    "sectorDetail": "Sector detail",
+    "sectorRegion": "Sector region",
+    "sectorBasketNote": "Sector moves are equal-weighted baskets of representative large constituents."
   },
   "metricsExplanation": {
     "activeReturn": "Active return",
@@ -673,6 +866,213 @@
         ],
         "summary": "Tracking error captures the variability of active returns—how much the portfolio's daily returns diverge from the benchmark.",
         "title": "Tracking Error"
+      },
+      "otherPerformance": {
+        "title": "More performance measures",
+        "intro": "These also appear on the Performance page but don't need live data to explain.",
+        "twr": {
+          "title": "Time-Weighted Return",
+          "detail": "Time-weighted return measures the portfolio's compounded growth rate over the selected period by linking together each sub-period's return. It removes the effect of the timing and size of deposits and withdrawals, so it reflects how the underlying investments performed rather than when money moved in or out."
+        },
+        "xirr": {
+          "title": "XIRR",
+          "detail": "XIRR is the annualised internal rate of return calculated from the portfolio's actual dated cash flows (deposits, withdrawals, and current value). Unlike time-weighted return, it is affected by the timing and size of those cash flows."
+        }
+      },
+      "trading": {
+        "title": "Trading signal terms",
+        "intro": "Terms used on the Trading page's strategy thresholds and signal table.",
+        "rsi": {
+          "title": "RSI (Relative Strength Index)",
+          "detail": "RSI is a momentum indicator, scored 0-100, derived from recent price changes. “RSI buy below” and “RSI sell above” are the thresholds a signal's RSI value must reach — at or below the buy threshold, at or above the sell threshold — to be considered a buy or sell candidate. “RSI lookback” is the number of days of price history used to calculate it."
+        },
+        "movingAverage": {
+          "title": "Moving average (short / long)",
+          "detail": "A moving average is the average closing price over a fixed number of days. Signals compare a shorter-window average against a longer-window one; the two windows are configured separately as “Short moving average” and “Long moving average”."
+        },
+        "sharpe": {
+          "title": "Sharpe ratio",
+          "detail": "Here, the Sharpe ratio is the excess return over the configured risk-free rate per unit of daily volatility, annualised (× √252). “Minimum Sharpe ratio” is an optional filter threshold a signal's Sharpe ratio must meet, when that filter is enabled."
+        },
+        "debtEquity": {
+          "title": "Debt/equity (D/E)",
+          "detail": "Debt/equity divides a company's total debt by its shareholders' equity — a measure of financial leverage. “Maximum debt/equity” is an optional filter threshold, when enabled."
+        },
+        "volatility": {
+          "title": "Volatility",
+          "detail": "Here, volatility is the day-to-day (daily, not annualised) standard deviation of returns — how much the price has fluctuated from one day to the next. “Maximum volatility” is an optional filter threshold, when enabled."
+        },
+        "checksSkipped": {
+          "title": "“Checks skipped”",
+          "detail": "This badge appears when an optional check that needs the allotmint-pro add-on could not run, because that add-on isn't installed. “compliance” means the trade was not checked against your compliance rules at all. “fundamental_screen” means the P/E and debt/equity filters (configured above) were not applied to this buy candidate."
+        }
+      },
+      "screener": {
+        "title": "Screener ratios",
+        "intro": "The Screener page filters instruments by these financial ratios.",
+        "peg": {
+          "title": "PEG ratio",
+          "detail": "P/E ratio divided by the expected earnings growth rate."
+        },
+        "pe": {
+          "title": "P/E ratio",
+          "detail": "Share price divided by earnings per share."
+        },
+        "pb": {
+          "title": "P/B ratio",
+          "detail": "Share price divided by book value per share. Below 1 means the market values the company at less than its net assets on paper."
+        },
+        "ps": {
+          "title": "P/S ratio",
+          "detail": "Market capitalisation divided by trailing twelve-month revenue. Useful where earnings are negative or volatile."
+        },
+        "evEbitda": {
+          "title": "EV/EBITDA",
+          "detail": "Enterprise value (market cap plus net debt) divided by EBITDA. Compares companies regardless of how they are financed."
+        },
+        "revenueGrowth": {
+          "title": "Revenue growth",
+          "detail": "Year-on-year revenue growth, as a fraction (0.1 = 10%)."
+        },
+        "earningsGrowth": {
+          "title": "Earnings growth",
+          "detail": "Year-on-year earnings growth, as a fraction (0.1 = 10%)."
+        },
+        "ltDe": {
+          "title": "LT D/E ratio",
+          "detail": "Long-term debt divided by shareholders' equity."
+        },
+        "interestCoverage": {
+          "title": "Interest coverage",
+          "detail": "Operating earnings (EBIT) divided by interest expense — how many times over a company could pay its interest from its earnings."
+        },
+        "currentRatio": {
+          "title": "Current ratio",
+          "detail": "Current assets divided by current liabilities."
+        },
+        "quickRatio": {
+          "title": "Quick ratio",
+          "detail": "Liquid assets, excluding inventory, divided by current liabilities."
+        },
+        "fcf": {
+          "title": "FCF (Free cash flow)",
+          "detail": "Cash generated from operations minus capital expenditure."
+        },
+        "eps": {
+          "title": "EPS (Earnings per share)",
+          "detail": "Net income divided by the number of shares outstanding."
+        },
+        "grossMargin": {
+          "title": "Gross margin",
+          "detail": "Gross profit divided by revenue."
+        },
+        "operatingMargin": {
+          "title": "Operating margin",
+          "detail": "Operating income divided by revenue."
+        },
+        "netMargin": {
+          "title": "Net margin",
+          "detail": "Net income divided by revenue."
+        },
+        "ebitdaMargin": {
+          "title": "EBITDA margin",
+          "detail": "EBITDA (earnings before interest, tax, depreciation and amortisation) divided by revenue."
+        },
+        "roa": {
+          "title": "ROA (Return on assets)",
+          "detail": "Net income divided by total assets."
+        },
+        "roe": {
+          "title": "ROE (Return on equity)",
+          "detail": "Net income divided by shareholders' equity."
+        },
+        "roi": {
+          "title": "ROI (Return on investment)",
+          "detail": "The gain from an investment divided by its cost."
+        },
+        "dividendYield": {
+          "title": "Dividend yield",
+          "detail": "Annual dividend per share divided by share price."
+        },
+        "dividendPayoutRatio": {
+          "title": "Dividend payout ratio",
+          "detail": "Dividends paid divided by net income."
+        },
+        "beta": {
+          "title": "Beta",
+          "detail": "A measure of how sensitive a stock's price is to overall market movements."
+        },
+        "sharesOutstanding": {
+          "title": "Shares outstanding",
+          "detail": "The total number of a company's shares currently held by all shareholders."
+        },
+        "floatShares": {
+          "title": "Float shares",
+          "detail": "Shares outstanding that are freely tradable, excluding closely held or restricted shares."
+        },
+        "marketCap": {
+          "title": "Market cap",
+          "detail": "Share price multiplied by shares outstanding."
+        },
+        "high52w": {
+          "title": "52-week high",
+          "detail": "The highest trading price over the past 52 weeks."
+        },
+        "low52w": {
+          "title": "52-week low",
+          "detail": "The lowest trading price over the past 52 weeks."
+        },
+        "avgVolume": {
+          "title": "Average volume",
+          "detail": "The average number of shares traded per day over a recent period."
+        }
+      },
+      "movers": {
+        "title": "Movers signal",
+        "signal": {
+          "title": "Buy / Sell signal",
+          "detail": "Shows whether the latest signal generated for that instrument, using the same strategy thresholds as the Trading page, was a buy or sell candidate."
+        }
+      },
+      "plot": {
+        "title": "Plot garden terms",
+        "intro": "Plot is a garden-themed view of the same real portfolio data. Every term below maps back to a real figure.",
+        "beds": {
+          "title": "Beds",
+          "detail": "Each investment account is shown as a bed. Every holding within that account is a crop planted in it."
+        },
+        "growthStages": {
+          "title": "Growth stages (Wilting → Sown → Sprouting → Leafing → Budding → Flowering → Fruiting → Bumper crop)",
+          "detail": "A crop's growth stage is set by that holding's total gain, as a percentage of what was paid for it — it does not depend on how long it has been held.",
+          "wilting": "Wilting: total gain of -20% or below",
+          "sown": "Sown: total gain between -20% (exclusive) and 0%",
+          "sprouting": "Sprouting: total gain between 0% (exclusive) and 5%",
+          "leafing": "Leafing: total gain between 5% (exclusive) and 15%",
+          "budding": "Budding: total gain between 15% (exclusive) and 30%",
+          "flowering": "Flowering: total gain between 30% (exclusive) and 60%",
+          "fruiting": "Fruiting: total gain between 60% (exclusive) and 120%",
+          "bumper": "Bumper crop: total gain above 120%"
+        },
+        "propagator": {
+          "title": "Propagator",
+          "detail": "Lists crops still inside their minimum holding period — the configured number of days a holding must be held before it becomes eligible to sell — counting down to the date each one clears it. This is a holding-period measure, separate from the gain-based growth stage above."
+        },
+        "water": {
+          "title": "Water",
+          "detail": "The number of trades left this month against the account's configured monthly trade limit."
+        },
+        "feed": {
+          "title": "Feed",
+          "detail": "The remaining tax-allowance headroom for the current period."
+        },
+        "sunlight": {
+          "title": "Sunlight",
+          "detail": "The share of crops priced from fresh (not stale) market data today."
+        }
+      },
+      "technicals": {
+        "title": "Technical analysis",
+        "intro": "Terms on an instrument's Technicals tab. They are worked out from past daily closing prices and describe what the price has done; they do not predict what it will do, and they are not buy or sell recommendations."
       }
     },
     "title": "Glossary"
@@ -689,7 +1089,9 @@
     "signal": "Signal",
     "signalWindowNote": "Each signal uses its own lookback window, which may differ from the % and value change period shown in this row. Select the signal to see why it fired.",
     "watchlist": "Watchlist:",
-    "windowNote": "The % and value columns show the move for the selected period. Each signal uses its own lookback window — select a Buy or Sell signal to see its reason and confidence."
+    "windowNote": "The % and value columns show the move for the selected period. Each signal uses its own lookback window — select a Buy or Sell signal to see its reason and confidence.",
+    "signalInfoLabel": "What does the Signal column mean?",
+    "signalInfo": "Shows whether the latest signal generated for that instrument, using the same strategy thresholds as the Trading page, was a buy or sell candidate."
   },
   "owner": {
     "label": "Owner",
@@ -770,7 +1172,37 @@
     },
     "retirementAge": "Planned retirement age: {{age}}",
     "totalAnnualIncome": "Total annual income",
-    "totalMonthlyIncome": "Total monthly income"
+    "totalMonthlyIncome": "Total monthly income",
+    "careerPath": {
+      "accelerated": {
+        "helper": "Higher-risk, higher-reward growth",
+        "label": "Accelerated path"
+      },
+      "balanced": {
+        "helper": "Moderate long-term growth",
+        "label": "Balanced pace"
+      },
+      "label": "Career path",
+      "steady": {
+        "helper": "Lower growth assumption",
+        "label": "Steady climb"
+      }
+    },
+    "forecastButton": "Forecast",
+    "future": {
+      "heading": "See what retirement could look like",
+      "kicker": "Future you"
+    },
+    "monthlySavingsLabel": "Monthly savings",
+    "monthlySpendingLabel": "Monthly spending in retirement",
+    "now": {
+      "description": "Move the sliders to see how changes to your savings and spending affect your retirement outlook.",
+      "heading": "Adjust the plan to match your life today",
+      "kicker": "Now"
+    },
+    "projectedPot": "Projected pot at {{age}}",
+    "statePensionLabel": "State pension (£/yr)",
+    "title": "Pension Forecast"
   },
   "portfolio": "Portfolio",
   "query": {
@@ -930,10 +1362,51 @@
     "tickers": "Tickers",
     "title": "Screener",
     "unavailableBody": "This deployment doesn't include the fundamentals screener, so filtering by financial ratios isn't possible here.",
-    "watchlist": "Watchlist:"
+    "watchlist": "Watchlist:",
+    "watchlistLabel": "Watchlist",
+    "custom": "Custom",
+    "tickersPlaceholder": "PFE,MSFT,…",
+    "col": {
+      "rank": "Rank",
+      "revGrowth": "Rev Growth",
+      "epsGrowth": "EPS Growth",
+      "intCov": "IntCov",
+      "curr": "Curr",
+      "quick": "Quick",
+      "grossMargin": "Gross Margin",
+      "opMargin": "Op Margin",
+      "netMargin": "Net Margin",
+      "ebitdaMargin": "EBITDA Margin",
+      "divPct": "Div%",
+      "payout": "Payout",
+      "shares": "Shares",
+      "float": "Float",
+      "mktCap": "MktCap",
+      "wk52h": "52wH",
+      "wk52l": "52wL",
+      "avgVol": "AvgVol"
+    },
+    "tips": {
+      "infoLabel": "What does {{column}} mean?"
+    }
   },
   "dataadmin": {
-    "configureLocalLogin": "Configure local login override"
+    "configureLocalLogin": "Configure local login override",
+    "columns": {
+      "ticker": "Ticker",
+      "exchange": "Exchange",
+      "name": "Name",
+      "earliest": "Earliest Date",
+      "latest": "Latest Date",
+      "completeness": "Completeness %",
+      "latestSource": "Latest Source",
+      "mainSource": "Main Source",
+      "actions": "Actions"
+    },
+    "refetch": "Refetch",
+    "rebuildCache": "Rebuild cache",
+    "openInstrument": "Open instrument",
+    "sourceLabel": "Source: {{source}}"
   },
   "support": {
     "appUpdate": {
@@ -1055,6 +1528,11 @@
         "chat_model": "Model name for the ollama or deepseek chat provider. Blank uses the provider default.",
         "chat_base_url": "Base URL for the ollama or deepseek chat provider. Blank uses the provider default.",
         "chat_rate_limit": "Rate limit for chat requests, e.g. \"20/minute\"."
+      },
+      "themeOptions": {
+        "dark": "dark",
+        "light": "light",
+        "system": "system"
       }
     },
     "dataExplorer": {
@@ -1103,7 +1581,8 @@
       "sent": "Sent"
     },
     "telegramMessage": "Telegram Message",
-    "title": "Configuration"
+    "title": "Configuration",
+    "apiConsole": "API Console"
   },
   "timeseries": {
     "loading": "Loading…"
@@ -1145,7 +1624,14 @@
       "volumeIncluded": " (including volume)"
     },
     "ticker": "Ticker",
-    "title": "Time Series Editor"
+    "title": "Time Series Editor",
+    "controls": {
+      "sort": "Sort",
+      "sortDesc": "Newest first",
+      "sortAsc": "Oldest first",
+      "startDate": "Start date",
+      "endDate": "End date"
+    }
   },
   "trading": {
     "noPositions": "No positions.",
@@ -1164,7 +1650,53 @@
     "noSignalsTitle": "No signals right now",
     "noSignalsDescription": "No tracked instrument currently crosses the active thresholds. Signals appear when RSI or moving-average conditions are met and any enabled valuation and risk filters also pass.",
     "checksSkippedBadge": "Checks skipped",
-    "checksSkippedTitle": "Skipped checks: {{checks}}"
+    "checksSkippedTitle": "Skipped checks: {{checks}}",
+    "checksSkippedInfo": "An optional check that needs the allotmint-pro add-on could not run. “compliance” means the trade was not checked against your compliance rules; “fundamental_screen” means the P/E and debt/equity filters above (whichever are configured) were not applied to this buy candidate.",
+    "checksSkippedInfoLabel": "What does 'Checks skipped' mean?",
+    "columns": {
+      "action": "Action",
+      "strengthHeader": "Strength",
+      "summary": "Summary",
+      "ticker": "Ticker",
+      "why": "Why"
+    },
+    "notEnabled": "Not enabled",
+    "showingFirst": "Showing first {{shown}} signals of {{total}}.",
+    "signalsTableCaption": "Trading signals",
+    "strength": {
+      "label": "{{label}} ({{percent}}%)",
+      "moderate": "Moderate",
+      "strong": "Strong",
+      "weak": "Weak"
+    },
+    "thresholdDays": "{{value}} days",
+    "thresholds": {
+      "rsiBuy": "RSI buy below",
+      "rsiSell": "RSI sell above",
+      "rsiLookback": "RSI lookback",
+      "shortMa": "Short moving average",
+      "longMa": "Long moving average",
+      "maxPe": "Maximum P/E",
+      "maxDe": "Maximum debt/equity",
+      "minSharpe": "Minimum Sharpe ratio",
+      "maxVolatility": "Maximum volatility"
+    },
+    "tips": {
+      "debtEquityInfo": "Debt/equity divides a company's total debt by its shareholders' equity — a measure of financial leverage.",
+      "debtEquityInfoLabel": "What does debt/equity mean?",
+      "movingAverageInfo": "A moving average is the average closing price over a fixed number of days. Signals compare the short-window average against the long-window one.",
+      "movingAverageInfoLabel": "What does moving average mean?",
+      "peInfo": "P/E (price/earnings) divides share price by earnings per share.",
+      "peInfoLabel": "What does P/E mean?",
+      "rsiInfo": "RSI (Relative Strength Index) is a momentum indicator, scored 0-100, derived from recent price changes. A signal is a buy candidate when RSI is at or below this threshold.",
+      "rsiInfoLabel": "What does RSI mean?",
+      "rsiLookbackInfo": "The number of days of price history used to calculate RSI.",
+      "rsiSellInfo": "A signal is a sell candidate when RSI is at or above this threshold.",
+      "sharpeInfo": "The Sharpe ratio here is the portfolio's excess return over the configured risk-free rate per unit of daily volatility, annualised (× √252).",
+      "sharpeInfoLabel": "What does Sharpe ratio mean?",
+      "volatilityInfo": "Volatility here is the day-to-day (daily, not annualised) standard deviation of returns — how much the price has fluctuated from one day to the next.",
+      "volatilityInfoLabel": "What does volatility mean?"
+    }
   },
   "trail": {
     "allDone": "All Trail tasks are complete — fantastic work!",
@@ -1204,12 +1736,21 @@
     "accountHeading": "Signed in as",
     "selectOwnerPrompt": "Select an account holder to view their settings.",
     "newTickerLabel": "Ticker",
-    "newDateLabel": "Approval date"
+    "newDateLabel": "Approval date",
+    "addApprovalFailed": "Failed to add approval",
+    "approvalsForbidden": "You don't have permission to view or manage approvals for this account.",
+    "approvalsSessionExpired": "Your session has expired. Sign in again to manage approvals.",
+    "avatarAlt": "user avatar",
+    "complianceDocsLink": "Learn more about compliance",
+    "dateColumn": "Date",
+    "loadApprovalsFailed": "Failed to load approvals",
+    "removeApprovalFailed": "Failed to remove approval"
   },
   "var": {
     "details": "Historical simulation details",
     "noData": "No VaR data available.",
-    "title": "Value at Risk"
+    "title": "Value at Risk",
+    "chartAria": "Value at Risk chart"
   },
   "watchlist": {
     "refresh": "Refresh",
@@ -1223,7 +1764,16 @@
     "columnChange": "Chg",
     "columnChangePct": "Chg %",
     "columnVolume": "Vol",
-    "columnTime": "Time (Europe/London)"
+    "columnTime": "Time (Europe/London)",
+    "title": "Watchlist",
+    "symbolsLabel": "Watched tickers",
+    "removeSymbol": "Remove {{symbol}}",
+    "symbolsPlaceholder": "Add a ticker (e.g. ^FTSE, EURGBP=X, VUSA.L) and press Enter",
+    "addSymbol": "Add",
+    "refreshFrequency": "Auto-refresh",
+    "everyMinute": "Every minute",
+    "manual": "Manual",
+    "marketsClosed": "Markets closed"
   },
   "scenarioFx": {
     "title": "Currency shock",
@@ -1864,7 +2414,8 @@
     "install": "Install to Home Screen"
   },
   "errorBoundary": {
-    "message": "Something went wrong."
+    "message": "Something went wrong.",
+    "pageLoadFailed": "Failed to load page"
   },
   "dataExplorerTree": {
     "empty": "(empty)"
@@ -1877,5 +2428,534 @@
   },
   "discover": {
     "title": "Discover"
+  },
+  "criteriaBuilder": {
+    "remove": "Remove",
+    "add": "Add"
+  },
+  "filterBar": {
+    "clearAll": "Clear all"
+  },
+  "taxTools": {
+    "title": "Tax Tools",
+    "subtitle": "Run quick harvest scenarios and keep tabs on your annual allowances in one place.",
+    "portfolioOwner": "Portfolio owner",
+    "selectOwner": "Select an owner",
+    "loadingOwners": "Loading owners...",
+    "noOwners": "No owners available.",
+    "loadOwnersFailed": "Failed to load owners",
+    "loadPortfolioFailed": "Failed to load portfolio",
+    "loadAllowancesFailed": "Failed to load allowances",
+    "selectPositionError": "Select a position or enter one manually to model a harvest",
+    "harvest": {
+      "title": "Tax Harvest",
+      "description": "Model potential loss harvesting opportunities from your positions.",
+      "chooseOwner": "Choose a portfolio owner to see harvest candidates.",
+      "minLossThreshold": "Minimum loss threshold: {{threshold}}%",
+      "loadingCandidates": "Loading candidates...",
+      "col": {
+        "holding": "Holding",
+        "units": "Units",
+        "basisPerUnit": "Basis / unit",
+        "price": "Price",
+        "costBasis": "Cost basis",
+        "marketValue": "Market value",
+        "loss": "Loss"
+      },
+      "noCandidates": "No clear loss candidates found.",
+      "advancedToggle": "Advanced: add manual position",
+      "basis": "Basis",
+      "run": "Run Harvest",
+      "modeledTrades": "Modeled trades",
+      "tradeLoss": "{{ticker}}: {{loss}} loss",
+      "totalModeledLoss": "Total modeled loss: {{total}}",
+      "noTrades": "No trades qualify",
+      "tip": "Tip: select one or more candidates above or use the advanced form."
+    },
+    "allowances": {
+      "title": "Tax Allowances",
+      "description": "Track how much of each allowance you have used and what remains.",
+      "chooseOwner": "Choose a portfolio owner to see their allowance usage.",
+      "noData": "No data",
+      "taxYear": "Tax year {{year}}",
+      "usedOfTotal": "Used {{used}} of {{limit}} total",
+      "outstanding": "Outstanding: {{value}}",
+      "allUsed": "All allowances fully used",
+      "col": {
+        "account": "Account",
+        "limit": "Limit",
+        "used": "Used",
+        "available": "Available",
+        "usage": "Usage"
+      },
+      "usedOfLimitPct": "Used {{used}} of {{limit}} ({{percent}}%)"
+    }
+  },
+  "accountBlock": {
+    "estValue": "Est Value: ",
+    "lastUpdated": "Last updated: "
+  },
+  "dividendHistory": {
+    "trendAria": "Dividend trend",
+    "date": "Date",
+    "owner": "Owner",
+    "ticker": "Ticker",
+    "amount": "Amount",
+    "totals": "Totals",
+    "total": "Total"
+  },
+  "transactionsPage": {
+    "account": "Account",
+    "owner": "Owner",
+    "ticker": "Ticker",
+    "valueGbp": "Value (GBP)",
+    "units": "Units",
+    "priceGbp": "Price (GBP)",
+    "inputTitle": "Account + Holdings Input",
+    "inputIntro": "Create accounts and set holdings. Saving records the opening-balance transfer that brings the account to the units you enter, so it shows up alongside your trades on <txlink>Transactions</txlink>.",
+    "saving": "Saving...",
+    "saveHolding": "Save holding",
+    "savedAccounts": "Saved accounts",
+    "noSavedAccounts": "No saved accounts yet for this owner.",
+    "accountSummary": "{{account}} ({{holdingCount}} holdings)",
+    "editingNotice": "Editing existing transaction. Owner and account filters are locked until you save or cancel.",
+    "realisedGainLoss": "Realised gain/loss:",
+    "excludesUnknownSales_one": "(excludes {{count}} sale with unknown cost)",
+    "excludesUnknownSales_other": "(excludes {{count}} sales with unknown cost)",
+    "income": "Income:",
+    "fees": "Fees:",
+    "loadManualFailed": "Failed to load manual holdings.",
+    "requiredFields": "Owner, account, and ticker are required.",
+    "valuePositive": "Value (GBP) must be a positive number.",
+    "unitsAndPrice": "Provide both Units and Price (GBP).",
+    "unitsPositive": "Units must be a positive number.",
+    "pricePositive": "Price (GBP) must be a positive number.",
+    "valueOrUnitsPrice": "Provide either Value (GBP) or both Units + Price (GBP).",
+    "holdingSaved": "Holding saved.",
+    "saveHoldingFailed": "Failed to save holding.",
+    "confirmDelete": "Delete this transaction?",
+    "deleted": "Transaction deleted successfully.",
+    "deleteFailed": "Failed to delete transaction.",
+    "selectOwnerAccount": "Select an owner and account in the filters before saving.",
+    "confirmBulkDelete_one": "Delete {{count}} selected transaction?",
+    "confirmBulkDelete_other": "Delete {{count}} selected transactions?",
+    "bulkDeleted_one": "Deleted {{count}} transaction successfully.",
+    "bulkDeleted_other": "Deleted {{count}} transactions successfully.",
+    "bulkDeleteFailed": "Failed to delete selected transactions.",
+    "confirmBulkUpdate_one": "Update {{count}} selected transaction?",
+    "confirmBulkUpdate_other": "Update {{count}} selected transactions?",
+    "bulkUpdated_one": "Updated {{count}} transaction successfully.",
+    "bulkUpdated_other": "Updated {{count}} transactions successfully.",
+    "bulkUpdateFailed": "Failed to update selected transactions.",
+    "updated": "Transaction updated successfully.",
+    "created": "Transaction created successfully.",
+    "updateFailed": "Failed to update transaction.",
+    "createFailed": "Failed to create transaction."
+  },
+  "alerts": {
+    "title": "Alerts",
+    "empty": "No alerts.",
+    "fallbackLabel": "Alert",
+    "offline": "You appear to be offline.",
+    "timedOut": "Request timed out. Please try again."
+  },
+  "allowanceTracker": {
+    "title": "Allowance Tracker",
+    "account": "Account",
+    "used": "Used",
+    "available": "Available",
+    "loadFailed": "Failed to load allowances",
+    "noData": "No data"
+  },
+  "dataExplorer": {
+    "selectFile": "Select a file to preview its contents.",
+    "fileMeta": "{{size}} bytes — last modified {{modified}}",
+    "truncated": "Preview truncated; showing only the first part of the file."
+  },
+  "returnComparison": {
+    "title": "Return Comparison – {{owner}}",
+    "timeframe": "Timeframe:",
+    "portfolioCagr": "Portfolio CAGR: {{value}}",
+    "cashApy": "Cash APY: {{value}}"
+  },
+  "smokeTest": {
+    "title": "Smoke test",
+    "results": "Smoke test results",
+    "ok": "ok",
+    "failed": "failed"
+  },
+  "plot": {
+    "hud": {
+      "title": "The Plot",
+      "plotValueTitle": "Total plot value",
+      "plotValueSr": "total plot value",
+      "gainTitle": "Unrealised gain across every bed",
+      "gainSr": "unrealised gain",
+      "streakTitle": "Consecutive days of chores done",
+      "streakSr": "day streak",
+      "badgesTitle": "Season badges earned",
+      "badgesSr": "season badges earned",
+      "xpLabel": "Level {{level}} · {{xp}}/{{xpForLevel}} XP",
+      "meterLabel": "Grower level {{level}}, {{xp}} of {{xpForLevel}} XP to the next level",
+      "classicView": "Classic view"
+    },
+    "rail": {
+      "ariaLabel": "Plot sections",
+      "plot": "The Plot",
+      "plotSub": "Overview",
+      "crops": "Crops",
+      "cropsSub": "Your holdings",
+      "chores": "Chores",
+      "choresSub": "Daily tasks",
+      "season": "Season",
+      "seasonSub": "Tax-year goals",
+      "seeds": "Seed shed",
+      "seedsSub": "Watchlist"
+    },
+    "app": {
+      "grower": "Grower",
+      "notFoundTitle": "Nothing growing here",
+      "notFoundBody": "There's no plot screen at this path.",
+      "backToPlot": "Back to the plot",
+      "or": "or",
+      "theRoster": "the roster",
+      "loadError": "Could not load the plot: {{error}}",
+      "tryAgain": "Try again",
+      "loading": "Walking down to the allotment…"
+    },
+    "propagator": {
+      "empty": "Nothing in the propagator — every crop has served its holding period and can be lifted.",
+      "meterIndeterminate": "{{ticker}}: not yet liftable, {{daysHeld}} days held",
+      "meterProgress": "{{ticker}}: {{daysHeld}} days held, {{daysRemaining}} to go",
+      "daysHeld": "{{daysHeld}} days held",
+      "daysRatio": "{{daysHeld}} / {{total}} days",
+      "notLiftable": "Not yet liftable",
+      "readyOn": "Ready {{date}}",
+      "daysToGo": "{{daysRemaining}} days to go",
+      "noteIndeterminate": "Progress toward each holding's minimum holding period, where the backend knows it — some trays here are marked not sellable with no countdown to show.",
+      "note": "Progress toward each holding's minimum holding period, from the same rule the classic compliance screens use."
+    },
+    "streak": {
+      "ariaLabel": "Chore history for the last week",
+      "noChores": "{{date}}: no chores recorded",
+      "choresDone": "{{date}}: {{completed}} of {{total}} chores done",
+      "crate": {
+        "none": "No chores tracked yet this week",
+        "progress_one": "{{engaged}} of {{count}} day down — keep going to fill the crate",
+        "progress_other": "{{engaged}} of {{count}} days down — keep going to fill the crate",
+        "full": "Full week of chores done",
+        "finish": "Finish every day this week to fill the crate"
+      }
+    },
+    "card": {
+      "removeFavourite": "Remove {{ticker}} from favourites",
+      "addFavourite": "Add {{ticker}} to favourites",
+      "today": "{{pct}} today",
+      "noDataToday": "no data today"
+    },
+    "stars": "{{filled}} of {{max}} stars",
+    "data": {
+      "ownersError": "Could not load the list of growers.",
+      "noOwners": "No growers found for this account."
+    },
+    "chores": {
+      "done": "Done",
+      "completing": "Completing…",
+      "go": "Go",
+      "tryAgain": "Try again",
+      "doIt": "Do it",
+      "completingTitle": "{{title}}: completing…",
+      "sessionExpired": "Your session has expired. Sign in again to complete this chore.",
+      "completeFailed": "Could not complete this chore. Try again.",
+      "title": "Chores",
+      "unavailable": "Neither the Trail nor the Quests endpoint is available on this deployment, so there is nothing to tick off here yet.",
+      "dailyChores": "Daily chores",
+      "choresDone": "Chores done",
+      "plotTidy": "Plot is tidy",
+      "completeAll": "Complete all chores",
+      "seasonXp": "Season XP",
+      "meterLabel": "Level {{level}}, {{xp}} of {{xpForLevel}} XP to level {{nextLevel}}",
+      "levelHint": "Level {{level}} · {{xp}}/{{xpForLevel}} XP to level {{nextLevel}}",
+      "streak": "Streak",
+      "streakHint": "Consecutive days with every daily chore finished.",
+      "today": "Today",
+      "noDaily": "No daily chores right now.",
+      "groundwork": "Groundwork"
+    },
+    "crop": {
+      "growth": "Growth",
+      "gainUnknown": "Gain unknown — no cost basis on record",
+      "gainDetail": "{{gain}} unrealised gain ({{pct}})",
+      "vigour": "Vigour",
+      "noMoveToday": "No move recorded today",
+      "pctToday": "{{pct}} today",
+      "priceStale": "price data is stale",
+      "priceUnverified": "price freshness unverified",
+      "rootDepth": "Root depth",
+      "rootDepthDetail": "{{pct}}% of total plot value",
+      "hardiness": "Hardiness",
+      "holdingAgeUnknown": "Holding age unknown",
+      "held_one": "Held {{count}} day",
+      "held_other": "Held {{count}} days",
+      "inPropagatorUntil": "in the propagator until {{date}}",
+      "notYetLiftable": "not yet liftable",
+      "clearedPropagator": "cleared the propagator on {{date}}",
+      "readyToLift": "ready to lift",
+      "notFoundTitle": "Crop not found",
+      "notFoundBody": "Nothing called “{{id}}” is growing in this plot.",
+      "backToRoster": "Back to the roster",
+      "stalePrice": "Stale price",
+      "unverifiedPrice": "Unverified price",
+      "traits": "Traits",
+      "level": "Lv {{level}}/{{max}}",
+      "plotValue": "Plot value",
+      "vigourMeter": "Vigour {{value}} out of 100",
+      "ledger": "Ledger",
+      "units": "Units",
+      "costBasis": "Cost basis",
+      "marketValue": "Market value",
+      "today": "Today",
+      "noData": "no data",
+      "lastPrice": "Last price",
+      "unknown": "unknown",
+      "openInstrument": "Open the full instrument view →",
+      "neighbours": "Neighbouring crops",
+      "allCrops": "All crops"
+    },
+    "roster": {
+      "sortShare": "Plot share",
+      "sortGrowth": "Growth",
+      "sortVigour": "Vigour",
+      "sortAz": "A–Z",
+      "growthStages": "Growth stages",
+      "growthStagesLabel": "What do growth stages mean?",
+      "growthStagesTip": "A crop's stage is its total gain since purchase, not its day change — Sown/Sprouting means little or no profit yet, Fruiting and Bumper crop mean it has gained a lot.",
+      "stageNote": "Stage comes from each holding's total gain, star rating from its share of plot value.",
+      "title": "Crop roster ({{visible}}/{{total}})",
+      "bedCount_one": "{{count}} bed",
+      "bedCount_other": "{{count}} beds",
+      "searchLabel": "Search crops",
+      "searchPlaceholder": "Search ticker, name, bed or sector",
+      "sortCrops": "Sort crops",
+      "vigourHidden": "Vigour sort is hidden: no crop has a recorded move today, so every crop would score the same.",
+      "filterCrops": "Filter crops",
+      "allBeds": "All beds",
+      "favourites": "Favourites ({{count}})",
+      "noMatch": "No crops match those filters."
+    },
+    "seeds": {
+      "title": "Seed catalogue",
+      "intro": "Your watchlist as seed packets — the same list the classic Watchlist page reads, priced from live quotes. Nothing here places a trade.",
+      "loadError": "Could not load quotes: {{error}}",
+      "tryAgain": "Try again",
+      "available": "Available seed ({{count}})",
+      "loading": "Checking the seed trays…",
+      "emptyWatchlist": "Your watchlist is empty — add a stock to see it here. You can add one in the <txlink>classic watchlist</txlink>.",
+      "noQuotes": "No quotes came back for your watchlist symbols. Try the <txlink>classic watchlist</txlink> to check them.",
+      "unnamed": "Unnamed instrument",
+      "alreadyGrowing": "Already growing in your plot",
+      "notSown": "Not sown yet",
+      "inspectCrop": "Inspect crop",
+      "readPacket": "Read the packet"
+    },
+    "season": {
+      "everyTierEarned": "Every {{group}} tier earned",
+      "meterLabel": "{{group}}: {{current}} of {{target}} toward the next tier",
+      "pastTier": "{{current}} — already past this tier.",
+      "allTiers": "{{current}} — every tier in this category is earned.",
+      "rewardEarned": "{{reward}} earned",
+      "earned": "Earned",
+      "badgeShelf": "Badge shelf ({{earned}}/{{total}})",
+      "badgeNote": "A badge is earned when every tier in its category is cleared.",
+      "growingSeasonLabel": "Growing season {{label}}",
+      "growingSeason": "Growing season",
+      "noTaxYear": "No tax year reported for this grower, so the season has no end date to count down to.",
+      "note": "The season is the UK tax year (6 April to 5 April) reported by the allowances API — the date unused ISA and pension headroom expires."
+    },
+    "hub": {
+      "explainWater": "Water is how many trades you have left to make this month before the cap resets.",
+      "explainFeed": "Feed is how much of this year's ISA/pension allowance headroom you still have to use.",
+      "explainSun": "Sunlight is how much of your portfolio has a fresh price today — a stale price makes it droop.",
+      "explainSunUnknown": "Sunlight is how much of your portfolio has a *confirmed* fresh price today. A price with no freshness signal at all counts as unknown, not stale — it just has not been vouched for yet.",
+      "featuredCrops": "Featured crops",
+      "starGrower": "Star grower",
+      "needsAttention": "Needs attention",
+      "allHealthy": "Nothing needs attention — the whole plot is healthy.",
+      "nothingPlanted": "Nothing planted yet — add a holding in the classic view and it will sprout here.",
+      "pricedAsOf": "Plot priced as of {{date}}.",
+      "resources": "Plot resources",
+      "whatDoesMean": "What does {{term}} mean?",
+      "todaysChores": "Today's chores",
+      "choresOpen_one": "{{count}} chore still open",
+      "choresOpen_other": "{{count}} chores still open",
+      "choresAllDone": "All chores done — the plot is tidy",
+      "streakGoing": "{{count}}-day streak going. Keep it alive.",
+      "streakStart": "Finish a full day to start a streak.",
+      "go": "Go",
+      "choresDisabled": "Chore tracking is not enabled on this deployment.",
+      "growingSeasonLabel": "Growing season {{label}}",
+      "growingSeason": "Growing season",
+      "milestonesReached": "{{done}} of {{total}} season milestones reached",
+      "tieredGoals": "Tiered goals across plot size, value, allowances, streak and rank.",
+      "view": "View",
+      "propagator": "Propagator",
+      "propagatorTip": "Crops still inside their minimum holding period, counting down to the date each one becomes eligible to sell.",
+      "beds": "Beds",
+      "bedsTip": "Each investment account is shown as a bed, with its holdings planted in it as crops.",
+      "noAccounts": "No accounts found for this grower.",
+      "showBedCrops": "Show {{name}} crops",
+      "cropCount_one": "{{count}} crop",
+      "cropCount_other": "{{count}} crops",
+      "bedPriced": "priced {{date}}",
+      "biggestCrops": "Biggest crops",
+      "nothingToShow": "Nothing to show yet.",
+      "fullRoster": "See the full roster →"
+    },
+    "model": {
+      "unnamedBed": "Unnamed bed",
+      "allowancesUnavailable": "Allowances unavailable right now",
+      "water": "Water",
+      "feed": "Feed",
+      "sunlight": "Sunlight",
+      "waterHint": "{{left}} of {{cap}} trades left this month",
+      "feedHint": "{{amount}} of tax allowance headroom left",
+      "feedNoData": "No allowance data for this grower yet",
+      "sunAllFresh": "{{fresh}} of {{total}} crops priced from fresh data",
+      "sunFresh": "{{count}} fresh",
+      "sunStale": "{{count}} stale",
+      "sunUnknown": "{{count}} unknown",
+      "sunBreakdown": "{{parts}} of {{total}} crops",
+      "notSellable": "not sellable yet",
+      "priceStale": "price is stale",
+      "down": "down {{pct}}%",
+      "seasonClosed": "Season closed",
+      "dayCount_one": "{{count}} day",
+      "dayCount_other": "{{count}} days",
+      "hourCount_one": "{{count}} hour",
+      "hourCount_other": "{{count}} hours",
+      "cropCount_one": "{{count}} crop",
+      "cropCount_other": "{{count}} crops",
+      "endsInDaysHours": "Ends in {{days}} and {{hours}}",
+      "endsInHours": "Ends in {{hours}}",
+      "level": "Level {{level}}"
+    },
+    "goals": {
+      "tend": {
+        "group": "Tend the plot",
+        "reward": "Grower badge",
+        "title": "Tend {{target}} crops at once"
+      },
+      "grow": {
+        "group": "Grow the plot",
+        "reward": "Harvest badge",
+        "title": "Grow the plot to {{amount}}"
+      },
+      "feed": {
+        "group": "Feed the beds",
+        "reward": "Feed badge",
+        "title": "Use {{amount}} of this season's allowances"
+      },
+      "streak": {
+        "group": "Keep the streak",
+        "reward": "Streak badge",
+        "title": "Hold a {{target}}-day chore streak"
+      },
+      "rank": {
+        "group": "Earn your rank",
+        "reward": "Rank badge",
+        "title": "Reach grower level {{target}}"
+      }
+    },
+    "rank": {
+      "headGardener": "Head Gardener",
+      "masterGrower": "Master Grower",
+      "plotholder": "Plotholder",
+      "seasonedDigger": "Seasoned Digger",
+      "weekendGrower": "Weekend Grower",
+      "seedlingSower": "Seedling Sower"
+    },
+    "stage": {
+      "wilting": "Wilting",
+      "seed": "Sown",
+      "sprout": "Sprouting",
+      "leafing": "Leafing",
+      "budding": "Budding",
+      "flowering": "Flowering",
+      "fruiting": "Fruiting",
+      "bumper": "Bumper crop"
+    }
+  },
+  "userAvatar": {
+    "alt": "user avatar"
+  },
+  "appHeader": {
+    "notifications": "notifications",
+    "chat": "chat",
+    "chatDetached": "Chat is open in its own window"
+  },
+  "notificationsDrawer": {
+    "alerts": "Alerts",
+    "close": "close",
+    "cannotReachServer": "Cannot reach server",
+    "noAlerts": "No alerts",
+    "noNudges": "No nudges",
+    "nudges": "Nudges",
+    "snooze": "Snooze",
+    "daily": "Daily",
+    "every3Days": "Every 3 days",
+    "weekly": "Weekly"
+  },
+  "ownerPortfolioActions": {
+    "exportCsvAria": "Export portfolio as CSV",
+    "exportCsv": "Export CSV",
+    "exportPdfAria": "Export portfolio as PDF",
+    "exportPdf": "Export PDF",
+    "importCsv": "Import CSV",
+    "addAccount": "Add account",
+    "cancelImport": "Cancel import",
+    "viewCompliance": "View compliance warnings",
+    "complianceError": "Unable to load compliance warnings."
+  },
+  "topMoversSummary": {
+    "noGroup": "No group selected.",
+    "loadFailed": "Failed to load movers.",
+    "viewMore": "View more"
+  },
+  "topMoversPage": {
+    "showingFirst": "Showing first {{shown}} signals of {{total}}."
+  },
+  "loginPage": {
+    "sessionExpired": "Your session has expired. Please sign in again to continue.",
+    "startFailed": "Failed to start sign-in. Please try again.",
+    "signIn": "Sign in",
+    "error": "Error: {{message}}",
+    "noAccount": "Don't have an account?",
+    "requestAccess": "Request access"
+  },
+  "mainApp": {
+    "retryingConfig": "Loading... retrying configuration.",
+    "loadingConfig": "Loading configuration...",
+    "configLoadFailed": "Unable to load configuration.",
+    "checkConnection": "Please check your connection and try again.",
+    "googleNotConfigured": "Google login is not configured.",
+    "loading": "Loading...",
+    "loginCancelled": "Login cancelled.",
+    "signIn": "Sign in",
+    "authUnavailable": "Authentication is unavailable. Please contact your administrator.",
+    "signInFailed": "Sign-in failed. Reason: {{reason}}"
+  },
+  "demo": {
+    "readOnlyBanner": "Read-only demo — sign in to use AllotMint"
+  },
+  "help": {
+    "title": "Help & Getting Started",
+    "intro": "A quick guide to what each page in AllotMint is for, plus how to look up unfamiliar terms and how to report a problem.",
+    "pagesTitle": "What each page does",
+    "glossaryTitle": "Metrics glossary",
+    "glossaryDescription": "Not sure what a metric like Sharpe ratio, max drawdown or tracking error means? The glossary explains the terms used throughout the app.",
+    "glossaryLink": "Open the metrics glossary",
+    "reportTitle": "Report a problem",
+    "reportDescription": "Found a bug or something confusing? Let us know on GitHub so it can be tracked and fixed.",
+    "reportLink": "Open a GitHub issue"
   }
 }

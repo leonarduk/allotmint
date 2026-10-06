@@ -250,16 +250,16 @@ export function Screener() {
           className="mb-4 flex flex-wrap items-center gap-2"
         >
           <label className="mr-2">
-            Watchlist
+            {t("screener.watchlistLabel")}
             <select
               value={watchlist}
               onChange={(e) =>
                 setWatchlist(e.target.value as WatchlistName | "Custom")
               }
               className="ml-1 border px-2 py-1"
-              aria-label="Watchlist"
+              aria-label={t("screener.watchlistLabel")}
             >
-              <option value="Custom">Custom</option>
+              <option value="Custom">{t("screener.custom")}</option>
               {(Object.keys(WATCHLISTS) as WatchlistName[]).map((name) => (
                 <option key={name} value={name}>
                   {name}
@@ -275,7 +275,7 @@ export function Screener() {
                 type="text"
                 value={tickers}
                 onChange={(e) => setTickers(e.target.value)}
-                placeholder="PFE,MSFT,…"
+                placeholder={t("screener.tickersPlaceholder")}
                 style={{ marginLeft: "0.25rem" }}
               />
             </label>
@@ -339,12 +339,14 @@ export function Screener() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <th style={right} onClick={() => handleSort("rank")}>Rank</th>
+              <th style={right} onClick={() => handleSort("rank")}>
+                {t("screener.col.rank")}
+              </th>
               <th
                 style={{ ...cell, cursor: "pointer" }}
                 onClick={() => handleSort("ticker")}
               >
-                Ticker
+                {t("common.ticker")}
               </th>
               <th style={right} onClick={() => handleSort("peg_ratio")}>
                 PEG
@@ -367,11 +369,11 @@ export function Screener() {
                 <RatioHeaderInfoTip column="EV/EBITDA" />
               </th>
               <th style={right} onClick={() => handleSort("revenue_growth")}>
-                Rev Growth
+                {t("screener.col.revGrowth")}
                 <RatioHeaderInfoTip column="Rev Growth" />
               </th>
               <th style={right} onClick={() => handleSort("earnings_growth")}>
-                EPS Growth
+                {t("screener.col.epsGrowth")}
                 <RatioHeaderInfoTip column="EPS Growth" />
               </th>
               <th style={right} onClick={() => handleSort("de_ratio")}>
@@ -383,15 +385,15 @@ export function Screener() {
                 <RatioHeaderInfoTip column="LT D/E" />
               </th>
               <th style={right} onClick={() => handleSort("interest_coverage")}>
-                IntCov
+                {t("screener.col.intCov")}
                 <RatioHeaderInfoTip column="IntCov" />
               </th>
               <th style={right} onClick={() => handleSort("current_ratio")}>
-                Curr
+                {t("screener.col.curr")}
                 <RatioHeaderInfoTip column="Curr" />
               </th>
               <th style={right} onClick={() => handleSort("quick_ratio")}>
-                Quick
+                {t("screener.col.quick")}
                 <RatioHeaderInfoTip column="Quick" />
               </th>
               <th style={right} onClick={() => handleSort("fcf")}>
@@ -403,19 +405,19 @@ export function Screener() {
                 <RatioHeaderInfoTip column="EPS" />
               </th>
               <th style={right} onClick={() => handleSort("gross_margin")}>
-                Gross Margin
+                {t("screener.col.grossMargin")}
                 <RatioHeaderInfoTip column="Gross Margin" />
               </th>
               <th style={right} onClick={() => handleSort("operating_margin")}>
-                Op Margin
+                {t("screener.col.opMargin")}
                 <RatioHeaderInfoTip column="Op Margin" />
               </th>
               <th style={right} onClick={() => handleSort("net_margin")}>
-                Net Margin
+                {t("screener.col.netMargin")}
                 <RatioHeaderInfoTip column="Net Margin" />
               </th>
               <th style={right} onClick={() => handleSort("ebitda_margin")}>
-                EBITDA Margin
+                {t("screener.col.ebitdaMargin")}
                 <RatioHeaderInfoTip column="EBITDA Margin" />
               </th>
               <th style={right} onClick={() => handleSort("roa")}>
@@ -431,14 +433,14 @@ export function Screener() {
                 <RatioHeaderInfoTip column="ROI" />
               </th>
               <th style={right} onClick={() => handleSort("dividend_yield")}>
-                Div%
+                {t("screener.col.divPct")}
                 <RatioHeaderInfoTip column="Div%" />
               </th>
               <th
                 style={right}
                 onClick={() => handleSort("dividend_payout_ratio")}
               >
-                Payout
+                {t("screener.col.payout")}
                 <RatioHeaderInfoTip column="Payout" />
               </th>
               <th style={right} onClick={() => handleSort("beta")}>
@@ -449,30 +451,30 @@ export function Screener() {
                 style={right}
                 onClick={() => handleSort("shares_outstanding")}
               >
-                Shares
+                {t("screener.col.shares")}
                 <RatioHeaderInfoTip column="Shares" />
               </th>
               <th
                 style={right}
                 onClick={() => handleSort("float_shares")}
               >
-                Float
+                {t("screener.col.float")}
                 <RatioHeaderInfoTip column="Float" />
               </th>
               <th style={right} onClick={() => handleSort("market_cap")}>
-                MktCap
+                {t("screener.col.mktCap")}
                 <RatioHeaderInfoTip column="MktCap" />
               </th>
               <th style={right} onClick={() => handleSort("high_52w")}>
-                52wH
+                {t("screener.col.wk52h")}
                 <RatioHeaderInfoTip column="52wH" />
               </th>
               <th style={right} onClick={() => handleSort("low_52w")}>
-                52wL
+                {t("screener.col.wk52l")}
                 <RatioHeaderInfoTip column="52wL" />
               </th>
               <th style={right} onClick={() => handleSort("avg_volume")}>
-                AvgVol
+                {t("screener.col.avgVol")}
                 <RatioHeaderInfoTip column="AvgVol" />
               </th>
             </tr>

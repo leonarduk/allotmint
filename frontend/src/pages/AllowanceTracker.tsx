@@ -13,32 +13,32 @@ interface AllowanceInfo {
 export default function AllowanceTracker() {
   const { t } = useTranslation();
   const [data, setData] = useState<Record<string, AllowanceInfo> | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     getAllowances()
       .then((res) => {
         setData(res.allowances);
-        setError(null);
+        setError(false);
       })
-      .catch(() => setError("Failed to load allowances"))
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <TableSkeleton rows={4} columns={3} label={t("app.loading")} />;
-  if (error) return <p className="text-red-500">{error}</p>;
-  if (!data) return <EmptyState message="No data" />;
+  if (error) return <p className="text-red-500">{t("allowanceTracker.loadFailed")}</p>;
+  if (!data) return <EmptyState message={t("allowanceTracker.noData")} />;
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl md:text-4xl">Allowance Tracker</h1>
+      <h1 className="mb-4 text-2xl md:text-4xl">{t("allowanceTracker.title")}</h1>
       <table className="min-w-full border-collapse border border-gray-300">
         <thead>
           <tr>
-            <th className="border p-2 text-left">Account</th>
-            <th className="border p-2 text-right">Used</th>
-            <th className="border p-2 text-right">Available</th>
+            <th className="border p-2 text-left">{t("allowanceTracker.account")}</th>
+            <th className="border p-2 text-right">{t("allowanceTracker.used")}</th>
+            <th className="border p-2 text-right">{t("allowanceTracker.available")}</th>
           </tr>
         </thead>
         <tbody>

@@ -109,7 +109,7 @@ export default function AppHeader({
         )}
         <InstrumentSearchBarToggle />
         <button
-          aria-label="notifications"
+          aria-label={t('appHeader.notifications')}
           onClick={() => setNotificationsOpen(true)}
           style={{
             background: 'none',
@@ -121,9 +121,9 @@ export default function AppHeader({
           🔔
         </button>
         <button
-          aria-label="chat"
+          aria-label={t('appHeader.chat')}
           aria-pressed={chatDetached || undefined}
-          title={chatDetached ? 'Chat is open in its own window' : undefined}
+          title={chatDetached ? t('appHeader.chatDetached') : undefined}
           onClick={openChat}
           style={{
             background: 'none',

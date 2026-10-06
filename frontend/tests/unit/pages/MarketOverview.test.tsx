@@ -4,9 +4,6 @@ import * as api from "@/api";
 import MarketOverview, { IndexTooltip } from "@/pages/MarketOverview";
 
 vi.mock("@/api");
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (_k: string, opts?: any) => opts?.defaultValue ?? _k }),
-}));
 
 // vi.hoisted ensures mocks are initialised before vi.mock factories run.
 const mockBar = vi.hoisted(() => vi.fn(({ children }: any) => <>{children}</>));

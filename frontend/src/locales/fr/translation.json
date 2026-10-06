@@ -89,7 +89,8 @@
     "sector": "Secteurs",
     "unknownCurrency": "Devise inconnue",
     "viewAllocation": "Voir la répartition par {{dimension}}",
-    "viewContribution": "Voir la contribution aux gains"
+    "viewContribution": "Voir la contribution aux gains",
+    "chartsUnavailable": "Les graphiques ne sont pas disponibles dans cet environnement."
   },
   "app": {
     "close": "Fermer",
@@ -154,7 +155,11 @@
       "error": "Impossible de charger les journaux.",
       "refresh": "Actualiser les journaux",
       "title": "Journaux"
-    }
+    },
+    "featureDisabled": "Cette fonctionnalité n'est pas activée pour cette application.",
+    "returnHome": "Retour à l'accueil",
+    "glossaryLink": "Glossaire",
+    "instrumentCatalogueTruncated": "Affichage des {{shown}} premiers instruments sur {{total}}."
   },
   "approxTotal": "Total approximatif: £{{value}}",
   "asOf": "Au {{date}} • Transactions ce mois: {{trades}} / 20 (Restantes: {{remaining}})",
@@ -169,7 +174,9 @@
     "ticker": "Ticker",
     "cancel": "Annuler",
     "close": "Fermer",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "learnMore": "En savoir plus",
+    "all": "Tous"
   },
   "awsCostsAdmin": {
     "title": "Coûts AWS",
@@ -311,7 +318,8 @@
           "undoFailed": "Échec de l'annulation : {{detail}}",
           "notReversible": "Non réversible"
         }
-      }
+      },
+      "tabsLabel": "Administration de la qualité des données"
     }
   },
   "dashboard": {
@@ -355,7 +363,18 @@
     "selectMember": "Sélectionnez un membre.",
     "timeWeightedReturn": "Rendement pondéré dans le temps",
     "trackingError": "Erreur de suivi",
-    "xirr": "XIRR"
+    "xirr": "XIRR",
+    "alphaVsBenchmarkInfoLabel": "Que signifie Alpha vs Indice ?",
+    "alphaVsBenchmarkInfo": "L'alpha mesure l'écart entre le rendement du portefeuille et celui de {{ticker}} sur la période sélectionnée.",
+    "vsBenchmark": "vs {{ticker}}",
+    "trackingErrorInfoLabel": "Que signifie l'erreur de suivi ?",
+    "trackingErrorInfo": "L'erreur de suivi mesure l'écart entre les rendements quotidiens du portefeuille et ceux de {{ticker}}, annualisé.",
+    "maxDrawdownInfoLabel": "Que signifie le drawdown maximal ?",
+    "maxDrawdownInfo": "Le drawdown maximal est la plus forte baisse de valeur du portefeuille entre un sommet et un creux sur la période sélectionnée.",
+    "timeWeightedReturnInfoLabel": "Que signifie le rendement pondéré dans le temps ?",
+    "timeWeightedReturnInfo": "Le rendement pondéré dans le temps mesure le taux de croissance composé du portefeuille, indépendamment du moment et du montant des dépôts et retraits.",
+    "xirrInfoLabel": "Que signifie XIRR ?",
+    "xirrInfo": "Le XIRR est le taux de rendement interne annualisé, calculé à partir des flux de trésorerie datés réels du portefeuille."
   },
   "goals": {
     "add": "Ajouter un objectif",
@@ -377,7 +396,26 @@
     "pricingAsOf": "Tarification au {{date}}",
     "pricingDatePickerLabel": "Changer la date de tarification",
     "resetPricingDate": "Réinitialiser sur la plus récente",
-    "select": "Sélectionnez un groupe."
+    "select": "Sélectionnez un groupe.",
+    "allAccounts": "Tous les comptes",
+    "allPositions": "Toutes les positions",
+    "contribRegion": "Région",
+    "contribSector": "Secteur",
+    "insightCashDrag": "{{percent}} de votre portefeuille est en liquidités",
+    "insightConcentration": "Votre première ligne {{ticker}} représente {{percent}} de votre portefeuille",
+    "insightDuplication": "Vous détenez {{ticker}} dans {{accountCount}} comptes",
+    "ownerTable": {
+      "portfolioPct": "% du portefeuille",
+      "totalValue": "Valeur totale",
+      "stockPct": "% en actions",
+      "stockValue": "Valeur des actions",
+      "cashPct": "% en liquidités",
+      "cashValue": "Valeur des liquidités",
+      "dayChange": "Variation du jour",
+      "dayChangePct": "Variation du jour %",
+      "totalGain": "Gain total",
+      "totalGainPct": "Gain total %"
+    }
   },
   "holdingsTable": {
     "actualPurchaseCost": "Coût d'achat réel",
@@ -410,7 +448,8 @@
       "type": "Type",
       "units": "Unités",
       "weightPct": "Poids %",
-      "totalReturn": "Rendement total £"
+      "totalReturn": "Rendement total £",
+      "account": "Compte"
     },
     "columnsLabel": "Colonnes :",
     "eligible": "Éligible",
@@ -552,7 +591,118 @@
     "save": "Enregistrer",
     "searchInstruments": "Rechercher des instruments",
     "sectorLabel": "Secteur",
-    "showInstrumentSearch": "Afficher la recherche d'instruments"
+    "showInstrumentSearch": "Afficher la recherche d'instruments",
+    "allRegions": "Toutes les régions",
+    "allSectors": "Tous les secteurs",
+    "chooseTicker": "Choisissez un ticker via la recherche pour ouvrir l'analyse.",
+    "closeDetails": "Fermer les détails de l'instrument",
+    "closeSearch": "Fermer la recherche",
+    "expandDetails": "Agrandir ou restaurer les détails de l'instrument",
+    "filterByRegion": "Filtrer par région",
+    "filterBySector": "Filtrer par secteur",
+    "instrumentTypeLabel": "Type d'instrument",
+    "instrumentTypePlaceholder": "Sélectionnez un type",
+    "resizeDetails": "Redimensionner les détails de l'instrument",
+    "searchFailed": "La recherche a échoué",
+    "searchPlaceholder": "Rechercher…",
+    "signalStrength": "Force du signal :",
+    "strengthStrong": "Fort",
+    "strengthModerate": "Modéré",
+    "strengthWeak": "Faible",
+    "viewFullPage": "Voir la page complète",
+    "sectors": {
+      "energy": "Énergie",
+      "materials": "Matériaux",
+      "industrials": "Industrie",
+      "consumerDiscretionary": "Consommation discrétionnaire",
+      "consumerStaples": "Biens de consommation de base",
+      "healthCare": "Santé",
+      "financials": "Finance",
+      "informationTechnology": "Technologies de l'information",
+      "communicationServices": "Services de communication",
+      "utilities": "Services aux collectivités",
+      "realEstate": "Immobilier"
+    },
+    "regions": {
+      "africa": "Afrique",
+      "asia": "Asie",
+      "europe": "Europe",
+      "northAmerica": "Amérique du Nord",
+      "southAmerica": "Amérique du Sud",
+      "oceania": "Océanie",
+      "uk": "Royaume-Uni",
+      "us": "États-Unis"
+    },
+    "research": {
+      "invalidTicker": "Ticker invalide",
+      "viewScreener": "Voir le Screener",
+      "watchlist": "Liste de suivi",
+      "removeFromWatchlist": "Retirer de la liste de suivi",
+      "addToWatchlist": "Ajouter à la liste de suivi",
+      "viewOnInvesting": "Voir sur Investing.com",
+      "viewOnMorningstar": "Voir sur Morningstar",
+      "summary": "Résumé",
+      "transactions": "Transactions",
+      "loadingFundamentals": "Chargement des données fondamentales...",
+      "fundamentalsNotAvailable": "Les données fondamentales ne sont pas disponibles pour cet instrument.",
+      "fundamentalsTableAria": "Données fondamentales : {{section}}",
+      "fundamentalsLoadError": "Impossible de charger les données fondamentales : {{message}}",
+      "loadingNews": "Chargement des actualités...",
+      "noNews": "Aucune actualité disponible",
+      "tabs": {
+        "overview": "Aperçu",
+        "timeseries": "Série temporelle",
+        "fundamentals": "Données fondamentales",
+        "technicals": "Analyse technique",
+        "news": "Actualités"
+      },
+      "section": {
+        "keyFacts": "Informations clés",
+        "performance": "Performance",
+        "risk": "Risque",
+        "valuation": "Valorisation",
+        "financialHealth": "Santé financière",
+        "profitability": "Rentabilité",
+        "shareholderMetrics": "Indicateurs actionnaires"
+      },
+      "label": {
+        "exchange": "Place de cotation",
+        "lastClose": "Dernière clôture",
+        "asOf": "Au",
+        "coverage": "Couverture",
+        "dataPoints": "Points de données",
+        "change7d": "Variation 7 j",
+        "change30d": "Variation 30 j",
+        "averageDailyReturn30d": "Rendement quotidien moyen (30 j)",
+        "annualisedVolatility30d": "Volatilité annualisée (30 j)",
+        "worstDay30d": "Pire jour (30 j)",
+        "pegRatio": "Ratio PEG",
+        "peRatio": "Ratio P/E (historique)",
+        "marketCap": "Capitalisation boursière",
+        "freeCashFlow": "Flux de trésorerie disponible",
+        "earningsPerShare": "Bénéfice par action",
+        "debtEquity": "Dette/Capitaux propres",
+        "longTermDebtEquity": "Dette à long terme/Capitaux propres",
+        "interestCoverage": "Couverture des intérêts",
+        "currentRatio": "Ratio de liquidité générale",
+        "quickRatio": "Ratio de liquidité immédiate",
+        "grossMargin": "Marge brute",
+        "operatingMargin": "Marge opérationnelle",
+        "netMargin": "Marge nette",
+        "ebitdaMargin": "Marge d'EBITDA",
+        "roa": "ROA",
+        "roe": "ROE",
+        "roi": "ROI",
+        "dividendYield": "Rendement du dividende",
+        "dividendPayoutRatio": "Taux de distribution",
+        "beta": "Bêta",
+        "sharesOutstanding": "Actions en circulation",
+        "floatShares": "Actions flottantes",
+        "high52w": "Plus haut sur 52 semaines",
+        "low52w": "Plus bas sur 52 semaines",
+        "averageVolume": "Volume moyen"
+      }
+    }
   },
   "instrumentTable": {
     "columns": {
@@ -570,7 +720,8 @@
       "trend": "Tendance",
       "sparklineAria": "Tendance du cours pour {{ticker}}",
       "type": "Type",
-      "units": "Unités"
+      "units": "Unités",
+      "groupActions": "Groupe"
     },
     "exchangesLabel": "Bourses :",
     "groupTotals": {
@@ -582,7 +733,32 @@
     },
     "noInstruments": "Aucun instrument.",
     "ungrouped": "Non groupé",
-    "unknownSector": "Secteur inconnu"
+    "unknownSector": "Secteur inconnu",
+    "columnToggle": {
+      "trend": "Tendance",
+      "units": "Parts",
+      "cost": "Coût",
+      "market": "Marché",
+      "gain": "Gain",
+      "gainPct": "Gain %"
+    },
+    "groupActions": {
+      "ariaLabel": "Changer le groupe de {{ticker}}",
+      "assign": "Affecter à {{group}}",
+      "clear": "Supprimer l'affectation",
+      "create": "Créer un nouveau groupe…",
+      "placeholder": "Modifier…",
+      "prompt": "Saisissez le nom du nouveau groupe",
+      "saving": "Enregistrement…"
+    },
+    "groupToggle": "Basculer {{group}}",
+    "uncategorised": "Non catégorisé",
+    "viewMode": {
+      "category": "Par catégorie",
+      "flat": "Liste simple",
+      "grouped": "Totaux par groupe"
+    },
+    "viewModeLabel": "Vue :"
   },
   "instrumentType": {
     "bond": "Obligation",
@@ -612,7 +788,24 @@
     },
     "returnBasisNote": "Les variations des secteurs incluent les dividendes réinvestis (rendement total) ; celles des indices portent uniquement sur le prix.",
     "sectorChange": "Variation en % des secteurs",
-    "sectorPerformance": "Performance des secteurs"
+    "sectorPerformance": "Performance des secteurs",
+    "index": "Indice",
+    "level": "Niveau",
+    "changePct": "% de variation",
+    "noHeadlines": "Aucun titre disponible",
+    "staleHeadline": "Obsolète",
+    "staleHeadlineTooltip": "Ce titre provient d'un cache qui n'a pas été actualisé récemment ; les récupérations d'actualités en direct échouent peut-être ou sont limitées.",
+    "tooltipLevel": "Niveau : {{value}}",
+    "tooltipChange": "Variation : {{value}}%",
+    "ticker": "Ticker",
+    "name": "Nom",
+    "price": "Prix",
+    "sectorProxy": "Suivi via {{ticker}} ({{name}}). Le graphique affiche son cours de clôture.",
+    "sectorBasket": "Il n'existe pas d'ETF sectoriel pour ce marché : la performance correspond à un panier équipondéré des composants ci-dessous. Le graphique est rebasé à 100.",
+    "representativeConstituents": "Composants représentatifs (et non la composition complète de l'indice)",
+    "sectorDetail": "Détail du secteur",
+    "sectorRegion": "Région du secteur",
+    "sectorBasketNote": "Les variations sectorielles sont des paniers équipondérés de grands composants représentatifs."
   },
   "metricsExplanation": {
     "activeReturn": "Rendement actif",
@@ -679,6 +872,213 @@
         ],
         "summary": "La tracking error capture la variabilité des rendements actifs – l'écart entre les rendements quotidiens du portefeuille et ceux de l'indice de référence.",
         "title": "Tracking error"
+      },
+      "otherPerformance": {
+        "title": "Autres mesures de performance",
+        "intro": "Elles figurent aussi sur la page Performance, mais leur explication ne nécessite pas de données en direct.",
+        "twr": {
+          "title": "Rendement pondéré dans le temps",
+          "detail": "Le rendement pondéré dans le temps mesure le taux de croissance composé du portefeuille sur la période sélectionnée en chaînant le rendement de chaque sous-période. Il neutralise l'effet du moment et du montant des dépôts et retraits : il reflète donc la performance des investissements sous-jacents, et non le moment où l'argent est entré ou sorti."
+        },
+        "xirr": {
+          "title": "XIRR",
+          "detail": "Le XIRR est le taux de rendement interne annualisé, calculé à partir des flux de trésorerie datés réels du portefeuille (dépôts, retraits et valeur actuelle). Contrairement au rendement pondéré dans le temps, il est influencé par le moment et le montant de ces flux."
+        }
+      },
+      "trading": {
+        "title": "Termes des signaux de trading",
+        "intro": "Termes utilisés dans les seuils de stratégie et le tableau des signaux de la page Trading.",
+        "rsi": {
+          "title": "RSI (indice de force relative)",
+          "detail": "Le RSI est un indicateur de momentum, noté de 0 à 100, dérivé des variations récentes des prix. « RSI achat en dessous de » et « RSI vente au-dessus de » sont les seuils que la valeur RSI d'un signal doit atteindre — au plus égale au seuil d'achat, au moins égale au seuil de vente — pour être considéré comme candidat à l'achat ou à la vente. « Période d'observation du RSI » est le nombre de jours d'historique de prix utilisés pour le calculer."
+        },
+        "movingAverage": {
+          "title": "Moyenne mobile (courte / longue)",
+          "detail": "Une moyenne mobile est le cours de clôture moyen sur un nombre fixe de jours. Les signaux comparent une moyenne à fenêtre courte à une moyenne à fenêtre longue ; les deux fenêtres se configurent séparément sous « Moyenne mobile courte » et « Moyenne mobile longue »."
+        },
+        "sharpe": {
+          "title": "Ratio de Sharpe",
+          "detail": "Ici, le ratio de Sharpe est le rendement excédentaire par rapport au taux sans risque configuré, par unité de volatilité quotidienne, annualisé (× √252). « Ratio de Sharpe minimal » est un seuil de filtre facultatif que le ratio de Sharpe d'un signal doit respecter lorsque ce filtre est activé."
+        },
+        "debtEquity": {
+          "title": "Ratio dette/fonds propres (D/E)",
+          "detail": "Le ratio dette/fonds propres divise la dette totale d'une entreprise par ses capitaux propres — une mesure de l'effet de levier financier. « Dette/fonds propres maximal » est un seuil de filtre facultatif, lorsqu'il est activé."
+        },
+        "volatility": {
+          "title": "Volatilité",
+          "detail": "Ici, la volatilité est l'écart-type quotidien des rendements (quotidien, non annualisé) — l'ampleur des fluctuations du prix d'un jour à l'autre. « Volatilité maximale » est un seuil de filtre facultatif, lorsqu'il est activé."
+        },
+        "checksSkipped": {
+          "title": "« Contrôles ignorés »",
+          "detail": "Ce badge apparaît lorsqu'un contrôle facultatif nécessitant le module complémentaire allotmint-pro n'a pas pu s'exécuter, car ce module n'est pas installé. « compliance » signifie que l'opération n'a pas du tout été vérifiée au regard de vos règles de conformité. « fundamental_screen » signifie que les filtres de PER et de dette/fonds propres (configurés ci-dessus) n'ont pas été appliqués à ce candidat à l'achat."
+        }
+      },
+      "screener": {
+        "title": "Ratios du screener",
+        "intro": "La page Screener filtre les instruments selon ces ratios financiers.",
+        "peg": {
+          "title": "Ratio PEG",
+          "detail": "Ratio P/E divisé par le taux de croissance attendu des bénéfices."
+        },
+        "pe": {
+          "title": "Ratio P/E",
+          "detail": "Cours de l'action divisé par le bénéfice par action."
+        },
+        "pb": {
+          "title": "Ratio P/B",
+          "detail": "Cours de l'action divisé par la valeur comptable par action. En dessous de 1, le marché valorise l'entreprise, sur le papier, à moins que son actif net."
+        },
+        "ps": {
+          "title": "Ratio P/S",
+          "detail": "Capitalisation boursière divisée par le chiffre d'affaires des douze derniers mois. Utile lorsque les bénéfices sont négatifs ou volatils."
+        },
+        "evEbitda": {
+          "title": "EV/EBITDA",
+          "detail": "Valeur d'entreprise (capitalisation boursière plus dette nette) divisée par l'EBITDA. Permet de comparer les entreprises quel que soit leur mode de financement."
+        },
+        "revenueGrowth": {
+          "title": "Croissance du chiffre d'affaires",
+          "detail": "Croissance annuelle du chiffre d'affaires, sous forme de fraction (0,1 = 10 %)."
+        },
+        "earningsGrowth": {
+          "title": "Croissance des bénéfices",
+          "detail": "Croissance annuelle des bénéfices, sous forme de fraction (0,1 = 10 %)."
+        },
+        "ltDe": {
+          "title": "Ratio D/E à long terme",
+          "detail": "Dette à long terme divisée par les capitaux propres."
+        },
+        "interestCoverage": {
+          "title": "Couverture des intérêts",
+          "detail": "Résultat d'exploitation (EBIT) divisé par les charges d'intérêts — combien de fois une entreprise pourrait payer ses intérêts avec ses bénéfices."
+        },
+        "currentRatio": {
+          "title": "Ratio de liquidité générale",
+          "detail": "Actifs courants divisés par les passifs courants."
+        },
+        "quickRatio": {
+          "title": "Ratio de liquidité immédiate",
+          "detail": "Actifs liquides, hors stocks, divisés par les passifs courants."
+        },
+        "fcf": {
+          "title": "FCF (flux de trésorerie disponible)",
+          "detail": "Trésorerie générée par l'exploitation moins les dépenses d'investissement."
+        },
+        "eps": {
+          "title": "BPA (bénéfice par action)",
+          "detail": "Résultat net divisé par le nombre d'actions en circulation."
+        },
+        "grossMargin": {
+          "title": "Marge brute",
+          "detail": "Marge brute divisée par le chiffre d'affaires."
+        },
+        "operatingMargin": {
+          "title": "Marge d'exploitation",
+          "detail": "Résultat d'exploitation divisé par le chiffre d'affaires."
+        },
+        "netMargin": {
+          "title": "Marge nette",
+          "detail": "Résultat net divisé par le chiffre d'affaires."
+        },
+        "ebitdaMargin": {
+          "title": "Marge d'EBITDA",
+          "detail": "EBITDA (résultat avant intérêts, impôts, dépréciation et amortissement) divisé par le chiffre d'affaires."
+        },
+        "roa": {
+          "title": "ROA (rendement des actifs)",
+          "detail": "Résultat net divisé par le total de l'actif."
+        },
+        "roe": {
+          "title": "ROE (rentabilité des capitaux propres)",
+          "detail": "Résultat net divisé par les capitaux propres."
+        },
+        "roi": {
+          "title": "ROI (retour sur investissement)",
+          "detail": "Le gain d'un investissement divisé par son coût."
+        },
+        "dividendYield": {
+          "title": "Rendement du dividende",
+          "detail": "Dividende annuel par action divisé par le cours de l'action."
+        },
+        "dividendPayoutRatio": {
+          "title": "Taux de distribution des dividendes",
+          "detail": "Dividendes versés divisés par le résultat net."
+        },
+        "beta": {
+          "title": "Bêta",
+          "detail": "Une mesure de la sensibilité du cours d'une action aux mouvements globaux du marché."
+        },
+        "sharesOutstanding": {
+          "title": "Actions en circulation",
+          "detail": "Le nombre total d'actions d'une entreprise actuellement détenues par l'ensemble des actionnaires."
+        },
+        "floatShares": {
+          "title": "Flottant",
+          "detail": "Actions en circulation librement négociables, hors actions détenues de façon stable ou soumises à restriction."
+        },
+        "marketCap": {
+          "title": "Capitalisation boursière",
+          "detail": "Cours de l'action multiplié par le nombre d'actions en circulation."
+        },
+        "high52w": {
+          "title": "Plus haut sur 52 semaines",
+          "detail": "Le cours le plus haut des 52 dernières semaines."
+        },
+        "low52w": {
+          "title": "Plus bas sur 52 semaines",
+          "detail": "Le cours le plus bas des 52 dernières semaines."
+        },
+        "avgVolume": {
+          "title": "Volume moyen",
+          "detail": "Le nombre moyen d'actions échangées par jour sur une période récente."
+        }
+      },
+      "movers": {
+        "title": "Signal des Movers",
+        "signal": {
+          "title": "Signal d'achat / de vente",
+          "detail": "Indique si le dernier signal généré pour cet instrument, avec les mêmes seuils de stratégie que la page Trading, était un candidat à l'achat ou à la vente."
+        }
+      },
+      "plot": {
+        "title": "Termes du jardin Plot",
+        "intro": "Plot est une vue sur le thème du jardin des mêmes données réelles du portefeuille. Chaque terme ci-dessous correspond à un chiffre réel.",
+        "beds": {
+          "title": "Parcelles",
+          "detail": "Chaque compte d'investissement est représenté par une parcelle. Chaque position de ce compte est une culture qui y est plantée."
+        },
+        "growthStages": {
+          "title": "Stades de croissance (Flétri → Semé → Germination → Feuillu → Bourgeonnant → Fleuri → Fructification → Récolte record)",
+          "detail": "Le stade de croissance d'une culture dépend du gain total de cette position, en pourcentage de son prix d'achat — et non de sa durée de détention.",
+          "wilting": "Flétri : gain total de -20 % ou moins",
+          "sown": "Semé : gain total entre -20 % (exclu) et 0 %",
+          "sprouting": "Germination : gain total entre 0 % (exclu) et 5 %",
+          "leafing": "Feuillu : gain total entre 5 % (exclu) et 15 %",
+          "budding": "Bourgeonnant : gain total entre 15 % (exclu) et 30 %",
+          "flowering": "Fleuri : gain total entre 30 % (exclu) et 60 %",
+          "fruiting": "Fructification : gain total entre 60 % (exclu) et 120 %",
+          "bumper": "Récolte record : gain total supérieur à 120 %"
+        },
+        "propagator": {
+          "title": "Propagateur",
+          "detail": "Liste les cultures encore dans leur durée minimale de détention — le nombre de jours configuré pendant lequel une position doit être conservée avant de pouvoir être vendue — avec un compte à rebours jusqu'à la date à laquelle chacune la franchit. Il s'agit d'une mesure de la durée de détention, distincte du stade de croissance fondé sur le gain décrit ci-dessus."
+        },
+        "water": {
+          "title": "Eau",
+          "detail": "Le nombre d'opérations restantes ce mois-ci par rapport à la limite mensuelle d'opérations configurée pour le compte."
+        },
+        "feed": {
+          "title": "Engrais",
+          "detail": "La marge restante de l'abattement fiscal pour la période en cours."
+        },
+        "sunlight": {
+          "title": "Ensoleillement",
+          "detail": "La part des cultures valorisées aujourd'hui avec des données de marché fraîches (non périmées)."
+        }
+      },
+      "technicals": {
+        "title": "Analyse technique",
+        "intro": "Termes de l'onglet Technicals d'un instrument. Ils sont calculés à partir des cours de clôture quotidiens passés et décrivent ce que le cours a fait ; ils ne prédisent pas ce qu'il fera et ne constituent pas des recommandations d'achat ou de vente."
       }
     },
     "title": "Glossaire"
@@ -695,7 +1095,9 @@
     "signal": "Signal",
     "signalWindowNote": "Chaque signal utilise sa propre fenêtre de référence, qui peut différer de la période de variation en % et en valeur affichée sur cette ligne. Sélectionnez le signal pour voir le motif.",
     "watchlist": "Liste de suivi :",
-    "windowNote": "Les colonnes % et valeur indiquent le mouvement sur la période sélectionnée. Chaque signal utilise sa propre fenêtre de référence — sélectionnez un signal d'achat ou de vente pour voir son motif et sa confiance."
+    "windowNote": "Les colonnes % et valeur indiquent le mouvement sur la période sélectionnée. Chaque signal utilise sa propre fenêtre de référence — sélectionnez un signal d'achat ou de vente pour voir son motif et sa confiance.",
+    "signalInfoLabel": "Que signifie la colonne Signal ?",
+    "signalInfo": "Indique si le dernier signal généré pour cet instrument, avec les mêmes seuils de stratégie que la page Trading, était un candidat à l'achat ou à la vente."
   },
   "owner": {
     "label": "Propriétaire",
@@ -776,7 +1178,37 @@
     },
     "retirementAge": "Âge de retraite prévu : {{age}}",
     "totalAnnualIncome": "Revenu annuel total",
-    "totalMonthlyIncome": "Revenu mensuel total"
+    "totalMonthlyIncome": "Revenu mensuel total",
+    "careerPath": {
+      "accelerated": {
+        "helper": "Risque plus élevé, rendement plus élevé",
+        "label": "Parcours accéléré"
+      },
+      "balanced": {
+        "helper": "Croissance modérée à long terme",
+        "label": "Rythme équilibré"
+      },
+      "label": "Parcours professionnel",
+      "steady": {
+        "helper": "Hypothèse de croissance plus faible",
+        "label": "Progression régulière"
+      }
+    },
+    "forecastButton": "Prévoir",
+    "future": {
+      "heading": "À quoi pourrait ressembler votre retraite",
+      "kicker": "Vous dans le futur"
+    },
+    "monthlySavingsLabel": "Épargne mensuelle",
+    "monthlySpendingLabel": "Dépenses mensuelles à la retraite",
+    "now": {
+      "description": "Déplacez les curseurs pour voir comment les changements de votre épargne et de vos dépenses influencent votre retraite.",
+      "heading": "Adaptez le plan à votre vie d'aujourd'hui",
+      "kicker": "Maintenant"
+    },
+    "projectedPot": "Capital projeté à {{age}} ans",
+    "statePensionLabel": "Pension publique (£/an)",
+    "title": "Prévision de retraite"
   },
   "portfolio": "Portefeuille",
   "query": {
@@ -936,10 +1368,51 @@
     "tickers": "Tickers",
     "title": "Filtre",
     "unavailableBody": "Ce déploiement n'inclut pas le filtre fondamental ; le filtrage par ratios financiers n'est donc pas possible ici.",
-    "watchlist": "Liste de suivi :"
+    "watchlist": "Liste de suivi :",
+    "watchlistLabel": "Liste de suivi",
+    "custom": "Personnalisée",
+    "tickersPlaceholder": "PFE,MSFT,…",
+    "col": {
+      "rank": "Rang",
+      "revGrowth": "Croiss. CA",
+      "epsGrowth": "Croiss. BPA",
+      "intCov": "Couv. intérêts",
+      "curr": "Liq. gén.",
+      "quick": "Liq. réd.",
+      "grossMargin": "Marge brute",
+      "opMargin": "Marge op.",
+      "netMargin": "Marge nette",
+      "ebitdaMargin": "Marge EBITDA",
+      "divPct": "Div. %",
+      "payout": "Distribution",
+      "shares": "Actions",
+      "float": "Flottant",
+      "mktCap": "Cap. boursière",
+      "wk52h": "Plus haut 52 s.",
+      "wk52l": "Plus bas 52 s.",
+      "avgVol": "Vol. moyen"
+    },
+    "tips": {
+      "infoLabel": "Que signifie {{column}} ?"
+    }
   },
   "dataadmin": {
-    "configureLocalLogin": "Configurer le remplacement de la connexion locale"
+    "configureLocalLogin": "Configurer le remplacement de la connexion locale",
+    "columns": {
+      "ticker": "Ticker",
+      "exchange": "Place de cotation",
+      "name": "Nom",
+      "earliest": "Date la plus ancienne",
+      "latest": "Date la plus récente",
+      "completeness": "Complétude %",
+      "latestSource": "Dernière source",
+      "mainSource": "Source principale",
+      "actions": "Actions"
+    },
+    "refetch": "Récupérer à nouveau",
+    "rebuildCache": "Reconstruire le cache",
+    "openInstrument": "Ouvrir l'instrument",
+    "sourceLabel": "Source : {{source}}"
   },
   "support": {
     "appUpdate": {
@@ -1061,6 +1534,11 @@
         "chat_model": "Nom du modèle pour le fournisseur de chat ollama ou deepseek. Vide : valeur par défaut du fournisseur.",
         "chat_base_url": "URL de base pour le fournisseur de chat ollama ou deepseek. Vide : valeur par défaut du fournisseur.",
         "chat_rate_limit": "Limite de débit des requêtes de chat, p. ex. \"20/minute\"."
+      },
+      "themeOptions": {
+        "dark": "Sombre",
+        "light": "Clair",
+        "system": "Système"
       }
     },
     "dataExplorer": {
@@ -1109,7 +1587,8 @@
       "sent": "Envoyé"
     },
     "telegramMessage": "Message Telegram",
-    "title": "Configuration"
+    "title": "Configuration",
+    "apiConsole": "Console API"
   },
   "timeseries": {
     "loading": "Chargement…"
@@ -1151,7 +1630,14 @@
       "volumeIncluded": " (volume inclus)"
     },
     "ticker": "Ticker",
-    "title": "Éditeur de séries temporelles"
+    "title": "Éditeur de séries temporelles",
+    "controls": {
+      "sort": "Trier",
+      "sortDesc": "Plus récents d'abord",
+      "sortAsc": "Plus anciens d'abord",
+      "startDate": "Date de début",
+      "endDate": "Date de fin"
+    }
   },
   "trading": {
     "noPositions": "Aucune position.",
@@ -1170,7 +1656,53 @@
     "noSignalsTitle": "Aucun signal pour le moment",
     "noSignalsDescription": "Aucun instrument suivi ne franchit actuellement les seuils actifs. Les signaux apparaissent lorsque les conditions RSI ou de moyenne mobile sont réunies et que les filtres d'évaluation et de risque activés sont également satisfaits.",
     "checksSkippedBadge": "Contrôles ignorés",
-    "checksSkippedTitle": "Contrôles ignorés : {{checks}}"
+    "checksSkippedTitle": "Contrôles ignorés : {{checks}}",
+    "checksSkippedInfo": "Une vérification facultative nécessitant le module complémentaire allotmint-pro n'a pas pu être exécutée. « compliance » signifie que la transaction n'a pas été vérifiée par rapport à vos règles de conformité ; « fundamental_screen » signifie que les filtres de PER et de ratio dette/capitaux propres ci-dessus (selon leur configuration) n'ont pas été appliqués à ce candidat à l'achat.",
+    "checksSkippedInfoLabel": "Que signifie « Vérifications ignorées » ?",
+    "columns": {
+      "action": "Action",
+      "strengthHeader": "Force",
+      "summary": "Résumé",
+      "ticker": "Ticker",
+      "why": "Pourquoi"
+    },
+    "notEnabled": "Non activé",
+    "showingFirst": "Affichage des {{shown}} premiers signaux sur {{total}}.",
+    "signalsTableCaption": "Signaux de trading",
+    "strength": {
+      "label": "{{label}} ({{percent}} %)",
+      "moderate": "Modérée",
+      "strong": "Forte",
+      "weak": "Faible"
+    },
+    "thresholdDays": "{{value}} jours",
+    "thresholds": {
+      "rsiBuy": "Achat RSI en dessous de",
+      "rsiSell": "Vente RSI au-dessus de",
+      "rsiLookback": "Période RSI",
+      "shortMa": "Moyenne mobile courte",
+      "longMa": "Moyenne mobile longue",
+      "maxPe": "PER maximum",
+      "maxDe": "Ratio dette/capitaux propres maximum",
+      "minSharpe": "Ratio de Sharpe minimum",
+      "maxVolatility": "Volatilité maximale"
+    },
+    "tips": {
+      "debtEquityInfo": "Le ratio dette/capitaux propres divise la dette totale d'une entreprise par les capitaux propres de ses actionnaires — une mesure de l'effet de levier financier.",
+      "debtEquityInfoLabel": "Que signifie dette/capitaux propres ?",
+      "movingAverageInfo": "Une moyenne mobile est la moyenne des cours de clôture sur un nombre fixe de jours. Les signaux comparent la moyenne courte à la moyenne longue.",
+      "movingAverageInfoLabel": "Que signifie moyenne mobile ?",
+      "peInfo": "Le PER (cours/bénéfice) divise le cours de l'action par le bénéfice par action.",
+      "peInfoLabel": "Que signifie PER ?",
+      "rsiInfo": "Le RSI (indice de force relative) est un indicateur de momentum, noté de 0 à 100, calculé à partir des variations récentes des cours. Un signal est un candidat à l'achat lorsque le RSI est égal ou inférieur à ce seuil.",
+      "rsiInfoLabel": "Que signifie RSI ?",
+      "rsiLookbackInfo": "Le nombre de jours d'historique de cours utilisés pour calculer le RSI.",
+      "rsiSellInfo": "Un signal est un candidat à la vente lorsque le RSI est égal ou supérieur à ce seuil.",
+      "sharpeInfo": "Le ratio de Sharpe correspond ici au rendement excédentaire du portefeuille par rapport au taux sans risque configuré, par unité de volatilité quotidienne, annualisé (× √252).",
+      "sharpeInfoLabel": "Que signifie ratio de Sharpe ?",
+      "volatilityInfo": "La volatilité correspond ici à l'écart type quotidien (non annualisé) des rendements — l'ampleur des fluctuations du cours d'un jour à l'autre.",
+      "volatilityInfoLabel": "Que signifie volatilité ?"
+    }
   },
   "trail": {
     "allDone": "Toutes les tâches du Trail sont terminées — formidable !",
@@ -1211,12 +1743,21 @@
     "selectOwnerPrompt": "Sélectionnez un titulaire de compte pour voir ses paramètres.",
     "newTickerLabel": "Symbole",
     "newDateLabel": "Date d'approbation",
-    "pageDescription": "Règles qui déterminent quelles opérations ce compte peut effectuer sans approbation supplémentaire."
+    "pageDescription": "Règles qui déterminent quelles opérations ce compte peut effectuer sans approbation supplémentaire.",
+    "addApprovalFailed": "Échec de l'ajout de l'approbation",
+    "approvalsForbidden": "Vous n'avez pas l'autorisation d'afficher ou de gérer les approbations de ce compte.",
+    "approvalsSessionExpired": "Votre session a expiré. Reconnectez-vous pour gérer les approbations.",
+    "avatarAlt": "avatar de l'utilisateur",
+    "complianceDocsLink": "En savoir plus sur la conformité",
+    "dateColumn": "Date",
+    "loadApprovalsFailed": "Échec du chargement des approbations",
+    "removeApprovalFailed": "Échec de la suppression de l'approbation"
   },
   "var": {
     "details": "Détails de la simulation historique",
     "noData": "Pas de données VaR disponibles.",
-    "title": "Valeur à risque"
+    "title": "Valeur à risque",
+    "chartAria": "Graphique de la Value at Risk"
   },
   "watchlist": {
     "refresh": "Actualiser",
@@ -1230,7 +1771,16 @@
     "columnChange": "Var.",
     "columnChangePct": "Var. %",
     "columnVolume": "Vol.",
-    "columnTime": "Heure (Europe/London)"
+    "columnTime": "Heure (Europe/London)",
+    "title": "Liste de suivi",
+    "symbolsLabel": "Tickers suivis",
+    "removeSymbol": "Retirer {{symbol}}",
+    "symbolsPlaceholder": "Ajoutez un ticker (p. ex. ^FTSE, EURGBP=X, VUSA.L) et appuyez sur Entrée",
+    "addSymbol": "Ajouter",
+    "refreshFrequency": "Actualisation automatique",
+    "everyMinute": "Toutes les minutes",
+    "manual": "Manuel",
+    "marketsClosed": "Marchés fermés"
   },
   "scenarioFx": {
     "title": "Choc de change",
@@ -1871,7 +2421,8 @@
     "install": "Installer sur l’écran d’accueil"
   },
   "errorBoundary": {
-    "message": "Une erreur s’est produite."
+    "message": "Une erreur s’est produite.",
+    "pageLoadFailed": "Échec du chargement de la page"
   },
   "dataExplorerTree": {
     "empty": "(vide)"
@@ -1884,5 +2435,534 @@
   },
   "discover": {
     "title": "Découvrir"
+  },
+  "criteriaBuilder": {
+    "remove": "Supprimer",
+    "add": "Ajouter"
+  },
+  "filterBar": {
+    "clearAll": "Tout effacer"
+  },
+  "taxTools": {
+    "title": "Outils fiscaux",
+    "subtitle": "Lancez des scénarios rapides de réalisation de moins-values et suivez vos plafonds annuels au même endroit.",
+    "portfolioOwner": "Titulaire du portefeuille",
+    "selectOwner": "Sélectionnez un titulaire",
+    "loadingOwners": "Chargement des titulaires...",
+    "noOwners": "Aucun titulaire disponible.",
+    "loadOwnersFailed": "Échec du chargement des titulaires",
+    "loadPortfolioFailed": "Échec du chargement du portefeuille",
+    "loadAllowancesFailed": "Échec du chargement des plafonds",
+    "selectPositionError": "Sélectionnez une position ou saisissez-en une manuellement pour modéliser une réalisation de moins-values",
+    "harvest": {
+      "title": "Réalisation de moins-values fiscales",
+      "description": "Modélisez les opportunités potentielles de réalisation de moins-values à partir de vos positions.",
+      "chooseOwner": "Choisissez un titulaire de portefeuille pour voir les candidats.",
+      "minLossThreshold": "Seuil de perte minimum : {{threshold}}%",
+      "loadingCandidates": "Chargement des candidats...",
+      "col": {
+        "holding": "Titre",
+        "units": "Unités",
+        "basisPerUnit": "Base / unité",
+        "price": "Prix",
+        "costBasis": "Prix de revient",
+        "marketValue": "Valeur de marché",
+        "loss": "Perte"
+      },
+      "noCandidates": "Aucun candidat clair en moins-value trouvé.",
+      "advancedToggle": "Avancé : ajouter une position manuelle",
+      "basis": "Base",
+      "run": "Lancer la réalisation",
+      "modeledTrades": "Opérations modélisées",
+      "tradeLoss": "{{ticker}} : perte de {{loss}}",
+      "totalModeledLoss": "Perte totale modélisée : {{total}}",
+      "noTrades": "Aucune opération éligible",
+      "tip": "Astuce : sélectionnez un ou plusieurs candidats ci-dessus ou utilisez le formulaire avancé."
+    },
+    "allowances": {
+      "title": "Plafonds fiscaux",
+      "description": "Suivez la part de chaque plafond utilisée et ce qu'il reste.",
+      "chooseOwner": "Choisissez un titulaire de portefeuille pour voir l'utilisation de ses plafonds.",
+      "noData": "Aucune donnée",
+      "taxYear": "Année fiscale {{year}}",
+      "usedOfTotal": "{{used}} utilisés sur {{limit}} au total",
+      "outstanding": "Restant : {{value}}",
+      "allUsed": "Tous les plafonds sont entièrement utilisés",
+      "col": {
+        "account": "Compte",
+        "limit": "Plafond",
+        "used": "Utilisé",
+        "available": "Disponible",
+        "usage": "Utilisation"
+      },
+      "usedOfLimitPct": "{{used}} utilisés sur {{limit}} ({{percent}}%)"
+    }
+  },
+  "accountBlock": {
+    "estValue": "Valeur est. : ",
+    "lastUpdated": "Dernière mise à jour : "
+  },
+  "dividendHistory": {
+    "trendAria": "Évolution des dividendes",
+    "date": "Date",
+    "owner": "Titulaire",
+    "ticker": "Ticker",
+    "amount": "Montant",
+    "totals": "Totaux",
+    "total": "Total"
+  },
+  "transactionsPage": {
+    "account": "Compte",
+    "owner": "Titulaire",
+    "ticker": "Ticker",
+    "valueGbp": "Valeur (GBP)",
+    "units": "Parts",
+    "priceGbp": "Prix (GBP)",
+    "inputTitle": "Saisie des comptes et positions",
+    "inputIntro": "Créez des comptes et définissez vos positions. L'enregistrement crée le transfert de solde d'ouverture qui amène le compte aux parts saisies ; il apparaît ainsi avec vos opérations dans <txlink>Transactions</txlink>.",
+    "saving": "Enregistrement...",
+    "saveHolding": "Enregistrer la position",
+    "savedAccounts": "Comptes enregistrés",
+    "noSavedAccounts": "Aucun compte enregistré pour ce titulaire.",
+    "accountSummary": "{{account}} ({{holdingCount}} positions)",
+    "editingNotice": "Modification d'une transaction existante. Les filtres titulaire et compte sont verrouillés jusqu'à l'enregistrement ou l'annulation.",
+    "realisedGainLoss": "Plus-/moins-value réalisée :",
+    "excludesUnknownSales_one": "(exclut {{count}} vente au coût inconnu)",
+    "excludesUnknownSales_other": "(exclut {{count}} ventes au coût inconnu)",
+    "income": "Revenus :",
+    "fees": "Frais :",
+    "loadManualFailed": "Échec du chargement des positions manuelles.",
+    "requiredFields": "Le titulaire, le compte et le ticker sont obligatoires.",
+    "valuePositive": "La valeur (GBP) doit être un nombre positif.",
+    "unitsAndPrice": "Indiquez à la fois les parts et le prix (GBP).",
+    "unitsPositive": "Les parts doivent être un nombre positif.",
+    "pricePositive": "Le prix (GBP) doit être un nombre positif.",
+    "valueOrUnitsPrice": "Indiquez soit la valeur (GBP), soit les parts + le prix (GBP).",
+    "holdingSaved": "Position enregistrée.",
+    "saveHoldingFailed": "Échec de l'enregistrement de la position.",
+    "confirmDelete": "Supprimer cette transaction ?",
+    "deleted": "Transaction supprimée avec succès.",
+    "deleteFailed": "Échec de la suppression de la transaction.",
+    "selectOwnerAccount": "Sélectionnez un titulaire et un compte dans les filtres avant d'enregistrer.",
+    "confirmBulkDelete_one": "Supprimer {{count}} transaction sélectionnée ?",
+    "confirmBulkDelete_other": "Supprimer {{count}} transactions sélectionnées ?",
+    "bulkDeleted_one": "{{count}} transaction supprimée avec succès.",
+    "bulkDeleted_other": "{{count}} transactions supprimées avec succès.",
+    "bulkDeleteFailed": "Échec de la suppression des transactions sélectionnées.",
+    "confirmBulkUpdate_one": "Mettre à jour {{count}} transaction sélectionnée ?",
+    "confirmBulkUpdate_other": "Mettre à jour {{count}} transactions sélectionnées ?",
+    "bulkUpdated_one": "{{count}} transaction mise à jour avec succès.",
+    "bulkUpdated_other": "{{count}} transactions mises à jour avec succès.",
+    "bulkUpdateFailed": "Échec de la mise à jour des transactions sélectionnées.",
+    "updated": "Transaction mise à jour avec succès.",
+    "created": "Transaction créée avec succès.",
+    "updateFailed": "Échec de la mise à jour de la transaction.",
+    "createFailed": "Échec de la création de la transaction."
+  },
+  "alerts": {
+    "title": "Alertes",
+    "empty": "Aucune alerte.",
+    "fallbackLabel": "Alerte",
+    "offline": "Vous semblez être hors ligne.",
+    "timedOut": "La requête a expiré. Veuillez réessayer."
+  },
+  "allowanceTracker": {
+    "title": "Suivi des plafonds",
+    "account": "Compte",
+    "used": "Utilisé",
+    "available": "Disponible",
+    "loadFailed": "Échec du chargement des plafonds",
+    "noData": "Aucune donnée"
+  },
+  "dataExplorer": {
+    "selectFile": "Sélectionnez un fichier pour afficher son contenu.",
+    "fileMeta": "{{size}} octets — dernière modification {{modified}}",
+    "truncated": "Aperçu tronqué ; seule la première partie du fichier est affichée."
+  },
+  "returnComparison": {
+    "title": "Comparaison des rendements – {{owner}}",
+    "timeframe": "Période :",
+    "portfolioCagr": "TCAC du portefeuille : {{value}}",
+    "cashApy": "APY des liquidités : {{value}}"
+  },
+  "smokeTest": {
+    "title": "Test de fumée",
+    "results": "Résultats du test de fumée",
+    "ok": "ok",
+    "failed": "échec"
+  },
+  "plot": {
+    "hud": {
+      "title": "Le potager",
+      "plotValueTitle": "Valeur totale du potager",
+      "plotValueSr": "valeur totale du potager",
+      "gainTitle": "Gain latent sur toutes les planches",
+      "gainSr": "gain latent",
+      "streakTitle": "Jours consécutifs de corvées terminées",
+      "streakSr": "jours de série",
+      "badgesTitle": "Badges de saison obtenus",
+      "badgesSr": "badges de saison obtenus",
+      "xpLabel": "Niveau {{level}} · {{xp}}/{{xpForLevel}} XP",
+      "meterLabel": "Niveau de jardinier {{level}}, {{xp}} sur {{xpForLevel}} XP pour le niveau suivant",
+      "classicView": "Vue classique"
+    },
+    "rail": {
+      "ariaLabel": "Sections du potager",
+      "plot": "Le potager",
+      "plotSub": "Aperçu",
+      "crops": "Cultures",
+      "cropsSub": "Vos positions",
+      "chores": "Corvées",
+      "choresSub": "Tâches quotidiennes",
+      "season": "Saison",
+      "seasonSub": "Objectifs de l'année fiscale",
+      "seeds": "Cabane à graines",
+      "seedsSub": "Liste de suivi"
+    },
+    "app": {
+      "grower": "Jardinier",
+      "notFoundTitle": "Rien ne pousse ici",
+      "notFoundBody": "Il n'y a aucun écran du potager à cette adresse.",
+      "backToPlot": "Retour au potager",
+      "or": "ou",
+      "theRoster": "la liste des cultures",
+      "loadError": "Impossible de charger le potager : {{error}}",
+      "tryAgain": "Réessayer",
+      "loading": "En route vers le potager…"
+    },
+    "propagator": {
+      "empty": "Rien dans le germoir : chaque culture a terminé sa période de détention et peut être récoltée.",
+      "meterIndeterminate": "{{ticker}} : pas encore récoltable, détenu depuis {{daysHeld}} jours",
+      "meterProgress": "{{ticker}} : détenu depuis {{daysHeld}} jours, encore {{daysRemaining}}",
+      "daysHeld": "détenu depuis {{daysHeld}} jours",
+      "daysRatio": "{{daysHeld}} / {{total}} jours",
+      "notLiftable": "Pas encore récoltable",
+      "readyOn": "Prête le {{date}}",
+      "daysToGo": "Encore {{daysRemaining}} jours",
+      "noteIndeterminate": "Progression vers la période de détention minimale de chaque position, lorsque le backend la connaît — certains godets sont marqués non vendables sans compte à rebours à afficher.",
+      "note": "Progression vers la période de détention minimale de chaque position, selon la même règle que les écrans de conformité classiques."
+    },
+    "streak": {
+      "ariaLabel": "Historique des corvées de la dernière semaine",
+      "noChores": "{{date}} : aucune corvée enregistrée",
+      "choresDone": "{{date}} : {{completed}} corvées sur {{total}} terminées",
+      "crate": {
+        "none": "Aucune tâche suivie cette semaine pour l’instant",
+        "progress_one": "{{engaged}} jour sur {{count}} accompli — continuez pour remplir la caisse",
+        "progress_other": "{{engaged}} jours sur {{count}} accomplis — continuez pour remplir la caisse",
+        "full": "Semaine complète de tâches accomplie",
+        "finish": "Terminez chaque jour de cette semaine pour remplir la caisse"
+      }
+    },
+    "card": {
+      "removeFavourite": "Retirer {{ticker}} des favoris",
+      "addFavourite": "Ajouter {{ticker}} aux favoris",
+      "today": "{{pct}} aujourd'hui",
+      "noDataToday": "aucune donnée aujourd'hui"
+    },
+    "stars": "{{filled}} étoiles sur {{max}}",
+    "data": {
+      "ownersError": "Impossible de charger la liste des jardiniers.",
+      "noOwners": "Aucun jardinier trouvé pour ce compte."
+    },
+    "chores": {
+      "done": "Fait",
+      "completing": "Finalisation…",
+      "go": "Y aller",
+      "tryAgain": "Réessayer",
+      "doIt": "Le faire",
+      "completingTitle": "{{title}} : finalisation…",
+      "sessionExpired": "Votre session a expiré. Reconnectez-vous pour terminer cette corvée.",
+      "completeFailed": "Impossible de terminer cette corvée. Réessayez.",
+      "title": "Corvées",
+      "unavailable": "Ni le point d'accès Trail ni celui des Quests n'est disponible sur ce déploiement, il n'y a donc encore rien à cocher ici.",
+      "dailyChores": "Corvées quotidiennes",
+      "choresDone": "Corvées terminées",
+      "plotTidy": "Le potager est en ordre",
+      "completeAll": "Terminez toutes les corvées",
+      "seasonXp": "XP de saison",
+      "meterLabel": "Niveau {{level}}, {{xp}} sur {{xpForLevel}} XP pour le niveau {{nextLevel}}",
+      "levelHint": "Niveau {{level}} · {{xp}}/{{xpForLevel}} XP pour le niveau {{nextLevel}}",
+      "streak": "Série",
+      "streakHint": "Jours consécutifs avec toutes les corvées quotidiennes terminées.",
+      "today": "Aujourd'hui",
+      "noDaily": "Aucune corvée quotidienne pour le moment.",
+      "groundwork": "Travaux préparatoires"
+    },
+    "crop": {
+      "growth": "Croissance",
+      "gainUnknown": "Gain inconnu — aucun prix de revient enregistré",
+      "gainDetail": "{{gain}} de gain latent ({{pct}})",
+      "vigour": "Vigueur",
+      "noMoveToday": "Aucun mouvement enregistré aujourd'hui",
+      "pctToday": "{{pct}} aujourd'hui",
+      "priceStale": "les données de prix sont périmées",
+      "priceUnverified": "fraîcheur du prix non vérifiée",
+      "rootDepth": "Profondeur des racines",
+      "rootDepthDetail": "{{pct}} % de la valeur totale du potager",
+      "hardiness": "Rusticité",
+      "holdingAgeUnknown": "Ancienneté de la position inconnue",
+      "held_one": "Détenu {{count}} jour",
+      "held_other": "Détenu {{count}} jours",
+      "inPropagatorUntil": "au germoir jusqu'au {{date}}",
+      "notYetLiftable": "pas encore récoltable",
+      "clearedPropagator": "sorti du germoir le {{date}}",
+      "readyToLift": "prête à être récoltée",
+      "notFoundTitle": "Culture introuvable",
+      "notFoundBody": "Rien nommé « {{id}} » ne pousse dans ce potager.",
+      "backToRoster": "Retour à la liste des cultures",
+      "stalePrice": "Prix périmé",
+      "unverifiedPrice": "Prix non vérifié",
+      "traits": "Caractéristiques",
+      "level": "Niv {{level}}/{{max}}",
+      "plotValue": "Valeur du potager",
+      "vigourMeter": "Vigueur {{value}} sur 100",
+      "ledger": "Registre",
+      "units": "Unités",
+      "costBasis": "Prix de revient",
+      "marketValue": "Valeur de marché",
+      "today": "Aujourd'hui",
+      "noData": "aucune donnée",
+      "lastPrice": "Dernier prix",
+      "unknown": "inconnu",
+      "openInstrument": "Ouvrir la vue complète de l'instrument →",
+      "neighbours": "Cultures voisines",
+      "allCrops": "Toutes les cultures"
+    },
+    "roster": {
+      "sortShare": "Part du potager",
+      "sortGrowth": "Croissance",
+      "sortVigour": "Vigueur",
+      "sortAz": "A–Z",
+      "growthStages": "Stades de croissance",
+      "growthStagesLabel": "Que signifient les stades de croissance ?",
+      "growthStagesTip": "Le stade d'une culture correspond à son gain total depuis l'achat, pas à sa variation du jour — Semé/Germination signifie peu ou pas de profit pour l'instant, Fructification et Récolte record signifient un gain important.",
+      "stageNote": "Le stade provient du gain total de chaque position, la note en étoiles de sa part dans la valeur du potager.",
+      "title": "Liste des cultures ({{visible}}/{{total}})",
+      "bedCount_one": "{{count}} planche",
+      "bedCount_other": "{{count}} planches",
+      "searchLabel": "Rechercher des cultures",
+      "searchPlaceholder": "Rechercher un ticker, un nom, une planche ou un secteur",
+      "sortCrops": "Trier les cultures",
+      "vigourHidden": "Le tri par vigueur est masqué : aucune culture n'a de mouvement enregistré aujourd'hui, elles auraient donc toutes le même score.",
+      "filterCrops": "Filtrer les cultures",
+      "allBeds": "Toutes les planches",
+      "favourites": "Favoris ({{count}})",
+      "noMatch": "Aucune culture ne correspond à ces filtres."
+    },
+    "seeds": {
+      "title": "Catalogue de graines",
+      "intro": "Votre liste de suivi sous forme de sachets de graines — la même liste que lit la page Watchlist classique, avec des prix issus des cours en direct. Rien ici ne passe d'ordre.",
+      "loadError": "Impossible de charger les cours : {{error}}",
+      "tryAgain": "Réessayer",
+      "available": "Graines disponibles ({{count}})",
+      "loading": "Inspection des godets de graines…",
+      "emptyWatchlist": "Votre liste de suivi est vide — ajoutez une action pour la voir ici. Vous pouvez en ajouter une dans la <txlink>watchlist classique</txlink>.",
+      "noQuotes": "Aucun cours n'est revenu pour les symboles de votre liste de suivi. Essayez la <txlink>watchlist classique</txlink> pour les vérifier.",
+      "unnamed": "Instrument sans nom",
+      "alreadyGrowing": "Pousse déjà dans votre potager",
+      "notSown": "Pas encore semé",
+      "inspectCrop": "Inspecter la culture",
+      "readPacket": "Lire le sachet"
+    },
+    "season": {
+      "everyTierEarned": "Tous les paliers « {{group}} » atteints",
+      "meterLabel": "{{group}} : {{current}} sur {{target}} vers le palier suivant",
+      "pastTier": "{{current}} — ce palier est déjà dépassé.",
+      "allTiers": "{{current}} — tous les paliers de cette catégorie sont atteints.",
+      "rewardEarned": "{{reward}} obtenu",
+      "earned": "Obtenu",
+      "badgeShelf": "Étagère de badges ({{earned}}/{{total}})",
+      "badgeNote": "Un badge est obtenu lorsque tous les paliers de sa catégorie sont franchis.",
+      "growingSeasonLabel": "Saison de culture {{label}}",
+      "growingSeason": "Saison de culture",
+      "noTaxYear": "Aucune année fiscale n'est indiquée pour ce jardinier, la saison n'a donc pas de date de fin pour le compte à rebours.",
+      "note": "La saison correspond à l'année fiscale britannique (du 6 avril au 5 avril) indiquée par l'API des plafonds — la date à laquelle expire la marge ISA et retraite non utilisée."
+    },
+    "hub": {
+      "explainWater": "L'eau représente le nombre d'opérations qu'il vous reste à faire ce mois-ci avant la réinitialisation du plafond.",
+      "explainFeed": "L'engrais représente la part de la marge de plafond ISA/retraite de cette année qu'il vous reste à utiliser.",
+      "explainSun": "La lumière du soleil représente la part de votre portefeuille dont le prix est à jour aujourd'hui — un prix périmé la fait faner.",
+      "explainSunUnknown": "La lumière du soleil représente la part de votre portefeuille dont le prix est *confirmé* à jour aujourd'hui. Un prix sans aucun signal de fraîcheur compte comme inconnu, pas comme périmé — il n'a simplement pas encore été confirmé.",
+      "featuredCrops": "Cultures à l'honneur",
+      "starGrower": "Jardinier vedette",
+      "needsAttention": "Demande de l'attention",
+      "allHealthy": "Rien ne demande d'attention — tout le potager est en pleine santé.",
+      "nothingPlanted": "Rien n'est encore planté — ajoutez une position dans la vue classique et elle poussera ici.",
+      "pricedAsOf": "Potager valorisé au {{date}}.",
+      "resources": "Ressources du potager",
+      "whatDoesMean": "Que signifie {{term}} ?",
+      "todaysChores": "Corvées du jour",
+      "choresOpen_one": "{{count}} corvée encore ouverte",
+      "choresOpen_other": "{{count}} corvées encore ouvertes",
+      "choresAllDone": "Toutes les corvées sont faites — le potager est en ordre",
+      "streakGoing": "Série de {{count}} jours en cours. Gardez-la vivante.",
+      "streakStart": "Terminez une journée complète pour lancer une série.",
+      "go": "Y aller",
+      "choresDisabled": "Le suivi des corvées n'est pas activé sur ce déploiement.",
+      "growingSeasonLabel": "Saison de culture {{label}}",
+      "growingSeason": "Saison de culture",
+      "milestonesReached": "{{done}} jalons de saison sur {{total}} atteints",
+      "tieredGoals": "Objectifs par paliers sur la taille du potager, la valeur, les plafonds, la série et le rang.",
+      "view": "Voir",
+      "propagator": "Germoir",
+      "propagatorTip": "Cultures encore dans leur période de détention minimale, avec un compte à rebours jusqu'à la date à laquelle chacune peut être vendue.",
+      "beds": "Planches",
+      "bedsTip": "Chaque compte d'investissement est représenté par une planche, où ses positions sont plantées comme des cultures.",
+      "noAccounts": "Aucun compte trouvé pour ce jardinier.",
+      "showBedCrops": "Afficher les cultures de {{name}}",
+      "cropCount_one": "{{count}} culture",
+      "cropCount_other": "{{count}} cultures",
+      "bedPriced": "valorisé {{date}}",
+      "biggestCrops": "Plus grosses cultures",
+      "nothingToShow": "Rien à afficher pour l'instant.",
+      "fullRoster": "Voir la liste complète des cultures →"
+    },
+    "model": {
+      "unnamedBed": "Planche sans nom",
+      "allowancesUnavailable": "Plafonds indisponibles pour le moment",
+      "water": "Eau",
+      "feed": "Engrais",
+      "sunlight": "Lumière du soleil",
+      "waterHint": "{{left}} opérations sur {{cap}} restantes ce mois-ci",
+      "feedHint": "Il reste {{amount}} de marge de plafond fiscal",
+      "feedNoData": "Pas encore de données de plafonds pour ce jardinier",
+      "sunAllFresh": "{{fresh}} cultures sur {{total}} valorisées avec des données à jour",
+      "sunFresh": "{{count}} à jour",
+      "sunStale": "{{count}} périmés",
+      "sunUnknown": "{{count}} inconnus",
+      "sunBreakdown": "{{parts}} sur {{total}} cultures",
+      "notSellable": "pas encore vendable",
+      "priceStale": "le prix est périmé",
+      "down": "en baisse de {{pct}} %",
+      "seasonClosed": "Saison terminée",
+      "dayCount_one": "{{count}} jour",
+      "dayCount_other": "{{count}} jours",
+      "hourCount_one": "{{count}} heure",
+      "hourCount_other": "{{count}} heures",
+      "cropCount_one": "{{count}} culture",
+      "cropCount_other": "{{count}} cultures",
+      "endsInDaysHours": "Se termine dans {{days}} et {{hours}}",
+      "endsInHours": "Se termine dans {{hours}}",
+      "level": "Niveau {{level}}"
+    },
+    "goals": {
+      "tend": {
+        "group": "Entretenir le potager",
+        "reward": "Badge de jardinier",
+        "title": "Entretenir {{target}} cultures à la fois"
+      },
+      "grow": {
+        "group": "Faire grandir le potager",
+        "reward": "Badge de récolte",
+        "title": "Faire grandir le potager jusqu'à {{amount}}"
+      },
+      "feed": {
+        "group": "Nourrir les planches",
+        "reward": "Badge d'engrais",
+        "title": "Utiliser {{amount}} des plafonds de cette saison"
+      },
+      "streak": {
+        "group": "Garder la série",
+        "reward": "Badge de série",
+        "title": "Tenir une série de corvées de {{target}} jours"
+      },
+      "rank": {
+        "group": "Gagner son rang",
+        "reward": "Badge de rang",
+        "title": "Atteindre le niveau de jardinier {{target}}"
+      }
+    },
+    "rank": {
+      "headGardener": "Jardinier en chef",
+      "masterGrower": "Maître jardinier",
+      "plotholder": "Titulaire de parcelle",
+      "seasonedDigger": "Bêcheur aguerri",
+      "weekendGrower": "Jardinier du dimanche",
+      "seedlingSower": "Semeur de jeunes pousses"
+    },
+    "stage": {
+      "wilting": "Fané",
+      "seed": "Semé",
+      "sprout": "Germination",
+      "leafing": "Feuillaison",
+      "budding": "Bourgeonnement",
+      "flowering": "Floraison",
+      "fruiting": "Fructification",
+      "bumper": "Récolte record"
+    }
+  },
+  "userAvatar": {
+    "alt": "avatar de l'utilisateur"
+  },
+  "appHeader": {
+    "notifications": "notifications",
+    "chat": "chat",
+    "chatDetached": "Le chat est ouvert dans sa propre fenêtre"
+  },
+  "notificationsDrawer": {
+    "alerts": "Alertes",
+    "close": "fermer",
+    "cannotReachServer": "Serveur injoignable",
+    "noAlerts": "Aucune alerte",
+    "noNudges": "Aucun rappel",
+    "nudges": "Rappels",
+    "snooze": "Reporter",
+    "daily": "Quotidien",
+    "every3Days": "Tous les 3 jours",
+    "weekly": "Hebdomadaire"
+  },
+  "ownerPortfolioActions": {
+    "exportCsvAria": "Exporter le portefeuille en CSV",
+    "exportCsv": "Exporter en CSV",
+    "exportPdfAria": "Exporter le portefeuille en PDF",
+    "exportPdf": "Exporter en PDF",
+    "importCsv": "Importer un CSV",
+    "addAccount": "Ajouter un compte",
+    "cancelImport": "Annuler l'importation",
+    "viewCompliance": "Voir les alertes de conformité",
+    "complianceError": "Impossible de charger les alertes de conformité."
+  },
+  "topMoversSummary": {
+    "noGroup": "Aucun groupe sélectionné.",
+    "loadFailed": "Échec du chargement des valeurs les plus mobiles.",
+    "viewMore": "Voir plus"
+  },
+  "topMoversPage": {
+    "showingFirst": "Affichage des {{shown}} premiers signaux sur {{total}}."
+  },
+  "loginPage": {
+    "sessionExpired": "Votre session a expiré. Veuillez vous reconnecter pour continuer.",
+    "startFailed": "Échec du démarrage de la connexion. Veuillez réessayer.",
+    "signIn": "Se connecter",
+    "error": "Erreur : {{message}}",
+    "noAccount": "Vous n'avez pas de compte ?",
+    "requestAccess": "Demander l'accès"
+  },
+  "mainApp": {
+    "retryingConfig": "Chargement... nouvelle tentative de configuration.",
+    "loadingConfig": "Chargement de la configuration...",
+    "configLoadFailed": "Impossible de charger la configuration.",
+    "checkConnection": "Veuillez vérifier votre connexion et réessayer.",
+    "googleNotConfigured": "La connexion Google n'est pas configurée.",
+    "loading": "Chargement...",
+    "loginCancelled": "Connexion annulée.",
+    "signIn": "Se connecter",
+    "authUnavailable": "L'authentification est indisponible. Veuillez contacter votre administrateur.",
+    "signInFailed": "Échec de la connexion. Motif : {{reason}}"
+  },
+  "demo": {
+    "readOnlyBanner": "Démo en lecture seule – connectez-vous pour utiliser AllotMint"
+  },
+  "help": {
+    "title": "Aide et prise en main",
+    "intro": "Un guide rapide sur le rôle de chaque page d'AllotMint, avec comment rechercher des termes inconnus et signaler un problème.",
+    "pagesTitle": "À quoi sert chaque page",
+    "glossaryTitle": "Glossaire des indicateurs",
+    "glossaryDescription": "Vous ne savez pas ce que signifie un indicateur comme le ratio de Sharpe, le drawdown maximal ou l'erreur de suivi ? Le glossaire explique les termes utilisés dans toute l'application.",
+    "glossaryLink": "Ouvrir le glossaire des indicateurs",
+    "reportTitle": "Signaler un problème",
+    "reportDescription": "Vous avez trouvé un bug ou quelque chose de peu clair ? Signalez-le sur GitHub afin qu'il soit suivi et corrigé.",
+    "reportLink": "Ouvrir un ticket GitHub"
   }
 }

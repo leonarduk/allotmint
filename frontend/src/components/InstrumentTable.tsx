@@ -153,15 +153,15 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
   const noFilteredRows = rowsWithCost.length === 0;
   const showTrend = showSparklines && visibleColumns.trend;
   const trendColumnLabels: [keyof typeof visibleColumns, string][] = showSparklines
-    ? [['trend', 'Trend']]
+    ? [['trend', t('instrumentTable.columnToggle.trend')]]
     : [];
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ...trendColumnLabels,
-    ['units', 'Units'],
-    ['cost', 'Cost'],
-    ['market', 'Market'],
-    ['gain', 'Gain'],
-    ['gain_pct', 'Gain %'],
+    ['units', t('instrumentTable.columnToggle.units')],
+    ['cost', t('instrumentTable.columnToggle.cost')],
+    ['market', t('instrumentTable.columnToggle.market')],
+    ['gain', t('instrumentTable.columnToggle.gain')],
+    ['gain_pct', t('instrumentTable.columnToggle.gainPct')],
   ];
 
   const exchangeLabel = t('instrumentTable.exchangesLabel', {
@@ -234,7 +234,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
         </select>
       </div>
       <div style={{ marginBottom: '0.5rem' }}>
-        Columns:
+        {t('holdingsTable.columnsLabel')}
         {columnLabels.map(([key, label]) => (
           <label key={key} style={{ marginLeft: '0.5rem' }}>
             <input

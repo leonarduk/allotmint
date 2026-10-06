@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 export interface Criterion {
   field: string;
   operator: string;
@@ -18,6 +20,8 @@ const OPERATORS = [">", "<"];
  * `onChange`.
  */
 export function CriteriaBuilder({ criteria, onChange }: CriteriaBuilderProps) {
+  const { t } = useTranslation();
+
   function update(index: number, updates: Partial<Criterion>) {
     const updated = [...criteria];
     updated[index] = { ...updated[index], ...updates };
@@ -70,12 +74,12 @@ export function CriteriaBuilder({ criteria, onChange }: CriteriaBuilderProps) {
             type="button"
             onClick={() => remove(idx)}
           >
-            Remove
+            {t("criteriaBuilder.remove")}
           </button>
         </div>
       ))}
       <button type="button" onClick={add}>
-        Add
+        {t("criteriaBuilder.add")}
       </button>
     </div>
   );

@@ -89,7 +89,7 @@ def _native_endpoints(ticker: str, exchange: str, start: date, end: date) -> pd.
     closes = closes[closes > 0].sort_index()
     closes = closes[~closes.index.duplicated(keep="last")]
     scale = get_scaling_override(ticker, exchange, None) or 1.0
-    return closes.iloc[[0, -1]] * scale if len(closes) >= 2 else closes.iloc[:0]
+    return pd.concat([closes.head(1), closes.tail(1)]) * scale if len(closes) >= 2 else closes.iloc[:0]
 
 
 def local_fx_return_split(ticker: str, exchange: str, start: date, end: date) -> dict[str, Any]:

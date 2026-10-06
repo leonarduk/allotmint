@@ -80,7 +80,6 @@ const renderWithConfig = (ui: React.ReactElement) =>
         ...defaultConfig,
         refreshConfig: async () => {},
         setRelativeViewEnabled: () => {},
-        setBaseCurrency: () => {},
       }}
     >
       {ui}

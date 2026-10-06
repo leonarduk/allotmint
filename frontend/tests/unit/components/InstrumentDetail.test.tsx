@@ -73,7 +73,6 @@ describe("InstrumentDetail", () => {
           relativeViewEnabled,
           setRelativeViewEnabled,
           refreshConfig: async () => {},
-          setBaseCurrency: () => {},
         }}
       >
         <MemoryRouter>{children}</MemoryRouter>

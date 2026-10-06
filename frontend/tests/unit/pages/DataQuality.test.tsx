@@ -42,7 +42,6 @@ const baseConfig: ConfigContextValue = {
   dataQualityAdmin: true,
   refreshConfig: async () => {},
   setRelativeViewEnabled: () => {},
-  setBaseCurrency: () => {},
 };
 
 function renderWithConfig(dataQualityAdmin: boolean) {

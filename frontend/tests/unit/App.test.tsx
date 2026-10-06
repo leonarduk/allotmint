@@ -47,7 +47,6 @@ const makeConfigValue = (overrides: Record<string, unknown> = {}) => ({
   baseCurrency: "GBP",
   refreshConfig: vi.fn(),
   setRelativeViewEnabled: () => {},
-  setBaseCurrency: () => {},
   ...overrides,
 });
 

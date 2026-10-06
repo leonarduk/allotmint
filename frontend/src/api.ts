@@ -2713,6 +2713,8 @@ export interface AppUpdateStatus {
   behind: number;
   ahead: number;
   dirty: boolean;
+  /** True when only a dirty tree blocks the update, so `applyAppUpdate(true)` would work. */
+  can_update_with_stash: boolean;
 }
 
 export interface AppUpdateResult {
@@ -2723,6 +2725,10 @@ export interface AppUpdateResult {
   dependencies_changed: string[];
   backend_changed: boolean;
   frontend_changed: boolean;
+  stashed: boolean;
+  /** False when re-applying the stashed changes conflicted; they stay in the stash. */
+  stash_restored: boolean;
+  stash_message: string | null;
 }
 
 // git fetch/merge can be slower than an ordinary API call on a cold remote.
@@ -2736,9 +2742,10 @@ export const getAppUpdateStatus = (fetch: boolean) =>
     APP_UPDATE_TIMEOUT_MS,
   );
 
-export const applyAppUpdate = () =>
+/** `stash=true` stashes uncommitted changes around the fast-forward and re-applies them. */
+export const applyAppUpdate = (stash = false) =>
   fetchJson<AppUpdateResult>(
-    `${API_BASE}/support/app-update`,
+    `${API_BASE}/support/app-update?stash=${stash}`,
     { method: "POST" },
     APP_UPDATE_TIMEOUT_MS,
   );

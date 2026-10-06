@@ -127,7 +127,11 @@ def apply_fx_shock(portfolio: Dict[str, Any], currency: str, pct_change: float) 
     totals are recomputed on a deep copy. Holdings with no usable FX rate
     (``fx_rate_source == "missing"``) are neither shocked nor summed into any
     total; they are listed under ``UNCONVERTED_HOLDINGS_KEY``. Holdings whose
-    currency cannot be resolved are not shocked and are counted.
+    currency cannot be resolved are not shocked and are counted (they stay in
+    both totals). Unpriced holdings (``market_value_gbp is None`` for want of
+    a price, not an FX rate) count as zero, as in every portfolio total.
+    ``day_change_gbp`` on a shocked holding is the shock's change to its GBP
+    value, as in :func:`apply_price_shock`.
 
     The returned portfolio carries a summary under ``FX_SHOCK_KEY``:
     ``currency``, ``pct``, ``baseline_total_value_gbp``,

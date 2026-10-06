@@ -120,6 +120,23 @@ def test_unknown_currency_holding_is_skipped_and_counted():
 
     assert shocked[FX_SHOCK_KEY]["skipped_unknown_currency"] == 1
     assert _by_ticker(shocked)["ODD.ZZ"]["market_value_gbp"] == 25.0
+    # Skipped from the shock only: still part of both totals.
+    assert shocked[FX_SHOCK_KEY]["baseline_total_value_gbp"] == 925.0
+    assert shocked["total_value_estimate_gbp"] == pytest.approx(885.0)
+
+
+def test_unpriced_holding_is_not_reported_as_an_fx_failure():
+    pf = _portfolio()
+    # No price at all (not an FX problem): already worth nothing in every total.
+    pf["accounts"][0]["holdings"].append(_holding("NOPRICE.N", None, fx_rate_source="cache"))
+
+    shocked = apply_fx_shock(pf, "USD", -10)
+
+    summary = shocked[FX_SHOCK_KEY]
+    assert summary["baseline_total_value_gbp"] == 900.0
+    assert summary["exposed_value_gbp"] == 400.0
+    assert summary[UNCONVERTED_HOLDINGS_KEY] == []
+    assert _by_ticker(shocked)["NOPRICE.N"]["market_value_gbp"] is None
 
 
 def test_unknown_gain_stays_unknown():

@@ -173,7 +173,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const tickerParts = tkr.split(".", 2);
   const baseTicker = tickerParts[0] ?? "";
   const initialExchange = tickerParts.length > 1 ? tickerParts[1] ?? "" : "";
-  const { tabs, disabledTabs, baseCurrency } = useConfig();
+  const { tabs, disabledTabs } = useConfig();
   const [overviewHistoryDays, setOverviewHistoryDays] = useState<number>(0);
   // Overview has no range selector of its own; default to 365d until the
   // Timeseries tab reports a range (0 means "unset"/Max and must still fetch,
@@ -782,7 +782,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             setFundamentalsError(t("instrumentDetail.fundamentalsUnavailable"));
           } else {
             const message = err instanceof Error ? err.message : String(err);
-            setFundamentalsError(`Unable to load fundamentals: ${message}`);
+            setFundamentalsError(
+              t("instrumentDetail.research.fundamentalsLoadError", { message }),
+            );
           }
         }
       } finally {
@@ -865,8 +867,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const fundamentalsCurrency =
     (typeof detail?.base_currency === "string" && detail.base_currency) ||
     resolvedCurrentCurrency ||
-    baseCurrency ||
-    "USD";
+    // Unchanged from when the base currency was pinned to GBP (#9753); this
+    // page moves to the reporting currency in a later phase of #9766.
+    "GBP";
   const detailRecordForDisplay =
     detail && typeof detail === "object"
       ? (detail as unknown as Record<string, unknown>)
@@ -910,12 +913,12 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       : null;
   const { count: alertCount, setCount: setAlertCount } = useInstrumentAlertCount(alertTicker);
   const tabOptions: { id: typeof activeTab; label: string }[] = [
-    { id: "overview", label: "Overview" },
-    { id: "timeseries", label: "Timeseries" },
-    { id: "positions", label: "Positions" },
-    { id: "fundamentals", label: "Fundamentals" },
-    { id: "technicals", label: "Technicals" },
-    { id: "news", label: "News" },
+    { id: "overview", label: t("instrumentDetail.research.tabs.overview") },
+    { id: "timeseries", label: t("instrumentDetail.research.tabs.timeseries") },
+    { id: "positions", label: t("instrumentDetail.positions") },
+    { id: "fundamentals", label: t("instrumentDetail.research.tabs.fundamentals") },
+    { id: "technicals", label: t("instrumentDetail.research.tabs.technicals") },
+    { id: "news", label: t("instrumentDetail.research.tabs.news") },
     {
       id: "alerts",
       label: alertCount
@@ -943,7 +946,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       </EmptyState>
     );
   }
-  if (!tkr) return <div>Invalid ticker</div>;
+  if (!tkr) return <div>{t("instrumentDetail.research.invalidTicker")}</div>;
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
@@ -975,14 +978,16 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       <div style={{ marginBottom: "1rem" }}>
         {tabs.screener && !(disabledTabs ?? []).includes("screener") && (
           <Link to="/screener" style={{ marginRight: "1rem" }}>
-            View Screener
+            {t("instrumentDetail.research.viewScreener")}
           </Link>
         )}
         {tabs.watchlist && !(disabledTabs ?? []).includes("watchlist") && (
-          <Link to="/watchlist">Watchlist</Link>
+          <Link to="/watchlist">{t("instrumentDetail.research.watchlist")}</Link>
         )}
         <button onClick={toggleWatchlist} style={{ marginLeft: "1rem" }}>
-          {inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+          {inWatchlist
+            ? t("instrumentDetail.research.removeFromWatchlist")
+            : t("instrumentDetail.research.addToWatchlist")}
         </button>
         <button
           type="button"
@@ -998,7 +1003,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             rel="noopener noreferrer"
             style={{ marginLeft: "1rem" }}
           >
-            View on Investing.com
+            {t("instrumentDetail.research.viewOnInvesting")}
           </a>
         )}
         {morningstarUrl && (
@@ -1008,7 +1013,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             rel="noopener noreferrer"
             style={{ marginLeft: "1rem" }}
           >
-            View on Morningstar
+            {t("instrumentDetail.research.viewOnMorningstar")}
           </a>
         )}
         {baseTicker && instrumentExchange && (
@@ -1460,47 +1465,47 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           items: { label: string; value: ReactNode }[];
         }[] = [
           {
-            title: "Key Facts",
+            title: t("instrumentDetail.research.section.keyFacts"),
             items: [
-              { label: "Ticker", value: tkr },
-              { label: "Exchange", value: instrumentExchange || "—" },
-              { label: "Sector", value: displaySector || "—" },
-              { label: "Currency", value: resolvedCurrentCurrency || "—" },
+              { label: t("common.ticker"), value: tkr },
+              { label: t("instrumentDetail.research.label.exchange"), value: instrumentExchange || "—" },
+              { label: t("instrumentDetail.sectorLabel"), value: displaySector || "—" },
+              { label: t("instrumentDetail.currencyLabel"), value: resolvedCurrentCurrency || "—" },
               {
-                label: "Last Close",
+                label: t("instrumentDetail.research.label.lastClose"),
                 value: latestPrice != null
                   ? formatDisplayPrice(latestPrice, latestPriceCurrency)
                   : "—",
               },
-              { label: "As of", value: latestDate ?? "—" },
-              { label: "Coverage", value: formattedCoverage },
-              { label: "Data Points", value: rowsCount },
+              { label: t("instrumentDetail.research.label.asOf"), value: latestDate ?? "—" },
+              { label: t("instrumentDetail.research.label.coverage"), value: formattedCoverage },
+              { label: t("instrumentDetail.research.label.dataPoints"), value: rowsCount },
             ],
           },
           {
-            title: "Performance",
+            title: t("instrumentDetail.research.section.performance"),
             items: [
-              { label: "7d Change", value: percentValue(change7d, 2) },
-              { label: "30d Change", value: percentValue(change30d, 2) },
+              { label: t("instrumentDetail.research.label.change7d"), value: percentValue(change7d, 2) },
+              { label: t("instrumentDetail.research.label.change30d"), value: percentValue(change30d, 2) },
               {
-                label: "Average Daily Return (30d)",
+                label: t("instrumentDetail.research.label.averageDailyReturn30d"),
                 value: percentValue(meanReturn, 2),
               },
             ],
           },
           {
-            title: "Risk",
+            title: t("instrumentDetail.research.section.risk"),
             items: [
               {
-                label: "Annualised Volatility (30d)",
+                label: t("instrumentDetail.research.label.annualisedVolatility30d"),
                 value: percentValue(volatility, 2),
               },
               {
-                label: "Max Drawdown",
+                label: t("dashboard.maxDrawdown"),
                 value: percentValue(maxDrawdown != null ? -maxDrawdown : null, 2),
               },
               {
-                label: "Worst Day (30d)",
+                label: t("instrumentDetail.research.label.worstDay30d"),
                 value: percentValue(worstDailyReturn, 2),
               },
             ],
@@ -1509,7 +1514,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
 
         return (
           <div style={{ marginBottom: "2rem" }}>
-            <h2 style={{ marginBottom: "0.75rem" }}>Summary</h2>
+            <h2 style={{ marginBottom: "0.75rem" }}>{t("instrumentDetail.research.summary")}</h2>
             <div
               style={{
                 display: "grid",
@@ -1590,23 +1595,23 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       )}
 
       {activeTab === "positions" && (
-        <section aria-label="Transactions">
-          <h2 style={{ marginBottom: "0.75rem" }}>Transactions</h2>
+        <section aria-label={t("instrumentDetail.research.transactions")}>
+          <h2 style={{ marginBottom: "0.75rem" }}>{t("instrumentDetail.research.transactions")}</h2>
           <InstrumentTransactions ticker={tkr} />
         </section>
       )}
 
       {activeTab === "fundamentals" && (
         <div style={{ marginBottom: "2rem" }}>
-          <h2 style={{ marginBottom: "0.75rem" }}>Fundamentals</h2>
+          <h2 style={{ marginBottom: "0.75rem" }}>{t("instrumentDetail.research.tabs.fundamentals")}</h2>
           <InstrumentValuationPanel ticker={tkr} positions={positions} />
           {fundamentalsLoading ? (
-            <div>Loading fundamentals...</div>
+            <div>{t("instrumentDetail.research.loadingFundamentals")}</div>
           ) : fundamentalsError ? (
             <div style={{ color: "red" }}>{fundamentalsError}</div>
           ) : !fundamentals ? (
             <p style={{ margin: 0, color: "#555" }}>
-              Fundamentals data is not available for this instrument.
+              {t("instrumentDetail.research.fundamentalsNotAvailable")}
             </p>
           ) : (
             (() => {
@@ -1639,100 +1644,100 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                 rows: { label: string; value: string }[];
               }[] = [
                 {
-                  title: "Valuation",
+                  title: t("instrumentDetail.research.section.valuation"),
                   rows: [
-                    { label: "PEG Ratio", value: formatRatio(fundamentals.peg_ratio) },
-                    { label: "P/E Ratio (trailing)", value: formatRatio(fundamentals.pe_ratio) },
+                    { label: t("instrumentDetail.research.label.pegRatio"), value: formatRatio(fundamentals.peg_ratio) },
+                    { label: t("instrumentDetail.research.label.peRatio"), value: formatRatio(fundamentals.pe_ratio) },
                     {
-                      label: "Market Cap",
+                      label: t("instrumentDetail.research.label.marketCap"),
                       value: money(fundamentals.market_cap, fundamentalsCurrency),
                     },
                     {
-                      label: "Free Cash Flow",
+                      label: t("instrumentDetail.research.label.freeCashFlow"),
                       value: money(fundamentals.fcf, fundamentalsCurrency),
                     },
                     {
-                      label: "Earnings Per Share",
+                      label: t("instrumentDetail.research.label.earningsPerShare"),
                       value: formatRatio(fundamentals.eps),
                     },
                   ],
                 },
                 {
-                  title: "Financial Health",
+                  title: t("instrumentDetail.research.section.financialHealth"),
                   rows: [
-                    { label: "Debt/Equity", value: formatRatio(fundamentals.de_ratio) },
+                    { label: t("instrumentDetail.research.label.debtEquity"), value: formatRatio(fundamentals.de_ratio) },
                     {
-                      label: "Long-Term Debt/Equity",
+                      label: t("instrumentDetail.research.label.longTermDebtEquity"),
                       value: formatRatio(fundamentals.lt_de_ratio),
                     },
                     {
-                      label: "Interest Coverage",
+                      label: t("instrumentDetail.research.label.interestCoverage"),
                       value: formatRatio(fundamentals.interest_coverage),
                     },
                     {
-                      label: "Current Ratio",
+                      label: t("instrumentDetail.research.label.currentRatio"),
                       value: formatRatio(fundamentals.current_ratio),
                     },
                     {
-                      label: "Quick Ratio",
+                      label: t("instrumentDetail.research.label.quickRatio"),
                       value: formatRatio(fundamentals.quick_ratio),
                     },
                   ],
                 },
                 {
-                  title: "Profitability",
+                  title: t("instrumentDetail.research.section.profitability"),
                   rows: [
                     {
-                      label: "Gross Margin",
+                      label: t("instrumentDetail.research.label.grossMargin"),
                       value: formatPercent(fundamentals.gross_margin),
                     },
                     {
-                      label: "Operating Margin",
+                      label: t("instrumentDetail.research.label.operatingMargin"),
                       value: formatPercent(fundamentals.operating_margin),
                     },
                     {
-                      label: "Net Margin",
+                      label: t("instrumentDetail.research.label.netMargin"),
                       value: formatPercent(fundamentals.net_margin),
                     },
                     {
-                      label: "EBITDA Margin",
+                      label: t("instrumentDetail.research.label.ebitdaMargin"),
                       value: formatPercent(fundamentals.ebitda_margin),
                     },
-                    { label: "ROA", value: formatPercent(fundamentals.roa) },
-                    { label: "ROE", value: formatPercent(fundamentals.roe) },
-                    { label: "ROI", value: formatPercent(fundamentals.roi) },
+                    { label: t("instrumentDetail.research.label.roa"), value: formatPercent(fundamentals.roa) },
+                    { label: t("instrumentDetail.research.label.roe"), value: formatPercent(fundamentals.roe) },
+                    { label: t("instrumentDetail.research.label.roi"), value: formatPercent(fundamentals.roi) },
                   ],
                 },
                 {
-                  title: "Shareholder Metrics",
+                  title: t("instrumentDetail.research.section.shareholderMetrics"),
                   rows: [
                     {
-                      label: "Dividend Yield",
+                      label: t("instrumentDetail.research.label.dividendYield"),
                       value: formatPercent(fundamentals.dividend_yield),
                     },
                     {
-                      label: "Dividend Payout Ratio",
+                      label: t("instrumentDetail.research.label.dividendPayoutRatio"),
                       value: formatPercent(fundamentals.dividend_payout_ratio),
                     },
-                    { label: "Beta", value: formatRatio(fundamentals.beta) },
+                    { label: t("instrumentDetail.research.label.beta"), value: formatRatio(fundamentals.beta) },
                     {
-                      label: "Shares Outstanding",
+                      label: t("instrumentDetail.research.label.sharesOutstanding"),
                       value: formatInteger(fundamentals.shares_outstanding),
                     },
                     {
-                      label: "Float Shares",
+                      label: t("instrumentDetail.research.label.floatShares"),
                       value: formatInteger(fundamentals.float_shares),
                     },
                     {
-                      label: "52 Week High",
+                      label: t("instrumentDetail.research.label.high52w"),
                       value: money(fundamentals.high_52w, fundamentalsCurrency),
                     },
                     {
-                      label: "52 Week Low",
+                      label: t("instrumentDetail.research.label.low52w"),
                       value: money(fundamentals.low_52w, fundamentalsCurrency),
                     },
                     {
-                      label: "Average Volume",
+                      label: t("instrumentDetail.research.label.averageVolume"),
                       value: formatInteger(fundamentals.avg_volume),
                     },
                   ],
@@ -1751,7 +1756,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                     <div key={section.title} className={surfaceStyles.surfaceCard}>
                       <h3 className={surfaceStyles.surfaceCardTitle}>{section.title}</h3>
                       <table
-                        aria-label={`${section.title} fundamentals`}
+                        aria-label={t("instrumentDetail.research.fundamentalsTableAria", {
+                          section: section.title,
+                        })}
                         style={{ width: "100%", borderCollapse: "collapse" }}
                       >
                         <tbody>
@@ -1792,7 +1799,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
 
       {activeTab === "technicals" && (
         <div style={{ marginBottom: "2rem" }}>
-          <h2 style={{ marginBottom: "0.75rem" }}>Technicals</h2>
+          <h2 style={{ marginBottom: "0.75rem" }}>{t("instrumentDetail.research.tabs.technicals")}</h2>
           <InstrumentTechnicalsPanel ticker={tkr} />
         </div>
       )}
@@ -1800,14 +1807,14 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       {activeTab === "news" && (
         <>
           {newsLoading ? (
-            <div>Loading news...</div>
+            <div>{t("instrumentDetail.research.loadingNews")}</div>
           ) : newsError ? (
             <div>{newsError}</div>
           ) : news.length === 0 ? (
-            <EmptyState message="No news available" />
+            <EmptyState message={t("instrumentDetail.research.noNews")} />
           ) : (
             <div>
-              <h2>News</h2>
+              <h2>{t("instrumentDetail.research.tabs.news")}</h2>
               <ul>
                 {news.map((n, i) => {
                   const publishedDate = n.published_at

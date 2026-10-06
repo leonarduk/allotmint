@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { getQuotes } from '../../api';
@@ -25,6 +26,7 @@ function readWatchlist(): string[] {
 
 /** Seed packets: watchlist symbols you could sow, priced from live quotes. */
 export default function SeedCatalogue({ basePath }: { basePath: string }) {
+  const { t } = useTranslation();
   const { snapshot } = usePlotData();
   const [rows, setRows] = useState<QuoteRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -73,42 +75,45 @@ export default function SeedCatalogue({ basePath }: { basePath: string }) {
   return (
     <div className={styles.stack}>
       <section className={`${styles.panel} ${styles.panelGlow}`}>
-        <h2 className={styles.panelTitle}>Seed catalogue</h2>
+        <h2 className={styles.panelTitle}>{t('plot.seeds.title')}</h2>
         <p className={styles.sectionNote}>
-          Your watchlist as seed packets — the same list the classic Watchlist
-          page reads, priced from live quotes. Nothing here places a trade.
+          {t('plot.seeds.intro')}
         </p>
       </section>
 
       {error && !loading && (
         <div className={styles.errorBanner} role="alert">
-          <p style={{ margin: 0 }}>Could not load quotes: {error}</p>
+          <p style={{ margin: 0 }}>{t('plot.seeds.loadError', { error })}</p>
           <button
             type="button"
             className={styles.chipButton}
             onClick={retry}
             style={{ marginTop: '0.5rem' }}
           >
-            Try again
+            {t('plot.seeds.tryAgain')}
           </button>
         </div>
       )}
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>
-        <h2 className={styles.panelTitle}>Available seed ({rows.length})</h2>
+        <h2 className={styles.panelTitle}>{t('plot.seeds.available', { count: rows.length })}</h2>
         {loading ? (
           <p className={styles.loading} role="status">
-            Checking the seed trays…
+            {t('plot.seeds.loading')}
           </p>
         ) : error ? null : symbols.length === 0 ? (
           <p className={styles.emptyState}>
-            Your watchlist is empty — add a stock to see it here. You can add
-            one in the <Link to="/watchlist">classic watchlist</Link>.
+            <Trans
+              i18nKey="plot.seeds.emptyWatchlist"
+              components={{ txlink: <Link to="/watchlist" /> }}
+            />
           </p>
         ) : rows.length === 0 ? (
           <p className={styles.emptyState}>
-            No quotes came back for your watchlist symbols. Try the{' '}
-            <Link to="/watchlist">classic watchlist</Link> to check them.
+            <Trans
+              i18nKey="plot.seeds.noQuotes"
+              components={{ txlink: <Link to="/watchlist" /> }}
+            />
           </p>
         ) : (
           <div className={styles.seedGrid}>
@@ -122,10 +127,12 @@ export default function SeedCatalogue({ basePath }: { basePath: string }) {
                     <span aria-hidden="true">🌱</span> {row.symbol}
                   </span>
                   <span className={styles.seedOwn}>
-                    {row.name || 'Unnamed instrument'}
+                    {row.name || t('plot.seeds.unnamed')}
                   </span>
                   <span className={styles.seedOwn}>
-                    {isOwned ? 'Already growing in your plot' : 'Not sown yet'}
+                    {isOwned
+                      ? t('plot.seeds.alreadyGrowing')
+                      : t('plot.seeds.notSown')}
                   </span>
                   <span className={styles.cropValue}>
                     {row.last === null ? '—' : row.last.toFixed(2)}
@@ -146,7 +153,9 @@ export default function SeedCatalogue({ basePath }: { basePath: string }) {
                           : `/instrument?ticker=${encodeURIComponent(row.symbol)}`
                       }
                     >
-                      {isOwned ? 'Inspect crop' : 'Read the packet'}
+                      {isOwned
+                        ? t('plot.seeds.inspectCrop')
+                        : t('plot.seeds.readPacket')}
                     </Link>
                   </span>
                 </div>

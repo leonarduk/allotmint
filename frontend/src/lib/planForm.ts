@@ -1,7 +1,14 @@
 // Form state for the structured investment plan editor (#9655). Every input
 // is held as text so a half-typed number survives re-renders; toPlan converts
 // back to the backend's InvestmentPlan shape (backend/common/investment_plan.py).
-import type { InvestmentPlan, InvestmentPlanVehicle } from '../types';
+import type {
+  InvestmentPlan,
+  InvestmentPlanGoalPurpose,
+  InvestmentPlanProfile,
+  InvestmentPlanProfileLevel,
+  InvestmentPlanProfileRating,
+  InvestmentPlanVehicle,
+} from '../types';
 
 /** Plan class keys, in backend PLAN_CLASS_PARENT order. */
 export const PLAN_CLASSES = [
@@ -26,6 +33,31 @@ export const PLAN_STATUSES: InvestmentPlan['status'][] = [
   'active',
   'superseded',
 ];
+
+/** Owner-stated levels for risk tolerance and capacity for loss (#9760). */
+export const PROFILE_LEVELS: InvestmentPlanProfileLevel[] = [
+  'low',
+  'medium',
+  'high',
+];
+
+/** Display labels for goal purposes (the editor translates them via planEditor.purpose_*). */
+const GOAL_PURPOSE_LABELS: Record<InvestmentPlanGoalPurpose, string> = {
+  retirement: 'Retirement',
+  education: 'Education',
+  house_deposit: 'House deposit',
+  income: 'Income',
+  general_wealth: 'General wealth',
+  other: 'Other',
+};
+
+/** Goal purposes, in backend GoalPurpose order. */
+export const GOAL_PURPOSES = Object.keys(
+  GOAL_PURPOSE_LABELS
+) as InvestmentPlanGoalPurpose[];
+
+export const goalPurposeLabel = (key: string) =>
+  GOAL_PURPOSE_LABELS[key as InvestmentPlanGoalPurpose] ?? key;
 
 /** Labels for plan class keys and the parent asset classes they roll up to. */
 const CLASS_LABELS: Record<string, string> = {
@@ -81,6 +113,19 @@ export interface EvidenceRow {
 export interface TextRow {
   text: string;
 }
+export interface GoalRow {
+  name: string;
+  purpose: InvestmentPlanGoalPurpose;
+  target_date: string;
+  amount: string;
+  priority: string;
+  note: string;
+}
+/** A profile rating as text; a blank level means "not recorded". */
+export interface RatingFields {
+  level: InvestmentPlanProfileLevel | '';
+  note: string;
+}
 
 export interface PlanForm {
   version: string;
@@ -95,6 +140,9 @@ export interface PlanForm {
   evidence: EvidenceRow[];
   open_questions: TextRow[];
   triggers: TextRow[];
+  risk_tolerance: RatingFields;
+  capacity_for_loss: RatingFields;
+  goals: GoalRow[];
 }
 
 /** Same slack as backend TARGET_SUM_TOLERANCE_PCT. */
@@ -144,6 +192,9 @@ export function emptyPlanForm(): PlanForm {
     evidence: [],
     open_questions: [],
     triggers: [],
+    risk_tolerance: { level: '', note: '' },
+    capacity_for_loss: { level: '', note: '' },
+    goals: [],
   };
 }
 
@@ -161,6 +212,10 @@ function vehicleRows(
     )
   );
 }
+
+const ratingFields = (
+  rating: InvestmentPlanProfileRating | undefined
+): RatingFields => ({ level: rating?.level ?? '', note: rating?.note ?? '' });
 
 export function fromPlan(plan: Partial<InvestmentPlan>): PlanForm {
   const base = emptyPlanForm();
@@ -197,6 +252,16 @@ export function fromPlan(plan: Partial<InvestmentPlan>): PlanForm {
     })),
     open_questions: (plan.open_questions ?? []).map((text) => ({ text })),
     triggers: (plan.review?.triggers ?? []).map((text) => ({ text })),
+    risk_tolerance: ratingFields(plan.profile?.risk_tolerance),
+    capacity_for_loss: ratingFields(plan.profile?.capacity_for_loss),
+    goals: (plan.profile?.goals ?? []).map((g) => ({
+      name: g.name,
+      purpose: g.purpose,
+      target_date: g.target_date ?? '',
+      amount: scalarText(g.amount_gbp),
+      priority: scalarText(g.priority),
+      note: g.note ?? '',
+    })),
   };
 }
 
@@ -209,6 +274,43 @@ function vehiclesOf(rows: VehicleRow[]): InvestmentPlan['vehicles'] {
     });
   }
   return out;
+}
+
+/** A goal row with nothing typed in it (purpose always has a value, so it doesn't count). */
+const isBlankGoal = ({ purpose: _purpose, ...rest }: GoalRow) => isBlank(rest);
+
+/** Text -> number; blank is undefined (the form flags non-numbers before saving). */
+const optionalNumber = (text: string) =>
+  text.trim() ? Number(text.trim()) : undefined;
+
+function ratingOf(
+  fields: RatingFields
+): InvestmentPlanProfileRating | undefined {
+  if (!fields.level) return undefined;
+  return { level: fields.level, note: optional(fields.note) };
+}
+
+/** The profile, or undefined when nothing is recorded so plans without one stay without one. */
+function profileOf(form: PlanForm): InvestmentPlanProfile | undefined {
+  const profile: InvestmentPlanProfile = {
+    risk_tolerance: ratingOf(form.risk_tolerance),
+    capacity_for_loss: ratingOf(form.capacity_for_loss),
+    goals: form.goals
+      .filter((g) => !isBlankGoal(g))
+      .map((g) => ({
+        name: g.name.trim(),
+        purpose: g.purpose,
+        target_date: optional(g.target_date),
+        amount_gbp: optionalNumber(g.amount),
+        priority: optionalNumber(g.priority),
+        note: optional(g.note),
+      })),
+  };
+  const empty =
+    !profile.risk_tolerance &&
+    !profile.capacity_for_loss &&
+    !profile.goals.length;
+  return empty ? undefined : profile;
 }
 
 /** Plan payload; the backend fills in its default disclaimer when none is sent. */
@@ -265,6 +367,7 @@ export function toPlan(
       next_review: optional(form.next_review),
       triggers: texts(form.triggers),
     },
+    profile: profileOf(form),
     ...(form.disclaimer ? { disclaimer: form.disclaimer } : {}),
   };
 }
@@ -298,5 +401,33 @@ export function formErrors(form: PlanForm): string[] {
     errors.push(
       `Target weights must sum to 100%, got ${Math.round(total * 100) / 100}%.`
     );
+  return [...errors, ...profileErrors(form)];
+}
+
+function ratingError(fields: RatingFields, label: string): string[] {
+  return !fields.level && fields.note.trim()
+    ? [`Choose a ${label} level to go with its note.`]
+    : [];
+}
+
+function goalErrors(goal: GoalRow, n: number): string[] {
+  const errors: string[] = [];
+  const amount = goal.amount.trim();
+  const priority = goal.priority.trim();
+  if (!goal.name.trim()) errors.push(`Goal ${n} needs a name.`);
+  if (amount && !(NUMBER_RE.test(amount) && Number(amount) >= 0))
+    errors.push(`Goal ${n} amount must be a number of at least 0.`);
+  if (priority && !(/^\d+$/.test(priority) && Number(priority) >= 1))
+    errors.push(`Goal ${n} priority must be a whole number of at least 1.`);
   return errors;
+}
+
+function profileErrors(form: PlanForm): string[] {
+  return [
+    ...ratingError(form.risk_tolerance, 'risk tolerance'),
+    ...ratingError(form.capacity_for_loss, 'capacity for loss'),
+    ...form.goals.flatMap((g, i) =>
+      isBlankGoal(g) ? [] : goalErrors(g, i + 1)
+    ),
+  ];
 }

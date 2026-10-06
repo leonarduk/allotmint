@@ -284,6 +284,8 @@ class InsightInputs:
     has_ledger: bool = True
     unreconciled: Sequence[str] = ()
     unpriced: Sequence[str] = ()
+    # Priced instruments with dates that had no GBP close for want of an FX rate (#9759).
+    fx_gaps: Sequence[str] = ()
 
 
 def _pct(value: float) -> str:
@@ -395,6 +397,11 @@ def rule_data_coverage(inputs: InsightInputs) -> Optional[str]:
         gaps.append(f"holdings the ledger does not reproduce ({_display(inputs.unreconciled)}) are excluded")
     if inputs.unpriced:
         gaps.append(f"instruments without price history ({_display(inputs.unpriced)}) are valued at trade prices")
+    if inputs.fx_gaps:
+        gaps.append(
+            f"instruments with no FX rate on some dates ({_display(inputs.fx_gaps)}) "
+            "keep their last converted price on those dates"
+        )
     if not gaps:
         return None
     return "Return history is approximate: " + "; ".join(gaps) + "."

@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import styles from '../plot.module.css';
 import type { DayStamp } from '../seasonModel';
 import { crateState, stampClass } from '@/utils/crateProgress';
@@ -7,9 +9,13 @@ interface StreakPathProps {
   streak: number;
 }
 
-function stampLabel(day: DayStamp): string {
-  if (day.total === 0) return `${day.date}: no chores recorded`;
-  return `${day.date}: ${day.completed} of ${day.total} chores done`;
+function stampLabel(day: DayStamp, t: TFunction): string {
+  if (day.total === 0) return t('plot.streak.noChores', { date: day.date });
+  return t('plot.streak.choresDone', {
+    date: day.date,
+    completed: day.completed,
+    total: day.total,
+  });
 }
 
 /**
@@ -20,6 +26,7 @@ function stampLabel(day: DayStamp): string {
  * rather than reading as one (#7204).
  */
 export default function StreakPath({ days, streak }: StreakPathProps) {
+  const { t } = useTranslation();
   if (days.length === 0) return null;
   const crate = crateState(days);
 
@@ -27,15 +34,15 @@ export default function StreakPath({ days, streak }: StreakPathProps) {
     <div className={styles.streakPath}>
       <ol
         className={styles.stampRow}
-        aria-label="Chore history for the last week"
+        aria-label={t('plot.streak.ariaLabel')}
       >
         {days.map((day) => (
           <li key={day.date} className={styles.stampCell}>
-            <span className={stampClass(day, styles)} title={stampLabel(day)}>
+            <span className={stampClass(day, styles)} title={stampLabel(day, t)}>
               <span aria-hidden="true">
                 {day.stamped ? '🌿' : day.partial ? '🌱' : ''}
               </span>
-              <span className={styles.srOnly}>{stampLabel(day)}</span>
+              <span className={styles.srOnly}>{stampLabel(day, t)}</span>
             </span>
             <span
               className={

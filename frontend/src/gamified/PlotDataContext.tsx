@@ -24,6 +24,7 @@ import type {
   QuestResponse,
   TrailResponse,
 } from '../types';
+import i18n from '../i18n';
 import { useGroupedOwners } from '../hooks/useGroupedOwners';
 import {
   buildPlotSnapshot,
@@ -319,8 +320,8 @@ export function PlotDataProvider({
       setLoading(false);
       setError(
         discoveryOutcome === 'error'
-          ? 'Could not load the list of growers.'
-          : 'No growers found for this account.'
+          ? i18n.t('plot.data.ownersError')
+          : i18n.t('plot.data.noOwners')
       );
       return () => {};
     }

@@ -10,8 +10,8 @@ import {
   updateTransaction,
 } from '../api';
 import { useFetch } from '../hooks/useFetch';
-import { useConfig } from '../ConfigContext';
-import { useTranslation } from 'react-i18next';
+import { useReportingCurrency } from '../hooks/useReportingCurrency';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { createOwnerDisplayLookup, findOwnerForUser } from '../utils/owners';
 import { useAuth } from '../AuthContext';
@@ -28,7 +28,6 @@ import {
   buildBulkDeletionOrder,
   summariseTransactions,
 } from './transactions/transactionTable';
-import { money } from '../lib/money';
 import { TransactionsTable } from './transactions/TransactionsTable';
 import { useTransactionsTableState } from '../hooks/useTransactionsTableState';
 import surface from '../styles/surface.module.css';
@@ -69,7 +68,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
   const [manualPrice, setManualPrice] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const { t } = useTranslation();
-  const { baseCurrency } = useConfig();
+  const reporting = useReportingCurrency();
   const { user } = useAuth();
   const { demoReadOnly, reason } = useDemoReadOnly();
   const pageSizeOptions = [10, 20, 50, 100];
@@ -202,10 +201,10 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       setManualError(null);
     } catch (err) {
       setManualError(
-        err instanceof Error ? err.message : 'Failed to load manual holdings.'
+        err instanceof Error ? err.message : t('transactionsPage.loadManualFailed')
       );
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (owners.length === 0) {
@@ -229,7 +228,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     setManualSuccess(null);
 
     if (!trimmedOwner || !trimmedAccount || !ticker) {
-      setManualError('Owner, account, and ticker are required.');
+      setManualError(t('transactionsPage.requiredFields'));
       return;
     }
 
@@ -241,26 +240,26 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     const price = Number(manualPrice);
 
     if (hasValueInput && (!Number.isFinite(value) || value <= 0)) {
-      setManualError('Value (GBP) must be a positive number.');
+      setManualError(t('transactionsPage.valuePositive'));
       return;
     }
     if (hasUnitsInput !== hasPriceInput) {
-      setManualError('Provide both Units and Price (GBP).');
+      setManualError(t('transactionsPage.unitsAndPrice'));
       return;
     }
     if (hasUnitsInput && (!Number.isFinite(units) || units <= 0)) {
-      setManualError('Units must be a positive number.');
+      setManualError(t('transactionsPage.unitsPositive'));
       return;
     }
     if (hasPriceInput && (!Number.isFinite(price) || price <= 0)) {
-      setManualError('Price (GBP) must be a positive number.');
+      setManualError(t('transactionsPage.pricePositive'));
       return;
     }
 
     const hasValue = hasValueInput;
     const hasUnitsPrice = hasUnitsInput && hasPriceInput;
     if (!hasValue && !hasUnitsPrice) {
-      setManualError('Provide either Value (GBP) or both Units + Price (GBP).');
+      setManualError(t('transactionsPage.valueOrUnitsPrice'));
       return;
     }
 
@@ -282,7 +281,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
               price_gbp: price,
             }
       );
-      setManualSuccess('Holding saved.');
+      setManualSuccess(t('transactionsPage.holdingSaved'));
       setManualTicker('');
       setManualValue('');
       setManualUnits('');
@@ -290,7 +289,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       await fetchManualAccounts(trimmedOwner);
     } catch (err) {
       setManualError(
-        err instanceof Error ? err.message : 'Failed to save holding.'
+        err instanceof Error ? err.message : t('transactionsPage.saveHoldingFailed')
       );
     } finally {
       setManualSubmitting(false);
@@ -303,6 +302,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     manualTicker,
     manualUnits,
     manualValue,
+    t,
   ]);
 
   const handleCancelEdit = useCallback(() => {
@@ -319,7 +319,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       }
       if (
         typeof window !== 'undefined' &&
-        !window.confirm('Delete this transaction?')
+        !window.confirm(t('transactionsPage.confirmDelete'))
       ) {
         return;
       }
@@ -331,21 +331,21 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           setEditingId(null);
           resetForm();
         }
-        setFormSuccess('Transaction deleted successfully.');
+        setFormSuccess(t('transactionsPage.deleted'));
         setFilterOwnerAndAccount(transaction.owner, transaction.account ?? '');
         setRefreshKey((key) => key + 1);
       } catch (err) {
         setFormError(
-          err instanceof Error ? err.message : 'Failed to delete transaction.'
+          err instanceof Error ? err.message : t('transactionsPage.deleteFailed')
         );
       }
     },
-    [editingId, resetForm, setFilterOwnerAndAccount]
+    [editingId, resetForm, setFilterOwnerAndAccount, t]
   );
 
   const validatePayload = useCallback(() => {
     if (!owner || !account) {
-      setFormError('Select an owner and account in the filters before saving.');
+      setFormError(t('transactionsPage.selectOwnerAccount'));
       return null;
     }
     const result = buildTransactionPayload(formValues, owner, account);
@@ -354,7 +354,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       return null;
     }
     return result.payload;
-  }, [account, formValues, owner]);
+  }, [account, formValues, owner, t]);
 
   const handleBulkDelete = useCallback(async () => {
     if (!hasSelection) {
@@ -363,7 +363,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     if (
       typeof window !== 'undefined' &&
       !window.confirm(
-        `Delete ${selectedCount} selected transaction${selectedCount === 1 ? '' : 's'}?`
+        t('transactionsPage.confirmBulkDelete', { count: selectedCount })
       )
     ) {
       return;
@@ -389,14 +389,14 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       }
       setSelectedIds([]);
       setFormSuccess(
-        `Deleted ${selectedCount} transaction${selectedCount === 1 ? '' : 's'} successfully.`
+        t('transactionsPage.bulkDeleted', { count: selectedCount })
       );
       setRefreshKey((key) => key + 1);
     } catch (err) {
       setFormError(
         err instanceof Error
           ? err.message
-          : 'Failed to delete selected transactions.'
+          : t('transactionsPage.bulkDeleteFailed')
       );
     }
   }, [
@@ -407,6 +407,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     selectedIds,
     setFilterOwnerAndAccount,
     setSelectedIds,
+    t,
     transactionById,
   ]);
 
@@ -421,7 +422,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     if (
       typeof window !== 'undefined' &&
       !window.confirm(
-        `Update ${selectedCount} selected transaction${selectedCount === 1 ? '' : 's'}?`
+        t('transactionsPage.confirmBulkUpdate', { count: selectedCount })
       )
     ) {
       return;
@@ -439,14 +440,14 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       setFilterOwnerAndAccount(payload.owner, payload.account);
       setSelectedIds([]);
       setFormSuccess(
-        `Updated ${selectedCount} transaction${selectedCount === 1 ? '' : 's'} successfully.`
+        t('transactionsPage.bulkUpdated', { count: selectedCount })
       );
       setRefreshKey((key) => key + 1);
     } catch (err) {
       setFormError(
         err instanceof Error
           ? err.message
-          : 'Failed to update selected transactions.'
+          : t('transactionsPage.bulkUpdateFailed')
       );
     } finally {
       setSubmitting(false);
@@ -458,6 +459,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     selectedIds,
     setFilterOwnerAndAccount,
     setSelectedIds,
+    t,
     validatePayload,
   ]);
 
@@ -475,41 +477,41 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       try {
         if (editingId) {
           await updateTransaction(editingId, payload);
-          setFormSuccess('Transaction updated successfully.');
+          setFormSuccess(t('transactionsPage.updated'));
           setEditingId(null);
         } else {
           await createTransaction(payload);
-          setFormSuccess('Transaction created successfully.');
+          setFormSuccess(t('transactionsPage.created'));
         }
         setFilterOwnerAndAccount(payload.owner, payload.account);
         resetForm();
         setRefreshKey((key) => key + 1);
       } catch (err) {
         const defaultMessage = editingId
-          ? 'Failed to update transaction.'
-          : 'Failed to create transaction.';
+          ? t('transactionsPage.updateFailed')
+          : t('transactionsPage.createFailed');
         setFormError(err instanceof Error ? err.message : defaultMessage);
       } finally {
         setSubmitting(false);
       }
     },
-    [editingId, resetForm, setFilterOwnerAndAccount, validatePayload]
+    [editingId, resetForm, setFilterOwnerAndAccount, t, validatePayload]
   );
 
   const manualHoldingsSection = (
     <section className={`mb-6 ${surface.surfaceCard}`}>
       <h2 className={`mb-2 text-lg font-semibold ${surface.surfaceCardTitle}`}>
-        Account + Holdings Input
+        {t('transactionsPage.inputTitle')}
       </h2>
       <p className={`mb-3 text-sm ${surface.surfaceMuted}`}>
-        Create accounts and set holdings. Saving records the opening-balance
-        transfer that brings the account to the units you enter, so it shows
-        up alongside your trades on{' '}
-        <Link to="/transactions">Transactions</Link>.
+        <Trans
+          i18nKey="transactionsPage.inputIntro"
+          components={{ txlink: <Link to="/transactions" /> }}
+        />
       </p>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-sm">
-          Owner
+          {t('transactionsPage.owner')}
           <input
             list="manual-owner-options"
             className="mt-1 w-full rounded border border-slate-300 p-2"
@@ -524,7 +526,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           </datalist>
         </label>
         <label className="text-sm">
-          Account
+          {t('transactionsPage.account')}
           <input
             className="mt-1 w-full rounded border border-slate-300 p-2"
             value={manualAccount}
@@ -533,7 +535,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           />
         </label>
         <label className="text-sm">
-          Ticker
+          {t('transactionsPage.ticker')}
           <input
             className="mt-1 w-full rounded border border-slate-300 p-2 uppercase"
             value={manualTicker}
@@ -544,7 +546,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           />
         </label>
         <label className="text-sm">
-          Value (GBP)
+          {t('transactionsPage.valueGbp')}
           <input
             className="mt-1 w-full rounded border border-slate-300 p-2"
             value={manualValue}
@@ -553,7 +555,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           />
         </label>
         <label className="text-sm">
-          Units
+          {t('transactionsPage.units')}
           <input
             className="mt-1 w-full rounded border border-slate-300 p-2"
             value={manualUnits}
@@ -562,7 +564,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           />
         </label>
         <label className="text-sm">
-          Price (GBP)
+          {t('transactionsPage.priceGbp')}
           <input
             className="mt-1 w-full rounded border border-slate-300 p-2"
             value={manualPrice}
@@ -579,7 +581,9 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           title={reason()}
           onClick={() => void handleSaveManualHolding()}
         >
-          {manualSubmitting ? 'Saving...' : 'Save holding'}
+          {manualSubmitting
+            ? t('transactionsPage.saving')
+            : t('transactionsPage.saveHolding')}
         </button>
         {manualError && <p className="text-sm text-red-700">{manualError}</p>}
         {manualSuccess && (
@@ -587,10 +591,10 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
         )}
       </div>
       <div className="mt-4 space-y-2">
-        <h3 className="text-sm font-semibold">Saved accounts</h3>
+        <h3 className="text-sm font-semibold">{t('transactionsPage.savedAccounts')}</h3>
         {manualAccounts.length === 0 ? (
           <p className={`text-sm ${surface.surfaceMuted}`}>
-            No saved accounts yet for this owner.
+            {t('transactionsPage.noSavedAccounts')}
           </p>
         ) : (
           <ul className="space-y-2">
@@ -600,8 +604,10 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
                 className="rounded border border-[var(--surface-card-border)] p-2 text-sm"
               >
                 <div className="font-medium">
-                  {entry.account_type.toUpperCase()} ({entry.holding_count}{' '}
-                  holdings)
+                  {t('transactionsPage.accountSummary', {
+                    account: entry.account_type.toUpperCase(),
+                    holdingCount: entry.holding_count,
+                  })}
                 </div>
                 <div className={surface.surfaceMuted}>{entry.currency}</div>
               </li>
@@ -651,8 +657,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
 
           {editingId && (
             <p style={{ color: '#ffd24d' }}>
-              Editing existing transaction. Owner and account filters are locked
-              until you save or cancel.
+              {t('transactionsPage.editingNotice')}
             </p>
           )}
 
@@ -662,7 +667,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
 
           {!loading && (transactions?.length ?? 0) > 0 && (
             <p data-testid="transactions-summary">
-              Realised gain/loss:{' '}
+              {t('transactionsPage.realisedGainLoss')}{' '}
               <strong
                 className={
                   summary.realisedGain > 0
@@ -672,14 +677,16 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
                       : 'text-gray'
                 }
               >
-                {money(summary.realisedGain, baseCurrency)}
+                {reporting.format(summary.realisedGain)}
               </strong>
               {summary.sellsWithUnknownGain > 0 &&
-                ` (excludes ${summary.sellsWithUnknownGain} sale${
-                  summary.sellsWithUnknownGain === 1 ? '' : 's'
-                } with unknown cost)`}
-              {' · '}Income: {money(summary.income, baseCurrency)}
-              {' · '}Fees: {money(summary.fees, baseCurrency)}
+                ` ${t('transactionsPage.excludesUnknownSales', {
+                  count: summary.sellsWithUnknownGain,
+                })}`}
+              {' · '}
+              {t('transactionsPage.income')} {reporting.format(summary.income)}
+              {' · '}
+              {t('transactionsPage.fees')} {reporting.format(summary.fees)}
             </p>
           )}
 
@@ -688,7 +695,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           ) : (
             <TransactionsTable
               transactions={paginatedTransactions}
-              baseCurrency={baseCurrency}
+              format={reporting.format}
               ownerLookup={ownerLookup}
               pageSize={pageSize}
               pageSizeOptions={pageSizeOptions}

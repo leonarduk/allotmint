@@ -19,7 +19,7 @@ const config: ConfigContextValue = {
   disabledTabs: [],
   tabs: { group: true, plot: true } as ConfigContextValue['tabs'],
   theme: 'dark',
-  baseCurrency: 'GBP',
+  reportingCurrency: 'GBP',
   refreshConfig: async () => {},
   setRelativeViewEnabled: () => {},
 };

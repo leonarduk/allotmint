@@ -2,8 +2,9 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { Account } from "../types";
-import { money, percent } from "../lib/money";
-import { useConfig } from "../ConfigContext";
+import { percent } from "../lib/money";
+import { useReportingCurrency } from "../hooks/useReportingCurrency";
+import { ReportingCurrencyNote } from "./ReportingCurrencyNote";
 import { isCashInstrument } from "../lib/instruments";
 import { isCostBasisUnreliable } from "../lib/costBasis";
 import { FX_RATE_SOURCE_MISSING } from "../lib/fxRateSource";
@@ -211,7 +212,7 @@ export function PortfolioSummary({ totals }: Props) {
     missingFxHoldingCount,
     unpricedMissingFxCount,
   } = totals;
-  const { baseCurrency } = useConfig();
+  const reporting = useReportingCurrency();
   const { t } = useTranslation();
 
   // When every gain-eligible holding is excluded (unknown cost basis or no
@@ -252,23 +253,23 @@ export function PortfolioSummary({ totals }: Props) {
       <SummaryCard
         label={t("portfolioSummary.stockValue")}
         icon={<LineChart size={20} />}
-        value={money(totalStockValue, baseCurrency)}
+        value={reporting.format(totalStockValue)}
       />
       <SummaryCard
         label={t("portfolioSummary.totalCash")}
         icon={<Wallet size={20} />}
-        value={money(totalCash, baseCurrency)}
+        value={reporting.format(totalCash)}
       />
       <SummaryCard
         label={t("portfolioSummary.totalValue")}
         icon={<PiggyBank size={20} />}
-        value={money(totalValue, baseCurrency)}
+        value={reporting.format(totalValue)}
         note={valueNote}
       />
       <SummaryCard
         label={t("portfolioSummary.gainLoss")}
         icon={<TrendingUp size={20} />}
-        value={allGainUnknown ? "—" : money(totalGain, baseCurrency)}
+        value={allGainUnknown ? "—" : reporting.format(totalGain)}
         accentColor={
           allGainUnknown
             ? undefined
@@ -279,6 +280,7 @@ export function PortfolioSummary({ totals }: Props) {
         secondary={allGainUnknown ? undefined : `(${percent(totalGainPct)})`}
         note={gainNote}
       />
+      <ReportingCurrencyNote reporting={reporting} />
     </div>
   );
 }

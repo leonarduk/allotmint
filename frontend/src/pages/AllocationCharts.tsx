@@ -4,7 +4,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { getGroupCurrencyContributions, getGroupPortfolio } from "../api";
 import type { Account, CurrencyContribution, GroupPortfolio } from "../types";
 import { translateInstrumentType } from "../lib/instrumentType";
-import { money } from "../lib/money";
+import { useReportingCurrency } from "../hooks/useReportingCurrency";
+import { ReportingCurrencyNote } from "../components/ReportingCurrencyNote";
 import { useConfig } from "../ConfigContext";
 import { RelativeViewToggle } from "../components/RelativeViewToggle";
 import ChartSkeleton from "../components/skeletons/ChartSkeleton";
@@ -120,7 +121,8 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const resolvedSlug = searchParams.get("group") || slug;
   const requestedView = searchParams.get("view");
   const initialView: AllocationView = isAllocationView(requestedView) ? requestedView : "asset";
-  const { baseCurrency, relativeViewEnabled } = useConfig();
+  const { relativeViewEnabled } = useConfig();
+  const reporting = useReportingCurrency();
   const [view, setView] = useState<AllocationView>(initialView);
   const [sectorData, setSectorData] = useState<{ name: string; value: number }[]>(
     [],
@@ -393,7 +395,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
                   const numericValue = Number.isFinite(rawValue) ? rawValue : 0;
                   return relativeViewEnabled
                     ? `${labelName}: ${percentValue.toFixed(2)}%`
-                    : `${labelName}: ${money(numericValue, baseCurrency)} (${percentValue.toFixed(2)}%)`;
+                    : `${labelName}: ${reporting.format(numericValue)} (${percentValue.toFixed(2)}%)`;
                 })}
               >
                 {chartData.map((_, index) => (
@@ -411,7 +413,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
                           ? (((item as any)?.payload?.value / total) * 100).toFixed(2)
                           : "0.00"
                       }%`
-                    : money(v as number | undefined, baseCurrency)
+                    : reporting.format(v as number | undefined)
                 }
               />
               <Legend
@@ -422,7 +424,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
                           ? ((entry?.payload?.value / total) * 100).toFixed(2)
                           : "0.00"
                       }%`
-                    : `${value}: ${money(entry?.payload?.value, baseCurrency)}`
+                    : `${value}: ${reporting.format(entry?.payload?.value)}`
                 }
               />
             </PieChart>
@@ -438,6 +440,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
           </div>
         )}
       </div>
+      {!relativeViewEnabled && <ReportingCurrencyNote reporting={reporting} />}
     </div>
   );
 }

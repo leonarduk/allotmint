@@ -9,12 +9,13 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
-import { money, percent } from "../lib/money";
+import { percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
+import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { isSupportedFx } from "../lib/fx";
 import { formatDateISO } from "../lib/date";
 import {
@@ -134,7 +135,8 @@ export function HoldingsTable({
   // nullable lot-only fields are rendered the same way as absent Holding fields.
   const holdingRows = holdings as HoldingsTableRow[];
   const { t } = useTranslation();
-  const { relativeViewEnabled, baseCurrency, familyMvpEnabled } = useConfig();
+  const { relativeViewEnabled, familyMvpEnabled } = useConfig();
+  const reporting = useReportingCurrency();
   let navigate: (path: string) => void = () => {};
   try {
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -242,11 +244,11 @@ export function HoldingsTable({
     if (h.total_return_gbp === undefined) return undefined;
     if (h.income_gbp == null) return t("holdingsTable.totalReturnNoTransactions");
     return t("holdingsTable.totalReturnBreakdown", {
-      income: money(h.income_gbp, baseCurrency),
+      income: reporting.format(h.income_gbp),
       realised:
         h.realised_gain_gbp == null
           ? t("holdingsTable.notApplicable")
-          : money(h.realised_gain_gbp, baseCurrency),
+          : reporting.format(h.realised_gain_gbp),
     });
   };
 
@@ -610,7 +612,7 @@ export function HoldingsTable({
         )}
         {!relativeViewEnabled && visibleColumns.market && (
           <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-            {money(group.totals.marketValue, baseCurrency)}
+            {reporting.format(group.totals.marketValue)}
           </td>
         )}
         {!relativeViewEnabled && visibleColumns.gain && (
@@ -623,7 +625,7 @@ export function HoldingsTable({
                 {t("holdingsTable.notApplicable")}
               </span>
             ) : (
-              money(group.totals.gain, baseCurrency)
+              reporting.format(group.totals.gain)
             )}
           </td>
         )}
@@ -646,7 +648,7 @@ export function HoldingsTable({
                 {t("holdingsTable.notApplicable")}
               </span>
             ) : (
-              money(group.totals.cost, baseCurrency)
+              reporting.format(group.totals.cost)
             )}
           </td>
         )}
@@ -813,7 +815,7 @@ export function HoldingsTable({
           </tr>
           <tr>
             {showAccount && (
-              <th className={tableStyles.cell}>Account</th>
+              <th className={tableStyles.cell}>{t("holdingsTable.columns.account")}</th>
             )}
             <th
               className={`${tableStyles.cell} ${tableStyles.clickable}`}
@@ -968,7 +970,7 @@ export function HoldingsTable({
                 )}
                 {!relativeViewEnabled && visibleColumns.market && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {money(h.market, h.market_value_currency || baseCurrency)}
+                    {reporting.format(h.market, h.market_value_currency)}
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (
@@ -983,7 +985,7 @@ export function HoldingsTable({
                         {t("holdingsTable.notApplicable")}
                       </span>
                     ) : (
-                      money(h.gain, h.gain_currency || baseCurrency)
+                      reporting.format(h.gain, h.gain_currency)
                     )}
                   </td>
                 )}
@@ -1014,17 +1016,14 @@ export function HoldingsTable({
                       <span className={tableStyles.notApplicable}>{t("holdingsTable.notApplicable")}</span>
                     ) : (
                       h.total_return_pct == null
-                        ? money(h.total_return_gbp, baseCurrency)
-                        : `${money(h.total_return_gbp, baseCurrency)} (${percent(h.total_return_pct, 1)})`
+                        ? reporting.format(h.total_return_gbp)
+                        : `${reporting.format(h.total_return_gbp)} (${percent(h.total_return_pct, 1)})`
                     )}
                   </td>
                 )}
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                   <span className={h.is_stale ? "text-gray" : undefined}>
-                    {money(
-                      h.current_price_gbp,
-                      h.current_price_currency || baseCurrency,
-                    )}
+                    {reporting.format(h.current_price_gbp, h.current_price_currency)}
                   </span>
                   {h.is_stale && (
                     <span
@@ -1066,11 +1065,9 @@ export function HoldingsTable({
                           : t("holdingsTable.inferredCost")
                     }
                   >
-                    {money(
+                    {reporting.format(
                       h.cost,
-                      h.cost_basis_currency ||
-                        h.effective_cost_basis_currency ||
-                        baseCurrency,
+                      h.cost_basis_currency || h.effective_cost_basis_currency,
                     )}
                   </td>
                 )}
@@ -1207,14 +1204,14 @@ export function HoldingsTable({
             )}
             {!relativeViewEnabled && visibleColumns.market && (
               <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                {money(totals.market, baseCurrency)}
+                {reporting.format(totals.market)}
               </td>
             )}
             {!relativeViewEnabled && visibleColumns.gain && (
               <td
                 className={`${tableStyles.cell} ${tableStyles.right} font-semibold ${getPerformanceClass(totals.gain)}`}
               >
-                {money(totals.gain, baseCurrency)}
+                {reporting.format(totals.gain)}
               </td>
             )}
             {visibleColumns.gain_pct && (
@@ -1228,13 +1225,13 @@ export function HoldingsTable({
               <td
                 className={`${tableStyles.cell} ${tableStyles.right} font-semibold ${totalReturn === null ? "" : getPerformanceClass(totalReturn)}`}
               >
-                {totalReturn === null ? "—" : money(totalReturn, baseCurrency)}
+                {totalReturn === null ? "—" : reporting.format(totalReturn)}
               </td>
             )}
             <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>—</td>
             {!relativeViewEnabled && visibleColumns.cost && (
               <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                {money(totals.cost, baseCurrency)}
+                {reporting.format(totals.cost)}
               </td>
             )}
             {showForward7d && (

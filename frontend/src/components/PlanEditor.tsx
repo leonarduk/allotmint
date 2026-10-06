@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { saveInvestmentPlan } from '../api';
 import { localDateISO } from '../lib/date';
 import {
+  GOAL_PURPOSES,
   PLAN_CLASSES,
   PLAN_STATUSES,
+  PROFILE_LEVELS,
   classLabel,
   formErrors,
   isPlanClass,
@@ -14,12 +16,18 @@ import {
   type AssumptionRow,
   type DecisionRow,
   type EvidenceRow,
+  type GoalRow,
   type PlanForm,
+  type RatingFields,
   type TargetRow,
   type TextRow,
   type VehicleRow,
 } from '../lib/planForm';
-import type { InvestmentPlan, InvestmentPlanResponse } from '../types';
+import type {
+  InvestmentPlan,
+  InvestmentPlanGoalPurpose,
+  InvestmentPlanResponse,
+} from '../types';
 
 const INPUT = 'w-full border p-1 text-sm';
 const SMALL_BUTTON = 'rounded bg-gray-200 px-2 py-1 text-sm text-slate-900';
@@ -451,6 +459,153 @@ function TextListSection({
   );
 }
 
+function RatingInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: RatingFields;
+  onChange: (value: RatingFields) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="text-sm">
+      {label}
+      <div className="grid gap-1 sm:grid-cols-[8rem_1fr]">
+        <select
+          className={INPUT}
+          value={value.level}
+          onChange={(e) =>
+            onChange({
+              ...value,
+              level: e.target.value as RatingFields['level'],
+            })
+          }
+          aria-label={t('planEditor.ratingLevel', { label })}
+        >
+          <option value="">{t('planEditor.notRecorded')}</option>
+          {PROFILE_LEVELS.map((level) => (
+            <option key={level} value={level}>
+              {t(`planEditor.level_${level}`)}
+            </option>
+          ))}
+        </select>
+        <TextInput
+          label={t('planEditor.ratingNote', { label })}
+          value={value.note}
+          onChange={(note) => onChange({ ...value, note })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function GoalSection({
+  rows,
+  onChange,
+}: {
+  rows: GoalRow[];
+  onChange: (rows: GoalRow[]) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <RowList
+      title={t('planEditor.goalsTitle')}
+      itemName={t('planEditor.goalItem')}
+      hint={t('planEditor.goalsHint')}
+      rows={rows}
+      onChange={onChange}
+      blank={(): GoalRow => ({
+        name: '',
+        purpose: 'other',
+        target_date: '',
+        amount: '',
+        priority: '',
+        note: '',
+      })}
+      renderRow={(row, patch, n) => (
+        <>
+          <TextInput
+            label={t('planEditor.goal', { n })}
+            value={row.name}
+            onChange={(name) => patch({ name })}
+          />
+          <select
+            className={INPUT}
+            value={row.purpose}
+            onChange={(e) =>
+              patch({ purpose: e.target.value as InvestmentPlanGoalPurpose })
+            }
+            aria-label={t('planEditor.goalPurpose', { n })}
+          >
+            {GOAL_PURPOSES.map((key) => (
+              <option key={key} value={key}>
+                {t(`planEditor.purpose_${key}`)}
+              </option>
+            ))}
+          </select>
+          <TextInput
+            label={t('planEditor.goalTargetDate', { n })}
+            type="date"
+            value={row.target_date}
+            onChange={(target_date) => patch({ target_date })}
+          />
+          <TextInput
+            label={t('planEditor.goalAmount', { n })}
+            type="number"
+            value={row.amount}
+            onChange={(amount) => patch({ amount })}
+          />
+          <TextInput
+            label={t('planEditor.goalPriority', { n })}
+            type="number"
+            value={row.priority}
+            onChange={(priority) => patch({ priority })}
+          />
+          <TextInput
+            label={t('planEditor.goalNote', { n })}
+            value={row.note}
+            onChange={(note) => patch({ note })}
+          />
+        </>
+      )}
+    />
+  );
+}
+
+/** Owner-stated profile (#9760): recorded as given, not assessed. */
+function ProfileSection({
+  form,
+  set,
+}: {
+  form: PlanForm;
+  set: Patch<PlanForm>;
+}) {
+  const { t } = useTranslation();
+  return (
+    <fieldset className="mb-4">
+      <legend className="font-medium">{t('planEditor.profileTitle')}</legend>
+      <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
+        {t('planEditor.profileHint')}
+      </p>
+      <div className="mb-2 grid gap-2 sm:grid-cols-2">
+        <RatingInput
+          label={t('planEditor.riskTolerance')}
+          value={form.risk_tolerance}
+          onChange={(risk_tolerance) => set({ risk_tolerance })}
+        />
+        <RatingInput
+          label={t('planEditor.capacityForLoss')}
+          value={form.capacity_for_loss}
+          onChange={(capacity_for_loss) => set({ capacity_for_loss })}
+        />
+      </div>
+      <GoalSection rows={form.goals} onChange={(goals) => set({ goals })} />
+    </fieldset>
+  );
+}
+
 function PlanFormFields({
   form,
   set,
@@ -462,6 +617,7 @@ function PlanFormFields({
   return (
     <>
       <HeaderFields form={form} set={set} />
+      <ProfileSection form={form} set={set} />
       <TargetSection
         rows={form.target}
         onChange={(target) => set({ target })}

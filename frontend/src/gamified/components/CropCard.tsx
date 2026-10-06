@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { formatGbp, formatPct, growthStageMeta, type Crop } from '../plotModel';
@@ -21,6 +22,7 @@ export default function CropCard({
   favourite = false,
   onToggleFavourite,
 }: CropCardProps) {
+  const { t } = useTranslation();
   const stage = growthStageMeta(crop.stage);
   const cardStyle = { '--plot-crop-accent': stage.accent } as CSSProperties;
 
@@ -37,8 +39,8 @@ export default function CropCard({
           aria-pressed={favourite}
           aria-label={
             favourite
-              ? `Remove ${crop.ticker} from favourites`
-              : `Add ${crop.ticker} to favourites`
+              ? t('plot.card.removeFavourite', { ticker: crop.ticker })
+              : t('plot.card.addFavourite', { ticker: crop.ticker })
           }
           onClick={() => onToggleFavourite(crop.ticker)}
         >
@@ -74,7 +76,9 @@ export default function CropCard({
           {formatPct(crop.gainPct)}
         </span>
         <span className={styles.cropDayChange}>
-          {crop.hasMove ? `${formatPct(crop.dayChangePct)} today` : 'no data today'}
+          {crop.hasMove
+            ? t('plot.card.today', { pct: formatPct(crop.dayChangePct) })
+            : t('plot.card.noDataToday')}
         </span>
       </Link>
     </div>

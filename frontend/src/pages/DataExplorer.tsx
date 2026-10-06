@@ -53,18 +53,21 @@ export default function DataExplorer() {
             minHeight: "10rem",
           }}
         >
-          {!selectedPath && <p>Select a file to preview its contents.</p>}
+          {!selectedPath && <p>{t("dataExplorer.selectFile")}</p>}
           {loading && <p>{t("common.loading")}</p>}
           {error && <p style={{ color: "red" }}>{error}</p>}
           {file && (
             <div>
               <p>
-                <strong>{file.path}</strong> — {file.size} bytes — last
-                modified {file.modified}
+                <strong>{file.path}</strong> —{" "}
+                {t("dataExplorer.fileMeta", {
+                  size: file.size,
+                  modified: file.modified,
+                })}
               </p>
               {file.truncated && (
                 <p style={{ color: "#a66" }}>
-                  Preview truncated; showing only the first part of the file.
+                  {t("dataExplorer.truncated")}
                 </p>
               )}
               <pre

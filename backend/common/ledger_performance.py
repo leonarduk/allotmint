@@ -78,6 +78,10 @@ _UNIT_ONLY = {"REMOVAL"}
 
 PriceLoader = Callable[[str, date, date], pd.Series]
 
+# ``attrs`` key on a :func:`load_gbp_closes` result: the ``unconverted_holdings``
+# entry for an instrument with dates left out for want of an FX rate.
+UNCONVERTED_ATTR = "unconverted_holdings"
+
 
 @dataclass(frozen=True)
 class AccountLedger:
@@ -106,6 +110,10 @@ class LedgerPerformance:
     instrument_pnl: pd.DataFrame
     names: Mapping[str, str] = field(default_factory=dict)
     unpriced: tuple[str, ...] = ()
+    # Instruments with dates whose close could not be converted to GBP (no FX
+    # rate within the gap window): ``unconverted_holdings`` entries, the
+    # shape ``portfolio_utils`` reports for its value series (#9671, #9759).
+    unconverted: tuple[Mapping[str, Any], ...] = ()
     # External money in (+) / out (-) at the start of each day, and income
     # paid out of accounts whose cash is not tracked (see the module docstring).
     flows: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
@@ -173,8 +181,14 @@ def load_gbp_closes(key: str, start: date, end: date) -> pd.Series:
     Mirrors ``holding_utils._get_price_for_date_scaled``: prefer the
     FX-converted ``Close_gbp`` column (never scaled), else ``Close`` with the
     instrument's scaling override (e.g. GBX pence -> pounds).
+
+    A non-sterling close is never used unconverted (#7722, #9759): a date
+    whose ``Close_gbp`` is NaN (no FX rate within the loader's gap window) is
+    left out like any missing price, and an instrument the loader could not
+    convert at all has no closes. Either way the result's
+    ``attrs[UNCONVERTED_ATTR]`` describes the dates without a rate.
     """
-    from backend.timeseries.cache import load_meta_timeseries_range
+    from backend.timeseries.cache import load_meta_timeseries_range, needs_fx_conversion
     from backend.utils.timeseries_helpers import get_scaling_override
 
     resolved = _resolve_symbol(key)
@@ -185,26 +199,52 @@ def load_gbp_closes(key: str, start: date, end: date) -> pd.Series:
     if df is None or df.empty or "Date" not in df.columns:
         return pd.Series(dtype=float)
     columns = {str(column).lower(): column for column in df.columns}
-    scale = 1.0
-    column = columns.get("close_gbp")
-    if column is None:
-        column = columns.get("close")
+    days = pd.DatetimeIndex(pd.to_datetime(df["Date"])).normalize()
+    native = columns.get("close")
+    if "close_gbp" in columns:
+        closes = pd.Series(pd.to_numeric(df[columns["close_gbp"]], errors="coerce").to_numpy(), index=days)
+    elif native is not None and not needs_fx_conversion(symbol, exchange):
         scale = get_scaling_override(symbol, exchange, None) or 1.0
-    if column is None:
+        closes = pd.Series(pd.to_numeric(df[native], errors="coerce").to_numpy() * scale, index=days)
+    elif native is not None:
+        closes = pd.Series(float("nan"), index=days)  # never converted: no GBP close on any date
+    else:
         return pd.Series(dtype=float)
-    closes = pd.to_numeric(df[column], errors="coerce") * scale
-    closes.index = pd.DatetimeIndex(pd.to_datetime(df["Date"])).normalize()
+    unconverted = _unconverted_dates(df, native, closes)
     closes = closes.dropna()
-    return closes[~closes.index.duplicated(keep="last")].sort_index()
+    closes = closes[~closes.index.duplicated(keep="last")].sort_index()
+    if not unconverted.empty:
+        closes.attrs[UNCONVERTED_ATTR] = _report_unconverted(symbol, exchange, unconverted, excluded=closes.empty)
+    return closes
 
 
-def _price_column(key: str, index: pd.DatetimeIndex, implied: pd.Series, loader: PriceLoader) -> tuple[pd.Series, bool]:
-    """Price ``key`` on every day of ``index``; return ``(prices, has_market_prices)``.
+def _unconverted_dates(df: pd.DataFrame, native: Any, gbp: pd.Series) -> pd.DatetimeIndex:
+    """Dates with a native close but no GBP close: the FX conversion, not the price, is missing."""
+    if native is None:
+        return pd.DatetimeIndex([])
+    has_native = pd.to_numeric(df[native], errors="coerce").notna().to_numpy()
+    return pd.DatetimeIndex(gbp.index[has_native & gbp.isna().to_numpy()]).unique()
 
-    Market closes are carried forward over gaps. Days before the first close
-    (or every day, for an instrument with no price history) fall back to the
-    price implied by its trades, so a position never jumps from zero to its
-    market value and fakes a return.
+
+def _report_unconverted(symbol: str, exchange: str, missing: pd.DatetimeIndex, *, excluded: bool) -> dict[str, Any]:
+    from backend.common import portfolio_utils
+    from backend.timeseries.cache import instrument_currency
+
+    currency = instrument_currency(symbol, exchange)
+    return portfolio_utils._report_unconverted(symbol, exchange, currency, missing, excluded=excluded)
+
+
+def _price_column(
+    key: str, index: pd.DatetimeIndex, implied: pd.Series, loader: PriceLoader
+) -> tuple[pd.Series, bool, Mapping[str, Any] | None]:
+    """Price ``key`` on every day of ``index``.
+
+    Returns ``(prices, has_market_prices, unconverted)``; ``unconverted`` is
+    the loader's ``attrs[UNCONVERTED_ATTR]`` entry, if any. Market closes are
+    carried forward over gaps (dates without an FX rate are such gaps).
+    Days before the first close (or every day, for an instrument with no
+    price history) fall back to the price implied by its trades, so a
+    position never jumps from zero to its market value and fakes a return.
     """
     try:
         market = loader(key, index[0].date(), index[-1].date())
@@ -216,7 +256,7 @@ def _price_column(key: str, index: pd.DatetimeIndex, implied: pd.Series, loader:
         union = index.union(pd.DatetimeIndex(market.index))
         on_index = market.reindex(union).ffill().reindex(index)
     filled = on_index.fillna(implied.reindex(index).ffill()).bfill()
-    return filled.fillna(0.0), not market.empty
+    return filled.fillna(0.0), not market.empty, market.attrs.get(UNCONVERTED_ATTR)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -375,18 +415,28 @@ def _replay_accounts(
 
 def _value_instruments(
     units: pd.DataFrame, events: _Events, loader: PriceLoader
-) -> tuple[pd.DataFrame, pd.DataFrame, tuple[str, ...]]:
-    """Return ``(prices, values, unpriced_keys)`` for every replayed instrument."""
+) -> tuple[pd.DataFrame, pd.DataFrame, tuple[str, ...], tuple[Mapping[str, Any], ...]]:
+    """Return ``(prices, values, unpriced_keys, unconverted)`` for every replayed instrument.
+
+    An instrument the loader could not convert to GBP on any date is
+    unpriced (valued at trade prices) and also listed in ``unconverted``,
+    which says why; one missing FX rates on some dates is only listed there.
+    """
     index = pd.DatetimeIndex(units.index)
     implied = _keyed_frame(events.implied_prices, index).replace(0.0, float("nan"))
     prices = pd.DataFrame(index=index, dtype=float)
     unpriced: list[str] = []
+    unconverted: list[Mapping[str, Any]] = []
     for key in units.columns:
         implied_key = implied[key] if key in implied.columns else pd.Series(dtype=float)
-        prices[key], has_market = _price_column(key, index, implied_key, loader)
-        if not has_market and units[key].abs().sum() > 0:
+        prices[key], has_market, fx_gap = _price_column(key, index, implied_key, loader)
+        held = units[key].abs().sum() > 0
+        if not has_market and held:
             unpriced.append(key)
-    return prices, units * prices, tuple(sorted(unpriced))
+        if fx_gap is not None and held:
+            unconverted.append(fx_gap)
+    unconverted.sort(key=lambda entry: str(entry.get("ticker")))
+    return prices, units * prices, tuple(sorted(unpriced)), tuple(unconverted)
 
 
 def _chain_returns(values: pd.Series, flows: pd.Series, income: pd.Series) -> tuple[pd.Series, pd.Series]:
@@ -416,7 +466,9 @@ def build_ledger_performance(
     if replayed is None:
         return None
     index, units, cash, events = replayed
-    prices, instrument_values, unpriced = _value_instruments(units, events, price_loader or load_gbp_closes)
+    prices, instrument_values, unpriced, unconverted = _value_instruments(
+        units, events, price_loader or load_gbp_closes
+    )
     transfer_flows = _keyed_frame(events.transfer_units, index).reindex(columns=prices.columns, fill_value=0.0)
     transfer_flows = transfer_flows.fillna(0.0) * prices
     values = instrument_values.sum(axis=1) + cash
@@ -442,6 +494,7 @@ def build_ledger_performance(
         instrument_pnl=pnl,
         names=dict(events.names),
         unpriced=unpriced,
+        unconverted=unconverted,
         flows=flows,
         income=paid_out,
     )

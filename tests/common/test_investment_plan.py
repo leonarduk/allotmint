@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 
 import pytest
 from pydantic import ValidationError
@@ -268,3 +269,83 @@ def test_compare_surfaces_other_errors_starting_with_set(monkeypatch):
     monkeypatch.setattr(plan_mod, "parse_policy", broken)
     with pytest.raises(ValueError, match="sum to 100"):
         compare_with_rebalance_targets(parse_plan(plan_data(), "alex"), AllocationPolicy())
+
+
+PROFILE = {
+    "risk_tolerance": {"level": "medium", "note": "can sit through a 20% fall"},
+    "capacity_for_loss": {"level": "high"},
+    "goals": [
+        {"name": "Drawdown", "purpose": "retirement", "target_date": "2033-04-06", "priority": 1},
+        {"name": "Joe university", "purpose": "education", "target_date": "2033-09-01", "amount_gbp": 30000},
+        {"name": "Rainy day", "purpose": "general_wealth"},
+    ],
+}
+
+
+def test_plan_without_profile_still_loads():
+    plan = parse_plan(plan_data(), "alex")
+    assert plan.profile is None
+    assert "profile" not in plan.to_dict()
+
+
+def test_profile_round_trips(tmp_path):
+    plan = parse_plan(plan_data(profile=PROFILE), "alex")
+    assert plan.profile.risk_tolerance.level == "medium"
+    assert plan.profile.goals[1].target_date.isoformat() == "2033-09-01"
+    out = plan.to_dict()["profile"]
+    assert out["capacity_for_loss"] == {"level": "high"}
+    assert out["goals"][2] == {"name": "Rainy day", "purpose": "general_wealth"}
+    save_plan(plan, tmp_path)
+    assert load_plan("alex", tmp_path) == plan
+
+
+@pytest.mark.parametrize(
+    "profile, message",
+    [
+        ({"risk_tolerance": {"level": "very high"}}, "risk_tolerance.level"),
+        ({"goals": [{"name": "x", "purpose": "yacht"}]}, "purpose"),
+        ({"goals": [{"name": "", "purpose": "other"}]}, "name"),
+        ({"goals": [{"name": "  ", "purpose": "other"}]}, "name"),
+        ({"goals": [{"name": "x", "purpose": "other", "amount_gbp": -1}]}, "amount_gbp"),
+        ({"goals": [{"name": "x", "purpose": "other", "priority": 0}]}, "priority"),
+        ({"suitability": "high"}, "suitability"),
+    ],
+)
+def test_invalid_profile_rejected(profile, message):
+    with pytest.raises(ValidationError) as excinfo:
+        parse_plan(plan_data(profile=profile), "alex")
+    assert message in str(excinfo.value)
+
+
+def test_profile_horizon_derives_age_and_years_to_goal():
+    plan = parse_plan(plan_data(profile=PROFILE), "alex")
+    horizon = plan_mod.profile_horizon(plan, "1975-10-07", today=date(2026, 10, 6))
+    assert horizon["age"] == 50  # birthday is tomorrow
+    assert horizon["goals"] == [
+        {"index": 0, "name": "Drawdown", "years_to_goal": 6.5},
+        {"index": 1, "name": "Joe university", "years_to_goal": 6.9},
+    ]
+
+
+def test_profile_horizon_without_dob_or_profile():
+    plan = parse_plan(plan_data(), "alex")
+    assert plan_mod.profile_horizon(plan, None) == {"age": None, "goals": []}
+    assert plan_mod.profile_horizon(plan, "not-a-date")["age"] is None
+
+
+def test_profile_horizon_goal_in_the_past_is_negative():
+    plan = parse_plan(
+        plan_data(profile={"goals": [{"name": "x", "purpose": "other", "target_date": "2025-10-06"}]}), "alex"
+    )
+    assert plan_mod.profile_horizon(plan, None, today=date(2026, 10, 6))["goals"][0]["years_to_goal"] == -1.0
+
+
+def test_profile_horizon_index_skips_undated_goals():
+    goals = [
+        {"name": "a", "purpose": "other", "target_date": "2027-10-06"},
+        {"name": "b", "purpose": "other"},
+        {"name": "c", "purpose": "other", "target_date": "2028-10-06"},
+    ]
+    plan = parse_plan(plan_data(profile={"goals": goals}), "alex")
+    horizon = plan_mod.profile_horizon(plan, None, today=date(2026, 10, 6))
+    assert [(g["index"], g["name"]) for g in horizon["goals"]] == [(0, "a"), (2, "c")]

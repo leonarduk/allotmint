@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { getReturnComparison } from "../api";
 import { percent } from "../lib/money";
@@ -10,6 +11,7 @@ const OPTIONS = [
 ];
 
 export default function ReturnComparison() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const owner = searchParams.get("owner") || "";
   const [days, setDays] = useState(365);
@@ -43,9 +45,9 @@ export default function ReturnComparison() {
 
   return (
     <div className="p-4">
-      <h1>Return Comparison – {owner}</h1>
+      <h1>{t("returnComparison.title", { owner })}</h1>
       <label className="block mb-4">
-        Timeframe:
+        {t("returnComparison.timeframe")}
         <select
           className="ml-2"
           value={days}
@@ -59,8 +61,8 @@ export default function ReturnComparison() {
         </select>
       </label>
       <ul>
-        <li>Portfolio CAGR: {percent(cagr != null ? cagr * 100 : null)}</li>
-        <li>Cash APY: {percent(cashApy != null ? cashApy * 100 : null)}</li>
+        <li>{t("returnComparison.portfolioCagr", { value: percent(cagr != null ? cagr * 100 : null) })}</li>
+        <li>{t("returnComparison.cashApy", { value: percent(cashApy != null ? cashApy * 100 : null) })}</li>
       </ul>
     </div>
   );

@@ -1,4 +1,6 @@
 import type { ChangeEvent } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Link, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import styles from './plot.module.css';
 import HudBar from './components/HudBar';
@@ -14,19 +16,39 @@ import SeedCatalogue from './screens/SeedCatalogue';
 /** Mount point for the whole skin; kept in one place for links and tests. */
 export const PLOT_BASE_PATH = '/plot';
 
-const RAIL_ITEMS: readonly RailItem[] = [
-  { to: PLOT_BASE_PATH, label: 'The Plot', subtitle: 'Overview', end: true },
-  { to: `${PLOT_BASE_PATH}/crops`, label: 'Crops', subtitle: 'Your holdings' },
-  { to: `${PLOT_BASE_PATH}/chores`, label: 'Chores', subtitle: 'Daily tasks' },
-  {
-    to: `${PLOT_BASE_PATH}/season`,
-    label: 'Season',
-    subtitle: 'Tax-year goals',
-  },
-  { to: `${PLOT_BASE_PATH}/seeds`, label: 'Seed shed', subtitle: 'Watchlist' },
-];
+function buildRailItems(t: TFunction): readonly RailItem[] {
+  return [
+    {
+      to: PLOT_BASE_PATH,
+      label: t('plot.rail.plot'),
+      subtitle: t('plot.rail.plotSub'),
+      end: true,
+    },
+    {
+      to: `${PLOT_BASE_PATH}/crops`,
+      label: t('plot.rail.crops'),
+      subtitle: t('plot.rail.cropsSub'),
+    },
+    {
+      to: `${PLOT_BASE_PATH}/chores`,
+      label: t('plot.rail.chores'),
+      subtitle: t('plot.rail.choresSub'),
+    },
+    {
+      to: `${PLOT_BASE_PATH}/season`,
+      label: t('plot.rail.season'),
+      subtitle: t('plot.rail.seasonSub'),
+    },
+    {
+      to: `${PLOT_BASE_PATH}/seeds`,
+      label: t('plot.rail.seeds'),
+      subtitle: t('plot.rail.seedsSub'),
+    },
+  ];
+}
 
 function OwnerPicker() {
+  const { t } = useTranslation();
   const { owners, pickerOwners, owner } = usePlotData();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -70,7 +92,7 @@ function OwnerPicker() {
   return (
     <div className={styles.railFooter}>
       <label className={styles.railSubtitle} htmlFor="plot-owner">
-        Grower
+        {t('plot.app.grower')}
       </label>
       <select
         id="plot-owner"
@@ -96,19 +118,22 @@ function OwnerPicker() {
  * this skin look and behave the same way.
  */
 function PlotNotFound({ basePath }: { basePath: string }) {
+  const { t } = useTranslation();
   return (
     <section className={`${styles.panel} ${styles.panelGlow}`}>
-      <h2 className={styles.panelTitle}>Nothing growing here</h2>
+      <h2 className={styles.panelTitle}>{t('plot.app.notFoundTitle')}</h2>
       <p className={styles.sectionNote}>
-        There's no plot screen at this path.{' '}
-        <Link to={basePath}>Back to the plot</Link> or{' '}
-        <Link to={`${basePath}/crops`}>the roster</Link>.
+        {t('plot.app.notFoundBody')}{' '}
+        <Link to={basePath}>{t('plot.app.backToPlot')}</Link>{' '}
+        {t('plot.app.or')}{' '}
+        <Link to={`${basePath}/crops`}>{t('plot.app.theRoster')}</Link>.
       </p>
     </section>
   );
 }
 
 function PlotShell() {
+  const { t } = useTranslation();
   const { loading, error, snapshot, owner, refresh } = usePlotData();
 
   // Returning to the classic UI keeps the same grower in scope so the two
@@ -121,21 +146,21 @@ function PlotShell() {
 
       {error && (
         <div className={styles.errorBanner} role="alert">
-          <p style={{ margin: 0 }}>Could not load the plot: {error}</p>
+          <p style={{ margin: 0 }}>{t('plot.app.loadError', { error })}</p>
           <button
             type="button"
             className={styles.chipButton}
             onClick={refresh}
             style={{ marginTop: '0.5rem' }}
           >
-            Try again
+            {t('plot.app.tryAgain')}
           </button>
         </div>
       )}
 
       <div className={styles.layout}>
         <div>
-          <PlotRail items={RAIL_ITEMS} />
+          <PlotRail items={buildRailItems(t)} />
           <OwnerPicker />
         </div>
 
@@ -150,7 +175,7 @@ function PlotShell() {
               className={`${styles.panel} ${styles.panelGlow} ${styles.loading}`}
               role="status"
             >
-              Walking down to the allotment…
+              {t('plot.app.loading')}
             </section>
           ) : (
             <Routes>

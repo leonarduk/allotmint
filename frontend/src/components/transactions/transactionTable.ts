@@ -1,3 +1,4 @@
+import type { MoneyFormatter } from "@/hooks/useReportingCurrency";
 import { money } from "@/lib/money";
 import type { Transaction } from "@/types";
 
@@ -43,9 +44,12 @@ export function buildBulkDeletionOrder(selectedIds: string[]): string[] {
   return deletionOrder;
 }
 
+/** Formats GBP amounts as GBP; views pass ``useReportingCurrency().format`` (#9768). */
+const gbpMoney: MoneyFormatter = (value, sourceCurrency) => money(value, sourceCurrency || "GBP");
+
 export function formatTransactionAmount(
   transaction: Transaction,
-  baseCurrency: string,
+  format: MoneyFormatter = gbpMoney,
 ): string {
   const price =
     typeof transaction.price_gbp === "number" && Number.isFinite(transaction.price_gbp)
@@ -61,9 +65,9 @@ export function formatTransactionAmount(
       : null;
 
   if (transaction.amount_minor != null) {
-    // Use || rather than ?? so that an empty string currency also falls back
-    // to baseCurrency (the backend should never send "", but guard defensively).
-    return money(transaction.amount_minor / 100, transaction.currency || baseCurrency);
+    // A missing (or empty) currency is GBP; a GBP amount is converted to the
+    // reporting currency, any other is shown as it is.
+    return format(transaction.amount_minor / 100, transaction.currency);
   }
 
   if (price == null) {
@@ -75,15 +79,15 @@ export function formatTransactionAmount(
       "Transaction contains both units and shares; using units for amount display.",
       transaction,
     );
-    return money(price * units, baseCurrency);
+    return format(price * units);
   }
 
   if (units != null) {
-    return money(price * units, baseCurrency);
+    return format(price * units);
   }
 
   if (shares != null) {
-    return money(price * shares, baseCurrency);
+    return format(price * shares);
   }
 
   return "";
@@ -101,16 +105,16 @@ export interface RealisedGainCell {
 
 export function formatRealisedGain(
   transaction: Transaction,
-  baseCurrency: string,
+  format: MoneyFormatter = gbpMoney,
 ): RealisedGainCell {
   const gain = transaction.realised_gain_gbp;
   if (typeof gain === "number" && Number.isFinite(gain)) {
     const cost = transaction.cost_basis_gbp;
     return {
-      text: money(gain, baseCurrency),
+      text: format(gain),
       className: gain > 0 ? "text-positive" : gain < 0 ? "text-negative" : "text-gray",
       title:
-        typeof cost === "number" ? `Cost basis ${money(cost, baseCurrency)}` : undefined,
+        typeof cost === "number" ? `Cost basis ${format(cost)}` : undefined,
     };
   }
   const unmatched = transaction.unmatched_units;

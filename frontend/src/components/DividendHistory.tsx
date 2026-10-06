@@ -45,14 +45,14 @@ export function DividendHistory() {
         <p>{t("common.loading")}</p>
       ) : (
         <>
-          <Sparkline data={series} ariaLabel="Dividend trend" />
+          <Sparkline data={series} ariaLabel={t("dividendHistory.trendAria")} />
           <table className={tableStyles.table} style={{ marginTop: "1rem" }}>
             <thead>
               <tr>
-                <th className={tableStyles.cell}>Date</th>
-                <th className={tableStyles.cell}>Owner</th>
-                <th className={tableStyles.cell}>Ticker</th>
-                <th className={`${tableStyles.cell} ${tableStyles.right}`}>Amount</th>
+                <th className={tableStyles.cell}>{t("dividendHistory.date")}</th>
+                <th className={tableStyles.cell}>{t("dividendHistory.owner")}</th>
+                <th className={tableStyles.cell}>{t("dividendHistory.ticker")}</th>
+                <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("dividendHistory.amount")}</th>
               </tr>
             </thead>
             <tbody>
@@ -73,13 +73,13 @@ export function DividendHistory() {
             </tbody>
           </table>
 
-          <h3 style={{ marginTop: "1rem" }}>Totals</h3>
+          <h3 style={{ marginTop: "1rem" }}>{t("dividendHistory.totals")}</h3>
           <table className={tableStyles.table}>
             <thead>
               <tr>
-                <th className={tableStyles.cell}>Owner</th>
-                <th className={tableStyles.cell}>Ticker</th>
-                <th className={`${tableStyles.cell} ${tableStyles.right}`}>Total</th>
+                <th className={tableStyles.cell}>{t("dividendHistory.owner")}</th>
+                <th className={tableStyles.cell}>{t("dividendHistory.ticker")}</th>
+                <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("dividendHistory.total")}</th>
               </tr>
             </thead>
             <tbody>

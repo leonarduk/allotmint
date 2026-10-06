@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getInvestmentPlan, saveAllocationPolicy } from '../api';
-import { classLabel } from '../lib/planForm';
+import { classLabel, goalPurposeLabel } from '../lib/planForm';
 import type {
   InvestmentPlan,
+  InvestmentPlanProfileRating,
   InvestmentPlanResponse,
   InvestmentPlanVehicle,
 } from '../types';
@@ -10,6 +11,12 @@ import EmptyState from './EmptyState';
 import PlanEditor from './PlanEditor';
 
 const pct = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
+const gbp = new Intl.NumberFormat('en-GB', {
+  style: 'currency',
+  currency: 'GBP',
+  maximumFractionDigits: 0,
+});
+const years = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 });
 
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -222,6 +229,92 @@ function ListSection({ title, items }: { title: string; items: string[] }) {
   );
 }
 
+function ratingText(rating: InvestmentPlanProfileRating | undefined): string {
+  if (!rating) return 'not recorded';
+  return rating.note ? `${rating.level} — ${rating.note}` : rating.level;
+}
+
+function yearsToGoalText(value: number | undefined): string {
+  if (value == null) return '—';
+  return value < 0 ? `${years.format(-value)} ago` : years.format(value);
+}
+
+function GoalTable({ data }: { data: InvestmentPlanResponse }) {
+  const goals = data.plan.profile?.goals ?? [];
+  if (!goals.length) return null;
+  const toGo = new Map(
+    (data.horizon?.goals ?? []).map((g) => [g.index, g.years_to_goal])
+  );
+  return (
+    <table className="w-full border-collapse text-sm" aria-label="Plan goals">
+      <thead>
+        <tr>
+          <th className="px-2 py-1 text-left">Goal</th>
+          <th className="px-2 py-1 text-left">Purpose</th>
+          <th className="px-2 py-1 text-left">Target date</th>
+          <th className="px-2 py-1 text-right">Years to go</th>
+          <th className="px-2 py-1 text-right">Amount</th>
+          <th className="px-2 py-1 text-right">Priority</th>
+        </tr>
+      </thead>
+      <tbody>
+        {goals.map((goal, i) => (
+          <tr key={i}>
+            <td className="px-2 py-1">
+              {goal.name}
+              {goal.note && (
+                <span className="block text-xs text-slate-500 dark:text-slate-400">
+                  {goal.note}
+                </span>
+              )}
+            </td>
+            <td className="px-2 py-1">{goalPurposeLabel(goal.purpose)}</td>
+            <td className="px-2 py-1">{goal.target_date ?? '—'}</td>
+            <td className="px-2 py-1 text-right">
+              {yearsToGoalText(toGo.get(i))}
+            </td>
+            <td className="px-2 py-1 text-right">
+              {goal.amount_gbp != null ? gbp.format(goal.amount_gbp) : '—'}
+            </td>
+            <td className="px-2 py-1 text-right">{goal.priority ?? '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** Owner-stated profile and goals (#9760), shown as recorded: no score or verdict. */
+function ProfileSection({ data }: { data: InvestmentPlanResponse }) {
+  const { profile } = data.plan;
+  if (!profile) return null;
+  const age = data.horizon?.age;
+  return (
+    <div className="mb-3" aria-label="Profile and goals" role="group">
+      <h3 className="font-medium">Profile and goals</h3>
+      <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
+        As you recorded them; not an assessment of suitability.
+      </p>
+      <ul className="mb-2 text-sm">
+        {age != null && (
+          <li>
+            <span className="font-medium">Age:</span> {age}
+          </li>
+        )}
+        <li>
+          <span className="font-medium">Risk tolerance:</span>{' '}
+          {ratingText(profile.risk_tolerance)}
+        </li>
+        <li>
+          <span className="font-medium">Capacity for loss:</span>{' '}
+          {ratingText(profile.capacity_for_loss)}
+        </li>
+      </ul>
+      <GoalTable data={data} />
+    </div>
+  );
+}
+
 function PlanDetails({ plan }: { plan: InvestmentPlan }) {
   const assumptions = plan.assumptions.map(
     (a) =>
@@ -274,6 +367,7 @@ function PlanBody({
         {plan.status} · version {plan.version} · updated {plan.updated}
       </p>
       {plan.summary && <p className="mb-3">{plan.summary}</p>}
+      <ProfileSection data={data} />
       {data.strategy && (
         <p className="mb-2 text-sm">
           <span className="font-medium">Matches strategy:</span>{' '}

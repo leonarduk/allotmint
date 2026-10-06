@@ -1154,6 +1154,38 @@ export interface InvestmentPlanEvidence {
   source?: string;
 }
 
+/** Owner-stated level for risk tolerance and capacity for loss (#9760). */
+export type InvestmentPlanProfileLevel = 'low' | 'medium' | 'high';
+
+export interface InvestmentPlanProfileRating {
+  level: InvestmentPlanProfileLevel;
+  note?: string;
+}
+
+export type InvestmentPlanGoalPurpose =
+  | 'retirement'
+  | 'education'
+  | 'house_deposit'
+  | 'income'
+  | 'general_wealth'
+  | 'other';
+
+export interface InvestmentPlanGoal {
+  name: string;
+  purpose: InvestmentPlanGoalPurpose;
+  target_date?: string;
+  amount_gbp?: number;
+  priority?: number;
+  note?: string;
+}
+
+/** Owner-authored investor profile (#9760): recorded facts, never scored. */
+export interface InvestmentPlanProfile {
+  risk_tolerance?: InvestmentPlanProfileRating;
+  capacity_for_loss?: InvestmentPlanProfileRating;
+  goals: InvestmentPlanGoal[];
+}
+
 export interface InvestmentPlan {
   owner: string;
   version: number;
@@ -1167,6 +1199,7 @@ export interface InvestmentPlan {
   open_questions: string[];
   evidence: InvestmentPlanEvidence[];
   review: { next_review?: string; triggers: string[] };
+  profile?: InvestmentPlanProfile;
   disclaimer: string;
 }
 
@@ -1185,6 +1218,11 @@ export interface InvestmentPlanResponse {
   };
   /** The strategy whose targets equal the plan's, if any (#9653). */
   strategy?: { id: string; name: string; builtin: boolean } | null;
+  /** Derived, not stored (#9760): age from person.json dob, years to each dated goal (by goal index). */
+  horizon?: {
+    age: number | null;
+    goals: { index: number; name: string; years_to_goal: number }[];
+  };
 }
 
 export interface Quest {

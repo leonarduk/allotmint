@@ -351,7 +351,11 @@ def timeseries_for_ticker(
             continue
         close_val = float(r["close"])
         close_gbp_raw = r.get("close_gbp", close_val)
-        close_gbp_val = close_val if is_nan(close_gbp_raw) else float(close_gbp_raw)
+        if is_nan(close_gbp_raw):
+            # Converted series, but no FX rate for this date (#9759): a
+            # missing GBP price, never the native close passed off as GBP.
+            continue
+        close_gbp_val = float(close_gbp_raw)
         out.append({"date": rd, "close": close_val, "close_gbp": close_gbp_val})
     mini = {
         "7": out[-7:],

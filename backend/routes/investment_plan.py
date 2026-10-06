@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from backend.auth import get_active_user
 from backend.common.allocation_policy import load_allocation_policy
 from backend.common.authz import ensure_owner_access
+from backend.common.data_loader import load_person_meta
 from backend.common.errors import raise_owner_not_found
 from backend.common.investment_plan import (
     InvestmentPlan,
@@ -26,6 +27,7 @@ from backend.common.investment_plan import (
     compare_with_rebalance_targets,
     load_plan,
     parse_plan,
+    profile_horizon,
     save_plan,
     vehicle_warnings,
 )
@@ -70,6 +72,8 @@ def _response(plan: InvestmentPlan, owner: str, accounts_root: Path) -> Dict[str
         "rebalance": comparison,
         # The strategy whose targets equal the plan's, if any (#9653).
         "strategy": {"id": strategy.id, "name": strategy.name, "builtin": strategy.builtin} if strategy else None,
+        # Derived from person.json dob and the profile goals' dates; not stored in the plan (#9760).
+        "horizon": profile_horizon(plan, load_person_meta(owner, accounts_root).get("dob")),
     }
 
 

@@ -158,7 +158,7 @@ describe("useRouteMode", () => {
       theme: "system",
       refreshConfig: async () => {},
       setRelativeViewEnabled: () => {},
-      baseCurrency: "GBP",
+      reportingCurrency: "GBP",
     };
 
     const wrapper = ({ children }: { children: ReactNode }) => (

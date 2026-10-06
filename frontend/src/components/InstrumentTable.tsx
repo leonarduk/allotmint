@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } 
 import { useTranslation } from 'react-i18next';
 import type { InstrumentGroupDefinition, InstrumentSummary } from '../types';
 import { useFilterableTable } from '../hooks/useFilterableTable';
-import { money, percent } from '../lib/money';
+import { percent } from '../lib/money';
 import { translateInstrumentType } from '../lib/instrumentType';
 import { formatDateISO } from '../lib/date';
 import tableStyles from '../styles/table.module.css';
 import { useConfig } from '../ConfigContext';
+import { useReportingCurrency } from '../hooks/useReportingCurrency';
 import { isSupportedFx } from '../lib/fx';
 import { RelativeViewToggle } from './RelativeViewToggle';
 import {
@@ -67,7 +68,8 @@ function NotAvailable({ source }: { source?: string | null }) {
 
 export function InstrumentTable({ rows, showGroupTotals = true, showSparklines = true }: Props) {
   const { t } = useTranslation();
-  const { relativeViewEnabled, baseCurrency } = useConfig();
+  const { relativeViewEnabled } = useConfig();
+  const reporting = useReportingCurrency();
   const [groupDefinitions, setGroupDefinitions] = useState<InstrumentGroupDefinition[]>([]);
   const navigate = useNavigate();
   const {
@@ -153,15 +155,15 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
   const noFilteredRows = rowsWithCost.length === 0;
   const showTrend = showSparklines && visibleColumns.trend;
   const trendColumnLabels: [keyof typeof visibleColumns, string][] = showSparklines
-    ? [['trend', 'Trend']]
+    ? [['trend', t('instrumentTable.columnToggle.trend')]]
     : [];
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ...trendColumnLabels,
-    ['units', 'Units'],
-    ['cost', 'Cost'],
-    ['market', 'Market'],
-    ['gain', 'Gain'],
-    ['gain_pct', 'Gain %'],
+    ['units', t('instrumentTable.columnToggle.units')],
+    ['cost', t('instrumentTable.columnToggle.cost')],
+    ['market', t('instrumentTable.columnToggle.market')],
+    ['gain', t('instrumentTable.columnToggle.gain')],
+    ['gain_pct', t('instrumentTable.columnToggle.gainPct')],
   ];
 
   const exchangeLabel = t('instrumentTable.exchangesLabel', {
@@ -234,7 +236,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
         </select>
       </div>
       <div style={{ marginBottom: '0.5rem' }}>
-        Columns:
+        {t('holdingsTable.columnsLabel')}
         {columnLabels.map(([key, label]) => (
           <label key={key} style={{ marginLeft: '0.5rem' }}>
             <input
@@ -430,14 +432,14 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                         : group.totals.cost === null
                           ? t('holdingsTable.notApplicable')
                           : Number.isFinite(group.totals.cost)
-                            ? money(group.totals.cost, baseCurrency)
+                            ? reporting.format(group.totals.cost)
                             : '—'}
                     </td>
                   )}
                   {!relativeViewEnabled && visibleColumns.market && (
                     <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
                       {showGroupTotals && Number.isFinite(group.totals.marketValue)
-                        ? money(group.totals.marketValue, baseCurrency)
+                        ? reporting.format(group.totals.marketValue)
                         : '—'}
                     </td>
                   )}
@@ -448,7 +450,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                         : group.totals.gain === null
                           ? t('holdingsTable.notApplicable')
                           : Number.isFinite(group.totals.gain)
-                            ? formatSignedMoney(group.totals.gain, baseCurrency)
+                            ? formatSignedMoney(group.totals.gain, reporting.format)
                             : '—'}
                     </td>
                   )}
@@ -559,19 +561,13 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                           {isCostBasisUnreliable(r.cost_basis_source) ? (
                             <NotAvailable source={r.cost_basis_source} />
                           ) : (
-                            money(
-                              r.cost,
-                              r.market_value_currency || r.currency || baseCurrency,
-                            )
+                            reporting.format(r.cost, r.market_value_currency)
                           )}
                         </td>
                       )}
                       {!relativeViewEnabled && visibleColumns.market && (
                         <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                          {money(
-                            r.market_value_gbp,
-                            r.market_value_currency || r.currency || baseCurrency,
-                          )}
+                          {reporting.format(r.market_value_gbp, r.market_value_currency)}
                         </td>
                       )}
                       {!relativeViewEnabled && visibleColumns.gain && (
@@ -581,10 +577,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                           ) : (
                             <span className={gainClass}>
                               {gainPrefix}
-                              {money(
-                                r.gain_gbp,
-                                r.gain_currency || r.currency || baseCurrency,
-                              )}
+                              {reporting.format(r.gain_gbp, r.gain_currency)}
                             </span>
                           )}
                         </td>
@@ -604,10 +597,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                       {!relativeViewEnabled && (
                         <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                           {r.last_price_gbp != null
-                            ? money(
-                                r.last_price_gbp,
-                                r.last_price_currency || r.currency || baseCurrency,
-                              )
+                            ? reporting.format(r.last_price_gbp, r.last_price_currency)
                             : '—'}
                         </td>
                       )}
@@ -694,21 +684,21 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
             {!relativeViewEnabled && visibleColumns.cost && (
               <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
                 {overallTotals.cost !== null && Number.isFinite(overallTotals.cost)
-                  ? money(overallTotals.cost, baseCurrency)
+                  ? reporting.format(overallTotals.cost)
                   : '—'}
               </td>
             )}
             {!relativeViewEnabled && visibleColumns.market && (
               <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
                 {Number.isFinite(overallTotals.marketValue)
-                  ? money(overallTotals.marketValue, baseCurrency)
+                  ? reporting.format(overallTotals.marketValue)
                   : '—'}
               </td>
             )}
             {!relativeViewEnabled && visibleColumns.gain && (
               <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
                 {overallTotals.gain !== null && Number.isFinite(overallTotals.gain)
-                  ? formatSignedMoney(overallTotals.gain, baseCurrency)
+                  ? formatSignedMoney(overallTotals.gain, reporting.format)
                   : '—'}
               </td>
             )}

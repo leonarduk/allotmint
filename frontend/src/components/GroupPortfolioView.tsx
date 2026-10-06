@@ -34,7 +34,7 @@ import { TopMoversSummary } from "./TopMoversSummary";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
 import LoadingStatus from "./skeletons/LoadingStatus";
-import { money, percent } from "../lib/money";
+import { percent } from "../lib/money";
 import FractionMetric from "./FractionMetric";
 import {
   DRAWDOWN_RANGE,
@@ -47,7 +47,9 @@ import { useFetch } from "../hooks/useFetch";
 import { isFresh, readFetchCache, runDeduped } from "../utils/fetchCache";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useConfig } from "../ConfigContext";
+import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { getGroupDisplayName } from "../utils/groups";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
@@ -131,6 +133,7 @@ type PortfolioInsight =
 
 const computeConcentrationInsight = (
   accounts: GroupPortfolio["accounts"],
+  t: TFunction,
 ): PortfolioInsight => {
   const holdingsByTicker = new Map<string, number>();
   let total = 0;
@@ -167,11 +170,17 @@ const computeConcentrationInsight = (
 
   return {
     kind: "concentration",
-    message: `Top holding ${topTicker} is ${percent(topSharePct)} of your portfolio`,
+    message: t("group.insightConcentration", {
+      ticker: topTicker,
+      percent: percent(topSharePct),
+    }),
   };
 };
 
-const computeDuplicationInsight = (accounts: GroupPortfolio["accounts"]): PortfolioInsight => {
+const computeDuplicationInsight = (
+  accounts: GroupPortfolio["accounts"],
+  t: TFunction,
+): PortfolioInsight => {
   const tickerAccounts = new Map<
     string,
     { accounts: Set<string>; totalMarketValue: number }
@@ -227,11 +236,14 @@ const computeDuplicationInsight = (accounts: GroupPortfolio["accounts"]): Portfo
   if (!bestTicker || bestCount < 2) return null;
   return {
     kind: "duplication",
-    message: `You hold ${bestTicker} in ${bestCount} accounts`,
+    message: t("group.insightDuplication", { ticker: bestTicker, accountCount: bestCount }),
   };
 };
 
-const computeCashDragInsight = (accounts: GroupPortfolio["accounts"]): PortfolioInsight => {
+const computeCashDragInsight = (
+  accounts: GroupPortfolio["accounts"],
+  t: TFunction,
+): PortfolioInsight => {
   let total = 0;
   let cash = 0;
 
@@ -256,7 +268,7 @@ const computeCashDragInsight = (accounts: GroupPortfolio["accounts"]): Portfolio
   if (cashPct <= CASH_DRAG_THRESHOLD_PCT) return null;
   return {
     kind: "cash_drag",
-    message: `${percent(cashPct)} of your portfolio is in cash`,
+    message: t("group.insightCashDrag", { percent: percent(cashPct) }),
   };
 };
 
@@ -285,10 +297,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const { t } = useTranslation();
   const {
     relativeViewEnabled,
-    baseCurrency,
     enableAdvancedAnalytics = true,
     familyMvpEnabled,
   } = useConfig();
+  const reporting = useReportingCurrency();
   const [asOfOverride, setAsOfOverride] = useState<string | null>(null);
   const [instrumentRefreshVersion, setInstrumentRefreshVersion] = useState(0);
   const activeOwner: string | null = routeScope.owner || null;
@@ -875,11 +887,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     // plain-language insight for the full group view.
     if (!isAllPositions || !portfolio) return null;
     return (
-      computeConcentrationInsight(portfolio.accounts ?? []) ??
-      computeDuplicationInsight(portfolio.accounts ?? []) ??
-      computeCashDragInsight(portfolio.accounts ?? [])
+      computeConcentrationInsight(portfolio.accounts ?? [], t) ??
+      computeDuplicationInsight(portfolio.accounts ?? [], t) ??
+      computeCashDragInsight(portfolio.accounts ?? [], t)
     );
-  }, [isAllPositions, portfolio]);
+  }, [isAllPositions, portfolio, t]);
 
   /* ── early-return states ───────────────────────────────── */
   if (!slug) return <p>{t("group.select")}</p>;
@@ -1106,7 +1118,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             <BadgeCheck size={16} />
             <div>
               <div style={{ fontSize: "0.9rem", color: "var(--summary-card-label)" }}>
-                Alpha vs Benchmark
+                {t("dashboard.alphaVsBenchmark")}
               </div>
               <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
                 <FractionMetric value={alpha} range={RETURN_RANGE} testId="group-metric-alpha" />
@@ -1123,7 +1135,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             <LineChart size={16} />
             <div>
               <div style={{ fontSize: "0.9rem", color: "var(--summary-card-label)" }}>
-                Tracking Error
+                {t("dashboard.trackingError")}
               </div>
               <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
                 <FractionMetric
@@ -1210,7 +1222,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               </Pie>
               <Tooltip
                 formatter={(v, n) => [
-                  money(v as number | undefined, baseCurrency),
+                  reporting.format(v as number | undefined),
                   (n as string | undefined) ?? "",
                 ]}
               />
@@ -1229,14 +1241,14 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               disabled={activeContribTab === "sector"}
               style={{ marginRight: "0.5rem" }}
             >
-              Sector
+              {t("group.contribSector")}
             </button>
             {isAllPositions && (
               <button
                 onClick={() => setContribTab("region")}
                 disabled={activeContribTab === "region"}
               >
-                Region
+                {t("group.contribRegion")}
               </button>
             )}
             <Link
@@ -1268,7 +1280,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               >
                 <XAxis dataKey={activeContribTab === "sector" ? "sector" : "region"} />
                 <YAxis />
-                <Tooltip formatter={(v) => money(v as number | undefined, baseCurrency)} />
+                <Tooltip formatter={(v) => reporting.format(v as number | undefined)} />
                 <Bar dataKey="gain_gbp">
                   {(activeContribTab === "sector" ? sectorContrib : regionContrib)?.map(
                     (row, idx) => (
@@ -1294,31 +1306,37 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           <table className={tableStyles.table}>
           <thead>
             <tr>
-              <th className={tableStyles.cell}>Owner</th>
+              <th className={tableStyles.cell}>{t("owner.label")}</th>
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                {relativeViewEnabled ? "Portfolio %" : "Total Value"}
+                {relativeViewEnabled
+                  ? t("group.ownerTable.portfolioPct")
+                  : t("group.ownerTable.totalValue")}
               </th>
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                {relativeViewEnabled ? "Stock %" : "Stock Value"}
+                {relativeViewEnabled
+                  ? t("group.ownerTable.stockPct")
+                  : t("group.ownerTable.stockValue")}
               </th>
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                {relativeViewEnabled ? "Cash %" : "Cash Value"}
-              </th>
-              {!relativeViewEnabled && (
-                <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  Day Change
-                </th>
-              )}
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                Day Change %
+                {relativeViewEnabled
+                  ? t("group.ownerTable.cashPct")
+                  : t("group.ownerTable.cashValue")}
               </th>
               {!relativeViewEnabled && (
                 <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  Total Gain
+                  {t("group.ownerTable.dayChange")}
                 </th>
               )}
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                Total Gain %
+                {t("group.ownerTable.dayChangePct")}
+              </th>
+              {!relativeViewEnabled && (
+                <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {t("group.ownerTable.totalGain")}
+                </th>
+              )}
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {t("group.ownerTable.totalGainPct")}
               </th>
             </tr>
           </thead>
@@ -1343,17 +1361,17 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {relativeViewEnabled
                       ? percent(row.valuePct)
-                      : money(row.value, baseCurrency)}
+                      : reporting.format(row.value)}
                   </td>
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {relativeViewEnabled
                       ? percent(row.stockPct)
-                      : money(row.stock, baseCurrency)}
+                      : reporting.format(row.stock)}
                   </td>
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {relativeViewEnabled
                       ? percent(row.cashPct)
-                      : money(row.cash, baseCurrency)}
+                      : reporting.format(row.cash)}
                   </td>
                   {!relativeViewEnabled && (
                     <td
@@ -1362,7 +1380,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                         color: row.dayChange >= 0 ? "var(--gain-positive)" : "var(--gain-negative)",
                         }}
                       >
-                        {money(row.dayChange, baseCurrency)}
+                        {reporting.format(row.dayChange)}
                       </td>
                     )}
                     <td
@@ -1378,7 +1396,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                         className={`${tableStyles.cell} ${tableStyles.right}`}
                         style={{ color: row.gain >= 0 ? "var(--gain-positive)" : "var(--gain-negative)" }}
                       >
-                        {money(row.gain, baseCurrency)}
+                        {reporting.format(row.gain)}
                       </td>
                     )}
                     <td
@@ -1400,17 +1418,17 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                       {relativeViewEnabled
                         ? percent(acct.valuePct)
-                        : money(acct.value, baseCurrency)}
+                        : reporting.format(acct.value)}
                     </td>
                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                       {relativeViewEnabled
                         ? percent(acct.stockPct)
-                        : money(acct.stock, baseCurrency)}
+                        : reporting.format(acct.stock)}
                     </td>
                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                       {relativeViewEnabled
                         ? percent(acct.cashPct)
-                        : money(acct.cash, baseCurrency)}
+                        : reporting.format(acct.cash)}
                     </td>
                     {!relativeViewEnabled && (
                       <td
@@ -1419,7 +1437,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                           color: acct.dayChange >= 0 ? "var(--gain-positive)" : "var(--gain-negative)",
                             }}
                           >
-                            {money(acct.dayChange, baseCurrency)}
+                            {reporting.format(acct.dayChange)}
                           </td>
                         )}
                         <td
@@ -1437,7 +1455,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                               color: acct.gain >= 0 ? "var(--gain-positive)" : "var(--gain-negative)",
                             }}
                           >
-                            {money(acct.gain, baseCurrency)}
+                            {reporting.format(acct.gain)}
                           </td>
                         )}
                         <td
@@ -1461,7 +1479,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       {!portfolioLoading && (
       <div
         role="tablist"
-        aria-label="Owners"
+        aria-label={t("query.owners")}
         style={{
           display: "flex",
           gap: "0.5rem",
@@ -1483,7 +1501,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             cursor: "pointer",
           }}
         >
-          All positions
+          {t("group.allPositions")}
         </button>
         {ownerTabs.map((tab) => (
           <button
@@ -1534,7 +1552,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               cursor: "pointer",
             }}
           >
-            All accounts
+            {t("group.allAccounts")}
           </button>
           {ownerTabs
             .find((tab) => tab.value === activeOwner)

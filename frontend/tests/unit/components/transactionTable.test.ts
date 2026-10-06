@@ -39,7 +39,6 @@ describe("transactionTable helpers", () => {
           price_gbp: 50,
           units: 10,
         },
-        "GBP",
       ),
     ).toBe("$123.45");
 
@@ -51,7 +50,6 @@ describe("transactionTable helpers", () => {
           price_gbp: 12.5,
           units: 3,
         },
-        "GBP",
       ),
     ).toBe("£37.50");
 
@@ -63,7 +61,6 @@ describe("transactionTable helpers", () => {
           price_gbp: 8,
           shares: 2.5,
         },
-        "GBP",
       ),
     ).toBe("£20.00");
   });
@@ -79,7 +76,6 @@ describe("transactionTable helpers", () => {
           units: 3,
           shares: 9,
         },
-        "GBP",
       ),
     ).toBe("£30.00");
     expect(warnSpy).toHaveBeenCalledOnce();
@@ -94,7 +90,6 @@ describe("transactionTable helpers", () => {
           account: "isa",
           units: 3,
         },
-        "GBP",
       ),
     ).toBe("");
 
@@ -106,7 +101,6 @@ describe("transactionTable helpers", () => {
           price_gbp: Number.NaN,
           units: 3,
         },
-        "GBP",
       ),
     ).toBe("");
   });
@@ -119,18 +113,16 @@ describe("realised gain helpers", () => {
     expect(
       formatRealisedGain(
         { ...base, type: "SELL", realised_gain_gbp: 490.21, cost_basis_gbp: 4843.77 },
-        "GBP",
       ),
     ).toEqual({ text: "£490.21", className: "text-positive", title: "Cost basis £4,843.77" });
     expect(
-      formatRealisedGain({ ...base, type: "SELL", realised_gain_gbp: -596.54 }, "GBP").className,
+      formatRealisedGain({ ...base, type: "SELL", realised_gain_gbp: -596.54 }).className,
     ).toBe("text-negative");
   });
 
   it("marks sales with no recorded purchase cost as unknown", () => {
     const cell = formatRealisedGain(
       { ...base, type: "SELL", realised_gain_gbp: null, unmatched_units: 78 },
-      "GBP",
     );
     expect(cell.text).toBe("Unknown");
     expect(cell.title).toContain("78");
@@ -139,14 +131,13 @@ describe("realised gain helpers", () => {
   it("marks sales with no recorded proceeds as unknown", () => {
     const cell = formatRealisedGain(
       { ...base, type: "SELL", realised_gain_gbp: null, cost_basis_gbp: 100, proceeds_gbp: null },
-      "GBP",
     );
     expect(cell.text).toBe("Unknown");
     expect(cell.title).toContain("proceeds");
   });
 
   it("leaves non-disposal rows blank", () => {
-    expect(formatRealisedGain({ ...base, type: "BUY" }, "GBP").text).toBe("");
+    expect(formatRealisedGain({ ...base, type: "BUY" }).text).toBe("");
   });
 
   it("summarises realised gain, income and net fees", () => {

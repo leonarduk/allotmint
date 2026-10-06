@@ -3161,7 +3161,8 @@
       "underweight": "Underweight",
       "unclassified": "Unclassified",
       "needsAssetClass": "Needs an asset class",
-      "totalLine": "Total {{total}} · tolerance ±{{tolerance}} pp"
+      "totalLine": "Total {{total}} · tolerance ±{{tolerance}} pp",
+      "sleeveTitle": "Drift — {{sleeve}} sleeve"
     },
     "trades": {
       "title": "Suggested trades",
@@ -3174,7 +3175,8 @@
         "amount": "Amount",
         "suggested": "Suggested instrument"
       },
-      "chooseInstrument": "Choose an instrument"
+      "chooseInstrument": "Choose an instrument",
+      "sleeveHeading": "Suggested trades — {{sleeve}} sleeve"
     },
     "newCash": {
       "title": "Invest new cash",
@@ -3182,7 +3184,8 @@
       "amount": "Amount (£)",
       "intoAccount": "Into account",
       "plan": "Plan contribution",
-      "keepAsCash": "Keep {{amount}} as cash."
+      "keepAsCash": "Keep {{amount}} as cash.",
+      "forSleeve": "For sleeve"
     }
   },
   "strategyLibrary": {
@@ -3276,5 +3279,46 @@
     "stalePriceAsOf": "Latest price is flagged stale (as of {{date}}).",
     "suspectCostBasis": "Cost basis is suspect or unknown for {{count}} position(s): {{where}}.",
     "suspectMove": "Suspect one-day move of {{change}} on {{date}}."
+  },
+  "sleeves": {
+    "title": "Sleeves",
+    "help": "Split your portfolio into sleeves, each with its own strategy — for example a 90% core and a 10% speculative sleeve. Tag holdings into a sleeve; untagged holdings are in the core. Each sleeve's drift and trades only use its own holdings.",
+    "loadError": "Unable to load sleeves for {{owner}}: {{error}}",
+    "core": "Core",
+    "coreHelp": "The core is whatever the other sleeves leave; apply a strategy above or edit the targets below to change its mix.",
+    "customTargets": "Custom targets",
+    "noTargets": "No targets yet",
+    "driftPp": "{{drift}} pp",
+    "sizeFor": "Size of {{name}}",
+    "saveSize": "Save",
+    "applyStrategy": "Apply a strategy…",
+    "delete": "Delete",
+    "confirmDelete": "Delete the {{name}} sleeve? Its holdings go back to the core.",
+    "col": {
+      "sleeve": "Sleeve",
+      "target": "Target size",
+      "current": "Current size",
+      "strategy": "Strategy",
+      "actions": "Actions"
+    },
+    "add": {
+      "title": "Add a sleeve",
+      "name": "Name",
+      "namePlaceholder": "e.g. Speculative",
+      "size": "Size (%)",
+      "strategy": "Strategy",
+      "chooseStrategy": "Choose a strategy…",
+      "submit": "Add sleeve"
+    },
+    "assign": {
+      "title": "Assign holdings to sleeves",
+      "help": "Choose the sleeve for each holding. Tags apply to the ticker across all your accounts.",
+      "sleeveFor": "Sleeve for {{ticker}}",
+      "col": {
+        "holding": "Holding",
+        "value": "Value",
+        "sleeve": "Sleeve"
+      }
+    }
   }
 }

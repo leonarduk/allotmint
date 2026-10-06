@@ -48,6 +48,9 @@ import type {
   Strategy,
   StrategyInput,
   StrategyList,
+  Sleeve,
+  SleeveInput,
+  SleeveList,
   InvestmentPlan,
   InvestmentPlanResponse,
   RebalancePlan,
@@ -2304,9 +2307,10 @@ export const saveAllocationPolicy = (owner: string, policy: AllocationPolicy) =>
 export const getRebalancePlan = (owner: string) =>
   fetchJson<RebalancePlan>(`${API_BASE}/rebalance/${encodeURIComponent(owner)}/plan`);
 
-/** Buy-only allocation of a new cash contribution into one account. */
-export const getNewCashPlan = (owner: string, amount: number, accountId: string) => {
+/** Buy-only allocation of a new cash contribution into one account, aimed at one sleeve (default core). */
+export const getNewCashPlan = (owner: string, amount: number, accountId: string, sleeveId?: string) => {
   const params = new URLSearchParams({ amount: String(amount), account: accountId });
+  if (sleeveId) params.set("sleeve", sleeveId);
   return fetchJson<NewCashPlan>(
     `${API_BASE}/rebalance/${encodeURIComponent(owner)}/new-cash?${params.toString()}`,
   );
@@ -2354,6 +2358,44 @@ export const applyStrategy = (owner: string, id: string) =>
     strategiesUrl(owner, id, "apply"),
     { method: "POST" },
   );
+
+const sleevesUrl = (owner: string, ...parts: string[]) =>
+  [`${API_BASE}/sleeves/${encodeURIComponent(owner)}`, ...parts.map(encodeURIComponent)].join("/");
+
+/** The core and other sleeves, ticker tags and the owner's holdings (#9813). */
+export const getSleeves = (owner: string) => fetchJson<SleeveList>(sleevesUrl(owner));
+
+/** Add a sleeve from a name, size and either a strategy id or targets. */
+export const createSleeve = (owner: string, sleeve: SleeveInput) =>
+  fetchJson<Sleeve>(sleevesUrl(owner), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sleeve),
+  });
+
+/** Rename, resize or retarget a sleeve; the core answers 403. */
+export const updateSleeve = (owner: string, id: string, sleeve: SleeveInput) =>
+  fetchJson<Sleeve>(sleevesUrl(owner, id), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sleeve),
+  });
+
+/** Remove a sleeve; its holdings go back to the core. */
+export const deleteSleeve = (owner: string, id: string) =>
+  fetchJson<{ status: string; id: string }>(sleevesUrl(owner, id), { method: "DELETE" });
+
+/** Copy a strategy's targets into a (non-core) sleeve. */
+export const applyStrategyToSleeve = (owner: string, sleeveId: string, strategyId: string) =>
+  fetchJson<Sleeve>(sleevesUrl(owner, sleeveId, "apply", strategyId), { method: "POST" });
+
+/** Tag a ticker into a sleeve; the core id (or null) removes the tag. */
+export const assignSleeve = (owner: string, ticker: string, sleeveId: string | null) =>
+  fetchJson<SleeveList>(sleevesUrl(owner, "assignments", ticker), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sleeve_id: sleeveId }),
+  });
 
 /** The owner's investment plan record; rejects with `status` 404 when none is saved. */
 export const getInvestmentPlan = (owner: string) =>

@@ -3168,7 +3168,8 @@
       "underweight": "Infraponderado",
       "unclassified": "Sin clasificar",
       "needsAssetClass": "Necesita una clase de activo",
-      "totalLine": "Total {{total}} · tolerancia ±{{tolerance}} pp"
+      "totalLine": "Total {{total}} · tolerancia ±{{tolerance}} pp",
+      "sleeveTitle": "Desviación — bloque {{sleeve}}"
     },
     "trades": {
       "title": "Operaciones sugeridas",
@@ -3181,7 +3182,8 @@
         "amount": "Importe",
         "suggested": "Instrumento sugerido"
       },
-      "chooseInstrument": "Elija un instrumento"
+      "chooseInstrument": "Elija un instrumento",
+      "sleeveHeading": "Operaciones sugeridas — bloque {{sleeve}}"
     },
     "newCash": {
       "title": "Invertir efectivo nuevo",
@@ -3189,7 +3191,8 @@
       "amount": "Importe (£)",
       "intoAccount": "En la cuenta",
       "plan": "Planificar aportación",
-      "keepAsCash": "Mantenga {{amount}} en efectivo."
+      "keepAsCash": "Mantenga {{amount}} en efectivo.",
+      "forSleeve": "Para el bloque"
     }
   },
   "strategyLibrary": {
@@ -3283,5 +3286,46 @@
     "stalePriceAsOf": "El último precio está marcado como desactualizado (a fecha de {{date}}).",
     "suspectCostBasis": "El coste base es dudoso o desconocido en {{count}} posición(es): {{where}}.",
     "suspectMove": "Movimiento sospechoso de {{change}} en un día el {{date}}."
+  },
+  "sleeves": {
+    "title": "Bloques",
+    "help": "Divida su cartera en bloques, cada uno con su propia estrategia; por ejemplo, un núcleo del 90 % y un bloque especulativo del 10 %. Asigne posiciones a un bloque; las no asignadas quedan en el núcleo. La desviación y las operaciones de cada bloque solo usan sus propias posiciones.",
+    "loadError": "No se pudieron cargar los bloques de {{owner}}: {{error}}",
+    "core": "Núcleo",
+    "coreHelp": "El núcleo es lo que dejan los demás bloques; aplique una estrategia arriba o edite los objetivos abajo para cambiar su composición.",
+    "customTargets": "Objetivos personalizados",
+    "noTargets": "Aún sin objetivos",
+    "driftPp": "{{drift}} pp",
+    "sizeFor": "Tamaño de {{name}}",
+    "saveSize": "Guardar",
+    "applyStrategy": "Aplicar una estrategia…",
+    "delete": "Eliminar",
+    "confirmDelete": "¿Eliminar el bloque {{name}}? Sus posiciones vuelven al núcleo.",
+    "col": {
+      "sleeve": "Bloque",
+      "target": "Tamaño objetivo",
+      "current": "Tamaño actual",
+      "strategy": "Estrategia",
+      "actions": "Acciones"
+    },
+    "add": {
+      "title": "Añadir un bloque",
+      "name": "Nombre",
+      "namePlaceholder": "p. ej. Especulativo",
+      "size": "Tamaño (%)",
+      "strategy": "Estrategia",
+      "chooseStrategy": "Elija una estrategia…",
+      "submit": "Añadir bloque"
+    },
+    "assign": {
+      "title": "Asignar posiciones a bloques",
+      "help": "Elija el bloque de cada posición. La asignación se aplica al ticker en todas sus cuentas.",
+      "sleeveFor": "Bloque de {{ticker}}",
+      "col": {
+        "holding": "Posición",
+        "value": "Valor",
+        "sleeve": "Bloque"
+      }
+    }
   }
 }

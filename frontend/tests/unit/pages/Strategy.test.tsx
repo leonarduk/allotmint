@@ -7,7 +7,12 @@ import {
 } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RebalancePlan, Strategy, StrategyList } from '@/types';
+import type {
+  RebalancePlan,
+  SleeveList,
+  Strategy,
+  StrategyList,
+} from '@/types';
 
 const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockGetRebalancePlan = vi.hoisted(() => vi.fn());
@@ -19,6 +24,10 @@ const mockCreateStrategy = vi.hoisted(() => vi.fn());
 const mockUpdateStrategy = vi.hoisted(() => vi.fn());
 const mockDeleteStrategy = vi.hoisted(() => vi.fn());
 const mockDuplicateStrategy = vi.hoisted(() => vi.fn());
+const mockGetSleeves = vi.hoisted(() => vi.fn());
+const mockCreateSleeve = vi.hoisted(() => vi.fn());
+const mockAssignSleeve = vi.hoisted(() => vi.fn());
+const mockApplyStrategyToSleeve = vi.hoisted(() => vi.fn());
 
 vi.mock('@/api', () => ({
   getOwners: mockGetOwners,
@@ -31,6 +40,12 @@ vi.mock('@/api', () => ({
   updateStrategy: mockUpdateStrategy,
   deleteStrategy: mockDeleteStrategy,
   duplicateStrategy: mockDuplicateStrategy,
+  getSleeves: mockGetSleeves,
+  createSleeve: mockCreateSleeve,
+  assignSleeve: mockAssignSleeve,
+  applyStrategyToSleeve: mockApplyStrategyToSleeve,
+  updateSleeve: vi.fn(),
+  deleteSleeve: vi.fn(),
 }));
 
 vi.mock('@/RouteContext', () => ({
@@ -146,6 +161,38 @@ const MINE: Strategy = {
   builtin: false,
 };
 
+const CORE_ONLY: SleeveList = {
+  sleeves: [
+    {
+      id: 'core',
+      name: 'Core',
+      size_pct: 100,
+      targets: { equity: 60, bond: 40 },
+      strategy: null,
+    },
+  ],
+  assignments: {},
+  holdings: [
+    { ticker: 'EQ1', name: 'Equity One', value: 1600, sleeve_id: 'core' },
+    { ticker: 'MOON.L', name: 'Moonshot', value: 400, sleeve_id: 'core' },
+  ],
+};
+
+const WITH_SPEC: SleeveList = {
+  sleeves: [
+    { ...CORE_ONLY.sleeves[0], size_pct: 90 },
+    {
+      id: 'sleeve-1',
+      name: 'Speculative',
+      size_pct: 10,
+      targets: { equity: 100 },
+      strategy: { id: 'user-abc', name: 'Mine' },
+    },
+  ],
+  assignments: {},
+  holdings: CORE_ONLY.holdings,
+};
+
 function makeStrategies(overrides: Partial<StrategyList> = {}): StrategyList {
   return { strategies: [GB_50_50, MINE], active: null, ...overrides };
 }
@@ -172,6 +219,7 @@ describe('Strategy page', () => {
     mockGetOwners.mockResolvedValue([{ owner: 'alex', accounts: [] }]);
     mockGetRebalancePlan.mockResolvedValue(makePlan());
     mockGetStrategies.mockResolvedValue(makeStrategies());
+    mockGetSleeves.mockResolvedValue(CORE_ONLY);
   });
 
   it('does not show the investment plan panel', async () => {
@@ -758,6 +806,154 @@ describe('Strategy page', () => {
     );
     await waitFor(() =>
       expect(mockGetNewCashPlan).toHaveBeenCalledWith('alex', 100, 'isa')
+    );
+  });
+
+  it('adds a sleeve from a strategy (#9813)', async () => {
+    mockCreateSleeve.mockResolvedValue({});
+    await renderPage();
+    const form = await screen.findByRole('form', { name: 'Add a sleeve' });
+    const submit = within(form).getByRole('button', { name: 'Add sleeve' });
+    fireEvent.change(within(form).getByLabelText('Name'), {
+      target: { value: 'Speculative' },
+    });
+    fireEvent.change(within(form).getByLabelText('Size (%)'), {
+      target: { value: '10' },
+    });
+    expect(submit).toBeDisabled();
+    fireEvent.change(within(form).getByLabelText('Strategy'), {
+      target: { value: 'user-abc' },
+    });
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(mockCreateSleeve).toHaveBeenCalledWith('alex', {
+        name: 'Speculative',
+        size_pct: 10,
+        strategy_id: 'user-abc',
+      })
+    );
+    await waitFor(() => expect(mockGetSleeves).toHaveBeenCalledTimes(2));
+  });
+
+  it('tags a holding into a sleeve and applies a strategy to it', async () => {
+    mockGetSleeves.mockResolvedValue(WITH_SPEC);
+    mockAssignSleeve.mockResolvedValue(WITH_SPEC);
+    mockApplyStrategyToSleeve.mockResolvedValue({});
+    await renderPage();
+    const panel = await screen.findByRole('region', { name: 'Sleeves' });
+    fireEvent.change(await within(panel).findByLabelText('Sleeve for MOON.L'), {
+      target: { value: 'sleeve-1' },
+    });
+    await waitFor(() =>
+      expect(mockAssignSleeve).toHaveBeenCalledWith(
+        'alex',
+        'MOON.L',
+        'sleeve-1'
+      )
+    );
+    const row = within(panel)
+      .getByText('Speculative', { selector: 'td' })
+      .closest('tr') as HTMLElement;
+    fireEvent.change(within(row).getByRole('combobox'), {
+      target: { value: 'golden_butterfly_no_scv_50_50' },
+    });
+    await waitFor(() =>
+      expect(mockApplyStrategyToSleeve).toHaveBeenCalledWith(
+        'alex',
+        'sleeve-1',
+        'golden_butterfly_no_scv_50_50'
+      )
+    );
+  });
+
+  it('shows drift per sleeve and plans new cash for a chosen sleeve', async () => {
+    mockGetSleeves.mockResolvedValue(WITH_SPEC);
+    const specPlan = makePlan({
+      total_value: 400,
+      policy: { targets: { equity: 100 }, tolerance_pct: 5 },
+      classes: [
+        {
+          asset_class: 'equity',
+          label: 'Equity',
+          current_value: 400,
+          current_pct: 100,
+          target_pct: 100,
+          drift_pct: 0,
+          in_band: true,
+        },
+      ],
+      trades: [],
+    });
+    mockGetRebalancePlan.mockResolvedValue(
+      makePlan({
+        portfolio_total: 2400,
+        sleeves: [
+          {
+            id: 'core',
+            name: 'Core',
+            size_target_pct: 90,
+            current_value: 2000,
+            size_current_pct: 83.33,
+            size_drift_pct: -6.67,
+            in_band: false,
+            strategy: null,
+          },
+          {
+            id: 'sleeve-1',
+            name: 'Speculative',
+            size_target_pct: 10,
+            current_value: 400,
+            size_current_pct: 16.67,
+            size_drift_pct: 6.67,
+            in_band: false,
+            strategy: { id: 'user-abc', name: 'Mine' },
+            plan: specPlan,
+          },
+        ],
+      })
+    );
+    mockGetNewCashPlan.mockResolvedValue({
+      account_id: 'isa',
+      account: 'ISA',
+      trades: [],
+      keep_as_cash: 100,
+    });
+    await renderPage();
+
+    expect(
+      await screen.findByRole('region', { name: 'Drift — Core sleeve' })
+    ).toBeInTheDocument();
+    const spec = screen.getByRole('region', {
+      name: 'Drift — Speculative sleeve',
+    });
+    expect(
+      within(spec).getByText('Total £400.00 · tolerance ±5.00 pp')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', {
+        name: 'Suggested trades — Speculative sleeve',
+      })
+    ).toBeInTheDocument();
+    const panel = screen.getByRole('region', { name: 'Sleeves' });
+    expect(await within(panel).findByText('+6.67 pp')).toBeInTheDocument();
+
+    const form = screen.getByRole('form', { name: 'Invest new cash' });
+    fireEvent.change(within(form).getByLabelText('Amount (£)'), {
+      target: { value: '100' },
+    });
+    fireEvent.change(within(form).getByLabelText('For sleeve'), {
+      target: { value: 'sleeve-1' },
+    });
+    fireEvent.click(
+      within(form).getByRole('button', { name: 'Plan contribution' })
+    );
+    await waitFor(() =>
+      expect(mockGetNewCashPlan).toHaveBeenCalledWith(
+        'alex',
+        100,
+        'isa',
+        'sleeve-1'
+      )
     );
   });
 

@@ -17,7 +17,9 @@ from backend.common.allocation_policy import (
 )
 from backend.common.authz import ensure_owner_access
 from backend.common.errors import raise_owner_not_found
-from backend.common.rebalance_plan import bucket_holdings, build_plan, split_classes, suggest_new_cash
+from backend.common.sleeve_plan import build_sleeved_plan, sleeve_new_cash
+from backend.common.sleeves import CORE_ID, load_sleeves
+from backend.common.strategies import active_strategy
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 router = APIRouter(tags=["rebalance"])
@@ -77,7 +79,9 @@ def put_policy(
 def get_plan(owner: str, request: Request, identity: Optional[str] = Depends(get_active_user)):
     owner, accounts_root = _resolve_owner(request, owner, identity)
     policy = load_allocation_policy(owner, accounts_root)
-    return build_plan(_load_portfolio(owner, accounts_root), policy)
+    setup = load_sleeves(owner, accounts_root)
+    core_strategy = active_strategy(owner, accounts_root) if setup.sleeves else None
+    return build_sleeved_plan(_load_portfolio(owner, accounts_root), policy, setup, core_strategy)
 
 
 @router.get("/rebalance/{owner}/new-cash")
@@ -86,12 +90,13 @@ def get_new_cash_plan(
     amount: float,
     account: str,
     request: Request,
+    sleeve: str = CORE_ID,
     identity: Optional[str] = Depends(get_active_user),
 ):
     owner, accounts_root = _resolve_owner(request, owner, identity)
     policy = load_allocation_policy(owner, accounts_root)
-    holdings = bucket_holdings(_load_portfolio(owner, accounts_root), split_classes(policy))
+    setup = load_sleeves(owner, accounts_root)
     try:
-        return suggest_new_cash(holdings, policy, amount, account)
+        return sleeve_new_cash(_load_portfolio(owner, accounts_root), policy, setup, sleeve, amount, account)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -3168,7 +3168,8 @@
       "underweight": "Untergewichtet",
       "unclassified": "Nicht klassifiziert",
       "needsAssetClass": "Anlageklasse erforderlich",
-      "totalLine": "Gesamt {{total}} · Toleranz ±{{tolerance}} PP"
+      "totalLine": "Gesamt {{total}} · Toleranz ±{{tolerance}} PP",
+      "sleeveTitle": "Abweichung — Segment {{sleeve}}"
     },
     "trades": {
       "title": "Empfohlene Trades",
@@ -3181,7 +3182,8 @@
         "amount": "Betrag",
         "suggested": "Empfohlenes Instrument"
       },
-      "chooseInstrument": "Instrument auswählen"
+      "chooseInstrument": "Instrument auswählen",
+      "sleeveHeading": "Vorgeschlagene Trades — Segment {{sleeve}}"
     },
     "newCash": {
       "title": "Neues Geld investieren",
@@ -3189,7 +3191,8 @@
       "amount": "Betrag (£)",
       "intoAccount": "Auf Konto",
       "plan": "Beitrag planen",
-      "keepAsCash": "{{amount}} als Cash behalten."
+      "keepAsCash": "{{amount}} als Cash behalten.",
+      "forSleeve": "Für Segment"
     }
   },
   "strategyLibrary": {
@@ -3283,5 +3286,46 @@
     "stalePriceAsOf": "Der letzte Kurs ist als veraltet markiert (Stand {{date}}).",
     "suspectCostBasis": "Der Einstandswert ist bei {{count}} Position(en) fraglich oder unbekannt: {{where}}.",
     "suspectMove": "Verdächtige Eintagesbewegung von {{change}} am {{date}}."
+  },
+  "sleeves": {
+    "title": "Segmente",
+    "help": "Teilen Sie Ihr Portfolio in Segmente mit jeweils eigener Strategie auf — zum Beispiel 90 % Kern und 10 % spekulativ. Ordnen Sie Positionen einem Segment zu; nicht zugeordnete Positionen gehören zum Kern. Abweichung und Trades jedes Segments berücksichtigen nur dessen eigene Positionen.",
+    "loadError": "Segmente für {{owner}} konnten nicht geladen werden: {{error}}",
+    "core": "Kern",
+    "coreHelp": "Der Kern ist, was die anderen Segmente übrig lassen; wenden Sie oben eine Strategie an oder bearbeiten Sie unten die Ziele, um seine Mischung zu ändern.",
+    "customTargets": "Eigene Ziele",
+    "noTargets": "Noch keine Ziele",
+    "driftPp": "{{drift}} Pp",
+    "sizeFor": "Größe von {{name}}",
+    "saveSize": "Speichern",
+    "applyStrategy": "Strategie anwenden…",
+    "delete": "Löschen",
+    "confirmDelete": "Segment {{name}} löschen? Seine Positionen gehen zurück in den Kern.",
+    "col": {
+      "sleeve": "Segment",
+      "target": "Zielgröße",
+      "current": "Aktuelle Größe",
+      "strategy": "Strategie",
+      "actions": "Aktionen"
+    },
+    "add": {
+      "title": "Segment hinzufügen",
+      "name": "Name",
+      "namePlaceholder": "z. B. Spekulativ",
+      "size": "Größe (%)",
+      "strategy": "Strategie",
+      "chooseStrategy": "Strategie wählen…",
+      "submit": "Segment hinzufügen"
+    },
+    "assign": {
+      "title": "Positionen Segmenten zuordnen",
+      "help": "Wählen Sie das Segment für jede Position. Die Zuordnung gilt für den Ticker in allen Ihren Konten.",
+      "sleeveFor": "Segment für {{ticker}}",
+      "col": {
+        "holding": "Position",
+        "value": "Wert",
+        "sleeve": "Segment"
+      }
+    }
   }
 }

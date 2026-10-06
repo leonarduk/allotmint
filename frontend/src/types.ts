@@ -1168,6 +1168,54 @@ export interface RebalancePlan {
   trades: RebalanceTrade[];
   unfunded_amount: number;
   notes: string[];
+  /** Whole-portfolio value; present only when the owner has sleeves (#9813). */
+  portfolio_total?: number;
+  /** Core first, then each sleeve; present only when the owner has sleeves. The plan above is the core's. */
+  sleeves?: RebalanceSleeveRow[];
+}
+
+/** A sleeve's actual vs target share of the whole portfolio (#9813). */
+export interface RebalanceSleeveRow {
+  id: string;
+  name: string;
+  size_target_pct: number;
+  current_value: number;
+  size_current_pct: number;
+  size_drift_pct: number;
+  in_band: boolean | null;
+  strategy: { id: string; name: string } | null;
+  /** The sleeve's own drift and trades; absent on the core row (the top-level plan). */
+  plan?: RebalancePlan;
+}
+
+/** A share of the portfolio with its own targets (#9813). The core is sized by the rest. */
+export interface Sleeve {
+  id: string;
+  name: string;
+  size_pct: number;
+  targets: Record<string, number>;
+  strategy: { id: string; name: string; applied_at?: string | null } | null;
+}
+
+export interface SleeveHolding {
+  ticker: string;
+  name: string | null;
+  value: number;
+  sleeve_id: string;
+}
+
+export interface SleeveList {
+  sleeves: Sleeve[];
+  /** Ticker -> sleeve id; untagged tickers are in the core. */
+  assignments: Record<string, string>;
+  holdings?: SleeveHolding[];
+}
+
+export interface SleeveInput {
+  name?: string;
+  size_pct?: number;
+  targets?: Record<string, number>;
+  strategy_id?: string;
 }
 
 export interface NewCashPlan {

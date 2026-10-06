@@ -1,7 +1,7 @@
 // Draft state for the strategy page's target editors (#9543, #9653). A
 // splittable class (Equity, Bond, Commodity) is targeted either as a whole or by its sub-classes; the
 // backend rejects a policy that does both, so only the active level is saved.
-import { SUB_ASSET_CLASSES, assetClassOption } from './assetClass';
+import { SUB_ASSET_CLASSES, allocationKeyLabel, assetClassOption } from './assetClass';
 import type { RebalancePlan } from '../types';
 
 /** Canonical asset classes, matching backend ASSET_CLASSES / ASSET_CLASS_LABELS. */
@@ -128,4 +128,24 @@ export function draftFromCurrent(
   split: string[]
 ): TargetDraft {
   return { values: draftValues(currentWeights(plan)), split };
+}
+
+const targetPct = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
+
+/** Every class and sub-class key in display order (stored targets are key-sorted). */
+const KEY_ORDER = ASSET_CLASSES.flatMap(({ key }) => [
+  key,
+  ...(SUB_ASSET_CLASSES[key] ?? []).map((sub) => sub.key),
+]);
+const keyRank = (key: string) => {
+  const rank = KEY_ORDER.indexOf(key);
+  return rank < 0 ? KEY_ORDER.length : rank;
+};
+
+/** "Equity 60% · Bond › Long gilts 40%": a target set on one line, in display order. */
+export function formatStrategyTargets(targets: Record<string, number>): string {
+  return Object.entries(targets)
+    .sort(([a], [b]) => keyRank(a) - keyRank(b))
+    .map(([key, value]) => `${allocationKeyLabel(key)} ${targetPct.format(value)}%`)
+    .join(' · ');
 }

@@ -850,11 +850,13 @@ def _instrument_attribution(
     perf: LedgerPerformance, key: str, quote: NativeQuote | None, daily: pd.DataFrame, after: date | None, through: date
 ) -> dict[str, Any]:
     """One instrument's window totals; the residual is whatever the market-move split leaves of its P&L."""
+    from backend.common.portfolio_utils import UNKNOWN_CURRENCY_LABEL
+
     status = quote.status if quote is not None else QUOTE_UNRESOLVED
     pnl = float(_window(perf.instrument_pnl[key], after, through).sum())
     income = float(_window(perf.instrument_income[key], after, through).sum()) if key in perf.instrument_income else 0.0
     local, fx, unattributed = (float(daily[column].sum()) for column in ("local", "fx", "unattributed"))
-    currency = "GBP" if status == QUOTE_STERLING else quote.currency if quote is not None else "Unknown"
+    currency = "GBP" if status == QUOTE_STERLING else quote.currency if quote is not None else UNKNOWN_CURRENCY_LABEL
     return {
         "key": key,
         "ticker": f"{quote.ticker}.{quote.exchange}" if quote is not None else key,

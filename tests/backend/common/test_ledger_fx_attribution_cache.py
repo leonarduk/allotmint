@@ -66,6 +66,7 @@ def cached_usd(monkeypatch: pytest.MonkeyPatch, tmp_path):
             fx_path, index=False
         )
 
+    store.meta = meta  # type: ignore[attr-defined]
     yield store
     clear_lrus()
 
@@ -172,3 +173,43 @@ def test_fx_attribution_route_unknown_owner_is_404(monkeypatch) -> None:
     monkeypatch.setattr(pu.portfolio_mod, "build_owner_portfolio", missing)
 
     assert TestClient(create_app()).get("/performance/nobody/fx-attribution").status_code == 404
+
+
+@pytest.mark.parametrize("currency", ["GBP", "GBX"])
+def test_sterling_listing_is_local_only_through_the_real_resolvers(cached_usd, currency) -> None:
+    """GBX folds into GBP in both resolvers: FX is not applicable and nothing is unattributed."""
+    cached_usd.meta["currency"] = currency
+    days = list(pd.bdate_range("2024-03-01", "2024-03-28").date)
+    closes, _rates = _history(days)
+    cached_usd(days, closes, {})
+
+    with cache.cache_only():
+        quote = lp.load_native_quote("USCO.N", days[0], days[-1])
+        assert quote is not None and quote.status == lp.QUOTE_STERLING
+        perf = lp.build_ledger_performance([_ledger(days[0])], days[-1])
+        assert perf is not None
+        result = lp.fx_attribution(perf, days[0], days[-1])
+
+    [row] = result["instruments"]
+    assert (row["currency"], row["fx_applicable"], row["fx_gbp"]) == ("GBP", False, 0.0)
+    assert row["unattributed_gbp"] == 0.0
+    assert row["local_gbp"] == pytest.approx(lp.contributions(perf, days[0], days[-1])["pnl_gbp"]["USCO.N"])
+    assert result["by_currency"][0]["fx_applicable"] is False
+
+
+def test_coverage_share_is_null_without_a_portfolio_value(cached_usd, monkeypatch) -> None:
+    days = list(pd.bdate_range("2024-03-01", "2024-03-28").date)
+    closes, rates = _history(days)
+    cached_usd(days, closes, rates)
+    monkeypatch.setattr(lp, "load_owner_ledgers", lambda _owner: [_ledger(days[0])])
+    monkeypatch.setattr(
+        pu.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, pricing_date=None: {"owner": owner, "accounts": [], "total_value_estimate_gbp": 0.0},
+    )
+
+    result = pu.compute_fx_attribution("alice", 30, pricing_date=days[-1])
+
+    assert result is not None
+    assert result["coverage"]["share"] is None
+    assert result["coverage"]["ledger_value_gbp"] > 0

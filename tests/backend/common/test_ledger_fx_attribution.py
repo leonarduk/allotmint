@@ -238,6 +238,8 @@ def test_ambiguous_currency_is_not_split(quote, status) -> None:
 
     usd = next(row for row in result["instruments"] if row["key"] == "USCO.N")
     assert usd["quote_status"] == status
+    # As in #9798: a mismatch is a foreign instrument whose FX could not be measured.
+    assert usd["fx_applicable"] is (status == lp.QUOTE_MISMATCH)
     assert usd["unattributed_reasons"] == [status]
     assert usd["local_gbp"] == 0.0 and usd["fx_gbp"] == 0.0
     assert parts(usd) == pytest.approx(usd["pnl_gbp"], abs=0.01)

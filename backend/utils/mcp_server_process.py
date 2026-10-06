@@ -247,7 +247,9 @@ def launcher_command(repo_root: Path, port: int) -> list[str]:
 
 
 def _detach_kwargs() -> dict:
-    if _IS_WINDOWS:
+    # A literal sys.platform check (not _IS_WINDOWS) so mypy on Linux skips
+    # the Windows-only subprocess constants.
+    if sys.platform == "win32":
         # CREATE_NO_WINDOW rather than DETACHED_PROCESS: a detached console
         # process would pop a new console window for its python.exe child.
         flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW

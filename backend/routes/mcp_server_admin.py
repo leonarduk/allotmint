@@ -311,7 +311,9 @@ async def _restart(status: McpServerStatus, owners: list[PortOwner]) -> McpServe
     result.tool_count = tool_count
     new_owners = await run_in_threadpool(mcp_process.find_port_owners, status.port)
     result.pid = new_owners[0].process.pid if new_owners else None
-    logger.info("MCP server restarted (pid %s, %s tools)", sanitise_log_value(result.pid), tool_count)
+    logger.info(
+        "MCP server restarted (pid %s, %s tools)", sanitise_log_value(result.pid), sanitise_log_value(tool_count)
+    )
     return result
 
 

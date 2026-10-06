@@ -1,5 +1,8 @@
+import json
+from datetime import date
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
@@ -8,6 +11,7 @@ from backend.app import create_app
 from backend.config import config
 from backend.importers import moneyhub
 from backend.routes.transactions import Transaction
+from backend.timeseries import cache as timeseries_cache
 
 MONEYHUB_SAMPLE = Path(__file__).parent / "data" / "moneyhub_sample.csv"
 
@@ -254,3 +258,120 @@ def test_import_transactions_moneyhub_persists_and_dedupes_on_reimport(tmp_path,
     )
     assert resp.status_code == 200
     assert resp.json() == {"persisted": [], "skipped": []}
+
+
+def _fake_fx_history(rates_by_day):
+    """Stand-in for ``load_fx_history`` that honours its ``start``/``end`` window."""
+    calls = []
+
+    def load(curr, start=None, end=None):
+        calls.append((curr, start, end))
+        rows = [
+            (pd.Timestamp(day), rate)
+            for day, rate in rates_by_day.get(curr, {}).items()
+            if (start is None or date.fromisoformat(day) >= start) and (end is None or date.fromisoformat(day) <= end)
+        ]
+        return pd.DataFrame(rows, columns=["Date", "Rate"])
+
+    load.calls = calls
+    return load
+
+
+def _post_rows(client, monkeypatch, rows):
+    monkeypatch.setattr(importers, "parse", lambda provider, data: rows)
+    resp = client.post(
+        "/transactions/import",
+        data={"provider": "hargreaves"},
+        files={"file": ("tx.csv", b"unused", "text/csv")},
+    )
+    assert resp.status_code == 200
+    return resp.json()
+
+
+def _usd_row(**overrides):
+    fields = {
+        "owner": "alice",
+        "account": "ISA",
+        "date": "2024-05-04",
+        "ticker": "MSFT",
+        "type": "BUY",
+        "currency": "USD",
+        "price": 100.0,
+        "units": 2,
+    }
+    return Transaction(**{**fields, **overrides})
+
+
+def test_import_converts_non_gbp_price_at_trade_date_rate(tmp_path, monkeypatch):
+    """A USD price is converted with the stored rate for the trade date, not stored as GBP (#9679).
+
+    2024-05-04 is a Saturday: the Friday fixing applies, never the later rate.
+    """
+    client = _make_client(tmp_path, monkeypatch)
+    fx = _fake_fx_history({"USD": {"2024-05-02": 0.79, "2024-05-03": 0.8, "2024-05-07": 0.9}})
+    monkeypatch.setattr(timeseries_cache, "load_fx_history", fx)
+
+    data = _post_rows(client, monkeypatch, [_usd_row()])
+
+    assert data["skipped"] == []
+    [persisted] = data["persisted"]
+    assert persisted["price_gbp"] == pytest.approx(80.0)
+    assert persisted["price"] == pytest.approx(100.0)
+    assert persisted["currency"] == "USD"
+    assert fx.calls and all(curr == "USD" and end == date(2024, 5, 4) for curr, _start, end in fx.calls)
+    stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())
+    assert stored["transactions"][0]["price_gbp"] == pytest.approx(80.0)
+
+
+@pytest.mark.parametrize(
+    ("rates", "row_overrides"),
+    [
+        ({}, {}),
+        ({"USD": {"2024-04-20": 0.8}}, {}),
+        ({"USD": {"2024-05-03": 0.8}}, {"date": None}),
+    ],
+    ids=["no-fx-history", "no-rate-near-trade-date", "undated-row"],
+)
+def test_import_rejects_non_gbp_price_without_trade_date_rate(tmp_path, monkeypatch, rates, row_overrides):
+    """No stored trade-date rate means the row is rejected, never stored at a guessed rate (#9679)."""
+    client = _make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr(timeseries_cache, "load_fx_history", _fake_fx_history(rates))
+    gbp_row = Transaction(owner="alice", account="ISA", date="2024-05-04", ticker="PFE", price=10.5, units=1)
+
+    data = _post_rows(client, monkeypatch, [_usd_row(**row_overrides), gbp_row])
+
+    assert [row["ticker"] for row in data["persisted"]] == ["PFE"]
+    [skipped] = data["skipped"]
+    assert skipped["ticker"] == "MSFT"
+    assert "USD" in skipped["skip_reason"]
+    assert "FX" in skipped["skip_reason"]
+
+
+@pytest.mark.parametrize("currency", ["GBP", "gbp", None, "", "GBX", "GBp"])
+def test_import_gbp_or_absent_currency_copies_price_unchanged(tmp_path, monkeypatch, currency):
+    """GBP, already-scaled pence and absent currencies keep ``price_gbp == price`` with no FX lookup."""
+    client = _make_client(tmp_path, monkeypatch)
+
+    def no_fx(*_args, **_kwargs):
+        raise AssertionError("GBP rows must not consult FX history")
+
+    monkeypatch.setattr(timeseries_cache, "load_fx_history", no_fx)
+    row = Transaction(owner="alice", account="ISA", date="2024-05-01", ticker="PFE", price=10.5, units=2)
+    row.currency = currency
+
+    data = _post_rows(client, monkeypatch, [row])
+
+    [persisted] = data["persisted"]
+    assert persisted["price_gbp"] == 10.5
+    assert "price" not in persisted
+
+
+def test_import_non_gbp_row_with_explicit_price_gbp_needs_no_fx(tmp_path, monkeypatch):
+    """An importer that already supplied ``price_gbp`` is trusted as-is; only the conflict check applies."""
+    client = _make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr(timeseries_cache, "load_fx_history", _fake_fx_history({}))
+
+    data = _post_rows(client, monkeypatch, [_usd_row(price=None, price_gbp=80.0)])
+
+    [persisted] = data["persisted"]
+    assert persisted["price_gbp"] == 80.0

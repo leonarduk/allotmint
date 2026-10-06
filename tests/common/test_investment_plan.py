@@ -15,6 +15,7 @@ from backend.common.investment_plan import (
     compare_with_rebalance_targets,
     load_plan,
     parse_plan,
+    rebalance_weights,
     save_plan,
     vehicle_warnings,
 )
@@ -173,6 +174,40 @@ def test_compare_copies_exact_keys_when_policy_accepts_them(monkeypatch):
     assert result["copy_supported"] is True
     assert result["matches"] is False
     assert result["plan_targets"]["long_gilts"] == 10
+
+
+def small_value_plan():
+    return parse_plan(
+        plan_data(
+            target=[
+                {"class": "equity", "weight_pct": 30},
+                {"class": "small_cap_value", "weight_pct": 10},
+                {"class": "long_gilts", "weight_pct": 25},
+                {"class": "index_linked", "weight_pct": 15},
+                {"class": "gold", "weight_pct": 20},
+            ]
+        ),
+        "alex",
+    )
+
+
+def test_rebalance_weights_folds_only_classes_the_policy_lacks():
+    assert rebalance_weights(small_value_plan()) == {
+        "equity": 40,
+        "long_gilts": 25,
+        "index_linked": 15,
+        "gold": 20,
+    }
+
+
+def test_compare_keeps_sub_class_split_when_plan_has_small_cap_value():
+    result = compare_with_rebalance_targets(small_value_plan(), AllocationPolicy({"equity": 60, "bond": 40}))
+    assert result["copy_supported"] is True
+    assert result["matches"] is False
+    assert result["plan_targets"] == {"equity": 40, "long_gilts": 25, "index_linked": 15, "gold": 20}
+
+    copied = AllocationPolicy(result["plan_targets"])
+    assert compare_with_rebalance_targets(small_value_plan(), copied)["matches"] is True
 
 
 def test_bare_string_vehicle_shorthand():

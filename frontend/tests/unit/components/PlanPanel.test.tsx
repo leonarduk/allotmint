@@ -216,4 +216,75 @@ describe('PlanPanel', () => {
       response.plan
     );
   });
+
+  describe('after saving a plan (#9680)', () => {
+    const plan_targets = { equity: 40, long_gilts: 40, gold: 20 };
+
+    async function saveReturning(status: 'active' | 'draft', matches = false) {
+      const response = makeResponse({ copy_supported: true, plan_targets });
+      mockGetInvestmentPlan.mockResolvedValue(response);
+      mockSaveInvestmentPlan.mockResolvedValue({
+        ...response,
+        plan: { ...response.plan, status },
+        rebalance: { ...response.rebalance, matches },
+      });
+      render(<PlanPanel owner="alex" />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Edit plan' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save plan' }));
+      await screen.findByRole('button', { name: 'Edit plan' });
+    }
+
+    it('offers to update the rebalance targets for an active plan', async () => {
+      mockSaveAllocationPolicy.mockResolvedValue({});
+      await saveReturning('active');
+
+      expect(
+        screen.getByText('Update your rebalance targets to match this plan?')
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Update rebalance targets' })
+      );
+      await waitFor(() =>
+        expect(mockSaveAllocationPolicy).toHaveBeenCalledWith('alex', {
+          targets: plan_targets,
+          tolerance_pct: 5,
+        })
+      );
+    });
+
+    it('falls back to the plain mismatch after "Not now"', async () => {
+      await saveReturning('active');
+      fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+
+      expect(
+        screen.getByText('Your rebalance targets differ from this plan.')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', {
+          name: 'Copy plan target to rebalance targets',
+        })
+      ).toBeInTheDocument();
+      expect(mockSaveAllocationPolicy).not.toHaveBeenCalled();
+    });
+
+    it('does not prompt for a draft plan', async () => {
+      await saveReturning('draft');
+      expect(
+        screen.queryByText('Update your rebalance targets to match this plan?')
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Your rebalance targets differ from this plan.')
+      ).toBeInTheDocument();
+    });
+
+    it('does not prompt when the targets already match', async () => {
+      await saveReturning('active', true);
+      expect(
+        screen.getByText('Your rebalance targets match this plan.')
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Not now' })
+      ).not.toBeInTheDocument();
+    });
+  });
 });

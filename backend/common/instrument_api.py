@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import pandas as pd
 
-from backend.common.constants import ACCOUNTS, HOLDINGS, OWNER
+from backend.common.constants import ACCOUNTS, HOLDINGS, OWNER, PRICE_CHANGE_WINDOWS
 from backend.common.group_portfolio import build_group_portfolio
 from backend.common.holding_utils import load_latest_prices
 from backend.common.instruments import list_group_definitions
@@ -745,8 +745,7 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
             "last_price_date": None,
             "last_price_time": None,
             "is_stale": True,
-            "change_7d_pct": None,
-            "change_30d_pct": None,
+            **{key: None for key in PRICE_CHANGE_WINDOWS},
         }
     sym, ex = resolved
 
@@ -767,8 +766,7 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
         "last_price_date": last_price_date.isoformat(),
         "last_price_time": last_time,
         "is_stale": is_stale,
-        "change_7d_pct": price_change_pct(ticker, 7),
-        "change_30d_pct": price_change_pct(ticker, 30),
+        **{key: price_change_pct(ticker, days) for key, days in PRICE_CHANGE_WINDOWS.items()},
     }
 
 

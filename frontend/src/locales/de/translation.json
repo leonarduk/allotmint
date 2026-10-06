@@ -752,6 +752,8 @@
       "ccy": "Währung",
       "cost": "Kosten {{symbol}}",
       "delta30d": "30T %",
+      "delta90d": "90T %",
+      "delta1y": "1J %",
       "delta7d": "7T %",
       "gain": "Gewinn {{symbol}}",
       "gainPct": "Gewinn %",
@@ -769,6 +771,8 @@
     "exchangesLabel": "Börsen:",
     "groupTotals": {
       "delta30d": "30T %",
+      "delta90d": "90T %",
+      "delta1y": "1J %",
       "delta7d": "7T %",
       "gain": "Gewinn",
       "gainPct": "Gewinn %",

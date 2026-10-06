@@ -363,6 +363,20 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
               {t('instrumentTable.columns.delta30d')}
               {sortKey === 'change_30d_pct' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort('change_90d_pct')}
+            >
+              {t('instrumentTable.columns.delta90d')}
+              {sortKey === 'change_90d_pct' ? (asc ? ' ▲' : ' ▼') : ''}
+            </th>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort('change_1y_pct')}
+            >
+              {t('instrumentTable.columns.delta1y')}
+              {sortKey === 'change_1y_pct' ? (asc ? ' ▲' : ' ▼') : ''}
+            </th>
             <th className={tableStyles.cell}>
               {t('instrumentTable.columns.groupActions', { defaultValue: 'Group' })}
             </th>
@@ -472,6 +486,12 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                   </td>
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
                     {showGroupTotals ? formatSignedPercent(group.totals.change30dPct) : '—'}
+                  </td>
+                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                    {showGroupTotals ? formatSignedPercent(group.totals.change90dPct) : '—'}
+                  </td>
+                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                    {showGroupTotals ? formatSignedPercent(group.totals.change1yPct) : '—'}
                   </td>
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
                 </tr>
@@ -614,6 +634,12 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                           ? '—'
                           : percent(r.change_30d_pct, 1)}
                       </td>
+                      <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                        {r.change_90d_pct == null ? '—' : percent(r.change_90d_pct, 1)}
+                      </td>
+                      <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                        {r.change_1y_pct == null ? '—' : percent(r.change_1y_pct, 1)}
+                      </td>
                       <td className={tableStyles.cell}>
                         <div className={tableStyles.groupAction}>
                           <span className="shrink-0">{currentGrouping ?? '—'}</span>
@@ -720,6 +746,12 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
             </td>
             <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
               {formatSignedPercent(overallTotals.change30dPct)}
+            </td>
+            <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+              {formatSignedPercent(overallTotals.change90dPct)}
+            </td>
+            <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+              {formatSignedPercent(overallTotals.change1yPct)}
             </td>
             <td className={`${tableStyles.cell} font-semibold`}>—</td>
           </tr>

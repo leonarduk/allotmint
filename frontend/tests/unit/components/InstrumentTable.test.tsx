@@ -251,6 +251,31 @@ describe("InstrumentTable", () => {
         expect(screen.getByText("ABC")).toBeInTheDocument();
     });
 
+    it("shows 90d and 1y change columns with weighted group totals", async () => {
+        const longRows = rows.map((row) =>
+            row.ticker === "ABC"
+                ? { ...row, change_90d_pct: 6, change_1y_pct: 12 }
+                : row.ticker === "XYZ"
+                  ? { ...row, change_90d_pct: -3, change_1y_pct: -6 }
+                  : row,
+        );
+        renderWithConfig(<InstrumentTable rows={longRows} />);
+        await screen.findByRole("button", { name: /Toggle Group A/i });
+        const table = screen.getByRole("table");
+        expect(within(table).getByText(/^90d %/)).toBeInTheDocument();
+        expect(within(table).getByText(/^1y %/)).toBeInTheDocument();
+
+        // Market-value weighted: (6×1000 − 3×500) / 1500 = 3.0; (12×1000 − 6×500) / 1500 = 6.0
+        const groupASummary = getSummaryRow("Group A");
+        expect(within(groupASummary).getByText("▲3.0%")).toBeInTheDocument();
+        expect(within(groupASummary).getByText("▲6.0%")).toBeInTheDocument();
+
+        openGroup("Group A");
+        expect(getGroupTickers("Group A")[0]).toBe("ABC");
+        fireEvent.click(within(table).getByText(/^90d %/));
+        expect(getGroupTickers("Group A")[0]).toBe("XYZ");
+    });
+
     it("shows N/A gain/cost for an all-unreliable-cost group and — for multi-instrument units (#8531)", async () => {
         const unreliableRows: InstrumentSummary[] = [
             ...rows.filter((row) => row.grouping !== "Group B"),

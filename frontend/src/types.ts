@@ -137,6 +137,8 @@ export type InstrumentSummary = {
   last_price_date?: string | null;
   change_7d_pct?: number | null;
   change_30d_pct?: number | null;
+  change_90d_pct?: number | null;
+  change_1y_pct?: number | null;
 };
 
 export interface InstrumentGroupDefinition {

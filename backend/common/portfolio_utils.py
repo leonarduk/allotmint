@@ -25,6 +25,7 @@ import pandas as pd
 from backend.common import group_portfolio, ledger_performance
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_scaffold import load_transactions
+from backend.common.constants import PRICE_CHANGE_WINDOWS
 from backend.common.currency import CurrencyNormaliser
 from backend.common.data_loader import DATA_BUCKET_ENV
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, _get_price_for_date_scaled, is_cost_basis_unreliable
@@ -796,8 +797,7 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
                     "last_price_date": None,
                     "last_price_time": None,
                     "is_stale": None,
-                    "change_7d_pct": None,
-                    "change_30d_pct": None,
+                    **{key: None for key in PRICE_CHANGE_WINDOWS},
                     "instrument_type": instrument_meta.get("instrumentType") or instrument_meta.get("instrument_type"),
                     "cost_currency": base_currency,
                     "market_value_currency": base_currency,
@@ -960,23 +960,16 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
                             row["_snapshot_native_price"] = native_price
                             row["_snapshot_native_currency"] = native_currency
 
-            if row.get("change_7d_pct") is None:
-                change_7d = snap.get("change_7d_pct") if isinstance(snap, dict) else None
-                if change_7d is None:
+            for change_key, change_days in PRICE_CHANGE_WINDOWS.items():
+                if row.get(change_key) is not None:
+                    continue
+                change = snap.get(change_key) if isinstance(snap, dict) else None
+                if change is None:
                     try:
-                        change_7d = instrument_api.price_change_pct(full_tkr, 7)
+                        change = instrument_api.price_change_pct(full_tkr, change_days)
                     except Exception:
-                        change_7d = None
-                row["change_7d_pct"] = change_7d
-
-            if row.get("change_30d_pct") is None:
-                change_30d = snap.get("change_30d_pct") if isinstance(snap, dict) else None
-                if change_30d is None:
-                    try:
-                        change_30d = instrument_api.price_change_pct(full_tkr, 30)
-                    except Exception:
-                        change_30d = None
-                row["change_30d_pct"] = change_30d
+                        change = None
+                row[change_key] = change
 
             for k in ("asset_class", "industry", "region", "owner", "sector"):
                 if k not in row and h.get(k) is not None:

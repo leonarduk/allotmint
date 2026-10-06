@@ -22,6 +22,10 @@ import {
   isCostBasisUnreliable,
 } from "../lib/costBasis";
 import {
+  FX_RATE_SOURCE_MISSING,
+  isFxRateFlagged,
+} from "../lib/fxRateSource";
+import {
   HoldingsFilterControls,
   type SparkRange,
 } from "./HoldingsFilterControls";
@@ -226,6 +230,12 @@ export function HoldingsTable({
     source === COST_BASIS_BOOK_SUSPECT
       ? t("holdingsTable.bookCostSuspect")
       : t("holdingsTable.gainNotAvailable");
+
+  // An approximate (fallback) or absent (missing) FX rate (#9664, #9730).
+  const fxRateTitle = (source: string | null | undefined): string =>
+    source === FX_RATE_SOURCE_MISSING
+      ? t("holdingsTable.fxRateMissing")
+      : t("holdingsTable.fxRateFallback");
 
   // Breaks the total return into its parts (#9038); cash rows carry none.
   const totalReturnTitle = (h: Holding): string | undefined => {
@@ -1022,6 +1032,16 @@ export function HoldingsTable({
                       title={h.last_price_time ?? undefined}
                     >
                       *
+                    </span>
+                  )}
+                  {isFxRateFlagged(h.fx_rate_source) && (
+                    // Approximate or absent FX rate (#9664, #9730).
+                    <span
+                      className="ml-1 text-warning"
+                      title={fxRateTitle(h.fx_rate_source)}
+                      aria-label={fxRateTitle(h.fx_rate_source)}
+                    >
+                      {h.fx_rate_source === FX_RATE_SOURCE_MISSING ? "FX" : "≈"}
                     </span>
                   )}
                   {h.last_price_date && (

@@ -257,6 +257,8 @@
     "costBasisUnknown": "Aucune date d'acquisition ni coût enregistré — le coût est supposé égal à la valeur actuelle",
     "gainNotAvailable": "Gain inconnu — aucune date d'acquisition ni coût enregistré",
     "bookCostSuspect": "Le coût enregistré semble invraisemblable par rapport au prix — gain masqué jusqu'à vérification",
+    "fxRateFallback": "Valorisé à un taux de change approximatif — aucun taux en direct ou en cache",
+    "fxRateMissing": "Aucun taux de change — non valorisé tant que le cache des taux n'est pas actualisé",
     "minimumGainPrompt": "Gain minimal %",
     "notApplicable": "N/A",
     "acquiredNotAvailable": "Aucune date d'acquisition enregistrée",

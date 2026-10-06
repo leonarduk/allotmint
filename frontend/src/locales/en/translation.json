@@ -423,6 +423,8 @@
     "costBasisUnknown": "No acquisition date or booked cost on record — cost assumed equal to current value",
     "gainNotAvailable": "Gain unknown — no acquisition date or booked cost on record",
     "bookCostSuspect": "Book cost looks implausible against the price — gain hidden until it is checked",
+    "fxRateFallback": "Valued at an approximate FX rate — no live or cached rate available",
+    "fxRateMissing": "No FX rate — not valued until the FX cache is refreshed",
     "minimumGainPrompt": "Min Gain %",
     "notApplicable": "N/A",
     "acquiredNotAvailable": "No acquisition date recorded",

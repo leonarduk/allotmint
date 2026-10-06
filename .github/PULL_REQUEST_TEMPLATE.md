@@ -2,6 +2,7 @@
 
 <!-- What changed, and why. -->
 
+<!-- Required: CI (require-issue-reference) fails without an issue link. File one first if none exists. -->
 Closes #
 
 ## How I validated this

@@ -133,6 +133,7 @@
       "watchlist": "Lista de seguimiento"
     },
     "operationsLink": "Operaciones",
+    "opensInSeparateTab": "(se abre en una pestaña aparte)",
     "refreshing": "Actualizando…",
     "refreshingProgress": "Actualizando… ({{completed}}/{{total}})",
     "refreshingTicker": "Obteniendo {{ticker}}…",

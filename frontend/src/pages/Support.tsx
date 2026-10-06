@@ -26,6 +26,7 @@ import type { OwnerSummary } from "../types";
 import { orderedTabPlugins, type TabPluginId } from "../tabPlugins";
 import { usePriceRefresh } from "../PriceRefreshContext";
 import { sanitizeOwners } from "../utils/owners";
+import { APP_TAB_NAME } from "../tabNames";
 
 const TAB_KEYS = orderedTabPlugins.map((p) => p.id) as TabPluginId[];
 const EMPTY_TABS = Object.fromEntries(TAB_KEYS.map((k) => [k, false])) as Record<
@@ -41,6 +42,11 @@ const MCP_TOOLS_KEY = "mcp_tools";
 // (stable across reorders), with characters not safe in an id replaced.
 function mcpToolStatusId(toolName: string): string {
   return `mcp-tool-status-${toolName.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+}
+
+// DOM id for a free-text config parameter input, so its key can label it.
+function configParamId(key: string): string {
+  return `config-param-${key.replace(/[^A-Za-z0-9_-]/g, "-")}`;
 }
 
 type ConfigValue = string | boolean | Record<string, unknown>;
@@ -450,8 +456,10 @@ export default function Support() {
   return (
     <div className="container mx-auto max-w-3xl space-y-8 p-4">
       <header>
+        {/* Switches to the named app tab, opening it if it isn't open (#9575). */}
         <Link
           to="/"
+          target={APP_TAB_NAME}
           className="mb-2 inline-block text-blue-500 hover:underline"
         >
           {t("app.userLink")}
@@ -776,12 +784,18 @@ export default function Support() {
                         ))}
                       </div>
                     ) : (
-                      <input
-                        type="text"
-                        value={String(value ?? "")}
-                        onChange={(e) => handleConfigChange(key, e.target.value)}
-                        className="w-full rounded border px-2 py-1"
-                      />
+                      <>
+                        <label htmlFor={configParamId(key)} className="mb-1 block font-medium">
+                          {key}
+                        </label>
+                        <input
+                          id={configParamId(key)}
+                          type="text"
+                          value={String(value ?? "")}
+                          onChange={(e) => handleConfigChange(key, e.target.value)}
+                          className="w-full rounded border px-2 py-1"
+                        />
+                      </>
                     )}
                   </div>
                 ))}

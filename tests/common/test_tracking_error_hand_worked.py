@@ -45,7 +45,11 @@ def hand_worked_series(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
         return pd.DataFrame({"Date": dates, "Close": bench})
 
-    monkeypatch.setattr(portfolio_utils, "_portfolio_value_series", fake_portfolio_value_series)
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_portfolio_return_series",
+        lambda *a, **k: (fake_portfolio_value_series(*a, **k), {"portfolio_return_basis": "price"}),
+    )
     monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
 
 

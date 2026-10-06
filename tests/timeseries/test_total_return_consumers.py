@@ -1,4 +1,4 @@
-"""Performance/risk consumers on total return; price/valuation consumers pinned to price (#9370)."""
+"""Performance/risk consumers on total return; price/valuation consumers pinned to price (#9370, #9571)."""
 
 from __future__ import annotations
 
@@ -342,7 +342,8 @@ def test_custom_query_var_runs_on_total_returns(store, monkeypatch):
 def benchmark_env(store, monkeypatch):
     store("BENCH", "L", {EX_DATE: 2.0})
     portfolio = pd.Series([100.0, 101.0, 102.0, 103.0, 104.0], index=[d.date() for d in DATES])
-    monkeypatch.setattr(portfolio_utils, "_portfolio_value_series", lambda *a, **k: portfolio)
+    basis = {"portfolio_return_basis": tr.PRICE_RETURN_BASIS, "portfolio_price_basis_share": 1.0}
+    monkeypatch.setattr(portfolio_utils, "_portfolio_return_series", lambda *a, **k: (portfolio, basis))
     frames = {"BENCH": _frame(), "NOFILE": _frame()}
     monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", lambda t, e, d: frames.get(t, pd.DataFrame()).copy())
 
@@ -355,7 +356,6 @@ def test_alpha_benchmark_side_is_total_return(benchmark_env):
     assert breakdown["portfolio_cumulative_return"] == pytest.approx(0.04)
     assert value == pytest.approx(0.04 - bench)
     assert breakdown["benchmark_return_basis"] == tr.TOTAL_RETURN_BASIS
-    assert breakdown["portfolio_return_basis"] == tr.PRICE_RETURN_BASIS
 
 
 def test_alpha_benchmark_without_actions_reports_price(benchmark_env):
@@ -371,6 +371,129 @@ def test_tracking_error_benchmark_side_is_total_return(benchmark_env):
     first = breakdown["active_returns"][0]
     assert first["benchmark_return"] == pytest.approx(0.0)  # ex-date: dividend offsets the drop
     assert breakdown["benchmark_return_basis"] == tr.TOTAL_RETURN_BASIS
+
+
+# ───────────────────── alpha / tracking error: portfolio side (#9571) ─────────────────────
+
+FLAT = [100.0] * len(DATES)
+
+
+@pytest.fixture
+def portfolio_env(monkeypatch):
+    """An owner whose holdings are set per test, priced from ``closes`` (default CLOSES)."""
+    state = {"holdings": [], "closes": {"FLATB": FLAT}}  # FLATB: benchmark with no actions file
+
+    def fake_build(owner, accounts_root=None, pricing_date=None):
+        return {"accounts": [{"holdings": state["holdings"]}]}
+
+    def fake_meta(ticker, exchange, days):
+        return pd.DataFrame({"Date": DATES, "Close": state["closes"].get(ticker, CLOSES)})
+
+    monkeypatch.setattr(portfolio_mod, "build_owner_portfolio", fake_build)
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda t, latest: (t.split(".")[0], "L"))
+    monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_meta)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+    return state
+
+
+def _alpha_breakdown(benchmark: str = "FLATB.L") -> dict:
+    _value, breakdown = portfolio_utils.compute_alpha_vs_benchmark("alice", benchmark, days=5, include_breakdown=True)
+    return breakdown
+
+
+def test_alpha_portfolio_side_is_total_return(store, portfolio_env):
+    store("PAY", "L", {EX_DATE: 2.0})
+    portfolio_env["holdings"] = [{"ticker": "PAY", "exchange": "L", "units": 2}]
+
+    value, breakdown = portfolio_utils.compute_alpha_vs_benchmark("alice", "FLATB.L", days=5, include_breakdown=True)
+
+    # Price alone is 100 -> 100 (0%); reinvesting the 2.00 dividend gives 100/98 - 1.
+    assert breakdown["portfolio_cumulative_return"] == pytest.approx(TOTAL_LEVELS[-1] / 100.0 - 1.0)
+    assert value == pytest.approx(TOTAL_LEVELS[-1] / 100.0 - 1.0)
+    assert breakdown["portfolio_return_basis"] == tr.TOTAL_RETURN_BASIS
+    assert breakdown["portfolio_price_basis_share"] == pytest.approx(0.0)
+
+
+def test_tracking_error_portfolio_side_is_total_return(store, portfolio_env):
+    store("PAY", "L", {EX_DATE: 2.0})
+    portfolio_env["holdings"] = [{"ticker": "PAY", "exchange": "L", "units": 2}]
+
+    _value, breakdown = portfolio_utils.compute_tracking_error("alice", "FLATB.L", days=5, include_breakdown=True)
+
+    first = breakdown["active_returns"][0]
+    assert first["portfolio_return"] == pytest.approx(0.0)  # ex-date: dividend offsets the 2.00 drop
+    assert breakdown["portfolio_return_basis"] == tr.TOTAL_RETURN_BASIS
+
+
+def test_portfolio_basis_mixed_reports_price_share(store, portfolio_env):
+    store("PAY", "L", {EX_DATE: 2.0})
+    portfolio_env["holdings"] = [
+        {"ticker": "PAY", "exchange": "L", "units": 3},
+        {"ticker": "NOFILE", "exchange": "L", "units": 1},
+    ]
+
+    breakdown = _alpha_breakdown()
+
+    assert breakdown["portfolio_return_basis"] == tr.MIXED_RETURN_BASIS
+    pay_last = 3 * TOTAL_LEVELS[-1]
+    nofile_last = 1 * CLOSES[-1]
+    assert breakdown["portfolio_price_basis_share"] == pytest.approx(nofile_last / (pay_last + nofile_last))
+    # Each holding on its own basis: PAY reinvested, NOFILE at price.
+    expected = (pay_last + nofile_last) / (3 * CLOSES[0] + 1 * CLOSES[0]) - 1.0
+    assert breakdown["portfolio_cumulative_return"] == pytest.approx(expected)
+
+
+def test_portfolio_without_any_actions_is_price(store, portfolio_env):
+    portfolio_env["holdings"] = [{"ticker": "NOFILE", "exchange": "L", "units": 1}]
+
+    breakdown = _alpha_breakdown()
+
+    assert breakdown["portfolio_return_basis"] == tr.PRICE_RETURN_BASIS
+    assert breakdown["portfolio_price_basis_share"] == pytest.approx(1.0)
+    assert breakdown["portfolio_cumulative_return"] == pytest.approx(0.0)
+
+
+def test_ledger_dividend_cash_is_not_double_counted(store, portfolio_env, monkeypatch):
+    """The dividend is booked in the ledger and sits in the current cash balance; it still counts once.
+
+    The alpha series values the current holdings (including the current cash
+    balance, which already contains the 4.00 dividend) at historical closes.
+    Cash is flat at 1.0, so it adds no return; the only income is the
+    reinvested stored dividend. Ledger transactions are not read on this path.
+    """
+    store("PAY", "L", {EX_DATE: 2.0})
+    portfolio_env["holdings"] = [
+        {"ticker": "PAY", "exchange": "L", "units": 2},
+        {"ticker": "CASH.GBP", "exchange": "GBP", "units": 4.0},
+    ]
+    portfolio_env["closes"]["CASH"] = [1.0] * len(DATES)
+    dividend_tx = {"date": EX_DATE.date().isoformat(), "type": "DIVIDEND", "ticker": "PAY.L", "amount_minor": 400}
+    monkeypatch.setattr(portfolio_utils, "load_transactions", lambda owner: [dividend_tx])
+    with_ledger = _alpha_breakdown()
+    monkeypatch.setattr(portfolio_utils, "load_transactions", lambda owner: [])
+    without_ledger = _alpha_breakdown()
+
+    once = (2 * TOTAL_LEVELS[-1] + 4.0) / (2 * CLOSES[0] + 4.0) - 1.0
+    twice = (2 * TOTAL_LEVELS[-1] + 4.0 + 4.0) / (2 * CLOSES[0] + 4.0) - 1.0
+    assert with_ledger["portfolio_cumulative_return"] == pytest.approx(once)
+    assert with_ledger["portfolio_cumulative_return"] != pytest.approx(twice)
+    assert with_ledger["portfolio_cumulative_return"] == without_ledger["portfolio_cumulative_return"]
+    # Cash is on neither basis: the one security is on total return.
+    assert with_ledger["portfolio_return_basis"] == tr.TOTAL_RETURN_BASIS
+    assert with_ledger["portfolio_price_basis_share"] == pytest.approx(0.0)
+
+
+def test_max_drawdown_unchanged_while_alpha_moves(store, portfolio_env):
+    portfolio_env["holdings"] = [{"ticker": "PAY", "exchange": "L", "units": 2}]
+    store("PAY", "L", {})  # actions file without dividends: total return equals price
+    drawdown_before = portfolio_utils.compute_max_drawdown("alice", days=5)
+    alpha_before = portfolio_utils.compute_alpha_vs_benchmark("alice", "FLATB.L", days=5)
+
+    store("PAY", "L", BIG_DIVIDEND)
+
+    assert drawdown_before == pytest.approx(98.0 / 100.0 - 1.0)
+    assert portfolio_utils.compute_max_drawdown("alice", days=5) == pytest.approx(drawdown_before)
+    assert portfolio_utils.compute_alpha_vs_benchmark("alice", "FLATB.L", days=5) > alpha_before
 
 
 # ───────────────────────────── trading agent ──────────────────────────────

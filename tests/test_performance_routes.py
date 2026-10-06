@@ -354,7 +354,11 @@ def test_group_alpha_handles_near_zero_benchmark(client, monkeypatch):
             }
         )
 
-    monkeypatch.setattr(portfolio_utils, "_portfolio_value_series", fake_portfolio_value_series)
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_portfolio_return_series",
+        lambda *a, **k: (fake_portfolio_value_series(*a, **k), {"portfolio_return_basis": "price"}),
+    )
     monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
 
     resp = client.get("/performance-group/test-group/alpha")
@@ -401,6 +405,12 @@ def unit_inputs(monkeypatch):
     txs = [{"date": "2024-01-01", "type": "DEPOSIT", "amount_minor": 10000}]
 
     monkeypatch.setattr(portfolio_utils, "_portfolio_value_series", fake_portfolio_value_series)
+    # Alpha and tracking error read the total-return twin of the series (#9571).
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_portfolio_return_series",
+        lambda *a, **k: (fake_portfolio_value_series(*a, **k), {"portfolio_return_basis": "price"}),
+    )
     monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
     monkeypatch.setattr(portfolio_utils, "load_transactions", lambda owner: list(txs))
     monkeypatch.setattr(portfolio_utils, "_group_transactions", lambda slug: (list(txs), []))

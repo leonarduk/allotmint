@@ -178,12 +178,15 @@ Under the timeseries cache base (`<data root>/timeseries` in allotmint-data):
 Valuations use `Close` as stored. For total return (price plus reinvested
 dividends) use `backend.timeseries.total_return.total_return_index`; never
 store a total-return or dividend-adjusted series as `Close`. Performance and
-risk consumers (scenario returns, VaR, the benchmark side of alpha and
-tracking error, trading-agent volatility; #9370) go through
+risk consumers (scenario returns, VaR, both sides of alpha and tracking
+error, trading-agent volatility; #9370, #9571) go through
 `total_return_closes` / `total_return_frame`, which load the stored dividends
 and report a `return_basis`: `total`, or `price` when the ticker has no
 `corporate_actions` file (dividend history unknown -- never read as "no
-dividends paid"). Price displays and valuations (`timeseries_for_ticker` and
+dividends paid"). The alpha / tracking-error portfolio side reports
+`portfolio_return_basis` `total`, `price` or `mixed` (per holding, cash
+excluded) plus `portfolio_price_basis_share`. Price displays and valuations
+(`timeseries_for_ticker` and
 its 7d/30d changes, `ledger_performance`, `compute_owner_performance`,
 `compute_max_drawdown`) stay on the traded price. Stooq
 back-adjusts for dividends, so `backend.timeseries.source_basis` only lets

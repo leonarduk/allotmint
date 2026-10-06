@@ -58,7 +58,12 @@ from backend.timeseries.cache import (
     load_meta_timeseries,
     load_meta_timeseries_range,
 )
-from backend.timeseries.total_return import PRICE_RETURN_BASIS, total_return_frame
+from backend.timeseries.total_return import (
+    MIXED_RETURN_BASIS,
+    PRICE_RETURN_BASIS,
+    total_return_closes,
+    total_return_frame,
+)
 from backend.utils.fx_rates import fallback_fx_rate, fetch_fx_rate_range
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
@@ -1465,20 +1470,12 @@ def portfolio_value_breakdown(owner: str, date: str) -> List[Dict[str, Any]]:
     return result
 
 
-def _portfolio_value_series(
-    name: str,
-    days: int = 365,
-    *,
-    group: bool = False,
-    pricing_date: date | None = None,
-) -> pd.Series:
-    """Helper to compute daily portfolio values for an owner or group."""
-
-    calc = PricingDateCalculator(reporting_date=pricing_date)
+def _series_holdings(name: str, *, group: bool, reporting_date: date) -> List[tuple[str, str, float]]:
+    """``(symbol, exchange, units)`` of the current holdings that the value series prices."""
     if group:
-        pf = group_portfolio.build_group_portfolio(name, pricing_date=calc.reporting_date)
+        pf = group_portfolio.build_group_portfolio(name, pricing_date=reporting_date)
     else:
-        pf = portfolio_mod.build_owner_portfolio(name, pricing_date=calc.reporting_date)
+        pf = portfolio_mod.build_owner_portfolio(name, pricing_date=reporting_date)
 
     from backend.common import instrument_api
 
@@ -1505,36 +1502,32 @@ def _portfolio_value_series(
                 logger.debug("Skipping flagged instrument %s", sanitise_log_value(full))
                 continue
             holdings.append((sym, exch, units))
+    return holdings
 
-    effective_days = _effective_days(
-        days,
-        requested_pricing_date=pricing_date,
-        reporting_date=calc.reporting_date,
-    )
-    value_series: list[pd.Series] = []
-    for ticker, exchange, units in holdings:
-        df = load_meta_timeseries(ticker, exchange, effective_days)
-        if df.empty or "Date" not in df.columns or "Close" not in df.columns:
-            continue
-        df = df[["Date", "Close"]].copy()
-        df["Date"] = pd.to_datetime(df["Date"]).dt.date
-        closes = pd.to_numeric(df.set_index("Date")["Close"], errors="coerce")
-        valid_closes = closes.dropna()
-        if valid_closes.empty:
-            continue
-        if valid_closes.shape[0] != closes.shape[0]:
-            logger.warning(
-                "Discarding %d non-numeric closes for %s.%s while rebuilding portfolio series",
-                closes.shape[0] - valid_closes.shape[0],
-                sanitise_log_value(ticker),
-                sanitise_log_value(exchange),
-            )
-        values = (valid_closes * units).sort_index()
-        values = values[values.index <= calc.reporting_date]
-        if values.empty:
-            continue
-        value_series.append(values)
 
+def _holding_closes(ticker: str, exchange: str, effective_days: int) -> pd.Series | None:
+    """Numeric traded closes of one holding indexed by date, or ``None`` when there are none."""
+    df = load_meta_timeseries(ticker, exchange, effective_days)
+    if df.empty or "Date" not in df.columns or "Close" not in df.columns:
+        return None
+    df = df[["Date", "Close"]].copy()
+    df["Date"] = pd.to_datetime(df["Date"]).dt.date
+    closes = pd.to_numeric(df.set_index("Date")["Close"], errors="coerce")
+    valid_closes = closes.dropna()
+    if valid_closes.empty:
+        return None
+    if valid_closes.shape[0] != closes.shape[0]:
+        logger.warning(
+            "Discarding %d non-numeric closes for %s.%s while rebuilding portfolio series",
+            closes.shape[0] - valid_closes.shape[0],
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+        )
+    return valid_closes
+
+
+def _sum_holding_values(value_series: list[pd.Series], days: int, reporting_date: date) -> pd.Series:
+    """Daily portfolio value: the holdings' values summed (short gaps carried), last ``days`` rows."""
     if not value_series:
         return pd.Series(dtype=float)
 
@@ -1542,7 +1535,7 @@ def _portfolio_value_series(
     total = value_frame.ffill(limit=_MAX_PRICE_GAP_FILL_DAYS).sum(axis=1, min_count=1)
 
     total = total.sort_index()
-    total = total[total.index <= calc.reporting_date]
+    total = total[total.index <= reporting_date]
     if days:
         total = total.tail(days)
     if _detect_single_day_flash_crash is not None:
@@ -1554,6 +1547,118 @@ def _portfolio_value_series(
         if _issues:
             logger.info("Repaired %d near-zero portfolio value anomalies in series path", len(_issues))
     return total
+
+
+def _holding_value_series(
+    name: str,
+    days: int,
+    *,
+    group: bool,
+    pricing_date: date | None,
+    total_return: bool,
+) -> tuple[pd.Series, list[tuple[pd.Series, str | None]]]:
+    """The summed portfolio value series plus each holding's ``(values, return_basis)``.
+
+    With ``total_return`` each holding's closes go through
+    :func:`total_return_closes` (dividends reinvested; price for a holding
+    without a corporate-actions file), otherwise they stay the traded closes.
+    A cash holding's basis is ``None``: it has no income on either basis.
+    """
+    calc = PricingDateCalculator(reporting_date=pricing_date)
+    holdings = _series_holdings(name, group=group, reporting_date=calc.reporting_date)
+    effective_days = _effective_days(
+        days,
+        requested_pricing_date=pricing_date,
+        reporting_date=calc.reporting_date,
+    )
+    per_holding: list[tuple[pd.Series, str | None]] = []
+    for ticker, exchange, units in holdings:
+        closes = _holding_closes(ticker, exchange, effective_days)
+        if closes is None:
+            continue
+        basis: str | None = PRICE_RETURN_BASIS
+        if _is_cash_holding(ticker, exchange):
+            basis = None  # flat at 1.0: no dividends to reinvest or to miss
+        elif total_return:
+            closes, basis = total_return_closes(closes, ticker, exchange)
+        values = (closes * units).sort_index()
+        values = values[values.index <= calc.reporting_date]
+        if values.empty:
+            continue
+        per_holding.append((values, basis))
+
+    total = _sum_holding_values([values for values, _basis in per_holding], days, calc.reporting_date)
+    return total, per_holding
+
+
+def _portfolio_value_series(
+    name: str,
+    days: int = 365,
+    *,
+    group: bool = False,
+    pricing_date: date | None = None,
+) -> pd.Series:
+    """Daily value of the current holdings at their traded closes (price, no income).
+
+    Max drawdown and the TWR / XIRR / CAGR fallbacks read this; it stays on
+    traded prices. Alpha and tracking error use :func:`_portfolio_return_series`.
+    """
+    total, _per_holding = _holding_value_series(name, days, group=group, pricing_date=pricing_date, total_return=False)
+    return total
+
+
+def _is_cash_holding(ticker: str, exchange: str) -> bool:
+    """True for a ``CASH.<ccy>`` (or legacy ``<ccy>.CASH``) holding."""
+    return "CASH" in (ticker.upper(), exchange.upper())
+
+
+def _portfolio_return_basis(per_holding: list[tuple[pd.Series, str | None]]) -> dict[str, Any]:
+    """``portfolio_return_basis`` and the share of value on price, from each holding's latest value.
+
+    ``"total"`` when every non-cash holding has stored corporate actions,
+    ``"price"`` when none has, ``"mixed"`` otherwise. Cash (basis ``None``)
+    is left out of both. ``portfolio_price_basis_share`` is the fraction of the
+    non-cash holdings' latest value in the series whose returns are price only
+    (``None`` when no non-cash holding was priced).
+    """
+    total_value = 0.0
+    price_value = 0.0
+    bases: set[str] = set()
+    for values, basis in per_holding:
+        latest = values.dropna()
+        if basis is None or latest.empty:
+            continue
+        bases.add(basis)
+        value = abs(float(latest.iloc[-1]))
+        total_value += value
+        if basis == PRICE_RETURN_BASIS:
+            price_value += value
+    if not bases:
+        return {"portfolio_return_basis": PRICE_RETURN_BASIS, "portfolio_price_basis_share": None}
+    basis = bases.pop() if len(bases) == 1 else MIXED_RETURN_BASIS
+    share = price_value / total_value if total_value else None
+    return {"portfolio_return_basis": basis, "portfolio_price_basis_share": share}
+
+
+def _portfolio_return_series(
+    name: str,
+    days: int = 365,
+    *,
+    group: bool = False,
+    pricing_date: date | None = None,
+) -> tuple[pd.Series, dict[str, Any]]:
+    """The current holdings' value with dividends reinvested, for alpha and tracking error (#9571).
+
+    Same holdings, units and closes as :func:`_portfolio_value_series`, but
+    each holding's closes are put on a total-return basis, like the benchmark.
+    No dividend is counted twice: the series values today's units at
+    historical closes and never includes cash balances or ledger income
+    (``DIVIDEND`` transactions only reach ``ledger_performance``), so the
+    reinvested stored dividends are the only income in it. Returns the series
+    and its ``portfolio_return_basis`` fields.
+    """
+    total, per_holding = _holding_value_series(name, days, group=group, pricing_date=pricing_date, total_return=True)
+    return total, _portfolio_return_basis(per_holding)
 
 
 def _benchmark_daily_returns(benchmark: str, effective_days: int, reporting_date: date) -> tuple[pd.Series | None, str]:
@@ -1573,13 +1678,14 @@ def _benchmark_daily_returns(benchmark: str, effective_days: int, reporting_date
     return df.set_index("Date")["Close"].pct_change().dropna(), basis
 
 
-def _return_bases(benchmark_basis: str) -> dict[str, str]:
+def _return_bases(portfolio_basis: dict[str, Any], benchmark_basis: str) -> dict[str, Any]:
     """The ``return_basis`` fields of an alpha / tracking-error breakdown.
 
-    The portfolio side stays on price: it is the holdings' units times their
-    traded closes (``_portfolio_value_series``, shared with max drawdown).
+    Both sides are total return where corporate actions are stored: the
+    portfolio side from :func:`_portfolio_return_series` (#9571), the benchmark
+    from :func:`_benchmark_daily_returns` (#9370).
     """
-    return {"portfolio_return_basis": PRICE_RETURN_BASIS, "benchmark_return_basis": benchmark_basis}
+    return {**portfolio_basis, "benchmark_return_basis": benchmark_basis}
 
 
 def _alpha_vs_benchmark(
@@ -1592,7 +1698,7 @@ def _alpha_vs_benchmark(
     pricing_date: date | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
     calc = PricingDateCalculator(reporting_date=pricing_date)
-    total = _portfolio_value_series(name, days, group=group, pricing_date=pricing_date)
+    total, portfolio_basis = _portfolio_return_series(name, days, group=group, pricing_date=pricing_date)
     if total.empty:
         return None, {
             "series": [],
@@ -1656,7 +1762,7 @@ def _alpha_vs_benchmark(
         "series": breakdown_series,
         "portfolio_cumulative_return": float(port_cum_series.iloc[-1]),
         "benchmark_cumulative_return": float(bench_cum_series.iloc[-1]),
-        **_return_bases(bench_basis),
+        **_return_bases(portfolio_basis, bench_basis),
     }
     return value, breakdown
 
@@ -1671,7 +1777,7 @@ def _tracking_error(
     pricing_date: date | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
     calc = PricingDateCalculator(reporting_date=pricing_date)
-    total = _portfolio_value_series(name, days, group=group, pricing_date=pricing_date)
+    total, portfolio_basis = _portfolio_return_series(name, days, group=group, pricing_date=pricing_date)
     if total.empty:
         return None, {"active_returns": [], "daily_active_standard_deviation": None}
     port_ret = total.pct_change().dropna()
@@ -1715,7 +1821,7 @@ def _tracking_error(
     breakdown = {
         "active_returns": active_rows,
         "daily_active_standard_deviation": float(std),
-        **_return_bases(bench_basis),
+        **_return_bases(portfolio_basis, bench_basis),
     }
     return annualised, breakdown
 

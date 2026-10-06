@@ -58,8 +58,8 @@ def stub_sources(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(
         portfolio_utils,
-        "_portfolio_value_series",
-        lambda name, days, *, group=False, pricing_date=None, **_: portfolio,
+        "_portfolio_return_series",
+        lambda name, days, *, group=False, pricing_date=None, **_: (portfolio, {"portfolio_return_basis": "price"}),
     )
     # Stub only the stored-data layer; load_meta_timeseries itself is real.
     monkeypatch.setattr(cache, "_load_meta_timeseries_cached", lambda *a, **k: benchmark)

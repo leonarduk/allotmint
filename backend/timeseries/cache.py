@@ -1325,7 +1325,7 @@ def _offline_fx_rates(curr: str, start: date, end: date) -> pd.DataFrame:
                 fx = pd.DataFrame(resp.json())
                 fx["Date"] = pd.to_datetime(fx["Date"])
         except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("FX proxy fetch failed for %s: %s", _sanitize_for_log(curr), sanitise_log_value(exc))
+            logger.warning("FX proxy fetch failed for %s: %s", sanitise_log_value(curr), sanitise_log_value(exc))
 
     if fx.empty:
         try:
@@ -1352,7 +1352,7 @@ def _load_fx_rates(curr: str, start: date, end: date, *, ticker: str, exchange: 
     """
     curr = (curr or "").strip().upper()
     if not re.fullmatch(r"[A-Z]{3}", curr):
-        logger.warning("Invalid/unsupported FX currency code: %s", _sanitize_for_log(curr))
+        logger.warning("Invalid/unsupported FX currency code: %s", sanitise_log_value(curr))
         return pd.DataFrame(columns=["Date", "Rate"])
 
     lookback = _fx_lookback_start(start)

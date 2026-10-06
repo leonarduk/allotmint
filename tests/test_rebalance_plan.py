@@ -86,6 +86,17 @@ def test_parse_policy_reads_commodities_as_the_sub_class():
     assert policy.targets == {"equity": 85.0, "gold": 7.5, "commodities": 7.5}
 
 
+def test_saved_whole_commodity_target_keeps_its_meaning(tmp_path):
+    # Saves have always stored the canonical class key ("commodity"), never the
+    # "commodities" alias, so reading "commodities" as the sub-class (#9653)
+    # cannot change a policy saved by the app.
+    (tmp_path / "alex").mkdir()
+    save_allocation_policy("alex", parse_policy({"targets": {"Equity": 80, "Commodity": 20}}), tmp_path)
+    stored = json.loads((tmp_path / "alex" / "settings.json").read_text())["allocation_policy"]["targets"]
+    assert stored == {"equity": 80.0, "commodity": 20.0}
+    assert load_allocation_policy("alex", tmp_path).targets == {"equity": 80.0, "commodity": 20.0}
+
+
 def test_parse_policy_allows_empty_targets():
     assert parse_policy({}).targets == {}
 

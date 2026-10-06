@@ -38,7 +38,6 @@ from typing import Any, Mapping, Optional
 
 from backend.common.allocation_policy import (
     POLICY_KEY,
-    TARGET_SUM_TOLERANCE_PCT,
     AllocationPolicy,
     load_allocation_policy,
     parse_policy,
@@ -53,6 +52,8 @@ ACTIVE_KEY = "active_strategy"
 USER_ID_PREFIX = "user-"
 MAX_NAME_LENGTH = 80
 MAX_DESCRIPTION_LENGTH = 1000
+#: Two target weights closer than this (pp) are the same weight; inputs carry two decimals.
+TARGET_MATCH_TOLERANCE_PCT = 0.01
 
 
 class StrategyNotFoundError(LookupError):
@@ -220,7 +221,7 @@ _BUILTINS_BY_ID: dict[str, Strategy] = {s.id: s for s in BUILTIN_STRATEGIES}
 
 def same_targets(a: Mapping[str, float], b: Mapping[str, float]) -> bool:
     """Targets are equal up to float noise."""
-    return all(abs(a.get(k, 0.0) - b.get(k, 0.0)) <= TARGET_SUM_TOLERANCE_PCT for k in set(a) | set(b))
+    return all(abs(a.get(k, 0.0) - b.get(k, 0.0)) <= TARGET_MATCH_TOLERANCE_PCT for k in set(a) | set(b))
 
 
 def validate_targets(raw: Any) -> dict[str, float]:

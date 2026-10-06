@@ -4,7 +4,8 @@ Cached closes are the *traded* price. Yahoo is fetched with
 ``auto_adjust=False`` (``fetch_yahoo_timeseries.YAHOO_HISTORY_KWARGS``): its
 ``Close`` is split-adjusted but not dividend-adjusted, and dividends are
 stored separately (``corporate_actions``). Alpha Vantage's ``4. close`` is
-also the traded price. Stooq instead back-adjusts its history for
+the as-traded price, which the fetcher split-adjusts with ``8. split
+coefficient`` onto the same basis (``fetch_alphavantage_timeseries``). Stooq instead back-adjusts its history for
 dividends, so the same day can be ~25% apart over a long span (ADM.L in
 2015: Stooq ~1150p vs Yahoo ~1520p). Interleaving rows from two such sources
 fabricates daily moves of that size. Rows from a second source are
@@ -40,8 +41,8 @@ logger = logging.getLogger(__name__)
 BASIS_TOLERANCE = 0.02
 
 # Providers whose closes are back-adjusted for dividends. Everything else
-# (Yahoo with ``auto_adjust=False``, Alpha Vantage ``4. close``, FT) is
-# treated as the traded price.
+# (Yahoo with ``auto_adjust=False``, Alpha Vantage ``4. close`` split-adjusted,
+# FT) is treated as the traded price.
 DIVIDEND_ADJUSTED_SOURCES = frozenset({"Stooq"})
 # Per-date agreement required against a dividend-adjusted source: above
 # auction/last-trade differences on the same day, below a typical single

@@ -374,7 +374,28 @@
     "timeWeightedReturnInfoLabel": "¿Qué significa la rentabilidad ponderada en el tiempo?",
     "timeWeightedReturnInfo": "La rentabilidad ponderada en el tiempo mide la tasa de crecimiento compuesto de la cartera, independientemente del momento y el importe de los depósitos y retiradas.",
     "xirrInfoLabel": "¿Qué significa XIRR?",
-    "xirrInfo": "XIRR es la tasa interna de retorno anualizada, calculada a partir de los flujos de caja fechados reales de la cartera."
+    "xirrInfo": "XIRR es la tasa interna de retorno anualizada, calculada a partir de los flujos de caja fechados reales de la cartera.",
+    "fxAttribution": {
+      "title": "De dónde vino la ganancia o pérdida",
+      "description": "La ganancia o pérdida en GBP de la cartera en el periodo seleccionado, dividida en movimientos de precio local, movimientos de divisa, rentas y operaciones y otros efectos.",
+      "local": "Movimientos de precio local",
+      "fx": "Movimientos de divisa",
+      "income": "Rentas",
+      "other": "Operaciones y otros",
+      "unattributed": "Sin atribuir",
+      "total": "Resultado total",
+      "byCurrency": "Por divisa de cotización",
+      "currency": "Divisa",
+      "notApplicable": "n/d",
+      "quoteCurrencyNote": "Por divisa de cotización: los fondos extranjeros cotizados en GBP cuentan como locales.",
+      "cashNotModelled": "El efectivo no se incluye: el registro de transacciones anota el efectivo en GBP, por lo que no se miden los movimientos de divisa de los saldos en moneda extranjera.",
+      "coverage": "Cubre el {{share}} del valor de la cartera ({{ledger}} reconstruido a partir de los registros de transacciones, de {{portfolio}}).",
+      "coverageUnknown": "Cobertura desconocida: la cartera no tiene un valor actual con el que comparar.",
+      "unreconciled": "Posiciones que el registro de transacciones no reproduce, por lo que no se atribuyen: {{holdings}}",
+      "unconverted": "No hay tipo de cambio almacenado algunos días para {{holdings}}; los movimientos de esos días quedan sin atribuir.",
+      "noLedger": "No hay registro de transacciones que atribuir.",
+      "unavailable": "La atribución del resultado no está disponible en este momento."
+    }
   },
   "goals": {
     "add": "Agregar objetivo",

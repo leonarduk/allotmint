@@ -26,6 +26,7 @@ import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { formatDateISO } from "../lib/date";
 import type { DrawdownExtrema, DrawdownSeriesPoint } from "../types";
 import InfoTip from "./InfoTip";
+import PortfolioFxAttribution from "./PortfolioFxAttribution";
 import FractionMetric from "./FractionMetric";
 import {
   classifyDrawdown,
@@ -568,6 +569,13 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             </Link>
           </div>
         </div>
+      )}
+      {activeOwner && (
+        <PortfolioFxAttribution
+          owner={activeOwner}
+          days={days === 0 ? 36500 : days}
+          asOf={asOf}
+        />
       )}
       <h2>{t("dashboard.portfolioValue")}</h2>
       <ResponsiveContainer width="100%" height={240}>

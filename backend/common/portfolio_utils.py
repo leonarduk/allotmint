@@ -57,6 +57,7 @@ from backend.timeseries.cache import (
     _MAX_FX_GAP_FILL_DAYS,
     EXCHANGE_TO_CCY,
     align_fx_rates,
+    cache_only,
     cached_fx_rate_to_gbp,
     instrument_currency,
     is_cache_only,
@@ -2428,6 +2429,37 @@ def _ledger_performance_for(owner: str, pricing_date: date | None) -> ledger_per
 def _ledger_window_start(perf: ledger_performance.LedgerPerformance, days: int) -> date | None:
     """Exclusive start of a ``days`` calendar-day window ending at ``perf.end`` (``None``: since inception)."""
     return perf.end - timedelta(days=days) if days else None
+
+
+def compute_fx_attribution(owner: str, days: int = 365, *, pricing_date: date | None = None) -> Dict[str, Any] | None:
+    """Local / FX / income / other split of ``owner``'s ledger P&L over ``days`` (#9804).
+
+    Decomposes the per-instrument P&L of the ledger rebuild over the window
+    ``compute_time_weighted_return`` chains (see
+    :func:`ledger_performance.fx_attribution`), plus ``coverage``: how much
+    of the portfolio's value the rebuilt ledger accounts for, since holdings
+    without a transaction history are not attributed (and nothing is
+    extrapolated to them). Everything is read cache-only (#8028). ``None``
+    when the owner has no ledger history to rebuild.
+    """
+    with cache_only():
+        end = PricingDateCalculator(reporting_date=pricing_date).reporting_date
+        pf = portfolio_mod.build_owner_portfolio(owner, pricing_date=end)
+        holdings = _portfolio_holdings(pf)
+        ledgers = ledger_performance.load_owner_ledgers(owner)
+        perf = ledger_performance.build_ledger_performance(ledgers, end, holdings=holdings)
+        if perf is None or perf.values.empty:
+            return None
+        result = ledger_performance.fx_attribution(perf, _ledger_window_start(perf, days), perf.end)
+    portfolio_value = float(pf.get("total_value_estimate_gbp") or 0.0)
+    ledger_value = float(perf.values.iloc[-1])
+    result["coverage"] = {
+        "ledger_value_gbp": ledger_value,
+        "portfolio_value_gbp": portfolio_value,
+        "share": ledger_value / portfolio_value if portfolio_value > 0 else None,
+        "unreconciled_holdings": list(ledger_performance.unreconciled_instruments(ledgers, holdings)),
+    }
+    return result
 
 
 def _after(series: pd.Series, after: date | None) -> pd.Series:

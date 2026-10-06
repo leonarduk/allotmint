@@ -19,6 +19,7 @@ import type {
   TrackingErrorResponse,
   UnconvertedHolding,
   MaxDrawdownResponse,
+  FxAttributionResponse,
   ReturnComparisonResponse,
   Transaction,
   TransactionWithCompliance,
@@ -1065,6 +1066,22 @@ export const getMaxDrawdown = (
   if (opts.asOf) params.set("as_of", opts.asOf);
   return fetchJson<MaxDrawdownResponse>(
     `${API_BASE}/performance/${owner}/max-drawdown?${params.toString()}`,
+  );
+};
+
+/**
+ * Local / FX / income / other split of the owner's ledger P&L over the same
+ * window as the time-weighted return (#9804). Owner scope only.
+ */
+export const getFxAttribution = (
+  owner: string,
+  days = 365,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams({ days: String(days) });
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  return fetchJson<FxAttributionResponse>(
+    `${API_BASE}/performance/${encodeURIComponent(owner)}/fx-attribution?${params.toString()}`,
   );
 };
 

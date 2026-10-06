@@ -374,7 +374,28 @@
     "timeWeightedReturnInfoLabel": "Que signifie le rendement pondéré dans le temps ?",
     "timeWeightedReturnInfo": "Le rendement pondéré dans le temps mesure le taux de croissance composé du portefeuille, indépendamment du moment et du montant des dépôts et retraits.",
     "xirrInfoLabel": "Que signifie XIRR ?",
-    "xirrInfo": "Le XIRR est le taux de rendement interne annualisé, calculé à partir des flux de trésorerie datés réels du portefeuille."
+    "xirrInfo": "Le XIRR est le taux de rendement interne annualisé, calculé à partir des flux de trésorerie datés réels du portefeuille.",
+    "fxAttribution": {
+      "title": "D'où vient le résultat",
+      "description": "Le gain ou la perte en GBP du portefeuille sur la période choisie, réparti entre variations de prix locales, variations de change, revenus, et opérations et autres effets.",
+      "local": "Variations de prix locales",
+      "fx": "Variations de change",
+      "income": "Revenus",
+      "other": "Opérations et autres",
+      "unattributed": "Non attribué",
+      "total": "Résultat total",
+      "byCurrency": "Par devise de cotation",
+      "currency": "Devise",
+      "notApplicable": "s.o.",
+      "quoteCurrencyNote": "Par devise de cotation : les fonds étrangers cotés en GBP sont comptés comme locaux.",
+      "cashNotModelled": "Les liquidités ne sont pas incluses : le registre des transactions enregistre les liquidités en GBP, donc les variations de change sur les soldes en devises ne sont pas mesurées.",
+      "coverage": "Couvre {{share}} de la valeur du portefeuille ({{ledger}} reconstitué à partir des registres de transactions, sur {{portfolio}}).",
+      "coverageUnknown": "Couverture inconnue : le portefeuille n'a pas de valeur actuelle de comparaison.",
+      "unreconciled": "Positions que le registre des transactions ne reproduit pas, donc non attribuées : {{holdings}}",
+      "unconverted": "Aucun taux de change enregistré certains jours pour {{holdings}} ; les variations de ces jours ne sont pas attribuées.",
+      "noLedger": "Aucun registre de transactions à attribuer.",
+      "unavailable": "L'attribution du résultat est indisponible pour le moment."
+    }
   },
   "goals": {
     "add": "Ajouter un objectif",

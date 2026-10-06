@@ -118,6 +118,15 @@ class LedgerPerformance:
     # paid out of accounts whose cash is not tracked (see the module docstring).
     flows: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
     income: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
+    # Day x instrument: units held at the close, the GBP price they were
+    # valued at, whether that price is a market close (carried forward over
+    # gaps) rather than one implied by a trade, and the income attributed to
+    # the instrument (already inside ``instrument_pnl``). Used by
+    # :func:`fx_attribution` to split ``instrument_pnl``.
+    units: pd.DataFrame = field(default_factory=pd.DataFrame)
+    prices: pd.DataFrame = field(default_factory=pd.DataFrame)
+    market_priced: pd.DataFrame = field(default_factory=pd.DataFrame)
+    instrument_income: pd.DataFrame = field(default_factory=pd.DataFrame)
 
 
 @dataclass
@@ -236,10 +245,12 @@ def _report_unconverted(symbol: str, exchange: str, missing: pd.DatetimeIndex, *
 
 def _price_column(
     key: str, index: pd.DatetimeIndex, implied: pd.Series, loader: PriceLoader
-) -> tuple[pd.Series, bool, Mapping[str, Any] | None]:
+) -> tuple[pd.Series, pd.Series, bool, Mapping[str, Any] | None]:
     """Price ``key`` on every day of ``index``.
 
-    Returns ``(prices, has_market_prices, unconverted)``; ``unconverted`` is
+    Returns ``(prices, market_days, has_market_prices, unconverted)``;
+    ``market_days`` is True where the price is a market close (possibly
+    carried forward) rather than a trade-implied one, and ``unconverted`` is
     the loader's ``attrs[UNCONVERTED_ATTR]`` entry, if any. Market closes are
     carried forward over gaps (dates without an FX rate are such gaps).
     Days before the first close (or every day, for an instrument with no
@@ -256,7 +267,7 @@ def _price_column(
         union = index.union(pd.DatetimeIndex(market.index))
         on_index = market.reindex(union).ffill().reindex(index)
     filled = on_index.fillna(implied.reindex(index).ffill()).bfill()
-    return filled.fillna(0.0), not market.empty, market.attrs.get(UNCONVERTED_ATTR)
+    return filled.fillna(0.0), on_index.notna(), not market.empty, market.attrs.get(UNCONVERTED_ATTR)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -415,8 +426,8 @@ def _replay_accounts(
 
 def _value_instruments(
     units: pd.DataFrame, events: _Events, loader: PriceLoader
-) -> tuple[pd.DataFrame, pd.DataFrame, tuple[str, ...], tuple[Mapping[str, Any], ...]]:
-    """Return ``(prices, values, unpriced_keys, unconverted)`` for every replayed instrument.
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, tuple[str, ...], tuple[Mapping[str, Any], ...]]:
+    """Return ``(prices, market_days, values, unpriced_keys, unconverted)`` for every replayed instrument.
 
     An instrument the loader could not convert to GBP on any date is
     unpriced (valued at trade prices) and also listed in ``unconverted``,
@@ -425,18 +436,19 @@ def _value_instruments(
     index = pd.DatetimeIndex(units.index)
     implied = _keyed_frame(events.implied_prices, index).replace(0.0, float("nan"))
     prices = pd.DataFrame(index=index, dtype=float)
+    market = pd.DataFrame(index=index, dtype=bool)
     unpriced: list[str] = []
     unconverted: list[Mapping[str, Any]] = []
     for key in units.columns:
         implied_key = implied[key] if key in implied.columns else pd.Series(dtype=float)
-        prices[key], has_market, fx_gap = _price_column(key, index, implied_key, loader)
+        prices[key], market[key], has_market, fx_gap = _price_column(key, index, implied_key, loader)
         held = units[key].abs().sum() > 0
         if not has_market and held:
             unpriced.append(key)
         if fx_gap is not None and held:
             unconverted.append(fx_gap)
     unconverted.sort(key=lambda entry: str(entry.get("ticker")))
-    return prices, units * prices, tuple(sorted(unpriced)), tuple(unconverted)
+    return prices, market, units * prices, tuple(sorted(unpriced)), tuple(unconverted)
 
 
 def _chain_returns(values: pd.Series, flows: pd.Series, income: pd.Series) -> tuple[pd.Series, pd.Series]:
@@ -466,7 +478,7 @@ def build_ledger_performance(
     if replayed is None:
         return None
     index, units, cash, events = replayed
-    prices, instrument_values, unpriced, unconverted = _value_instruments(
+    prices, market, instrument_values, unpriced, unconverted = _value_instruments(
         units, events, price_loader or load_gbp_closes
     )
     transfer_flows = _keyed_frame(events.transfer_units, index).reindex(columns=prices.columns, fill_value=0.0)
@@ -497,6 +509,10 @@ def build_ledger_performance(
         unconverted=unconverted,
         flows=flows,
         income=paid_out,
+        units=units,
+        prices=prices,
+        market_priced=market,
+        instrument_income=income.fillna(0.0),
     )
 
 
@@ -666,3 +682,281 @@ def one_year_before(day: date) -> date:
 
 def last_complete_month_end(today: date) -> date:
     return today.replace(day=1) - timedelta(days=1)
+
+
+# ──────────────────────────────────────────────────────────────
+# Local vs FX attribution of the ledger P&L (#9804)
+# ──────────────────────────────────────────────────────────────
+# ``status`` of an instrument's quote currency in :func:`fx_attribution`.
+QUOTE_STERLING = "sterling"  # GBP/GBX: the whole market move is local, FX does not apply
+QUOTE_FOREIGN = "foreign"  # split into local and FX
+QUOTE_MISMATCH = "currency_mismatch"  # the two currency resolvers disagree (#9798): not split
+QUOTE_UNKNOWN = "unknown_currency"  # no quote currency to split by
+QUOTE_UNRESOLVED = "unresolved"  # no listing (a ``name:``/``ref:`` key): trade prices only
+
+# ``unattributed_reasons`` values besides the two unsplittable statuses above.
+UNATTRIBUTED_MISSING_FX = "missing_fx_rate"
+UNATTRIBUTED_NO_MARKET_PRICE = "no_market_price"
+
+FX_ATTRIBUTION_COMPONENTS = ("local_gbp", "fx_gbp", "income_gbp", "residual_gbp", "unattributed_gbp", "pnl_gbp")
+
+
+@dataclass(frozen=True)
+class NativeQuote:
+    """An instrument's quote currency and native closes, for :func:`fx_attribution`.
+
+    ``currency`` is what the instrument is reported under
+    (``portfolio_utils.holding_quote_currency``, GBX folded into GBP);
+    ``conversion`` is the currency the loader's ``Close_gbp`` is converted
+    from (``portfolio_utils._holding_currency``). ``closes`` are native
+    closes with the scaling override applied; they are only loaded for a
+    foreign instrument whose two currencies agree.
+    """
+
+    ticker: str
+    exchange: str
+    currency: str
+    conversion: str
+    closes: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
+
+    @property
+    def status(self) -> str:
+        """Whether the instrument is split, and if not, why (the ``QUOTE_*`` values).
+
+        Mirrors #9798's ``currency_mismatch`` rule: when the reporting currency
+        differs from the one ``Close_gbp`` was converted with, splitting with
+        either rate would not reconcile with the GBP closes, so nothing is
+        split. GBP (a ``conversion`` of GBP with no metadata saying otherwise)
+        needs no rate at all.
+        """
+        from backend.common.portfolio_utils import UNKNOWN_CURRENCY_LABEL
+
+        if self.conversion == "GBP":
+            if self.currency == "GBP":
+                return QUOTE_STERLING
+            return QUOTE_UNKNOWN if self.currency == UNKNOWN_CURRENCY_LABEL else QUOTE_MISMATCH
+        return QUOTE_FOREIGN if self.currency == self.conversion else QUOTE_MISMATCH
+
+
+QuoteLoader = Callable[[str, date, date], "NativeQuote | None"]
+RateLoader = Callable[[str, pd.Index], pd.Series]
+
+
+def load_native_quote(key: str, start: date, end: date) -> NativeQuote | None:
+    """Quote currency and (for a foreign instrument) scaled native closes of ``key``.
+
+    Uses the instrument split's helpers (#9798): the same two currency
+    resolvers (see :class:`NativeQuote`; there is no third rule) and the same
+    cache-only, scaled native closes. ``None`` for a key with no listing.
+    """
+    from backend.common.fx_return_split import native_closes, quote_currencies
+
+    resolved = _resolve_symbol(key)
+    if resolved is None:
+        return None
+    symbol, exchange = resolved
+    quote = NativeQuote(symbol, exchange, *quote_currencies(symbol, exchange))
+    if quote.status != QUOTE_FOREIGN:
+        return quote
+    closes = native_closes(symbol, exchange, start, end)
+    return NativeQuote(symbol, exchange, quote.currency, quote.conversion, closes)
+
+
+def _gbp_rates(currency: str, dates: pd.Index) -> pd.Series:
+    """The bounded-fill stored rates the GBP value series uses (#9759); never a fallback constant."""
+    from backend.common import portfolio_utils
+
+    return portfolio_utils._gbp_rates(currency, dates)
+
+
+def _native_and_rate(quote: NativeQuote, index: pd.DatetimeIndex, rates: RateLoader) -> tuple[pd.Series, pd.Series]:
+    """Native close and GBP rate in effect on each day of ``index``, both taken from the same close date.
+
+    A day takes the last native close on or before it and that close date's
+    rate, exactly the pair the loader's ``Close_gbp`` of that date was built
+    from, so ``P * X`` follows the GBP price the position was valued at.
+    A close date without a rate stays NaN: it is never filled from an
+    earlier rate beyond the bounded rule ``rates`` applies.
+    """
+    closes = quote.closes
+    nan = pd.Series(float("nan"), index=index)
+    if closes.empty:
+        return nan, nan.copy()
+    rate = rates(quote.currency, closes.index).to_numpy(dtype=float)
+    rate = np.where(rate > 0, rate, np.nan)  # a non-positive stored rate is no rate (as in #9798)
+    position = closes.index.searchsorted(index, side="right") - 1
+    known = position >= 0
+    at = position.clip(min=0)
+    native = np.where(known, closes.to_numpy(dtype=float)[at], np.nan)
+    return pd.Series(native, index=index), pd.Series(np.where(known, rate[at], np.nan), index=index)
+
+
+def _daily_split(perf: LedgerPerformance, key: str, quote: NativeQuote | None, rates: RateLoader) -> pd.DataFrame:
+    """Each day's market move of ``key`` on opening units, split into local/FX or left unattributed.
+
+    With opening units ``u``, native close ``P`` and rate ``X``::
+
+        local = u * (P_t - P_{t-1}) * X_{t-1}
+        fx    = u * P_t * (X_t - X_{t-1})
+
+    so ``local + fx = u * (P_t X_t - P_{t-1} X_{t-1})``, with the daily cross
+    term folded into FX. A sterling instrument's whole move is local. A day
+    whose price at either end is not a market close (trade-implied), or whose
+    rate at either end is missing, is not split: its market move
+    ``u * (G_t - G_{t-1})`` (``G`` the GBP valuation price) is unattributed.
+    """
+    index = pd.DatetimeIndex(perf.instrument_pnl.index)
+    opening = perf.units[key].shift(1, fill_value=0.0)
+    market = perf.market_priced[key].astype(bool)
+    move = opening * perf.prices[key].diff().fillna(0.0)
+    priced = market & market.shift(1, fill_value=False)
+    status = quote.status if quote is not None else QUOTE_UNRESOLVED
+    held = opening != 0
+    zero = pd.Series(0.0, index=index)
+    local, fx, missing_fx = zero, zero, pd.Series(False, index=index)
+    split = pd.Series(False, index=index)
+    if status == QUOTE_STERLING:
+        split = priced
+        local = move.where(split, 0.0)
+    elif status == QUOTE_FOREIGN and quote is not None:
+        native, rate = _native_and_rate(quote, index, rates)
+        has_native = native.notna() & native.shift(1).notna()
+        missing_fx = held & has_native & (rate.isna() | rate.shift(1).isna())
+        split = priced & has_native & ~missing_fx
+        local = (opening * native.diff() * rate.shift(1)).where(split, 0.0)
+        fx = (opening * native * rate.diff()).where(split, 0.0)
+    unsplittable = status in (QUOTE_MISMATCH, QUOTE_UNKNOWN)
+    return pd.DataFrame(
+        {
+            "local": local,
+            "fx": fx,
+            "unattributed": move.where(~split, 0.0),
+            "missing_fx": missing_fx,
+            "no_price": held & ~split & ~missing_fx & (not unsplittable),
+            "unsplit": held & ~split,
+        },
+        index=index,
+    )
+
+
+def _unattributed_reasons(status: str, daily: pd.DataFrame) -> list[str]:
+    if status in (QUOTE_MISMATCH, QUOTE_UNKNOWN):
+        return [status] if daily["unsplit"].any() else []
+    reasons = [UNATTRIBUTED_MISSING_FX] if daily["missing_fx"].any() else []
+    return reasons + ([UNATTRIBUTED_NO_MARKET_PRICE] if daily["no_price"].any() else [])
+
+
+def _instrument_attribution(
+    perf: LedgerPerformance, key: str, quote: NativeQuote | None, daily: pd.DataFrame, after: date | None, through: date
+) -> dict[str, Any]:
+    """One instrument's window totals; the residual is whatever the market-move split leaves of its P&L."""
+    from backend.common.portfolio_utils import UNKNOWN_CURRENCY_LABEL
+
+    status = quote.status if quote is not None else QUOTE_UNRESOLVED
+    pnl = float(_window(perf.instrument_pnl[key], after, through).sum())
+    income = float(_window(perf.instrument_income[key], after, through).sum()) if key in perf.instrument_income else 0.0
+    local, fx, unattributed = (float(daily[column].sum()) for column in ("local", "fx", "unattributed"))
+    currency = "GBP" if status == QUOTE_STERLING else quote.currency if quote is not None else UNKNOWN_CURRENCY_LABEL
+    return {
+        "key": key,
+        "ticker": f"{quote.ticker}.{quote.exchange}" if quote is not None else key,
+        "name": perf.names.get(key),
+        "currency": currency,
+        "quote_status": status,
+        "fx_applicable": status in (QUOTE_FOREIGN, QUOTE_MISMATCH),
+        "local_gbp": local,
+        "fx_gbp": fx,
+        "income_gbp": income,
+        "residual_gbp": pnl - local - fx - income - unattributed,
+        "unattributed_gbp": unattributed,
+        "pnl_gbp": pnl,
+        "unattributed_days": int(daily["unsplit"].sum()),
+        "unattributed_reasons": _unattributed_reasons(status, daily),
+    }
+
+
+def _sum_components(rows: Sequence[Mapping[str, Any]]) -> dict[str, float]:
+    return {component: float(sum(row[component] for row in rows)) for component in FX_ATTRIBUTION_COMPONENTS}
+
+
+def _by_currency(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Component totals per quote currency; FX applies to every currency but GBP and Unknown."""
+    from backend.common.portfolio_utils import UNKNOWN_CURRENCY_LABEL
+
+    grouped: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    for row in rows:
+        grouped[str(row["currency"])].append(row)
+    return [
+        {
+            "currency": currency,
+            "fx_applicable": currency not in ("GBP", UNKNOWN_CURRENCY_LABEL),
+            **_sum_components(members),
+        }
+        for currency, members in sorted(grouped.items())
+    ]
+
+
+def _active_instruments(perf: LedgerPerformance, after: date | None, through: date) -> list[str]:
+    """Instruments held, traded or paying income in ``(after, through]``."""
+    pnl = _window(perf.instrument_pnl, after, through)
+    opening = _window(perf.units.shift(1, fill_value=0.0), after, through)
+    held = opening.abs().sum() > 0
+    return [str(key) for key in pnl.columns if held.get(key, False) or bool(pnl[key].abs().sum() > 0)]
+
+
+def fx_attribution(
+    perf: LedgerPerformance,
+    after: date | None,
+    through: date,
+    *,
+    quote_loader: QuoteLoader | None = None,
+    rate_loader: RateLoader | None = None,
+) -> dict[str, Any]:
+    """Split each instrument's ledger P&L over ``(after, through]`` into local, FX, income and residual.
+
+    Decomposes :attr:`LedgerPerformance.instrument_pnl` (so :func:`contributions`)
+    rather than applying a period-endpoint formula, because units change
+    through trades, transfers and reinvested income (see
+    :func:`_daily_split` for the daily formulae). Per instrument and in
+    total, ``local + fx + income + residual + unattributed == pnl`` exactly:
+
+    - ``income`` is the dividends/interest attributed to the instrument (GBP,
+      not split);
+    - ``residual`` is what is left: trade prices versus the close on trade
+      and transfer days;
+    - ``unattributed`` is the market move on days that cannot be split (an
+      FX gap, a trade-implied price, or an instrument whose currency is
+      unknown or ambiguous), listed with its reasons; instruments with FX
+      gaps are also reported under ``unconverted_holdings`` (#9671 shape).
+
+    Grouping is by quote currency, so a GBP-listed fund holding foreign
+    assets counts as local. Cash is not attributed: the ledger books every
+    cash amount as GBP, so FX on foreign cash balances is not modelled.
+    """
+    from backend.common.portfolio_utils import UNCONVERTED_HOLDINGS_KEY, _report_unconverted
+
+    load_quote = quote_loader or load_native_quote
+    rates = rate_loader or _gbp_rates
+    rows: list[dict[str, Any]] = []
+    unconverted: list[dict[str, Any]] = []
+    for key in _active_instruments(perf, after, through):
+        quote = load_quote(key, perf.inception, perf.end)
+        daily = _window(_daily_split(perf, key, quote, rates), after, through)
+        row = _instrument_attribution(perf, key, quote, daily, after, through)
+        rows.append(row)
+        gaps = pd.DatetimeIndex(daily.index[daily["missing_fx"].to_numpy(dtype=bool)])
+        if quote is not None and not gaps.empty:
+            excluded = key in perf.unpriced  # no GBP close on any date: valued at trade prices
+            unconverted.append(
+                _report_unconverted(quote.ticker, quote.exchange, quote.currency, gaps, excluded=excluded)
+            )
+    rows.sort(key=lambda row: -abs(row["pnl_gbp"]))
+    return {
+        "after": after.isoformat() if after is not None else None,
+        "through": through.isoformat(),
+        "totals": _sum_components(rows),
+        "by_currency": _by_currency(rows),
+        "instruments": rows,
+        UNCONVERTED_HOLDINGS_KEY: sorted(unconverted, key=lambda entry: str(entry.get("ticker"))),
+        "cash_fx_modelled": False,
+    }

@@ -322,6 +322,61 @@ export interface UnconvertedHolding {
   last?: string;
 }
 
+/**
+ * GBP P&L components of `/performance/{owner}/fx-attribution` (#9804). They
+ * add up: local + fx + income + residual + unattributed == pnl.
+ */
+export interface FxAttributionComponents {
+  local_gbp: number;
+  fx_gbp: number;
+  income_gbp: number;
+  /** Trade prices vs the close on trade days, and anything else not a market move. */
+  residual_gbp: number;
+  /** Market moves that could not be split (FX gaps, trade-implied prices, unknown currency). */
+  unattributed_gbp: number;
+  pnl_gbp: number;
+}
+
+export interface FxAttributionCurrency extends FxAttributionComponents {
+  currency: string;
+  /** False for GBP (FX is 0 by definition, not measured) and Unknown. */
+  fx_applicable: boolean;
+}
+
+export interface FxAttributionInstrument extends FxAttributionComponents {
+  key: string;
+  ticker: string;
+  name?: string | null;
+  currency: string;
+  quote_status: string;
+  fx_applicable: boolean;
+  unattributed_days: number;
+  unattributed_reasons: string[];
+}
+
+export interface FxAttribution {
+  after: string | null;
+  through: string;
+  totals: FxAttributionComponents;
+  by_currency: FxAttributionCurrency[];
+  instruments: FxAttributionInstrument[];
+  unconverted_holdings: UnconvertedHolding[];
+  /** Always false: the ledger books cash in GBP, so FX on foreign cash is absent. */
+  cash_fx_modelled: boolean;
+  coverage: {
+    ledger_value_gbp: number;
+    portfolio_value_gbp: number;
+    share: number | null;
+    unreconciled_holdings: string[];
+  };
+}
+
+export interface FxAttributionResponse {
+  owner: string;
+  /** Null when the owner has no transaction ledger to rebuild. */
+  fx_attribution: FxAttribution | null;
+}
+
 export interface AlphaSeriesPoint {
   date: string;
   portfolio_cumulative_return: number;

@@ -54,3 +54,43 @@ export function assetClassLabel(
   const trimmed = typeof value === 'string' ? value.trim() : '';
   return trimmed || fallback;
 }
+
+// Mirrors backend/common/sub_asset_class.py (#9543): Bond and Commodity can
+// be targeted by sub-class on the rebalance page. Keys match allotmint-pro's
+// backtest_portfolio asset-class blocks.
+export const SUB_ASSET_CLASSES: Record<
+  string,
+  Array<{ key: string; label: string }>
+> = {
+  bond: [
+    { key: 'long_gilts', label: 'Long gilts' },
+    { key: 'intermediate_gilts', label: 'Intermediate gilts' },
+    { key: 'short_gilts', label: 'Short gilts / ultrashort' },
+    { key: 'index_linked', label: 'Index-linked' },
+    { key: 'overseas_government', label: 'Overseas government' },
+    { key: 'corporate_bonds', label: 'Corporate / credit' },
+  ],
+  commodity: [
+    { key: 'gold', label: 'Gold' },
+    { key: 'commodities', label: 'Other commodities' },
+  ],
+};
+
+const SUB_ASSET_CLASS_LABELS: Record<string, string> = Object.fromEntries(
+  Object.values(SUB_ASSET_CLASSES).flatMap((subs) =>
+    subs.map(({ key, label }) => [key, label])
+  )
+);
+
+/** Parent asset class of a sub-class key, or ``null`` for anything else. */
+export function subAssetClassParent(key: string): string | null {
+  for (const [parent, subs] of Object.entries(SUB_ASSET_CLASSES)) {
+    if (subs.some((sub) => sub.key === key)) return parent;
+  }
+  return null;
+}
+
+/** Label for a rebalance target key: a sub-class or an asset class. */
+export function allocationKeyLabel(key: string): string {
+  return SUB_ASSET_CLASS_LABELS[key] ?? assetClassLabel(key, key);
+}

@@ -16,17 +16,22 @@ import type {
 import EmptyState from '../components/EmptyState';
 import { sanitizeOwners } from '../utils/owners';
 import { useRoute } from '../RouteContext';
-
-/** Canonical asset classes, matching backend ASSET_CLASSES / ASSET_CLASS_LABELS. */
-const ASSET_CLASSES: Array<{ key: string; label: string }> = [
-  { key: 'equity', label: 'Equity' },
-  { key: 'bond', label: 'Bond' },
-  { key: 'cash', label: 'Cash' },
-  { key: 'commodity', label: 'Commodity' },
-  { key: 'property', label: 'Property' },
-  { key: 'multi-asset', label: 'Multi-asset' },
-];
-const LABELS = Object.fromEntries(ASSET_CLASSES.map((c) => [c.key, c.label]));
+import {
+  ASSET_CLASSES,
+  currentWeights,
+  draftFromCurrent,
+  draftFromTargets,
+  draftTotal,
+  splitTotal,
+  targetsFromDraft,
+  toggleSplit,
+  type TargetDraft,
+} from '../lib/allocationTargets';
+import {
+  SUB_ASSET_CLASSES,
+  allocationKeyLabel,
+  assetClassLabel,
+} from '../lib/assetClass';
 
 const pct = new Intl.NumberFormat('en-GB', {
   minimumFractionDigits: 2,
@@ -37,26 +42,11 @@ const gbp = new Intl.NumberFormat('en-GB', {
   currency: 'GBP',
 });
 
-type DraftTargets = Record<string, string>;
-
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
-function draftFromTargets(targets: Record<string, number>): DraftTargets {
-  return Object.fromEntries(
-    ASSET_CLASSES.map(({ key }) => [
-      key,
-      targets[key] != null ? String(targets[key]) : '',
-    ])
-  );
-}
-
-function sumDraft(draft: DraftTargets): number {
-  return Object.values(draft).reduce((sum, value) => {
-    const parsed = parseFloat(value);
-    return Number.isFinite(parsed) ? sum + parsed : sum;
-  }, 0);
-}
+const formatCurrent = (value: number | undefined) =>
+  value == null ? '—' : `${pct.format(value)}%`;
 
 function useOwnerSelection() {
   const route = useRoute();
@@ -122,6 +112,105 @@ function useRebalancePlan(owner: string) {
   return { plan, loading, error, reload };
 }
 
+function TargetInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <input
+      type="number"
+      step="any"
+      min="0"
+      max="100"
+      className="w-full border p-1"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={`Target % for ${label}`}
+    />
+  );
+}
+
+/** One asset class row, plus its sub-class rows when it is split. */
+function TargetRows({
+  assetClass,
+  label,
+  draft,
+  current,
+  onValue,
+  onToggle,
+}: {
+  assetClass: string;
+  label: string;
+  draft: TargetDraft;
+  current: Record<string, number>;
+  onValue: (key: string, value: string) => void;
+  onToggle: (parent: string) => void;
+}) {
+  const subs = SUB_ASSET_CLASSES[assetClass];
+  const isSplit = draft.split.includes(assetClass);
+  return (
+    <>
+      <tr>
+        <td className="px-2 py-1">
+          {label}
+          {subs && (
+            <button
+              type="button"
+              className="ml-2 text-xs text-blue-600 underline dark:text-blue-400"
+              aria-expanded={isSplit}
+              aria-label={
+                isSplit
+                  ? `Combine ${label} sub-classes`
+                  : `Split ${label} by sub-class`
+              }
+              onClick={() => onToggle(assetClass)}
+            >
+              {isSplit ? 'Combine' : 'Split'}
+            </button>
+          )}
+        </td>
+        <td className="px-2 py-1 text-right">
+          {formatCurrent(current[assetClass])}
+        </td>
+        <td className="px-2 py-1">
+          {isSplit ? (
+            <span className="text-sm text-slate-500 dark:text-slate-400">
+              {pct.format(splitTotal(draft, assetClass))}% (sum of sub-classes)
+            </span>
+          ) : (
+            <TargetInput
+              label={label}
+              value={draft.values[assetClass] ?? ''}
+              onChange={(value) => onValue(assetClass, value)}
+            />
+          )}
+        </td>
+      </tr>
+      {isSplit &&
+        subs.map((sub) => (
+          <tr key={sub.key}>
+            <td className="px-2 py-1 pl-6">{sub.label}</td>
+            <td className="px-2 py-1 text-right">
+              {formatCurrent(current[sub.key])}
+            </td>
+            <td className="px-2 py-1">
+              <TargetInput
+                label={sub.label}
+                value={draft.values[sub.key] ?? ''}
+                onChange={(value) => onValue(sub.key, value)}
+              />
+            </td>
+          </tr>
+        ))}
+    </>
+  );
+}
+
 function TargetEditor({
   owner,
   plan,
@@ -131,40 +220,31 @@ function TargetEditor({
   plan: RebalancePlan;
   onSaved: () => Promise<void>;
 }) {
-  const [draft, setDraft] = useState<DraftTargets>(() =>
+  const [draft, setDraft] = useState<TargetDraft>(() =>
     draftFromTargets(plan.policy.targets)
   );
   const [tolerance, setTolerance] = useState(String(plan.policy.tolerance_pct));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const current = useMemo(() => currentWeights(plan), [plan]);
 
   useEffect(() => {
     setDraft(draftFromTargets(plan.policy.targets));
     setTolerance(String(plan.policy.tolerance_pct));
   }, [plan.policy]);
 
-  const total = sumDraft(draft);
+  const total = draftTotal(draft);
   const totalOk = Math.abs(total - 100) <= 0.01;
-
-  const useCurrent = () => {
-    const current = Object.fromEntries(
-      plan.classes.map((row) => [row.asset_class, row.current_pct])
-    );
-    setDraft(draftFromTargets(current));
-  };
+  const setValue = (key: string, value: string) =>
+    setDraft((d) => ({ ...d, values: { ...d.values, [key]: value } }));
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    const targets: Record<string, number> = {};
-    for (const [key, value] of Object.entries(draft)) {
-      const parsed = parseFloat(value);
-      if (Number.isFinite(parsed) && parsed > 0) targets[key] = parsed;
-    }
     setSaving(true);
     setError(null);
     try {
       await saveAllocationPolicy(owner, {
-        targets,
+        targets: targetsFromDraft(draft),
         tolerance_pct: parseFloat(tolerance),
       });
       await onSaved();
@@ -179,37 +259,31 @@ function TargetEditor({
     <form onSubmit={handleSave} className="mb-6" aria-label="Target allocation">
       <h2 className="mb-2 text-xl">Target allocation</h2>
       <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-        Set the share of your whole portfolio each asset class should be. Trades
-        are only suggested for classes that drift further than the tolerance
-        band.
+        Set the share of your whole portfolio each asset class should be. Split
+        Bond or Commodity to target sub-classes instead, such as long gilts or
+        gold. Trades are only suggested for classes that drift further than the
+        tolerance band.
       </p>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
             <tr>
               <th className="px-2 py-1 text-left">Asset class</th>
+              <th className="px-2 py-1 text-right">Current %</th>
               <th className="px-2 py-1 text-left">Target %</th>
             </tr>
           </thead>
           <tbody>
             {ASSET_CLASSES.map(({ key, label }) => (
-              <tr key={key}>
-                <td className="px-2 py-1">{label}</td>
-                <td className="px-2 py-1">
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    max="100"
-                    className="w-full border p-1"
-                    value={draft[key] ?? ''}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, [key]: e.target.value }))
-                    }
-                    aria-label={`Target % for ${label}`}
-                  />
-                </td>
-              </tr>
+              <TargetRows
+                key={key}
+                assetClass={key}
+                label={label}
+                draft={draft}
+                current={current}
+                onValue={setValue}
+                onToggle={(parent) => setDraft((d) => toggleSplit(d, parent))}
+              />
             ))}
           </tbody>
         </table>
@@ -235,7 +309,7 @@ function TargetEditor({
         />
         <button
           type="button"
-          onClick={useCurrent}
+          onClick={() => setDraft((d) => draftFromCurrent(plan, d.split))}
           className="rounded bg-gray-200 px-2 py-1 text-slate-900"
         >
           Start from current allocation
@@ -259,6 +333,11 @@ function driftStatus(row: RebalanceClassRow): {
   text: string;
   className: string;
 } {
+  if (row.parent != null && row.parent === row.asset_class)
+    return {
+      text: 'Needs a sub-class',
+      className: 'text-amber-600 dark:text-amber-400',
+    };
   if (row.in_band == null || row.drift_pct == null)
     return { text: '—', className: '' };
   if (row.in_band)
@@ -266,6 +345,12 @@ function driftStatus(row: RebalanceClassRow): {
   return row.drift_pct > 0
     ? { text: 'Overweight', className: 'text-red-600 dark:text-red-400' }
     : { text: 'Underweight', className: 'text-amber-600 dark:text-amber-400' };
+}
+
+/** "Bond › Long gilts" for sub-class rows; the backend label otherwise. */
+function driftLabel(row: RebalanceClassRow): string {
+  if (row.parent == null || row.parent === row.asset_class) return row.label;
+  return `${assetClassLabel(row.parent)} › ${row.label}`;
 }
 
 function DriftTable({ plan }: { plan: RebalancePlan }) {
@@ -289,7 +374,7 @@ function DriftTable({ plan }: { plan: RebalancePlan }) {
               const status = driftStatus(row);
               return (
                 <tr key={row.asset_class}>
-                  <td className="px-2 py-1">{row.label}</td>
+                  <td className="px-2 py-1">{driftLabel(row)}</td>
                   <td className="px-2 py-1 text-right">
                     {gbp.format(row.current_value)}
                   </td>
@@ -358,9 +443,7 @@ function TradeTable({ trades }: { trades: RebalanceTrade[] }) {
             >
               {t.action.toUpperCase()}
             </td>
-            <td className="px-2 py-1">
-              {LABELS[t.asset_class] ?? t.asset_class}
-            </td>
+            <td className="px-2 py-1">{allocationKeyLabel(t.asset_class)}</td>
             <td className="px-2 py-1 text-right">{gbp.format(t.amount)}</td>
             <td className="px-2 py-1">{t.ticker ?? 'Choose an instrument'}</td>
           </tr>

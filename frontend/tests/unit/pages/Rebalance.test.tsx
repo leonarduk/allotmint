@@ -265,6 +265,131 @@ describe('Rebalance page', () => {
     expect(within(form).queryByText('SELL')).not.toBeInTheDocument();
   });
 
+  it('splits Bond into sub-classes and saves sub-class targets', async () => {
+    mockSaveAllocationPolicy.mockResolvedValue({
+      targets: { equity: 60, long_gilts: 15, short_gilts: 25 },
+      tolerance_pct: 5,
+    });
+    await renderPage();
+    const split = await screen.findByRole('button', {
+      name: 'Split Bond by sub-class',
+    });
+    expect(split).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(split);
+
+    expect(
+      screen.queryByLabelText('Target % for Bond')
+    ).not.toBeInTheDocument();
+    const save = screen.getByRole('button', { name: 'Save targets' });
+    expect(save).toBeDisabled(); // 60% until sub-classes are filled in
+    fireEvent.change(screen.getByLabelText('Target % for Long gilts'), {
+      target: { value: '15' },
+    });
+    fireEvent.change(
+      screen.getByLabelText('Target % for Short gilts / ultrashort'),
+      { target: { value: '25' } }
+    );
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+
+    await waitFor(() =>
+      expect(mockSaveAllocationPolicy).toHaveBeenCalledWith('alex', {
+        targets: { equity: 60, long_gilts: 15, short_gilts: 25 },
+        tolerance_pct: 5,
+      })
+    );
+  });
+
+  it('opens split classes and shows sub-class drift rows from a sub-class policy', async () => {
+    mockGetRebalancePlan.mockResolvedValue(
+      makePlan({
+        policy: {
+          targets: { equity: 60, long_gilts: 30, gold: 10 },
+          tolerance_pct: 5,
+        },
+        classes: [
+          {
+            asset_class: 'equity',
+            parent: null,
+            label: 'Equity',
+            current_value: 1200,
+            current_pct: 60,
+            target_pct: 60,
+            drift_pct: 0,
+            in_band: true,
+          },
+          {
+            asset_class: 'long_gilts',
+            parent: 'bond',
+            label: 'Long gilts',
+            current_value: 600,
+            current_pct: 30,
+            target_pct: 30,
+            drift_pct: 0,
+            in_band: true,
+          },
+          {
+            asset_class: 'bond',
+            parent: 'bond',
+            label: 'Bond — no sub-class',
+            current_value: 200,
+            current_pct: 10,
+            target_pct: null,
+            drift_pct: null,
+            in_band: null,
+          },
+        ],
+        sub_classes: [
+          {
+            asset_class: 'long_gilts',
+            parent: 'bond',
+            label: 'Long gilts',
+            current_value: 600,
+            current_pct: 30,
+          },
+          {
+            asset_class: 'bond',
+            parent: 'bond',
+            label: 'Bond — no sub-class',
+            current_value: 200,
+            current_pct: 10,
+          },
+        ],
+        trades: [
+          {
+            account_id: '0',
+            account: 'ISA',
+            asset_class: 'gold',
+            action: 'buy',
+            amount: 100,
+            ticker: 'PHGP.L',
+          },
+        ],
+      })
+    );
+    await renderPage();
+    const drift = await screen.findByRole('region', {
+      name: 'Allocation drift',
+    });
+    expect(within(drift).getByText('Bond › Long gilts')).toBeInTheDocument();
+    const unresolved = within(drift)
+      .getByText('Bond — no sub-class')
+      .closest('tr') as HTMLElement;
+    expect(
+      within(unresolved).getByText('Needs a sub-class')
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByRole('button', { name: 'Combine Bond sub-classes' })
+    ).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText('Target % for Long gilts')).toHaveValue(30);
+    expect(screen.getByLabelText('Target % for Gold')).toHaveValue(10);
+    expect(screen.getByText('Total: 100.00%')).toBeInTheDocument();
+
+    const trades = screen.getByRole('region', { name: 'Suggested trades' });
+    expect(within(trades).getByText('Gold')).toBeInTheDocument();
+  });
+
   it('reports plan load failures', async () => {
     mockGetRebalancePlan.mockRejectedValue(new Error('boom'));
     const { default: Rebalance } = await import('@/pages/Rebalance');

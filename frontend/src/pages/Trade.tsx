@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { validateTrade } from "../api";
 import type { Transaction } from "../types";
 
 export default function Trade() {
+  const { t } = useTranslation();
   const [tx, setTx] = useState<Transaction>({
     owner: "",
     account: "",
@@ -29,7 +31,7 @@ export default function Trade() {
         return;
       }
       setErrors([]);
-      setStatus("Trade valid");
+      setStatus(t("trade.valid"));
       // submit trade here
     } catch (err) {
       setErrors([String(err)]);
@@ -40,34 +42,34 @@ export default function Trade() {
     <form onSubmit={handleSubmit} style={{ maxWidth: 400, margin: "1rem auto" }}>
       <div>
         <label>
-          Owner
+          {t("trade.owner")}
           <input name="owner" value={tx.owner} onChange={handleChange} />
         </label>
       </div>
       <div>
         <label>
-          Account
+          {t("trade.account")}
           <input name="account" value={tx.account} onChange={handleChange} />
         </label>
       </div>
       <div>
         <label>
-          Ticker
+          {t("trade.ticker")}
           <input name="ticker" value={tx.ticker ?? ""} onChange={handleChange} />
         </label>
       </div>
       <div>
         <label>
-          Type
+          {t("trade.type")}
           <select name="type" value={tx.type ?? ""} onChange={handleChange}>
-            <option value="buy">Buy</option>
-            <option value="sell">Sell</option>
+            <option value="buy">{t("trade.buy")}</option>
+            <option value="sell">{t("trade.sell")}</option>
           </select>
         </label>
       </div>
       <div>
         <label>
-          Date
+          {t("trade.date")}
           <input
             type="date"
             name="date"
@@ -86,7 +88,7 @@ export default function Trade() {
         </div>
       )}
       {status && <div>{status}</div>}
-      <button type="submit">Submit Trade</button>
+      <button type="submit">{t("trade.submit")}</button>
     </form>
   );
 }

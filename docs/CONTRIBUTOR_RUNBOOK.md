@@ -173,7 +173,7 @@ Under the timeseries cache base (`<data root>/timeseries` in allotmint-data):
 | Path | Contents |
 | --- | --- |
 | `meta/<SYMBOL>_<EXCHANGE>.parquet` | Daily `Date, Open, High, Low, Close, Volume, Ticker, Source`. Prices are the **traded price** (#9340): Yahoo is called with `auto_adjust=False`, so `Close` is split-adjusted (history restated in post-split units, matching holdings' unit counts) but **not** dividend-adjusted. |
-| `corporate_actions/<SYMBOL>_<EXCHANGE>.parquet` | One row per event: `Date` (ex-date), `Action` (`dividend`, `split`, `capital_gain`), `Value` (cash per share in the price's units, or the split ratio), `Currency`, `Source`. Filled from the same Yahoo call as the prices and merged incrementally; read with `backend.timeseries.corporate_actions.load_dividends`. |
+| `corporate_actions/<SYMBOL>_<EXCHANGE>.parquet` | One row per event: `Date` (ex-date), `Action` (`dividend`, `split`, `capital_gain`), `Value` (cash per share in the price's units, or the split ratio), `Currency`, `Source`. Filled from the same Yahoo call as the prices and merged incrementally; read with `backend.timeseries.corporate_actions.load_dividends`. A successful fetch writes the file even with no events (#9567); its pandas metadata (`DataFrame.attrs["confirmed_from"]`) records the date the events are complete from (the earliest fetch window's start). |
 
 Valuations use `Close` as stored. For total return (price plus reinvested
 dividends) use `backend.timeseries.total_return.total_return_index`; never
@@ -183,7 +183,8 @@ tracking error, trading-agent volatility; #9370) go through
 `total_return_closes` / `total_return_frame`, which load the stored dividends
 and report a `return_basis`: `total`, or `price` when the ticker has no
 `corporate_actions` file (dividend history unknown -- never read as "no
-dividends paid"). Price displays and valuations (`timeseries_for_ticker` and
+dividends paid"), or its file has no dividends but is only confirmed from
+after the first close (a rolling fetch that checked just the last few days). Price displays and valuations (`timeseries_for_ticker` and
 its 7d/30d changes, `ledger_performance`, `compute_owner_performance`,
 `compute_max_drawdown`) stay on the traded price. Stooq
 back-adjusts for dividends, so `backend.timeseries.source_basis` only lets

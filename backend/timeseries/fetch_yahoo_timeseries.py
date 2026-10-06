@@ -127,8 +127,9 @@ def fetch_yahoo_history(full_ticker: str, start_date: date, end_date: date) -> t
 
     Returns ``(prices, actions)``: ``prices`` in ``STANDARD_COLUMNS`` on the
     raw basis (see ``YAHOO_HISTORY_KWARGS``), ``actions`` in
-    ``corporate_actions.ACTION_COLUMNS``. Raises ``ValueError`` when Yahoo
-    returns no rows.
+    ``corporate_actions.ACTION_COLUMNS``, confirmed complete from
+    ``start_date`` (``attrs[CONFIRMED_FROM]``) even when empty. Raises
+    ``ValueError`` when Yahoo returns no rows, so a failed fetch confirms nothing.
     """
     stock = yf.Ticker(full_ticker)
     raw = stock.history(
@@ -139,14 +140,16 @@ def fetch_yahoo_history(full_ticker: str, start_date: date, end_date: date) -> t
     )
     if raw.empty:
         raise ValueError(f"No data returned for {full_ticker} between {start_date} and {end_date}")
-    actions = actions_from_history(raw, currency=_history_currency(stock), source="Yahoo")
+    actions = actions_from_history(raw, currency=_history_currency(stock), source="Yahoo", window_start=start_date)
     return normalize_history(raw, full_ticker, "Yahoo"), actions
 
 
 def _store_actions(ticker: str, exchange: str, actions: pd.DataFrame) -> None:
-    """Persist fetched dividends/splits; a failure here must not lose the prices."""
-    if actions.empty:
-        return
+    """Persist fetched dividends/splits; a failure here must not lose the prices.
+
+    An empty frame from a successful fetch still records that the window was
+    checked and none were paid (#9567); ``record_corporate_actions`` decides.
+    """
     symbol = ticker.split(".")[0]
     try:
         record_corporate_actions(symbol, exchange, actions)

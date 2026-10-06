@@ -155,6 +155,46 @@ _BUILTIN_DEFINITIONS: tuple[Strategy, ...] = (
         ),
     ),
     Strategy(
+        id="golden_butterfly_intermediate",
+        name="Golden Butterfly, intermediate gilts",
+        targets={
+            "broad_equity": 20.0,
+            "small_cap_value": 20.0,
+            "intermediate_gilts": 20.0,
+            "short_gilts": 20.0,
+            "gold": 20.0,
+        },
+        description=(
+            "The Golden Butterfly with intermediate gilts in place of long gilts for less interest-rate "
+            "sensitivity."
+        ),
+        source="Variant of the Portfolio Charts Golden Butterfly; no backtest_portfolio preset.",
+        uk_mapping=(
+            "Broad equity: a global all-cap tracker. Small-cap value: a small-cap value fund. Intermediate "
+            f"gilts (3-10 years duration) and short gilts (0-5 years) or ultrashort. {_GOLD}"
+        ),
+    ),
+    Strategy(
+        id="golden_butterfly_50_50",
+        name="Golden Butterfly, 50/50 gilts",
+        targets={
+            "broad_equity": 20.0,
+            "small_cap_value": 20.0,
+            "long_gilts": 10.0,
+            "intermediate_gilts": 10.0,
+            "short_gilts": 20.0,
+            "gold": 20.0,
+        },
+        description=(
+            "The Golden Butterfly with the long-bond sleeve split equally between long and intermediate gilts."
+        ),
+        source="Variant of the Portfolio Charts Golden Butterfly; no backtest_portfolio preset.",
+        uk_mapping=(
+            "Broad equity: a global all-cap tracker. Small-cap value: a small-cap value fund. Long, "
+            f"intermediate and short gilts. {_GOLD}"
+        ),
+    ),
+    Strategy(
         id="golden_butterfly_no_scv",
         name="Golden Butterfly without small-value, long gilts",
         targets={"equity": 40.0, "long_gilts": 20.0, "short_gilts": 20.0, "gold": 20.0},

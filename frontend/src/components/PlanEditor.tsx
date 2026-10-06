@@ -518,7 +518,7 @@ function GoalSection({
       onChange={onChange}
       blank={(): GoalRow => ({
         name: '',
-        purpose: 'retirement',
+        purpose: 'other',
         target_date: '',
         amount: '',
         priority: '',

@@ -75,9 +75,12 @@
     }
   },
   "allocation": {
+    "currency": "Valute",
+    "currencyNote": "Esposizione per valuta di quotazione: la valuta in cui è quotata ogni posizione, non la sua esposizione sottostante (un fondo globale quotato in GBP conta come GBP). Include tutti i conti di questo gruppo.",
     "instrumentTypes": "Tipi di strumenti",
     "region": "Regioni",
-    "sector": "Industrie"
+    "sector": "Industrie",
+    "unknownCurrency": "Valuta sconosciuta"
   },
   "app": {
     "close": "Chiudi",

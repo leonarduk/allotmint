@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
-import { getGroupPortfolio } from "../api";
-import type { Account, GroupPortfolio } from "../types";
+import { getGroupCurrencyContributions, getGroupPortfolio } from "../api";
+import type { Account, CurrencyContribution, GroupPortfolio } from "../types";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { money } from "../lib/money";
 import { useConfig } from "../ConfigContext";
@@ -44,6 +44,29 @@ const isInvalidNumericInput = (value: unknown): boolean => {
 
 const isDevEnvironment = (): boolean => import.meta.env.MODE !== "production";
 
+type AllocationView = "asset" | "sector" | "region" | "currency";
+
+const ALLOCATION_VIEWS: readonly AllocationView[] = ["asset", "sector", "region", "currency"];
+
+const isAllocationView = (value: string | null): value is AllocationView =>
+  value !== null && (ALLOCATION_VIEWS as readonly string[]).includes(value);
+
+/** Backend label for holdings whose quote currency could not be resolved. */
+const UNKNOWN_CURRENCY = "Unknown";
+
+/** Pie slices for the quote-currency view, largest first; non-positive groups have no slice. */
+const toCurrencySlices = (
+  rows: CurrencyContribution[],
+  unknownLabel: string,
+): { name: string; value: number }[] =>
+  rows
+    .map((row) => ({
+      name: row.quote_currency === UNKNOWN_CURRENCY ? unknownLabel : row.quote_currency,
+      value: toFiniteNumber(row.market_value_gbp),
+    }))
+    .filter((slice) => slice.value > 0)
+    .sort((a, b) => b.value - a.value);
+
 export type AllocationChartsProps = {
   /** Portfolio group slug (defaults to "all"). */
   slug?: string;
@@ -54,9 +77,9 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const [searchParams] = useSearchParams();
   const resolvedSlug = searchParams.get("group") || slug;
   const requestedView = searchParams.get("view");
-  const initialView = requestedView === "sector" || requestedView === "region" ? requestedView : "asset";
+  const initialView: AllocationView = isAllocationView(requestedView) ? requestedView : "asset";
   const { baseCurrency, relativeViewEnabled } = useConfig();
-  const [view, setView] = useState<"asset" | "sector" | "region">(initialView);
+  const [view, setView] = useState<AllocationView>(initialView);
   const [sectorData, setSectorData] = useState<{ name: string; value: number }[]>(
     [],
   );
@@ -66,6 +89,11 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const [assetData, setAssetData] = useState<{ name: string; value: number }[]>(
     [],
   );
+  // Quote-currency exposure comes from the backend (#9686), which folds GBX
+  // into GBP and resolves a holding's currency from its listing. It covers the
+  // whole group: the endpoint has no per-account filter.
+  const [currencyRows, setCurrencyRows] = useState<CurrencyContribution[] | null>(null);
+  const [currencyError, setCurrencyError] = useState<string | null>(null);
   const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[] | null>(
     null,
@@ -177,6 +205,26 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   }, [portfolio, selectedAccounts, t]);
 
   useEffect(() => {
+    setCurrencyRows(null);
+    setCurrencyError(null);
+  }, [resolvedSlug]);
+
+  useEffect(() => {
+    if (view !== "currency" || currencyRows !== null) return;
+    let cancelled = false;
+    getGroupCurrencyContributions(resolvedSlug)
+      .then((rows) => {
+        if (!cancelled) setCurrencyRows(rows);
+      })
+      .catch((e) => {
+        if (!cancelled) setCurrencyError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [view, resolvedSlug, currencyRows]);
+
+  useEffect(() => {
     if (!portfolio) return;
     const total = portfolio.accounts.length;
     const selectedCount =
@@ -195,8 +243,18 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
     );
   }
 
-  const chartData =
-    view === "asset" ? assetData : view === "sector" ? sectorData : regionData;
+  const currencyData = toCurrencySlices(
+    currencyRows ?? [],
+    t("allocation.unknownCurrency", { defaultValue: "Unknown currency" }),
+  );
+  const chartDataByView: Record<AllocationView, { name: string; value: number }[]> = {
+    asset: assetData,
+    sector: sectorData,
+    region: regionData,
+    currency: currencyData,
+  };
+  const chartData = chartDataByView[view];
+  const isCurrencyView = view === "currency";
 
   const total = chartData.reduce((sum, d) => sum + d.value, 0);
   const allKeys = portfolio?.accounts.map((acct, idx) => accountKey(acct, idx)) ?? [];
@@ -242,8 +300,16 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
         <button onClick={() => setView("region")} disabled={view === "region"}>
           {t("allocation.region")}
         </button>
+        <button onClick={() => setView("currency")} disabled={isCurrencyView}>
+          {t("allocation.currency", { defaultValue: "Currencies" })}
+        </button>
       </div>
-      {portfolio && (
+      {isCurrencyView && (
+        <p className="mb-4 text-sm text-gray-600" data-testid="currency-exposure-note">
+          {t("allocation.currencyNote")}
+        </p>
+      )}
+      {portfolio && !isCurrencyView && (
         <div className="mb-4 flex flex-wrap gap-4">
           <label className="flex items-center gap-1 font-semibold">
             <input
@@ -274,6 +340,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
         </div>
       )}
       {error && <p className="text-red-500">{error}</p>}
+      {isCurrencyView && currencyError && <p className="text-red-500">{currencyError}</p>}
       <div style={{ width: "100%", height: 400 }}>
         {supportsResizeObserver ? (
           <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>

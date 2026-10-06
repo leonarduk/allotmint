@@ -166,6 +166,25 @@ export type RegionContribution = {
   unknown_cost_market_value_gbp?: number;
 };
 
+/**
+ * One group of `GET /portfolio/{owner}/currencies` or
+ * `/portfolio-group/{slug}/currencies` (#9686): exposure by the currency an
+ * instrument is *quoted* in (GBX folded into GBP), not its underlying
+ * economic exposure. `currency` is the reporting currency.
+ */
+export type CurrencyContribution = {
+  quote_currency: string;
+  market_value_gbp: number;
+  gain_gbp: number;
+  cost_gbp: number;
+  currency?: string | null;
+  gain_pct?: number | null;
+  contribution_pct?: number | null;
+  weight_pct?: number | null;
+  /** Market value of holdings left out of gain/cost (unreliable cost basis, #8488). */
+  unknown_cost_market_value_gbp?: number;
+};
+
 export interface PerformancePoint {
   date: string;
   value: number;

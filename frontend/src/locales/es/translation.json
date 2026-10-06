@@ -75,9 +75,12 @@
     }
   },
   "allocation": {
+    "currency": "Divisas",
+    "currencyNote": "Exposición por divisa de cotización: la divisa en la que cotiza cada posición, no su exposición subyacente (un fondo global cotizado en GBP cuenta como GBP). Incluye todas las cuentas de este grupo.",
     "instrumentTypes": "Tipos de instrumentos",
     "region": "Regiones",
-    "sector": "Industrias"
+    "sector": "Industrias",
+    "unknownCurrency": "Divisa desconocida"
   },
   "app": {
     "close": "Cerrar",

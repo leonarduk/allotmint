@@ -47,6 +47,7 @@ import type {
   TrailResponse,
   SectorContribution,
   RegionContribution,
+  CurrencyContribution,
   UserConfig,
   InstrumentMetadata,
   InstrumentGroupDefinition,
@@ -533,6 +534,20 @@ export const getOwnerSectorContributions = (
   return fetchJson<SectorContribution[]>(url);
 };
 
+/** Retrieve exposure aggregated by quote currency for an owner portfolio (#9686). */
+export const getOwnerCurrencyContributions = (
+  owner: string,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams();
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  const qs = params.toString();
+  const url = qs
+    ? `${API_BASE}/portfolio/${owner}/currencies?${qs}`
+    : `${API_BASE}/portfolio/${owner}/currencies`;
+  return fetchJson<CurrencyContribution[]>(url);
+};
+
 // Same in-flight-only sharing as `getOwners` above and `getConfig` below.
 type GroupsParseResult = ReturnType<typeof groupsContractSchema.parse>;
 let inFlightGroupsFetch: Promise<GroupsParseResult> | null = null;
@@ -904,6 +919,20 @@ export const getGroupRegionContributions = (
     ? `${API_BASE}/portfolio-group/${slug}/regions?${qs}`
     : `${API_BASE}/portfolio-group/${slug}/regions`;
   return fetchJson<RegionContribution[]>(url);
+};
+
+/** Retrieve exposure aggregated by quote currency for a group portfolio (#9686). */
+export const getGroupCurrencyContributions = (
+  slug: string,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams();
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  const qs = params.toString();
+  const url = qs
+    ? `${API_BASE}/portfolio-group/${slug}/currencies?${qs}`
+    : `${API_BASE}/portfolio-group/${slug}/currencies`;
+  return fetchJson<CurrencyContribution[]>(url);
 };
 
 /** Fetch performance metrics for an owner */

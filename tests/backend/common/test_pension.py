@@ -57,15 +57,45 @@ def test_state_pension_age_invalid_inputs() -> None:
 
 
 @pytest.mark.parametrize(
-    "dob, today",
+    "dob, today, expected",
     [
-        ("2000-01-01", dt.date(2024, 1, 1)),
-        ("1980-06-15", dt.date(2020, 6, 15)),
+        ("2000-01-01", dt.date(2024, 1, 1), 24.0),
+        ("1980-06-15", dt.date(2020, 6, 15), 40.0),
+        # 182 of the 365 days from 2026-03-11 to 2027-03-11 have elapsed.
+        ("2013-03-11", dt.date(2026, 9, 9), 13 + 182 / 365),
     ],
 )
-def test_age_from_dob_fractional_years(dob: str, today: dt.date) -> None:
-    expected = (today - dt.date.fromisoformat(dob)).days / 365.25
+def test_age_from_dob_fractional_years(dob: str, today: dt.date, expected: float) -> None:
     assert _age_from_dob(dob, today) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "dob, today, expected_whole_years",
+    [
+        # days / 365.25 gave 12.9993 here, so int() was a day late (#9546).
+        ("2013-03-11", dt.date(2026, 3, 11), 13),
+        ("2013-03-11", dt.date(2026, 3, 10), 12),
+        ("2013-03-11", dt.date(2026, 10, 6), 13),
+        # 29 Feb birthdays fall on 1 Mar in non-leap years.
+        ("2004-02-29", dt.date(2025, 2, 28), 20),
+        ("2004-02-29", dt.date(2025, 3, 1), 21),
+        ("2004-02-29", dt.date(2028, 2, 29), 24),
+    ],
+)
+def test_age_from_dob_whole_years_match_calendar_age(dob: str, today: dt.date, expected_whole_years: int) -> None:
+    age = _age_from_dob(dob, today)
+    assert age is not None
+    assert int(age) == expected_whole_years
+
+
+def test_forecast_pension_starts_at_calendar_age_on_birthday() -> None:
+    result = forecast_pension(
+        dob="2013-03-11",
+        retirement_age=68,
+        death_age=70,
+        today=dt.date(2026, 3, 11),
+    )
+    assert result["forecast"][0]["age"] == 13
 
 
 def test_age_from_dob_invalid_and_future_dates() -> None:

@@ -47,8 +47,22 @@ def state_pension_age_uk(dob: str) -> int:
     return 68
 
 
+def _birthday_in(dob: dt.date, year: int) -> dt.date:
+    """Return the birthday of ``dob`` in ``year``; 29 Feb falls on 1 Mar in non-leap years."""
+    try:
+        return dob.replace(year=year)
+    except ValueError:
+        return dt.date(year, 3, 1)
+
+
 def _age_from_dob(dob_str: Optional[str], today: Optional[dt.date] = None) -> Optional[float]:
-    """Convert YYYY-MM-DD string to fractional years age."""
+    """Convert a YYYY-MM-DD string to age in years.
+
+    The whole part is the calendar age, so ``int()`` of the result is exact
+    on and around birthdays (``days / 365.25`` was a day late, #9546). The
+    fractional part is the share of the current birthday-to-birthday year
+    that has elapsed.
+    """
     if not dob_str:
         return None
     today = today or dt.date.today()
@@ -56,7 +70,13 @@ def _age_from_dob(dob_str: Optional[str], today: Optional[dt.date] = None) -> Op
         dob = dt.date.fromisoformat(dob_str)
     except ValueError:
         return None
-    return (today - dob).days / 365.25
+    years = today.year - dob.year
+    if today < _birthday_in(dob, today.year):
+        years -= 1
+    last_birthday = _birthday_in(dob, dob.year + years)
+    next_birthday = _birthday_in(dob, dob.year + years + 1)
+    elapsed = (today - last_birthday).days / (next_birthday - last_birthday).days
+    return years + elapsed
 
 
 def state_pension_age(dob_str: Optional[str]) -> Optional[int]:

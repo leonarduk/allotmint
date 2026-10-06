@@ -64,6 +64,7 @@ def get_yahoo_suffix(exchange: str) -> str:
         "TO": ".TO",
         "ASX": ".AX",
         "F": ".F",
+        "MI": ".MI",
         "FX": "=X",
     }
     suffix = exchange_map.get(exchange.upper())

@@ -121,6 +121,7 @@ EXCHANGE_TO_CCY = {
     "F": "EUR",
     "PARIS": "EUR",
     "XETRA": "EUR",
+    "MI": "EUR",
     "SW": "CHF",
     "JP": "JPY",
     "CA": "CAD",

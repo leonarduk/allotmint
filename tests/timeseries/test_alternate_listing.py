@@ -1,0 +1,419 @@
+"""An alternate exchange listing as an instrument's price source (#9657).
+
+yfinance, the FX store and instrument metadata are all faked; a socket guard
+fails any test that tries to reach the network.
+"""
+
+from __future__ import annotations
+
+import importlib
+import logging
+import socket
+from datetime import date, datetime, timedelta
+
+import pandas as pd
+import pytest
+
+from backend.timeseries import alternate_listing
+from backend.timeseries import fetch_meta_timeseries as fmt
+from backend.timeseries.alternate_listing import (
+    FX_FFILL_DAYS,
+    PriceSource,
+    apply_price_source,
+    convert_prices,
+    overlay_alternate_listing,
+    parse_price_source,
+    validate_price_source,
+)
+from backend.timeseries.source_basis import (
+    alternate_listing_source,
+    compatible_rows,
+    is_alternate_listing_source,
+)
+from backend.utils.timeseries_helpers import STANDARD_COLUMNS
+
+LABEL = "Yahoo:AIGE.MI→USD"
+AIGE_META = {
+    "ticker": "AIGE.L",
+    "exchange": "L",
+    "currency": "USD",
+    "name": "WisdomTree Energy",
+    "price_source": {"ticker": "AIGE", "exchange": "MI", "currency": "EUR"},
+}
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("network access attempted")
+
+    monkeypatch.setattr(socket.socket, "connect", refuse)
+    monkeypatch.setattr(socket, "create_connection", refuse)
+
+
+class FakeTicker:
+    """Stands in for ``yfinance.Ticker``."""
+
+    def __init__(self, history: pd.DataFrame, currency: str = "EUR"):
+        self._history = history
+        self.history_metadata = {"currency": currency}
+
+    def history(self, **kwargs):
+        assert kwargs["auto_adjust"] is False and kwargs["actions"] is True
+        start, end = pd.Timestamp(kwargs["start"]), pd.Timestamp(kwargs["end"])
+        return self._history[(self._history.index >= start) & (self._history.index < end)]
+
+
+def _yahoo_frame(days, closes, volume=100.0, dividends=None) -> pd.DataFrame:
+    frame = pd.DataFrame(
+        {"Open": closes, "High": closes, "Low": closes, "Close": closes, "Volume": volume},
+        index=pd.DatetimeIndex(pd.to_datetime(days), name="Date"),
+    )
+    frame["Dividends"] = dividends if dividends is not None else 0.0
+    frame["Stock Splits"] = 0.0
+    return frame
+
+
+def _install_yahoo(monkeypatch, history: pd.DataFrame, currency: str = "EUR") -> list[str]:
+    calls: list[str] = []
+
+    def factory(symbol):
+        calls.append(symbol)
+        return FakeTicker(history, currency)
+
+    monkeypatch.setattr(alternate_listing.yf, "Ticker", factory)
+    return calls
+
+
+def _install_fx(monkeypatch, rates: dict[str, dict[str, float]]) -> None:
+    def load(currency, start, end):
+        table = rates.get(currency, {})
+        frame = pd.DataFrame({"Date": pd.to_datetime(list(table)), "Rate": list(table.values())})
+        if frame.empty:
+            return frame
+        days = frame["Date"].dt.date
+        return frame[(days >= start) & (days <= end)].reset_index(drop=True)
+
+    monkeypatch.setattr(alternate_listing, "_load_fx", load)
+
+
+def _rows(days, closes, *, source="Yahoo", volume=100.0, ticker="AIGE.L") -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "Date": pd.to_datetime(days),
+            "Open": closes,
+            "High": closes,
+            "Low": closes,
+            "Close": closes,
+            "Volume": volume,
+            "Ticker": ticker,
+            "Source": source,
+        }
+    )[STANDARD_COLUMNS]
+
+
+# ── metadata ──────────────────────────────────────────────────
+
+
+def test_parse_reads_the_block_and_defaults_currency_from_exchange():
+    meta = {**AIGE_META, "price_source": {"ticker": "aige.mi", "exchange": "mi"}}
+    assert parse_price_source(meta, own="AIGE.L") == PriceSource("AIGE", "MI", "EUR")
+    assert parse_price_source({"currency": "USD"}) is None
+
+
+@pytest.mark.parametrize(
+    ("block", "currency", "problem"),
+    [
+        ({"ticker": "AIGE", "exchange": "MOON"}, "USD", "unsupported exchange"),
+        ({"ticker": "../x", "exchange": "MI"}, "USD", "invalid ticker"),
+        ({"ticker": "AIGE", "exchange": "L"}, "USD", "own listing"),
+        ({"ticker": "AIGE", "exchange": "MI", "currency": "GBp"}, "USD", "currency 'GBp'"),
+        ({"ticker": "AIGE", "exchange": "MI"}, "GBX", "instrument currency"),
+        ("AIGE.MI", "USD", "JSON object"),
+    ],
+)
+def test_validate_reports_bad_blocks(block, currency, problem):
+    problems = validate_price_source({"currency": currency, "price_source": block}, own="AIGE.L")
+    assert any(problem in p for p in problems), problems
+    with pytest.raises(ValueError):
+        parse_price_source({"currency": currency, "price_source": block}, own="AIGE.L")
+
+
+def test_source_label_round_trips():
+    assert alternate_listing_source("aige.mi", "usd") == LABEL
+    assert is_alternate_listing_source(LABEL)
+    for other in ("Yahoo", "Stooq", "Yahoo:AIGE.MI", None, 1.0):
+        assert not is_alternate_listing_source(other)
+
+
+# ── conversion maths and FX gaps ──────────────────────────────
+
+
+def test_convert_uses_same_date_cross_rate_and_rounds_to_six_figures(monkeypatch):
+    _install_fx(
+        monkeypatch,
+        {"EUR": {"2026-09-01": 0.85, "2026-09-02": 0.86}, "USD": {"2026-09-01": 0.75, "2026-09-02": 0.74}},
+    )
+    prices = _rows(["2026-09-01", "2026-09-02"], [5.0, 5.123456789], ticker="AIGE.MI")
+
+    out = convert_prices(prices, from_ccy="EUR", to_ccy="USD", source=LABEL)
+
+    # EUR -> USD is EUR_rate / USD_rate (both GBP per unit) on the same date.
+    assert out["Close"].tolist() == [round(5.0 * 0.85 / 0.75, 5), float(f"{5.123456789 * 0.86 / 0.74:.6g}")]
+    assert out["Open"].tolist() == out["Close"].tolist()
+    assert out["Volume"].tolist() == [100.0, 100.0]
+    assert set(out["Source"]) == {LABEL}
+
+
+def test_convert_carries_fx_forward_a_few_days_only_and_never_invents(monkeypatch, caplog):
+    friday = date(2026, 9, 4)
+    _install_fx(monkeypatch, {"EUR": {"2026-09-04": 0.86}, "USD": {"2026-09-04": 0.74}})
+    within = friday + timedelta(days=FX_FFILL_DAYS)
+    beyond = friday + timedelta(days=FX_FFILL_DAYS + 1)
+    before = friday - timedelta(days=1)
+    prices = _rows([before, friday, within, beyond], [5.0, 5.0, 5.0, 5.0], ticker="AIGE.MI")
+
+    with caplog.at_level(logging.WARNING):
+        out = convert_prices(prices, from_ccy="EUR", to_ccy="USD", source=LABEL)
+
+    assert [d.date() for d in pd.to_datetime(out["Date"])] == [friday, within]
+    assert out["Close"].tolist() == [float(f"{5.0 * 0.86 / 0.74:.6g}")] * 2
+    assert "Dropping 2" in caplog.text
+
+
+def test_convert_to_or_from_gbp_needs_one_rate(monkeypatch):
+    _install_fx(monkeypatch, {"EUR": {"2026-09-01": 0.85}})
+    prices = _rows(["2026-09-01"], [10.0], ticker="X.MI")
+    assert convert_prices(prices, from_ccy="EUR", to_ccy="GBP", source="s")["Close"].tolist() == [8.5]
+    assert convert_prices(prices, from_ccy="GBP", to_ccy="EUR", source="s")["Close"].tolist() == [
+        float(f"{10 / 0.85:.6g}")
+    ]
+
+
+def test_convert_with_no_stored_fx_drops_everything(monkeypatch):
+    _install_fx(monkeypatch, {})
+    prices = _rows(["2026-09-01"], [10.0], ticker="X.MI")
+    assert convert_prices(prices, from_ccy="EUR", to_ccy="USD", source="s").empty
+
+
+# ── merge rule ────────────────────────────────────────────────
+
+
+def test_overlay_keeps_real_native_rows_and_fills_everything_else():
+    days = pd.bdate_range("2026-09-01", periods=6)
+    converted = _rows(days, [5.0, 5.1, 5.2, 5.3, 5.4, 5.5], source=LABEL, volume=50.0)
+    extra = _rows(["2026-09-09"], [float("nan")], source=LABEL)  # no close on the other listing either
+    converted = pd.concat([converted, extra], ignore_index=True)
+    native = pd.concat(
+        [
+            _rows(days[:1], [5.01]),  # real close and volume: kept
+            _rows(days[1:2], [float("nan")], volume=202.0),  # no close: converted
+            _rows(days[2:3], [5.19], volume=0.0),  # no volume: converted
+        ]
+    )
+    # A stored native row with a real close is not overwritten even though
+    # this fetch did not return it; an earlier converted row is not "native".
+    stored = pd.concat([_rows(days[3:4], [5.31]), _rows(days[4:5], [5.39], source=LABEL)])
+
+    out = overlay_alternate_listing(native, stored, converted, label="AIGE.L").set_index("Date")
+
+    assert list(out.index) == [days[0], days[1], days[2], days[4], days[5]]
+    assert out.loc[days[0], "Source"] == "Yahoo" and out.loc[days[0], "Close"] == 5.01
+    for day, close in [(days[1], 5.1), (days[2], 5.2), (days[4], 5.4), (days[5], 5.5)]:
+        assert out.loc[day, "Source"] == LABEL and out.loc[day, "Close"] == close
+
+
+def test_overlay_keeps_an_untraded_native_close_when_the_other_listing_did_not_trade_either():
+    days = pd.bdate_range("2026-09-01", periods=4)
+    converted = _rows(days, [5.0, 5.1, 5.2, 5.3], source=LABEL, volume=0.0)
+    native = pd.concat(
+        [
+            _rows(days[:1], [5.0]),  # real: kept
+            _rows(days[1:2], [5.09], volume=0.0),  # neither traded: native kept
+            _rows(days[2:3], [float("nan")], volume=0.0),  # no close: filled even untraded
+        ]
+    )  # days[3] missing: filled even untraded
+
+    out = overlay_alternate_listing(native, native.iloc[:0], converted, label="AIGE.L").set_index("Date")
+
+    assert out["Source"].tolist() == ["Yahoo", "Yahoo", LABEL, LABEL]
+    assert out["Close"].tolist() == [5.0, 5.09, 5.2, 5.3]
+
+
+def test_overlay_keeps_an_untraded_native_close_the_other_listing_disagrees_with():
+    """A stale print on the other venue (AIGE.MI, July 2012) must not replace a stored close."""
+    days = pd.bdate_range("2026-09-01", periods=4)
+    converted = _rows(days, [5.0, 5.05, 4.6, 5.0], source=LABEL, volume=50.0)
+    native = pd.concat(
+        [
+            _rows(days[:1], [5.0]),
+            _rows(days[1:3], [5.0, 5.0], volume=0.0),  # untraded: 1% off replaced, 8% off kept
+            _rows(days[3:4], [5.0]),
+        ]
+    )
+
+    out = overlay_alternate_listing(native, native.iloc[:0], converted, label="AIGE.L").set_index("Date")
+
+    assert out["Source"].tolist() == ["Yahoo", LABEL, "Yahoo", "Yahoo"]
+    assert out["Close"].tolist() == [5.0, 5.05, 5.0, 5.0]
+
+
+def test_overlay_refuses_a_listing_on_another_basis(caplog):
+    days = pd.bdate_range("2026-09-01", periods=4)
+    native = _rows(days[:2], [5.0, 5.0])
+    converted = _rows(days, [6.0, 6.0, 6.0, 6.0], source=LABEL)  # 20% off
+
+    with caplog.at_level(logging.WARNING):
+        out = overlay_alternate_listing(native, native.iloc[:0], converted, label="AIGE.L")
+
+    assert out is native
+    assert "do not match" in caplog.text
+
+
+def test_overlay_checks_against_traded_rows_not_stooq():
+    """0.7% apart on every date: fine against Yahoo, too far for Stooq's 0.5% per-date rule."""
+    days = pd.bdate_range("2026-09-01", periods=4)
+    stored = pd.concat([_rows(days[:2], [5.0, 5.0], source="Stooq"), _rows(days[2:3], [5.0])])
+    converted = _rows(days, [5.035] * 4, source=LABEL)
+
+    out = overlay_alternate_listing(stored.iloc[:0], stored, converted, label="AIGE.L")
+
+    # Not refused; dates with a real native close (Stooq or Yahoo) stay native.
+    assert out["Source"].tolist() == [LABEL]
+    assert out["Date"].tolist() == [days[3]]
+
+
+def test_overlay_falls_back_to_stored_converted_rows_for_continuity(caplog):
+    days = pd.bdate_range("2026-09-01", periods=3)
+    stored = _rows(days[:1], [5.0], source=LABEL)
+    jumped = _rows(days, [7.0, 7.0, 7.0], source=LABEL)
+    with caplog.at_level(logging.WARNING):
+        out = overlay_alternate_listing(stored.iloc[:0], stored, jumped, label="AIGE.L")
+    assert out.empty and "do not match" in caplog.text
+
+
+def test_overlay_without_converted_rows_returns_native_unchanged():
+    native = _rows(["2026-09-01"], [5.0])
+    assert overlay_alternate_listing(native, native, native.iloc[:0], label="AIGE.L") is native
+
+
+def test_compatible_rows_keeps_gap_only_alternate_rows():
+    existing = _rows(pd.bdate_range("2026-09-01", periods=3), [5.0, 5.0, 5.0])
+    gaps = pd.concat([_rows(["2026-09-07"], [5.1], source=LABEL), _rows(["2026-09-08"], [5.1], source="Stooq")])
+    kept = compatible_rows(existing, gaps, label="AIGE.L")
+    assert kept["Source"].tolist() == [LABEL]
+
+
+# ── apply_price_source ────────────────────────────────────────
+
+
+def test_apply_fetches_converts_and_labels(monkeypatch, caplog):
+    days = pd.bdate_range("2026-09-01", periods=3)
+    calls = _install_yahoo(monkeypatch, _yahoo_frame(days, [5.0, 5.1, 5.2], dividends=[0.0, 0.1, 0.0]))
+    _install_fx(monkeypatch, {"EUR": {str(d.date()): 0.85 for d in days}, "USD": {str(d.date()): 0.75 for d in days}})
+    monkeypatch.setattr(alternate_listing, "get_instrument_meta", lambda _t: AIGE_META)
+    monkeypatch.setattr(alternate_listing, "_stored_series", lambda *_a: pd.DataFrame(columns=STANDARD_COLUMNS))
+    native = _rows(days[:1], [5.67])
+
+    with caplog.at_level(logging.WARNING):
+        out = apply_price_source(native, "AIGE", "L", days[0].date(), days[-1].date())
+
+    assert calls == ["AIGE.MI"]
+    assert out["Source"].tolist() == ["Yahoo", LABEL, LABEL]
+    assert set(out["Ticker"]) == {"AIGE.L"}
+    assert out["Close"].tolist()[1:] == [float(f"{c * 0.85 / 0.75:.6g}") for c in (5.1, 5.2)]
+    assert "Ignoring 1 dividends on alternate listing AIGE.MI" in caplog.text
+
+
+def test_apply_refuses_a_listing_quoted_in_another_currency(monkeypatch, caplog):
+    days = pd.bdate_range("2026-09-01", periods=2)
+    _install_yahoo(monkeypatch, _yahoo_frame(days, [5.0, 5.1]), currency="USD")
+    monkeypatch.setattr(alternate_listing, "get_instrument_meta", lambda _t: AIGE_META)
+    native = _rows(days[:1], [5.0])
+
+    with caplog.at_level(logging.WARNING):
+        out = apply_price_source(native, "AIGE", "L", days[0].date(), days[-1].date())
+
+    assert out is native
+    assert "quoted in USD" in caplog.text
+
+
+def test_apply_leaves_instruments_without_the_field_alone(monkeypatch):
+    calls = _install_yahoo(monkeypatch, _yahoo_frame([], []))
+    monkeypatch.setattr(alternate_listing, "get_instrument_meta", lambda _t: {"currency": "GBP", "name": "x"})
+    native = _rows(["2026-09-01"], [5.0])
+    assert apply_price_source(native, "ABC", "L", date(2026, 9, 1), date(2026, 9, 1)) is native
+    assert calls == []
+
+
+def test_fetch_meta_timeseries_without_the_field_is_unchanged(monkeypatch):
+    days = pd.bdate_range("2026-09-01", periods=5)
+    native = _rows(days, [1.0] * 5, ticker="ABC.L")
+    calls = _install_yahoo(monkeypatch, _yahoo_frame([], []))
+    monkeypatch.setattr(fmt, "is_valid_ticker", lambda *_a: True)
+    monkeypatch.setattr(fmt, "fetch_yahoo_timeseries_range", lambda *_a, **_k: native)
+    monkeypatch.setattr(alternate_listing, "get_instrument_meta", lambda _t: {"currency": "GBP", "name": "ABC"})
+
+    out = fmt.fetch_meta_timeseries("ABC", "L", start_date=days[0].date(), end_date=days[-1].date())
+
+    assert out is native
+    assert calls == []
+
+
+# ── through the rolling cache ─────────────────────────────────
+
+
+@pytest.fixture
+def cache_base(monkeypatch, tmp_path):
+    cache = importlib.import_module("backend.timeseries.cache")
+    monkeypatch.setattr(cache, "_CACHE_BASE", str(tmp_path))
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache, "_FX_FRAMES", {})
+    return cache
+
+
+def _write_fx(cache, currency: str, days, rate: float) -> None:
+    path = cache._fx_cache_path(currency)
+    cache._ensure_local_dir(path)
+    pd.DataFrame({"Date": pd.to_datetime(days).astype("datetime64[ms]"), "Rate": rate}).to_parquet(path, index=False)
+
+
+def test_refresh_fills_stored_gaps_from_the_alternate_listing(cache_base, monkeypatch):
+    cache = cache_base
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 30)
+    days = pd.bdate_range(end=pd.Timestamp(window_end), periods=10)
+    _write_fx(cache, "EUR", days, 0.85)
+    _write_fx(cache, "USD", days, 0.75)
+    path = cache._cache_path("meta", "AIGE_L.parquet")
+    stored = _rows(days[:8], [5.0] * 8)
+    stored.loc[[2, 5], ["Open", "High", "Low", "Close"]] = float("nan")
+    cache._save_parquet(stored, path)
+
+    mi_close = 4.41  # 4.41 EUR * 0.85 / 0.75 = 4.998 USD, within 0.04% of the stored 5.0
+    _install_yahoo(monkeypatch, _yahoo_frame(days, [mi_close] * 10))
+    monkeypatch.setattr(alternate_listing, "get_instrument_meta", lambda _t: AIGE_META)
+    monkeypatch.setattr(fmt, "is_valid_ticker", lambda *_a: True)
+    monkeypatch.setattr(fmt, "fetch_yahoo_timeseries_range", lambda *_a, **_k: _rows(days[-1:], [5.02]))
+    monkeypatch.setattr(fmt, "fetch_stooq_timeseries_range", lambda *_a, **_k: pd.DataFrame(columns=STANDARD_COLUMNS))
+    monkeypatch.setattr(fmt, "fetch_ft_df", lambda *_a, **_k: pd.DataFrame(columns=STANDARD_COLUMNS))
+    monkeypatch.setattr(fmt.config, "alpha_vantage_enabled", False, raising=False)
+
+    cache._rolling_cache(
+        # A 5-day window inside the stored range: the refresh extends it forward
+        # and its 14-day overlap re-covers every stored date.
+        fmt.fetch_meta_timeseries,
+        path,
+        {"ticker": "AIGE", "exchange": "L"},
+        5,
+        ticker="AIGE",
+        exchange="L",
+    )
+
+    saved = cache._load_parquet(path).set_index("Date")
+    converted = float(f"{mi_close * 0.85 / 0.75:.6g}")
+    assert len(saved) == 10
+    assert saved["Close"].notna().all()
+    assert saved.loc[days[[2, 5, 8]], "Source"].tolist() == [LABEL] * 3
+    assert saved.loc[days[[2, 5, 8]], "Close"].tolist() == [converted] * 3
+    assert saved.loc[days[[0, 1, 3, 4, 6, 7]], "Close"].tolist() == [5.0] * 6
+    assert saved.loc[days[9], "Source"] == "Yahoo" and saved.loc[days[9], "Close"] == 5.02

@@ -972,7 +972,7 @@
       "otherSwitches": "Other Switches",
       "save": "Save",
       "tabsEnabled": "Tabs Enabled",
-      "title": "Configuration",
+      "title": "Switches & parameters",
       "mcpTools": "MCP tools",
       "mcpToolsHint": "Tools the chat assistant can use. All are on by default; untick to switch one off.",
       "mcpToolNotConfigured": "Not configured",
@@ -1097,7 +1097,7 @@
       "sent": "Sent"
     },
     "telegramMessage": "Telegram Message",
-    "title": "Support"
+    "title": "Configuration"
   },
   "timeseries": {
     "loading": "Loading…"

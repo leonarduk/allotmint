@@ -501,6 +501,16 @@ def test_compute_owner_performance_respects_flagged_and_cash(monkeypatch):
         date.fromisoformat(payload["previous_date"])
 
 
+def _flat_usd_rate(monkeypatch) -> None:
+    """Store a flat 1.0 USD->GBP rate, so NYSE.N lines keep their native sums.
+
+    ``compute_owner_performance`` converts USD lines at the stored rate
+    (#9678); these holiday tests are about date alignment, not FX.
+    """
+    rates = pd.DataFrame({"Date": pd.date_range("2023-12-01", "2024-01-31"), "Rate": 1.0})
+    monkeypatch.setattr(pu, "load_fx_history", lambda curr, start=None, end=None: rates)
+
+
 def test_compute_owner_performance_forward_fills_exchange_holiday(monkeypatch):
     """Regression test for #6857: a single-exchange holiday (e.g. a UK bank
     holiday closing an LSE-listed holding while a NYSE-listed holding in the
@@ -544,6 +554,7 @@ def test_compute_owner_performance_forward_fills_exchange_holiday(monkeypatch):
         "load_meta_timeseries",
         lambda ticker, exchange, days: frames.get((ticker, exchange), pd.DataFrame()).copy(),
     )
+    _flat_usd_rate(monkeypatch)
 
     result = pu.compute_owner_performance("owner", days=10)
 
@@ -602,6 +613,7 @@ def test_compute_owner_performance_forward_fills_multi_day_gap(monkeypatch):
         "load_meta_timeseries",
         lambda ticker, exchange, days: frames.get((ticker, exchange), pd.DataFrame()).copy(),
     )
+    _flat_usd_rate(monkeypatch)
 
     result = pu.compute_owner_performance("owner", days=10)
 

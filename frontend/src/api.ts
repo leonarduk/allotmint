@@ -16,6 +16,7 @@ import type {
   VarBreakdownResponse,
   AlphaResponse,
   TrackingErrorResponse,
+  UnconvertedHolding,
   MaxDrawdownResponse,
   ReturnComparisonResponse,
   Transaction,
@@ -956,6 +957,7 @@ export const getPerformance = (
       previous_value: number;
       next_value: number;
     }[];
+    unconverted_holdings?: UnconvertedHolding[];
   }>(
     `${API_BASE}/performance/${owner}?${params.toString()}`,
   );
@@ -1105,6 +1107,7 @@ export const getGroupPerformance = (
       previous_value: number;
       next_value: number;
     }[];
+    unconverted_holdings?: UnconvertedHolding[];
   }>(
     `${API_BASE}/performance-group/${slug}?${params.toString()}`,
   );

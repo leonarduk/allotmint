@@ -223,6 +223,21 @@ def test_update_with_stash_reports_conflicts_missing_from_stash(repos, monkeypat
     assert "local edit" in (checkout / "README.md").read_text(encoding="utf-8")
 
 
+def test_update_with_stash_reports_autostash_kept_without_conflict(repos, monkeypatch):
+    checkout, upstream = repos
+    _commit(upstream, "backend/foo.py", "x = 1\n")
+    _run(upstream, "push", "-q")
+    (checkout / "README.md").write_text("local edit\n", encoding="utf-8")
+    # Simulate git keeping the autostash without conflicts (e.g. an untracked file blocked the re-apply).
+    stash_tops = iter([None, "f" * 40])
+    monkeypatch.setattr(app_update, "_stash_ref", lambda: next(stash_tops))
+
+    body = _client().post("/support/app-update?stash=true").json()
+    assert body["stashed"] is True
+    assert body["stash_restored"] is False
+    assert "left in the stash" in body["stash_message"]
+
+
 def test_update_with_stash_still_refuses_diverged_branch(repos):
     checkout, upstream = repos
     _commit(upstream, "README.md", "v2\n")

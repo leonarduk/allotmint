@@ -246,6 +246,13 @@ def _settle_autostash(stash_before: str | None, previous_head: str) -> tuple[boo
     stash_after = _stash_ref()
     unmerged = _git("diff", "--name-only", "--diff-filter=U")
     if not unmerged:
+        if stash_after is not None and stash_after != stash_before:
+            # git kept the autostash without conflicting (e.g. re-applying would
+            # overwrite an untracked file): the tree is clean, changes are stashed.
+            return False, (
+                "Your local changes could not be re-applied after the update and were left in the stash "
+                f"(stash@{{0}}, commit {stash_after[:7]}). Run 'git stash pop' to re-apply them."
+            )
         return True, None
     if stash_after is None or stash_after == stash_before or not _is_autostash_of(stash_after, previous_head):
         # Conflicts without a new entry that is provably the autostash: the changes

@@ -248,6 +248,11 @@ def test_vocabulary_error_matches_the_real_policy_messages():
         assert plan_mod._is_vocabulary_error(exc.value)
 
 
+def test_vocabulary_error_rejects_a_longer_message_that_mentions_a_level_clash():
+    compound = ValueError("Set Bond either as a whole or by sub-class, not both; targets must sum to 100%")
+    assert not plan_mod._is_vocabulary_error(compound)
+
+
 def test_compare_surfaces_other_errors_starting_with_set(monkeypatch):
     def broken(data):
         raise ValueError("Set targets must sum to 100%")

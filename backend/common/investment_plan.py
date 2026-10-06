@@ -282,10 +282,14 @@ def rebalance_weights(plan: InvestmentPlan) -> dict[str, float]:
     return weights
 
 
+#: The whole of allocation_policy._check_levels' message, so a longer error that merely mentions it isn't swallowed.
+_LEVEL_CLASH_RE = re.compile(r"Set [\w -]+ either as a whole or by sub-class, not both")
+
+
 def _is_vocabulary_error(exc: ValueError) -> bool:
     """``parse_policy`` rejected the keys themselves (unknown class, or a class and its sub-classes together)."""
     message = str(exc)
-    return message.startswith("Unknown asset class") or "either as a whole or by sub-class" in message
+    return message.startswith("Unknown asset class") or bool(_LEVEL_CLASH_RE.fullmatch(message))
 
 
 def compare_with_rebalance_targets(plan: InvestmentPlan, policy: AllocationPolicy) -> dict:

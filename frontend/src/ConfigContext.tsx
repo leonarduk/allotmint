@@ -9,6 +9,10 @@ import {
 } from "react";
 import { getConfig } from "./api";
 
+/** The only reporting currency until values can be converted (#9753). */
+export const BASE_CURRENCY = "GBP";
+const LEGACY_BASE_CURRENCY_KEY = "baseCurrency";
+
 export interface TabsConfig {
   [key: string]: boolean;
   group: boolean;
@@ -57,7 +61,13 @@ export interface AppConfig {
   disabledTabs?: string[];
   tabs: TabsConfig;
   theme: "dark" | "light" | "system";
-  baseCurrency: string;
+  /**
+   * Currency the app's money values are reported in. Always GBP: every
+   * ``*_gbp`` value is in pounds and ``money()`` only labels, it does not
+   * convert, so any other value would mislabel them (#9753). Choosing a base
+   * currency needs conversion first.
+   */
+  baseCurrency: typeof BASE_CURRENCY;
   enableAdvancedAnalytics?: boolean;
   /**
    * Read-write Data Quality Admin surface (issue list + preview/fix/audit).
@@ -124,7 +134,6 @@ const defaultTabs: TabsConfig = {
 export interface ConfigContextValue extends AppConfig {
   refreshConfig: () => Promise<void>;
   setRelativeViewEnabled: (enabled: boolean) => void;
-  setBaseCurrency: (currency: string) => void;
 }
 
 export const configContext = createContext<ConfigContextValue>({
@@ -141,7 +150,6 @@ export const configContext = createContext<ConfigContextValue>({
   dataQualityAdmin: true,
   refreshConfig: async () => {},
   setRelativeViewEnabled: () => {},
-  setBaseCurrency: () => {},
 });
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
@@ -149,10 +157,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     const storedRel =
       typeof window !== "undefined"
         ? window.localStorage.getItem("relativeViewEnabled")
-        : null;
-    const storedCurrency =
-      typeof window !== "undefined"
-        ? window.localStorage.getItem("baseCurrency")
         : null;
     return {
       configLoaded: false,
@@ -163,7 +167,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       disabledTabs: [],
       tabs: defaultTabs,
       theme: "system",
-      baseCurrency: storedCurrency || "GBP",
+      baseCurrency: BASE_CURRENCY,
       enableAdvancedAnalytics: true,
       dataQualityAdmin: true,
     };
@@ -172,13 +176,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     setConfig((prev) => ({ ...prev, relativeViewEnabled: enabled }));
     if (typeof window !== "undefined") {
       window.localStorage.setItem("relativeViewEnabled", String(enabled));
-    }
-  }, []);
-
-  const setBaseCurrency = useCallback((currency: string) => {
-    setConfig((prev) => ({ ...prev, baseCurrency: currency }));
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("baseCurrency", currency);
     }
   }, []);
 
@@ -220,7 +217,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         typeof window !== "undefined"
           ? window.localStorage.getItem("relativeViewEnabled")
           : null;
-      setConfig((previousConfig) => ({
+      setConfig(() => ({
         configLoaded: true,
         relativeViewEnabled: stored
           ? stored === "true"
@@ -229,7 +226,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         disabledTabs: Array.from(disabledTabs),
         tabs,
         theme,
-        baseCurrency: previousConfig.baseCurrency,
+        baseCurrency: BASE_CURRENCY,
         enableAdvancedAnalytics: cfg.enable_advanced_analytics !== false,
         dataQualityAdmin: cfg.enable_data_quality_admin !== false,
       }));
@@ -243,6 +240,12 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // A base currency once chosen with the old (since unrendered) selector
+    // used to relabel GBP values as that currency; it is no longer read (#9753).
+    window.localStorage.removeItem(LEGACY_BASE_CURRENCY_KEY);
+  }, []);
+
+  useEffect(() => {
     refreshConfig();
   }, [refreshConfig]);
 
@@ -251,7 +254,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, [config.theme]);
 
   return (
-    <configContext.Provider value={{ ...config, refreshConfig, setRelativeViewEnabled, setBaseCurrency }}>
+    <configContext.Provider value={{ ...config, refreshConfig, setRelativeViewEnabled }}>
       {children}
     </configContext.Provider>
   );
@@ -270,24 +273,6 @@ export const SUPPORTED_CURRENCIES = [
   "JPY",
   "USD",
 ];
-
-export function BaseCurrencySelector() {
-  const { baseCurrency, setBaseCurrency } = useConfig();
-  const currencies = SUPPORTED_CURRENCIES;
-  return (
-    <select
-      value={baseCurrency}
-      onChange={(e) => setBaseCurrency(e.target.value)}
-      aria-label="base currency"
-    >
-      {currencies.map((c) => (
-        <option key={c} value={c}>
-          {c}
-        </option>
-      ))}
-    </select>
-  );
-}
 
 function isTheme(value: unknown): value is AppConfig["theme"] {
   return value === "dark" || value === "light" || value === "system";

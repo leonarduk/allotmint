@@ -101,7 +101,6 @@ const TestProvider = ({ children, config = {} }: { children: React.ReactNode; co
         relativeViewEnabled,
         setRelativeViewEnabled,
         refreshConfig: async () => {},
-        setBaseCurrency: () => {},
       }}
     >
       {children}

@@ -89,7 +89,6 @@ describe("Help page", () => {
       baseCurrency: "GBP",
       refreshConfig: async () => {},
       setRelativeViewEnabled: () => {},
-      setBaseCurrency: () => {},
     };
     render(
       <configContext.Provider value={config}>

@@ -22,7 +22,6 @@ const config: ConfigContextValue = {
   baseCurrency: 'GBP',
   refreshConfig: async () => {},
   setRelativeViewEnabled: () => {},
-  setBaseCurrency: () => {},
 };
 
 describe('Plot mode route registration', () => {

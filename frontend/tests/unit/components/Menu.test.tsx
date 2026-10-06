@@ -44,7 +44,6 @@ const configWithTransactions: ConfigContextValue = {
   baseCurrency: 'GBP',
   refreshConfig: async () => {},
   setRelativeViewEnabled: () => {},
-  setBaseCurrency: () => {},
 };
 
 /** Config that enables Family MVP mode — hides non-MVP categories like insights/goals. */

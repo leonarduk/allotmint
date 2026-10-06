@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { ChangeEventHandler, FormEventHandler } from "react";
 import { isTradeType, type TransactionFormValues } from "./transactionForm";
 import { useDemoReadOnly } from "../../hooks/useDemoReadOnly";
@@ -31,6 +32,7 @@ export function TransactionEditorForm({
   onCancelEdit,
   onApplyToSelected,
 }: TransactionEditorFormProps) {
+  const { t } = useTranslation();
   const { demoReadOnly, reason } = useDemoReadOnly();
   const ownerAndAccountSelected = Boolean(activeOwner && activeAccount);
 
@@ -46,41 +48,43 @@ export function TransactionEditorForm({
       }}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
-        <strong>Applies to</strong>
+        <strong>{t("transactionEditor.appliesTo")}</strong>
         {ownerAndAccountSelected ? (
           <span>
             {activeOwner} / {activeAccount}
           </span>
         ) : (
-          <span style={{ opacity: 0.8 }}>Select an owner and account in filters above.</span>
+          <span style={{ opacity: 0.8 }}>{t("transactionEditor.selectOwnerAccount")}</span>
         )}
       </div>
       <label style={{ display: "flex", flexDirection: "column" }}>
-        Type
+        {t("transactionEditor.type")}
         <select value={values.type} onChange={onFieldChange("type")}>
-          <option value="BUY">Buy</option>
-          <option value="SELL">Sell</option>
+          <option value="BUY">{t("transactionEditor.buy")}</option>
+          <option value="SELL">{t("transactionEditor.sell")}</option>
           {!isTradeType(values.type) && (
-            <option value={values.type}>{values.type || "Untyped"} (unchanged)</option>
+            <option value={values.type}>{t("transactionEditor.unchangedType", {
+                type: values.type || t("transactionEditor.untyped"),
+              })}</option>
           )}
         </select>
       </label>
       <label style={{ display: "flex", flexDirection: "column" }}>
-        Date
+        {t("transactionEditor.date")}
         <input type="date" value={values.date} onChange={onFieldChange("date")} required />
       </label>
       <label style={{ display: "flex", flexDirection: "column" }}>
-        Ticker
+        {t("transactionEditor.ticker")}
         <input
           type="text"
           value={values.ticker}
           onChange={onFieldChange("ticker")}
-          placeholder="e.g. VUSA"
+          placeholder={t("transactionEditor.tickerPlaceholder")}
           required
         />
       </label>
       <label style={{ display: "flex", flexDirection: "column" }}>
-        Price (GBP)
+        {t("transactionEditor.price")}
         <input
           type="number"
           step="0.01"
@@ -91,7 +95,7 @@ export function TransactionEditorForm({
         />
       </label>
       <label style={{ display: "flex", flexDirection: "column" }}>
-        Units
+        {t("transactionEditor.units")}
         <input
           type="number"
           step="0.0001"
@@ -102,7 +106,7 @@ export function TransactionEditorForm({
         />
       </label>
       <label style={{ display: "flex", flexDirection: "column" }}>
-        Fees (GBP)
+        {t("transactionEditor.fees")}
         <input
           type="number"
           step="0.01"
@@ -112,16 +116,16 @@ export function TransactionEditorForm({
         />
       </label>
       <label style={{ display: "flex", flexDirection: "column", minWidth: "180px" }}>
-        Reason
+        {t("transactionEditor.reason")}
         <input type="text" value={values.reason} onChange={onFieldChange("reason")} required />
       </label>
       <label style={{ display: "flex", flexDirection: "column", minWidth: "180px" }}>
-        Comments
+        {t("transactionEditor.comments")}
         <input
           type="text"
           value={values.comments}
           onChange={onFieldChange("comments")}
-          placeholder="Optional"
+          placeholder={t("transactionEditor.optional")}
         />
       </label>
       <button
@@ -132,11 +136,11 @@ export function TransactionEditorForm({
       >
         {submitting
           ? editingId
-            ? "Updating..."
-            : "Saving..."
+            ? t("transactionEditor.updating")
+            : t("transactionEditor.saving")
           : editingId
-            ? "Update transaction"
-            : "Add transaction"}
+            ? t("transactionEditor.update")
+            : t("transactionEditor.add")}
       </button>
       {editingId && (
         <button
@@ -145,7 +149,7 @@ export function TransactionEditorForm({
           disabled={submitting}
           style={{ height: "2.3rem" }}
         >
-          Cancel
+          {t("common.cancel")}
         </button>
       )}
       <button
@@ -155,7 +159,8 @@ export function TransactionEditorForm({
         title={reason()}
         style={{ height: "2.3rem" }}
       >
-        Apply to selected{hasSelection ? ` (${selectedCount})` : ""}
+        {t("transactionEditor.applyToSelected")}
+        {hasSelection ? ` (${selectedCount})` : ""}
       </button>
     </form>
   );

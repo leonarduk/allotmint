@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { usePlotData, type Chore } from '../PlotDataContext';
@@ -57,6 +58,7 @@ function ChoreRow({
   onComplete: (id: string) => void;
   onNavigate: (path: string) => void;
 }) {
+  const { t } = useTranslation();
   const link = CHORE_LINKS[chore.id];
 
   const handleClick = () => {
@@ -69,14 +71,14 @@ function ChoreRow({
   };
 
   const buttonLabel = chore.completed
-    ? 'Done'
+    ? t('plot.chores.done')
     : pending
-      ? 'Completing…'
+      ? t('plot.chores.completing')
       : link
-        ? 'Go'
+        ? t('plot.chores.go')
         : error
-          ? 'Try again'
-          : 'Do it';
+          ? t('plot.chores.tryAgain')
+          : t('plot.chores.doIt');
   const errorId = `chore-error-${chore.id}`;
   const showError = Boolean(error) && !chore.completed;
 
@@ -126,7 +128,7 @@ function ChoreRow({
           transition audible regardless, matching the .srOnly + role="status"
           pattern already used elsewhere (see PlotApp.tsx, SeedCatalogue.tsx). */}
       <span className={styles.srOnly} role="status">
-        {pending ? `${chore.title}: completing…` : ''}
+        {pending ? t('plot.chores.completingTitle', { title: chore.title }) : ''}
       </span>
       {/* #7188 finding 4: the error used to be an unassociated sibling —
           announced once via role="alert" but with nothing tying it to the
@@ -146,6 +148,7 @@ function ChoreRow({
  * endpoints the classic Trail page uses, so progress is shared between skins.
  */
 export default function ChoresScreen() {
+  const { t } = useTranslation();
   const { chores, choresAvailable, completeChore, snapshot, owner } =
     usePlotData();
   const navigate = useNavigate();
@@ -188,15 +191,15 @@ export default function ChoresScreen() {
             ?.status;
           const message =
             status === 401
-              ? 'Your session has expired. Sign in again to complete this chore.'
+              ? t('plot.chores.sessionExpired')
               : cause instanceof Error && cause.message
                 ? cause.message
-                : 'Could not complete this chore. Try again.';
+                : t('plot.chores.completeFailed');
           setErrorMessages((prev) => ({ ...prev, [id]: message }));
           fail(id);
         });
     },
-    [completeChore, pendingIds, start, succeed, fail]
+    [completeChore, pendingIds, start, succeed, fail, t]
   );
 
   const daily = chores.filter((chore) => chore.kind === 'daily');
@@ -208,10 +211,9 @@ export default function ChoresScreen() {
   if (!choresAvailable) {
     return (
       <section className={`${styles.panel} ${styles.panelGlow}`}>
-        <h2 className={styles.panelTitle}>Chores</h2>
+        <h2 className={styles.panelTitle}>{t('plot.chores.title')}</h2>
         <p className={styles.sectionNote}>
-          Neither the Trail nor the Quests endpoint is available on this
-          deployment, so there is nothing to tick off here yet.
+          {t('plot.chores.unavailable')}
         </p>
       </section>
     );
@@ -221,50 +223,60 @@ export default function ChoresScreen() {
     <div className={styles.stack}>
       <section className={`${styles.panel} ${styles.panelGlow}`}>
         <h2 className={styles.panelTitle}>
-          Daily chores {doneToday}/{daily.length}
+          {t('plot.chores.dailyChores')} {doneToday}/{daily.length}
         </h2>
         <div className={styles.pills}>
           <div className={styles.pill}>
             <RadialProgress
               pct={pct}
               value={`${doneToday}/${daily.length}`}
-              label="Chores done"
+              label={t('plot.chores.choresDone')}
               caption={
                 daily.length > 0 && doneToday === daily.length
-                  ? 'Plot is tidy'
-                  : 'Complete all chores'
+                  ? t('plot.chores.plotTidy')
+                  : t('plot.chores.completeAll')
               }
             />
           </div>
           <div className={styles.pill}>
             <div className={styles.pillHead}>
-              <span>Season XP</span>
+              <span>{t('plot.chores.seasonXp')}</span>
               <span className={styles.pillValue}>{grower.xpTotal}</span>
             </div>
             <Meter
               pct={grower.pct}
-              label={`Level ${grower.level}, ${grower.xpIntoLevel} of ${grower.xpForLevel} XP to level ${grower.level + 1}`}
+              label={t('plot.chores.meterLabel', {
+                level: grower.level,
+                xp: grower.xpIntoLevel,
+                xpForLevel: grower.xpForLevel,
+                nextLevel: grower.level + 1,
+              })}
             />
             <p className={styles.pillHint}>
-              {`Level ${grower.level} · ${grower.xpIntoLevel}/${grower.xpForLevel} XP to level ${grower.level + 1}`}
+              {t('plot.chores.levelHint', {
+                level: grower.level,
+                xp: grower.xpIntoLevel,
+                xpForLevel: grower.xpForLevel,
+                nextLevel: grower.level + 1,
+              })}
             </p>
           </div>
           <div className={styles.pill}>
             <div className={styles.pillHead}>
-              <span>Streak</span>
+              <span>{t('plot.chores.streak')}</span>
               <span className={styles.pillValue}>{snapshot.streak}</span>
             </div>
             <p className={styles.pillHint}>
-              Consecutive days with every daily chore finished.
+              {t('plot.chores.streakHint')}
             </p>
           </div>
         </div>
       </section>
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>
-        <h2 className={styles.panelTitle}>Today</h2>
+        <h2 className={styles.panelTitle}>{t('plot.chores.today')}</h2>
         {daily.length === 0 ? (
-          <p className={styles.sectionNote}>No daily chores right now.</p>
+          <p className={styles.sectionNote}>{t('plot.chores.noDaily')}</p>
         ) : (
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
             {daily.map((chore) => (
@@ -288,7 +300,7 @@ export default function ChoresScreen() {
 
       {once.length > 0 && (
         <section className={`${styles.panel} ${styles.panelGlow}`}>
-          <h2 className={styles.panelTitle}>Groundwork</h2>
+          <h2 className={styles.panelTitle}>{t('plot.chores.groundwork')}</h2>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
             {once.map((chore) => (
               <ChoreRow

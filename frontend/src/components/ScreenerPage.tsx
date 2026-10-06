@@ -53,7 +53,7 @@ export function ScreenerPage() {
               className={`${tableStyles.cell} ${tableStyles.clickable}`}
               onClick={() => handleSort("ticker")}
             >
-              Ticker
+              {t("common.ticker")}
             </th>
             <th
               className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}

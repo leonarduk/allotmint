@@ -10,6 +10,7 @@
 
 import type { Account, Holding, Portfolio } from '../types';
 import { isCostBasisUnreliable } from '../lib/costBasis';
+import i18n from '../i18n';
 
 export type GrowthStage =
   | 'wilting'
@@ -29,16 +30,35 @@ export interface GrowthStageMeta {
   accent: string;
 }
 
+/**
+ * Stage meta with a lazily translated label, so a language switch is picked
+ * up without rebuilding the (module-level) stage table.
+ */
+function stageMeta(
+  id: GrowthStage,
+  icon: string,
+  accent: string
+): GrowthStageMeta {
+  return {
+    id,
+    get label() {
+      return i18n.t(`plot.stage.${id}`);
+    },
+    icon,
+    accent,
+  };
+}
+
 /** Ordered worst → best so progress bars and sorts can use the index. */
 export const GROWTH_STAGES: readonly GrowthStageMeta[] = [
-  { id: 'wilting', label: 'Wilting', icon: '🥀', accent: '#e2643f' },
-  { id: 'seed', label: 'Sown', icon: '🌰', accent: '#a98363' },
-  { id: 'sprout', label: 'Sprouting', icon: '🌱', accent: '#8fd694' },
-  { id: 'leafing', label: 'Leafing', icon: '🍃', accent: '#63d19e' },
-  { id: 'budding', label: 'Budding', icon: '🌿', accent: '#4fd1c5' },
-  { id: 'flowering', label: 'Flowering', icon: '🌸', accent: '#7cc0ff' },
-  { id: 'fruiting', label: 'Fruiting', icon: '🍅', accent: '#f2a33c' },
-  { id: 'bumper', label: 'Bumper crop', icon: '🏆', accent: '#f2c14e' },
+  stageMeta('wilting', '🥀', '#e2643f'),
+  stageMeta('seed', '🌰', '#a98363'),
+  stageMeta('sprout', '🌱', '#8fd694'),
+  stageMeta('leafing', '🍃', '#63d19e'),
+  stageMeta('budding', '🌿', '#4fd1c5'),
+  stageMeta('flowering', '🌸', '#7cc0ff'),
+  stageMeta('fruiting', '🍅', '#f2a33c'),
+  stageMeta('bumper', '🏆', '#f2c14e'),
 ];
 
 const STAGE_BY_ID = new Map(GROWTH_STAGES.map((stage) => [stage.id, stage]));
@@ -209,12 +229,12 @@ export function levelFromXp(xp: number | null | undefined): GrowerLevel {
 
 /** Flavour title shown next to the level, so progress reads as a rank. */
 export function growerRank(level: number): string {
-  if (level >= 40) return 'Head Gardener';
-  if (level >= 25) return 'Master Grower';
-  if (level >= 15) return 'Plotholder';
-  if (level >= 8) return 'Seasoned Digger';
-  if (level >= 4) return 'Weekend Grower';
-  return 'Seedling Sower';
+  if (level >= 40) return i18n.t('plot.rank.headGardener');
+  if (level >= 25) return i18n.t('plot.rank.masterGrower');
+  if (level >= 15) return i18n.t('plot.rank.plotholder');
+  if (level >= 8) return i18n.t('plot.rank.seasonedDigger');
+  if (level >= 4) return i18n.t('plot.rank.weekendGrower');
+  return i18n.t('plot.rank.seedlingSower');
 }
 
 /**
@@ -297,7 +317,7 @@ export function bedIconFor(accountType: string): string {
 /** "stocks-isa" → "Stocks Isa"; used as the bed's display name. */
 export function bedNameFor(accountType: string): string {
   const cleaned = accountType.replace(/[-_]+/g, ' ').trim();
-  if (!cleaned) return 'Unnamed bed';
+  if (!cleaned) return i18n.t('plot.model.unnamedBed');
   return cleaned
     .split(/\s+/)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -436,7 +456,8 @@ export type AllowanceMap = Record<
  * constant so the FEED meter, the Season page's countdown, and the "Feed the
  * beds" milestone tier all read identically (#7005).
  */
-export const ALLOWANCES_UNAVAILABLE_MESSAGE = 'Allowances unavailable right now';
+export const allowancesUnavailableMessage = (): string =>
+  i18n.t('plot.model.allowancesUnavailable');
 
 /**
  * The three HUD meters, each backed by a real figure:
@@ -470,17 +491,17 @@ export function resourcesFromPlot(
   return [
     {
       id: 'water',
-      label: 'Water',
+      label: i18n.t('plot.model.water'),
       icon: '💧',
       current: tradesLeft,
       max: tradesCap,
       display: `${tradesLeft} / ${tradesCap}`,
       pct: tradesCap > 0 ? clamp((tradesLeft / tradesCap) * 100, 0, 100) : 0,
-      hint: `${tradesLeft} of ${tradesCap} trades left this month`,
+      hint: i18n.t('plot.model.waterHint', { left: tradesLeft, cap: tradesCap }),
     },
     {
       id: 'feed',
-      label: 'Feed',
+      label: i18n.t('plot.model.feed'),
       icon: '🌿',
       current: Math.round(allowanceLeft),
       max: Math.round(allowanceLimit),
@@ -490,14 +511,14 @@ export function resourcesFromPlot(
           ? clamp((allowanceLeft / allowanceLimit) * 100, 0, 100)
           : 0,
       hint: allowancesUnavailable
-        ? ALLOWANCES_UNAVAILABLE_MESSAGE
+        ? allowancesUnavailableMessage()
         : allowanceLimit > 0
-          ? `${formatGbp(allowanceLeft)} of tax allowance headroom left`
-          : 'No allowance data for this grower yet',
+          ? i18n.t('plot.model.feedHint', { amount: formatGbp(allowanceLeft) })
+          : i18n.t('plot.model.feedNoData'),
     },
     {
       id: 'sun',
-      label: 'Sunlight',
+      label: i18n.t('plot.model.sunlight'),
       icon: '☀️',
       current: fresh,
       max: crops.length,
@@ -525,12 +546,15 @@ function sunlightHint(
   total: number
 ): string {
   if (unknown === 0) {
-    return `${fresh} of ${total} crops priced from fresh data`;
+    return i18n.t('plot.model.sunAllFresh', { fresh, total });
   }
-  const parts = [`${fresh} fresh`];
-  if (stale > 0) parts.push(`${stale} stale`);
-  parts.push(`${unknown} unknown`);
-  return `${parts.join(', ')} of ${total} crops`;
+  const parts = [i18n.t('plot.model.sunFresh', { count: fresh })];
+  if (stale > 0) parts.push(i18n.t('plot.model.sunStale', { count: stale }));
+  parts.push(i18n.t('plot.model.sunUnknown', { count: unknown }));
+  return i18n.t('plot.model.sunBreakdown', {
+    parts: parts.join(', '),
+    total,
+  });
 }
 
 export interface PlotSnapshot {
@@ -630,14 +654,16 @@ export const ATTENTION_LOSS_THRESHOLD_PCT = -5;
 
 export function attentionReasonFor(crop: Crop): AttentionReason | null {
   if (crop.sellEligible === false) {
-    return { label: 'not sellable yet', kind: 'not-sellable' };
+    return { label: i18n.t('plot.model.notSellable'), kind: 'not-sellable' };
   }
   if (crop.freshness === 'stale') {
-    return { label: 'price is stale', kind: 'stale-price' };
+    return { label: i18n.t('plot.model.priceStale'), kind: 'stale-price' };
   }
   if (crop.gainPct !== null && crop.gainPct <= ATTENTION_LOSS_THRESHOLD_PCT) {
     return {
-      label: `down ${Math.abs(crop.gainPct).toFixed(1)}%`,
+      label: i18n.t('plot.model.down', {
+        pct: Math.abs(crop.gainPct).toFixed(1),
+      }),
       kind: 'loss',
     };
   }

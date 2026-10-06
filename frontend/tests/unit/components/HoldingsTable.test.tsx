@@ -191,7 +191,6 @@ describe("HoldingsTable", () => {
                 relativeViewEnabled,
                 setRelativeViewEnabled,
                 refreshConfig: async () => {},
-                setBaseCurrency: () => {},
               }}
             >
                 {children}
@@ -959,7 +958,6 @@ describe("HoldingsTable", () => {
                 relativeViewEnabled: true,
                 setRelativeViewEnabled: () => {},
                 refreshConfig: async () => {},
-                setBaseCurrency: () => {},
               }}
             >
                 {children}

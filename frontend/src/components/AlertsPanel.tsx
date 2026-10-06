@@ -4,9 +4,11 @@ import { useFetch } from "../hooks/useFetch";
 import { useEffect, useState, useRef } from "react";
 import { toast } from "react-toastify";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { AlertsTicker } from "./AlertsTicker";
 
 export function AlertsPanel({ user = "default" }: { user?: string }) {
+  const { t } = useTranslation();
   const { data: alerts, loading, error } = useFetch<Alert[]>(api.getAlerts, []);
   const [threshold, setThreshold] = useState<number>();
   const [settingsError, setSettingsError] = useState(false);
@@ -60,7 +62,7 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
   if (error || settingsError) {
     return (
       <div style={{ border: "1px solid #ccc", padding: "0.5rem", marginBottom: "1rem" }}>
-        Cannot reach server
+        {t("alertsPanel.cannotReachServer")}
       </div>
     );
   }
@@ -69,7 +71,7 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
 
   return (
     <div style={{ border: "1px solid #ccc", padding: "0.5rem", marginBottom: "1rem" }}>
-      <strong>Alerts</strong>
+      <strong>{t("alertsPanel.title")}</strong>
       {importAlert && (
         <div data-testid="import-status" style={{ marginTop: "0.5rem" }}>
           {importAlert.message}
@@ -79,7 +81,7 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
         <>
           <div style={{ marginTop: "0.5rem" }}>
             <label>
-              Threshold %:{" "}
+              {t("alertsPanel.threshold")}{" "}
               <input
                 type="number"
                 value={threshold ?? ""}
@@ -88,11 +90,11 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
               />
             </label>
             <button onClick={save} style={{ marginLeft: "0.5rem" }}>
-              Save
+              {t("alertsPanel.save")}
             </button>
           </div>
           <div style={{ marginTop: "0.5rem" }}>
-            <Link to="/alerts">View all alerts</Link>
+            <Link to="/alerts">{t("alertsPanel.viewAll")}</Link>
           </div>
           {lowPriorityAlerts.length > 0 && (
             <AlertsTicker alerts={lowPriorityAlerts} speed={30} pauseOnHover />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { listDataExplorerDirectory } from "../api";
 import type { DataExplorerEntry } from "../types";
 
@@ -26,6 +27,7 @@ function TreeNode({
   selectedPath,
   onSelectFile,
 }: TreeNodeProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [entries, setEntries] = useState<DataExplorerEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +80,9 @@ function TreeNode({
       {expanded && (
         <ul style={{ paddingLeft: 0, margin: 0 }}>
           {loading && (
-            <li style={{ paddingLeft: `${(depth + 1) * 1}rem` }}>Loading…</li>
+            <li style={{ paddingLeft: `${(depth + 1) * 1}rem` }}>
+              {t("common.loading")}
+            </li>
           )}
           {error && (
             <li style={{ paddingLeft: `${(depth + 1) * 1}rem`, color: "red" }}>
@@ -122,7 +126,7 @@ function TreeNode({
             <li
               style={{ paddingLeft: `${(depth + 1) * 1}rem`, color: "#888" }}
             >
-              (empty)
+              {t("dataExplorerTree.empty")}
             </li>
           )}
         </ul>

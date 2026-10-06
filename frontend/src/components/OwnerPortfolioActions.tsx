@@ -56,18 +56,18 @@ export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType
   return <section className="mb-6 rounded-lg border border-gray-800 bg-gray-900/70 p-4">
     {accounts.length > 0 && <div className="mb-4 flex flex-wrap items-center gap-2">
       {!familyMvpEnabled && <>
-        <button type="button" onClick={() => downloadPortfolioCsv(portfolio)} aria-label="Export portfolio as CSV" className={buttonClass}>Export CSV</button>
-        <button type="button" onClick={() => printPortfolioPdf(portfolio)} aria-label="Export portfolio as PDF" className={buttonClass}>Export PDF</button>
+        <button type="button" onClick={() => downloadPortfolioCsv(portfolio)} aria-label={t("ownerPortfolioActions.exportCsvAria")} className={buttonClass}>{t("ownerPortfolioActions.exportCsv")}</button>
+        <button type="button" onClick={() => printPortfolioPdf(portfolio)} aria-label={t("ownerPortfolioActions.exportPdfAria")} className={buttonClass}>{t("ownerPortfolioActions.exportPdf")}</button>
       </>}
       {!showPosition && <button type="button" onClick={openPosition} aria-expanded="false" aria-controls={FORM_ID} disabled={demoReadOnly} title={reason()} className={buttonClass}>+ {t("addPosition.title")}</button>}
-      {!showImport && <button type="button" onClick={() => setShowImport(true)} disabled={demoReadOnly} title={reason()} className={buttonClass}>+ Import CSV</button>}
-      {!showAccount && <button type="button" onClick={() => setShowAccount(true)} disabled={demoReadOnly} title={reason()} className={buttonClass}>Add account</button>}
+      {!showImport && <button type="button" onClick={() => setShowImport(true)} disabled={demoReadOnly} title={reason()} className={buttonClass}>+ {t("ownerPortfolioActions.importCsv")}</button>}
+      {!showAccount && <button type="button" onClick={() => setShowAccount(true)} disabled={demoReadOnly} title={reason()} className={buttonClass}>{t("ownerPortfolioActions.addAccount")}</button>}
     </div>}
     <div ref={positionRef}>{showPosition && <AddPositionForm owner={owner} accounts={accountTypes} defaultAccount={activeAccountType && accountTypes.includes(activeAccountType) ? activeAccountType : undefined} onAdded={finishMutation} onCollapse={collapsePosition} controlsId={FORM_ID} />}</div>
-    {showImport && accounts.length > 0 && <div className="mb-6"><CsvImportForm owner={owner} accountTypes={accountTypes} onImported={finishMutation} /><button type="button" onClick={() => setShowImport(false)} className="mt-2 text-xs text-gray-400 underline">Cancel import</button></div>}
+    {showImport && accounts.length > 0 && <div className="mb-6"><CsvImportForm owner={owner} accountTypes={accountTypes} onImported={finishMutation} /><button type="button" onClick={() => setShowImport(false)} className="mt-2 text-xs text-gray-400 underline">{t("ownerPortfolioActions.cancelImport")}</button></div>}
     {showAccount && <div className="mb-6"><AddAccountForm owner={owner} onCreated={finishMutation} onCancel={() => setShowAccount(false)} /></div>}
-    {hasWarnings && <div className="mb-4"><Link to={`/compliance/${owner}`} className="text-blue-400 hover:text-blue-300">View compliance warnings</Link></div>}
-    {complianceError && <p role="alert" className="mb-4 text-sm text-red-400">Unable to load compliance warnings.</p>}
+    {hasWarnings && <div className="mb-4"><Link to={`/compliance/${owner}`} className="text-blue-400 hover:text-blue-300">{t("ownerPortfolioActions.viewCompliance")}</Link></div>}
+    {complianceError && <p role="alert" className="mb-4 text-sm text-red-400">{t("ownerPortfolioActions.complianceError")}</p>}
     {enableAdvancedAnalytics && <div className="rounded-lg border border-gray-800 bg-black/30 p-4"><ValueAtRisk owner={owner} onDateChange={onDateChange} /></div>}
   </section>;
 }

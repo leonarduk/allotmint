@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
@@ -35,13 +36,12 @@ const RESOURCE_TONE: Record<string, MeterTone> = {
  * to the real financial concept it stands for — see #7006. Kept separate
  * from `resource.hint` (the dynamic "3 of 7 trades left" caption that is
  * always visible) so the info tip explains the *concept* rather than
- * repeating the number already on screen.
+ * repeating the number already on screen. Values are i18n keys.
  */
-const RESOURCE_EXPLANATION: Record<string, string> = {
-  water:
-    'Water is how many trades you have left to make this month before the cap resets.',
-  feed: "Feed is how much of this year's ISA/pension allowance headroom you still have to use.",
-  sun: 'Sunlight is how much of your portfolio has a fresh price today — a stale price makes it droop.',
+const RESOURCE_EXPLANATION_KEY: Record<string, string> = {
+  water: 'plot.hub.explainWater',
+  feed: 'plot.hub.explainFeed',
+  sun: 'plot.hub.explainSun',
 };
 
 /**
@@ -50,8 +50,7 @@ const RESOURCE_EXPLANATION: Record<string, string> = {
  * copy reads as "the empty part is stale", which is a claim we can't back
  * up — so it switches to language that names "unknown" as its own state.
  */
-const SUNLIGHT_EXPLANATION_WITH_UNKNOWN =
-  'Sunlight is how much of your portfolio has a *confirmed* fresh price today. A price with no freshness signal at all counts as unknown, not stale — it just has not been vouched for yet.';
+const SUNLIGHT_EXPLANATION_WITH_UNKNOWN_KEY = 'plot.hub.explainSunUnknown';
 
 // The glossary's Plot section (see #7230) uses "sunlight" as the anchor for
 // the "sun" resource, matching its display label rather than its internal id.
@@ -109,6 +108,7 @@ function Champion({
  * (accounts) that make up the plot.
  */
 export default function PlotHub({ basePath }: { basePath: string }) {
+  const { t } = useTranslation();
   const {
     snapshot,
     chores,
@@ -142,31 +142,30 @@ export default function PlotHub({ basePath }: { basePath: string }) {
 
   return (
     <div className={styles.stack}>
-      <section className={styles.stage} aria-label="Featured crops">
+      <section className={styles.stage} aria-label={t('plot.hub.featuredCrops')}>
         {best ? (
           <>
-            <Champion crop={best} role="Star grower" basePath={basePath} />
+            <Champion crop={best} role={t('plot.hub.starGrower')} basePath={basePath} />
             <span className={styles.stageVersus} aria-hidden="true">
               VS
             </span>
             {worst && worstReason ? (
               <Champion
                 crop={worst}
-                role="Needs attention"
+                role={t('plot.hub.needsAttention')}
                 reason={worstReason.label}
                 rival
                 basePath={basePath}
               />
             ) : (
               <p className={styles.stageEmpty}>
-                Nothing needs attention — the whole plot is healthy.
+                {t('plot.hub.allHealthy')}
               </p>
             )}
           </>
         ) : (
           <p className={styles.stageEmpty}>
-            Nothing planted yet — add a holding in the classic view and it will
-            sprout here.
+            {t('plot.hub.nothingPlanted')}
           </p>
         )}
       </section>
@@ -176,18 +175,22 @@ export default function PlotHub({ basePath }: { basePath: string }) {
           about individual holdings; the portfolio's own `as_of` date answers
           it for the whole plot without opening a crop. */}
       {snapshot.asOf && (
-        <p className={styles.sectionNote}>Plot priced as of {snapshot.asOf}.</p>
+        <p className={styles.sectionNote}>
+          {t('plot.hub.pricedAsOf', { date: snapshot.asOf })}
+        </p>
       )}
 
-      <section className={styles.pills} aria-label="Plot resources">
+      <section className={styles.pills} aria-label={t('plot.hub.resources')}>
         {resources.map((resource) => {
           // SUNLIGHT with any unverified crops gets its own tip copy and a
           // visibly different bar treatment (#7186) — an empty/low bar must
           // not read as "confirmed stale", it reads as "unconfirmed".
           const sunIndeterminate = resource.id === 'sun' && sunUnknownCount > 0;
           const explanation = sunIndeterminate
-            ? SUNLIGHT_EXPLANATION_WITH_UNKNOWN
-            : RESOURCE_EXPLANATION[resource.id];
+            ? t(SUNLIGHT_EXPLANATION_WITH_UNKNOWN_KEY)
+            : t(RESOURCE_EXPLANATION_KEY[resource.id] ?? '', {
+                defaultValue: '',
+              });
           return (
             <div
               key={resource.id}
@@ -203,7 +206,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
                   {resource.label}
                   {explanation && (
                     <InfoTip
-                      label={`What does ${resource.label} mean?`}
+                      label={t('plot.hub.whatDoesMean', { term: resource.label })}
                       to={`/metrics-explained#${RESOURCE_GLOSSARY_ANCHOR[resource.id] ?? resource.id}`}
                     >
                       {explanation}
@@ -224,28 +227,28 @@ export default function PlotHub({ basePath }: { basePath: string }) {
       </section>
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>
-        <h2 className={styles.panelTitle}>Today&apos;s chores</h2>
+        <h2 className={styles.panelTitle}>{t('plot.hub.todaysChores')}</h2>
         {choresAvailable ? (
           <div className={styles.choreRow}>
             <div className={styles.choreBody}>
               <div className={styles.choreTitle}>
                 {openChores > 0
-                  ? `${openChores} chore${openChores === 1 ? '' : 's'} still open`
-                  : 'All chores done — the plot is tidy'}
+                  ? t('plot.hub.choresOpen', { count: openChores })
+                  : t('plot.hub.choresAllDone')}
               </div>
               <p className={styles.choreNote}>
                 {snapshot.streak > 0
-                  ? `${snapshot.streak}-day streak going. Keep it alive.`
-                  : 'Finish a full day to start a streak.'}
+                  ? t('plot.hub.streakGoing', { count: snapshot.streak })
+                  : t('plot.hub.streakStart')}
               </p>
             </div>
             <Link className={styles.goButton} to={`${basePath}/chores`}>
-              Go
+              {t('plot.hub.go')}
             </Link>
           </div>
         ) : (
           <p className={styles.sectionNote}>
-            Chore tracking is not enabled on this deployment.
+            {t('plot.hub.choresDisabled')}
           </p>
         )}
         {streakDays.length > 0 && (
@@ -255,8 +258,10 @@ export default function PlotHub({ basePath }: { basePath: string }) {
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>
         <h2 className={styles.panelTitle}>
-          {season ? `Growing season ${season.label}` : 'Growing season'} (
-          {seasonDone}/{seasonGoals.length})
+          {season
+            ? t('plot.hub.growingSeasonLabel', { label: season.label })
+            : t('plot.hub.growingSeason')}{' '}
+          ({seasonDone}/{seasonGoals.length})
         </h2>
         {countdown && (
           <p className={styles.seasonCountdown}>{countdown.label}</p>
@@ -264,27 +269,31 @@ export default function PlotHub({ basePath }: { basePath: string }) {
         <div className={styles.choreRow}>
           <div className={styles.choreBody}>
             <div className={styles.choreTitle}>
-              {seasonDone} of {seasonGoals.length} season milestones reached
+              {t('plot.hub.milestonesReached', {
+                done: seasonDone,
+                total: seasonGoals.length,
+              })}
             </div>
             <p className={styles.choreNote}>
-              Tiered goals across plot size, value, allowances, streak and rank.
+              {t('plot.hub.tieredGoals')}
             </p>
           </div>
           <Link className={styles.goButton} to={`${basePath}/season`}>
-            View
+            {t('plot.hub.view')}
           </Link>
         </div>
       </section>
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>
         <h2 className={styles.panelTitle}>
-          Propagator ({germinating.length})
+          {t('plot.hub.propagator')} ({germinating.length})
           <InfoTip
-            label="What does Propagator mean?"
+            label={t('plot.hub.whatDoesMean', {
+              term: t('plot.hub.propagator'),
+            })}
             to="/metrics-explained#propagator"
           >
-            Crops still inside their minimum holding period, counting down to
-            the date each one becomes eligible to sell.
+            {t('plot.hub.propagatorTip')}
           </InfoTip>
         </h2>
         <Propagator entries={germinating} basePath={basePath} />
@@ -292,15 +301,17 @@ export default function PlotHub({ basePath }: { basePath: string }) {
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>
         <h2 className={styles.panelTitle}>
-          Beds
-          <InfoTip label="What does Beds mean?" to="/metrics-explained#beds">
-            Each investment account is shown as a bed, with its holdings
-            planted in it as crops.
+          {t('plot.hub.beds')}
+          <InfoTip
+            label={t('plot.hub.whatDoesMean', { term: t('plot.hub.beds') })}
+            to="/metrics-explained#beds"
+          >
+            {t('plot.hub.bedsTip')}
           </InfoTip>
         </h2>
         {beds.length === 0 ? (
           <p className={styles.sectionNote}>
-            No accounts found for this grower.
+            {t('plot.hub.noAccounts')}
           </p>
         ) : (
           <div className={styles.seedGrid}>
@@ -309,19 +320,21 @@ export default function PlotHub({ basePath }: { basePath: string }) {
                 key={bed.id}
                 to={`${basePath}/crops?bed=${encodeURIComponent(bed.id)}`}
                 className={`${styles.seedCard} ${styles.seedCardLink}`}
-                aria-label={`Show ${bed.name} crops`}
+                aria-label={t('plot.hub.showBedCrops', { name: bed.name })}
               >
                 <span className={styles.seedTitle}>
                   <span aria-hidden="true">{bed.icon}</span> {bed.name}
                 </span>
                 <span className={styles.seedOwn}>
-                  {bed.cropCount} crop{bed.cropCount === 1 ? '' : 's'}
+                  {t('plot.hub.cropCount', { count: bed.cropCount })}
                   {bed.owner ? ` · ${bed.owner}` : ''}
                   {/* #7186 — the bed's own last_updated can lag well behind
                       the portfolio as_of shown above; surfacing it here
                       means a stale bed doesn't hide behind a fresher
                       portfolio-wide date. */}
-                  {bed.lastUpdated ? ` · priced ${bed.lastUpdated}` : ''}
+                  {bed.lastUpdated
+                    ? ` · ${t('plot.hub.bedPriced', { date: bed.lastUpdated })}`
+                    : ''}
                 </span>
                 <span className={styles.cropValue}>
                   {formatGbp(bed.valueGbp)}
@@ -333,9 +346,9 @@ export default function PlotHub({ basePath }: { basePath: string }) {
       </section>
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>
-        <h2 className={styles.panelTitle}>Biggest crops</h2>
+        <h2 className={styles.panelTitle}>{t('plot.hub.biggestCrops')}</h2>
         {featured.length === 0 ? (
-          <p className={styles.sectionNote}>Nothing to show yet.</p>
+          <p className={styles.sectionNote}>{t('plot.hub.nothingToShow')}</p>
         ) : (
           <>
             <div className={styles.cropGrid}>
@@ -344,7 +357,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
               ))}
             </div>
             <p className={styles.sectionNote}>
-              <Link to={`${basePath}/crops`}>See the full roster →</Link>
+              <Link to={`${basePath}/crops`}>{t('plot.hub.fullRoster')}</Link>
             </p>
           </>
         )}

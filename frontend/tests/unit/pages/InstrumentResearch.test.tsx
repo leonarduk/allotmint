@@ -77,7 +77,6 @@ const defaultConfig: ConfigContextValue = {
   baseCurrency: "GBP",
   refreshConfig: async () => {},
   setRelativeViewEnabled: () => {},
-  setBaseCurrency: () => {},
 };
 
 function renderPage(config?: Partial<ConfigContextValue>) {

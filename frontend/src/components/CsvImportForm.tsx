@@ -5,6 +5,8 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   importHoldingsCsv,
   reconcileHoldingsCsv,
@@ -28,9 +30,9 @@ type Status =
   | { kind: 'reconciled'; result: ReconcileHoldingsCsvResponse }
   | { kind: 'error'; message: string };
 
-const extractErrorMessage = (err: unknown): string => {
+const extractErrorMessage = (err: unknown, t: TFunction): string => {
   if (err instanceof Error) return err.message;
-  return 'Failed to process file. Please try again.';
+  return t('csvImportForm.processFailed');
 };
 
 // `toLocaleString` defaults to a maximum of 3 fraction digits, which would
@@ -79,47 +81,55 @@ function ReconciliationPreview({
 }: {
   result: ReconcileHoldingsCsvResponse;
 }) {
+  const { t } = useTranslation();
   const cash = result.cash_balance;
+  const unitsDetail = (units: number, valueGbp: number) =>
+    t('csvImportForm.unitsDetail', {
+      units: formatNumber(units),
+      value: formatGbp(valueGbp),
+    });
   return (
     <div
       role="status"
-      aria-label="Reconciliation preview"
+      aria-label={t('csvImportForm.previewTitle')}
       className="mt-3 space-y-3 border-t border-gray-800 pt-3"
     >
       <div>
-        <h3 className="font-semibold text-blue-300">Reconciliation preview</h3>
+        <h3 className="font-semibold text-blue-300">
+          {t('csvImportForm.previewTitle')}
+        </h3>
         <p className="text-sm text-gray-400">
-          Preview only — no stored holdings were changed.
+          {t('csvImportForm.previewOnly')}
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <DiffSection
-          title="Added"
-          emptyMessage="No holdings to add."
+          title={t('csvImportForm.added')}
+          emptyMessage={t('csvImportForm.addedEmpty')}
           rows={result.added.map((item) => ({
             ticker: item.ticker,
-            detail: `${formatNumber(item.units)} units · ${formatGbp(item.value_gbp)}`,
+            detail: unitsDetail(item.units, item.value_gbp),
           }))}
         />
         <DiffSection
-          title="Removed"
-          emptyMessage="No holdings to remove."
+          title={t('csvImportForm.removed')}
+          emptyMessage={t('csvImportForm.removedEmpty')}
           rows={result.removed.map((item) => ({
             ticker: item.ticker,
-            detail: `${formatNumber(item.units)} units · ${formatGbp(item.value_gbp)}`,
+            detail: unitsDetail(item.units, item.value_gbp),
           }))}
         />
         <DiffSection
-          title="Quantity changed"
-          emptyMessage="No quantity changes."
+          title={t('csvImportForm.quantityChanged')}
+          emptyMessage={t('csvImportForm.quantityChangedEmpty')}
           rows={result.quantity_changed.map((item) => ({
             ticker: item.ticker,
             detail: `${formatNumber(item.stored_units)} → ${formatNumber(item.imported_units)} (${formatDelta(item.delta)})`,
           }))}
         />
         <DiffSection
-          title="Value changed"
-          emptyMessage="No value changes."
+          title={t('csvImportForm.valueChanged')}
+          emptyMessage={t('csvImportForm.valueChangedEmpty')}
           rows={result.value_changed.map((item) => ({
             ticker: item.ticker,
             detail: `${formatGbp(item.stored_value_gbp)} → ${formatGbp(item.imported_value_gbp)} (${formatDelta(item.delta_gbp, formatGbp)})`,
@@ -128,7 +138,7 @@ function ReconciliationPreview({
       </div>
       <section className="rounded border border-gray-800 p-2 text-sm">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-300">
-          Cash balance
+          {t('csvImportForm.cashBalance')}
         </h4>
         <p className="mt-1 text-gray-300">
           {formatGbp(cash.stored_gbp)} → {formatGbp(cash.imported_gbp)} (
@@ -141,6 +151,7 @@ function ReconciliationPreview({
 
 /** Upload and safely preview or import a CSV of holdings/transactions. */
 export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
+  const { t } = useTranslation();
   const { demoReadOnly, reason } = useDemoReadOnly();
   const [account, setAccount] = useState(accountTypes[0] ?? '');
   const [provider, setProvider] = useState('');
@@ -194,7 +205,7 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
         setStatus({ kind: 'reconciled', result });
       } catch (err) {
         if (isStale()) return;
-        setStatus({ kind: 'error', message: extractErrorMessage(err) });
+        setStatus({ kind: 'error', message: extractErrorMessage(err, t) });
       }
       return;
     }
@@ -211,7 +222,7 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
       setFile(null);
     } catch (err) {
       if (isStale()) return;
-      setStatus({ kind: 'error', message: extractErrorMessage(err) });
+      setStatus({ kind: 'error', message: extractErrorMessage(err, t) });
     }
   };
 
@@ -221,7 +232,7 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
   return (
     <div className="rounded-lg border border-gray-800 bg-black/20 p-3">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-        Import CSV
+        {t('csvImportForm.importCsv')}
       </p>
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
         <div>
@@ -229,7 +240,7 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
             htmlFor={`${formId}-account`}
             className="block text-xs text-gray-400"
           >
-            Account
+            {t('csvImportForm.account')}
           </label>
           <select
             id={`${formId}-account`}
@@ -249,7 +260,7 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
             htmlFor={`${formId}-provider`}
             className="block text-xs text-gray-400"
           >
-            Provider
+            {t('csvImportForm.provider')}
           </label>
           <select
             id={`${formId}-provider`}
@@ -257,7 +268,7 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
             onChange={handleProviderChange}
             className="rounded border border-gray-700 bg-gray-800 p-1 text-white"
           >
-            <option value="">Select provider…</option>
+            <option value="">{t('csvImportForm.selectProvider')}</option>
             {PROVIDERS.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}
@@ -270,7 +281,7 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
             htmlFor={`${formId}-file`}
             className="block text-xs text-gray-400"
           >
-            CSV file
+            {t('csvImportForm.csvFile')}
           </label>
           <input
             id={`${formId}-file`}
@@ -287,8 +298,8 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
           className="rounded border border-blue-600 px-3 py-1 text-blue-200 hover:bg-blue-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status.kind === 'submitting' && status.action === 'reconcile'
-            ? 'Reconciling…'
-            : 'Reconcile (preview)'}
+            ? t('csvImportForm.reconciling')
+            : t('csvImportForm.reconcile')}
         </button>
         <button
           type="submit"
@@ -298,13 +309,13 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
           className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status.kind === 'submitting' && status.action === 'import'
-            ? 'Importing…'
-            : 'Import'}
+            ? t('csvImportForm.importing')
+            : t('csvImportForm.import')}
         </button>
       </form>
       {status.kind === 'imported' && (
         <p role="status" className="mt-2 text-sm text-green-400">
-          Imported successfully. Saved to {status.path}.
+          {t('csvImportForm.imported', { path: status.path })}
         </p>
       )}
       {status.kind === 'reconciled' && (

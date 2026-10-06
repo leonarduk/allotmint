@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfigProvider, useConfig } from "@/ConfigContext";
@@ -23,11 +22,8 @@ function Probe() {
   );
 }
 
-function BaseCurrencySetter() {
-  const { baseCurrency, setBaseCurrency } = useConfig();
-  useEffect(() => {
-    setBaseCurrency("USD");
-  }, [setBaseCurrency]);
+function BaseCurrencyProbe() {
+  const { baseCurrency } = useConfig();
   return <div data-testid="base-currency-probe">{baseCurrency}</div>;
 }
 
@@ -173,23 +169,24 @@ describe("ConfigProvider Family MVP gating", () => {
     });
   });
 
-  it("does not refetch config when base currency changes locally", async () => {
+  it("reports in GBP and drops a stale stored base currency (#9753)", async () => {
     const { getConfig } = await import("@/api");
     vi.mocked(getConfig).mockResolvedValue({
       enable_family_mvp: true,
+      base_currency: "USD",
       tabs: {},
     });
+    localStorage.setItem("baseCurrency", "USD");
 
     render(
       <ConfigProvider>
-        <BaseCurrencySetter />
+        <BaseCurrencyProbe />
       </ConfigProvider>,
     );
 
-    await waitFor(() => {
-      expect(screen.getByTestId("base-currency-probe").textContent).toBe("USD");
-    });
-    expect(vi.mocked(getConfig)).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(vi.mocked(getConfig)).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId("base-currency-probe").textContent).toBe("GBP");
+    expect(localStorage.getItem("baseCurrency")).toBeNull();
   });
 
   it("marks config as loaded when config fetch fails", async () => {

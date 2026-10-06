@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   getOwners,
   getUserConfig,
@@ -27,13 +28,23 @@ const COMPLIANCE_DOCS_URL = 'https://docs.example.com/compliance';
  * "Failed to ..." (#5215 -- a 403 here was previously indistinguishable from
  * a network hiccup).
  */
-function approvalsErrorMessage(err: unknown, fallback: string): string {
+function approvalsErrorMessage(
+  err: unknown,
+  fallback: string,
+  t: TFunction,
+): string {
   const status = (err as { status?: number } | null | undefined)?.status;
   if (status === 403) {
-    return "You don't have permission to view or manage approvals for this account.";
+    return t(
+      'userConfig.approvalsForbidden',
+      "You don't have permission to view or manage approvals for this account."
+    );
   }
   if (status === 401) {
-    return 'Your session has expired. Sign in again to manage approvals.';
+    return t(
+      'userConfig.approvalsSessionExpired',
+      'Your session has expired. Sign in again to manage approvals.'
+    );
   }
   return fallback;
 }
@@ -119,10 +130,16 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
         })
         .catch((err) => {
           setApprovals([]);
-          setApprovalsError(approvalsErrorMessage(err, 'Failed to load approvals'));
+          setApprovalsError(
+            approvalsErrorMessage(
+              err,
+              t('userConfig.loadApprovalsFailed', 'Failed to load approvals'),
+              t
+            )
+          );
         });
     }
-  }, [owner]);
+  }, [owner, t]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -151,7 +168,11 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
       setNewDate('');
       setApprovalsError(null);
     } catch (err) {
-      setApprovalsError(approvalsErrorMessage(err, 'Failed to add approval'));
+      setApprovalsError(approvalsErrorMessage(
+          err,
+          t('userConfig.addApprovalFailed', 'Failed to add approval'),
+          t
+        ));
     }
   }
 
@@ -162,7 +183,11 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
       setApprovals(res.approvals);
       setApprovalsError(null);
     } catch (err) {
-      setApprovalsError(approvalsErrorMessage(err, 'Failed to remove approval'));
+      setApprovalsError(approvalsErrorMessage(
+          err,
+          t('userConfig.removeApprovalFailed', 'Failed to remove approval'),
+          t
+        ));
     }
   }
 
@@ -193,7 +218,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
           {user.picture ? (
             <img
               src={user.picture}
-              alt={user.name || user.email || 'user avatar'}
+              alt={user.name || user.email || t('userConfig.avatarAlt', 'user avatar')}
               width={96}
               height={96}
               className="h-24 w-24 rounded-full"
@@ -203,7 +228,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               src={placeholder}
               width={96}
               height={96}
-              alt="user avatar"
+              alt={t('userConfig.avatarAlt', 'user avatar')}
               className="h-24 w-24 rounded-full"
             />
           )}
@@ -444,8 +469,12 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               <table className="w-full border">
                 <thead>
                   <tr>
-                    <th className="border px-2 text-left">Ticker</th>
-                    <th className="border px-2 text-left">Date</th>
+                    <th className="border px-2 text-left">
+                      {t('userConfig.newTickerLabel', 'Ticker')}
+                    </th>
+                    <th className="border px-2 text-left">
+                      {t('userConfig.dateColumn', 'Date')}
+                    </th>
                     <th></th>
                   </tr>
                 </thead>
@@ -480,7 +509,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               <input
                 type="text"
                 className="flex-1 border p-1"
-                placeholder="Ticker"
+                placeholder={t('userConfig.newTickerLabel', 'Ticker')}
                 aria-label={t('userConfig.newTickerLabel', 'Ticker')}
                 value={newTicker}
                 onChange={(e) => setNewTicker(e.target.value)}

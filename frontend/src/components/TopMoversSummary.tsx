@@ -43,9 +43,9 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
       .slice(0, limit);
   }, [data, limit]);
 
-  if (!slug) return <EmptyState message="No group selected." />;
+  if (!slug) return <EmptyState message={t("topMoversSummary.noGroup")} />;
   if (loading) return <TableSkeleton rows={limit} columns={4} label={t("app.loading")} />;
-  if (error) return <div>Failed to load movers.</div>;
+  if (error) return <div>{t("topMoversSummary.loadFailed")}</div>;
   if (rows.length === 0) return null;
 
   return (
@@ -53,9 +53,9 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
       <table className={tableStyles.table} style={{ marginTop: "1rem" }}>
         <thead>
           <tr>
-            <th className={tableStyles.cell}>Ticker</th>
-            <th className={tableStyles.cell}>Name</th>
-            <th className={tableStyles.cell}>Signal</th>
+            <th className={tableStyles.cell}>{t("common.ticker")}</th>
+            <th className={tableStyles.cell}>{t("common.name")}</th>
+            <th className={tableStyles.cell}>{t("movers.signal")}</th>
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>%</th>
           </tr>
         </thead>
@@ -107,7 +107,7 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
         </tbody>
       </table>
       <div style={{ textAlign: "right", marginTop: "0.5rem" }}>
-        <Link to={moversPlugin.path({ group: slug })}>View more</Link>
+        <Link to={moversPlugin.path({ group: slug })}>{t("topMoversSummary.viewMore")}</Link>
       </div>
       {selected && (
         <InstrumentDetail

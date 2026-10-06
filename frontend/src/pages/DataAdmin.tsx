@@ -80,15 +80,15 @@ export default function DataAdmin() {
       <table className="w-full border-collapse">
         <thead>
           <tr>
-            <th>Ticker</th>
-            <th>Exchange</th>
-            <th>Name</th>
-            <th>Earliest Date</th>
-            <th>Latest Date</th>
-            <th>Completeness %</th>
-            <th>Latest Source</th>
-            <th>Main Source</th>
-            <th>Actions</th>
+            <th>{t("dataadmin.columns.ticker")}</th>
+            <th>{t("dataadmin.columns.exchange")}</th>
+            <th>{t("dataadmin.columns.name")}</th>
+            <th>{t("dataadmin.columns.earliest")}</th>
+            <th>{t("dataadmin.columns.latest")}</th>
+            <th>{t("dataadmin.columns.completeness")}</th>
+            <th>{t("dataadmin.columns.latestSource")}</th>
+            <th>{t("dataadmin.columns.mainSource")}</th>
+            <th>{t("dataadmin.columns.actions")}</th>
           </tr>
         </thead>
         <tbody>
@@ -113,28 +113,28 @@ export default function DataAdmin() {
               <td>{r.earliest}</td>
               <td>{r.latest}</td>
               <td>{r.completeness.toFixed(2)}</td>
-              <td>{r.latest_source ? `Source: ${r.latest_source}` : ""}</td>
+              <td>{r.latest_source ? t("dataadmin.sourceLabel", { source: r.latest_source }) : ""}</td>
               <td>{r.main_source ?? ""}</td>
               <td>
                 <button
                   type="button"
                   onClick={() => handleRefetch(r.ticker, r.exchange)}
                 >
-                  Refetch
+                  {t("dataadmin.refetch")}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleRebuild(r.ticker, r.exchange)}
                   style={{ marginLeft: "0.25rem" }}
                 >
-                  Rebuild cache
+                  {t("dataadmin.rebuildCache")}
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate(`/research/${r.ticker}`)}
                   style={{ marginLeft: "0.25rem" }}
                 >
-                  Open instrument
+                  {t("dataadmin.openInstrument")}
                 </button>
               </td>
             </tr>

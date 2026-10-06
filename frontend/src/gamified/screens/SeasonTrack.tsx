@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
-import { ALLOWANCES_UNAVAILABLE_MESSAGE } from '../plotModel';
+import { allowancesUnavailableMessage } from '../plotModel';
 import {
   buildSeasonBadges,
   buildSeasonGroups,
@@ -22,6 +23,7 @@ import Meter from '../components/Meter';
  * `buildGoalGroups` and was simply never rendered here (#7194).
  */
 function GroupRow({ group }: { group: SeasonGroupProgress }) {
+  const { t } = useTranslation();
   const capped = group.next !== null && group.next.pct >= 100;
 
   return (
@@ -39,18 +41,22 @@ function GroupRow({ group }: { group: SeasonGroupProgress }) {
           {group.unavailable
             ? group.group
             : group.complete
-              ? `Every ${group.group} tier earned`
+              ? t('plot.season.everyTierEarned', { group: group.group })
               : group.next?.title}
         </div>
 
         {group.unavailable ? (
-          <p className={styles.sectionNote}>{ALLOWANCES_UNAVAILABLE_MESSAGE}</p>
+          <p className={styles.sectionNote}>{allowancesUnavailableMessage()}</p>
         ) : group.next ? (
           <div className={styles.groupProgress}>
             <div className={styles.goalMeter}>
               <Meter
                 pct={group.next.pct}
-                label={`${group.group}: ${group.currentDisplay} of ${group.next.displayTarget} toward the next tier`}
+                label={t('plot.season.meterLabel', {
+                  group: group.group,
+                  current: group.currentDisplay,
+                  target: group.next.displayTarget,
+                })}
               />
               <span className={styles.goalValue}>
                 {group.currentDisplay} / {group.next.displayTarget}
@@ -58,13 +64,13 @@ function GroupRow({ group }: { group: SeasonGroupProgress }) {
             </div>
             {capped && (
               <p className={styles.groupComplete}>
-                {group.currentDisplay} — already past this tier.
+                {t('plot.season.pastTier', { current: group.currentDisplay })}
               </p>
             )}
           </div>
         ) : (
           <p className={styles.groupComplete}>
-            {group.currentDisplay} — every tier in this category is earned.
+            {t('plot.season.allTiers', { current: group.currentDisplay })}
           </p>
         )}
 
@@ -95,11 +101,13 @@ function GroupRow({ group }: { group: SeasonGroupProgress }) {
       <span
         className={styles.choreReward}
         title={
-          group.complete ? `${group.rewardLabel} earned` : group.rewardLabel
+          group.complete
+            ? t('plot.season.rewardEarned', { reward: group.rewardLabel })
+            : group.rewardLabel
         }
       >
         <span aria-hidden="true">{group.rewardIcon}</span>
-        {group.complete ? 'Earned' : group.rewardLabel}
+        {group.complete ? t('plot.season.earned') : group.rewardLabel}
       </span>
     </li>
   );
@@ -111,12 +119,13 @@ function GroupRow({ group }: { group: SeasonGroupProgress }) {
  * so a badge can never claim something the tier chips contradict.
  */
 function BadgeShelf({ badges }: { badges: SeasonBadge[] }) {
+  const { t } = useTranslation();
   const earned = badges.filter((badge) => badge.earned).length;
 
   return (
     <section className={`${styles.panel} ${styles.panelGlow}`}>
       <h3 className={styles.panelTitle}>
-        Badge shelf ({earned}/{badges.length})
+        {t('plot.season.badgeShelf', { earned, total: badges.length })}
       </h3>
       <ul className={styles.badgeShelf}>
         {badges.map((badge) => (
@@ -127,7 +136,7 @@ function BadgeShelf({ badges }: { badges: SeasonBadge[] }) {
             }`}
             title={
               badge.earned
-                ? `${badge.rewardLabel} earned`
+                ? t('plot.season.rewardEarned', { reward: badge.rewardLabel })
                 : badge.nextTitle ?? badge.rewardLabel
             }
           >
@@ -136,13 +145,13 @@ function BadgeShelf({ badges }: { badges: SeasonBadge[] }) {
             </span>
             <span className={styles.badgeLabel}>{badge.rewardLabel}</span>
             <span className={styles.badgeProgress}>
-              {badge.earned ? 'Earned' : badge.progress}
+              {badge.earned ? t('plot.season.earned') : badge.progress}
             </span>
           </li>
         ))}
       </ul>
       <p className={styles.sectionNote}>
-        A badge is earned when every tier in its category is cleared.
+        {t('plot.season.badgeNote')}
       </p>
     </section>
   );
@@ -157,6 +166,7 @@ function BadgeShelf({ badges }: { badges: SeasonBadge[] }) {
  * the clock as an argument so it stays testable.
  */
 export default function SeasonTrack() {
+  const { t } = useTranslation();
   const { snapshot, allowances, allowancesUnavailable, season } =
     usePlotData();
 
@@ -185,22 +195,22 @@ export default function SeasonTrack() {
     <div className={styles.stack}>
       <section className={`${styles.panel} ${styles.panelGlow}`}>
         <h2 className={styles.panelTitle}>
-          {season ? `Growing season ${season.label}` : 'Growing season'} (
-          {earnedTiers}/{totalTiers})
+          {season
+            ? t('plot.season.growingSeasonLabel', { label: season.label })
+            : t('plot.season.growingSeason')}{' '}
+          ({earnedTiers}/{totalTiers})
         </h2>
         {countdown ? (
           <p className={styles.seasonCountdown}>{countdown.label}</p>
         ) : allowancesUnavailable ? (
-          <p className={styles.sectionNote}>{ALLOWANCES_UNAVAILABLE_MESSAGE}</p>
+          <p className={styles.sectionNote}>{allowancesUnavailableMessage()}</p>
         ) : (
           <p className={styles.sectionNote}>
-            No tax year reported for this grower, so the season has no end date
-            to count down to.
+            {t('plot.season.noTaxYear')}
           </p>
         )}
         <p className={styles.sectionNote}>
-          The season is the UK tax year (6 April to 5 April) reported by the
-          allowances API — the date unused ISA and pension headroom expires.
+          {t('plot.season.note')}
         </p>
       </section>
 

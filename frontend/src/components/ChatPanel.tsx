@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import * as api from "../api";
 import type { ChatContext, ChatFile, ChatMessage, ChatPage } from "../api";
 import {
@@ -66,31 +68,31 @@ const WINDOW_STYLE: CSSProperties = {
 // the HTTP status decides. Only a request that got no response at all is
 // "Cannot reach server".
 const CHAT_CODE_MESSAGES: Record<string, string> = {
-  chat_not_configured: "Chat isn't configured on this server (MCP_SERVER_URL is not set).",
-  mcp_unreachable: "Chat couldn't reach its tools server (MCP). Check the MCP server is running.",
-  llm_unreachable: "Chat couldn't reach its AI model. Check the model provider (e.g. Ollama) is running.",
-  aws_error: "Chat's AWS call (Bedrock or MCP request signing) failed. Check the AWS credentials and access.",
+  chat_not_configured: "chatPanel.errors.chatNotConfigured",
+  mcp_unreachable: "chatPanel.errors.mcpUnreachable",
+  llm_unreachable: "chatPanel.errors.llmUnreachable",
+  aws_error: "chatPanel.errors.awsError",
 };
 
 const CHAT_STATUS_MESSAGES: Record<number, string> = {
-  400: "Chat couldn't process that conversation. Please try again.",
-  401: "Your session has expired. Please sign in again.",
-  429: "You're sending messages too quickly. Wait a moment and try again.",
-  502: "Chat couldn't reach its AI service. Please try again later.",
-  503: "Chat isn't available on this server right now.",
-  504: "Chat took too long to respond. Please try again.",
+  400: "chatPanel.errors.status400",
+  401: "chatPanel.errors.status401",
+  429: "chatPanel.errors.status429",
+  502: "chatPanel.errors.status502",
+  503: "chatPanel.errors.status503",
+  504: "chatPanel.errors.status504",
 };
 
-function chatErrorMessage(e: unknown): string {
+function chatErrorMessage(e: unknown, t: TFunction): string {
   const err = e as { status?: unknown; timeout?: unknown; code?: unknown } | null;
   if (typeof err?.code === "string" && Object.hasOwn(CHAT_CODE_MESSAGES, err.code)) {
-    return CHAT_CODE_MESSAGES[err.code];
+    return t(CHAT_CODE_MESSAGES[err.code]);
   }
-  if (err?.timeout) return CHAT_STATUS_MESSAGES[504];
+  if (err?.timeout) return t(CHAT_STATUS_MESSAGES[504]);
   if (typeof err?.status === "number") {
-    return CHAT_STATUS_MESSAGES[err.status] ?? "Chat ran into a server error. Please try again.";
+    return t(CHAT_STATUS_MESSAGES[err.status] ?? "chatPanel.errors.serverError");
   }
-  return "Cannot reach server";
+  return t("chatPanel.errors.cannotReachServer");
 }
 
 export function ChatPanel({
@@ -104,6 +106,7 @@ export function ChatPanel({
   onReattach,
   notice,
 }: Props) {
+  const { t } = useTranslation();
   const messages = useChatMessages();
   const path = useChatPath();
   const [input, setInput] = useState("");
@@ -161,7 +164,7 @@ export function ChatPanel({
     } catch (e) {
       restoreChat(before);
       onFail?.();
-      setError(chatErrorMessage(e));
+      setError(chatErrorMessage(e, t));
     } finally {
       setSending(false);
       setChatReplyPending(false);
@@ -224,7 +227,7 @@ export function ChatPanel({
       setInput("");
       setEditing(null);
     } catch {
-      setError("Couldn't delete your chat history. Please try again.");
+      setError(t("chatPanel.errors.deleteHistoryFailed"));
     } finally {
       setDeleting(false);
       setConfirmingDelete(false);
@@ -240,7 +243,7 @@ export function ChatPanel({
         await openSavedChat(id);
       } catch (e) {
         console.warn("Saved chat could not be opened", e);
-        setError("Couldn't open that chat. Please try again.");
+        setError(t("chatPanel.errors.openFailed"));
         return;
       } finally {
         setOpening(false);
@@ -277,7 +280,7 @@ export function ChatPanel({
       )}
       <div
         role={isWindow ? "region" : "dialog"}
-        aria-label="Chat"
+        aria-label={t("chatPanel.chat")}
         style={{
           ...(isWindow ? WINDOW_STYLE : DRAWER_STYLE),
           boxSizing: "border-box",
@@ -297,13 +300,13 @@ export function ChatPanel({
           }}
         >
           <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
-            <strong>Chat</strong>
+            <strong>{t("chatPanel.chat")}</strong>
             {saveFailed && (
               <span
-                title="Your chat couldn't be saved to your account. It is still kept in this tab, and saving is retried on your next change."
+                title={t("chatPanel.notSavedHint")}
                 style={{ color: "var(--drawer-muted-color)", fontSize: "0.85em" }}
               >
-                Not saved
+                {t("chatPanel.notSaved")}
               </span>
             )}
           </div>
@@ -317,7 +320,7 @@ export function ChatPanel({
                 disabled={sending || opening}
                 aria-pressed={view === "history"}
               >
-                {view === "history" ? "Back to chat" : "History"}
+                {view === "history" ? t("chatPanel.backToChat") : t("chatPanel.history")}
               </button>
             )}
             {!isDemoSession() && (
@@ -325,7 +328,7 @@ export function ChatPanel({
                 onClick={() => setConfirmingDelete(true)}
                 disabled={sending || deleting || confirmingDelete}
               >
-                Delete history
+                {t("chatPanel.deleteHistory")}
               </button>
             )}
             <button
@@ -338,22 +341,22 @@ export function ChatPanel({
               }}
               disabled={sending || opening || messages.length === 0}
             >
-              New chat
+              {t("chatPanel.newChat")}
             </button>
             {onDetach && (
-              <button onClick={onDetach} title="Open the chat in its own window">
-                Detach
+              <button onClick={onDetach} title={t("chatPanel.detachTitle")}>
+                {t("chatPanel.detach")}
               </button>
             )}
             {onReattach && (
-              <button onClick={onReattach} title="Move the chat back into the main window">
-                Reattach
+              <button onClick={onReattach} title={t("chatPanel.reattachTitle")}>
+                {t("chatPanel.reattach")}
               </button>
             )}
             {!isWindow && (
               <button
                 onClick={onClose}
-                aria-label="close"
+                aria-label={t("chatPanel.close")}
                 style={{
                   background: "none",
                   border: "none",
@@ -374,17 +377,17 @@ export function ChatPanel({
         {confirmingDelete && (
           <div
             role="group"
-            aria-label="Confirm deleting chat history"
+            aria-label={t("chatPanel.confirmDeleteHistory")}
             style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}
           >
             <span style={{ flex: "1 1 12rem" }}>
-              Delete your saved chat history, including chats you started over with New chat? This can't be undone.
+              {t("chatPanel.deleteHistoryPrompt")}
             </span>
             <button onClick={() => void deleteHistory()} disabled={deleting}>
-              Delete
+              {t("chatPanel.delete")}
             </button>
             <button onClick={() => setConfirmingDelete(false)} disabled={deleting}>
-              Cancel
+              {t("chatPanel.cancel")}
             </button>
           </div>
         )}
@@ -398,7 +401,7 @@ export function ChatPanel({
             <div style={{ flex: 1, overflowY: "auto", marginBottom: "1rem" }}>
               {messages.length === 0 && (
                 <div style={{ color: "var(--drawer-muted-color)" }}>
-                  Ask about your portfolios, prices, or holdings.
+                  {t("chatPanel.emptyPrompt")}
                 </div>
               )}
               <ul
@@ -449,7 +452,7 @@ export function ChatPanel({
               </ul>
               {sending && (
                 <div role="status" style={{ color: "var(--drawer-muted-color)", marginTop: "0.75rem" }}>
-                  Thinking…
+                  {t("chatPanel.thinking")}
                 </div>
               )}
               {error && <div role="alert">{error}</div>}
@@ -457,7 +460,7 @@ export function ChatPanel({
             </div>
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <input
-                aria-label="chat message"
+                aria-label={t("chatPanel.messageInput")}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -467,7 +470,7 @@ export function ChatPanel({
                 disabled={sending}
               />
               <button onClick={() => void send()} disabled={sending || !input.trim()}>
-                Send
+                {t("chatPanel.send")}
               </button>
             </div>
           </>

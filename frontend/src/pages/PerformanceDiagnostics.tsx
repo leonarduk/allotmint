@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   LineChart,
   Line,
@@ -30,6 +32,12 @@ interface DrawdownEvent {
   durationDays: number;
 }
 
+const money2 = (v: number) =>
+  v.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
 const toDate = (value: string) => new Date(`${value}T00:00:00Z`);
 
 const differenceInDays = (start: string, end: string) => {
@@ -44,13 +52,14 @@ const formatDrawdown = (value: number | null | undefined) => {
   return percent(Math.abs(value) * 100);
 };
 
-const formatDays = (value: number | null | undefined) => {
+const formatDays = (t: TFunction, value: number | null | undefined) => {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
-  if (value === 0) return "same day";
-  return `${value} ${value === 1 ? "day" : "days"}`;
+  if (value === 0) return t("performanceDiagnostics.sameDay");
+  return t("performanceDiagnostics.days", { count: value });
 };
 
 export default function PerformanceDiagnostics() {
+  const { t } = useTranslation();
   const { owner = "" } = useParams<{ owner: string }>();
   const [history, setHistory] = useState<PerformancePoint[]>([]);
   const [holdings, setHoldings] = useState<HoldingValue[]>([]);
@@ -191,9 +200,11 @@ export default function PerformanceDiagnostics() {
           padding: "0.5rem 0.75rem",
         }}
       >
-        <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 600 }}>date: {dateLabel}</p>
+        <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 600 }}>{t('performanceDiagnostics.tooltipDate', { date: dateLabel })}</p>
         <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem" }}>
-          drawdown: {percent((drawdownValue ?? 0) * 100)}
+          {t('performanceDiagnostics.tooltipDrawdown', {
+            value: percent((drawdownValue ?? 0) * 100),
+          })}
         </p>
       </div>
     );
@@ -233,14 +244,14 @@ export default function PerformanceDiagnostics() {
             ? e instanceof Error
               ? e.message
               : String(e)
-            : "You appear to be offline.";
+            : t("performanceDiagnostics.offline");
         setErr(message);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [owner]);
+  }, [owner, t]);
 
   const handleClick = async (date: string) => {
     try {
@@ -260,11 +271,11 @@ export default function PerformanceDiagnostics() {
       <div style={{ marginBottom: "1rem" }}>
         <Menu selectedOwner={owner} />
       </div>
-      <h1>Performance Diagnostics – {owner}</h1>
+      <h1>{t('performanceDiagnostics.title', { owner })}</h1>
       {err ? (
         <div role="alert" aria-live="assertive" style={{ marginTop: "1rem" }}>
-          <EmptyState message="We couldn't load performance diagnostics right now. Please try again later." />
-          <p style={{ marginTop: "0.5rem", color: "#4b5563" }}>Error details: {err}</p>
+          <EmptyState message={t('performanceDiagnostics.loadError')} />
+          <p style={{ marginTop: "0.5rem", color: "#4b5563" }}>{t('performanceDiagnostics.errorDetails', { error: err })}</p>
         </div>
       ) : (
         <>
@@ -304,63 +315,78 @@ export default function PerformanceDiagnostics() {
                 }}
               >
                 <div style={{ border: "1px solid #374151", borderRadius: "0.5rem", padding: "1rem" }}>
-                  <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Current drawdown</h2>
+                  <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>{t('performanceDiagnostics.currentDrawdown')}</h2>
                   <p style={{ fontSize: "1.5rem", fontWeight: 600 }}>{formatDrawdown(currentDrawdown)}</p>
                   {activeDrawdown ? (
                     <p style={{ color: "#9ca3af", marginTop: "0.5rem" }}>
-                      Started {activeDrawdown.startDate} &ndash; trough {activeDrawdown.troughDate}
+                      {t('performanceDiagnostics.startedTrough', {
+                        start: activeDrawdown.startDate,
+                        trough: activeDrawdown.troughDate,
+                      })}
                     </p>
                   ) : (
                     <p style={{ color: "#9ca3af", marginTop: "0.5rem" }}>
-                      Portfolio has fully recovered to a new high.
+                      {t('performanceDiagnostics.fullyRecovered')}
                     </p>
                   )}
                 </div>
                 <div style={{ border: "1px solid #374151", borderRadius: "0.5rem", padding: "1rem" }}>
-                  <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Deepest drawdown</h2>
+                  <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>{t('performanceDiagnostics.deepestDrawdown')}</h2>
                   <p style={{ fontSize: "1.5rem", fontWeight: 600 }}>
                     {formatDrawdown(worstEvent?.maxDrawdown ?? null)}
                   </p>
                   {worstEvent ? (
                     <p style={{ color: "#9ca3af", marginTop: "0.5rem" }}>
-                      {worstEvent.startDate} to {worstEvent.troughDate}
+                      {t('performanceDiagnostics.dateRange', {
+                        from: worstEvent.startDate,
+                        to: worstEvent.troughDate,
+                      })}
                     </p>
                   ) : (
                     <p style={{ color: "#9ca3af", marginTop: "0.5rem" }}>
-                      No drawdowns met the {percent(THRESHOLD * 100)} threshold.
+                      {t('performanceDiagnostics.noDrawdowns', {
+                        threshold: percent(THRESHOLD * 100),
+                      })}
                     </p>
                   )}
                 </div>
                 <div style={{ border: "1px solid #374151", borderRadius: "0.5rem", padding: "1rem" }}>
-                  <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Longest recovery</h2>
+                  <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>{t('performanceDiagnostics.longestRecovery')}</h2>
                   <p style={{ fontSize: "1.5rem", fontWeight: 600 }}>
-                    {formatDays(longestRecovery?.recoveryDays ?? null)}
+                    {formatDays(t, longestRecovery?.recoveryDays ?? null)}
                   </p>
                   {longestRecovery ? (
                     <p style={{ color: "#9ca3af", marginTop: "0.5rem" }}>
-                      {longestRecovery.troughDate} to {longestRecovery.recoveryDate}
+                      {t('performanceDiagnostics.dateRange', {
+                        from: longestRecovery.troughDate,
+                        to: longestRecovery.recoveryDate,
+                      })}
                     </p>
                   ) : (
                     <p style={{ color: "#9ca3af", marginTop: "0.5rem" }}>
-                      No completed recoveries in this period.
+                      {t('performanceDiagnostics.noRecoveries')}
                     </p>
                   )}
                 </div>
                 <div style={{ border: "1px solid #374151", borderRadius: "0.5rem", padding: "1rem" }}>
-                  <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Average recovery</h2>
+                  <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>{t('performanceDiagnostics.averageRecovery')}</h2>
                   <p style={{ fontSize: "1.5rem", fontWeight: 600 }}>
-                    {formatDays(averageRecoveryDays)}
+                    {formatDays(t, averageRecoveryDays)}
                   </p>
                   <p style={{ color: "#9ca3af", marginTop: "0.5rem" }}>
-                    Across {eventsForSummary.filter((event) => event.recoveryDays !== null).length} historical recoveries
+                    {t('performanceDiagnostics.acrossRecoveries', {
+                      count: eventsForSummary.filter(
+                        (event) => event.recoveryDays !== null,
+                      ).length,
+                    })}
                   </p>
                 </div>
               </div>
               <div style={{ marginTop: "1.5rem" }}>
-                <h2>Drawdown events</h2>
+                <h2>{t('performanceDiagnostics.drawdownEvents')}</h2>
                 {drawdownEvents.length === 0 ? (
                   <p style={{ color: "#9ca3af", marginTop: "0.5rem" }}>
-                    We didn't find any periods where the portfolio fell below its previous peak.
+                    {t('performanceDiagnostics.noEvents')}
                   </p>
                 ) : (
                   <div style={{ overflowX: "auto" }}>
@@ -368,24 +394,26 @@ export default function PerformanceDiagnostics() {
                       <thead>
                         <tr>
                           <th style={{ textAlign: "left", padding: "0.5rem", borderBottom: "1px solid #374151" }}>
-                            Start
+                            {t('performanceDiagnostics.colStart')}
                           </th>
                           <th style={{ textAlign: "left", padding: "0.5rem", borderBottom: "1px solid #374151" }}>
-                            Trough
+                            {t('performanceDiagnostics.colTrough')}
                           </th>
                           <th style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid #374151" }}>
-                            Depth
+                            {t('performanceDiagnostics.colDepth')}
                           </th>
                           <th style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid #374151" }}>
-                            Days to trough
+                            {t('performanceDiagnostics.colDaysToTrough')}
                           </th>
                           <th style={{ textAlign: "left", padding: "0.5rem", borderBottom: "1px solid #374151" }}>
-                            Recovery
+                            {t('performanceDiagnostics.colRecovery')}
                           </th>
                           <th style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid #374151" }}>
-                            Recovery length
+                            {t('performanceDiagnostics.colRecoveryLength')}
                           </th>
-                          <th style={{ padding: "0.5rem", borderBottom: "1px solid #374151" }}>Action</th>
+                          <th style={{ padding: "0.5rem", borderBottom: "1px solid #374151" }}>
+                            {t('performanceDiagnostics.colAction')}
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -413,10 +441,10 @@ export default function PerformanceDiagnostics() {
                                 textAlign: "right",
                               }}
                             >
-                              {formatDays(event.daysToTrough)}
+                              {formatDays(t, event.daysToTrough)}
                             </td>
                             <td style={{ padding: "0.5rem", borderBottom: "1px solid #1f2937" }}>
-                              {event.recoveryDate ?? "Still recovering"}
+                              {event.recoveryDate ?? t("performanceDiagnostics.stillRecovering")}
                             </td>
                             <td
                               style={{
@@ -425,7 +453,7 @@ export default function PerformanceDiagnostics() {
                                 textAlign: "right",
                               }}
                             >
-                              {formatDays(event.recoveryDays)}
+                              {formatDays(t, event.recoveryDays)}
                             </td>
                             <td style={{ padding: "0.5rem", borderBottom: "1px solid #1f2937" }}>
                               <button
@@ -440,7 +468,7 @@ export default function PerformanceDiagnostics() {
                                   cursor: "pointer",
                                 }}
                               >
-                                Inspect holdings
+                                {t('performanceDiagnostics.inspectHoldings')}
                               </button>
                             </td>
                           </tr>
@@ -453,31 +481,26 @@ export default function PerformanceDiagnostics() {
             </>
           ) : (
             <div style={{ marginTop: "1rem" }}>
-              <EmptyState message="We don't have performance history for this owner yet." />
+              <EmptyState message={t('performanceDiagnostics.noHistory')} />
             </div>
           )}
           {issues.length > 0 && (
             <div style={{ marginTop: "1rem" }}>
-              <h2>Data quality report</h2>
+              <h2>{t('performanceDiagnostics.dataQualityReport')}</h2>
               <p style={{ color: "#4b5563" }}>
-                We ignored {issues.length === 1 ? "one date" : `${issues.length} dates`} where
-                the reconstructed portfolio value temporarily collapsed to nearly zero. Please
-                review pricing for:
+                {t('performanceDiagnostics.ignoredDates', {
+                  count: issues.length,
+                })}
               </p>
               <ul>
                 {issues.map((issue) => (
                   <li key={issue.date}>
-                    <strong>{issue.date}</strong>: value {issue.value.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
+                    <strong>{issue.date}</strong>
+                    {t('performanceDiagnostics.issueLine', {
+                      value: money2(issue.value),
+                      prev: money2(issue.previousValue),
+                      next: money2(issue.nextValue),
                     })}
-                    {" "}(prev {issue.previousValue.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}, next {issue.nextValue.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })})
                   </li>
                 ))}
               </ul>
@@ -485,7 +508,7 @@ export default function PerformanceDiagnostics() {
           )}
           {selected && (
             <div style={{ marginTop: "1rem" }}>
-              <h2>Holdings on {selected}</h2>
+              <h2>{t('performanceDiagnostics.holdingsOn', { date: selected })}</h2>
               {holdings.length > 0 ? (
                 <ul>
                   {holdings.map((h, index) => (
@@ -503,7 +526,7 @@ export default function PerformanceDiagnostics() {
                 </ul>
               ) : (
                 <p style={{ color: "#9ca3af" }}>
-                  No holdings were reported for this date. Try another point in the timeline.
+                  {t('performanceDiagnostics.noHoldings')}
                 </p>
               )}
             </div>

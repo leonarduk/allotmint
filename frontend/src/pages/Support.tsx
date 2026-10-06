@@ -584,7 +584,9 @@ export default function Support() {
                     <td className="pr-2 font-medium">{k}</td>
                     <td>
                       <a href={value}>{value}</a>{" "}
-                      <a href={`${base}/api-console`}>API Console</a>
+                      <a href={`${base}/api-console`}>
+                        {t("support.apiConsole", "API Console")}
+                      </a>
                     </td>
                   </tr>
                 );
@@ -809,7 +811,7 @@ export default function Support() {
                               aria-describedby={describedBy(key)}
                               className="mr-1"
                             />
-                            {opt}
+                            {t(`support.config.themeOptions.${opt}`, opt)}
                           </label>
                         ))}
                       </div>

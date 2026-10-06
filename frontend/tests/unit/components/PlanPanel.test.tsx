@@ -252,6 +252,23 @@ describe('PlanPanel', () => {
       );
     });
 
+    it('shows a match once the update is saved and reloaded', async () => {
+      mockSaveAllocationPolicy.mockResolvedValue({});
+      await saveReturning('active');
+      const onReload = makeResponse({ copy_supported: true, plan_targets });
+      mockGetInvestmentPlan.mockResolvedValue({
+        ...onReload,
+        rebalance: { ...onReload.rebalance, matches: true },
+      });
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Update rebalance targets' })
+      );
+      expect(
+        await screen.findByText('Your rebalance targets match this plan.')
+      ).toBeInTheDocument();
+    });
+
     it('falls back to the plain mismatch after "Not now"', async () => {
       await saveReturning('active');
       fireEvent.click(screen.getByRole('button', { name: 'Not now' }));

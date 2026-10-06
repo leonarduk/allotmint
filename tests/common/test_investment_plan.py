@@ -241,6 +241,13 @@ def test_compare_rolls_up_on_a_level_clash(monkeypatch):
     assert result["plan_targets"] == {"equity": 40, "bond": 40, "commodity": 20}
 
 
+def test_vocabulary_error_matches_the_real_policy_messages():
+    for targets in ({"bond": 50, "long_gilts": 50}, {"small_cap_value": 100}):
+        with pytest.raises(ValueError) as exc:
+            plan_mod.parse_policy({"targets": targets})
+        assert plan_mod._is_vocabulary_error(exc.value)
+
+
 def test_compare_surfaces_other_errors_starting_with_set(monkeypatch):
     def broken(data):
         raise ValueError("Set targets must sum to 100%")

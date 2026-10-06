@@ -22,6 +22,7 @@ import { useAuth } from "../AuthContext";
 import { useUser } from "../UserContext";
 import { OwnerSelector } from "../components/OwnerSelector";
 import SectionCard from "../components/SectionCard";
+import AppUpdateSection from "../components/AppUpdateSection";
 import type { OwnerSummary } from "../types";
 import { orderedTabPlugins, type TabPluginId } from "../tabPlugins";
 import { usePriceRefresh } from "../PriceRefreshContext";
@@ -525,6 +526,8 @@ export default function Support() {
         )}
         </SectionCard>
       </div>
+
+      <AppUpdateSection />
 
       <SectionCard title={t("support.dataExplorer.title", "Data Explorer")}>
         <p className="mb-2 text-sm text-gray-600">

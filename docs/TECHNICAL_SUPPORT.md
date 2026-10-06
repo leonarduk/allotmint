@@ -23,6 +23,24 @@
   holdings; the shared demo dataset under `data/accounts/` is read-only and
   must be copied to a writable root before fixes can be applied.
 
+## Updating a Local Install
+- **Screen**: the Support page's **Update app** section (local deployments
+  only — `server.app_env: local`). It is hidden on AWS, where the
+  `/support/app-update` routes are not registered; AWS is updated by the
+  deploy pipeline, not from inside the running app.
+- **What it does**: *Check for updates* runs `git fetch`; *Update now*
+  fast-forwards the current branch to its upstream (`git merge --ff-only`).
+  It refuses when tracked files have uncommitted changes, HEAD is detached,
+  the branch has no upstream, or there are local commits not on the upstream.
+- **After updating**: the backend restarts itself when started with reload
+  enabled (`server.reload`, the default for `run-local-api.sh` /
+  `run-backend.ps1`) and the Vite dev server hot-reloads the frontend. If the
+  result lists changed dependency manifests, re-run `pip install` /
+  `npm install` and restart — the update never installs dependencies itself.
+- **Access**: open when auth is disabled (typical local setup); with auth
+  enabled it is restricted to `auth.allowed_emails`. See
+  `backend/routes/app_update.py`.
+
 ## Common Troubleshooting Steps
 - Verify that Python (3.11+) and Node.js versions meet project requirements
   (CI/CD uses Python 3.12).

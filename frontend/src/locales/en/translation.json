@@ -928,6 +928,21 @@
     "configureLocalLogin": "Configure local login override"
   },
   "support": {
+    "appUpdate": {
+      "title": "Update app",
+      "description": "Fast-forward this local checkout to the latest commit on its upstream branch. Only available for local deployments.",
+      "branch": "Branch",
+      "behind": "{{count}} new commit(s) available.",
+      "check": "Check for updates",
+      "checking": "Checking...",
+      "update": "Update now",
+      "updating": "Updating...",
+      "updated": "Updated {{from}} → {{to}} ({{count}} file(s) changed).",
+      "dependencies": "Dependencies changed ({{files}}): re-run pip install / npm install and restart the app.",
+      "backendRestart": "Backend code changed. It restarts automatically when run with reload enabled (the default for the local run scripts); otherwise restart it.",
+      "reload": "Reload page",
+      "noResponse": "No response from the backend ({{error}}). It may have restarted after updating; use Check for updates to confirm."
+    },
     "config": {
       "otherParams": "Other parameters",
       "otherSwitches": "Other Switches",

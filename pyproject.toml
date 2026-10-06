@@ -1,14 +1,16 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 # Not a distributable package: `pip install -e ".[pro]"` / ".[test]" only
 # pulls in the extras below (CI installs requirements*.txt instead), and
 # tests import from the repo root via pytest.ini's `pythonpath = .`. A name
 # and version are still required for the [project] table to be valid at all.
+# The version is derived from the latest `v*` release tag by setuptools-scm
+# (see [tool.setuptools_scm]) so it never drifts from GitHub releases.
 [project]
 name = "allotmint"
-version = "0.0.0"
+dynamic = ["version"]
 requires-python = ">=3.11"
 dependencies = [
     "reportlab>=5.0.0",
@@ -34,6 +36,13 @@ pro = [
 # Flat layout with many top-level dirs (backend, cdk, scripts, ...): opt out
 # of auto-discovery rather than install any of them as packages.
 packages = []
+
+# Release tags (v0.51.0, ...) are the single source of truth for the version;
+# nothing is committed back to main on release. Builds without git metadata
+# (e.g. Docker contexts, which exclude .git/) fall back to 0.0.0 instead of
+# failing; a git checkout with no reachable tag reports 0.0.1.devN.
+[tool.setuptools_scm]
+fallback_version = "0.0.0"
 
 # For issue-worm's verifier (leonarduk/issue-worm#565): the full check suite -
 # backend pytest, frontend lint/type-check/unit tests and the bats suite -

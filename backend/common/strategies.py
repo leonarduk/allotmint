@@ -252,6 +252,78 @@ _BUILTIN_DEFINITIONS: tuple[Strategy, ...] = (
             "Other commodities: a broad commodity index ETC."
         ),
     ),
+    Strategy(
+        id="swensen",
+        name="Swensen (Unconventional Success)",
+        targets={"equity": 50.0, "property": 20.0, "intermediate_gilts": 15.0, "index_linked": 15.0},
+        description=(
+            "David Swensen's endowment-style portfolio for individuals: 50% equity, 20% property and "
+            "30% government bonds split equally between conventional and inflation-linked."
+        ),
+        source=(
+            "David Swensen, 'Unconventional Success' (2005); his 30/15/5 domestic, developed and emerging "
+            "equity split is one equity sleeve here. No backtest_portfolio preset."
+        ),
+        uk_mapping=(
+            f"{_GLOBAL_EQUITY} Property: a global REIT or property securities tracker. Intermediate "
+            "conventional gilts and index-linked gilts stand in for Treasuries and TIPS."
+        ),
+    ),
+    Strategy(
+        id="larry",
+        name="Larry Portfolio",
+        targets={"small_cap_value": 30.0, "intermediate_gilts": 35.0, "index_linked": 35.0},
+        description=(
+            "A factor portfolio: a small, high-expected-return equity sleeve of small-cap value, with the "
+            "rest in high-quality government bonds."
+        ),
+        source=(
+            "Larry Swedroe, 'Reducing the Risk of Black Swans' (2014); the 35/35 conventional and "
+            "inflation-linked split is a convention. No backtest_portfolio preset."
+        ),
+        uk_mapping=(
+            "Small-cap value: a global or regional small-cap value fund; holdings are classified by name "
+            "('small cap value') or a sub_asset_class override. Intermediate conventional gilts and "
+            "index-linked gilts."
+        ),
+    ),
+    Strategy(
+        id="barbell",
+        name="Barbell",
+        targets={"cash": 45.0, "short_gilts": 45.0, "equity": 10.0},
+        description=(
+            "90% in the safest assets and 10% in high-risk ones, with nothing in the middle, so the "
+            "worst-case loss is capped while keeping some exposure to large gains."
+        ),
+        source=(
+            "After Nassim Taleb, 'Antifragile' (2012), who gives the 85-90% safe principle but not fixed "
+            "weights; these weights are an illustrative convention. No backtest_portfolio preset."
+        ),
+        uk_mapping=(
+            "Cash: cash or a money-market fund. Short gilts: 0-5 year gilts or ultrashort. Equity: a global "
+            "tracker, or duplicate and swap in a higher-risk sleeve such as small-cap value."
+        ),
+    ),
+    Strategy(
+        id="defensive_income",
+        name="Defensive income",
+        targets={
+            "equity": 35.0,
+            "corporate_bonds": 20.0,
+            "index_linked": 15.0,
+            "short_gilts": 15.0,
+            "cash": 15.0,
+        },
+        description=(
+            "A lower-volatility, income-oriented mix: a minority in equity, the rest in corporate bonds, "
+            "inflation-linked and short gilts, and cash."
+        ),
+        source="Illustrative defensive/income allocation with no single published source; no backtest preset.",
+        uk_mapping=(
+            "Equity: a global equity income or all-cap tracker. Corporate bonds: an investment-grade sterling "
+            "corporate bond fund. Index-linked gilts, short gilts (0-5 years) and cash or a money-market fund."
+        ),
+    ),
 )
 
 BUILTIN_STRATEGIES: tuple[Strategy, ...] = tuple(replace(s, builtin=True) for s in _BUILTIN_DEFINITIONS)

@@ -85,6 +85,27 @@ def test_golden_butterfly_50_50_variant():
 
 
 @pytest.mark.parametrize(
+    "strategy_id, expected",
+    [
+        ("swensen", {"equity": 50.0, "property": 20.0, "intermediate_gilts": 15.0, "index_linked": 15.0}),
+        ("larry", {"small_cap_value": 30.0, "intermediate_gilts": 35.0, "index_linked": 35.0}),
+        ("barbell", {"cash": 45.0, "short_gilts": 45.0, "equity": 10.0}),
+        (
+            "defensive_income",
+            {"equity": 35.0, "corporate_bonds": 20.0, "index_linked": 15.0, "short_gilts": 15.0, "cash": 15.0},
+        ),
+    ],
+)
+def test_reference_strategies(strategy_id, expected):
+    assert get_strategy("alex", strategy_id).targets == expected
+
+
+def test_builtin_targets_are_distinct(root):
+    for strategy in BUILTIN_STRATEGIES:
+        assert matching_strategy(strategy.targets, "alex", root) is strategy
+
+
+@pytest.mark.parametrize(
     "strategy_id, gilts",
     [
         ("golden_butterfly_intermediate", {"intermediate_gilts": 20.0}),

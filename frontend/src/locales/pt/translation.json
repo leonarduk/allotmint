@@ -573,7 +573,7 @@
       "otherSwitches": "Outros interruptores",
       "save": "Salvar",
       "tabsEnabled": "Abas ativadas",
-      "title": "Configuração",
+      "title": "Interruptores e parâmetros",
       "mcpTools": "Ferramentas MCP",
       "mcpToolsHint": "Ferramentas que o assistente de chat pode usar. Todas estão ativas por padrão; desmarque para desativar uma.",
       "mcpToolNotConfigured": "Não configurada",
@@ -620,7 +620,7 @@
       "sent": "Enviado"
     },
     "telegramMessage": "Mensagem do Telegram",
-    "title": "Suporte"
+    "title": "Configuração"
   },
   "timeseries": {
     "loading": "Carregando…"

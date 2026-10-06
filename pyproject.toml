@@ -39,7 +39,7 @@ packages = []
 # Release tags (v0.51.0, ...) are the single source of truth for the version;
 # nothing is committed back to main on release. Builds without git metadata
 # (e.g. Docker contexts, which exclude .git/) fall back to 0.0.0 instead of
-# failing; a git checkout with no reachable tag reports 0.1.devN.
+# failing; a git checkout with no reachable tag reports 0.0.1.devN.
 [tool.setuptools_scm]
 fallback_version = "0.0.0"
 

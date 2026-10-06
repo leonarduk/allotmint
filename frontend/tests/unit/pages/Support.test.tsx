@@ -200,7 +200,7 @@ describe("Support page", () => {
 
     const flagToggle = screen.getByRole("checkbox", { name: /flag/i });
     expect(flagToggle).not.toBeChecked();
-    expect(screen.getByDisplayValue("5")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "count" })).toHaveValue("5");
   });
 
   it("renders tab toggles and allows toggling", async () => {

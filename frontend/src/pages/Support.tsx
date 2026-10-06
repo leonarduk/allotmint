@@ -43,6 +43,11 @@ function mcpToolStatusId(toolName: string): string {
   return `mcp-tool-status-${toolName.replace(/[^A-Za-z0-9_-]/g, "-")}`;
 }
 
+// DOM id for a free-text config parameter input, so its key can label it.
+function configParamId(key: string): string {
+  return `config-param-${key.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+}
+
 type ConfigValue = string | boolean | Record<string, unknown>;
 type ConfigState = Record<string, ConfigValue>;
 
@@ -776,12 +781,18 @@ export default function Support() {
                         ))}
                       </div>
                     ) : (
-                      <input
-                        type="text"
-                        value={String(value ?? "")}
-                        onChange={(e) => handleConfigChange(key, e.target.value)}
-                        className="w-full rounded border px-2 py-1"
-                      />
+                      <>
+                        <label htmlFor={configParamId(key)} className="mb-1 block font-medium">
+                          {key}
+                        </label>
+                        <input
+                          id={configParamId(key)}
+                          type="text"
+                          value={String(value ?? "")}
+                          onChange={(e) => handleConfigChange(key, e.target.value)}
+                          className="w-full rounded border px-2 py-1"
+                        />
+                      </>
                     )}
                   </div>
                 ))}

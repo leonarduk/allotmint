@@ -74,6 +74,12 @@ export const percent = (
     );
 };
 
+/** A fractional return as a signed percentage: 0.1 -> "+10.00%", -0.005 -> "-0.50%". */
+export const signedPercent = (v: number, fractionDigits = 2, locale: string = i18n.language): string => {
+    const text = percent(v * 100, fractionDigits, locale);
+    return v > 0 ? `+${text}` : text;
+};
+
 export const largeNumber = (
     v: number | null | undefined,
     locale: string = i18n.language,

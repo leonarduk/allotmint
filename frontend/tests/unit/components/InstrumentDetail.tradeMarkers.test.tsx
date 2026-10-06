@@ -12,6 +12,7 @@ import {
 vi.mock("@/api", () => ({
   getInstrumentDetail: vi.fn(),
   getInstrumentIntraday: vi.fn(),
+  getInstrumentFxSplit: vi.fn(() => Promise.resolve({ applicable: false })),
   getTransactions: vi.fn(),
 }));
 

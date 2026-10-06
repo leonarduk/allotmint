@@ -723,6 +723,21 @@
         "low52w": "Mínimo de 52 semanas",
         "averageVolume": "Volume médio"
       }
+    },
+    "fxSplit": {
+      "title": "Retorno local vs cambial",
+      "basis": "Retorno de preço (sem dividendos)",
+      "basisWithDates": "Retorno de preço (sem dividendos), de {{start}} a {{end}}",
+      "local": "Variação do preço local ({{currency}})",
+      "fx": "Variação cambial ({{currency}}→GBP)",
+      "cross": "Termo cruzado (local × câmbio)",
+      "gbp": "Retorno em GBP",
+      "unavailable": "Não foi possível carregar a divisão entre retorno local e cambial.",
+      "reasons": {
+        "missing_fx_rate": "Sem divisão: nenhuma taxa {{currency}}→GBP armazenada suficientemente próxima de {{start}} ou {{end}}.",
+        "insufficient_price_history": "Sem divisão: menos de dois preços armazenados neste período.",
+        "currency_mismatch": "Sem divisão: a moeda de cotação ({{currency}}) difere da moeda a partir da qual os preços em GBP são convertidos."
+      }
     }
   },
   "instrumentTable": {

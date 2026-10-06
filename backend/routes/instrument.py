@@ -24,6 +24,7 @@ from markupsafe import Markup
 
 from backend.common import instrument_api, nav
 from backend.common.constants import ACQUIRED_DATE, COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP, UNITS
+from backend.common.fx_return_split import local_fx_return_split
 from backend.common.holding_utils import is_cost_basis_unreliable
 from backend.common.instrument_classification import exposure_sector
 from backend.common.instruments import list_instruments
@@ -620,6 +621,25 @@ def instrument(
             window_days=window_days,
         )
     )
+
+
+@router.get("/fx-split")
+def instrument_fx_split(
+    ticker: str = Query(..., description="Full ticker, e.g. AAPL.N"),
+    days: int = Query(365, ge=0, le=36500, description="Window in calendar days; 0 for all history"),
+):
+    """Split the ticker's GBP price return over the window into local, FX and cross-term parts (#9776).
+
+    The window resolves as ``GET /instrument/`` resolves it, so the split
+    covers the page's selected range. Cache-only (#8028): it reads stored
+    closes and FX rates and never calls Yahoo. A sterling (GBP/GBX)
+    instrument comes back ``applicable: false``. A missing FX rate at either
+    end gives ``null`` components and a ``reason``.
+    """
+    _validate_ticker(ticker)
+    start, end = resolve_date_range(days, end_date=date.today())
+    tkr, exch = (ticker.split(".", 1) + ["L"])[:2]
+    return local_fx_return_split(tkr.upper(), exch.upper(), start, end)
 
 
 @router.get("/intraday")

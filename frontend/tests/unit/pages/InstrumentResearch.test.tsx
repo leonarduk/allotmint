@@ -15,6 +15,7 @@ vi.mock("@/api", () => ({
   getInstrumentValuation: vi.fn(() => Promise.reject(Object.assign(new Error("gated"), { status: 402 }))),
   getInstrumentDetail: vi.fn(),
   getInstrumentIntraday: vi.fn(),
+  getInstrumentFxSplit: vi.fn(() => Promise.resolve({ applicable: false })),
   searchInstruments: vi.fn(),
   getTransactions: vi.fn(),
   getSeriesReferences: vi.fn(() => Promise.resolve({ can_delete: false })),

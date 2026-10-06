@@ -723,6 +723,21 @@
         "low52w": "52-Wochen-Tief",
         "averageVolume": "Durchschnittliches Volumen"
       }
+    },
+    "fxSplit": {
+      "title": "Lokale Rendite vs. Währungsrendite",
+      "basis": "Kursrendite (ohne Dividenden)",
+      "basisWithDates": "Kursrendite (ohne Dividenden), {{start}} bis {{end}}",
+      "local": "Lokale Kursbewegung ({{currency}})",
+      "fx": "Währungsbewegung ({{currency}}→GBP)",
+      "cross": "Kreuzterm (lokal × Währung)",
+      "gbp": "Rendite in GBP",
+      "unavailable": "Die Aufteilung in lokale und Währungsrendite konnte nicht geladen werden.",
+      "reasons": {
+        "missing_fx_rate": "Keine Aufteilung: kein gespeicherter {{currency}}→GBP-Kurs nahe genug an {{start}} oder {{end}}.",
+        "insufficient_price_history": "Keine Aufteilung: weniger als zwei gespeicherte Kurse in diesem Zeitraum.",
+        "currency_mismatch": "Keine Aufteilung: die Notierungswährung ({{currency}}) weicht von der Währung ab, aus der die GBP-Kurse umgerechnet werden."
+      }
     }
   },
   "instrumentTable": {

@@ -723,6 +723,21 @@
         "low52w": "Mínimo de 52 semanas",
         "averageVolume": "Volumen medio"
       }
+    },
+    "fxSplit": {
+      "title": "Rentabilidad local frente a divisa",
+      "basis": "Rentabilidad de precio (sin dividendos)",
+      "basisWithDates": "Rentabilidad de precio (sin dividendos), del {{start}} al {{end}}",
+      "local": "Movimiento del precio local ({{currency}})",
+      "fx": "Movimiento de la divisa ({{currency}}→GBP)",
+      "cross": "Término cruzado (local × divisa)",
+      "gbp": "Rentabilidad en GBP",
+      "unavailable": "No se pudo cargar el desglose entre rentabilidad local y de divisa.",
+      "reasons": {
+        "missing_fx_rate": "Sin desglose: no hay un tipo {{currency}}→GBP guardado lo bastante cerca del {{start}} o del {{end}}.",
+        "insufficient_price_history": "Sin desglose: hay menos de dos precios guardados en este periodo.",
+        "currency_mismatch": "Sin desglose: la divisa de cotización ({{currency}}) no coincide con la divisa desde la que se convierten sus precios en GBP."
+      }
     }
   },
   "instrumentTable": {

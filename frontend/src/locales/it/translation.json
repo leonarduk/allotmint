@@ -723,6 +723,21 @@
         "low52w": "Minimo a 52 settimane",
         "averageVolume": "Volume medio"
       }
+    },
+    "fxSplit": {
+      "title": "Rendimento locale vs valutario",
+      "basis": "Rendimento di prezzo (esclusi i dividendi)",
+      "basisWithDates": "Rendimento di prezzo (esclusi i dividendi), dal {{start}} al {{end}}",
+      "local": "Variazione del prezzo locale ({{currency}})",
+      "fx": "Variazione del cambio ({{currency}}→GBP)",
+      "cross": "Termine incrociato (locale × cambio)",
+      "gbp": "Rendimento in GBP",
+      "unavailable": "Impossibile caricare la ripartizione tra rendimento locale e valutario.",
+      "reasons": {
+        "missing_fx_rate": "Nessuna ripartizione: nessun cambio {{currency}}→GBP memorizzato abbastanza vicino al {{start}} o al {{end}}.",
+        "insufficient_price_history": "Nessuna ripartizione: meno di due prezzi memorizzati in questo periodo.",
+        "currency_mismatch": "Nessuna ripartizione: la valuta di quotazione ({{currency}}) non coincide con la valuta da cui sono convertiti i prezzi in GBP."
+      }
     }
   },
   "instrumentTable": {

@@ -102,6 +102,7 @@ def test_endpoints_are_the_first_and_last_closes_and_use_a_rate_within_the_fill_
         pytest.param({START: 0.80}, 0.80, None, id="last-rate-beyond-the-fill-window-at-end"),
         pytest.param({START - timedelta(days=6): 0.80, END: 0.76}, None, 0.76, id="start-rate-six-days-old"),
         pytest.param({}, None, None, id="no-stored-history-not-the-fallback-constant"),
+        pytest.param({START: 0.80, END: 0.0}, 0.80, 0.0, id="non-positive-stored-rate-at-end"),
     ],
 )
 def test_missing_fx_rate_at_either_endpoint_gives_no_split(stored, fx, start_rate, end_rate) -> None:

@@ -118,7 +118,7 @@ def local_fx_return_split(ticker: str, exchange: str, start: date, end: date) ->
     result["start"], result["end"] = (day.date().isoformat() for day in closes.index)
     start_rate, end_rate = (None if pd.isna(rate) else float(rate) for rate in rates)
     result["start_rate"], result["end_rate"] = start_rate, end_rate
-    if start_rate is None or end_rate is None or start_rate <= 0:
+    if start_rate is None or end_rate is None or start_rate <= 0 or end_rate <= 0:
         result["reason"] = REASON_MISSING_FX
         return result
 

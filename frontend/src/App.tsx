@@ -28,13 +28,13 @@ import TableSkeleton from './components/skeletons/TableSkeleton';
 import ChartSkeleton from './components/skeletons/ChartSkeleton';
 
 import { ComplianceWarnings } from './components/ComplianceWarnings';
-import { ScreenerQuery } from './pages/ScreenerQuery';
+import CustomQuery from './pages/CustomQuery';
+import Ideas from './pages/Ideas';
 import useFetchWithRetry from './hooks/useFetchWithRetry';
 import { TimeseriesEdit } from './pages/TimeseriesEdit';
 import Watchlist from './pages/Watchlist';
 import TopMovers from './pages/TopMovers';
 import MarketOverview from './pages/MarketOverview';
-import Trading from './pages/Trading';
 import { useConfig } from './ConfigContext';
 import { usePriceRefresh } from './PriceRefreshContext';
 import DataAdmin from './pages/DataAdmin';
@@ -753,9 +753,9 @@ export default function App({ onLogout }: AppProps) {
           />
         )}
 
-        {mode === 'trading' && <Trading />}
-
-        {mode === 'screener' && <ScreenerQuery />}
+        {mode === 'trading' && <Ideas tab="signals" />}
+        {mode === 'screener' && <Ideas tab="screen" />}
+        {mode === 'query' && <CustomQuery />}
         {mode === 'timeseries' && <TimeseriesEdit />}
         {mode === 'virtual' && (
           <Suspense fallback={<PortfolioDashboardSkeleton label={t('app.loading')} />}>

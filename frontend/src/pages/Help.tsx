@@ -86,18 +86,20 @@ const HELP_PAGES: HelpPageEntry[] = [
   {
     path: "/trading",
     mode: "trading",
-    titleKey: "app.modes.trading",
-    titleDefault: "Trading",
+    titleKey: "help.pages.signalsTitle",
+    titleDefault: "Ideas: Signals",
     descriptionKey: "help.pages.trading",
-    descriptionDefault: "Place and review trades against your accounts.",
+    descriptionDefault:
+      "Buy and sell candidates among the instruments you hold, from fixed momentum and risk rules set on the server. Informational, not trade instructions.",
   },
   {
     path: "/screener",
     mode: "screener",
-    titleKey: "app.modes.screener",
-    titleDefault: "Screener & Query",
+    titleKey: "help.pages.screenTitle",
+    titleDefault: "Ideas: Screen",
     descriptionKey: "help.pages.screener",
-    descriptionDefault: "Search and filter instruments by criteria such as sector, region or yield.",
+    descriptionDefault:
+      "Filter any watchlist or list of tickers by fundamentals such as P/E, margins, leverage or dividend yield.",
   },
   {
     path: "/watchlist",
@@ -131,6 +133,15 @@ const HELP_PAGES: HelpPageEntry[] = [
     titleDefault: "Reports",
     descriptionKey: "help.pages.reports",
     descriptionDefault: "Generate and download portfolio reports.",
+  },
+  {
+    path: "/query",
+    mode: "query",
+    titleKey: "app.modes.query",
+    titleDefault: "Custom Query",
+    descriptionKey: "help.pages.query",
+    descriptionDefault:
+      "Market value or gain for your own holdings over a date range, by owner and ticker, with save, share and export.",
   },
   {
     path: "/pension/forecast",

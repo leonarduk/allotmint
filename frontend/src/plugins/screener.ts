@@ -1,9 +1,9 @@
-import ScreenerQuery from "../pages/ScreenerQuery";
+import { Screener } from "../pages/Screener";
 import type { TabPlugin } from "./TabPlugin";
 
 const plugin: TabPlugin = {
   id: "screener",
-  component: ScreenerQuery,
+  component: Screener,
   priority: 60,
   path: () => "/screener",
 };

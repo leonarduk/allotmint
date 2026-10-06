@@ -2197,7 +2197,7 @@ export const requestApproval = async (owner: string, ticker: string) => {
  * returns structured results rather than a file download) and unwraps the
  * `{ results: [...] }` envelope. This was previously a GET with query-string
  * params, which the backend rejected — see PR #7133. The integration tests in
- * `tests/unit/pages/ScreenerQuery.test.tsx` drive the real implementation
+ * `tests/unit/pages/CustomQuery.test.tsx` drive the real implementation
  * through the Run button and assert on the wire-level request, so a revert to
  * GET (or dropping `format: "json"`) fails the suite.
  *

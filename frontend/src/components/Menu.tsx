@@ -15,6 +15,7 @@ import {
   buildPathForMode,
   deriveModeFromLocation,
   getMenuEntries,
+  getPageManifestEntry,
   MENU_CATEGORY_ORDER,
 } from '../pageManifest';
 import { APP_TAB_NAME, OPERATIONS_TAB_NAME } from '../tabNames';
@@ -55,6 +56,11 @@ export default function Menu({
   const effectiveLogout = onLogout ?? contextLogout ?? undefined;
   const mode = deriveModeFromLocation(location.pathname, location.search) as TabPluginId;
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode);
+  // A page folded into another menu item (e.g. /screener under Ideas) lights
+  // up that item instead.
+  const mergedIntoMode = getPageManifestEntry(mode)?.menuMergedInto;
+  const isActiveTab = (tabMode: string) =>
+    tabMode === mode || tabMode === mergedIntoMode;
 
   const categoryDefinitions = useMemo<MenuCategoryDefinition[]>(() => {
     const section = isSupportMode ? 'support' : 'user';
@@ -71,7 +77,13 @@ export default function Menu({
           // Family MVP no longer restricts which tabs appear (#4641): every
           // tab enabled in config is navigable from the menu. Visibility is
           // driven purely by the config tab gating below.
-          tabs[entry.mode] === true && !disabledTabs?.includes(entry.mode)
+          tabs[entry.mode] === true &&
+          !disabledTabs?.includes(entry.mode) &&
+          !(
+            entry.menuMergedInto &&
+            tabs[entry.menuMergedInto] === true &&
+            !disabledTabs?.includes(entry.menuMergedInto)
+          )
       ),
     [disabledTabs, isSupportMode, tabs]
   );
@@ -212,7 +224,7 @@ export default function Menu({
         {categoriesToRender.map((category) => {
           const isOpen = category.id === openCategory;
           const containsActiveTab = category.tabs.some(
-            (tab) => tab.mode === mode
+            (tab) => isActiveTab(tab.mode)
           );
           const buttonId = `menu-trigger-${category.id}`;
           const panelId = `menu-panel-${category.id}`;
@@ -288,12 +300,12 @@ export default function Menu({
                           group: selectedGroup,
                         })}
                         className={`block min-h-11 w-full rounded px-3 py-2 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
-                          mode === tab.mode
+                          isActiveTab(tab.mode)
                             ? 'font-semibold text-[var(--menu-text-active)]!'
                             : 'text-[var(--menu-text)]! hover:bg-[var(--menu-hover-bg)] hover:text-[var(--menu-text-active)]!'
                         }`}
                       >
-                        {t(`app.modes.${tab.mode}`)}
+                        {t(`app.modes.${tab.menuLabelKey ?? tab.mode}`)}
                       </Link>
                     </li>
                   ))}

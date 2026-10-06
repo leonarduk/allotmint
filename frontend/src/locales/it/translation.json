@@ -119,6 +119,7 @@
       "dataquality": "Qualità dei dati",
       "group": "Gruppo",
       "help": "Aiuto",
+      "ideas": "Idee",
       "instrument": "Analisi settoriale",
       "instrumentadmin": "Amministrazione strumenti",
       "market": "Panoramica del mercato",
@@ -127,11 +128,12 @@
       "pension": "Previsione pensionistica",
       "performance": "Prestazione",
       "plot": "Modalità Orto",
+      "query": "Interrogazione personalizzata",
       "rebalance": "Strategia",
       "reports": "Report",
       "research": "Dettaglio strumento",
       "scenario": "Simulatore di scenari",
-      "screener": "Filtro e interrogazione",
+      "screener": "Filtro",
       "settings": "Regole di negoziazione",
       "support": "Configurazione",
       "taxtools": "Strumenti fiscali",
@@ -1304,6 +1306,7 @@
     "end": "FINE",
     "exportCsv": "Esportazione CSV",
     "exportXlsx": "Esporta XLSX",
+    "intro": "Valore di mercato o guadagno delle tue posizioni in un intervallo di date, per titolare e ticker. Salva, condividi o esporta i risultati.",
     "metricGainGbp": "Guadagno (£)",
     "metricMarketValueGbp": "Valore di mercato (£)",
     "metrics": "Metrica",
@@ -3329,5 +3332,16 @@
         "sleeve": "Comparto"
       }
     }
+  },
+  "ideas": {
+    "explain": {
+      "screen": "Filtro: filtra qualsiasi watchlist o elenco di ticker in base ai fondamentali che scegli. Non dà indicazioni di acquisto o vendita; lo fanno i Segnali per le tue posizioni.",
+      "signals": "Segnali: candidati all'acquisto e alla vendita tra gli strumenti che già detieni, secondo regole fisse di momentum e rischio impostate sul server. Usa Filtro per filtrare qualsiasi lista in base ai fondamentali che scegli."
+    },
+    "tabs": {
+      "screen": "Filtro",
+      "signals": "Segnali"
+    },
+    "tabsLabel": "Viste delle idee"
   }
 }

@@ -119,6 +119,7 @@
       "dataquality": "Data Quality",
       "group": "Group",
       "help": "Help",
+      "ideas": "Ideas",
       "instrument": "Sector Analysis",
       "instrumentadmin": "Instrument Admin",
       "market": "Market Overview",
@@ -127,11 +128,12 @@
       "pension": "Pension Forecast",
       "performance": "Performance",
       "plot": "Plot Mode",
+      "query": "Custom Query",
       "rebalance": "Strategy",
       "reports": "Reports",
       "research": "Instrument Detail",
       "scenario": "Scenario Tester",
-      "screener": "Screener & Query",
+      "screener": "Screener",
       "settings": "Trading Rules",
       "support": "Configuration",
       "taxtools": "Tax Tools",
@@ -1298,6 +1300,7 @@
     "end": "End",
     "exportCsv": "Export CSV",
     "exportXlsx": "Export XLSX",
+    "intro": "Market value or gain for your own holdings over a date range, by owner and ticker. Save, share or export the results.",
     "metricGainGbp": "Gain (£)",
     "metricMarketValueGbp": "Market value (£)",
     "metrics": "Metrics",
@@ -3322,5 +3325,16 @@
         "sleeve": "Sleeve"
       }
     }
+  },
+  "ideas": {
+    "explain": {
+      "screen": "Screen: filter any watchlist or list of tickers by fundamentals you choose. It makes no buy or sell call; Signals does that for your holdings.",
+      "signals": "Signals: buy and sell candidates among the instruments you already hold, using fixed momentum and risk rules set on the server. Use Screen to filter any watchlist by fundamentals you choose."
+    },
+    "tabs": {
+      "screen": "Screen",
+      "signals": "Signals"
+    },
+    "tabsLabel": "Ideas views"
   }
 }

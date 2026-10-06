@@ -10,34 +10,6 @@ import fr from "@/locales/fr/translation.json";
 const mockQueryData = [
   { owner: "alice", ticker: "AAA", market_value_gbp: 100 },
 ];
-const mockScreenerData = [
-  {
-    ticker: "AAA",
-    name: "Alpha",
-    peg_ratio: 1,
-    pe_ratio: 10,
-    de_ratio: 0.5,
-    fcf: 1000,
-    eps: 2,
-    gross_margin: 0.4,
-    operating_margin: 0.2,
-    net_margin: 0.1,
-    ebitda_margin: 0.3,
-    roa: 0.1,
-    roe: 0.2,
-    roi: 0.15,
-    dividend_yield: 2,
-    dividend_payout_ratio: 40,
-    beta: 1.2,
-    shares_outstanding: 1000,
-    float_shares: 800,
-    market_cap: 5000,
-    high_52w: 150,
-    low_52w: 90,
-    avg_volume: 2000,
-  },
-];
-
 vi.mock("@/utils/errorToast", () => ({
   __esModule: true,
   default: vi.fn(),
@@ -91,19 +63,15 @@ vi.mock("@/api", () => ({
       },
     },
   ]),
-  getScreener: vi.fn(),
-  checkScreenerAvailable: vi.fn().mockResolvedValue(true),
 }));
 
 import {
   getOwners,
   getPortfolio,
-  getScreener,
   listSavedQueries,
   runCustomQuery,
-  checkScreenerAvailable,
 } from "@/api";
-import { ScreenerQuery } from "@/pages/ScreenerQuery";
+import { CustomQuery } from "@/pages/CustomQuery";
 
 function renderWithI18n(ui: ReactElement) {
   const i18n = createInstance();
@@ -115,14 +83,12 @@ function renderWithI18n(ui: ReactElement) {
   return { i18n, ...result };
 }
 
-describe("Screener & Query page", () => {
+describe("Custom Query page", () => {
   beforeEach(() => {
     window.history.pushState({}, "", "/");
     vi.resetAllMocks();
     // default API mocks to resolve to empty arrays
     runCustomQuery.mockResolvedValue([]);
-    getScreener.mockResolvedValue([]);
-    checkScreenerAvailable.mockResolvedValue(true);
     getOwners.mockResolvedValue([
       { owner: "alice", full_name: "Alice Example", accounts: [] },
       { owner: "bob", full_name: "Bob Example", accounts: [] },
@@ -131,7 +97,7 @@ describe("Screener & Query page", () => {
     // hardcoded fallback that issue #7202 removed used to render, so a test
     // fixture reusing them couldn't tell a working derivation from a gutted
     // one. See "PR #7323 review" comment above the fallback's old location
-    // in ScreenerQuery.tsx.
+    // in the old ScreenerQuery.tsx.
     getPortfolio.mockImplementation((owner: string) =>
       Promise.resolve(
         makePortfolio(owner, owner === "alice" ? ["VOD"] : ["PFE"]),
@@ -155,53 +121,9 @@ describe("Screener & Query page", () => {
       },
     ]);
   });
-  it("runs screener and displays results", async () => {
-    getScreener.mockResolvedValue(mockScreenerData);
-    renderWithI18n(<ScreenerQuery />);
-
-    fireEvent.change(await screen.findByLabelText("Watchlist"), {
-      target: { value: "Custom" },
-    });
-    // Start from a blank slate so the exact-criteria assertion below isn't
-    // coupled to the page's default filters.
-    fireEvent.click(screen.getByRole("button", { name: en.screener.clearFilters }));
-    fireEvent.change(screen.getByLabelText(en.screener.tickers), {
-      target: { value: "AAA" },
-    });
-    fireEvent.change(screen.getByLabelText(en.screener.maxPeg), {
-      target: { value: "2" },
-    });
-    fireEvent.change(screen.getByLabelText(en.screener.minRoe), {
-      target: { value: "5" },
-    });
-
-    fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
-
-    const values = await screen.findAllByText("1,000");
-    expect(values.length).toBeGreaterThan(0);
-    expect(getScreener).toHaveBeenCalledWith(
-      ["AAA"],
-      expect.objectContaining({ peg_max: 2, roe_min: 5 }),
-    );
-
-    fireEvent.change(screen.getByLabelText(en.screener.minDividendYield), {
-      target: { value: "1" },
-    });
-    fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
-
-    const values2 = await screen.findAllByText("1,000");
-    expect(values2.length).toBeGreaterThan(0);
-    expect(getScreener).toHaveBeenCalledWith(["AAA"], { peg_max: 2, roe_min: 5 });
-    expect(await screen.findByText("1.2")).toBeInTheDocument();
-    expect(getScreener).toHaveBeenCalledWith(
-      ["AAA"],
-      expect.objectContaining({ peg_max: 2, dividend_yield_min: 1 }),
-    );
-  });
-
   it("submits query form and renders results with export links", async () => {
     runCustomQuery.mockResolvedValue(mockQueryData);
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
 
     await screen.findByLabelText("Alice Example");
     await screen.findByLabelText("VOD");
@@ -222,7 +144,7 @@ describe("Screener & Query page", () => {
     fireEvent.click(screen.getByLabelText("VOD"));
     fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
 
-    fireEvent.click(screen.getAllByRole("button", { name: i18n.t("query.run") })[1]);
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("query.run") }));
 
     expect(runCustomQuery).toHaveBeenCalledWith({
       start: "2024-01-01",
@@ -245,7 +167,7 @@ describe("Screener & Query page", () => {
 
   it("persists selected parameters in export URLs", async () => {
     runCustomQuery.mockResolvedValue(mockQueryData);
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
 
     await screen.findByLabelText("Alice Example");
     await screen.findByLabelText("VOD");
@@ -267,7 +189,7 @@ describe("Screener & Query page", () => {
     fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
 
     fireEvent.click(
-      screen.getAllByRole("button", { name: i18n.t("query.run") })[1],
+      screen.getByRole("button", { name: i18n.t("query.run") }),
     );
 
     const csv = await screen.findByRole("link", { name: /csv/i });
@@ -280,7 +202,7 @@ describe("Screener & Query page", () => {
   });
 
   it("loads saved queries into the form", async () => {
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     const btn = await screen.findByText("Saved1");
     fireEvent.click(btn);
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue("2024-01-01");
@@ -295,7 +217,7 @@ describe("Screener & Query page", () => {
   });
 
   it("derives the ticker list from real per-owner holdings, not a hardcoded list", async () => {
-    renderWithI18n(<ScreenerQuery />);
+    renderWithI18n(<CustomQuery />);
     await screen.findByLabelText("Alice Example");
 
     // Both mocked owners' tickers show up (no owner selected == all owners
@@ -313,7 +235,7 @@ describe("Screener & Query page", () => {
   });
 
   it("narrows the ticker list to the selected owner's holdings", async () => {
-    renderWithI18n(<ScreenerQuery />);
+    renderWithI18n(<CustomQuery />);
     await screen.findByLabelText("VOD");
     await screen.findByLabelText("PFE");
 
@@ -336,7 +258,7 @@ describe("Screener & Query page", () => {
       ),
     );
 
-    renderWithI18n(<ScreenerQuery />);
+    renderWithI18n(<CustomQuery />);
     await screen.findByLabelText("Alice Example");
 
     // No owner selected == all owners in scope, so both owners' tickers show.
@@ -358,7 +280,7 @@ describe("Screener & Query page", () => {
 
   it("shows an empty state when the in-scope owner has no holdings", async () => {
     getPortfolio.mockResolvedValue(makePortfolio("alice", []));
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     await screen.findByLabelText("Alice Example");
 
     expect(
@@ -372,7 +294,7 @@ describe("Screener & Query page", () => {
         ? Promise.reject(new Error("portfolio down"))
         : Promise.resolve(makePortfolio(owner, ["VOD"])),
     );
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     await screen.findByLabelText("Alice Example");
 
     // Alice's ticker still renders...
@@ -389,11 +311,11 @@ describe("Screener & Query page", () => {
     getOwners.mockRejectedValueOnce(new Error("owners down"));
     listSavedQueries.mockRejectedValueOnce(new Error("queries down"));
 
-    renderWithI18n(<ScreenerQuery />);
+    renderWithI18n(<CustomQuery />);
 
-    expect(screen.getByTestId("screener-query-wrapper")).toBeInTheDocument();
+    expect(screen.getByTestId("custom-query-wrapper")).toBeInTheDocument();
     expect(
-      screen.getByTestId("screener-query-boundary"),
+      screen.getByTestId("custom-query-boundary"),
     ).toBeInTheDocument();
   });
 
@@ -403,7 +325,7 @@ describe("Screener & Query page", () => {
       "",
       "/?start=2024-01-01&owners=alice&tickers=VOD&metrics=market_value_gbp",
     );
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     await screen.findByLabelText("Alice Example");
     await screen.findByLabelText("VOD");
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
@@ -433,7 +355,7 @@ describe("Screener & Query page", () => {
     vi.setSystemTime(new Date(2028, 1, 29, 12));
     try {
       window.history.pushState({}, "", "/");
-      const { i18n } = renderWithI18n(<ScreenerQuery />);
+      const { i18n } = renderWithI18n(<CustomQuery />);
       await screen.findByLabelText(i18n.t("query.start"));
       expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(
         "2028-02-29",
@@ -448,7 +370,7 @@ describe("Screener & Query page", () => {
 
   it("defaults the date range to the trailing 12 months", async () => {
     window.history.pushState({}, "", "/");
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     await screen.findByLabelText(i18n.t("query.start"));
     const { start, end } = expectedDefaultRange();
     expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(end);
@@ -457,7 +379,7 @@ describe("Screener & Query page", () => {
 
   it("keeps the default end date when a link only carries a start date", async () => {
     window.history.pushState({}, "", "/?start=2024-01-01");
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     await screen.findByLabelText(i18n.t("query.start"));
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
       "2024-01-01",
@@ -469,7 +391,7 @@ describe("Screener & Query page", () => {
 
   it("keeps the default start date when a link only carries an end date", async () => {
     window.history.pushState({}, "", "/?end=2024-02-01");
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     await screen.findByLabelText(i18n.t("query.start"));
     expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(
       "2024-02-01",
@@ -481,7 +403,7 @@ describe("Screener & Query page", () => {
 
   it("overrides both defaults when a link carries start and end", async () => {
     window.history.pushState({}, "", "/?start=2024-01-01&end=2024-02-01");
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     await screen.findByLabelText(i18n.t("query.start"));
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
       "2024-01-01",
@@ -500,7 +422,7 @@ describe("Screener & Query page", () => {
         params: { start: "", end: "", owners: [], tickers: [], metrics: [] },
       },
     ]);
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     fireEvent.click(await screen.findByText("NoDates"));
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue("");
     expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue("");
@@ -508,7 +430,7 @@ describe("Screener & Query page", () => {
 
   it("ignores an invalid end date in the link and keeps the default", async () => {
     window.history.pushState({}, "", "/?end=not-a-date");
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     await screen.findByLabelText(i18n.t("query.end"));
     expect(screen.getByLabelText(i18n.t("query.end"))).toHaveValue(
       expectedDefaultRange().end,
@@ -521,7 +443,7 @@ describe("Screener & Query page", () => {
       "",
       "/?owners=<script>alert(1)</script>&start=not-a-date",
     );
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     await screen.findByLabelText(i18n.t("query.start"));
     // The invalid date is rejected and the default stays.
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
@@ -534,7 +456,7 @@ describe("Screener & Query page", () => {
   it("copies an encoded link to the clipboard", async () => {
     const writeText = vi.fn();
     Object.assign(navigator, { clipboard: { writeText } });
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     await screen.findByLabelText("Alice Example");
     await screen.findByLabelText("VOD");
     fireEvent.click(screen.getByLabelText("Alice Example"));
@@ -553,14 +475,14 @@ describe("Screener & Query page", () => {
   });
 
   it("switches labels when language changes", async () => {
-    const { i18n, rerender } = renderWithI18n(<ScreenerQuery />);
+    const { i18n, rerender } = renderWithI18n(<CustomQuery />);
     await screen.findByLabelText(i18n.t("query.start"));
     await act(async () => {
       await i18n.changeLanguage("fr");
     });
     rerender(
       <I18nextProvider i18n={i18n}>
-        <ScreenerQuery />
+        <CustomQuery />
       </I18nextProvider>,
     );
     expect(
@@ -577,7 +499,7 @@ describe("Screener & Query page", () => {
 // stub the global `fetch` and drive the *real* `runCustomQuery` through the
 // component, asserting on the wire-level request (method, URL, JSON body) and
 // on the user-visible result/error states.
-describe("Screener & Query page — Run button integration (real runCustomQuery)", () => {
+describe("Custom Query page — Run button integration (real runCustomQuery)", () => {
   // `runCustomQuery` is mocked at module scope above; these tests need the
   // real implementation, so we import it fresh from the module registry and
   // restore the mocked binding afterwards.
@@ -600,8 +522,6 @@ describe("Screener & Query page — Run button integration (real runCustomQuery)
       Promise.resolve(makePortfolio(owner, ["VOD"])),
     );
     listSavedQueries.mockResolvedValue([]);
-    getScreener.mockResolvedValue([]);
-    checkScreenerAvailable.mockResolvedValue(true);
 
     fetchSpy = vi.spyOn(globalThis, "fetch");
   });
@@ -626,7 +546,7 @@ describe("Screener & Query page — Run button integration (real runCustomQuery)
   it("POSTs the query as JSON with format=json and renders the unwrapped results", async () => {
     stubFetchOnce({ results: mockQueryData });
 
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     await screen.findByLabelText("Alice Example");
     await screen.findByLabelText("VOD");
 
@@ -642,7 +562,7 @@ describe("Screener & Query page — Run button integration (real runCustomQuery)
     fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
 
     fireEvent.click(
-      screen.getAllByRole("button", { name: i18n.t("query.run") })[1],
+      screen.getByRole("button", { name: i18n.t("query.run") }),
     );
 
     // The unwrapped `results` array must be rendered — proving the response
@@ -676,7 +596,7 @@ describe("Screener & Query page — Run button integration (real runCustomQuery)
       { ok: false, status: 500 },
     );
 
-    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    const { i18n } = renderWithI18n(<CustomQuery />);
     await screen.findByLabelText("Alice Example");
     await screen.findByLabelText("VOD");
 
@@ -686,7 +606,7 @@ describe("Screener & Query page — Run button integration (real runCustomQuery)
     fireEvent.click(screen.getByLabelText(i18n.t("query.metricMarketValueGbp")));
 
     fireEvent.click(
-      screen.getAllByRole("button", { name: i18n.t("query.run") })[1],
+      screen.getByRole("button", { name: i18n.t("query.run") }),
     );
 
     // The backend's `detail` message is surfaced to the user (prefixed with

@@ -1,4 +1,3 @@
-import { Screener } from "./Screener";
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -53,7 +52,7 @@ function defaultDateRange(now: Date = new Date()): { start: string; end: string 
   return { start: toLocalIsoDate(yearAgo), end: toLocalIsoDate(now) };
 }
 
-function QuerySection() {
+export function CustomQuery() {
   const fetchOwners = useCallback(getOwners, []);
   const {
     data: owners,
@@ -294,11 +293,13 @@ function QuerySection() {
   return (
     <div
       className="container mx-auto p-4"
-      data-testid="screener-query-wrapper"
+      data-testid="custom-query-wrapper"
     >
+      <h1 className="mb-2 text-xl md:text-2xl">{t("app.modes.query")}</h1>
+      <p className="mb-4">{t("query.intro")}</p>
       <span
         aria-hidden="true"
-        data-testid="screener-query-boundary"
+        data-testid="custom-query-boundary"
         style={{
           position: "absolute",
           width: 1,
@@ -462,14 +463,4 @@ function QuerySection() {
   );
 }
 
-export function ScreenerQuery() {
-  return (
-    <div className="space-y-8">
-      <Screener />
-      <hr className="my-8" />
-      <QuerySection />
-    </div>
-  );
-}
-
-export default ScreenerQuery;
+export default CustomQuery;

@@ -119,6 +119,7 @@
       "dataquality": "Calidad de datos",
       "group": "Grupo",
       "help": "Ayuda",
+      "ideas": "Ideas",
       "instrument": "Análisis sectorial",
       "instrumentadmin": "Administración de instrumentos",
       "market": "Resumen del mercado",
@@ -127,11 +128,12 @@
       "pension": "Pronóstico de pensión",
       "performance": "Rendimiento",
       "plot": "Modo Huerto",
+      "query": "Consulta personalizada",
       "rebalance": "Estrategia",
       "reports": "Informes",
       "research": "Detalle del instrumento",
       "scenario": "Probador de Escenarios",
-      "screener": "Filtro y consulta",
+      "screener": "Filtro",
       "settings": "Reglas de negociación",
       "support": "Configuración",
       "taxtools": "Herramientas fiscales",
@@ -1304,6 +1306,7 @@
     "end": "Fin",
     "exportCsv": "Exportar CSV",
     "exportXlsx": "Exportar XLSX",
+    "intro": "Valor de mercado o ganancia de sus propias posiciones en un rango de fechas, por titular y ticker. Guarde, comparta o exporte los resultados.",
     "metricGainGbp": "Ganancia (£)",
     "metricMarketValueGbp": "Valor de mercado (£)",
     "metrics": "Métricas",
@@ -3329,5 +3332,16 @@
         "sleeve": "Bloque"
       }
     }
+  },
+  "ideas": {
+    "explain": {
+      "screen": "Filtro: filtre cualquier lista de seguimiento o de tickers por los fundamentales que elija. No da recomendaciones de compra o venta; eso lo hacen las Señales para sus posiciones.",
+      "signals": "Señales: candidatos de compra y venta entre los instrumentos que ya tiene, según reglas fijas de momento y riesgo definidas en el servidor. Use Filtro para filtrar cualquier lista por los fundamentales que elija."
+    },
+    "tabs": {
+      "screen": "Filtro",
+      "signals": "Señales"
+    },
+    "tabsLabel": "Vistas de ideas"
   }
 }

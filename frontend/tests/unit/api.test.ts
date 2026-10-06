@@ -343,7 +343,7 @@ describe("getCachedGroupInstruments cache eviction on rejection (issue #7222)", 
   // Regression test: getCachedGroupInstruments memoizes its promise by cache
   // key BEFORE the request settles. If a request fails and the rejected
   // promise is left cached, every subsequent caller (including a user
-  // clicking "Retry" in ScreenerQuery) replays the SAME rejection forever,
+  // clicking "Retry" in CustomQuery) replays the SAME rejection forever,
   // with no new network request — only a full page reload (which resets the
   // module-level cache) recovers. This exercises the real cache in @/api
   // directly, not a mocked module, so it fails if the eviction-on-error path

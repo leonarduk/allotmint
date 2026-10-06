@@ -119,6 +119,7 @@
       "dataquality": "Qualité des données",
       "group": "Groupe",
       "help": "Aide",
+      "ideas": "Idées",
       "instrument": "Analyse sectorielle",
       "instrumentadmin": "Administration des instruments",
       "market": "Aperçu du marché",
@@ -127,11 +128,12 @@
       "pension": "Prévision de pension",
       "performance": "Performance",
       "plot": "Mode Potager",
+      "query": "Requête personnalisée",
       "rebalance": "Stratégie",
       "reports": "Rapports",
       "research": "Détail de l'instrument",
       "scenario": "Testeur de Scénario",
-      "screener": "Filtre & Requête",
+      "screener": "Filtre",
       "settings": "Règles de négociation",
       "support": "Configuration",
       "taxtools": "Outils fiscaux",
@@ -1304,6 +1306,7 @@
     "end": "Fin",
     "exportCsv": "Exporter CSV",
     "exportXlsx": "Exporter XLSX",
+    "intro": "Valeur de marché ou plus-value de vos propres positions sur une période, par titulaire et ticker. Enregistrez, partagez ou exportez les résultats.",
     "metricGainGbp": "Gain (£)",
     "metricMarketValueGbp": "Valeur de marché (£)",
     "metrics": "Métriques",
@@ -3329,5 +3332,16 @@
         "sleeve": "Poche"
       }
     }
+  },
+  "ideas": {
+    "explain": {
+      "screen": "Filtre : filtrez n'importe quelle liste de suivi ou de tickers selon les fondamentaux de votre choix. Aucun conseil d'achat ou de vente ; les Signaux s'en chargent pour vos positions.",
+      "signals": "Signaux : candidats à l'achat et à la vente parmi les instruments que vous détenez, selon des règles fixes de momentum et de risque définies sur le serveur. Utilisez Filtre pour filtrer n'importe quelle liste selon les fondamentaux de votre choix."
+    },
+    "tabs": {
+      "screen": "Filtre",
+      "signals": "Signaux"
+    },
+    "tabsLabel": "Vues des idées"
   }
 }

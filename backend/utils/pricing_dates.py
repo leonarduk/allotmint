@@ -39,6 +39,12 @@ class PricingDateCalculator:
         return self._weekday_func(candidate, forward)
 
     @property
+    def has_explicit_reporting_date(self) -> bool:
+        """True when the caller asked for a specific date (e.g. an ``as_of`` query)."""
+
+        return self._explicit_reporting_date is not None
+
+    @property
     def today(self) -> dt.date:
         """Return the reference date used for calculations."""
 

@@ -22,6 +22,7 @@ from backend.common.constants import (
 )
 from backend.common.currency import CurrencyNormaliser
 from backend.common.instrument_classification import canonical_asset_class, exposure_sector, resolve_instrument_type
+from backend.common.instrument_proxy import proxied_daily_history
 from backend.common.instruments import get_instrument_meta
 from backend.common.numeric_utils import is_nan
 from backend.common.sector_labels import (
@@ -572,6 +573,40 @@ def _snapshot_is_stale(snap: Dict[str, Any], reporting_date: dt.date) -> bool:
     return flag is None
 
 
+def _snapshot_usable(snap: Any, calc: PricingDateCalculator) -> bool:
+    """Whether a price snapshot entry may price a holding for ``calc``'s date (#9834).
+
+    The snapshot holds the latest price. For an explicitly requested date
+    (``as_of``) it is only usable when its ``last_price_date`` is known and not
+    after that date; otherwise a historical valuation would use today's price.
+    """
+    if not isinstance(snap, dict) or is_nan(snap.get("last_price")):
+        return False
+    if not calc.has_explicit_reporting_date:
+        return True
+    price_date = _parse_date(snap.get("last_price_date"))
+    return price_date is not None and price_date <= calc.reporting_date
+
+
+def _proxied_price_for_date(full: str, day: dt.date) -> tuple[Optional[float], Optional[str]]:
+    """``(GBP close, source)`` on or before ``day`` from the instrument's proxied history.
+
+    Used for dated valuations that predate an instrument's own history (#9834).
+    Only a proxy-sourced row is returned: an own close would already have been
+    found by the dated lookup, so anything else here means no usable price.
+    """
+    if "." not in full:
+        return None, None
+    hist = proxied_daily_history(full, day - timedelta(days=7), day)
+    if hist.empty:
+        return None, None
+    last = hist.iloc[-1]
+    source = str(last["Source"])
+    if not source.startswith("proxy:") or is_nan(last["Close_gbp"]):
+        return None, None
+    return float(last["Close_gbp"]), source
+
+
 register_meta_cache_clearer(_load_unscaled_price_for_date_cache_only.cache_clear)
 
 
@@ -960,8 +995,7 @@ def enrich_holding(
         from backend.common import portfolio_utils as pu  # local import to avoid circular
 
         snap = pu._PRICE_SNAPSHOT.get(full) or pu._PRICE_SNAPSHOT.get(ticker)
-        snap_price = snap.get("last_price") if isinstance(snap, dict) else None
-        if not is_nan(snap_price):
+        if _snapshot_usable(snap, calc):
             px = float(snap["last_price"])
             last_price_time = snap.get("last_price_time")
             is_stale = _snapshot_is_stale(snap, calc.reporting_date)
@@ -984,6 +1018,14 @@ def enrich_holding(
             px = prev_px
             px_source = "previous_close"
             is_stale = True
+
+        if px is None and calc.has_explicit_reporting_date:
+            # The date predates the instrument's own history: use its proxy,
+            # labelled as such via ``latest_source`` (#9834).
+            px, proxy_source = _proxied_price_for_date(full, calc.reporting_date)
+            if px is not None:
+                px_source = proxy_source
+                is_stale = True
 
         if px is not None:
             days_since = max(0, (dt.date.today() - pricing_date).days)

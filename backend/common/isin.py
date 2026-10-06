@@ -69,12 +69,17 @@ def isin_fits_exchange(isin: Any, exchange: Any) -> Optional[bool]:
     the ``"-"`` placeholder) or an exchange without an expected-prefix entry.
     """
     text = normalise_isin(isin)
-    if text is None or not ISIN_RE.match(text) or not isinstance(exchange, str):
-        return None
-    expected = EXCHANGE_ISIN_PREFIXES.get(exchange.strip().upper())
-    if expected is None:
+    expected = _expected_prefixes(exchange)
+    if text is None or not ISIN_RE.match(text) or expected is None:
         return None
     return text[:2] in expected
+
+
+def _expected_prefixes(exchange: Any) -> Optional[FrozenSet[str]]:
+    """The ISIN country prefixes expected on ``exchange``, or ``None`` when it has no entry."""
+    if not isinstance(exchange, str):
+        return None
+    return EXCHANGE_ISIN_PREFIXES.get(exchange.strip().upper())
 
 
 def check_isin_change(
@@ -93,7 +98,7 @@ def check_isin_change(
     if allow_foreign_isin or new is None or new == normalise_isin(existing_isin):
         return
     if isin_fits_exchange(new, exchange) is False:
-        expected = ", ".join(sorted(EXCHANGE_ISIN_PREFIXES[str(exchange).strip().upper()]))
+        expected = ", ".join(sorted(_expected_prefixes(exchange) or ()))
         raise ForeignIsinError(
             f"ISIN {new} has country prefix {new[:2]}, which does not fit exchange {exchange} "
             f"(expected {expected}); existing ISIN {normalise_isin(existing_isin) or 'none'}. "

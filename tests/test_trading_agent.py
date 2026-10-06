@@ -814,6 +814,25 @@ def test_run_pro_absent_no_screening_warning_when_only_sell_signals(monkeypatch,
     assert screening_warnings == []
 
 
+@pytest.mark.parametrize("notify, expected_calls", [(True, 1), (False, 0)])
+def test_run_drawdown_sweep_only_when_notifying(monkeypatch, notify, expected_calls):
+    """Page requests (notify=False) must not rebuild every owner's performance."""
+    import pandas as pd
+
+    monkeypatch.setattr(
+        trading_agent.prices,
+        "load_prices_for_tickers",
+        lambda tickers, days=60: pd.DataFrame(columns=["Ticker", "close"]),
+    )
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+    calls: list[int] = []
+    monkeypatch.setattr(trading_agent, "_alert_on_drawdown", lambda: calls.append(1))
+    monkeypatch.setattr(trading_agent.config.trading_agent, "require_pro_checks", False)
+
+    assert trading_agent.run(["AAA"], notify=notify) == []
+    assert len(calls) == expected_calls
+
+
 def test_alert_on_drawdown_handles_value_error(monkeypatch):
     """Ensure ValueError in performance computation doesn't leak."""
     monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])

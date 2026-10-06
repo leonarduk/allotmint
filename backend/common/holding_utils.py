@@ -1087,7 +1087,20 @@ def _holding_fx_rate_source(currency: object, ticker: str, exchange: str) -> Opt
     """
     from backend.common import portfolio_utils  # local import to avoid circular
 
-    raw = currency if currency else instrument_currency(ticker, exchange)
+    raw = currency
+    if not raw:
+        try:
+            raw = instrument_currency(ticker, exchange)
+        except ValueError as exc:
+            # An unparseable symbol has no metadata: same GBP default as
+            # CurrencyNormaliser gives a holding with no currency.
+            logger.warning(
+                "No currency for %s.%s; assuming GBP: %s",
+                sanitise_log_value(ticker),
+                sanitise_log_value(exchange),
+                sanitise_log_value(exc),
+            )
+            return None
     normaliser = CurrencyNormaliser.from_raw(raw)
     if normaliser.is_pence or normaliser.canonical == "GBP":
         return None

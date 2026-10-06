@@ -1333,9 +1333,9 @@ def _convert_to_base_currency(
         # Close_<base> column, so consumers can tell it was never converted.
         logger.warning(
             "No %s->GBP rate; %s.%s prices left unconverted",
-            _sanitize_for_log(currency),
-            _sanitize_for_log(ticker),
-            _sanitize_for_log(exchange),
+            sanitise_log_value(currency),
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
         )
         return df
 

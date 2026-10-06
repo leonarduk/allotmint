@@ -60,7 +60,7 @@ def test_fx_to_base_uses_fetched_rates(monkeypatch):
     assert ("EUR", "GBP") in calls
 
 
-def test_fx_to_base_falls_back_to_default_rate(monkeypatch):
+def test_fx_to_base_has_no_rate_without_a_fallback_constant(monkeypatch):
     cache: dict[str, float] = {}
 
     def fake_fetch(ccy: str, base: str, start, end):
@@ -72,9 +72,10 @@ def test_fx_to_base_falls_back_to_default_rate(monkeypatch):
 
     rate = portfolio_utils._fx_to_base("JPY", "CAD", cache)
 
-    assert rate == 1.0
-    assert cache["JPY"] == 1.0
-    assert cache["CAD"] == 1.0
+    # Neither has an approximate constant: no rate, not a made-up 1.0 (#9664).
+    assert rate is None
+    assert cache["JPY"] is None
+    assert cache["CAD"] is None
 
 
 def test_normalise_snapshot_native_price_keeps_gbx_value_when_already_gbp_scaled():
@@ -792,7 +793,8 @@ def test_fx_to_base_cache_reuse_and_aggregate_scaling(monkeypatch):
 
     fx_cache: dict[str, float] = {"EUR": 0.0}
     guarded_rate = portfolio_utils._fx_to_base("USD", "EUR", fx_cache)
-    assert guarded_rate == pytest.approx(1.0)
+    # A zero base rate is no rate, not a made-up 1.0 (#9664).
+    assert guarded_rate is None
     assert calls == [("USD", "GBP")]
 
     calls.clear()

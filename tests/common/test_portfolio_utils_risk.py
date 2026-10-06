@@ -28,8 +28,9 @@ def test_fx_to_base_fetch_exception(monkeypatch):
     monkeypatch.setattr(pu, "fetch_fx_rate_range", boom)
     cache: dict[str, float] = {}
     rate = pu._fx_to_base("USD", "GBP", cache)
-    assert rate == 1.0
-    assert cache["USD"] == 1.0
+    # The approximate USD constant, not a made-up 1.0 (#9664).
+    assert rate == 0.8
+    assert cache["USD"] == 0.8
 
 
 def test_fx_to_base_rate_cached(monkeypatch):

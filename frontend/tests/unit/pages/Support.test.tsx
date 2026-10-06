@@ -535,6 +535,22 @@ describe("Support page", () => {
     ).toBeNull();
   });
 
+  it("labels each other-parameter input with its own config key", async () => {
+    mockGetConfig.mockResolvedValueOnce({
+      theme: "system",
+      app_env: "local",
+      accounts_root: "/data/accounts",
+      tabs: {},
+    });
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+    const appEnv = await screen.findByRole("textbox", { name: "app_env" });
+    const accountsRoot = screen.getByRole("textbox", { name: "accounts_root" });
+    expect(appEnv).not.toBe(accountsRoot);
+    expect(appEnv).toHaveValue("local");
+    expect(accountsRoot).toHaveValue("/data/accounts");
+  });
+
   it("allows selecting theme via radio buttons", async () => {
     render(<Support />, { wrapper: MemoryRouter });
     await expandSection(en.support.config.title);

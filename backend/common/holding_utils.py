@@ -60,6 +60,22 @@ def _fx_to_base(from_ccy: str, to_ccy: str, cache: Dict[str, Optional[float]]) -
     return portfolio_utils._fx_to_base(from_ccy, to_ccy, cache)
 
 
+def _cash_gbp_rate(currency: str) -> tuple[Optional[float], Optional[str]]:
+    """``(GBP per unit of cash held in currency, FX rate source)`` (#9754).
+
+    GBP is 1.0 and pence 0.01, needing no FX (source ``None``). Any other
+    currency takes the rate the rest of enrichment uses -- the FX cache on a
+    cache-only page request (#8028) -- or ``(None, "missing")`` when there is
+    none, never a made-up rate (#9664).
+    """
+    norm = CurrencyNormaliser.from_raw(currency)
+    if norm.is_pence or norm.canonical == "GBP":
+        return norm.pence_factor, None
+    from backend.common import portfolio_utils  # local import to avoid circular
+
+    return portfolio_utils.fx_rate_to_gbp_with_source(norm.canonical)
+
+
 def _parse_date(val) -> Optional[dt.date]:
     # pd.NaT subclasses datetime and NaT.date() is NaT, which compares False
     # with any date -- so a missing row date would read as fresh (#8595).
@@ -794,9 +810,11 @@ def enrich_holding(
         out["region"] = normalise_optional_region(out.get("region") or meta.get("region"))
 
         out["price"] = 1.0
-        out["current_price_gbp"] = 1.0 if account_ccy == "GBP" else None
-
-        out["market_value_gbp"] = units if account_ccy == "GBP" else None
+        # Foreign cash is valued at the GBP rate; with no rate it is left
+        # unvalued and flagged "missing" rather than dropped silently (#9754).
+        gbp_rate, fx_rate_source = _cash_gbp_rate(account_ccy)
+        out["current_price_gbp"] = gbp_rate
+        out["market_value_gbp"] = None if gbp_rate is None else units * gbp_rate
         out["gain_gbp"] = 0.0
         out["unrealised_gain_gbp"] = 0.0
         out["unrealized_gain_gbp"] = 0.0
@@ -819,7 +837,7 @@ def enrich_holding(
         out["days_until_eligible"] = 0
         out["next_eligible_sell_date"] = None
         out["cost_basis_source"] = "cash"
-        out["fx_rate_source"] = None
+        out["fx_rate_source"] = fx_rate_source
 
         return out
 

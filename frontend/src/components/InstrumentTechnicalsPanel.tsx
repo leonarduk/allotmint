@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useInRouterContext } from 'react-router-dom';
 import { getInstrumentTechnicals } from '../api';
 import type { InstrumentTechnicals } from '../types';
@@ -23,10 +24,11 @@ type Row = {
 const GLOSSARY_PATH = '/metrics-explained';
 
 function TermTip({ term }: { term: TechnicalsTerm }) {
+  const { t } = useTranslation();
   const entry = technicalsTerm(term);
   return (
     <InfoTip
-      label={`What does ${entry.title} mean?`}
+      label={t('instrumentTechnicals.whatDoesMean', { title: entry.title })}
       to={`${GLOSSARY_PATH}#${entry.id}`}
     >
       {entry.short}
@@ -34,9 +36,9 @@ function TermTip({ term }: { term: TechnicalsTerm }) {
   );
 }
 
-const CROSS_LABEL: Record<string, string> = {
-  golden: 'Golden cross (50 above 200)',
-  death: 'Death cross (50 below 200)',
+const CROSS_KEY: Record<string, string> = {
+  golden: 'instrumentTechnicals.crossGolden',
+  death: 'instrumentTechnicals.crossDeath',
 };
 
 const num = (v: number | null | undefined, digits = 2) =>
@@ -48,17 +50,15 @@ const label = (v: string | null | undefined) =>
 const withDate = (v: string | null, date: string | null) =>
   v ? `${label(v)}${date ? ` (${date})` : ''}` : '—';
 
-const vsHint = (v: number | null) =>
-  v == null ? undefined : `Price ${signedPct(v)} vs average`;
-
-const RETURN_LABELS: Record<string, string> = {
-  '1m': '1 month',
-  '3m': '3 months',
-  '6m': '6 months',
-  '1y': '12 months',
+const RETURN_KEYS: Record<string, string> = {
+  '1m': 'instrumentTechnicals.return1m',
+  '3m': 'instrumentTechnicals.return3m',
+  '6m': 'instrumentTechnicals.return6m',
+  '1y': 'instrumentTechnicals.return1y',
 };
 
 export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
+  const { t } = useTranslation();
   const inRouterContext = useInRouterContext();
   const [data, setData] = useState<InstrumentTechnicals | null>(null);
   const [loading, setLoading] = useState(false);
@@ -82,8 +82,10 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
         if (e?.name === 'AbortError' || controller.signal.aborted) return;
         setError(
           e?.status === 402
-            ? 'Technical analysis is not available in this deployment.'
-            : `Unable to load technicals: ${e?.message ?? String(err)}`
+            ? t('instrumentTechnicals.unavailable')
+            : t('instrumentTechnicals.loadError', {
+                message: e?.message ?? String(err),
+              })
         );
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -91,9 +93,9 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
     };
     void load();
     return () => controller.abort();
-  }, [ticker]);
+  }, [ticker, t]);
 
-  if (loading) return <div>Loading technicals...</div>;
+  if (loading) return <div>{t('instrumentTechnicals.loading')}</div>;
   if (error) return <div style={{ color: 'red' }}>{error}</div>;
   if (!data) return null;
 
@@ -109,50 +111,59 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
   } = data;
   const units = data.price_currency ? ` ${data.price_currency}` : '';
   const level = (v: number | null) => (v == null ? '—' : `${num(v)}${units}`);
+  const vsHint = (v: number | null) =>
+    v == null
+      ? undefined
+      : t('instrumentTechnicals.priceVsAverage', { value: signedPct(v) });
   const benchmarkName = rs.benchmark.name ?? rs.benchmark.ticker;
 
   const sections: { title: string; term?: TechnicalsTerm; rows: Row[] }[] = [
     {
-      title: 'Trend',
+      title: t('instrumentTechnicals.trend'),
       rows: [
         {
-          label: 'Trend',
+          label: t('instrumentTechnicals.trend'),
           value: label(ma.trend),
-          hint: 'Price vs 50- and 200-day averages',
+          hint: t('instrumentTechnicals.trendHint'),
           term: 'trend',
         },
         {
-          label: '20-day average',
+          label: t('instrumentTechnicals.avg20'),
           value: level(ma.sma_20),
           hint: vsHint(ma.vs_sma_20),
           term: 'movingAverage',
         },
         {
-          label: '50-day average',
+          label: t('instrumentTechnicals.avg50'),
           value: level(ma.sma_50),
           hint: vsHint(ma.vs_sma_50),
           term: 'movingAverage',
         },
         {
-          label: '200-day average',
+          label: t('instrumentTechnicals.avg200'),
           value: level(ma.sma_200),
           hint: vsHint(ma.vs_sma_200),
           term: 'movingAverage',
         },
         {
-          label: '50/200 cross',
+          label: t('instrumentTechnicals.cross'),
           value: ma.cross_state
-            ? (CROSS_LABEL[ma.cross_state] ?? label(ma.cross_state))
+            ? (CROSS_KEY[ma.cross_state]
+                ? t(CROSS_KEY[ma.cross_state])
+                : label(ma.cross_state))
             : '—',
           term: 'cross',
           hint: ma.last_cross_date
-            ? `Last ${ma.last_cross} cross ${ma.last_cross_date}`
+            ? t('instrumentTechnicals.lastCross', {
+                cross: ma.last_cross,
+                date: ma.last_cross_date,
+              })
             : undefined,
         },
       ],
     },
     {
-      title: 'Momentum',
+      title: t('instrumentTechnicals.momentum'),
       rows: [
         {
           label: `RSI (${rsi.period})`,
@@ -163,65 +174,70 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
         {
           label: 'MACD (12/26/9)',
           value: num(macd.macd),
-          hint: `Signal ${num(macd.signal)}`,
+          hint: t('instrumentTechnicals.signal', { value: num(macd.signal) }),
           term: 'macd',
         },
-        { label: 'MACD histogram', value: num(macd.histogram), term: 'macd' },
+        { label: t('instrumentTechnicals.macdHistogram'), value: num(macd.histogram), term: 'macd' },
         {
-          label: 'Last MACD crossover',
+          label: t('instrumentTechnicals.lastMacdCrossover'),
           value: withDate(macd.last_crossover, macd.last_crossover_date),
           term: 'macd',
         },
       ],
     },
     {
-      title: 'Range',
+      title: t('instrumentTechnicals.range'),
       rows: [
         {
-          label: '52-week high',
+          label: t('instrumentTechnicals.high52'),
           value: level(range.high),
           hint: range.high_date ?? undefined,
           term: 'range',
         },
         {
-          label: '52-week low',
+          label: t('instrumentTechnicals.low52'),
           value: level(range.low),
           hint: range.low_date ?? undefined,
         },
-        { label: 'From 52-week high', value: signedPct(range.from_high) },
+        { label: t('instrumentTechnicals.fromHigh52'), value: signedPct(range.from_high) },
         {
-          label: 'Position in range',
+          label: t('instrumentTechnicals.positionInRange'),
           value: pct(range.position),
-          hint: '0% = at the low, 100% = at the high',
+          hint: t('instrumentTechnicals.positionHint'),
           term: 'range',
         },
         {
-          label: 'Bollinger %B (20, 2σ)',
+          label: t('instrumentTechnicals.bollinger'),
           value: pct(bb.percent_b),
           hint:
             bb.lower != null
-              ? `Bands ${num(bb.lower)} – ${num(bb.upper)}`
+              ? t('instrumentTechnicals.bands', {
+                  lower: num(bb.lower),
+                  upper: num(bb.upper),
+                })
               : undefined,
           term: 'bollinger',
         },
       ],
     },
     {
-      title: 'Returns',
+      title: t('instrumentTechnicals.returns'),
       term: 'returns',
       rows: [
-        ...Object.entries(RETURN_LABELS).map(([key, text]) => ({
-          label: text,
+        ...Object.entries(RETURN_KEYS).map(([key, text]) => ({
+          label: t(text),
           value: signedPct(returns[key] ?? null),
         })),
         {
-          label: `vs ${rs.benchmark.ticker} (3m)`,
+          label: t('instrumentTechnicals.vs3m', { ticker: rs.benchmark.ticker }),
           value: signedPct(rs.excess_3m),
           hint: benchmarkName,
           term: 'relativeStrength',
         },
         {
-          label: `vs ${rs.benchmark.ticker} (12m)`,
+          label: t('instrumentTechnicals.vs12m', {
+            ticker: rs.benchmark.ticker,
+          }),
           value: signedPct(rs.excess_1y),
           hint: benchmarkName,
           term: 'relativeStrength',
@@ -231,20 +247,25 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
   ];
 
   return (
-    <section aria-label="Technicals" style={{ marginBottom: '1.5rem' }}>
+    <section aria-label={t('instrumentTechnicals.ariaTechnicals')} style={{ marginBottom: '1.5rem' }}>
       <p style={{ margin: '0 0 0.75rem' }}>
-        From {quality.data_points} daily closes
-        {data.as_of ? ` to ${data.as_of}` : ''}. These describe the price chart;
-        they are not buy or sell recommendations.
+        {data.as_of
+          ? t('instrumentTechnicals.summaryTo', {
+              count: quality.data_points,
+              date: data.as_of,
+            })
+          : t('instrumentTechnicals.summary', { count: quality.data_points })}
       </p>
       {quality.warnings.length > 0 && (
         <div
           role="alert"
-          aria-label="Data quality"
+          aria-label={t('instrumentTechnicals.dataQuality')}
           className={surfaceStyles.surfaceCard}
           style={{ borderLeft: '4px solid #d97706', marginBottom: '1rem' }}
         >
-          <h3 className={surfaceStyles.surfaceCardTitle}>Data quality</h3>
+          <h3 className={surfaceStyles.surfaceCardTitle}>
+            {t('instrumentTechnicals.dataQuality')}
+          </h3>
           <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
             {quality.warnings.map((w) => (
               <li key={w}>{w}</li>
@@ -254,12 +275,12 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
       )}
       {data.signals.length > 0 && (
         <div
-          aria-label="Signals"
+          aria-label={t('instrumentTechnicals.signals')}
           className={surfaceStyles.surfaceCard}
           style={{ marginBottom: '1rem' }}
         >
           <h3 className={surfaceStyles.surfaceCardTitle}>
-            What the chart shows
+            {t('instrumentTechnicals.chartShows')}
           </h3>
           <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
             {data.signals.map((s) => (
@@ -269,11 +290,11 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
           <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
             {inRouterContext ? (
               <Link to={`${GLOSSARY_PATH}#${TECHNICALS_GLOSSARY_ANCHOR}`}>
-                What do these terms mean?
+                {t('instrumentTechnicals.termsLink')}
               </Link>
             ) : (
               <a href={`${GLOSSARY_PATH}#${TECHNICALS_GLOSSARY_ANCHOR}`}>
-                What do these terms mean?
+                {t('instrumentTechnicals.termsLink')}
               </a>
             )}
           </p>

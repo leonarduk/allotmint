@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { getQuests, completeQuest } from "../api";
 import type { QuestResponse } from "../types";
 
 export default function QuestBoard() {
+  const { t } = useTranslation();
   const [data, setData] = useState<QuestResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,14 +28,14 @@ export default function QuestBoard() {
       .catch((e) => setError(String(e)));
   };
 
-  if (loading || !data) return <div>Loading quests...</div>;
+  if (loading || !data) return <div>{t("questBoard.loading")}</div>;
   if (error) return <div style={{ color: "red" }}>{error}</div>;
 
   return (
     <div className="quest-board" style={{ margin: "1rem 0" }}>
       <div className="quest-stats" style={{ marginBottom: "0.5rem" }}>
-        <span>XP: {data.xp}</span>
-        <span style={{ marginLeft: "1rem" }}>Streak: {data.streak}</span>
+        <span>{t("questBoard.xp", { value: data.xp })}</span>
+        <span style={{ marginLeft: "1rem" }}>{t("questBoard.streak", { value: data.streak })}</span>
       </div>
       <ul style={{ listStyle: "none", padding: 0 }}>
         {data.quests.map((q) => (
@@ -45,7 +47,7 @@ export default function QuestBoard() {
                 textDecoration: q.completed ? "line-through" : undefined,
               }}
             >
-              {q.title} (+{q.xp} XP)
+              {q.title} {t("questBoard.reward", { xp: q.xp })}
             </button>
           </li>
         ))}

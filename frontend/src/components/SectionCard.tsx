@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import {
   Collapsible,
@@ -18,9 +19,10 @@ export default function SectionCard({
   title,
   children,
   items,
-  emptyMessage = "No items.",
+  emptyMessage,
   defaultOpen = false,
 }: Props) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(defaultOpen);
   const isEmpty = Array.isArray(items) && items.length === 0;
 
@@ -29,7 +31,7 @@ export default function SectionCard({
       <Card>
         <CardHeader>
           <CardTitle>{title}</CardTitle>
-          <CollapsibleTrigger className="ml-2 text-sm" aria-label={open ? "Collapse" : "Expand"}>
+          <CollapsibleTrigger className="ml-2 text-sm" aria-label={open ? t("sectionCard.collapse") : t("sectionCard.expand")}>
             {open ? "−" : "+"}
           </CollapsibleTrigger>
         </CardHeader>
@@ -37,7 +39,7 @@ export default function SectionCard({
           <CardContent>
             {children}
             {isEmpty && (
-              <p className="mt-2 text-sm text-muted-foreground">{emptyMessage}</p>
+              <p className="mt-2 text-sm text-muted-foreground">{emptyMessage === undefined ? t("sectionCard.noItems") : emptyMessage}</p>
             )}
           </CardContent>
         </CollapsibleContent>

@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { saveInvestmentPlan } from '../api';
 import { localDateISO } from '../lib/date';
 import {
@@ -86,6 +87,7 @@ function ClassSelect({
 /** A titled list of editable rows with add and remove buttons. */
 function RowList<T extends object>({
   title,
+  itemName,
   hint,
   rows,
   onChange,
@@ -94,6 +96,8 @@ function RowList<T extends object>({
   footer,
 }: {
   title: string;
+  /** Lower-case singular name used in the add button. */
+  itemName: string;
   hint?: string;
   rows: T[];
   onChange: (rows: T[]) => void;
@@ -101,6 +105,7 @@ function RowList<T extends object>({
   renderRow: (row: T, patch: Patch<T>, n: number) => ReactNode;
   footer?: ReactNode;
 }) {
+  const { t } = useTranslation();
   const patchAt = (i: number) => (patch: Partial<T>) =>
     onChange(rows.map((row, j) => (j === i ? { ...row, ...patch } : row)));
   return (
@@ -120,7 +125,10 @@ function RowList<T extends object>({
             type="button"
             className={SMALL_BUTTON}
             onClick={() => onChange(rows.filter((_, j) => j !== i))}
-            aria-label={`Remove ${title.toLowerCase()} ${i + 1}`}
+            aria-label={t('planEditor.remove', {
+              item: title.toLowerCase(),
+              n: i + 1,
+            })}
           >
             ✕
           </button>
@@ -132,7 +140,7 @@ function RowList<T extends object>({
           className={SMALL_BUTTON}
           onClick={() => onChange([...rows, blank()])}
         >
-          Add {title.toLowerCase().replace(/s$/, '')}
+          {t('planEditor.add', { item: itemName })}
         </button>
         {footer}
       </div>
@@ -141,10 +149,11 @@ function RowList<T extends object>({
 }
 
 function HeaderFields({ form, set }: { form: PlanForm; set: Patch<PlanForm> }) {
+  const { t } = useTranslation();
   return (
     <div className="mb-4 grid gap-2 sm:grid-cols-3">
       <label className="text-sm">
-        Status
+        {t('planEditor.status')}
         <select
           className={INPUT}
           value={form.status}
@@ -160,25 +169,25 @@ function HeaderFields({ form, set }: { form: PlanForm; set: Patch<PlanForm> }) {
         </select>
       </label>
       <label className="text-sm">
-        Version
+        {t('planEditor.version')}
         <TextInput
-          label="Version"
+          label={t('planEditor.version')}
           type="number"
           value={form.version}
           onChange={(version) => set({ version })}
         />
       </label>
       <label className="text-sm">
-        Next review
+        {t('planEditor.nextReview')}
         <TextInput
-          label="Next review"
+          label={t('planEditor.nextReview')}
           type="date"
           value={form.next_review}
           onChange={(next_review) => set({ next_review })}
         />
       </label>
       <label className="text-sm sm:col-span-3">
-        Summary
+        {t('planEditor.summary')}
         <textarea
           className={INPUT}
           rows={2}
@@ -197,24 +206,26 @@ function TargetSection({
   rows: TargetRow[];
   onChange: (rows: TargetRow[]) => void;
 }) {
+  const { t } = useTranslation();
   const total = targetTotal(rows);
   const ok = Math.abs(total - 100) <= 0.01;
   const unused = PLAN_CLASSES.find((c) => !rows.some((r) => r.class === c));
   return (
     <RowList
-      title="Target"
+      title={t('planEditor.targetTitle')}
+      itemName={t('planEditor.targetItem')}
       rows={rows}
       onChange={onChange}
       blank={() => ({ class: unused ?? 'equity', weight: '' })}
       renderRow={(row, patch, n) => (
         <>
           <ClassSelect
-            label={`Target class ${n}`}
+            label={t('planEditor.targetClass', { n })}
             value={row.class}
             onChange={(cls) => patch({ class: cls })}
           />
           <TextInput
-            label={`Target weight % ${n}`}
+            label={t('planEditor.targetWeight', { n })}
             type="number"
             value={row.weight}
             onChange={(weight) => patch({ weight })}
@@ -226,7 +237,8 @@ function TargetSection({
           className={`text-sm ${ok ? '' : 'text-amber-700 dark:text-amber-300'}`}
           role="status"
         >
-          Total: {pct.format(total)}% {ok ? '' : '(must equal 100%)'}
+          {t('planEditor.total', { total: pct.format(total) })}{' '}
+          {ok ? '' : t('planEditor.mustEqual100')}
         </span>
       }
     />
@@ -242,27 +254,29 @@ function VehicleSection({
   onChange: (rows: VehicleRow[]) => void;
   defaultClass: string;
 }) {
+  const { t } = useTranslation();
   return (
     <RowList
-      title="Vehicles"
-      hint="The instrument (ticker) or a placeholder note for each class."
+      title={t('planEditor.vehiclesTitle')}
+      itemName={t('planEditor.vehicleItem')}
+      hint={t('planEditor.vehiclesHint')}
       rows={rows}
       onChange={onChange}
       blank={() => ({ class: defaultClass, ticker: '', note: '' })}
       renderRow={(row, patch, n) => (
         <>
           <ClassSelect
-            label={`Vehicle class ${n}`}
+            label={t('planEditor.vehicleClass', { n })}
             value={row.class}
             onChange={(cls) => patch({ class: cls })}
           />
           <TextInput
-            label={`Ticker ${n}`}
+            label={t('planEditor.ticker', { n })}
             value={row.ticker}
             onChange={(ticker) => patch({ ticker })}
           />
           <TextInput
-            label={`Note ${n}`}
+            label={t('planEditor.note', { n })}
             value={row.note}
             onChange={(note) => patch({ note })}
           />
@@ -279,27 +293,29 @@ function AssumptionSection({
   rows: AssumptionRow[];
   onChange: (rows: AssumptionRow[]) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <RowList
-      title="Assumptions"
-      hint="Numbers and true/false are saved as such; anything else as text."
+      title={t('planEditor.assumptionsTitle')}
+      itemName={t('planEditor.assumptionItem')}
+      hint={t('planEditor.assumptionsHint')}
       rows={rows}
       onChange={onChange}
       blank={() => ({ key: '', value: '', note: '' })}
       renderRow={(row, patch, n) => (
         <>
           <TextInput
-            label={`Assumption ${n}`}
+            label={t('planEditor.assumption', { n })}
             value={row.key}
             onChange={(key) => patch({ key })}
           />
           <TextInput
-            label={`Value ${n}`}
+            label={t('planEditor.value', { n })}
             value={row.value}
             onChange={(value) => patch({ value })}
           />
           <TextInput
-            label={`Assumption note ${n}`}
+            label={t('planEditor.assumptionNote', { n })}
             value={row.note}
             onChange={(note) => patch({ note })}
           />
@@ -316,9 +332,11 @@ function DecisionSection({
   rows: DecisionRow[];
   onChange: (rows: DecisionRow[]) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <RowList
-      title="Decisions"
+      title={t('planEditor.decisionsTitle')}
+      itemName={t('planEditor.decisionItem')}
       rows={rows}
       onChange={onChange}
       blank={() => ({
@@ -330,26 +348,26 @@ function DecisionSection({
       renderRow={(row, patch, n) => (
         <>
           <TextInput
-            label={`Decision date ${n}`}
+            label={t('planEditor.decisionDate', { n })}
             type="date"
             value={row.date}
             onChange={(date) => patch({ date })}
           />
           <TextInput
-            label={`Decision ${n}`}
+            label={t('planEditor.decision', { n })}
             value={row.decision}
             onChange={(decision) => patch({ decision })}
           />
           <TextInput
-            label={`Reason ${n}`}
+            label={t('planEditor.reason', { n })}
             value={row.reason}
             onChange={(reason) => patch({ reason })}
           />
           <textarea
             className={INPUT}
             rows={1}
-            placeholder="Alternatives rejected (one per line)"
-            aria-label={`Alternatives ${n}`}
+            placeholder={t('planEditor.alternativesPlaceholder')}
+            aria-label={t('planEditor.alternatives', { n })}
             value={row.alternatives}
             onChange={(e) => patch({ alternatives: e.target.value })}
           />
@@ -366,10 +384,12 @@ function EvidenceSection({
   rows: EvidenceRow[];
   onChange: (rows: EvidenceRow[]) => void;
 }) {
+  const { t } = useTranslation();
   const fields = ['metric', 'value', 'basis', 'source'] as const;
   return (
     <RowList
-      title="Evidence"
+      title={t('planEditor.evidenceTitle')}
+      itemName={t('planEditor.evidenceItem')}
       rows={rows}
       onChange={onChange}
       blank={() => ({
@@ -382,7 +402,7 @@ function EvidenceSection({
       renderRow={(row, patch, n) => (
         <>
           <TextInput
-            label={`Evidence as of ${n}`}
+            label={t('planEditor.evidenceAsOf', { n })}
             type="date"
             value={row.as_of}
             onChange={(as_of) => patch({ as_of })}
@@ -390,7 +410,7 @@ function EvidenceSection({
           {fields.map((field) => (
             <TextInput
               key={field}
-              label={`Evidence ${field} ${n}`}
+              label={t(`planEditor.evidence_${field}`, { n })}
               value={row[field]}
               onChange={(value) => patch({ [field]: value })}
             />
@@ -403,22 +423,26 @@ function EvidenceSection({
 
 function TextListSection({
   title,
+  itemName,
   rows,
   onChange,
 }: {
   title: string;
+  itemName: string;
   rows: TextRow[];
   onChange: (rows: TextRow[]) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <RowList
       title={title}
+      itemName={itemName}
       rows={rows}
       onChange={onChange}
       blank={() => ({ text: '' })}
       renderRow={(row, patch, n) => (
         <TextInput
-          label={`${title} ${n}`}
+          label={t('planEditor.numbered', { label: title, n })}
           value={row.text}
           onChange={(text) => patch({ text })}
         />
@@ -434,6 +458,7 @@ function PlanFormFields({
   form: PlanForm;
   set: Patch<PlanForm>;
 }) {
+  const { t } = useTranslation();
   return (
     <>
       <HeaderFields form={form} set={set} />
@@ -459,12 +484,14 @@ function PlanFormFields({
         onChange={(evidence) => set({ evidence })}
       />
       <TextListSection
-        title="Open questions"
+        title={t('planEditor.openQuestionsTitle')}
+        itemName={t('planEditor.openQuestionItem')}
         rows={form.open_questions}
         onChange={(open_questions) => set({ open_questions })}
       />
       <TextListSection
-        title="Review triggers"
+        title={t('planEditor.triggersTitle')}
+        itemName={t('planEditor.triggerItem')}
         rows={form.triggers}
         onChange={(triggers) => set({ triggers })}
       />
@@ -474,6 +501,7 @@ function PlanFormFields({
 
 /** Form state, its raw-JSON view, and the switch between them. */
 function usePlanDraft(owner: string, initial: Partial<InvestmentPlan>) {
+  const { t } = useTranslation();
   const [form, setForm] = useState(() => fromPlan(initial));
   const [json, setJson] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -494,11 +522,11 @@ function usePlanDraft(owner: string, initial: Partial<InvestmentPlan>) {
     try {
       parsed = JSON.parse(json);
     } catch (err) {
-      setError(`Invalid JSON: ${errorText(err)}`);
+      setError(t('planEditor.invalidJson', { message: errorText(err) }));
       return null;
     }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      setError('Invalid JSON: the plan must be a JSON object.');
+      setError(t('planEditor.invalidJsonObject'));
       return null;
     }
     return parsed as Partial<InvestmentPlan>;
@@ -534,6 +562,7 @@ export default function PlanEditor({
   onSaved: (data: InvestmentPlanResponse) => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const draft = usePlanDraft(owner, initial);
   const [saving, setSaving] = useState(false);
 
@@ -553,10 +582,12 @@ export default function PlanEditor({
   }
 
   return (
-    <form onSubmit={handleSave} aria-label="Edit investment plan">
+    <form onSubmit={handleSave} aria-label={t('planEditor.formLabel')}>
       <div className="mb-3 flex justify-end">
         <button type="button" className={SMALL_BUTTON} onClick={draft.toggle}>
-          {draft.json === null ? 'Edit as JSON' : 'Back to form'}
+          {draft.json === null
+            ? t('planEditor.editAsJson')
+            : t('planEditor.backToForm')}
         </button>
       </div>
       {draft.json === null ? (
@@ -566,7 +597,7 @@ export default function PlanEditor({
           className="h-80 w-full border p-2 font-mono text-xs"
           value={draft.json}
           onChange={(e) => draft.setJson(e.target.value)}
-          aria-label="Plan JSON"
+          aria-label={t('planEditor.planJson')}
         />
       )}
       {draft.error && (
@@ -578,14 +609,14 @@ export default function PlanEditor({
           disabled={saving}
           className="rounded bg-blue-500 px-4 py-1 text-white disabled:opacity-50"
         >
-          {saving ? 'Saving…' : 'Save plan'}
+          {saving ? t('planEditor.saving') : t('planEditor.save')}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="rounded bg-gray-200 px-3 py-1 text-slate-900"
         >
-          Cancel
+          {t('planEditor.cancel')}
         </button>
       </div>
     </form>

@@ -40,7 +40,6 @@ const baseConfig = {
   enableAdvancedAnalytics: true,
   refreshConfig: vi.fn(),
   setRelativeViewEnabled: vi.fn(),
-  setBaseCurrency: vi.fn(),
 };
 
 async function mockCommonAppDependencies() {

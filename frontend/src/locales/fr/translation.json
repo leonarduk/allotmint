@@ -381,10 +381,18 @@
   },
   "loadingPortfolio": "Chargement du portefeuille…",
   "market": {
+    "changePeriod": "Variation sur",
     "indexChange": "Variation en % des indices",
     "indexLevels": "Niveaux des indices",
     "latestHeadlines": "Derniers titres",
     "noSectors": "Aucune donnée sectorielle disponible",
+    "period": {
+      "1D": "1 jour",
+      "1W": "1 semaine",
+      "1M": "30 jours",
+      "3M": "90 jours",
+      "1Y": "1 an"
+    },
     "sectorChange": "Variation en % des secteurs",
     "sectorPerformance": "Performance des secteurs"
   },

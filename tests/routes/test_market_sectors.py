@@ -73,6 +73,65 @@ def test_fetch_region_sectors_averages_uk_basket(monkeypatch, small_universe):
     assert rows == [{"sector": "Energy", "change": pytest.approx(5.0), "source": "basket"}]
 
 
+@pytest.mark.parametrize(
+    ("period", "download_window", "expected"),
+    [
+        # 2026-01-01 .. 2026-12-31 business days; latest close is 200.
+        ("1W", "1mo", (200 - 190) / 190 * 100),
+        ("1M", "3mo", (200 - 170) / 170 * 100),
+        ("3M", "6mo", (200 - 130) / 130 * 100),
+        ("1Y", "2y", 100.0),
+    ],
+)
+def test_fetch_region_sectors_over_period(monkeypatch, small_universe, period, download_window, expected):
+    index = pd.bdate_range("2025-12-31", "2026-12-31")
+    last = index[-1]
+    days = {"1W": 7, "1M": 30, "3M": 90, "1Y": 365}[period]
+    cutoff = last - pd.Timedelta(days=days)
+    # Flat at the base price up to the cutoff, then the latest close jumps.
+    base = {"1W": 190.0, "1M": 170.0, "3M": 130.0, "1Y": 100.0}[period]
+    xle = [base if day <= cutoff else 150.0 for day in index]
+    xle[-1] = 200.0
+    columns = pd.MultiIndex.from_product([["Close"], ["XLE", "XLU"]])
+    frame = pd.DataFrame(list(zip(xle, [50.0] * len(index), strict=True)), columns=columns, index=index)
+    windows = []
+
+    def fake_download(symbols, period, **_):
+        windows.append(period)
+        return frame
+
+    monkeypatch.setattr(market_sectors.yf, "download", fake_download)
+
+    rows = market_sectors.fetch_region_sectors("us", period)
+
+    assert windows == [download_window]
+    assert rows[0] == {"sector": "Energy", "change": pytest.approx(expected), "source": "etf"}
+    assert rows[1]["change"] == pytest.approx(0.0)
+
+
+def test_fetch_region_sectors_basket_over_period(monkeypatch, small_universe):
+    # Business days from 2025-12-29; the 1W cutoff for the last row is
+    # seven calendar days back, i.e. five rows earlier.
+    frame = _closes({"SHEL.L": [10.0] * 3 + [12.0] * 5, "BP.L": [5.0] * 3 + [4.0] * 5})
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    rows = market_sectors.fetch_region_sectors("uk", "1W")
+
+    # Mean of +20% and -20%.
+    assert rows == [{"sector": "Energy", "change": pytest.approx(0.0), "source": "basket"}]
+
+
+def test_period_change_without_enough_history_is_none():
+    series = pd.Series([1.0, 2.0], index=pd.bdate_range("2026-01-01", periods=2))
+    assert market_sectors.period_change(series, "1M") is None
+    assert market_sectors.period_change(pd.Series(dtype=float), "1W") is None
+
+
+@pytest.mark.parametrize(("raw", "expected"), [("1d", "1D"), (" 1y ", "1Y"), ("3M", "3M"), ("5Y", None), (None, None)])
+def test_normalise_period(raw, expected):
+    assert market_sectors.normalise_period(raw) == expected
+
+
 def test_fetch_region_sectors_skips_sector_without_data(monkeypatch, small_universe):
     frame = _closes({"XLE": [100.0, 101.0], "XLU": [None, None]})
     monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
@@ -135,8 +194,8 @@ def test_sectors_endpoint_uses_configured_default_region(monkeypatch):
     monkeypatch.setattr(market.cfg, "default_sector_region", "UK", raising=False)
     calls = []
 
-    def fake_fetch(region):
-        calls.append(region)
+    def fake_fetch(region, period):
+        calls.append((region, period))
         return [{"sector": "Energy", "change": 1.0, "source": "basket"}]
 
     monkeypatch.setattr(market_sectors, "fetch_region_sectors", fake_fetch)
@@ -144,8 +203,33 @@ def test_sectors_endpoint_uses_configured_default_region(monkeypatch):
     resp = _client().get("/market/sectors")
 
     assert resp.status_code == 200
-    assert resp.json() == {"region": "uk", "sectors": [{"sector": "Energy", "change": 1.0, "source": "basket"}]}
-    assert calls == ["uk"]
+    assert resp.json() == {
+        "region": "uk",
+        "period": "1D",
+        "sectors": [{"sector": "Energy", "change": 1.0, "source": "basket"}],
+    }
+    assert calls == [("uk", "1D")]
+
+
+def test_sectors_endpoint_passes_period(monkeypatch):
+    calls = []
+
+    def fake_fetch(region, period):
+        calls.append((region, period))
+        return []
+
+    monkeypatch.setattr(market_sectors, "fetch_region_sectors", fake_fetch)
+
+    resp = _client().get("/market/sectors", params={"region": "us", "period": "3m"})
+
+    assert resp.status_code == 200
+    assert resp.json()["period"] == "3M"
+    assert calls == [("us", "3M")]
+
+
+def test_sectors_endpoint_rejects_unknown_period():
+    resp = _client().get("/market/sectors", params={"period": "5Y"})
+    assert resp.status_code == 400
 
 
 def test_sectors_endpoint_rejects_unknown_region():
@@ -154,7 +238,7 @@ def test_sectors_endpoint_rejects_unknown_region():
 
 
 def test_sectors_endpoint_reports_upstream_failure(monkeypatch):
-    def boom(_region):
+    def boom(_region, _period):
         raise RuntimeError("yahoo down")
 
     monkeypatch.setattr(market_sectors, "fetch_region_sectors", boom)
@@ -182,6 +266,46 @@ def test_sector_detail_endpoint_matches_name_case_insensitively(monkeypatch):
 @pytest.mark.parametrize("path", ["/market/sectors/mars/Energy", "/market/sectors/us/Crypto"])
 def test_sector_detail_endpoint_404s_unknown(path):
     assert _client().get(path).status_code == 404
+
+
+def test_indexes_endpoint_uses_live_quote_for_one_day(monkeypatch):
+    monkeypatch.setattr(market, "_fetch_indexes", lambda: {"FTSE 100": {"value": 1.0, "change": 0.5}})
+
+    resp = _client().get("/market/indexes")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"period": "1D", "indexes": {"FTSE 100": {"value": 1.0, "change": 0.5}}}
+
+
+def test_indexes_endpoint_computes_period_change_from_closes(monkeypatch):
+    monkeypatch.setattr(market, "INDEX_SYMBOLS", {"FTSE 100": "^FTSE", "FTSE 250": "^FTMC"})
+    frame = _closes({"^FTSE": [100.0] * 3 + [110.0] * 5, "^FTMC": [None] * 8})
+    windows = []
+
+    def fake_download(symbols, period, **_):
+        windows.append((list(symbols), period))
+        return frame
+
+    monkeypatch.setattr(market_sectors.yf, "download", fake_download)
+
+    resp = _client().get("/market/indexes", params={"period": "1W"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"period": "1W", "indexes": {"FTSE 100": {"value": 110.0, "change": pytest.approx(10.0)}}}
+    assert windows == [(["^FTSE", "^FTMC"], "1mo")]
+
+
+def test_indexes_endpoint_rejects_unknown_period():
+    assert _client().get("/market/indexes", params={"period": "ytd"}).status_code == 400
+
+
+def test_indexes_endpoint_reports_upstream_failure(monkeypatch):
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("yahoo down")
+
+    monkeypatch.setattr(market_sectors.yf, "download", boom)
+
+    assert _client().get("/market/indexes", params={"period": "1Y"}).status_code == 502
 
 
 @patch("backend.routes.market._fetch_indexes", return_value={})

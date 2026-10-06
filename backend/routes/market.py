@@ -104,6 +104,25 @@ def _fetch_indexes() -> Dict[str, IndexPayload]:
     return out
 
 
+def _fetch_index_period_changes(period: market_sectors.Period) -> Dict[str, IndexPayload]:
+    """Return each index's latest close and % change over ``period``.
+
+    Multi-day periods come from daily closes rather than the live chart
+    quote, so ``value`` is the last close, not an intraday level.
+    """
+
+    closes = market_sectors.download_period_closes(list(INDEX_SYMBOLS.values()), period)
+    out: Dict[str, IndexPayload] = {}
+    for name, sym in INDEX_SYMBOLS.items():
+        series = market_sectors.series_for(closes, sym)
+        change = market_sectors.period_change(series, period)
+        if change is None:
+            logger.warning("No %s index change for %s: close data missing", period, sanitise_log_value(sym))
+            continue
+        out[name] = {"value": float(series.iloc[-1]), "change": change}
+    return out
+
+
 def _parse_published_at(value: Any) -> Optional[datetime]:
     """Parse an ISO-8601 ``published_at`` string into a timezone-aware datetime."""
 
@@ -258,6 +277,21 @@ def _default_region() -> market_sectors.Region:
     return market_sectors.normalise_region(getattr(cfg, "default_sector_region", None)) or "us"
 
 
+def _resolve_period(period: Optional[str]) -> market_sectors.Period:
+    """Map the ``period`` query value to a canonical period (default ``1D``)."""
+
+    if period is None:
+        return "1D"
+    resolved = market_sectors.normalise_period(period)
+    if resolved is None:
+        allowed = ", ".join(market_sectors.PERIODS)
+        raise HTTPException(status_code=400, detail=f"Unknown period; expected one of: {allowed}")
+    return resolved
+
+
+PERIOD_QUERY_DESCRIPTION = "Change window: 1D, 1W, 1M (30 days), 3M (90 days) or 1Y; defaults to 1D."
+
+
 def _resolve_region(region: Optional[str]) -> market_sectors.Region:
     """Map the query value (or the configured default) to a sector region.
 
@@ -274,20 +308,40 @@ def _resolve_region(region: Optional[str]) -> market_sectors.Region:
     return _default_region()
 
 
+@router.get("/market/indexes")
+async def market_indexes(
+    period: Optional[str] = Query(None, description=PERIOD_QUERY_DESCRIPTION),
+) -> Dict[str, Any]:
+    """Return each headline index's level and % change over ``period``."""
+
+    resolved = _resolve_period(period)
+    # 1D keeps the live chart quote the overview uses, so both agree.
+    fetcher = _fetch_indexes if resolved == "1D" else functools.partial(_fetch_index_period_changes, resolved)
+    loop = asyncio.get_running_loop()
+    try:
+        indexes = await loop.run_in_executor(None, fetcher)
+    except Exception as exc:
+        logger.exception("Index fetch failed for period %s", resolved)
+        raise HTTPException(status_code=502, detail="Index data is unavailable") from exc
+    return {"period": resolved, "indexes": indexes}
+
+
 @router.get("/market/sectors")
 async def market_sectors_by_region(
     region: Optional[str] = Query(None, description="global, us or uk; defaults to default_sector_region."),
+    period: Optional[str] = Query(None, description=PERIOD_QUERY_DESCRIPTION),
 ) -> Dict[str, Any]:
-    """Return today's % change per GICS sector for one region."""
+    """Return the % change per GICS sector for one region over ``period``."""
 
     resolved = _resolve_region(region)
+    resolved_period = _resolve_period(period)
     loop = asyncio.get_running_loop()
     try:
-        rows = await loop.run_in_executor(None, market_sectors.fetch_region_sectors, resolved)
+        rows = await loop.run_in_executor(None, market_sectors.fetch_region_sectors, resolved, resolved_period)
     except Exception as exc:
-        logger.exception("Sector fetch failed for region %s", sanitise_log_value(resolved))
+        logger.exception("Sector fetch failed for region %s period %s", sanitise_log_value(resolved), resolved_period)
         raise HTTPException(status_code=502, detail="Sector data is unavailable") from exc
-    return {"region": resolved, "sectors": rows}
+    return {"region": resolved, "period": resolved_period, "sectors": rows}
 
 
 @router.get("/market/sectors/{region}/{sector}")

@@ -36,6 +36,16 @@ REGION_LABELS: Dict[Region, str] = {"global": "Global", "us": "US", "uk": "UK"}
 # Rows of trading-day history returned for the detail chart (~3 months).
 HISTORY_POINTS = 63
 
+# Look-back windows for the Market Overview period toggle. ``1D`` is the last
+# two closes; the rest compare the latest close with the last close on or
+# before that many calendar days earlier.
+Period = Literal["1D", "1W", "1M", "3M", "1Y"]
+PERIODS: Tuple[Period, ...] = ("1D", "1W", "1M", "3M", "1Y")
+PERIOD_DAYS: Dict[Period, int] = {"1W": 7, "1M": 30, "3M": 90, "1Y": 365}
+# yfinance download window per period: long enough that a close on or before
+# the cutoff exists even across holidays.
+PERIOD_DOWNLOAD: Dict[Period, str] = {"1D": "5d", "1W": "1mo", "1M": "3mo", "3M": "6mo", "1Y": "2y"}
+
 
 class SectorDefinition(TypedDict):
     proxy: Optional[Tuple[str, str]]
@@ -401,6 +411,15 @@ def normalise_region(value: Optional[str]) -> Optional[Region]:
     return key if key in REGIONS else None  # type: ignore[return-value]
 
 
+def normalise_period(value: Optional[str]) -> Optional[Period]:
+    """Return the canonical period key for ``value`` or ``None`` if unknown."""
+
+    if not isinstance(value, str):
+        return None
+    key = value.strip().upper()
+    return key if key in PERIODS else None  # type: ignore[return-value]
+
+
 def find_sector(region: Region, name: str) -> Optional[str]:
     """Return the registry's spelling of ``name`` (case-insensitive) in ``region``."""
 
@@ -441,19 +460,50 @@ def _day_change(series: pd.Series) -> Optional[float]:
     return _pct_change(float(series.iloc[-1]), float(series.iloc[-2]))
 
 
-def _basket_change(closes: pd.DataFrame, symbols: Sequence[str]) -> Optional[float]:
-    changes = [c for c in (_day_change(_series(closes, s)) for s in symbols) if c is not None]
+def _close_on_or_before(series: pd.Series, cutoff: pd.Timestamp) -> Optional[float]:
+    window = series[series.index <= cutoff]
+    return float(window.iloc[-1]) if not window.empty else None
+
+
+def period_change(series: pd.Series, period: Period) -> Optional[float]:
+    """Return the % change of ``series`` over ``period`` (``None`` if too short)."""
+
+    if period == "1D":
+        return _day_change(series)
+    if series.empty:
+        return None
+    cutoff = pd.Timestamp(series.index[-1]) - timedelta(days=PERIOD_DAYS[period])
+    base = _close_on_or_before(series, cutoff)
+    if base is None:
+        return None
+    return _pct_change(float(series.iloc[-1]), base)
+
+
+def download_period_closes(symbols: Sequence[str], period: Period) -> pd.DataFrame:
+    """Return daily closes for ``symbols`` covering ``period``'s look-back."""
+
+    return _download_closes(symbols, period=PERIOD_DOWNLOAD[period])
+
+
+def series_for(closes: pd.DataFrame, symbol: str) -> pd.Series:
+    """Return ``symbol``'s numeric closes from a download frame (may be empty)."""
+
+    return _series(closes, symbol)
+
+
+def _basket_change(closes: pd.DataFrame, symbols: Sequence[str], period: Period) -> Optional[float]:
+    changes = [c for c in (period_change(_series(closes, s), period) for s in symbols) if c is not None]
     if not changes:
         return None
     return sum(changes) / len(changes)
 
 
-def fetch_region_sectors(region: Region) -> List[RegionSector]:
-    """Return today's % change per sector for ``region``.
+def fetch_region_sectors(region: Region, period: Period = "1D") -> List[RegionSector]:
+    """Return the % change per sector for ``region`` over ``period``.
 
-    ETF-backed regions use the proxy ETF's last two closes; basket regions use
-    the equal-weighted mean of each constituent's day change. Sectors with no
-    usable data are omitted and logged.
+    ETF-backed regions use the proxy ETF's closes; basket regions use the
+    equal-weighted mean of each constituent's change over the same period.
+    Sectors with no usable data are omitted and logged.
     """
 
     universe = SECTOR_UNIVERSE[region]
@@ -461,19 +511,20 @@ def fetch_region_sectors(region: Region) -> List[RegionSector]:
         {d["proxy"][0] for d in universe.values() if d["proxy"]}
         | {t for d in universe.values() if not d["proxy"] for t, _ in d["constituents"]}
     )
-    closes = _download_closes(symbols, period="5d")
+    closes = download_period_closes(symbols, period)
 
     out: List[RegionSector] = []
     for sector, definition in universe.items():
         if definition["proxy"]:
-            change = _day_change(_series(closes, definition["proxy"][0]))
+            change = period_change(_series(closes, definition["proxy"][0]), period)
             source: Literal["etf", "basket"] = "etf"
         else:
-            change = _basket_change(closes, [t for t, _ in definition["constituents"]])
+            change = _basket_change(closes, [t for t, _ in definition["constituents"]], period)
             source = "basket"
         if change is None:
             logger.warning(
-                "No sector change for %s/%s: close data missing",
+                "No %s sector change for %s/%s: close data missing",
+                period,
                 sanitise_log_value(region),
                 sanitise_log_value(sector),
             )
@@ -482,27 +533,16 @@ def fetch_region_sectors(region: Region) -> List[RegionSector]:
     return out
 
 
-def _close_on_or_before(series: pd.Series, cutoff: pd.Timestamp) -> Optional[float]:
-    window = series[series.index <= cutoff]
-    return float(window.iloc[-1]) if not window.empty else None
-
-
 def _period_returns(series: pd.Series) -> Dict[str, Optional[float]]:
     returns: Dict[str, Optional[float]] = {"1D": None, "1W": None, "1M": None, "YTD": None}
     if series.empty:
         return returns
-    latest = float(series.iloc[-1])
-    last_date = pd.Timestamp(series.index[-1])
-    returns["1D"] = _day_change(series)
-    cutoffs = {
-        "1W": last_date - timedelta(days=7),
-        "1M": last_date - timedelta(days=30),
-        "YTD": pd.Timestamp(date(last_date.year - 1, 12, 31)),
-    }
-    for key, cutoff in cutoffs.items():
-        base = _close_on_or_before(series, cutoff)
-        if base is not None:
-            returns[key] = _pct_change(latest, base)
+    detail_periods: Tuple[Period, ...] = ("1D", "1W", "1M")
+    for key in detail_periods:
+        returns[key] = period_change(series, key)
+    base = _close_on_or_before(series, pd.Timestamp(date(series.index[-1].year - 1, 12, 31)))
+    if base is not None:
+        returns["YTD"] = _pct_change(float(series.iloc[-1]), base)
     return returns
 
 

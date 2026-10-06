@@ -21,6 +21,7 @@ import EmptyState from "../components/EmptyState";
 import { InstrumentSearchBar } from "../components/InstrumentSearchBar";
 import { DeleteSeriesButton } from "../components/DeleteSeriesButton";
 import InstrumentAlertsSection from "../components/InstrumentAlertsSection";
+import { useInstrumentAlertCount } from "../hooks/useInstrumentAlertCount";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import surfaceStyles from "../styles/surface.module.css";
 import { formatDateISO } from "../lib/date";
@@ -893,15 +894,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const investingComUrl = buildInvestingComUrl(instrumentIsin, tkr);
   const morningstarUrl = buildMorningstarUrl(instrumentIsin);
 
-  const tabOptions: { id: typeof activeTab; label: string }[] = [
-    { id: "overview", label: "Overview" },
-    { id: "timeseries", label: "Timeseries" },
-    { id: "positions", label: "Positions" },
-    { id: "fundamentals", label: "Fundamentals" },
-    { id: "technicals", label: "Technicals" },
-    { id: "news", label: "News" },
-    { id: "alerts", label: t("alertSettings.triggers.instrumentTitle") },
-  ];
   // Price triggers are matched against price-snapshot keys, which are full
   // TICKER.EXCHANGE symbols -- prefer the resolved exchange over whatever
   // suffix (if any) the URL carried so a bare /research/VOD still watches
@@ -909,14 +901,28 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   // so leave it empty rather than fall back to the bare ticker (which would
   // hide existing alerts and create ones that never fire). The reference
   // price is the GBP close, since trigger levels are GBP.
-  const alertExchange = deriveExchangeForActions();
   const alertTicker =
-    baseTicker && alertExchange ? `${baseTicker}.${alertExchange}`.toUpperCase() : "";
+    baseTicker && exchangeForActions ? `${baseTicker}.${exchangeForActions}`.toUpperCase() : "";
   const latestGbpClose =
     typeof latestRawPriceEntry?.close_gbp === "number" &&
     Number.isFinite(latestRawPriceEntry.close_gbp)
       ? latestRawPriceEntry.close_gbp
       : null;
+  const { count: alertCount, setCount: setAlertCount } = useInstrumentAlertCount(alertTicker);
+  const tabOptions: { id: typeof activeTab; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "timeseries", label: "Timeseries" },
+    { id: "positions", label: "Positions" },
+    { id: "fundamentals", label: "Fundamentals" },
+    { id: "technicals", label: "Technicals" },
+    { id: "news", label: "News" },
+    {
+      id: "alerts",
+      label: alertCount
+        ? `${t("alertSettings.triggers.instrumentTitle")} (${alertCount})`
+        : t("alertSettings.triggers.instrumentTitle"),
+    },
+  ];
   const standalonePalette = {
     positive: "#137333",
     negative: "#b3261e",
@@ -1839,7 +1845,11 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       )}
 
       {activeTab === "alerts" && (
-        <InstrumentAlertsSection ticker={alertTicker} latestPrice={latestGbpClose} />
+        <InstrumentAlertsSection
+          ticker={alertTicker}
+          latestPrice={latestGbpClose}
+          onCountChange={setAlertCount}
+        />
       )}
     </div>
   );

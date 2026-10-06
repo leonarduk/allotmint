@@ -26,6 +26,34 @@ vi.mock('@/api', async () => {
         var: { '1d': 100, '10d': 200 },
       })
     ),
+    getDividends: vi.fn(() =>
+      Promise.resolve([
+        {
+          owner: 'alex',
+          account: 'isa',
+          ticker: 'AAA',
+          date: '2024-01-01',
+          amount_minor: 1000,
+          currency: 'USD',
+        },
+        {
+          owner: 'alex',
+          account: 'isa',
+          ticker: 'AAA',
+          date: '2024-02-01',
+          amount_minor: 500,
+          currency: 'GBP',
+        },
+        {
+          owner: 'alex',
+          account: 'isa',
+          ticker: 'AAA',
+          date: '2024-03-01',
+          amount_minor: 250,
+          currency: 'USD',
+        },
+      ])
+    ),
     listInstrumentGroups: vi.fn(async () => []),
     listInstrumentGroupingDefinitions: vi.fn(async () => []),
   };
@@ -37,6 +65,7 @@ vi.mock('@/components/InstrumentDetail', () => ({
 import { HoldingsTable } from '@/components/HoldingsTable';
 import { InstrumentTable } from '@/components/InstrumentTable';
 import ValueAtRisk from '@/components/ValueAtRisk';
+import { DividendHistory } from '@/components/DividendHistory';
 
 function withCurrency(reportingCurrency: string) {
   const value = {
@@ -181,5 +210,16 @@ describe('ValueAtRisk in the reporting currency', () => {
       expect(screen.getByText(/95%:/)).toHaveTextContent(usd(125))
     );
     expect(screen.getByText(/99%:/)).toHaveTextContent(usd(250));
+  });
+});
+
+describe('DividendHistory totals', () => {
+  it('never adds dividends paid in different currencies', async () => {
+    render(<DividendHistory />, { wrapper: withCurrency('GBP') });
+
+    // USD 10.00 + 2.50 and GBP 5.00 for the same ticker: two totals, not £17.50.
+    expect(await screen.findByText(usd(12.5))).toBeInTheDocument();
+    expect(screen.getAllByText(gbp(5)).length).toBe(2); // the row and its total
+    expect(screen.queryByText(gbp(17.5))).not.toBeInTheDocument();
   });
 });

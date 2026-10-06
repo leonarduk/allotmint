@@ -78,6 +78,8 @@ describe("ValueAtRisk component", () => {
     // Scenario amounts carry their currency (GBP here) since #9805.
     expect(screen.getByRole("dialog")).toHaveTextContent("-£75.00");
     expect(screen.getByRole("dialog")).toHaveTextContent("+£20.00");
+    // A negative amount carries one sign, from Intl, never "--" or "+-".
+    expect(screen.getByRole("dialog").textContent).not.toMatch(/--|\+-|\+\(/);
     expect(screen.getByRole("dialog")).toHaveTextContent("2024-01-02");
     // Flush pending React effects (VarBreakdownModal's useEffect([], ...) registers
     // the Escape keydown listener on mount; waitFor resolves once the DOM is updated

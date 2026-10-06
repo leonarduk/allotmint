@@ -12,6 +12,8 @@ interface Props {
   ticker: string;
   /** Latest GBP close, shown as a reference when picking a level. */
   latestPrice?: number | null;
+  /** Reports how many alerts this instrument has after each (re)load. */
+  onCountChange?: (count: number) => void;
 }
 
 /**
@@ -22,6 +24,7 @@ interface Props {
 export default function InstrumentAlertsSection({
   ticker,
   latestPrice,
+  onCountChange,
 }: Props) {
   const { t } = useTranslation();
   const { identity, resolving } = useAlertIdentity();
@@ -54,6 +57,7 @@ export default function InstrumentAlertsSection({
         disabledReason={reason()}
         ticker={ticker}
         latestPrice={latestPrice}
+        onTriggersLoaded={(rows) => onCountChange?.(rows.length)}
       />
       <p style={{ fontSize: '0.85em' }}>
         <Link to="/alert-settings">

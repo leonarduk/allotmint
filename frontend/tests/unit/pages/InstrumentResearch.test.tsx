@@ -232,6 +232,15 @@ describe("InstrumentResearch page", () => {
     ];
     mockListInstrumentMetadata.mockResolvedValue(catalogue);
     mockUpdateInstrumentMetadata.mockResolvedValue({} as any);
+    // The alerts tab label fetches a count on every load, so the identity
+    // and trigger APIs need a resolved default even when a test never opens it.
+    vi.mocked(api.getConfig).mockReset().mockResolvedValue({
+      disable_auth: true,
+      local_login_email: null,
+      demo_identity: "demo",
+    } as any);
+    vi.mocked(api.getOwners).mockReset().mockResolvedValue([]);
+    vi.mocked(api.getPriceTriggers).mockReset().mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -1071,45 +1080,32 @@ describe("InstrumentResearch page", () => {
   });
 
   it("adds a price alert for the resolved TICKER.EXCHANGE from the alerts tab", async () => {
-    vi.mocked(api.getConfig).mockResolvedValue({
-      disable_auth: true,
-      local_login_email: null,
-      demo_identity: "demo",
-    } as any);
-    vi.mocked(api.getOwners).mockResolvedValue([]);
-    vi.mocked(api.getPriceTriggers).mockResolvedValue([
-      {
-        id: "t1",
-        ticker: "AAA.L",
-        condition: "below",
-        price: 90,
-        mode: "once",
-        enabled: true,
-        note: null,
-        created_at: "2026-01-01T00:00:00Z",
-        last_triggered_at: null,
-        last_triggered_price: null,
-        trigger_count: 0,
-      },
-      {
-        id: "t2",
-        ticker: "BBB.N",
-        condition: "above",
-        price: 5,
-        mode: "once",
-        enabled: true,
-        note: null,
-        created_at: "2026-01-01T00:00:00Z",
-        last_triggered_at: null,
-        last_triggered_price: null,
-        trigger_count: 0,
-      },
-    ]);
-    const mockCreate = vi.mocked(api.createPriceTrigger).mockResolvedValue({} as any);
+    const aaaAlert = {
+      id: "t1",
+      ticker: "AAA.L",
+      condition: "below" as const,
+      price: 90,
+      mode: "once" as const,
+      enabled: true,
+      note: null,
+      created_at: "2026-01-01T00:00:00Z",
+      last_triggered_at: null,
+      last_triggered_price: null,
+      trigger_count: 0,
+    };
+    const rows = [aaaAlert, { ...aaaAlert, id: "t2", ticker: "BBB.N", price: 5 }];
+    vi.mocked(api.getPriceTriggers).mockImplementation(async () => [...rows]);
+    const mockCreate = vi.mocked(api.createPriceTrigger).mockImplementation(async () => {
+      const created = { ...aaaAlert, id: "t3", condition: "above" as const, price: 120 };
+      rows.push(created);
+      return created;
+    });
 
     renderPage();
     await screen.findByRole("heading", { level: 1, name: /AAA - Acme Corp/ });
-    await userEvent.click(screen.getAllByRole("button", { name: "Price alerts" })[0]);
+    // Only AAA.L's alert counts towards the tab label, before the tab is opened.
+    const tab = await screen.findByRole("button", { name: "Price alerts (1)" });
+    await userEvent.click(tab);
 
     expect(await screen.findByText(/Falls to or below £90\.00/)).toBeInTheDocument();
     expect(screen.queryByText(/£5\.00/)).not.toBeInTheDocument();
@@ -1128,6 +1124,8 @@ describe("InstrumentResearch page", () => {
         note: null,
       }),
     );
+    // The panel reloads after saving; the label follows without a page refresh.
+    expect(await screen.findByRole("button", { name: "Price alerts (2)" })).toBeInTheDocument();
   });
 
   it("refuses to create alerts on a bare ticker when the exchange is unknown", async () => {
@@ -1137,9 +1135,6 @@ describe("InstrumentResearch page", () => {
       loading: false,
       error: null,
     } as any);
-    vi.mocked(api.getConfig).mockResolvedValue({ disable_auth: true, demo_identity: "demo" } as any);
-    vi.mocked(api.getOwners).mockResolvedValue([]);
-    vi.mocked(api.getPriceTriggers).mockReset().mockResolvedValue([]);
 
     renderPage();
     await waitFor(() => expect(mockListInstrumentMetadata).toHaveBeenCalled());

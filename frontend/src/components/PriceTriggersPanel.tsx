@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -7,6 +7,7 @@ import {
   getPriceTriggers,
   updatePriceTrigger,
 } from "../api";
+import { triggersForTicker } from "../hooks/useInstrumentAlertCount";
 import type {
   PriceTrigger,
   PriceTriggerCondition,
@@ -27,6 +28,8 @@ interface Props {
   ticker?: string;
   /** Latest GBP price for the scoped ticker, shown as a hint beside the form. */
   latestPrice?: number | null;
+  /** Called with the listed triggers each time they are (re)loaded. */
+  onTriggersLoaded?: (visible: PriceTrigger[]) => void;
 }
 
 interface FormState {
@@ -60,6 +63,7 @@ export default function PriceTriggersPanel({
   disabledReason,
   ticker,
   latestPrice,
+  onTriggersLoaded,
 }: Props) {
   const { t } = useTranslation();
   const scoped = !!ticker;
@@ -68,6 +72,10 @@ export default function PriceTriggersPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Held in a ref so an inline callback from the parent doesn't change
+  // `reload`'s identity and re-fetch on every render.
+  const onLoadedRef = useRef(onTriggersLoaded);
+  onLoadedRef.current = onTriggersLoaded;
 
   const reload = useCallback(async () => {
     if (!identity) {
@@ -75,12 +83,14 @@ export default function PriceTriggersPanel({
       return;
     }
     try {
-      setTriggers(await getPriceTriggers(identity));
+      const rows = await getPriceTriggers(identity);
+      setTriggers(rows);
+      onLoadedRef.current?.(ticker ? triggersForTicker(rows, ticker) : rows);
       setError(null);
     } catch (err) {
       setError(errorMessage(err, t("alertSettings.triggers.loadError")));
     }
-  }, [identity, t]);
+  }, [identity, ticker, t]);
 
   useEffect(() => {
     void reload();
@@ -94,10 +104,7 @@ export default function PriceTriggersPanel({
     setForm(emptyForm(ticker));
   }, [ticker]);
 
-  const scopeKey = ticker?.toUpperCase();
-  const visible = scopeKey
-    ? triggers.filter((tr) => tr.ticker.toUpperCase() === scopeKey)
-    : triggers;
+  const visible = ticker ? triggersForTicker(triggers, ticker) : triggers;
 
   const priceValue = Number(form.price);
   const formValid =

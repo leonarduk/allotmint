@@ -546,7 +546,22 @@
     "save": "Save",
     "searchInstruments": "Search instruments",
     "sectorLabel": "Sector",
-    "showInstrumentSearch": "Show instrument search"
+    "showInstrumentSearch": "Show instrument search",
+    "fxSplit": {
+      "title": "Local vs currency return",
+      "basis": "Price return (excludes dividends)",
+      "basisWithDates": "Price return (excludes dividends), {{start}} to {{end}}",
+      "local": "Local price move ({{currency}})",
+      "fx": "Currency move ({{currency}}→GBP)",
+      "cross": "Cross term (local × currency)",
+      "gbp": "GBP return",
+      "unavailable": "The local vs currency split could not be loaded.",
+      "reasons": {
+        "missing_fx_rate": "No split: no stored {{currency}}→GBP rate close enough to {{start}} or {{end}}.",
+        "insufficient_price_history": "No split: fewer than two stored prices in this range.",
+        "currency_mismatch": "No split: this instrument's quote currency ({{currency}}) disagrees with the currency its GBP prices are converted from."
+      }
+    }
   },
   "instrumentTable": {
     "columns": {

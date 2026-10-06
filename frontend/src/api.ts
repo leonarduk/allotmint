@@ -3,6 +3,7 @@
 import type {
   GroupPortfolio,
   GroupSummary,
+  FxReturnSplit,
   InstrumentDetail,
   InstrumentDetailMini,
   InstrumentSummary,
@@ -1369,6 +1370,20 @@ export const getInstrumentDetail = (
     `${API_BASE}/instrument/?ticker=${encodeURIComponent(
       ticker
     )}&days=${days}&format=json`,
+    { signal },
+  );
+
+/**
+ * Local / FX / cross-term split of an instrument's GBP price return over the
+ * last ``days`` calendar days (0 = all history), from stored data only (#9776).
+ */
+export const getInstrumentFxSplit = (
+  ticker: string,
+  days = 365,
+  signal?: AbortSignal,
+) =>
+  fetchJson<FxReturnSplit>(
+    `${API_BASE}/instrument/fx-split?ticker=${encodeURIComponent(ticker)}&days=${days}`,
     { signal },
   );
 

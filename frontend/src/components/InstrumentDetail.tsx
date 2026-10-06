@@ -11,6 +11,7 @@ import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
 import type { InstrumentPosition, TradingSignal, Transaction } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
+import { FxReturnSplitPanel } from "./FxReturnSplitPanel";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import ChartSkeleton from "./skeletons/ChartSkeleton";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
@@ -1084,6 +1085,14 @@ export function InstrumentDetail({
           </LineChart>
         </ResponsiveContainer>
       )}
+
+      <FxReturnSplitPanel
+        ticker={ticker}
+        days={days}
+        mutedColor={palette.muted}
+        positiveColor={palette.positive}
+        negativeColor={palette.negative}
+      />
 
       {!hidePositions && (
         <>

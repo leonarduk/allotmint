@@ -38,6 +38,7 @@ const defaultConfig: AppConfig = {
 vi.mock("@/api", () => ({
   getInstrumentDetail: vi.fn(),
   getInstrumentIntraday: vi.fn(),
+  getInstrumentFxSplit: vi.fn(() => Promise.resolve({ applicable: false })),
   getTransactions: vi.fn(),
 }));
 import { getInstrumentDetail, getInstrumentIntraday, getTransactions } from "@/api";

@@ -48,12 +48,16 @@ import ReportTemplateCreator from './pages/ReportTemplateCreator';
 import AllocationCharts from './pages/AllocationCharts';
 import InstrumentAdmin from './pages/InstrumentAdmin';
 import AppHeader from './components/AppHeader';
-import Rebalance from './pages/Rebalance';
+import Strategy from './pages/Strategy';
 import PensionForecast from './pages/PensionForecast';
 import TaxTools from './pages/TaxTools';
 import Alerts from './pages/Alerts';
 import { sanitizeOwners, findOwnerForUser } from './utils/owners';
-import { deriveModeFromLocation, readRouteScopeQuery } from './routes/registry';
+import {
+  deriveModeFromLocation,
+  legacyRedirectPath,
+  readRouteScopeQuery,
+} from './routes/registry';
 import { useAuth } from './AuthContext';
 import type { UserProfile } from './AuthContext';
 import { isDefaultGroupSlug, normaliseGroupSlug } from './utils/groups';
@@ -574,6 +578,11 @@ export default function App({ onLogout }: AppProps) {
     // Using <Navigate> instead of navigate()
     // from useEffect avoids deferred-update issues in data-router test environments.
     //
+    // Renamed pages keep their old URLs working, e.g. /rebalance -> /strategy (#9653).
+    const legacyPath = legacyRedirectPath(location.pathname, location.search);
+    if (legacyPath) {
+      return <Navigate to={legacyPath} replace />;
+    }
     const redirectSegs = location.pathname.split('/').filter(Boolean);
     const redirectMode = deriveModeFromPathname(location.pathname);
     const redirectScope = readRouteScopeQuery(location.search);
@@ -757,7 +766,7 @@ export default function App({ onLogout }: AppProps) {
         {mode === 'dataadmin' && <DataAdmin />}
         {mode === 'watchlist' && <Watchlist />}
         {mode === 'allocation' && <AllocationCharts />}
-        {mode === 'rebalance' && <Rebalance />}
+        {mode === 'rebalance' && <Strategy />}
         {mode === 'market' && <MarketOverview />}
         {mode === 'movers' && <TopMovers />}
         {mode === 'reports' &&

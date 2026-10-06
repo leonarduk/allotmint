@@ -125,7 +125,7 @@ const ROUTES: RouteConfig[] = [
   { path: '/watchlist', assertion: { kind: 'mode', mode: 'watchlist' } },
   { path: '/market', assertion: { kind: 'mode', mode: 'market' } },
   { path: '/allocation', assertion: { kind: 'mode', mode: 'allocation' } },
-  { path: '/rebalance', assertion: { kind: 'mode', mode: 'rebalance' } },
+  { path: '/strategy', assertion: { kind: 'mode', mode: 'rebalance' } },
   { path: '/movers', assertion: { kind: 'mode', mode: 'movers' } },
   {
     path: '/instrumentadmin',
@@ -440,6 +440,15 @@ test.describe('bootstrap to portfolio happy path', () => {
     await expect(getActiveRouteMarker(page)).toHaveAttribute('data-mode', 'group');
     await expect(getActiveRouteMarker(page)).toHaveAttribute('data-pathname', '/');
   });
+});
+
+test('legacy /rebalance redirects to /strategy (#9653)', async ({ page }) => {
+  await applyAuth(page);
+  await setupCoreMocks(page);
+  await page.goto(new URL('/rebalance?owner=demo-owner', baseUrl).toString());
+  await page.waitForURL('**/strategy?owner=demo-owner');
+  await expect(getActiveRouteMarker(page)).toHaveAttribute('data-mode', 'rebalance');
+  await expect(getActiveRouteMarker(page)).toHaveAttribute('data-pathname', '/strategy');
 });
 
 test.describe('public route smoke coverage', () => {

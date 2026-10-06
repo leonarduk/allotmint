@@ -1,10 +1,16 @@
-"""Optional sub-asset classes for Bond and Commodity holdings (#9543).
+"""Optional sub-asset classes for Equity, Bond and Commodity holdings (#9543, #9653).
 
-The rebalance page lets an owner set a target either for a whole asset class
+The strategy page lets an owner set a target either for a whole asset class
 ("bond: 40%") or for its sub-classes ("long_gilts: 10%, short_gilts: 20%").
 The sub-class keys match the asset-class blocks of allotmint-pro's
 ``backtest_portfolio`` MCP tool, so the app and the backtests share one
 vocabulary (``overseas_government`` has no backtest block yet).
+
+Equity has one named sub-class, ``small_cap_value`` (the Golden Butterfly's
+tilt), and a remainder, ``broad_equity``, for everything else. The backtest
+calls that remainder plain ``equity``; here the whole-class key cannot double
+as a sub-class, so :func:`policy_targets` renames it when a weight set mixes
+``equity`` with an equity sub-class.
 
 :func:`resolve_sub_asset_class` decides an instrument's sub-class:
 
@@ -14,7 +20,8 @@ vocabulary (``overseas_government`` has no backtest block yet).
 2. Otherwise it is derived from data that already exists: ``fund_facts``
    (``effective_duration_years``, ``maturity_band``, ``index``) and the name.
    Gilts are banded by duration: under 3 years short, 3-10 intermediate,
-   over 10 long.
+   over 10 long. Equity whose name or index says "small cap ... value" is
+   ``small_cap_value``; all other equity is ``broad_equity``.
 3. ``None`` when nothing matches; callers keep the holding in its parent
    class and report it rather than dropping it.
 """
@@ -25,11 +32,13 @@ import logging
 import re
 from typing import Any, Mapping, Optional
 
-from backend.common.instrument_classification import BOND, COMMODITY, cached_classification_overrides
+from backend.common.instrument_classification import BOND, COMMODITY, EQUITY, cached_classification_overrides
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
+BROAD_EQUITY = "broad_equity"
+SMALL_CAP_VALUE = "small_cap_value"
 LONG_GILTS = "long_gilts"
 INTERMEDIATE_GILTS = "intermediate_gilts"
 SHORT_GILTS = "short_gilts"
@@ -41,6 +50,7 @@ OTHER_COMMODITIES = "commodities"
 
 #: Sub-classes of each splittable asset class, in display order.
 SUB_ASSET_CLASSES: dict[str, tuple[str, ...]] = {
+    EQUITY: (BROAD_EQUITY, SMALL_CAP_VALUE),
     BOND: (LONG_GILTS, INTERMEDIATE_GILTS, SHORT_GILTS, INDEX_LINKED, OVERSEAS_GOVERNMENT, CORPORATE_BONDS),
     COMMODITY: (GOLD, OTHER_COMMODITIES),
 }
@@ -48,7 +58,14 @@ SUB_ASSET_CLASSES: dict[str, tuple[str, ...]] = {
 #: Parent asset class of each sub-class key.
 SUB_ASSET_CLASS_PARENT: dict[str, str] = {sub: parent for parent, subs in SUB_ASSET_CLASSES.items() for sub in subs}
 
+#: The sub-class that holds a split class's members with no named sub-class.
+#: In backtest weights the whole-class key plays that role (``equity`` beside
+#: ``small_cap_value``); see :func:`policy_targets`.
+REMAINDER_SUB_CLASS: dict[str, str] = {EQUITY: BROAD_EQUITY}
+
 SUB_ASSET_CLASS_LABELS: dict[str, str] = {
+    BROAD_EQUITY: "Broad equity",
+    SMALL_CAP_VALUE: "Small-cap value",
     LONG_GILTS: "Long gilts",
     INTERMEDIATE_GILTS: "Intermediate gilts",
     SHORT_GILTS: "Short gilts / ultrashort",
@@ -72,6 +89,8 @@ _CREDIT_RE = re.compile(
 )
 _GOVERNMENT_RE = re.compile(r"\bgovernment\b|\bgovt\b|\btreasur(y|ies)\b|\bbunds?\b|\bsovereign\b", re.IGNORECASE)
 _GOLD_RE = re.compile(r"\bgold\b", re.IGNORECASE)
+# "Small Cap Value", "Small-Cap 600 Value", "SmallCap Value Weighted".
+_SMALL_CAP_VALUE_RE = re.compile(r"\bsmall[- ]?cap\b[\w\s&-]{0,20}?\bvalue\b", re.IGNORECASE)
 # "0-5yr", "1-10 Years", "15+ Year": maturity range in a band label or name.
 _MATURITY_RANGE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:-\s*(\d+(?:\.\d+)?)|(\+))\s*(?:years?|yrs?)\b", re.IGNORECASE)
 
@@ -154,6 +173,27 @@ def derive_commodity_sub_class(meta: Mapping[str, Any]) -> str:
     return GOLD if _GOLD_RE.search(text) else OTHER_COMMODITIES
 
 
+def derive_equity_sub_class(meta: Mapping[str, Any]) -> str:
+    """``small_cap_value`` for a small-cap value product, otherwise ``broad_equity``."""
+    text = f"{meta.get('name') or ''} {_fact_text(meta, 'index')}"
+    return SMALL_CAP_VALUE if _SMALL_CAP_VALUE_RE.search(text) else BROAD_EQUITY
+
+
+def policy_targets(weights: Mapping[str, float]) -> dict[str, float]:
+    """``weights`` with a whole-class key renamed to its remainder sub-class.
+
+    Backtest and plan weights write the Golden Butterfly as ``equity: 20,
+    small_cap_value: 20``. A policy cannot target Equity both as a whole and
+    by sub-class, so ``equity`` becomes ``broad_equity`` whenever an equity
+    sub-class is also present. Other weights are returned unchanged.
+    """
+    result = dict(weights)
+    for parent, remainder in REMAINDER_SUB_CLASS.items():
+        if parent in result and any(SUB_ASSET_CLASS_PARENT.get(key) == parent for key in result):
+            result[remainder] = result.get(remainder, 0.0) + result.pop(parent)
+    return result
+
+
 def _valid_override(value: Any, asset_class: str, ticker: str) -> Optional[str]:
     if not isinstance(value, str) or not value.strip():
         return None
@@ -183,4 +223,6 @@ def resolve_sub_asset_class(meta: Mapping[str, Any], asset_class: Optional[str])
         return explicit
     if asset_class == BOND:
         return derive_bond_sub_class(meta)
+    if asset_class == EQUITY:
+        return derive_equity_sub_class(meta)
     return derive_commodity_sub_class(meta)

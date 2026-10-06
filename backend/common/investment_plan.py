@@ -29,7 +29,7 @@ from backend.common.allocation_policy import AllocationPolicy, parse_policy
 from backend.common.instrument_classification import ASSET_CLASSES
 from backend.common.instruments import get_instrument_meta
 from backend.common.path_utils import safe_join
-from backend.common.sub_asset_class import SUB_ASSET_CLASS_PARENT
+from backend.common.sub_asset_class import SUB_ASSET_CLASS_PARENT, policy_targets
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -270,16 +270,18 @@ def _same_weights(a: dict[str, float], b: dict[str, float]) -> bool:
 def rebalance_weights(plan: InvestmentPlan) -> dict[str, float]:
     """The plan target in the rebalance policy's vocabulary.
 
-    Keys the policy accepts (asset classes and the #9543 sub-classes) are kept
-    as they are; any other plan class (``small_cap_value``) is folded into its
-    parent, so a gilt or commodity split survives the copy.
+    Keys the policy accepts (asset classes and the #9543/#9653 sub-classes) are
+    kept as they are, and any other plan class is folded into its parent, so a
+    gilt or commodity split survives the copy. ``equity`` beside
+    ``small_cap_value`` becomes ``broad_equity`` (see
+    :func:`~backend.common.sub_asset_class.policy_targets`).
     """
     accepted = {*ASSET_CLASSES, *SUB_ASSET_CLASS_PARENT}
     weights: dict[str, float] = {}
     for key, pct in plan.target_weights().items():
         target = key if key in accepted else PLAN_CLASS_PARENT[key]
         weights[target] = round(weights.get(target, 0.0) + pct, 6)
-    return weights
+    return policy_targets(weights)
 
 
 #: The whole of allocation_policy._check_levels' message, so a longer error that merely mentions it isn't swallowed.
@@ -297,8 +299,10 @@ def compare_with_rebalance_targets(plan: InvestmentPlan, policy: AllocationPolic
 
     The plan is compared in the policy's own vocabulary (:func:`rebalance_weights`),
     which can be copied straight to the rebalance targets, so ``copy_supported``
-    is true. If the policy still rejects those keys, the plan is compared rolled
-    up to top-level asset classes and the mismatch is reported only.
+    is true. A plan that pairs ``equity`` with ``small_cap_value`` compares with
+    the policy's ``broad_equity``. If the policy still rejects the keys, the plan
+    is compared rolled up to top-level asset classes and the mismatch is
+    reported only.
     """
     try:
         comparable = parse_policy({"targets": rebalance_weights(plan)}).targets

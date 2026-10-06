@@ -48,6 +48,7 @@ from backend.routes.reports import router as reports_router
 from backend.routes.scenario import router as scenario_router
 from backend.routes.screener import router as screener_router
 from backend.routes.signup import create_router as create_signup_router
+from backend.routes.strategies import router as strategies_router
 from backend.routes.support import router as support_router
 from backend.routes.tax import router as tax_router
 from backend.routes.timeseries_admin import router as timeseries_admin_router
@@ -109,6 +110,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(agent_router)
     app.include_router(trading_agent_router, dependencies=protected)
     app.include_router(rebalance_router)
+    app.include_router(strategies_router)
     app.include_router(investment_plan_router)
     app.include_router(config_router)
     app.include_router(quotes_router)

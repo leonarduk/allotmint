@@ -79,6 +79,38 @@ def test_parse_policy_rejects_invalid(data, match):
         parse_policy(data)
 
 
+def test_parse_policy_reads_commodities_as_the_sub_class():
+    # "commodities" is also an alias of the Commodity class; as a target key it
+    # means the "other commodities" sub-class, so it can sit beside gold (#9653).
+    policy = parse_policy({"targets": {"equity": 85, "gold": 7.5, "commodities": 7.5}})
+    assert policy.targets == {"equity": 85.0, "gold": 7.5, "commodities": 7.5}
+
+
+@pytest.mark.parametrize("key", ["commodities", "Commodities", " commodities "])
+def test_parse_policy_reads_lone_commodities_as_the_whole_class(key):
+    # Without another commodity sub-class beside it, "commodities" keeps its
+    # pre-#9653 meaning (the Commodity class, gold included), so a policy sent
+    # through the API or hand-edited before the change is not reinterpreted.
+    policy = parse_policy({"targets": {"equity": 80, key: 20}})
+    assert policy.targets == {"equity": 80.0, "commodity": 20.0}
+
+
+def test_parse_policy_zero_gold_still_marks_commodities_as_the_sub_class():
+    policy = parse_policy({"targets": {"equity": 90, "gold": 0, "commodities": 10}})
+    assert policy.targets == {"equity": 90.0, "commodities": 10.0}
+
+
+def test_saved_whole_commodity_target_keeps_its_meaning(tmp_path):
+    # Saves have always stored the canonical class key ("commodity"), never the
+    # "commodities" alias, so reading "commodities" as the sub-class (#9653)
+    # cannot change a policy saved by the app.
+    (tmp_path / "alex").mkdir()
+    save_allocation_policy("alex", parse_policy({"targets": {"Equity": 80, "Commodity": 20}}), tmp_path)
+    stored = json.loads((tmp_path / "alex" / "settings.json").read_text())["allocation_policy"]["targets"]
+    assert stored == {"equity": 80.0, "commodity": 20.0}
+    assert load_allocation_policy("alex", tmp_path).targets == {"equity": 80.0, "commodity": 20.0}
+
+
 def test_parse_policy_allows_empty_targets():
     assert parse_policy({}).targets == {}
 
@@ -540,7 +572,7 @@ def _gilt_portfolio():
         (
             "ISA",
             [
-                _hs("EQ1", 400, "equity"),
+                _hs("EQ1", 400, "equity", "broad_equity"),
                 _hs("GLTL.L", 50, "bond", "long_gilts"),
                 _hs("IGLT.L", 150, "bond", "intermediate_gilts"),
                 _hs("SEGA.L", 100, "bond", "overseas_government"),
@@ -662,12 +694,34 @@ def test_plan_reports_sub_class_breakdown_for_class_level_policy():
     plan = build_plan(_gilt_portfolio(), _policy(5, equity=40, bond=20, commodity=20, cash=20))
     breakdown = {row["asset_class"]: row["current_pct"] for row in plan["sub_classes"]}
     assert breakdown == {
+        "broad_equity": 40.0,
         "long_gilts": 5.0,
         "intermediate_gilts": 15.0,
         "overseas_government": 10.0,
         "gold": 10.0,
         "commodities": 5.0,
     }
+
+
+def test_golden_butterfly_drift_splits_equity_by_sub_class():
+    portfolio = _portfolio(
+        (
+            "ISA",
+            [
+                _hs("VWRL.L", 300, "equity", "broad_equity"),
+                _hs("ZPRV.L", 100, "equity", "small_cap_value"),
+                _hs("GLTL.L", 200, "bond", "long_gilts"),
+                _hs("IGLS.L", 200, "bond", "short_gilts"),
+                _hs("PHGP.L", 200, "commodity", "gold"),
+            ],
+        )
+    )
+    targets = {"broad_equity": 20, "small_cap_value": 20, "long_gilts": 20, "short_gilts": 20, "gold": 20}
+    plan = build_plan(portfolio, AllocationPolicy(targets=targets, tolerance_pct=5))
+    rows = {row["asset_class"]: row for row in plan["classes"]}
+    assert rows["broad_equity"]["drift_pct"] == 10.0
+    assert rows["small_cap_value"]["drift_pct"] == -10.0
+    assert rows["small_cap_value"]["parent"] == "equity"
 
 
 def test_new_cash_fills_sub_class_targets():

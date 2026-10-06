@@ -29,6 +29,7 @@ from backend.common.investment_plan import (
     save_plan,
     vehicle_warnings,
 )
+from backend.common.strategies import matching_strategy
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 router = APIRouter(tags=["investment-plan"])
@@ -61,10 +62,14 @@ def _data_root(accounts_root: Path) -> Path:
 
 def _response(plan: InvestmentPlan, owner: str, accounts_root: Path) -> Dict[str, Any]:
     policy = load_allocation_policy(owner, accounts_root)
+    comparison = compare_with_rebalance_targets(plan, policy)
+    strategy = matching_strategy(comparison["plan_targets"], owner, accounts_root)
     return {
         "plan": plan.to_dict(),
         "warnings": vehicle_warnings(plan),
-        "rebalance": compare_with_rebalance_targets(plan, policy),
+        "rebalance": comparison,
+        # The strategy whose targets equal the plan's, if any (#9653).
+        "strategy": {"id": strategy.id, "name": strategy.name, "builtin": strategy.builtin} if strategy else None,
     }
 
 

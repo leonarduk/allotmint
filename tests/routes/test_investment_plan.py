@@ -164,3 +164,34 @@ def test_plan_not_readable_by_another_owner(data_root, monkeypatch):
 
     client.app.dependency_overrides[get_current_user] = lambda: "alex"
     assert client.get("/plans/alex").status_code == 200
+
+
+def test_plan_names_the_matching_strategy(data_root):
+    # Steve's plan shape (#9653): it equals the built-in 50/50-gilts Golden Butterfly variant.
+    target = [
+        {"class": "equity", "weight_pct": 40},
+        {"class": "long_gilts", "weight_pct": 10},
+        {"class": "intermediate_gilts", "weight_pct": 10},
+        {"class": "short_gilts", "weight_pct": 20},
+        {"class": "gold", "weight_pct": 20},
+    ]
+    body = _client(data_root).put("/plans/alex", json={**PLAN, "target": target}).json()
+    assert body["strategy"] == {
+        "id": "golden_butterfly_no_scv_50_50",
+        "name": "Golden Butterfly without small-value, 50/50 gilts",
+        "builtin": True,
+    }
+
+
+def test_golden_butterfly_plan_matches_and_copies_with_broad_equity(data_root):
+    target = [
+        {"class": c, "weight_pct": 20} for c in ("equity", "small_cap_value", "long_gilts", "short_gilts", "gold")
+    ]
+    body = _client(data_root).put("/plans/alex", json={**PLAN, "target": target}).json()
+    assert body["strategy"]["id"] == "golden_butterfly"
+    assert body["rebalance"]["copy_supported"] is True
+    assert body["rebalance"]["plan_targets"]["broad_equity"] == 20
+
+
+def test_plan_without_matching_strategy(data_root):
+    assert _client(data_root).put("/plans/alex", json=PLAN).json()["strategy"] is None

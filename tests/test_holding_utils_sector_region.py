@@ -132,7 +132,7 @@ def test_enrich_holding_labels_cash_sector():
 
 
 def test_enrich_holding_sets_sub_asset_class_from_fund_facts(monkeypatch):
-    # Rebalance sub-class targets (#9543) bucket by this field.
+    # Sub-class targets (#9543, #9653) bucket by this field.
     gilt = {
         "name": "SPDR Bloomberg 15+ Year Gilt UCITS ETF",
         "instrumentType": "ETF",
@@ -141,4 +141,5 @@ def test_enrich_holding_sets_sub_asset_class_from_fund_facts(monkeypatch):
     }
     _patch_instrument_meta(monkeypatch, {"GLTL.L": gilt, "VWRL.L": _LEGACY_ETF_META})
     assert enrich_holding({"ticker": "GLTL.L", "units": 0}, date.today(), {}, {})["sub_asset_class"] == "long_gilts"
-    assert enrich_holding({"ticker": "VWRL.L", "units": 0}, date.today(), {}, {})["sub_asset_class"] is None
+    # Equity without a small-cap value tilt is broad equity (#9653).
+    assert enrich_holding({"ticker": "VWRL.L", "units": 0}, date.today(), {}, {})["sub_asset_class"] == "broad_equity"

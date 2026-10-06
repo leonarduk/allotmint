@@ -951,6 +951,49 @@ export interface AllocationPolicy {
   tolerance_pct: number;
 }
 
+/** A named target allocation on the strategy page (#9653). */
+export interface Strategy {
+  id: string;
+  name: string;
+  description: string;
+  /** Origin of a built-in strategy (author, book, preset); empty for user strategies. */
+  source: string;
+  /** How a built-in maps to UK/GBP instruments; empty for user strategies. */
+  uk_mapping: string;
+  targets: Record<string, number>;
+  /** Built-ins are read-only: apply or duplicate them, never edit or delete. */
+  builtin: boolean;
+  created?: string;
+  updated?: string;
+  duplicated_from?: string;
+}
+
+/** The strategy last applied to the owner's targets. */
+export interface ActiveStrategy {
+  id: string;
+  name: string;
+  builtin: boolean;
+  /** False once a user strategy has been deleted since it was applied. */
+  exists: boolean;
+  applied_targets: Record<string, number>;
+  applied_at: string | null;
+  /** The saved targets differ from those applied. */
+  modified: boolean;
+  /** The strategy itself was edited after it was applied. */
+  strategy_changed: boolean;
+}
+
+export interface StrategyList {
+  strategies: Strategy[];
+  active: ActiveStrategy | null;
+}
+
+export interface StrategyInput {
+  name: string;
+  description?: string;
+  targets: Record<string, number>;
+}
+
 export interface RebalanceClassRow {
   /** Asset class or sub-class key the row is bucketed by. */
   asset_class: string;
@@ -1076,6 +1119,8 @@ export interface InvestmentPlanResponse {
     /** True when the rebalance policy accepts the plan's class keys verbatim. */
     copy_supported: boolean;
   };
+  /** The strategy whose targets equal the plan's, if any (#9653). */
+  strategy?: { id: string; name: string; builtin: boolean } | null;
 }
 
 export interface Quest {

@@ -191,9 +191,11 @@ def small_value_plan():
     )
 
 
-def test_rebalance_weights_folds_only_classes_the_policy_lacks():
+def test_rebalance_weights_keeps_the_equity_split_as_broad_equity():
+    # small_cap_value is a policy sub-class (#9653), so equity beside it is broad_equity.
     assert rebalance_weights(small_value_plan()) == {
-        "equity": 40,
+        "broad_equity": 30,
+        "small_cap_value": 10,
         "long_gilts": 25,
         "index_linked": 15,
         "gold": 20,
@@ -204,7 +206,13 @@ def test_compare_keeps_sub_class_split_when_plan_has_small_cap_value():
     result = compare_with_rebalance_targets(small_value_plan(), AllocationPolicy({"equity": 60, "bond": 40}))
     assert result["copy_supported"] is True
     assert result["matches"] is False
-    assert result["plan_targets"] == {"equity": 40, "long_gilts": 25, "index_linked": 15, "gold": 20}
+    assert result["plan_targets"] == {
+        "broad_equity": 30,
+        "small_cap_value": 10,
+        "long_gilts": 25,
+        "index_linked": 15,
+        "gold": 20,
+    }
 
     copied = AllocationPolicy(result["plan_targets"])
     assert compare_with_rebalance_targets(small_value_plan(), copied)["matches"] is True
@@ -242,7 +250,7 @@ def test_compare_rolls_up_on_a_level_clash(monkeypatch):
 
 
 def test_vocabulary_error_matches_the_real_policy_messages():
-    for targets in ({"bond": 50, "long_gilts": 50}, {"small_cap_value": 100}):
+    for targets in ({"bond": 50, "long_gilts": 50}, {"mid_cap_growth": 100}):
         with pytest.raises(ValueError) as exc:
             plan_mod.parse_policy({"targets": targets})
         assert plan_mod._is_vocabulary_error(exc.value)

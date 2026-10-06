@@ -279,7 +279,7 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
       });
     });
 
-    await page.goto(`${baseUrl}/rebalance`);
+    await page.goto(`${baseUrl}/strategy`);
     const trades = page.getByRole('region', { name: 'Suggested trades' });
     await expect(trades.getByText('PFE', { exact: true })).toHaveCount(2);
     expect(warnings).toEqual([]);

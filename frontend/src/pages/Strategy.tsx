@@ -4,6 +4,7 @@ import {
   getNewCashPlan,
   getOwners,
   getRebalancePlan,
+  getStrategies,
   saveAllocationPolicy,
 } from '../api';
 import type {
@@ -13,27 +14,23 @@ import type {
   RebalanceClassRow,
   RebalancePlan,
   RebalanceTrade,
+  StrategyList,
 } from '../types';
 import EmptyState from '../components/EmptyState';
 import PlanPanel from '../components/PlanPanel';
+import StrategyLibrary from '../components/StrategyLibrary';
+import TargetFields from '../components/TargetFields';
 import { sanitizeOwners } from '../utils/owners';
 import { useRoute } from '../RouteContext';
 import {
-  ASSET_CLASSES,
   currentWeights,
   draftFromCurrent,
   draftFromTargets,
-  draftTotal,
-  splitTotal,
+  draftTotalOk,
   targetsFromDraft,
-  toggleSplit,
   type TargetDraft,
 } from '../lib/allocationTargets';
-import {
-  SUB_ASSET_CLASSES,
-  allocationKeyLabel,
-  assetClassLabel,
-} from '../lib/assetClass';
+import { allocationKeyLabel, assetClassLabel } from '../lib/assetClass';
 
 const pct = new Intl.NumberFormat('en-GB', {
   minimumFractionDigits: 2,
@@ -46,9 +43,6 @@ const gbp = new Intl.NumberFormat('en-GB', {
 
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
-
-const formatCurrent = (value: number | undefined) =>
-  value == null ? '—' : `${pct.format(value)}%`;
 
 function useOwnerSelection() {
   const route = useRoute();
@@ -114,103 +108,26 @@ function useRebalancePlan(owner: string) {
   return { plan, loading, error, reload };
 }
 
-function TargetInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <input
-      type="number"
-      step="any"
-      min="0"
-      max="100"
-      className="w-full border p-1"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={`Target % for ${label}`}
-    />
-  );
-}
+function useStrategies(owner: string) {
+  const [data, setData] = useState<StrategyList | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-/** One asset class row, plus its sub-class rows when it is split. */
-function TargetRows({
-  assetClass,
-  label,
-  draft,
-  current,
-  onValue,
-  onToggle,
-}: {
-  assetClass: string;
-  label: string;
-  draft: TargetDraft;
-  current: Record<string, number>;
-  onValue: (key: string, value: string) => void;
-  onToggle: (parent: string) => void;
-}) {
-  const subs = SUB_ASSET_CLASSES[assetClass];
-  const isSplit = draft.split.includes(assetClass);
-  return (
-    <>
-      <tr>
-        <td className="px-2 py-1">
-          {label}
-          {subs && (
-            <button
-              type="button"
-              className="ml-2 text-xs text-blue-600 underline dark:text-blue-400"
-              aria-expanded={isSplit}
-              aria-label={
-                isSplit
-                  ? `Combine ${label} sub-classes`
-                  : `Split ${label} by sub-class`
-              }
-              onClick={() => onToggle(assetClass)}
-            >
-              {isSplit ? 'Combine' : 'Split'}
-            </button>
-          )}
-        </td>
-        <td className="px-2 py-1 text-right">
-          {formatCurrent(current[assetClass])}
-        </td>
-        <td className="px-2 py-1">
-          {isSplit ? (
-            <span className="text-sm text-slate-500 dark:text-slate-400">
-              {pct.format(splitTotal(draft, assetClass))}% (sum of sub-classes)
-            </span>
-          ) : (
-            <TargetInput
-              label={label}
-              value={draft.values[assetClass] ?? ''}
-              onChange={(value) => onValue(assetClass, value)}
-            />
-          )}
-        </td>
-      </tr>
-      {isSplit &&
-        subs.map((sub) => (
-          <tr key={sub.key}>
-            <td className="px-2 py-1 pl-6">{sub.label}</td>
-            <td className="px-2 py-1 text-right">
-              {formatCurrent(current[sub.key])}
-            </td>
-            <td className="px-2 py-1">
-              <TargetInput
-                label={sub.label}
-                value={draft.values[sub.key] ?? ''}
-                onChange={(value) => onValue(sub.key, value)}
-              />
-            </td>
-          </tr>
-        ))}
-    </>
-  );
+  const reload = useCallback(async () => {
+    if (!owner) return;
+    setError(null);
+    try {
+      setData(await getStrategies(owner));
+    } catch (err) {
+      setData(null);
+      setError(`Unable to load strategies for ${owner}: ${errorText(err)}`);
+    }
+  }, [owner]);
+
+  useEffect(() => {
+    void reload(); // errors are captured into state inside reload
+  }, [reload]);
+
+  return { data, error, reload };
 }
 
 function TargetEditor({
@@ -235,10 +152,7 @@ function TargetEditor({
     setTolerance(String(plan.policy.tolerance_pct));
   }, [plan.policy]);
 
-  const total = draftTotal(draft);
-  const totalOk = Math.abs(total - 100) <= 0.01;
-  const setValue = (key: string, value: string) =>
-    setDraft((d) => ({ ...d, values: { ...d.values, [key]: value } }));
+  const totalOk = draftTotalOk(draft);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -261,40 +175,13 @@ function TargetEditor({
     <form onSubmit={handleSave} className="mb-6" aria-label="Target allocation">
       <h2 className="mb-2 text-xl">Target allocation</h2>
       <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-        Set the share of your whole portfolio each asset class should be. Split
-        Bond or Commodity to target sub-classes instead, such as long gilts or
-        gold. Trades are only suggested for classes that drift further than the
-        tolerance band.
+        Set the share of your whole portfolio each asset class should be, or
+        apply a strategy above. Split Equity, Bond or Commodity to target
+        sub-classes instead, such as small-cap value, long gilts or gold.
+        Rebalancing trades are only suggested for classes that drift further
+        than the tolerance band.
       </p>
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              <th className="px-2 py-1 text-left">Asset class</th>
-              <th className="px-2 py-1 text-right">Current %</th>
-              <th className="px-2 py-1 text-left">Target %</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ASSET_CLASSES.map(({ key, label }) => (
-              <TargetRows
-                key={key}
-                assetClass={key}
-                label={label}
-                draft={draft}
-                current={current}
-                onValue={setValue}
-                onToggle={(parent) => setDraft((d) => toggleSplit(d, parent))}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p
-        className={`mt-2 text-xs ${totalOk ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
-      >
-        Total: {pct.format(total)}% {totalOk ? '' : '(must equal 100%)'}
-      </p>
+      <TargetFields draft={draft} onChange={setDraft} current={current} />
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <label className="text-sm" htmlFor="rebalance-tolerance">
           Tolerance band (± percentage points)
@@ -497,7 +384,7 @@ function SuggestedTrades({ plan }: { plan: RebalancePlan }) {
 
   return (
     <section className="mb-6" aria-label="Suggested trades">
-      <h2 className="mb-2 text-xl">Suggested trades</h2>
+      <h2 className="mb-2 text-xl">Suggested rebalancing trades</h2>
       <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
         Trades stay inside each account: buys are funded only by that
         account&apos;s sales and its cash above your cash target. Nothing moves
@@ -609,18 +496,27 @@ function NewCashPlanner({
   );
 }
 
-export default function Rebalance() {
+export default function Strategy() {
   const { owners, ownersError, selectedOwner, selectOwner } =
     useOwnerSelection();
   const { plan, loading, error, reload } = useRebalancePlan(selectedOwner);
+  const strategies = useStrategies(selectedOwner);
+  const reloadStrategies = strategies.reload;
   const hasPolicy = plan != null && Object.keys(plan.policy.targets).length > 0;
+  const current = useMemo(() => (plan ? currentWeights(plan) : {}), [plan]);
+
+  // Targets and the active strategy's "modified" flag change together.
+  const reloadAll = useCallback(async () => {
+    await Promise.all([reload(), reloadStrategies()]);
+  }, [reload, reloadStrategies]);
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="mb-4 text-2xl md:text-4xl">Rebalance Portfolio</h1>
+      <h1 className="mb-4 text-2xl md:text-4xl">Strategy</h1>
       <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
-        Compare your allocation by asset class against the targets you set, and
-        see which trades — or which contribution — would bring it back within
+        Choose a target allocation — a built-in strategy, one of your own, or
+        custom targets — then compare your holdings against it and see which
+        rebalancing trades, or which contribution, would bring it back within
         your tolerance band.
       </p>
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -651,7 +547,21 @@ export default function Rebalance() {
           {error}
         </p>
       )}
-      <PlanPanel owner={selectedOwner} onTargetsCopied={reload} />
+      {strategies.error && (
+        <p className="mb-4 break-words text-sm text-red-600">
+          {strategies.error}
+        </p>
+      )}
+      {strategies.data && (
+        <StrategyLibrary
+          owner={selectedOwner}
+          data={strategies.data}
+          current={current}
+          hasTargets={hasPolicy}
+          onChanged={reloadAll}
+        />
+      )}
+      <PlanPanel owner={selectedOwner} onTargetsCopied={reloadAll} />
       {plan && (
         <>
           <DriftTable plan={plan} />
@@ -665,7 +575,7 @@ export default function Rebalance() {
               ))}
             </ul>
           )}
-          <TargetEditor owner={selectedOwner} plan={plan} onSaved={reload} />
+          <TargetEditor owner={selectedOwner} plan={plan} onSaved={reloadAll} />
           {hasPolicy ? (
             <>
               <SuggestedTrades plan={plan} />
@@ -676,7 +586,7 @@ export default function Rebalance() {
               />
             </>
           ) : (
-            <EmptyState message="Save target allocations to see drift status and suggested trades." />
+            <EmptyState message="Apply a strategy or save target allocations to see drift status and suggested trades." />
           )}
         </>
       )}

@@ -2,7 +2,7 @@
 
 The policy is a set of asset-class target weights (percent, summing to 100)
 plus an absolute drift tolerance in percentage points. A splittable class
-(Bond, Commodity) can instead be targeted by its sub-classes (``long_gilts``,
+(Equity, Bond, Commodity) can instead be targeted by its sub-classes (``long_gilts``,
 ``gold``, ...; see :mod:`backend.common.sub_asset_class`, #9543), but not both
 at once. It is stored under the
 ``allocation_policy`` key of the owner's ``settings.json`` -- the same file
@@ -50,16 +50,29 @@ class AllocationPolicy:
         return {"targets": dict(self.targets), "tolerance_pct": self.tolerance_pct}
 
 
-def _target_key(key: Any) -> str:
-    """Canonical asset class or sub-class key for a target, or ``ValueError``."""
+def _target_key(key: Any, raw_keys: frozenset[str] = frozenset()) -> str:
+    """Canonical asset class or sub-class key for a target, or ``ValueError``.
+
+    ``commodities`` is both an alias of the Commodity class and the "other
+    commodities" sub-class. It means the sub-class only when ``raw_keys`` (the
+    lower-cased keys of the same target set) also names another commodity
+    sub-class such as ``gold``; on its own it keeps its pre-#9653 meaning of
+    the whole class, so a saved policy never changes meaning on upgrade.
+    """
     asset_class = normalise_asset_class(key)
+    if isinstance(key, str):
+        sub_class = key.strip().lower()
+        parent = SUB_ASSET_CLASS_PARENT.get(sub_class)
+        if parent is not None and (asset_class is None or _has_sibling_sub_class(sub_class, parent, raw_keys)):
+            return sub_class
     if asset_class is not None:
         return asset_class
-    sub_class = key.strip().lower() if isinstance(key, str) else None
-    if sub_class in SUB_ASSET_CLASS_PARENT:
-        return sub_class
     expected = ", ".join((*ASSET_CLASSES, *SUB_ASSET_CLASS_PARENT))
     raise ValueError(f"Unknown asset class {key!r}; expected one of {expected}")
+
+
+def _has_sibling_sub_class(sub_class: str, parent: str, raw_keys: frozenset[str]) -> bool:
+    return any(key != sub_class and SUB_ASSET_CLASS_PARENT.get(key) == parent for key in raw_keys)
 
 
 def _check_levels(targets: Mapping[str, float]) -> None:
@@ -75,8 +88,9 @@ def _parse_targets(raw: Any) -> dict[str, float]:
     if not isinstance(raw, Mapping):
         raise ValueError("targets must be an object mapping asset class to percent")
     targets: dict[str, float] = {}
+    raw_keys = frozenset(key.strip().lower() for key in raw if isinstance(key, str))
     for key, value in raw.items():
-        asset_class = _target_key(key)
+        asset_class = _target_key(key, raw_keys)
         if asset_class in targets:
             raise ValueError(f"Asset class {asset_class!r} appears more than once")
         try:

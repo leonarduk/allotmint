@@ -2145,11 +2145,11 @@ describe("App", () => {
     // The owner-scoped portfolio is reachable via the dashboard's owner tabs
     // (it renders the same merged view), so the duplicate nav entry is gone.
     expect(within(nav).queryByText("Portfolio")).not.toBeInTheDocument();
-    // The operations console ("Support") no longer surfaces in the
+    // The operations console ("Configuration", formerly "Support") no longer surfaces in the
     // end-user nav — it moved to the operations menu category, reachable
     // only once already on a support-section page. A real Help entry takes
     // its old spot instead (#7226).
-    expect(within(nav).queryByText("Support")).not.toBeInTheDocument();
+    expect(within(nav).queryByText("Configuration")).not.toBeInTheDocument();
     expect(within(nav).getByText("Help")).toBeInTheDocument();
   });
 

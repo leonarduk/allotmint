@@ -67,7 +67,7 @@ describe('Menu', () => {
     });
     expect(settingsToggle).toHaveAttribute('aria-expanded', 'false');
     expect(
-      screen.queryByRole('menuitem', { name: 'Support' })
+      screen.queryByRole('menuitem', { name: i18n.t('app.modes.support') })
     ).not.toBeInTheDocument();
     fireEvent.click(settingsToggle);
     expect(settingsToggle).toHaveAttribute('aria-expanded', 'true');
@@ -138,7 +138,7 @@ describe('Menu', () => {
       })
     ).toBeNull();
     expect(
-      screen.queryByRole('menuitem', { name: 'Support' })
+      screen.queryByRole('menuitem', { name: i18n.t('app.modes.support') })
     ).not.toBeInTheDocument();
   });
 
@@ -377,12 +377,8 @@ describe('Menu', () => {
         </MemoryRouter>
       </configContext.Provider>
     );
-    const preferencesToggle = screen.getByRole('button', {
-      name: i18n.t('app.menuCategories.preferences'),
-    });
-    fireEvent.click(preferencesToggle);
     expect(
-      screen.getByRole('menuitem', { name: backToAppName() })
+      screen.getByRole('link', { name: backToAppName() })
     ).toBeInTheDocument();
   });
 
@@ -428,11 +424,8 @@ describe('Menu', () => {
         </MemoryRouter>
       </configContext.Provider>
     );
-    const preferencesToggle = screen.getByRole('button', {
-      name: i18n.t('app.menuCategories.preferences'),
-    });
-    fireEvent.click(preferencesToggle);
-    const backLink = screen.getByRole('menuitem', {
+    // A top-level item, not tucked inside a dropdown.
+    const backLink = screen.getByRole('link', {
       name: backToAppName(),
     });
     expect(backLink).toHaveAttribute('href', '/?group=all');
@@ -455,12 +448,55 @@ describe('Menu', () => {
         </MemoryRouter>
       </configContext.Provider>
     );
-    const preferencesToggle = screen.getByRole('button', {
-      name: i18n.t('app.menuCategories.preferences'),
+    const adminToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.operations'),
     });
-    fireEvent.click(preferencesToggle);
-    fireEvent.click(screen.getByRole('menuitem', { name: backToAppName() }));
-    expect(preferencesToggle).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(adminToggle);
+    expect(adminToggle).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(screen.getByRole('link', { name: backToAppName() }));
+    expect(adminToggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('shows only the Admin dropdown plus top-level App and Logout in the admin menu', () => {
+    const onLogout = vi.fn();
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter initialEntries={['/dataadmin']}>
+          <Menu onLogout={onLogout} />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    expect(screen.getByRole('button', { name: 'Admin' })).toBeInTheDocument();
+    // No "Settings" dropdown: nothing in the admin view is a setting.
+    expect(
+      screen.queryByRole('button', {
+        name: i18n.t('app.menuCategories.preferences'),
+      })
+    ).not.toBeInTheDocument();
+    // Top-level items sit outside any role="menu" container, so they are
+    // plain links/buttons rather than menuitems.
+    expect(
+      screen.queryByRole('menuitem', { name: backToAppName() })
+    ).not.toBeInTheDocument();
+    const logout = screen.getByRole('button', { name: i18n.t('app.logout') });
+    fireEvent.click(logout);
+    expect(onLogout).toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: i18n.t('app.menuCategories.operations'),
+      })
+    );
+    expect(
+      screen.getByRole('menuitem', { name: 'Timeseries Editor' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: 'Configuration' })
+    ).toBeInTheDocument();
+    // The Glossary is an end-user page; it only belongs in the app view.
+    expect(
+      screen.queryByRole('menuitem', { name: 'Glossary' })
+    ).not.toBeInTheDocument();
   });
 
   it('names the browser tab after the surface it shows (#9575)', () => {

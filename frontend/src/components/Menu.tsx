@@ -31,6 +31,11 @@ type MenuCategoryDefinition = {
   titleKey: string;
 };
 
+// Shared box styling for the admin menu's top-level App/Logout items, sized
+// to line up with the category dropdown triggers.
+const TOP_LEVEL_ITEM_CLASS =
+  'flex min-h-11 w-full items-center rounded border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring sm:w-auto';
+
 type MenuEntry = ReturnType<typeof getMenuEntries>[number];
 type CategorizedMenu = MenuCategoryDefinition & { tabs: MenuEntry[] };
 
@@ -342,31 +347,8 @@ export default function Menu({
                         </Link>
                       </li>
                     )}
-                  {category.id === 'preferences' && isSupportMode && (
-                    // The way back to the main app from any operations page
-                    // -- without it, the operations menu (which replaces the
-                    // dashboard/insights/goals categories while here) would
-                    // strand the user with no nav path home (#7226). Targets
-                    // the named app tab, so it switches back to the app if
-                    // it's open and opens it if not (#9575).
-                    <li key="back-to-app">
-                      <Link
-                        ref={assignFirstFocusable}
-                        role="menuitem"
-                        to={buildPathForMode('group', { group: selectedGroup })}
-                        target={APP_TAB_NAME}
-                        onClick={closeMenus}
-                        className="block min-h-11 w-full rounded px-3 py-2 text-sm text-[var(--menu-text)]! transition-colors duration-150 hover:bg-[var(--menu-hover-bg)] hover:text-[var(--menu-text-active)]! focus:outline-none focus-visible:ring"
-                      >
-                        {t('app.userLink')}
-                        <span aria-hidden="true"> ↗</span>{' '}
-                        <span className="sr-only">
-                          {t('app.opensInSeparateTab', '(opens in a separate tab)')}
-                        </span>
-                      </Link>
-                    </li>
-                  )}
                   {category.id === 'preferences' && effectiveLogout && (
+                    // In the admin menu Logout is a top-level item instead.
                     <li key="logout">
                       <button
                         ref={(element) => assignFirstFocusable(element)}
@@ -384,6 +366,40 @@ export default function Menu({
             </li>
           );
         })}
+        {isSupportMode && (
+          // The admin menu has a single dropdown, so the way back to the
+          // main app and Logout sit beside it as top-level items rather
+          // than in a "Settings" dropdown of things that aren't settings.
+          // Without the App link the admin menu would strand the user with
+          // no nav path home (#7226). It targets the named app tab, so it
+          // switches back to the app if it's open and opens it if not
+          // (#9575).
+          <li key="back-to-app" className="w-full sm:w-auto">
+            <Link
+              to={buildPathForMode('group', { group: selectedGroup })}
+              target={APP_TAB_NAME}
+              onClick={closeMenus}
+              className={`${TOP_LEVEL_ITEM_CLASS} border-transparent text-[var(--menu-text)]! hover:bg-[var(--menu-hover-bg)] hover:text-[var(--menu-text-active)]!`}
+            >
+              {t('app.userLink')}
+              <span aria-hidden="true"> ↗</span>{' '}
+              <span className="sr-only">
+                {t('app.opensInSeparateTab', '(opens in a separate tab)')}
+              </span>
+            </Link>
+          </li>
+        )}
+        {isSupportMode && effectiveLogout && (
+          <li key="logout" className="w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={effectiveLogout}
+              className={`${TOP_LEVEL_ITEM_CLASS} border-transparent bg-red-500 text-white hover:bg-red-600`}
+            >
+              {t('app.logout')}
+            </button>
+          </li>
+        )}
       </ul>
     </nav>
   );

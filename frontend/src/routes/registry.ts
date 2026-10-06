@@ -426,7 +426,9 @@ export const pageManifestBySegment = new Map(
 export const MENU_CATEGORY_ORDER: Record<MenuSection, readonly MenuCategory[]> =
   {
     user: ['dashboard', 'insights', 'goals', 'preferences'],
-    support: ['operations', 'preferences'],
+    // App and Logout render as top-level items in the support menu, so it
+    // has no preferences dropdown.
+    support: ['operations'],
   };
 
 export const menuCategories = {

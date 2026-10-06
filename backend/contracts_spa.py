@@ -156,7 +156,8 @@ class HoldingContract(SpaContractBase):
     latest_source: str | None = None
     # Where the FX rate valuing a non-GBP holding came from (#9664): "live",
     # "cache", "fallback" (an approximate constant) or "missing" (no rate --
-    # the holding is left unpriced); None for GBP/GBX holdings.
+    # the holding is left unpriced); None for GBP/GBX holdings, and for a
+    # holding with no metadata currency and an unparseable symbol (treated as GBP).
     fx_rate_source: str | None = None
     day_change_gbp: float | None = None
     day_change_currency: str | None = None  # currency code e.g. "GBP"

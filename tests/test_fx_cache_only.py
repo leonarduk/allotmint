@@ -351,3 +351,46 @@ def test_unparseable_symbol_without_currency_is_reported_as_gbp(caplog):
     with caplog.at_level("WARNING"):
         assert holding_utils._holding_fx_rate_source(None, "ABC.L", "L") is None
     assert "assuming GBP" in caplog.text
+
+
+def test_missing_fx_holding_is_left_out_of_portfolio_totals(fx_cache, no_live_fx, monkeypatch, tmp_path):
+    """The real build_owner_portfolio + enrich_holding: a JPY holding with no FX
+    rate adds nothing to the account/portfolio totals (#9664) -- it is not
+    valued at 1 JPY = 1 GBP -- and stays visible as fx_rate_source "missing"."""
+    import json
+    from unittest.mock import patch
+
+    from backend.common import holding_utils, instrument_api
+    from backend.common import portfolio as owner_portfolio
+    from backend.common.account_models import OwnerSummaryRecord
+
+    owner_dir = tmp_path / "steve"
+    owner_dir.mkdir()
+    holdings = [{"ticker": "GBPCO.L", "units": 10.0}, {"ticker": "7203.T", "units": 10.0}]
+    account = {"owner": "steve", "account_type": "isa", "currency": "GBP", "holdings": holdings}
+    (owner_dir / "isa.json").write_text(json.dumps(account))
+
+    currencies = {"GBPCO": "GBP", "7203": "JPY"}
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda full: {"currency": currencies[full.split(".")[0]]})
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda full, _cache: tuple(full.split(".")))
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+    # 10.0 GBP per GBPCO share; the JPY close is the unconverted native 1500.
+    prices = {"GBPCO": 10.0, "7203": 1500.0}
+    monkeypatch.setattr(
+        holding_utils, "_get_dated_price_for_date_scaled", lambda t, *_a, **_k: (prices[t], "cache", None)
+    )
+    monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda t, *_a, **_k: (prices[t], "cache"))
+    monkeypatch.setattr(holding_utils, "get_effective_cost_basis_gbp", lambda *_a, **_k: 50.0)
+
+    plots = [OwnerSummaryRecord(owner="steve", accounts=["isa"])]
+    with patch("backend.common.portfolio.list_plots", return_value=plots):
+        pf = owner_portfolio.build_owner_portfolio("steve", tmp_path)
+
+    (acct,) = pf["accounts"]
+    by_ticker = {h["ticker"]: h for h in acct["holdings"]}
+    assert by_ticker["GBPCO.L"]["fx_rate_source"] is None
+    assert by_ticker["7203.T"]["fx_rate_source"] == fx_rates.FX_RATE_SOURCE_MISSING
+    assert by_ticker["7203.T"]["market_value_gbp"] is None
+    assert acct["value_estimate_gbp"] == pytest.approx(100.0)
+    assert pf["total_value_estimate_gbp"] == pytest.approx(100.0)

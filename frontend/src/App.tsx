@@ -680,24 +680,24 @@ export default function App({ onLogout }: AppProps) {
             {selectedGroup === 'all' && instruments.length > 0 && (
               <div className="mb-4 rounded-lg border border-gray-800 bg-black/20 p-3">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  Export instruments
+                  {t('app.exportInstruments')}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={handleInstrumentExportCsv}
-                    aria-label="Export instruments as CSV"
+                    aria-label={t('app.exportInstrumentsCsvAria')}
                     className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
                   >
-                    Export CSV
+                    {t('app.exportCsv')}
                   </button>
                   <button
                     type="button"
                     onClick={handleInstrumentExportPdf}
-                    aria-label="Export instruments as PDF"
+                    aria-label={t('app.exportInstrumentsPdfAria')}
                     className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
                   >
-                    Export PDF
+                    {t('app.exportPdf')}
                   </button>
                 </div>
               </div>

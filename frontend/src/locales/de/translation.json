@@ -159,7 +159,12 @@
     },
     "featureDisabled": "Diese Funktion ist für diese Anwendung nicht aktiviert.",
     "returnHome": "Zur Startseite",
-    "instrumentCatalogueTruncated": "Die ersten {{shown}} von {{total}} Instrumenten werden angezeigt."
+    "instrumentCatalogueTruncated": "Die ersten {{shown}} von {{total}} Instrumenten werden angezeigt.",
+    "exportInstruments": "Instrumente exportieren",
+    "exportInstrumentsCsvAria": "Instrumente als CSV exportieren",
+    "exportCsv": "CSV exportieren",
+    "exportInstrumentsPdfAria": "Instrumente als PDF exportieren",
+    "exportPdf": "PDF exportieren"
   },
   "approxTotal": "Ungefähre Summe: £{{value}}",
   "asOf": "Stand {{date}} • Trades diesen Monat: {{trades}} / 20 (Verbleibend: {{remaining}})",
@@ -1078,7 +1083,52 @@
       },
       "technicals": {
         "title": "Technische Analyse",
-        "intro": "Begriffe auf dem Tab „Technicals“ eines Instruments. Sie werden aus vergangenen täglichen Schlusskursen berechnet und beschreiben, was der Kurs getan hat; sie sagen nicht voraus, was er tun wird, und sind keine Kauf- oder Verkaufsempfehlungen."
+        "intro": "Begriffe auf dem Tab „Technicals“ eines Instruments. Sie werden aus vergangenen täglichen Schlusskursen berechnet und beschreiben, was der Kurs getan hat; sie sagen nicht voraus, was er tun wird, und sind keine Kauf- oder Verkaufsempfehlungen.",
+        "trend": {
+          "title": "Trend",
+          "short": "Aufwärtstrend: Der Kurs liegt über dem 50-Tage-Durchschnitt und der 50-Tage-Durchschnitt über dem 200-Tage-Durchschnitt. Abwärtstrend: beides umgekehrt. Alles andere ist gemischt.",
+          "detail": "Eine schnelle Einschätzung der Richtung anhand der gleitenden Durchschnitte. Aufwärtstrend bedeutet, dass der Kurs über seinem 50-Tage-Durchschnitt liegt und der 50-Tage-Durchschnitt über dem 200-Tage-Durchschnitt; Abwärtstrend bedeutet, dass der Kurs unter dem 50-Tage-Durchschnitt liegt und dieser unter dem 200-Tage-Durchschnitt. Alles dazwischen ist gemischt. Gleitende Durchschnitte hinken dem Kurs hinterher, daher beschreibt ein Trendlabel die letzten Monate, nicht das, was als Nächstes kommt."
+        },
+        "movingAverage": {
+          "title": "Gleitender Durchschnitt (20, 50, 200 Tage)",
+          "short": "Der durchschnittliche Schlusskurs der letzten 20, 50 oder 200 Handelstage. Der Prozentwert zeigt, wie weit der heutige Kurs darüber oder darunter liegt.",
+          "detail": "Der Durchschnitt der letzten 20, 50 oder 200 Tagesschlusskurse (grob ein Monat, ein Quartal und zehn Handelsmonate). Der 20-Tage-Durchschnitt folgt dem Kurs eng; der 200-Tage-Durchschnitt ist eine träge, langfristige Referenz. „Kurs −8 % ggü. Durchschnitt“ bedeutet, dass der heutige Schlusskurs 8 % unter diesem Durchschnitt liegt."
+        },
+        "cross": {
+          "title": "Golden Cross und Death Cross",
+          "short": "Ein Golden Cross liegt vor, wenn der 50-Tage-Durchschnitt über den 200-Tage-Durchschnitt steigt; ein Death Cross, wenn er darunter fällt. „Death“ bedeutet, dass der 50-Tage-Durchschnitt aktuell unter dem 200-Tage-Durchschnitt liegt – ein abschwächender Trend, keine Prognose.",
+          "detail": "Benannte Zeitpunkte, an denen der gleitende 50-Tage-Durchschnitt den 200-Tage-Durchschnitt kreuzt. Golden Cross: Der 50-Tage-Durchschnitt steigt über den 200-Tage-Durchschnitt, die jüngsten Kurse liegen also höher als der längerfristige Durchschnitt. Death Cross: Der 50-Tage-Durchschnitt fällt darunter. Die Namen klingen dramatisch, aber ein Death Cross sagt nur, dass der mittelfristige Durchschnitt unter den langfristigen gefallen ist. Da beide Durchschnitte nachlaufen, kommt ein Cross oft erst, nachdem ein Großteil der Bewegung bereits stattgefunden hat, und Crosses in seitwärts laufenden Märkten werden häufig kurz darauf wieder umgekehrt. Der Tab zeigt, auf welcher Seite der 50-Tage-Durchschnitt aktuell liegt und – sofern im geladenen Verlauf vorhanden – das Datum des letzten Crosses."
+        },
+        "rsi": {
+          "title": "RSI (14 Tage) und seine Zonen",
+          "short": "Der RSI (0–100) vergleicht aktuelle Gewinne mit aktuellen Verlusten über 14 Tage. Ab 70 spricht man von überkauft, bei 30 oder darunter von überverkauft: Die Bewegung war stark, nicht dass sie sich umkehren muss.",
+          "detail": "Der Relative-Stärke-Index vergleicht die durchschnittliche Größe der Aufwärtstage mit der der Abwärtstage der letzten 14 Tage (Wilder-Methode) auf einer Skala von 0 bis 100. Um 50 bedeutet, dass Gewinne und Verluste ausgeglichen waren. 70 oder mehr gilt üblicherweise als überkauft, 30 oder weniger als überverkauft. Diese Bezeichnungen beschreiben, wie einseitig die jüngsten Bewegungen waren; eine stark trendende Aktie kann lange überkauft oder überverkauft bleiben."
+        },
+        "macd": {
+          "title": "MACD (12/26/9)",
+          "short": "Der MACD ist die Differenz zwischen dem 12-Tage- und dem 26-Tage-Durchschnitt (exponentiell); die Signallinie ist ein 9-Tage-Durchschnitt des MACD. Bullisches Crossover: Der MACD steigt über die Signallinie (Momentum verbessert sich). Bärisch: Er fällt darunter.",
+          "detail": "Moving Average Convergence Divergence. Die MACD-Linie ist der exponentielle gleitende 12-Tage-Durchschnitt minus der 26-Tage-Durchschnitt; positiv bedeutet, dass die kurzfristigen Kurse über dem längerfristigen Trend liegen. Die Signallinie ist ein 9-Tage-Durchschnitt der MACD-Linie, das Histogramm ist MACD minus Signal. Ein bullisches Crossover liegt vor, wenn die MACD-Linie über die Signallinie steigt (Momentum nimmt zu); ein bärisches, wenn sie darunter fällt. Die Werte sind in der Kurseinheit der Aktie angegeben, vergleichen Sie sie daher im Zeitverlauf für eine einzelne Aktie und nicht zwischen verschiedenen Aktien."
+        },
+        "bollinger": {
+          "title": "Bollinger-Bänder und %B",
+          "short": "Die Bänder liegen zwei Standardabweichungen über und unter dem 20-Tage-Durchschnitt. %B zeigt, wo der Kurs zwischen ihnen liegt: 0 % am unteren Band, 100 % am oberen; außerhalb dieses Bereichs hat er jenseits eines Bandes geschlossen.",
+          "detail": "Bollinger-Bänder werden zwei Standardabweichungen über und unter dem gleitenden 20-Tage-Durchschnitt gezogen, sodass sie sich bei hoher Kursvolatilität weiten und bei ruhigem Handel verengen. %B ordnet den heutigen Schlusskurs darin ein: 0 % liegt auf dem unteren Band, 50 % auf dem Durchschnitt, 100 % auf dem oberen Band. Unter 0 % oder über 100 % bedeutet, dass der Schlusskurs außerhalb der Bänder lag – eine im Vergleich zum letzten Monat ungewöhnlich große Bewegung."
+        },
+        "range": {
+          "title": "52-Wochen-Spanne",
+          "short": "Die höchsten und niedrigsten Schlusskurse des vergangenen Jahres. Position in der Spanne: 0 % bedeutet am Tief, 100 % am Hoch.",
+          "detail": "Die höchsten und niedrigsten Tagesschlusskurse der letzten 365 Tage mit den Daten, an denen sie auftraten. „Vom 52-Wochen-Hoch“ gibt an, wie weit der aktuelle Kurs unter diesem Hoch liegt. „Position in der Spanne“ ordnet den Kurs zwischen dem Tief (0 %) und dem Hoch (100 %) ein."
+        },
+        "returns": {
+          "title": "Renditen",
+          "short": "Die Veränderung des Schlusskurses über 1, 3, 6 und 12 Monate. Nur Kurs: Dividenden sind nicht enthalten.",
+          "detail": "Die Veränderung des Schlusskurses vom letzten Schlusskurs am oder vor dem Beginn des Zeitraums bis zum jüngsten Schlusskurs. Dies sind Kursrenditen – Dividenden werden nicht hinzugerechnet –, daher fällt die Gesamtrendite bei einer Aktie mit hoher Dividendenrendite höher aus."
+        },
+        "relativeStrength": {
+          "title": "Relative Stärke ggü. Vergleichsindex",
+          "short": "Die Rendite des Instruments minus die seines Vergleichsindex im selben Zeitraum. Positiv bedeutet, dass es besser abgeschnitten hat als der Vergleichsindex.",
+          "detail": "Die Kursrendite des Instruments minus die seines Vergleichsindex über dieselben 3 oder 12 Monate, beide bis zum selben Enddatum gemessen. Als Vergleichsindex dient derjenige aus dem Tab „Fundamentaldaten“: der eigene des Instruments, sofern festgelegt, andernfalls ein Standardindex für die Börse, an der es notiert ist. +5 % bedeutet, dass es den Vergleichsindex um fünf Prozentpunkte übertroffen hat."
+        }
       }
     },
     "title": "Glossar"
@@ -2968,5 +3018,220 @@
   "reportingCurrency": {
     "converted": "Beträge in {{currency}}, aus GBP zum heutigen Kurs umgerechnet (1 {{currency}} = £{{rate}}).",
     "unavailable": "Für {{currency}} ist kein GBP-Kurs gespeichert, daher werden Beträge in GBP angezeigt."
+  },
+  "targetFields": {
+    "inputFor": "{{inputLabel}} für {{label}}",
+    "combineAria": "Unterklassen von {{label}} zusammenfassen",
+    "splitAria": "{{label}} nach Unterklasse aufteilen",
+    "combine": "Zusammenfassen",
+    "split": "Aufteilen",
+    "subClassSum": "{{value}}% (Summe der Unterklassen)",
+    "targetPct": "Ziel %",
+    "assetClass": "Anlageklasse",
+    "currentPct": "Aktuell %",
+    "total": "Summe: {{value}}%",
+    "mustEqual100": "(muss 100% ergeben)"
+  },
+  "planPanel": {
+    "planTarget": "Planziel",
+    "class": "Klasse",
+    "targetPct": "Ziel %",
+    "vehicles": "Anlageprodukte",
+    "noneSaved": "nichts gespeichert",
+    "targetsMatch": "Ihre Rebalancing-Ziele stimmen mit diesem Plan überein.",
+    "mismatchAria": "Abweichung zwischen Plan und Rebalancing",
+    "updatePrompt": "Rebalancing-Ziele an diesen Plan anpassen?",
+    "targetsDiffer": "Ihre Rebalancing-Ziele weichen von diesem Plan ab.",
+    "planLabel": "Plan:",
+    "rebalanceTargetsLabel": "Rebalancing-Ziele:",
+    "updating": "Wird aktualisiert…",
+    "updateTargets": "Rebalancing-Ziele aktualisieren",
+    "copyTarget": "Plan-Ziel in die Rebalancing-Ziele kopieren",
+    "notNow": "Nicht jetzt",
+    "perAssetClassNote": "Rebalancing-Ziele werden pro Anlageklasse festgelegt, daher wird der Plan auf dieser Ebene zusammengefasst verglichen.",
+    "notRecorded": "nicht erfasst",
+    "yearsAgo": "vor {{value}}",
+    "planGoals": "Planziele",
+    "goal": "Ziel",
+    "purpose": "Zweck",
+    "targetDate": "Zieldatum",
+    "yearsToGo": "Jahre bis dahin",
+    "amount": "Betrag",
+    "priority": "Priorität",
+    "profileAndGoals": "Profil und Ziele",
+    "profileNote": "Wie von Ihnen erfasst; keine Beurteilung der Eignung.",
+    "age": "Alter:",
+    "riskTolerance": "Risikotoleranz:",
+    "capacityForLoss": "Verlusttragfähigkeit:",
+    "asOf": "Stand {{date}}",
+    "keyAssumptions": "Wichtige Annahmen",
+    "openQuestions": "Offene Fragen",
+    "decisionsAndEvidence": "Entscheidungen ({{decisions}}) und Belege ({{evidence}})",
+    "decisions": "Entscheidungen",
+    "evidence": "Belege",
+    "nextReview": "Nächste Überprüfung:",
+    "notSet": "nicht festgelegt",
+    "reviewTriggers": "Auslöser für Überprüfungen",
+    "version": "Version {{version}}",
+    "updated": "aktualisiert {{date}}",
+    "matchesStrategy": "Entspricht der Strategie:",
+    "investmentPlan": "Anlageplan",
+    "editPlan": "Plan bearbeiten",
+    "subtitle": "Ihre eigenen Entscheidungen, festgehalten mit der jeweiligen Begründung.",
+    "loading": "Plan wird geladen…",
+    "loadError": "Der Anlageplan konnte nicht geladen werden: {{message}}",
+    "noPlan": "Für {{owner}} ist noch kein Anlageplan gespeichert.",
+    "createPlan": "Plan erstellen"
+  },
+  "strategy": {
+    "title": "Strategie",
+    "intro": "Wählen Sie eine Zielallokation – eine integrierte Strategie, eine eigene oder individuelle Ziele – und vergleichen Sie dann Ihre Bestände damit. So sehen Sie, welche Rebalancing-Trades oder welcher Beitrag sie wieder in Ihr Toleranzband bringen würden.",
+    "owner": "Portfolio-Inhaber",
+    "noOwners": "Keine Inhaber",
+    "loading": "Wird geladen…",
+    "saving": "Wird gespeichert…",
+    "notes": "Hinweise",
+    "loadPlanError": "Rebalancing-Plan für {{owner}} konnte nicht geladen werden: {{error}}",
+    "loadStrategiesError": "Strategien für {{owner}} konnten nicht geladen werden: {{error}}",
+    "emptyPolicy": "Wenden Sie eine Strategie an oder speichern Sie Zielallokationen, um Abweichungsstatus und empfohlene Trades zu sehen.",
+    "targets": {
+      "title": "Zielallokation",
+      "help": "Legen Sie fest, welchen Anteil Ihres gesamten Portfolios jede Anlageklasse haben soll, oder wenden Sie oben eine Strategie an. Teilen Sie Aktien, Anleihen oder Rohstoffe auf, um stattdessen Unterklassen anzupeilen, etwa Small-Cap-Value, lange Gilts oder Gold. Rebalancing-Trades werden nur für Klassen vorgeschlagen, die über das Toleranzband hinaus abweichen.",
+      "tolerance": "Toleranzband (± Prozentpunkte)",
+      "startFromCurrent": "Mit aktueller Allokation beginnen",
+      "save": "Ziele speichern"
+    },
+    "drift": {
+      "ariaLabel": "Allokationsabweichung",
+      "title": "Abweichung",
+      "col": {
+        "assetClass": "Anlageklasse",
+        "value": "Wert",
+        "current": "Aktuell %",
+        "target": "Ziel %",
+        "driftPp": "Abweichung (PP)",
+        "status": "Status"
+      },
+      "needsSubClass": "Unterklasse erforderlich",
+      "inBand": "Im Band",
+      "overweight": "Übergewichtet",
+      "underweight": "Untergewichtet",
+      "unclassified": "Nicht klassifiziert",
+      "needsAssetClass": "Anlageklasse erforderlich",
+      "totalLine": "Gesamt {{total}} · Toleranz ±{{tolerance}} PP"
+    },
+    "trades": {
+      "title": "Empfohlene Trades",
+      "heading": "Empfohlene Rebalancing-Trades",
+      "help": "Trades bleiben innerhalb jedes Kontos: Käufe werden nur durch die Verkäufe dieses Kontos und dessen Cash über Ihrem Cash-Ziel finanziert. Zwischen Konten wird nichts verschoben.",
+      "none": "Keine Trades erforderlich – jede Anlageklasse liegt innerhalb ihres Bands.",
+      "col": {
+        "action": "Aktion",
+        "assetClass": "Anlageklasse",
+        "amount": "Betrag",
+        "suggested": "Empfohlenes Instrument"
+      },
+      "chooseInstrument": "Instrument auswählen"
+    },
+    "newCash": {
+      "title": "Neues Geld investieren",
+      "help": "Planen Sie einen Beitrag ohne Verkäufe: Das Geld fließt zuerst in die am stärksten untergewichteten Klassen.",
+      "amount": "Betrag (£)",
+      "intoAccount": "Auf Konto",
+      "plan": "Beitrag planen",
+      "keepAsCash": "{{amount}} als Cash behalten."
+    }
+  },
+  "strategyLibrary": {
+    "title": "Strategien",
+    "new": "Neue Strategie",
+    "help": "Beim Anwenden einer Strategie wird Ihre Zielallokation auf deren Gewichtungen gesetzt. Integrierte Strategien beschreiben bekannte, veröffentlichte Mischungen; sie sind Referenzpunkte, keine Empfehlungen.",
+    "builtinReadOnlyTip": "Integrierte Strategien sind schreibgeschützt. Duplizieren Sie sie, um eine bearbeitbare Kopie zu erstellen.",
+    "confirmReplace": "Ihre aktuellen Ziele durch {{name}} ersetzen?",
+    "confirmDelete": "Strategie {{name}} löschen?",
+    "applied": "{{name}} angewendet.",
+    "created": "{{name}} erstellt.",
+    "deleted": "{{name}} gelöscht.",
+    "active": {
+      "label": "Aktive Strategie",
+      "prefix": "Aktive Strategie:",
+      "custom": "Benutzerdefiniert (Ziele stammen nicht aus einer gespeicherten Strategie)",
+      "none": "Keine – wenden Sie eine Strategie an oder legen Sie unten Ziele fest.",
+      "deleted": "(gelöscht)",
+      "modified": "Geändert",
+      "modifiedHelp": "Ihre Ziele wurden seit dem Anwenden dieser Strategie geändert.",
+      "changedHelp": "Die Strategie wurde seit dem Anwenden bearbeitet; wenden Sie sie erneut an, um die neuen Gewichtungen zu verwenden."
+    },
+    "editor": {
+      "edit": "{{name}} bearbeiten",
+      "name": "Name",
+      "description": "Beschreibung",
+      "inputLabel": "Strategie %",
+      "save": "Strategie speichern",
+      "saving": "Wird gespeichert…",
+      "cancel": "Abbrechen"
+    },
+    "row": {
+      "builtin": "Integriert",
+      "custom": "Benutzerdefiniert",
+      "active": "Aktiv",
+      "apply": "Anwenden",
+      "applyAria": "{{name}} anwenden",
+      "duplicate": "Duplizieren",
+      "duplicateAria": "{{name}} duplizieren",
+      "edit": "Bearbeiten",
+      "delete": "Löschen",
+      "about": "Über diese Strategie",
+      "source": "Quelle:",
+      "ukMapping": "UK-Zuordnung:"
+    }
+  },
+  "assetClasses": {
+    "equity": "Aktien",
+    "bond": "Anleihen",
+    "cash": "Bargeld",
+    "commodity": "Rohstoffe",
+    "property": "Immobilien",
+    "multi-asset": "Multi-Asset",
+    "unknown": "Unbekannt",
+    "broad_equity": "Breite Aktien",
+    "small_cap_value": "Small-Cap Value",
+    "long_gilts": "Lange Gilts",
+    "intermediate_gilts": "Mittelfristige Gilts",
+    "short_gilts": "Kurze Gilts / Ultrakurz",
+    "index_linked": "Inflationsgebunden",
+    "overseas_government": "Ausländische Staatsanleihen",
+    "corporate_bonds": "Unternehmensanleihen / Kredit",
+    "gold": "Gold",
+    "commodities": "Sonstige Rohstoffe"
+  },
+  "planForm": {
+    "errors": {
+      "version": "Die Version muss eine ganze Zahl von mindestens 1 sein.",
+      "weightNotNumber": "Die Zielgewichtung für {{cls}} ist keine Zahl.",
+      "duplicateClass": "{{cls}} kommt im Ziel mehr als einmal vor.",
+      "sum": "Die Zielgewichtungen müssen 100 % ergeben, erhalten: {{total}} %.",
+      "riskToleranceLevel": "Wählen Sie eine Risikotoleranz-Stufe zu dieser Notiz.",
+      "capacityForLossLevel": "Wählen Sie eine Verlusttragfähigkeits-Stufe zu dieser Notiz.",
+      "goalName": "Ziel {{n}} benötigt einen Namen.",
+      "goalAmount": "Der Betrag von Ziel {{n}} muss eine Zahl von mindestens 0 sein.",
+      "goalPriority": "Die Priorität von Ziel {{n}} muss eine ganze Zahl von mindestens 1 sein."
+    }
+  },
+  "valuationCaveats": {
+    "navUnknown": "unbekannt",
+    "navToday": "{{date}} (heute)",
+    "navAge_one": "{{date}} (vor {{count}} Tag)",
+    "navAge_other": "{{date}} (vor {{count}} Tagen)",
+    "staleBadge": "Veralteter NAV",
+    "staleReason": "Nicht verlässlich: Der NAV ist {{age}} Tage alt.",
+    "staleReasonLimit": "Nicht verlässlich: Der NAV ist {{age}} Tage alt (Grenzwert {{limit}} Tage).",
+    "tooManyDays": "zu viele",
+    "undatedBadge": "NAV ohne Datum",
+    "undatedReason": "Nicht verlässlich: Das NAV-Datum ist unbekannt, daher auch sein Alter.",
+    "stalePrice": "Der letzte Kurs ist als veraltet markiert.",
+    "stalePriceAsOf": "Der letzte Kurs ist als veraltet markiert (Stand {{date}}).",
+    "suspectCostBasis": "Der Einstandswert ist bei {{count}} Position(en) fraglich oder unbekannt: {{where}}.",
+    "suspectMove": "Verdächtige Eintagesbewegung von {{change}} am {{date}}."
   }
 }

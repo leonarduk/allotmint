@@ -1,6 +1,7 @@
 // Target-allocation table shared by the page's target editor and the
 // strategy editor (#9543, #9653): one row per asset class, with Split /
 // Combine for classes that have sub-classes.
+import { useTranslation } from 'react-i18next';
 import {
   ASSET_CLASSES,
   draftTotal,
@@ -30,6 +31,7 @@ function TargetInput({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <input
       type="number"
@@ -39,7 +41,7 @@ function TargetInput({
       className="w-full border p-1"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      aria-label={`${inputLabel} for ${label}`}
+      aria-label={t('targetFields.inputFor', { inputLabel, label })}
     />
   );
 }
@@ -64,6 +66,7 @@ function TargetRows({
   onValue,
   onToggle,
 }: RowsProps) {
+  const { t } = useTranslation();
   const subs = SUB_ASSET_CLASSES[assetClass];
   const isSplit = draft.split.includes(assetClass);
   return (
@@ -78,12 +81,12 @@ function TargetRows({
               aria-expanded={isSplit}
               aria-label={
                 isSplit
-                  ? `Combine ${label} sub-classes`
-                  : `Split ${label} by sub-class`
+                  ? t('targetFields.combineAria', { label })
+                  : t('targetFields.splitAria', { label })
               }
               onClick={() => onToggle(assetClass)}
             >
-              {isSplit ? 'Combine' : 'Split'}
+              {isSplit ? t('targetFields.combine') : t('targetFields.split')}
             </button>
           )}
         </td>
@@ -93,7 +96,9 @@ function TargetRows({
         <td className="px-2 py-1">
           {isSplit ? (
             <span className="text-sm text-slate-500 dark:text-slate-400">
-              {pct.format(splitTotal(draft, assetClass))}% (sum of sub-classes)
+              {t('targetFields.subClassSum', {
+                value: pct.format(splitTotal(draft, assetClass)),
+              })}
             </span>
           ) : (
             <TargetInput
@@ -130,7 +135,7 @@ export default function TargetFields({
   draft,
   onChange,
   current,
-  inputLabel = 'Target %',
+  inputLabel,
 }: {
   draft: TargetDraft;
   onChange: (update: (draft: TargetDraft) => TargetDraft) => void;
@@ -138,6 +143,8 @@ export default function TargetFields({
   /** Prefix of each input's accessible name, e.g. "Target % for Equity". */
   inputLabel?: string;
 }) {
+  const { t } = useTranslation();
+  const resolvedInputLabel = inputLabel ?? t('targetFields.targetPct');
   const total = draftTotal(draft);
   const totalOk = draftTotalOk(draft);
   return (
@@ -146,9 +153,15 @@ export default function TargetFields({
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              <th className="px-2 py-1 text-left">Asset class</th>
-              <th className="px-2 py-1 text-right">Current %</th>
-              <th className="px-2 py-1 text-left">Target %</th>
+              <th className="px-2 py-1 text-left">
+                {t('targetFields.assetClass')}
+              </th>
+              <th className="px-2 py-1 text-right">
+                {t('targetFields.currentPct')}
+              </th>
+              <th className="px-2 py-1 text-left">
+                {t('targetFields.targetPct')}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -159,7 +172,7 @@ export default function TargetFields({
                 label={label}
                 draft={draft}
                 current={current}
-                inputLabel={inputLabel}
+                inputLabel={resolvedInputLabel}
                 onValue={(k, value) =>
                   onChange((d) => ({
                     ...d,
@@ -175,7 +188,8 @@ export default function TargetFields({
       <p
         className={`mt-2 text-xs ${totalOk ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
       >
-        Total: {pct.format(total)}% {totalOk ? '' : '(must equal 100%)'}
+        {t('targetFields.total', { value: pct.format(total) })}{' '}
+        {totalOk ? '' : t('targetFields.mustEqual100')}
       </p>
     </>
   );

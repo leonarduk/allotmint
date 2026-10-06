@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { getInvestmentPlan, saveAllocationPolicy } from '../api';
 import { classLabel, goalPurposeLabel } from '../lib/planForm';
 import type {
@@ -64,16 +66,17 @@ function vehicleText(vehicles: InvestmentPlanVehicle[] | undefined): string {
 }
 
 function TargetTable({ plan }: { plan: InvestmentPlan }) {
+  const { t } = useTranslation();
   return (
     <table
       className="mb-3 w-full border-collapse text-sm"
-      aria-label="Plan target"
+      aria-label={t('planPanel.planTarget')}
     >
       <thead>
         <tr>
-          <th className="px-2 py-1 text-left">Class</th>
-          <th className="px-2 py-1 text-right">Target %</th>
-          <th className="px-2 py-1 text-left">Vehicles</th>
+          <th className="px-2 py-1 text-left">{t('planPanel.class')}</th>
+          <th className="px-2 py-1 text-right">{t('planPanel.targetPct')}</th>
+          <th className="px-2 py-1 text-left">{t('planPanel.vehicles')}</th>
         </tr>
       </thead>
       <tbody>
@@ -93,9 +96,9 @@ function TargetTable({ plan }: { plan: InvestmentPlan }) {
   );
 }
 
-function formatTargets(targets: Record<string, number>): string {
+function formatTargets(targets: Record<string, number>, t: TFunction): string {
   const entries = Object.entries(targets);
-  if (!entries.length) return 'none saved';
+  if (!entries.length) return t('planPanel.noneSaved');
   return entries
     .map(([k, v]) => `${classLabel(k)} ${pct.format(v)}%`)
     .join(', ');
@@ -152,6 +155,7 @@ function RebalanceComparison({
   offerSync: boolean;
   onDismiss: () => void;
 }) {
+  const { t } = useTranslation();
   const { copy, copying, error } = useCopyToRebalance(
     owner,
     comparison,
@@ -161,7 +165,7 @@ function RebalanceComparison({
   if (comparison.matches) {
     return (
       <p className="mb-3 text-sm text-green-700 dark:text-green-400">
-        Your rebalance targets match this plan.
+        {t('planPanel.targetsMatch')}
       </p>
     );
   }
@@ -171,15 +175,18 @@ function RebalanceComparison({
     <div
       className="mb-3 text-sm"
       role="status"
-      aria-label="Plan and rebalance mismatch"
+      aria-label={t('planPanel.mismatchAria')}
     >
       <p className="text-amber-700 dark:text-amber-300">
-        {prompt
-          ? 'Update your rebalance targets to match this plan?'
-          : 'Your rebalance targets differ from this plan.'}
+        {prompt ? t('planPanel.updatePrompt') : t('planPanel.targetsDiffer')}
       </p>
-      <p>Plan: {formatTargets(comparison.plan_targets)}</p>
-      <p>Rebalance targets: {formatTargets(comparison.rebalance_targets)}</p>
+      <p>
+        {t('planPanel.planLabel')} {formatTargets(comparison.plan_targets, t)}
+      </p>
+      <p>
+        {t('planPanel.rebalanceTargetsLabel')}{' '}
+        {formatTargets(comparison.rebalance_targets, t)}
+      </p>
       {comparison.copy_supported ? (
         <div className="flex flex-wrap gap-2">
           <button
@@ -189,10 +196,10 @@ function RebalanceComparison({
             className={PRIMARY_BUTTON}
           >
             {copying
-              ? 'Updating…'
+              ? t('planPanel.updating')
               : prompt
-                ? 'Update rebalance targets'
-                : 'Copy plan target to rebalance targets'}
+                ? t('planPanel.updateTargets')
+                : t('planPanel.copyTarget')}
           </button>
           {prompt && (
             <button
@@ -200,14 +207,13 @@ function RebalanceComparison({
               onClick={onDismiss}
               className="mt-2 rounded bg-gray-200 px-3 py-1 text-slate-900"
             >
-              Not now
+              {t('planPanel.notNow')}
             </button>
           )}
         </div>
       ) : (
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Rebalance targets are set per asset class, so the plan is compared
-          rolled up to that level.
+          {t('planPanel.perAssetClassNote')}
         </p>
       )}
       {error && <p className="mt-1 break-words text-red-600">{error}</p>}
@@ -229,32 +235,41 @@ function ListSection({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-function ratingText(rating: InvestmentPlanProfileRating | undefined): string {
-  if (!rating) return 'not recorded';
+function ratingText(
+  rating: InvestmentPlanProfileRating | undefined,
+  t: TFunction
+): string {
+  if (!rating) return t('planPanel.notRecorded');
   return rating.note ? `${rating.level} — ${rating.note}` : rating.level;
 }
 
-function yearsToGoalText(value: number | undefined): string {
+function yearsToGoalText(value: number | undefined, t: TFunction): string {
   if (value == null) return '—';
-  return value < 0 ? `${years.format(-value)} ago` : years.format(value);
+  return value < 0
+    ? t('planPanel.yearsAgo', { value: years.format(-value) })
+    : years.format(value);
 }
 
 function GoalTable({ data }: { data: InvestmentPlanResponse }) {
+  const { t } = useTranslation();
   const goals = data.plan.profile?.goals ?? [];
   if (!goals.length) return null;
   const toGo = new Map(
     (data.horizon?.goals ?? []).map((g) => [g.index, g.years_to_goal])
   );
   return (
-    <table className="w-full border-collapse text-sm" aria-label="Plan goals">
+    <table
+      className="w-full border-collapse text-sm"
+      aria-label={t('planPanel.planGoals')}
+    >
       <thead>
         <tr>
-          <th className="px-2 py-1 text-left">Goal</th>
-          <th className="px-2 py-1 text-left">Purpose</th>
-          <th className="px-2 py-1 text-left">Target date</th>
-          <th className="px-2 py-1 text-right">Years to go</th>
-          <th className="px-2 py-1 text-right">Amount</th>
-          <th className="px-2 py-1 text-right">Priority</th>
+          <th className="px-2 py-1 text-left">{t('planPanel.goal')}</th>
+          <th className="px-2 py-1 text-left">{t('planPanel.purpose')}</th>
+          <th className="px-2 py-1 text-left">{t('planPanel.targetDate')}</th>
+          <th className="px-2 py-1 text-right">{t('planPanel.yearsToGo')}</th>
+          <th className="px-2 py-1 text-right">{t('planPanel.amount')}</th>
+          <th className="px-2 py-1 text-right">{t('planPanel.priority')}</th>
         </tr>
       </thead>
       <tbody>
@@ -271,7 +286,7 @@ function GoalTable({ data }: { data: InvestmentPlanResponse }) {
             <td className="px-2 py-1">{goalPurposeLabel(goal.purpose)}</td>
             <td className="px-2 py-1">{goal.target_date ?? '—'}</td>
             <td className="px-2 py-1 text-right">
-              {yearsToGoalText(toGo.get(i))}
+              {yearsToGoalText(toGo.get(i), t)}
             </td>
             <td className="px-2 py-1 text-right">
               {goal.amount_gbp != null ? gbp.format(goal.amount_gbp) : '—'}
@@ -286,28 +301,33 @@ function GoalTable({ data }: { data: InvestmentPlanResponse }) {
 
 /** Owner-stated profile and goals (#9760), shown as recorded: no score or verdict. */
 function ProfileSection({ data }: { data: InvestmentPlanResponse }) {
+  const { t } = useTranslation();
   const { profile } = data.plan;
   if (!profile) return null;
   const age = data.horizon?.age;
   return (
-    <div className="mb-3" aria-label="Profile and goals" role="group">
-      <h3 className="font-medium">Profile and goals</h3>
+    <div
+      className="mb-3"
+      aria-label={t('planPanel.profileAndGoals')}
+      role="group"
+    >
+      <h3 className="font-medium">{t('planPanel.profileAndGoals')}</h3>
       <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
-        As you recorded them; not an assessment of suitability.
+        {t('planPanel.profileNote')}
       </p>
       <ul className="mb-2 text-sm">
         {age != null && (
           <li>
-            <span className="font-medium">Age:</span> {age}
+            <span className="font-medium">{t('planPanel.age')}</span> {age}
           </li>
         )}
         <li>
-          <span className="font-medium">Risk tolerance:</span>{' '}
-          {ratingText(profile.risk_tolerance)}
+          <span className="font-medium">{t('planPanel.riskTolerance')}</span>{' '}
+          {ratingText(profile.risk_tolerance, t)}
         </li>
         <li>
-          <span className="font-medium">Capacity for loss:</span>{' '}
-          {ratingText(profile.capacity_for_loss)}
+          <span className="font-medium">{t('planPanel.capacityForLoss')}</span>{' '}
+          {ratingText(profile.capacity_for_loss, t)}
         </li>
       </ul>
       <GoalTable data={data} />
@@ -316,6 +336,7 @@ function ProfileSection({ data }: { data: InvestmentPlanResponse }) {
 }
 
 function PlanDetails({ plan }: { plan: InvestmentPlan }) {
+  const { t } = useTranslation();
   const assumptions = plan.assumptions.map(
     (a) =>
       `${a.key.replace(/_/g, ' ')}${a.value != null ? `: ${String(a.value)}` : ''}${a.note ? ` — ${a.note}` : ''}`
@@ -325,24 +346,33 @@ function PlanDetails({ plan }: { plan: InvestmentPlan }) {
   );
   const evidence = plan.evidence.map(
     (e) =>
-      `${e.metric}: ${String(e.value)}${e.basis ? ` — ${e.basis}` : ''} (as of ${e.as_of}${e.source ? `, ${e.source}` : ''})`
+      `${e.metric}: ${String(e.value)}${e.basis ? ` — ${e.basis}` : ''} (${t('planPanel.asOf', { date: e.as_of })}${e.source ? `, ${e.source}` : ''})`
   );
   return (
     <>
-      <ListSection title="Key assumptions" items={assumptions} />
-      <ListSection title="Open questions" items={plan.open_questions} />
+      <ListSection title={t('planPanel.keyAssumptions')} items={assumptions} />
+      <ListSection
+        title={t('planPanel.openQuestions')}
+        items={plan.open_questions}
+      />
       <details className="mb-3">
         <summary className="cursor-pointer font-medium">
-          Decisions ({decisions.length}) and evidence ({evidence.length})
+          {t('planPanel.decisionsAndEvidence', {
+            decisions: decisions.length,
+            evidence: evidence.length,
+          })}
         </summary>
-        <ListSection title="Decisions" items={decisions} />
-        <ListSection title="Evidence" items={evidence} />
+        <ListSection title={t('planPanel.decisions')} items={decisions} />
+        <ListSection title={t('planPanel.evidence')} items={evidence} />
       </details>
       <p className="mb-1 text-sm">
-        <span className="font-medium">Next review:</span>{' '}
-        {plan.review.next_review ?? 'not set'}
+        <span className="font-medium">{t('planPanel.nextReview')}</span>{' '}
+        {plan.review.next_review ?? t('planPanel.notSet')}
       </p>
-      <ListSection title="Review triggers" items={plan.review.triggers} />
+      <ListSection
+        title={t('planPanel.reviewTriggers')}
+        items={plan.review.triggers}
+      />
     </>
   );
 }
@@ -360,17 +390,19 @@ function PlanBody({
   offerSync: boolean;
   onDismissSync: () => void;
 }) {
+  const { t } = useTranslation();
   const { plan } = data;
   return (
     <>
       <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-        {plan.status} · version {plan.version} · updated {plan.updated}
+        {plan.status} · {t('planPanel.version', { version: plan.version })} ·{' '}
+        {t('planPanel.updated', { date: plan.updated })}
       </p>
       {plan.summary && <p className="mb-3">{plan.summary}</p>}
       <ProfileSection data={data} />
       {data.strategy && (
         <p className="mb-2 text-sm">
-          <span className="font-medium">Matches strategy:</span>{' '}
+          <span className="font-medium">{t('planPanel.matchesStrategy')}</span>{' '}
           {data.strategy.name}
         </p>
       )}
@@ -409,6 +441,7 @@ export default function PlanPanel({
   owner: string;
   onTargetsCopied?: () => Promise<void> | void;
 }) {
+  const { t } = useTranslation();
   const { state, setState, load } = useInvestmentPlan(owner);
   const [editing, setEditing] = useState(false);
   // Set when an active plan was just saved with a target that differs from the rebalance targets.
@@ -433,21 +466,24 @@ export default function PlanPanel({
   const initial = state.kind === 'ready' ? state.data.plan : {};
 
   return (
-    <section className="mb-6 rounded border p-4" aria-label="Investment plan">
+    <section
+      className="mb-6 rounded border p-4"
+      aria-label={t('planPanel.investmentPlan')}
+    >
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl">Investment plan</h2>
+        <h2 className="text-xl">{t('planPanel.investmentPlan')}</h2>
         {!editing && state.kind === 'ready' && (
           <button
             type="button"
             onClick={() => setEditing(true)}
             className="rounded bg-gray-200 px-2 py-1 text-sm text-slate-900"
           >
-            Edit plan
+            {t('planPanel.editPlan')}
           </button>
         )}
       </div>
       <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-        Your own decisions, recorded with the reasoning behind them.
+        {t('planPanel.subtitle')}
       </p>
       {editing ? (
         <PlanEditor
@@ -465,18 +501,21 @@ export default function PlanPanel({
       ) : (
         <>
           {state.kind === 'loading' && (
-            <p className="text-sm text-slate-500">Loading plan…</p>
+            <p className="text-sm text-slate-500">{t('planPanel.loading')}</p>
           )}
           {state.kind === 'error' && (
             <p className="break-words text-sm text-red-600">
-              Unable to load the investment plan: {state.message}
+              {t('planPanel.loadError', { message: state.message })}
             </p>
           )}
           {state.kind === 'missing' && (
             <EmptyState
-              message={`No investment plan saved for ${owner} yet.`}
+              message={t('planPanel.noPlan', { owner })}
               actions={[
-                { label: 'Create plan', onClick: () => setEditing(true) },
+                {
+                  label: t('planPanel.createPlan'),
+                  onClick: () => setEditing(true),
+                },
               ]}
             />
           )}

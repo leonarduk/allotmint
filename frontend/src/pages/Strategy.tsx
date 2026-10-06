@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Link } from 'react-router-dom';
 import {
   getNewCashPlan,
@@ -83,6 +85,7 @@ function useOwnerSelection() {
 }
 
 function useRebalancePlan(owner: string) {
+  const { t } = useTranslation();
   const [plan, setPlan] = useState<RebalancePlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,11 +98,11 @@ function useRebalancePlan(owner: string) {
       setPlan(await getRebalancePlan(owner));
     } catch (err) {
       setPlan(null);
-      setError(`Unable to load rebalance plan for ${owner}: ${errorText(err)}`);
+      setError(t('strategy.loadPlanError', { owner, error: errorText(err) }));
     } finally {
       setLoading(false);
     }
-  }, [owner]);
+  }, [owner, t]);
 
   useEffect(() => {
     void reload(); // errors are captured into state inside reload
@@ -109,6 +112,7 @@ function useRebalancePlan(owner: string) {
 }
 
 function useStrategies(owner: string) {
+  const { t } = useTranslation();
   const [data, setData] = useState<StrategyList | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -119,9 +123,11 @@ function useStrategies(owner: string) {
       setData(await getStrategies(owner));
     } catch (err) {
       setData(null);
-      setError(`Unable to load strategies for ${owner}: ${errorText(err)}`);
+      setError(
+        t('strategy.loadStrategiesError', { owner, error: errorText(err) })
+      );
     }
-  }, [owner]);
+  }, [owner, t]);
 
   useEffect(() => {
     void reload(); // errors are captured into state inside reload
@@ -139,6 +145,7 @@ function TargetEditor({
   plan: RebalancePlan;
   onSaved: () => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<TargetDraft>(() =>
     draftFromTargets(plan.policy.targets)
   );
@@ -172,19 +179,19 @@ function TargetEditor({
   }
 
   return (
-    <form onSubmit={handleSave} className="mb-6" aria-label="Target allocation">
-      <h2 className="mb-2 text-xl">Target allocation</h2>
+    <form
+      onSubmit={handleSave}
+      className="mb-6"
+      aria-label={t('strategy.targets.title')}
+    >
+      <h2 className="mb-2 text-xl">{t('strategy.targets.title')}</h2>
       <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-        Set the share of your whole portfolio each asset class should be, or
-        apply a strategy above. Split Equity, Bond or Commodity to target
-        sub-classes instead, such as small-cap value, long gilts or gold.
-        Rebalancing trades are only suggested for classes that drift further
-        than the tolerance band.
+        {t('strategy.targets.help')}
       </p>
       <TargetFields draft={draft} onChange={setDraft} current={current} />
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <label className="text-sm" htmlFor="rebalance-tolerance">
-          Tolerance band (± percentage points)
+          {t('strategy.targets.tolerance')}
         </label>
         <input
           id="rebalance-tolerance"
@@ -201,14 +208,14 @@ function TargetEditor({
           onClick={() => setDraft((d) => draftFromCurrent(plan, d.split))}
           className="rounded bg-gray-200 px-2 py-1 text-slate-900"
         >
-          Start from current allocation
+          {t('strategy.targets.startFromCurrent')}
         </button>
         <button
           type="submit"
           disabled={!totalOk || saving}
           className="rounded bg-blue-500 px-4 py-2 text-white disabled:opacity-50"
         >
-          {saving ? 'Saving…' : 'Save targets'}
+          {saving ? t('strategy.saving') : t('strategy.targets.save')}
         </button>
       </div>
       {error && (
@@ -218,22 +225,34 @@ function TargetEditor({
   );
 }
 
-function driftStatus(row: RebalanceClassRow): {
+function driftStatus(
+  row: RebalanceClassRow,
+  t: TFunction
+): {
   text: string;
   className: string;
 } {
   if (row.parent != null && row.parent === row.asset_class)
     return {
-      text: 'Needs a sub-class',
+      text: t('strategy.drift.needsSubClass'),
       className: 'text-amber-600 dark:text-amber-400',
     };
   if (row.in_band == null || row.drift_pct == null)
     return { text: '—', className: '' };
   if (row.in_band)
-    return { text: 'In band', className: 'text-green-600 dark:text-green-400' };
+    return {
+      text: t('strategy.drift.inBand'),
+      className: 'text-green-600 dark:text-green-400',
+    };
   return row.drift_pct > 0
-    ? { text: 'Overweight', className: 'text-red-600 dark:text-red-400' }
-    : { text: 'Underweight', className: 'text-amber-600 dark:text-amber-400' };
+    ? {
+        text: t('strategy.drift.overweight'),
+        className: 'text-red-600 dark:text-red-400',
+      }
+    : {
+        text: t('strategy.drift.underweight'),
+        className: 'text-amber-600 dark:text-amber-400',
+      };
 }
 
 /** "Bond › Long gilts" for sub-class rows; the backend label otherwise. */
@@ -243,24 +262,37 @@ function driftLabel(row: RebalanceClassRow): string {
 }
 
 function DriftTable({ plan }: { plan: RebalancePlan }) {
+  const { t } = useTranslation();
   return (
-    <section className="mb-6" aria-label="Allocation drift">
-      <h2 className="mb-2 text-xl">Drift</h2>
+    <section className="mb-6" aria-label={t('strategy.drift.ariaLabel')}>
+      <h2 className="mb-2 text-xl">{t('strategy.drift.title')}</h2>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              <th className="px-2 py-1 text-left">Asset class</th>
-              <th className="px-2 py-1 text-right">Value</th>
-              <th className="px-2 py-1 text-right">Current %</th>
-              <th className="px-2 py-1 text-right">Target %</th>
-              <th className="px-2 py-1 text-right">Drift (pp)</th>
-              <th className="px-2 py-1 text-left">Status</th>
+              <th className="px-2 py-1 text-left">
+                {t('strategy.drift.col.assetClass')}
+              </th>
+              <th className="px-2 py-1 text-right">
+                {t('strategy.drift.col.value')}
+              </th>
+              <th className="px-2 py-1 text-right">
+                {t('strategy.drift.col.current')}
+              </th>
+              <th className="px-2 py-1 text-right">
+                {t('strategy.drift.col.target')}
+              </th>
+              <th className="px-2 py-1 text-right">
+                {t('strategy.drift.col.driftPp')}
+              </th>
+              <th className="px-2 py-1 text-left">
+                {t('strategy.drift.col.status')}
+              </th>
             </tr>
           </thead>
           <tbody>
             {plan.classes.map((row) => {
-              const status = driftStatus(row);
+              const status = driftStatus(row, t);
               return (
                 <tr key={row.asset_class}>
                   <td className="px-2 py-1">{driftLabel(row)}</td>
@@ -288,7 +320,9 @@ function DriftTable({ plan }: { plan: RebalancePlan }) {
             })}
             {plan.unclassified_value > 0 && (
               <tr>
-                <td className="px-2 py-1">Unclassified</td>
+                <td className="px-2 py-1">
+                  {t('strategy.drift.unclassified')}
+                </td>
                 <td className="px-2 py-1 text-right">
                   {gbp.format(plan.unclassified_value)}
                 </td>
@@ -298,7 +332,7 @@ function DriftTable({ plan }: { plan: RebalancePlan }) {
                 <td className="px-2 py-1 text-right">—</td>
                 <td className="px-2 py-1 text-right">—</td>
                 <td className="px-2 py-1 text-amber-600 dark:text-amber-400">
-                  Needs an asset class
+                  {t('strategy.drift.needsAssetClass')}
                 </td>
               </tr>
             )}
@@ -306,15 +340,18 @@ function DriftTable({ plan }: { plan: RebalancePlan }) {
         </table>
       </div>
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        Total {gbp.format(plan.total_value)} · tolerance ±
-        {pct.format(plan.policy.tolerance_pct)} pp
+        {t('strategy.drift.totalLine', {
+          total: gbp.format(plan.total_value),
+          tolerance: pct.format(plan.policy.tolerance_pct),
+        })}
       </p>
     </section>
   );
 }
 
 function SuggestedInstrument({ trade }: { trade: RebalanceTrade }) {
-  if (!trade.ticker) return <>Choose an instrument</>;
+  const { t } = useTranslation();
+  if (!trade.ticker) return <>{t('strategy.trades.chooseInstrument')}</>;
   return (
     <Link
       to={`/research/${encodeURIComponent(trade.ticker)}`}
@@ -335,28 +372,39 @@ function SuggestedInstrument({ trade }: { trade: RebalanceTrade }) {
 }
 
 function TradeTable({ trades }: { trades: RebalanceTrade[] }) {
+  const { t } = useTranslation();
   return (
     <table className="w-full border-collapse">
       <thead>
         <tr>
-          <th className="px-2 py-1 text-left">Action</th>
-          <th className="px-2 py-1 text-left">Asset class</th>
-          <th className="px-2 py-1 text-right">Amount</th>
-          <th className="px-2 py-1 text-left">Suggested instrument</th>
+          <th className="px-2 py-1 text-left">
+            {t('strategy.trades.col.action')}
+          </th>
+          <th className="px-2 py-1 text-left">
+            {t('strategy.trades.col.assetClass')}
+          </th>
+          <th className="px-2 py-1 text-right">
+            {t('strategy.trades.col.amount')}
+          </th>
+          <th className="px-2 py-1 text-left">
+            {t('strategy.trades.col.suggested')}
+          </th>
         </tr>
       </thead>
       <tbody>
-        {trades.map((t, index) => (
-          <tr key={`${t.action}-${t.asset_class}-${index}`}>
+        {trades.map((trade, index) => (
+          <tr key={`${trade.action}-${trade.asset_class}-${index}`}>
             <td
-              className={`px-2 py-1 ${t.action === 'buy' ? 'text-green-600' : 'text-red-600'}`}
+              className={`px-2 py-1 ${trade.action === 'buy' ? 'text-green-600' : 'text-red-600'}`}
             >
-              {t.action.toUpperCase()}
+              {trade.action.toUpperCase()}
             </td>
-            <td className="px-2 py-1">{allocationKeyLabel(t.asset_class)}</td>
-            <td className="px-2 py-1 text-right">{gbp.format(t.amount)}</td>
             <td className="px-2 py-1">
-              <SuggestedInstrument trade={t} />
+              {allocationKeyLabel(trade.asset_class)}
+            </td>
+            <td className="px-2 py-1 text-right">{gbp.format(trade.amount)}</td>
+            <td className="px-2 py-1">
+              <SuggestedInstrument trade={trade} />
             </td>
           </tr>
         ))}
@@ -366,6 +414,7 @@ function TradeTable({ trades }: { trades: RebalanceTrade[] }) {
 }
 
 function SuggestedTrades({ plan }: { plan: RebalancePlan }) {
+  const { t } = useTranslation();
   const byAccount = useMemo(() => {
     const groups = new Map<
       string,
@@ -383,15 +432,13 @@ function SuggestedTrades({ plan }: { plan: RebalancePlan }) {
   }, [plan.trades]);
 
   return (
-    <section className="mb-6" aria-label="Suggested trades">
-      <h2 className="mb-2 text-xl">Suggested rebalancing trades</h2>
+    <section className="mb-6" aria-label={t('strategy.trades.title')}>
+      <h2 className="mb-2 text-xl">{t('strategy.trades.heading')}</h2>
       <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-        Trades stay inside each account: buys are funded only by that
-        account&apos;s sales and its cash above your cash target. Nothing moves
-        between accounts.
+        {t('strategy.trades.help')}
       </p>
       {byAccount.length === 0 ? (
-        <EmptyState message="No trades required — every asset class is within its band." />
+        <EmptyState message={t('strategy.trades.none')} />
       ) : (
         byAccount.map(([id, group]) => (
           <div key={id} className="mb-4 overflow-x-auto">
@@ -411,6 +458,7 @@ function NewCashPlanner({
   owner: string;
   accounts: RebalanceAccount[];
 }) {
+  const { t } = useTranslation();
   const [amount, setAmount] = useState('');
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
   const [result, setResult] = useState<NewCashPlan | null>(null);
@@ -437,15 +485,18 @@ function NewCashPlanner({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mb-6" aria-label="Invest new cash">
-      <h2 className="mb-2 text-xl">Invest new cash</h2>
+    <form
+      onSubmit={handleSubmit}
+      className="mb-6"
+      aria-label={t('strategy.newCash.title')}
+    >
+      <h2 className="mb-2 text-xl">{t('strategy.newCash.title')}</h2>
       <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-        Plan a contribution without selling anything: the money goes to the most
-        underweight classes first.
+        {t('strategy.newCash.help')}
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm" htmlFor="new-cash-amount">
-          Amount (£)
+          {t('strategy.newCash.amount')}
         </label>
         <input
           id="new-cash-amount"
@@ -457,7 +508,7 @@ function NewCashPlanner({
           onChange={(e) => setAmount(e.target.value)}
         />
         <label className="text-sm" htmlFor="new-cash-account">
-          Into account
+          {t('strategy.newCash.intoAccount')}
         </label>
         <select
           id="new-cash-account"
@@ -476,7 +527,7 @@ function NewCashPlanner({
           disabled={!(parseFloat(amount) > 0) || !accountId}
           className="rounded bg-blue-500 px-4 py-2 text-white disabled:opacity-50"
         >
-          Plan contribution
+          {t('strategy.newCash.plan')}
         </button>
       </div>
       {error && (
@@ -487,7 +538,9 @@ function NewCashPlanner({
           {result.trades.length > 0 && <TradeTable trades={result.trades} />}
           {result.keep_as_cash > 0 && (
             <p className="mt-1 text-sm">
-              Keep {gbp.format(result.keep_as_cash)} as cash.
+              {t('strategy.newCash.keepAsCash', {
+                amount: gbp.format(result.keep_as_cash),
+              })}
             </p>
           )}
         </div>
@@ -497,6 +550,7 @@ function NewCashPlanner({
 }
 
 export default function Strategy() {
+  const { t } = useTranslation();
   const { owners, ownersError, selectedOwner, selectOwner } =
     useOwnerSelection();
   const { plan, loading, error, reload } = useRebalancePlan(selectedOwner);
@@ -512,16 +566,13 @@ export default function Strategy() {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="mb-4 text-2xl md:text-4xl">Strategy</h1>
+      <h1 className="mb-4 text-2xl md:text-4xl">{t('strategy.title')}</h1>
       <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
-        Choose a target allocation — a built-in strategy, one of your own, or
-        custom targets — then compare your holdings against it and see which
-        rebalancing trades, or which contribution, would bring it back within
-        your tolerance band.
+        {t('strategy.intro')}
       </p>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <label className="text-sm font-medium" htmlFor="rebalance-owner-select">
-          Portfolio owner
+          {t('strategy.owner')}
         </label>
         <select
           id="rebalance-owner-select"
@@ -530,14 +581,20 @@ export default function Strategy() {
           onChange={(e) => selectOwner(e.target.value)}
           disabled={owners.length === 0}
         >
-          {owners.length === 0 && <option value="">No owners</option>}
+          {owners.length === 0 && (
+            <option value="">{t('strategy.noOwners')}</option>
+          )}
           {owners.map((owner) => (
             <option key={owner.owner} value={owner.owner}>
               {owner.owner}
             </option>
           ))}
         </select>
-        {loading && <span className="text-xs text-slate-500">Loading…</span>}
+        {loading && (
+          <span className="text-xs text-slate-500">
+            {t('strategy.loading')}
+          </span>
+        )}
       </div>
       {ownersError && (
         <p className="mb-4 break-words text-sm text-red-600">{ownersError}</p>
@@ -568,7 +625,7 @@ export default function Strategy() {
           {plan.notes.length > 0 && (
             <ul
               className="mb-6 list-disc pl-5 text-sm text-amber-700 dark:text-amber-300"
-              aria-label="Notes"
+              aria-label={t('strategy.notes')}
             >
               {plan.notes.map((note) => (
                 <li key={note}>{note}</li>
@@ -586,7 +643,7 @@ export default function Strategy() {
               />
             </>
           ) : (
-            <EmptyState message="Apply a strategy or save target allocations to see drift status and suggested trades." />
+            <EmptyState message={t('strategy.emptyPolicy')} />
           )}
         </>
       )}

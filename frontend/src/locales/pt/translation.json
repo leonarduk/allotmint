@@ -159,7 +159,12 @@
     "featureDisabled": "Esta funcionalidade não está ativada para esta aplicação.",
     "returnHome": "Voltar ao início",
     "glossaryLink": "Glossário",
-    "instrumentCatalogueTruncated": "A mostrar os primeiros {{shown}} de {{total}} instrumentos."
+    "instrumentCatalogueTruncated": "A mostrar os primeiros {{shown}} de {{total}} instrumentos.",
+    "exportInstruments": "Exportar instrumentos",
+    "exportInstrumentsCsvAria": "Exportar instrumentos como CSV",
+    "exportCsv": "Exportar CSV",
+    "exportInstrumentsPdfAria": "Exportar instrumentos como PDF",
+    "exportPdf": "Exportar PDF"
   },
   "approxTotal": "Total aproximado: £{{value}}",
   "asOf": "Em {{date}} • Negociações este mês: {{trades}} / 20 (Restantes: {{remaining}})",
@@ -1078,7 +1083,52 @@
       },
       "technicals": {
         "title": "Análise técnica",
-        "intro": "Termos do separador Technicals de um instrumento. São calculados a partir dos preços de fecho diários passados e descrevem o que o preço fez; não preveem o que fará e não são recomendações de compra ou venda."
+        "intro": "Termos do separador Technicals de um instrumento. São calculados a partir dos preços de fecho diários passados e descrevem o que o preço fez; não preveem o que fará e não são recomendações de compra ou venda.",
+        "trend": {
+          "title": "Tendência",
+          "short": "Tendência de alta: o preço está acima da média de 50 dias e a média de 50 dias está acima da de 200. Tendência de baixa: ambas ao contrário. Tudo o resto é misto.",
+          "detail": "Uma leitura rápida da direção a partir das médias móveis. Tendência de alta significa que o preço está acima da média de 50 dias e que esta está acima da de 200 dias; tendência de baixa significa que o preço está abaixo da média de 50 dias e que esta está abaixo da de 200. Tudo o que fica entre estes casos é misto. As médias móveis acompanham o preço com atraso, pelo que uma etiqueta de tendência descreve os últimos meses, não o que vem a seguir."
+        },
+        "movingAverage": {
+          "title": "Média móvel (20, 50, 200 dias)",
+          "short": "O preço de fecho médio dos últimos 20, 50 ou 200 dias de negociação. A percentagem mostra quanto o preço de hoje está acima ou abaixo dela.",
+          "detail": "A média dos últimos 20, 50 ou 200 fechos diários (aproximadamente um mês, um trimestre e dez meses de negociação). A de 20 dias acompanha de perto o preço; a de 200 dias é uma referência lenta, de longo prazo. “Preço −8% vs média” significa que o fecho de hoje está 8% abaixo dessa média."
+        },
+        "cross": {
+          "title": "Cruz dourada e cruz da morte",
+          "short": "Uma cruz dourada ocorre quando a média de 50 dias sobe acima da de 200; uma cruz da morte, quando desce abaixo. “Morte” significa que a de 50 está atualmente abaixo da de 200 — uma tendência a enfraquecer, não uma previsão.",
+          "detail": "Momentos com nome em que a média móvel de 50 dias cruza a de 200. Cruz dourada: a de 50 dias passa para cima da de 200, pelo que os preços recentes estão acima da média de prazo mais longo. Cruz da morte: a de 50 dias passa para baixo. Os nomes soam dramáticos, mas uma cruz da morte apenas indica que a média de médio prazo desceu abaixo da de longo prazo. Como ambas as médias têm atraso, um cruzamento surge muitas vezes depois de grande parte do movimento já ter acontecido, e os cruzamentos num mercado lateral são frequentemente revertidos pouco depois. O separador mostra de que lado está agora a média de 50 dias e, quando ocorreu dentro do histórico carregado, a data do último cruzamento."
+        },
+        "rsi": {
+          "title": "RSI (14 dias) e as suas zonas",
+          "short": "O RSI (0–100) compara os ganhos recentes com as perdas recentes ao longo de 14 dias. De 70 para cima fala-se em sobrecompra e de 30 ou menos em sobrevenda: o movimento foi forte, não que tenha de se inverter.",
+          "detail": "O Índice de Força Relativa compara a dimensão média dos dias de subida com a dos dias de descida nos últimos 14 dias (método de Wilder), numa escala de 0 a 100. Cerca de 50 significa que ganhos e perdas estiveram equilibrados. 70 ou mais é convencionalmente chamado sobrecompra e 30 ou menos sobrevenda. Estas etiquetas descrevem quão unilaterais foram os movimentos recentes; uma ação com forte tendência pode manter-se em sobrecompra ou sobrevenda durante muito tempo."
+        },
+        "macd": {
+          "title": "MACD (12/26/9)",
+          "short": "O MACD é a diferença entre as médias exponenciais de 12 e 26 dias; a linha de sinal é uma média de 9 dias do MACD. Cruzamento de alta: o MACD sobe acima da linha de sinal (o ímpeto melhora). De baixa: desce abaixo.",
+          "detail": "Convergência/Divergência de Médias Móveis. A linha MACD é a média móvel exponencial de 12 dias menos a de 26; um valor positivo significa que os preços de curto prazo estão acima da tendência de prazo mais longo. A linha de sinal é uma média de 9 dias da linha MACD e o histograma é o MACD menos o sinal. Um cruzamento de alta é a linha MACD passar acima da linha de sinal (o ímpeto aumenta); um cruzamento de baixa é passar abaixo. Os valores estão nas unidades de preço da ação, por isso compare-os ao longo do tempo para uma mesma ação e não entre ações diferentes."
+        },
+        "bollinger": {
+          "title": "Bandas de Bollinger e %B",
+          "short": "As bandas situam-se a dois desvios-padrão acima e abaixo da média de 20 dias. O %B mostra onde está o preço entre elas: 0% na banda inferior, 100% na superior; fora desse intervalo, fechou para lá de uma banda.",
+          "detail": "As bandas de Bollinger são traçadas a dois desvios-padrão acima e abaixo da média móvel de 20 dias, pelo que se alargam quando o preço é volátil e se estreitam quando está calmo. O %B situa o fecho de hoje entre elas: 0% está na banda inferior, 50% na média, 100% na banda superior. Abaixo de 0% ou acima de 100% significa que o fecho ficou fora das bandas — um movimento invulgarmente grande relativamente ao último mês."
+        },
+        "range": {
+          "title": "Intervalo de 52 semanas",
+          "short": "Os fechos mais alto e mais baixo do último ano. Posição no intervalo: 0% significa no mínimo, 100% no máximo.",
+          "detail": "Os fechos diários mais alto e mais baixo dos últimos 365 dias, com as datas em que ocorreram. “Desde o máximo de 52 semanas” indica quanto o preço atual está abaixo desse máximo. “Posição no intervalo” coloca o preço entre o mínimo (0%) e o máximo (100%)."
+        },
+        "returns": {
+          "title": "Rentabilidades",
+          "short": "A variação do preço de fecho em 1, 3, 6 e 12 meses. Apenas preço: os dividendos não estão incluídos.",
+          "detail": "A variação do preço de fecho desde o último fecho na data de início do período (ou anterior) até ao fecho mais recente. São rentabilidades de preço — os dividendos não são adicionados — pelo que, numa ação com elevado rendimento, a rentabilidade total será superior."
+        },
+        "relativeStrength": {
+          "title": "Força relativa face ao índice de referência",
+          "short": "A rentabilidade do instrumento menos a do seu índice de referência no mesmo período. Positivo significa que teve melhor desempenho do que o índice de referência.",
+          "detail": "A rentabilidade de preço do instrumento menos a do seu índice de referência nos mesmos 3 ou 12 meses, ambas medidas até à mesma data final. O índice de referência é o usado no separador Fundamentais: o próprio do instrumento, se definido, caso contrário um predefinido para a bolsa onde está cotado. +5% significa que superou o índice de referência em cinco pontos percentuais."
+        }
       }
     },
     "title": "Glossário"
@@ -2968,5 +3018,220 @@
   "reportingCurrency": {
     "converted": "Montantes em {{currency}}, convertidos de GBP à taxa de hoje (1 {{currency}} = £{{rate}}).",
     "unavailable": "Não há taxa GBP guardada para {{currency}}, por isso os montantes são apresentados em GBP."
+  },
+  "targetFields": {
+    "inputFor": "{{inputLabel}} para {{label}}",
+    "combineAria": "Combinar subclasses de {{label}}",
+    "splitAria": "Dividir {{label}} por subclasse",
+    "combine": "Combinar",
+    "split": "Dividir",
+    "subClassSum": "{{value}}% (soma das subclasses)",
+    "targetPct": "Meta %",
+    "assetClass": "Classe de ativos",
+    "currentPct": "Atual %",
+    "total": "Total: {{value}}%",
+    "mustEqual100": "(deve ser igual a 100%)"
+  },
+  "planPanel": {
+    "planTarget": "Meta do plano",
+    "class": "Classe",
+    "targetPct": "Meta %",
+    "vehicles": "Veículos",
+    "noneSaved": "nenhuma guardada",
+    "targetsMatch": "As suas metas de reequilíbrio correspondem a este plano.",
+    "mismatchAria": "Divergência entre o plano e o reequilíbrio",
+    "updatePrompt": "Atualizar as suas metas de reequilíbrio para corresponderem a este plano?",
+    "targetsDiffer": "As suas metas de reequilíbrio diferem deste plano.",
+    "planLabel": "Plano:",
+    "rebalanceTargetsLabel": "Metas de reequilíbrio:",
+    "updating": "A atualizar…",
+    "updateTargets": "Atualizar metas de reequilíbrio",
+    "copyTarget": "Copiar a meta do plano para as metas de reequilíbrio",
+    "notNow": "Agora não",
+    "perAssetClassNote": "As metas de reequilíbrio são definidas por classe de ativos, por isso o plano é comparado agregado a esse nível.",
+    "notRecorded": "não registado",
+    "yearsAgo": "há {{value}}",
+    "planGoals": "Objetivos do plano",
+    "goal": "Objetivo",
+    "purpose": "Finalidade",
+    "targetDate": "Data-alvo",
+    "yearsToGo": "Anos restantes",
+    "amount": "Montante",
+    "priority": "Prioridade",
+    "profileAndGoals": "Perfil e objetivos",
+    "profileNote": "Tal como os registou; não é uma avaliação de adequação.",
+    "age": "Idade:",
+    "riskTolerance": "Tolerância ao risco:",
+    "capacityForLoss": "Capacidade de perda:",
+    "asOf": "a {{date}}",
+    "keyAssumptions": "Pressupostos principais",
+    "openQuestions": "Questões em aberto",
+    "decisionsAndEvidence": "Decisões ({{decisions}}) e evidências ({{evidence}})",
+    "decisions": "Decisões",
+    "evidence": "Evidências",
+    "nextReview": "Próxima revisão:",
+    "notSet": "não definida",
+    "reviewTriggers": "Gatilhos de revisão",
+    "version": "versão {{version}}",
+    "updated": "atualizado em {{date}}",
+    "matchesStrategy": "Corresponde à estratégia:",
+    "investmentPlan": "Plano de investimento",
+    "editPlan": "Editar plano",
+    "subtitle": "As suas próprias decisões, registadas com o raciocínio que as sustenta.",
+    "loading": "A carregar o plano…",
+    "loadError": "Não foi possível carregar o plano de investimento: {{message}}",
+    "noPlan": "Ainda não há um plano de investimento guardado para {{owner}}.",
+    "createPlan": "Criar plano"
+  },
+  "strategy": {
+    "title": "Estratégia",
+    "intro": "Escolha uma alocação-alvo (uma estratégia integrada, uma sua ou metas personalizadas), compare as suas posições com ela e veja que operações de reequilíbrio, ou que contribuição, a trariam de volta à sua banda de tolerância.",
+    "owner": "Titular da carteira",
+    "noOwners": "Sem titulares",
+    "loading": "A carregar…",
+    "saving": "A guardar…",
+    "notes": "Notas",
+    "loadPlanError": "Não foi possível carregar o plano de reequilíbrio de {{owner}}: {{error}}",
+    "loadStrategiesError": "Não foi possível carregar as estratégias de {{owner}}: {{error}}",
+    "emptyPolicy": "Aplique uma estratégia ou guarde alocações-alvo para ver o estado dos desvios e as operações sugeridas.",
+    "targets": {
+      "title": "Alocação-alvo",
+      "help": "Defina a parcela de toda a sua carteira que cada classe de ativos deve ter, ou aplique uma estratégia acima. Divida Ações, Obrigações ou Matérias-primas para visar subclasses, como small-cap value, gilts longos ou ouro. As operações de reequilíbrio só são sugeridas para as classes que se desviem além da banda de tolerância.",
+      "tolerance": "Banda de tolerância (± pontos percentuais)",
+      "startFromCurrent": "Partir da alocação atual",
+      "save": "Guardar metas"
+    },
+    "drift": {
+      "ariaLabel": "Desvio de alocação",
+      "title": "Desvio",
+      "col": {
+        "assetClass": "Classe de ativos",
+        "value": "Valor",
+        "current": "Atual %",
+        "target": "Meta %",
+        "driftPp": "Desvio (pp)",
+        "status": "Estado"
+      },
+      "needsSubClass": "Requer uma subclasse",
+      "inBand": "Dentro da banda",
+      "overweight": "Sobreponderado",
+      "underweight": "Subponderado",
+      "unclassified": "Não classificado",
+      "needsAssetClass": "Requer uma classe de ativos",
+      "totalLine": "Total {{total}} · tolerância ±{{tolerance}} pp"
+    },
+    "trades": {
+      "title": "Operações sugeridas",
+      "heading": "Operações de reequilíbrio sugeridas",
+      "help": "As operações ficam dentro de cada conta: as compras são financiadas apenas pelas vendas dessa conta e pelo seu numerário acima da sua meta de numerário. Nada se move entre contas.",
+      "none": "Não são necessárias operações: todas as classes de ativos estão dentro da sua banda.",
+      "col": {
+        "action": "Ação",
+        "assetClass": "Classe de ativos",
+        "amount": "Montante",
+        "suggested": "Instrumento sugerido"
+      },
+      "chooseInstrument": "Escolha um instrumento"
+    },
+    "newCash": {
+      "title": "Investir novo numerário",
+      "help": "Planeie uma contribuição sem vender nada: o dinheiro vai primeiro para as classes mais subponderadas.",
+      "amount": "Montante (£)",
+      "intoAccount": "Para a conta",
+      "plan": "Planear contribuição",
+      "keepAsCash": "Mantenha {{amount}} em numerário."
+    }
+  },
+  "strategyLibrary": {
+    "title": "Estratégias",
+    "new": "Nova estratégia",
+    "help": "Aplicar uma estratégia define a sua alocação-alvo com os respetivos pesos. As estratégias integradas descrevem combinações publicadas bem conhecidas; são pontos de referência, não recomendações.",
+    "builtinReadOnlyTip": "As estratégias integradas são só de leitura. Duplique-a para criar uma cópia editável.",
+    "confirmReplace": "Substituir as suas metas atuais por {{name}}?",
+    "confirmDelete": "Eliminar a estratégia {{name}}?",
+    "applied": "{{name}} aplicada.",
+    "created": "{{name}} criada.",
+    "deleted": "{{name}} eliminada.",
+    "active": {
+      "label": "Estratégia ativa",
+      "prefix": "Estratégia ativa:",
+      "custom": "Personalizada (metas que não vêm de uma estratégia guardada)",
+      "none": "Nenhuma: aplique uma estratégia ou defina metas abaixo.",
+      "deleted": "(eliminada)",
+      "modified": "Modificada",
+      "modifiedHelp": "As suas metas foram alteradas desde que esta estratégia foi aplicada.",
+      "changedHelp": "A estratégia foi editada desde que foi aplicada; aplique-a novamente para usar os novos pesos."
+    },
+    "editor": {
+      "edit": "Editar {{name}}",
+      "name": "Nome",
+      "description": "Descrição",
+      "inputLabel": "Estratégia %",
+      "save": "Guardar estratégia",
+      "saving": "A guardar…",
+      "cancel": "Cancelar"
+    },
+    "row": {
+      "builtin": "Integrada",
+      "custom": "Personalizada",
+      "active": "Ativa",
+      "apply": "Aplicar",
+      "applyAria": "Aplicar {{name}}",
+      "duplicate": "Duplicar",
+      "duplicateAria": "Duplicar {{name}}",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "about": "Sobre esta estratégia",
+      "source": "Fonte:",
+      "ukMapping": "Equivalente no Reino Unido:"
+    }
+  },
+  "assetClasses": {
+    "equity": "Ações",
+    "bond": "Obrigações",
+    "cash": "Liquidez",
+    "commodity": "Matérias-primas",
+    "property": "Imobiliário",
+    "multi-asset": "Multiativos",
+    "unknown": "Desconhecido",
+    "broad_equity": "Ações abrangentes",
+    "small_cap_value": "Small-cap value",
+    "long_gilts": "Gilts longos",
+    "intermediate_gilts": "Gilts intermédios",
+    "short_gilts": "Gilts curtos / ultracurtos",
+    "index_linked": "Indexadas à inflação",
+    "overseas_government": "Dívida pública estrangeira",
+    "corporate_bonds": "Empresariais / crédito",
+    "gold": "Ouro",
+    "commodities": "Outras matérias-primas"
+  },
+  "planForm": {
+    "errors": {
+      "version": "A versão deve ser um número inteiro de pelo menos 1.",
+      "weightNotNumber": "O peso-alvo de {{cls}} não é um número.",
+      "duplicateClass": "{{cls}} aparece mais de uma vez no alvo.",
+      "sum": "Os pesos-alvo devem somar 100%, obtido {{total}}%.",
+      "riskToleranceLevel": "Escolha um nível de tolerância ao risco para acompanhar a nota.",
+      "capacityForLossLevel": "Escolha um nível de capacidade para suportar perdas para acompanhar a nota.",
+      "goalName": "O objetivo {{n}} precisa de um nome.",
+      "goalAmount": "O montante do objetivo {{n}} deve ser um número de pelo menos 0.",
+      "goalPriority": "A prioridade do objetivo {{n}} deve ser um número inteiro de pelo menos 1."
+    }
+  },
+  "valuationCaveats": {
+    "navUnknown": "desconhecido",
+    "navToday": "{{date}} (hoje)",
+    "navAge_one": "{{date}} ({{count}} dia)",
+    "navAge_other": "{{date}} ({{count}} dias)",
+    "staleBadge": "NAV desatualizado",
+    "staleReason": "Não fiável: o NAV tem {{age}} dias.",
+    "staleReasonLimit": "Não fiável: o NAV tem {{age}} dias (limite de {{limit}} dias).",
+    "tooManyDays": "demasiados",
+    "undatedBadge": "NAV sem data",
+    "undatedReason": "Não fiável: a data do NAV é desconhecida, pelo que a sua idade também.",
+    "stalePrice": "O último preço está assinalado como desatualizado.",
+    "stalePriceAsOf": "O último preço está assinalado como desatualizado (a {{date}}).",
+    "suspectCostBasis": "O custo de aquisição é duvidoso ou desconhecido em {{count}} posição(ões): {{where}}.",
+    "suspectMove": "Movimento diário suspeito de {{change}} em {{date}}."
   }
 }

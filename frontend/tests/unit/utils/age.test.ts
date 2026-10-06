@@ -22,5 +22,7 @@ describe('ageInWholeYears', () => {
     expect(ageInWholeYears(null)).toBeNull();
     expect(ageInWholeYears('')).toBeNull();
     expect(ageInWholeYears('11/03/2013')).toBeNull();
+    expect(ageInWholeYears('2013-13-45')).toBeNull();
+    expect(ageInWholeYears('2013-02-30')).toBeNull();
   });
 });

@@ -152,7 +152,7 @@ describe("PensionForecast page", () => {
     expect(screen.queryByText("Current age: 14")).not.toBeInTheDocument();
   });
 
-  it("rounds a fractional current age to a whole number", async () => {
+  it("shows a whole-number current age, never the raw fractional value", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alex", full_name: "Alex Example", accounts: [] },
     ]);

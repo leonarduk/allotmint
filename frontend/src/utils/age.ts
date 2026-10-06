@@ -13,6 +13,10 @@ export function ageInWholeYears(
   const match = dob ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob) : null;
   if (!match) return null;
   const [year, month, day] = match.slice(1).map(Number);
+  // Reject impossible dates such as 2013-02-30 (Date would roll them over).
+  const parsed = new Date(year, month - 1, day);
+  if (parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
+  // Local calendar date on purpose: age ticks over at the viewer's midnight.
   const hadBirthdayThisYear =
     today.getMonth() + 1 > month ||
     (today.getMonth() + 1 === month && today.getDate() >= day);

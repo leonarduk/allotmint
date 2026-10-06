@@ -728,5 +728,27 @@
     "columnChangePct": "Var. %",
     "columnVolume": "Vol.",
     "columnTime": "Heure (Europe/London)"
+  },
+  "scenarioFx": {
+    "title": "Choc de change",
+    "description": "Réévaluez vos portefeuilles pour une variation d'une devise face à la livre. Les valeurs en GBP déjà enregistrées sont utilisées ; aucun nouveau taux n'est récupéré.",
+    "currency": "Devise",
+    "pctLabel": "Variation de la valeur en GBP de 1 {{currency}} (%)",
+    "signConvention": "Une variation négative signifie que {{currency}} s'affaiblit face à la GBP : les positions cotées en {{currency}}, y compris les liquidités en {{currency}}, perdent cette part de leur valeur en GBP. Les positions en GBP et GBX ne bougent jamais.",
+    "run": "Lancer le choc de change",
+    "owner": "Titulaire",
+    "exposed": "Exposition {{currency}}",
+    "baseline": "Référence",
+    "shocked": "Après choc",
+    "delta": "Variation",
+    "impact": "% d'impact",
+    "unconverted": "Non valorisées, donc exclues des deux totaux (aucun taux de change utilisable) : {{holdings}}",
+    "skippedUnknown_one": "{{count}} position de devise inconnue n'a pas subi le choc.",
+    "skippedUnknown_other": "{{count}} positions de devise inconnue n'ont pas subi le choc.",
+    "errors": {
+      "invalidCurrency": "Saisissez un code de devise à 3 lettres.",
+      "sterling": "GBP et GBX ne peuvent pas varier face à la GBP.",
+      "invalidPct": "Saisissez une variation supérieure à -100 % et d'au plus 1000 %."
+    }
   }
 }

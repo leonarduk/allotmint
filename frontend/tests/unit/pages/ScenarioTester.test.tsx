@@ -8,12 +8,14 @@ const mockGetEvents = vi.fn();
 const mockGetOwners = vi.fn();
 const mockGetPortfolio = vi.fn();
 const mockRunScenario = vi.fn();
+const mockRunFxScenario = vi.fn();
 
 vi.mock("@/api", () => ({
   getEvents: () => mockGetEvents(),
   getOwners: () => mockGetOwners(),
   getPortfolio: (...args: unknown[]) => mockGetPortfolio(...args),
   runScenario: (params: any) => mockRunScenario(params),
+  runFxScenario: (params: any) => mockRunFxScenario(params),
 }));
 
 describe("ScenarioTester page", () => {
@@ -26,6 +28,7 @@ describe("ScenarioTester page", () => {
     mockGetOwners.mockReset();
     mockGetPortfolio.mockReset();
     mockRunScenario.mockReset();
+    mockRunFxScenario.mockReset();
     
     // Provide default mock implementations
     mockGetOwners.mockResolvedValue([]);
@@ -312,5 +315,86 @@ describe("ScenarioTester page", () => {
     // And no further requests should fire once the retry succeeds.
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(mockGetPortfolio).toHaveBeenCalledTimes(2);
+  });
+
+  describe("currency shock", () => {
+    const gbp = (v: number) =>
+      new Intl.NumberFormat("en", { style: "currency", currency: "GBP" }).format(v);
+
+    beforeEach(() => {
+      mockGetEvents.mockResolvedValue([]);
+    });
+
+    it("runs a USD shock and shows GBP results, exposure and unconverted holdings", async () => {
+      mockRunFxScenario.mockResolvedValueOnce([
+        {
+          owner: "alex",
+          baseline_total_value_gbp: 1000,
+          shocked_total_value_gbp: 960,
+          delta_gbp: -40,
+          exposed_value_gbp: 400,
+          skipped_unknown_currency: 2,
+          unconverted_holdings: [
+            { ticker: "NOFX.N", currency: "USD", reason: "no stored FX rate" },
+          ],
+        },
+      ]);
+      render(<ScenarioTester />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Run currency shock" }));
+
+      await waitFor(() =>
+        expect(mockRunFxScenario).toHaveBeenCalledWith({ currency: "USD", pct: -10 }),
+      );
+      expect(await screen.findByText(gbp(400))).toBeInTheDocument();
+      expect(screen.getByText("USD exposure")).toBeInTheDocument();
+      expect(screen.getByText(gbp(1000))).toBeInTheDocument();
+      expect(screen.getByText(gbp(960))).toBeInTheDocument();
+      expect(screen.getByText(gbp(-40))).toBeInTheDocument();
+      expect(screen.getByText("-4.00%")).toBeInTheDocument();
+      expect(screen.getByText(/NOFX\.N \(USD\)/)).toBeInTheDocument();
+      expect(
+        screen.getByText("2 holdings with an unknown currency were not shocked."),
+      ).toBeInTheDocument();
+    });
+
+    it("states the sign convention for the chosen currency", () => {
+      render(<ScenarioTester />);
+
+      fireEvent.click(screen.getByRole("button", { name: "EUR" }));
+
+      expect(screen.getByText("Change in the GBP value of 1 EUR (%)")).toBeInTheDocument();
+      expect(
+        screen.getByText(/A negative change means EUR weakens against GBP/),
+      ).toBeInTheDocument();
+    });
+
+    it.each([
+      ["GBP", "-10", "GBP and GBX cannot move against GBP."],
+      ["US", "-10", "Enter a 3-letter currency code."],
+      ["USD", "-100", "Enter a change above -100% and at most 1000%."],
+      ["USD", "1001", "Enter a change above -100% and at most 1000%."],
+    ])("blocks currency %s with change %s", (currency, pct, message) => {
+      render(<ScenarioTester />);
+
+      fireEvent.change(screen.getByLabelText("Currency"), { target: { value: currency } });
+      fireEvent.change(screen.getByLabelText(/Change in the GBP value of 1/), {
+        target: { value: pct },
+      });
+
+      expect(screen.getByRole("button", { name: "Run currency shock" })).toBeDisabled();
+      expect(screen.getByText(message)).toBeInTheDocument();
+      expect(mockRunFxScenario).not.toHaveBeenCalled();
+    });
+
+    it("shows the API error and no results when the shock fails", async () => {
+      mockRunFxScenario.mockRejectedValueOnce(new Error("HTTP 400"));
+      render(<ScenarioTester />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Run currency shock" }));
+
+      expect(await screen.findByText("HTTP 400")).toBeInTheDocument();
+      expect(screen.queryByText("USD exposure")).not.toBeInTheDocument();
+    });
   });
 });

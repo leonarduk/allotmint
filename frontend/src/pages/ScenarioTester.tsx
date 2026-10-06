@@ -22,6 +22,8 @@ import errorToast from "../utils/errorToast";
 import { loadJSON, saveJSON } from "../utils/storage";
 import { MAX_SCENARIO_HOLDING_ROWS } from "../constants/renderLimits";
 import { useDedupedRequest } from "../hooks/useDedupedRequest";
+import { money } from "../lib/money";
+import { FxShockPanel } from "../components/FxShockPanel";
 
 const HORIZONS = ["1d", "1w", "1m", "3m", "1y"];
 
@@ -74,10 +76,9 @@ export default function ScenarioTester() {
   );
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(() => new Set());
 
-  const fmt = new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "GBP",
-  });
+  // Market values and scenario results are GBP amounts; money() labels them,
+  // it does not convert, so they stay labelled GBP (#9725).
+  const fmt = { format: (v: number) => money(v, "GBP") };
 
   useEffect(() => {
     getEvents()
@@ -847,6 +848,8 @@ export default function ScenarioTester() {
           </div>
         )}
       </section>
+
+      <FxShockPanel />
     </div>
   );
 }

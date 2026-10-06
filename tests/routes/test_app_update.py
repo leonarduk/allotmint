@@ -107,6 +107,67 @@ def test_update_refuses_dirty_tree(repos):
     assert (checkout / "README.md").read_text(encoding="utf-8") == "local edit\n"
 
 
+def test_status_offers_stash_for_dirty_tree(repos):
+    checkout, upstream = repos
+    _commit(upstream, "README.md", "v2\n")
+    _run(upstream, "push", "-q")
+    (checkout / "README.md").write_text("local edit\n", encoding="utf-8")
+
+    body = _client().get("/support/app-update/status").json()
+    assert body["dirty"] is True
+    assert body["can_update"] is False
+    assert body["can_update_with_stash"] is True
+
+
+def test_update_with_stash_restores_non_conflicting_changes(repos):
+    checkout, upstream = repos
+    _commit(upstream, "backend/foo.py", "x = 1\n")
+    _run(upstream, "push", "-q")
+    (checkout / "README.md").write_text("local edit\n", encoding="utf-8")
+
+    resp = _client().post("/support/app-update?stash=true")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["stashed"] is True
+    assert body["stash_restored"] is True
+    assert body["stash_message"] is None
+    assert body["current_commit"] == _run(upstream, "rev-parse", "HEAD")
+    assert (checkout / "README.md").read_text(encoding="utf-8") == "local edit\n"
+    assert _run(checkout, "stash", "list") == ""
+
+
+def test_update_with_stash_keeps_conflicting_changes_in_stash(repos):
+    checkout, upstream = repos
+    _commit(upstream, "README.md", "v2\n")
+    _run(upstream, "push", "-q")
+    (checkout / "README.md").write_text("local edit\n", encoding="utf-8")
+
+    resp = _client().post("/support/app-update?stash=true")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["stashed"] is True
+    assert body["stash_restored"] is False
+    assert "git stash pop" in body["stash_message"]
+    # Tree is clean at the upstream commit (no conflict markers) ...
+    assert (checkout / "README.md").read_text(encoding="utf-8") == "v2\n"
+    assert _run(checkout, "status", "--porcelain", "--untracked-files=no") == ""
+    # ... and the local edit is recoverable from the stash.
+    assert _run(checkout, "show", "stash@{0}:README.md") == "local edit"
+
+
+def test_update_with_stash_still_refuses_diverged_branch(repos):
+    checkout, upstream = repos
+    _commit(upstream, "README.md", "v2\n")
+    _run(upstream, "push", "-q")
+    _commit(checkout, "local.txt", "mine\n")
+    (checkout / "README.md").write_text("local edit\n", encoding="utf-8")
+
+    resp = _client().post("/support/app-update?stash=true")
+    assert resp.status_code == 409
+    assert _run(checkout, "stash", "list") == ""
+    assert (checkout / "README.md").read_text(encoding="utf-8") == "local edit\n"
+
+
 def test_update_refuses_diverged_branch(repos):
     checkout, upstream = repos
     _commit(upstream, "README.md", "v2\n")

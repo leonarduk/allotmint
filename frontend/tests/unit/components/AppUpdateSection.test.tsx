@@ -26,6 +26,28 @@ const behindStatus = {
   behind: 2,
   ahead: 0,
   dirty: false,
+  can_update_with_stash: false,
+};
+
+const updateResult = {
+  updated: true,
+  previous_commit: 'aaaaaaa1111',
+  current_commit: 'bbbbbbb2222',
+  changed_files: ['README.md'],
+  dependencies_changed: [],
+  backend_changed: false,
+  frontend_changed: false,
+  stashed: false,
+  stash_restored: false,
+  stash_message: null,
+};
+
+const dirtyStatus = {
+  ...behindStatus,
+  can_update: false,
+  dirty: true,
+  can_update_with_stash: true,
+  reason: 'Working tree has uncommitted changes',
 };
 
 async function renderExpanded() {
@@ -68,16 +90,59 @@ describe('AppUpdateSection', () => {
     expect(screen.getByRole('button', { name: 'Update now' })).toBeDisabled();
   });
 
+  it('hides the stash option when the tree is clean', async () => {
+    mockGetAppUpdateStatus.mockResolvedValue(behindStatus);
+    await renderExpanded();
+    expect(
+      screen.queryByRole('button', { name: 'Stash changes & update' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('stashes local changes and reports them re-applied', async () => {
+    mockGetAppUpdateStatus.mockResolvedValue(dirtyStatus);
+    mockApplyAppUpdate.mockResolvedValue({
+      ...updateResult,
+      stashed: true,
+      stash_restored: true,
+    });
+    await renderExpanded();
+    await act(async () => {
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Stash changes & update' })
+      );
+    });
+    expect(mockApplyAppUpdate).toHaveBeenCalledWith(true);
+    expect(
+      screen.getByText('Your local changes were stashed and re-applied.')
+    ).toBeInTheDocument();
+  });
+
+  it('shows where conflicting stashed changes were left', async () => {
+    mockGetAppUpdateStatus.mockResolvedValue(dirtyStatus);
+    mockApplyAppUpdate.mockResolvedValue({
+      ...updateResult,
+      stashed: true,
+      stash_restored: false,
+      stash_message: "Run 'git stash pop' to re-apply them.",
+    });
+    await renderExpanded();
+    await act(async () => {
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Stash changes & update' })
+      );
+    });
+    expect(
+      screen.getByText("Run 'git stash pop' to re-apply them.")
+    ).toBeInTheDocument();
+  });
+
   it('checks the remote and applies an update', async () => {
     mockGetAppUpdateStatus.mockResolvedValue(behindStatus);
     mockApplyAppUpdate.mockResolvedValue({
-      updated: true,
-      previous_commit: 'aaaaaaa1111',
-      current_commit: 'bbbbbbb2222',
+      ...updateResult,
       changed_files: ['backend/foo.py', 'requirements.txt'],
       dependencies_changed: ['requirements.txt'],
       backend_changed: true,
-      frontend_changed: false,
     });
     await renderExpanded();
     expect(screen.getByText('2 new commit(s) available.')).toBeInTheDocument();
@@ -92,7 +157,7 @@ describe('AppUpdateSection', () => {
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: 'Update now' }));
     });
-    expect(mockApplyAppUpdate).toHaveBeenCalledTimes(1);
+    expect(mockApplyAppUpdate).toHaveBeenCalledWith(false);
     expect(
       screen.getByText(/Updated aaaaaaa → bbbbbbb \(2 file\(s\) changed\)/)
     ).toBeInTheDocument();

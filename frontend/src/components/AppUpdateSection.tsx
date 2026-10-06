@@ -67,6 +67,17 @@ function UpdateResult({ result }: { result: AppUpdateResult }) {
           }
         )}
       </p>
+      {result.stashed &&
+        (result.stash_restored ? (
+          <p>
+            {t(
+              'support.appUpdate.stashRestored',
+              'Your local changes were stashed and re-applied.'
+            )}
+          </p>
+        ) : (
+          <p className="text-orange-600">{result.stash_message}</p>
+        ))}
       {result.dependencies_changed.length > 0 && (
         <p className="text-orange-600">
           {t(
@@ -138,11 +149,11 @@ export default function AppUpdateSection() {
     setBusy(null);
   }
 
-  async function handleUpdate() {
+  async function handleUpdate(stash: boolean) {
     setBusy('updating');
     setError(null);
     try {
-      setResult(await applyAppUpdate());
+      setResult(await applyAppUpdate(stash));
       await loadStatus(false);
     } catch (err) {
       // No HTTP status means the response never arrived. The update touches
@@ -186,7 +197,7 @@ export default function AppUpdateSection() {
         </button>
         <button
           type="button"
-          onClick={handleUpdate}
+          onClick={() => handleUpdate(false)}
           disabled={busy !== null || !status?.can_update}
           className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-50"
         >
@@ -194,6 +205,20 @@ export default function AppUpdateSection() {
             ? t('support.appUpdate.updating', 'Updating...')
             : t('support.appUpdate.update', 'Update now')}
         </button>
+        {status?.can_update_with_stash && (
+          <button
+            type="button"
+            onClick={() => handleUpdate(true)}
+            disabled={busy !== null}
+            title={t(
+              'support.appUpdate.stashUpdateHint',
+              'Stash uncommitted changes, update, then re-apply them. If they conflict with the update they stay in the stash.'
+            )}
+            className="rounded bg-orange-600 px-4 py-2 text-white disabled:opacity-50"
+          >
+            {t('support.appUpdate.stashUpdate', 'Stash changes & update')}
+          </button>
+        )}
       </div>
       {error && (
         <p className="mt-2 text-sm text-red-600" role="alert">

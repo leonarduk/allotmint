@@ -6,9 +6,15 @@ Lambda image built by CI, so there is no checkout to pull into and the route
 404s. Updating there means running the deploy pipeline, not this endpoint.
 
 The update is deliberately conservative: it only ever fast-forwards the
-current branch to its configured upstream. A dirty working tree, a detached
-HEAD, a branch without an upstream, or local commits not on the upstream all
-refuse the update rather than risk losing work. Dependencies are never
+current branch to its configured upstream. A detached HEAD, a branch without
+an upstream, or local commits not on the upstream all refuse the update
+rather than risk losing work. A dirty working tree refuses too, unless the
+caller opts into ``stash=true``: the fast-forward then runs as a single
+``git merge --ff-only --autostash`` so the stash/merge/pop sequence cannot be
+interrupted half-way by uvicorn's reloader restarting this process. If the
+local changes conflict with the update, they stay in the stash and the
+working tree is reset to the clean upstream commit -- leaving conflict
+markers in ``backend/`` would break the reloaded app. Dependencies are never
 reinstalled from here -- the response lists changed dependency manifests so
 the user knows to re-run the setup step themselves.
 
@@ -94,6 +100,8 @@ class AppUpdateStatus(BaseModel):
     behind: int = 0
     ahead: int = 0
     dirty: bool = False
+    # True when the only obstacle is a dirty tree, i.e. ``POST ?stash=true`` would work.
+    can_update_with_stash: bool = False
 
 
 class AppUpdateResult(BaseModel):
@@ -104,6 +112,10 @@ class AppUpdateResult(BaseModel):
     dependencies_changed: list[str]
     backend_changed: bool
     frontend_changed: bool
+    stashed: bool = False
+    # False when re-applying stashed changes conflicted; they remain in the stash.
+    stash_restored: bool = False
+    stash_message: str | None = None
 
 
 def _repo_root() -> Path:
@@ -167,11 +179,12 @@ def _collect_status(fetch: bool) -> AppUpdateStatus:
     )
     status.reason = _blocking_reason(status)
     status.can_update = status.reason is None
+    status.can_update_with_stash = status.dirty and _blocking_reason(status, ignore_dirty=True) is None
     return status
 
 
-def _blocking_reason(status: AppUpdateStatus) -> str | None:
-    if status.dirty:
+def _blocking_reason(status: AppUpdateStatus, ignore_dirty: bool = False) -> str | None:
+    if status.dirty and not ignore_dirty:
         return "Working tree has uncommitted changes to tracked files; commit or stash them first."
     if status.ahead:
         return f"Branch has {status.ahead} local commit(s) not on {status.upstream}; it cannot be fast-forwarded."
@@ -180,9 +193,53 @@ def _blocking_reason(status: AppUpdateStatus) -> str | None:
     return None
 
 
-def _apply_update(status: AppUpdateStatus) -> AppUpdateResult:
+def _stash_ref() -> str | None:
+    """Return the commit at the top of the stash, or ``None`` when it is empty."""
+
+    try:
+        return _git("rev-parse", "--quiet", "--verify", "refs/stash")
+    except GitError:
+        return None
+
+
+def _apply_update(status: AppUpdateStatus, stash: bool = False) -> AppUpdateResult:
     previous = status.current_commit or ""
+    if stash:
+        stash_before = _stash_ref()
+        _git("merge", "--ff-only", "--autostash", "@{u}")
+        result = _build_result(previous)
+        result.stashed = True
+        result.stash_restored, result.stash_message = _settle_autostash(stash_before)
+        return result
     _git("merge", "--ff-only", "@{u}")
+    return _build_result(previous)
+
+
+def _settle_autostash(stash_before: str | None) -> tuple[bool, str | None]:
+    """Check whether ``--autostash`` re-applied cleanly; clean up if not.
+
+    git exits 0 even when re-applying the autostash conflicts: it leaves
+    conflict markers in the tree and stores the changes as a new stash entry.
+    A new top-of-stash commit is therefore the conflict signal. The changes
+    are safe in that entry, so the tree is reset to the updated commit to keep
+    the running app importable.
+    """
+
+    stash_after = _stash_ref()
+    if stash_after is None or stash_after == stash_before:
+        return True, None
+    _git("reset", "--quiet", "--hard", "HEAD")
+    logger.warning(
+        "App update: local changes conflicted and were left in stash %s",
+        sanitise_log_value(stash_after[:12]),
+    )
+    return False, (
+        "Your local changes conflicted with the update and were left in the stash "
+        f"(stash@{{0}}, commit {stash_after[:7]}). Run 'git stash pop' to re-apply them and resolve the conflicts."
+    )
+
+
+def _build_result(previous: str) -> AppUpdateResult:
     current = _git("rev-parse", "HEAD")
     changed = [line for line in _git("diff", "--name-only", previous, current).splitlines() if line]
     logger.info(
@@ -214,16 +271,21 @@ def get_update_status(fetch: bool = True) -> AppUpdateStatus:
 
 
 @router.post("", response_model=AppUpdateResult)
-def post_update() -> AppUpdateResult:
-    """Fetch and fast-forward the current branch to its upstream."""
+def post_update(stash: bool = False) -> AppUpdateResult:
+    """Fetch and fast-forward the current branch to its upstream.
+
+    ``stash=true`` lets a dirty working tree update by stashing the local
+    changes around the fast-forward and re-applying them afterwards.
+    """
 
     if not _update_lock.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="An update is already in progress.")
     try:
         status = _collect_status(fetch=True)
-        if not status.can_update:
+        use_stash = stash and status.can_update_with_stash
+        if not (status.can_update or use_stash):
             raise HTTPException(status_code=409, detail=status.reason)
-        return _apply_update(status)
+        return _apply_update(status, stash=use_stash)
     except GitError as exc:
         logger.warning("App update failed: %s", sanitise_log_value(exc))
         raise HTTPException(status_code=502, detail=str(exc)) from exc

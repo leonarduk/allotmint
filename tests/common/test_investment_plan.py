@@ -338,3 +338,14 @@ def test_profile_horizon_goal_in_the_past_is_negative():
         plan_data(profile={"goals": [{"name": "x", "purpose": "other", "target_date": "2025-10-06"}]}), "alex"
     )
     assert plan_mod.profile_horizon(plan, None, today=date(2026, 10, 6))["goals"][0]["years_to_goal"] == -1.0
+
+
+def test_profile_horizon_index_skips_undated_goals():
+    goals = [
+        {"name": "a", "purpose": "other", "target_date": "2027-10-06"},
+        {"name": "b", "purpose": "other"},
+        {"name": "c", "purpose": "other", "target_date": "2028-10-06"},
+    ]
+    plan = parse_plan(plan_data(profile={"goals": goals}), "alex")
+    horizon = plan_mod.profile_horizon(plan, None, today=date(2026, 10, 6))
+    assert [(g["index"], g["name"]) for g in horizon["goals"]] == [(0, "a"), (2, "c")]

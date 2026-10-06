@@ -11,11 +11,12 @@ import {
 } from '../api';
 import type { ActiveStrategy, Strategy, StrategyList } from '../types';
 import {
+  ASSET_CLASSES,
   draftFromTargets,
   draftTotalOk,
   targetsFromDraft,
 } from '../lib/allocationTargets';
-import { allocationKeyLabel } from '../lib/assetClass';
+import { SUB_ASSET_CLASSES, allocationKeyLabel } from '../lib/assetClass';
 import TargetFields from './TargetFields';
 
 const BUILTIN_READ_ONLY_TIP =
@@ -26,8 +27,19 @@ const pct = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
+/** Every class and sub-class key in display order (stored targets are key-sorted). */
+const KEY_ORDER = ASSET_CLASSES.flatMap(({ key }) => [
+  key,
+  ...(SUB_ASSET_CLASSES[key] ?? []).map((sub) => sub.key),
+]);
+const keyRank = (key: string) => {
+  const rank = KEY_ORDER.indexOf(key);
+  return rank < 0 ? KEY_ORDER.length : rank;
+};
+
 function formatStrategyTargets(targets: Record<string, number>): string {
   return Object.entries(targets)
+    .sort(([a], [b]) => keyRank(a) - keyRank(b))
     .map(([key, value]) => `${allocationKeyLabel(key)} ${pct.format(value)}%`)
     .join(' · ');
 }

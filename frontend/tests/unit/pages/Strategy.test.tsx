@@ -141,7 +141,8 @@ const MINE: Strategy = {
   description: '',
   source: '',
   uk_mapping: '',
-  targets: { equity: 60, bond: 40 },
+  // Key-sorted, as the backend stores it; shown in display order.
+  targets: { bond: 40, equity: 60 },
   builtin: false,
 };
 
@@ -201,6 +202,7 @@ describe('Strategy page', () => {
 
     const mine = await strategyRow('Mine');
     expect(within(mine).getByText('Custom')).toBeInTheDocument();
+    expect(within(mine).getByText('Equity 60% · Bond 40%')).toBeInTheDocument();
     expect(
       within(mine).getByRole('button', { name: 'Edit Mine' })
     ).toBeEnabled();

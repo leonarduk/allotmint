@@ -86,6 +86,20 @@ def test_parse_policy_reads_commodities_as_the_sub_class():
     assert policy.targets == {"equity": 85.0, "gold": 7.5, "commodities": 7.5}
 
 
+@pytest.mark.parametrize("key", ["commodities", "Commodities", " commodities "])
+def test_parse_policy_reads_lone_commodities_as_the_whole_class(key):
+    # Without another commodity sub-class beside it, "commodities" keeps its
+    # pre-#9653 meaning (the Commodity class, gold included), so a policy sent
+    # through the API or hand-edited before the change is not reinterpreted.
+    policy = parse_policy({"targets": {"equity": 80, key: 20}})
+    assert policy.targets == {"equity": 80.0, "commodity": 20.0}
+
+
+def test_parse_policy_zero_gold_still_marks_commodities_as_the_sub_class():
+    policy = parse_policy({"targets": {"equity": 90, "gold": 0, "commodities": 10}})
+    assert policy.targets == {"equity": 90.0, "commodities": 10.0}
+
+
 def test_saved_whole_commodity_target_keeps_its_meaning(tmp_path):
     # Saves have always stored the canonical class key ("commodity"), never the
     # "commodities" alias, so reading "commodities" as the sub-class (#9653)

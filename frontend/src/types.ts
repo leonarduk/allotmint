@@ -278,6 +278,16 @@ export interface DataQualityTimeseriesResponse {
   positions: TimeseriesQualityPosition[];
 }
 
+/**
+ * A holding the backend left out of the GBP value series behind max drawdown,
+ * alpha and tracking error because no stored FX rate covers its closes (#7786).
+ */
+export interface UnconvertedHolding {
+  ticker: string;
+  currency: string;
+  reason: string;
+}
+
 export interface AlphaSeriesPoint {
   date: string;
   portfolio_cumulative_return: number;
@@ -291,6 +301,7 @@ export interface AlphaResponse {
   portfolio_cumulative_return?: number | null;
   benchmark_cumulative_return?: number | null;
   series?: AlphaSeriesPoint[];
+  unconverted_holdings?: UnconvertedHolding[];
 }
 
 export interface TrackingErrorPoint {
@@ -305,6 +316,7 @@ export interface TrackingErrorResponse {
   benchmark: string;
   active_returns?: TrackingErrorPoint[];
   daily_active_standard_deviation?: number | null;
+  unconverted_holdings?: UnconvertedHolding[];
 }
 
 export interface DrawdownSeriesPoint {
@@ -325,6 +337,7 @@ export interface MaxDrawdownResponse {
   series?: DrawdownSeriesPoint[];
   peak?: DrawdownExtrema | null;
   trough?: DrawdownExtrema | null;
+  unconverted_holdings?: UnconvertedHolding[];
 }
 
 export interface ReturnComparisonResponse {

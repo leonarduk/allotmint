@@ -1289,13 +1289,8 @@ def _convert_to_base_currency(
             # and then Yahoo, which a page request must not do.
             fx = _cached_fx_rates(curr, start, end, ticker=ticker, exchange=exchange)
         elif OFFLINE_MODE:
-            path = _fx_cache_path(curr)
-            try:
-                fx = pd.read_parquet(path)
-                fx["Date"] = pd.to_datetime(fx["Date"])
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.debug("FX cache read miss (%s): %s", path, exc)
-                fx = pd.DataFrame(columns=["Date", "Rate"])
+            # The shared reader: one rate per date, the last stored (#9719).
+            fx = _read_fx_parquet(_fx_cache_path(curr))
 
             if fx.empty and getattr(config, "fx_proxy_url", None):
                 try:

@@ -236,6 +236,32 @@ def test_offline_mode_uses_fx_cache(tmp_path, monkeypatch):
     ]
 
 
+def test_offline_mode_fx_cache_uses_the_last_stored_rate_per_date(tmp_path, monkeypatch):
+    """Offline reads go through ``_read_fx_parquet``, so a duplicated date converts at its last stored rate (#9719)."""
+    start = dt.date(2024, 1, 1)
+    end = dt.date(2024, 3, 29)
+    sample = _sample_df(start, end)
+
+    monkeypatch.setattr(cache, "_memoized_range", lambda *_args: sample)
+    monkeypatch.setattr(cache, "OFFLINE_MODE", True)
+    monkeypatch.setattr(cache, "_CACHE_BASE", str(tmp_path))
+    monkeypatch.setattr(cache, "get_instrument_meta", lambda t: {"currency": "USD"})
+
+    # Every business day stored three times, in three passes; enough rows that
+    # an unstable sort reorders equal dates. A plain read would merge all three
+    # rows per date into the prices.
+    days = list(sample["Date"])
+    fx_df = pd.DataFrame({"Date": days * 3, "Rate": [0.7] * len(days) + [0.8] * len(days) + [0.9] * len(days)})
+    fx_path = tmp_path / "fx" / "USD.parquet"
+    fx_path.parent.mkdir(parents=True)
+    fx_df.to_parquet(fx_path, index=False)
+
+    df = cache.load_meta_timeseries_range("T", "N", start, end)
+
+    assert len(df) == len(sample)
+    assert list(df["Close_gbp"].astype(float)) == pytest.approx([close * 0.9 for close in sample["Close"]])
+
+
 def test_offline_falls_back_to_live_loader(tmp_path, monkeypatch):
     start = dt.date(2024, 1, 1)
     end = dt.date(2024, 1, 2)

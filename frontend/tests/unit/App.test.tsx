@@ -2031,7 +2031,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("navigation")).toBeInTheDocument();
     expect(
-      await screen.findByRole("heading", { name: /Support/i })
+      await screen.findByRole("heading", { name: /Configuration/i })
     ).toBeInTheDocument();
   });
 
@@ -2084,7 +2084,7 @@ describe("App", () => {
       </MemoryRouter>,
     );
     expect(
-      await screen.findByRole("heading", { name: /Support/i })
+      await screen.findByRole("heading", { name: /Configuration/i })
     ).toBeInTheDocument();
   });
 

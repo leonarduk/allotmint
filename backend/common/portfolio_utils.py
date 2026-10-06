@@ -54,7 +54,9 @@ from backend.common.virtual_portfolio import (
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
+    _MAX_FX_GAP_FILL_DAYS,
     EXCHANGE_TO_CCY,
+    align_fx_rates,
     cached_fx_rate_to_gbp,
     instrument_currency,
     is_cache_only,
@@ -1707,11 +1709,6 @@ def _sum_holding_values(value_series: list[pd.Series], days: int, reporting_date
     return total
 
 
-# Carry a stored FX rate over a short gap (a weekend, a bank holiday, a refresh
-# a few days late). Past that the rate counts as missing and the holding is
-# left out of the value series rather than summed in its own currency (#7786).
-_MAX_FX_GAP_FILL_DAYS = 5
-
 # Breakdown key listing the holdings whose closes could not be converted to
 # GBP on some dates (those dates count as missing prices) or on any date (the
 # holding is left out of the value series).
@@ -1736,38 +1733,24 @@ def _holding_currency(ticker: str, exchange: str) -> CurrencyNormaliser:
 
 
 def _gbp_rates(currency: str, index: pd.Index) -> pd.Series:
-    """GBP per unit of ``currency`` on each date of the sorted ``index``, from the stored FX history.
+    """GBP per unit of ``currency`` on each date of ``index``, from the stored FX history.
 
     Reads ``timeseries/fx/<ccy>.parquet`` through
-    :func:`backend.timeseries.cache.load_fx_history` (never fetches). Each date
+    :func:`backend.timeseries.cache.load_fx_history` (never fetches) and
+    aligns it with :func:`backend.timeseries.cache.align_fx_rates`, the gap
+    rule the timeseries loader's ``Close_gbp`` uses too (#9759): each date
     takes the latest rate at most :data:`_MAX_FX_GAP_FILL_DAYS` before it; a
-    date without one is NaN, as is every date when nothing is stored.
+    date without one is NaN, as is every date when nothing is stored. Past
+    the window the holding is left out of the value series rather than
+    summed in its own currency (#7786).
     """
     if currency == "GBP":
         return pd.Series(1.0, index=index)
-    missing = pd.Series(float("nan"), index=index)
-    days = pd.DatetimeIndex(pd.to_datetime(index)).astype("datetime64[ns]")
+    days = pd.DatetimeIndex(pd.to_datetime(index))
     if days.empty:
-        return missing
-    order = days.argsort(kind="stable")  # merge_asof needs ascending keys
-    days = days[order]
-    gap = pd.Timedelta(days=_MAX_FX_GAP_FILL_DAYS)
-    fx = load_fx_history(currency, (days.min() - gap).date(), days.max().date())
-    if fx.empty:
-        return missing
-    rates = pd.DataFrame(
-        {
-            "Date": pd.to_datetime(fx["Date"]).astype("datetime64[ns]"),
-            "Rate": pd.to_numeric(fx["Rate"], errors="coerce"),
-        }
-    )
-    # Date order for merge_asof. The stored history has one rate per date
-    # (``cache._read_fx_parquet`` drops duplicates on read).
-    rates = rates.dropna().sort_values("Date")
-    merged = pd.merge_asof(pd.DataFrame({"Date": days}), rates, on="Date", direction="backward", tolerance=gap)
-    aligned = np.empty(len(index), dtype=float)
-    aligned[order] = merged["Rate"].to_numpy(dtype=float)
-    return pd.Series(aligned, index=index)
+        return pd.Series(float("nan"), index=index)
+    fx = load_fx_history(currency, (days.min() - pd.Timedelta(days=_MAX_FX_GAP_FILL_DAYS)).date(), days.max().date())
+    return align_fx_rates(fx, index)
 
 
 def _closes_in_gbp(closes: pd.Series, ticker: str, exchange: str) -> tuple[pd.Series, str, pd.Index]:

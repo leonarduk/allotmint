@@ -1499,7 +1499,16 @@ def _insight_inputs(context: ReportContext) -> report_periodic.InsightInputs:
         has_ledger=perf is not None,
         unreconciled=unreconciled,
         unpriced=perf.unpriced if perf is not None else (),
+        fx_gaps=_fx_gap_tickers(perf),
     )
+
+
+def _fx_gap_tickers(perf: ledger_performance.LedgerPerformance | None) -> tuple[str, ...]:
+    """Instruments priced on some dates but missing an FX rate on others; unpriced ones are reported as such."""
+    if perf is None:
+        return ()
+    partial = [entry for entry in perf.unconverted if entry.get("reason") != portfolio_utils.FX_MISSING_ALL_DATES]
+    return tuple(str(entry["ticker"]) for entry in partial)
 
 
 def _build_insights_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:

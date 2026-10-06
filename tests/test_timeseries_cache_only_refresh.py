@@ -416,24 +416,62 @@ def test_cold_group_portfolio_build_makes_no_live_price_calls(cache, no_live_cal
     assert sorted(refresh_queue.pending()) == [("AAPL", "N"), ("VWRL", "L")]
 
 
-def test_cache_only_fx_uses_the_previous_rate_for_gaps_and_the_first_before_the_cache(cache, no_live_calls):
-    """No future rate leaks into an earlier day except before the first cached rate."""
-    day = _target(cache)
-    fri = day - timedelta(days=(day.weekday() - 4) % 7 or 7)
-    mon = fri + timedelta(days=3)
+def _seed_usd_closes(cache, days: list[date]) -> None:
+    frame = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(days),
+            "Open": 100.0,
+            "High": 100.0,
+            "Low": 100.0,
+            "Close": 100.0,
+            "Volume": 1000,
+            "Ticker": "AAPL",
+            "Source": "Yahoo",
+        }
+    )
+    path = cache.meta_timeseries_cache_path("AAPL", "N")
+    cache._ensure_local_dir(path)
+    frame.to_parquet(path, index=False)
+
+
+def test_cache_only_fx_carries_a_rate_at_most_the_gap_window_and_never_backward(cache, no_live_calls):
+    """A weekend takes Friday's rate; a date before the first stored rate, or past the window, has none (#9759)."""
+    fri = date(2024, 3, 8)
+    sat, mon = fri + timedelta(days=1), fri + timedelta(days=3)
+    before = fri - timedelta(days=30)
+    edge = mon + timedelta(days=cache._MAX_FX_GAP_FILL_DAYS)  # Sat 16 Mar: exactly 5 days after Monday
+    stale = edge + timedelta(days=1)
+    _seed_usd_closes(cache, [before, fri, sat, mon, edge, stale])
     frame = pd.DataFrame({"Date": pd.to_datetime([fri, mon]), "Rate": [0.7, 0.9]})
     path = cache._fx_cache_path("USD")
     cache._ensure_local_dir(path)
     frame.to_parquet(path, index=False)
 
-    sat = fri + timedelta(days=1)
-    weekend = cache._cached_fx_rates("USD", sat, sat, ticker="AAPL", exchange="N")
-    before = cache._cached_fx_rates(
-        "USD", fri - timedelta(days=30), fri - timedelta(days=30), ticker="AAPL", exchange="N"
-    )
+    with cache.cache_only():
+        df = cache.load_meta_timeseries_range("AAPL", "N", start_date=before, end_date=stale)
 
-    assert weekend["Rate"].tolist() == [pytest.approx(0.7)]
-    assert before["Rate"].tolist() == [pytest.approx(0.7)]
+    by_day = dict(zip(df["Date"].dt.date, df["Close_gbp"]))
+    assert by_day[fri] == pytest.approx(70.0)
+    assert by_day[sat] == pytest.approx(70.0)
+    assert by_day[mon] == pytest.approx(90.0)
+    assert by_day[edge] == pytest.approx(90.0)
+    assert pd.isna(by_day[before])  # no backfill from the first stored rate
+    assert pd.isna(by_day[stale])  # six days old: not applied
+    assert df["Close"].tolist() == [100.0] * 6  # native closes untouched
+
+
+def test_cache_only_fx_rows_cover_the_gap_window_before_start(cache, no_live_calls):
+    """The cache-only reader hands back stored rows from the window before ``start``, not a daily grid."""
+    fri = date(2024, 3, 8)
+    frame = pd.DataFrame({"Date": pd.to_datetime([fri - timedelta(days=7), fri]), "Rate": [0.6, 0.7]})
+    path = cache._fx_cache_path("USD")
+    cache._ensure_local_dir(path)
+    frame.to_parquet(path, index=False)
+
+    rows = cache._cached_fx_rates("USD", fri + timedelta(days=1), fri + timedelta(days=1), ticker="AAPL", exchange="N")
+
+    assert rows["Date"].dt.date.tolist() == [fri]
+    assert rows["Rate"].tolist() == [pytest.approx(0.7)]
 
 
 def test_cache_only_gbp_instrument_in_another_base_currency_makes_no_live_calls(cache, no_live_calls, monkeypatch):

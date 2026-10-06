@@ -126,8 +126,6 @@ backend/routes/support.py::post_portfolio_health::logger.exception('Portfolio he
 backend/routes/timeseries_admin.py::timeseries_admin::logger.warning('Failed to load %s from S3: %s', key, sanitise_log_value(exc))
 backend/routes/timeseries_admin.py::timeseries_admin::logger.warning('Failed to load %s: %s', path, sanitise_log_value(exc))
 backend/timeseries/cache.py::_convert_to_base_currency._load_rates::logger.debug('FX cache read miss (%s): %s', path, exc)
-backend/timeseries/cache.py::_convert_to_base_currency._load_rates::logger.warning('FX proxy fetch failed for %s: %s', _sanitize_for_log(curr), sanitise_log_value(exc))
-backend/timeseries/cache.py::_convert_to_base_currency._load_rates::logger.warning('Invalid/unsupported FX currency code: %s', _sanitize_for_log(curr))
 backend/timeseries/cache.py::_ensure_schema::logger.warning("Timeseries 'Date' column is tz-aware (%s); converting to UTC and stripping timezone before casting to datetime64[ms].", dates.dt.tz)
 backend/timeseries/cache.py::_load_parquet::logger.debug('Cache read miss (%s): %s', path, exc)
 backend/timeseries/cache.py::_load_parquet::logger.debug('Loaded %s rows from cache: %s', len(df), path)

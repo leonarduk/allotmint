@@ -1014,7 +1014,11 @@ def _read_fx_parquet(path: str) -> pd.DataFrame:
         return pd.DataFrame(columns=["Date", "Rate"])
     fx["Date"] = pd.to_datetime(fx["Date"]).astype("datetime64[ms]")
     fx["Rate"] = pd.to_numeric(fx["Rate"], errors="coerce")
-    return fx.dropna(subset=["Rate"]).sort_values("Date").reset_index(drop=True)
+    # One rate per date. ``refresh_fx_cache`` never writes a duplicate, but a
+    # hand-edited or externally written file might: keep the last stored row,
+    # which needs a stable sort (the default quicksort reorders equal dates).
+    fx = fx.dropna(subset=["Rate"]).sort_values("Date", kind="stable")
+    return fx.drop_duplicates(subset="Date", keep="last").reset_index(drop=True)
 
 
 def _cached_fx_frame(curr: str) -> pd.DataFrame:

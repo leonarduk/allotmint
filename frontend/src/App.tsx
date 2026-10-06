@@ -675,7 +675,7 @@ export default function App({ onLogout }: AppProps) {
         {mode === 'instrument' && groups.length > 0 && (
           <>
             <h1 className="mb-4 text-2xl">
-              {t('app.modes.instrument', { defaultValue: 'Instruments' })}
+              {t('app.modes.instrument', { defaultValue: 'Sector Analysis' })}
             </h1>
             {selectedGroup === 'all' && instruments.length > 0 && (
               <div className="mb-4 rounded-lg border border-gray-800 bg-black/20 p-3">

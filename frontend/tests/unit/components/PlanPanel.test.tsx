@@ -93,6 +93,9 @@ describe('PlanPanel', () => {
       await screen.findByText('No investment plan saved for alex yet.')
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Create plan' }));
+    expect(screen.getByLabelText('Target class 1')).toHaveValue('equity');
+    expect(screen.getByLabelText('Target weight % 1')).toHaveValue(100);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit as JSON' }));
     expect(
       (screen.getByLabelText('Plan JSON') as HTMLTextAreaElement).value
     ).toContain('"owner": "alex"');
@@ -179,7 +182,7 @@ describe('PlanPanel', () => {
     ).toBeInTheDocument();
   });
 
-  it('saves edits through the JSON editor and surfaces validation errors', async () => {
+  it('saves edits through the raw JSON view and surfaces validation errors', async () => {
     const response = makeResponse();
     mockGetInvestmentPlan.mockResolvedValue(response);
     mockSaveInvestmentPlan
@@ -193,6 +196,7 @@ describe('PlanPanel', () => {
     render(<PlanPanel owner="alex" />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Edit plan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit as JSON' }));
     const editor = screen.getByLabelText('Plan JSON');
     fireEvent.change(editor, { target: { value: '{not json' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save plan' }));

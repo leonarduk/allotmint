@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatPublishedAt } from "@/lib/date";
+import { formatPublishedAt, localDateISO } from "@/lib/date";
 
 const NOW = new Date("2024-06-10T12:00:00Z");
 
@@ -19,5 +19,11 @@ describe("formatPublishedAt", () => {
   it("formats older timestamps in coarser units", () => {
     expect(formatPublishedAt("2024-03-10T12:00:00Z", NOW)).toBe("3 months ago");
     expect(formatPublishedAt("2022-06-10T12:00:00Z", NOW)).toBe("2 years ago");
+  });
+});
+
+describe("localDateISO", () => {
+  it("formats the local calendar date, zero-padded", () => {
+    expect(localDateISO(new Date(2026, 0, 5, 0, 30))).toBe("2026-01-05");
   });
 });

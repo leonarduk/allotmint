@@ -28,6 +28,7 @@ dividend-adjusted rows into a cached raw series.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Iterable
 
 import pandas as pd
@@ -50,6 +51,21 @@ DIVIDEND_ADJUSTED_SOURCES = frozenset({"Stooq"})
 # figures (#9369); rows cached earlier at 2 dp can be up to 0.005 / price off
 # (0.5% at ~$1), so a sub-$1 line may still fail this check until re-fetched.
 DIVIDEND_BASIS_TOLERANCE = 0.005
+
+# ``Source`` label of rows taken from another exchange listing of the same
+# security and converted to the instrument's currency (#9657), e.g.
+# ``Yahoo:AIGE.MI→USD``. See ``alternate_listing``.
+_ALTERNATE_LISTING_SOURCE_RE = re.compile(r"^Yahoo:[A-Z0-9][A-Z0-9-]*\.[A-Z]{1,6}→[A-Z]{3}$")
+
+
+def alternate_listing_source(full_ticker: str, currency: str) -> str:
+    """``Source`` label for ``full_ticker`` (``SYM.EX``) closes converted to ``currency``."""
+    return f"Yahoo:{full_ticker.upper()}→{currency.upper()}"
+
+
+def is_alternate_listing_source(label: object) -> bool:
+    """Whether ``label`` marks rows converted from an alternate listing."""
+    return isinstance(label, str) and bool(_ALTERNATE_LISTING_SOURCE_RE.match(label))
 
 
 def _source_labels(df: pd.DataFrame) -> pd.Series:
@@ -107,6 +123,11 @@ def compatible_rows(existing: pd.DataFrame, new: pd.DataFrame, *, label: str = "
     A source group in ``new`` is kept when every existing row already comes
     from that source, or when it matches ``existing`` on shared dates
     (``same_basis``). Other groups are dropped and logged.
+
+    Rows converted from an alternate listing (``is_alternate_listing_source``)
+    are kept: ``alternate_listing`` already checked them against the stored
+    series when it fetched them, and as gap fills they share no dates with it,
+    so this check would always refuse them (#9657).
     """
     if existing.empty or new.empty:
         return new
@@ -114,7 +135,7 @@ def compatible_rows(existing: pd.DataFrame, new: pd.DataFrame, *, label: str = "
     new_sources = _source_labels(new)
     keep = pd.Series(True, index=new.index)
     for source in new_sources.unique():
-        if existing_sources == {source}:
+        if existing_sources == {source} or is_alternate_listing_source(source):
             continue
         group = new.loc[new_sources == source]
         if same_basis(existing, group):

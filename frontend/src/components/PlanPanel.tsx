@@ -1,36 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  getInvestmentPlan,
-  saveAllocationPolicy,
-  saveInvestmentPlan,
-} from '../api';
+import { getInvestmentPlan, saveAllocationPolicy } from '../api';
+import { classLabel } from '../lib/planForm';
 import type {
   InvestmentPlan,
   InvestmentPlanResponse,
   InvestmentPlanVehicle,
 } from '../types';
 import EmptyState from './EmptyState';
-
-/** Labels for plan class keys (backend PLAN_CLASS_PARENT) and parent asset classes. */
-const CLASS_LABELS: Record<string, string> = {
-  equity: 'Equity',
-  small_cap_value: 'Small-cap value',
-  long_gilts: 'Long gilts',
-  intermediate_gilts: 'Intermediate gilts',
-  short_gilts: 'Short gilts / ultrashort',
-  index_linked: 'Index-linked',
-  overseas_government: 'Overseas government',
-  corporate_bonds: 'Corporate / credit',
-  gold: 'Gold',
-  commodities: 'Other commodities',
-  cash: 'Cash',
-  bond: 'Bond',
-  commodity: 'Commodity',
-  property: 'Property',
-  'multi-asset': 'Multi-asset',
-};
-
-const classLabel = (key: string) => CLASS_LABELS[key] ?? key;
+import PlanEditor from './PlanEditor';
 
 const pct = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
 
@@ -39,24 +16,6 @@ const errorText = (error: unknown) =>
 
 const errorStatus = (error: unknown): number | undefined =>
   (error as { status?: number } | null)?.status;
-
-/** Starting point for a new plan in the JSON editor. */
-function templatePlan(owner: string): Partial<InvestmentPlan> {
-  return {
-    owner,
-    version: 1,
-    updated: new Date().toISOString().slice(0, 10),
-    status: 'draft',
-    summary: '',
-    target: [{ class: 'equity', weight_pct: 100 }],
-    vehicles: {},
-    assumptions: [],
-    decisions: [],
-    open_questions: [],
-    evidence: [],
-    review: { triggers: [] },
-  };
-}
 
 type LoadState =
   | { kind: 'loading' }
@@ -248,72 +207,6 @@ function PlanDetails({ plan }: { plan: InvestmentPlan }) {
   );
 }
 
-function PlanEditor({
-  owner,
-  initial,
-  onSaved,
-  onCancel,
-}: {
-  owner: string;
-  initial: Partial<InvestmentPlan>;
-  onSaved: (data: InvestmentPlanResponse) => void;
-  onCancel: () => void;
-}) {
-  const [text, setText] = useState(() => JSON.stringify(initial, null, 2));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    let parsed: Partial<InvestmentPlan>;
-    try {
-      parsed = JSON.parse(text) as Partial<InvestmentPlan>;
-    } catch (err) {
-      setError(`Invalid JSON: ${errorText(err)}`);
-      return;
-    }
-    setSaving(true);
-    try {
-      onSaved(await saveInvestmentPlan(owner, parsed));
-    } catch (err) {
-      setError(errorText(err));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <form onSubmit={handleSave} aria-label="Edit investment plan">
-      <textarea
-        className="h-80 w-full border p-2 font-mono text-xs"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        aria-label="Plan JSON"
-      />
-      {error && (
-        <p className="mt-1 break-words text-sm text-red-600">{error}</p>
-      )}
-      <div className="mt-2 flex gap-2">
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded bg-blue-500 px-4 py-1 text-white disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save plan'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded bg-gray-200 px-3 py-1 text-slate-900"
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
-  );
-}
-
 function PlanBody({
   owner,
   data,
@@ -379,8 +272,7 @@ export default function PlanPanel({
   };
 
   if (!owner) return null;
-  const initial =
-    state.kind === 'ready' ? state.data.plan : templatePlan(owner);
+  const initial = state.kind === 'ready' ? state.data.plan : {};
 
   return (
     <section className="mb-6 rounded border p-4" aria-label="Investment plan">

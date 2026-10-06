@@ -269,8 +269,20 @@ jobs:
             exit 0
           fi
 
-      - name: Create follow-up issues
+      # Re-reviews (each push re-runs the review) restate the same follow-up
+      # suggestions, so only the first approving review of a PR files them.
+      # See .github/scripts/followups_already_filed.sh.
+      - name: Check for follow-ups already filed for this PR
+        id: followups_gate
         if: steps.check_approval.outputs.approved == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.gh_token }}
+          REPO: ${{ github.repository }}
+          SINCE: ${{ github.event.pull_request.created_at }}
+        run: bash .github/scripts/followups_already_filed.sh "${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Create follow-up issues
+        if: steps.check_approval.outputs.approved == 'true' && steps.followups_gate.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.gh_token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

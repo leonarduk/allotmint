@@ -683,6 +683,30 @@ def list_all_unique_tickers() -> List[str]:
 # ──────────────────────────────────────────────────────────────
 # Core aggregation
 # ──────────────────────────────────────────────────────────────
+def _holding_ticker_parts(h: dict, tkr: str) -> tuple[str, str, str]:
+    """``(full ticker, symbol, exchange)`` for holding ``h`` with upper-cased ticker ``tkr``.
+
+    Resolves the exchange from the price snapshot, then the ticker's own
+    suffix, then the holding's ``exchange``, defaulting to London (``L``).
+    """
+    from backend.common import instrument_api
+
+    resolved = instrument_api._resolve_full_ticker(tkr, _PRICE_SNAPSHOT)
+    if resolved:
+        sym, inferred = resolved
+    else:
+        sym, inferred = (tkr.split(".", 1) + [None])[:2]
+        if not h.get("exchange"):
+            logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(tkr))
+
+    sym = (sym or "").upper()
+    base_sym, _, resolved_exch = sym.partition(".")
+    if resolved_exch:
+        return sym, base_sym, resolved_exch.upper()
+    exch = (h.get("exchange") or inferred or "L").upper()
+    return f"{base_sym}.{exch}", base_sym, exch
+
+
 def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
     """Implementation of :func:`aggregate_by_ticker`.
 
@@ -733,33 +757,7 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
             if not tkr:
                 continue
 
-            resolved = instrument_api._resolve_full_ticker(tkr, _PRICE_SNAPSHOT)
-            if resolved:
-                sym, inferred = resolved
-            else:
-                sym, inferred = (tkr.split(".", 1) + [None])[:2]
-                if not h.get("exchange"):
-                    logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(tkr))
-
-            sym = (sym or "").upper()
-            base_sym = sym.split(".", 1)[0]
-            exchange_value = h.get("exchange") or inferred or "L"
-            exch = exchange_value.upper() if isinstance(exchange_value, str) else "L"
-
-            if "." in sym:
-                full_tkr = sym
-            else:
-                full_tkr = f"{sym}.{exch}"
-
-            sym = (sym or "").upper()
-            base_sym, _, resolved_exch = sym.partition(".")
-            if resolved_exch:
-                exch = resolved_exch.upper()
-                full_tkr = sym
-            else:
-                exch = (h.get("exchange") or inferred or "L").upper()
-                full_tkr = f"{base_sym}.{exch}"
-            sym = base_sym
+            full_tkr, base_sym, exch = _holding_ticker_parts(h, tkr)
 
             instrument_meta = get_instrument_meta(full_tkr) or _DEFAULT_META.get(full_tkr, {})
 
@@ -1299,6 +1297,32 @@ def _quote_currency_key(row: dict) -> str:
     if not raw:
         return UNKNOWN_CURRENCY_LABEL
     return CurrencyNormaliser.from_raw(raw).display_code
+
+
+def holding_quote_currency(holding: dict) -> str:
+    """The quote currency of one holding, as :func:`aggregate_by_currency` buckets it.
+
+    Builds the same ticker, exchange and currency (holding, then security,
+    then instrument metadata) the aggregate rows use and applies
+    ``_quote_currency_key``, so GBX folds into GBP and an unresolvable
+    holding is ``UNKNOWN_CURRENCY_LABEL`` (#9725).
+    """
+    tkr = (holding.get("ticker") or "").upper()
+    if not tkr:
+        return UNKNOWN_CURRENCY_LABEL
+    full_tkr, _, exch = _holding_ticker_parts(holding, tkr)
+    instrument_meta = get_instrument_meta(full_tkr) or _DEFAULT_META.get(full_tkr, {})
+    currency = _first_nonempty_str(holding.get("currency"))
+    if currency is None:
+        security_meta = get_security_meta(full_tkr) or {}
+        currency = _first_nonempty_str(security_meta.get("currency"), instrument_meta.get("currency"))
+    row = {
+        "ticker": full_tkr,
+        "exchange": exch,
+        "currency": currency,
+        "instrument_type": instrument_meta.get("instrumentType") or instrument_meta.get("instrument_type"),
+    }
+    return _quote_currency_key(row)
 
 
 def _missing_fx_holdings(quote_currency: str, rows: List[dict]) -> List[dict]:

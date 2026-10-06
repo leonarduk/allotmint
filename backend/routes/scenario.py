@@ -1,15 +1,20 @@
 """Simple scenario testing endpoint."""
 
 import datetime as _dt
+import re
 from typing import List
 
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.common.data_loader import ProviderUnavailable, list_plots
 from backend.common.portfolio import build_owner_portfolio
+from backend.common.portfolio_utils import UNCONVERTED_HOLDINGS_KEY
 from backend.routes.events import get_event
 from backend.utils.scenario_tester import (
     _HORIZONS,
+    FX_SHOCK_KEY,
+    NON_SHOCKABLE_CURRENCIES,
+    apply_fx_shock,
     apply_price_shock,
 )
 from backend.utils.scenario_tester import apply_historical_event_portfolio as apply_historical_event
@@ -52,6 +57,76 @@ def run_scenario(
                 "delta_gbp": delta,
             }
         )
+    return results
+
+
+_CURRENCY_CODE = re.compile(r"[A-Za-z]{3}")
+
+
+def _shockable_currency(currency: str) -> str:
+    """``currency`` upper-cased, or a 400 when it is not a 3-letter code or is sterling."""
+    code = currency.strip()
+    if not _CURRENCY_CODE.fullmatch(code):
+        raise HTTPException(status_code=400, detail="currency must be a 3-letter code")
+    code = code.upper()
+    if code in NON_SHOCKABLE_CURRENCIES:
+        raise HTTPException(status_code=400, detail=f"{code} cannot move against GBP")
+    return code
+
+
+def _fx_shock_result(owner: str, pf: dict, currency: str, pct: float) -> dict:
+    shocked = apply_fx_shock(pf, currency, pct)
+    summary = shocked[FX_SHOCK_KEY]
+    baseline = summary["baseline_total_value_gbp"]
+    shocked_total = shocked["total_value_estimate_gbp"]
+    return {
+        "owner": owner,
+        "baseline_total_value_gbp": baseline,
+        "shocked_total_value_gbp": shocked_total,
+        "delta_gbp": round(shocked_total - baseline, 2),
+        "exposed_value_gbp": summary["exposed_value_gbp"],
+        "skipped_unknown_currency": summary["skipped_unknown_currency"],
+        UNCONVERTED_HOLDINGS_KEY: summary[UNCONVERTED_HOLDINGS_KEY],
+    }
+
+
+@router.get("/scenario/fx")
+def run_fx_scenario(
+    currency: str = Query(..., description="3-letter code of the currency that moves against GBP, e.g. USD"),
+    pct: float = Query(
+        ...,
+        gt=-100,
+        le=1000,
+        description="Change in the GBP value of one unit of `currency`, in percent (-10 = it weakens 10% vs GBP)",
+    ),
+):
+    """Revalue every owner's portfolio for ``currency`` moving ``pct`` percent against GBP (#9725).
+
+    Sign convention: ``pct`` is the change in the GBP value of one unit of
+    ``currency``. ``currency=USD&pct=-10`` means USD weakens 10% against GBP,
+    so each holding quoted in USD (``CASH.USD`` included) is worth 0.9x its
+    GBP value; GBP and GBX holdings never move. ``pct`` must be in
+    (-100, 1000]; GBP/GBX or a code that is not 3 letters is a 400.
+
+    Each owner's result has the ``/scenario`` fields plus
+    ``exposed_value_gbp`` (baseline GBP value of the holdings quoted in
+    ``currency``), ``skipped_unknown_currency`` (holdings not shocked because
+    their currency is unknown) and ``unconverted_holdings`` (holdings with no
+    usable FX rate, left out of both totals). Uses the GBP values already on
+    the portfolio, so no FX rate is fetched.
+    """
+    code = _shockable_currency(currency)
+    try:
+        owners = [p.owner for p in list_plots() if p.accounts]
+    except ProviderUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
+    results = []
+    for owner in owners:
+        try:
+            pf = build_owner_portfolio(owner)
+        except FileNotFoundError:
+            continue
+        results.append(_fx_shock_result(owner, pf, code, pct))
     return results
 
 

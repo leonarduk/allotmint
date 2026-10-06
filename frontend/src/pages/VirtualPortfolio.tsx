@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   createAccount as createSavedAccount,
   createManualHolding,
@@ -151,6 +152,7 @@ function savedAccountType(name: string): string {
 }
 
 export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [accounts, setAccounts] =
     useState<ManualAccount[]>(readInitialAccounts);
@@ -188,9 +190,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
       return true;
     } catch {
       setAccounts(previous);
-      setStatusMessage(
-        'Changes were not saved in this browser. Try freeing local storage space.'
-      );
+      setStatusMessage(t("virtualPortfolio.status.notSaved"));
       return false;
     }
   };
@@ -199,7 +199,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
     event?.preventDefault();
     const trimmed = newAccountName.trim();
     if (!trimmed) {
-      setStatusMessage('Enter an account name before adding it.');
+      setStatusMessage(t("virtualPortfolio.status.enterName"));
       return;
     }
 
@@ -207,7 +207,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
       (account) => account.name.trim().toLowerCase() === trimmed.toLowerCase()
     );
     if (isDuplicateName) {
-      setStatusMessage('Use a unique account name.');
+      setStatusMessage(t("virtualPortfolio.status.uniqueName"));
       return;
     }
 
@@ -239,7 +239,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
 
     const trimmed = draft.trim();
     if (!trimmed) {
-      setStatusMessage('Account name cannot be empty.');
+      setStatusMessage(t("virtualPortfolio.status.nameEmpty"));
       // Revert draft to last-saved name so the input shows the correct value.
       const saved = accounts.find((a) => a.id === accountId)?.name ?? '';
       setDraftNames((prev) => ({ ...prev, [accountId]: saved }));
@@ -252,7 +252,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
         account.name.trim().toLowerCase() === trimmed.toLowerCase()
     );
     if (isDuplicateName) {
-      setStatusMessage('Account names must stay unique.');
+      setStatusMessage(t("virtualPortfolio.status.namesUnique"));
       const saved = accounts.find((a) => a.id === accountId)?.name ?? '';
       setDraftNames((prev) => ({ ...prev, [accountId]: saved }));
       return;
@@ -378,9 +378,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
       setShowCommitConfirmation(false);
       navigate('/portfolio');
     } catch {
-      setStatusMessage(
-        'The draft could not be fully committed. Your local draft is unchanged; check your saved portfolio before trying again.'
-      );
+      setStatusMessage(t("virtualPortfolio.status.commitFailed"));
     } finally {
       setIsCommitting(false);
     }
@@ -390,15 +388,13 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
     <div className="container mx-auto max-w-5xl space-y-6 p-4">
       <header>
         <p className="mb-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-900">
-          Local draft
+          {t("virtualPortfolio.badge")}
         </p>
         <h1 className="text-2xl font-semibold md:text-4xl">
-          Family Manual Portfolio Draft
+          {t("virtualPortfolio.title")}
         </h1>
         <p className="mt-2 text-sm text-slate-600">
-          Explore a possible family portfolio without changing your saved
-          portfolio. This draft is stored only in this browser and is not saved
-          to your AllotMint account.
+          {t("virtualPortfolio.intro")}
         </p>
       </header>
 
@@ -407,19 +403,17 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
         aria-labelledby="local-draft-notice"
       >
         <h2 id="local-draft-notice" className="font-semibold">
-          This draft stays separate
+          {t("virtualPortfolio.notice.title")}
         </h2>
         <p className="mt-1">
-          Draft accounts and holdings cannot currently be transferred
-          automatically. To keep them in your account, open your saved portfolio
-          and use Add account, Add position, or Import CSV.
+          {t("virtualPortfolio.notice.body")}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <a
             href="/portfolio"
             className="inline-flex rounded bg-slate-900 px-4 py-2 font-medium text-white hover:bg-slate-700"
           >
-            Open saved portfolio
+            {t("virtualPortfolio.notice.openPortfolio")}
           </a>
           {committableAccounts.length > 0 && (
             <button
@@ -427,13 +421,13 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
               disabled={!owner}
               title={
                 !owner
-                  ? 'Select a portfolio owner before committing this draft.'
+                  ? t("virtualPortfolio.notice.selectOwner")
                   : undefined
               }
               className="rounded border border-amber-700 px-4 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => setShowCommitConfirmation(true)}
             >
-              Commit to portfolio
+              {t("virtualPortfolio.notice.commit")}
             </button>
           )}
         </div>
@@ -447,13 +441,12 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
           className="rounded border border-slate-300 bg-white p-4 shadow-lg"
         >
           <h2 id="commit-draft-title" className="text-lg font-semibold">
-            Commit this draft?
+            {t("virtualPortfolio.confirm.title")}
           </h2>
           <p className="mt-2 text-sm text-slate-600">
-            This will copy {committableAccounts.length} draft{' '}
-            {committableAccounts.length === 1 ? 'account' : 'accounts'} and
-            their holdings into your saved portfolio. Your browser-local draft
-            will be kept unchanged.
+            {t('virtualPortfolio.confirm.body', {
+              count: committableAccounts.length,
+            })}
           </p>
           <div className="mt-4 flex gap-2">
             <button
@@ -462,7 +455,9 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
               className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
               onClick={() => void commitToPortfolio()}
             >
-              {isCommitting ? 'Committing…' : 'Confirm commit'}
+              {isCommitting
+                ? t('virtualPortfolio.confirm.committing')
+                : t('virtualPortfolio.confirm.confirm')}
             </button>
             <button
               type="button"
@@ -470,7 +465,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
               className="rounded border border-slate-300 px-4 py-2 disabled:opacity-50"
               onClick={() => setShowCommitConfirmation(false)}
             >
-              Cancel
+              {t("virtualPortfolio.confirm.cancel")}
             </button>
           </div>
         </div>
@@ -486,12 +481,12 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
         className="rounded border border-slate-200 p-4"
         onSubmit={addAccount}
       >
-        <h2 className="text-lg font-medium">Add account</h2>
+        <h2 className="text-lg font-medium">{t("virtualPortfolio.addAccount.title")}</h2>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <input
             className="w-full rounded border border-slate-300 px-3 py-2"
             type="text"
-            placeholder="Account name (e.g. ISA, Pension, Brokerage)"
+            placeholder={t("virtualPortfolio.addAccount.placeholder")}
             value={newAccountName}
             onChange={(e) => setNewAccountName(e.target.value)}
           />
@@ -500,7 +495,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
             className="rounded bg-slate-900 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!canAddAccount}
           >
-            Add account
+            {t("virtualPortfolio.addAccount.button")}
           </button>
         </div>
       </form>
@@ -508,8 +503,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
       <section className="space-y-4">
         {accounts.length === 0 && (
           <p className="rounded border border-dashed border-slate-300 p-4 text-sm text-slate-600">
-            No accounts yet. Add at least two accounts to complete the initial
-            setup.
+            {t("virtualPortfolio.empty")}
           </p>
         )}
         {accounts.map((account) => (
@@ -527,14 +521,14 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
                   handleAccountNameChange(account.id, e.target.value)
                 }
                 onBlur={() => commitAccountName(account.id)}
-                aria-label="Account name"
+                aria-label={t("virtualPortfolio.accountName")}
               />
               <button
                 type="button"
                 className="rounded border border-red-300 px-3 py-2 text-sm text-red-600"
                 onClick={() => deleteAccount(account.id)}
               >
-                Remove account
+                {t("virtualPortfolio.removeAccount")}
               </button>
             </div>
 
@@ -542,12 +536,12 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
               <table className="w-full min-w-[680px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 text-left">
-                    <th className="px-2 py-2">Ticker</th>
-                    <th className="px-2 py-2">Total value</th>
-                    <th className="px-2 py-2">Units</th>
-                    <th className="px-2 py-2">Price</th>
-                    <th className="px-2 py-2" aria-label="Actions">
-                      Actions
+                    <th className="px-2 py-2">{t("virtualPortfolio.columns.ticker")}</th>
+                    <th className="px-2 py-2">{t("virtualPortfolio.columns.totalValue")}</th>
+                    <th className="px-2 py-2">{t("virtualPortfolio.columns.units")}</th>
+                    <th className="px-2 py-2">{t("virtualPortfolio.columns.price")}</th>
+                    <th className="px-2 py-2" aria-label={t('virtualPortfolio.columns.actions')}>
+                      {t('virtualPortfolio.columns.actions')}
                     </th>
                   </tr>
                 </thead>
@@ -630,9 +624,9 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
                           className="rounded border border-slate-300 px-2 py-1 disabled:cursor-not-allowed disabled:opacity-40"
                           disabled={account.holdings.length <= 1}
                           onClick={() => removeHolding(account.id, holding.id)}
-                          aria-label="Remove holding"
+                          aria-label={t("virtualPortfolio.removeHolding")}
                         >
-                          Remove
+                          {t("virtualPortfolio.remove")}
                         </button>
                       </td>
                     </tr>
@@ -646,7 +640,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
               className="mt-3 rounded border border-slate-300 px-3 py-2 text-sm"
               onClick={() => addHolding(account.id)}
             >
-              Add holding
+              {t("virtualPortfolio.addHolding")}
             </button>
           </article>
         ))}
@@ -654,7 +648,7 @@ export function VirtualPortfolio({ owner = '' }: VirtualPortfolioProps) {
 
       <details className="rounded border border-slate-200 p-3">
         <summary className="cursor-pointer text-sm font-medium">
-          Preview saved payload
+          {t("virtualPortfolio.preview")}
         </summary>
         <pre className="mt-2 overflow-x-auto rounded bg-slate-50 p-3 text-xs">
           {JSON.stringify({ accounts: normalizedPreview }, null, 2)}

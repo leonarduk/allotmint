@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useTranslation } from "react-i18next";
 import { Check, ChevronLeft, ChevronRight, Copy, Download, Pencil, RefreshCw } from "lucide-react";
 import type { ChatFile, ChatMessage } from "../api";
 import { downloadChatFile } from "../lib/chatFileDownload";
@@ -28,6 +29,7 @@ const COPY_FEEDBACK_MS = 2000;
 // Copies the raw message text: for an assistant reply that is its Markdown
 // source, not the rendered HTML (#8590).
 function CopyButton({ text }: { text: string }) {
+  const { t } = useTranslation();
   const [state, setState] = useState<CopyState>("idle");
 
   useEffect(() => {
@@ -50,13 +52,17 @@ function CopyButton({ text }: { text: string }) {
   return (
     <>
       <span className="chat-message-copy-status" aria-live="polite">
-        {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : ""}
+        {state === "copied"
+          ? t("chatMessage.copied")
+          : state === "failed"
+            ? t("chatMessage.copyFailed")
+            : ""}
       </span>
       <button
         type="button"
         className="chat-message-action"
-        aria-label="Copy message"
-        title="Copy"
+        aria-label={t("chatMessage.copyMessage")}
+        title={t("chatMessage.copy")}
         onClick={() => void copy()}
       >
         {state === "copied" ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
@@ -74,6 +80,7 @@ interface EditFormProps {
 }
 
 function EditForm({ draft, disabled, onChange, onSave, onCancel }: EditFormProps) {
+  const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Focus with the caret at the end (autoFocus puts it at the start), so
@@ -94,7 +101,7 @@ function EditForm({ draft, disabled, onChange, onSave, onCancel }: EditFormProps
       style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}
     >
       <textarea
-        aria-label="Edited message"
+        aria-label={t("chatMessage.editedMessage")}
         ref={textareaRef}
         value={draft}
         rows={Math.min(8, Math.max(2, draft.split("\n").length))}
@@ -117,10 +124,10 @@ function EditForm({ draft, disabled, onChange, onSave, onCancel }: EditFormProps
       />
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
         <button type="button" onClick={onCancel}>
-          Cancel
+          {t("chatMessage.cancel")}
         </button>
         <button type="submit" disabled={disabled || !draft.trim()}>
-          Save &amp; regenerate
+          {t("chatMessage.saveAndRegenerate")}
         </button>
       </div>
     </form>
@@ -139,25 +146,26 @@ export interface ChatMessageVersion {
 // (#8842). Always visible, unlike the hover actions, so the user can see that
 // other versions exist.
 function VersionSwitcher({ version, busy }: { version: ChatMessageVersion; busy: boolean }) {
+  const { t } = useTranslation();
   const { current, count, onSelect } = version;
   return (
-    <div className="chat-message-versions" role="group" aria-label="Message versions">
+    <div className="chat-message-versions" role="group" aria-label={t("chatMessage.messageVersions")}>
       <button
         type="button"
         className="chat-message-action"
-        aria-label="Previous version"
+        aria-label={t("chatMessage.previousVersion")}
         onClick={() => onSelect(-1)}
         disabled={busy || current <= 1}
       >
         <ChevronLeft size={14} aria-hidden />
       </button>
-      <span aria-live="polite" title={`Version ${current} of ${count}`}>
+      <span aria-live="polite" title={t("chatMessage.versionOf", { current, count })}>
         {current} / {count}
       </span>
       <button
         type="button"
         className="chat-message-action"
-        aria-label="Next version"
+        aria-label={t("chatMessage.nextVersion")}
         onClick={() => onSelect(1)}
         disabled={busy || current >= count}
       >
@@ -169,8 +177,9 @@ function VersionSwitcher({ version, busy }: { version: ChatMessageVersion; busy:
 
 // Download buttons for the files the assistant exported with this reply (#9039).
 function ChatFiles({ files }: { files: ChatFile[] }) {
+  const { t } = useTranslation();
   return (
-    <ul className="chat-message-files" aria-label="Exported files" style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
+    <ul className="chat-message-files" aria-label={t("chatMessage.exportedFiles")} style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
       {files.map((file, i) => (
         <li key={`${i}-${file.filename}`}>
           <button
@@ -179,7 +188,7 @@ function ChatFiles({ files }: { files: ChatFile[] }) {
             style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
           >
             <Download size={14} aria-hidden />
-            Download {file.filename}
+            {t("chatMessage.download", { filename: file.filename })}
           </button>
         </li>
       ))}
@@ -211,11 +220,12 @@ interface Props {
 }
 
 export function ChatMessageItem({ message, files, busy, onEdit, onRegenerate, editing, version }: Props) {
+  const { t } = useTranslation();
   const isUser = message.role === "user";
   return (
     <li
       className="chat-message"
-      aria-label={isUser ? "You" : "Assistant"}
+      aria-label={isUser ? t("chatMessage.you") : t("chatMessage.assistant")}
       style={{
         alignSelf: isUser ? "flex-end" : "stretch",
         maxWidth: isUser ? "85%" : "100%",
@@ -257,8 +267,8 @@ export function ChatMessageItem({ message, files, busy, onEdit, onRegenerate, ed
                 <button
                   type="button"
                   className="chat-message-action"
-                  aria-label="Edit message"
-                  title="Edit"
+                  aria-label={t("chatMessage.editMessage")}
+                  title={t("chatMessage.edit")}
                   onClick={onEdit}
                   disabled={busy}
                 >
@@ -269,8 +279,8 @@ export function ChatMessageItem({ message, files, busy, onEdit, onRegenerate, ed
                 <button
                   type="button"
                   className="chat-message-action"
-                  aria-label="Regenerate reply"
-                  title="Regenerate"
+                  aria-label={t("chatMessage.regenerateReply")}
+                  title={t("chatMessage.regenerate")}
                   onClick={onRegenerate}
                   disabled={busy}
                 >

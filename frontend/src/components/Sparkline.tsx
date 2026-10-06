@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   useInstrumentHistory,
   getCachedInstrumentHistory,
@@ -86,6 +87,7 @@ function SparklineFromData({
   ariaLabel,
   tabIndex,
 }: SparklineDataProps) {
+  const { t } = useTranslation();
   const series =
     (data as any[])?.map((d) =>
       typeof d === "number" ? d : (d?.price as number),
@@ -97,7 +99,7 @@ function SparklineFromData({
       width={width ?? 100}
       height={height ?? 20}
       color={color ?? "#8884d8"}
-      ariaLabel={ariaLabel ?? "Price trend"}
+      ariaLabel={ariaLabel ?? t("sparkline.priceTrend")}
       tabIndex={tabIndex ?? 0}
     />
   );
@@ -112,6 +114,8 @@ function SparklineFromFetch({
   ariaLabel,
   tabIndex,
 }: SparklineFetchProps) {
+  const { t } = useTranslation();
+  const defaultLabel = t("sparkline.priceTrendFor", { ticker });
   const { data, error } = useInstrumentHistory(ticker, days, { acceptMiniOnly: true });
   const cached = getCachedInstrumentHistory(ticker, days);
   const points = (cached ?? data)?.mini?.[String(days)] ?? [];
@@ -131,7 +135,7 @@ function SparklineFromFetch({
         width={width ?? 100}
         height={height ?? 20}
         color={color ?? "#8884d8"}
-        ariaLabel={ariaLabel ?? `Price trend for ${ticker}`}
+        ariaLabel={ariaLabel ?? defaultLabel}
         tabIndex={tabIndex ?? 0}
       />
     );
@@ -143,7 +147,7 @@ function SparklineFromFetch({
       width={width ?? 100}
       height={height ?? 20}
       color={color ?? "#8884d8"}
-      ariaLabel={ariaLabel ?? `Price trend for ${ticker}`}
+      ariaLabel={ariaLabel ?? defaultLabel}
       tabIndex={tabIndex ?? 0}
     />
   );

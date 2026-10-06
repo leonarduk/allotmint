@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import type { Account } from "../types";
 import { money, percent } from "../lib/money";
 import { useConfig } from "../ConfigContext";
@@ -143,6 +145,7 @@ export function computePortfolioTotals(accounts: Account[]): PortfolioTotals {
 }
 
 function buildGainNote(
+  t: TFunction,
   unknownCostBasisCount: number,
   unpricedHoldingCount: number,
   unpricedMissingFxCount: number,
@@ -151,24 +154,42 @@ function buildGainNote(
 ): string | undefined {
   // Names a missing FX rate as the cause of a missing price (#9730).
   const fxCause =
-    unpricedMissingFxCount > 0 ? ` (${unpricedMissingFxCount} with no FX rate)` : "";
+    unpricedMissingFxCount > 0
+      ? ` ${t("portfolioSummary.fxCause", { count: unpricedMissingFxCount })}`
+      : "";
   if (allGainUnknown) {
     const reason =
       unpricedHoldingCount === 0
-        ? "no reliable cost basis"
+        ? t("portfolioSummary.reasonNoCostBasis")
         : unknownCostBasisCount === 0
-          ? "no price"
-          : "no reliable cost basis or no price";
-    return `Gain unavailable for all ${gainEligibleHoldingCount} holdings (${reason})${fxCause}`;
+          ? t("portfolioSummary.reasonNoPrice")
+          : t("portfolioSummary.reasonNoCostBasisOrPrice");
+    return t("portfolioSummary.gainUnavailable", {
+      total: gainEligibleHoldingCount,
+      reason,
+      fxCause,
+    });
   }
   if (unknownCostBasisCount > 0 && unpricedHoldingCount > 0) {
-    return `Excludes ${unknownCostBasisCount} of ${gainEligibleHoldingCount} holdings with no reliable cost basis and ${unpricedHoldingCount} with no price${fxCause}`;
+    return t("portfolioSummary.excludesBoth", {
+      unknown: unknownCostBasisCount,
+      total: gainEligibleHoldingCount,
+      unpriced: unpricedHoldingCount,
+      fxCause,
+    });
   }
   if (unknownCostBasisCount > 0) {
-    return `Excludes ${unknownCostBasisCount} of ${gainEligibleHoldingCount} holdings with no reliable cost basis`;
+    return t("portfolioSummary.excludesNoCostBasis", {
+      unknown: unknownCostBasisCount,
+      total: gainEligibleHoldingCount,
+    });
   }
   if (unpricedHoldingCount > 0) {
-    return `Excludes ${unpricedHoldingCount} of ${gainEligibleHoldingCount} holdings with no price${fxCause}`;
+    return t("portfolioSummary.excludesNoPrice", {
+      unpriced: unpricedHoldingCount,
+      total: gainEligibleHoldingCount,
+      fxCause,
+    });
   }
   return undefined;
 }
@@ -191,6 +212,7 @@ export function PortfolioSummary({ totals }: Props) {
     unpricedMissingFxCount,
   } = totals;
   const { baseCurrency } = useConfig();
+  const { t } = useTranslation();
 
   // When every gain-eligible holding is excluded (unknown cost basis or no
   // price), totalCost/totalGain are both zero -- not because the portfolio broke
@@ -200,6 +222,7 @@ export function PortfolioSummary({ totals }: Props) {
     gainEligibleHoldingCount > 0 &&
     unknownCostBasisCount + unpricedHoldingCount === gainEligibleHoldingCount;
   const gainNote = buildGainNote(
+    t,
     unknownCostBasisCount,
     unpricedHoldingCount,
     unpricedMissingFxCount,
@@ -210,7 +233,7 @@ export function PortfolioSummary({ totals }: Props) {
   // to the total value; say so rather than let the total read as complete (#9730).
   const valueNote =
     missingFxHoldingCount > 0
-      ? `Excludes ${missingFxHoldingCount} ${missingFxHoldingCount === 1 ? "holding" : "holdings"} with no FX rate`
+      ? t("portfolioSummary.excludesNoFx", { count: missingFxHoldingCount })
       : undefined;
 
   return (
@@ -227,23 +250,23 @@ export function PortfolioSummary({ totals }: Props) {
       }}
     >
       <SummaryCard
-        label="Stock value"
+        label={t("portfolioSummary.stockValue")}
         icon={<LineChart size={20} />}
         value={money(totalStockValue, baseCurrency)}
       />
       <SummaryCard
-        label="Total cash"
+        label={t("portfolioSummary.totalCash")}
         icon={<Wallet size={20} />}
         value={money(totalCash, baseCurrency)}
       />
       <SummaryCard
-        label="Total value"
+        label={t("portfolioSummary.totalValue")}
         icon={<PiggyBank size={20} />}
         value={money(totalValue, baseCurrency)}
         note={valueNote}
       />
       <SummaryCard
-        label="Gain/loss"
+        label={t("portfolioSummary.gainLoss")}
         icon={<TrendingUp size={20} />}
         value={allGainUnknown ? "—" : money(totalGain, baseCurrency)}
         accentColor={

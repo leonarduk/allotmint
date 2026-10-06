@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getTransactions, splitTransaction, updateTransaction } from '../api';
 import { useDemoReadOnly } from '../hooks/useDemoReadOnly';
 import tableStyles from '../styles/table.module.css';
@@ -23,6 +24,7 @@ const rowUnits = (tx: Transaction) => tx.units ?? tx.shares ?? null;
  * through POST /transactions/{id}/split.
  */
 export function InstrumentTransactions({ ticker }: Props) {
+  const { t } = useTranslation();
   const { demoReadOnly, reason } = useDemoReadOnly();
   const [rows, setRows] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,9 @@ export function InstrumentTransactions({ ticker }: Props) {
       .catch((err) => {
         if (active)
           setError(
-            err instanceof Error ? err.message : 'Failed to load transactions.'
+            err instanceof Error
+              ? err.message
+              : t('instrumentTransactions.loadFailed')
           );
       })
       .finally(() => {
@@ -52,7 +56,7 @@ export function InstrumentTransactions({ ticker }: Props) {
     return () => {
       active = false;
     };
-  }, [ticker, refreshKey]);
+  }, [ticker, refreshKey, t]);
 
   const run = useCallback(
     async (action: () => Promise<unknown>, failure: string) => {
@@ -79,7 +83,7 @@ export function InstrumentTransactions({ ticker }: Props) {
     }
     void run(
       () => updateTransaction(tx.id as string, built.payload),
-      'Failed to update transaction.'
+      t('instrumentTransactions.updateFailed')
     );
   };
 
@@ -87,12 +91,12 @@ export function InstrumentTransactions({ ticker }: Props) {
     const first = Number(unitsText);
     const total = Number(rowUnits(tx));
     if (!Number.isFinite(first) || first <= 0 || first >= total) {
-      setError(`Enter units greater than 0 and less than ${total}.`);
+      setError(t('instrumentTransactions.splitRange', { total }));
       return;
     }
     void run(
       () => splitTransaction(tx.id as string, first),
-      'Failed to split transaction.'
+      t('instrumentTransactions.splitFailed')
     );
   };
 
@@ -108,30 +112,40 @@ export function InstrumentTransactions({ ticker }: Props) {
       <table className={tableStyles.table} style={{ fontSize: '0.85rem' }}>
         <thead>
           <tr>
-            <th className={tableStyles.cell}>Date</th>
-            <th className={tableStyles.cell}>Owner</th>
-            <th className={tableStyles.cell}>Account</th>
-            <th className={tableStyles.cell}>Type</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-              Units
+            <th className={tableStyles.cell}>
+              {t('instrumentTransactions.date')}
+            </th>
+            <th className={tableStyles.cell}>
+              {t('instrumentTransactions.owner')}
+            </th>
+            <th className={tableStyles.cell}>
+              {t('instrumentTransactions.account')}
+            </th>
+            <th className={tableStyles.cell}>
+              {t('instrumentTransactions.type')}
             </th>
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-              Price £
+              {t('instrumentTransactions.units')}
             </th>
-            <th className={tableStyles.cell}>Actions</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              {t('instrumentTransactions.priceGbp')}
+            </th>
+            <th className={tableStyles.cell}>
+              {t('instrumentTransactions.actions')}
+            </th>
           </tr>
         </thead>
         <tbody>
           {loading ? (
             <tr>
               <td className={tableStyles.cell} colSpan={7}>
-                Loading…
+                {t('common.loading')}
               </td>
             </tr>
           ) : rows.length === 0 ? (
             <tr>
               <td className={tableStyles.cell} colSpan={7}>
-                No transactions for {ticker}.
+                {t('instrumentTransactions.empty', { ticker })}
               </td>
             </tr>
           ) : (
@@ -170,7 +184,7 @@ export function InstrumentTransactions({ ticker }: Props) {
                         {active?.kind === 'split' ? (
                           <span>
                             <input
-                              aria-label="Units in first part"
+                              aria-label={t('instrumentTransactions.unitsFirstPart')}
                               type="number"
                               value={active.units}
                               style={{ width: '6rem' }}
@@ -183,10 +197,10 @@ export function InstrumentTransactions({ ticker }: Props) {
                               disabled={saving}
                               onClick={() => saveSplit(tx, active.units)}
                             >
-                              Confirm split
+                              {t('instrumentTransactions.confirmSplit')}
                             </button>{' '}
                             <button type="button" onClick={() => setMode(null)}>
-                              Cancel
+                              {t('common.cancel')}
                             </button>
                           </span>
                         ) : (
@@ -202,7 +216,7 @@ export function InstrumentTransactions({ ticker }: Props) {
                                 })
                               }
                             >
-                              Edit
+                              {t('instrumentTransactions.edit')}
                             </button>{' '}
                             <button
                               type="button"
@@ -215,7 +229,7 @@ export function InstrumentTransactions({ ticker }: Props) {
                                 })
                               }
                             >
-                              Split
+                              {t('instrumentTransactions.split')}
                             </button>
                           </span>
                         )}
@@ -247,6 +261,7 @@ function EditCells({
   onSave,
   onCancel,
 }: EditCellsProps) {
+  const { t } = useTranslation();
   const field = (
     key: keyof TransactionFormValues,
     label: string,
@@ -262,18 +277,18 @@ function EditCells({
   );
   return (
     <>
-      <td className={tableStyles.cell}>{field('date', 'Date', 'date')}</td>
+      <td className={tableStyles.cell}>{field('date', t('instrumentTransactions.date'), 'date')}</td>
       <td className={tableStyles.cell} colSpan={3}>
-        {field('reason', 'Reason')}
+        {field('reason', t('common.reason'))}
       </td>
-      <td className={tableStyles.cell}>{field('units', 'Units', 'number')}</td>
-      <td className={tableStyles.cell}>{field('price', 'Price', 'number')}</td>
+      <td className={tableStyles.cell}>{field('units', t('instrumentTransactions.units'), 'number')}</td>
+      <td className={tableStyles.cell}>{field('price', t('instrumentTransactions.price'), 'number')}</td>
       <td className={tableStyles.cell}>
         <button type="button" disabled={saving} onClick={onSave}>
-          Save
+          {t('instrumentTransactions.save')}
         </button>{' '}
         <button type="button" onClick={onCancel}>
-          Cancel
+          {t('common.cancel')}
         </button>
       </td>
     </>

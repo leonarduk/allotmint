@@ -12,6 +12,7 @@ from backend.common.allocation_policy import (
     parse_policy,
     save_allocation_policy,
 )
+from backend.common.portfolio_loader import ACCOUNT_STEM_KEY
 from backend.common.rebalance_plan import (
     UNCLASSIFIED,
     _water_fill,
@@ -32,7 +33,14 @@ def _h(ticker, value, asset_class=None, instrument_type=None):
 
 
 def _portfolio(*accounts):
-    return {"accounts": [{"account_type": name, "holdings": list(holdings)} for name, holdings in accounts]}
+    # The route builds portfolios with include_account_stem=True; the stem
+    # (here the lower-cased name) is each account's stable id (#9496).
+    return {
+        "accounts": [
+            {"account_type": name, ACCOUNT_STEM_KEY: name.lower(), "holdings": list(holdings)}
+            for name, holdings in accounts
+        ]
+    }
 
 
 def _policy(tolerance=5.0, **targets):
@@ -138,6 +146,49 @@ def test_bucket_holdings_cash_unclassified_and_unpriced():
     assert holdings.accounts[0].cash == pytest.approx(100)
 
 
+def test_account_ids_are_stable_when_accounts_are_reordered():
+    isa = ("ISA", [_h("EQ1", 700, "equity"), _h("BD1", 100, "bond")])
+    sipp = ("SIPP", [_h("EQ2", 200, "equity"), _h("BD2", 100, "bond")])
+    first = bucket_holdings(_portfolio(isa, sipp))
+    reordered = bucket_holdings(_portfolio(sipp, isa))
+
+    assert [a.id for a in first.accounts] == ["isa", "sipp"]
+    assert {a.id: a.label for a in reordered.accounts} == {"isa": "ISA", "sipp": "SIPP"}
+
+    # A new-cash request made with the id from the first plan still targets
+    # the SIPP after the order changes.
+    policy = _policy(5, equity=60, bond=40)
+    result = suggest_new_cash(reordered, policy, 500, first.accounts[1].id)
+    assert result["account"] == "SIPP"
+    assert {t["ticker"] for t in result["trades"]} <= {"EQ2", "BD2"}
+
+
+def test_accounts_with_the_same_type_get_distinct_ids():
+    portfolio = {
+        "accounts": [
+            {"account_type": "ISA", ACCOUNT_STEM_KEY: "isa", "holdings": [_h("EQ1", 100, "equity")]},
+            {"account_type": "ISA", ACCOUNT_STEM_KEY: "isa_2", "holdings": [_h("EQ2", 100, "equity")]},
+        ]
+    }
+    assert [a.id for a in bucket_holdings(portfolio).accounts] == ["isa", "isa_2"]
+
+
+def test_missing_account_id_raises_instead_of_using_the_index():
+    with pytest.raises(ValueError, match="include_account_stem"):
+        bucket_holdings({"accounts": [{"account_type": "ISA", "holdings": []}]})
+
+
+def test_duplicate_account_id_raises():
+    portfolio = {
+        "accounts": [
+            {"account_type": "ISA", ACCOUNT_STEM_KEY: "isa", "holdings": []},
+            {"account_type": "SIPP", ACCOUNT_STEM_KEY: "isa", "holdings": []},
+        ]
+    }
+    with pytest.raises(ValueError, match="Duplicate account id 'isa'"):
+        bucket_holdings(portfolio)
+
+
 def test_plan_without_policy_shows_current_weights_only():
     plan = build_plan(_portfolio(("ISA", [_h("AAA", 750, "equity"), _h("CASH.GBP", 250)])), AllocationPolicy())
     rows = {row["asset_class"]: row for row in plan["classes"]}
@@ -236,7 +287,7 @@ def test_cash_is_never_sold_and_only_excess_cash_is_deployed():
     # Equity needs +200 to reach 900; cash above its 10% target is exactly 200.
     assert buys == [
         {
-            "account_id": "0",
+            "account_id": "isa",
             "account": "ISA",
             "asset_class": "equity",
             "action": "buy",
@@ -384,7 +435,7 @@ def test_new_cash_is_buy_only_in_chosen_account_and_reduces_drift():
     )
     policy = _policy(5, equity=60, bond=40)
     holdings = bucket_holdings(portfolio)
-    result = suggest_new_cash(holdings, policy, 500, "1")
+    result = suggest_new_cash(holdings, policy, 500, "sipp")
 
     assert result["account"] == "SIPP"
     assert all(t["action"] == "buy" and t["account"] == "SIPP" for t in result["trades"])
@@ -409,7 +460,7 @@ def test_new_cash_reduces_total_absolute_drift():
     )
     policy = _policy(5, equity=60, bond=30, property=10)
     before = _total_abs_drift(holdings, policy)
-    result = suggest_new_cash(holdings, policy, 300, "0")
+    result = suggest_new_cash(holdings, policy, 300, "isa")
     bought = {t["asset_class"]: t["amount"] for t in result["trades"]}
     after = _total_abs_drift(holdings, policy, bought)
     assert sum(bought.values()) == pytest.approx(300)
@@ -428,7 +479,7 @@ def test_water_fill_never_allocates_more_than_the_gaps():
 
 def test_new_cash_allocates_to_cash_target_as_keep():
     holdings = bucket_holdings(_portfolio(("ISA", [_h("EQ1", 1000, "equity")])))
-    result = suggest_new_cash(holdings, _policy(5, equity=50, cash=50), 400, "0")
+    result = suggest_new_cash(holdings, _policy(5, equity=50, cash=50), 400, "isa")
     assert result["trades"] == []
     assert result["keep_as_cash"] == 400.0
 
@@ -436,10 +487,10 @@ def test_new_cash_allocates_to_cash_target_as_keep():
 @pytest.mark.parametrize(
     "policy, amount, account, match",
     [
-        (AllocationPolicy(), 100, "0", "Set target"),
-        (_policy(equity=100), 0, "0", "positive"),
-        (_policy(equity=100), float("nan"), "0", "positive"),
-        (_policy(equity=100), 100, "9", "Unknown account"),
+        (AllocationPolicy(), 100, "isa", "Set target"),
+        (_policy(equity=100), 0, "isa", "positive"),
+        (_policy(equity=100), float("nan"), "isa", "positive"),
+        (_policy(equity=100), 100, "0", "Unknown account"),
     ],
 )
 def test_new_cash_rejects_invalid_input(policy, amount, account, match):

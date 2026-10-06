@@ -29,6 +29,7 @@ from backend.common.data_loader import (
 from backend.common.holding_utils import enrich_holding
 from backend.common.holdings_rebuild import transaction_cost_hints
 from backend.common.path_utils import safe_join
+from backend.common.portfolio_loader import ACCOUNT_STEM_KEY
 from backend.common.position_returns import attach_total_returns
 from backend.common.ticker_utils import canonical_ticker
 from backend.common.user_config import load_user_config
@@ -266,7 +267,17 @@ def build_owner_portfolio(
     *,
     root: Optional[Path] = None,
     pricing_date: Optional[dt.date] = None,
+    include_account_stem: bool = False,
 ) -> Dict[str, Any]:
+    """Build ``owner``'s portfolio from their account files.
+
+    ``include_account_stem`` tags each account with its file stem under
+    :data:`~backend.common.portfolio_loader.ACCOUNT_STEM_KEY` -- a stable,
+    per-owner-unique key (``isa`` for ``<owner>/isa.json``) for callers that
+    need to refer to an account across requests (#9496). It is off by default
+    because ``AccountContract`` forbids extra keys, so API responses that
+    serialise accounts directly must not carry it.
+    """
     if root is not None:
         accounts_root = root
     calc = PricingDateCalculator(reporting_date=pricing_date)
@@ -325,15 +336,16 @@ def build_owner_portfolio(
         add_total_returns(owner, str(meta), enriched, accounts_root)
         val_gbp = sum(float(h.get("market_value_gbp") or 0.0) for h in enriched)
 
-        accounts.append(
-            {
-                "account_type": raw.account_type or str(meta).upper(),
-                "currency": raw.currency or "GBP",
-                "last_updated": raw.last_updated,
-                "value_estimate_gbp": val_gbp,
-                "holdings": enriched,
-            }
-        )
+        account: Dict[str, Any] = {
+            "account_type": raw.account_type or str(meta).upper(),
+            "currency": raw.currency or "GBP",
+            "last_updated": raw.last_updated,
+            "value_estimate_gbp": val_gbp,
+            "holdings": enriched,
+        }
+        if include_account_stem:
+            account[ACCOUNT_STEM_KEY] = str(meta)
+        accounts.append(account)
 
     total_val = sum(a["value_estimate_gbp"] for a in accounts)
 

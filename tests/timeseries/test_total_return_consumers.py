@@ -579,3 +579,19 @@ def test_timeseries_for_ticker_stays_on_price(store, monkeypatch):
     payload = instrument_api.timeseries_for_ticker("PAY.L", start_date=DATES[0].date(), end_date=DATES[-1].date())
 
     assert [row["close"] for row in payload["prices"]] == pytest.approx(CLOSES)
+
+
+@pytest.mark.parametrize(
+    ("ticker", "exchange", "expected"),
+    [
+        ("CASH", "GBP", True),
+        ("GBP", "CASH", True),
+        ("cash", "gbp", True),
+        ("CASHPLUS", "L", False),
+        ("PETROCASH", "L", False),
+        ("VWRL", "L", False),
+    ],
+)
+def test_is_cash_holding_matches_whole_ticker_or_exchange_only(ticker, exchange, expected):
+    """Only ``CASH.<ccy>`` / ``<ccy>.CASH`` count as cash, never a ticker that merely contains CASH."""
+    assert portfolio_utils._is_cash_holding(ticker, exchange) is expected

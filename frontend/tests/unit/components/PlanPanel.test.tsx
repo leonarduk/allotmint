@@ -220,8 +220,16 @@ describe('PlanPanel', () => {
   describe('after saving a plan (#9680)', () => {
     const plan_targets = { equity: 40, long_gilts: 40, gold: 20 };
 
-    async function saveReturning(status: 'active' | 'draft', matches = false) {
-      const response = makeResponse({ copy_supported: true, plan_targets });
+    async function saveReturning(
+      status: 'active' | 'draft' | 'superseded',
+      matches = false
+    ) {
+      // A non-default tolerance proves the copy keeps the saved policy's band.
+      const response = makeResponse({
+        copy_supported: true,
+        plan_targets,
+        tolerance_pct: 3.5,
+      });
       mockGetInvestmentPlan.mockResolvedValue(response);
       mockSaveInvestmentPlan.mockResolvedValue({
         ...response,
@@ -247,7 +255,7 @@ describe('PlanPanel', () => {
       await waitFor(() =>
         expect(mockSaveAllocationPolicy).toHaveBeenCalledWith('alex', {
           targets: plan_targets,
-          tolerance_pct: 5,
+          tolerance_pct: 3.5,
         })
       );
     });
@@ -284,15 +292,20 @@ describe('PlanPanel', () => {
       expect(mockSaveAllocationPolicy).not.toHaveBeenCalled();
     });
 
-    it('does not prompt for a draft plan', async () => {
-      await saveReturning('draft');
-      expect(
-        screen.queryByText('Update your rebalance targets to match this plan?')
-      ).not.toBeInTheDocument();
-      expect(
-        screen.getByText('Your rebalance targets differ from this plan.')
-      ).toBeInTheDocument();
-    });
+    it.each(['draft', 'superseded'] as const)(
+      'does not prompt for a %s plan',
+      async (status) => {
+        await saveReturning(status);
+        expect(
+          screen.queryByText(
+            'Update your rebalance targets to match this plan?'
+          )
+        ).not.toBeInTheDocument();
+        expect(
+          screen.getByText('Your rebalance targets differ from this plan.')
+        ).toBeInTheDocument();
+      }
+    );
 
     it('does not prompt when the targets already match', async () => {
       await saveReturning('active', true);

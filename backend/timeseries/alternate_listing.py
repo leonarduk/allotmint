@@ -14,6 +14,7 @@ an optional top-level ``price_source`` block::
       "ticker": "AIGE",
       "exchange": "MI",
       "currency": "EUR",
+      "mode": "primary",
       "rationale": "why this listing",
       "reviewed": "2026-10-06"
     }
@@ -25,6 +26,8 @@ an optional top-level ``price_source`` block::
 ``currency`` (optional)
     What that listing is quoted in; defaults to ``EXCHANGE_TO_CCY`` for the
     exchange. Yahoo's reported currency must match it, or the fetch is refused.
+``mode`` (optional)
+    ``"fill_gaps"`` (the default) or ``"primary"``; see *Fetch order* below.
 ``rationale``/``reviewed``
     Optional free text and ISO date, as for ``proxy``.
 
@@ -80,6 +83,31 @@ window including earlier converted rows (so a refresh window with no native
 close is still checked for continuity). If the check fails, nothing converted
 is used. If no stored close shares a date, the declared listing is trusted.
 
+Fetch order (#9712)
+-------------------
+With ``"fill_gaps"`` the instrument's own provider chain (Yahoo, Stooq, Alpha
+Vantage, FT) runs first and the converted listing only fills what it lacks.
+
+With ``"primary"`` the converted listing is fetched first. The native chain
+then runs only over the weekdays in the window that have no close in either the
+converted listing or the stored series, and not at all when there are none. Use
+it for a listing whose own history has decayed (AIGE.L), where the native chain
+returns nothing but ERRORs and timeouts. The merge rule and basis check above
+apply unchanged, to the stored series and whatever native rows are fetched, so
+a stored native row with a real close is still kept. The trade-off: on a date
+the converted listing covers, a native close that is not yet stored is never
+fetched, so the converted row is used. If the converted listing cannot be used
+at all (fetch or conversion failure, or a basis refusal), the whole window is
+fetched natively.
+
+Either way, while the native chain runs for an instrument with a valid
+``price_source``, the providers' own "no data" ERRORs and WARNINGs (including
+yfinance's "possibly delisted") are logged at INFO: the alternate listing is
+what prices the instrument, so they are not faults. Stooq and Alpha Vantage
+warnings about rate limits and cooldowns affect every ticker and keep their
+level. The downgrade is scoped to the calling context (:data:`_QUIET_NATIVE`),
+so concurrent fetches for other instruments are not affected.
+
 Because converted rows were checked here against the stored series,
 ``source_basis.compatible_rows`` does not re-check them in
 ``_rolling_cache``: gap-only rows share no dates with the cache, so that check
@@ -91,9 +119,11 @@ from __future__ import annotations
 
 import logging
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any, Mapping, Optional
+from typing import Any, Callable, Iterator, Mapping, Optional
 
 import pandas as pd
 import yfinance as yf
@@ -127,6 +157,11 @@ _SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9-]{0,11}$")
 _ISO_CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
 _PENCE_CODES = frozenset({"GBX"})
 
+# ``price_source.mode`` values (#9712); see the module docs.
+MODE_FILL_GAPS = "fill_gaps"
+MODE_PRIMARY = "primary"
+PRICE_SOURCE_MODES = (MODE_FILL_GAPS, MODE_PRIMARY)
+
 
 @dataclass(frozen=True)
 class PriceSource:
@@ -135,6 +170,7 @@ class PriceSource:
     ticker: str
     exchange: str
     currency: str
+    mode: str = MODE_FILL_GAPS
 
     @property
     def full_ticker(self) -> str:
@@ -189,6 +225,9 @@ def validate_price_source(meta: Mapping[str, Any] | None, *, own: str = "") -> l
     target = (meta or {}).get("currency")
     if not _is_iso_currency(target):
         problems.append(f"price_source: instrument currency {target!r} is not a supported ISO code")
+    mode = raw.get("mode")
+    if mode is not None and mode not in PRICE_SOURCE_MODES:
+        problems.append(f"price_source: mode {mode!r} is not one of {', '.join(PRICE_SOURCE_MODES)}")
     return problems
 
 
@@ -202,7 +241,59 @@ def parse_price_source(meta: Mapping[str, Any] | None, *, own: str = "") -> Pric
         return None
     exchange = str(raw["exchange"]).strip().upper()
     currency = str(raw.get("currency") or _default_currency(exchange)).strip()
-    return PriceSource(ticker=_split_ticker(raw["ticker"], exchange), exchange=exchange, currency=currency)
+    return PriceSource(
+        ticker=_split_ticker(raw["ticker"], exchange),
+        exchange=exchange,
+        currency=currency,
+        mode=raw.get("mode") or MODE_FILL_GAPS,
+    )
+
+
+# ──────────────────────────────────────────────────────────────
+# Native misses for an instrument priced from another listing
+# ──────────────────────────────────────────────────────────────
+# Set while the native chain runs for an instrument with a valid price_source.
+_QUIET_NATIVE: ContextVar[bool] = ContextVar("alternate_listing_quiet_native", default=False)
+
+# Provider loggers whose "no data" records are downgraded to INFO, and the
+# lowest level downgraded for each. Stooq and Alpha Vantage WARNINGs report
+# rate limits and cooldowns that affect every ticker, so only their per-ticker
+# ERRORs are downgraded.
+_NATIVE_MISS_LOGGERS = {
+    "yfinance": logging.WARNING,
+    "yahoo_timeseries": logging.ERROR,
+    "stooq_timeseries": logging.ERROR,
+    "backend.timeseries.fetch_alphavantage_timeseries": logging.ERROR,
+    "backend.timeseries.fetch_ft_timeseries": logging.WARNING,
+}
+
+
+class _NativeMissFilter(logging.Filter):
+    """Logs a provider's ERROR/WARNING at INFO while :data:`_QUIET_NATIVE` is set."""
+
+    def __init__(self, lowest: int):
+        super().__init__()
+        self.lowest = lowest
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if _QUIET_NATIVE.get() and self.lowest <= record.levelno < logging.CRITICAL:
+            record.levelno, record.levelname = logging.INFO, logging.getLevelName(logging.INFO)
+        return True
+
+
+for _name, _lowest in _NATIVE_MISS_LOGGERS.items():
+    # A logger's filters only see records created on it, so each provider
+    # logger gets its own; they are inert unless _QUIET_NATIVE is set.
+    logging.getLogger(_name).addFilter(_NativeMissFilter(_lowest))
+
+
+@contextmanager
+def _native_misses_at_info() -> Iterator[None]:
+    token = _QUIET_NATIVE.set(True)
+    try:
+        yield
+    finally:
+        _QUIET_NATIVE.reset(token)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -398,9 +489,17 @@ def overlay_alternate_listing(
     """
     if converted.empty:
         return native
+    merged = _overlay_if_same_basis(native, stored, converted, label)
+    return native if merged is None else merged
+
+
+def _overlay_if_same_basis(
+    native: pd.DataFrame, stored: pd.DataFrame, converted: pd.DataFrame, label: str
+) -> pd.DataFrame | None:
+    """:func:`overlay_alternate_listing` for a non-empty ``converted``; ``None`` when its basis is refused."""
     reference = _native_reference(native, stored)
     if not _basis_ok(reference, stored, converted, label):
-        return native
+        return None
     conv = _closes(_by_date(converted)).set_index("Date")
     conv = conv.loc[~conv.index.isin(_keep_native(reference, conv))]
     fresh = _by_date(native)
@@ -429,33 +528,146 @@ def _window(df: pd.DataFrame, start: date, end: date) -> pd.DataFrame:
     return df.loc[((days >= start) & (days <= end)).to_numpy()]
 
 
+NativeFetch = Callable[[date, date], pd.DataFrame]
+
+
+def _converted_listing(source: PriceSource, target: str, label: str, start: date, end: date) -> pd.DataFrame:
+    """The alternate listing's prices in ``target``, labelled as the instrument's own series."""
+    converted = convert_prices(
+        fetch_alternate_listing(source, start, end),
+        from_ccy=source.currency,
+        to_ccy=target,
+        source=alternate_listing_source(source.full_ticker, target),
+    )
+    # Stored as the instrument's own series; ``Source`` records the listing.
+    converted["Ticker"] = label
+    return converted
+
+
+def _log_failure(label: str, exc: Exception) -> None:
+    logger.warning(
+        "Alternate listing price source failed for %s: %s", sanitise_log_value(label), sanitise_log_value(exc)
+    )
+
+
+def _uncovered_weekdays(start: date, end: date, converted: pd.DataFrame, stored: pd.DataFrame) -> list[date]:
+    """Weekdays in the window with a close in neither ``converted`` nor ``stored``."""
+    covered = set(_closes(_by_date(converted))["Date"]) | set(_closes(_by_date(stored))["Date"])
+    return [day.date() for day in pd.bdate_range(start, end) if day not in covered]
+
+
+def _fill_gaps(
+    fetch_native: NativeFetch, source: PriceSource, target: str, ticker: str, exchange: str, start: date, end: date
+) -> pd.DataFrame:
+    """The native chain over the whole window, then the converted listing where it lacks a close."""
+    label = f"{ticker}.{exchange}"
+    with _native_misses_at_info():
+        native = fetch_native(start, end)
+    if native.empty:
+        logger.info(
+            "No native prices for %s; using alternate listing %s",
+            sanitise_log_value(label),
+            sanitise_log_value(source.full_ticker),
+        )
+    try:
+        converted = _converted_listing(source, target, label, start, end)
+        stored = _window(_stored_series(ticker, exchange), start, end)
+    except Exception as exc:
+        _log_failure(label, exc)
+        return native
+    return overlay_alternate_listing(native, stored, converted, label=label)
+
+
+def _alternate_first(
+    fetch_native: NativeFetch, source: PriceSource, target: str, ticker: str, exchange: str, start: date, end: date
+) -> pd.DataFrame:
+    """The converted listing first; the native chain only over weekdays it and the store leave uncovered."""
+    label = f"{ticker}.{exchange}"
+    try:
+        converted = _converted_listing(source, target, label, start, end)
+        stored = _window(_stored_series(ticker, exchange), start, end)
+    except Exception as exc:
+        _log_failure(label, exc)
+        return fetch_native(start, end)
+    uncovered = _uncovered_weekdays(start, end, converted, stored)
+    if uncovered:
+        logger.info(
+            "Alternate listing %s leaves %s weekday(s) of %s uncovered between %s and %s; trying native providers",
+            sanitise_log_value(source.full_ticker),
+            sanitise_log_value(len(uncovered)),
+            sanitise_log_value(label),
+            sanitise_log_value(uncovered[0]),
+            sanitise_log_value(uncovered[-1]),
+        )
+        with _native_misses_at_info():
+            native = fetch_native(uncovered[0], uncovered[-1])
+    else:
+        logger.debug(
+            "Alternate listing %s covers %s from %s to %s; skipping native providers",
+            sanitise_log_value(source.full_ticker),
+            sanitise_log_value(label),
+            sanitise_log_value(start),
+            sanitise_log_value(end),
+        )
+        native = pd.DataFrame(columns=STANDARD_COLUMNS)
+    if converted.empty:
+        return native
+    merged = _overlay_if_same_basis(native, stored, converted, label)
+    if merged is None:
+        # Refused as a whole: the native chain is all there is, for every date.
+        return fetch_native(start, end)
+    return merged
+
+
+def _price_source_for(label: str) -> tuple[PriceSource, str] | None:
+    """The instrument's parsed ``price_source`` and currency, or ``None`` when absent or invalid (logged)."""
+    meta = get_instrument_meta(label)
+    if not meta or meta.get("price_source") is None:
+        return None
+    try:
+        source = parse_price_source(meta, own=label)
+    except ValueError as exc:
+        _log_failure(label, exc)
+        return None
+    if source is None:
+        return None
+    return source, str(meta["currency"]).strip()
+
+
+def fetch_with_price_source(
+    fetch_native: NativeFetch, ticker: str, exchange: str, start: date, end: date
+) -> pd.DataFrame:
+    """Prices for ``ticker.exchange``: ``fetch_native(start, end)`` combined with its ``price_source``.
+
+    ``fetch_native`` runs the instrument's own provider chain for a date range.
+    Without a valid ``price_source`` it is called once for the whole window and
+    its result returned as is. Otherwise the block's ``mode`` sets the fetch
+    order (see the module docs).
+    """
+    resolved = _price_source_for(f"{ticker}.{exchange}")
+    if resolved is None:
+        return fetch_native(start, end)
+    source, target = resolved
+    order = _alternate_first if source.mode == MODE_PRIMARY else _fill_gaps
+    return order(fetch_native, source, target, ticker, exchange, start, end)
+
+
 def apply_price_source(native: pd.DataFrame, ticker: str, exchange: str, start: date, end: date) -> pd.DataFrame:
     """``native`` merged with the instrument's ``price_source`` listing, or unchanged without one.
 
-    Any failure (invalid block, fetch error, currency mismatch) is logged and
-    leaves ``native`` as it was.
+    This is the ``fill_gaps`` merge for an already fetched ``native`` frame,
+    whatever the block's ``mode``. Any failure (invalid block, fetch error,
+    currency mismatch) is logged and leaves ``native`` as it was.
     """
     label = f"{ticker}.{exchange}"
-    meta = get_instrument_meta(label)
-    if not meta or meta.get("price_source") is None:
+    resolved = _price_source_for(label)
+    if resolved is None:
         return native
+    source, target = resolved
     try:
-        source = parse_price_source(meta, own=label)
-        if source is None:
-            return native
-        target = str(meta["currency"]).strip()
-        converted = convert_prices(
-            fetch_alternate_listing(source, start, end),
-            from_ccy=source.currency,
-            to_ccy=target,
-            source=alternate_listing_source(source.full_ticker, target),
-        )
-        # Stored as the instrument's own series; ``Source`` records the listing.
-        converted["Ticker"] = label
+        converted = _converted_listing(source, target, label, start, end)
         stored = _window(_stored_series(ticker, exchange), start, end)
     except Exception as exc:
-        logger.warning(
-            "Alternate listing price source failed for %s: %s", sanitise_log_value(label), sanitise_log_value(exc)
-        )
+        _log_failure(label, exc)
         return native
     return overlay_alternate_listing(native, stored, converted, label=label)

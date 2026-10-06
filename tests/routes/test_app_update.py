@@ -169,6 +169,20 @@ def test_update_with_stash_keeps_preexisting_stash_entry(repos):
     assert _run(checkout, "stash", "list", "--format=%s").splitlines() == ["On main: older"]
 
 
+def test_update_with_stash_reports_conflicts_missing_from_stash(repos, monkeypatch):
+    checkout, upstream = repos
+    _commit(upstream, "README.md", "v2\n")
+    _run(upstream, "push", "-q")
+    (checkout / "README.md").write_text("local edit\n", encoding="utf-8")
+    monkeypatch.setattr(app_update, "_stash_ref", lambda: None)  # simulate git not storing the autostash
+
+    resp = _client().post("/support/app-update?stash=true")
+    assert resp.status_code == 502
+    assert "README.md" in resp.json()["detail"]
+    # Not reset: the conflicted file still holds the local edit alongside upstream.
+    assert "local edit" in (checkout / "README.md").read_text(encoding="utf-8")
+
+
 def test_update_with_stash_still_refuses_diverged_branch(repos):
     checkout, upstream = repos
     _commit(upstream, "README.md", "v2\n")

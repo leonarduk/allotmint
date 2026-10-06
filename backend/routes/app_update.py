@@ -230,8 +230,15 @@ def _settle_autostash(stash_before: str | None) -> tuple[bool, str | None]:
 
     stash_after = _stash_ref()
     unmerged = _git("diff", "--name-only", "--diff-filter=U")
-    if not unmerged or stash_after is None or stash_after == stash_before:
+    if not unmerged:
         return True, None
+    if stash_after is None or stash_after == stash_before:
+        # Conflicts without a new stash entry: the changes may exist only in the
+        # conflicted files, so leave the tree for the user rather than reset it.
+        raise GitError(
+            "Update applied but re-applying local changes conflicted and git did not store them in the stash; "
+            f"resolve the conflicts in: {', '.join(unmerged.splitlines())}"
+        )
     _git("reset", "--quiet", "--hard", "HEAD")
     logger.warning(
         "App update: local changes conflicted and were left in stash %s",

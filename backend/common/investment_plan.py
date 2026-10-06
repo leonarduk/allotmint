@@ -282,8 +282,10 @@ def rebalance_weights(plan: InvestmentPlan) -> dict[str, float]:
     return weights
 
 
-#: ``parse_policy`` errors that mean "these keys don't fit the policy", not a broken policy.
-_VOCABULARY_ERRORS = ("Unknown asset class", "Set ")
+def _is_vocabulary_error(exc: ValueError) -> bool:
+    """``parse_policy`` rejected the keys themselves (unknown class, or a class and its sub-classes together)."""
+    message = str(exc)
+    return message.startswith("Unknown asset class") or "either as a whole or by sub-class" in message
 
 
 def compare_with_rebalance_targets(plan: InvestmentPlan, policy: AllocationPolicy) -> dict:
@@ -299,7 +301,7 @@ def compare_with_rebalance_targets(plan: InvestmentPlan, policy: AllocationPolic
         copy_supported = True
     except ValueError as exc:
         # Only a vocabulary or level clash means "compare rolled up"; anything else is a real error.
-        if not str(exc).startswith(_VOCABULARY_ERRORS):
+        if not _is_vocabulary_error(exc):
             raise
         comparable = parse_policy({"targets": plan.parent_weights()}).targets
         copy_supported = False

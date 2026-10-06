@@ -223,3 +223,28 @@ def test_compare_surfaces_errors_other_than_unknown_class(monkeypatch):
     monkeypatch.setattr(plan_mod, "parse_policy", broken)
     with pytest.raises(ValueError, match="tolerance_pct"):
         compare_with_rebalance_targets(parse_plan(plan_data(), "alex"), AllocationPolicy())
+
+
+def test_compare_rolls_up_on_a_level_clash(monkeypatch):
+    real = plan_mod.parse_policy
+    calls = []
+
+    def clash_once(data):
+        calls.append(data)
+        if len(calls) == 1:
+            raise ValueError("Set Bond either as a whole or by sub-class, not both")
+        return real(data)
+
+    monkeypatch.setattr(plan_mod, "parse_policy", clash_once)
+    result = compare_with_rebalance_targets(parse_plan(plan_data(), "alex"), AllocationPolicy())
+    assert result["copy_supported"] is False
+    assert result["plan_targets"] == {"equity": 40, "bond": 40, "commodity": 20}
+
+
+def test_compare_surfaces_other_errors_starting_with_set(monkeypatch):
+    def broken(data):
+        raise ValueError("Set targets must sum to 100%")
+
+    monkeypatch.setattr(plan_mod, "parse_policy", broken)
+    with pytest.raises(ValueError, match="sum to 100"):
+        compare_with_rebalance_targets(parse_plan(plan_data(), "alex"), AllocationPolicy())

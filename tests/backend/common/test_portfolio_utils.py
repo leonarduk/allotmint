@@ -851,6 +851,54 @@ def test_fx_to_base_cache_reuse_and_aggregate_scaling(monkeypatch):
     monkeypatch.delenv("TESTING", raising=False)
 
 
+def test_aggregate_without_a_base_rate_reports_labelled_gbp(monkeypatch, caplog):
+    """No GBP->base rate (#9664): values stay in GBP and every row says so --
+    never GBP amounts relabelled as the requested base currency."""
+
+    class InstrumentApiStub:
+        def _resolve_full_ticker(self, ticker: str, latest: dict | None):
+            return ticker, "L"
+
+        def _resolve_grouping_details(self, instrument_meta, security_meta, holding, row, current=None):
+            return current, None
+
+        def price_change_pct(self, ticker: str, days: int):
+            return 0.0
+
+    stub = InstrumentApiStub()
+    monkeypatch.setattr(portfolio_utils, "instrument_api", stub, raising=False)
+    monkeypatch.setattr("backend.common.instrument_api", stub, raising=False)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(
+        portfolio_utils,
+        "get_instrument_meta",
+        lambda _: {"name": "AAA.L", "currency": "GBP", "sector": "Technology"},
+        raising=False,
+    )
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda _: {}, raising=False)
+
+    def no_rate(*_args, **_kwargs):
+        raise RuntimeError("yahoo down")
+
+    monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", no_rate)
+
+    portfolio = {
+        "accounts": [{"holdings": [{"ticker": "AAA.L", "units": 2.0, "cost_gbp": 100.0, "market_value_gbp": 120.0}]}]
+    }
+
+    # JPY has no approximate constant, so there is no GBP->JPY rate at all.
+    with caplog.at_level("WARNING"):
+        rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="JPY")
+
+    (row,) = rows
+    assert row["cost_gbp"] == pytest.approx(100.0)
+    assert row["market_value_gbp"] == pytest.approx(120.0)
+    assert row["cost_currency"] == "GBP"
+    assert row["market_value_currency"] == "GBP"
+    assert row["gain_currency"] == "GBP"
+    assert "No GBP->JPY rate" in caplog.text
+
+
 def test_list_all_unique_tickers_logs_missing_and_counts_nulls(monkeypatch, caplog):
     portfolio = {
         "owner": "alice",

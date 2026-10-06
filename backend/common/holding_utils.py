@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 
 # ───────────── helpers ─────────────
-def _fx_to_base(from_ccy: str, to_ccy: str, cache: Dict[str, float]) -> float:
+def _fx_to_base(from_ccy: str, to_ccy: str, cache: Dict[str, Optional[float]]) -> Optional[float]:
     """Resolve FX via portfolio_utils lazily to avoid import cycles."""
     from backend.common import portfolio_utils
 
@@ -135,7 +135,7 @@ def load_latest_closes(
 
     from backend.common import instrument_api
 
-    fx_cache: Dict[str, float] = {}
+    fx_cache: Dict[str, Optional[float]] = {}
     unpriced: list[str] = []
 
     for i, full in enumerate(full_tickers):
@@ -256,7 +256,7 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
     url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
 
     try:
-        fx_cache: Dict[str, float] = {}
+        fx_cache: Dict[str, Optional[float]] = {}
         resp = requests.get(url, timeout=5)
         raise_for_status = getattr(resp, "raise_for_status", None)
         if callable(raise_for_status):

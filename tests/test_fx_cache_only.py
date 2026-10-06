@@ -299,6 +299,8 @@ def test_enriched_holding_reports_fx_rate_source(fx_cache, no_live_fx, monkeypat
     enriched = _enrich_in_currency(monkeypatch, currency)
 
     assert enriched["fx_rate_source"] == source
+    # The stubbed close stands for an already GBP-converted (pence-scaled for
+    # GBX) Close_gbp, so 10 units x 10.0 is 100 GBP in every case.
     assert enriched["market_value_gbp"] == pytest.approx(100.0)
 
 

@@ -21,7 +21,8 @@ import {
 } from 'react-router-dom';
 import './index.css';
 import './styles/responsive.css';
-import './i18n';
+import i18n from './i18n';
+import { useTranslation } from 'react-i18next';
 import { ConfigProvider, useConfig } from './ConfigContext';
 import { PriceRefreshProvider } from './PriceRefreshContext';
 import { AuthProvider, useAuth } from './AuthContext';
@@ -157,6 +158,7 @@ const renderRouteMarker = (
 export function Root({
   awsUiAuth = runtimeAwsUiAuth,
 }: { awsUiAuth?: AwsUiAuthConfig } = {}) {
+  const { t } = useTranslation();
   const [configLoading, setConfigLoading] = useState(true);
   const [configError, setConfigError] = useState<Error | null>(null);
   const [retryScheduled, setRetryScheduled] = useState(false);
@@ -431,8 +433,8 @@ export function Root({
         {renderRouteMarker(location.pathname, 'loading')}
         <div role="status" className="app-loading">
           {retryScheduled
-            ? 'Loading... retrying configuration.'
-            : 'Loading configuration...'}
+            ? t('mainApp.retryingConfig')
+            : t('mainApp.loadingConfig')}
         </div>
       </>
     );
@@ -443,10 +445,10 @@ export function Root({
       <>
         {renderRouteMarker(location.pathname, 'config-error')}
         <div role="alert" className="app-offline">
-          <p>Unable to load configuration.</p>
-          <p>Please check your connection and try again.</p>
+          <p>{t('mainApp.configLoadFailed')}</p>
+          <p>{t('mainApp.checkConnection')}</p>
           <button type="button" onClick={handleRetry}>
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       </>
@@ -472,7 +474,7 @@ export function Root({
       return (
         <>
           {renderRouteMarker(location.pathname, 'auth')}
-          <div>Google login is not configured.</div>
+          <div>{t('mainApp.googleNotConfigured')}</div>
         </>
       );
     }
@@ -497,7 +499,7 @@ export function Root({
     <>
       {demoReadOnly && <DemoReadOnlyBanner />}
       <ErrorBoundary key={location.pathname}>
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={<div>{t('mainApp.loading')}</div>}>
           <Routes>
             {complianceRoutesEnabled ? (
               <>
@@ -736,9 +738,9 @@ void bootstrapRuntimeConfig()
     if (error instanceof UserCancelledError) {
       createRoot(rootEl).render(
         <div role="alert" className="app-offline">
-          <p>Login cancelled.</p>
+          <p>{i18n.t('mainApp.loginCancelled')}</p>
           <button type="button" onClick={() => window.location.reload()}>
-            Sign in
+            {i18n.t('mainApp.signIn')}
           </button>
         </div>
       );
@@ -747,11 +749,11 @@ void bootstrapRuntimeConfig()
       createRoot(rootEl).render(
         <div role="alert" className="app-offline">
           <p>
-            Authentication is unavailable. Please contact your administrator.
+            {i18n.t('mainApp.authUnavailable')}
           </p>
-          {reason && <p>Sign-in failed. Reason: {reason}</p>}
+          {reason && <p>{i18n.t('mainApp.signInFailed', { reason })}</p>}
           <button type="button" onClick={() => window.location.reload()}>
-            Sign in
+            {i18n.t('mainApp.signIn')}
           </button>
         </div>
       );

@@ -12,7 +12,7 @@ export default function Alerts() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const parentRef = useRef<HTMLDivElement>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<"timeout" | "offline" | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -27,11 +27,7 @@ export default function Alerts() {
       .catch((e) => {
         if (!cancelled) {
           setAlerts([]);
-          setError(
-            navigator.onLine
-              ? "Request timed out. Please try again."
-              : "You appear to be offline.",
-          );
+          setError(navigator.onLine ? "timeout" : "offline");
           errorToast(e);
         }
       })
@@ -62,7 +58,7 @@ export default function Alerts() {
     ? virtualRows
     : alerts.map((_, index) => ({ index, start: index * 32, end: (index + 1) * 32 }));
 
-  const heading = <h1>Alerts</h1>;
+  const heading = <h1>{t("alerts.title")}</h1>;
   const marker = <span data-testid="alerts-page-marker" hidden />;
 
   if (loading) {
@@ -84,7 +80,7 @@ export default function Alerts() {
         {heading}
         {marker}
         <div role="alert" aria-live="assertive">
-          {error}
+          {error === "timeout" ? t("alerts.timedOut") : t("alerts.offline")}
         </div>
       </Fragment>
     );
@@ -95,7 +91,7 @@ export default function Alerts() {
       <Fragment>
         {heading}
         {marker}
-        <EmptyState message="No alerts." role="status" aria-live="polite" />
+        <EmptyState message={t("alerts.empty")} role="status" aria-live="polite" />
       </Fragment>
     );
   }
@@ -114,7 +110,7 @@ export default function Alerts() {
           {items.map((virtualRow) => {
             const a = alerts[virtualRow.index];
             const alertLabel =
-              typeof a.ticker === "string" && a.ticker.trim().length > 0 ? a.ticker.trim() : "Alert";
+              typeof a.ticker === "string" && a.ticker.trim().length > 0 ? a.ticker.trim() : t("alerts.fallbackLabel");
             // Prefer a server-supplied stable id; fall back to content+position composite.
             // timestamp is required by the Alert type so will never be undefined.
             const key = (a as { id?: string }).id ?? `${alertLabel}-${a.message}-${a.timestamp}-${virtualRow.index}`;

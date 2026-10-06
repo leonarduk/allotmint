@@ -8,6 +8,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { getAllowances, getOwners, getPortfolio, harvestTax } from "../api";
 import EmptyState from "../components/EmptyState";
+import i18n from "../i18n";
 import { useRoute } from "../RouteContext";
 import type { Holding, OwnerSummary, Portfolio } from "../types";
 import { sanitizeOwners } from "../utils/owners";
@@ -70,7 +71,7 @@ function useOwnersList() {
       .catch(() => {
         if (!isMounted) return;
         setOwners([]);
-        setError("Failed to load owners");
+        setError(i18n.t("taxTools.loadOwnersFailed"));
       })
       .finally(() => {
         if (!isMounted) return;
@@ -176,7 +177,7 @@ function useHarvestCandidates(owner?: string) {
       })
       .catch(() => {
         if (!isMounted) return;
-        setError("Failed to load portfolio");
+        setError(i18n.t("taxTools.loadPortfolioFailed"));
         setPortfolio(null);
       })
       .finally(() => {
@@ -291,7 +292,7 @@ function TaxHarvestSection() {
     const positions = [...candidatePositions, ...manualPositions];
 
     if (positions.length === 0) {
-      setError("Select a position or enter one manually to model a harvest");
+      setError(t("taxTools.selectPositionError"));
       return;
     }
 
@@ -307,7 +308,7 @@ function TaxHarvestSection() {
     } finally {
       setIsLoading(false);
     }
-  }, [manualPositionPayload, selectedCandidates, threshold]);
+  }, [manualPositionPayload, selectedCandidates, threshold, t]);
 
   useEffect(() => {
     if (!candidateError) return;
@@ -334,32 +335,32 @@ function TaxHarvestSection() {
   useEffect(() => {
     if (
       error &&
-      error.toLowerCase().includes("select a position") &&
+      error === t("taxTools.selectPositionError") &&
       anySelection
     ) {
       setError(null);
     }
-  }, [anySelection, error]);
+  }, [anySelection, error, t]);
 
   return (
     <section aria-labelledby="tax-harvest-heading" className="flex flex-col gap-4">
       <div>
         <h2 id="tax-harvest-heading" className="text-xl md:text-2xl">
-          Tax Harvest
+          {t("taxTools.harvest.title")}
         </h2>
         <p className="text-sm text-gray-500">
-          Model potential loss harvesting opportunities from your positions.
+          {t("taxTools.harvest.description")}
         </p>
       </div>
       {!selectedOwner && (
-        <EmptyState message="Choose a portfolio owner to see harvest candidates." />
+        <EmptyState message={t("taxTools.harvest.chooseOwner")} />
       )}
       {selectedOwner && (
         <>
           <div className="flex flex-col gap-3">
             <label className="flex flex-col gap-2">
               <span className="text-sm font-medium text-gray-700">
-                Minimum loss threshold: {threshold}%
+                {t("taxTools.harvest.minLossThreshold", { threshold })}
               </span>
               <input
                 type="range"
@@ -372,19 +373,19 @@ function TaxHarvestSection() {
             </label>
           </div>
           {candidatesLoading ? (
-            <div data-testid="candidate-loading">Loading candidates...</div>
+            <div data-testid="candidate-loading">{t("taxTools.harvest.loadingCandidates")}</div>
           ) : candidates.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse border border-gray-300 text-sm">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="border p-2 text-left">Holding</th>
-                    <th className="border p-2 text-right">Units</th>
-                    <th className="border p-2 text-right">Basis / unit</th>
-                    <th className="border p-2 text-right">Price</th>
-                    <th className="border p-2 text-right">Cost basis</th>
-                    <th className="border p-2 text-right">Market value</th>
-                    <th className="border p-2 text-right">Loss</th>
+                    <th className="border p-2 text-left">{t("taxTools.harvest.col.holding")}</th>
+                    <th className="border p-2 text-right">{t("taxTools.harvest.col.units")}</th>
+                    <th className="border p-2 text-right">{t("taxTools.harvest.col.basisPerUnit")}</th>
+                    <th className="border p-2 text-right">{t("taxTools.harvest.col.price")}</th>
+                    <th className="border p-2 text-right">{t("taxTools.harvest.col.costBasis")}</th>
+                    <th className="border p-2 text-right">{t("taxTools.harvest.col.marketValue")}</th>
+                    <th className="border p-2 text-right">{t("taxTools.harvest.col.loss")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -423,7 +424,7 @@ function TaxHarvestSection() {
               </table>
             </div>
           ) : (
-            <EmptyState message="No clear loss candidates found." />
+            <EmptyState message={t("taxTools.harvest.noCandidates")} />
           )}
           <div className="flex items-center gap-2">
             <input
@@ -433,24 +434,24 @@ function TaxHarvestSection() {
               onChange={(event) => setAdvanced(event.target.checked)}
             />
             <label htmlFor="harvest-advanced-toggle" className="text-sm">
-              Advanced: add manual position
+              {t("taxTools.harvest.advancedToggle")}
             </label>
           </div>
           {advanced && (
             <div className="grid max-w-xl grid-cols-1 gap-2 sm:grid-cols-2">
               <InputField
-                placeholder="Ticker"
+                placeholder={t("common.ticker")}
                 value={form.ticker}
                 onChange={updateField("ticker")}
               />
               <InputField
-                placeholder="Basis"
+                placeholder={t("taxTools.harvest.basis")}
                 type="number"
                 value={form.basis}
                 onChange={updateField("basis")}
               />
               <InputField
-                placeholder="Price"
+                placeholder={t("taxTools.harvest.col.price")}
                 type="number"
                 value={form.price}
                 onChange={updateField("price")}
@@ -465,7 +466,7 @@ function TaxHarvestSection() {
         onClick={handleHarvest}
         disabled={isLoading || !selectedOwner}
       >
-        Run Harvest
+        {t("taxTools.harvest.run")}
       </button>
       {isLoading && (
         <LoadingStatus label={t("app.loading")}>
@@ -475,23 +476,23 @@ function TaxHarvestSection() {
       {error && <p className="text-red-500">{error}</p>}
       {trades && trades.length > 0 && (
         <div className="rounded-md border border-gray-200 bg-gray-50 p-4 text-sm" data-testid="harvest-results">
-          <p className="font-medium">Modeled trades</p>
+          <p className="font-medium">{t("taxTools.harvest.modeledTrades")}</p>
           <ul className="mt-2 list-disc pl-5">
             {trades.map(({ ticker, loss }, index) => (
               <li key={`${ticker}-${index}`}>
-                {ticker}: {currencyFormatter.format(loss)} loss
+                {t("taxTools.harvest.tradeLoss", { ticker, loss: currencyFormatter.format(loss) })}
               </li>
             ))}
           </ul>
           <p className="mt-3 text-gray-700">
-            Total modeled loss: {currencyFormatter.format(totalLoss)}
+            {t("taxTools.harvest.totalModeledLoss", { total: currencyFormatter.format(totalLoss) })}
           </p>
         </div>
       )}
-      {trades && trades.length === 0 && <p>No trades qualify</p>}
+      {trades && trades.length === 0 && <p>{t("taxTools.harvest.noTrades")}</p>}
       {!anySelection && selectedOwner && !isLoading && !candidateError && (
         <p className="text-sm text-gray-500">
-          Tip: select one or more candidates above or use the advanced form.
+          {t("taxTools.harvest.tip")}
         </p>
       )}
     </section>
@@ -536,7 +537,7 @@ function TaxAllowancesSection() {
       })
       .catch(() => {
         if (!isMounted) return;
-        setError("Failed to load allowances");
+        setError(i18n.t("taxTools.loadAllowancesFailed"));
       })
       .finally(() => {
         if (!isMounted) return;
@@ -553,20 +554,20 @@ function TaxAllowancesSection() {
       <section aria-labelledby="tax-allowances-heading" className="flex flex-col gap-4">
         <div>
           <h2 id="tax-allowances-heading" className="text-xl md:text-2xl">
-            Tax Allowances
+            {t("taxTools.allowances.title")}
           </h2>
           <p className="text-sm text-gray-500">
-            Track how much of each allowance you have used and what remains.
+            {t("taxTools.allowances.description")}
           </p>
         </div>
-        <EmptyState message="Choose a portfolio owner to see their allowance usage." />
+        <EmptyState message={t("taxTools.allowances.chooseOwner")} />
       </section>
     );
   }
 
   if (loading) return <TableSkeleton rows={4} columns={3} label={t("app.loading")} />;
   if (error) return <p className="text-red-500">{error}</p>;
-  if (!data) return <EmptyState message="No data" />;
+  if (!data) return <EmptyState message={t("taxTools.allowances.noData")} />;
 
   const entries = Object.entries(data.allowances);
   const totals = entries.reduce(
@@ -589,33 +590,35 @@ function TaxAllowancesSection() {
     <section aria-labelledby="tax-allowances-heading" className="flex flex-col gap-4">
       <div>
         <h2 id="tax-allowances-heading" className="text-xl md:text-2xl">
-          Tax Allowances
+          {t("taxTools.allowances.title")}
         </h2>
         <p className="text-sm text-gray-500">
-          Track how much of each allowance you have used and what remains.
+          {t("taxTools.allowances.description")}
         </p>
       </div>
       <div className="rounded-md border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
         <div className="flex flex-wrap gap-3">
-          <span>Tax year {data.tax_year}</span>
+          <span>{t("taxTools.allowances.taxYear", { year: data.tax_year })}</span>
           <span>
-            Used {formatAllowanceValue(totals.used)} of {formatAllowanceValue(totals.limit)} total
+            {t("taxTools.allowances.usedOfTotal", { used: formatAllowanceValue(totals.used), limit: formatAllowanceValue(totals.limit) })}
           </span>
           <span>
             {totals.remaining > 0
-              ? `Outstanding: ${outstandingAllowances || formatAllowanceValue(totals.remaining)}`
-              : "All allowances fully used"}
+              ? t("taxTools.allowances.outstanding", {
+                  value: outstandingAllowances || formatAllowanceValue(totals.remaining),
+                })
+              : t("taxTools.allowances.allUsed")}
           </span>
         </div>
       </div>
       <table className="min-w-full border-collapse border border-gray-300">
         <thead>
           <tr>
-            <th className="border p-2 text-left">Account</th>
-            <th className="border p-2 text-right">Limit</th>
-            <th className="border p-2 text-right">Used</th>
-            <th className="border p-2 text-right">Available</th>
-            <th className="border p-2 text-right">Usage</th>
+            <th className="border p-2 text-left">{t("taxTools.allowances.col.account")}</th>
+            <th className="border p-2 text-right">{t("taxTools.allowances.col.limit")}</th>
+            <th className="border p-2 text-right">{t("taxTools.allowances.col.used")}</th>
+            <th className="border p-2 text-right">{t("taxTools.allowances.col.available")}</th>
+            <th className="border p-2 text-right">{t("taxTools.allowances.col.usage")}</th>
           </tr>
         </thead>
         <tbody>
@@ -650,7 +653,7 @@ function TaxAllowancesSection() {
                     <span className={`text-xs font-medium ${textColor}`}>{roundedPercent}%</span>
                   </div>
                   <span className="sr-only">
-                    Used {formatAllowanceValue(info.used)} of {formatAllowanceValue(info.limit)} ({roundedPercent}%)
+                    {t("taxTools.allowances.usedOfLimitPct", { used: formatAllowanceValue(info.used), limit: formatAllowanceValue(info.limit), percent: roundedPercent })}
                   </span>
                 </td>
               </tr>
@@ -663,6 +666,7 @@ function TaxAllowancesSection() {
 }
 
 export default function TaxTools() {
+  const { t } = useTranslation();
   const { selectedOwner, setSelectedOwner } = useRoute();
   const {
     owners,
@@ -700,10 +704,9 @@ export default function TaxTools() {
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="mb-2 text-2xl md:text-4xl">Tax Tools</h1>
+          <h1 className="mb-2 text-2xl md:text-4xl">{t("taxTools.title")}</h1>
           <p className="text-gray-600">
-            Run quick harvest scenarios and keep tabs on your annual allowances in
-            one place.
+            {t("taxTools.subtitle")}
           </p>
         </div>
         <div className="md:w-64">
@@ -711,7 +714,7 @@ export default function TaxTools() {
             htmlFor="tax-owner-select"
             className="flex flex-col gap-1 text-sm font-medium text-gray-700"
           >
-            Portfolio owner
+            {t("taxTools.portfolioOwner")}
             <select
               id="tax-owner-select"
               className="rounded border border-gray-300 px-3 py-2 text-base"
@@ -719,7 +722,7 @@ export default function TaxTools() {
               onChange={handleOwnerChange}
               disabled={ownerSelectDisabled}
             >
-              <option value="">Select an owner</option>
+              <option value="">{t("taxTools.selectOwner")}</option>
               {owners.map((owner) => (
                 <option key={owner.owner} value={owner.owner}>
                   {owner.owner}
@@ -728,13 +731,13 @@ export default function TaxTools() {
             </select>
           </label>
           {ownersLoading && (
-            <p className="mt-1 text-xs text-gray-500">Loading owners...</p>
+            <p className="mt-1 text-xs text-gray-500">{t("taxTools.loadingOwners")}</p>
           )}
           {!ownersLoading && ownersError && (
             <p className="mt-1 text-xs text-red-500">{ownersError}</p>
           )}
           {!ownersLoading && !ownersError && owners.length === 0 && (
-            <p className="mt-1 text-xs text-gray-500">No owners available.</p>
+            <p className="mt-1 text-xs text-gray-500">{t("taxTools.noOwners")}</p>
           )}
         </div>
       </header>

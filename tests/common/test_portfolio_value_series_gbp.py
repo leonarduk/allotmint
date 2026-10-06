@@ -194,19 +194,6 @@ def test_partial_fx_gap_keeps_the_holding_and_treats_those_dates_as_missing_pric
     assert perf["unconverted_holdings"] == expected_report
 
 
-def test_duplicate_fx_dates_use_the_last_stored_rate(world) -> None:
-    world.fx["USD"] = pd.DataFrame(
-        {
-            "Date": pd.to_datetime(["2024-01-03", "2024-01-01", "2024-01-03"]),
-            "Rate": [0.6, 0.8, 0.75],
-        }
-    )
-
-    rates = pu._gbp_rates("USD", pd.Index([date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)]))
-
-    assert list(rates.to_numpy()) == [0.8, 0.75, 0.75]
-
-
 def test_gbx_only_portfolio_is_valued_in_pounds_by_both_endpoints(world) -> None:
     """The reported bug: pence lines were summed as pounds, ~100x the dashboard.
 

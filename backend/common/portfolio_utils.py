@@ -1592,9 +1592,9 @@ def _gbp_rates(currency: str, index: pd.Index) -> pd.Series:
             "Rate": pd.to_numeric(fx["Rate"], errors="coerce"),
         }
     )
-    # One rate per date (the last stored, as the value series keeps the last
-    # duplicate close), in date order for merge_asof.
-    rates = rates.dropna().sort_values("Date", kind="stable").drop_duplicates("Date", keep="last")
+    # Date order for merge_asof. The stored history has one rate per date
+    # (``cache._read_fx_parquet`` drops duplicates on read).
+    rates = rates.dropna().sort_values("Date")
     merged = pd.merge_asof(pd.DataFrame({"Date": days}), rates, on="Date", direction="backward", tolerance=gap)
     aligned = np.empty(len(index), dtype=float)
     aligned[order] = merged["Rate"].to_numpy(dtype=float)

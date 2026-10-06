@@ -231,6 +231,25 @@ def test_refresh_fx_cache_never_persists_the_fallback_constant(cache, monkeypatc
     assert cache._read_fx_parquet(cache._fx_cache_path("USD")).empty
 
 
+def test_read_fx_parquet_keeps_the_last_stored_rate_per_date(cache):
+    """A date stored more than once reads as its last stored row.
+
+    Each of 60 dates is stored three times, in three passes. That is enough
+    rows for an unstable sort to reorder equal dates, so the test fails unless
+    the read sorts stably before dropping duplicates.
+    """
+    days = pd.date_range("2024-01-01", periods=60, freq="D")
+    stored = pd.DataFrame({"Date": list(days) * 3, "Rate": [0.7] * 60 + [0.8] * 60 + [0.9] * 60})
+    path = cache._fx_cache_path("USD")
+    cache._ensure_local_dir(path)
+    stored.to_parquet(path, index=False)
+
+    fx = cache._read_fx_parquet(path)
+
+    assert list(fx["Date"]) == list(days)
+    assert set(fx["Rate"]) == {0.9}
+
+
 def test_drain_refreshes_stale_ticker_and_next_cache_only_read_sees_it(cache, monkeypatch):
     """End to end: queued by a page read, refreshed live by the worker, then served fresh."""
     import os

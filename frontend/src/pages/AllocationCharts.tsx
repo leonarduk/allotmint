@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
-import { getGroupCurrencyContributions, getGroupPortfolio } from "../api";
-import type { Account, CurrencyContribution, GroupPortfolio } from "../types";
+import { getGroupCurrencyContributions, getGroupPortfolio, getSleeves } from "../api";
+import type { Account, CurrencyContribution, GroupPortfolio, SleeveList } from "../types";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { ReportingCurrencyNote } from "../components/ReportingCurrencyNote";
@@ -45,9 +45,9 @@ const isInvalidNumericInput = (value: unknown): boolean => {
 
 const isDevEnvironment = (): boolean => import.meta.env.MODE !== "production";
 
-type AllocationView = "asset" | "sector" | "region" | "currency";
+type AllocationView = "asset" | "sector" | "region" | "currency" | "sleeve";
 
-const ALLOCATION_VIEWS: readonly AllocationView[] = ["asset", "sector", "region", "currency"];
+const ALLOCATION_VIEWS: readonly AllocationView[] = ["asset", "sector", "region", "currency", "sleeve"];
 
 const isAllocationView = (value: string | null): value is AllocationView =>
   value !== null && (ALLOCATION_VIEWS as readonly string[]).includes(value);
@@ -110,6 +110,48 @@ function useGroupCurrencyExposure(slug: string, enabled: boolean) {
   return { rows, error };
 }
 
+/**
+ * Each owner's sleeves and ticker tags (#9813), fetched once the sleeve view
+ * is open. Tags are per owner, so a ticker can sit in different sleeves for
+ * different owners in the same group.
+ */
+function useOwnerSleeves(owners: string[], enabled: boolean) {
+  const [sleeves, setSleeves] = useState<Record<string, SleeveList> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const ownerKey = owners.join(",");
+
+  useEffect(() => {
+    setSleeves(null);
+    setError(null);
+  }, [ownerKey]);
+
+  useEffect(() => {
+    if (!enabled || sleeves !== null || owners.length === 0) return;
+    let cancelled = false;
+    Promise.all(owners.map((owner) => getSleeves(owner).then((list) => [owner, list] as const)))
+      .then((entries) => {
+        if (!cancelled) setSleeves(Object.fromEntries(entries));
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // ownerKey stands in for owners, whose array identity changes every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, ownerKey, sleeves]);
+
+  return { sleeves, error };
+}
+
+/** The name of the sleeve ``ticker`` is tagged into for its owner; untagged holdings are in the core. */
+const sleeveName = (list: SleeveList | undefined, ticker: string, coreLabel: string): string => {
+  const sleeveId = list?.assignments[ticker.trim().toUpperCase()];
+  const sleeve = sleeveId ? list?.sleeves.find((s) => s.id === sleeveId) : undefined;
+  return sleeve && sleeve.id !== "core" ? sleeve.name : coreLabel;
+};
+
 export type AllocationChartsProps = {
   /** Portfolio group slug (defaults to "all"). */
   slug?: string;
@@ -137,7 +179,14 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
     resolvedSlug,
     view === "currency",
   );
+  const [sleeveData, setSleeveData] = useState<{ name: string; value: number }[]>([]);
   const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
+  const owners = [
+    ...new Set(
+      (portfolio?.accounts ?? []).map((acct) => acct.owner?.trim()).filter((o): o is string => !!o),
+    ),
+  ].sort();
+  const { sleeves: ownerSleeves, error: sleeveError } = useOwnerSleeves(owners, view === "sleeve");
   const [selectedAccounts, setSelectedAccounts] = useState<string[] | null>(
     null,
   );
@@ -197,6 +246,8 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
     const byType: Record<string, number> = {};
     const bySector: Record<string, number> = {};
     const byRegion: Record<string, number> = {};
+    const bySleeve: Record<string, number> = {};
+    const coreLabel = t("sleeves.core");
 
     for (const acct of activeAccounts) {
       for (const h of acct.holdings) {
@@ -229,6 +280,8 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
         bySector[sector] = (bySector[sector] || 0) + mv;
         const region = h.region || t("common.other");
         byRegion[region] = (byRegion[region] || 0) + mv;
+        const sleeve = sleeveName(ownerSleeves?.[acct.owner?.trim() ?? ""], h.ticker, coreLabel);
+        bySleeve[sleeve] = (bySleeve[sleeve] || 0) + mv;
       }
     }
 
@@ -245,7 +298,12 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
     setAssetData(asset);
     setSectorData(sector);
     setRegionData(region);
-  }, [portfolio, selectedAccounts, t]);
+    setSleeveData(
+      Object.entries(bySleeve)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value),
+    );
+  }, [portfolio, selectedAccounts, ownerSleeves, t]);
 
   useEffect(() => {
     if (!portfolio) return;
@@ -275,6 +333,8 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
     sector: sectorData,
     region: regionData,
     currency: currencyData,
+    // Until every owner's tags have loaded, a sleeve chart would show everything as core.
+    sleeve: ownerSleeves ? sleeveData : [],
   };
   const chartData = chartDataByView[view];
   const isCurrencyView = view === "currency";
@@ -327,10 +387,18 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
         <button onClick={() => setView("currency")} disabled={isCurrencyView}>
           {t("allocation.currency", { defaultValue: "Currencies" })}
         </button>
+        <button onClick={() => setView("sleeve")} disabled={view === "sleeve"}>
+          {t("allocation.sleeve")}
+        </button>
       </div>
       {isCurrencyView && (
         <p className="mb-4 text-sm text-gray-600" data-testid="currency-exposure-note">
           {t("allocation.currencyNote")}
+        </p>
+      )}
+      {view === "sleeve" && (
+        <p className="mb-4 text-sm text-gray-600" data-testid="sleeve-note">
+          {t("allocation.sleeveNote")}
         </p>
       )}
       {portfolio && !isCurrencyView && (
@@ -365,6 +433,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
       )}
       {error && <p className="text-red-500">{error}</p>}
       {isCurrencyView && currencyError && <p className="text-red-500">{currencyError}</p>}
+      {view === "sleeve" && sleeveError && <p className="text-red-500">{sleeveError}</p>}
       {isCurrencyView && missingFx && (
         <p className="mb-4 text-sm text-amber-700" role="status" data-testid="currency-missing-fx">
           {t("allocation.currencyMissingFx", { currencies: missingFx })}

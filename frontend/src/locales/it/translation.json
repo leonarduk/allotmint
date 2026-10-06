@@ -90,7 +90,9 @@
     "unknownCurrency": "Valuta sconosciuta",
     "viewAllocation": "Vedi allocazione per {{dimension}}",
     "viewContribution": "Vedi contributo ai guadagni",
-    "chartsUnavailable": "I grafici non sono disponibili in questo ambiente."
+    "chartsUnavailable": "I grafici non sono disponibili in questo ambiente.",
+    "sleeve": "Comparti",
+    "sleeveNote": "Valore in ogni comparto (nucleo e ad es. speculativo) in base alle assegnazioni di ciascun titolare; configurali nella pagina Strategia."
   },
   "app": {
     "close": "Chiudi",
@@ -3168,7 +3170,8 @@
       "underweight": "Sottopesato",
       "unclassified": "Non classificato",
       "needsAssetClass": "Richiede una classe di attività",
-      "totalLine": "Totale {{total}} · tolleranza ±{{tolerance}} pp"
+      "totalLine": "Totale {{total}} · tolleranza ±{{tolerance}} pp",
+      "sleeveTitle": "Scostamento — comparto {{sleeve}}"
     },
     "trades": {
       "title": "Operazioni suggerite",
@@ -3181,7 +3184,8 @@
         "amount": "Importo",
         "suggested": "Strumento suggerito"
       },
-      "chooseInstrument": "Scegli uno strumento"
+      "chooseInstrument": "Scegli uno strumento",
+      "sleeveHeading": "Operazioni suggerite — comparto {{sleeve}}"
     },
     "newCash": {
       "title": "Investi nuova liquidità",
@@ -3189,7 +3193,8 @@
       "amount": "Importo (£)",
       "intoAccount": "Sul conto",
       "plan": "Pianifica contributo",
-      "keepAsCash": "Mantieni {{amount}} in liquidità."
+      "keepAsCash": "Mantieni {{amount}} in liquidità.",
+      "forSleeve": "Per il comparto"
     }
   },
   "strategyLibrary": {
@@ -3283,5 +3288,46 @@
     "stalePriceAsOf": "L'ultimo prezzo è segnalato come obsoleto (al {{date}}).",
     "suspectCostBasis": "Il prezzo di carico è dubbio o sconosciuto per {{count}} posizione/i: {{where}}.",
     "suspectMove": "Movimento giornaliero sospetto di {{change}} il {{date}}."
+  },
+  "sleeves": {
+    "title": "Comparti",
+    "help": "Dividi il portafoglio in comparti, ciascuno con la propria strategia — ad esempio un nucleo del 90% e un comparto speculativo del 10%. Assegna le posizioni a un comparto; quelle non assegnate restano nel nucleo. Scostamento e operazioni di ogni comparto usano solo le sue posizioni.",
+    "loadError": "Impossibile caricare i comparti di {{owner}}: {{error}}",
+    "core": "Nucleo",
+    "coreHelp": "Il nucleo è ciò che resta dagli altri comparti; applica una strategia sopra o modifica gli obiettivi sotto per cambiarne la composizione.",
+    "customTargets": "Obiettivi personalizzati",
+    "noTargets": "Nessun obiettivo",
+    "driftPp": "{{drift}} pp",
+    "sizeFor": "Dimensione di {{name}}",
+    "saveSize": "Salva",
+    "applyStrategy": "Applica una strategia…",
+    "delete": "Elimina",
+    "confirmDelete": "Eliminare il comparto {{name}}? Le sue posizioni tornano nel nucleo.",
+    "col": {
+      "sleeve": "Comparto",
+      "target": "Dimensione obiettivo",
+      "current": "Dimensione attuale",
+      "strategy": "Strategia",
+      "actions": "Azioni"
+    },
+    "add": {
+      "title": "Aggiungi un comparto",
+      "name": "Nome",
+      "namePlaceholder": "es. Speculativo",
+      "size": "Dimensione (%)",
+      "strategy": "Strategia",
+      "chooseStrategy": "Scegli una strategia…",
+      "submit": "Aggiungi comparto"
+    },
+    "assign": {
+      "title": "Assegna le posizioni ai comparti",
+      "help": "Scegli il comparto per ogni posizione. L'assegnazione vale per il ticker in tutti i tuoi conti.",
+      "sleeveFor": "Comparto per {{ticker}}",
+      "col": {
+        "holding": "Posizione",
+        "value": "Valore",
+        "sleeve": "Comparto"
+      }
+    }
   }
 }

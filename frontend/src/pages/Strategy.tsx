@@ -15,10 +15,12 @@ import type {
   RebalanceAccount,
   RebalanceClassRow,
   RebalancePlan,
+  RebalanceSleeveRow,
   RebalanceTrade,
   StrategyList,
 } from '../types';
 import EmptyState from '../components/EmptyState';
+import SleevesPanel from '../components/SleevesPanel';
 import StrategyLibrary from '../components/StrategyLibrary';
 import TargetFields from '../components/TargetFields';
 import { sanitizeOwners } from '../utils/owners';
@@ -260,11 +262,17 @@ function driftLabel(row: RebalanceClassRow): string {
   return `${assetClassLabel(row.parent)} › ${row.label}`;
 }
 
-function DriftTable({ plan }: { plan: RebalancePlan }) {
+function DriftTable({ plan, title }: { plan: RebalancePlan; title?: string }) {
   const { t } = useTranslation();
+  const heading = title
+    ? t('strategy.drift.sleeveTitle', { sleeve: title })
+    : t('strategy.drift.title');
   return (
-    <section className="mb-6" aria-label={t('strategy.drift.ariaLabel')}>
-      <h2 className="mb-2 text-xl">{t('strategy.drift.title')}</h2>
+    <section
+      className="mb-6"
+      aria-label={title ? heading : t('strategy.drift.ariaLabel')}
+    >
+      <h2 className="mb-2 text-xl">{heading}</h2>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
@@ -412,7 +420,7 @@ function TradeTable({ trades }: { trades: RebalanceTrade[] }) {
   );
 }
 
-function SuggestedTrades({ plan }: { plan: RebalancePlan }) {
+function SuggestedTrades({ plan, title }: { plan: RebalancePlan; title?: string }) {
   const { t } = useTranslation();
   const byAccount = useMemo(() => {
     const groups = new Map<
@@ -431,8 +439,19 @@ function SuggestedTrades({ plan }: { plan: RebalancePlan }) {
   }, [plan.trades]);
 
   return (
-    <section className="mb-6" aria-label={t('strategy.trades.title')}>
-      <h2 className="mb-2 text-xl">{t('strategy.trades.heading')}</h2>
+    <section
+      className="mb-6"
+      aria-label={
+        title
+          ? t('strategy.trades.sleeveHeading', { sleeve: title })
+          : t('strategy.trades.title')
+      }
+    >
+      <h2 className="mb-2 text-xl">
+        {title
+          ? t('strategy.trades.sleeveHeading', { sleeve: title })
+          : t('strategy.trades.heading')}
+      </h2>
       <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
         {t('strategy.trades.help')}
       </p>
@@ -453,13 +472,16 @@ function SuggestedTrades({ plan }: { plan: RebalancePlan }) {
 function NewCashPlanner({
   owner,
   accounts,
+  sleeves,
 }: {
   owner: string;
   accounts: RebalanceAccount[];
+  sleeves?: RebalanceSleeveRow[];
 }) {
   const { t } = useTranslation();
   const [amount, setAmount] = useState('');
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
+  const [sleeveId, setSleeveId] = useState('core');
   const [result, setResult] = useState<NewCashPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -476,7 +498,12 @@ function NewCashPlanner({
     e.preventDefault();
     setError(null);
     try {
-      setResult(await getNewCashPlan(owner, parseFloat(amount), accountId));
+      const value = parseFloat(amount);
+      setResult(
+        await (sleeves?.length
+          ? getNewCashPlan(owner, value, accountId, sleeveId)
+          : getNewCashPlan(owner, value, accountId))
+      );
     } catch (err) {
       setResult(null);
       setError(errorText(err));
@@ -521,6 +548,25 @@ function NewCashPlanner({
             </option>
           ))}
         </select>
+        {sleeves && sleeves.length > 1 && (
+          <>
+            <label className="text-sm" htmlFor="new-cash-sleeve">
+              {t('strategy.newCash.forSleeve')}
+            </label>
+            <select
+              id="new-cash-sleeve"
+              className="rounded border p-1"
+              value={sleeveId}
+              onChange={(e) => setSleeveId(e.target.value)}
+            >
+              {sleeves.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.id === 'core' ? t('sleeves.core') : s.name}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
         <button
           type="submit"
           disabled={!(parseFloat(amount) > 0) || !accountId}
@@ -548,6 +594,29 @@ function NewCashPlanner({
   );
 }
 
+/** Drift and trades for every sleeve but the core, which the page shows first (#9813). */
+function OtherSleevePlans({ sleeves }: { sleeves?: RebalanceSleeveRow[] }) {
+  return (
+    <>
+      {(sleeves ?? []).map((row) =>
+        row.plan ? (
+          <div key={row.id}>
+            <DriftTable plan={row.plan} title={row.name} />
+            {row.plan.notes.length > 0 && (
+              <ul className="mb-6 list-disc pl-5 text-sm text-amber-700 dark:text-amber-300">
+                {row.plan.notes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            )}
+            <SuggestedTrades plan={row.plan} title={row.name} />
+          </div>
+        ) : null
+      )}
+    </>
+  );
+}
+
 export default function Strategy() {
   const { t } = useTranslation();
   const { owners, ownersError, selectedOwner, selectOwner } =
@@ -557,6 +626,7 @@ export default function Strategy() {
   const reloadStrategies = strategies.reload;
   const hasPolicy = plan != null && Object.keys(plan.policy.targets).length > 0;
   const current = useMemo(() => (plan ? currentWeights(plan) : {}), [plan]);
+  const coreTitle = plan?.sleeves?.length ? t('sleeves.core') : undefined;
 
   // Targets and the active strategy's "modified" flag change together.
   // The investment plan panel (PlanPanel) is hidden for now: it did not stay
@@ -619,9 +689,17 @@ export default function Strategy() {
           onChanged={reloadAll}
         />
       )}
+      {strategies.data && (
+        <SleevesPanel
+          owner={selectedOwner}
+          strategies={strategies.data.strategies}
+          planSleeves={plan?.sleeves}
+          onChanged={reloadAll}
+        />
+      )}
       {plan && (
         <>
-          <DriftTable plan={plan} />
+          <DriftTable plan={plan} title={coreTitle} />
           {plan.notes.length > 0 && (
             <ul
               className="mb-6 list-disc pl-5 text-sm text-amber-700 dark:text-amber-300"
@@ -635,16 +713,18 @@ export default function Strategy() {
           <TargetEditor owner={selectedOwner} plan={plan} onSaved={reloadAll} />
           {hasPolicy ? (
             <>
-              <SuggestedTrades plan={plan} />
+              <SuggestedTrades plan={plan} title={coreTitle} />
               <NewCashPlanner
                 key={selectedOwner}
                 owner={selectedOwner}
                 accounts={plan.accounts}
+                sleeves={plan.sleeves}
               />
             </>
           ) : (
             <EmptyState message={t('strategy.emptyPolicy')} />
           )}
+          <OtherSleevePlans sleeves={plan.sleeves} />
         </>
       )}
     </div>

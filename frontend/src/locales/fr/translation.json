@@ -90,7 +90,9 @@
     "unknownCurrency": "Devise inconnue",
     "viewAllocation": "Voir la répartition par {{dimension}}",
     "viewContribution": "Voir la contribution aux gains",
-    "chartsUnavailable": "Les graphiques ne sont pas disponibles dans cet environnement."
+    "chartsUnavailable": "Les graphiques ne sont pas disponibles dans cet environnement.",
+    "sleeve": "Poches",
+    "sleeveNote": "Valeur de chaque poche (cœur et p. ex. spéculative) d'après les affectations de chaque titulaire ; configurez-les sur la page Stratégie."
   },
   "app": {
     "close": "Fermer",
@@ -3168,7 +3170,8 @@
       "underweight": "Sous-pondéré",
       "unclassified": "Non classé",
       "needsAssetClass": "Classe d'actifs requise",
-      "totalLine": "Total {{total}} · tolérance ±{{tolerance}} pp"
+      "totalLine": "Total {{total}} · tolérance ±{{tolerance}} pp",
+      "sleeveTitle": "Écart — poche {{sleeve}}"
     },
     "trades": {
       "title": "Opérations suggérées",
@@ -3181,7 +3184,8 @@
         "amount": "Montant",
         "suggested": "Instrument suggéré"
       },
-      "chooseInstrument": "Choisissez un instrument"
+      "chooseInstrument": "Choisissez un instrument",
+      "sleeveHeading": "Opérations suggérées — poche {{sleeve}}"
     },
     "newCash": {
       "title": "Investir de nouvelles liquidités",
@@ -3189,7 +3193,8 @@
       "amount": "Montant (£)",
       "intoAccount": "Sur le compte",
       "plan": "Planifier le versement",
-      "keepAsCash": "Conservez {{amount}} en liquidités."
+      "keepAsCash": "Conservez {{amount}} en liquidités.",
+      "forSleeve": "Pour la poche"
     }
   },
   "strategyLibrary": {
@@ -3283,5 +3288,46 @@
     "stalePriceAsOf": "Le dernier cours est signalé comme obsolète (au {{date}}).",
     "suspectCostBasis": "Le prix de revient est douteux ou inconnu pour {{count}} position(s) : {{where}}.",
     "suspectMove": "Variation d'un jour suspecte de {{change}} le {{date}}."
+  },
+  "sleeves": {
+    "title": "Poches",
+    "help": "Divisez votre portefeuille en poches, chacune avec sa propre stratégie — par exemple un cœur de 90 % et une poche spéculative de 10 %. Affectez des positions à une poche ; les positions non affectées sont dans le cœur. L'écart et les opérations de chaque poche n'utilisent que ses propres positions.",
+    "loadError": "Impossible de charger les poches de {{owner}} : {{error}}",
+    "core": "Cœur",
+    "coreHelp": "Le cœur correspond à ce que laissent les autres poches ; appliquez une stratégie ci-dessus ou modifiez les cibles ci-dessous pour changer sa composition.",
+    "customTargets": "Cibles personnalisées",
+    "noTargets": "Pas encore de cibles",
+    "driftPp": "{{drift}} pts",
+    "sizeFor": "Taille de {{name}}",
+    "saveSize": "Enregistrer",
+    "applyStrategy": "Appliquer une stratégie…",
+    "delete": "Supprimer",
+    "confirmDelete": "Supprimer la poche {{name}} ? Ses positions reviennent dans le cœur.",
+    "col": {
+      "sleeve": "Poche",
+      "target": "Taille cible",
+      "current": "Taille actuelle",
+      "strategy": "Stratégie",
+      "actions": "Actions"
+    },
+    "add": {
+      "title": "Ajouter une poche",
+      "name": "Nom",
+      "namePlaceholder": "ex. Spéculatif",
+      "size": "Taille (%)",
+      "strategy": "Stratégie",
+      "chooseStrategy": "Choisir une stratégie…",
+      "submit": "Ajouter la poche"
+    },
+    "assign": {
+      "title": "Affecter les positions aux poches",
+      "help": "Choisissez la poche de chaque position. L'affectation s'applique au ticker dans tous vos comptes.",
+      "sleeveFor": "Poche pour {{ticker}}",
+      "col": {
+        "holding": "Position",
+        "value": "Valeur",
+        "sleeve": "Poche"
+      }
+    }
   }
 }

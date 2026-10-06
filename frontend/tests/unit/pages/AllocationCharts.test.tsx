@@ -526,4 +526,68 @@ describe("AllocationCharts page", () => {
       expect(screen.getByRole("checkbox", { name: "alice - taxable" })).toBeInTheDocument();
     });
   });
+
+  describe("sleeve view (#9813)", () => {
+    const mockGetSleeves = vi.mocked(api.getSleeves);
+    const sleeves = (assignments: Record<string, string>) => ({
+      sleeves: [
+        { id: "core", name: "Core", size_pct: 90, targets: {}, strategy: null },
+        { id: "sleeve-1", name: "Speculative", size_pct: 10, targets: { equity: 100 }, strategy: null },
+      ],
+      assignments,
+      holdings: [],
+    });
+
+    it("groups value by each owner's sleeve tags", async () => {
+      const alice = samplePortfolio.accounts[0];
+      mockGetGroupPortfolio.mockResolvedValueOnce({
+        ...samplePortfolio,
+        accounts: [
+          { ...alice, holdings: [baseHolding, { ...baseHolding, ticker: "BBB", market_value_gbp: 50 }] },
+          { ...alice, owner: "bob", holdings: [{ ...baseHolding, market_value_gbp: 30 }] },
+        ],
+      });
+      // AAA is speculative for alice only; bob's AAA stays in his core.
+      mockGetSleeves.mockImplementation(async (owner: string) =>
+        owner === "alice" ? sleeves({ AAA: "sleeve-1" }) : sleeves({}),
+      );
+
+      render(<AllocationCharts />);
+      await screen.findByText(/Instrument Types/);
+      expect(mockGetSleeves).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Sleeves" }));
+
+      await waitFor(() => expect(mockGetSleeves).toHaveBeenCalledTimes(2));
+      const slices = screen.getByTestId("pie-slices");
+      await waitFor(() =>
+        expect(within(slices).getAllByTestId("slice-row").map((el) => el.textContent)).toEqual([
+          "Speculative: 100",
+          "Core: 80",
+        ]),
+      );
+      expect(screen.getByTestId("sleeve-note")).toBeInTheDocument();
+    });
+
+    it("shows everything as core when no owner has sleeves", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetSleeves.mockResolvedValue({
+        sleeves: [{ id: "core", name: "Core", size_pct: 100, targets: {}, strategy: null }],
+        assignments: {},
+        holdings: [],
+      });
+      render(<AllocationCharts />, "/allocation?view=sleeve");
+      const slices = await screen.findByTestId("pie-slices");
+      await waitFor(() =>
+        expect(within(slices).getAllByTestId("slice-row").map((el) => el.textContent)).toEqual(["Core: 100"]),
+      );
+    });
+
+    it("shows the error when sleeves cannot be loaded", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetSleeves.mockRejectedValue(new Error("sleeve boom"));
+      render(<AllocationCharts />, "/allocation?view=sleeve");
+      expect(await screen.findByText("sleeve boom")).toBeInTheDocument();
+      expect(screen.getByTestId("no-slices")).toBeInTheDocument();
+    });
+  });
 });

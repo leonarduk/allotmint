@@ -486,3 +486,31 @@ def test_aggregate_by_currency_flags_holdings_with_no_stored_fx_rate(monkeypatch
     ]
     # Flagged, not dropped: weights still cover every holding.
     assert sum(g["weight_pct"] for g in groups.values()) == pytest.approx(100.0)
+
+
+@pytest.mark.usefixtures("_no_instrument_metadata")
+def test_aggregate_by_currency_flags_holding_level_missing_fx_rate(monkeypatch):
+    """A holding reporting fx_rate_source "missing" (#9664) is flagged even if its currency has a stored rate."""
+
+    monkeypatch.setattr(portfolio_utils, "cached_fx_rate_to_gbp", lambda ccy: 0.79)
+
+    groups = _currency_groups(
+        [
+            _holding("QXQ.N", 50, currency="USD", fx_rate_source="missing"),
+            _holding("QXR.N", 70, currency="USD", fx_rate_source="cache"),
+        ]
+    )
+
+    assert groups["USD"][portfolio_utils.UNCONVERTED_HOLDINGS_KEY] == [
+        {"ticker": "QXQ.N", "currency": "USD", "reason": portfolio_utils.FX_MISSING_ALL_DATES}
+    ]
+    assert groups["USD"]["market_value_gbp"] == pytest.approx(120)
+
+
+@pytest.mark.usefixtures("_no_instrument_metadata")
+def test_aggregate_by_ticker_does_not_leak_fx_missing_marker():
+    rows = portfolio_utils.aggregate_by_ticker(
+        {"accounts": [{"holdings": [_holding("QXS.N", 5, currency="USD", fx_rate_source="missing")]}]}
+    )
+
+    assert all("_fx_rate_missing" not in r for r in rows)

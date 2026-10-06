@@ -778,6 +778,9 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
             row.setdefault("_region_source", None)
 
             row["units"] += _safe_num(h.get("units"))
+            if h.get("fx_rate_source") == "missing":
+                # Valued without a real FX rate (#9664); flagged by aggregate_by_currency.
+                row["_fx_rate_missing"] = True
 
             _update_row_field(row, "currency", h.get("currency"), "holding")
             _update_row_field(row, "sector", h.get("sector"), "holding")
@@ -1073,6 +1076,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
     rows = _aggregate_ticker_rows(portfolio, base_currency)
     for r in rows:
         r.pop("_unreliable_cost_split", None)
+        r.pop("_fx_rate_missing", None)
     return rows
 
 
@@ -1246,18 +1250,23 @@ def _quote_currency_key(row: dict) -> str:
     return CurrencyNormaliser.from_raw(raw).display_code
 
 
-def _missing_fx_holdings(quote_currency: str, tickers: List[str]) -> List[dict]:
-    """``unconverted_holdings`` entries for a quote currency with no stored GBP rate.
+def _missing_fx_holdings(quote_currency: str, rows: List[dict]) -> List[dict]:
+    """``unconverted_holdings`` entries for ``rows`` valued without a real GBP rate.
 
-    Reads the FX cache only (never Yahoo, #8028). Until #9664 lands such
-    holdings are still valued at the approximate fallback rate, so they are
-    flagged here rather than silently trusted.
+    A row is flagged when any of its holdings reports ``fx_rate_source ==
+    "missing"`` (#9664), or when its quote currency has no stored GBP rate at
+    all -- read from the FX cache only, never Yahoo (#8028). Such holdings
+    are still counted at whatever rate valued them, so they are flagged here
+    rather than silently trusted.
     """
-    if quote_currency in ("GBP", UNKNOWN_CURRENCY_LABEL):
-        return []
-    if cached_fx_rate_to_gbp(quote_currency) is not None:
-        return []
-    return [{"ticker": t, "currency": quote_currency, "reason": FX_MISSING_ALL_DATES} for t in tickers]
+    no_stored_rate = quote_currency not in ("GBP", UNKNOWN_CURRENCY_LABEL) and (
+        cached_fx_rate_to_gbp(quote_currency) is None
+    )
+    return [
+        {"ticker": str(r.get("ticker") or ""), "currency": quote_currency, "reason": FX_MISSING_ALL_DATES}
+        for r in rows
+        if no_stored_rate or r.get("_fx_rate_missing")
+    ]
 
 
 def aggregate_by_currency(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
@@ -1272,16 +1281,16 @@ def aggregate_by_currency(portfolio: dict | VirtualPortfolio, base_currency: str
     Each group also lists, under ``UNCONVERTED_HOLDINGS_KEY``, its holdings
     whose quote currency has no stored GBP rate (the #9671 convention).
     """
-    tickers: Dict[str, List[str]] = defaultdict(list)
+    rows_by_key: Dict[str, List[dict]] = defaultdict(list)
 
     def _key(row: dict) -> str:
         key = _quote_currency_key(row)
-        tickers[key].append(str(row.get("ticker") or ""))
+        rows_by_key[key].append(row)
         return key
 
     groups = _aggregate_by_field(portfolio, "quote_currency", base_currency, key_fn=_key)
     for g in groups:
-        g[UNCONVERTED_HOLDINGS_KEY] = _missing_fx_holdings(g["quote_currency"], tickers[g["quote_currency"]])
+        g[UNCONVERTED_HOLDINGS_KEY] = _missing_fx_holdings(g["quote_currency"], rows_by_key[g["quote_currency"]])
     return groups
 
 

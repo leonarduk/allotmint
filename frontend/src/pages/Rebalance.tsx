@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   getNewCashPlan,
   getOwners,
@@ -339,6 +340,27 @@ function DriftTable({ plan }: { plan: RebalancePlan }) {
   );
 }
 
+function SuggestedInstrument({ trade }: { trade: RebalanceTrade }) {
+  if (!trade.ticker) return <>Choose an instrument</>;
+  return (
+    <Link
+      to={`/research/${encodeURIComponent(trade.ticker)}`}
+      className="underline"
+    >
+      {trade.name ? (
+        <>
+          {trade.name}{' '}
+          <span className="text-slate-500 dark:text-slate-400">
+            ({trade.ticker})
+          </span>
+        </>
+      ) : (
+        trade.ticker
+      )}
+    </Link>
+  );
+}
+
 function TradeTable({ trades }: { trades: RebalanceTrade[] }) {
   return (
     <table className="w-full border-collapse">
@@ -362,7 +384,9 @@ function TradeTable({ trades }: { trades: RebalanceTrade[] }) {
               {LABELS[t.asset_class] ?? t.asset_class}
             </td>
             <td className="px-2 py-1 text-right">{gbp.format(t.amount)}</td>
-            <td className="px-2 py-1">{t.ticker ?? 'Choose an instrument'}</td>
+            <td className="px-2 py-1">
+              <SuggestedInstrument trade={t} />
+            </td>
           </tr>
         ))}
       </tbody>

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 
 import pytest
 from fastapi import FastAPI
@@ -11,6 +12,13 @@ from fastapi.testclient import TestClient
 from backend.common import investment_plan as plan_mod
 from backend.common.errors import OwnerNotFoundError, PermissionDeniedError
 from backend.routes import investment_plan as plan_route
+
+
+class _FixedDate(date):
+    @classmethod
+    def today(cls):
+        return cls(2026, 10, 6)
+
 
 PLAN = {
     "owner": "alex",
@@ -195,3 +203,50 @@ def test_golden_butterfly_plan_matches_and_copies_with_broad_equity(data_root):
 
 def test_plan_without_matching_strategy(data_root):
     assert _client(data_root).put("/plans/alex", json=PLAN).json()["strategy"] is None
+
+
+PROFILE = {
+    "risk_tolerance": {"level": "low"},
+    "goals": [
+        {"name": "House deposit", "purpose": "house_deposit", "target_date": "2038-01-01"},
+        {"name": "General", "purpose": "general_wealth"},
+    ],
+}
+
+
+def test_profile_round_trips_with_derived_horizon(data_root, monkeypatch):
+    (data_root / "accounts" / "alex" / "person.json").write_text(json.dumps({"owner": "alex", "dob": "2000-01-01"}))
+    monkeypatch.setattr(plan_mod, "date", _FixedDate)
+    client = _client(data_root)
+    assert client.put("/plans/alex", json={**PLAN, "profile": PROFILE}).status_code == 200
+
+    body = client.get("/plans/alex").json()
+    assert body["plan"]["profile"] == PROFILE
+    assert body["horizon"] == {"age": 26, "goals": [{"index": 0, "name": "House deposit", "years_to_goal": 11.2}]}
+    saved = json.loads((data_root / "plans" / "alex.json").read_text(encoding="utf-8"))
+    assert "horizon" not in saved and "age" not in saved["profile"]
+
+
+def test_horizon_without_profile_or_dob(data_root):
+    body = _client(data_root).put("/plans/alex", json=PLAN).json()
+    assert "profile" not in body["plan"]
+    assert body["horizon"] == {"age": None, "goals": []}
+
+
+def test_put_rejects_unknown_goal_purpose(data_root):
+    bad = {**PLAN, "profile": {"goals": [{"name": "x", "purpose": "yacht"}]}}
+    resp = _client(data_root).put("/plans/alex", json=bad)
+    assert resp.status_code == 400
+    assert "profile.goals.0.purpose" in resp.json()["detail"]
+
+
+@pytest.mark.parametrize("person", [None, "{not json"])
+def test_horizon_survives_missing_or_corrupt_person_json(data_root, person):
+    path = data_root / "accounts" / "alex" / "person.json"
+    if person is None:
+        path.unlink()
+    else:
+        path.write_text(person)
+    body = _client(data_root).put("/plans/alex", json={**PLAN, "profile": PROFILE}).json()
+    assert body["horizon"]["age"] is None
+    assert body["horizon"]["goals"][0]["name"] == "House deposit"

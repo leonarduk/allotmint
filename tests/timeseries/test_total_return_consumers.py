@@ -16,6 +16,7 @@ from backend.timeseries import cache as ts_cache
 from backend.timeseries import total_return as tr
 from backend.timeseries.corporate_actions import (
     ACTION_COLUMNS,
+    CONFIRMED_FROM,
     corporate_actions_path,
     load_dividends,
     stored_dividends,
@@ -36,7 +37,14 @@ def store(tmp_path, monkeypatch):
     monkeypatch.setattr(ts_cache, "_CACHE_BASE", str(tmp_path))
     tr._report_price_fallback.cache_clear()
 
-    def write(ticker: str, exchange: str, dividends: dict | None = None, *, splits: dict | None = None) -> None:
+    def write(
+        ticker: str,
+        exchange: str,
+        dividends: dict | None = None,
+        *,
+        splits: dict | None = None,
+        confirmed_from: str | None = None,
+    ) -> None:
         rows = [(pd.Timestamp(d), "dividend", v) for d, v in (dividends or {}).items()]
         rows += [(pd.Timestamp(d), "split", v) for d, v in (splits or {}).items()]
         frame = pd.DataFrame(
@@ -44,6 +52,8 @@ def store(tmp_path, monkeypatch):
             columns=ACTION_COLUMNS,
         )
         frame["Date"] = frame["Date"].astype("datetime64[ms]")
+        if confirmed_from is not None:
+            frame.attrs[CONFIRMED_FROM] = confirmed_from
         path = corporate_actions_path(ticker, exchange)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         frame.to_parquet(path, index=False)
@@ -90,6 +100,55 @@ def test_file_without_dividends_is_a_genuine_total_return(store):
 
     assert basis == tr.TOTAL_RETURN_BASIS
     assert levels.tolist() == pytest.approx(CLOSES)
+
+
+def test_empty_file_confirmed_before_the_first_close_is_total_return(store):
+    """A fetch that confirmed no dividends ever is a genuine total return (#9567)."""
+    store("NONE", "N", confirmed_from="2000-01-03")
+
+    dividends = stored_dividends("NONE", "N")
+    assert dividends is not None and dividends.empty
+    assert dividends.attrs[CONFIRMED_FROM] == pd.Timestamp("2000-01-03")
+    levels, basis = tr.total_return_closes(_closes(), "NONE", "N")
+    assert basis == tr.TOTAL_RETURN_BASIS
+    assert levels.tolist() == pytest.approx(CLOSES)
+    out, frame_basis = tr.total_return_frame(_frame(), "NONE", "N")
+    assert frame_basis == tr.TOTAL_RETURN_BASIS
+    assert out["Close"].tolist() == pytest.approx(CLOSES)
+
+
+def test_empty_file_confirmed_within_the_grace_of_the_first_close_is_total(store):
+    store("NONE", "N", confirmed_from=(DATES[0] + pd.Timedelta(days=6)).date().isoformat())
+
+    assert tr.total_return_closes(_closes(), "NONE", "N")[1] == tr.TOTAL_RETURN_BASIS
+
+
+def test_empty_file_confirmed_only_after_the_first_close_is_price(store, caplog):
+    """A rolling fetch that saw no dividends in its last few days does not cover older closes."""
+    store("RECENT", "L", confirmed_from="2024-06-03")
+    closes = _closes()
+
+    with caplog.at_level(logging.INFO, logger=tr.__name__):
+        levels, basis = tr.total_return_closes(closes, "RECENT", "L")
+        _, frame_basis = tr.total_return_frame(_frame(), "RECENT", "L")
+
+    assert basis == tr.PRICE_RETURN_BASIS
+    assert frame_basis == tr.PRICE_RETURN_BASIS
+    assert levels is closes
+    assert "only confirmed from 2024-06-03" in caplog.text
+    # The same file covers a window of closes that starts after it.
+    later = pd.Series(CLOSES, index=pd.bdate_range("2024-06-03", periods=5))
+    assert tr.total_return_closes(later, "RECENT", "L")[1] == tr.TOTAL_RETURN_BASIS
+
+
+def test_dividends_are_reinvested_whatever_the_confirmed_start(store):
+    """``confirmed_from`` only qualifies a file with no dividends."""
+    store("PAY", "L", {EX_DATE: 2.0}, confirmed_from="2024-06-03")
+
+    levels, basis = tr.total_return_closes(_closes(), "PAY", "L")
+
+    assert basis == tr.TOTAL_RETURN_BASIS
+    assert levels.tolist() == pytest.approx(TOTAL_LEVELS)
 
 
 def test_missing_file_falls_back_to_price_and_reports_it(store, caplog):

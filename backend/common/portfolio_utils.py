@@ -1609,7 +1609,7 @@ def _portfolio_value_series(
 
 def _is_cash_holding(ticker: str, exchange: str) -> bool:
     """True for a ``CASH.<ccy>`` (or legacy ``<ccy>.CASH``) holding."""
-    return "CASH" in (ticker.upper(), exchange.upper())
+    return ticker.upper() == "CASH" or exchange.upper() == "CASH"
 
 
 def _portfolio_return_basis(per_holding: list[tuple[pd.Series, str | None]]) -> dict[str, Any]:

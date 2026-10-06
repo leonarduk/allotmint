@@ -30,6 +30,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.routes import get_active_user
 
 logger = logging.getLogger(__name__)
@@ -184,7 +185,12 @@ def _apply_update(status: AppUpdateStatus) -> AppUpdateResult:
     _git("merge", "--ff-only", "@{u}")
     current = _git("rev-parse", "HEAD")
     changed = [line for line in _git("diff", "--name-only", previous, current).splitlines() if line]
-    logger.info("App updated from %s to %s (%d files changed)", previous[:12], current[:12], len(changed))
+    logger.info(
+        "App updated from %s to %s (%s files changed)",
+        sanitise_log_value(previous[:12]),
+        sanitise_log_value(current[:12]),
+        sanitise_log_value(len(changed)),
+    )
     return AppUpdateResult(
         updated=True,
         previous_commit=previous,
@@ -203,7 +209,7 @@ def get_update_status(fetch: bool = True) -> AppUpdateStatus:
     try:
         return _collect_status(fetch=fetch)
     except GitError as exc:
-        logger.warning("App update status check failed: %s", exc)
+        logger.warning("App update status check failed: %s", sanitise_log_value(exc))
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
@@ -219,7 +225,7 @@ def post_update() -> AppUpdateResult:
             raise HTTPException(status_code=409, detail=status.reason)
         return _apply_update(status)
     except GitError as exc:
-        logger.warning("App update failed: %s", exc)
+        logger.warning("App update failed: %s", sanitise_log_value(exc))
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     finally:
         _update_lock.release()

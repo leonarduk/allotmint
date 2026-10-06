@@ -25,6 +25,8 @@
   },
   "alertSettings": {
     "description": "Dieser Schwellenwert ist in dieser Umgebung noch nicht mit der Alarmerzeugung verbunden. Die heutigen Alarme stammen aus einer festen, kontoübergreifenden Prüfung, die während der täglichen Kursaktualisierung läuft: Jede Position, die mehr als 10 % von ihrem Einstandspreis abweicht, wird über alle Portfolios hinweg markiert.",
+    "forbiddenNotice": "Alarme gelten nur für eine einzelne angemeldete Identität und können hier nicht für {{owner}} geändert werden.",
+    "managingFor": "Sie verwalten diese Einstellung für {{owner}}.",
     "push": {
       "denied": "Push-Berechtigung verweigert.",
       "disable": "Push-Alerts deaktivieren",
@@ -33,6 +35,7 @@
       "notSupported": "Push-Benachrichtigungen sind in dieser Umgebung noch nicht verfügbar — sieh stattdessen oben auf der Alarmseite nach.",
       "title": "Push-Benachrichtigungen"
     },
+    "resolving": "Es wird geprüft, als wer Sie angemeldet sind…",
     "save": "Speichern",
     "signInNotice": "Melden Sie sich an, um Alarme zu konfigurieren",
     "status": {
@@ -72,29 +75,27 @@
       "title": "Preisauslöser",
       "update": "Auslöser aktualisieren",
       "when": "Wenn"
-    }
+    },
+    "viewAlertsLink": "Letzte Alarme anzeigen"
   },
   "allocation": {
+    "allocationDescription": "Die Allokation zeigt, wie sich der aktuelle Portfoliowert verteilt.",
+    "contributionDescription": "Der Beitrag zeigt, welche Teile des Portfolios Gewinne und Verluste verursacht haben.",
     "currency": "Währungen",
     "currencyMissingFx": "Kein gespeicherter Wechselkurs für {{currencies}}: Diese Positionen werden mit einem Näherungskurs bewertet oder ausgelassen, ihr Anteil kann daher abweichen.",
     "currencyNote": "Engagement nach Notierungswährung: die Währung, in der jede Position gehandelt wird, nicht das zugrunde liegende Engagement (ein in GBP notierter globaler Fonds zählt als GBP). Umfasst alle Konten dieser Gruppe.",
     "instrumentTypes": "Instrumenttypen",
     "region": "Regionen",
     "sector": "Branchen",
-    "unknownCurrency": "Unbekannte Währung"
+    "unknownCurrency": "Unbekannte Währung",
+    "viewAllocation": "Allokation nach {{dimension}} anzeigen",
+    "viewContribution": "Gewinnbeitrag anzeigen"
   },
   "app": {
     "close": "Schließen",
-    "glossaryLink": "Glossar",
     "last": "Zuletzt:",
     "loading": "Laden…",
     "logout": "Abmelden",
-    "logs": {
-      "empty": "Keine Protokolle verfügbar.",
-      "error": "Protokolle konnten nicht geladen werden.",
-      "refresh": "Protokolle aktualisieren",
-      "title": "Protokolle"
-    },
     "menu": "Menü",
     "menuCategories": {
       "dashboard": "Übersicht",
@@ -108,6 +109,7 @@
     "modes": {
       "alertsettings": "Alarm-Einstellungen",
       "allocation": "Allokation",
+      "awscosts": "AWS-Kosten",
       "compliance": "Compliance-Warnungen",
       "dataadmin": "Datenverwaltung",
       "dataexplorer": "Datei-Explorer",
@@ -146,7 +148,14 @@
     "relativeView": "Relative Ansicht",
     "research": "Recherche",
     "supportLink": "Support",
-    "userLink": "App"
+    "userLink": "App",
+    "glossaryLink": "Glossar",
+    "logs": {
+      "empty": "Keine Protokolle verfügbar.",
+      "error": "Protokolle konnten nicht geladen werden.",
+      "refresh": "Protokolle aktualisieren",
+      "title": "Protokolle"
+    }
   },
   "approxTotal": "Ungefähre Summe: £{{value}}",
   "asOf": "Stand {{date}} • Trades diesen Monat: {{trades}} / 20 (Verbleibend: {{remaining}})",
@@ -159,9 +168,157 @@
     "period": "Zeitraum:",
     "reason": "Grund",
     "ticker": "Ticker",
+    "cancel": "Abbrechen",
+    "close": "Schließen",
     "retry": "Wiederholen"
   },
+  "awsCostsAdmin": {
+    "title": "AWS-Kosten",
+    "notAuthorized": "Sie sind nicht berechtigt, AWS-Kostendaten anzuzeigen.",
+    "loadError": "AWS-Kostendaten konnten nicht geladen werden.",
+    "noData": "Für diesen Zeitraum wurden keine Kostendaten gefunden.",
+    "period": "Zeitraum: {{start}} – {{end}}",
+    "columns": {
+      "service": "Dienst",
+      "amount": "Betrag"
+    },
+    "total": "Gesamt"
+  },
+  "dataQuality": {
+    "title": "Datenqualität",
+    "noData": "Keine zwischengespeicherten Zeitreihenpositionen gefunden.",
+    "viewDetails": "Details anzeigen",
+    "viewDetailsFor": "Details für {{ticker}}.{{exchange}} anzeigen",
+    "columns": {
+      "ticker": "Ticker",
+      "exchange": "Börse",
+      "totalPoints": "Datenpunkte gesamt",
+      "dateRange": "Zeitraum",
+      "gapCount": "Lücken",
+      "duplicateCount": "Duplikate",
+      "outlierCount": "Ausreißer",
+      "status": "Status"
+    },
+    "status": {
+      "green": "Sauber",
+      "amber": "Mit Lücken",
+      "red": "Mit Problemen"
+    },
+    "drilldown": {
+      "title": "Datenqualität im Detail: {{ticker}}.{{exchange}}",
+      "gaps": "Lücken",
+      "duplicates": "Doppelte Daten",
+      "outliers": "Ausreißer",
+      "date": "Datum",
+      "value": "Wert",
+      "zScore": "Z-Wert",
+      "missingDays_one": "{{count}} fehlender Geschäftstag",
+      "missingDays_other": "{{count}} fehlende Geschäftstage",
+      "noIssues": "Für diese Position wurden keine Datenqualitätsprobleme gefunden.",
+      "close": "Schließen"
+    },
+    "admin": {
+      "tabs": {
+        "issues": "Probleme",
+        "series": "Zeitreihen",
+        "holdings": "Bestände",
+        "metadata": "Metadaten",
+        "audit": "Prüfprotokoll"
+      },
+      "issues": {
+        "title": "Datenqualitätsprobleme",
+        "subtitle": "Einheitliche Probleme über Bestände, zwischengespeicherte Zeitreihen und Instrumentenmetadaten.",
+        "noIssues": "Für die aktuellen Filter wurden keine Probleme gefunden.",
+        "filters": {
+          "type": "Typ",
+          "severity": "Schweregrad",
+          "ticker": "Ticker",
+          "allTypes": "Alle Typen",
+          "allSeverities": "Alle Schweregrade"
+        },
+        "columns": {
+          "type": "Typ",
+          "severity": "Schweregrad",
+          "entity": "Objekt",
+          "description": "Beschreibung",
+          "suggestedFix": "Vorgeschlagene Korrektur",
+          "actions": "Aktionen"
+        },
+        "severity": {
+          "high": "Hoch",
+          "medium": "Mittel",
+          "low": "Niedrig"
+        },
+        "actions": {
+          "preview": "Vorschau",
+          "previewFor": "Vorschau der Korrektur für {{entity}}",
+          "fix": "Korrektur anwenden",
+          "fixFor": "Korrektur für {{entity}} anwenden",
+          "fixing": "Wird angewendet...",
+          "fixAll": "Korrektur auf alle angezeigten anwenden",
+          "fixAllShort": "Alle korrigieren",
+          "backupNote": "Jede Korrektur erstellt eine .bak-Sicherung und einen Prüfprotokolleintrag.",
+          "notFixable": "Manuelle Prüfung",
+          "applied": "Korrektur angewendet",
+          "failed": "Korrektur fehlgeschlagen",
+          "batchApplied": "{{applied}} von {{total}} Problemen angewendet.",
+          "batchFailed": "{{failed}} Problem(e) konnten nicht angewendet werden.",
+          "close": "Schließen",
+          "confirmTitle": "Diese Korrektur anwenden?",
+          "confirmBody": "Die Änderung wird gesichert und im Prüfprotokoll festgehalten.",
+          "cancel": "Abbrechen",
+          "apply": "Anwenden"
+        },
+        "previewTitle": "Korrekturvorschau: {{type}}",
+        "before": "Vorher",
+        "after": "Nachher"
+      },
+      "series": {
+        "title": "Zeitreihen",
+        "refetch": "Neu abrufen",
+        "dedupe": "Duplikate entfernen",
+        "dedupeFor": "Duplikate für {{ticker}}.{{exchange}} entfernen",
+        "edit": "Bearbeiten",
+        "rebuild": "Neu aufbauen",
+        "deduped": "{{removed}} doppelte Zeile(n) entfernt.",
+        "refetched": "{{rows}} Zeile(n) neu abgerufen."
+      },
+      "holdings": {
+        "title": "Bestände",
+        "correctExchange": "Börse korrigieren",
+        "createMetadata": "Metadaten erstellen & abrufen",
+        "corrected": "Bestand auf {{ticker}} korrigiert."
+      },
+      "metadata": {
+        "title": "Metadaten",
+        "note": "Die Verwaltung der Instrumentenmetadaten befindet sich im Bildschirm Instrumentenverwaltung.",
+        "openInstrumentAdmin": "Instrumentenverwaltung öffnen"
+      },
+      "audit": {
+        "title": "Prüfprotokoll",
+        "empty": "Noch keine Prüfprotokolleinträge.",
+        "columns": {
+          "timestamp": "Zeitstempel",
+          "action": "Aktion",
+          "entity": "Objekt",
+          "before": "Vorher",
+          "after": "Nachher",
+          "actor": "Akteur"
+        },
+        "actions": {
+          "undo": "Rückgängig",
+          "undoFor": "{{entity}} rückgängig machen",
+          "undone": "Rückgängig gemacht",
+          "undoFailed": "Rückgängigmachen fehlgeschlagen: {{detail}}",
+          "notReversible": "Nicht umkehrbar"
+        }
+      }
+    }
+  },
   "dashboard": {
+    "performanceScopeLabel": "Ansicht",
+    "performanceScopeGroups": "Haushalt",
+    "performanceScopeOwners": "Einzelpersonen",
     "alphaVsBenchmark": "Alpha vs Benchmark",
     "cumulativeReturn": "Kumulierte Rendite",
     "excludeCash": "Bargeld ausschließen",
@@ -170,13 +327,19 @@
     "maxDrawdownDetailsHeading": "Max-Drawdown-Details",
     "maxDrawdownExplain": "Diesen Einbruch erklären",
     "maxDrawdownHide": "Drawdown-Details ausblenden",
+    "metricNotAvailable": "k. A.",
+    "metricUnreliable": "Diese Berechnung wirkt unzuverlässig (der Wert liegt außerhalb eines plausiblen Bereichs) und wird daher nicht angezeigt.",
     "metricsExplanationLink": "Wie werden diese Werte berechnet?",
     "drawdownRangeWithValues": "Größter Rückgang von {{start}} ({{startValue}}) bis {{end}} ({{endValue}}).",
     "drawdownRangeUnknown": "Wir konnten die Daten für diesen Drawdown nicht ermitteln.",
     "drawdownPercentSummary": "Das Portfolio fiel um {{drawdown}} vom Hoch, bevor es sich erholte.",
     "drawdownSuspicious": "Rückgänge von mehr als 90 % deuten meist auf fehlende oder fehlerhafte Preise hin. Prüfen Sie den markierten Zeitraum auf Lücken oder veraltete Daten.",
+    "drawdownUnreliable": "Die Berechnung des maximalen Drawdowns lieferte einen unmöglichen Wert (ein Drawdown muss zwischen -100 % und 0 % liegen) und wird daher nicht angezeigt. Das deutet meist auf fehlende oder falsche Kurse hin.",
     "drawdownChartDescription": "Der Drawdown wird aus der täglichen Portfoliokurve berechnet. Der markierte Bereich zeigt den Peak-to-Trough-Verlauf des maximalen Drawdowns.",
     "drawdownSeriesUnavailable": "Wir konnten für diesen Zeitraum keine Drawdown-Historie laden.",
+    "performancePartialMembers": "Zeitgewichtete Rendite und XIRR sind unvollständig: Für {{members}} wurde keine Transaktionshistorie gefunden, daher liegen diese Werte wahrscheinlich über der tatsächlichen Rendite des Haushalts.",
+    "performanceMetricsUnavailable": "Einige Kennzahlen konnten nicht geladen werden und werden als nicht verfügbar angezeigt: {{metrics}}.",
+    "performanceUnavailable": "Das Diagramm des Portfoliowerts für diesen Zeitraum konnte nicht geladen werden. Andere Kennzahlen auf dieser Seite sind möglicherweise weiterhin verfügbar.",
     "openDiagnostics": "Diagnose öffnen",
     "viewMetricsExplanation": "Ausführliche Erklärung lesen",
     "portfolioValue": "Portfoliowert",
@@ -209,6 +372,8 @@
   },
   "group": {
     "loadError": "Ihr Portfolio konnte nicht geladen werden. Bitte versuchen Sie es später erneut.",
+    "loadingHoldingsDetail": "Erweiterte Bestandsdetails werden geladen…",
+    "loadingPortfolio": "Ihr Portfolio wird geladen – bei größeren Konten kann das etwas dauern.",
     "atAGlance": "Auf einen Blick",
     "pricingAsOf": "Preisstand vom {{date}}",
     "pricingDatePickerLabel": "Preisstand ändern",
@@ -217,6 +382,13 @@
   },
   "holdingsTable": {
     "actualPurchaseCost": "Tatsächliche Anschaffungskosten",
+    "displayMode": {
+      "category": "Kategorie",
+      "flat": "Flach",
+      "label": "Darstellung der Bestände",
+      "rollup": "Zusammengefasst",
+      "sector": "Sektor"
+    },
     "clearFilters": "Filter löschen",
     "horizontalScroll": "Bestandsspalten horizontal scrollen",
     "columns": {
@@ -314,25 +486,46 @@
       "sell": "Verkauf"
     },
     "tradeUnits": "Anteile",
+    "cancel": "Abbrechen",
     "change30d": "30T",
     "change7d": "7T",
     "columns": {
       "account": "Konto",
+      "acquired": "Erworben",
+      "avgCost": "Ø Einstand £",
+      "cost": "Einstand £",
+      "daysHeld": "Haltetage",
       "gain": "Gewinn £",
       "gainPct": "Gewinn %",
       "market": "Markt £",
-      "units": "Einheiten"
+      "price": "Kurs £",
+      "units": "Einheiten",
+      "weightPct": "Gewicht %"
     },
+    "confirm": "Bestätigen",
+    "currencyLabel": "Währung",
+    "currencyMismatchNote": "Der Katalog nennt {{metadataCurrency}}; der Kursfeed liefert {{priceCurrency}}. Die Metadaten sind möglicherweise veraltet.",
+    "currencyPlaceholder": "Währung auswählen",
+    "declaredCurrencyLabel": "Angegebene Währung (Metadaten)",
     "edit": "Bearbeiten",
     "fundamentalsUnavailable": "Fundamentaldaten sind in diesem Deployment nicht verfügbar.",
+    "infoHeading": "Instrumenteninfo",
     "intraday": "Intraday",
     "intradayUnavailable": "Keine Intraday-Daten",
     "ma20": "20d MA",
     "ma200": "200d MA",
     "ma50": "50d MA",
+    "metadataCurrencyError": "Wählen Sie vor dem Speichern eine unterstützte Währung aus.",
+    "metadataLoadError": "Der Instrumentenkatalog konnte nicht geladen werden.",
+    "metadataMissingExchange": "Die Börse des Instruments ist unbekannt; versuchen Sie, neu zu laden.",
+    "metadataSaveError": "Instrumentendetails konnten nicht gespeichert werden.",
+    "metadataSaveSuccess": "Instrumentendetails aktualisiert.",
+    "nameLabel": "Name",
     "noPositions": "Keine Positionen",
     "noPriceData": "Keine Preisdaten",
     "positions": "Positionen",
+    "total": "Gesamt",
+    "totalCostIncomplete": "Gesamt nicht verfügbar – mindestens eine Position hat keine verlässliche Einstandsbasis",
     "priceColumns": {
       "close": "£ Schluss",
       "date": "Datum",
@@ -348,8 +541,18 @@
       "max": "MAX"
     },
     "recentPrices": "Aktuelle Preise",
+    "refresh": "Aktualisieren",
+    "refreshCancel": "Abbrechen",
+    "refreshConfirm": "Bestätigen",
+    "refreshError": "Instrumentendetails konnten nicht aktualisiert werden.",
+    "refreshNoChanges": "Die neuesten Daten stimmen mit den gespeicherten Metadaten überein.",
+    "refreshPreviewDescription": "Prüfen Sie die abgerufenen Metadaten vor der Bestätigung.",
+    "refreshPreviewTitle": "Vorgeschlagene Aktualisierungen",
+    "refreshSuccess": "Instrumentendetails von Yahoo Finance aktualisiert.",
     "rsi": "RSI",
+    "save": "Speichern",
     "searchInstruments": "Instrumente suchen",
+    "sectorLabel": "Sektor",
     "showInstrumentSearch": "Instrumentensuche anzeigen"
   },
   "instrumentTable": {
@@ -379,7 +582,8 @@
       "market": "Marktwert"
     },
     "noInstruments": "Keine Instrumente.",
-    "ungrouped": "Ohne Gruppe"
+    "ungrouped": "Ohne Gruppe",
+    "unknownSector": "Unbekannter Sektor"
   },
   "instrumentType": {
     "bond": "Anleihe",
@@ -484,6 +688,7 @@
     "deltaGbpHeader": "Wertänderung (£, {{period}})",
     "excludeSmall": "Positionen <{{min}}% ausschließen",
     "loadFailed": "Laden der Movers fehlgeschlagen{{status}}",
+    "loading": "Kursbewegungen werden geladen – bei größeren Watchlists kann das etwas dauern.",
     "loginPrompt": "Bitte melden Sie sich an, um portfolio-basierte Movers zu sehen.",
     "pctChangeHeader": "Kursänderung (%, {{period}})",
     "pctPortfolio": "% des Portfolios",
@@ -498,6 +703,20 @@
     "select": "Wählen Sie einen Besitzer."
   },
   "pensionForecast": {
+    "ages": {
+      "ageNowHelper": "Aus dem hinterlegten Geburtsdatum ({{dob}}).",
+      "ageNowLabel": "Aktuelles Alter",
+      "ageNowLoadFailed": "Altersangaben konnten nicht geladen werden: {{error}}",
+      "ageNowUnknown": "Fügen Sie dem Profil dieser Person ein Geburtsdatum hinzu, um es zu sehen.",
+      "retirementAgeHelper": "Wann Sie aufhören zu arbeiten und mit dem Bezug Ihrer Rente beginnen. Standardmäßig Ihr Alter für die gesetzliche Rente ({{spa}}); ab dann beginnt die gesetzliche Rente unabhängig von Ihrer Wahl. Private Renten sind in der Regel ab 55 zugänglich (ab April 2028 ab 57).",
+      "retirementAgeHelperNoSpa": "Wann Sie aufhören zu arbeiten und mit dem Bezug Ihrer Rente beginnen. Leer lassen, um Ihr Alter für die gesetzliche Rente zu verwenden.",
+      "retirementAgeLabel": "Rentenalter",
+      "retirementAgePlaceholder": "Alter für gesetzliche Rente",
+      "statePensionStartsLater": "Bei Ruhestand mit {{retirementAge}} wird Ihre gesetzliche Rente erst ab {{spa}} gezahlt und ist daher im oben angezeigten Einkommen im Ruhestand nicht enthalten."
+    },
+    "allowance": {
+      "helper": "Sie + Arbeitgeber: {{total}} pro Monat. Die gesamten Beiträge sind durch den jährlichen Rentenfreibetrag von {{monthlyLimit}} pro Monat ({{annualLimit}} pro Jahr, einschließlich Steuererleichterung) begrenzt; er kann bei sehr hohen Einkommen oder nach flexiblem Rentenbezug niedriger sein."
+    },
     "birthDate": "Geburtsdatum: {{dob}}",
     "currentAge": "Aktuelles Alter: {{age}}",
     "employerContributionLabel": "Arbeitgeberbeitrag",
@@ -533,6 +752,19 @@
       "share": "Share",
       "source": "Source"
     },
+    "livingStandards": {
+      "amount": "≈ {{monthly}}/Monat ({{annual}}/Jahr)",
+      "comfortable": "Komfortabel",
+      "helper": "Ausgaben nach Steuern für Wohneigentümer ohne Miete oder Hypothek. Fügen Sie Wohnkosten hinzu, falls Sie diese weiterhin haben. Quelle: Pensions UK via Which?.",
+      "household": {
+        "couple": "Paar",
+        "single": "Single"
+      },
+      "householdLabel": "Haushalt",
+      "legend": "Typische Ausgaben im Ruhestand ({{year}} Retirement Living Standards)",
+      "minimum": "Minimal",
+      "moderate": "Moderat"
+    },
     "monthlyContribution": "Monatlicher Beitrag (£):",
     "pensionPot": "Pensionsvermögen",
     "prediction": {
@@ -549,12 +781,14 @@
   },
   "portfolio": "Portfolio",
   "query": {
+    "copyLink": "Link kopieren",
     "end": "Ende",
     "exportCsv": "CSV exportieren",
     "exportXlsx": "XLSX exportieren",
     "metricGainGbp": "Gewinn (£)",
     "metricMarketValueGbp": "Marktwert (£)",
     "metrics": "Metriken",
+    "noResults": "Keine Ergebnisse.",
     "noTickers": "Keine Ticker in Ihrem Bestand gefunden.",
     "owners": "Eigentümer",
     "run": "Ausführen",
@@ -600,11 +834,70 @@
     },
     "downloadsTitle": "Berichte herunterladen",
     "downloadsDescription": "Erstellen Sie CSV- oder PDF-Exporte mit der ausgewählten Vorlage und dem Datumsbereich.",
-    "downloadsDisabled": "Wählen Sie einen Eigentümer und eine Vorlage, um Downloads zu aktivieren."
+    "downloadsDisabled": "Wählen Sie einen Eigentümer und eine Vorlage, um Downloads zu aktivieren.",
+    "builder": {
+      "headingCreate": "Berichtsvorlage erstellen",
+      "headingEdit": "Berichtsvorlage bearbeiten",
+      "subheading": "Konfigurieren Sie Berichtsspalten, Kennzahlen und optionale Filter, bevor Sie die Vorlage speichern.",
+      "nameLabel": "Vorlagenname",
+      "descriptionLabel": "Beschreibung (optional)",
+      "metricsLabel": "Metriken",
+      "columnsLabel": "Spalten",
+      "filtersLabel": "Filter (optional)",
+      "addFilter": "Filter hinzufügen",
+      "noFilters": "Keine Filter angewendet. Fügen Sie einen Filter hinzu, um die Ergebnisse auf bestimmte Konten oder Bestände zu beschränken.",
+      "filterField": "Feld",
+      "filterOperator": "Operator",
+      "filterValue": "Wert",
+      "removeFilter": "Entfernen",
+      "create": "Vorlage erstellen",
+      "saveChanges": "Änderungen speichern",
+      "saving": "Wird gespeichert…",
+      "delete": "Vorlage löschen",
+      "deleting": "Wird gelöscht…",
+      "saveError": "Die Vorlage konnte nicht gespeichert werden. Versuchen Sie es erneut.",
+      "deleteError": "Die Vorlage konnte nicht gelöscht werden. Versuchen Sie es erneut.",
+      "loading": "Vorlage wird geladen…",
+      "missing": "Diese Vorlage konnte nicht geladen werden.",
+      "loadError": "Die ausgewählte Vorlage konnte nicht geladen werden.",
+      "validation": {
+        "name": "Name ist erforderlich",
+        "metrics": "Wählen Sie mindestens eine Metrik aus",
+        "columns": "Wählen Sie mindestens eine Spalte aus"
+      },
+      "metrics": {
+        "performance": "Performance-Zusammenfassung",
+        "holdings": "Aufschlüsselung der Bestände",
+        "transactions": "Letzte Transaktionen",
+        "risk": "Risikokennzahlen"
+      },
+      "columns": {
+        "owner": "Inhaber",
+        "account": "Konto",
+        "ticker": "Ticker",
+        "value": "Wert (£)",
+        "gain": "Gewinn %"
+      },
+      "filters": {
+        "accountType": "Kontotyp",
+        "instrumentType": "Instrumententyp",
+        "region": "Region",
+        "sector": "Sektor"
+      },
+      "operators": {
+        "equals": "Ist gleich",
+        "notEquals": "Ist ungleich",
+        "contains": "Enthält",
+        "gt": "Größer als",
+        "lt": "Kleiner als"
+      }
+    }
   },
   "screener": {
     "checking": "Prüfe Verfügbarkeit des Screeners…",
+    "clearFilters": "Filter zurücksetzen",
     "description": "Filtern Sie eine Watchlist oder eine eigene Tickerliste nach Bewertungs-, Rentabilitäts- und Risikokennzahlen (KGV, Verschuldung, Margen, Renditen u.a.), um Unternehmen für eine genauere Prüfung vorzuselektieren.",
+    "fractionHint": "0,10 = 10 %",
     "loading": "Laden…",
     "max52WeekHigh": "Max 52W High",
     "max52WeekLow": "Max 52W Low",
@@ -637,13 +930,56 @@
     "minRoe": "Min. ROE",
     "minRoi": "Min. ROI",
     "minSharesOutstanding": "Min Shares Outstanding",
+    "noResults": "Keine Ticker entsprachen diesen Filtern. Lockern oder entfernen Sie einige.",
+    "noTickers": "Geben Sie mindestens einen Ticker ein oder wählen Sie eine Watchlist.",
+    "resetDefaults": "Auf Standard zurücksetzen",
     "run": "Ausführen",
     "tickers": "Ticker",
     "title": "Screener",
     "unavailableBody": "Dieses Deployment enthält den Fundamentaldaten-Screener nicht, daher ist eine Filterung nach Finanzkennzahlen hier nicht möglich.",
     "watchlist": "Beobachtungsliste:"
   },
+  "dataadmin": {
+    "configureLocalLogin": "Lokale Anmeldungsüberschreibung konfigurieren"
+  },
   "support": {
+    "appUpdate": {
+      "title": "App aktualisieren",
+      "description": "Setzt diesen lokalen Checkout per Fast-Forward auf den neuesten Commit seines Upstream-Branches. Nur für lokale Bereitstellungen verfügbar.",
+      "branch": "Branch",
+      "behind": "{{count}} neue(r) Commit(s) verfügbar.",
+      "check": "Nach Updates suchen",
+      "checking": "Wird geprüft...",
+      "update": "Jetzt aktualisieren",
+      "updating": "Wird aktualisiert...",
+      "stashUpdate": "Änderungen stashen & aktualisieren",
+      "stashUpdateHint": "Nicht committete Änderungen stashen, aktualisieren und anschließend wieder anwenden. Bei Konflikten mit dem Update verbleiben sie im Stash.",
+      "stashRestored": "Ihre lokalen Änderungen wurden gestasht und wieder angewendet.",
+      "updated": "{{from}} → {{to}} aktualisiert ({{count}} Datei(en) geändert).",
+      "dependencies": "Abhängigkeiten geändert ({{files}}): pip install / npm install erneut ausführen und die App neu starten.",
+      "backendRestart": "Backend-Code wurde geändert. Er startet automatisch neu, wenn er mit aktiviertem Reload läuft (Standard bei den lokalen Startskripten); andernfalls starten Sie ihn neu.",
+      "reload": "Seite neu laden",
+      "noResponse": "Keine Antwort vom Backend ({{error}}). Es wurde möglicherweise nach dem Update neu gestartet; prüfen Sie mit „Nach Updates suchen“."
+    },
+    "mcpServer": {
+      "title": "MCP-Server",
+      "running": "Läuft auf Port {{port}} (PID {{pid}}, gestartet {{started}}).",
+      "stopped": "Läuft nicht auf Port {{port}}.",
+      "toolCount": "{{count}} Tool(s) aufgelistet.",
+      "codeChanged": "Der Code hat sich seit dem Start des Servers geändert; starten Sie ihn neu, um die Änderungen zu übernehmen.",
+      "refresh": "Status aktualisieren",
+      "checking": "Wird geprüft...",
+      "restart": "MCP-Server neu starten",
+      "restarting": "Wird neu gestartet...",
+      "confirmTitle": "MCP-Server neu starten?",
+      "confirmStop": "Dadurch wird der MCP-Server auf Port {{port}} (PID {{pid}}) beendet und ein neuer gestartet.",
+      "confirmStart": "Dadurch wird ein neuer MCP-Server auf Port {{port}} gestartet.",
+      "confirmBackground": "Der neue Server läuft im Hintergrund und schreibt Logs nach {{log}}. Wurde der aktuelle mit run-mcp-server in einem Terminal gestartet, beendet das Stoppen den Server dieses Terminals; der neue läuft dort nicht.",
+      "confirm": "Neustart bestätigen",
+      "restarted": "Neu gestartet: PID {{pid}}, {{count}} Tool(s).",
+      "failed": "Neustart fehlgeschlagen.",
+      "logLines": "MCP-Server-Log"
+    },
     "config": {
       "otherParams": "Weitere Parameter",
       "otherSwitches": "Andere Schalter",
@@ -654,7 +990,79 @@
       "mcpToolsHint": "Tools, die der Chat-Assistent nutzen kann. Standardmäßig sind alle aktiv; Häkchen entfernen, um eines abzuschalten.",
       "mcpToolNotConfigured": "Nicht konfiguriert",
       "mcpToolSetupLink": "So wird es konfiguriert",
-      "mcpToolsUnavailable": "Die MCP-Toolliste konnte nicht geladen werden."
+      "mcpToolsUnavailable": "Die MCP-Toolliste konnte nicht geladen werden.",
+      "descriptions": {
+        "app_env": "Bereitstellungsumgebung, z. B. \"local\" oder \"aws\". Ändert Standardwerte wie den Chat-Anbieter und Telegram-Alarme.",
+        "telegram_chat_id": "Telegram-Chat, an den Handelssignale und Hinweise gesendet werden (benötigt zusätzlich das Bot-Token; wird bei app_env \"aws\" nicht verwendet).",
+        "portfolio_xml_path": "Pfad zum XML-Export der Anlagen, aus dem Kontotransaktionen konvertiert werden.",
+        "transactions_output_root": "Ordner, in den der XML-zu-Transaktionen-Konverter die Transaktionsdateien der Konten schreibt.",
+        "uvicorn_port": "Port, auf dem die lokale Backend-API lauscht.",
+        "reload": "Lokales Backend bei Codeänderungen automatisch neu starten (nur Entwicklung).",
+        "rate_limit_per_minute": "Maximale API-Anfragen pro Minute und Client, bevor Anfragen abgelehnt werden.",
+        "signup_rate_limit": "Ratenbegrenzung für Registrierungsanfragen, z. B. \"5/minute\".",
+        "log_config": "Pfad zu einer Logging-Konfigurationsdatei; überschreibt die integrierte Logging-Einrichtung.",
+        "log_format": "Format der Log-Ausgabe; \"json\" liefert strukturierte Logs, alles andere Klartext.",
+        "skip_snapshot_warm": "Vorladen des Kurs-Snapshots beim Start überspringen. Schnellerer Start, langsameres erstes Laden der Seite.",
+        "snapshot_warm_days": "Wie viele Tage Kurshistorie beim Start vorgeladen werden.",
+        "ft_url_template": "URL-Vorlage zum Abrufen von Fondskursen von der FT; {ticker} wird durch das Instrument ersetzt.",
+        "selenium_user_agent": "Browser-User-Agent für das Scraping von Kursen mit Selenium.",
+        "selenium_headless": "Selenium-Browser ohne sichtbares Fenster ausführen.",
+        "offline_mode": "Nur zwischengespeicherte Daten verwenden und keine Aufrufe an externe Kurs- oder Datenanbieter senden.",
+        "google_auth_enabled": "Google-Anmeldung zur Nutzung der App verlangen.",
+        "disable_auth": "Authentifizierung vollständig deaktivieren (nur lokale Nutzung).",
+        "demo_identity": "Inhaber, der angezeigt wird, wenn die App ohne Anmeldung im lokalen oder Demo-Modus läuft.",
+        "smoke_identity": "Inhaber, als der die automatisierten Smoke-Tests laufen.",
+        "demo_link_enabled": "Erstellen teilbarer schreibgeschützter Demo-Links erlauben (Hauptschalter).",
+        "demo_link_owner": "Der einzelne Inhaber, den ein Demo-Link anzeigen darf.",
+        "demo_link_ttl_hours": "Wie viele Stunden ein Demo-Link gültig bleibt.",
+        "demo_link_mint_rate_limit": "Ratenbegrenzung für das Erstellen von Demo-Links, z. B. \"5/minute\".",
+        "google_client_id": "Google-OAuth-Client-ID für die Google-Anmeldung.",
+        "allowed_emails": "E-Mail-Adressen, die sich anmelden dürfen.",
+        "local_login_email": "E-Mail-Adresse, die als angemeldeter Benutzer angenommen wird, wenn die Authentifizierung deaktiviert ist.",
+        "relative_view_enabled": "Portfoliobestände als Prozentwerte statt als Werte anzeigen.",
+        "enable_family_mvp": "Mit der Portfolioseite pro Inhaber statt dem Gruppen-Dashboard öffnen.",
+        "enable_compliance_workflows": "Compliance-Workflows anzeigen, wenn die Familienansicht aktiviert ist.",
+        "enable_advanced_analytics": "Erweiterte Analysen in den Portfolioansichten anzeigen.",
+        "enable_reporting_extended": "Erweiterte Berichte anzeigen, wenn die Familienansicht aktiviert ist.",
+        "enable_data_quality_admin": "Korrigieren von Datenqualitätsproblemen erlauben; wenn aus, ist die Datenqualitätsseite schreibgeschützt.",
+        "theme": "Farbschema: dunkel, hell oder der Systemeinstellung folgen.",
+        "timeseries_cache_base": "Ordner, in dem heruntergeladene Kurshistorie zwischengespeichert wird.",
+        "fx_proxy_url": "Ausweichdienst zum Abrufen von Wechselkursen, wenn die normale Quelle keine hat.",
+        "fx_history_start": "Erstes Datum (YYYY-MM-DD) der gespeicherten Wechselkurshistorie. Leer verwendet 2007-01-01.",
+        "fx_reference_currencies": "Währungen, deren Wechselkurshistorie immer behalten wird. Leer verwendet USD, EUR und CAD.",
+        "default_sector_region": "Standardregion für die Ansicht der Marktsektoren: global, US oder UK.",
+        "alpha_vantage_enabled": "Kurse und Preise von Alpha Vantage abrufen.",
+        "fundamentals_cache_ttl_seconds": "Wie lange, in Sekunden, abgerufene Unternehmensfundamentaldaten zwischengespeichert werden.",
+        "nav_max_age_days": "Tage, bis der NAV einer Investmentgesellschaft als veraltet gilt. Leer verwendet 31.",
+        "stooq_timeout": "Timeout in Sekunden für Kursanfragen an Stooq. Leer verwendet 10.",
+        "news_requests_per_day": "Tägliches Anfragebudget für Alpha-Vantage-Nachrichten.",
+        "yahoo_news_endpoint": "URL der Yahoo-News-API.",
+        "yahoo_news_requests_per_day": "Tägliches Anfragebudget für Yahoo-Nachrichten.",
+        "google_news_endpoint": "URL der Google-News-API.",
+        "google_news_requests_per_day": "Tägliches Anfragebudget für Google-Nachrichten.",
+        "max_trades_per_month": "Standardmäßiges monatliches Handelslimit für neu angelegte Konten.",
+        "hold_days_min": "Standardmäßige Mindesthaltedauer in Tagen für neu angelegte Konten.",
+        "repo_root": "Stammordner des AllotMint-Code-Checkouts.",
+        "data_root": "Stammordner der AllotMint-Daten.",
+        "accounts_root": "Ordner mit den Kontodateien jedes Inhabers.",
+        "prices_json": "Datei, in der der neueste Kurs-Snapshot gespeichert wird.",
+        "audit_dir": "Ordner, in den Prüfprotokolle der Datenqualitätskorrekturen geschrieben werden.",
+        "risk_free_rate": "Jährlicher risikofreier Zins für Sharpe-Ratios, als Dezimalzahl (z. B. 0.04 für 4 %).",
+        "report_benchmark": "Benchmark-Ticker für den periodischen Zusammenfassungsbericht.",
+        "base_currency": "Währung, in der Portfoliowerte ausgewiesen werden.",
+        "approval_valid_days": "Tage, die eine Handelsfreigabe gültig bleibt.",
+        "approval_exempt_types": "Instrumententypen, die ohne Freigabe gehandelt werden dürfen.",
+        "approval_exempt_tickers": "Ticker, die ohne Freigabe gehandelt werden dürfen.",
+        "cors_origins": "Web-Origins, die die API aus einem Browser aufrufen dürfen.",
+        "cors_origin_regex": "Regulärer Ausdruck für zusätzliche Web-Origins, die die API aufrufen dürfen (z. B. jeder lokale Entwicklungsport).",
+        "mcp_server_url": "URL des MCP-Servers, den der Chat-Assistent für seine Tools verwendet.",
+        "mcp_github_repo": "GitHub-Repository (owner/repo), in dem der Chat-Assistent Issues anlegt.",
+        "bedrock_model_id": "AWS-Bedrock-Modell, das der Chat-Assistent verwendet.",
+        "chat_provider": "Backend des Chat-Assistenten: bedrock, ollama oder deepseek. Leer verwendet bedrock, bzw. ollama, wenn app_env \"local\" ist.",
+        "chat_model": "Modellname für den Chat-Anbieter ollama oder deepseek. Leer verwendet den Standard des Anbieters.",
+        "chat_base_url": "Basis-URL für den Chat-Anbieter ollama oder deepseek. Leer verwendet den Standard des Anbieters.",
+        "chat_rate_limit": "Ratenbegrenzung für Chat-Anfragen, z. B. \"20/minute\"."
+      }
     },
     "dataExplorer": {
       "title": "Data Explorer",
@@ -674,6 +1082,12 @@
       "label": "Active user",
       "none": "No override configured",
       "noOwners": "No owners available to assume."
+    },
+    "logs": {
+      "empty": "Keine Logs verfügbar.",
+      "error": "Logs konnten nicht geladen werden.",
+      "refresh": "Logs aktualisieren",
+      "title": "Logs"
     },
     "notifications": {
       "denied": "Push-Berechtigung verweigert.",
@@ -717,14 +1131,25 @@
     "error": {
       "noData": "Keine Daten zum Speichern",
       "unexpectedColumns": "Unerwartete Spalte(n): {{columns}}",
+      "invalidScale": "Geben Sie einen gültigen Skalierungsfaktor größer als null ein",
       "moveNoData": "Keine zwischengespeicherten Daten für {{ticker}}.{{source}} zum Verschieben. Korrigiere die Position auf {{ticker}}.{{destination}}, damit der Abruf die Datenreihe füllen kann."
     },
     "exchange": "Börse",
     "load": "Laden",
+    "move": "Nach {{exchange}} verschieben",
+    "moveHelp": "Verschiebt die geladene Zeitreihe an die ausgewählte Börse. Das Original wird erst nach erfolgreichem Verschieben entfernt.",
+    "applyScaling": "Skalierung anwenden",
+    "scaleFactor": "Skalierungsfaktor",
+    "scaleVolume": "Volumen skalieren",
     "save": "Speichern",
     "status": {
       "loaded": "Geladen {{count}} Zeilen",
-      "saved": "Gespeichert {{count}} Zeilen"
+      "moved": "{{ticker}} von {{source}} nach {{destination}} verschoben",
+      "moveConflict": "An der Börse {{exchange}} existiert bereits eine Zeitreihe. Laden Sie sie zuerst, um sie vor dem Überschreiben zu prüfen.",
+      "noData": "Für {{ticker}}.{{exchange}} liegen noch keine Daten vor",
+      "saved": "Gespeichert {{count}} Zeilen",
+      "scaled": "{{factor}}× Skalierung auf {{count}} Zeilen angewendet{{volumeNote}}",
+      "volumeIncluded": " (einschließlich Volumen)"
     },
     "ticker": "Ticker",
     "title": "Zeitreihen-Editor"
@@ -732,6 +1157,7 @@
   "trading": {
     "noPositions": "Keine Positionen.",
     "noSignals": "Keine Signale.",
+    "loading": "Handelssignale werden geladen – beim gesamten Universum kann das etwas dauern.",
     "eyebrow": "Entscheidungshilfe",
     "title": "Handelssignale",
     "description": "Prüfen Sie Signale, die aus Momentum-, Trend- und optionalen Risikofiltern generiert werden. Signale sind rein informativ und keine Handelsanweisungen.",
@@ -743,7 +1169,9 @@
     },
     "signalsTitle": "Aktuelle Signale",
     "noSignalsTitle": "Derzeit keine Signale",
-    "noSignalsDescription": "Kein überwachtes Instrument überschreitet derzeit die aktiven Schwellenwerte. Signale erscheinen, wenn die RSI- oder Gleitendurchschnittsbedingungen erfüllt sind und alle aktivierten Bewertungs- und Risikofilter ebenfalls erfüllt werden."
+    "noSignalsDescription": "Kein überwachtes Instrument überschreitet derzeit die aktiven Schwellenwerte. Signale erscheinen, wenn die RSI- oder Gleitendurchschnittsbedingungen erfüllt sind und alle aktivierten Bewertungs- und Risikofilter ebenfalls erfüllt werden.",
+    "checksSkippedBadge": "Prüfungen übersprungen",
+    "checksSkippedTitle": "Übersprungene Prüfungen: {{checks}}"
   },
   "trail": {
     "allDone": "Alle Trail-Aufgaben erledigt – großartig!",
@@ -758,7 +1186,6 @@
   },
   "userConfig": {
     "title": "Handelsregeln",
-    "pageDescription": "Regeln, die festlegen, welche Trades dieses Konto ohne zusätzliche Genehmigung tätigen kann.",
     "loadingOwners": "Konten werden geladen...",
     "noOwners": "Für Ihr Konto sind keine Konten verfügbar. Wenden Sie sich an einen Administrator, wenn Sie glauben, dass dies ein Fehler ist.",
     "chooseOwnerPrompt": "Wählen Sie aus, für wen die Einstellungen bearbeitet werden sollen.",
@@ -779,7 +1206,13 @@
     "approvalsHelp": "Eine Genehmigung erlaubt es, einen bestimmten Ticker an einem bestimmten Datum zu handeln, auch wenn dies durch die obigen Regeln sonst blockiert wäre (zum Beispiel, weil die Mindesthaltedauer noch nicht abgelaufen ist oder das monatliche Trade-Limit erreicht wurde).",
     "approvalsEmpty": "Noch keine Genehmigungen. Fügen Sie unten eine hinzu, wenn ein Trade außerhalb der obigen Regeln stattfinden muss.",
     "remove": "Entfernen",
-    "add": "Hinzufügen"
+    "add": "Hinzufügen",
+    "subtitle": "Die Compliance-Regeln, die festlegen, wie dieses Konto handeln darf, und die vorab genehmigten Ticker, die sie umgehen.",
+    "accountHeading": "Angemeldet als",
+    "selectOwnerPrompt": "Wählen Sie einen Kontoinhaber aus, um dessen Einstellungen anzuzeigen.",
+    "newTickerLabel": "Ticker",
+    "newDateLabel": "Freigabedatum",
+    "pageDescription": "Regeln, die festlegen, welche Trades dieses Konto ohne zusätzliche Genehmigung tätigen kann."
   },
   "var": {
     "details": "Details zur historischen Simulation",

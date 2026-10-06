@@ -59,14 +59,15 @@ def _result(ticker: str, currency: str, *, applicable: bool, reason: str | None 
     }
 
 
-def _quote_currency(ticker: str, exchange: str) -> tuple[str, str]:
+def quote_currencies(ticker: str, exchange: str) -> tuple[str, str]:
     """``(currency to report, currency the stored ``Close_gbp`` is converted from)``.
 
     The first is the phase 1-2 resolver (:func:`portfolio_utils.holding_quote_currency`,
     GBX folded into GBP). The second is the one ``_closes_in_gbp`` and the
     timeseries loader convert with. They should agree. When they don't, the
     split would use a different rate from the page's GBP closes, so the
-    caller reports the mismatch instead of a split.
+    caller reports the mismatch instead of a split. Shared with the
+    portfolio-level attribution in ``ledger_performance`` (#9804).
     """
     quote = pu.holding_quote_currency({"ticker": f"{ticker}.{exchange}", "exchange": exchange})
     norm = pu._holding_currency(ticker, exchange)
@@ -74,12 +75,13 @@ def _quote_currency(ticker: str, exchange: str) -> tuple[str, str]:
     return quote, conversion
 
 
-def _native_endpoints(ticker: str, exchange: str, start: date, end: date) -> pd.Series:
-    """The first and last stored native closes in ``start..end`` (scaled), indexed by date.
+def native_closes(ticker: str, exchange: str, start: date, end: date) -> pd.Series:
+    """Stored positive native closes in ``start..end``, scaled, indexed by date and sorted.
 
-    Applies the instrument's scaling override as ``_closes_in_gbp`` does. A
-    constant scale cancels out of the return, but it keeps the closes
-    comparable with the page's. Fewer than two dates gives a shorter series.
+    Applies the instrument's scaling override as ``_closes_in_gbp`` does, so
+    ``close * rate`` is comparable with the stored ``Close_gbp``. Read inside
+    ``cache_only()``: a page request never fetches (#8028). Shared with the
+    portfolio-level attribution in ``ledger_performance`` (#9804).
     """
     with cache_only():
         df = load_meta_timeseries_range(ticker, exchange, start_date=start, end_date=end)
@@ -89,7 +91,17 @@ def _native_endpoints(ticker: str, exchange: str, start: date, end: date) -> pd.
     closes = closes[closes > 0].sort_index()
     closes = closes[~closes.index.duplicated(keep="last")]
     scale = get_scaling_override(ticker, exchange, None) or 1.0
-    return pd.concat([closes.head(1), closes.tail(1)]) * scale if len(closes) >= 2 else closes.iloc[:0]
+    return closes * scale
+
+
+def _native_endpoints(ticker: str, exchange: str, start: date, end: date) -> pd.Series:
+    """The first and last stored native closes in ``start..end`` (scaled); fewer than two dates gives none.
+
+    A constant scale cancels out of the return, but it keeps the closes
+    comparable with the page's.
+    """
+    closes = native_closes(ticker, exchange, start, end)
+    return pd.concat([closes.head(1), closes.tail(1)]) if len(closes) >= 2 else closes.iloc[:0]
 
 
 def local_fx_return_split(ticker: str, exchange: str, start: date, end: date) -> dict[str, Any]:
@@ -101,7 +113,7 @@ def local_fx_return_split(ticker: str, exchange: str, start: date, end: date) ->
     dates. See the module docstring for the formulae and the ``reason`` values.
     """
     full = f"{ticker}.{exchange}".upper()
-    quote, conversion = _quote_currency(ticker, exchange)
+    quote, conversion = quote_currencies(ticker, exchange)
     if quote == "GBP":
         return _result(full, quote, applicable=False, reason=REASON_STERLING)
     if quote == pu.UNKNOWN_CURRENCY_LABEL:

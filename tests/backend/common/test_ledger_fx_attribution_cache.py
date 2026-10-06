@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 import backend.utils.fx_rates as fx_rates
 import backend.utils.timeseries_helpers as helpers
 from backend.app import create_app
+from backend.common import fx_return_split as split_mod
 from backend.common import ledger_performance as lp
 from backend.common import portfolio_utils as pu
 from backend.config import config
@@ -35,6 +36,7 @@ def cached_usd(monkeypatch: pytest.MonkeyPatch, tmp_path):
     monkeypatch.setattr(pu, "instrument_currency", lambda _t, _e: meta["currency"])
     monkeypatch.setattr(cache, "get_instrument_meta", lambda _t: dict(meta))
     monkeypatch.setattr(helpers, "get_scaling_override", lambda *_args: 1.0)
+    monkeypatch.setattr(split_mod, "get_scaling_override", lambda *_args: 1.0)
     monkeypatch.setattr(lp, "_resolve_symbol", lambda key: tuple(key.split(".", 1)))
     monkeypatch.setattr(cache, "_CACHE_BASE", str(tmp_path))
     monkeypatch.setattr(cache, "_FX_FRAMES", {})

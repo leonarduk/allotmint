@@ -745,35 +745,21 @@ RateLoader = Callable[[str, pd.Index], pd.Series]
 def load_native_quote(key: str, start: date, end: date) -> NativeQuote | None:
     """Quote currency and (for a foreign instrument) scaled native closes of ``key``.
 
-    The currencies come from the resolvers the rest of the app already uses
-    (see :class:`NativeQuote`); there is no third rule. Native closes are the
-    stored ``Close`` times the scaling override, as ``_closes_in_gbp`` scales
-    them, read inside ``cache_only()`` so a page request never fetches
-    (#8028). ``None`` for a key with no listing.
+    Uses the instrument split's helpers (#9798): the same two currency
+    resolvers (see :class:`NativeQuote`; there is no third rule) and the same
+    cache-only, scaled native closes. ``None`` for a key with no listing.
     """
-    from backend.common import portfolio_utils
-    from backend.timeseries.cache import cache_only, load_meta_timeseries_range
-    from backend.utils.timeseries_helpers import get_scaling_override
+    from backend.common.fx_return_split import native_closes, quote_currencies
 
     resolved = _resolve_symbol(key)
     if resolved is None:
         return None
     symbol, exchange = resolved
-    currency = portfolio_utils.holding_quote_currency({"ticker": f"{symbol}.{exchange}", "exchange": exchange})
-    norm = portfolio_utils._holding_currency(symbol, exchange)
-    quote = NativeQuote(symbol, exchange, currency, "GBP" if norm.is_pence else norm.canonical)
+    quote = NativeQuote(symbol, exchange, *quote_currencies(symbol, exchange))
     if quote.status != QUOTE_FOREIGN:
         return quote
-    with cache_only():
-        df = load_meta_timeseries_range(symbol, exchange, start, end)
-    columns = {str(column).lower(): column for column in df.columns} if df is not None else {}
-    if df is None or df.empty or "date" not in columns or "close" not in columns:
-        return quote
-    days = pd.DatetimeIndex(pd.to_datetime(df[columns["date"]])).normalize()
-    closes = pd.Series(pd.to_numeric(df[columns["close"]], errors="coerce").to_numpy(), index=days).dropna()
-    closes = closes[~closes.index.duplicated(keep="last")].sort_index()
-    scale = get_scaling_override(symbol, exchange, None) or 1.0
-    return NativeQuote(symbol, exchange, currency, quote.conversion, closes * scale)
+    closes = native_closes(symbol, exchange, start, end)
+    return NativeQuote(symbol, exchange, quote.currency, quote.conversion, closes)
 
 
 def _gbp_rates(currency: str, dates: pd.Index) -> pd.Series:

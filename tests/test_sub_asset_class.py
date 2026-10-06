@@ -80,17 +80,18 @@ def test_bond_sub_classes_derive_from_fund_facts_and_name(ticker, name, facts, e
     assert resolve_sub_asset_class(meta, "bond") == expected
 
 
+# Names copied from allotmint-data instrument metadata.
 @pytest.mark.parametrize(
-    "name, expected",
+    "ticker, name, expected",
     [
-        ("WisdomTree Physical Gold (GBP)", "gold"),
-        ("WisdomTree Physical Gold", "gold"),
-        ("WisdomTree Physical Silver (GBP)", "commodities"),
-        ("WisdomTree Energy", "commodities"),
+        ("PHGP.L", "WisdomTree Physical Gold (GBP)", "gold"),
+        ("PHAU.L", "WisdomTree Physical Gold", "gold"),
+        ("PHSP.L", "WisdomTree Physical Silver (GBP)", "commodities"),
+        ("AIGE.L", "WisdomTree Energy *R", "commodities"),
     ],
 )
-def test_commodity_sub_classes(name, expected):
-    assert resolve_sub_asset_class({"ticker": "X.L", "name": name}, "commodity") == expected
+def test_commodity_sub_classes(ticker, name, expected):
+    assert resolve_sub_asset_class({"ticker": ticker, "name": name}, "commodity") == expected
 
 
 @pytest.mark.parametrize(

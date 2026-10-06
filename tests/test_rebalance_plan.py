@@ -627,3 +627,16 @@ def test_new_cash_fills_sub_class_targets():
     # Water-filling 500 levels them all at 150 short of target.
     assert bought == {"long_gilts": 250.0, "gold": 200.0, "equity": 50.0}
     assert result["trades"][0]["ticker"] == "GLTL.L"
+
+
+def test_untargeted_no_sub_class_bucket_never_offsets_sub_class_drift():
+    # The unresolved bond bucket is 30pp of the portfolio and has no target:
+    # it must neither be sold nor count towards long gilts' drift.
+    portfolio = _portfolio(
+        ("ISA", [_hs("EQ1", 600, "equity"), _hs("GLTL.L", 100, "bond", "long_gilts"), _hs("MYST", 300, "bond")])
+    )
+    plan = build_plan(portfolio, AllocationPolicy(targets={"equity": 60, "long_gilts": 40}, tolerance_pct=5))
+    rows = {row["asset_class"]: row for row in plan["classes"]}
+    assert rows["long_gilts"]["drift_pct"] == -30.0
+    assert rows["bond"]["in_band"] is None
+    assert {t["asset_class"] for t in plan["trades"]} <= {"long_gilts"}

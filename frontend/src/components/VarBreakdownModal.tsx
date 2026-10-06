@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useReportingCurrency } from "../hooks/useReportingCurrency";
 
 import type { VarBreakdown } from "../types";
 import type { VarScenario } from "../types";
@@ -22,6 +23,7 @@ export function VarBreakdownModal({
   onClose,
 }: Props) {
   const { t } = useTranslation();
+  const reporting = useReportingCurrency();
   const hasRows = contributions.length > 0;
   const hasScenarios = scenarios.length > 0;
 
@@ -29,9 +31,10 @@ export function VarBreakdownModal({
     if (typeof value !== "number" || Number.isNaN(value)) return "—";
     return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
   };
+  // Scenario amounts are GBP; shown in the reporting currency (#9805).
   const formatSignedAmount = (value: number | null | undefined) => {
     if (typeof value !== "number" || Number.isNaN(value)) return "—";
-    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
+    return `${value >= 0 ? "+" : ""}${reporting.format(value)}`;
   };
 
   // Keep a stable ref to onClose so the keydown listener is registered only

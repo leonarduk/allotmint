@@ -432,11 +432,11 @@ export function HoldingsTable({
 
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ["units", t("holdingsTable.columns.units")],
-    ["cost", t("holdingsTable.columns.cost")],
-    ["market", t("holdingsTable.columns.market")],
-    ["gain", t("holdingsTable.columns.gain")],
+    ["cost", t("holdingsTable.columns.cost", { symbol: reporting.symbol })],
+    ["market", t("holdingsTable.columns.market", { symbol: reporting.symbol })],
+    ["gain", t("holdingsTable.columns.gain", { symbol: reporting.symbol })],
     ["gain_pct", t("holdingsTable.columns.gainPct")],
-    ["total_return", t("holdingsTable.columns.totalReturn")],
+    ["total_return", t("holdingsTable.columns.totalReturn", { symbol: reporting.symbol })],
   ];
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -834,14 +834,14 @@ export function HoldingsTable({
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.units")}</th>
             )}
             {!relativeViewEnabled && visibleColumns.market && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.market")}</th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.market", { symbol: reporting.symbol })}</th>
             )}
             {!relativeViewEnabled && visibleColumns.gain && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => sortBy("gain")}
               >
-                {t("holdingsTable.columns.gain")}{sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
+                {t("holdingsTable.columns.gain", { symbol: reporting.symbol })}{sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
             {visibleColumns.gain_pct && (
@@ -857,16 +857,16 @@ export function HoldingsTable({
                 className={`${tableStyles.cell} ${tableStyles.right}`}
                 title={t("holdingsTable.totalReturnHeaderTitle")}
               >
-                {t("holdingsTable.columns.totalReturn")}
+                {t("holdingsTable.columns.totalReturn", { symbol: reporting.symbol })}
               </th>
             )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.price")}</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.price", { symbol: reporting.symbol })}</th>
             {!relativeViewEnabled && visibleColumns.cost && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => sortBy("cost")}
               >
-                {t("holdingsTable.columns.cost")}{sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
+                {t("holdingsTable.columns.cost", { symbol: reporting.symbol })}{sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
             {showForward7d && (

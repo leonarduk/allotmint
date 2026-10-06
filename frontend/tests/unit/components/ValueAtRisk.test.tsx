@@ -75,8 +75,9 @@ describe("ValueAtRisk component", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Alpha Plc");
     expect(screen.getByRole("dialog")).toHaveTextContent("-12.50%");
     expect(screen.getByRole("dialog")).toHaveTextContent("+8.40%");
-    expect(screen.getByRole("dialog")).toHaveTextContent("-75.00");
-    expect(screen.getByRole("dialog")).toHaveTextContent("+20.00");
+    // Scenario amounts carry their currency (GBP here) since #9805.
+    expect(screen.getByRole("dialog")).toHaveTextContent("-£75.00");
+    expect(screen.getByRole("dialog")).toHaveTextContent("+£20.00");
     expect(screen.getByRole("dialog")).toHaveTextContent("2024-01-02");
     // Flush pending React effects (VarBreakdownModal's useEffect([], ...) registers
     // the Escape keydown listener on mount; waitFor resolves once the DOM is updated

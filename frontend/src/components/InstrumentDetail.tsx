@@ -9,6 +9,7 @@ import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
+import { useReportingCurrency, type ReportingCurrency } from "../hooks/useReportingCurrency";
 import type { InstrumentPosition, TradingSignal, Transaction } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
@@ -144,9 +145,6 @@ function TradeTooltipContent({
   );
 }
 
-// Positions figures are GBP by contract (the backend reads *_gbp fields from
-// the dashboard's enriched holding rows), whatever the reporting currency.
-const POSITION_CURRENCY = "GBP";
 
 /** Columns of the positions table; `absolute` ones are hidden in relative view. */
 const POSITION_COLUMNS = [
@@ -258,9 +256,14 @@ const cellClass = (align: "left" | "right") =>
 
 type CellRenderers = Record<PositionColumnKey, () => ReactNode>;
 
-function usePositionCells(colorForValue: (v: unknown) => string) {
+function usePositionCells(
+  colorForValue: (v: unknown) => string,
+  reporting: ReportingCurrency,
+) {
   const { t } = useTranslation();
-  const gbp = (v: number | null | undefined) => money(v, POSITION_CURRENCY);
+  // Position figures are GBP by contract (the backend reads *_gbp fields from
+  // the dashboard's enriched holding rows); shown in the reporting currency (#9805).
+  const gbp = (v: number | null | undefined) => reporting.format(v);
 
   const rowCells = (pos: Position, account: ReactNode): CellRenderers => {
     const costUnknown = isPositionCostUnknown(pos);
@@ -338,6 +341,7 @@ export function InstrumentPositionsTable({
 }: PositionsTableProps) {
   const { t } = useTranslation();
   const { relativeViewEnabled } = useConfig();
+  const reporting = useReportingCurrency();
   const colorForValue = (value: unknown) => {
     const n = toNum(value);
     if (!Number.isFinite(n) || n === 0) {
@@ -346,7 +350,7 @@ export function InstrumentPositionsTable({
 
     return n > 0 ? positiveColor : negativeColor;
   };
-  const { rowCells, totalCells } = usePositionCells(colorForValue);
+  const { rowCells, totalCells } = usePositionCells(colorForValue, reporting);
   const columns = POSITION_COLUMNS.filter((c) => !relativeViewEnabled || !c.absolute);
 
   const renderCells = (cells: CellRenderers) =>
@@ -372,7 +376,7 @@ export function InstrumentPositionsTable({
           <tr>
             {columns.map((c) => (
               <th key={c.key} className={cellClass(c.align)}>
-                {t(`instrumentDetail.columns.${c.key}`)}
+                {t(`instrumentDetail.columns.${c.key}`, { symbol: reporting.symbol })}
               </th>
             ))}
           </tr>

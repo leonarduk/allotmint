@@ -8,7 +8,6 @@ import type { Account } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { formatDateISO } from "../lib/date";
-import { normalizeDisplayCurrency } from "../lib/money";
 import {
   useReportingCurrency,
   type ReportingCurrency,
@@ -27,20 +26,18 @@ type Props = {
 };
 
 
-/** A compact amount; a GBP one is shown in the reporting currency (#9768). */
-function compactValue(
-  value: number,
-  sourceCurrency: string | null | undefined,
-  reporting: ReportingCurrency,
-): string {
-  const source = normalizeDisplayCurrency(sourceCurrency || "GBP");
-  const isGbp = source === "GBP";
+/**
+ * A GBP amount, compact, in the reporting currency (#9768). Takes no source
+ * currency: ``value_estimate_gbp`` is GBP by name and contract, so labelling
+ * it with any other currency would mislabel it (#9805).
+ */
+function compactGbpValue(value: number, reporting: ReportingCurrency): string {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
-    currency: isGbp ? reporting.currency : source,
+    currency: reporting.currency,
     notation: "compact",
     maximumFractionDigits: 2,
-  }).format(isGbp ? reporting.convertGbp(value) : value);
+  }).format(reporting.convertGbp(value));
 }
 
 export function AccountBlock({
@@ -79,11 +76,7 @@ export function AccountBlock({
           <div className="mb-2">
             {t("accountBlock.estValue")}
             {account.value_estimate_gbp != null
-              ? compactValue(
-                  account.value_estimate_gbp,
-                  account.value_estimate_currency,
-                  reporting,
-                )
+              ? compactGbpValue(account.value_estimate_gbp, reporting)
               : "—"}
           </div>
 

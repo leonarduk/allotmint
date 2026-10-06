@@ -46,6 +46,25 @@ export const money = (
     }).format(v);
 };
 
+/**
+ * The symbol ``currency`` is written with in ``locale`` -- "£" for GBP, "$"
+ * for USD in English, "US$" in some locales -- for headers like "Mkt £"
+ * (#9805). Falls back to the code itself.
+ */
+export const currencySymbol = (currency: string, locale: string = i18n.language): string => {
+    const code = normalizeDisplayCurrency(currency);
+    try {
+        const part = new Intl.NumberFormat(locale, { style: "currency", currency: code })
+            .formatToParts(0)
+            .find((p) => p.type === "currency");
+        return part?.value ?? code;
+    } catch (error) {
+        // An unknown code throws RangeError; the code is still a truthful label.
+        console.warn(`No currency symbol for ${code}`, error);
+        return code;
+    }
+};
+
 export const quotedPrice = (
     v: number | null | undefined,
     currency = "",

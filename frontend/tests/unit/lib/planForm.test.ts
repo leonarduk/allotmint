@@ -176,4 +176,109 @@ describe('planForm', () => {
       'Equity appears more than once in the target.',
     ]);
   });
+  describe('profile (#9760)', () => {
+    const profile: InvestmentPlan['profile'] = {
+      risk_tolerance: { level: 'medium', note: 'can sit through a 20% fall' },
+      capacity_for_loss: { level: 'high' },
+      goals: [
+        {
+          name: 'Joe university',
+          purpose: 'education',
+          target_date: '2033-09-01',
+          amount_gbp: 30000,
+          priority: 1,
+          note: 'fees and rent',
+        },
+        { name: 'Rainy day', purpose: 'general_wealth' },
+      ],
+    };
+
+    it('round-trips a profile through the form', () => {
+      const withProfile = { ...plan, profile };
+      expect(toPlan(fromPlan(withProfile), 'alex', '2026-10-06')).toEqual({
+        ...withProfile,
+        updated: '2026-10-06',
+      });
+    });
+
+    it('omits the profile when nothing is recorded', () => {
+      const form = fromPlan(plan);
+      expect(form.risk_tolerance).toEqual({ level: '', note: '' });
+      expect(form.goals).toEqual([]);
+      const out = toPlan(
+        {
+          ...form,
+          goals: [
+            {
+              name: ' ',
+              purpose: 'retirement',
+              target_date: '',
+              amount: '',
+              priority: '',
+              note: '',
+            },
+          ],
+        },
+        'alex',
+        '2026-10-06'
+      );
+      expect(out.profile).toBeUndefined();
+      expect(JSON.parse(JSON.stringify(out))).not.toHaveProperty('profile');
+    });
+
+    it('saves a rating alone and drops blank goal fields', () => {
+      const out = toPlan(
+        {
+          ...emptyPlanForm(),
+          capacity_for_loss: { level: 'low', note: ' ' },
+          goals: [
+            {
+              name: 'Drawdown',
+              purpose: 'retirement',
+              target_date: '2033-04-06',
+              amount: '',
+              priority: '2',
+              note: '',
+            },
+          ],
+        },
+        'alex',
+        '2026-10-06'
+      );
+      expect(JSON.parse(JSON.stringify(out.profile))).toEqual({
+        capacity_for_loss: { level: 'low' },
+        goals: [
+          {
+            name: 'Drawdown',
+            purpose: 'retirement',
+            target_date: '2033-04-06',
+            priority: 2,
+          },
+        ],
+      });
+    });
+
+    it('reports profile problems the backend would reject', () => {
+      const goal = {
+        name: '',
+        purpose: 'other' as const,
+        target_date: '',
+        amount: '-5',
+        priority: '1.5',
+        note: '',
+      };
+      expect(
+        formErrors({
+          ...emptyPlanForm(),
+          risk_tolerance: { level: '', note: 'cautious' },
+          goals: [goal],
+        })
+      ).toEqual([
+        'Choose a risk tolerance level to go with its note.',
+        'Goal 1 needs a name.',
+        'Goal 1 amount must be a number of at least 0.',
+        'Goal 1 priority must be a whole number of at least 1.',
+      ]);
+    });
+  });
 });

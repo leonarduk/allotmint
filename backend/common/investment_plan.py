@@ -29,6 +29,7 @@ from backend.common.allocation_policy import AllocationPolicy, parse_policy
 from backend.common.instrument_classification import ASSET_CLASSES
 from backend.common.instruments import get_instrument_meta
 from backend.common.path_utils import safe_join
+from backend.common.pension import _age_from_dob
 from backend.common.sub_asset_class import SUB_ASSET_CLASS_PARENT, policy_targets
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -129,6 +130,45 @@ class PlanReview(BaseModel):
     triggers: list[str] = Field(default_factory=list)
 
 
+#: Owner-stated level for risk tolerance and capacity for loss (#9760).
+ProfileLevel = Literal["low", "medium", "high"]
+GoalPurpose = Literal["retirement", "education", "house_deposit", "income", "general_wealth", "other"]
+
+
+class PlanProfileRating(BaseModel):
+    """The owner's own rating, recorded as stated; nothing is scored or inferred from it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    level: ProfileLevel
+    note: Optional[str] = None
+
+
+class PlanGoal(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1)
+    purpose: GoalPurpose
+    target_date: Optional[date] = None
+    amount_gbp: Optional[float] = Field(default=None, ge=0)
+    priority: Optional[int] = Field(default=None, ge=1)
+    note: Optional[str] = None
+
+
+class PlanProfile(BaseModel):
+    """Owner-authored investor profile: attitude to risk, capacity for loss and goals (#9760).
+
+    These are recorded facts only. No suitability score or recommendation is
+    derived from them; the plan disclaimer still applies.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    risk_tolerance: Optional[PlanProfileRating] = None
+    capacity_for_loss: Optional[PlanProfileRating] = None
+    goals: list[PlanGoal] = Field(default_factory=list)
+
+
 class InvestmentPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -144,6 +184,7 @@ class InvestmentPlan(BaseModel):
     open_questions: list[str] = Field(default_factory=list)
     evidence: list[PlanEvidence] = Field(default_factory=list)
     review: PlanReview = Field(default_factory=PlanReview)
+    profile: Optional[PlanProfile] = None
     disclaimer: str = DEFAULT_DISCLAIMER
 
     @field_validator("vehicles", mode="before")
@@ -259,6 +300,30 @@ def vehicle_warnings(plan: InvestmentPlan) -> list[str]:
             if vehicle.ticker and not get_instrument_meta(vehicle.ticker.strip().upper()):
                 warnings.append(f"{vehicle.ticker} ({asset_class}) has no instrument metadata")
     return warnings
+
+
+def _years_between(start: date, end: date) -> float:
+    return round((end - start).days / 365.25, 1)
+
+
+def profile_horizon(plan: InvestmentPlan, dob: Optional[str], today: Optional[date] = None) -> dict:
+    """Derived (never stored) horizon facts: the owner's age and years to each dated goal.
+
+    ``age`` is the whole calendar age from ``person.json`` ``dob`` (``None`` when
+    unknown). ``goals`` lists ``years_to_goal`` (one decimal; negative once the
+    date has passed) by goal index, for goals that have a ``target_date``.
+    """
+    today = today or date.today()
+    age = _age_from_dob(dob, today)
+    goals = plan.profile.goals if plan.profile else []
+    return {
+        "age": int(age) if age is not None else None,
+        "goals": [
+            {"index": index, "name": goal.name, "years_to_goal": _years_between(today, goal.target_date)}
+            for index, goal in enumerate(goals)
+            if goal.target_date is not None
+        ],
+    }
 
 
 def _same_weights(a: dict[str, float], b: dict[str, float]) -> bool:

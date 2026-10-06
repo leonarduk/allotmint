@@ -317,4 +317,99 @@ describe('PlanPanel', () => {
       ).not.toBeInTheDocument();
     });
   });
+  describe('profile and goals (#9760)', () => {
+    const profile: InvestmentPlanResponse['plan']['profile'] = {
+      risk_tolerance: { level: 'medium', note: 'can sit through a 20% fall' },
+      capacity_for_loss: { level: 'low' },
+      goals: [
+        {
+          name: 'Joe university',
+          purpose: 'education',
+          target_date: '2033-09-01',
+          amount_gbp: 30000,
+          priority: 1,
+        },
+        { name: 'Rainy day', purpose: 'general_wealth' },
+      ],
+    };
+
+    function withProfile(): InvestmentPlanResponse {
+      const response = makeResponse();
+      return {
+        ...response,
+        plan: { ...response.plan, profile },
+        horizon: {
+          age: 50,
+          goals: [{ index: 0, name: 'Joe university', years_to_goal: 6.9 }],
+        },
+      };
+    }
+
+    it('shows the recorded profile with derived age and years to go', async () => {
+      mockGetInvestmentPlan.mockResolvedValue(withProfile());
+      render(<PlanPanel owner="alex" />);
+
+      const section = await screen.findByRole('group', {
+        name: 'Profile and goals',
+      });
+      expect(section).toHaveTextContent('Age: 50');
+      expect(section).toHaveTextContent(
+        'Risk tolerance: medium — can sit through a 20% fall'
+      );
+      expect(section).toHaveTextContent('Capacity for loss: low');
+      expect(section).toHaveTextContent(/not an assessment of suitability/);
+      const rows = screen
+        .getByRole('table', { name: 'Plan goals' })
+        .querySelectorAll('tbody tr');
+      expect(rows[0]).toHaveTextContent(
+        'Joe universityEducation2033-09-016.9£30,0001'
+      );
+      expect(rows[1]).toHaveTextContent('Rainy dayGeneral wealth————');
+      expect(screen.getByText(/not regulated advice/)).toBeInTheDocument();
+    });
+
+    it('omits the section for a plan without a profile', async () => {
+      mockGetInvestmentPlan.mockResolvedValue(makeResponse());
+      render(<PlanPanel owner="alex" />);
+      await screen.findByText('40/20/20/20 without small-value');
+      expect(
+        screen.queryByRole('group', { name: 'Profile and goals' })
+      ).not.toBeInTheDocument();
+    });
+
+    it('edits the profile in the form and saves it', async () => {
+      mockGetInvestmentPlan.mockResolvedValue(makeResponse());
+      mockSaveInvestmentPlan.mockResolvedValue(withProfile());
+      render(<PlanPanel owner="alex" />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Edit plan' }));
+
+      fireEvent.change(screen.getByLabelText('Risk tolerance level'), {
+        target: { value: 'medium' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Add goal' }));
+      fireEvent.change(screen.getByLabelText('Goal 1'), {
+        target: { value: 'Joe university' },
+      });
+      fireEvent.change(screen.getByLabelText('Goal purpose 1'), {
+        target: { value: 'education' },
+      });
+      fireEvent.change(screen.getByLabelText('Goal target date 1'), {
+        target: { value: '2033-09-01' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Save plan' }));
+
+      await screen.findByRole('group', { name: 'Profile and goals' });
+      const saved = mockSaveInvestmentPlan.mock.calls[0][1];
+      expect(JSON.parse(JSON.stringify(saved.profile))).toEqual({
+        risk_tolerance: { level: 'medium' },
+        goals: [
+          {
+            name: 'Joe university',
+            purpose: 'education',
+            target_date: '2033-09-01',
+          },
+        ],
+      });
+    });
+  });
 });

@@ -2,8 +2,10 @@ import { useState, type ReactNode } from 'react';
 import { saveInvestmentPlan } from '../api';
 import { localDateISO } from '../lib/date';
 import {
+  GOAL_PURPOSES,
   PLAN_CLASSES,
   PLAN_STATUSES,
+  PROFILE_LEVELS,
   classLabel,
   formErrors,
   isPlanClass,
@@ -13,12 +15,18 @@ import {
   type AssumptionRow,
   type DecisionRow,
   type EvidenceRow,
+  type GoalRow,
   type PlanForm,
+  type RatingFields,
   type TargetRow,
   type TextRow,
   type VehicleRow,
 } from '../lib/planForm';
-import type { InvestmentPlan, InvestmentPlanResponse } from '../types';
+import type {
+  InvestmentPlan,
+  InvestmentPlanGoalPurpose,
+  InvestmentPlanResponse,
+} from '../types';
 
 const INPUT = 'w-full border p-1 text-sm';
 const SMALL_BUTTON = 'rounded bg-gray-200 px-2 py-1 text-sm text-slate-900';
@@ -427,6 +435,149 @@ function TextListSection({
   );
 }
 
+function RatingInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: RatingFields;
+  onChange: (value: RatingFields) => void;
+}) {
+  return (
+    <div className="text-sm">
+      {label}
+      <div className="grid gap-1 sm:grid-cols-[8rem_1fr]">
+        <select
+          className={INPUT}
+          value={value.level}
+          onChange={(e) =>
+            onChange({
+              ...value,
+              level: e.target.value as RatingFields['level'],
+            })
+          }
+          aria-label={`${label} level`}
+        >
+          <option value="">Not recorded</option>
+          {PROFILE_LEVELS.map((level) => (
+            <option key={level} value={level}>
+              {level}
+            </option>
+          ))}
+        </select>
+        <TextInput
+          label={`${label} note`}
+          value={value.note}
+          onChange={(note) => onChange({ ...value, note })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function GoalSection({
+  rows,
+  onChange,
+}: {
+  rows: GoalRow[];
+  onChange: (rows: GoalRow[]) => void;
+}) {
+  return (
+    <RowList
+      title="Goals"
+      hint="What the money is for and when it's needed. Amount in GBP; priority 1 is highest."
+      rows={rows}
+      onChange={onChange}
+      blank={() => ({
+        name: '',
+        purpose: 'retirement',
+        target_date: '',
+        amount: '',
+        priority: '',
+        note: '',
+      })}
+      renderRow={(row, patch, n) => (
+        <>
+          <TextInput
+            label={`Goal ${n}`}
+            value={row.name}
+            onChange={(name) => patch({ name })}
+          />
+          <select
+            className={INPUT}
+            value={row.purpose}
+            onChange={(e) =>
+              patch({ purpose: e.target.value as InvestmentPlanGoalPurpose })
+            }
+            aria-label={`Goal purpose ${n}`}
+          >
+            {Object.entries(GOAL_PURPOSES).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <TextInput
+            label={`Goal target date ${n}`}
+            type="date"
+            value={row.target_date}
+            onChange={(target_date) => patch({ target_date })}
+          />
+          <TextInput
+            label={`Goal amount £ ${n}`}
+            type="number"
+            value={row.amount}
+            onChange={(amount) => patch({ amount })}
+          />
+          <TextInput
+            label={`Goal priority ${n}`}
+            type="number"
+            value={row.priority}
+            onChange={(priority) => patch({ priority })}
+          />
+          <TextInput
+            label={`Goal note ${n}`}
+            value={row.note}
+            onChange={(note) => patch({ note })}
+          />
+        </>
+      )}
+    />
+  );
+}
+
+/** Owner-stated profile (#9760): recorded as given, not assessed. */
+function ProfileSection({
+  form,
+  set,
+}: {
+  form: PlanForm;
+  set: Patch<PlanForm>;
+}) {
+  return (
+    <fieldset className="mb-4">
+      <legend className="font-medium">Profile and goals</legend>
+      <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
+        Your own view, recorded as you state it; nothing is scored from it.
+      </p>
+      <div className="mb-2 grid gap-2 sm:grid-cols-2">
+        <RatingInput
+          label="Risk tolerance"
+          value={form.risk_tolerance}
+          onChange={(risk_tolerance) => set({ risk_tolerance })}
+        />
+        <RatingInput
+          label="Capacity for loss"
+          value={form.capacity_for_loss}
+          onChange={(capacity_for_loss) => set({ capacity_for_loss })}
+        />
+      </div>
+      <GoalSection rows={form.goals} onChange={(goals) => set({ goals })} />
+    </fieldset>
+  );
+}
+
 function PlanFormFields({
   form,
   set,
@@ -437,6 +588,7 @@ function PlanFormFields({
   return (
     <>
       <HeaderFields form={form} set={set} />
+      <ProfileSection form={form} set={set} />
       <TargetSection
         rows={form.target}
         onChange={(target) => set({ target })}

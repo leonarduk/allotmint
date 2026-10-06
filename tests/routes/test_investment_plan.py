@@ -88,6 +88,13 @@ def test_put_does_not_write_when_response_fails(data_root, monkeypatch):
     assert not (data_root / "plans" / "alex.json").exists()
 
 
+def test_put_rejects_missing_target(data_root):
+    payload = {k: v for k, v in PLAN.items() if k != "target"}
+    resp = _client(data_root).put("/plans/alex", json=payload)
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "target: Field required"
+
+
 def test_put_rejects_bad_weight_sum(data_root):
     bad = {**PLAN, "target": [{"class": "equity", "weight_pct": 60}, {"class": "gold", "weight_pct": 30}]}
     resp = _client(data_root).put("/plans/alex", json=bad)

@@ -368,9 +368,14 @@ export default function PlanPanel({
 
   useEffect(() => setEditing(false), [owner]);
 
+  // Refresh the comparison even if the page's own reload fails; that error
+  // still propagates to the copy button's error message.
   const handleCopied = async () => {
-    await onTargetsCopied?.();
-    await load();
+    try {
+      await onTargetsCopied?.();
+    } finally {
+      await load();
+    }
   };
 
   if (!owner) return null;

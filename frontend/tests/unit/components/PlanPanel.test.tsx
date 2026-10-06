@@ -149,6 +149,28 @@ describe('PlanPanel', () => {
     expect(mockGetInvestmentPlan).toHaveBeenCalledTimes(2);
   });
 
+  it('refreshes the comparison even if the page reload fails after copying', async () => {
+    const plan_targets = { equity: 40, long_gilts: 40, gold: 20 };
+    mockGetInvestmentPlan.mockResolvedValue(
+      makeResponse({ copy_supported: true, plan_targets })
+    );
+    mockSaveAllocationPolicy.mockResolvedValue({
+      targets: plan_targets,
+      tolerance_pct: 5,
+    });
+    const onTargetsCopied = vi
+      .fn()
+      .mockRejectedValue(new Error('reload failed'));
+    render(<PlanPanel owner="alex" onTargetsCopied={onTargetsCopied} />);
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Copy plan target to rebalance targets',
+      })
+    );
+    await waitFor(() => expect(mockGetInvestmentPlan).toHaveBeenCalledTimes(2));
+  });
+
   it('says so when the rebalance targets match', async () => {
     mockGetInvestmentPlan.mockResolvedValue(makeResponse({ matches: true }));
     render(<PlanPanel owner="alex" />);

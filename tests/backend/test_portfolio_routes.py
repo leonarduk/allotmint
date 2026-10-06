@@ -72,6 +72,106 @@ def test_portfolio_sectors(monkeypatch, tmp_path):
     assert sectors["Finance"]["gain_gbp"] == 20
 
 
+def _currency_portfolio():
+    return {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "QXA.L", "currency": "GBP", "market_value_gbp": 100, "cost_gbp": 90, "gain_gbp": 10},
+                    {"ticker": "QXB.L", "currency": "GBX", "market_value_gbp": 50, "cost_gbp": 40, "gain_gbp": 10},
+                    {"ticker": "QXC.N", "currency": "USD", "market_value_gbp": 250, "cost_gbp": 200, "gain_gbp": 50},
+                ]
+            }
+        ],
+    }
+
+
+@pytest.fixture
+def _offline_currency_meta(monkeypatch):
+    from backend.common import instrument_api
+
+    monkeypatch.setattr("backend.common.portfolio_utils.get_instrument_meta", lambda ticker: {})
+    monkeypatch.setattr("backend.common.portfolio_utils.get_security_meta", lambda ticker: {})
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda ticker, snapshot: (ticker, None))
+
+
+@pytest.mark.usefixtures("_offline_currency_meta")
+def test_portfolio_currencies(monkeypatch, tmp_path):
+    client = _client(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "backend.routes.portfolio.portfolio_mod.build_owner_portfolio",
+        lambda owner, root, pricing_date=None: _currency_portfolio(),
+    )
+
+    resp = client.get("/portfolio/alice/currencies")
+    assert resp.status_code == 200
+    groups = {row["quote_currency"]: row for row in resp.json()}
+    assert set(groups) == {"GBP", "USD"}
+    assert groups["GBP"]["market_value_gbp"] == 150
+    assert groups["USD"]["market_value_gbp"] == 250
+    assert sum(g["weight_pct"] for g in groups.values()) == pytest.approx(100.0)
+
+
+def test_portfolio_currencies_not_found(monkeypatch, tmp_path):
+    client = _client(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "backend.routes.portfolio.portfolio_mod.build_owner_portfolio",
+        lambda owner, root, pricing_date=None: (_ for _ in ()).throw(FileNotFoundError()),
+    )
+    resp = client.get("/portfolio/bob/currencies")
+    assert resp.status_code == 404
+
+
+@pytest.mark.parametrize("path", ["/portfolio/alice/currencies", "/portfolio-group/all/currencies"])
+def test_currency_routes_aggregate_cache_only(monkeypatch, tmp_path, path):
+    """Page requests must read cached prices and FX only, never Yahoo (#8028)."""
+    from backend.timeseries.cache import is_cache_only
+
+    client = _client(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "backend.routes.portfolio.portfolio_mod.build_owner_portfolio",
+        lambda owner, root, pricing_date=None: {"accounts": []},
+    )
+    monkeypatch.setattr(
+        "backend.routes.portfolio.group_portfolio.build_group_portfolio",
+        lambda slug, **_kwargs: {"slug": slug, "accounts": []},
+    )
+    seen = []
+    monkeypatch.setattr(
+        "backend.routes.portfolio.portfolio_utils.aggregate_by_currency",
+        lambda data: seen.append(is_cache_only()) or [],
+    )
+
+    assert client.get(path).status_code == 200
+    assert seen == [True]
+
+
+@pytest.mark.usefixtures("_offline_currency_meta")
+def test_group_currencies(monkeypatch, tmp_path):
+    client = _client(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "backend.routes.portfolio.group_portfolio.build_group_portfolio",
+        lambda slug, **_kwargs: {"slug": slug, **_currency_portfolio()},
+    )
+
+    resp = client.get("/portfolio-group/all/currencies")
+    assert resp.status_code == 200
+    groups = {row["quote_currency"]: row for row in resp.json()}
+    assert set(groups) == {"GBP", "USD"}
+    assert groups["GBP"]["currency"] == "GBP"
+
+
+def test_group_currencies_not_found(monkeypatch, tmp_path):
+    client = _client(monkeypatch, tmp_path)
+
+    def _missing(slug, **_kwargs):
+        raise ValueError(slug)
+
+    monkeypatch.setattr("backend.routes.portfolio.group_portfolio.build_group_portfolio", _missing)
+    resp = client.get("/portfolio-group/nope/currencies")
+    assert resp.status_code == 404
+
+
 def test_portfolio_var(monkeypatch, tmp_path):
     pytest.importorskip("allotmint_pro")
     client = _client(monkeypatch, tmp_path)

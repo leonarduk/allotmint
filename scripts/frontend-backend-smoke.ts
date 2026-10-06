@@ -489,6 +489,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
+    "path": "/portfolio-group/{slug}/currencies"
+  },
+  {
+    "method": "GET",
     "path": "/portfolio-group/{slug}/instrument/{ticker}"
   },
   {
@@ -510,6 +514,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "GET",
     "path": "/portfolio/{owner}"
+  },
+  {
+    "method": "GET",
+    "path": "/portfolio/{owner}/currencies"
   },
   {
     "method": "GET",

@@ -17,7 +17,7 @@ import threading
 from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -25,6 +25,7 @@ import pandas as pd
 from backend.common import group_portfolio, ledger_performance
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_scaffold import load_transactions
+from backend.common.currency import CurrencyNormaliser
 from backend.common.data_loader import DATA_BUCKET_ENV
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, _get_price_for_date_scaled, is_cost_basis_unreliable
 from backend.common.instrument_classification import canonical_asset_class, exposure_sector, resolve_instrument_type
@@ -53,6 +54,7 @@ from backend.common.virtual_portfolio import (
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
+    EXCHANGE_TO_CCY,
     cached_fx_rate_to_gbp,
     is_cache_only,
     load_meta_timeseries,
@@ -1131,8 +1133,34 @@ _normalise_region_label = normalise_region_label
 _normalise_sector_label = normalise_sector_label
 
 
-def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP") -> List[dict]:
+_FIELD_SOURCE_PRIORITY = {"holding": 3, "security_meta": 2, "instrument_meta": 1}
+
+
+def _field_group_key(row: dict, field: str) -> str:
+    """Group label for ``row`` by sector/region, or ``"Unknown"`` when the value
+    is missing or only backed by low-priority instrument metadata."""
+    key_value = row.get(field)
+    key = key_value.strip() if isinstance(key_value, str) else None
+    priority = _FIELD_SOURCE_PRIORITY.get(row.get(f"_{field}_source") or "", 0)
+    if not key or priority < 2:
+        return "Unknown"
+    if field == "region":
+        return _normalise_region_label(key)
+    if field == "sector":
+        return _normalise_sector_label(key)
+    return key
+
+
+def _aggregate_by_field(
+    portfolio: dict | VirtualPortfolio,
+    field: str,
+    base_currency: str = "GBP",
+    key_fn: Callable[[dict], str] | None = None,
+) -> List[dict]:
     """Helper to aggregate ticker rows by ``field`` (e.g. sector/region).
+
+    ``key_fn`` overrides how a row's group label is derived; by default it is
+    :func:`_field_group_key`.
 
     Holdings with an unreliable cost basis (``is_cost_basis_unreliable``:
     guessed or book-suspect) are left out of ``cost_gbp``/``gain_gbp`` -- and so
@@ -1142,20 +1170,8 @@ def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_cur
     """
     rows = _aggregate_ticker_rows(portfolio, base_currency)
     groups: Dict[str, dict] = {}
-    source_priority = {"holding": 3, "security_meta": 2, "instrument_meta": 1}
     for r in rows:
-        key_value = r.get(field)
-        key = key_value.strip() if isinstance(key_value, str) else None
-        source = r.get(f"_{field}_source") or ""
-        priority = source_priority.get(source, 0)
-        if not key:
-            key = "Unknown"
-        elif priority < 2:
-            key = "Unknown"
-        elif field == "region":
-            key = _normalise_region_label(key)
-        elif field == "sector":
-            key = _normalise_sector_label(key)
+        key = key_fn(r) if key_fn is not None else _field_group_key(r, field)
         g = groups.setdefault(
             key,
             {
@@ -1195,6 +1211,49 @@ def aggregate_by_sector(portfolio: dict | VirtualPortfolio, base_currency: str =
 def aggregate_by_region(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
     """Return aggregated holdings grouped by region with return contribution."""
     return _aggregate_by_field(portfolio, "region", base_currency)
+
+
+UNKNOWN_CURRENCY_LABEL = "Unknown"
+
+
+def _cash_currency(ticker: str) -> str | None:
+    """``USD`` for ``CASH.USD`` or legacy ``USD.CASH`` tickers, else None."""
+    parts = ticker.strip().upper().split(".")
+    if len(parts) != 2:
+        return None
+    code = parts[1] if parts[0] == "CASH" else parts[0] if parts[1] == "CASH" else None
+    return code if code and len(code) == 3 and code.isalpha() else None
+
+
+def _quote_currency_key(row: dict) -> str:
+    """The currency ``row``'s instrument is quoted in, with pence folded into GBP.
+
+    Uses the row's own ``currency`` (holding, then instrument/security
+    metadata), then a cash ticker's currency, then the listing exchange's
+    currency (``EXCHANGE_TO_CCY``). Anything still unresolved is bucketed as
+    ``"Unknown"`` rather than silently assumed to be GBP.
+    """
+    ticker = str(row.get("ticker") or "")
+    raw = _first_nonempty_str(row.get("currency"))
+    if not raw and is_cash_instrument(ticker, row.get("instrument_type")):
+        raw = _cash_currency(ticker)
+    if not raw:
+        raw = EXCHANGE_TO_CCY.get(str(row.get("exchange") or "").strip().upper())
+    if not raw:
+        return UNKNOWN_CURRENCY_LABEL
+    return CurrencyNormaliser.from_raw(raw).display_code
+
+
+def aggregate_by_currency(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
+    """Return aggregated holdings grouped by quote currency (#9686).
+
+    Each group's label is in ``quote_currency`` (``currency`` stays the
+    reporting currency, as on the sector/region aggregates). This is the
+    currency an instrument is *listed* in, not its underlying economic
+    exposure: a GBP-quoted global tracker counts as GBP. GBX/GBp pence
+    listings are folded into GBP.
+    """
+    return _aggregate_by_field(portfolio, "quote_currency", base_currency, key_fn=_quote_currency_key)
 
 
 # ──────────────────────────────────────────────────────────────

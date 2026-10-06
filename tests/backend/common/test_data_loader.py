@@ -185,6 +185,20 @@ class TestLoadPersonMeta:
 
         assert meta["full_name"] == "Alice Example"
 
+    def test_local_mode_reads_default_accounts_root_without_data_root(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # list_portfolios calls load_person_meta(owner) with no data_root; in
+        # local mode that must still read person.json (dob, name, viewers).
+        owner_dir = tmp_path / "alice"
+        owner_dir.mkdir()
+        (owner_dir / "person.json").write_text(json.dumps({"full_name": "Alice", "dob": "1980-01-02"}))
+        monkeypatch.setattr(data_loader, "resolve_default_accounts_root", lambda: tmp_path)
+        monkeypatch.setattr(data_loader.config, "app_env", "local")
+        monkeypatch.delenv(data_loader.DATA_BUCKET_ENV, raising=False)
+
+        assert load_person_meta("alice") == {"full_name": "Alice", "dob": "1980-01-02"}
+
     def test_invalid_viewers_drops_key_preserves_other_fields(self, tmp_path: Path) -> None:
         # Non-list viewers is invalid: the viewers key is dropped but other valid
         # fields are preserved. data_providers._extract_person_meta handles this.

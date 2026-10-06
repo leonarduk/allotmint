@@ -9,7 +9,7 @@ import { MemoryRouter } from "react-router-dom";
 const defaultConfig: AppConfig = {
     relativeViewEnabled: false,
     theme: "system",
-    baseCurrency: "GBP",
+    reportingCurrency: "GBP",
     tabs: {
         group: true,
         market: true,

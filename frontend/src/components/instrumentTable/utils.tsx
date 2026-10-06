@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { money, percent } from '@/lib/money';
+import { percent } from '@/lib/money';
 import { isCashInstrument } from '@/lib/instruments';
 import { isCostBasisUnreliable } from '@/lib/costBasis';
 import i18n from '@/i18n';
@@ -305,9 +305,10 @@ export function getStatusPresentation(value: number | null | undefined): { class
   return { className: STATUS_CLASS_MAP[variant], prefix };
 }
 
-export function formatSignedMoney(value: number, currency: string): ReactNode {
+/** ``value`` (GBP) with an up/down marker, formatted by ``format`` (#9768). */
+export function formatSignedMoney(value: number, format: (value: number) => string): ReactNode {
   const { className, prefix } = getStatusPresentation(value);
-  return <span className={className}>{`${prefix}${money(value, currency)}`}</span>;
+  return <span className={className}>{`${prefix}${format(value)}`}</span>;
 }
 
 export function formatSignedPercent(value: number | null | undefined): ReactNode {

@@ -821,5 +821,9 @@
       "sterling": "GBP und GBX können sich nicht gegenüber GBP bewegen.",
       "invalidPct": "Geben Sie eine Änderung über -100 % und höchstens 1000 % ein."
     }
+  },
+  "reportingCurrency": {
+    "converted": "Beträge in {{currency}}, aus GBP zum heutigen Kurs umgerechnet (1 {{currency}} = £{{rate}}).",
+    "unavailable": "Für {{currency}} ist kein GBP-Kurs gespeichert, daher werden Beträge in GBP angezeigt."
   }
 }

@@ -1246,5 +1246,9 @@
       "sterling": "GBP and GBX cannot move against GBP.",
       "invalidPct": "Enter a change above -100% and at most 1000%."
     }
+  },
+  "reportingCurrency": {
+    "converted": "Amounts in {{currency}}, translated from GBP at today's rate (1 {{currency}} = £{{rate}}).",
+    "unavailable": "No GBP rate for {{currency}} is stored, so amounts are shown in GBP."
   }
 }

@@ -7,7 +7,11 @@ import type { Account } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { formatDateISO } from "../lib/date";
-import { useConfig } from "../ConfigContext";
+import { normalizeDisplayCurrency } from "../lib/money";
+import {
+  useReportingCurrency,
+  type ReportingCurrency,
+} from "../hooks/useReportingCurrency";
 
 /* ──────────────────────────────────────────────────────────────
  * Component
@@ -20,6 +24,23 @@ type Props = {
   showForward30d?: boolean;
   onAddPosition?: () => void;
 };
+
+
+/** A compact amount; a GBP one is shown in the reporting currency (#9768). */
+function compactValue(
+  value: number,
+  sourceCurrency: string | null | undefined,
+  reporting: ReportingCurrency,
+): string {
+  const source = normalizeDisplayCurrency(sourceCurrency || "GBP");
+  const isGbp = source === "GBP";
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: isGbp ? reporting.currency : source,
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(isGbp ? reporting.convertGbp(value) : value);
+}
 
 export function AccountBlock({
   account,
@@ -34,7 +55,7 @@ export function AccountBlock({
     name: string;
     instrumentType?: string | null;
   } | null>(null);
-  const { baseCurrency } = useConfig();
+  const reporting = useReportingCurrency();
 
   return (
     <div className="mb-4 min-w-0 p-2 md:mb-8 md:p-4">
@@ -56,13 +77,11 @@ export function AccountBlock({
           <div className="mb-2">
             Est&nbsp;Value:&nbsp;
             {account.value_estimate_gbp != null
-              ? new Intl.NumberFormat(undefined, {
-                  style: "currency",
-                  currency:
-                    account.value_estimate_currency || baseCurrency,
-                  notation: "compact",
-                  maximumFractionDigits: 2,
-                }).format(account.value_estimate_gbp)
+              ? compactValue(
+                  account.value_estimate_gbp,
+                  account.value_estimate_currency,
+                  reporting,
+                )
               : "—"}
           </div>
 

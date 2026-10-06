@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import type { Account } from "../types";
-import { money, percent } from "../lib/money";
-import { useConfig } from "../ConfigContext";
+import { percent } from "../lib/money";
+import { useReportingCurrency } from "../hooks/useReportingCurrency";
+import { ReportingCurrencyNote } from "./ReportingCurrencyNote";
 import { isCashInstrument } from "../lib/instruments";
 import { isCostBasisUnreliable } from "../lib/costBasis";
 import { FX_RATE_SOURCE_MISSING } from "../lib/fxRateSource";
@@ -190,7 +191,7 @@ export function PortfolioSummary({ totals }: Props) {
     missingFxHoldingCount,
     unpricedMissingFxCount,
   } = totals;
-  const { baseCurrency } = useConfig();
+  const reporting = useReportingCurrency();
 
   // When every gain-eligible holding is excluded (unknown cost basis or no
   // price), totalCost/totalGain are both zero -- not because the portfolio broke
@@ -229,23 +230,23 @@ export function PortfolioSummary({ totals }: Props) {
       <SummaryCard
         label="Stock value"
         icon={<LineChart size={20} />}
-        value={money(totalStockValue, baseCurrency)}
+        value={reporting.format(totalStockValue)}
       />
       <SummaryCard
         label="Total cash"
         icon={<Wallet size={20} />}
-        value={money(totalCash, baseCurrency)}
+        value={reporting.format(totalCash)}
       />
       <SummaryCard
         label="Total value"
         icon={<PiggyBank size={20} />}
-        value={money(totalValue, baseCurrency)}
+        value={reporting.format(totalValue)}
         note={valueNote}
       />
       <SummaryCard
         label="Gain/loss"
         icon={<TrendingUp size={20} />}
-        value={allGainUnknown ? "—" : money(totalGain, baseCurrency)}
+        value={allGainUnknown ? "—" : reporting.format(totalGain)}
         accentColor={
           allGainUnknown
             ? undefined
@@ -256,6 +257,7 @@ export function PortfolioSummary({ totals }: Props) {
         secondary={allGainUnknown ? undefined : `(${percent(totalGainPct)})`}
         note={gainNote}
       />
+      <ReportingCurrencyNote reporting={reporting} />
     </div>
   );
 }

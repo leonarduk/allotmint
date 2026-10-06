@@ -757,5 +757,9 @@
       "sterling": "GBP y GBX no pueden moverse frente a la GBP.",
       "invalidPct": "Introduzca una variación superior a -100 % y como máximo del 1000 %."
     }
+  },
+  "reportingCurrency": {
+    "converted": "Importes en {{currency}}, convertidos desde GBP al tipo de hoy (1 {{currency}} = £{{rate}}).",
+    "unavailable": "No hay ningún tipo GBP guardado para {{currency}}, así que los importes se muestran en GBP."
   }
 }

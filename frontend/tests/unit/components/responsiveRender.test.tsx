@@ -19,7 +19,7 @@ vi.mock("@/api", () => ({
 const defaultConfig: AppConfig = {
   relativeViewEnabled: false,
   theme: "system",
-  baseCurrency: "GBP",
+  reportingCurrency: "GBP",
   tabs: {
     group: true,
     market: true,

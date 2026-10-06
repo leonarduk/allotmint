@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ConfigProvider, useConfig } from "@/ConfigContext";
+import { ConfigProvider, parseReportingCurrency, useConfig } from "@/ConfigContext";
 
 vi.mock("@/api", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api")>();
@@ -23,8 +23,8 @@ function Probe() {
 }
 
 function BaseCurrencyProbe() {
-  const { baseCurrency } = useConfig();
-  return <div data-testid="base-currency-probe">{baseCurrency}</div>;
+  const { reportingCurrency } = useConfig();
+  return <div data-testid="base-currency-probe">{reportingCurrency}</div>;
 }
 
 
@@ -169,14 +169,14 @@ describe("ConfigProvider Family MVP gating", () => {
     });
   });
 
-  it("reports in GBP and drops a stale stored base currency (#9753)", async () => {
+  it("reports in the configured base currency and ignores a stale stored one (#9753, #9768)", async () => {
     const { getConfig } = await import("@/api");
     vi.mocked(getConfig).mockResolvedValue({
       enable_family_mvp: true,
-      base_currency: "USD",
+      base_currency: " usd ",
       tabs: {},
     });
-    localStorage.setItem("baseCurrency", "USD");
+    localStorage.setItem("baseCurrency", "EUR");
 
     render(
       <ConfigProvider>
@@ -184,9 +184,24 @@ describe("ConfigProvider Family MVP gating", () => {
       </ConfigProvider>,
     );
 
-    await waitFor(() => expect(vi.mocked(getConfig)).toHaveBeenCalledTimes(1));
+    // GBP until /config says otherwise; the stale browser value is never used.
     expect(screen.getByTestId("base-currency-probe").textContent).toBe("GBP");
+    await waitFor(() =>
+      expect(screen.getByTestId("base-currency-probe").textContent).toBe("USD"),
+    );
     expect(localStorage.getItem("baseCurrency")).toBeNull();
+  });
+
+  it.each([
+    [undefined, "GBP"],
+    [null, "GBP"],
+    ["", "GBP"],
+    ["GBX", "GBP"],
+    ["gbp", "GBP"],
+    ["dollars", "GBP"],
+    ["eur", "EUR"],
+  ])("parses base_currency %s as %s", (raw, expected) => {
+    expect(parseReportingCurrency(raw)).toBe(expected);
   });
 
   it("marks config as loaded when config fetch fails", async () => {

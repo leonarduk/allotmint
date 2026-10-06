@@ -41,7 +41,7 @@ const configWithTransactions: ConfigContextValue = {
     scenario: true,
   },
   theme: 'system',
-  baseCurrency: 'GBP',
+  reportingCurrency: 'GBP',
   refreshConfig: async () => {},
   setRelativeViewEnabled: () => {},
 };

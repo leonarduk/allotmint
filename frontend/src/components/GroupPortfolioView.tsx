@@ -34,7 +34,7 @@ import { TopMoversSummary } from "./TopMoversSummary";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
 import LoadingStatus from "./skeletons/LoadingStatus";
-import { money, percent } from "../lib/money";
+import { percent } from "../lib/money";
 import FractionMetric from "./FractionMetric";
 import {
   DRAWDOWN_RANGE,
@@ -48,6 +48,7 @@ import { isFresh, readFetchCache, runDeduped } from "../utils/fetchCache";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
+import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { getGroupDisplayName } from "../utils/groups";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
@@ -285,10 +286,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const { t } = useTranslation();
   const {
     relativeViewEnabled,
-    baseCurrency,
     enableAdvancedAnalytics = true,
     familyMvpEnabled,
   } = useConfig();
+  const reporting = useReportingCurrency();
   const [asOfOverride, setAsOfOverride] = useState<string | null>(null);
   const [instrumentRefreshVersion, setInstrumentRefreshVersion] = useState(0);
   const activeOwner: string | null = routeScope.owner || null;
@@ -1210,7 +1211,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               </Pie>
               <Tooltip
                 formatter={(v, n) => [
-                  money(v as number | undefined, baseCurrency),
+                  reporting.format(v as number | undefined),
                   (n as string | undefined) ?? "",
                 ]}
               />
@@ -1268,7 +1269,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               >
                 <XAxis dataKey={activeContribTab === "sector" ? "sector" : "region"} />
                 <YAxis />
-                <Tooltip formatter={(v) => money(v as number | undefined, baseCurrency)} />
+                <Tooltip formatter={(v) => reporting.format(v as number | undefined)} />
                 <Bar dataKey="gain_gbp">
                   {(activeContribTab === "sector" ? sectorContrib : regionContrib)?.map(
                     (row, idx) => (
@@ -1343,17 +1344,17 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {relativeViewEnabled
                       ? percent(row.valuePct)
-                      : money(row.value, baseCurrency)}
+                      : reporting.format(row.value)}
                   </td>
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {relativeViewEnabled
                       ? percent(row.stockPct)
-                      : money(row.stock, baseCurrency)}
+                      : reporting.format(row.stock)}
                   </td>
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {relativeViewEnabled
                       ? percent(row.cashPct)
-                      : money(row.cash, baseCurrency)}
+                      : reporting.format(row.cash)}
                   </td>
                   {!relativeViewEnabled && (
                     <td
@@ -1362,7 +1363,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                         color: row.dayChange >= 0 ? "var(--gain-positive)" : "var(--gain-negative)",
                         }}
                       >
-                        {money(row.dayChange, baseCurrency)}
+                        {reporting.format(row.dayChange)}
                       </td>
                     )}
                     <td
@@ -1378,7 +1379,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                         className={`${tableStyles.cell} ${tableStyles.right}`}
                         style={{ color: row.gain >= 0 ? "var(--gain-positive)" : "var(--gain-negative)" }}
                       >
-                        {money(row.gain, baseCurrency)}
+                        {reporting.format(row.gain)}
                       </td>
                     )}
                     <td
@@ -1400,17 +1401,17 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                       {relativeViewEnabled
                         ? percent(acct.valuePct)
-                        : money(acct.value, baseCurrency)}
+                        : reporting.format(acct.value)}
                     </td>
                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                       {relativeViewEnabled
                         ? percent(acct.stockPct)
-                        : money(acct.stock, baseCurrency)}
+                        : reporting.format(acct.stock)}
                     </td>
                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                       {relativeViewEnabled
                         ? percent(acct.cashPct)
-                        : money(acct.cash, baseCurrency)}
+                        : reporting.format(acct.cash)}
                     </td>
                     {!relativeViewEnabled && (
                       <td
@@ -1419,7 +1420,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                           color: acct.dayChange >= 0 ? "var(--gain-positive)" : "var(--gain-negative)",
                             }}
                           >
-                            {money(acct.dayChange, baseCurrency)}
+                            {reporting.format(acct.dayChange)}
                           </td>
                         )}
                         <td
@@ -1437,7 +1438,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                               color: acct.gain >= 0 ? "var(--gain-positive)" : "var(--gain-negative)",
                             }}
                           >
-                            {money(acct.gain, baseCurrency)}
+                            {reporting.format(acct.gain)}
                           </td>
                         )}
                         <td

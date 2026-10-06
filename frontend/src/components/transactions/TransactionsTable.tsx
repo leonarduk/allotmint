@@ -3,6 +3,7 @@ import tableStyles from "@/styles/table.module.css";
 import type { Transaction } from "@/types";
 import { getOwnerDisplayName } from "@/utils/owners";
 import { useDemoReadOnly } from "@/hooks/useDemoReadOnly";
+import type { MoneyFormatter } from "@/hooks/useReportingCurrency";
 import {
   formatRealisedGain,
   formatTransactionAmount,
@@ -11,7 +12,8 @@ import {
 
 interface TransactionsTableProps {
   transactions: Transaction[];
-  baseCurrency: string;
+  /** Formats GBP amounts in the reporting currency (#9768). */
+  format: MoneyFormatter;
   ownerLookup: Map<string, string>;
   pageSize: number;
   pageSizeOptions: number[];
@@ -37,7 +39,7 @@ interface TransactionsTableProps {
 
 export function TransactionsTable({
   transactions,
-  baseCurrency,
+  format,
   ownerLookup,
   pageSize,
   pageSizeOptions,
@@ -145,7 +147,7 @@ export function TransactionsTable({
           ) : (
             transactions.map((transaction, index) => {
               const key = getTransactionRowKey(transaction, index);
-              const gain = formatRealisedGain(transaction, baseCurrency);
+              const gain = formatRealisedGain(transaction, format);
 
               return (
                 <tr key={key}>
@@ -177,7 +179,7 @@ export function TransactionsTable({
                   <td className={tableStyles.cell}>{transaction.instrument_name || ""}</td>
                   <td className={tableStyles.cell}>{transaction.type || transaction.kind}</td>
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {formatTransactionAmount(transaction, baseCurrency)}
+                    {formatTransactionAmount(transaction, format)}
                   </td>
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {transaction.shares ?? transaction.units ?? ""}

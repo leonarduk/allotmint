@@ -147,3 +147,15 @@ def test_build_owner_portfolio_prices_holdings_from_cache_only(monkeypatch, port
     assert seen, "enrich_holding was never called"
     assert seen == [True, True]
     assert importlib.import_module("backend.timeseries.cache").is_cache_only() is False
+
+
+def test_account_stem_is_opt_in(portfolio_stubs):
+    # AccountContract forbids extra keys, so /portfolio responses must not
+    # carry the stem; the rebalance plan asks for it as a stable id (#9496).
+    from backend.common.portfolio_loader import ACCOUNT_STEM_KEY
+
+    default = build_owner_portfolio(portfolio_stubs["owner"])
+    assert ACCOUNT_STEM_KEY not in default["accounts"][0]
+
+    tagged = build_owner_portfolio(portfolio_stubs["owner"], include_account_stem=True)
+    assert tagged["accounts"][0][ACCOUNT_STEM_KEY] == "account-one"

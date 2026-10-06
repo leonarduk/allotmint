@@ -59,11 +59,12 @@ def _target_key(key: Any, raw_keys: frozenset[str] = frozenset()) -> str:
     sub-class such as ``gold``; on its own it keeps its pre-#9653 meaning of
     the whole class, so a saved policy never changes meaning on upgrade.
     """
-    sub_class = key.strip().lower() if isinstance(key, str) else None
     asset_class = normalise_asset_class(key)
-    parent = SUB_ASSET_CLASS_PARENT.get(sub_class) if sub_class else None
-    if parent is not None and (asset_class is None or _has_sibling_sub_class(sub_class, parent, raw_keys)):
-        return sub_class
+    if isinstance(key, str):
+        sub_class = key.strip().lower()
+        parent = SUB_ASSET_CLASS_PARENT.get(sub_class)
+        if parent is not None and (asset_class is None or _has_sibling_sub_class(sub_class, parent, raw_keys)):
+            return sub_class
     if asset_class is not None:
         return asset_class
     expected = ", ".join((*ASSET_CLASSES, *SUB_ASSET_CLASS_PARENT))

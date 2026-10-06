@@ -84,6 +84,18 @@ def test_golden_butterfly_50_50_variant():
     assert get_strategy("alex", "golden_butterfly_no_scv_50_50").targets == GB_50_50
 
 
+@pytest.mark.parametrize(
+    "strategy_id, gilts",
+    [
+        ("golden_butterfly_intermediate", {"intermediate_gilts": 20.0}),
+        ("golden_butterfly_50_50", {"long_gilts": 10.0, "intermediate_gilts": 10.0}),
+    ],
+)
+def test_golden_butterfly_gilt_variants_keep_small_cap_value(strategy_id, gilts):
+    expected = {"broad_equity": 20.0, "small_cap_value": 20.0, **gilts, "short_gilts": 20.0, "gold": 20.0}
+    assert get_strategy("alex", strategy_id).targets == expected
+
+
 def test_list_puts_builtins_first_and_flags_them(root):
     create_strategy("alex", {"name": "Mine", "targets": {"equity": 100}}, root)
     dicts = [s.to_dict() for s in list_strategies("alex", root)]

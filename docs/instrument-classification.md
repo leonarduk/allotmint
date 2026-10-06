@@ -99,6 +99,30 @@ it.
 Each entry may set `asset_class`, `sector` or both. Keys starting with `_` are
 ignored. An `asset_class` outside the six values above is logged and ignored. Then run `python -m scripts.classify_instruments --write`.
 
+## Sub-asset classes (Bond, Commodity)
+
+The rebalance page can target Bond and Commodity by sub-class (#9543). Each
+held instrument gets a `sub_asset_class` at read time from
+`backend/common/sub_asset_class.py`; nothing is written back to disk. The keys
+match the asset-class blocks of allotmint-pro's `backtest_portfolio` tool.
+
+| Parent | Sub-class key | Rule (first match wins) |
+| --- | --- | --- |
+| bond | `index_linked` | name/index mentions inflation-linked, index-linked or linkers |
+| bond | `short_gilts` | name/index mentions ultrashort |
+| bond | `long_gilts` / `intermediate_gilts` / `short_gilts` | a gilt or UK government fund, banded by `fund_facts.effective_duration_years` (under 3 short, 3-10 intermediate, over 10 long); without a duration, the midpoint of `fund_facts.maturity_band` or a maturity range in the name ("0-5yr", "15+ Year") |
+| bond | `corporate_bonds` | corporate, credit, income, investment grade, high yield or loans |
+| bond | `overseas_government` | any other government, treasury or bund fund |
+| commodity | `gold` | the name or index mentions gold |
+| commodity | `commodities` | every other commodity |
+
+To override a sub-class, set `sub_asset_class` on the instrument file or add it
+to the override entry, for example `"TFIF.L": {"sub_asset_class": "corporate_bonds"}`.
+An override that belongs to a different parent class is logged and ignored.
+A bond with no recognised sub-class stays in Bond. When Bond is targeted by
+sub-class, the rebalance page shows it in a "Bond — no sub-class" row and a
+note. It counts towards the total but is never traded.
+
 ## Gaps
 
 The data-quality page (`/data-quality`, Issues and Holdings tabs) reports a

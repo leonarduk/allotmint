@@ -5,6 +5,9 @@ Given an owner portfolio (as built by ``build_owner_portfolio``) and an
 
 * buckets every priced holding into an asset class (literal cash holdings are
   the ``cash`` class; holdings with no recognised class are ``unclassified``),
+  or into a sub-class for a class the policy targets by sub-class (#9543): a
+  holding whose sub-class is unknown stays under its parent class key, with
+  no target, and is reported in the notes,
 * reports per-class drift against the targets, flagging classes outside the
   tolerance band,
 * suggests trades that only bring *out-of-band* classes back to target, and
@@ -25,6 +28,7 @@ from typing import Any, Iterable, Mapping
 from backend.common.allocation_policy import AllocationPolicy
 from backend.common.instrument_classification import ASSET_CLASS_LABELS, ASSET_CLASSES, CASH, normalise_asset_class
 from backend.common.sector_labels import is_cash_instrument
+from backend.common.sub_asset_class import SUB_ASSET_CLASS_LABELS, SUB_ASSET_CLASS_PARENT, SUB_ASSET_CLASSES
 
 UNCLASSIFIED = "unclassified"
 #: Suggestions smaller than this (GBP) are dropped as dust.
@@ -68,6 +72,8 @@ class AccountBucket:
 class Holdings:
     accounts: list[AccountBucket]
     unpriced: list[str]
+    #: Asset classes bucketed by sub-class rather than as a whole.
+    split: frozenset[str] = frozenset()
 
     @property
     def total(self) -> float:
@@ -75,6 +81,15 @@ class Holdings:
 
     def class_total(self, asset_class: str) -> float:
         return sum(a.class_values.get(asset_class, 0.0) for a in self.accounts)
+
+    def class_tickers(self, asset_class: str) -> list[str]:
+        return sorted({t for a in self.accounts for t in a.class_tickers.get(asset_class, {})})
+
+
+def split_classes(policy: AllocationPolicy) -> frozenset[str]:
+    """Asset classes the policy targets by sub-class."""
+
+    return frozenset(SUB_ASSET_CLASS_PARENT[k] for k in policy.targets if k in SUB_ASSET_CLASS_PARENT)
 
 
 def _holding_value(holding: Mapping[str, Any]) -> float | None:
@@ -88,14 +103,27 @@ def _holding_value(holding: Mapping[str, Any]) -> float | None:
     return value if math.isfinite(value) else None
 
 
-def _holding_class(holding: Mapping[str, Any], ticker: str) -> str:
+def _holding_class(holding: Mapping[str, Any], ticker: str, split: frozenset[str]) -> str:
+    """Bucket key: the asset class, or its sub-class when that class is split.
+
+    A holding of a split class with no recognised sub-class keeps the parent
+    key so it is still counted (and reported) rather than dropped.
+    """
     if is_cash_instrument(ticker, holding.get("instrument_type")):
         return CASH
-    return normalise_asset_class(holding.get("asset_class")) or UNCLASSIFIED
+    asset_class = normalise_asset_class(holding.get("asset_class")) or UNCLASSIFIED
+    if asset_class not in split:
+        return asset_class
+    sub_class = str(holding.get("sub_asset_class") or "").strip().lower()
+    return sub_class if SUB_ASSET_CLASS_PARENT.get(sub_class) == asset_class else asset_class
 
 
-def bucket_holdings(portfolio: Mapping[str, Any]) -> Holdings:
-    """Group the portfolio's priced holdings by account and asset class."""
+def bucket_holdings(portfolio: Mapping[str, Any], split: frozenset[str] = frozenset()) -> Holdings:
+    """Group the portfolio's priced holdings by account and asset class.
+
+    Classes in ``split`` are bucketed by sub-class instead (see
+    :func:`split_classes`).
+    """
 
     accounts: list[AccountBucket] = []
     unpriced: set[str] = set()
@@ -112,44 +140,87 @@ def bucket_holdings(portfolio: Mapping[str, Any]) -> Holdings:
                 continue
             if value <= 0:
                 continue
-            asset_class = _holding_class(holding, ticker)
+            asset_class = _holding_class(holding, ticker, split)
             bucket.add(asset_class, ticker, value)
             if is_cash_instrument(ticker, holding.get("instrument_type")):
                 bucket.cash += value
                 bucket.literal_cash_tickers.add(ticker)
         accounts.append(bucket)
-    return Holdings(accounts=accounts, unpriced=sorted(unpriced))
+    return Holdings(accounts=accounts, unpriced=sorted(unpriced), split=split)
 
 
 def _pct(value: float, total: float) -> float:
     return value / total * 100.0 if total > 0 else 0.0
 
 
-def class_drift(holdings: Holdings, policy: AllocationPolicy) -> list[dict[str, Any]]:
-    """Per-class current vs target weight, ordered by the canonical class list."""
+def _bucket_keys(split: frozenset[str]) -> list[str]:
+    """Every bucket key in display order.
 
-    total = holdings.total
+    A split class lists its sub-classes, then its own key, which holds the
+    members with no known sub-class.
+    """
+
+    keys: list[str] = []
+    for asset_class in ASSET_CLASSES:
+        if asset_class in split:
+            keys.extend(SUB_ASSET_CLASSES[asset_class])
+        keys.append(asset_class)
+    return keys
+
+
+def _key_label(key: str, split: frozenset[str]) -> str:
+    if key in SUB_ASSET_CLASS_LABELS:
+        return SUB_ASSET_CLASS_LABELS[key]
+    label = ASSET_CLASS_LABELS.get(key, key)
+    return f"{label} — no sub-class" if key in split else label
+
+
+def _drift_row(holdings: Holdings, policy: AllocationPolicy, key: str) -> dict[str, Any]:
+    value = holdings.class_total(key)
+    current_pct = _pct(value, holdings.total)
+    # A split class's own key only holds members with no known sub-class:
+    # it has no target, like the unclassified bucket.
+    targeted = bool(policy.targets) and key not in holdings.split
+    target_pct = policy.targets.get(key, 0.0) if targeted else None
+    drift = current_pct - target_pct if target_pct is not None else None
+    return {
+        "asset_class": key,
+        "parent": SUB_ASSET_CLASS_PARENT.get(key, key if key in holdings.split else None),
+        "label": _key_label(key, holdings.split),
+        "current_value": round(value, 2),
+        "current_pct": round(current_pct, 2),
+        "target_pct": target_pct,
+        "drift_pct": round(drift, 2) if drift is not None else None,
+        "in_band": abs(drift) <= policy.tolerance_pct if drift is not None else None,
+    }
+
+
+def class_drift(holdings: Holdings, policy: AllocationPolicy) -> list[dict[str, Any]]:
+    """Per-bucket current vs target weight, ordered by the canonical class list.
+
+    ``parent`` is set on sub-class rows (and on a split class's "no
+    sub-class" row) and is ``None`` on whole-class rows.
+    """
+
     held = {c for a in holdings.accounts for c in a.class_values}
-    classes = [c for c in ASSET_CLASSES if c in held or c in policy.targets]
-    has_policy = bool(policy.targets)
-    rows: list[dict[str, Any]] = []
-    for asset_class in classes:
-        value = holdings.class_total(asset_class)
-        current_pct = _pct(value, total)
-        target_pct = policy.targets.get(asset_class, 0.0) if has_policy else None
-        drift = current_pct - target_pct if target_pct is not None else None
-        rows.append(
-            {
-                "asset_class": asset_class,
-                "label": ASSET_CLASS_LABELS.get(asset_class, asset_class),
-                "current_value": round(value, 2),
-                "current_pct": round(current_pct, 2),
-                "target_pct": target_pct,
-                "drift_pct": round(drift, 2) if drift is not None else None,
-                "in_band": abs(drift) <= policy.tolerance_pct if drift is not None else None,
-            }
-        )
-    return rows
+    keys = [k for k in _bucket_keys(holdings.split) if k in held or k in policy.targets]
+    return [_drift_row(holdings, policy, key) for key in keys]
+
+
+def sub_class_breakdown(portfolio: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Current value and weight of every held sub-class, whatever the policy.
+
+    Lets the target editor show current sub-class weights before any
+    sub-class target is set.
+    """
+
+    holdings = bucket_holdings(portfolio, frozenset(SUB_ASSET_CLASSES))
+    rows = class_drift(holdings, AllocationPolicy())
+    return [
+        {k: row[k] for k in ("asset_class", "parent", "label", "current_value", "current_pct")}
+        for row in rows
+        if row["parent"] is not None
+    ]
 
 
 def _class_deltas(holdings: Holdings, policy: AllocationPolicy) -> dict[str, float]:
@@ -322,6 +393,14 @@ def _notes(holdings: Holdings, policy: AllocationPolicy, trades: Mapping[str, An
             f"£{unclassified:,.2f} ({_pct(unclassified, holdings.total):.2f}%) is in holdings with no asset class; "
             "classify them so drift reflects your whole portfolio."
         )
+    for asset_class in sorted(holdings.split, key=ASSET_CLASSES.index):
+        value = holdings.class_total(asset_class)
+        if value > 0:
+            notes.append(
+                f"£{value:,.2f} of {ASSET_CLASS_LABELS[asset_class]} holdings "
+                f"({', '.join(holdings.class_tickers(asset_class))}) has no sub-class and is not traded; "
+                "set sub_asset_class in the instrument metadata or classification overrides."
+            )
     if holdings.unpriced:
         notes.append(f"No GBP value for {', '.join(holdings.unpriced)}; excluded from drift and trades.")
     unfunded = trades["unfunded_amount"]
@@ -340,7 +419,7 @@ def _notes(holdings: Holdings, policy: AllocationPolicy, trades: Mapping[str, An
 def build_plan(portfolio: Mapping[str, Any], policy: AllocationPolicy) -> dict[str, Any]:
     """Drift table, per-account trades and notes for one owner."""
 
-    holdings = bucket_holdings(portfolio)
+    holdings = bucket_holdings(portfolio, split_classes(policy))
     drift = class_drift(holdings, policy)
     trades = suggest_account_trades(holdings, policy)
     unclassified = holdings.class_total(UNCLASSIFIED)
@@ -348,6 +427,7 @@ def build_plan(portfolio: Mapping[str, Any], policy: AllocationPolicy) -> dict[s
         "policy": policy.to_dict(),
         "total_value": round(holdings.total, 2),
         "classes": drift,
+        "sub_classes": sub_class_breakdown(portfolio),
         "unclassified_value": round(unclassified, 2),
         "unclassified_pct": round(_pct(unclassified, holdings.total), 2),
         "unpriced_tickers": holdings.unpriced,

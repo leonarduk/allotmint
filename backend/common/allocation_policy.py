@@ -1,7 +1,10 @@
 """Per-owner target allocation policy used by the rebalance page (#9446).
 
 The policy is a set of asset-class target weights (percent, summing to 100)
-plus an absolute drift tolerance in percentage points. It is stored under the
+plus an absolute drift tolerance in percentage points. A splittable class
+(Bond, Commodity) can instead be targeted by its sub-classes (``long_gilts``,
+``gold``, ...; see :mod:`backend.common.sub_asset_class`, #9543), but not both
+at once. It is stored under the
 ``allocation_policy`` key of the owner's ``settings.json`` -- the same file
 :mod:`backend.common.user_config` uses, whose ``save_user_config`` merges into
 existing content, so neither writer clobbers the other.
@@ -16,7 +19,8 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from backend.common.data_loader import resolve_owner_dir
-from backend.common.instrument_classification import ASSET_CLASSES, normalise_asset_class
+from backend.common.instrument_classification import ASSET_CLASS_LABELS, ASSET_CLASSES, normalise_asset_class
+from backend.common.sub_asset_class import SUB_ASSET_CLASS_PARENT
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -29,7 +33,7 @@ TARGET_SUM_TOLERANCE_PCT = 0.01
 
 @dataclass
 class AllocationPolicy:
-    """Asset-class target weights in percent and a drift band in pp."""
+    """Asset-class (or sub-class) target weights in percent and a drift band in pp."""
 
     targets: dict[str, float] = field(default_factory=dict)
     tolerance_pct: float = DEFAULT_TOLERANCE_PCT
@@ -38,14 +42,33 @@ class AllocationPolicy:
         return {"targets": dict(self.targets), "tolerance_pct": self.tolerance_pct}
 
 
+def _target_key(key: Any) -> str:
+    """Canonical asset class or sub-class key for a target, or ``ValueError``."""
+    asset_class = normalise_asset_class(key)
+    if asset_class is not None:
+        return asset_class
+    sub_class = key.strip().lower() if isinstance(key, str) else None
+    if sub_class in SUB_ASSET_CLASS_PARENT:
+        return sub_class
+    expected = ", ".join((*ASSET_CLASSES, *SUB_ASSET_CLASS_PARENT))
+    raise ValueError(f"Unknown asset class {key!r}; expected one of {expected}")
+
+
+def _check_levels(targets: Mapping[str, float]) -> None:
+    """Reject a class targeted both as a whole and by its sub-classes."""
+    for key in targets:
+        parent = SUB_ASSET_CLASS_PARENT.get(key)
+        if parent is not None and parent in targets:
+            label = ASSET_CLASS_LABELS[parent]
+            raise ValueError(f"Set {label} either as a whole or by sub-class, not both")
+
+
 def _parse_targets(raw: Any) -> dict[str, float]:
     if not isinstance(raw, Mapping):
         raise ValueError("targets must be an object mapping asset class to percent")
     targets: dict[str, float] = {}
     for key, value in raw.items():
-        asset_class = normalise_asset_class(key)
-        if asset_class is None:
-            raise ValueError(f"Unknown asset class {key!r}; expected one of {', '.join(ASSET_CLASSES)}")
+        asset_class = _target_key(key)
         if asset_class in targets:
             raise ValueError(f"Asset class {asset_class!r} appears more than once")
         try:
@@ -56,6 +79,7 @@ def _parse_targets(raw: Any) -> dict[str, float]:
             raise ValueError(f"Target for {asset_class} must be between 0% and 100%, got {pct}")
         if pct > 0:
             targets[asset_class] = pct
+    _check_levels(targets)
     return targets
 
 

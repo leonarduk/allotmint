@@ -17,6 +17,7 @@ from backend.common.rebalance_plan import (
     _water_fill,
     bucket_holdings,
     build_plan,
+    split_classes,
     suggest_account_trades,
     suggest_new_cash,
 )
@@ -451,3 +452,155 @@ def test_plan_notes_cash_only_when_still_overweight_after_trades():
     # cash is +30pp over target.
     assert idle["trades"] == []
     assert any("Cash would still be 60.00%" in note for note in idle["notes"])
+
+
+# ----------------------------------------------------------------- sub-classes (#9543)
+
+
+def _hs(ticker, value, asset_class, sub_asset_class=None):
+    return {**_h(ticker, value, asset_class), "sub_asset_class": sub_asset_class}
+
+
+def _gilt_portfolio():
+    return _portfolio(
+        (
+            "ISA",
+            [
+                _hs("EQ1", 400, "equity"),
+                _hs("GLTL.L", 50, "bond", "long_gilts"),
+                _hs("IGLT.L", 150, "bond", "intermediate_gilts"),
+                _hs("SEGA.L", 100, "bond", "overseas_government"),
+                _hs("PHGP.L", 100, "commodity", "gold"),
+                _hs("PHSP.L", 50, "commodity", "commodities"),
+                _h("CASH.GBP", 150, instrument_type="Cash"),
+            ],
+        )
+    )
+
+
+def test_parse_policy_accepts_sub_class_targets():
+    policy = parse_policy(
+        {"targets": {"equity": 40, "Long_Gilts": 10, "intermediate_gilts": 10, "short_gilts": 20, "gold": 20}}
+    )
+    assert policy.targets == {
+        "equity": 40.0,
+        "long_gilts": 10.0,
+        "intermediate_gilts": 10.0,
+        "short_gilts": 20.0,
+        "gold": 20.0,
+    }
+
+
+@pytest.mark.parametrize(
+    "targets, match",
+    [
+        ({"bond": 50, "long_gilts": 50}, "Bond either as a whole or by sub-class"),
+        ({"commodity": 50, "gold": 50}, "Commodity either as a whole or by sub-class"),
+        ({"equity": 50, "short_gilt": 50}, "Unknown asset class"),
+    ],
+)
+def test_parse_policy_rejects_mixed_levels_and_unknown_sub_classes(targets, match):
+    with pytest.raises(ValueError, match=match):
+        parse_policy({"targets": targets})
+
+
+def test_parse_policy_zero_parent_does_not_conflict_with_sub_classes():
+    policy = parse_policy({"targets": {"bond": 0, "long_gilts": 100}})
+    assert policy.targets == {"long_gilts": 100.0}
+
+
+def test_class_level_policy_ignores_sub_classes():
+    """A class-level policy plans exactly as before sub-classes existed."""
+    policy = _policy(5, equity=40, bond=20, commodity=20, cash=20)
+    with_subs = build_plan(_gilt_portfolio(), policy)
+    stripped = _portfolio(
+        (
+            "ISA",
+            [
+                {k: v for k, v in h.items() if k != "sub_asset_class"}
+                for h in _gilt_portfolio()["accounts"][0]["holdings"]
+            ],
+        )
+    )
+    without_subs = build_plan(stripped, policy)
+    assert with_subs["classes"] == without_subs["classes"]
+    assert with_subs["trades"] == without_subs["trades"]
+    assert [row["asset_class"] for row in with_subs["classes"]] == ["equity", "bond", "cash", "commodity"]
+    assert all(row["parent"] is None for row in with_subs["classes"])
+
+
+def test_sub_class_policy_drift_rows_and_trades():
+    policy = AllocationPolicy(
+        targets={"equity": 40, "long_gilts": 10, "intermediate_gilts": 10, "short_gilts": 20, "gold": 20},
+        tolerance_pct=5,
+    )
+    plan = build_plan(_gilt_portfolio(), policy)
+    rows = {row["asset_class"]: row for row in plan["classes"]}
+    assert list(rows) == [
+        "equity",
+        "long_gilts",
+        "intermediate_gilts",
+        "short_gilts",
+        "overseas_government",
+        "cash",
+        "gold",
+        "commodities",
+    ]
+    assert rows["long_gilts"]["parent"] == "bond"
+    assert rows["long_gilts"]["label"] == "Long gilts"
+    assert rows["intermediate_gilts"]["drift_pct"] == 5.0
+    assert rows["overseas_government"]["target_pct"] == 0.0
+    assert rows["gold"]["drift_pct"] == -10.0
+
+    trades = {(t["action"], t["asset_class"]): t for t in plan["trades"]}
+    # Untargeted overseas government (10pp over) and cash fund buys.
+    assert trades[("sell", "overseas_government")]["amount"] == 100.0
+    assert trades[("sell", "overseas_government")]["ticker"] == "SEGA.L"
+    assert ("buy", "short_gilts") in trades
+    assert trades[("buy", "gold")]["ticker"] == "PHGP.L"
+    assert ("sell", "commodities") not in trades  # 5pp over: inside the band
+
+
+def test_split_class_holding_without_sub_class_is_reported_not_dropped():
+    portfolio = _portfolio(
+        ("ISA", [_hs("EQ1", 500, "equity"), _hs("GLTL.L", 300, "bond", "long_gilts"), _hs("MYST", 200, "bond")])
+    )
+    plan = build_plan(portfolio, AllocationPolicy(targets={"equity": 50, "long_gilts": 50}, tolerance_pct=5))
+    rows = {row["asset_class"]: row for row in plan["classes"]}
+    assert plan["total_value"] == 1000.0
+    assert rows["bond"]["label"] == "Bond \u2014 no sub-class"
+    assert rows["bond"]["parent"] == "bond"
+    assert rows["bond"]["current_pct"] == 20.0
+    assert rows["bond"]["target_pct"] is None
+    assert not any(t["asset_class"] == "bond" for t in plan["trades"])
+    assert any("(MYST) has no sub-class" in note for note in plan["notes"])
+
+
+def test_sub_class_from_wrong_parent_falls_back_to_parent():
+    portfolio = _portfolio(("ISA", [_hs("ODD", 100, "bond", "gold")]))
+    holdings = bucket_holdings(portfolio, frozenset({"bond"}))
+    assert holdings.class_total("bond") == pytest.approx(100)
+    assert holdings.class_total("gold") == 0
+
+
+def test_plan_reports_sub_class_breakdown_for_class_level_policy():
+    plan = build_plan(_gilt_portfolio(), _policy(5, equity=40, bond=20, commodity=20, cash=20))
+    breakdown = {row["asset_class"]: row["current_pct"] for row in plan["sub_classes"]}
+    assert breakdown == {
+        "long_gilts": 5.0,
+        "intermediate_gilts": 15.0,
+        "overseas_government": 10.0,
+        "gold": 10.0,
+        "commodities": 5.0,
+    }
+
+
+def test_new_cash_fills_sub_class_targets():
+    policy = AllocationPolicy(targets={"equity": 40, "long_gilts": 30, "gold": 30}, tolerance_pct=5)
+    holdings = bucket_holdings(_gilt_portfolio(), split_classes(policy))
+    result = suggest_new_cash(holdings, policy, 500, "0")
+    bought = {t["asset_class"]: t["amount"] for t in result["trades"]}
+    # Gaps on the new 1,500 total: long gilts 400, gold 350, equity 200.
+    # Water-filling 500 levels them all at 150 short of target.
+    assert bought == {"long_gilts": 250.0, "gold": 200.0, "equity": 50.0}
+    assert result["trades"][0]["ticker"] == "GLTL.L"

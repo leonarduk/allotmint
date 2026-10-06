@@ -99,6 +99,7 @@ export const holdingContractSchema = z.object({
   eligible_on: nullableString.optional(),
   cost_basis_source: nullableString.optional(),
   asset_class: nullableString.optional(),
+  sub_asset_class: nullableString.optional(),
   unrealised_gain_gbp: nullableNumber.optional(),
   unrealized_gain_gbp: nullableNumber.optional(),
 });

@@ -128,3 +128,17 @@ def test_policy_put_refuses_corrupt_settings_file(monkeypatch, tmp_path):
     resp = client.put("/rebalance/alex/policy", json={"targets": {"equity": 100}})
     assert resp.status_code == 409
     assert (tmp_path / "alex" / "settings.json").read_text() == "{not json"
+
+
+def test_sub_class_policy_round_trips_and_plans(monkeypatch, tmp_path):
+    client = _owner_client(monkeypatch, tmp_path)
+    resp = client.put("/rebalance/alex/policy", json={"targets": {"equity": 60, "long_gilts": 20, "gold": 20}})
+    assert resp.status_code == 200
+    plan = client.get("/rebalance/alex/plan").json()
+    assert [row["asset_class"] for row in plan["classes"]] == ["equity", "long_gilts", "cash", "gold"]
+    resp = client.get("/rebalance/alex/new-cash", params={"amount": 100, "account": "0"})
+    assert {t["asset_class"] for t in resp.json()["trades"]} <= {"long_gilts", "gold"}
+
+    resp = client.put("/rebalance/alex/policy", json={"targets": {"bond": 50, "long_gilts": 50}})
+    assert resp.status_code == 400
+    assert "either as a whole or by sub-class" in resp.json()["detail"]

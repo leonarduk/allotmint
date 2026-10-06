@@ -960,6 +960,69 @@ export interface NewCashPlan {
   keep_as_cash: number;
 }
 
+/** Per-owner investment plan record (#9547): the owner's target and its rationale. */
+export interface InvestmentPlanTarget {
+  class: string;
+  weight_pct: number;
+}
+
+export interface InvestmentPlanVehicle {
+  ticker?: string;
+  note?: string;
+}
+
+export interface InvestmentPlanAssumption {
+  key: string;
+  value?: string | number | boolean | null;
+  note?: string;
+}
+
+export interface InvestmentPlanDecision {
+  date: string;
+  decision: string;
+  alternatives: string[];
+  reason?: string;
+}
+
+export interface InvestmentPlanEvidence {
+  as_of: string;
+  metric: string;
+  value: string | number;
+  basis?: string;
+  source?: string;
+}
+
+export interface InvestmentPlan {
+  owner: string;
+  version: number;
+  updated: string;
+  status: "draft" | "active" | "superseded";
+  summary: string;
+  target: InvestmentPlanTarget[];
+  vehicles: Record<string, InvestmentPlanVehicle[]>;
+  assumptions: InvestmentPlanAssumption[];
+  decisions: InvestmentPlanDecision[];
+  open_questions: string[];
+  evidence: InvestmentPlanEvidence[];
+  review: { next_review?: string; triggers: string[] };
+  disclaimer: string;
+}
+
+/** GET/PUT /plans/{owner}: the plan plus its comparison with the rebalance targets. */
+export interface InvestmentPlanResponse {
+  plan: InvestmentPlan;
+  warnings: string[];
+  rebalance: {
+    rebalance_targets: Record<string, number>;
+    tolerance_pct: number;
+    /** The plan target in the rebalance policy's vocabulary (rolled up when needed). */
+    plan_targets: Record<string, number>;
+    matches: boolean;
+    /** True when the rebalance policy accepts the plan's class keys verbatim. */
+    copy_supported: boolean;
+  };
+}
+
 export interface Quest {
   id: string;
   title: string;

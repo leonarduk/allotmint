@@ -40,6 +40,8 @@ import type {
   ScenarioEvent,
   NewCashPlan,
   AllocationPolicy,
+  InvestmentPlan,
+  InvestmentPlanResponse,
   RebalancePlan,
   QuestResponse,
   TrailResponse,
@@ -2188,6 +2190,18 @@ export const getNewCashPlan = (owner: string, amount: number, accountId: string)
     `${API_BASE}/rebalance/${encodeURIComponent(owner)}/new-cash?${params.toString()}`,
   );
 };
+
+/** The owner's investment plan record; rejects with `status` 404 when none is saved. */
+export const getInvestmentPlan = (owner: string) =>
+  fetchJson<InvestmentPlanResponse>(`${API_BASE}/plans/${encodeURIComponent(owner)}`);
+
+/** Validate and save the owner's investment plan record. */
+export const saveInvestmentPlan = (owner: string, plan: Partial<InvestmentPlan>) =>
+  fetchJson<InvestmentPlanResponse>(`${API_BASE}/plans/${encodeURIComponent(owner)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(plan),
+  });
 
 /** Fetch per-ticker VaR contribution breakdown for an owner. */
 export const getVarBreakdown = (

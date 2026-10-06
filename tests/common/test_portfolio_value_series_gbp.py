@@ -151,20 +151,77 @@ def test_holdings_without_stored_fx_are_left_out_and_reported(world) -> None:
     _value, breakdown = pu.compute_max_drawdown("steve", days=5, include_breakdown=True, pricing_date=REPORTING_DATE)
 
     assert [row["portfolio_value"] for row in breakdown["series"]] == pytest.approx(_gbx_values())
+    left_out = {"currency": "USD", "reason": pu.FX_MISSING_ALL_DATES, "missing_fx_days": 5}
+    window = {"first": "2024-01-01", "last": "2024-01-05"}
     assert breakdown["unconverted_holdings"] == [
-        {"ticker": "USCO.N", "currency": "USD", "reason": "no stored FX rate"},
-        {"ticker": "CASH.USD", "currency": "USD", "reason": "no stored FX rate"},
+        {"ticker": "USCO.N", **left_out, **window},
+        {"ticker": "CASH.USD", **left_out, **window},
     ]
 
 
-def test_fx_gap_longer_than_the_fill_window_leaves_the_holding_out(world) -> None:
-    # The last stored rate is more than _MAX_FX_GAP_FILL_DAYS before 5 Jan.
-    world.fx["USD"] = _fx_frame({date(2023, 12, 20): 0.8, date(2023, 12, 27): 0.8})
+def test_fx_older_than_the_fill_window_on_every_date_leaves_the_holding_out(world) -> None:
+    # The only stored rate is more than _MAX_FX_GAP_FILL_DAYS before 1 Jan.
+    world.fx["USD"] = _fx_frame({date(2023, 12, 20): 0.8})
 
     _value, breakdown = pu.compute_max_drawdown("steve", days=5, include_breakdown=True, pricing_date=REPORTING_DATE)
 
     assert [row["portfolio_value"] for row in breakdown["series"]] == pytest.approx(_gbx_values())
     assert {row["ticker"] for row in breakdown["unconverted_holdings"]} == {"USCO.N", "CASH.USD"}
+    assert {row["reason"] for row in breakdown["unconverted_holdings"]} == {pu.FX_MISSING_ALL_DATES}
+
+
+def test_partial_fx_gap_keeps_the_holding_and_treats_those_dates_as_missing_prices(world) -> None:
+    """A rate for 1 Jan only: 2-5 Jan have none (27 Dec + 5 days covers 1 Jan alone).
+
+    The holding stays in both series. Its 2-5 Jan values are missing, so each
+    endpoint applies its own gap rule for missing prices: the series path
+    carries 1 Jan for up to 5 rows, ``compute_owner_performance`` carries it
+    without limit -- the same within this window.
+    """
+    world.fx["USD"] = _fx_frame({date(2023, 12, 27): 0.8})
+
+    _value, breakdown = pu.compute_max_drawdown("steve", days=5, include_breakdown=True, pricing_date=REPORTING_DATE)
+    perf = pu.compute_owner_performance("steve", days=5, pricing_date=REPORTING_DATE)
+
+    usd_first_day = 10 * NATIVE_CLOSES[("USCO", "N")][0] * 0.8 + 1000 * 0.8  # line + cash on 1 Jan
+    expected = [gbx + usd_first_day for gbx in _gbx_values()]
+    assert [row["portfolio_value"] for row in breakdown["series"]] == pytest.approx(expected)
+    assert [row["value"] for row in perf["history"]] == pytest.approx(expected, abs=0.005)
+    partial = {"currency": "USD", "reason": pu.FX_MISSING_SOME_DATES, "missing_fx_days": 4}
+    window = {"first": "2024-01-02", "last": "2024-01-05"}
+    expected_report = [{"ticker": "USCO.N", **partial, **window}, {"ticker": "CASH.USD", **partial, **window}]
+    assert breakdown["unconverted_holdings"] == expected_report
+    assert perf["unconverted_holdings"] == expected_report
+
+
+def test_duplicate_fx_dates_use_the_last_stored_rate(world) -> None:
+    world.fx["USD"] = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-01-03", "2024-01-01", "2024-01-03"]),
+            "Rate": [0.6, 0.8, 0.75],
+        }
+    )
+
+    rates = pu._gbp_rates("USD", pd.Index([date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)]))
+
+    assert list(rates.to_numpy()) == [0.8, 0.75, 0.75]
+
+
+def test_gbx_only_portfolio_is_valued_in_pounds_by_both_endpoints(world) -> None:
+    """The reported bug: pence lines were summed as pounds, ~100x the dashboard.
+
+    On ``main`` before #7786 the max-drawdown series read 25,000 here.
+    """
+    world.holdings = [GBX_LINE]
+    client = TestClient(create_app())
+    query = f"days=5&as_of={REPORTING_DATE.isoformat()}"
+
+    drawdown = client.get(f"/performance/steve/max-drawdown?{query}").json()
+    perf = client.get(f"/performance/steve?{query}").json()
+
+    pounds = [100 * close / 100 for close in NATIVE_CLOSES[("GBXCO", "L")]]  # units x pence / 100
+    assert [row["portfolio_value"] for row in drawdown["series"]] == pytest.approx(pounds)
+    _assert_endpoints_agree(perf, drawdown, expected_final=270.0)
 
 
 def test_fx_rate_exactly_at_the_fill_window_is_used_and_one_day_older_is_not(world) -> None:

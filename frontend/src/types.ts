@@ -279,13 +279,19 @@ export interface DataQualityTimeseriesResponse {
 }
 
 /**
- * A holding the backend left out of the GBP value series behind max drawdown,
- * alpha and tracking error because no stored FX rate covers its closes (#7786).
+ * A holding with dates that no stored FX rate covers, in the GBP value series
+ * behind performance, max drawdown, alpha and tracking error (#7786).
+ * `reason` is "no stored FX rate" when no date could be converted (the holding
+ * is left out) or "no stored FX rate on some dates" (only those dates lack a
+ * value and are treated like missing prices).
  */
 export interface UnconvertedHolding {
   ticker: string;
   currency: string;
   reason: string;
+  missing_fx_days?: number;
+  first?: string;
+  last?: string;
 }
 
 export interface AlphaSeriesPoint {

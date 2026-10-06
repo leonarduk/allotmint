@@ -638,7 +638,12 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
             metrics["win_rate"] * 100,
             metrics["average_profit"],
         )
-    _alert_on_drawdown()
+    # The drawdown sweep rebuilds every owner's full performance series and
+    # sends alerts, so it belongs to the scheduled run only. Page requests
+    # (/opportunities, /trading-agent/signals) pass notify=False; running it
+    # there cost seconds per call and timed out the Movers page.
+    if notify:
+        _alert_on_drawdown()
     return allowed_signals
 
 

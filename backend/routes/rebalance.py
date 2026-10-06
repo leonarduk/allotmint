@@ -17,7 +17,7 @@ from backend.common.allocation_policy import (
 )
 from backend.common.authz import ensure_owner_access
 from backend.common.errors import raise_owner_not_found
-from backend.common.rebalance_plan import bucket_holdings, build_plan, suggest_new_cash
+from backend.common.rebalance_plan import bucket_holdings, build_plan, split_classes, suggest_new_cash
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 router = APIRouter(tags=["rebalance"])
@@ -90,7 +90,7 @@ def get_new_cash_plan(
 ):
     owner, accounts_root = _resolve_owner(request, owner, identity)
     policy = load_allocation_policy(owner, accounts_root)
-    holdings = bucket_holdings(_load_portfolio(owner, accounts_root))
+    holdings = bucket_holdings(_load_portfolio(owner, accounts_root), split_classes(policy))
     try:
         return suggest_new_cash(holdings, policy, amount, account)
     except ValueError as exc:

@@ -455,6 +455,12 @@
                           "null"
                         ]
                       },
+                      "sub_asset_class": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "unrealised_gain_gbp": {
                         "type": [
                           "number",
@@ -818,6 +824,12 @@
                         ]
                       },
                       "asset_class": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "sub_asset_class": {
                         "type": [
                           "string",
                           "null"

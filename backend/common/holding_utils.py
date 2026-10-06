@@ -30,6 +30,7 @@ from backend.common.sector_labels import (
     normalise_optional_region,
     normalise_optional_sector,
 )
+from backend.common.sub_asset_class import resolve_sub_asset_class
 from backend.common.ticker_utils import canonical_ticker
 from backend.common.user_config import UserConfig
 from backend.config import config
@@ -853,6 +854,8 @@ def enrich_holding(
         # still gets the same "Cash" sector as aggregate_by_ticker rows (#8530).
         out["sector"] = CASH_SECTOR_LABEL
     out["asset_class"] = canonical_asset_class(stored_asset_class)
+    # Bond/commodity sub-class for sub-class rebalance targets (#9543).
+    out["sub_asset_class"] = resolve_sub_asset_class({**meta, "ticker": full, "name": out["name"]}, out["asset_class"])
 
     units = float(out.get(UNITS, 0) or 0.0)
     if units <= 0:

@@ -916,14 +916,23 @@ export interface SavedQuery {
   params: CustomQuery;
 }
 
-/** Per-owner asset-class targets (percent) and drift band (pp). */
+/**
+ * Per-owner targets (percent) and drift band (pp). Keys are asset classes or,
+ * for Bond/Commodity, sub-classes such as "long_gilts" or "gold" (#9543).
+ */
 export interface AllocationPolicy {
   targets: Record<string, number>;
   tolerance_pct: number;
 }
 
 export interface RebalanceClassRow {
+  /** Asset class or sub-class key the row is bucketed by. */
   asset_class: string;
+  /**
+   * Parent class of a sub-class row; equal to ``asset_class`` on a split
+   * class's "no sub-class" row; null/absent on whole-class rows.
+   */
+  parent?: string | null;
   label: string;
   current_value: number;
   current_pct: number;
@@ -950,10 +959,20 @@ export interface RebalanceAccount {
   cash: number;
 }
 
+/** Current weight of a held sub-class, reported whatever the policy level. */
+export interface RebalanceSubClassRow {
+  asset_class: string;
+  parent: string;
+  label: string;
+  current_value: number;
+  current_pct: number;
+}
+
 export interface RebalancePlan {
   policy: AllocationPolicy;
   total_value: number;
   classes: RebalanceClassRow[];
+  sub_classes?: RebalanceSubClassRow[];
   unclassified_value: number;
   unclassified_pct: number;
   unpriced_tickers: string[];

@@ -976,6 +976,10 @@ _DEFAULT_FX_REFERENCE_CURRENCIES = ("USD", "EUR", "CAD")
 # A stored history starting within this many days of the configured start
 # counts as complete (the start may be a holiday with no rate).
 _FX_BACKFILL_TOLERANCE_DAYS = 7
+# Carry a stored FX rate over a short gap (a weekend, a bank holiday, a refresh
+# a few days late). Past that the rate counts as missing, so the date has no
+# GBP price rather than one converted at a weeks-old rate (#7786, #9759).
+_MAX_FX_GAP_FILL_DAYS = 5
 
 # How long a cache-only reader reuses its in-process copy of an FX file before
 # re-reading it (an S3 GET on Lambda). Writes from this process drop the copy.
@@ -1033,31 +1037,75 @@ def _cached_fx_frame(curr: str) -> pd.DataFrame:
     return fx
 
 
-def _cached_fx_rates(curr: str, start: date, end: date, *, ticker: str, exchange: str) -> pd.DataFrame:
-    """Daily ``curr``->GBP rates for ``start``..``end`` from the FX cache, without fetching.
+def align_fx_rates(fx: pd.DataFrame, dates: Iterable) -> pd.Series:
+    """The ``fx`` rate in force on each of ``dates``, in the order given (#9759).
 
-    Each day takes the latest cached rate on or before it; days before the
-    first cached rate take that first rate. With no cache
-    file at all this falls back to the same approximate constant a failed live
-    fetch returns -- or, for a currency with no constant, an empty frame, so
-    the caller leaves the prices unconverted (no ``Close_gbp``) instead of
-    multiplying them by a made-up 1.0 (#9664). Either way the ticker is queued
-    so the refresh brings the FX cache up to date.
+    The one FX gap-fill rule for historical prices: each date takes the
+    latest rate dated on or before it and at most :data:`_MAX_FX_GAP_FILL_DAYS`
+    earlier. A rate is never carried backward, so a date before the first
+    rate, or further than the window past the last one, is NaN. ``fx`` has
+    ``Date`` and ``Rate`` columns in any order; NaN rates are ignored and
+    when a date repeats its last row wins (#9719). The result is indexed
+    like ``dates``, which need not be sorted.
     """
+    index = dates if isinstance(dates, pd.Index) else pd.Index(list(dates))
+    missing = pd.Series(float("nan"), index=index, dtype=float)
+    if index.empty or fx.empty:
+        return missing
+    days = pd.DatetimeIndex(pd.to_datetime(index)).astype("datetime64[ns]")
+    rates = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(fx["Date"]).astype("datetime64[ns]").to_numpy(),
+            "Rate": pd.to_numeric(fx["Rate"], errors="coerce").to_numpy(dtype=float),
+        }
+    ).dropna()
+    if rates.empty:
+        return missing
+    rates = rates.sort_values("Date", kind="stable").drop_duplicates(subset="Date", keep="last")
+    order = days.argsort(kind="stable")  # merge_asof needs ascending keys
+    merged = pd.merge_asof(
+        pd.DataFrame({"Date": days[order]}),
+        rates,
+        on="Date",
+        direction="backward",
+        tolerance=pd.Timedelta(days=_MAX_FX_GAP_FILL_DAYS),
+    )
+    aligned = np.empty(len(index), dtype=float)
+    aligned[order] = merged["Rate"].to_numpy(dtype=float)
+    return pd.Series(aligned, index=index)
+
+
+def _fx_lookback_start(start: date) -> date:
+    """First date whose rate :func:`align_fx_rates` can apply on ``start``."""
+    return start - timedelta(days=_MAX_FX_GAP_FILL_DAYS)
+
+
+def _cached_fx_rates(curr: str, start: date, end: date, *, ticker: str, exchange: str) -> pd.DataFrame:
+    """Stored ``curr``->GBP rates that can apply to ``start``..``end``, from the FX cache, without fetching.
+
+    Returns the stored rows themselves (from :data:`_MAX_FX_GAP_FILL_DAYS`
+    before ``start`` to ``end``), not one row per day: the caller aligns them
+    to its price dates with :func:`align_fx_rates`, once, so the gap window
+    is applied exactly once (#9759). With no cache file at all this falls
+    back to the same approximate constant a failed live fetch returns -- or,
+    for a currency with no constant, an empty frame, so the caller leaves the
+    prices unconverted (no ``Close_gbp``) instead of multiplying them by a
+    made-up 1.0 (#9664). Either way the ticker is queued so the refresh
+    brings the FX cache up to date.
+    """
+    lookback = _fx_lookback_start(start)
     if curr == "GBP":
         # The GBP leg of a cross-currency conversion: the unit rate, no lookup.
-        return pd.DataFrame({"Date": pd.date_range(start, end, freq="D").astype("datetime64[ms]"), "Rate": 1.0})
+        return pd.DataFrame({"Date": pd.date_range(lookback, end, freq="D").astype("datetime64[ms]"), "Rate": 1.0})
     cached = _cached_fx_frame(curr)
     if cached.empty or cached["Date"].max().date() < min(end, _last_close_target()):
         refresh_queue.enqueue(ticker, exchange)
     if cached.empty:
-        fx = fallback_fx_rate_range(curr, "GBP", start, end)
+        fx = fallback_fx_rate_range(curr, "GBP", lookback, end)
         fx["Date"] = pd.to_datetime(fx["Date"])
         return fx
-    days = pd.DataFrame({"Date": pd.date_range(start, end, freq="D").astype("datetime64[ms]")})
-    fx = pd.merge_asof(days, cached[["Date", "Rate"]], on="Date", direction="backward")
-    fx["Rate"] = fx["Rate"].fillna(cached["Rate"].iloc[0])
-    return fx
+    days = cached["Date"].dt.date
+    return cached.loc[(days >= lookback) & (days <= end), ["Date", "Rate"]].reset_index(drop=True)
 
 
 def cached_fx_rate_to_gbp(curr: str) -> float | None:
@@ -1262,6 +1310,77 @@ def refresh_fx_cache_for_tickers(full_tickers: list[str]) -> None:
             logger.warning("FX cache refresh failed for %s: %s", sanitise_log_value(curr), sanitise_log_value(exc))
 
 
+def _offline_fx_rates(curr: str, start: date, end: date) -> pd.DataFrame:
+    """Offline mode's ``curr``->GBP rates for ``start``..``end``: the FX cache, then the proxy, then a fetch."""
+    # The shared reader: one rate per date, the last stored (#9719).
+    fx = _read_fx_parquet(_fx_cache_path(curr))
+
+    if fx.empty and getattr(config, "fx_proxy_url", None):
+        try:
+            safe_curr = quote(curr, safe="")
+            url = f"{config.fx_proxy_url.rstrip('/')}/{safe_curr}"
+            params = {"start": start.isoformat(), "end": end.isoformat()}
+            resp = requests.get(url, params=params, timeout=5)
+            if resp.ok:
+                fx = pd.DataFrame(resp.json())
+                fx["Date"] = pd.to_datetime(fx["Date"])
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("FX proxy fetch failed for %s: %s", _sanitize_for_log(curr), sanitise_log_value(exc))
+
+    if fx.empty:
+        try:
+            fx = fetch_fx_rate_range(curr, "GBP", start, end).copy()
+            if fx.empty:
+                raise ValueError(f"Offline mode: no FX rates for {curr}")
+
+            fx["Date"] = pd.to_datetime(fx["Date"])
+        except Exception as exc:
+            raise ValueError(f"Offline mode: no FX rates for {curr}") from exc
+
+    fx = apply_date_range(fx, start, end)
+    if fx.empty:
+        raise ValueError(f"Offline mode: FX cache lacks range for {curr}")
+    return fx
+
+
+def _load_fx_rates(curr: str, start: date, end: date, *, ticker: str, exchange: str) -> pd.DataFrame:
+    """``curr``->GBP rate observations that can apply to prices dated ``start``..``end``.
+
+    The rows run from :data:`_MAX_FX_GAP_FILL_DAYS` before ``start``, so a
+    price on ``start`` can take the last rate before it. Empty when there is
+    no rate to be had.
+    """
+    curr = (curr or "").strip().upper()
+    if not re.fullmatch(r"[A-Z]{3}", curr):
+        logger.warning("Invalid/unsupported FX currency code: %s", _sanitize_for_log(curr))
+        return pd.DataFrame(columns=["Date", "Rate"])
+
+    lookback = _fx_lookback_start(start)
+    if _CACHE_ONLY.get():
+        # Checked before offline mode: its cache miss goes to the FX proxy
+        # and then Yahoo, which a page request must not do.
+        fx = _cached_fx_rates(curr, start, end, ticker=ticker, exchange=exchange)
+    elif OFFLINE_MODE:
+        fx = _offline_fx_rates(curr, lookback, end)
+    else:
+        fx = fetch_fx_rate_range(curr, "GBP", lookback, end).copy()
+        if fx.empty:
+            return pd.DataFrame()
+        fx["Date"] = pd.to_datetime(fx["Date"])
+
+    fx["Rate"] = pd.to_numeric(fx["Rate"], errors="coerce")
+    return fx
+
+
+def _converts_to(currency: str, base_currency: str) -> bool:
+    return currency not in (base_currency, "GBX")
+
+
+def needs_fx_conversion(ticker: str, exchange: str, base_currency: str = "GBP") -> bool:
+    """Whether the loader converts ``ticker.exchange`` prices to ``base_currency`` (adds ``Close_<base>``)."""
+    return _converts_to(instrument_currency(ticker, exchange), (base_currency or "GBP").upper())
+
+
 def _convert_to_base_currency(
     df: pd.DataFrame,
     ticker: str,
@@ -1270,63 +1389,19 @@ def _convert_to_base_currency(
     end: date,
     base_currency: str,
 ) -> pd.DataFrame:
-    """Convert OHLC prices to ``base_currency`` if needed."""
+    """Convert OHLC prices to ``base_currency`` if needed.
 
+    Each row takes the rate :func:`align_fx_rates` gives its date. A row with
+    no qualifying rate (more than :data:`_MAX_FX_GAP_FILL_DAYS` after the last
+    one, or before the first) gets NaN ``<col>_<base>`` values: a missing
+    price, never a rate borrowed from weeks away or from the future (#9759).
+    """
     currency = instrument_currency(ticker, exchange)
     base_currency = (base_currency or "GBP").upper()
-
-    if currency in (base_currency, "GBX") or df.empty:
+    if df.empty or not _converts_to(currency, base_currency):
         return df
 
-    def _load_rates(curr: str) -> pd.DataFrame:
-        curr = (curr or "").strip().upper()
-        if not re.fullmatch(r"[A-Z]{3}", curr):
-            logger.warning("Invalid/unsupported FX currency code: %s", _sanitize_for_log(curr))
-            return pd.DataFrame(columns=["Date", "Rate"])
-
-        if _CACHE_ONLY.get():
-            # Checked before offline mode: its cache miss goes to the FX proxy
-            # and then Yahoo, which a page request must not do.
-            fx = _cached_fx_rates(curr, start, end, ticker=ticker, exchange=exchange)
-        elif OFFLINE_MODE:
-            # The shared reader: one rate per date, the last stored (#9719).
-            fx = _read_fx_parquet(_fx_cache_path(curr))
-
-            if fx.empty and getattr(config, "fx_proxy_url", None):
-                try:
-                    safe_curr = quote(curr, safe="")
-                    url = f"{config.fx_proxy_url.rstrip('/')}/{safe_curr}"
-                    params = {"start": start.isoformat(), "end": end.isoformat()}
-                    resp = requests.get(url, params=params, timeout=5)
-                    if resp.ok:
-                        fx = pd.DataFrame(resp.json())
-                        fx["Date"] = pd.to_datetime(fx["Date"])
-                except Exception as exc:  # pragma: no cover - defensive
-                    logger.warning("FX proxy fetch failed for %s: %s", _sanitize_for_log(curr), sanitise_log_value(exc))
-
-            if fx.empty:
-                try:
-                    fx = fetch_fx_rate_range(curr, "GBP", start, end).copy()
-                    if fx.empty:
-                        raise ValueError(f"Offline mode: no FX rates for {curr}")
-
-                    fx["Date"] = pd.to_datetime(fx["Date"])
-                except Exception as exc:
-                    raise ValueError(f"Offline mode: no FX rates for {curr}") from exc
-
-            fx = apply_date_range(fx, start, end)
-            if fx.empty:
-                raise ValueError(f"Offline mode: FX cache lacks range for {curr}")
-        else:
-            fx = fetch_fx_rate_range(curr, "GBP", start, end).copy()
-            if fx.empty:
-                return pd.DataFrame()
-            fx["Date"] = pd.to_datetime(fx["Date"])
-
-        fx["Rate"] = pd.to_numeric(fx["Rate"], errors="coerce")
-        return fx
-
-    fx_from_instr = _load_rates(currency)
+    fx_from_instr = _load_fx_rates(currency, start, end, ticker=ticker, exchange=exchange)
     if fx_from_instr.empty:
         # No rate at all (#9664): the frame keeps its native prices and gets no
         # Close_<base> column, so consumers can tell it was never converted.
@@ -1338,24 +1413,21 @@ def _convert_to_base_currency(
         )
         return df
 
-    if base_currency == "GBP":
-        fx = fx_from_instr[["Date", "Rate"]]
-    else:
-        fx_base = _load_rates(base_currency)
+    merged = df.reset_index(drop=True)
+    rate = align_fx_rates(fx_from_instr, pd.Index(merged["Date"])).to_numpy()
+    if base_currency != "GBP":
+        fx_base = _load_fx_rates(base_currency, start, end, ticker=ticker, exchange=exchange)
         if fx_base.empty:
             return df
-        fx = fx_from_instr.merge(fx_base, on="Date", how="left", suffixes=("_inst", "_base"))
-        fx["Rate"] = fx["Rate_inst"] / fx["Rate_base"]
-        fx = fx[["Date", "Rate"]]
+        rate = rate / align_fx_rates(fx_base, pd.Index(merged["Date"])).to_numpy()
 
-    merged = df.merge(fx, on="Date", how="left")
-    merged["Rate"] = merged["Rate"].ffill().bfill()
+    merged = merged.copy()
     base_lower = base_currency.lower()
     for col in ["Open", "High", "Low", "Close"]:
         if col in merged.columns:
             merged[col] = pd.to_numeric(merged[col], errors="coerce")
-            merged[f"{col}_{base_lower}"] = merged[col] * merged["Rate"]
-    return merged.drop(columns=["Rate"])
+            merged[f"{col}_{base_lower}"] = merged[col] * rate
+    return merged
 
 
 # ──────────────────────────────────────────────────────────────

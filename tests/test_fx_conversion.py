@@ -81,9 +81,11 @@ def test_missing_fx_rates_are_filled(monkeypatch):
     def fake_memoized_range(ticker, exch, s_iso, e_iso):
         return _sample_df(start, end)
 
+    rates = {dt.date(2024, 1, 1): "0.8", dt.date(2024, 1, 2): None, dt.date(2024, 1, 3): "0.81"}
+
     def fake_fx(base, quote, s, e):
-        dates = pd.bdate_range(s, e).date
-        return pd.DataFrame({"Date": dates, "Rate": ["0.8", None, "0.81"]})
+        dates = [d for d in pd.bdate_range(s, e).date if d in rates]
+        return pd.DataFrame({"Date": dates, "Rate": [rates[d] for d in dates]})
 
     monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
     monkeypatch.setattr(cache, "fetch_fx_rate_range", fake_fx)
@@ -106,9 +108,11 @@ def test_string_fx_rates_are_converted(monkeypatch):
     def fake_memoized_range(ticker, exch, s_iso, e_iso):
         return _sample_df(start, end)
 
+    rates = {dt.date(2024, 1, 1): "0.8", dt.date(2024, 1, 2): "0.81"}
+
     def fake_fx(base, quote, s, e):
-        dates = pd.bdate_range(s, e).date
-        return pd.DataFrame({"Date": dates, "Rate": ["0.8", "0.81"]})
+        dates = [d for d in pd.bdate_range(s, e).date if d in rates]
+        return pd.DataFrame({"Date": dates, "Rate": [rates[d] for d in dates]})
 
     monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
     monkeypatch.setattr(cache, "fetch_fx_rate_range", fake_fx)

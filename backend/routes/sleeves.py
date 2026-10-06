@@ -78,7 +78,7 @@ _STORE_ERRORS = (SleeveNotFoundError, StrategyNotFoundError, SettingsUnreadableE
 
 
 def _holdings(owner: str, accounts_root: Path, setup: SleeveSetup) -> list[dict[str, Any]]:
-    """Every held ticker with its total GBP value and current sleeve, largest first."""
+    """Every held ticker with its sector, total GBP value and current sleeve, largest first."""
     try:
         portfolio = portfolio_mod.build_owner_portfolio(owner, accounts_root)
     except FileNotFoundError:
@@ -91,7 +91,13 @@ def _holdings(owner: str, accounts_root: Path, setup: SleeveSetup) -> list[dict[
                 continue
             row = rows.setdefault(
                 ticker,
-                {"ticker": ticker, "name": holding.get("name"), "value": 0.0, "sleeve_id": setup.sleeve_of(ticker)},
+                {
+                    "ticker": ticker,
+                    "name": holding.get("name"),
+                    "sector": holding.get("sector") or None,
+                    "value": 0.0,
+                    "sleeve_id": setup.sleeve_of(ticker),
+                },
             )
             try:
                 row["value"] += float(holding.get("market_value_gbp") or 0.0)

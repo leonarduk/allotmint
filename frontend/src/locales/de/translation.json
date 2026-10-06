@@ -3353,6 +3353,7 @@
       "sleeveFor": "Segment für {{ticker}}",
       "col": {
         "holding": "Position",
+        "sector": "Sektor",
         "value": "Wert",
         "sleeve": "Segment"
       }

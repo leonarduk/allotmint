@@ -1247,6 +1247,7 @@ export interface Sleeve {
 export interface SleeveHolding {
   ticker: string;
   name: string | null;
+  sector?: string | null;
   value: number;
   sleeve_id: string;
 }

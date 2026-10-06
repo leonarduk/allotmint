@@ -176,7 +176,13 @@ const CORE_ONLY: SleeveList = {
   assignments: {},
   holdings: [
     { ticker: 'EQ1', name: 'Equity One', value: 1600, sleeve_id: 'core' },
-    { ticker: 'MOON.L', name: 'Moonshot', value: 400, sleeve_id: 'core' },
+    {
+      ticker: 'MOON.L',
+      name: 'Moonshot',
+      sector: 'Technology',
+      value: 400,
+      sleeve_id: 'core',
+    },
   ],
 };
 
@@ -843,6 +849,10 @@ describe('Strategy page', () => {
     mockApplyStrategyToSleeve.mockResolvedValue({});
     await renderPage();
     const panel = await screen.findByRole('region', { name: 'Sleeves' });
+    const moonRow = (
+      await within(panel).findByLabelText('Sleeve for MOON.L')
+    ).closest('tr') as HTMLElement;
+    expect(within(moonRow).getByText('Technology')).toBeInTheDocument();
     fireEvent.change(await within(panel).findByLabelText('Sleeve for MOON.L'), {
       target: { value: 'sleeve-1' },
     });

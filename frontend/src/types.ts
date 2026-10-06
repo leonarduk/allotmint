@@ -351,6 +351,9 @@ export interface NewsItem {
 
 export type SectorRegion = 'global' | 'us' | 'uk';
 
+/** Change window for Market Overview: 1M = 30 days, 3M = 90 days. */
+export type MarketPeriod = '1D' | '1W' | '1M' | '3M' | '1Y';
+
 /** One sector row of `GET /market/sectors` and `/market/overview` (#9381). */
 export interface RegionSectorPerformance {
   sector: string;
@@ -361,6 +364,7 @@ export interface RegionSectorPerformance {
 
 export interface RegionSectors {
   region: SectorRegion;
+  period?: MarketPeriod;
   sectors: RegionSectorPerformance[];
 }
 
@@ -385,6 +389,12 @@ export interface SectorDetail {
 export interface IndexPerformance {
   value: number;
   change: number;
+}
+
+/** `GET /market/indexes`: index level and % change over `period`. */
+export interface MarketIndexes {
+  period: MarketPeriod;
+  indexes: Record<string, IndexPerformance>;
 }
 
 export interface MarketOverview {

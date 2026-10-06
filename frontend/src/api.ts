@@ -53,6 +53,8 @@ import type {
   Nudge,
   HoldingValue,
   MarketOverview,
+  MarketIndexes,
+  MarketPeriod,
   RegionSectors,
   SectorDetail,
   SectorRegion,
@@ -651,9 +653,27 @@ export const getMarketOverview = (options: { includeSectors?: boolean } = {}) =>
   return fetchJson<MarketOverview>(`${API_BASE}/market/overview${query}`);
 };
 
-/** Sector % change for a region; omit `region` for the configured default. */
-export const getMarketSectors = (region?: SectorRegion, signal?: AbortSignal) => {
-  const query = region ? `?${new URLSearchParams({ region }).toString()}` : "";
+/** Index levels and % change over `period` (1D uses the live quote). */
+export const getMarketIndexes = (period: MarketPeriod, signal?: AbortSignal) =>
+  fetchJson<MarketIndexes>(
+    `${API_BASE}/market/indexes?${new URLSearchParams({ period }).toString()}`,
+    { signal },
+  );
+
+/**
+ * Sector % change for a region over `period`; omit `region` for the
+ * configured default and `period` for day-on-day.
+ */
+export const getMarketSectors = (
+  region?: SectorRegion,
+  signal?: AbortSignal,
+  period?: MarketPeriod,
+) => {
+  const params = new URLSearchParams();
+  if (region) params.set("region", region);
+  if (period) params.set("period", period);
+  const search = params.toString();
+  const query = search ? `?${search}` : "";
   return fetchJson<RegionSectors>(`${API_BASE}/market/sectors${query}`, { signal });
 };
 

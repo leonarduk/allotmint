@@ -585,10 +585,18 @@
   },
   "loadingPortfolio": "Loading portfolio…",
   "market": {
+    "changePeriod": "Change over",
     "indexChange": "Index % Change",
     "indexLevels": "Index Levels",
     "latestHeadlines": "Latest Headlines",
     "noSectors": "No sector data available",
+    "period": {
+      "1D": "1 day",
+      "1W": "1 week",
+      "1M": "30 days",
+      "3M": "90 days",
+      "1Y": "1 year"
+    },
     "sectorChange": "Sector % Change",
     "sectorPerformance": "Sector Performance"
   },

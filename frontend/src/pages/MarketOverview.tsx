@@ -1,9 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getMarketOverview } from '../api';
-import type { MarketOverview as MarketOverviewData } from '../types';
+import { getMarketIndexes, getMarketOverview } from '../api';
+import type {
+  IndexPerformance,
+  MarketOverview as MarketOverviewData,
+  MarketPeriod,
+} from '../types';
 import EmptyState from '../components/EmptyState';
 import SectorPerformance from '../components/market/SectorPerformance';
+import PeriodToggle from '../components/market/PeriodToggle';
+import { usePeriodLabel } from '../components/market/periods';
 import { changeColor, formatPctTick } from '../components/market/chartFormat';
 import { formatPublishedAt } from '../lib/date';
 import {
@@ -31,19 +37,112 @@ export const IndexTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+function IndexChart({
+  indexes,
+}: {
+  indexes: Record<string, IndexPerformance>;
+}) {
+  const { t } = useTranslation();
+  const indexData = Object.entries(indexes).map(([name, { value, change }]) => ({
+    name,
+    value,
+    change,
+  }));
+  return (
+    <>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={indexData}>
+          <XAxis dataKey="name" />
+          <YAxis tickFormatter={formatPctTick} />
+          <Tooltip content={<IndexTooltip />} />
+          <Bar dataKey="change">
+            {indexData.map((entry) => (
+              <Cell key={entry.name} fill={changeColor(entry.change)} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+      <table className="mt-4 w-full text-left">
+        <thead>
+          <tr>
+            <th>{t('market.index', { defaultValue: 'Index' })}</th>
+            <th>{t('market.level', { defaultValue: 'Level' })}</th>
+            <th>{t('market.changePct', { defaultValue: '% Change' })}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {indexData.map((row) => (
+            <tr key={row.name}>
+              <td>{row.name}</td>
+              <td>{row.value.toLocaleString()}</td>
+              <td
+                className={
+                  row.change !== undefined && row.change !== null
+                    ? row.change >= 0
+                      ? 'text-green-600'
+                      : 'text-red-600'
+                    : undefined
+                }
+              >
+                {row.change !== undefined && row.change !== null
+                  ? `${row.change.toFixed(2)}%`
+                  : '-'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
 export default function MarketOverview() {
   const { t } = useTranslation();
   const [data, setData] = useState<MarketOverviewData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<MarketPeriod>('1D');
+  // null while a period's indexes load; the overview seeds the 1D set.
+  const [indexes, setIndexes] = useState<Record<
+    string,
+    IndexPerformance
+  > | null>(null);
+  const [indexError, setIndexError] = useState<string | null>(null);
+  const indexRequest = useRef<AbortController | null>(null);
+  const periodLabel = usePeriodLabel(period);
 
   useEffect(() => {
     // Sectors are loaded per region by <SectorPerformance />.
     getMarketOverview({ includeSectors: false })
-      .then(setData)
+      .then((overview) => {
+        setData(overview);
+        setIndexes(overview.indexes);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
+    return () => indexRequest.current?.abort();
   }, []);
+
+  const selectPeriod = (next: MarketPeriod) => {
+    setPeriod(next);
+    indexRequest.current?.abort();
+    const controller = new AbortController();
+    indexRequest.current = controller;
+    // Drop the previous period's bars so they aren't shown under the new label.
+    setIndexes(null);
+    setIndexError(null);
+    getMarketIndexes(next, controller.signal)
+      .then((res) => {
+        // A response that resolved before the abort must not overwrite the
+        // newer period's bars.
+        if (controller.signal.aborted) return;
+        setIndexes(res.indexes);
+      })
+      .catch((e) => {
+        if (controller.signal.aborted) return;
+        setIndexError(e instanceof Error ? e.message : String(e));
+      });
+  };
 
   const pageHeading = t('app.modes.market', { defaultValue: 'Market Overview' });
   if (loading) {
@@ -70,70 +169,25 @@ export default function MarketOverview() {
     );
   }
 
-  const indexData = Object.entries(data.indexes).map(
-    ([name, { value, change }]) => ({
-      name,
-      value,
-      change,
-    })
-  );
-
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-4 text-2xl">{pageHeading}</h1>
+
+      <PeriodToggle value={period} onChange={selectPeriod} />
 
       <div className="mb-8">
         {/* The bars plot % change, not raw level (#7106) -- heading must say
             so, or this is #2541's mislabelled axis all over again. The raw
             levels are still available in the table below. */}
         <h2 className="mb-2 text-xl">
-          {t('market.indexChange', { defaultValue: 'Index % Change' })}
+          {`${t('market.indexChange', { defaultValue: 'Index % Change' })} (${periodLabel})`}
         </h2>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={indexData}>
-            <XAxis dataKey="name" />
-            <YAxis tickFormatter={formatPctTick} />
-            <Tooltip content={<IndexTooltip />} />
-            <Bar dataKey="change">
-              {indexData.map((entry) => (
-                <Cell key={entry.name} fill={changeColor(entry.change)} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-        <table className="mt-4 w-full text-left">
-          <thead>
-            <tr>
-              <th>{t('market.index', { defaultValue: 'Index' })}</th>
-              <th>{t('market.level', { defaultValue: 'Level' })}</th>
-              <th>{t('market.changePct', { defaultValue: '% Change' })}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {indexData.map((row) => (
-              <tr key={row.name}>
-                <td>{row.name}</td>
-                <td>{row.value.toLocaleString()}</td>
-                <td
-                  className={
-                    row.change !== undefined && row.change !== null
-                      ? row.change >= 0
-                        ? 'text-green-600'
-                        : 'text-red-600'
-                      : undefined
-                  }
-                >
-                  {row.change !== undefined && row.change !== null
-                    ? `${row.change.toFixed(2)}%`
-                    : '-'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {indexError && <p className="text-red-500">{indexError}</p>}
+        {!indexError && !indexes && <p>{t('common.loading')}</p>}
+        {!indexError && indexes && <IndexChart indexes={indexes} />}
       </div>
 
-      <SectorPerformance />
+      <SectorPerformance period={period} periodLabel={periodLabel} />
 
       <div>
         <h2 className="mb-2 text-xl">

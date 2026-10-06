@@ -791,6 +791,20 @@ export const getGroupMovers = (
 export const getEvents = () => fetchJson<ScenarioEvent[]>(`${API_BASE}/events`);
 
 /** Apply a predefined scenario to all portfolios. */
+/** GBP per one unit of a currency, from the FX cache (#9768). */
+export interface GbpRate {
+  currency: string;
+  /** null when no rate is stored (never an invented one). */
+  gbp_per_unit: number | null;
+  source: string | null;
+}
+
+/** GBP per one unit of `currency`, as the portfolio's holdings are valued. */
+export const getGbpRate = (currency: string) =>
+  fetchJson<GbpRate>(
+    `${API_BASE}/fx/gbp-rate?${new URLSearchParams({ currency }).toString()}`,
+  );
+
 /**
  * Revalue every portfolio for `currency` moving `pct` percent against GBP.
  * `pct` is the change in the GBP value of one unit of `currency`:

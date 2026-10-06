@@ -86,7 +86,7 @@ describe("Help page", () => {
         alertsettings: true,
       },
       theme: "system",
-      baseCurrency: "GBP",
+      reportingCurrency: "GBP",
       refreshConfig: async () => {},
       setRelativeViewEnabled: () => {},
     };

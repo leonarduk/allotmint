@@ -173,7 +173,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const tickerParts = tkr.split(".", 2);
   const baseTicker = tickerParts[0] ?? "";
   const initialExchange = tickerParts.length > 1 ? tickerParts[1] ?? "" : "";
-  const { tabs, disabledTabs, baseCurrency } = useConfig();
+  const { tabs, disabledTabs } = useConfig();
   const [overviewHistoryDays, setOverviewHistoryDays] = useState<number>(0);
   // Overview has no range selector of its own; default to 365d until the
   // Timeseries tab reports a range (0 means "unset"/Max and must still fetch,
@@ -867,8 +867,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const fundamentalsCurrency =
     (typeof detail?.base_currency === "string" && detail.base_currency) ||
     resolvedCurrentCurrency ||
-    baseCurrency ||
-    "USD";
+    // Unchanged from when the base currency was pinned to GBP (#9753); this
+    // page moves to the reporting currency in a later phase of #9766.
+    "GBP";
   const detailRecordForDisplay =
     detail && typeof detail === "object"
       ? (detail as unknown as Record<string, unknown>)

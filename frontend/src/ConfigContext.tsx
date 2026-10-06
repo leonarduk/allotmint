@@ -9,9 +9,14 @@ import {
 } from "react";
 import { getConfig } from "./api";
 
-/** The only reporting currency until values can be converted (#9753). */
-export const BASE_CURRENCY = "GBP";
 const LEGACY_BASE_CURRENCY_KEY = "baseCurrency";
+
+/** ``base_currency`` from /config as a 3-letter code; anything else is GBP (#9768). */
+export function parseReportingCurrency(raw: unknown): string {
+  const code = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+  if (!/^[A-Z]{3}$/.test(code) || code === "GBX") return "GBP";
+  return code;
+}
 
 export interface TabsConfig {
   [key: string]: boolean;
@@ -62,12 +67,12 @@ export interface AppConfig {
   tabs: TabsConfig;
   theme: "dark" | "light" | "system";
   /**
-   * Currency the app's money values are reported in. Always GBP: every
-   * ``*_gbp`` value is in pounds and ``money()`` only labels, it does not
-   * convert, so any other value would mislabel them (#9753). Choosing a base
-   * currency needs conversion first.
+   * The configured ``base_currency`` (#9768). Every ``*_gbp`` value is in
+   * pounds and ``money()`` only labels, so never format with this directly:
+   * ``useReportingCurrency`` converts GBP amounts into it, falling back to
+   * GBP while no rate is available (#9753).
    */
-  baseCurrency: typeof BASE_CURRENCY;
+  reportingCurrency: string;
   enableAdvancedAnalytics?: boolean;
   /**
    * Read-write Data Quality Admin surface (issue list + preview/fix/audit).
@@ -88,6 +93,7 @@ export interface RawConfig {
   enable_data_quality_admin?: boolean;
   theme?: string | null;
   allowed_emails?: string[] | null;
+  base_currency?: string | null;
 }
 
 const defaultTabs: TabsConfig = {
@@ -145,7 +151,7 @@ export const configContext = createContext<ConfigContextValue>({
   disabledTabs: [],
   tabs: defaultTabs,
   theme: "system",
-  baseCurrency: "GBP",
+  reportingCurrency: "GBP",
   enableAdvancedAnalytics: true,
   dataQualityAdmin: true,
   refreshConfig: async () => {},
@@ -167,7 +173,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       disabledTabs: [],
       tabs: defaultTabs,
       theme: "system",
-      baseCurrency: BASE_CURRENCY,
+      reportingCurrency: "GBP",
       enableAdvancedAnalytics: true,
       dataQualityAdmin: true,
     };
@@ -226,7 +232,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         disabledTabs: Array.from(disabledTabs),
         tabs,
         theme,
-        baseCurrency: BASE_CURRENCY,
+        reportingCurrency: parseReportingCurrency(cfg.base_currency),
         enableAdvancedAnalytics: cfg.enable_advanced_analytics !== false,
         dataQualityAdmin: cfg.enable_data_quality_admin !== false,
       }));
@@ -240,8 +246,8 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // A base currency once chosen with the old (since unrendered) selector
-    // used to relabel GBP values as that currency; it is no longer read (#9753).
+    // A base currency once chosen with the old (since removed) selector used
+    // to relabel GBP values as that currency; it is never read (#9753).
     window.localStorage.removeItem(LEGACY_BASE_CURRENCY_KEY);
   }, []);
 

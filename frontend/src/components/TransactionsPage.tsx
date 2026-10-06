@@ -10,7 +10,7 @@ import {
   updateTransaction,
 } from '../api';
 import { useFetch } from '../hooks/useFetch';
-import { useConfig } from '../ConfigContext';
+import { useReportingCurrency } from '../hooks/useReportingCurrency';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { createOwnerDisplayLookup, findOwnerForUser } from '../utils/owners';
@@ -28,7 +28,6 @@ import {
   buildBulkDeletionOrder,
   summariseTransactions,
 } from './transactions/transactionTable';
-import { money } from '../lib/money';
 import { TransactionsTable } from './transactions/TransactionsTable';
 import { useTransactionsTableState } from '../hooks/useTransactionsTableState';
 import surface from '../styles/surface.module.css';
@@ -69,7 +68,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
   const [manualPrice, setManualPrice] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const { t } = useTranslation();
-  const { baseCurrency } = useConfig();
+  const reporting = useReportingCurrency();
   const { user } = useAuth();
   const { demoReadOnly, reason } = useDemoReadOnly();
   const pageSizeOptions = [10, 20, 50, 100];
@@ -678,16 +677,16 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
                       : 'text-gray'
                 }
               >
-                {money(summary.realisedGain, baseCurrency)}
+                {reporting.format(summary.realisedGain)}
               </strong>
               {summary.sellsWithUnknownGain > 0 &&
                 ` ${t('transactionsPage.excludesUnknownSales', {
                   count: summary.sellsWithUnknownGain,
                 })}`}
               {' · '}
-              {t('transactionsPage.income')} {money(summary.income, baseCurrency)}
+              {t('transactionsPage.income')} {reporting.format(summary.income)}
               {' · '}
-              {t('transactionsPage.fees')} {money(summary.fees, baseCurrency)}
+              {t('transactionsPage.fees')} {reporting.format(summary.fees)}
             </p>
           )}
 
@@ -696,7 +695,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           ) : (
             <TransactionsTable
               transactions={paginatedTransactions}
-              baseCurrency={baseCurrency}
+              format={reporting.format}
               ownerLookup={ownerLookup}
               pageSize={pageSize}
               pageSizeOptions={pageSizeOptions}

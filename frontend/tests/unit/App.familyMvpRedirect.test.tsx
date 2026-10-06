@@ -36,7 +36,7 @@ const baseConfig = {
     scenario: true,
   },
   theme: "system",
-  baseCurrency: "GBP",
+  reportingCurrency: "GBP",
   enableAdvancedAnalytics: true,
   refreshConfig: vi.fn(),
   setRelativeViewEnabled: vi.fn(),

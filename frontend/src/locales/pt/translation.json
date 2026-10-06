@@ -2939,5 +2939,9 @@
     "reportTitle": "Comunicar um problema",
     "reportDescription": "Encontrou um erro ou algo confuso? Diga-nos no GitHub para que possa ser registado e corrigido.",
     "reportLink": "Abrir uma issue no GitHub"
+  },
+  "reportingCurrency": {
+    "converted": "Montantes em {{currency}}, convertidos de GBP à taxa de hoje (1 {{currency}} = £{{rate}}).",
+    "unavailable": "Não há taxa GBP guardada para {{currency}}, por isso os montantes são apresentados em GBP."
   }
 }

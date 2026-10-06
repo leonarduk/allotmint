@@ -44,7 +44,7 @@ const makeConfigValue = (overrides: Record<string, unknown> = {}) => ({
     scenario: true, research: true, alerts: true, alertsettings: true,
     profile: false, trail: false, taxtools: false, "trade-compliance": false,
   },
-  baseCurrency: "GBP",
+  reportingCurrency: "GBP",
   refreshConfig: vi.fn(),
   setRelativeViewEnabled: () => {},
   ...overrides,

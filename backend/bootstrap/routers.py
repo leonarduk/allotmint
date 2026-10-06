@@ -22,6 +22,7 @@ from backend.routes.data_quality import router as data_quality_router
 from backend.routes.data_quality_admin import router as data_quality_admin_router
 from backend.routes.data_quality_admin import write_router as data_quality_admin_write_router
 from backend.routes.events import router as events_router
+from backend.routes.fx import router as fx_router
 from backend.routes.goals import router as goals_router
 from backend.routes.instrument import router as instrument_router
 from backend.routes.instrument_admin import router as instrument_admin_router
@@ -116,6 +117,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(quotes_router)
     app.include_router(news_router)
     app.include_router(market_router)
+    app.include_router(fx_router)
     app.include_router(movers_router)
     app.include_router(models_router)
     app.include_router(user_config_router, dependencies=protected)

@@ -37,7 +37,7 @@ const baseConfig: ConfigContextValue = {
   disabledTabs: [],
   tabs: {} as ConfigContextValue["tabs"],
   theme: "system",
-  baseCurrency: "GBP",
+  reportingCurrency: "GBP",
   enableAdvancedAnalytics: true,
   dataQualityAdmin: true,
   refreshConfig: async () => {},

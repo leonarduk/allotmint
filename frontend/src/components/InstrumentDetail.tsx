@@ -429,7 +429,6 @@ export function InstrumentDetail({
   resolveOwnerName,
 }: Props) {
   const { t } = useTranslation();
-  const { baseCurrency } = useConfig();
   const {
     width: drawerWidth,
     viewportWidth,
@@ -594,7 +593,9 @@ export function InstrumentDetail({
   }, [ticker]);
 
   const displayCurrency = currencyProp ?? currencyFromData ?? "?";
-  const reportingCurrency = normaliseCurrency(baseCurrency ?? "GBP");
+  // The GBP closes are the reporting series; converting them to the base
+  // currency is a later phase of #9766, so this stays GBP (#9768).
+  const reportingCurrency = normaliseCurrency("GBP");
   const instrumentCurrency = normaliseCurrency(displayCurrency);
 
   const [tickerBase, exch = "L"] = ticker.split(".", 2);

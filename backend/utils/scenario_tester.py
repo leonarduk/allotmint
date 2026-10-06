@@ -17,14 +17,54 @@ from backend.common.constants import (
     COST_BASIS_GBP,
     EFFECTIVE_COST_BASIS_GBP,
 )
+from backend.common.portfolio_utils import (
+    FX_MISSING_ALL_DATES,
+    UNCONVERTED_HOLDINGS_KEY,
+    UNKNOWN_CURRENCY_LABEL,
+    holding_quote_currency,
+)
 from backend.common.prices import get_price_gbp
 from backend.common.sector_labels import is_cash_instrument
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.timeseries.total_return import PRICE_RETURN_BASIS, TOTAL_RETURN_BASIS, total_return_frame
+from backend.utils.fx_rates import FX_RATE_SOURCE_MISSING
 from backend.utils.timeseries_helpers import (
     apply_scaling,
     get_scaling_override,
 )
+
+
+def _cost_basis(holding: Dict[str, Any]) -> float:
+    return float(holding.get(EFFECTIVE_COST_BASIS_GBP) or holding.get(COST_BASIS_GBP) or 0.0)
+
+
+def _revalue_holding(holding: Dict[str, Any], market_value: float, change: float, *, gain_known: bool = True) -> None:
+    """Store a holding's shocked GBP ``market_value`` and the fields that follow from it.
+
+    ``change`` (the shock's effect on the holding) is reported as
+    ``day_change_gbp``. With ``gain_known`` False the gain fields stay
+    unknown (``None``) instead of being computed from a missing cost.
+    """
+    holding["market_value_gbp"] = round(market_value, 2)
+    holding["day_change_gbp"] = round(change, 2)
+    if not gain_known:
+        return
+    cost = _cost_basis(holding)
+    gain = market_value - cost
+    holding["gain_gbp"] = round(gain, 2)
+    holding["unrealised_gain_gbp"] = holding["unrealized_gain_gbp"] = round(gain, 2)
+    holding["gain_pct"] = round((gain / cost * 100.0), 2) if cost else None
+
+
+def _recompute_totals(portfolio: Dict[str, Any]) -> None:
+    """Recompute each account's ``value_estimate_gbp`` and the portfolio total from its holdings."""
+    for acct in portfolio.get("accounts", []):
+        total = sum(float(h.get("market_value_gbp") or 0.0) for h in acct.get("holdings", []))
+        acct["value_estimate_gbp"] = round(total, 2)
+    portfolio["total_value_estimate_gbp"] = round(
+        sum(a.get("value_estimate_gbp") or 0.0 for a in portfolio.get("accounts", [])),
+        2,
+    )
 
 
 def apply_price_shock(portfolio: Dict[str, Any], ticker: str, pct_change: float) -> Dict[str, Any]:
@@ -40,32 +80,110 @@ def apply_price_shock(portfolio: Dict[str, Any], ticker: str, pct_change: float)
     factor = 1 + pct_change / 100.0
 
     for acct in shocked.get("accounts", []):
-        total = 0.0
         for h in acct.get("holdings", []):
             tkr = (h.get("ticker") or "").upper()
+            if tkr != target:
+                continue
             units = float(h.get("units") or 0.0)
-            if tkr == target:
-                price = float(h.get("current_price_gbp") or h.get("price") or 0.0)
-                if price == 0:
-                    cached = get_price_gbp(tkr)
-                    price = float(cached or 0.0)
-                new_price = price * factor
-                cost = float(h.get(EFFECTIVE_COST_BASIS_GBP) or h.get(COST_BASIS_GBP) or 0.0)
-                mv = units * new_price
-                gain = mv - cost
-                h["price"] = h["current_price_gbp"] = round(new_price, 4)
-                h["market_value_gbp"] = round(mv, 2)
-                h["gain_gbp"] = round(gain, 2)
-                h["unrealised_gain_gbp"] = h["unrealized_gain_gbp"] = round(gain, 2)
-                h["gain_pct"] = round((gain / cost * 100.0), 2) if cost else None
-                h["day_change_gbp"] = round((new_price - price) * units, 2)
-            total += float(h.get("market_value_gbp") or 0.0)
-        acct["value_estimate_gbp"] = round(total, 2)
+            price = float(h.get("current_price_gbp") or h.get("price") or 0.0)
+            if price == 0:
+                cached = get_price_gbp(tkr)
+                price = float(cached or 0.0)
+            new_price = price * factor
+            h["price"] = h["current_price_gbp"] = round(new_price, 4)
+            _revalue_holding(h, units * new_price, (new_price - price) * units)
 
-    shocked["total_value_estimate_gbp"] = round(
-        sum(a.get("value_estimate_gbp") or 0.0 for a in shocked.get("accounts", [])),
-        2,
-    )
+    _recompute_totals(shocked)
+    return shocked
+
+
+# Key under which apply_fx_shock reports what it did on the returned portfolio.
+FX_SHOCK_KEY = "fx_shock"
+
+# Quote currencies an FX shock against sterling cannot move (GBX is pence).
+NON_SHOCKABLE_CURRENCIES = frozenset({"GBP", "GBX"})
+
+
+def _fx_rate_missing(holding: Dict[str, Any]) -> bool:
+    return holding.get("fx_rate_source") == FX_RATE_SOURCE_MISSING
+
+
+def _unconverted_entry(holding: Dict[str, Any], currency: str) -> Dict[str, Any]:
+    """An ``unconverted_holdings`` entry in the #9671 shape."""
+    return {"ticker": str(holding.get("ticker") or ""), "currency": currency, "reason": FX_MISSING_ALL_DATES}
+
+
+def apply_fx_shock(portfolio: Dict[str, Any], currency: str, pct_change: float) -> Dict[str, Any]:
+    """Return a new portfolio revalued for ``currency`` moving ``pct_change`` percent against GBP.
+
+    Sign convention: ``pct_change`` is the change in the GBP value of one unit
+    of ``currency``. ``currency="USD", pct_change=-10`` means USD weakens 10%
+    against GBP, so every holding *quoted* in USD (``CASH.USD`` included) is
+    worth 0.9x its GBP value. Native prices do not change, and GBP/GBX
+    holdings never move. The quote currency is resolved exactly as
+    :func:`backend.common.portfolio_utils.aggregate_by_currency` buckets it.
+
+    Like :func:`apply_price_shock`, holding metrics and account/portfolio
+    totals are recomputed on a deep copy. Holdings with no usable FX rate
+    (``fx_rate_source == "missing"``) are neither shocked nor summed into any
+    total; they are listed under ``UNCONVERTED_HOLDINGS_KEY``. Holdings whose
+    currency cannot be resolved are not shocked and are counted (they stay in
+    both totals). Unpriced holdings (``market_value_gbp is None`` for want of
+    a price, not an FX rate) count as zero, as in every portfolio total.
+    ``day_change_gbp`` on a shocked holding is the shock's change to its GBP
+    value, as in :func:`apply_price_shock`.
+
+    The returned portfolio carries a summary under ``FX_SHOCK_KEY``:
+    ``currency``, ``pct``, ``baseline_total_value_gbp``,
+    ``exposed_value_gbp`` (baseline GBP value of the shocked holdings),
+    ``skipped_unknown_currency`` and ``UNCONVERTED_HOLDINGS_KEY``.
+
+    Raises ``ValueError`` for GBP/GBX, which cannot move against GBP.
+    """
+
+    target = currency.strip().upper()
+    if target in NON_SHOCKABLE_CURRENCIES:
+        raise ValueError(f"{target} cannot be shocked against GBP")
+    factor = 1 + pct_change / 100.0
+    shocked = deepcopy(portfolio)
+    baseline = exposed = 0.0
+    skipped_unknown = 0
+    unconverted: Dict[str, Dict[str, Any]] = {}
+
+    for acct in shocked.get("accounts", []):
+        for h in acct.get("holdings", []):
+            quote = holding_quote_currency(h)
+            if _fx_rate_missing(h):
+                # Left out of every total, never valued at a made-up rate (#9664).
+                h["market_value_gbp"] = None
+                entry = _unconverted_entry(h, quote)
+                unconverted.setdefault(entry["ticker"], entry)
+                continue
+            value = h.get("market_value_gbp")
+            if value is None:
+                continue
+            value = float(value)
+            baseline += value
+            if quote == UNKNOWN_CURRENCY_LABEL:
+                skipped_unknown += 1
+                continue
+            if quote != target:
+                continue
+            exposed += value
+            price = h.get("current_price_gbp")
+            if price is not None:
+                h["current_price_gbp"] = round(float(price) * factor, 4)
+            _revalue_holding(h, value * factor, value * (factor - 1), gain_known=h.get("gain_gbp") is not None)
+
+    _recompute_totals(shocked)
+    shocked[FX_SHOCK_KEY] = {
+        "currency": target,
+        "pct": pct_change,
+        "baseline_total_value_gbp": round(baseline, 2),
+        "exposed_value_gbp": round(exposed, 2),
+        "skipped_unknown_currency": skipped_unknown,
+        UNCONVERTED_HOLDINGS_KEY: list(unconverted.values()),
+    }
     return shocked
 
 

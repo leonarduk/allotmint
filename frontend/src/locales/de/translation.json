@@ -119,6 +119,7 @@
       "dataquality": "Datenqualität",
       "group": "Gruppe",
       "help": "Hilfe",
+      "ideas": "Ideen",
       "instrument": "Sektoranalyse",
       "instrumentadmin": "Instrumentverwaltung",
       "market": "Marktübersicht",
@@ -127,11 +128,12 @@
       "pension": "Rentenprognose",
       "performance": "Leistung",
       "plot": "Beet-Modus",
+      "query": "Benutzerdefinierte Abfrage",
       "rebalance": "Strategie",
       "reports": "Berichte",
       "research": "Instrumentdetails",
       "scenario": "Szenario-Tester",
-      "screener": "Filter & Abfrage",
+      "screener": "Filter",
       "settings": "Handelsregeln",
       "support": "Konfiguration",
       "taxtools": "Steuer-Tools",
@@ -1308,6 +1310,7 @@
     "end": "Ende",
     "exportCsv": "CSV exportieren",
     "exportXlsx": "XLSX exportieren",
+    "intro": "Marktwert oder Gewinn Ihrer eigenen Bestände über einen Zeitraum, nach Eigentümer und Ticker. Ergebnisse speichern, teilen oder exportieren.",
     "metricGainGbp": "Gewinn (£)",
     "metricMarketValueGbp": "Marktwert (£)",
     "metrics": "Metriken",
@@ -3333,5 +3336,16 @@
         "sleeve": "Segment"
       }
     }
+  },
+  "ideas": {
+    "explain": {
+      "screen": "Filter: Durchsuchen Sie beliebige Watchlists oder Tickerlisten nach selbst gewählten Kennzahlen. Es gibt keine Kauf- oder Verkaufsempfehlung; das leisten die Signale für Ihre Bestände.",
+      "signals": "Signale: Kauf- und Verkaufskandidaten unter Ihren gehaltenen Instrumenten, nach festen, serverseitig eingestellten Momentum- und Risikoregeln. Mit „Filter“ durchsuchen Sie beliebige Watchlists nach selbst gewählten Kennzahlen."
+    },
+    "tabs": {
+      "screen": "Filter",
+      "signals": "Signale"
+    },
+    "tabsLabel": "Ideen-Ansichten"
   }
 }

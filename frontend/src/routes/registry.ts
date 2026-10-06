@@ -28,6 +28,12 @@ export interface RouteRegistryEntry {
   /** Keep the mode routable (deep links, redirects, buildPathForMode) but
    *  exclude it from the nav menu built by getMenuEntries. */
   hideFromMenu?: boolean;
+  /** Fold this entry into another mode's menu item while that mode is
+   *  enabled (e.g. Screener lives as a tab of the Ideas page, #9852). It
+   *  still gets its own menu item when the host mode is disabled. */
+  menuMergedInto?: Mode;
+  /** `app.modes.*` key for the menu label, when it differs from the mode. */
+  menuLabelKey?: string;
   defaultPath: (context: RoutePathContext) => string;
   routePath?: string;
   lazyComponent?: LazyExoticComponent<ComponentType>;
@@ -168,10 +174,12 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     defaultPath: () => '/input',
   },
   {
+    // The Ideas page (#9852): Signals tab here, Screen tab at /screener.
     mode: 'trading',
     routeSegment: 'trading',
     section: 'user',
     menuCategory: 'insights',
+    menuLabelKey: 'ideas',
     priority: 55,
     defaultPath: () => '/trading',
   },
@@ -180,6 +188,7 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     routeSegment: 'screener',
     section: 'user',
     menuCategory: 'insights',
+    menuMergedInto: 'trading',
     priority: 60,
     defaultPath: () => '/screener',
   },
@@ -270,6 +279,15 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     menuCategory: 'dashboard',
     priority: 100,
     defaultPath: () => '/reports',
+  },
+  {
+    // Custom portfolio query, formerly the bottom half of /screener (#9853).
+    mode: 'query',
+    routeSegment: 'query',
+    section: 'user',
+    menuCategory: 'dashboard',
+    priority: 101,
+    defaultPath: () => '/query',
   },
   {
     mode: 'trail',
@@ -457,9 +475,19 @@ export const LEGACY_SEGMENTS: Readonly<Record<string, string>> = {
   rebalance: 'strategy',
 };
 
+// Share links copied from the custom query when it lived on /screener carry
+// these params; the Screener itself never reads them (#9853).
+const CUSTOM_QUERY_PARAMS = ['start', 'end', 'owners', 'tickers', 'metrics'];
+
 /** The current path for a legacy URL (query string kept), or null. */
 export function legacyRedirectPath(pathname: string, search = ''): string | null {
   const segments = pathname.split('/').filter(Boolean);
+  if (segments.length === 1 && segments[0] === 'screener') {
+    const params = new URLSearchParams(search);
+    if (CUSTOM_QUERY_PARAMS.some((key) => params.has(key))) {
+      return `/query${search}`;
+    }
+  }
   const replacement = segments[0] ? LEGACY_SEGMENTS[segments[0]] : undefined;
   if (!replacement) return null;
   return `/${[replacement, ...segments.slice(1)].join('/')}${search}`;

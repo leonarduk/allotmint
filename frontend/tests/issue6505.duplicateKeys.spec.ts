@@ -182,7 +182,7 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     const warnings = collectDuplicateKeyWarnings(page);
     await applyAuth(page);
     await setupCoreMocks(page);
-    // /screener renders ScreenerQuery which embeds the Screener component;
+    // /screener renders the Ideas page, whose Screen tab is the Screener;
     // the embedded form calls getScreener -> /screener?<criteria>.
     await page.route('**://localhost:6468/custom-query/saved**', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });

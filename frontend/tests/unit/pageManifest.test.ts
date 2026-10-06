@@ -261,4 +261,24 @@ describe('page manifest', () => {
     expect(legacyRedirectPath('/strategy')).toBeNull();
     expect(legacyRedirectPath('/')).toBeNull();
   });
+
+  it('folds the Screener into the Ideas menu item (#9852)', () => {
+    expect(pageManifestByMode.screener.menuMergedInto).toBe('trading');
+    expect(pageManifestByMode.trading.menuLabelKey).toBe('ideas');
+    expect(buildPathForMode('trading')).toBe('/trading');
+    expect(buildPathForMode('screener')).toBe('/screener');
+  });
+
+  it('serves the custom query at /query and forwards old /screener query links (#9853)', () => {
+    expect(buildPathForMode('query')).toBe('/query');
+    expect(deriveModeFromPathname('/query')).toBe('query');
+    expect(
+      legacyRedirectPath('/screener', '?start=2025-10-06&owners=steve')
+    ).toBe('/query?start=2025-10-06&owners=steve');
+    expect(legacyRedirectPath('/screener', '?metrics=gain_gbp')).toBe(
+      '/query?metrics=gain_gbp'
+    );
+    expect(legacyRedirectPath('/screener')).toBeNull();
+    expect(legacyRedirectPath('/screener', '?foo=bar')).toBeNull();
+  });
 });

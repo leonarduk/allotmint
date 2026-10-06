@@ -820,3 +820,63 @@ describe('Menu', () => {
     }
   );
 });
+
+describe('Menu: Ideas page (#9852)', () => {
+  const openInsights = () =>
+    fireEvent.click(
+      screen.getByRole('button', { name: i18n.t('app.menuCategories.insights') })
+    );
+
+  it('shows one Ideas item instead of separate Trading and Screener items', () => {
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    openInsights();
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.ideas') })
+    ).toHaveAttribute('href', '/trading');
+    expect(
+      screen.queryByRole('menuitem', { name: i18n.t('app.modes.screener') })
+    ).toBeNull();
+  });
+
+  it('highlights Ideas while on the Screen tab', () => {
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter initialEntries={['/screener']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    openInsights();
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.ideas') })
+    ).toHaveClass('font-semibold');
+  });
+
+  it('keeps a Screener item when trading signals are disabled', () => {
+    render(
+      <configContext.Provider
+        value={{
+          ...configWithTransactions,
+          tabs: { ...configWithTransactions.tabs, trading: false },
+        }}
+      >
+        <MemoryRouter>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    openInsights();
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.screener') })
+    ).toHaveAttribute('href', '/screener');
+    expect(
+      screen.queryByRole('menuitem', { name: i18n.t('app.modes.ideas') })
+    ).toBeNull();
+  });
+});

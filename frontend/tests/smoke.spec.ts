@@ -120,6 +120,7 @@ const ROUTES: RouteConfig[] = [
   { path: '/transactions', assertion: { kind: 'mode', mode: 'transactions' } },
   { path: '/trading', assertion: { kind: 'mode', mode: 'trading' } },
   { path: '/screener', assertion: { kind: 'mode', mode: 'screener' } },
+  { path: '/query', assertion: { kind: 'mode', mode: 'query' } },
   { path: '/settings', assertion: { kind: 'mode', mode: 'settings' } },
   { path: '/timeseries', assertion: { kind: 'mode', mode: 'timeseries' } },
   { path: '/watchlist', assertion: { kind: 'mode', mode: 'watchlist' } },

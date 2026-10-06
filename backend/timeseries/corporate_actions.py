@@ -178,8 +178,7 @@ def _confirmed_day(attrs: dict, origin: str) -> pd.Timestamp | None:
         return pd.Timestamp(_iso_day(value))
     except (TypeError, ValueError) as exc:
         logger.warning(
-            "Ignoring unreadable %s in %s: %s",
-            CONFIRMED_FROM,
+            "Ignoring unreadable confirmed_from in %s: %s",
             sanitise_log_value(origin),
             sanitise_log_value(exc),
         )

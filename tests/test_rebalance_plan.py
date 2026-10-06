@@ -548,6 +548,7 @@ def test_class_level_policy_ignores_sub_classes():
     without_subs = build_plan(stripped, policy)
     assert with_subs["classes"] == without_subs["classes"]
     assert with_subs["trades"] == without_subs["trades"]
+    assert with_subs["notes"] == without_subs["notes"]
     assert [row["asset_class"] for row in with_subs["classes"]] == ["equity", "bond", "cash", "commodity"]
     assert all(row["parent"] is None for row in with_subs["classes"])
 
@@ -640,3 +641,18 @@ def test_untargeted_no_sub_class_bucket_never_offsets_sub_class_drift():
     assert rows["long_gilts"]["drift_pct"] == -30.0
     assert rows["bond"]["in_band"] is None
     assert {t["asset_class"] for t in plan["trades"]} <= {"long_gilts"}
+
+
+def test_parse_policy_accepts_one_class_whole_and_another_by_sub_class():
+    policy = parse_policy({"targets": {"bond": 50, "gold": 50}})
+    assert policy.targets == {"bond": 50.0, "gold": 50.0}
+
+
+def test_sub_class_breakdown_includes_no_sub_class_row():
+    portfolio = _portfolio(("ISA", [_hs("GLTL.L", 300, "bond", "long_gilts"), _hs("MYST", 100, "bond")]))
+    plan = build_plan(portfolio, AllocationPolicy())
+    breakdown = {row["asset_class"]: row for row in plan["sub_classes"]}
+    assert breakdown["long_gilts"]["current_pct"] == 75.0
+    assert breakdown["bond"]["parent"] == "bond"
+    assert breakdown["bond"]["label"] == "Bond \u2014 no sub-class"
+    assert breakdown["bond"]["current_pct"] == 25.0

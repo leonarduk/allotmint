@@ -108,7 +108,7 @@ match the asset-class blocks of allotmint-pro's `backtest_portfolio` tool.
 
 | Parent | Sub-class key | Rule (first match wins) |
 | --- | --- | --- |
-| bond | `index_linked` | name/index mentions inflation-linked, index-linked or linkers |
+| bond | `index_linked` | name/index mentions inflation-linked, index-linked, linkers or TIPS (so a US TIPS fund is index-linked, not overseas government) |
 | bond | `short_gilts` | name/index mentions ultrashort |
 | bond | `long_gilts` / `intermediate_gilts` / `short_gilts` | a gilt or UK government fund, banded by `fund_facts.effective_duration_years` (under 3 short, 3-10 intermediate, over 10 long); without a duration, the midpoint of `fund_facts.maturity_band` or a maturity range in the name ("0-5yr", "15+ Year") |
 | bond | `corporate_bonds` | corporate, credit, income, investment grade, high yield or loans |

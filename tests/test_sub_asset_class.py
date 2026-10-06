@@ -103,6 +103,11 @@ def test_gilt_duration_band_edges(duration, expected):
     assert derive_bond_sub_class(meta) == expected
 
 
+def test_gilt_maturity_band_fact_used_without_duration():
+    meta = {"name": "UK Gilts ETF", "fund_facts": {"maturity_band": {"value": "15+ years"}}}
+    assert derive_bond_sub_class(meta) == "long_gilts"
+
+
 def test_gilt_maturity_band_falls_back_to_name():
     assert derive_bond_sub_class({"name": "UK Gilts 0-5yr ETF"}) == "short_gilts"
     assert derive_bond_sub_class({"name": "15+ Year Gilt ETF"}) == "long_gilts"

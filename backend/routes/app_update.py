@@ -194,12 +194,13 @@ def _blocking_reason(status: AppUpdateStatus, ignore_dirty: bool = False) -> str
 
 
 def _stash_ref() -> str | None:
-    """Return the commit at the top of the stash, or ``None`` when it is empty."""
+    """Return the commit at the top of the stash, or ``None`` when it is empty.
 
-    try:
-        return _git("rev-parse", "--quiet", "--verify", "refs/stash")
-    except GitError:
-        return None
+    ``git stash list`` exits 0 with no output for an empty stash, so a real git
+    failure still raises instead of being mistaken for "no stash".
+    """
+
+    return _git("stash", "list", "-n", "1", "--format=%H") or None
 
 
 def _apply_update(status: AppUpdateStatus, stash: bool = False) -> AppUpdateResult:
@@ -220,13 +221,16 @@ def _settle_autostash(stash_before: str | None) -> tuple[bool, str | None]:
 
     git exits 0 even when re-applying the autostash conflicts: it leaves
     conflict markers in the tree and stores the changes as a new stash entry.
-    A new top-of-stash commit is therefore the conflict signal. The changes
-    are safe in that entry, so the tree is reset to the updated commit to keep
-    the running app importable.
+    Only when both signals hold -- unmerged paths *and* a new top-of-stash
+    commit -- are the changes known to be safe in the stash, so only then is
+    the tree reset to the updated commit to keep the running app importable.
+    A cleanly re-applied stash must never reach the reset: it would discard
+    the user's restored changes.
     """
 
     stash_after = _stash_ref()
-    if stash_after is None or stash_after == stash_before:
+    unmerged = _git("diff", "--name-only", "--diff-filter=U")
+    if not unmerged or stash_after is None or stash_after == stash_before:
         return True, None
     _git("reset", "--quiet", "--hard", "HEAD")
     logger.warning(

@@ -155,6 +155,20 @@ def test_update_with_stash_keeps_conflicting_changes_in_stash(repos):
     assert _run(checkout, "show", "stash@{0}:README.md") == "local edit"
 
 
+def test_update_with_stash_keeps_preexisting_stash_entry(repos):
+    checkout, upstream = repos
+    (checkout / "README.md").write_text("older stash\n", encoding="utf-8")
+    _run(checkout, "stash", "push", "-q", "-m", "older")
+    _commit(upstream, "backend/foo.py", "x = 1\n")
+    _run(upstream, "push", "-q")
+    (checkout / "README.md").write_text("local edit\n", encoding="utf-8")
+
+    body = _client().post("/support/app-update?stash=true").json()
+    assert body["stash_restored"] is True
+    assert (checkout / "README.md").read_text(encoding="utf-8") == "local edit\n"
+    assert _run(checkout, "stash", "list", "--format=%s").splitlines() == ["On main: older"]
+
+
 def test_update_with_stash_still_refuses_diverged_branch(repos):
     checkout, upstream = repos
     _commit(upstream, "README.md", "v2\n")

@@ -50,10 +50,19 @@ type ScenarioHoldingRow = {
 
 type CustomHolding = SyntheticHolding & { name?: string };
 
+// Oldest first. Older dates can only price holdings whose price history
+// reaches back that far.
 const SUGGESTED_DATES: { date: string; labelKey: string }[] = [
+  { date: "2000-03-10", labelKey: "scenarioTester.suggested.dotComPeak" },
+  { date: "2002-10-09", labelKey: "scenarioTester.suggested.dotComLow" },
+  { date: "2008-09-15", labelKey: "scenarioTester.suggested.lehman" },
+  { date: "2009-03-09", labelKey: "scenarioTester.suggested.gfcLow" },
+  { date: "2011-08-08", labelKey: "scenarioTester.suggested.eurozone" },
+  { date: "2016-06-24", labelKey: "scenarioTester.suggested.brexit" },
+  { date: "2018-12-24", labelKey: "scenarioTester.suggested.selloff2018" },
   { date: "2020-03-16", labelKey: "scenarioTester.suggested.covid" },
-  { date: "2022-09-26", labelKey: "scenarioTester.suggested.giltCrisis" },
   { date: "2022-03-08", labelKey: "scenarioTester.suggested.energyShock" },
+  { date: "2022-09-26", labelKey: "scenarioTester.suggested.giltCrisis" },
   { date: "2023-03-13", labelKey: "scenarioTester.suggested.bankingTurmoil" },
 ];
 

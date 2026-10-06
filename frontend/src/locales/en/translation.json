@@ -1898,7 +1898,14 @@
       "covid": "COVID-19 market low",
       "giltCrisis": "UK gilt crisis",
       "energyShock": "Energy shock",
-      "bankingTurmoil": "Banking turmoil"
+      "bankingTurmoil": "Banking turmoil",
+      "dotComPeak": "Dot-com peak",
+      "dotComLow": "Dot-com bear market low",
+      "lehman": "Lehman collapse",
+      "gfcLow": "Financial crisis low",
+      "eurozone": "Eurozone crisis / US downgrade",
+      "brexit": "Brexit vote",
+      "selloff2018": "Q4 2018 sell-off low"
     },
     "positions": "Scenario positions",
     "restoreRemoved": "Restore removed holdings",

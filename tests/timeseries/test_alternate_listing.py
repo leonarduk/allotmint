@@ -18,9 +18,12 @@ from backend.timeseries import alternate_listing
 from backend.timeseries import fetch_meta_timeseries as fmt
 from backend.timeseries.alternate_listing import (
     FX_FFILL_DAYS,
+    MODE_FILL_GAPS,
+    MODE_PRIMARY,
     PriceSource,
     apply_price_source,
     convert_prices,
+    fetch_with_price_source,
     overlay_alternate_listing,
     parse_price_source,
     validate_price_source,
@@ -121,6 +124,12 @@ def test_parse_reads_the_block_and_defaults_currency_from_exchange():
     assert parse_price_source({"currency": "USD"}) is None
 
 
+def test_parse_reads_the_mode_and_defaults_to_fill_gaps():
+    assert parse_price_source(AIGE_META, own="AIGE.L").mode == MODE_FILL_GAPS
+    primary = {**AIGE_META, "price_source": {**AIGE_META["price_source"], "mode": "primary"}}
+    assert parse_price_source(primary, own="AIGE.L").mode == MODE_PRIMARY
+
+
 @pytest.mark.parametrize(
     ("block", "currency", "problem"),
     [
@@ -130,6 +139,8 @@ def test_parse_reads_the_block_and_defaults_currency_from_exchange():
         ({"ticker": "AIGE", "exchange": "MI", "currency": "GBp"}, "USD", "currency 'GBp'"),
         ({"ticker": "AIGE", "exchange": "MI"}, "GBX", "instrument currency"),
         ("AIGE.MI", "USD", "JSON object"),
+        ({"ticker": "AIGE", "exchange": "MI", "mode": "first"}, "USD", "mode 'first'"),
+        ({"ticker": "AIGE", "exchange": "MI", "mode": "PRIMARY"}, "USD", "mode 'PRIMARY'"),
     ],
 )
 def test_validate_reports_bad_blocks(block, currency, problem):
@@ -358,6 +369,213 @@ def test_fetch_meta_timeseries_without_the_field_is_unchanged(monkeypatch):
 
     assert out is native
     assert calls == []
+
+
+# ── fetch order: mode "primary" vs "fill_gaps" (#9712) ─────────
+
+PRIMARY_META = {**AIGE_META, "price_source": {**AIGE_META["price_source"], "mode": MODE_PRIMARY}}
+MI_CLOSE = 4.41  # 4.41 EUR * 0.85 / 0.75 = 4.998 USD
+
+
+class NativeChain:
+    """Records each native fetch window and returns the given rows inside it."""
+
+    def __init__(self, rows: pd.DataFrame | None = None):
+        self.rows = rows if rows is not None else _rows([], [])
+        self.calls: list[tuple[date, date]] = []
+
+    def __call__(self, start: date, end: date) -> pd.DataFrame:
+        self.calls.append((start, end))
+        days = pd.to_datetime(self.rows["Date"]).dt.date
+        return self.rows.loc[((days >= start) & (days <= end)).to_numpy()].reset_index(drop=True)
+
+
+def _install_listing(monkeypatch, meta, mi_days, *, fx_days=None, stored=None) -> list[str]:
+    fx_days = mi_days if fx_days is None else fx_days
+    calls = _install_yahoo(monkeypatch, _yahoo_frame(mi_days, [MI_CLOSE] * len(mi_days)))
+    _install_fx(
+        monkeypatch,
+        {"EUR": {str(d.date()): 0.85 for d in fx_days}, "USD": {str(d.date()): 0.75 for d in fx_days}},
+    )
+    monkeypatch.setattr(alternate_listing, "get_instrument_meta", lambda _t: meta)
+    stored = pd.DataFrame(columns=STANDARD_COLUMNS) if stored is None else stored
+    monkeypatch.setattr(alternate_listing, "_stored_series", lambda *_a: stored)
+    return calls
+
+
+def test_primary_makes_no_native_call_when_the_listing_covers_the_window(monkeypatch):
+    days = pd.bdate_range("2026-09-01", periods=5)
+    mi_calls = _install_listing(monkeypatch, PRIMARY_META, days)
+    native = NativeChain(_rows(days, [5.0] * 5))
+
+    out = fetch_with_price_source(native, "AIGE", "L", days[0].date(), days[-1].date())
+
+    assert native.calls == []
+    assert mi_calls == ["AIGE.MI"]
+    assert out["Source"].tolist() == [LABEL] * 5
+    assert out["Close"].tolist() == [float(f"{MI_CLOSE * 0.85 / 0.75:.6g}")] * 5
+
+
+def test_primary_returns_the_same_rows_as_fill_gaps_when_native_has_nothing(monkeypatch):
+    days = pd.bdate_range("2026-09-01", periods=5)
+    stored = _rows(days[:2], [5.0, 5.0])  # stored native closes stay; neither mode returns them
+    _install_listing(monkeypatch, AIGE_META, days, stored=stored)
+    fill_gaps = fetch_with_price_source(NativeChain(), "AIGE", "L", days[0].date(), days[-1].date())
+    _install_listing(monkeypatch, PRIMARY_META, days, stored=stored)
+    primary = fetch_with_price_source(NativeChain(), "AIGE", "L", days[0].date(), days[-1].date())
+
+    pd.testing.assert_frame_equal(primary.reset_index(drop=True), fill_gaps.reset_index(drop=True))
+    assert pd.to_datetime(primary["Date"]).tolist() == list(days[2:])
+
+
+def test_primary_fetches_native_only_over_uncovered_dates(monkeypatch):
+    days = pd.bdate_range("2026-09-01", periods=6)
+    # The listing has no row on days[2] or days[5].
+    _install_listing(monkeypatch, PRIMARY_META, days.delete([2, 5]))
+    native = NativeChain(_rows(days, [5.0, 5.0, 5.01, 5.0, 5.0, 5.02]))
+
+    out = fetch_with_price_source(native, "AIGE", "L", days[0].date(), days[-1].date()).set_index("Date")
+
+    assert native.calls == [(days[2].date(), days[5].date())]
+    assert list(out.index) == list(days)
+    # Native rows are fetched for days[2..5]; the per-date rule keeps real ones.
+    assert out["Source"].tolist() == [LABEL, LABEL, "Yahoo", "Yahoo", "Yahoo", "Yahoo"]
+    assert out.loc[days[2], "Close"] == 5.01 and out.loc[days[5], "Close"] == 5.02
+
+
+def test_primary_counts_stored_closes_as_covered(monkeypatch):
+    days = pd.bdate_range("2026-09-01", periods=4)
+    stored = _rows(days[3:], [5.0])
+    _install_listing(monkeypatch, PRIMARY_META, days[:3], stored=stored)
+    native = NativeChain()
+
+    out = fetch_with_price_source(native, "AIGE", "L", days[0].date(), days[-1].date())
+
+    assert native.calls == []
+    assert pd.to_datetime(out["Date"]).tolist() == list(days[:3])
+
+
+def test_primary_falls_back_to_the_whole_native_window_when_the_basis_is_refused(monkeypatch, caplog):
+    days = pd.bdate_range("2026-09-01", periods=4)
+    stored = _rows(days[:2], [6.0, 6.0])  # 20% off the converted listing
+    _install_listing(monkeypatch, PRIMARY_META, days, stored=stored)
+    native = NativeChain(_rows(days, [6.0] * 4))
+
+    with caplog.at_level(logging.WARNING):
+        out = fetch_with_price_source(native, "AIGE", "L", days[0].date(), days[-1].date())
+
+    assert native.calls == [(days[0].date(), days[-1].date())]
+    assert set(out["Source"]) == {"Yahoo"} and len(out) == 4
+    assert "do not match" in caplog.text
+
+
+def test_primary_falls_back_to_the_whole_native_window_when_the_listing_fails(monkeypatch, caplog):
+    days = pd.bdate_range("2026-09-01", periods=3)
+    _install_listing(monkeypatch, PRIMARY_META, days)
+    _install_yahoo(monkeypatch, _yahoo_frame(days, [5.0] * 3), currency="USD")
+    native = NativeChain(_rows(days, [5.0] * 3))
+
+    with caplog.at_level(logging.WARNING):
+        out = fetch_with_price_source(native, "AIGE", "L", days[0].date(), days[-1].date())
+
+    assert native.calls == [(days[0].date(), days[-1].date())]
+    assert set(out["Source"]) == {"Yahoo"}
+    assert "quoted in USD" in caplog.text
+
+
+def test_fill_gaps_fetches_native_for_the_whole_window_then_overlays(monkeypatch):
+    days = pd.bdate_range("2026-09-01", periods=5)
+    mi_calls = _install_listing(monkeypatch, AIGE_META, days)
+    native_rows = _rows(days[:2], [5.0, 5.0])
+    native = NativeChain(native_rows)
+
+    out = fetch_with_price_source(native, "AIGE", "L", days[0].date(), days[-1].date())
+
+    assert native.calls == [(days[0].date(), days[-1].date())]
+    assert mi_calls == ["AIGE.MI"]
+    expected = apply_price_source(native_rows, "AIGE", "L", days[0].date(), days[-1].date())
+    pd.testing.assert_frame_equal(out.reset_index(drop=True), expected.reset_index(drop=True))
+    assert out["Source"].tolist() == ["Yahoo", "Yahoo", LABEL, LABEL, LABEL]
+
+
+def test_without_the_field_native_is_fetched_once_and_returned_as_is(monkeypatch):
+    calls = _install_listing(monkeypatch, {"currency": "GBP", "name": "ABC"}, [])
+    native = NativeChain(_rows(["2026-09-01"], [5.0]))
+    out = fetch_with_price_source(native, "ABC", "L", date(2026, 9, 1), date(2026, 9, 1))
+    assert native.calls == [(date(2026, 9, 1), date(2026, 9, 1))]
+    assert out["Close"].tolist() == [5.0]
+    assert calls == []
+
+
+def _noisy_native_miss(_start, _end) -> pd.DataFrame:
+    """What the native chain logs for AIGE.L: yfinance and Yahoo ERRORs, a Stooq cooldown WARNING."""
+    logging.getLogger("yfinance").error("$AIGE.L: possibly delisted; no price data found")
+    logging.getLogger("yahoo_timeseries").error("Failed to fetch Yahoo data for AIGE.L")
+    logging.getLogger("stooq_timeseries").error("Failed to fetch Stooq data for AIGE.UK")
+    logging.getLogger("stooq_timeseries").warning("Stooq request timed out; skipping Stooq during cooldown")
+    logging.getLogger("backend.timeseries.fetch_ft_timeseries").warning("FT fetch failed for AIGE.L")
+    return _rows([], [])
+
+
+def _levels(caplog) -> dict[str, list[int]]:
+    out: dict[str, list[int]] = {}
+    for record in caplog.records:
+        out.setdefault(record.getMessage().split(" ")[0], []).append(record.levelno)
+    return out
+
+
+@pytest.mark.parametrize("meta", [AIGE_META, PRIMARY_META], ids=["fill_gaps", "primary"])
+def test_native_misses_log_at_info_when_a_price_source_is_set(monkeypatch, caplog, meta):
+    days = pd.bdate_range("2026-09-01", periods=3)
+    _install_listing(monkeypatch, meta, days[:2])  # primary still needs native for days[2]
+
+    with caplog.at_level(logging.INFO):
+        fetch_with_price_source(_noisy_native_miss, "AIGE", "L", days[0].date(), days[-1].date())
+
+    levels = _levels(caplog)
+    assert levels["$AIGE.L:"] == [logging.INFO]
+    assert levels["Failed"] == [logging.INFO, logging.INFO]
+    assert levels["FT"] == [logging.INFO]
+    # Stooq's cooldown affects every ticker, so it keeps its level.
+    assert levels["Stooq"] == [logging.WARNING]
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+def test_native_misses_keep_their_level_without_a_price_source(monkeypatch, caplog):
+    _install_listing(monkeypatch, {"currency": "GBP", "name": "ABC"}, [])
+
+    with caplog.at_level(logging.INFO):
+        fetch_with_price_source(_noisy_native_miss, "ABC", "L", date(2026, 9, 1), date(2026, 9, 1))
+        logging.getLogger("yfinance").error("$XYZ.L: possibly delisted; outside the fetch")
+
+    levels = _levels(caplog)
+    assert levels["$AIGE.L:"] == [logging.ERROR]
+    assert levels["Failed"] == [logging.ERROR, logging.ERROR]
+    assert levels["$XYZ.L:"] == [logging.ERROR]
+
+
+def test_fetch_meta_timeseries_in_primary_mode_skips_the_provider_chain(monkeypatch):
+    days = pd.bdate_range("2026-09-01", periods=5)
+    _install_listing(monkeypatch, PRIMARY_META, days)
+    called: list[str] = []
+
+    def provider(name):
+        def fetch(*_a, **_k):
+            called.append(name)
+            return pd.DataFrame(columns=STANDARD_COLUMNS)
+
+        return fetch
+
+    monkeypatch.setattr(fmt, "is_valid_ticker", lambda *_a: True)
+    monkeypatch.setattr(fmt, "fetch_yahoo_timeseries_range", provider("yahoo"))
+    monkeypatch.setattr(fmt, "fetch_stooq_timeseries_range", provider("stooq"))
+    monkeypatch.setattr(fmt, "fetch_ft_df", provider("ft"))
+    monkeypatch.setattr(fmt.config, "alpha_vantage_enabled", False, raising=False)
+
+    out = fmt.fetch_meta_timeseries("AIGE", "L", start_date=days[0].date(), end_date=days[-1].date())
+
+    assert called == []
+    assert out["Source"].tolist() == [LABEL] * 5
 
 
 # ── through the rolling cache ─────────────────────────────────

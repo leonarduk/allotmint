@@ -216,4 +216,105 @@ describe('PlanPanel', () => {
       response.plan
     );
   });
+
+  describe('after saving a plan (#9680)', () => {
+    const plan_targets = { equity: 40, long_gilts: 40, gold: 20 };
+
+    async function saveReturning(
+      status: 'active' | 'draft' | 'superseded',
+      matches = false
+    ) {
+      // A non-default tolerance proves the copy keeps the saved policy's band.
+      const response = makeResponse({
+        copy_supported: true,
+        plan_targets,
+        tolerance_pct: 3.5,
+      });
+      mockGetInvestmentPlan.mockResolvedValue(response);
+      mockSaveInvestmentPlan.mockResolvedValue({
+        ...response,
+        plan: { ...response.plan, status },
+        rebalance: { ...response.rebalance, matches },
+      });
+      render(<PlanPanel owner="alex" />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Edit plan' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save plan' }));
+      await screen.findByRole('button', { name: 'Edit plan' });
+    }
+
+    it('offers to update the rebalance targets for an active plan', async () => {
+      mockSaveAllocationPolicy.mockResolvedValue({});
+      await saveReturning('active');
+
+      expect(
+        screen.getByText('Update your rebalance targets to match this plan?')
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Update rebalance targets' })
+      );
+      await waitFor(() =>
+        expect(mockSaveAllocationPolicy).toHaveBeenCalledWith('alex', {
+          targets: plan_targets,
+          tolerance_pct: 3.5,
+        })
+      );
+    });
+
+    it('shows a match once the update is saved and reloaded', async () => {
+      mockSaveAllocationPolicy.mockResolvedValue({});
+      await saveReturning('active');
+      const onReload = makeResponse({ copy_supported: true, plan_targets });
+      mockGetInvestmentPlan.mockResolvedValue({
+        ...onReload,
+        rebalance: { ...onReload.rebalance, matches: true },
+      });
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Update rebalance targets' })
+      );
+      expect(
+        await screen.findByText('Your rebalance targets match this plan.')
+      ).toBeInTheDocument();
+    });
+
+    it('falls back to the plain mismatch after "Not now"', async () => {
+      await saveReturning('active');
+      fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+
+      expect(
+        screen.getByText('Your rebalance targets differ from this plan.')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', {
+          name: 'Copy plan target to rebalance targets',
+        })
+      ).toBeInTheDocument();
+      expect(mockSaveAllocationPolicy).not.toHaveBeenCalled();
+    });
+
+    it.each(['draft', 'superseded'] as const)(
+      'does not prompt for a %s plan',
+      async (status) => {
+        await saveReturning(status);
+        expect(
+          screen.queryByText(
+            'Update your rebalance targets to match this plan?'
+          )
+        ).not.toBeInTheDocument();
+        expect(
+          screen.getByText('Your rebalance targets differ from this plan.')
+        ).toBeInTheDocument();
+      }
+    );
+
+    it('does not prompt when the targets already match', async () => {
+      await saveReturning('active', true);
+      expect(
+        screen.getByText('Your rebalance targets match this plan.')
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Not now' })
+      ).not.toBeInTheDocument();
+    });
+  });
 });

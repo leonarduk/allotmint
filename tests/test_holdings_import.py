@@ -452,3 +452,29 @@ def test_hargreaves_parse_canonicalises_padded_lse_epics(code, expected):
     [holding] = hargreaves.parse(csv_data.encode())
 
     assert holding.ticker == expected
+
+
+def test_hargreaves_parse_derives_price_from_value_when_labelled_price_disagrees():
+    """A price ~27% off ``Value (£) / units`` (e.g. quoted in USD) must not pass through (#9679)."""
+    csv_data = "Code,Units held,Price (£),Value (£),Cost (£)\nMSFT,10,127.00,1000,900\n"
+
+    [holding] = hargreaves.parse(csv_data.encode())
+
+    assert holding.price == pytest.approx(100.0)
+    assert holding.comments == hargreaves.PRICE_FROM_VALUE_COMMENT
+
+
+def test_hargreaves_parse_keeps_labelled_price_within_value_tolerance():
+    """Small rounding gaps against ``Value (£)`` keep the labelled price and add no flag."""
+    csv_data = "Code,Units held,Price (pence),Value (£),Cost (£)\nBP.,10,460,45,30\n"
+
+    [holding] = hargreaves.parse(csv_data.encode())
+
+    assert holding.price == pytest.approx(4.6)
+    assert holding.comments is None
+
+
+def test_price_in_gbp_returns_value_per_unit_when_neither_scale_agrees():
+    row = {"Price (pence)": "12700", "Value (£)": "1000"}
+
+    assert hargreaves._price_in_gbp(row, 10) == pytest.approx(100.0)

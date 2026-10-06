@@ -26,9 +26,10 @@ from typing import Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from backend.common.allocation_policy import AllocationPolicy, parse_policy
+from backend.common.instrument_classification import ASSET_CLASSES
 from backend.common.instruments import get_instrument_meta
 from backend.common.path_utils import safe_join
-from backend.common.sub_asset_class import policy_targets
+from backend.common.sub_asset_class import policy_targets, SUB_ASSET_CLASS_PARENT
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -266,6 +267,31 @@ def _same_weights(a: dict[str, float], b: dict[str, float]) -> bool:
     return all(abs(a.get(k, 0.0) - b.get(k, 0.0)) <= TARGET_SUM_TOLERANCE_PCT for k in keys)
 
 
+def rebalance_weights(plan: InvestmentPlan) -> dict[str, float]:
+    """The plan target in the rebalance policy's vocabulary.
+
+    Keys the policy accepts (asset classes and the #9543 sub-classes) are kept
+    as they are; any other plan class (``small_cap_value``) is folded into its
+    parent, so a gilt or commodity split survives the copy.
+    """
+    accepted = {*ASSET_CLASSES, *SUB_ASSET_CLASS_PARENT}
+    weights: dict[str, float] = {}
+    for key, pct in plan.target_weights().items():
+        target = key if key in accepted else PLAN_CLASS_PARENT[key]
+        weights[target] = round(weights.get(target, 0.0) + pct, 6)
+    return weights
+
+
+#: The whole of allocation_policy._check_levels' message, so a longer error that merely mentions it isn't swallowed.
+_LEVEL_CLASH_RE = re.compile(r"Set [\w -]+ either as a whole or by sub-class, not both")
+
+
+def _is_vocabulary_error(exc: ValueError) -> bool:
+    """``parse_policy`` rejected the keys themselves (unknown class, or a class and its sub-classes together)."""
+    message = str(exc)
+    return message.startswith("Unknown asset class") or bool(_LEVEL_CLASH_RE.fullmatch(message))
+
+
 def compare_with_rebalance_targets(plan: InvestmentPlan, policy: AllocationPolicy) -> dict:
     """Compare the plan target with the saved rebalance targets.
 
@@ -277,12 +303,18 @@ def compare_with_rebalance_targets(plan: InvestmentPlan, policy: AllocationPolic
     ``broad_equity`` (see :func:`~backend.common.sub_asset_class.policy_targets`).
     """
     exact = policy_targets(plan.target_weights())
+    
+    """The plan is compared in the policy's own vocabulary (:func:`rebalance_weights`),
+    which can be copied straight to the rebalance targets, so ``copy_supported``
+    is true. If the policy still rejects those keys, the plan is compared rolled
+    up to top-level asset classes and the mismatch is reported only.
+    """
     try:
-        comparable = parse_policy({"targets": exact}).targets
+        comparable = parse_policy({"targets": rebalance_weights(plan)}).targets
         copy_supported = True
     except ValueError as exc:
-        # Only a vocabulary gap means "compare rolled up"; anything else is a real error.
-        if not str(exc).startswith("Unknown asset class"):
+        # Only a vocabulary or level clash means "compare rolled up"; anything else is a real error.
+        if not _is_vocabulary_error(exc):
             raise
         comparable = parse_policy({"targets": plan.parent_weights()}).targets
         copy_supported = False

@@ -60,7 +60,7 @@ def test_fx_to_base_uses_fetched_rates(monkeypatch):
     assert ("EUR", "GBP") in calls
 
 
-def test_fx_to_base_falls_back_to_default_rate(monkeypatch):
+def test_fx_to_base_has_no_rate_without_a_fallback_constant(monkeypatch):
     cache: dict[str, float] = {}
 
     def fake_fetch(ccy: str, base: str, start, end):
@@ -72,9 +72,10 @@ def test_fx_to_base_falls_back_to_default_rate(monkeypatch):
 
     rate = portfolio_utils._fx_to_base("JPY", "CAD", cache)
 
-    assert rate == 1.0
-    assert cache["JPY"] == 1.0
-    assert cache["CAD"] == 1.0
+    # Neither has an approximate constant: no rate, not a made-up 1.0 (#9664).
+    assert rate is None
+    assert cache["JPY"] is None
+    assert cache["CAD"] is None
 
 
 def test_normalise_snapshot_native_price_keeps_gbx_value_when_already_gbp_scaled():
@@ -792,7 +793,8 @@ def test_fx_to_base_cache_reuse_and_aggregate_scaling(monkeypatch):
 
     fx_cache: dict[str, float] = {"EUR": 0.0}
     guarded_rate = portfolio_utils._fx_to_base("USD", "EUR", fx_cache)
-    assert guarded_rate == pytest.approx(1.0)
+    # A zero base rate is no rate, not a made-up 1.0 (#9664).
+    assert guarded_rate is None
     assert calls == [("USD", "GBP")]
 
     calls.clear()
@@ -847,6 +849,54 @@ def test_fx_to_base_cache_reuse_and_aggregate_scaling(monkeypatch):
     assert calls == [("USD", "GBP")]
 
     monkeypatch.delenv("TESTING", raising=False)
+
+
+def test_aggregate_without_a_base_rate_reports_labelled_gbp(monkeypatch, caplog):
+    """No GBP->base rate (#9664): values stay in GBP and every row says so --
+    never GBP amounts relabelled as the requested base currency."""
+
+    class InstrumentApiStub:
+        def _resolve_full_ticker(self, ticker: str, latest: dict | None):
+            return ticker, "L"
+
+        def _resolve_grouping_details(self, instrument_meta, security_meta, holding, row, current=None):
+            return current, None
+
+        def price_change_pct(self, ticker: str, days: int):
+            return 0.0
+
+    stub = InstrumentApiStub()
+    monkeypatch.setattr(portfolio_utils, "instrument_api", stub, raising=False)
+    monkeypatch.setattr("backend.common.instrument_api", stub, raising=False)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(
+        portfolio_utils,
+        "get_instrument_meta",
+        lambda _: {"name": "AAA.L", "currency": "GBP", "sector": "Technology"},
+        raising=False,
+    )
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda _: {}, raising=False)
+
+    def no_rate(*_args, **_kwargs):
+        raise RuntimeError("yahoo down")
+
+    monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", no_rate)
+
+    portfolio = {
+        "accounts": [{"holdings": [{"ticker": "AAA.L", "units": 2.0, "cost_gbp": 100.0, "market_value_gbp": 120.0}]}]
+    }
+
+    # JPY has no approximate constant, so there is no GBP->JPY rate at all.
+    with caplog.at_level("WARNING"):
+        rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="JPY")
+
+    (row,) = rows
+    assert row["cost_gbp"] == pytest.approx(100.0)
+    assert row["market_value_gbp"] == pytest.approx(120.0)
+    assert row["cost_currency"] == "GBP"
+    assert row["market_value_currency"] == "GBP"
+    assert row["gain_currency"] == "GBP"
+    assert "No GBP->JPY rate" in caplog.text
 
 
 def test_list_all_unique_tickers_logs_missing_and_counts_nulls(monkeypatch, caplog):

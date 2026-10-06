@@ -65,11 +65,19 @@ def test_portfolio_value_series_aggregates_and_skips_flagged(monkeypatch):
         return data_map.get((ticker, exchange), pd.DataFrame())
 
     monkeypatch.setattr(pu, "load_meta_timeseries", fake_load_meta_timeseries)
+    # BBB.N closes are in USD: converted at the stored rate (#7786).
+    monkeypatch.setattr(
+        pu,
+        "load_fx_history",
+        lambda curr, start=None, end=None: pd.DataFrame(
+            {"Date": pd.to_datetime(["2024-01-01", "2024-01-02"]), "Rate": [0.8, 0.8]}
+        ),
+    )
 
     result = pu._portfolio_value_series("owner-1", days=30)
 
     expected = pd.Series(
-        [1100.0, 1210.0],
+        [1080.0, 1188.0],
         index=[date(2024, 1, 1), date(2024, 1, 2)],
         dtype=float,
     )

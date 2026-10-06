@@ -165,8 +165,7 @@ _BUILTIN_DEFINITIONS: tuple[Strategy, ...] = (
             "gold": 20.0,
         },
         description=(
-            "The Golden Butterfly with intermediate gilts in place of long gilts for less interest-rate "
-            "sensitivity."
+            "The Golden Butterfly with intermediate gilts in place of long gilts for less interest-rate " "sensitivity."
         ),
         source="Variant of the Portfolio Charts Golden Butterfly; no backtest_portfolio preset.",
         uk_mapping=(

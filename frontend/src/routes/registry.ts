@@ -114,11 +114,13 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     defaultPath: () => '/movers',
   },
   {
+    // Sits with Market overview in the first (dashboard) menu column: both
+    // are market-wide reference views rather than portfolio insights.
     mode: 'instrument',
     routeSegment: 'instrument',
     section: 'user',
-    menuCategory: 'insights',
-    priority: 20,
+    menuCategory: 'dashboard',
+    priority: 6,
     defaultPath: (context) => {
       const { group } = routeContext(context);
       return group ? `/instrument/${group}` : '/instrument';

@@ -302,7 +302,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => handleSort('cost')}
               >
-                {t('instrumentTable.columns.cost')}
+                {t('instrumentTable.columns.cost', { symbol: reporting.symbol })}
                 {sortKey === 'cost' ? (asc ? ' ▲' : ' ▼') : ''}
               </th>
             )}
@@ -311,7 +311,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => handleSort('market_value_gbp')}
               >
-                {t('instrumentTable.columns.market')}
+                {t('instrumentTable.columns.market', { symbol: reporting.symbol })}
                 {sortKey === 'market_value_gbp' ? (asc ? ' ▲' : ' ▼') : ''}
               </th>
             )}
@@ -320,7 +320,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => handleSort('gain_gbp')}
               >
-                {t('instrumentTable.columns.gain')}
+                {t('instrumentTable.columns.gain', { symbol: reporting.symbol })}
                 {sortKey === 'gain_gbp' ? (asc ? ' ▲' : ' ▼') : ''}
               </th>
             )}
@@ -338,7 +338,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => handleSort('last_price_gbp')}
               >
-                {t('instrumentTable.columns.last')}
+                {t('instrumentTable.columns.last', { symbol: reporting.symbol })}
                 {sortKey === 'last_price_gbp' ? (asc ? ' ▲' : ' ▼') : ''}
               </th>
             )}

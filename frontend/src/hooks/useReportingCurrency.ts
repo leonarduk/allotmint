@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { getGbpRate, type GbpRate } from '../api';
 import { useConfig } from '../ConfigContext';
-import { money, normalizeDisplayCurrency } from '../lib/money';
+import { currencySymbol, money, normalizeDisplayCurrency } from '../lib/money';
 
 /** Formats an amount held in `sourceCurrency` (GBP when omitted). */
 export type MoneyFormatter = (
@@ -21,6 +21,8 @@ export type ReportingStatus = 'gbp' | 'loading' | 'converted' | 'unavailable';
 export interface ReportingCurrency {
   /** The currency GBP amounts are actually shown in right now. */
   currency: string;
+  /** `currency`'s symbol, for column headers such as "Mkt £" (#9805). */
+  symbol: string;
   /** The configured base currency, which `currency` matches once converted. */
   configuredCurrency: string;
   status: ReportingStatus;
@@ -127,15 +129,18 @@ export function useReportingCurrency(): ReportingCurrency {
     [convertGbp, currency]
   );
 
+  const symbol = useMemo(() => currencySymbol(currency), [currency]);
+
   return useMemo(
     () => ({
       currency,
+      symbol,
       configuredCurrency: configured,
       status,
       gbpPerUnit,
       convertGbp,
       format,
     }),
-    [currency, configured, status, gbpPerUnit, convertGbp, format]
+    [currency, symbol, configured, status, gbpPerUnit, convertGbp, format]
   );
 }

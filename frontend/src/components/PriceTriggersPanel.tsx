@@ -270,6 +270,8 @@ export default function PriceTriggersPanel({
                   </td>
                 )}
                 <td>
+                  {/* GBP by design: thresholds are entered and checked in £, so
+                      they are never converted to the reporting currency (#9805). */}
                   {t(`alertSettings.triggers.${tr.condition}`)} £{tr.price.toFixed(2)}
                   {scoped && tr.note ? (
                     <div style={{ fontSize: "0.85em" }}>{tr.note}</div>

@@ -22,6 +22,7 @@ import {
 } from "../api";
 import type { PerformancePoint } from "../types";
 import { percent } from "../lib/money";
+import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { formatDateISO } from "../lib/date";
 import type { DrawdownExtrema, DrawdownSeriesPoint } from "../types";
 import InfoTip from "./InfoTip";
@@ -55,6 +56,7 @@ const BENCHMARK_TICKER = "VWRL.L";
 // (#8570).
 
 export function PerformanceDashboard({ owner, group, asOf }: Props) {
+  const reporting = useReportingCurrency();
   const [data, setData] = useState<PerformancePoint[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [days, setDays] = useState<number>(365);
@@ -209,13 +211,9 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     return formatDateISO(parsed);
   };
 
-  const formatDrawdownNumber = (value: number | undefined | null) => {
-    if (typeof value !== "number" || !Number.isFinite(value)) return "—";
-    return new Intl.NumberFormat(i18n.language, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
-  };
+  // Peak/trough are GBP portfolio values; shown in the reporting currency (#9805).
+  const formatDrawdownNumber = (value: number | undefined | null) =>
+    typeof value === "number" && Number.isFinite(value) ? reporting.format(value) : "—";
 
   // The tile, this details text and the warnings below all derive from the
   // same classification, so an implausible drawdown is N/A everywhere and

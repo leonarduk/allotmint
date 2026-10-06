@@ -14,6 +14,7 @@ import LoadingStatus from "./skeletons/LoadingStatus";
 import InfoTip from "./InfoTip";
 
 import { useFetch } from "../hooks/useFetch";
+import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -50,6 +51,7 @@ export function computeMoversLoading(
 }
 
 export function TopMoversPage() {
+  const reporting = useReportingCurrency();
   const [watchlist, setWatchlist] = useState<WatchlistOption>(() =>
     loadJSON<WatchlistOption>("topMovers.watchlist", "Portfolio"),
   );
@@ -340,9 +342,9 @@ export function TopMoversPage() {
               <>
                 <th
                   className={`${tableStyles.cell} ${tableStyles.right}`}
-                  title={t("movers.deltaGbpHeader", { period })}
+                  title={t("movers.deltaGbpHeader", { period, symbol: reporting.symbol })}
                 >
-                  {t("movers.deltaGbpHeader", { period })}
+                  {t("movers.deltaGbpHeader", { period, symbol: reporting.symbol })}
                 </th>
                 <th className={`${tableStyles.cell} ${tableStyles.right}`}>
                   {t("movers.pctPortfolio")}
@@ -408,7 +410,7 @@ export function TopMoversPage() {
                     {watchlist === "Portfolio" && (
                       <>
                         <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                          {r.delta_gbp != null ? r.delta_gbp.toFixed(2) : ""}
+                          {r.delta_gbp != null ? reporting.convertGbp(r.delta_gbp).toFixed(2) : ""}
                         </td>
                         <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                           {r.pct_portfolio != null

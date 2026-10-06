@@ -7,6 +7,7 @@ import {
   getVarBreakdown,
 } from "../api";
 import VarBreakdownModal from "./VarBreakdownModal";
+import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import type { VarBreakdown, VarScenario } from "../types";
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function ValueAtRisk({ owner, onDateChange }: Props) {
+  const reporting = useReportingCurrency();
   const { t } = useTranslation();
   const [days, setDays] = useState<number>(30);
   const [var95, setVar95] = useState<number | null>(null);
@@ -55,10 +57,8 @@ export function ValueAtRisk({ owner, onDateChange }: Props) {
     };
   }, [owner, days]);
 
-  const format = (v: number | null) =>
-    v != null
-      ? `£${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      : "–";
+  // VaR is a GBP amount; shown in the reporting currency (#9805).
+  const format = (v: number | null) => (v != null ? reporting.format(v) : "–");
 
   const clearBreakdown = useCallback(() => {
     setScenarios([]);

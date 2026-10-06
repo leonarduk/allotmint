@@ -117,7 +117,9 @@ def _fetch_index_period_changes(period: market_sectors.Period) -> Dict[str, Inde
         series = market_sectors.series_for(closes, sym)
         change = market_sectors.period_change(series, period)
         if change is None:
-            logger.warning("No %s index change for %s: close data missing", period, sanitise_log_value(sym))
+            logger.warning(
+                "No %s index change for %s: close data missing", sanitise_log_value(period), sanitise_log_value(sym)
+            )
             continue
         out[name] = {"value": float(series.iloc[-1]), "change": change}
     return out
@@ -321,7 +323,7 @@ async def market_indexes(
     try:
         indexes = await loop.run_in_executor(None, fetcher)
     except Exception as exc:
-        logger.exception("Index fetch failed for period %s", resolved)
+        logger.exception("Index fetch failed for period %s", sanitise_log_value(resolved))
         raise HTTPException(status_code=502, detail="Index data is unavailable") from exc
     return {"period": resolved, "indexes": indexes}
 
@@ -339,7 +341,11 @@ async def market_sectors_by_region(
     try:
         rows = await loop.run_in_executor(None, market_sectors.fetch_region_sectors, resolved, resolved_period)
     except Exception as exc:
-        logger.exception("Sector fetch failed for region %s period %s", sanitise_log_value(resolved), resolved_period)
+        logger.exception(
+            "Sector fetch failed for region %s period %s",
+            sanitise_log_value(resolved),
+            sanitise_log_value(resolved_period),
+        )
         raise HTTPException(status_code=502, detail="Sector data is unavailable") from exc
     return {"region": resolved, "period": resolved_period, "sectors": rows}
 

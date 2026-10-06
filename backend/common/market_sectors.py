@@ -524,7 +524,7 @@ def fetch_region_sectors(region: Region, period: Period = "1D") -> List[RegionSe
         if change is None:
             logger.warning(
                 "No %s sector change for %s/%s: close data missing",
-                period,
+                sanitise_log_value(period),
                 sanitise_log_value(region),
                 sanitise_log_value(sector),
             )

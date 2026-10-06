@@ -32,3 +32,12 @@ GAIN_GBP = "gain_gbp"
 GAIN_PCT = "gain_pct"
 
 DAYS_HELD = "days_held"
+
+
+# Trailing price-change windows exposed on instrument rows: field -> days back.
+PRICE_CHANGE_WINDOWS = {
+    "change_7d_pct": 7,
+    "change_30d_pct": 30,
+    "change_90d_pct": 90,
+    "change_1y_pct": 365,
+}

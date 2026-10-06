@@ -20,6 +20,8 @@ const GROUP_SUMMARY_SORT_MAP: Partial<Record<keyof RowWithCost, keyof GroupTotal
   gain_gbp: 'gain',
   change_7d_pct: 'change7dPct',
   change_30d_pct: 'change30dPct',
+  change_90d_pct: 'change90dPct',
+  change_1y_pct: 'change1yPct',
   gain_pct: 'gainPct',
 };
 
@@ -273,6 +275,8 @@ export function calculateGroupTotals(rows: RowWithCost[], label: string): GroupT
     gainPct,
     change7dPct: weightedAverage((row) => row.change_7d_pct),
     change30dPct: weightedAverage((row) => row.change_30d_pct),
+    change90dPct: weightedAverage((row) => row.change_90d_pct),
+    change1yPct: weightedAverage((row) => row.change_1y_pct),
   };
 }
 

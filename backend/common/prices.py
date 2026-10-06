@@ -8,6 +8,8 @@ Price utilities driven entirely by the live portfolio universe
         "price_currency":  "GBP" | None,
         "change_7d_pct":   ...,
         "change_30d_pct":  ...,
+        "change_90d_pct":  ...,
+        "change_1y_pct":   ...,
         "last_price_date": "YYYY-MM-DD",
         "last_price_time": "YYYY-MM-DDTHH:MM:SSZ",
         "is_stale":        true
@@ -52,6 +54,7 @@ import pandas as pd
 
 from backend import price_triggers
 from backend.common import instrument_api, refresh_progress
+from backend.common.constants import PRICE_CHANGE_WINDOWS
 from backend.common.currency import CurrencyNormaliser
 from backend.common.holding_utils import load_latest_closes as _load_latest_closes
 from backend.common.holding_utils import load_live_prices
@@ -214,8 +217,7 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         info = {
             "last_price": price,
             "price_currency": price_currency,
-            "change_7d_pct": None,
-            "change_30d_pct": None,
+            **{key: None for key in PRICE_CHANGE_WINDOWS},
             "last_price_date": price_date.isoformat() if price is not None and price_date else None,
             "last_price_time": ts.isoformat().replace("+00:00", "Z") if ts else None,
             "is_stale": is_stale,
@@ -230,16 +232,10 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
                 exch = "L"
                 logger.debug("Could not resolve exchange for %s; defaulting to L", full)
 
-            px_7_candidate = calc.reporting_date - timedelta(days=7)
-            px_30_candidate = calc.reporting_date - timedelta(days=30)
-
-            px_7 = _close_on(sym, exch, px_7_candidate)
-            px_30 = _close_on(sym, exch, px_30_candidate)
-
-            if px_7 not in (None, 0):
-                info["change_7d_pct"] = (float(price) / px_7 - 1.0) * 100.0
-            if px_30 not in (None, 0):
-                info["change_30d_pct"] = (float(price) / px_30 - 1.0) * 100.0
+            for key, days in PRICE_CHANGE_WINDOWS.items():
+                px_then = _close_on(sym, exch, calc.reporting_date - timedelta(days=days))
+                if px_then not in (None, 0):
+                    info[key] = (float(price) / px_then - 1.0) * 100.0
 
         snapshot[full] = info
 

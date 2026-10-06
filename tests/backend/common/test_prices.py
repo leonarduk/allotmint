@@ -148,10 +148,14 @@ def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.M
 
     seven_day = last_trading_day - timedelta(days=7)
     thirty_day = last_trading_day - timedelta(days=30)
+    ninety_day = last_trading_day - timedelta(days=90)
+    one_year = last_trading_day - timedelta(days=365)
 
     close_lookup: dict[tuple[str, str, date], float | None] = {
         ("ABC", "L", seven_day): 95.0,
         ("ABC", "L", thirty_day): 90.0,
+        ("ABC", "L", ninety_day): 80.0,
+        ("ABC", "L", one_year): 0,
         ("DEF", "N", seven_day): None,
         ("DEF", "N", thirty_day): 50.0,
         ("GHI", "L", seven_day): 39.0,
@@ -175,6 +179,9 @@ def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.M
     assert info_abc["last_price_date"] == last_trading_day.isoformat()
     assert info_abc["change_7d_pct"] == pytest.approx((101.0 / 95.0 - 1.0) * 100.0)
     assert info_abc["change_30d_pct"] == pytest.approx((101.0 / 90.0 - 1.0) * 100.0)
+    assert info_abc["change_90d_pct"] == pytest.approx((101.0 / 80.0 - 1.0) * 100.0)
+    # A zero (or missing) anchor close yields no change rather than a division error.
+    assert info_abc["change_1y_pct"] is None
 
     info_def = snapshot["DEF.N"]
     assert info_def["last_price"] == pytest.approx(55.0)
@@ -192,12 +199,9 @@ def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.M
     assert info_ghi["change_30d_pct"] == pytest.approx((40.0 / 38.0 - 1.0) * 100.0)
 
     assert requested == [
-        ("ABC", "L", seven_day),
-        ("ABC", "L", thirty_day),
-        ("DEF", "N", seven_day),
-        ("DEF", "N", thirty_day),
-        ("GHI", "L", seven_day),
-        ("GHI", "L", thirty_day),
+        (sym, exch, anchor)
+        for sym, exch in (("ABC", "L"), ("DEF", "N"), ("GHI", "L"))
+        for anchor in (seven_day, thirty_day, ninety_day, one_year)
     ]
 
 

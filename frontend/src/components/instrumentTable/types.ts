@@ -18,6 +18,8 @@ export type GroupTotals = {
   gainPct: number | null;
   change7dPct: number | null;
   change30dPct: number | null;
+  change90dPct: number | null;
+  change1yPct: number | null;
 };
 
 export type GroupedRows = {

@@ -28,10 +28,12 @@ def test_group_instruments_populates_change_fields(monkeypatch, client):
     monkeypatch.setattr(
         instrument_api,
         "price_change_pct",
-        lambda t, d: {7: 5.0, 30: 10.0}.get(d),
+        lambda t, d: {7: 5.0, 30: 10.0, 90: 15.0, 365: 20.0}.get(d),
     )
     resp = client.get("/portfolio-group/testslug/instruments")
     assert resp.status_code == 200
     instruments = resp.json()
     assert instruments[0]["change_7d_pct"] == 5.0
     assert instruments[0]["change_30d_pct"] == 10.0
+    assert instruments[0]["change_90d_pct"] == 15.0
+    assert instruments[0]["change_1y_pct"] == 20.0

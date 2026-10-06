@@ -752,6 +752,8 @@
       "ccy": "Devise",
       "cost": "Coût {{symbol}}",
       "delta30d": "30j %",
+      "delta90d": "90j %",
+      "delta1y": "1a %",
       "delta7d": "7j %",
       "gain": "Gain {{symbol}}",
       "gainPct": "Gain %",
@@ -769,6 +771,8 @@
     "exchangesLabel": "Bourses :",
     "groupTotals": {
       "delta30d": "30j %",
+      "delta90d": "90j %",
+      "delta1y": "1a %",
       "delta7d": "7j %",
       "gain": "Gain",
       "gainPct": "Gain %",

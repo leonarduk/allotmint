@@ -51,11 +51,13 @@ PRO_SLEEVE_RETURNS: Optional[ProSleeveReturns] = _pro_sleeve_returns
 
 #: Sleeve -> stand-in tickers, preferred first. ``IOO.N`` (iShares Global 100,
 #: developed mega-caps only) reaches back to 2000 for equity before ``IWRD.L``
-#: (2009) and ``VWRL.L`` (2012). Sleeves absent here (``property``,
-#: ``multi_asset``, ``overseas_government``) have no stored stand-in.
+#: (2009) and ``VWRL.L`` (2012), and ``BUT.L`` (Brunner, a global equity
+#: investment trust, stored from 1969 with dividends from 1976) before that.
+#: Sleeves absent here (``property``, ``multi_asset``, ``overseas_government``)
+#: have no stored stand-in.
 STAND_INS: dict[str, tuple[str, ...]] = {
-    "equity": ("VWRL.L", "IWRD.L", "IOO.N"),
-    "broad_equity": ("VWRL.L", "IWRD.L", "IOO.N"),
+    "equity": ("VWRL.L", "IWRD.L", "IOO.N", "BUT.L"),
+    "broad_equity": ("VWRL.L", "IWRD.L", "IOO.N", "BUT.L"),
     "small_cap_value": ("IJS.N",),
     "bond": ("IGLT.L",),
     "long_gilts": ("GLTL.L",),

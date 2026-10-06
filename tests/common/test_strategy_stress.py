@@ -101,6 +101,14 @@ def test_falls_back_along_the_stand_in_chain(monkeypatch):
     assert row["series"]["equity"] == ["IOO.N"]
 
 
+def test_brunner_covers_equity_before_2000(monkeypatch):
+    monkeypatch.setitem(SERIES, "VWRL.L", ({}, TOTAL_RETURN_BASIS))
+    monkeypatch.setitem(SERIES, "BUT.L", ({"1m": -0.25, "1y": -0.15}, TOTAL_RETURN_BASIS))
+    row = _row({"equity": 100.0})
+    assert row["horizons"]["1m"]["return_pct"] == -25.0
+    assert row["series"]["equity"] == ["BUT.L"]
+
+
 def test_pro_fills_only_what_stand_ins_cannot(monkeypatch):
     seen = []
 

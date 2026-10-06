@@ -3269,7 +3269,7 @@
       "actions": "Ações"
     },
     "rowMissing": "Sem histórico de preços para: {{missing}}",
-    "nothingCovered": "Nenhuma estratégia nem as suas posições têm preços guardados por volta de {{date}}. O histórico guardado começa no final de 2000 para ações e em 2008–2012 para a maioria dos fundos de gilts; escolha um evento posterior."
+    "nothingCovered": "Nenhuma estratégia nem as suas posições têm preços guardados por volta de {{date}}. Escolha um evento posterior."
   },
   "assetClasses": {
     "equity": "Ações",

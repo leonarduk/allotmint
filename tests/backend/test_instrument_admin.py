@@ -36,7 +36,7 @@ def test_update_instrument_preserves_existing_fields(monkeypatch):
         assert full_ticker == "ABC.NYSE"
         return dict(existing_meta)
 
-    def fake_save_instrument_meta(ticker: str, exchange: str, payload: dict) -> None:
+    def fake_save_instrument_meta(ticker: str, exchange: str, payload: dict, **_kwargs: Any) -> None:
         saved["args"] = (ticker, exchange)
         saved["payload"] = payload
 
@@ -134,7 +134,7 @@ def test_refresh_instrument_confirm(monkeypatch):
         assert exchange == "NYSE"
         return {"name": "Alpha Corp", "currency": "GBP", "instrument_type": "EQUITY"}
 
-    def fake_save(ticker: str, exchange: str, payload: dict[str, Any]) -> None:
+    def fake_save(ticker: str, exchange: str, payload: dict[str, Any], **_kwargs: Any) -> None:
         stored["args"] = (ticker, exchange)
         stored["payload"] = payload
 

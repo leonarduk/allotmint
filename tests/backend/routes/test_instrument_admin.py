@@ -55,7 +55,7 @@ def save_calls(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     saved: list[tuple[str, str, dict[str, Any]]] = []
     deleted: list[tuple[str, str]] = []
 
-    def fake_save(ticker: str, exchange: str, payload: dict[str, Any]) -> None:
+    def fake_save(ticker: str, exchange: str, payload: dict[str, Any], **_kwargs: Any) -> None:
         saved.append((ticker, exchange, dict(payload)))
 
     def fake_delete(ticker: str, exchange: str) -> None:

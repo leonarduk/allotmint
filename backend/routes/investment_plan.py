@@ -50,6 +50,7 @@ def _resolve_owner(request: Request, owner: str, identity: Optional[str]) -> Tup
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir is None:
         raise_owner_not_found(owner)
+    assert owner_dir is not None  # raise_owner_not_found always raises; narrows the type for mypy
     ensure_owner_access(identity, owner_dir.name, accounts_root)
     return owner_dir.name, accounts_root
 

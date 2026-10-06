@@ -6,6 +6,11 @@ import Menu from '@/components/Menu';
 import { configContext, type ConfigContextValue } from '@/ConfigContext';
 import { AuthContext } from '@/contexts/auth';
 
+// The gateway link carries a screen-reader-only "(opens in new tab)" hint,
+// which is part of its accessible name.
+const operationsGatewayName = () =>
+  `${i18n.t('app.operationsLink', 'Operations')} ${i18n.t('app.opensInNewTab', '(opens in new tab)')}`;
+
 const configWithTransactions: ConfigContextValue = {
   relativeViewEnabled: false,
   disabledTabs: [],
@@ -252,12 +257,15 @@ describe('Menu', () => {
     });
     fireEvent.click(preferencesToggle);
     const gateway = screen.getByRole('menuitem', {
-      name: i18n.t('app.operationsLink', 'Operations'),
+      name: operationsGatewayName(),
     });
     // Targets the first *enabled* operations entry by priority (Timeseries,
     // priority 70) rather than always /support -- see the "renders when
     // Support itself is disabled" test below for why that matters.
     expect(gateway).toHaveAttribute('href', '/timeseries');
+    // Opens alongside the app rather than replacing it.
+    expect(gateway).toHaveAttribute('target', '_blank');
+    expect(gateway).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   it('targets the first enabled operations entry, not always /support (#7226)', () => {
@@ -286,7 +294,7 @@ describe('Menu', () => {
     });
     fireEvent.click(preferencesToggle);
     const gateway = screen.getByRole('menuitem', {
-      name: i18n.t('app.operationsLink', 'Operations'),
+      name: operationsGatewayName(),
     });
     expect(gateway).toHaveAttribute('href', '/instrumentadmin');
   });
@@ -314,7 +322,7 @@ describe('Menu', () => {
     fireEvent.click(preferencesToggle);
     expect(
       screen.queryByRole('menuitem', {
-        name: i18n.t('app.operationsLink', 'Operations'),
+        name: operationsGatewayName(),
       })
     ).not.toBeInTheDocument();
   });
@@ -369,7 +377,7 @@ describe('Menu', () => {
     fireEvent.click(preferencesToggle);
     expect(
       screen.queryByRole('menuitem', {
-        name: i18n.t('app.operationsLink', 'Operations'),
+        name: operationsGatewayName(),
       })
     ).not.toBeInTheDocument();
   });
@@ -399,7 +407,7 @@ describe('Menu', () => {
     // the operations menu -- that would be a redundant self-link.
     expect(
       screen.queryByRole('menuitem', {
-        name: i18n.t('app.operationsLink', 'Operations'),
+        name: operationsGatewayName(),
       })
     ).not.toBeInTheDocument();
   });

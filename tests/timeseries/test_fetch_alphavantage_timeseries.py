@@ -10,6 +10,7 @@ from backend.timeseries.fetch_alphavantage_timeseries import (
     _parse_retry_after,
     fetch_alphavantage_timeseries_range,
 )
+from backend.timeseries.source_basis import DIVIDEND_ADJUSTED_SOURCES
 
 
 @pytest.mark.parametrize(
@@ -205,3 +206,92 @@ def test_fetch_range_rejects_private_base_url(monkeypatch, bad_url: str) -> None
     monkeypatch.setattr(av, "BASE_URL", bad_url)
     with pytest.raises(InvalidExternalURLError):
         fetch_alphavantage_timeseries_range("AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo")
+
+
+def _day(close, *, adjusted=None, split="1.0", volume="1000"):
+    return {
+        "1. open": close,
+        "2. high": close,
+        "3. low": close,
+        "4. close": close,
+        "5. adjusted close": adjusted or close,
+        "6. volume": volume,
+        "7. dividend amount": "0.0000",
+        "8. split coefficient": split,
+    }
+
+
+def test_fetch_range_stores_traded_close_not_adjusted_close(monkeypatch):
+    """``4. close`` is stored; the dividend-adjusted ``5. adjusted close`` never is (#9340)."""
+    _patch_validation(monkeypatch)
+    payload = {
+        "Time Series (Daily)": {
+            "2024-01-03": _day("100.0"),
+            "2024-01-02": _day("101.0", adjusted="98.5"),
+            "2024-01-01": _day("102.0", adjusted="99.4"),
+        }
+    }
+    rows = payload["Time Series (Daily)"].values()
+    assert any(r["4. close"] != r["5. adjusted close"] for r in rows)  # not vacuous
+    monkeypatch.setattr(av.requests, "get", lambda *a, **k: FakeResp(payload=payload))
+
+    df = fetch_alphavantage_timeseries_range("AAA", "US", date(2024, 1, 1), date(2024, 1, 3), api_key="demo")
+
+    assert df["Close"].tolist() == [102.0, 101.0, 100.0]
+    assert df["Source"].iloc[0] not in DIVIDEND_ADJUSTED_SOURCES
+    assert df["Volume"].tolist() == [1000, 1000, 1000]
+
+
+def test_fetch_range_split_adjusts_rows_before_a_split(monkeypatch):
+    """A 4:1 split on 2024-01-03: earlier rows are divided by 4 and volume multiplied by 4."""
+    _patch_validation(monkeypatch)
+    payload = {
+        "Time Series (Daily)": {
+            "2024-01-04": _day("26.0"),
+            "2024-01-03": _day("25.0", split="4.0"),
+            "2024-01-02": _day("102.0", volume="500"),
+            "2024-01-01": _day("100.0", volume="250"),
+        }
+    }
+    monkeypatch.setattr(av.requests, "get", lambda *a, **k: FakeResp(payload=payload))
+
+    df = fetch_alphavantage_timeseries_range("AAA", "US", date(2024, 1, 1), date(2024, 1, 4), api_key="demo")
+
+    assert df["Close"].tolist() == [25.0, 25.5, 25.0, 26.0]
+    assert df["Open"].tolist() == [25.0, 25.5, 25.0, 26.0]
+    assert df["Volume"].tolist() == [1000.0, 2000.0, 1000.0, 1000.0]
+
+
+def test_fetch_range_applies_splits_after_the_requested_range(monkeypatch):
+    """A split after ``end_date`` still rescales the rows inside the range, as Yahoo's history does."""
+    _patch_validation(monkeypatch)
+    payload = {
+        "Time Series (Daily)": {
+            "2024-03-01": _day("10.0", split="2.0"),
+            "2024-02-01": _day("30.0", split="1.5"),
+            "2024-01-02": _day("60.0"),
+        }
+    }
+    monkeypatch.setattr(av.requests, "get", lambda *a, **k: FakeResp(payload=payload))
+
+    df = fetch_alphavantage_timeseries_range("AAA", "US", date(2024, 1, 1), date(2024, 1, 31), api_key="demo")
+
+    assert df["Close"].tolist() == [20.0]
+
+
+@pytest.mark.parametrize("coefficient", ["0.0", "", "n/a", "-2"])
+def test_split_adjust_ignores_unusable_coefficients(coefficient):
+    import pandas as pd
+
+    df = pd.DataFrame(
+        {"Close": ["10.0", "11.0"], "Volume": ["5", "6"], av.SPLIT_COEFFICIENT_FIELD: ["1.0", coefficient]}
+    )
+    out = av.split_adjust(df)
+    assert out["Close"].tolist() == ["10.0", "11.0"]
+
+
+def test_split_adjust_without_coefficients_is_a_no_op():
+    import pandas as pd
+
+    df = pd.DataFrame({"Close": [10.0, 11.0]})
+    assert av.split_adjust(df)["Close"].tolist() == [10.0, 11.0]

@@ -19,6 +19,18 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.alphavantage.co/query"
 
+# Price basis (#9340): stored closes are the traded price, split-adjusted but not
+# dividend-adjusted, matching Yahoo with ``auto_adjust=False``. In
+# TIME_SERIES_DAILY_ADJUSTED, ``4. close`` is the raw as-traded close (adjusted
+# for neither splits nor dividends) and ``5. adjusted close`` is adjusted for
+# both, so neither is that basis on its own. ``4. close`` is used and divided by
+# the product of every later ``8. split coefficient`` (1.0 on non-split days) so
+# rows before a split line up with Yahoo's; volume is multiplied by the same
+# factor. ``5. adjusted close`` is never stored.
+PRICE_FIELDS = {"1. open": "Open", "2. high": "High", "3. low": "Low", "4. close": "Close"}
+VOLUME_FIELD = "6. volume"
+SPLIT_COEFFICIENT_FIELD = "8. split coefficient"
+
 
 class AlphaVantageRateLimitError(RuntimeError):
     """Raised when the Alpha Vantage rate limit has been exceeded."""
@@ -48,6 +60,31 @@ def _build_symbol(ticker: str, exchange: str) -> str:
     if ticker.endswith(suffix):
         return ticker
     return ticker + suffix
+
+
+def split_adjust(df: pd.DataFrame) -> pd.DataFrame:
+    """Split-adjust a date-ascending Alpha Vantage frame in place; return it.
+
+    Each row's OHLC is divided, and its volume multiplied, by the product of the
+    split coefficients on all *later* rows. A missing, non-numeric or
+    non-positive coefficient counts as 1.0 (no split). Without a
+    ``8. split coefficient`` column the frame is returned unchanged. Must run on
+    the full history before it is cut to the requested range: a split after the
+    range's end still rescales the rows inside it.
+    """
+    if SPLIT_COEFFICIENT_FIELD not in df.columns:
+        return df
+    coef = pd.to_numeric(df[SPLIT_COEFFICIENT_FIELD], errors="coerce")
+    coef = coef.where(coef > 0, 1.0).fillna(1.0)
+    later = coef[::-1].cumprod()[::-1].shift(-1, fill_value=1.0)
+    if (later == 1.0).all():
+        return df
+    for col in PRICE_FIELDS.values():
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce") / later
+    if "Volume" in df.columns:
+        df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce") * later
+    return df
 
 
 def _parse_retry_after(response: requests.Response, message: str) -> int | None:
@@ -124,18 +161,11 @@ def fetch_alphavantage_timeseries_range(
             raise ValueError(message)
 
         ts = data["Time Series (Daily)"]
-        df = pd.DataFrame.from_dict(ts, orient="index").rename(
-            columns={
-                "1. open": "Open",
-                "2. high": "High",
-                "3. low": "Low",
-                "4. close": "Close",
-                "6. volume": "Volume",
-            }
-        )
+        df = pd.DataFrame.from_dict(ts, orient="index").rename(columns={**PRICE_FIELDS, VOLUME_FIELD: "Volume"})
 
         df.index = pd.to_datetime(df.index)
         df.sort_index(inplace=True)
+        split_adjust(df)  # before the range cut: later splits rescale earlier rows
         df = df.loc[str(start_date) : str(end_date)]
         df.reset_index(inplace=True)
         df.rename(columns={"index": "Date"}, inplace=True)

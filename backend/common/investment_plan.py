@@ -55,7 +55,8 @@ PLAN_CLASS_PARENT: dict[str, str] = {
 }
 PLAN_CLASSES: tuple[str, ...] = tuple(PLAN_CLASS_PARENT)
 
-_OWNER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+# Same owner-id shape as backend/routes/data_quality_admin.py (spaces allowed); safe_join guards traversal.
+_OWNER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,63}$")
 
 
 class PlanNotFoundError(LookupError):

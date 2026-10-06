@@ -116,6 +116,12 @@ def test_save_and_load_round_trip(tmp_path):
     assert not list((tmp_path / "plans").glob("*.tmp"))
 
 
+def test_owner_with_space_round_trips(tmp_path):
+    plan = parse_plan(plan_data(owner="mary jane"), "mary jane")
+    assert save_plan(plan, tmp_path) == tmp_path / "plans" / "mary jane.json"
+    assert load_plan("mary jane", tmp_path) == plan
+
+
 def test_load_missing_plan(tmp_path):
     with pytest.raises(PlanNotFoundError, match="No investment plan saved for alex"):
         load_plan("alex", tmp_path)

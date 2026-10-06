@@ -221,8 +221,13 @@ def _is_autostash_of(stash_commit: str, previous_head: str) -> bool:
 
     # The stash reflog message (what ``git stash list`` shows) is exactly
     # "autostash" for git's own autostash; the commit subject is "On <branch>: ...".
-    reflog_message = _git("stash", "list", "-n", "1", "--format=%gs")
-    return reflog_message == "autostash" and _git("rev-parse", f"{stash_commit}^1") == previous_head
+    # Hash and message are read in one call so they describe the same entry.
+    top_hash, _, reflog_message = _git("stash", "list", "-n", "1", "--format=%H %gs").partition(" ")
+    return (
+        top_hash == stash_commit
+        and reflog_message == "autostash"
+        and _git("rev-parse", f"{stash_commit}^1") == previous_head
+    )
 
 
 def _settle_autostash(stash_before: str | None, previous_head: str) -> tuple[bool, str | None]:
@@ -245,9 +250,11 @@ def _settle_autostash(stash_before: str | None, previous_head: str) -> tuple[boo
     if stash_after is None or stash_after == stash_before or not _is_autostash_of(stash_after, previous_head):
         # Conflicts without a new entry that is provably the autostash: the changes
         # may exist only in the conflicted files, so leave the tree for the user.
-        raise GitError(
-            "Update applied but re-applying local changes conflicted and git did not store them in the stash; "
-            f"resolve the conflicts in: {', '.join(unmerged.splitlines())}"
+        # The fast-forward itself succeeded, so this is a result, not an error.
+        logger.warning("App update: local changes conflicted and could not be confirmed in the stash")
+        return False, (
+            "Updated, but re-applying your local changes conflicted and they could not be confirmed in the stash. "
+            f"The working tree was left as-is; resolve the conflict markers in: {', '.join(unmerged.splitlines())}"
         )
     _git("reset", "--quiet", "--hard", "HEAD")
     logger.warning(

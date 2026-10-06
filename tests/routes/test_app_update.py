@@ -202,8 +202,9 @@ def test_update_with_stash_refuses_reset_when_stash_top_is_not_the_autostash(rep
     (checkout / "README.md").write_text("local edit\n", encoding="utf-8")
     monkeypatch.setattr(app_update, "_is_autostash_of", lambda *_: False)  # e.g. a concurrent unrelated stash
 
-    resp = _client().post("/support/app-update?stash=true")
-    assert resp.status_code == 502
+    body = _client().post("/support/app-update?stash=true").json()
+    assert body["stash_restored"] is False
+    assert "left as-is" in body["stash_message"]
     assert "local edit" in (checkout / "README.md").read_text(encoding="utf-8")
 
 
@@ -214,9 +215,10 @@ def test_update_with_stash_reports_conflicts_missing_from_stash(repos, monkeypat
     (checkout / "README.md").write_text("local edit\n", encoding="utf-8")
     monkeypatch.setattr(app_update, "_stash_ref", lambda: None)  # simulate git not storing the autostash
 
-    resp = _client().post("/support/app-update?stash=true")
-    assert resp.status_code == 502
-    assert "README.md" in resp.json()["detail"]
+    body = _client().post("/support/app-update?stash=true").json()
+    assert body["updated"] is True
+    assert body["stash_restored"] is False
+    assert "README.md" in body["stash_message"]
     # Not reset: the conflicted file still holds the local edit alongside upstream.
     assert "local edit" in (checkout / "README.md").read_text(encoding="utf-8")
 

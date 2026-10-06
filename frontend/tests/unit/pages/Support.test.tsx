@@ -570,7 +570,9 @@ describe("Support page", () => {
     expect(
       screen.getByRole("checkbox", { name: "offline_mode" })
     ).toHaveAccessibleDescription(descriptions.offline_mode);
-    expect(screen.getByText(descriptions.theme)).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: "dark" })
+    ).toHaveAccessibleDescription(descriptions.theme);
 
     const unknown = screen.getByRole("textbox", { name: "not_a_known_key" });
     expect(unknown).not.toHaveAttribute("aria-describedby");

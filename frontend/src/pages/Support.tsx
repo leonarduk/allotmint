@@ -801,6 +801,7 @@ export default function Support() {
                               value={opt}
                               checked={value === opt}
                               onChange={(e) => handleConfigChange(key, e.target.value)}
+                              aria-describedby={describedBy(key)}
                               className="mr-1"
                             />
                             {opt}

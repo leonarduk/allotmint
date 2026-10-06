@@ -702,6 +702,21 @@
         "low52w": "Plus bas sur 52 semaines",
         "averageVolume": "Volume moyen"
       }
+    },
+    "fxSplit": {
+      "title": "Rendement local vs rendement de change",
+      "basis": "Rendement de cours (hors dividendes)",
+      "basisWithDates": "Rendement de cours (hors dividendes), du {{start}} au {{end}}",
+      "local": "Variation du cours local ({{currency}})",
+      "fx": "Variation de change ({{currency}}→GBP)",
+      "cross": "Terme croisé (local × change)",
+      "gbp": "Rendement en GBP",
+      "unavailable": "La répartition entre rendement local et rendement de change n'a pas pu être chargée.",
+      "reasons": {
+        "missing_fx_rate": "Pas de répartition : aucun taux {{currency}}→GBP enregistré assez proche du {{start}} ou du {{end}}.",
+        "insufficient_price_history": "Pas de répartition : moins de deux cours enregistrés sur cette période.",
+        "currency_mismatch": "Pas de répartition : la devise de cotation ({{currency}}) diffère de la devise à partir de laquelle ses cours en GBP sont convertis."
+      }
     }
   },
   "instrumentTable": {

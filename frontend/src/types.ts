@@ -490,6 +490,35 @@ export interface InstrumentDetail {
   base_currency?: string | null;
 }
 
+/** Why ``GET /instrument/fx-split`` returned no split (``reason``). */
+export type FxReturnSplitReason =
+  | "sterling_instrument"
+  | "unknown_currency"
+  | "currency_mismatch"
+  | "insufficient_price_history"
+  | "missing_fx_rate";
+
+/**
+ * Local vs FX split of a non-sterling instrument's GBP price return (#9776).
+ * ``local_return + fx_return + cross_term === gbp_return``. All four are
+ * ``null`` when ``reason`` is set. ``applicable`` is false for GBP/GBX.
+ */
+export interface FxReturnSplit {
+  ticker: string;
+  currency: string;
+  applicable: boolean;
+  basis: "price";
+  reason: FxReturnSplitReason | null;
+  start: string | null;
+  end: string | null;
+  start_rate: number | null;
+  end_rate: number | null;
+  local_return: number | null;
+  fx_return: number | null;
+  cross_term: number | null;
+  gbp_return: number | null;
+}
+
 export interface Transaction {
   owner: string;
   account: string;

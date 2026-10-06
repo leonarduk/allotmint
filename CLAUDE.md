@@ -83,6 +83,12 @@ canonical branch/PR rules (never commit to `main`, worktree-first for dirty
 checkouts, required PR steps, branch naming, `Closes #NNNN` linking). Agents
 must treat branch creation as a first step, not a release step at the end.
 
+**Every PR links an issue**: the `require-issue-reference` CI check fails any PR
+whose body lacks `Closes #NNNN` (or `Fixes`/`Refs`). If no issue exists for the
+work — including ad-hoc bug reports from chat — file one first (see Issue
+creation below), then open the PR with it linked. Never leave the template's
+`Closes #` blank.
+
 **Issue creation**: Always use the template format from
 `.github/ISSUE_TEMPLATE/bug_report.md` or `.github/ISSUE_TEMPLATE/feature_request.md`
 and include every required section: What, Why, How, Constraints, LLM tier,

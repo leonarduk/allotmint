@@ -48,11 +48,15 @@ class AccountBucket:
     # asset class -> {ticker: value}, used for ticker hints on trades
     class_tickers: dict[str, dict[str, float]] = field(default_factory=dict)
     literal_cash_tickers: set[str] = field(default_factory=set)
+    # ticker -> display name, shown alongside ticker hints on trades
+    ticker_names: dict[str, str] = field(default_factory=dict)
 
-    def add(self, asset_class: str, ticker: str, value: float) -> None:
+    def add(self, asset_class: str, ticker: str, value: float, name: str | None = None) -> None:
         self.class_values[asset_class] = self.class_values.get(asset_class, 0.0) + value
         tickers = self.class_tickers.setdefault(asset_class, {})
         tickers[ticker] = tickers.get(ticker, 0.0) + value
+        if name and ticker not in self.ticker_names:
+            self.ticker_names[ticker] = name
 
     @property
     def cash_fund_value(self) -> float:
@@ -141,7 +145,8 @@ def bucket_holdings(portfolio: Mapping[str, Any], split: frozenset[str] = frozen
             if value <= 0:
                 continue
             asset_class = _holding_class(holding, ticker, split)
-            bucket.add(asset_class, ticker, value)
+            name = str(holding.get("name") or "").strip() or None
+            bucket.add(asset_class, ticker, value, name)
             if is_cash_instrument(ticker, holding.get("instrument_type")):
                 bucket.cash += value
                 bucket.literal_cash_tickers.add(ticker)
@@ -237,13 +242,15 @@ def _class_deltas(holdings: Holdings, policy: AllocationPolicy) -> dict[str, flo
 
 
 def _trade(account: AccountBucket, asset_class: str, action: str, amount: float) -> dict[str, Any]:
+    ticker = account.ticker_hint(asset_class)
     return {
         "account_id": account.id,
         "account": account.label,
         "asset_class": asset_class,
         "action": action,
         "amount": round(amount, 2),
-        "ticker": account.ticker_hint(asset_class),
+        "ticker": ticker,
+        "name": account.ticker_names.get(ticker) if ticker else None,
     }
 
 

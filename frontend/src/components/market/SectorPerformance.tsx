@@ -10,7 +10,7 @@ import {
   Cell,
 } from 'recharts';
 import { getMarketSectors } from '../../api';
-import type { RegionSectors, SectorRegion } from '../../types';
+import type { MarketPeriod, RegionSectors, SectorRegion } from '../../types';
 import EmptyState from '../EmptyState';
 import SectorDetailPanel from './SectorDetailPanel';
 import { changeColor, formatPctTick } from './chartFormat';
@@ -175,7 +175,16 @@ function SectorButtons({ data, selected, onSelect }: SectorChartProps) {
   );
 }
 
-export default function SectorPerformance() {
+interface SectorPerformanceProps {
+  period: MarketPeriod;
+  /** Translated period label shown in the heading, e.g. "30 days". */
+  periodLabel: string;
+}
+
+export default function SectorPerformance({
+  period,
+  periodLabel,
+}: SectorPerformanceProps) {
   const { t } = useTranslation();
   // undefined = let the backend pick its configured default region.
   const [requested, setRequested] = useState<SectorRegion | undefined>(
@@ -188,27 +197,33 @@ export default function SectorPerformance() {
   useEffect(() => {
     const controller = new AbortController();
     setError(null);
-    setSelected(null);
-    // Drop the previous region's bars so they aren't shown under the new
-    // region's toggle while the fetch is in flight.
+    // Drop the previous region's/period's bars so they aren't shown under the
+    // new toggle while the fetch is in flight.
     setData(null);
-    getMarketSectors(requested, controller.signal)
+    getMarketSectors(requested, controller.signal, period)
       .then(setData)
       .catch((e) => {
         if (controller.signal.aborted) return;
         setError(e instanceof Error ? e.message : String(e));
       });
     return () => controller.abort();
-  }, [requested]);
+  }, [requested, period]);
+
+  // The drill-down is per region, so a region switch closes it; a period
+  // switch only changes the bars, so the open detail panel stays.
+  const selectRegion = (region: SectorRegion) => {
+    setSelected(null);
+    setRequested(region);
+  };
 
   const activeRegion = requested ?? data?.region;
   return (
     <div className="mb-8">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl">
-          {t('market.sectorChange', { defaultValue: 'Sector % Change' })}
+          {`${t('market.sectorChange', { defaultValue: 'Sector % Change' })} (${periodLabel})`}
         </h2>
-        <RegionToggle active={activeRegion} onSelect={setRequested} />
+        <RegionToggle active={activeRegion} onSelect={selectRegion} />
       </div>
       {error && <p className="text-red-500">{error}</p>}
       {!error && !data && <p>{t('common.loading')}</p>}

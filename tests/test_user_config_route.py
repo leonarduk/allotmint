@@ -122,3 +122,32 @@ def test_owner_config_authorization_enforced(monkeypatch, mock_user_config):
     assert forbidden_post.status_code == 403
     # The unauthorized write must not have mutated the other owner's config.
     assert "hold_days_min" not in mock_user_config["alex"]
+
+
+def test_update_refuses_unreadable_settings_file(monkeypatch, tmp_path):
+    # Real files, no load/save mocks: a corrupt settings.json must not be
+    # replaced by a partial one (#9514).
+    from fastapi import FastAPI
+
+    from backend.routes import user_config as user_config_route
+
+    monkeypatch.setattr(config, "disable_auth", True)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    settings = owner_dir / "settings.json"
+    corrupt = '{"hold_days_min": 30, "allocation_policy": {"targets": {"equity": 100}},'
+    settings.write_text(corrupt)
+
+    app = FastAPI()
+    app.include_router(user_config_route.router)
+    app.state.accounts_root = tmp_path
+    client = TestClient(app)
+
+    resp = client.post("/user-config/alice", json={"max_trades_per_month": 5})
+    assert resp.status_code == 409
+    assert "unreadable" in resp.json()["detail"]
+    assert settings.read_text() == corrupt
+
+    # Reads still work, falling back to defaults.
+    resp = client.get("/user-config/alice")
+    assert resp.status_code == 200

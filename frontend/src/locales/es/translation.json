@@ -54,8 +54,14 @@
       "edit": "Editar",
       "empty": "Aún no hay disparadores de precio.",
       "enabled": "Activo",
+      "exchangeUnknown": "Las alertas de precio necesitan el mercado del instrumento (p. ej. VOD.L), que aún no se conoce. Ábrelo con su sufijo de mercado o configúralo en el catálogo de instrumentos.",
+      "instrumentDescription": "Recibe una alerta cuando {{ticker}} cruce un nivel de precio. Los niveles están en GBP y se comprueban en cada actualización de precios.",
+      "instrumentEmpty": "Aún no hay alertas de precio para {{ticker}}.",
+      "instrumentTitle": "Alertas de precio",
       "lastFired": "Última activación",
+      "latestPrice": "Último precio: £{{price}}",
       "loadError": "No se pudieron cargar los disparadores de precio.",
+      "manageAll": "Gestionar todas las alertas",
       "mode": "Se activa",
       "modeHelp": "Una vez: se activa la primera vez y se desactiva. Continuo: se activa cada vez que el precio cruza el nivel y se rearma cuando vuelve atrás.",
       "note": "Nota (opcional)",
@@ -381,10 +387,18 @@
   },
   "loadingPortfolio": "Cargando portafolio…",
   "market": {
+    "changePeriod": "Variación en",
     "indexChange": "Variación % de los índices",
     "indexLevels": "Niveles de índices",
     "latestHeadlines": "Últimos titulares",
     "noSectors": "No hay datos de sectores disponibles",
+    "period": {
+      "1D": "1 día",
+      "1W": "1 semana",
+      "1M": "30 días",
+      "3M": "90 días",
+      "1Y": "1 año"
+    },
     "sectorChange": "Variación % por sector",
     "sectorPerformance": "Rendimiento por sector"
   },

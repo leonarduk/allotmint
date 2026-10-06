@@ -201,6 +201,7 @@ As a secondary fallback for visibility, the review body is also written to `$GIT
 - **`if: success() || failure()`**: The "Post review comment" step runs even if the verdict is REQUEST CHANGES (which exits the preceding step with a non-zero exit code), so the full review is always visible. The condition excludes cancelled runs to avoid spurious failure notices when a run is superseded by a new push.
 - **`continue-on-error: true`**: Set on the "Post review comment" step in `_ai-pr-review.yml`. If the `gh pr comment` call fails, the job does not fail. The failure is recorded in the workflow logs but does not block the overall workflow.
 - **`if: steps.check_approval.outputs.approved == 'true'`**: The "Create follow-up issues" step only runs when the review is an APPROVE. On REQUEST CHANGES, no follow-up issues are created — the blocking findings belong in the review itself, not the backlog. This condition is identical for both Claude and GPT. Before this consolidation, GPT created follow-up issues on every verdict; the maintainer confirmed (PR #3933) that the APPROVE-only behavior — Claude's prior behavior — is the intended one for both providers.
+- **`steps.followups_gate.outputs.skip != 'true'`**: Follow-ups are filed only for the *first* approving review of a PR. Every push re-runs the review, and re-reviews restate the same suggestions in new words, so before this gate each approved re-run filed a fresh batch of near-duplicate issues (PR #9466 produced several). `.github/scripts/followups_already_filed.sh` looks for existing `ai-suggested` issues whose body contains `AI review of PR #<n>.` (both the normal footer and the fallback body) and skips the step if any exist, from any provider. A PR whose earlier reviews only requested changes has filed nothing, so its first approval still files follow-ups. If the lookup fails, the step files as before and logs a warning. Closed follow-ups count too, so a suggestion that was filed and then closed during triage is not re-filed by a later re-review.
 
 ## End-to-end validation
 
@@ -322,13 +323,27 @@ The `workflow_run` trigger can miss a PR — e.g. the triggering review run is
 cancelled by a superseding push before its `completed` event fires, or the
 webhook delivery is dropped — leaving the label "stuck" even though the
 latest commit's reviews all later succeeded. To recover from this,
-`sync-changes-requested-label.yml` also runs on a `schedule` (every 30
-minutes) and via `workflow_dispatch` (for manual triggering). The scheduled
+`sync-changes-requested-label.yml` also runs on a `schedule` (at :17 and :47
+past each hour) and via `workflow_dispatch` (for manual triggering). GitHub
+treats schedules as best-effort; the old `*/30` cron, on the busiest minutes,
+ran only every 3-6 hours in practice. The scheduled
 run lists every open PR that still carries the `Changes Requested` label and
 re-runs the same reconciliation logic (shared via
 `.github/scripts/reconcile_changes_requested_label.sh`) against each one, so
 a PR whose reviews have actually passed gets its label cleared within the
 next scheduled sweep even if the triggering event was lost.
+
+The approving review job also reconciles the label itself, as its last step
+before finishing ("Remove 'Changes Requested' label if all enabled reviews now
+pass" in `_ai-pr-review.yml`). Its own check-run is still in progress at that
+point, so it passes its verdict to the reconcile script
+(`ASSUME_SUCCESS_CHECK`), which counts it only if the reviewed commit
+(`REVIEWED_SHA`) is still the PR head. This clears the label in the common case
+without needing a second runner: on 2026-10-05 the `workflow_run` sync job was
+cancelled before it got a runner, and PR #9466 kept the label after its final
+review approved. When several reviewers are enabled and approve at almost the
+same moment, each may still see the other as in progress; the `workflow_run`
+sync and the sweep then clear the label as before.
 
 `workflow_dispatch` also accepts an optional `pr_number` input to
 force-reconcile a single PR immediately, instead of waiting for the next

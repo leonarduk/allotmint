@@ -56,6 +56,10 @@ function renderWithI18n(ui: ReactElement) {
 
 describe("PensionForecast page", () => {
   beforeEach(() => {
+    // Displayed ages are calendar ages derived from the DOB, so pin "today"
+    // (only Date -- real timers keep userEvent/findBy* working).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 6));
     routeState = {
       mode: "owner",
       setMode: vi.fn(),
@@ -85,6 +89,7 @@ describe("PensionForecast page", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it("renders owner selector", async () => {
@@ -117,7 +122,41 @@ describe("PensionForecast page", () => {
     expect(selects[0]).toBeInTheDocument();
   });
 
-  it("rounds a fractional current age to a whole number", async () => {
+  it("shows calendar age from the DOB rather than rounding the fractional age", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
+    // 2013-03-11 -> 2026-10-06 is 13.57 years; Math.round showed 14.
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
+      current_age: 13.5715263518,
+      retirement_age: 68,
+      dob: "2013-03-11",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: null,
+      retirement_income_total_annual: null,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const btn = await screen.findByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+
+    await screen.findByText(/birth date: 2013-03-11/i);
+    expect(screen.getByText("Current age: 13")).toBeInTheDocument();
+    expect(screen.queryByText("Current age: 14")).not.toBeInTheDocument();
+    // The "Age now" field must agree with the "Current age" line.
+    expect(
+      document.querySelector('[aria-labelledby="age-now-label"]'),
+    ).toHaveTextContent(/^13$/);
+  });
+
+  it("shows a whole-number current age, never the raw fractional value", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alex", full_name: "Alex Example", accounts: [] },
     ]);

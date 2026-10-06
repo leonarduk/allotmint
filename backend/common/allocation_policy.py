@@ -18,10 +18,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
-from backend.common.data_loader import resolve_owner_dir
 from backend.common.instrument_classification import ASSET_CLASS_LABELS, ASSET_CLASSES, normalise_asset_class
+from backend.common.settings_file import SettingsUnreadableError, read_settings, settings_path
 from backend.common.sub_asset_class import SUB_ASSET_CLASS_PARENT
 from backend.logging_setup import sanitise_log_value
+
+__all__ = [
+    "AllocationPolicy",
+    "SettingsUnreadableError",
+    "load_allocation_policy",
+    "parse_policy",
+    "save_allocation_policy",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -106,28 +114,6 @@ def parse_policy(data: Mapping[str, Any]) -> AllocationPolicy:
     return AllocationPolicy(targets=targets, tolerance_pct=tolerance)
 
 
-def _settings_path(owner: str, accounts_root: Path | None) -> Path:
-    return resolve_owner_dir(owner, accounts_root) / "settings.json"
-
-
-class SettingsUnreadableError(RuntimeError):
-    """``settings.json`` exists but cannot be parsed as a JSON object."""
-
-
-def _read_settings(path: Path) -> dict[str, Any]:
-    """Return the settings object; raise :class:`SettingsUnreadableError` if corrupt."""
-
-    if not path.exists():
-        return {}
-    try:
-        data = json.loads(path.read_text())
-    except (OSError, ValueError) as exc:
-        raise SettingsUnreadableError(f"Unreadable settings file {path.name}: {exc}") from exc
-    if not isinstance(data, dict):
-        raise SettingsUnreadableError(f"Settings file {path.name} is not a JSON object")
-    return data
-
-
 def load_allocation_policy(owner: str, accounts_root: Path | None = None) -> AllocationPolicy:
     """Return the stored policy for ``owner`` (empty targets when unset).
 
@@ -137,7 +123,7 @@ def load_allocation_policy(owner: str, accounts_root: Path | None = None) -> All
     """
 
     try:
-        raw = _read_settings(_settings_path(owner, accounts_root)).get(POLICY_KEY)
+        raw = read_settings(settings_path(owner, accounts_root)).get(POLICY_KEY)
     except SettingsUnreadableError as exc:
         logger.warning(
             "Treating allocation policy as unset for %s: %s", sanitise_log_value(owner), sanitise_log_value(exc)
@@ -161,7 +147,7 @@ def save_allocation_policy(owner: str, policy: AllocationPolicy, accounts_root: 
     ``settings.json``, which would silently drop every other setting in it.
     """
 
-    path = _settings_path(owner, accounts_root)
-    data = _read_settings(path)
+    path = settings_path(owner, accounts_root)
+    data = read_settings(path)
     data[POLICY_KEY] = policy.to_dict()
     path.write_text(json.dumps(data, indent=2, sort_keys=True))

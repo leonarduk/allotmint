@@ -167,8 +167,10 @@ Always:
 3. Open a PR targeting `main`
 4. Wait for review/merge
 
-If implementing a GitHub issue, include an auto-closing reference in the PR
-body (for example: `Closes #1234`).
+Every PR body must reference a GitHub issue (for example: `Closes #1234`; `Refs #1234`
+for partial work). The `require-issue-reference` check
+(`.github/workflows/pr-lint.yml`) fails any PR without one. If no issue exists
+yet, file one from the issue templates **before** opening the PR, then link it.
 
 **Stage files explicitly**: never use `git commit -am` — this can sweep in
 lock file changes from `npm ci` or `npm install` that strip platform-specific

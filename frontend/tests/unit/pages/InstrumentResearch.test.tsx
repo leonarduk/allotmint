@@ -19,6 +19,12 @@ vi.mock("@/api", () => ({
   getTransactions: vi.fn(),
   getSeriesReferences: vi.fn(() => Promise.resolve({ can_delete: false })),
   deleteTimeseries: vi.fn(),
+  getConfig: vi.fn(),
+  getOwners: vi.fn(),
+  getPriceTriggers: vi.fn(),
+  createPriceTrigger: vi.fn(),
+  updatePriceTrigger: vi.fn(),
+  deletePriceTrigger: vi.fn(),
 }));
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -226,6 +232,15 @@ describe("InstrumentResearch page", () => {
     ];
     mockListInstrumentMetadata.mockResolvedValue(catalogue);
     mockUpdateInstrumentMetadata.mockResolvedValue({} as any);
+    // The alerts tab label fetches a count on every load, so the identity
+    // and trigger APIs need a resolved default even when a test never opens it.
+    vi.mocked(api.getConfig).mockReset().mockResolvedValue({
+      disable_auth: true,
+      local_login_email: null,
+      demo_identity: "demo",
+    } as any);
+    vi.mocked(api.getOwners).mockReset().mockResolvedValue([]);
+    vi.mocked(api.getPriceTriggers).mockReset().mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -1062,6 +1077,74 @@ describe("InstrumentResearch page", () => {
     expect(
       await screen.findByText("Unable to load the instrument catalogue. catalog fail"),
     ).toBeInTheDocument();
+  });
+
+  it("adds a price alert for the resolved TICKER.EXCHANGE from the alerts tab", async () => {
+    const aaaAlert = {
+      id: "t1",
+      ticker: "AAA.L",
+      condition: "below" as const,
+      price: 90,
+      mode: "once" as const,
+      enabled: true,
+      note: null,
+      created_at: "2026-01-01T00:00:00Z",
+      last_triggered_at: null,
+      last_triggered_price: null,
+      trigger_count: 0,
+    };
+    const rows = [aaaAlert, { ...aaaAlert, id: "t2", ticker: "BBB.N", price: 5 }];
+    vi.mocked(api.getPriceTriggers).mockImplementation(async () => [...rows]);
+    const mockCreate = vi.mocked(api.createPriceTrigger).mockImplementation(async () => {
+      const created = { ...aaaAlert, id: "t3", condition: "above" as const, price: 120 };
+      rows.push(created);
+      return created;
+    });
+
+    renderPage();
+    await screen.findByRole("heading", { level: 1, name: /AAA - Acme Corp/ });
+    // Only AAA.L's alert counts towards the tab label, before the tab is opened.
+    const tab = await screen.findByRole("button", { name: "Price alerts (1)" });
+    await userEvent.click(tab);
+
+    expect(await screen.findByText(/Falls to or below £90\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/£5\.00/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Ticker")).not.toBeInTheDocument();
+    expect(screen.getByText("Latest price: £101.00")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Price (£)"), "120");
+    await userEvent.click(screen.getByRole("button", { name: "Add trigger" }));
+
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith("demo", {
+        ticker: "AAA.L",
+        condition: "above",
+        price: 120,
+        mode: "once",
+        note: null,
+      }),
+    );
+    // The panel reloads after saving; the label follows without a page refresh.
+    expect(await screen.findByRole("button", { name: "Price alerts (2)" })).toBeInTheDocument();
+  });
+
+  it("refuses to create alerts on a bare ticker when the exchange is unknown", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([]);
+    mockUseInstrumentHistory.mockReturnValue({
+      data: { mini: { "30": [] }, positions: [], ticker: "AAA", prices: [] },
+      loading: false,
+      error: null,
+    } as any);
+
+    renderPage();
+    await waitFor(() => expect(mockListInstrumentMetadata).toHaveBeenCalled());
+    await userEvent.click(screen.getAllByRole("button", { name: "Price alerts" })[0]);
+
+    expect(
+      await screen.findByText(/Price alerts need the instrument's exchange/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add trigger" })).not.toBeInTheDocument();
+    expect(api.getPriceTriggers).not.toHaveBeenCalled();
   });
 
   it("skips news updates when unmounted", async () => {

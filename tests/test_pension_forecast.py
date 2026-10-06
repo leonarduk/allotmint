@@ -44,8 +44,10 @@ def test_forecast_post_retirement_life_expectancy():
         today=today,
     )
     forecast = res["forecast"]
-    assert forecast[0]["age"] == 73
-    assert len(forecast) == 17
+    # 2024-01-01 is the 74th birthday; days / 365.25 gave 73.9986, so this
+    # test previously pinned the off-by-one start age (#9546).
+    assert forecast[0]["age"] == 74
+    assert len(forecast) == 16
     assert all(r["income"] == 19000 for r in forecast)
 
 

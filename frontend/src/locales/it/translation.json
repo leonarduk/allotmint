@@ -54,8 +54,14 @@
       "edit": "Modifica",
       "empty": "Nessun trigger di prezzo.",
       "enabled": "Attivo",
+      "exchangeUnknown": "Gli avvisi di prezzo richiedono la borsa dello strumento (es. VOD.L), non ancora nota. Aprilo con il suffisso di borsa o impostala nel catalogo strumenti.",
+      "instrumentDescription": "Ricevi un avviso quando {{ticker}} supera un livello di prezzo. I livelli sono in GBP e vengono verificati a ogni aggiornamento dei prezzi.",
+      "instrumentEmpty": "Nessun avviso di prezzo per {{ticker}} per ora.",
+      "instrumentTitle": "Avvisi di prezzo",
       "lastFired": "Ultima attivazione",
+      "latestPrice": "Ultimo prezzo: £{{price}}",
       "loadError": "Impossibile caricare i trigger di prezzo.",
+      "manageAll": "Gestisci tutti gli avvisi",
       "mode": "Si attiva",
       "modeHelp": "Una volta: si attiva la prima volta e poi si disattiva. Continuo: si attiva ogni volta che il prezzo supera il livello e si riarma quando torna indietro.",
       "note": "Nota (facoltativa)",
@@ -381,10 +387,18 @@
   },
   "loadingPortfolio": "Caricamento del portafoglio ...",
   "market": {
+    "changePeriod": "Variazione su",
     "indexChange": "Variazione % degli indici",
     "indexLevels": "Livelli degli indici",
     "latestHeadlines": "Ultime notizie",
     "noSectors": "Nessun dato settoriale disponibile",
+    "period": {
+      "1D": "1 giorno",
+      "1W": "1 settimana",
+      "1M": "30 giorni",
+      "3M": "90 giorni",
+      "1Y": "1 anno"
+    },
     "sectorChange": "Variazione % dei settori",
     "sectorPerformance": "Rendimento dei settori"
   },

@@ -54,8 +54,14 @@
       "edit": "Bearbeiten",
       "empty": "Noch keine Preisauslöser.",
       "enabled": "Aktiv",
+      "exchangeUnknown": "Preisalarme benötigen die Börse des Instruments (z. B. VOD.L), die noch nicht bekannt ist. Öffnen Sie es mit Börsenkürzel oder hinterlegen Sie sie im Instrumentenkatalog.",
+      "instrumentDescription": "Erhalten Sie einen Alarm, wenn {{ticker}} ein Preisniveau überschreitet. Niveaus sind in GBP und werden bei jeder Preisaktualisierung geprüft.",
+      "instrumentEmpty": "Noch keine Preisalarme für {{ticker}}.",
+      "instrumentTitle": "Preisalarme",
       "lastFired": "Zuletzt ausgelöst",
+      "latestPrice": "Letzter Preis: £{{price}}",
       "loadError": "Preisauslöser konnten nicht geladen werden.",
+      "manageAll": "Alle Alarme verwalten",
       "mode": "Auslösung",
       "modeHelp": "Einmal: löst beim ersten Mal aus und schaltet sich dann ab. Fortlaufend: löst bei jedem Überschreiten der Marke aus und wird wieder scharf, sobald der Preis zurückgeht.",
       "note": "Notiz (optional)",
@@ -382,10 +388,18 @@
   },
   "loadingPortfolio": "Portfolio wird geladen…",
   "market": {
+    "changePeriod": "Veränderung über",
     "indexChange": "Indexveränderung in %",
     "indexLevels": "Indexstände",
     "latestHeadlines": "Neueste Schlagzeilen",
     "noSectors": "Keine Sektordaten verfügbar",
+    "period": {
+      "1D": "1 Tag",
+      "1W": "1 Woche",
+      "1M": "30 Tage",
+      "3M": "90 Tage",
+      "1Y": "1 Jahr"
+    },
     "sectorChange": "Sektorveränderung in %",
     "sectorPerformance": "Sektorentwicklung"
   },

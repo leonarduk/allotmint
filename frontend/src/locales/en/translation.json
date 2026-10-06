@@ -57,8 +57,14 @@
       "edit": "Edit",
       "empty": "No price triggers yet.",
       "enabled": "Enabled",
+      "exchangeUnknown": "Price alerts need the instrument's exchange (e.g. VOD.L), which isn't known yet. Open it with its exchange suffix or set it in the instrument catalogue.",
+      "instrumentDescription": "Get an alert when {{ticker}} crosses a price level. Levels are in GBP and checked each time prices refresh.",
+      "instrumentEmpty": "No price alerts for {{ticker}} yet.",
+      "instrumentTitle": "Price alerts",
       "lastFired": "Last fired",
+      "latestPrice": "Latest price: £{{price}}",
       "loadError": "Couldn't load price triggers.",
+      "manageAll": "Manage all alerts",
       "mode": "Fires",
       "modeHelp": "Once: fires the first time, then switches itself off. Continuous: fires each time the price crosses the level, and re-arms when it moves back.",
       "note": "Note (optional)",
@@ -579,10 +585,18 @@
   },
   "loadingPortfolio": "Loading portfolio…",
   "market": {
+    "changePeriod": "Change over",
     "indexChange": "Index % Change",
     "indexLevels": "Index Levels",
     "latestHeadlines": "Latest Headlines",
     "noSectors": "No sector data available",
+    "period": {
+      "1D": "1 day",
+      "1W": "1 week",
+      "1M": "30 days",
+      "3M": "90 days",
+      "1Y": "1 year"
+    },
     "sectorChange": "Sector % Change",
     "sectorPerformance": "Sector Performance"
   },

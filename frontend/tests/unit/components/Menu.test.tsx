@@ -6,10 +6,13 @@ import Menu from '@/components/Menu';
 import { configContext, type ConfigContextValue } from '@/ConfigContext';
 import { AuthContext } from '@/contexts/auth';
 
-// The gateway link carries a screen-reader-only "(opens in new tab)" hint,
-// which is part of its accessible name.
+// The Operations/App cross-links carry a screen-reader-only "(opens in a
+// separate tab)" hint, which is part of their accessible names.
+const separateTabHint = () =>
+  i18n.t('app.opensInSeparateTab', '(opens in a separate tab)');
 const operationsGatewayName = () =>
-  `${i18n.t('app.operationsLink', 'Operations')} ${i18n.t('app.opensInNewTab', '(opens in new tab)')}`;
+  `${i18n.t('app.operationsLink', 'Operations')} ${separateTabHint()}`;
+const backToAppName = () => `${i18n.t('app.userLink')} ${separateTabHint()}`;
 
 const configWithTransactions: ConfigContextValue = {
   relativeViewEnabled: false,
@@ -263,9 +266,10 @@ describe('Menu', () => {
     // priority 70) rather than always /support -- see the "renders when
     // Support itself is disabled" test below for why that matters.
     expect(gateway).toHaveAttribute('href', '/timeseries');
-    // Opens alongside the app rather than replacing it.
-    expect(gateway).toHaveAttribute('target', '_blank');
-    expect(gateway).toHaveAttribute('rel', 'noopener noreferrer');
+    // Opens in (or switches to) the named operations tab alongside the app.
+    // No rel="noopener": named-tab lookup needs the opener link.
+    expect(gateway).toHaveAttribute('target', 'allotmint-operations');
+    expect(gateway).not.toHaveAttribute('rel');
   });
 
   it('closes the open menus when the operations gateway is clicked (#9575)', () => {
@@ -378,7 +382,7 @@ describe('Menu', () => {
     });
     fireEvent.click(preferencesToggle);
     expect(
-      screen.getByRole('menuitem', { name: i18n.t('app.userLink') })
+      screen.getByRole('menuitem', { name: backToAppName() })
     ).toBeInTheDocument();
   });
 
@@ -429,9 +433,11 @@ describe('Menu', () => {
     });
     fireEvent.click(preferencesToggle);
     const backLink = screen.getByRole('menuitem', {
-      name: i18n.t('app.userLink'),
+      name: backToAppName(),
     });
     expect(backLink).toHaveAttribute('href', '/?group=all');
+    // Switches to the named app tab, opening it only if it isn't open.
+    expect(backLink).toHaveAttribute('target', 'allotmint-app');
     // The forward gateway link doesn't also show up while already inside
     // the operations menu -- that would be a redundant self-link.
     expect(
@@ -439,6 +445,45 @@ describe('Menu', () => {
         name: operationsGatewayName(),
       })
     ).not.toBeInTheDocument();
+  });
+
+  it('closes the open menu when the back-to-app link is clicked (#9575)', () => {
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter initialEntries={['/dataadmin']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    fireEvent.click(screen.getByRole('menuitem', { name: backToAppName() }));
+    expect(preferencesToggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('names the browser tab after the surface it shows (#9575)', () => {
+    // The Operations/App links target these names, so each tab must carry
+    // the name of the surface it currently shows.
+    const { unmount } = render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter initialEntries={['/dataadmin']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    expect(window.name).toBe('allotmint-operations');
+    unmount();
+
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter initialEntries={['/']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    expect(window.name).toBe('allotmint-app');
   });
 
   it('renders logout button when callback provided', async () => {

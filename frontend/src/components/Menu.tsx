@@ -17,6 +17,7 @@ import {
   getMenuEntries,
   MENU_CATEGORY_ORDER,
 } from '../pageManifest';
+import { APP_TAB_NAME, OPERATIONS_TAB_NAME } from '../tabNames';
 
 interface MenuProps {
   selectedOwner?: string;
@@ -128,6 +129,19 @@ export default function Menu({
     setMobileMenuOpen(false);
     setOpenCategory(null);
   }, [location.pathname]);
+
+  // Name this tab after the surface it shows so the cross-links below can
+  // target it (#9575).
+  useEffect(() => {
+    window.name = isSupportMode ? OPERATIONS_TAB_NAME : APP_TAB_NAME;
+  }, [isSupportMode]);
+
+  // The cross-links open in the other named tab, so this tab's route never
+  // changes and the close-on-navigate effect above never fires.
+  const closeMenus = () => {
+    setOpenCategory(null);
+    setMobileMenuOpen(false);
+  };
 
   // Close mobile menu when clicking outside or pressing Escape
   useEffect(() => {
@@ -306,10 +320,9 @@ export default function Menu({
                       // always /support, so it never lands on a disabled
                       // route (<DisabledFeature />) when Support itself is
                       // turned off but a sibling like Data Admin isn't.
-                      // Opens in a new tab so the operations console sits
-                      // alongside the app instead of replacing it; the
-                      // route change never happens here, so close the menus
-                      // explicitly.
+                      // Opens in the named operations tab (reusing it if
+                      // already open) so the console sits alongside the app
+                      // instead of replacing it (#9575).
                       <li key="operations-gateway">
                         <Link
                           ref={assignFirstFocusable}
@@ -317,18 +330,14 @@ export default function Menu({
                           to={buildPathForMode(
                             firstOperationsEntry?.mode ?? 'support'
                           )}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => {
-                            setOpenCategory(null);
-                            setMobileMenuOpen(false);
-                          }}
+                          target={OPERATIONS_TAB_NAME}
+                          onClick={closeMenus}
                           className="block min-h-11 w-full rounded px-3 py-2 text-sm text-[var(--menu-text)]! transition-colors duration-150 hover:bg-[var(--menu-hover-bg)] hover:text-[var(--menu-text-active)]! focus:outline-none focus-visible:ring"
                         >
                           {t('app.operationsLink', 'Operations')}
                           <span aria-hidden="true"> ↗</span>{' '}
                           <span className="sr-only">
-                            {t('app.opensInNewTab', '(opens in new tab)')}
+                            {t('app.opensInSeparateTab', '(opens in a separate tab)')}
                           </span>
                         </Link>
                       </li>
@@ -337,15 +346,23 @@ export default function Menu({
                     // The way back to the main app from any operations page
                     // -- without it, the operations menu (which replaces the
                     // dashboard/insights/goals categories while here) would
-                    // strand the user with no nav path home (#7226).
+                    // strand the user with no nav path home (#7226). Targets
+                    // the named app tab, so it switches back to the app if
+                    // it's open and opens it if not (#9575).
                     <li key="back-to-app">
                       <Link
                         ref={assignFirstFocusable}
                         role="menuitem"
                         to={buildPathForMode('group', { group: selectedGroup })}
+                        target={APP_TAB_NAME}
+                        onClick={closeMenus}
                         className="block min-h-11 w-full rounded px-3 py-2 text-sm text-[var(--menu-text)]! transition-colors duration-150 hover:bg-[var(--menu-hover-bg)] hover:text-[var(--menu-text-active)]! focus:outline-none focus-visible:ring"
                       >
                         {t('app.userLink')}
+                        <span aria-hidden="true"> ↗</span>{' '}
+                        <span className="sr-only">
+                          {t('app.opensInSeparateTab', '(opens in a separate tab)')}
+                        </span>
                       </Link>
                     </li>
                   )}

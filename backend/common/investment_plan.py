@@ -350,6 +350,33 @@ def rebalance_weights(plan: InvestmentPlan) -> dict[str, float]:
     return policy_targets(weights)
 
 
+#: Rebalance policy key -> plan class, where the names differ. Policy keys with
+#: no plan class (a whole ``bond`` target, ``property``, ``multi_asset``) can't
+#: be written to the plan.
+_POLICY_TO_PLAN_CLASS: dict[str, str] = {
+    "broad_equity": "equity",
+    "commodity": "commodities",
+}
+
+
+def plan_weights_from_rebalance(targets: dict[str, float]) -> Optional[dict[str, float]]:
+    """The rebalance targets in the plan's vocabulary, or ``None`` if a key has no plan class.
+
+    The reverse of :func:`rebalance_weights`, so applying a strategy can be
+    carried into the plan (``broad_equity`` becomes ``equity``, a whole ``commodity``
+    target becomes ``commodities``).
+    """
+    weights: dict[str, float] = {}
+    for key, pct in targets.items():
+        plan_class = _POLICY_TO_PLAN_CLASS.get(key, key)
+        if plan_class not in PLAN_CLASS_PARENT:
+            return None
+        weights[plan_class] = round(weights.get(plan_class, 0.0) + pct, 6)
+    if not weights or abs(sum(weights.values()) - 100.0) > TARGET_SUM_TOLERANCE_PCT:
+        return None
+    return weights
+
+
 #: The whole of allocation_policy._check_levels' message, so a longer error that merely mentions it isn't swallowed.
 _LEVEL_CLASH_RE = re.compile(r"Set [\w -]+ either as a whole or by sub-class, not both")
 
@@ -385,4 +412,6 @@ def compare_with_rebalance_targets(plan: InvestmentPlan, policy: AllocationPolic
         "plan_targets": comparable,
         "matches": _same_weights(comparable, policy.targets),
         "copy_supported": copy_supported,
+        # The rebalance targets as plan classes, for updating the plan to match; None when they don't map.
+        "rebalance_as_plan": plan_weights_from_rebalance(dict(policy.targets)),
     }

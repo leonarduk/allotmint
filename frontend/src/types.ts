@@ -1270,6 +1270,8 @@ export interface InvestmentPlanResponse {
     matches: boolean;
     /** True when the rebalance policy accepts the plan's class keys verbatim. */
     copy_supported: boolean;
+    /** The rebalance targets as plan classes, or null when a target has no plan class. */
+    rebalance_as_plan?: Record<string, number> | null;
   };
   /** The strategy whose targets equal the plan's, if any (#9653). */
   strategy?: { id: string; name: string; builtin: boolean } | null;

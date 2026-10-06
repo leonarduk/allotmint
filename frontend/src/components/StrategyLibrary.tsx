@@ -358,6 +358,7 @@ export default function StrategyLibrary({
   current,
   hasTargets,
   onChanged,
+  onApplied,
 }: {
   owner: string;
   data: StrategyList;
@@ -365,6 +366,8 @@ export default function StrategyLibrary({
   hasTargets: boolean;
   /** Reload strategies and the plan after anything changes. */
   onChanged: () => Promise<void>;
+  /** Called after a strategy is applied and the page has reloaded. */
+  onApplied?: (strategy: Strategy) => void;
 }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState<Editing>(null);
@@ -372,7 +375,7 @@ export default function StrategyLibrary({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  async function run(action: () => Promise<string | void>) {
+  async function run(action: () => Promise<string | void>, after?: () => void) {
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -380,6 +383,7 @@ export default function StrategyLibrary({
       const message = await action();
       await onChanged();
       if (message) setNotice(message);
+      after?.();
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -397,10 +401,13 @@ export default function StrategyLibrary({
         !window.confirm(t('strategyLibrary.confirmReplace', { name: s.name }))
       )
         return;
-      void run(async () => {
-        await applyStrategy(owner, s.id);
-        return t('strategyLibrary.applied', { name: s.name });
-      });
+      void run(
+        async () => {
+          await applyStrategy(owner, s.id);
+          return t('strategyLibrary.applied', { name: s.name });
+        },
+        () => onApplied?.(s)
+      );
     },
     duplicate: (s) =>
       void run(async () => {

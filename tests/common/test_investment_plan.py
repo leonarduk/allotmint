@@ -16,6 +16,7 @@ from backend.common.investment_plan import (
     compare_with_rebalance_targets,
     load_plan,
     parse_plan,
+    plan_weights_from_rebalance,
     rebalance_weights,
     save_plan,
     vehicle_warnings,
@@ -349,3 +350,38 @@ def test_profile_horizon_index_skips_undated_goals():
     plan = parse_plan(plan_data(profile={"goals": goals}), "alex")
     horizon = plan_mod.profile_horizon(plan, None, today=date(2026, 10, 6))
     assert [(g["index"], g["name"]) for g in horizon["goals"]] == [(0, "a"), (2, "c")]
+
+
+def test_plan_weights_from_rebalance_maps_strategy_keys_to_plan_classes():
+    # All Weather as the Strategy page applies it.
+    targets = {"equity": 30, "long_gilts": 40, "intermediate_gilts": 15, "gold": 7.5, "commodities": 7.5}
+    assert plan_weights_from_rebalance(targets) == {
+        "equity": 30,
+        "long_gilts": 40,
+        "intermediate_gilts": 15,
+        "gold": 7.5,
+        "commodities": 7.5,
+    }
+    assert plan_weights_from_rebalance({"equity": 70, "commodity": 30}) == {"equity": 70, "commodities": 30}
+    assert plan_weights_from_rebalance({"broad_equity": 20, "small_cap_value": 80}) == {
+        "equity": 20,
+        "small_cap_value": 80,
+    }
+
+
+@pytest.mark.parametrize(
+    "targets",
+    [{"equity": 60, "bond": 40}, {"equity": 90, "property": 10}, {}, {"equity": 50}],
+)
+def test_plan_weights_from_rebalance_none_when_unmappable(targets):
+    assert plan_weights_from_rebalance(targets) is None
+
+
+def test_compare_offers_rebalance_targets_as_plan_target():
+    plan = parse_plan(plan_data(), "alex")
+    result = compare_with_rebalance_targets(plan, AllocationPolicy({"equity": 80, "intermediate_gilts": 20}))
+    assert result["matches"] is False
+    assert result["rebalance_as_plan"] == {"equity": 80, "intermediate_gilts": 20}
+    # The mapped target is a valid plan target.
+    rows = [{"class": k, "weight_pct": v} for k, v in result["rebalance_as_plan"].items()]
+    assert parse_plan(plan_data(target=rows), "alex").target_weights() == result["rebalance_as_plan"]

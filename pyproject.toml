@@ -24,9 +24,10 @@ test = [
 # anomaly repair. The SSH URL intentionally requires a GitHub SSH key with
 # read access; see docs/CONTRIBUTOR_RUNBOOK.md#installing-the-private-pro-extra.
 # Without this extra installed, the corresponding routes return 402 (see
-# backend/common/core_optional.py).
+# backend/common/core_optional.py). Pinned to an allotmint-pro release tag;
+# bump it after cutting a new one (allotmint-pro's Release workflow).
 pro = [
-    "allotmint-pro @ git+ssh://git@github.com/leonarduk/allotmint-pro.git",
+    "allotmint-pro @ git+ssh://git@github.com/leonarduk/allotmint-pro.git@v0.9.0",
 ]
 
 [tool.setuptools]

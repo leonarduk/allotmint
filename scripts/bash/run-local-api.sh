@@ -77,8 +77,21 @@ if [[ -n "$MCP_SERVER_PID" ]]; then
   trap 'kill "$MCP_SERVER_PID" 2>/dev/null || true' EXIT
 fi
 
+# The backend imports allotmint-pro from the same checkout as the MCP server,
+# so pro-only features (screener, risk, the strategy stress test's
+# long-history proxies) work locally; BACKEND_USE_PRO=0 runs it free-only.
+BACKEND_PRO_DIR=""
+if BACKEND_PRO_DIR=$(backend_pro_dir "$REPO_ROOT"); then
+  export PYTHONPATH="$REPO_ROOT:$BACKEND_PRO_DIR${PYTHONPATH:+:$PYTHONPATH}"
+  echo "Backend imports allotmint-pro from $BACKEND_PRO_DIR (BACKEND_USE_PRO=0 to run free-only)" >&2
+else
+  BACKEND_PRO_DIR=""
+fi
+
 CMD=(uvicorn backend.local_api.main:app --reload-dir backend --port "$UVICORN_PORT" --host "$UVICORN_HOST" --log-config "$LOG_CONFIG")
 if [[ "$RELOAD" == "true" ]]; then
   CMD+=(--reload)
+  # Reload on pro changes too, not only backend/.
+  [[ -n "$BACKEND_PRO_DIR" ]] && CMD+=(--reload-dir "$BACKEND_PRO_DIR/allotmint_pro")
 fi
 "${CMD[@]}"

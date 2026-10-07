@@ -32,6 +32,15 @@ mcp_pro_dir() {
   echo "$pro_dir"
 }
 
+# Prints the allotmint-pro checkout the backend itself should import for repo
+# root $1 (the one the MCP server uses), so pro-only backend features work
+# locally (e.g. the strategy stress test's long-history proxies, #9879).
+# Returns 1 when BACKEND_USE_PRO=0 or there is no checkout.
+backend_pro_dir() {
+  [[ "${BACKEND_USE_PRO:-1}" != "0" ]] || return 1
+  mcp_pro_dir "$1"
+}
+
 # Runs the MCP server in the foreground on 127.0.0.1:$3, importing `backend`
 # from repo root $1 and `allotmint_pro` from checkout $2. Shared by
 # start_local_mcp_server (which backgrounds it) and run-mcp-server.sh.

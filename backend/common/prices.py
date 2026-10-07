@@ -443,23 +443,33 @@ def _refresh_reference_data(tickers: List[str]) -> None:
         logger.warning("Bank of England rates refresh failed: %s", sanitise_log_value(exc))
 
 
-def _unpriced_reasons(tickers: List[str], snapshot: Dict) -> Dict[str, str]:
+def _unpriced_reason(entry: Optional[Dict]) -> Optional[str]:
+    """Why a snapshot entry can't be persisted, or ``None`` when it can."""
+    if entry is None:
+        return "missing from snapshot"
+    price = entry.get("last_price")
+    if price is None or pd.isna(price):
+        return "no price returned"
+    if price <= 0:
+        return f"non-positive price {price}"
+    return None
+
+
+def _unpriced_reasons(tickers: List[str], snapshot: Dict, previous: Dict) -> Dict[str, str]:
     """Return ``{ticker: reason}`` for every ticker the refresh could not price (#8595).
 
     These tickers keep their previous cached price, which goes stale; naming
-    them lets the refresh job's logs say which series failed and why.
+    them, with the age of the price they keep (from ``previous``, the snapshot
+    on disk), lets the refresh job's logs say which series failed and why.
     """
     reasons: Dict[str, str] = {}
     for t in tickers:
-        entry = snapshot.get(t)
-        if entry is None:
-            reasons[t] = "missing from snapshot"
+        reason = _unpriced_reason(snapshot.get(t))
+        if reason is None:
             continue
-        price = entry.get("last_price")
-        if price is None or pd.isna(price):
-            reasons[t] = "no price returned"
-        elif price <= 0:
-            reasons[t] = f"non-positive price {price}"
+        kept = previous.get(t)
+        kept_date = kept.get("last_price_date") if isinstance(kept, dict) else None
+        reasons[t] = f"{reason}; keeping price from {kept_date}" if kept_date else f"{reason}; no previous price"
     return reasons
 
 
@@ -500,19 +510,21 @@ def refresh_prices() -> Dict:
         for t, v in snapshot.items()
         if v.get("last_price") is not None and pd.notna(v.get("last_price")) and v.get("last_price") > 0
     }
-    unpriced = _unpriced_reasons(tickers, snapshot)
-    if unpriced:
-        logger.warning(
-            "Price refresh could not price %s tickers (keeping previous prices): %s",
-            sanitise_log_value(f"{len(unpriced)} of {len(tickers)}"),
-            sanitise_log_value(dict(sorted(unpriced.items()))),
-        )
     existing: Dict = {}
     if path.exists():
         try:
             existing = json.loads(path.read_text())
         except (json.JSONDecodeError, OSError):
             pass
+
+    # Reported in the log and the return value only; never written to prices.json.
+    unpriced = _unpriced_reasons(tickers, snapshot, existing)
+    if unpriced:
+        logger.warning(
+            "Price refresh could not price %s tickers (keeping previous prices): %s",
+            sanitise_log_value(f"{len(unpriced)} of {len(tickers)}"),
+            sanitise_log_value(dict(sorted(unpriced.items()))),
+        )
 
     if to_persist:
         merged = {**existing, **to_persist}

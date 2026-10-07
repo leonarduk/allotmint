@@ -800,19 +800,44 @@ def test_refresh_prices_reports_unpriced_tickers(
     monkeypatch.setattr(prices, "get_price_snapshot", lambda _: snapshot)
     monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
     monkeypatch.setattr(prices, "check_price_alerts", Mock())
-    monkeypatch.setattr(prices.config, "prices_json", tmp_path / "prices.json")
+    prices_json = tmp_path / "prices.json"
+    prices_json.write_text(json.dumps({"BBB.L": {"last_price": 9.0, "last_price_date": "2026-09-01"}}))
+    monkeypatch.setattr(prices.config, "prices_json", prices_json)
     monkeypatch.setattr(prices, "_price_cache", {})
 
     with caplog.at_level(logging.WARNING, logger=prices.logger.name):
         result = prices.refresh_prices()
 
     assert result["unpriced"] == {
-        "BBB.L": "no price returned",
-        "CCC.L": "non-positive price 0.0",
-        "DDD.L": "missing from snapshot",
+        "BBB.L": "no price returned; keeping price from 2026-09-01",
+        "CCC.L": "non-positive price 0.0; no previous price",
+        "DDD.L": "missing from snapshot; no previous price",
     }
     assert "could not price 3 of 4 tickers" in caplog.text
     assert "BBB.L" in caplog.text and "AAA.L" not in caplog.text
+    # The report is log/return-value only: prices.json keeps its ticker -> entry shape.
+    persisted = json.loads(prices_json.read_text())
+    assert set(persisted) == {"AAA.L", "BBB.L"}
+    assert persisted["BBB.L"]["last_price"] == 9.0
+
+
+def test_refresh_prices_reports_no_unpriced_when_all_priced(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Every ticker priced: ``unpriced`` is an empty dict and nothing is logged (#8595)."""
+    snapshot = {"AAA.L": {"last_price": 11.5}, "BBB.L": {"last_price": 2.0}}
+    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: ["AAA.L", "BBB.L"])
+    monkeypatch.setattr(prices, "get_price_snapshot", lambda _: snapshot)
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
+    monkeypatch.setattr(prices, "check_price_alerts", Mock())
+    monkeypatch.setattr(prices.config, "prices_json", tmp_path / "prices.json")
+    monkeypatch.setattr(prices, "_price_cache", {})
+
+    with caplog.at_level(logging.WARNING, logger=prices.logger.name):
+        result = prices.refresh_prices()
+
+    assert result["unpriced"] == {}
+    assert "could not price" not in caplog.text
 
 
 def test_refresh_prices_filters_nan_zero_and_negative_prices(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:

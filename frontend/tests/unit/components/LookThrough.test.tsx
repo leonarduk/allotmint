@@ -82,13 +82,18 @@ describe("InstrumentAllocationPanel (#9974)", () => {
 
   it("labels hand-entered data and links its source document", async () => {
     mockGetAllocation.mockResolvedValueOnce(
-      allocation({ source: "manual", source_url: "https://example.com/factsheet.pdf" }),
+      allocation({
+        source: "manual",
+        source_url: "https://example.com/factsheet.pdf",
+        note: "Derived from valuations.",
+      }),
     );
 
     render(<InstrumentAllocationPanel ticker="SERE.L" />);
 
     const link = await screen.findByRole("link", { name: "Manual (fund reports)" });
     expect(link).toHaveAttribute("href", "https://example.com/factsheet.pdf");
+    expect(screen.getByTestId("instrument-allocation-note")).toHaveTextContent("Derived from valuations.");
   });
 
   it("refreshes a fund and shows the new data", async () => {

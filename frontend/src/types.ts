@@ -251,6 +251,8 @@ export type InstrumentAllocation = {
   as_of: string | null;
   /** Date the data was last fetched from the source. */
   fetched: string | null;
+  /** Caveat recorded with hand-entered data (how it was derived). */
+  note?: string | null;
   holdings_count: number | null;
   asset_mix: Record<string, number> | null;
   countries: { label: string; weight_pct: number }[];

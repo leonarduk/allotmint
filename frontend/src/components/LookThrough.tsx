@@ -393,6 +393,14 @@ export function InstrumentAllocationPanel({ ticker }: { ticker: string }) {
   return (
     <div>
       <AllocationSummary data={data} />
+      {data.note && (
+        <p
+          className={surfaceStyles.surfaceMuted}
+          data-testid="instrument-allocation-note"
+        >
+          {data.note}
+        </p>
+      )}
       {(data.kind === 'fund' || data.kind === 'fund_uncovered') && (
         <SourceAndRefresh
           data={data}

@@ -154,7 +154,15 @@ def _add_fund(exp: _Exposure, row: Dict[str, Any], value: float, block: Dict[str
         exp.add_country(label, value * share)
     for label, share in _weights(block, "sectors").items():
         exp.add_sector(label, value * share)
-    _add_fund_holdings(exp, ticker, value, block)
+    if block.get("top_holdings"):
+        _add_fund_holdings(exp, ticker, value, block)
+    else:
+        # A hand-entered block (country/sector only) lists no holdings: the
+        # fund itself stays one line rather than vanishing into "Other".
+        isin = _clean_isin((get_instrument_meta(ticker) or {}).get("isin"))
+        held = exp.holding(isin or ticker, str(row.get("name") or ticker), isin, "fund")
+        held.direct_value_gbp += value
+        held.sources[ticker] = held.sources.get(ticker, 0.0) + value
     exp.funds.append(
         {
             "ticker": ticker,
@@ -278,6 +286,7 @@ def _fund_allocation(base: Dict[str, Any], block: Dict[str, Any], isin: Any) -> 
         "source_url": block.get("source_url") or source_page_url(block.get("source"), isin),
         "as_of": block.get("as_of"),
         "fetched": block.get("fetched"),
+        "note": block.get("note"),
         "holdings_count": block.get("holdings_count"),
         "asset_mix": block.get("asset_mix"),
         "countries": _pct_rows(_weights(block, "countries")),
@@ -303,6 +312,7 @@ def instrument_allocation(ticker: str) -> Dict[str, Any]:
         "source_url": None,
         "as_of": None,
         "fetched": None,
+        "note": None,
         "holdings_count": None,
     }
     if is_cash_instrument(ticker, meta.get("instrumentType")):

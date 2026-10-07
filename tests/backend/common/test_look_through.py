@@ -192,3 +192,16 @@ def test_manual_block_keeps_its_own_document_url(monkeypatch):
     assert result["kind"] == "fund"
     assert result["source_url"] == "https://example.com/factsheet.pdf"
     assert result["countries"] == [{"label": "Europe", "weight_pct": 100.0}]
+
+
+def test_manual_block_without_holdings_keeps_the_fund_as_one_line(monkeypatch):
+    block = {"source": "manual", "countries": {"United Kingdom": 100.0}, "sectors": {"Utilities": 100.0}}
+    meta = {"UKW.L": {"name": "Greencoat UK Wind", "isin": "GB00B8SC6K54", "look_through": block}}
+    monkeypatch.setattr(look_through, "get_instrument_meta", lambda t: meta.get(t, {}))
+    monkeypatch.setattr(look_through, "aggregate_by_ticker", lambda _p: _rows(("UKW.L", 500.0, "Utilities", "UK")))
+
+    result = look_through.compute_look_through({"accounts": []})
+
+    assert [(h["key"], h["kind"], h["value_gbp"]) for h in result["holdings"]] == [("GB00B8SC6K54", "fund", 500.0)]
+    assert _by_label(result["countries"]) == {"United Kingdom": 500.0}
+    assert result["coverage"]["not_covered"] == []

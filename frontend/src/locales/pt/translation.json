@@ -3252,6 +3252,26 @@
     "noPlan": "Ainda não há um plano de investimento guardado para {{owner}}.",
     "createPlan": "Criar plano"
   },
+  "classify": {
+    "title": "Classificar posições",
+    "intro": "Estas posições não têm classe de ativos, por isso a página Estratégia não as conta para as suas metas. Escolha uma classe para cada uma; é guardada nos metadados do instrumento.",
+    "back": "Voltar à Estratégia",
+    "noOwner": "Escolha primeiro um titular na página Estratégia.",
+    "empty": "Todas as posições têm classe de ativos — nada a classificar.",
+    "loadError": "Não foi possível carregar as posições de {{owner}}: {{error}}",
+    "saveError": "Não foi possível guardar: {{error}}",
+    "saved": "{{ticker}} guardado como {{assetClass}}.",
+    "choose": "Escolher…",
+    "selectLabel": "Classe de ativos de {{ticker}}",
+    "save": "Guardar",
+    "saving": "A guardar…",
+    "noExchange": "Este ticker não tem sufixo de bolsa; defina a classe de ativos na administração de instrumentos.",
+    "col": {
+      "holding": "Posição",
+      "value": "Valor",
+      "assetClass": "Classe de ativos"
+    }
+  },
   "strategy": {
     "title": "Estratégia",
     "intro": "Escolha uma alocação-alvo (uma estratégia integrada, uma sua ou metas personalizadas), compare as suas posições com ela e veja que operações de reequilíbrio, ou que contribuição, a trariam de volta à sua banda de tolerância.",
@@ -3287,6 +3307,7 @@
       "underweight": "Subponderado",
       "unclassified": "Não classificado",
       "needsAssetClass": "Requer uma classe de ativos",
+      "classifyLink": "Atribuir classes de ativos a estas posições",
       "totalLine": "Total {{total}} · tolerância ±{{tolerance}} pp",
       "sleeveTitle": "Desvio — bloco {{sleeve}}"
     },

@@ -3245,6 +3245,26 @@
     "noPlan": "No investment plan saved for {{owner}} yet.",
     "createPlan": "Create plan"
   },
+  "classify": {
+    "title": "Classify holdings",
+    "intro": "These holdings have no asset class, so the Strategy page cannot count them towards your targets. Pick a class for each; it is saved to the instrument's metadata.",
+    "back": "Back to Strategy",
+    "noOwner": "Choose an owner on the Strategy page first.",
+    "empty": "Every holding has an asset class — nothing to classify.",
+    "loadError": "Could not load holdings for {{owner}}: {{error}}",
+    "saveError": "Could not save: {{error}}",
+    "saved": "Saved {{ticker}} as {{assetClass}}.",
+    "choose": "Choose…",
+    "selectLabel": "Asset class for {{ticker}}",
+    "save": "Save",
+    "saving": "Saving…",
+    "noExchange": "No exchange suffix on this ticker; set its asset class in Instrument admin.",
+    "col": {
+      "holding": "Holding",
+      "value": "Value",
+      "assetClass": "Asset class"
+    }
+  },
   "strategy": {
     "title": "Strategy",
     "intro": "Choose a target allocation — a built-in strategy, one of your own, or custom targets — then compare your holdings against it and see which rebalancing trades, or which contribution, would bring it back within your tolerance band.",
@@ -3280,6 +3300,7 @@
       "underweight": "Underweight",
       "unclassified": "Unclassified",
       "needsAssetClass": "Needs an asset class",
+      "classifyLink": "Assign asset classes to these holdings",
       "totalLine": "Total {{total}} · tolerance ±{{tolerance}} pp",
       "sleeveTitle": "Drift — {{sleeve}} sleeve"
     },

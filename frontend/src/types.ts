@@ -1322,6 +1322,15 @@ export interface RebalanceSubClassRow {
   current_pct: number;
 }
 
+/** A holding with no asset class; symbol/exchange address its metadata. */
+export interface UnclassifiedHolding {
+  ticker: string;
+  symbol: string;
+  exchange: string | null;
+  name: string | null;
+  value: number;
+}
+
 export interface RebalancePlan {
   policy: AllocationPolicy;
   total_value: number;
@@ -1329,6 +1338,8 @@ export interface RebalancePlan {
   sub_classes?: RebalanceSubClassRow[];
   unclassified_value: number;
   unclassified_pct: number;
+  /** Holdings in the unclassified bucket, largest first (#9495). */
+  unclassified_holdings?: UnclassifiedHolding[];
   unpriced_tickers: string[];
   accounts: RebalanceAccount[];
   trades: RebalanceTrade[];

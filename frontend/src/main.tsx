@@ -554,7 +554,17 @@ export function Root({
                   ]
             )}
             <Route path={CHAT_WINDOW_PATH} element={<DetachedChat />} />
-            <Route path="/goals" element={<Goals />} />
+            {/* /goals mounts outside App.tsx, so it needs the header added
+                explicitly like the standalone routes above (#7813). */}
+            <Route
+              path="/goals"
+              element={
+                <>
+                  <AppHeader />
+                  <Goals />
+                </>
+              }
+            />
             <Route path="/smoke-test" element={<SmokeTest />} />
             {advancedAnalyticsEnabled ? (
               <>

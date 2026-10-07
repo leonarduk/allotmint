@@ -900,7 +900,12 @@ _IMPORT_FX_LOOKBACK_DAYS = 5
 
 
 class ImportPriceCurrencyError(ValueError):
-    """An imported row's native-currency price cannot be converted to GBP."""
+    """An imported row's price cannot be resolved to a single GBP value.
+
+    Raised when a native-currency price has no usable trade-date FX rate, or
+    when ``price`` and ``price_gbp`` disagree (#9701). Import callers route it
+    to the per-row ``skipped`` list rather than failing the whole batch.
+    """
 
 
 def _float_or_none(value: Any) -> float | None:
@@ -945,7 +950,7 @@ def _coalesce_price_gbp(tx_data: Dict[str, Any]) -> None:
     price = tx_data.get("price")
     price_gbp = tx_data.get("price_gbp")
     if price is not None and price_gbp is not None and Decimal(str(price)) != Decimal(str(price_gbp)):
-        raise ValueError(f"Conflicting values for price ({price}) and price_gbp ({price_gbp})")
+        raise ImportPriceCurrencyError(f"Conflicting values for price ({price}) and price_gbp ({price_gbp})")
     norm = CurrencyNormaliser.from_raw(tx_data.get("currency"))
     if price is None or price_gbp is not None or norm.is_pence or norm.canonical == "GBP":
         if price_gbp is None:
@@ -967,8 +972,9 @@ def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
     as ``None``, which ``rebuild_account_holdings`` already treats as "no
     security impact" (#4965).
 
-    Raises :class:`ImportPriceCurrencyError` when a non-GBP price has no
-    stored trade-date FX rate.
+    Raises :class:`ImportPriceCurrencyError` when ``price`` and
+    ``price_gbp`` conflict, or a non-GBP price has no stored trade-date FX
+    rate.
     """
 
     tx_data = row.model_dump(mode="json", exclude={"owner", "account", "id"})

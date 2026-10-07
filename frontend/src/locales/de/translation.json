@@ -1250,7 +1250,9 @@
     "watchlist": "Beobachtungsliste:",
     "windowNote": "Die Spalten % und Wertänderung zeigen die Bewegung im gewählten Zeitraum. Jedes Signal verwendet sein eigenes Zeitfenster — wählen Sie ein Kauf- oder Verkaufssignal aus, um Grund und Konfidenz zu sehen.",
     "signalInfoLabel": "Was bedeutet die Spalte „Signal“?",
-    "signalInfo": "Zeigt, ob das jüngste Signal für dieses Instrument – mit denselben Strategieschwellen wie auf der Handelsseite – ein Kauf- oder Verkaufskandidat war."
+    "signalInfo": "Zeigt, ob das jüngste Signal für dieses Instrument – mit denselben Strategieschwellen wie auf der Handelsseite – ein Kauf- oder Verkaufskandidat war.",
+    "signalsTableTitle": "Signaldetails",
+    "signalsTableNote": "Jedes Signal wird über sein eigenes Zeitfenster gemessen (in der Spalte „Warum“ genannt), das von der oben angezeigten {{period}}-Kursänderung abweichen kann."
   },
   "owner": {
     "label": "Besitzer",
@@ -1850,7 +1852,8 @@
       "label": "{{label}} ({{percent}}%)",
       "moderate": "Mittel",
       "strong": "Stark",
-      "weak": "Schwach"
+      "weak": "Schwach",
+      "saturated": "Stark (deutlich über dem Schwellenwert)"
     },
     "thresholdDays": "{{value}} Tage",
     "thresholds": {
@@ -1879,7 +1882,8 @@
       "sharpeInfoLabel": "Was bedeutet Sharpe-Ratio?",
       "volatilityInfo": "Volatilität ist hier die tägliche (nicht annualisierte) Standardabweichung der Renditen – wie stark der Kurs von einem Tag zum nächsten geschwankt hat.",
       "volatilityInfoLabel": "Was bedeutet Volatilität?"
-    }
+    },
+    "complianceSkippedBadge": "Compliance nicht geprüft"
   },
   "trail": {
     "allDone": "Alle Trail-Aufgaben erledigt – großartig!",

@@ -1250,7 +1250,9 @@
     "watchlist": "Watchlist:",
     "windowNote": "Le colonne % e valore mostrano il movimento nel periodo selezionato. Ogni segnale usa la propria finestra temporale — seleziona un segnale di acquisto o vendita per vedere il motivo e la confidenza.",
     "signalInfoLabel": "Cosa significa la colonna Segnale?",
-    "signalInfo": "Indica se l'ultimo segnale generato per quello strumento, con le stesse soglie di strategia della pagina Trading, era un candidato all'acquisto o alla vendita."
+    "signalInfo": "Indica se l'ultimo segnale generato per quello strumento, con le stesse soglie di strategia della pagina Trading, era un candidato all'acquisto o alla vendita.",
+    "signalsTableTitle": "Dettagli dei segnali",
+    "signalsTableNote": "Ogni segnale è misurato sulla propria finestra temporale (indicata nella colonna «Perché»), che può differire dalla variazione di prezzo su {{period}} mostrata sopra."
   },
   "owner": {
     "label": "Proprietario",
@@ -1850,7 +1852,8 @@
       "label": "{{label}} ({{percent}}%)",
       "moderate": "Moderata",
       "strong": "Forte",
-      "weak": "Debole"
+      "weak": "Debole",
+      "saturated": "Forte (ben oltre la soglia)"
     },
     "thresholdDays": "{{value}} giorni",
     "thresholds": {
@@ -1879,7 +1882,8 @@
       "sharpeInfoLabel": "Cosa significa indice di Sharpe?",
       "volatilityInfo": "La volatilità qui è la deviazione standard giornaliera (non annualizzata) dei rendimenti: quanto il prezzo è oscillato da un giorno all'altro.",
       "volatilityInfoLabel": "Cosa significa volatilità?"
-    }
+    },
+    "complianceSkippedBadge": "Conformità non verificata"
   },
   "trail": {
     "allDone": "Tutte le attività Trail sono completate — ottimo lavoro!",

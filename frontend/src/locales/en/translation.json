@@ -1244,7 +1244,9 @@
     "watchlist": "Watchlist:",
     "windowNote": "The % and value columns show the move for the selected period. Each signal uses its own lookback window — select a Buy or Sell signal to see its reason and confidence.",
     "signalInfoLabel": "What does the Signal column mean?",
-    "signalInfo": "Shows whether the latest signal generated for that instrument, using the same strategy thresholds as the Trading page, was a buy or sell candidate."
+    "signalInfo": "Shows whether the latest signal generated for that instrument, using the same strategy thresholds as the Trading page, was a buy or sell candidate.",
+    "signalsTableTitle": "Signal details",
+    "signalsTableNote": "Each signal is measured over its own lookback window (named in the Why column), which may differ from the {{period}} price change shown above."
   },
   "owner": {
     "label": "Owner",
@@ -1844,7 +1846,8 @@
       "label": "{{label}} ({{percent}}%)",
       "moderate": "Moderate",
       "strong": "Strong",
-      "weak": "Weak"
+      "weak": "Weak",
+      "saturated": "Strong (well past threshold)"
     },
     "thresholdDays": "{{value}} days",
     "thresholds": {
@@ -1873,7 +1876,8 @@
       "sharpeInfoLabel": "What does Sharpe ratio mean?",
       "volatilityInfo": "Volatility here is the day-to-day (daily, not annualised) standard deviation of returns — how much the price has fluctuated from one day to the next.",
       "volatilityInfoLabel": "What does volatility mean?"
-    }
+    },
+    "complianceSkippedBadge": "Compliance not checked"
   },
   "trail": {
     "allDone": "All Trail tasks are complete — fantastic work!",

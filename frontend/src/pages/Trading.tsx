@@ -6,6 +6,12 @@ import { InstrumentDetail } from '../components/InstrumentDetail';
 import BackendUnavailableCard from '../components/BackendUnavailableCard';
 import InfoTip from '../components/InfoTip';
 import WatchlistToggle from '../components/WatchlistToggle';
+import {
+  ChecksSkippedBadge,
+  SignalFactors,
+  SignalStrength,
+} from '../components/SignalDetails';
+import { formatSignalAction } from '../utils/formatSignalAction';
 import useFetchWithRetry from '../hooks/useFetchWithRetry';
 import TableRowsSkeleton from '../components/skeletons/TableRowsSkeleton';
 import TextSkeleton from '../components/skeletons/TextSkeleton';
@@ -143,79 +149,6 @@ export default function Trading() {
   const signals = data?.signals ?? [];
   const blocked = data?.blocked ?? [];
   const visibleSignals = signals.slice(0, MAX_TRADING_SIGNAL_ROWS);
-
-  const formatAction = (action: string) => {
-    if (!action) {
-      return action;
-    }
-    const lower = action.toLowerCase();
-    return lower.charAt(0).toUpperCase() + lower.slice(1);
-  };
-
-  const renderStrength = (confidence?: number | null) => {
-    if (confidence == null) {
-      return '—';
-    }
-
-    const percent = Math.round(confidence * 100);
-    let label = t('trading.strength.weak', 'Weak');
-    if (confidence >= 0.75) {
-      label = t('trading.strength.strong', 'Strong');
-    } else if (confidence >= 0.5) {
-      label = t('trading.strength.moderate', 'Moderate');
-    }
-
-    return t('trading.strength.label', '{{label}} ({{percent}}%)', {
-      label,
-      percent,
-    });
-  };
-
-  const renderChecksSkipped = (checksSkipped?: string[]) => {
-    if (!checksSkipped || !checksSkipped.length) {
-      return null;
-    }
-
-    return (
-      <span className={styles.checksSkippedBadge}>
-        {/* `title` is scoped to just this inner span, not the InfoTip below,
-            so hovering the "i" button doesn't also trigger a native browser
-            tooltip on top of the InfoTip popover. */}
-        <span
-          title={t('trading.checksSkippedTitle', 'Skipped checks: {{checks}}', {
-            checks: checksSkipped.join(', '),
-          })}
-        >
-          {t('trading.checksSkippedBadge', 'Checks skipped')}
-        </span>
-        <InfoTip
-          label={t('trading.checksSkippedInfoLabel', "What does 'Checks skipped' mean?")}
-          to="/metrics-explained#checks-skipped"
-        >
-          {t(
-            'trading.checksSkippedInfo',
-            "An optional check that needs the allotmint-pro add-on could not run. “compliance” means the trade was not checked against your compliance rules; “fundamental_screen” means the P/E and debt/equity filters above (whichever are configured) were not applied to this buy candidate."
-          )}
-        </InfoTip>
-      </span>
-    );
-  };
-
-  const renderFactors = (factors?: string[], fallback?: string) => {
-    if (factors && factors.length) {
-      return (
-        <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-          {factors.map((factor, idx) => (
-            <li key={idx}>{factor}</li>
-          ))}
-        </ul>
-      );
-    }
-    if (fallback) {
-      return <span>{fallback}</span>;
-    }
-    return '—';
-  };
 
   return (
     <main className={styles.page}>
@@ -415,15 +348,15 @@ export default function Trading() {
                           <WatchlistToggle ticker={s.ticker} />
                         </td>
                         <td className={tableStyles.cell}>
-                          {formatAction(s.action)}
-                          {renderChecksSkipped(s.checks_skipped)}
+                          {formatSignalAction(s.action)}
+                          <ChecksSkippedBadge checksSkipped={s.checks_skipped} />
                         </td>
                         <td className={tableStyles.cell}>
-                          {renderStrength(s.confidence)}
+                          <SignalStrength confidence={s.confidence} />
                         </td>
                         <td className={tableStyles.cell}>{s.reason}</td>
                         <td className={tableStyles.cell}>
-                          {renderFactors(s.factors, s.rationale)}
+                          <SignalFactors factors={s.factors} rationale={s.rationale} />
                         </td>
                       </tr>
                     ))}
@@ -459,7 +392,7 @@ export default function Trading() {
                   {blocked.map((b, i) => (
                     <li key={`${b.ticker}-${b.action}-${i}`}>
                       <strong>
-                        {b.ticker} {formatAction(b.action)}
+                        {b.ticker} {formatSignalAction(b.action)}
                       </strong>
                       : {b.reasons.join('; ')}
                     </li>

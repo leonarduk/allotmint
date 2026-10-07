@@ -480,6 +480,77 @@ def test_enrich_holding_plausible_book_cost_unchanged(monkeypatch):
     assert out["gain_pct"] == pytest.approx(7320.0 / 26300 * 100)
 
 
+# ─────── missing cost_basis_source on legacy payloads (#8491) ───────
+# enrich_holding never trusts an incoming cost_basis_source when there is no
+# booked cost: get_effective_cost_basis_gbp tags the last-resort price-hint
+# guess "unknown" itself, so a payload predating the tag (key absent or None)
+# cannot leak a gain computed from an unverified cost. Treating a missing tag
+# as "unknown" would instead null the genuine "derived" path.
+_LEGACY_SOURCE_SHAPES = [
+    pytest.param({}, id="key-absent"),
+    pytest.param({"cost_basis_source": None}, id="none"),
+]
+
+
+@pytest.mark.parametrize("legacy", _LEGACY_SOURCE_SHAPES)
+def test_enrich_holding_legacy_payload_without_cost_derives_and_tags(monkeypatch, legacy):
+    _patch_enrich_env(monkeypatch, current_price=12.0, acq_close=10.0)
+    holding = {TICKER: "AAA.L", UNITS: 10, ACQUIRED_DATE: "2024-01-02", **legacy}
+
+    out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 1), price_cache={})
+
+    assert out["cost_basis_source"] == "derived"
+    assert out["effective_cost_basis_gbp"] == 100.0
+    assert out["gain_gbp"] == 20.0
+    assert out["gain_pct"] == pytest.approx(20.0)
+
+
+@pytest.mark.parametrize("legacy", _LEGACY_SOURCE_SHAPES)
+def test_enrich_holding_legacy_payload_price_guess_withholds_gain(monkeypatch, legacy):
+    """No booked cost, no acquisition date: cost is guessed from the current
+    price (ecb > 0), so the gain must be unknown even with no incoming tag."""
+    _patch_enrich_env(monkeypatch, current_price=12.0)
+    holding = {TICKER: "AAA.L", UNITS: 10, **legacy}
+
+    out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 1), price_cache={})
+
+    assert out["effective_cost_basis_gbp"] == 120.0
+    assert out["cost_basis_source"] == "unknown"
+    for key in ("gain_gbp", "unrealised_gain_gbp", "unrealized_gain_gbp", "gain_pct"):
+        assert out[key] is None
+
+
+def test_enrich_holding_ignores_stale_derived_tag_on_price_guess(monkeypatch):
+    _patch_enrich_env(monkeypatch, current_price=12.0)
+    holding = {TICKER: "AAA.L", UNITS: 10, "cost_basis_source": "derived"}
+
+    out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 1), price_cache={})
+
+    assert out["cost_basis_source"] == "unknown"
+    assert out["gain_gbp"] is None
+
+
+@pytest.mark.parametrize(
+    "holding, acq_close",
+    [
+        ({COST_BASIS_GBP: 100}, None),
+        ({ACQUIRED_DATE: "2024-01-02"}, 10.0),
+        ({}, None),
+        ({"cost_basis_source": None}, None),
+        ({COST_BASIS_GBP: 1}, None),
+    ],
+    ids=["book", "derived", "price-guess", "none-source", "book-suspect"],
+)
+def test_enrich_holding_always_populates_cost_basis_source(monkeypatch, holding, acq_close):
+    _patch_enrich_env(monkeypatch, current_price=12.0, acq_close=acq_close)
+
+    payload = {TICKER: "AAA.L", UNITS: 10, **holding}
+
+    out = holding_utils.enrich_holding(payload, dt.date(2026, 10, 1), price_cache={})
+
+    assert out["cost_basis_source"] in {"book", "derived", "unknown", "book_suspect"}
+
+
 # #8596: the three SIPP holdings flagged book_suspect. Booked costs come from
 # the HL transactions (buys less sells) and are correct in pounds; the raw
 # closes are pence. (ticker, units, booked cost, raw pence close)

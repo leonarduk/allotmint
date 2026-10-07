@@ -437,6 +437,59 @@ def test_price_refresh_trigger_on_deploy_exists(template):
         )
 
 
+def test_price_refresh_trigger_and_alias_bind_to_current_version(template):
+    """#8923: the deploy Trigger and ``live`` alias run the version just published.
+
+    ``backend.common.prices`` relies on a data/ change (e.g. the scaling
+    override table) reaching the snapshot on the same deploy: the image asset
+    hash covers data/, so the function's ImageUri changes, CDK emits a new
+    ``AWS::Lambda::Version`` (its logical ID hashes the function config), and
+    the Trigger re-runs because its HandlerArn is that version. Pin that the
+    Trigger and the ``live`` alias point at the same ``currentVersion`` of
+    PriceRefreshLambda, not ``$LATEST`` or a stale pinned version.
+    """
+    functions = template.find_resources("AWS::Lambda::Function")
+    refresh_fn_ids = [
+        logical_id
+        for logical_id, res in functions.items()
+        if res["Properties"].get("ImageConfig", {}).get("Command")
+        == ["backend.lambda_api.price_refresh.lambda_handler"]
+    ]
+    assert len(refresh_fn_ids) == 1, refresh_fn_ids
+    refresh_fn_id = refresh_fn_ids[0]
+    assert "ImageUri" in functions[refresh_fn_id]["Properties"]["Code"]
+
+    versions = template.find_resources("AWS::Lambda::Version")
+    refresh_versions = [
+        logical_id
+        for logical_id, res in versions.items()
+        if res["Properties"].get("FunctionName") == {"Ref": refresh_fn_id}
+    ]
+    assert len(refresh_versions) == 1, refresh_versions
+    version_id = refresh_versions[0]
+
+    triggers = template.find_resources("Custom::Trigger")
+    refresh_triggers = [
+        res
+        for res in triggers.values()
+        if res["Properties"].get("HandlerArn") == {"Ref": version_id}
+    ]
+    assert len(refresh_triggers) == 1, (
+        f"PriceRefreshOnDeploy must invoke {version_id} (the function's currentVersion); "
+        f"found HandlerArns {[r['Properties'].get('HandlerArn') for r in triggers.values()]}"
+    )
+
+    aliases = template.find_resources("AWS::Lambda::Alias")
+    live = [
+        res
+        for res in aliases.values()
+        if res["Properties"].get("Name") == "live"
+        and res["Properties"].get("FunctionName") == {"Ref": refresh_fn_id}
+    ]
+    assert len(live) == 1, live
+    assert live[0]["Properties"]["FunctionVersion"] == {"Fn::GetAtt": [version_id, "Version"]}
+
+
 def test_price_refresh_lambda_has_sufficient_timeout(template):
     """PriceRefreshLambda must have a timeout long enough to fetch all portfolio prices.
 

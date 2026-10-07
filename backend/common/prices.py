@@ -39,16 +39,22 @@ read time.
 A change to the override table therefore only reaches the snapshot when
 :func:`refresh_prices` runs again with the new table. On deploy that is
 guaranteed in order: ``backend/Dockerfile.lambda`` copies ``data/`` (the
-table included) into the Lambda image, so a table change is a new image and
-the new ``PriceRefreshLambda`` version reads the new table. Caveat: before
-the image build, the "Sync data from S3" step of
-``.github/workflows/deploy-lambda.yml`` runs ``aws s3 sync`` from
-``DATA_BUCKET`` into ``data/``, which would overwrite any file the bucket
-also holds. That step passes ``--exclude "scaling_overrides.json"``, so the
-image always carries the git-tracked table, never a stale bucket copy; a
+table included) into the Lambda image, and the CDK image asset hash covers
+``data/``, so a table change gives ``PriceRefreshLambda`` a new ``ImageUri``
+and CDK publishes a new ``currentVersion``. Caveat: before the image build,
+the "Sync data from S3" step of ``.github/workflows/deploy-lambda.yml`` runs
+``aws s3 sync`` from ``DATA_BUCKET`` into ``data/``, which would overwrite
+any file the bucket also holds. That step passes
+``--exclude "scaling_overrides.json"``, which AWS CLI matches against the key
+path relative to the bucket root, so it skips only the bucket-root copy, the
+one that would land on ``data/scaling_overrides.json`` (the only path the
+table is read from). The image therefore carries the git-tracked table; a
 post-deploy check of the snapshot's content is tracked in #10352. The CDK
 ``PriceRefreshOnDeploy`` Trigger (``cdk/stacks/backend_lambda_stack.py``,
-REQUEST_RESPONSE) runs that version during ``cdk deploy BackendLambdaStack``,
+REQUEST_RESPONSE) has that ``currentVersion`` as its ``HandlerArn``, as does
+the ``live`` alias (pinned by
+``cdk/tests/test_backend_lambda_stack.py::test_price_refresh_trigger_and_alias_bind_to_current_version``),
+so it re-runs on the new version during ``cdk deploy BackendLambdaStack``,
 and the "Warm price snapshot" step of ``.github/workflows/deploy-lambda.yml``
 invokes its ``live`` alias again after the deploy. The ``DailyPriceRefresh``
 schedule repeats it daily, so no extra regeneration step is needed.

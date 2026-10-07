@@ -360,9 +360,15 @@ jobs:
           fi
           [ "$failed" -eq 0 ] || exit 1
 
-      # scaling_overrides.json is excluded so the git-tracked table is the one
-      # baked into the Lambda image; a stale bucket copy must not replace it
-      # and silently undo override fixes in the price snapshot (#8923).
+      # Exclude the bucket-root scaling_overrides.json so the git-tracked
+      # data/scaling_overrides.json is the one baked into the Lambda image; a
+      # stale bucket copy must not replace it and silently undo override fixes
+      # in the price snapshot (#8923). AWS CLI filters match the key path
+      # relative to the sync source (s3://$DATA_BUCKET/), so this pattern is
+      # root-only by design: data/scaling_overrides.json is the only path the
+      # backend reads the table from (timeseries_helpers._scaling_override_paths),
+      # so a nested bucket copy would sync to an unread path. Deliberate
+      # trade-off: a table hotfix must go through git, not the bucket.
       - name: Sync data from S3
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}

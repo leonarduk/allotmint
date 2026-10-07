@@ -112,7 +112,7 @@
     "menu": "Menü",
     "menuCategories": {
       "dashboard": "Übersicht",
-      "goals": "Anforderungen",
+      "goals": "Planung",
       "holdings": "Bestände",
       "insights": "Recherche",
       "operations": "Verwaltung",
@@ -482,6 +482,9 @@
     },
     "clearFilters": "Filter löschen",
     "horizontalScroll": "Bestandsspalten horizontal scrollen",
+    "filtersLabel": "Bestände filtern",
+    "filterBy": "Filtern nach {{field}}",
+    "moreColumnsHint": "Weitere Spalten →",
     "columns": {
       "sector": "Sektor",
       "acquired": "Erworben",
@@ -892,6 +895,9 @@
     "level": "Stand",
     "changePct": "% Veränderung",
     "noHeadlines": "Keine Schlagzeilen verfügbar",
+    "headlinesQuotaExhausted": "Keine Schlagzeilen: Das Anfragekontingent des Nachrichtenanbieters ist aufgebraucht. Bitte später erneut versuchen.",
+    "headlinesUnavailable": "Keine Schlagzeilen: Keine Nachrichtenquelle hat geantwortet. Prüfe die Konfiguration des Nachrichtenanbieters (z. B. ALPHA_VANTAGE_KEY) oder versuche es später erneut.",
+    "asOf": "Stand: {{date}}",
     "staleHeadline": "Veraltet",
     "staleHeadlineTooltip": "Diese Schlagzeile stammt aus einem Cache, der zuletzt nicht aktualisiert wurde; Live-Nachrichtenabrufe schlagen möglicherweise fehl oder sind ratenbegrenzt.",
     "tooltipLevel": "Stand: {{value}}",
@@ -2241,6 +2247,20 @@
     "viewGoals": "Ziele anzeigen",
     "pensionForecast": "Rentenprognose"
   },
+  "costBasisChecklist": {
+    "summary_one": "Einstandskosten ergänzen: {{count}} Position ohne verlässliche Einstandskosten",
+    "summary_other": "Einstandskosten ergänzen: {{count}} Positionen ohne verlässliche Einstandskosten",
+    "intro": "Gewinn/Verlust lässt diese Positionen aus, bis ihre Kosten erfasst sind. Sortiert nach Größe: Die größten {{top}} machen {{share}} ihres Werts aus. Wählen Sie „Kosten erfassen“ und geben Sie den gezahlten Preis je Anteil ein.",
+    "holding": "Position",
+    "account": "Konto",
+    "value": "Wert",
+    "problem": "Problem",
+    "missing": "Keine Kosten erfasst",
+    "suspect": "Erfasste Kosten wirken falsch",
+    "addCost": "Kosten erfassen",
+    "showAll": "Alle {{count}} anzeigen",
+    "showTop": "Nur die größten {{count}} anzeigen"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} ohne Wechselkurs)",
     "reasonNoCostBasis": "keine verlässliche Anschaffungsbasis",
@@ -2727,6 +2747,8 @@
     "units": "Anteile",
     "priceGbp": "Preis (GBP)",
     "inputTitle": "Konto- und Bestandserfassung",
+    "costBasisHint": "Kosten für {{ticker}} erfassen: Geben Sie die gehaltenen Anteile und den gezahlten Preis je Anteil ein und speichern Sie. Das Feld Wert ist hier deaktiviert, da es den heutigen Kurs so erfassen würde, als hätten Sie ihn gezahlt.",
+    "costBasisNeedsPrice": "Um Kosten zu erfassen, geben Sie Anteile und den gezahlten Preis je Anteil ein. Ein Wert würde den heutigen Kurs als Ihre Kosten erfassen.",
     "inputIntro": "Legen Sie Konten an und erfassen Sie Bestände. Beim Speichern wird die Eröffnungsbuchung erfasst, die das Konto auf die eingegebenen Anteile bringt, sodass sie neben Ihren Trades unter <txlink>Transaktionen</txlink> erscheint.",
     "saving": "Speichern...",
     "saveHolding": "Bestand speichern",
@@ -2813,7 +2835,9 @@
       "badgesSr": "verdiente Saisonabzeichen",
       "xpLabel": "Level {{level}} · {{xp}}/{{xpForLevel}} XP",
       "meterLabel": "Gärtner-Level {{level}}, {{xp}} von {{xpForLevel}} XP bis zum nächsten Level",
-      "classicView": "Klassische Ansicht"
+      "classicView": "Klassische Ansicht",
+      "progressLabel": "Dein Fortschritt",
+      "progressTitle": "Stufe, Rang, XP und Serie verdienst du mit deinen eigenen Aufgaben – sie sind auf jedem Beet gleich."
     },
     "rail": {
       "ariaLabel": "Bereiche des Gartens",
@@ -2983,6 +3007,7 @@
       "earned": "Verdient",
       "badgeShelf": "Abzeichen-Regal ({{earned}}/{{total}})",
       "badgeNote": "Ein Abzeichen wird verdient, wenn alle Stufen seiner Kategorie abgeschlossen sind.",
+      "personalNote": "Dein Fortschritt – mit deinen eigenen Aufgaben verdient, nicht mit dem Beet dieses Gärtners.",
       "growingSeasonLabel": "Wachstumssaison {{label}}",
       "growingSeason": "Wachstumssaison",
       "noTaxYear": "Für diesen Gärtner wurde kein Steuerjahr gemeldet, daher gibt es kein Enddatum für den Countdown.",
@@ -3151,6 +3176,7 @@
     "retryingConfig": "Wird geladen ... Konfiguration wird erneut versucht.",
     "loadingConfig": "Konfiguration wird geladen ...",
     "configLoadFailed": "Konfiguration konnte nicht geladen werden.",
+    "serverUnreachable": "Der AllotMint-Server unter {{url}} ist nicht erreichbar.",
     "checkConnection": "Bitte überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
     "googleNotConfigured": "Google-Anmeldung ist nicht konfiguriert.",
     "loading": "Wird geladen ...",

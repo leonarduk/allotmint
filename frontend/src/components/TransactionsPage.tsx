@@ -12,7 +12,7 @@ import {
 import { useFetch } from '../hooks/useFetch';
 import { useReportingCurrency } from '../hooks/useReportingCurrency';
 import { Trans, useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { createOwnerDisplayLookup, findOwnerForUser } from '../utils/owners';
 import { useAuth } from '../AuthContext';
 import { useDemoReadOnly } from '../hooks/useDemoReadOnly';
@@ -63,12 +63,27 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       holding_count: number;
     }>
   >([]);
-  const [manualOwner, setManualOwner] = useState('');
-  const [manualAccount, setManualAccount] = useState('');
-  const [manualTicker, setManualTicker] = useState('');
+  // The dashboard's cost-basis checklist links here with the holding to
+  // fill in (#7825); prefill the set-holding form from those params.
+  const [searchParams] = useSearchParams();
+  const costBasisTicker = (searchParams.get('ticker') ?? '').toUpperCase();
+  const [manualOwner, setManualOwner] = useState(
+    () => searchParams.get('owner') ?? ''
+  );
+  const [manualAccount, setManualAccount] = useState(
+    () => searchParams.get('account') ?? ''
+  );
+  const [manualTicker, setManualTicker] = useState(costBasisTicker);
   const [manualValue, setManualValue] = useState('');
-  const [manualUnits, setManualUnits] = useState('');
+  const [manualUnits, setManualUnits] = useState(
+    () => searchParams.get('units') ?? ''
+  );
   const [manualPrice, setManualPrice] = useState('');
+  // While filling in the checklist's holding, only units + price paid may be
+  // saved: a Value-only save books today's price as a real ("book") cost,
+  // which #7825 forbids (an estimate must never read as a recorded cost).
+  const costBasisMode =
+    costBasisTicker !== '' && manualTicker.trim() === costBasisTicker;
   const [editingId, setEditingId] = useState<string | null>(null);
   const { t } = useTranslation();
   const reporting = useReportingCurrency();
@@ -243,13 +258,21 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       return;
     }
 
-    const hasValueInput = manualValue.trim() !== '';
+    // In cost-basis mode the Value field is disabled and blanked, so any value
+    // typed before returning to the checklist ticker is ignored here: it can
+    // never be sent, and it cannot trap the save behind a hidden field.
+    const effectiveValue = costBasisMode ? '' : manualValue;
+    const hasValueInput = effectiveValue.trim() !== '';
     const hasUnitsInput = manualUnits.trim() !== '';
     const hasPriceInput = manualPrice.trim() !== '';
-    const value = Number(manualValue);
+    const value = Number(effectiveValue);
     const units = Number(manualUnits);
     const price = Number(manualPrice);
 
+    if (costBasisMode && (!hasUnitsInput || !hasPriceInput)) {
+      setManualError(t('transactionsPage.costBasisNeedsPrice'));
+      return;
+    }
     if (hasValueInput && (!Number.isFinite(value) || value <= 0)) {
       setManualError(t('transactionsPage.valuePositive'));
       return;
@@ -306,6 +329,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       setManualSubmitting(false);
     }
   }, [
+    costBasisMode,
     fetchManualAccounts,
     manualAccount,
     manualOwner,
@@ -520,6 +544,15 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           components={{ txlink: <Link to="/transactions" /> }}
         />
       </p>
+      {costBasisMode && (
+        <p
+          role="note"
+          data-testid="cost-basis-hint"
+          className="mb-3 rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900"
+        >
+          {t('transactionsPage.costBasisHint', { ticker: costBasisTicker })}
+        </p>
+      )}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-sm">
           {t('transactionsPage.owner')}
@@ -559,8 +592,9 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
         <label className="text-sm">
           {t('transactionsPage.valueGbp')}
           <input
-            className="mt-1 w-full rounded border border-slate-300 p-2"
-            value={manualValue}
+            className="mt-1 w-full rounded border border-slate-300 p-2 disabled:opacity-60"
+            value={costBasisMode ? '' : manualValue}
+            disabled={costBasisMode}
             onChange={(event) => setManualValue(event.target.value)}
             placeholder="1250"
           />

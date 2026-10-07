@@ -852,7 +852,8 @@ def positions_for_ticker(group_slug: str, ticker: str) -> List[Dict[str, Any]]:
                         "market_value_gbp": h.get("market_value_gbp"),
                         "book_cost_basis_gbp": h.get("cost_basis_gbp", 0.0),
                         "effective_cost_basis_gbp": h.get("effective_cost_basis_gbp", 0.0),
-                        "gain_gbp": h.get("gain_gbp", 0.0),
+                        # Unknown cost means unknown gain (#8471): never default to 0.0 (#8490).
+                        "gain_gbp": h.get("gain_gbp"),
                         "gain_pct": h.get("gain_pct"),
                         "days_held": h.get("days_held"),
                         "sell_eligible": h.get("sell_eligible"),

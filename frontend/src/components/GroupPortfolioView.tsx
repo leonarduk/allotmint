@@ -44,6 +44,7 @@ import {
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
 import FundChargesSummary from "./FundChargesSummary";
 import { computeFundCharges } from "../lib/fundCharges";
+import { CostBasisChecklist } from "./CostBasisChecklist";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
 import { isFresh, readFetchCache, runDeduped } from "../utils/fetchCache";
@@ -1083,7 +1084,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       {portfolioLoading && kpiTilesSkeleton}
 
       {!portfolioLoading && !relativeViewEnabled && hasFilteredAccounts && (
-        <PortfolioSummary totals={totals} />
+        <>
+          <PortfolioSummary totals={totals} />
+          <CostBasisChecklist accounts={filteredAccounts} />
+        </>
       )}
 
       {!portfolioLoading && !relativeViewEnabled && hasFilteredAccounts && (

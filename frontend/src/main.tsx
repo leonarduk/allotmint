@@ -27,6 +27,7 @@ import { ConfigProvider, useConfig } from './ConfigContext';
 import { PriceRefreshProvider } from './PriceRefreshContext';
 import { AuthProvider, useAuth } from './AuthContext';
 import {
+  API_BASE,
   getConfig,
   logout as apiLogout,
   getStoredAuthToken,
@@ -445,7 +446,17 @@ export function Root({
       <>
         {renderRouteMarker(location.pathname, 'config-error')}
         <div role="alert" className="app-offline">
-          <p>{t('mainApp.configLoadFailed')}</p>
+          <p>
+            {/* Name the server when it never answered, so a stopped backend
+                reads as exactly that rather than a vague config failure
+                (#7788 item 1). An HTTP error means it did answer. */}
+            {/^HTTP \d+/.test(configError.message)
+              ? t('mainApp.configLoadFailed')
+              : t('mainApp.serverUnreachable', {
+                  url: API_BASE,
+                  defaultValue: "Can't reach the AllotMint server at {{url}}.",
+                })}
+          </p>
           <p>{t('mainApp.checkConnection')}</p>
           <button type="button" onClick={handleRetry}>
             {t('common.retry')}

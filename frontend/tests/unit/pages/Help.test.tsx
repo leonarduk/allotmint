@@ -43,6 +43,18 @@ describe("Help page", () => {
     expect(reportLink).toHaveAttribute("href", DEFAULT_ISSUES_URL);
   });
 
+  it("describes Trading Rules as trading rules, not profile/display settings (#7788)", () => {
+    render(<Help />, { wrapper: MemoryRouter });
+
+    expect(
+      screen.getByRole("link", { name: i18n.t("app.modes.settings") }),
+    ).toHaveAttribute("href", "/settings");
+    expect(screen.getByText(/minimum holding period/i)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/currency and display preferences/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("uses VITE_ISSUE_TRACKER_URL for the report link when set", async () => {
     vi.stubEnv("VITE_ISSUE_TRACKER_URL", "https://tracker.example.com/new-issue");
     vi.resetModules();

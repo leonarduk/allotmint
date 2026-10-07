@@ -552,6 +552,28 @@ describe("InstrumentDetail", () => {
       // Weights are shares of different owners' portfolios: not summed.
       expect(cells[8]).toBe("—");
     });
+
+    it("withholds the total gain when a position's gain is unknown but its cost is known (#8490)", async () => {
+      await renderPositions([
+        fullPosition,
+        {
+          ...fullPosition,
+          account: "ISA",
+          units: 27,
+          market_value_gbp: 324,
+          gain_gbp: null,
+          unrealised_gain_gbp: null,
+          gain_pct: null,
+          cost_basis_gbp: 270,
+          weight_pct: 2.4,
+        },
+      ]);
+
+      const cells = rowCells(screen.getByTestId("positions-total-row"));
+      expect(cells[3]).toBe("£1,000.00");
+      // Summing only the known gain would show a misleading £146.00.
+      expect(cells.slice(6, 8)).toEqual(["—", "—"]);
+    });
   });
 
   it("prefers page currency and renders native GBX prices", async () => {

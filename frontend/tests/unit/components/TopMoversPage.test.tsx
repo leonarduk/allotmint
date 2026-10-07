@@ -541,6 +541,71 @@ describe("TopMoversPage", () => {
     expect(keyWarnings).toEqual([]);
     errorSpy.mockRestore();
   });
+
+  it("lists every gainer above the losers and renders all rows (#7788)", async () => {
+    // 12 losers + 3 gainers: the old ascending sort inside a clipped,
+    // virtualised scroll box left the gainers below the fold.
+    const entries: OpportunityEntry[] = [
+      ...Array.from({ length: 12 }, (_, i) => ({
+        ticker: `L${i}`,
+        name: `Loser ${i}`,
+        change_pct: -(i + 1),
+        side: "losers" as const,
+      })),
+      ...Array.from({ length: 3 }, (_, i) => ({
+        ticker: `G${i}`,
+        name: `Gainer ${i}`,
+        change_pct: i + 1,
+        side: "gainers" as const,
+      })),
+    ];
+    mockGetOpportunities.mockResolvedValue({
+      entries,
+      signals: [],
+      context: { source: "group", group: "all", days: 1, anomalies: [] },
+    });
+
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("G2");
+    const tickers = screen
+      .getAllByRole("button")
+      .map((b) => b.textContent ?? "")
+      .filter((text) => /^[GL]\d+$/.test(text));
+    expect(tickers).toHaveLength(15);
+    expect(tickers.slice(0, 3)).toEqual(["G2", "G1", "G0"]);
+    expect(tickers.at(-1)).toBe("L11");
+  });
+
+  it("starts the holdings and movers requests together rather than chaining them (#7788)", async () => {
+    let releaseHoldings: () => void = () => {};
+    mockGetGroupInstruments.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseHoldings = () => resolve([]);
+        }),
+    );
+
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(mockGetOpportunities).toHaveBeenCalledWith(
+        expect.objectContaining({ group: "all" }),
+      ),
+    );
+    releaseHoldings();
+    expect(
+      await screen.findByRole("button", { name: "AAA" }),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("computeMoversLoading (#7229)", () => {

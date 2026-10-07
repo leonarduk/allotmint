@@ -147,6 +147,19 @@ def test_pro_fills_only_what_stand_ins_cannot(monkeypatch):
     assert row["series"]["long_gilts"] == ["GLTL.L", "synthetic 20y gilt"]
 
 
+def test_pro_is_asked_for_other_commodities_by_its_backtest_block_name(monkeypatch):
+    seen = []
+
+    def pro(sleeve, event_date, horizons):
+        seen.append(sleeve)
+        return None
+
+    monkeypatch.setattr(strategy_stress, "PRO_SLEEVE_RETURNS", pro)
+    monkeypatch.setattr(strategy_stress, "_ticker_returns", lambda *a: ({}, TOTAL_RETURN_BASIS))
+    strategy_stress.sleeve_returns("other_commodities", dt.date(1987, 10, 19), {"1m": 21})
+    assert seen == ["commodities"]
+
+
 def test_a_failing_pro_hook_is_logged_and_the_stand_ins_still_answer(monkeypatch, caplog):
     def broken(sleeve, event_date, horizons):
         raise IndexError("index 0 is out of bounds")

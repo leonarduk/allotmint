@@ -46,7 +46,11 @@ INDEX_LINKED = "index_linked"
 OVERSEAS_GOVERNMENT = "overseas_government"
 CORPORATE_BONDS = "corporate_bonds"
 GOLD = "gold"
-OTHER_COMMODITIES = "commodities"
+OTHER_COMMODITIES = "other_commodities"
+#: The other-commodities key before #9718. It is also an alias of the whole
+#: Commodity class, so it is read as the sub-class only beside another
+#: commodity sub-class (:func:`legacy_target_key`) or as an instrument override.
+LEGACY_OTHER_COMMODITIES = "commodities"
 
 #: Sub-classes of each splittable asset class, in display order.
 SUB_ASSET_CLASSES: dict[str, tuple[str, ...]] = {
@@ -168,7 +172,7 @@ def derive_bond_sub_class(meta: Mapping[str, Any]) -> Optional[str]:
 
 
 def derive_commodity_sub_class(meta: Mapping[str, Any]) -> str:
-    """``gold`` for a gold product, otherwise ``commodities``."""
+    """``gold`` for a gold product, otherwise ``other_commodities``."""
     text = f"{meta.get('name') or ''} {_fact_text(meta, 'index')}"
     return GOLD if _GOLD_RE.search(text) else OTHER_COMMODITIES
 
@@ -179,15 +183,36 @@ def derive_equity_sub_class(meta: Mapping[str, Any]) -> str:
     return SMALL_CAP_VALUE if _SMALL_CAP_VALUE_RE.search(text) else BROAD_EQUITY
 
 
+def legacy_target_key(key: str, keys: frozenset[str]) -> str:
+    """``key`` with the pre-#9718 ``commodities`` sub-class renamed, reading it as before.
+
+    ``commodities`` beside another commodity sub-class (``gold``, even at 0)
+    was the "other commodities" sub-class and becomes ``other_commodities``.
+    On its own it named the whole Commodity class and is returned unchanged,
+    for the caller to resolve as the class alias. ``keys`` are the lower-cased
+    keys of the same target set; any other key is returned unchanged.
+    """
+    if key != LEGACY_OTHER_COMMODITIES:
+        return key
+    siblings = any(SUB_ASSET_CLASS_PARENT.get(other) == COMMODITY for other in keys)
+    return OTHER_COMMODITIES if siblings else key
+
+
 def policy_targets(weights: Mapping[str, float]) -> dict[str, float]:
     """``weights`` with a whole-class key renamed to its remainder sub-class.
 
     Backtest and plan weights write the Golden Butterfly as ``equity: 20,
     small_cap_value: 20``. A policy cannot target Equity both as a whole and
     by sub-class, so ``equity`` becomes ``broad_equity`` whenever an equity
-    sub-class is also present. Other weights are returned unchanged.
+    sub-class is also present. The backtest's ``commodities`` block beside
+    ``gold`` becomes ``other_commodities`` (:func:`legacy_target_key`). Other
+    weights are returned unchanged.
     """
-    result = dict(weights)
+    keys = frozenset(weights)
+    result: dict[str, float] = {}
+    for key, pct in weights.items():
+        target = legacy_target_key(key, keys)
+        result[target] = result.get(target, 0.0) + pct
     for parent, remainder in REMAINDER_SUB_CLASS.items():
         if parent in result and any(SUB_ASSET_CLASS_PARENT.get(key) == parent for key in result):
             result[remainder] = result.get(remainder, 0.0) + result.pop(parent)
@@ -198,6 +223,9 @@ def _valid_override(value: Any, asset_class: str, ticker: str) -> Optional[str]:
     if not isinstance(value, str) or not value.strip():
         return None
     key = value.strip().lower()
+    # An override is always a sub-class, so the pre-#9718 key needs no sibling.
+    if key == LEGACY_OTHER_COMMODITIES:
+        key = OTHER_COMMODITIES
     if SUB_ASSET_CLASS_PARENT.get(key) == asset_class:
         return key
     logger.warning(

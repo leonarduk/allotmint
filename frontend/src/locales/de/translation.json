@@ -3337,7 +3337,7 @@
     "overseas_government": "Ausländische Staatsanleihen",
     "corporate_bonds": "Unternehmensanleihen / Kredit",
     "gold": "Gold",
-    "commodities": "Sonstige Rohstoffe"
+    "other_commodities": "Sonstige Rohstoffe"
   },
   "planForm": {
     "errors": {

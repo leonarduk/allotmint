@@ -121,6 +121,9 @@ def test_gilt_maturity_band_falls_back_to_name():
         ("US Treasury Income ETF", "overseas_government"),
         ("Global Bond Income Fund", "corporate_bonds"),
         ("Government & Corporate Bond Income Fund", "corporate_bonds"),
+        ("TwentyFour Income Fund Ltd Ordinary GBP 0.01", "corporate_bonds"),
+        # The gilt rule still runs before "income".
+        ("UK Gilts 0-5yr Income Fund", "short_gilts"),
     ],
 )
 def test_income_is_weaker_than_government_issuer(name, expected):

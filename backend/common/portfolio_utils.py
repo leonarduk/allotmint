@@ -1893,7 +1893,7 @@ def _gbp_holding_values(
         priced = _window_closes(ticker, exchange, effective_days, window, total_return=total_return)
         if priced is None:
             if not _is_cash_holding(ticker, exchange):
-                unpriced.append(_unpriced_holding(ticker, exchange, total_return=total_return))
+                unpriced.append(_unpriced_holding(ticker, exchange, window[0], total_return=total_return))
             continue
         closes, basis = priced
         gbp_closes, currency, missing = _closes_in_gbp(closes, ticker, exchange)
@@ -1905,14 +1905,16 @@ def _gbp_holding_values(
     return per_holding, unconverted, unpriced
 
 
-def _unpriced_holding(ticker: str, exchange: str, *, total_return: bool) -> dict[str, Any]:
+def _unpriced_holding(ticker: str, exchange: str, window_start: date, *, total_return: bool) -> dict[str, Any]:
     """An ``unpriced_holdings`` entry: a holding left out for want of closes, with its intended basis (#9606).
 
     The basis is the one it would have had if priced: on the total-return
-    path, ``"total"`` when corporate actions are stored for it
-    (:func:`stored_return_basis`), else ``"price"``.
+    path, :func:`stored_return_basis` with the window start standing in for
+    the first close (``"total"`` when corporate actions are stored for it and,
+    if they hold no dividends, confirmed from the window start), else
+    ``"price"``.
     """
-    basis = stored_return_basis(ticker, exchange) if total_return else PRICE_RETURN_BASIS
+    basis = stored_return_basis(ticker, exchange, first_close=window_start) if total_return else PRICE_RETURN_BASIS
     return {"ticker": f"{ticker}.{exchange}", "return_basis": basis}
 
 

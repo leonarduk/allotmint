@@ -225,14 +225,24 @@ def total_return_closes(
     return values * factor, TOTAL_RETURN_BASIS
 
 
-def stored_return_basis(ticker: str, exchange: str, *, load_dividends: DividendLoader | None = None) -> str:
+def stored_return_basis(
+    ticker: str,
+    exchange: str,
+    *,
+    first_close: Any = None,
+    load_dividends: DividendLoader | None = None,
+) -> str:
     """The basis :func:`total_return_closes` would report for a ticker, without its closes (#9606).
 
-    ``"total"`` when an actions file is stored, else ``"price"``. With no
-    closes there is no first close to test a file's ``confirmed_from``
-    against, so a no-dividend file reads as total here.
+    ``"total"`` when an actions file is stored, else ``"price"``, by the same
+    rule as :func:`total_return_closes`: a file with no dividends that is only
+    confirmed from after ``first_close`` (beyond ``CONFIRMED_GRACE``) is price
+    basis too. With no closes the caller passes the date its first close would
+    have had (e.g. the start of its window); without one, such a file reads
+    as total.
     """
-    if _dividends_for(ticker, exchange, load_dividends) is None:
+    start = None if first_close is None else pd.Timestamp(first_close)
+    if _dividends_for(ticker, exchange, load_dividends, start) is None:
         return PRICE_RETURN_BASIS
     return TOTAL_RETURN_BASIS
 

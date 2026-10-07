@@ -207,6 +207,54 @@ describe("MarketOverview", () => {
   });
 });
 
+describe("MarketOverview first-run clarity (#7788)", () => {
+  it("shows index levels to two decimals and an as-of time", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: {
+        "FTSE 100": { value: 7650.5, change: 0.1, as_of: "2026-09-18T15:30:00+00:00" },
+        "S&P 500": { value: 26522.545, change: -0.2, as_of: "2026-09-18T20:00:00+00:00" },
+      },
+      sectors: [],
+      headlines: [],
+    });
+    render(<MarketOverview />);
+
+    expect(await screen.findByText("7,650.50")).toBeInTheDocument();
+    expect(screen.getByText("26,522.55")).toBeInTheDocument();
+    const latest = new Date("2026-09-18T20:00:00+00:00").toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    expect(screen.getByText(`As of ${latest}`)).toBeInTheDocument();
+  });
+
+  it("omits the as-of line when no index carries a timestamp", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: { "FTSE 100": { value: 1, change: 0 } },
+      sectors: [],
+      headlines: [],
+    });
+    render(<MarketOverview />);
+    await screen.findAllByText("FTSE 100");
+    expect(screen.queryByText(/^As of /)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["quota_exhausted", /request quota is used up/],
+    ["unavailable", /no news source responded/],
+  ] as const)("explains an empty headline feed with status %s", async (status, message) => {
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: {},
+      sectors: [],
+      headlines: [],
+      headlines_status: status,
+    });
+    render(<MarketOverview />);
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.queryByText("No headlines available")).not.toBeInTheDocument();
+  });
+});
+
 describe("MarketOverview sectors (#9381)", () => {
   it("asks the overview to skip sectors and loads the default region", async () => {
     mockGetMarketOverview.mockResolvedValueOnce(emptyOverview);

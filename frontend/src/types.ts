@@ -581,6 +581,8 @@ export interface SectorDetail {
 export interface IndexPerformance {
   value: number;
   change: number;
+  /** When the level was struck (ISO-8601); absent if the provider gave none. */
+  as_of?: string;
 }
 
 /** `GET /market/indexes`: index level and % change over `period`. */
@@ -593,6 +595,8 @@ export interface MarketOverview {
   indexes: Record<string, IndexPerformance>;
   sectors: RegionSectorPerformance[];
   headlines: NewsItem[];
+  /** Why `headlines` is empty, when it is (#7788). */
+  headlines_status?: 'ok' | 'quota_exhausted' | 'unavailable';
 }
 
 /**

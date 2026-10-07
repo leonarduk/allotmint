@@ -312,6 +312,26 @@ def test_store_actions_false_does_not_write(cache_base):
     assert load_dividends("ABC", "L").empty
 
 
+@pytest.mark.parametrize(
+    ("ticker", "exchange", "symbol"),
+    [("ABC", "L", "ABC"), ("ABC.L", "L", "ABC"), ("abc.l", "L", "abc"), ("BRK.B", "US", "BRK.B"), ("ABC", "US", "ABC")],
+)
+def test_store_symbol_strips_only_the_exchange_suffix(ticker, exchange, symbol):
+    """The actions key matches the meta file's ``rpartition("_")`` stem (#9400)."""
+    assert fetch_yahoo_timeseries._store_symbol(ticker, exchange) == symbol
+
+
+def test_dotted_ticker_actions_are_not_truncated(cache_base):
+    days = pd.bdate_range("2024-03-01", periods=5)
+    fake = FakeYahooTicker(pd.Series(100.0, index=days), {days[2]: 1.0})
+
+    with patch.object(fetch_yahoo_timeseries.yf, "Ticker", return_value=fake):
+        fetch_yahoo_timeseries_range("BRK.B", "US", days[0].date(), days[-1].date())
+
+    assert load_dividends("BRK.B", "US").tolist() == [1.0]
+    assert load_dividends("BRK", "US").empty
+
+
 def test_actions_merge_incrementally_and_skip_identical_writes(cache_base):
     first = _one_dividend()
     second = pd.DataFrame(

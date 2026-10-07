@@ -354,6 +354,25 @@ def _value_matrix(df: pd.DataFrame) -> np.ndarray:
     return df[_VALUE_COLS].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
 
 
+def _without_unpriced_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """Drop rows with no usable Close (NaN or <= 0); return ``(kept, dropped_count)``.
+
+    Yahoo sometimes serves a partial-day bar -- Open/High/Low 0, Close NaN.
+    Cached, it blanks every %-change anchored on that day and, dated
+    yesterday, makes the series look fully covered so it is never refetched
+    and corrected (#9926). Rows with a valid Close are kept whatever their
+    Open/High/Low, since some sources leave those 0.
+    """
+    if df.empty or "Close" not in df.columns:
+        return df, 0
+    close = pd.to_numeric(df["Close"], errors="coerce")
+    priced = (close > 0).to_numpy()
+    dropped = int((~priced).sum())
+    if not dropped:
+        return df, 0
+    return df.loc[priced].reset_index(drop=True), dropped
+
+
 def _merge_fetched(existing: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
     """Merge ``new`` into ``existing`` by calendar date.
 
@@ -406,6 +425,17 @@ def _rolling_cache(
     # take effect -- a default bound at def time would capture the original
     # function object instead.
     existing = (loader or _load_parquet)(cache_path)
+    existing, purged = _without_unpriced_rows(existing)
+    if purged and not OFFLINE_MODE and not existing.empty:
+        # Persist the clean-up so readers of the parquet stop seeing the
+        # junk rows, and so the coverage check below sees the real gap.
+        logger.info(
+            "Dropped %s cached row(s) with no close for %s.%s",
+            sanitise_log_value(purged),
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+        )
+        _save_parquet(existing, cache_path)
 
     if OFFLINE_MODE:
         if existing.empty:
@@ -458,7 +488,14 @@ def _rolling_cache(
         ex = existing.copy()
         ex["Date"] = ex["Date"].dt.date
         return _ensure_schema(ex[ex["Date"] >= cutoff].reset_index(drop=True))
-    new = _ensure_schema(new)
+    new, unpriced = _without_unpriced_rows(_ensure_schema(new))
+    if unpriced:
+        logger.warning(
+            "Ignoring %s fetched row(s) with no close for %s.%s",
+            sanitise_log_value(unpriced),
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+        )
 
     if new.empty:
         logger.warning("No new timeseries data for %s.%s", _sanitize_for_log(ticker), _sanitize_for_log(exchange))

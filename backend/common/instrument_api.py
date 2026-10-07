@@ -611,9 +611,33 @@ def _close_on(sym: str, ex: str, d: dt.date) -> Optional[float]:
 
 register_meta_cache_clearer(_close_on_cache_only.cache_clear)
 
+# Trading days ``_last_close_on_or_before`` steps back past a day with no
+# usable close (#9926).
+_CLOSE_LOOKBACK_TRADING_DAYS = 5
+
+
+def _last_close_on_or_before(sym: str, ex: str, d: dt.date) -> Optional[float]:
+    """Return the last valid close for ``sym.ex`` on or before ``d``.
+
+    ``_close_on`` is exact-date, so one bad day -- e.g. a partial-day Yahoo bar
+    with a NaN close -- would otherwise blank a %-change anchored on it (#9926).
+    Steps back at most ``_CLOSE_LOOKBACK_TRADING_DAYS`` weekdays.
+    """
+    price = _close_on(sym, ex, d)
+    day = _nearest_weekday(d, forward=False)
+    for _ in range(_CLOSE_LOOKBACK_TRADING_DAYS):
+        if price is not None:
+            return price
+        day = _nearest_weekday(day - dt.timedelta(days=1), forward=False)
+        price = _close_on(sym, ex, day)
+    return price
+
 
 def price_change_pct(ticker: str, days: int) -> Optional[float]:
-    """Return % change from ``days`` ago to yesterday's close for ``ticker``."""
+    """Return % change from ``days`` ago to yesterday's close for ``ticker``.
+
+    Each end uses the last valid close on or before its anchor date.
+    """
     today = dt.date.today()
     yday = today - dt.timedelta(days=1)
 
@@ -622,8 +646,8 @@ def price_change_pct(ticker: str, days: int) -> Optional[float]:
         return None
 
     sym, ex = resolved
-    px_now = _close_on(sym, ex, yday)
-    px_then = _close_on(sym, ex, yday - dt.timedelta(days=days))
+    px_now = _last_close_on_or_before(sym, ex, yday)
+    px_then = _last_close_on_or_before(sym, ex, yday - dt.timedelta(days=days))
     if px_now is None or px_then is None or px_then == 0:
         return None
     if px_then < MIN_PRICE_THRESHOLD:

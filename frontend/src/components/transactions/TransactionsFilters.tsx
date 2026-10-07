@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { OwnerSummary } from "@/types";
 import { Selector } from "@/components/Selector";
 import { getOwnerDisplayName } from "@/utils/owners";
+import type { TradeSideFilter } from "./transactionTable";
 
 interface TransactionsFiltersProps {
   owner: string;
@@ -19,6 +20,8 @@ interface TransactionsFiltersProps {
   onAccountChange: ChangeEventHandler<HTMLSelectElement>;
   onStartChange: ChangeEventHandler<HTMLInputElement>;
   onEndChange: ChangeEventHandler<HTMLInputElement>;
+  side: TradeSideFilter;
+  onSideChange: ChangeEventHandler<HTMLSelectElement>;
   ownerAccountLocked?: boolean;
 }
 
@@ -37,6 +40,8 @@ export function TransactionsFilters({
   onAccountChange,
   onStartChange,
   onEndChange,
+  side,
+  onSideChange,
   ownerAccountLocked = false,
 }: TransactionsFiltersProps) {
   const { t } = useTranslation();
@@ -64,6 +69,16 @@ export function TransactionsFilters({
           ...accountOptions.map((option) => ({ value: option, label: option })),
         ]}
         disabled={ownerAccountLocked}
+      />
+      <Selector
+        label={t("transactionsFilters.side")}
+        value={side}
+        onChange={onSideChange}
+        options={[
+          { value: "", label: t("transactionsFilters.all") },
+          { value: "BUY", label: t("transactionsFilters.buy") },
+          { value: "SELL", label: t("transactionsFilters.sell") },
+        ]}
       />
       <label style={{ marginLeft: "0.5rem" }}>
         {startLabel}: <input type="date" value={start} onChange={onStartChange} />

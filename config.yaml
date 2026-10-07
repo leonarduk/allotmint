@@ -84,7 +84,7 @@ ui:
     instrument: true
     owner: true
     performance: true
-    transactions: false
+    transactions: true
     screener: true
     trading: true
     timeseries: true

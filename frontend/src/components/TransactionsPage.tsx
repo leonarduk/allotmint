@@ -26,7 +26,9 @@ import {
 } from './transactions/transactionForm';
 import {
   buildBulkDeletionOrder,
+  filterAndSortTransactions,
   summariseTransactions,
+  type TradeSideFilter,
 } from './transactions/transactionTable';
 import { TransactionsTable } from './transactions/TransactionsTable';
 import { useTransactionsTableState } from '../hooks/useTransactionsTableState';
@@ -42,6 +44,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
   const [account, setAccount] = useState('');
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
+  const [side, setSide] = useState<TradeSideFilter>('');
   const [refreshKey, setRefreshKey] = useState(0);
   const [formValues, setFormValues] = useState<TransactionFormValues>(
     EMPTY_TRANSACTION_FORM_VALUES
@@ -92,7 +95,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
   );
 
   const {
-    data: transactions,
+    data: fetchedTransactions,
     loading,
     error,
   } = useFetch<Transaction[]>(fetchTransactions, [
@@ -102,6 +105,14 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     end,
     refreshKey,
   ]);
+
+  const transactions = useMemo(
+    () =>
+      fetchedTransactions
+        ? filterAndSortTransactions(fetchedTransactions, side)
+        : fetchedTransactions,
+    [fetchedTransactions, side]
+  );
 
   const {
     pageSize,
@@ -128,7 +139,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
 
   useEffect(() => {
     resetToFirstPage();
-  }, [owner, account, start, end, pageSize, resetToFirstPage]);
+  }, [owner, account, start, end, side, pageSize, resetToFirstPage]);
 
   const summary = useMemo(
     () => summariseTransactions(transactions ?? []),
@@ -623,6 +634,9 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       {inputOnly && manualHoldingsSection}
       {!inputOnly && (
         <>
+          <p className={`mb-3 text-sm ${surface.surfaceMuted}`}>
+            <Link to="/input">{t('transactionsPage.inputLink')}</Link>
+          </p>
           <TransactionsFilters
             owner={owner}
             account={account}
@@ -638,6 +652,10 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
             onAccountChange={handleAccountChange}
             onStartChange={(event) => setStart(event.target.value)}
             onEndChange={(event) => setEnd(event.target.value)}
+            side={side}
+            onSideChange={(event) =>
+              setSide(event.target.value as TradeSideFilter)
+            }
             ownerAccountLocked={Boolean(editingId)}
           />
 

@@ -103,6 +103,57 @@ describe('TransactionsPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('lists the newest transaction first', async () => {
+    render(
+      <TransactionsPage
+        owners={[
+          { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+          { owner: 'sam', full_name: 'Sam Example', accounts: ['sipp'] },
+        ]}
+      />
+    );
+    const msft = await screen.findByText('MSFT');
+    const pfe = screen.getByText('PFE');
+    expect(
+      msft.compareDocumentPosition(pfe) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('filters the list to sells with the Type filter', async () => {
+    getTransactionsMock.mockResolvedValueOnce([
+      {
+        id: 'alex:isa:0',
+        owner: 'alex',
+        account: 'isa',
+        ticker: 'PFE',
+        type: 'BUY',
+        date: '2024-01-01',
+      },
+      {
+        id: 'alex:isa:1',
+        owner: 'alex',
+        account: 'isa',
+        ticker: 'VOD',
+        type: 'SELL',
+        date: '2024-02-01',
+      },
+    ]);
+    render(
+      <TransactionsPage
+        owners={[
+          { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+        ]}
+      />
+    );
+    await screen.findByText('PFE');
+    // Filter selectors label as "Type:"; the editor's field is plain "Type".
+    fireEvent.change(screen.getByLabelText('Type:'), {
+      target: { value: 'SELL' },
+    });
+    expect(screen.getByText('VOD')).toBeInTheDocument();
+    expect(screen.queryByText('PFE')).not.toBeInTheDocument();
+  });
+
   it('does not render the Account + Holdings Input form when inputOnly is false', async () => {
     render(
       <TransactionsPage

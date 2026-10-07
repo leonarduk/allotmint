@@ -2510,7 +2510,10 @@
   },
   "transactionsFilters": {
     "all": "Alle",
-    "account": "Konto"
+    "account": "Konto",
+    "side": "Art",
+    "buy": "Kauf",
+    "sell": "Verkauf"
   },
   "tradeCompliance": {
     "title": "Handels-Compliance",
@@ -2702,7 +2705,8 @@
     "updated": "Transaktion erfolgreich aktualisiert.",
     "created": "Transaktion erfolgreich erstellt.",
     "updateFailed": "Transaktion konnte nicht aktualisiert werden.",
-    "createFailed": "Transaktion konnte nicht erstellt werden."
+    "createFailed": "Transaktion konnte nicht erstellt werden.",
+    "inputLink": "Konten anlegen oder Bestände direkt erfassen →"
   },
   "alerts": {
     "title": "Warnungen",

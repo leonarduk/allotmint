@@ -2510,7 +2510,10 @@
   },
   "transactionsFilters": {
     "all": "Tous",
-    "account": "Compte"
+    "account": "Compte",
+    "side": "Type",
+    "buy": "Achat",
+    "sell": "Vente"
   },
   "tradeCompliance": {
     "title": "Conformité des opérations",
@@ -2702,7 +2705,8 @@
     "updated": "Transaction mise à jour avec succès.",
     "created": "Transaction créée avec succès.",
     "updateFailed": "Échec de la mise à jour de la transaction.",
-    "createFailed": "Échec de la création de la transaction."
+    "createFailed": "Échec de la création de la transaction.",
+    "inputLink": "Créer des comptes ou saisir directement les positions →"
   },
   "alerts": {
     "title": "Alertes",

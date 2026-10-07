@@ -42,6 +42,8 @@ import {
   TRACKING_ERROR_RANGE,
 } from "../lib/metricPlausibility";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
+import FundChargesSummary from "./FundChargesSummary";
+import { computeFundCharges } from "../lib/fundCharges";
 import { CostBasisChecklist } from "./CostBasisChecklist";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
@@ -700,6 +702,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     () => computePortfolioTotals(filteredAccounts),
     [filteredAccounts],
   );
+  const fundCharges = useMemo(
+    () => computeFundCharges(filteredAccounts),
+    [filteredAccounts],
+  );
 
   const { ownerRows, typeRows } = useMemo(() => {
     type OwnerAggregate = {
@@ -1082,6 +1088,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           <PortfolioSummary totals={totals} />
           <CostBasisChecklist accounts={filteredAccounts} />
         </>
+      )}
+
+      {!portfolioLoading && !relativeViewEnabled && hasFilteredAccounts && (
+        <FundChargesSummary charges={fundCharges} />
       )}
 
       {!portfolioLoading && isAllPositions && enableAdvancedAnalytics && (

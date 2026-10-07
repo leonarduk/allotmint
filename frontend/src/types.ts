@@ -67,6 +67,8 @@ export interface Holding {
   region?: string | null;
   /** Fund domicile / ISIN country region, as stored in instrument metadata (#9296). */
   domicile_region?: string | null;
+  /** Annual fund ongoing charge (OCF/TER) in %; null when unknown -- never 0 (#7834). */
+  ongoing_charge_pct?: number | null;
   forward_7d_change_pct?: number | null;
   forward_30d_change_pct?: number | null;
 
@@ -637,6 +639,8 @@ export interface InstrumentDetail {
   name?: string | null;
   sector?: string | null;
   currency?: string | null;
+  /** Annual ongoing charge in %; null when unknown (#7834). */
+  ongoing_charge_pct?: number | null;
   instrument_type?: string | null;
   rows?: number | null;
   from?: string | null;

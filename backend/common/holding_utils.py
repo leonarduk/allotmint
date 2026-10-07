@@ -21,6 +21,7 @@ from backend.common.constants import (
     UNITS,
 )
 from backend.common.currency import CurrencyNormaliser
+from backend.common.fund_charges import ongoing_charge_pct
 from backend.common.instrument_classification import (
     canonical_asset_class,
     exposure_region,
@@ -1013,6 +1014,8 @@ def enrich_holding(
     out["asset_class"] = canonical_asset_class(stored_asset_class)
     # Bond/commodity sub-class for sub-class rebalance targets (#9543).
     out["sub_asset_class"] = resolve_sub_asset_class({**meta, "ticker": full, "name": out["name"]}, out["asset_class"])
+    # Annual fund charge, None when unknown -- never 0 (#7834).
+    out["ongoing_charge_pct"] = ongoing_charge_pct(meta)
 
     units = float(out.get(UNITS, 0) or 0.0)
     if units <= 0:

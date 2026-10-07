@@ -804,7 +804,8 @@
         "insufficient_price_history": "Pas de répartition : moins de deux cours enregistrés sur cette période.",
         "currency_mismatch": "Pas de répartition : la devise de cotation ({{currency}}) diffère de la devise à partir de laquelle ses cours en GBP sont convertis."
       }
-    }
+    },
+    "ongoingCharge": "Frais courants : {{value}}"
   },
   "instrumentTable": {
     "columns": {
@@ -3577,5 +3578,11 @@
     "refreshNotCovered": "Ni Morningstar ni justETF n'ont de données de transparence pour ce fonds.",
     "refreshFailed": "Échec de l'actualisation : {{message}}",
     "manualSource": "Manuel (rapports du fonds)"
+  },
+  "fundCharges": {
+    "unknown": "Inconnu",
+    "weightedCharge": "Frais courants pondérés",
+    "annualCost": "Coût annuel estimé des fonds",
+    "excludesUnknown": "Exclut {{unknown}} positions sur {{total}} sans données de frais"
   }
 }

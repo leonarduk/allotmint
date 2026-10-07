@@ -804,7 +804,8 @@
         "insufficient_price_history": "Sin desglose: hay menos de dos precios guardados en este periodo.",
         "currency_mismatch": "Sin desglose: la divisa de cotización ({{currency}}) no coincide con la divisa desde la que se convierten sus precios en GBP."
       }
-    }
+    },
+    "ongoingCharge": "Gastos corrientes: {{value}}"
   },
   "instrumentTable": {
     "columns": {
@@ -3577,5 +3578,11 @@
     "refreshNotCovered": "Ni Morningstar ni justETF tienen datos de transparencia para este fondo.",
     "refreshFailed": "Error al actualizar: {{message}}",
     "manualSource": "Manual (informes del fondo)"
+  },
+  "fundCharges": {
+    "unknown": "Desconocido",
+    "weightedCharge": "Gastos corrientes ponderados",
+    "annualCost": "Coste anual estimado de los fondos",
+    "excludesUnknown": "Excluye {{unknown}} de {{total}} posiciones sin datos de comisiones"
   }
 }

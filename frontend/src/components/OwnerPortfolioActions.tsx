@@ -12,9 +12,9 @@ import { ValueAtRisk } from "./ValueAtRisk";
 import { useDemoReadOnly } from "../hooks/useDemoReadOnly";
 
 const FORM_ID = "group-add-position-form";
-type Props = { owner: string; asOf: string; accounts: Account[]; activeAccountType: string | null; onDateChange: (date: string | null) => void; onMutated: () => void };
+type Props = { owner: string; asOf: string; accounts: Account[]; activeAccountType: string | null; onDateChange: (date: string | null) => void; onMutated: () => void; portfolioValue?: number | null };
 
-export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType, onDateChange, onMutated }: Props) {
+export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType, onDateChange, onMutated, portfolioValue }: Props) {
   const { t } = useTranslation();
   const { demoReadOnly, reason } = useDemoReadOnly();
   const { familyMvpEnabled, enableAdvancedAnalytics = true, tabs, disabledTabs } = useConfig();
@@ -68,6 +68,6 @@ export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType
     {showAccount && <div className="mb-6"><AddAccountForm owner={owner} onCreated={finishMutation} onCancel={() => setShowAccount(false)} /></div>}
     {hasWarnings && <div className="mb-4"><Link to={`/compliance/${owner}`} className="text-blue-400 hover:text-blue-300">{t("ownerPortfolioActions.viewCompliance")}</Link></div>}
     {complianceError && <p role="alert" className="mb-4 text-sm text-red-400">{t("ownerPortfolioActions.complianceError")}</p>}
-    {enableAdvancedAnalytics && <div className="rounded-lg border border-gray-800 bg-black/30 p-4"><ValueAtRisk owner={owner} onDateChange={onDateChange} /></div>}
+    {enableAdvancedAnalytics && <div className="rounded-lg border border-gray-800 bg-black/30 p-4"><ValueAtRisk owner={owner} onDateChange={onDateChange} portfolioValue={portfolioValue} /></div>}
   </section>;
 }

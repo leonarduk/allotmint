@@ -7,17 +7,22 @@ import {
   getVarBreakdown,
 } from "../api";
 import VarBreakdownModal from "./VarBreakdownModal";
+import { useConfig } from "../ConfigContext";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
+import { percent } from "../lib/money";
 import type { VarBreakdown, VarScenario } from "../types";
 
 interface Props {
   owner: string;
   onDateChange?: (isoDate: string | null) => void;
+  /** Owner's total portfolio value (GBP); relative view shows VaR as a % of it (#10022). */
+  portfolioValue?: number | null;
 }
 
-export function ValueAtRisk({ owner, onDateChange }: Props) {
+export function ValueAtRisk({ owner, onDateChange, portfolioValue }: Props) {
   const reporting = useReportingCurrency();
   const { t } = useTranslation();
+  const { relativeViewEnabled } = useConfig();
   const [days, setDays] = useState<number>(30);
   const [var95, setVar95] = useState<number | null>(null);
   const [var99, setVar99] = useState<number | null>(null);
@@ -57,8 +62,19 @@ export function ValueAtRisk({ owner, onDateChange }: Props) {
     };
   }, [owner, days]);
 
-  // VaR is a GBP amount; shown in the reporting currency (#9805).
-  const format = (v: number | null) => (v != null ? reporting.format(v) : "–");
+  // VaR is a GBP amount; shown in the reporting currency (#9805). Relative
+  // view shows it as a % of the owner's portfolio value instead (#10022);
+  // without a usable value it falls back to a breakdown link, which shows
+  // the loss as a percent.
+  const relativeBase =
+    typeof portfolioValue === "number" && Number.isFinite(portfolioValue) && portfolioValue > 0
+      ? portfolioValue
+      : null;
+  const format = (v: number | null) => {
+    if (v == null) return "–";
+    if (!relativeViewEnabled) return reporting.format(v);
+    return relativeBase != null ? percent((v / relativeBase) * 100, 2) : t("var.viewBreakdown");
+  };
 
   const clearBreakdown = useCallback(() => {
     setScenarios([]);
@@ -155,6 +171,15 @@ export function ValueAtRisk({ owner, onDateChange }: Props) {
             </button>
           </li>
         </ul>
+      )}
+      {relativeViewEnabled &&
+        relativeBase == null &&
+        !loading &&
+        !err &&
+        !(var95 == null && var99 == null) && (
+        <p style={{ fontSize: "0.85rem", color: "#666" }} data-testid="var-relative-note">
+          {t("var.relativeHidden")}
+        </p>
       )}
       {breakdown && (
         <VarBreakdownModal

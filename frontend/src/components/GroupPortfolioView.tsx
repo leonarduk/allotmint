@@ -74,6 +74,7 @@ import type { PieLabelRenderProps } from "recharts";
 import { BadgeCheck, LineChart, Shield } from "lucide-react";
 import { toRollupRows, toScopedHoldingRows } from "../lib/rollupAdapter";
 import { OwnerPortfolioActions } from "./OwnerPortfolioActions";
+import { FirstRunHelpBanner } from "./FirstRunHelpBanner";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { readRouteScopeQuery } from "../routes/registry";
 import { useViewportWidth } from "../hooks/useViewportWidth";
@@ -668,6 +669,18 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     });
   }, [portfolio, activeOwner, activeAccountType]);
 
+  // The owner's whole portfolio value (ignoring any account-type filter, as
+  // VaR is computed over every account): relative view shows VaR as a % of
+  // it rather than a £ amount (#10022).
+  const ownerPortfolioValue = useMemo(() => {
+    if (!activeOwner || !portfolio) return null;
+    const summary = portfolio.members_summary?.find((m) => m.owner === activeOwner);
+    if (summary) return summary.total_value_estimate_gbp;
+    return portfolio.accounts
+      .filter((acct) => acct.owner === activeOwner)
+      .reduce((sum, acct) => sum + (acct.value_estimate_gbp ?? 0), 0);
+  }, [portfolio, activeOwner]);
+
   const scopedRows = useMemo(
     () => toScopedHoldingRows(filteredAccounts),
     [filteredAccounts],
@@ -956,6 +969,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
   return (
     <div style={{ marginTop: "1rem" }}>
+      <FirstRunHelpBanner />
       <div
         className="flex-wrap-row"
         style={{
@@ -1252,9 +1266,20 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 }
               >
                 <XAxis dataKey={activeContribTab === "sector" ? "sector" : "region"} />
-                <YAxis />
-                <Tooltip formatter={(v) => reporting.format(v as number | undefined)} />
-                <Bar dataKey="gain_gbp">
+                {/* Relative view plots gain as % of cost, not £ (#10022). */}
+                <YAxis
+                  tickFormatter={
+                    relativeViewEnabled ? (v: number) => percent(v, 1) : undefined
+                  }
+                />
+                <Tooltip
+                  formatter={(v) =>
+                    relativeViewEnabled
+                      ? percent(v as number | undefined, 2)
+                      : reporting.format(v as number | undefined)
+                  }
+                />
+                <Bar dataKey={relativeViewEnabled ? "contribution_pct" : "gain_gbp"}>
                   {(activeContribTab === "sector" ? sectorContrib : regionContrib)?.map(
                     (row, idx) => (
                       <Cell
@@ -1491,6 +1516,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           accounts={filteredAccounts}
           activeAccountType={activeAccountType}
           onDateChange={setAsOfOverride}
+          portfolioValue={ownerPortfolioValue}
           onMutated={() => {
             refetchPortfolio();
             setInstrumentRefreshVersion((version) => version + 1);

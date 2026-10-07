@@ -5,6 +5,7 @@ from datetime import datetime
 import pandas as pd
 import pytest
 
+from backend.common import holding_utils
 from backend.common import portfolio_utils as pu
 
 
@@ -40,6 +41,8 @@ def test_refresh_snapshot_in_memory_from_timeseries_writes_file(tmp_path, monkey
         return df
 
     monkeypatch.setattr(pu, "apply_scaling", fake_apply_scaling)
+    # BAR.N is GBP-quoted here; the USD case is covered separately (#7722).
+    monkeypatch.setattr(holding_utils, "instrument_currency", lambda ticker, exchange: "GBP")
 
     refreshed = {}
 
@@ -63,6 +66,34 @@ def test_refresh_snapshot_in_memory_from_timeseries_writes_file(tmp_path, monkey
     assert isinstance(refreshed["timestamp"], datetime)
 
     assert json.loads(prices_path.read_text()) == expected_snapshot
+
+
+def test_refresh_snapshot_skips_unconverted_non_gbp_close(tmp_path, monkeypatch):
+    """A USD close the loader could not convert (no Close_gbp) is not snapshotted as GBP (#7722)."""
+    tickers = ["AAPL.N", "VOD.L"]
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {t: {} for t in tickers})
+    monkeypatch.setattr(pu, "list_all_unique_tickers", lambda: tickers)
+    frames = {
+        "AAPL": pd.DataFrame({"Date": pd.to_datetime(["2024-01-03"]), "Close": [150.0]}),
+        "VOD": pd.DataFrame({"Date": pd.to_datetime(["2024-01-03"]), "Close": [0.7]}),
+    }
+    monkeypatch.setattr(
+        pu, "load_meta_timeseries_range", lambda *, ticker, exchange, start_date, end_date: frames[ticker]
+    )
+    monkeypatch.setattr(pu, "get_scaling_override", lambda ticker, exchange, meta: 1)
+    monkeypatch.setattr(pu, "apply_scaling", lambda df, scale: df)
+    monkeypatch.setattr(
+        holding_utils, "instrument_currency", lambda ticker, exchange: {"N": "USD"}.get(exchange, "GBP")
+    )
+    refreshed = {}
+    monkeypatch.setattr(pu, "refresh_snapshot_in_memory", lambda snapshot, ts: refreshed.update(snapshot=snapshot))
+    monkeypatch.setattr(pu, "_PRICES_PATH", tmp_path / "latest_prices.json")
+
+    pu.refresh_snapshot_in_memory_from_timeseries(days=7)
+
+    assert refreshed["snapshot"] == {
+        "VOD.L": {"last_price": 0.7, "price_currency": "GBP", "last_price_date": "2024-01-03"},
+    }
 
 
 def test_refresh_snapshot_scaling_override_does_not_rescale_close_gbp(tmp_path, monkeypatch):
@@ -223,6 +254,8 @@ async def test_refresh_snapshot_skips_nan_close_price_and_keeps_seeded_value(tmp
         lambda *, ticker, exchange, start_date, end_date: nan_df,
     )
     monkeypatch.setattr(pu, "get_scaling_override", lambda *_, **__: 1)
+    # Sterling, so the NaN close (not a missing FX conversion, #7722) is what skips it.
+    monkeypatch.setattr(holding_utils, "instrument_currency", lambda ticker, exchange: "GBP")
     monkeypatch.setattr(pu, "apply_scaling", lambda df, scale: df)
 
     recorded = {}

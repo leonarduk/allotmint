@@ -28,7 +28,12 @@ from backend.common.account_scaffold import load_transactions
 from backend.common.constants import PRICE_CHANGE_WINDOWS
 from backend.common.currency import CurrencyNormaliser
 from backend.common.data_loader import DATA_BUCKET_ENV
-from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, _get_price_for_date_scaled, is_cost_basis_unreliable
+from backend.common.holding_utils import (
+    BOOK_COST_SUSPECT_SOURCE,
+    _close_column,
+    _get_price_for_date_scaled,
+    is_cost_basis_unreliable,
+)
 from backend.common.instrument_classification import canonical_asset_class, exposure_sector, resolve_instrument_type
 from backend.common.instruments import (
     decode_html_entities,
@@ -2813,14 +2818,9 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             if df is not None and not df.empty:
                 scale = get_scaling_override(ticker_only, exchange, None)
                 df = apply_scaling(df, scale)
-                name_map = {c.lower(): c for c in df.columns}
-
-                close_col = (
-                    name_map.get("close_gbp")
-                    or name_map.get("close")
-                    or name_map.get("adj close")
-                    or name_map.get("adj_close")
-                )
+                # A non-GBP close the loader could not convert has no GBP
+                # close: never snapshot it at 1:1 as "GBP" (#7722).
+                close_col = _close_column(df, ticker_only, exchange)
                 if close_col:
                     # Prefer the most recent row with a finite close over the
                     # literal last row: the current day's row can be an

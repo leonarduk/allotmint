@@ -330,13 +330,50 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
 latest_prices: Dict[str, float] = {}
 
 
-def _close_column(df: pd.DataFrame) -> Optional[str]:
+def _native_close_is_gbp(ticker: str, exchange: str) -> bool:
+    """Whether ``ticker.exchange``'s native close is already sterling (GBP or pence).
+
+    The timeseries loader leaves a non-sterling frame without ``Close_gbp``
+    when it has no FX rate (#9664); its native close must then never be read
+    as a GBP price (#7722).
+    """
+    try:
+        currency = instrument_currency(ticker, exchange)
+    except ValueError as exc:
+        # Same GBP default as _holding_fx_rate_source for an unparseable symbol.
+        logger.warning(
+            "No currency for %s.%s; assuming GBP: %s",
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+            sanitise_log_value(exc),
+        )
+        return True
+    normaliser = CurrencyNormaliser.from_raw(currency)
+    return normaliser.is_pence or normaliser.canonical == "GBP"
+
+
+def _close_column(df: pd.DataFrame, ticker: Optional[str] = None, exchange: Optional[str] = None) -> Optional[str]:
     """
     Prefer GBP close if present, else fall back to Close or Adj Close,
     case-insensitive.
+
+    Given ``ticker``/``exchange``, the native fallback is only taken for a
+    sterling instrument: a non-GBP close with no ``Close_gbp`` was never
+    converted, so there is no GBP close (``None``) rather than one valued 1:1
+    in the wrong currency (#7722).
     """
     nm = _lower_name_map(df)
-    return nm.get("close_gbp") or nm.get("close") or nm.get("adj close") or nm.get("adj_close")
+    if nm.get("close_gbp"):
+        return nm["close_gbp"]
+    native = nm.get("close") or nm.get("adj close") or nm.get("adj_close")
+    if native and ticker is not None and not _native_close_is_gbp(ticker, exchange or ""):
+        logger.warning(
+            "No GBP close for %s.%s (no FX conversion); not using its native close",
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+        )
+        return None
+    return native
 
 
 # ─────── cost basis (single source of truth) ───────
@@ -362,7 +399,7 @@ def _derived_cost_basis_close_px(
     scale = get_scaling_override(ticker, exchange, None)
     df = apply_scaling(df, scale)
 
-    col = _close_column(df)
+    col = _close_column(df, ticker, exchange)
     if not col or df[col].empty:
         return None
 
@@ -418,7 +455,7 @@ def _load_unscaled_price_for_date_impl(
     df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=d, end_date=d)
     if df is None or df.empty:
         return None, None, False, None
-    found = _last_usable_row(df, field)
+    found = _last_usable_row(df, field, ticker, exchange)
     if found is None:
         # The loader only walks back past *missing* days, so it can stop on a
         # row with no usable value -- e.g. a partial-day Yahoo bar with
@@ -427,7 +464,7 @@ def _load_unscaled_price_for_date_impl(
         # walk-back window and take its latest usable row instead.
         start = d - dt.timedelta(days=_PRICE_WALK_BACK_DAYS)
         df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=start, end_date=d)
-        found = None if df is None or df.empty else _last_usable_row(df, field)
+        found = None if df is None or df.empty else _last_usable_row(df, field, ticker, exchange)
     if found is None:
         return None, None, False, None
 
@@ -443,21 +480,23 @@ def _load_unscaled_price_for_date_impl(
 _PRICE_WALK_BACK_DAYS = 4
 
 
-def _value_column(df: pd.DataFrame, field: str) -> Optional[str]:
-    """Physical column holding ``field``; for a close, prefer the GBP-converted one."""
-    nm = _lower_name_map(df)
+def _value_column(df: pd.DataFrame, field: str, ticker: str, exchange: str) -> Optional[str]:
+    """Physical column holding ``field``; for a close, the GBP-converted one,
+    or the native close only for a sterling instrument (see ``_close_column``)."""
     if field.lower() in {"close", "close_gbp"}:
-        return nm.get("close_gbp") or nm.get("close") or nm.get("adj close") or nm.get("adj_close")
-    return nm.get(field.lower())
+        return _close_column(df, ticker, exchange)
+    return _lower_name_map(df).get(field.lower())
 
 
-def _last_usable_row(df: pd.DataFrame, field: str) -> Optional[tuple[pd.Series, str, float]]:
+def _last_usable_row(
+    df: pd.DataFrame, field: str, ticker: str, exchange: str
+) -> Optional[tuple[pd.Series, str, float]]:
     """``(row, column, value)`` of the latest row with a usable ``field`` value.
 
     Usable means numeric and not NaN, and for a close also > 0: a zero close
     is a placeholder in an empty bar, never a traded price.
     """
-    col = _value_column(df, field)
+    col = _value_column(df, field, ticker, exchange)
     if not col:
         return None
     values = pd.to_numeric(df[col], errors="coerce")

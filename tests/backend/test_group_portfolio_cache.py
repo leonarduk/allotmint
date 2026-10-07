@@ -62,6 +62,7 @@ def test_sibling_endpoints_share_one_build(counting_builder, monkeypatch):
     monkeypatch.setattr(portfolio.portfolio_utils, "aggregate_by_sector", lambda data: [])
     monkeypatch.setattr(portfolio.portfolio_utils, "aggregate_by_region", lambda data: [])
     monkeypatch.setattr(portfolio.portfolio_utils, "aggregate_by_currency", lambda data: [])
+    monkeypatch.setattr(portfolio.look_through, "compute_look_through", lambda data: {})
     client = _client()
 
     for path in (
@@ -70,6 +71,7 @@ def test_sibling_endpoints_share_one_build(counting_builder, monkeypatch):
         "/portfolio-group/all/sectors",
         "/portfolio-group/all/regions",
         "/portfolio-group/all/currencies",
+        "/portfolio-group/all/look-through",
     ):
         assert client.get(path).status_code == 200
 

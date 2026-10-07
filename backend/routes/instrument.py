@@ -22,7 +22,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
-from backend.common import instrument_api, nav
+from backend.common import instrument_api, look_through, nav
 from backend.common.constants import ACQUIRED_DATE, COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP, UNITS
 from backend.common.fx_return_split import local_fx_return_split
 from backend.common.holding_utils import is_cost_basis_unreliable
@@ -187,6 +187,20 @@ def instrument_nav_discount(
 
     _validate_ticker(ticker.strip())
     return nav.nav_discount(ticker).as_dict()
+
+
+@router.get("/allocation")
+def instrument_allocation(
+    ticker: Annotated[str, Query(description="Full ticker, e.g. MINV.L or GSK.L")],
+) -> Dict[str, Any]:
+    """Country, sector and top-holding breakdown of one instrument (#9974).
+
+    Funds use their stored look-through snapshot; a single share is 100% its
+    own country and sector. Reads stored metadata only -- never fetches.
+    """
+
+    _validate_ticker(ticker.strip())
+    return look_through.instrument_allocation(ticker.strip().upper())
 
 
 # ────────────────────────────────────────────────────────────────

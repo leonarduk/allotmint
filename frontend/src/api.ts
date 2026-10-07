@@ -1834,6 +1834,36 @@ export interface ManualHoldingPayload {
   units?: number;
   price_gbp?: number;
   currency?: string;
+  /** ISO date for the offsetting transaction; omit for an opening balance. */
+  date?: string;
+  /** Return the would-be transaction without writing it. */
+  dry_run?: boolean;
+  /** Save even though the price looks like a pence/pounds mix-up. */
+  confirm_price?: boolean;
+}
+
+export interface ManualHoldingPriceWarning {
+  latest_price_gbp: number;
+  ratio: number;
+  suggested_price_gbp: number;
+  message: string;
+}
+
+export interface ManualHoldingResult {
+  status: string;
+  owner: string;
+  account: string;
+  holding: Record<string, unknown>;
+  /** Units held before the change (present on current backends). */
+  units_before?: number;
+  transaction?: {
+    type: string;
+    ticker: string;
+    date: string;
+    units: number;
+    price_gbp: number;
+  } | null;
+  price_warning?: ManualHoldingPriceWarning | null;
 }
 
 export interface ManualHoldingAccount {
@@ -1851,12 +1881,7 @@ export const createTransaction = (payload: CreateTransactionPayload) =>
   });
 
 export const createManualHolding = (payload: ManualHoldingPayload) =>
-  fetchJson<{
-    status: string;
-    owner: string;
-    account: string;
-    holding: Record<string, unknown>;
-  }>(`${API_BASE}/holdings/manual`, {
+  fetchJson<ManualHoldingResult>(`${API_BASE}/holdings/manual`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

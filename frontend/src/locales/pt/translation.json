@@ -21,7 +21,17 @@
     },
     "emptyAccountCta": "Adicione a sua primeira posição",
     "collapse": "Recolher formulário de adicionar posição",
-    "collapseShort": "Recolher"
+    "collapseShort": "Recolher",
+    "totalHint": "Introduza o TOTAL de unidades que detém nesta conta após a alteração, não o tamanho de uma única operação. A diferença face ao que detém agora é registada como uma transferência, apresentada antes de guardar.",
+    "date": "Data da alteração",
+    "openingBalance": "Saldo inicial (datar na primeira transação da conta)",
+    "preview": {
+      "button": "Pré-visualizar",
+      "change": "Serão registadas {{sign}}{{units}} unidades de {{ticker}} como {{type}} com data {{date}} a £{{price}}/unidade (atual: {{before}}, novo total: {{target}}).",
+      "noChange": "Sem alterações: já detém {{units}} unidades.",
+      "priceWarning": "Verifique o preço: {{message}}",
+      "saveAnyway": "Guardar mesmo assim"
+    }
   },
   "alertSettings": {
     "description": "Este limite ainda não está ligado à geração de alertas neste ambiente. Os alertas atuais vêm de uma verificação fixa, válida para toda a conta, executada durante a atualização diária de preços: qualquer posição que se desvie mais de 10% do seu preço de custo é sinalizada, em todas as carteiras.",

@@ -21,7 +21,17 @@
     },
     "emptyAccountCta": "Añade tu primera posición",
     "collapse": "Contraer formulario de añadir posición",
-    "collapseShort": "Contraer"
+    "collapseShort": "Contraer",
+    "totalHint": "Introduce el TOTAL de unidades que tendrás en esta cuenta tras el cambio, no el tamaño de una sola operación. La diferencia con lo que tienes ahora se registra como una transferencia y se muestra antes de guardar.",
+    "date": "Fecha del cambio",
+    "openingBalance": "Saldo inicial (fecharlo en la primera transacción de la cuenta)",
+    "preview": {
+      "button": "Vista previa",
+      "change": "Se registrarán {{sign}}{{units}} unidades de {{ticker}} como {{type}} con fecha {{date}} a £{{price}}/unidad (actual: {{before}}, nuevo total: {{target}}).",
+      "noChange": "Sin cambios: ya tienes {{units}} unidades.",
+      "priceWarning": "Revisa el precio: {{message}}",
+      "saveAnyway": "Guardar de todos modos"
+    }
   },
   "alertSettings": {
     "description": "Este umbral aún no está conectado a la generación de alertas en este entorno. Las alertas actuales provienen de una comprobación fija que se ejecuta en toda la cuenta durante la actualización diaria de precios: cualquier posición que se desvíe más del 10 % de su precio de coste se marca en todas las carteras.",

@@ -9,59 +9,153 @@ vi.mock("@/api", () => ({
   createManualHolding: vi.fn(),
 }));
 
+const localToday = () => {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
+
+const previewResult = (overrides: Record<string, unknown> = {}) => ({
+  status: "preview",
+  owner: "alice",
+  account: "sipp",
+  holding: { ticker: "PHGP.L", units: 34, price: 288.89 },
+  units_before: 21,
+  transaction: {
+    type: "TRANSFER_IN",
+    ticker: "PHGP.L",
+    date: "2026-10-07",
+    units: 13,
+    price_gbp: 288.89,
+  },
+  price_warning: null,
+  ...overrides,
+});
+
+const savedResult = { status: "saved", owner: "alice", account: "sipp", holding: { ticker: "PHGP.L" } };
+
 describe("AddPositionForm", () => {
   beforeEach(() => {
     vi.mocked(createManualHolding).mockReset();
   });
 
-  it("submits units + price for the selected account", async () => {
-    vi.mocked(createManualHolding).mockResolvedValue({
-      status: "saved",
-      owner: "alice",
-      account: "sipp",
-      holding: { ticker: "VWRL.L" },
-    });
+  it("explains that units are the total holding, not a single trade", () => {
+    render(<AddPositionForm owner="alice" accounts={["ISA"]} />);
+
+    expect(screen.getByText(/Enter the TOTAL units you hold/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Date of change")).toHaveValue(localToday());
+  });
+
+  it("previews the computed transfer before saving units + price", async () => {
+    vi.mocked(createManualHolding)
+      .mockResolvedValueOnce(previewResult())
+      .mockResolvedValueOnce(savedResult);
 
     render(<AddPositionForm owner="alice" accounts={["ISA", "SIPP"]} />);
 
     await userEvent.selectOptions(screen.getByLabelText("Account"), "SIPP");
-    await userEvent.type(screen.getByLabelText("Ticker"), "vwrl.l");
-    await userEvent.type(screen.getByLabelText("Units"), "10");
-    await userEvent.type(screen.getByLabelText("Price (GBP)"), "100");
-    await userEvent.click(screen.getByRole("button", { name: "Add position" }));
+    await userEvent.type(screen.getByLabelText("Ticker"), "phgp.l");
+    await userEvent.type(screen.getByLabelText("Units"), "34");
+    await userEvent.type(screen.getByLabelText("Price (GBP)"), "288.89");
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
 
-    expect(createManualHolding).toHaveBeenCalledWith({
+    const expected = {
       owner: "alice",
       account: "SIPP",
-      ticker: "VWRL.L",
-      units: 10,
-      price_gbp: 100,
-    });
+      ticker: "PHGP.L",
+      units: 34,
+      price_gbp: 288.89,
+      date: localToday(),
+    };
+    expect(createManualHolding).toHaveBeenCalledWith({ ...expected, dry_run: true });
+    expect(await screen.findByTestId("add-position-preview")).toHaveTextContent(
+      "This will record +13 units of PHGP.L as TRANSFER_IN dated 2026-10-07 at £288.89/unit (held now: 21, new total: 34).",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Add position" }));
+
+    expect(createManualHolding).toHaveBeenLastCalledWith({ ...expected, confirm_price: false });
     expect(await screen.findByRole("status")).toHaveTextContent("Position added.");
   });
 
-  it("submits a direct GBP value when that mode is selected", async () => {
-    vi.mocked(createManualHolding).mockResolvedValue({
-      status: "saved",
+  it("omits the date for an opening balance", async () => {
+    vi.mocked(createManualHolding).mockResolvedValueOnce(previewResult());
+
+    render(<AddPositionForm owner="alice" accounts={["ISA"]} />);
+
+    await userEvent.type(screen.getByLabelText("Ticker"), "AAA.L");
+    await userEvent.type(screen.getByLabelText("Units"), "10");
+    await userEvent.type(screen.getByLabelText("Price (GBP)"), "100");
+    await userEvent.click(screen.getByLabelText(/Opening balance/));
+    expect(screen.getByLabelText("Date of change")).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+    expect(createManualHolding).toHaveBeenCalledWith({
       owner: "alice",
-      account: "isa",
-      holding: { ticker: "AAA.L" },
+      account: "ISA",
+      ticker: "AAA.L",
+      units: 10,
+      price_gbp: 100,
+      dry_run: true,
     });
+  });
+
+  it("warns about a likely pence/pounds mix-up and requires an explicit save", async () => {
+    const message = "Price £28,889.40 for PHGP.L is 99.6x the latest known price £290.00; possibly pence entered as pounds";
+    vi.mocked(createManualHolding)
+      .mockResolvedValueOnce(
+        previewResult({ price_warning: { latest_price_gbp: 290, ratio: 99.6, suggested_price_gbp: 288.89, message } }),
+      )
+      .mockResolvedValueOnce(savedResult);
+
+    render(<AddPositionForm owner="alice" accounts={["SIPP"]} />);
+
+    await userEvent.type(screen.getByLabelText("Ticker"), "PHGP.L");
+    await userEvent.type(screen.getByLabelText("Units"), "34");
+    await userEvent.type(screen.getByLabelText("Price (GBP)"), "28889.4");
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(`Check the price: ${message}`);
+    await userEvent.click(screen.getByRole("button", { name: "Save anyway" }));
+
+    expect(createManualHolding).toHaveBeenLastCalledWith(expect.objectContaining({ confirm_price: true }));
+  });
+
+  it("discards the preview when an input changes", async () => {
+    vi.mocked(createManualHolding).mockResolvedValue(previewResult());
+
+    render(<AddPositionForm owner="alice" accounts={["SIPP"]} />);
+
+    await userEvent.type(screen.getByLabelText("Ticker"), "PHGP.L");
+    await userEvent.type(screen.getByLabelText("Units"), "34");
+    await userEvent.type(screen.getByLabelText("Price (GBP)"), "288.89");
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+    expect(await screen.findByTestId("add-position-preview")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Units"), "5");
+
+    expect(screen.queryByTestId("add-position-preview")).toBeNull();
+    expect(screen.getByRole("button", { name: "Preview" })).toBeInTheDocument();
+  });
+
+  it("previews a direct GBP value when that mode is selected", async () => {
+    vi.mocked(createManualHolding).mockResolvedValueOnce(previewResult());
 
     render(<AddPositionForm owner="alice" accounts={["ISA"]} />);
 
     await userEvent.type(screen.getByLabelText("Ticker"), "AAA.L");
     await userEvent.selectOptions(screen.getByLabelText("Amount"), "Value (GBP)");
     await userEvent.type(screen.getByLabelText("Value (GBP)"), "500");
-    await userEvent.click(screen.getByRole("button", { name: "Add position" }));
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
 
     expect(createManualHolding).toHaveBeenCalledWith({
       owner: "alice",
       account: "ISA",
       ticker: "AAA.L",
       value_gbp: 500,
+      date: localToday(),
+      dry_run: true,
     });
-    expect(await screen.findByRole("status")).toHaveTextContent("Position added.");
   });
 
   it("requires a ticker before submitting", async () => {
@@ -69,7 +163,7 @@ describe("AddPositionForm", () => {
 
     await userEvent.type(screen.getByLabelText("Units"), "10");
     await userEvent.type(screen.getByLabelText("Price (GBP)"), "100");
-    await userEvent.click(screen.getByRole("button", { name: "Add position" }));
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Ticker is required.");
     expect(createManualHolding).not.toHaveBeenCalled();
@@ -80,7 +174,7 @@ describe("AddPositionForm", () => {
 
     await userEvent.type(screen.getByLabelText("Ticker"), "AAA.L");
     await userEvent.type(screen.getByLabelText("Units"), "10");
-    await userEvent.click(screen.getByRole("button", { name: "Add position" }));
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Provide either a value, or both units and price.",
@@ -98,7 +192,7 @@ describe("AddPositionForm", () => {
     await userEvent.type(screen.getByLabelText("Ticker"), "AAA.L");
     await userEvent.type(screen.getByLabelText("Units"), "10");
     await userEvent.type(screen.getByLabelText("Price (GBP)"), "100");
-    await userEvent.click(screen.getByRole("button", { name: "Add position" }));
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("HTTP 400 - Bad Request");
   });
@@ -173,7 +267,7 @@ describe("AddPositionForm", () => {
         </AuthContext.Provider>,
       );
 
-      const submit = screen.getByRole("button", { name: "Add position" });
+      const submit = screen.getByRole("button", { name: "Preview" });
       expect(submit).toBeDisabled();
       expect(submit).toHaveAttribute("title");
     });
@@ -188,7 +282,7 @@ describe("AddPositionForm", () => {
 
       render(<AddPositionForm owner="alice" accounts={["ISA"]} />);
 
-      const submit = screen.getByRole("button", { name: "Add position" });
+      const submit = screen.getByRole("button", { name: "Preview" });
       expect(submit).not.toBeDisabled();
 
       await userEvent.type(screen.getByLabelText("Ticker"), "AAA.L");

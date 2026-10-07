@@ -21,7 +21,17 @@
     },
     "emptyAccountCta": "Add your first position",
     "collapse": "Collapse add position form",
-    "collapseShort": "Collapse"
+    "collapseShort": "Collapse",
+    "totalHint": "Enter the TOTAL units you hold in this account after the change, not the size of a single trade. The difference from what you hold now is recorded as a transfer, previewed before saving.",
+    "date": "Date of change",
+    "openingBalance": "Opening balance (date it from the account's first transaction)",
+    "preview": {
+      "button": "Preview",
+      "change": "This will record {{sign}}{{units}} units of {{ticker}} as {{type}} dated {{date}} at £{{price}}/unit (held now: {{before}}, new total: {{target}}).",
+      "noChange": "No change: you already hold {{units}} units.",
+      "priceWarning": "Check the price: {{message}}",
+      "saveAnyway": "Save anyway"
+    }
   },
   "alertSettings": {
     "description": "This threshold isn't wired into alert generation yet in this deployment. Today's alerts come from a fixed, account-wide check that runs during the daily price refresh: any holding more than 10% away from its cost basis is flagged, across every portfolio.",

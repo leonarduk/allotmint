@@ -467,6 +467,9 @@
     },
     "clearFilters": "Clear filters",
     "horizontalScroll": "Scroll holdings columns horizontally",
+    "filtersLabel": "Filter holdings",
+    "filterBy": "Filter by {{field}}",
+    "moreColumnsHint": "More columns →",
     "columns": {
       "sector": "Sector",
       "acquired": "Acquired",

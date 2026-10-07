@@ -448,10 +448,9 @@ export function HoldingsTable({
   const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
   const [tableWidth, setTableWidth] = useState(0);
 
-  // The header owns two rows (filter inputs + column titles) whose combined
-  // height changes when columns are toggled, the viewport narrows, or the filter
-  // row wraps. It feeds the virtualizer's scrollMargin, so it has to be
-  // re-measured on resize rather than once on mount.
+  // The header row's height changes when columns are toggled or the viewport
+  // narrows and titles wrap. It feeds the virtualizer's scrollMargin, so it has
+  // to be re-measured on resize rather than once on mount.
   useLayoutEffect(() => {
     const header = tableHeaderRef.current;
     if (!header) return;
@@ -714,8 +713,75 @@ export function HoldingsTable({
           </div>
         </>
       )}
+      {/* Per-column filters live above the table rather than in a second
+          <thead> row: that row rendered as a blank band with placeholder text
+          floating over the real headers (#7814). Rendering them outside the
+          table also keeps them reachable when a filter matches nothing. */}
+      {holdings.length > 0 && (
+        <div
+          role="group"
+          aria-label={t("holdingsTable.filtersLabel")}
+          className="mb-2 flex flex-wrap items-center gap-2"
+        >
+          <input
+            className="w-28"
+            placeholder={t("holdingsTable.filters.ticker")}
+            aria-label={t("holdingsTable.filterBy", { field: t("holdingsTable.filters.ticker") })}
+            value={filters.ticker}
+            onChange={(e) => handleFilterChange("ticker", e.target.value)}
+          />
+          <input
+            className="w-36"
+            placeholder={t("holdingsTable.filters.name")}
+            aria-label={t("holdingsTable.filterBy", { field: t("holdingsTable.filters.name") })}
+            value={filters.name}
+            onChange={(e) => handleFilterChange("name", e.target.value)}
+          />
+          {!relativeViewEnabled && visibleColumns.units && (
+            <input
+              className="w-24"
+              placeholder={t("holdingsTable.filters.units")}
+              aria-label={t("holdingsTable.filterBy", { field: t("holdingsTable.filters.units") })}
+              value={filters.units}
+              onChange={(e) => handleFilterChange("units", e.target.value)}
+            />
+          )}
+          {visibleColumns.gain_pct && (
+            <input
+              className="w-24"
+              placeholder={t("holdingsTable.filters.gainPct")}
+              aria-label={t("holdingsTable.filterBy", { field: t("holdingsTable.filters.gainPct") })}
+              value={filters.gain_pct}
+              onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
+            />
+          )}
+          <input
+            className="w-28"
+            placeholder={t("holdingsTable.filters.type")}
+            aria-label={t("holdingsTable.filterBy", { field: t("holdingsTable.filters.type") })}
+            value={filters.instrument_type}
+            onChange={(e) => handleFilterChange("instrument_type", e.target.value)}
+          />
+          {!rollupMode && (
+            <select
+              aria-label={t("holdingsTable.filters.sellEligible")}
+              value={filters.sell_eligible}
+              onChange={(e) => handleFilterChange("sell_eligible", e.target.value)}
+            >
+              <option value="">{t("holdingsTable.filters.all")}</option>
+              <option value="true">{t("holdingsTable.filters.yes")}</option>
+              <option value="false">{t("holdingsTable.filters.no")}</option>
+            </select>
+          )}
+        </div>
+      )}
       {sortedRows.length ? (
         <>
+          {hasMoreColumns && (
+            <p className={tableStyles.moreColumnsHint} aria-hidden="true">
+              {t("holdingsTable.moreColumnsHint")}
+            </p>
+          )}
           <div
             ref={topScrollbarRef}
             className={`${tableStyles.topScrollbar} ${hasHorizontalOverflow ? "" : tableStyles.topScrollbarHidden}`}
@@ -732,87 +798,6 @@ export function HoldingsTable({
           >
             <table ref={tableRef} className={`${tableStyles.table} mb-4 w-full`}>
         <thead ref={tableHeaderRef}>
-          <tr>
-            {showAccount && <th className={tableStyles.cell}></th>}
-            <th className={tableStyles.cell}>
-              <input
-                placeholder={t("holdingsTable.filters.ticker")}
-                value={filters.ticker}
-                onChange={(e) => handleFilterChange("ticker", e.target.value)}
-              />
-            </th>
-            <th className={tableStyles.cell}>
-              <input
-                placeholder={t("holdingsTable.filters.name")}
-                value={filters.name}
-                onChange={(e) => handleFilterChange("name", e.target.value)}
-              />
-            </th>
-            <th className={tableStyles.cell}></th>
-            {!relativeViewEnabled && visibleColumns.units && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                <input
-                  placeholder={t("holdingsTable.filters.units")}
-                  value={filters.units}
-                  onChange={(e) => handleFilterChange("units", e.target.value)}
-                />
-              </th>
-            )}
-            {!relativeViewEnabled && visibleColumns.market && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
-            )}
-            {!relativeViewEnabled && visibleColumns.gain && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
-            )}
-            {visibleColumns.gain_pct && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                <input
-                  placeholder={t("holdingsTable.filters.gainPct")}
-                  value={filters.gain_pct}
-                  onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
-                />
-              </th>
-            )}
-            {!relativeViewEnabled && visibleColumns.total_return && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
-            )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
-            {!relativeViewEnabled && visibleColumns.cost && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
-            )}
-            {showForward7d && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
-            )}
-            {showForward30d && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
-            )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
-            <th className={tableStyles.cell}></th>
-            <th className={tableStyles.cell}></th>
-            <th className={tableStyles.cell}>
-              <input
-                placeholder={t("holdingsTable.filters.type")}
-                value={filters.instrument_type}
-                onChange={(e) => handleFilterChange("instrument_type", e.target.value)}
-              />
-            </th>
-            <th className={tableStyles.cell}></th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
-            <th className={tableStyles.cell}></th>
-            <th className={`${tableStyles.cell} ${tableStyles.center}`}>
-              {!rollupMode && (
-                <select
-                  aria-label={t("holdingsTable.filters.sellEligible")}
-                  value={filters.sell_eligible}
-                  onChange={(e) => handleFilterChange("sell_eligible", e.target.value)}
-                >
-                  <option value="">{t("holdingsTable.filters.all")}</option>
-                  <option value="true">{t("holdingsTable.filters.yes")}</option>
-                  <option value="false">{t("holdingsTable.filters.no")}</option>
-                </select>
-              )}
-            </th>
-          </tr>
           <tr>
             {showAccount && (
               <th className={tableStyles.cell}>{t("holdingsTable.columns.account")}</th>

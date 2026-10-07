@@ -473,6 +473,9 @@
     },
     "clearFilters": "Effacer les filtres",
     "horizontalScroll": "Faire défiler horizontalement les colonnes des positions",
+    "filtersLabel": "Filtrer les positions",
+    "filterBy": "Filtrer par {{field}}",
+    "moreColumnsHint": "Plus de colonnes →",
     "columns": {
       "sector": "Secteur",
       "acquired": "Acquis",

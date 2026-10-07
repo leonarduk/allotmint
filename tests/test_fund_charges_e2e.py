@@ -14,7 +14,7 @@ from datetime import date
 
 import pytest
 
-from backend.common import group_portfolio, instruments
+from backend.common import group_portfolio, holding_utils, instruments, portfolio_utils
 from backend.common import portfolio as owner_portfolio
 from backend.common.account_models import OwnerSummaryRecord
 from backend.common.constants import ACCOUNTS, HOLDINGS
@@ -37,7 +37,18 @@ def catalogue(tmp_path, monkeypatch):
     (inst_dir / "L" / "NOFEE.json").write_text(json.dumps({"ticker": NO_FEE, "name": "No Fee Data", "currency": "GBP"}))
     monkeypatch.delenv(instruments.METADATA_BUCKET_ENV, raising=False)
     monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", inst_dir)
-    return inst_dir
+    # ``get_instrument_meta`` is ``lru_cache``d, and other tests
+    # ``importlib.reload(backend.common.instruments)`` -- leaving the modules
+    # that did ``from ... import get_instrument_meta`` holding the *pre-reload*
+    # function, whose cache no ``instruments.get_instrument_meta.cache_clear()``
+    # reaches and may already hold a "VWRL.L" entry read from the real data
+    # root. Bind those modules to the current function (still the real,
+    # unpatched lookup) and start and finish with an empty cache.
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", instruments.get_instrument_meta)
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", instruments.get_instrument_meta)
+    instruments.get_instrument_meta.cache_clear()
+    yield inst_dir
+    instruments.get_instrument_meta.cache_clear()
 
 
 @pytest.fixture

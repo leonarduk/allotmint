@@ -43,17 +43,36 @@ CacheKey = Tuple[Hashable, ...]
 class _InFlight(Generic[T]):
     """One in-progress build that concurrent callers for the same key wait on."""
 
-    __slots__ = ("done", "value", "error", "builder_thread")
+    __slots__ = ("done", "value", "error")
 
     def __init__(self) -> None:
         self.done = threading.Event()
         self.value: Optional[T] = None
         self.error: Optional[BaseException] = None
-        self.builder_thread = threading.get_ident()
 
 
 class TTLCache(Generic[T]):
-    """Cache build results under a caller-supplied key for ``ttl_seconds``."""
+    """Cache build results under a caller-supplied key for ``ttl_seconds``.
+
+    Concurrency semantics (#10360):
+
+    * **Single-flight.** The first miss for a key builds; every concurrent miss
+      for that key waits for that build and gets a deep copy of its value, or
+      its exception. A failed build caches nothing, so the next call rebuilds.
+    * **Re-entrancy.** A ``build`` that calls ``get_or_build`` for a key that
+      the *same thread* is already building (tracked per thread as the keys on
+      its current call stack) cannot wait on itself without deadlocking, so
+      the nested call runs its own ``build`` and returns that value directly.
+      The nested value is neither published to the outer build's waiters nor
+      cached; only the outer build's result is.
+    * **clear().** Builds already in progress are detached, not cancelled: they
+      still answer the callers already waiting on them, but their result is
+      not cached, because it may predate the change that prompted the clear.
+      A caller arriving *after* clear() therefore does not join a pre-clear
+      build (it would be handed pre-clear data); it starts one fresh build that
+      later callers coalesce onto. So per key, clear() can add at most one
+      extra concurrent build, never one per caller.
+    """
 
     def __init__(self, ttl_seconds: float, *, name: str = "ttl_cache") -> None:
         self._ttl_seconds = ttl_seconds
@@ -64,6 +83,9 @@ class TTLCache(Generic[T]):
         # store its (possibly stale) result afterwards.
         self._generation = 0
         self._lock = threading.Lock()
+        # Per-thread count of the keys this thread is building right now, for
+        # the re-entrancy escape in get_or_build.
+        self._local = threading.local()
 
     @property
     def name(self) -> str:
@@ -73,49 +95,68 @@ class TTLCache(Generic[T]):
     def ttl_seconds(self) -> float:
         return self._ttl_seconds
 
+    def _keys_building_on_this_thread(self) -> Dict[CacheKey, int]:
+        building: Optional[Dict[CacheKey, int]] = getattr(self._local, "building", None)
+        if building is None:
+            building = {}
+            self._local.building = building
+        return building
+
     def get_or_build(self, key: CacheKey, build: Callable[[], T]) -> T:
         """Return a fresh cached value for ``key``, else build, store and return one.
 
         ``build`` is called outside the lock, so a slow build for one key never
-        blocks callers for another. Concurrent misses on the *same* key wait
-        for the first caller's build instead of starting their own; if that
-        build raises, every waiter sees the error and nothing is cached, so
-        the next call builds again. A ``build`` that re-enters
-        ``get_or_build`` for its own key builds directly rather than waiting
-        on itself.
+        blocks callers for another. See the class docstring for how concurrent
+        misses, re-entrant calls and :meth:`clear` interact.
         """
 
+        building = self._keys_building_on_this_thread()
+        flight: Optional[_InFlight[T]] = None
+        is_leader = False
         with self._lock:
             cached = self._entries.get(key)
-            flight = self._in_flight.get(key)
-            is_builder = flight is None
-            generation = self._generation
             fresh = cached is not None and time.monotonic() - cached[0] < self._ttl_seconds
-            if not fresh and flight is None:
-                flight = _InFlight()
-                self._in_flight[key] = flight
-        if fresh:
-            return copy.deepcopy(cached[1])  # type: ignore[index]
-        flight = cast("_InFlight[T]", flight)
+            if not fresh and key not in building:
+                flight = self._in_flight.get(key)
+                if flight is None:
+                    flight = _InFlight()
+                    self._in_flight[key] = flight
+                    is_leader = True
+            generation = self._generation
 
-        if is_builder:
-            return self._build_as_leader(key, build, flight, generation)
-        if flight.builder_thread == threading.get_ident():
+        if fresh:
+            return copy.deepcopy(cast("Tuple[float, T]", cached)[1])
+        if flight is None:
+            # Re-entrant call from inside this thread's own build of ``key``:
+            # waiting would deadlock, so build without publishing or caching.
             return build()
+        if is_leader:
+            return self._build_as_leader(key, build, flight, generation, building)
         flight.done.wait()
         if flight.error is not None:
             raise flight.error
-        return copy.deepcopy(flight.value)  # type: ignore[arg-type]
+        return copy.deepcopy(cast(T, flight.value))
 
-    def _build_as_leader(self, key: CacheKey, build: Callable[[], T], flight: _InFlight[T], generation: int) -> T:
+    def _build_as_leader(
+        self,
+        key: CacheKey,
+        build: Callable[[], T],
+        flight: _InFlight[T],
+        generation: int,
+        building: Dict[CacheKey, int],
+    ) -> T:
         """Run ``build`` for ``key``, publish the result to waiters, and cache it."""
 
+        building[key] = building.get(key, 0) + 1
         try:
             value = build()
         except BaseException as exc:
             flight.error = exc
             raise
         else:
+            # Waiters and the cache share this snapshot and each deep-copies it
+            # on read; the leader returns its own ``value``, so mutating that
+            # after return cannot leak into anyone else's result.
             stored = copy.deepcopy(value)
             flight.value = stored
             with self._lock:
@@ -123,6 +164,9 @@ class TTLCache(Generic[T]):
                     self._entries[key] = (time.monotonic(), stored)
             return value
         finally:
+            building[key] -= 1
+            if not building[key]:
+                del building[key]
             with self._lock:
                 if self._in_flight.get(key) is flight:
                     del self._in_flight[key]
@@ -131,8 +175,9 @@ class TTLCache(Generic[T]):
     def clear(self) -> None:
         """Drop every entry. Safe to call when nothing is cached.
 
-        A build already in progress still answers the callers waiting on it,
-        but its result is not cached.
+        In-progress builds are detached rather than cancelled: they still
+        answer the callers already waiting on them, but do not cache their
+        result, and later callers start one fresh build instead of joining them.
         """
 
         with self._lock:

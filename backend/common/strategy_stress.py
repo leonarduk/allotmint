@@ -120,7 +120,7 @@ def _fill_from_pro(sleeve: str, event_date: dt.date, horizons: Mapping[str, int]
         logger.warning(
             "allotmint-pro sleeve returns failed for %s on %s: %s",
             sanitise_log_value(sleeve),
-            event_date,
+            sanitise_log_value(event_date),
             sanitise_log_value(exc),
         )
         return

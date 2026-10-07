@@ -188,6 +188,39 @@ def test_instruments_are_pooled_separately_and_scaled_shares_handled():
     assert gains[3].realised_gain_gbp == pytest.approx(50.0)
 
 
+@pytest.mark.parametrize("units", [999_999, 1_000_000, 1_000_001, 2_000_000])
+def test_units_are_never_rescaled_by_magnitude(units):
+    # Selling the whole holding at a profit: an over-sell or unknown gain would
+    # mean ``units`` had been divided by PP's 10^8 share scale on one side only.
+    gains = compute_disposal_gains([_buy("2024-01-01", units, 1000), _sell("2024-02-01", units, 1500)])
+    assert gains[1].unmatched_units == 0.0
+    assert gains[1].cost_basis_gbp == pytest.approx(1000.0)
+    assert gains[1].realised_gain_gbp == pytest.approx(500.0)
+
+
+@pytest.mark.parametrize("shares", [999_999, 1_000_000, 1_000_001, 2_000_000])
+def test_shares_are_always_pp_scaled(shares):
+    # 999,999 shares is 0.00999999 units: selling that many units empties the pool.
+    real_units = shares / 10**8
+    txs = [
+        {"date": "2024-01-01", "type": "BUY", "ticker": "AAA.L", "shares": shares, "amount_minor": 100000},
+        _sell("2024-02-01", real_units / 2, 600),
+        _sell("2024-03-01", real_units, 600),
+    ]
+    gains = compute_disposal_gains(txs)
+    assert gains[1].realised_gain_gbp == pytest.approx(100.0)
+    assert gains[2].cost_basis_gbp == pytest.approx(500.0)
+    assert gains[2].unmatched_units == pytest.approx(real_units / 2, abs=1e-6)
+
+
+def test_units_take_precedence_over_pp_shares_on_an_edited_row():
+    # Editing a PP-imported trade in the app sets ``units`` but keeps ``shares``.
+    edited_buy = {**_buy("2024-01-01", 10, 100), "shares": 4 * 10**8}
+    gains = compute_disposal_gains([edited_buy, _sell("2024-02-01", 10, 150)])
+    assert gains[1].unmatched_units == 0.0
+    assert gains[1].realised_gain_gbp == pytest.approx(50.0)
+
+
 def test_undated_rows_replay_after_dated_ones():
     undated_sell = {"type": "SELL", "ticker": "AAA.L", "units": 5, "amount_minor": 60000}
     gains = compute_disposal_gains([undated_sell, _buy("2024-01-01", 10, 1000)])

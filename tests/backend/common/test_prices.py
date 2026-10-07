@@ -425,19 +425,21 @@ def test_get_security_meta_resolves_watchlist_only_symbol_from_canonical_metadat
     meta = prices.get_security_meta("GOLD.L")
 
     assert meta is not None
-    # Legacy capitalised asset class resolves to the canonical value (#9196).
-    assert meta["instrument_type"] == "commodity"
+    # Legacy and new asset classes resolve alike (#9196), in instrument_type's
+    # one display casing (#7788 item 9).
+    assert meta["instrument_type"] == "Commodity"
 
 
 @pytest.mark.parametrize(
     "meta,expected",
     [
         # Persisted before #9196 (or a stale S3/live-data-root copy).
-        ({"asset_class": "Equity"}, "equity"),
-        ({"asset_class": "Bond"}, "bond"),
-        ({"assetClass": "Commodity"}, "commodity"),
+        # The asset-class fallback uses instrument_type's display casing (#7788 item 9).
+        ({"asset_class": "Equity"}, "Equity"),
+        ({"asset_class": "Bond"}, "Bond"),
+        ({"assetClass": "Commodity"}, "Commodity"),
         # Reclassified by #9196.
-        ({"asset_class": "equity"}, "equity"),
+        ({"asset_class": "equity"}, "Equity"),
         # An explicit type always wins and is returned verbatim.
         ({"instrumentType": "ETF", "asset_class": "Equity"}, "ETF"),
     ],
@@ -466,7 +468,7 @@ def test_resolve_instrument_type_resolves_bare_watchlist_symbol(
     symbols this fallback was meant to cover.
     """
 
-    assert prices._resolve_instrument_type("PFE") == "equity"
+    assert prices._resolve_instrument_type("PFE") == "Equity"
 
 
 def test_get_security_meta_resolves_bare_watchlist_symbol(
@@ -481,7 +483,7 @@ def test_get_security_meta_resolves_bare_watchlist_symbol(
     meta = prices.get_security_meta("PFE")
 
     assert meta is not None
-    assert meta["instrument_type"] == "equity"
+    assert meta["instrument_type"] == "Equity"
 
 
 def test_get_security_meta_caches_securities_across_calls(

@@ -190,7 +190,12 @@ def canonical_asset_class(value: Any) -> Optional[str]:
 # Metadata arrives as "EQUITY" (Yahoo/HL) and "Equity" (hand-edited) for the
 # same thing, so the API emitted both and any exact comparison silently missed
 # one (#7788 item 9). Unknown types pass through, trimmed, so nothing is lost.
+# The asset-class display labels are included so the asset-class fallback in
+# resolve_instrument_type ("equity" -> "Equity") lands in the same vocabulary:
+# instrument_type has one casing whatever its source. ``asset_class`` itself
+# keeps its lowercase #9196 vocabulary.
 _CANONICAL_INSTRUMENT_TYPES = {
+    **{label.upper(): label for label in ASSET_CLASS_LABELS.values()},
     "EQUITY": "Equity",
     "ETF": "ETF",
     "ETC": "ETC",
@@ -226,12 +231,14 @@ def resolve_instrument_type(meta: Mapping[str, Any]) -> Optional[str]:
     An explicit ``instrumentType``/``instrument_type`` is returned in canonical
     casing (see :func:`normalise_instrument_type`). Without one, the asset class
     stands in, canonicalised by :func:`canonical_asset_class` so a legacy
-    "Equity" and a new "equity" record resolve identically.
+    "Equity" and a new "equity" record resolve identically, and then given the
+    same display casing ("Equity", "Multi-asset") so the field never carries
+    both "Equity" and "equity" (#7788 item 9).
     """
     explicit = explicit_instrument_type(meta)
     if explicit:
         return explicit
-    return canonical_asset_class(meta.get("assetClass") or meta.get("asset_class"))
+    return normalise_instrument_type(canonical_asset_class(meta.get("assetClass") or meta.get("asset_class")))
 
 
 def _instrument_type(meta: Mapping[str, Any]) -> str:

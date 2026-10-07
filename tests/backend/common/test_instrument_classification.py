@@ -204,10 +204,12 @@ def test_canonical_asset_class(value, expected) -> None:
         ({"instrument_type": " equity "}, "Equity"),
         ({"instrument_type": "INVESTMENT TRUST"}, "Investment Trust"),
         ({"instrumentType": "MUTUALFUND"}, "MUTUALFUND"),
-        # Legacy and new asset classes resolve to the same instrument type.
-        ({"asset_class": "Equity"}, "equity"),
-        ({"asset_class": "equity"}, "equity"),
-        ({"assetClass": "Bond"}, "bond"),
+        # Legacy and new asset classes resolve to the same instrument type, in
+        # the same display casing as an explicit type (#7788 item 9).
+        ({"asset_class": "Equity"}, "Equity"),
+        ({"asset_class": "equity"}, "Equity"),
+        ({"assetClass": "Bond"}, "Bond"),
+        ({"asset_class": "multi-asset"}, "Multi-asset"),
         ({"asset_class": "Fund"}, "Fund"),
         ({}, None),
     ],

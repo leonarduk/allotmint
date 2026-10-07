@@ -46,7 +46,8 @@ def test_enrich_holding_instrument_type_falls_back_to_asset_class():
     # collapses to "Other". Regression test for #6858.
     holding = {"ticker": "VWRL.L", "units": 1}
     out = enrich_holding(holding, date.today(), {}, {})
-    assert out.get("instrument_type") == "equity"
+    # In instrument_type's display casing, like an explicit "Equity" (#7788 item 9).
+    assert out.get("instrument_type") == "Equity"
 
 
 @pytest.mark.parametrize("stored", ["Equity", "equity", " EQUITY "])
@@ -63,7 +64,7 @@ def test_enrich_holding_canonicalises_legacy_asset_class(monkeypatch, stored):
     )
     out = enrich_holding({"ticker": "VWRL.L", "units": 1}, date.today(), {}, {})
     assert out["asset_class"] == "equity"
-    assert out["instrument_type"] == "equity"
+    assert out["instrument_type"] == "Equity"
 
 
 _LEGACY_ETF_META = {

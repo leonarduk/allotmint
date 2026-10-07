@@ -1863,6 +1863,25 @@ def _load_transactions(owner: str) -> List[dict]:
     return records
 
 
+def _ledger_return_and_drawdown(
+    owner: str, start: Optional[date], end: Optional[date]
+) -> tuple[Optional[float], Optional[float]]:
+    """Ledger TWR and max drawdown over ``[start, end]`` (#9637).
+
+    Same basis as the periodic report, so interest and dividends count as
+    return. ``(None, None)`` when the owner has no ledger in the window --
+    never a fallback to the current-holdings series, which prices today's
+    units and cash backwards and so excludes income.
+    """
+    through = end or date.today()
+    perf = ledger_performance.build_ledger_performance(ledger_performance.load_owner_ledgers(owner), through)
+    if perf is None:
+        return None, None
+    after = start - timedelta(days=1) if start else None
+    dd = ledger_performance.drawdown(perf.returns, after, through)
+    return ledger_performance.chained_return(perf.returns, after, through), dd.max_drawdown if dd else None
+
+
 def _compile_summary(
     owner: str, start: Optional[date] = None, end: Optional[date] = None
 ) -> tuple[ReportData, Dict[str, Any]]:
@@ -1900,7 +1919,9 @@ def _compile_summary(
                 continue
             filtered.append(row)
         hist = filtered
-    cumulative = hist[-1]["cumulative_return"] if hist else None
+    # The history rows keep the current-holdings value series for the value
+    # chart; the headline figures use the ledger basis (#9637).
+    cumulative, max_drawdown = _ledger_return_and_drawdown(owner, start, end)
     data = ReportData(
         owner=owner,
         start=start,
@@ -1908,7 +1929,7 @@ def _compile_summary(
         realized_gains_gbp=realized,
         income_gbp=income,
         cumulative_return=cumulative,
-        max_drawdown=perf.get("max_drawdown"),
+        max_drawdown=max_drawdown,
         history=hist,
     )
     return data, perf

@@ -53,6 +53,11 @@ function defaultDateRange(now: Date = new Date()): { start: string; end: string 
   return { start: toLocalIsoDate(yearAgo), end: toLocalIsoDate(now) };
 }
 
+// Keep each checkbox on the same line as its label: a plain inline label can
+// wrap between the box and its text, leaving an orphaned checkbox at the end
+// of one row and its label starting the next (#7818).
+const CHECKBOX_LABEL_CLASS = "mr-2 inline-block whitespace-nowrap";
+
 export function CustomQuery() {
   const fetchOwners = useCallback(getOwners, []);
   const {
@@ -362,7 +367,7 @@ export function CustomQuery() {
               o.owner,
             );
             return (
-              <label key={o.owner} className="mr-2">
+              <label key={o.owner} className={CHECKBOX_LABEL_CLASS}>
                 <input
                   type="checkbox"
                 aria-label={label}
@@ -388,7 +393,7 @@ export function CustomQuery() {
             </p>
           )}
           {tickerOptions.map(({ ticker, held }) => (
-            <label key={ticker} className="mr-2">
+            <label key={ticker} className={CHECKBOX_LABEL_CLASS}>
               <input
                 type="checkbox"
                 aria-label={ticker}
@@ -403,7 +408,7 @@ export function CustomQuery() {
         <fieldset className="mb-4">
           <legend>{t("query.metrics")}</legend>
           {METRIC_OPTIONS.map(({ value, labelKey }) => (
-            <label key={value} className="mr-2">
+            <label key={value} className={CHECKBOX_LABEL_CLASS}>
               <input
                 type="checkbox"
                 aria-label={t(labelKey)}

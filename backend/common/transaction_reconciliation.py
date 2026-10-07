@@ -25,7 +25,6 @@ _TYPE_SIGN = {
     "TRANSFER_OUT": -1.0,
     "REMOVAL": -1.0,
 }
-_SHARE_SCALE = 10**8
 
 
 def _normalise_account_key(raw: str | None, fallback: str) -> str:
@@ -55,19 +54,10 @@ def _transactions_to_positions(transactions: Iterable[Mapping[str, object]]) -> 
         if not ticker or t_type not in _TYPE_SIGN:
             continue
 
-        raw_qty = (
-            tx.get("shares")
-            if tx.get("shares") is not None
-            else tx.get("units") if tx.get("units") is not None else tx.get("quantity")
-        )
-        try:
-            qty = float(raw_qty or 0.0)
-        except (TypeError, ValueError):
-            logger.debug("Skipping transaction with invalid quantity: %s", sanitise_log_value(tx))
+        qty = holdings_rebuild.transaction_quantity(tx)
+        if qty is None:
+            logger.debug("Skipping transaction with missing or invalid quantity: %s", sanitise_log_value(tx))
             continue
-
-        if abs(qty) > 1_000_000:
-            qty /= _SHARE_SCALE
 
         ledger[ticker] += qty * _TYPE_SIGN[t_type]
 
@@ -172,7 +162,6 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
                         "date": synthetic_date,
                         "ticker": ticker,
                         "type": "BUY" if diff > 0 else "SELL",
-                        "shares": abs(diff),
                         "units": abs(diff),
                         "synthetic": True,
                     }
@@ -189,7 +178,6 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
                         "date": synthetic_date,
                         "ticker": ticker,
                         "type": "SELL" if qty > 0 else "BUY",
-                        "shares": abs(qty),
                         "units": abs(qty),
                         "synthetic": True,
                     }

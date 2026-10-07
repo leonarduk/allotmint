@@ -1,5 +1,6 @@
 import pytest
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from backend.routes.screener import RankedFundamentals, router
 
@@ -24,6 +25,21 @@ def test_screener_openapi_schema_matches_model_fields():
 
     assert set(schema["properties"]) == set(RankedFundamentals.model_fields)
     assert set(schema["required"]) == {"ticker", "rank"}
+
+
+def test_response_model_keeps_fundamentals_provenance():
+    """source/as_of survive response_model filtering on a free-tier install,
+    where the drift test below is skipped (allotmint#9490)."""
+    app = FastAPI()
+
+    @app.get("/rows", response_model=list[RankedFundamentals])
+    def rows():
+        return [{"ticker": "AAA.L", "rank": 1, "source": "yahoo", "as_of": "2026-10-03"}]
+
+    row = TestClient(app).get("/rows").json()[0]
+
+    assert row["source"] == "yahoo"
+    assert row["as_of"] == "2026-10-03"
 
 
 def test_ranked_fundamentals_matches_allotmint_pro_fundamentals():

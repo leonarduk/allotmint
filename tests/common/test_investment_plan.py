@@ -61,6 +61,7 @@ def test_vocabulary_matches_backtest_and_sub_class_keys():
         "index_linked",
         "corporate_bonds",
         "gold",
+        "other_commodities",
         "commodities",
         "cash",
     ):
@@ -191,6 +192,35 @@ def small_value_plan():
         ),
         "alex",
     )
+
+
+def _commodity_plan(*rows):
+    target = [{"class": "equity", "weight_pct": 80}, *({"class": c, "weight_pct": w} for c, w in rows)]
+    return parse_plan(plan_data(target=target, vehicles={rows[-1][0]: ["PHSP.L"]}), "alex")
+
+
+def test_legacy_commodities_beside_gold_loads_as_other_commodities():
+    plan = _commodity_plan(("gold", 10), ("commodities", 10))
+    assert plan.target_weights() == {"equity": 80, "gold": 10, "other_commodities": 10}
+    assert list(plan.vehicles) == ["other_commodities"]
+    assert rebalance_weights(plan) == {"equity": 80, "gold": 10, "other_commodities": 10}
+
+
+def test_lone_legacy_commodities_stays_the_whole_class():
+    plan = _commodity_plan(("commodities", 20))
+    assert plan.target_weights() == {"equity": 80, "commodities": 20}
+    assert rebalance_weights(plan) == {"equity": 80, "commodity": 20}
+
+
+def test_legacy_and_new_other_commodities_rows_together_are_rejected():
+    # The legacy row renames onto the existing one; the duplicate check must catch it.
+    with pytest.raises(ValidationError, match="appears more than once"):
+        _commodity_plan(("gold", 5), ("commodities", 5), ("other_commodities", 10))
+
+
+def test_other_commodities_plan_class_needs_no_gold():
+    plan = _commodity_plan(("other_commodities", 20))
+    assert rebalance_weights(plan) == {"equity": 80, "other_commodities": 20}
 
 
 def test_rebalance_weights_keeps_the_equity_split_as_broad_equity():
@@ -354,13 +384,13 @@ def test_profile_horizon_index_skips_undated_goals():
 
 def test_plan_weights_from_rebalance_maps_strategy_keys_to_plan_classes():
     # All Weather as the Strategy page applies it.
-    targets = {"equity": 30, "long_gilts": 40, "intermediate_gilts": 15, "gold": 7.5, "commodities": 7.5}
+    targets = {"equity": 30, "long_gilts": 40, "intermediate_gilts": 15, "gold": 7.5, "other_commodities": 7.5}
     assert plan_weights_from_rebalance(targets) == {
         "equity": 30,
         "long_gilts": 40,
         "intermediate_gilts": 15,
         "gold": 7.5,
-        "commodities": 7.5,
+        "other_commodities": 7.5,
     }
     assert plan_weights_from_rebalance({"equity": 70, "commodity": 30}) == {"equity": 70, "commodities": 30}
     assert plan_weights_from_rebalance({"broad_equity": 20, "small_cap_value": 80}) == {

@@ -753,6 +753,20 @@ def test_rolling_cache_purges_cached_epoch_zero_rows(cache_store):
     assert cache._load_parquet(cache_path)["Date"].dt.date.tolist() == [day]
 
 
+def test_without_unpriced_rows_counts_priced_pre_epoch_rows(cache_store):
+    """A pre-1970 row is dropped and counted even when its Close is valid (#10024)."""
+    cache, _cache_path, _saves = cache_store
+    frame = pd.concat(
+        [_day_frame(cache, d, 5.0) for d in _EPOCH_ROW_DATES] + [_day_frame(cache, date(1970, 1, 2), 5.0)],
+        ignore_index=True,
+    )
+
+    kept, dropped = cache._without_unpriced_rows(frame)
+
+    assert dropped == 2
+    assert kept["Date"].dt.date.tolist() == [date(1970, 1, 2)]
+
+
 def test_cache_only_read_hides_cached_epoch_zero_rows(monkeypatch, tmp_path):
     """A cache-only full-history read never serves a pre-1970 row from an unrepaired parquet (#10024)."""
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))

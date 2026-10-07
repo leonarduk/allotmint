@@ -356,7 +356,10 @@ def _value_matrix(df: pd.DataFrame) -> np.ndarray:
 
 # Rows dated on or before this are a null/zero timestamp parsed as a date, not
 # a real close. Yahoo pads some long LSE histories with a row at timestamp
-# -90000 (1969-12-31 in Europe/London), e.g. JEGI.L (#10024).
+# -90000 (1969-12-31 in Europe/London), e.g. JEGI.L (#10024). 1970-01-01 itself
+# is dropped too (the issue's "<= 1970-01-01"): Yahoo's bar for that day is the
+# same flat zero-volume filler (timestamp -3600), and losing one genuine
+# New Year's Day 1970 close is a cheaper error than serving filler as a price.
 _EPOCH_DATE = pd.Timestamp("1970-01-01")
 
 

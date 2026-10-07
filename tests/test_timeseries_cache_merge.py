@@ -664,6 +664,68 @@ def test_rolling_cache_saves_correction_and_new_date_together(cache_store):
     assert dict(zip(stored["Date"].dt.date, stored["Close"])) == {day: 11.0, new_day: 12.0}
 
 
+def _partial_day_bar(cache, day: date) -> pd.DataFrame:
+    """A Yahoo partial-day bar: Open/High/Low 0, Close NaN, some Volume (#9926)."""
+    bar = _day_frame(cache, day, 0.0)
+    bar["Close"] = float("nan")
+    bar["Volume"] = 416106
+    return bar
+
+
+def test_rolling_cache_does_not_store_fetched_partial_day_bar(cache_store):
+    """A fetched new-date row with no Close is not added to the cache (#9926)."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    new_day = day + timedelta(days=1)
+
+    result = _run(cache, cache_path, _partial_day_bar(cache, new_day))
+
+    assert saves == []
+    assert result["Date"].dt.date.tolist() == [day]
+    assert cache._load_parquet(cache_path)["Date"].dt.date.tolist() == [day]
+
+
+def test_rolling_cache_refetches_over_cached_partial_day_bar(cache_store):
+    """A cached junk bar dated the window end is not coverage: it is dropped and refetched (#9926)."""
+    cache, cache_path, saves = cache_store
+    _cutoff, window_end = cache._weekday_range(datetime.today().date() - timedelta(days=1), 5)
+    days = [d.date() for d in pd.bdate_range(end=window_end, periods=10)]
+    cached = pd.concat(
+        [_day_frame(cache, d, 10.0) for d in days[:-1]] + [_partial_day_bar(cache, window_end)],
+        ignore_index=True,
+    )
+    cache._save_parquet(cached, cache_path)
+    saves.clear()
+    fetch_calls = []
+
+    def fetch(**kwargs):
+        fetch_calls.append(kwargs)
+        return _day_frame(cache, window_end, 12.0)
+
+    result = cache._rolling_cache(fetch, cache_path, {}, days=5, ticker="ABC", exchange="L")
+
+    assert len(fetch_calls) == 1
+    assert fetch_calls[0]["end_date"] == window_end
+    assert result.loc[result["Date"].dt.date == window_end, "Close"].tolist() == [12.0]
+    stored = cache._load_parquet(cache_path)
+    assert stored["Close"].notna().all()
+    assert stored.loc[stored["Date"].dt.date == window_end, "Close"].tolist() == [12.0]
+
+
+def test_rolling_cache_keeps_priced_row_with_zero_open_high_low(cache_store):
+    """Only a missing Close makes a row junk; zero Open/High/Low with a Close is kept."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    new_day = day + timedelta(days=1)
+    fetched = _day_frame(cache, new_day, 0.0)
+    fetched["Close"] = 10.5
+
+    result = _run(cache, cache_path, fetched)
+
+    assert len(saves) == 1
+    assert dict(zip(result["Date"].dt.date, result["Close"])) == {day: 10.0, new_day: 10.5}
+
+
 def test_rolling_cache_persists_volume_only_correction(cache_store):
     """A correction to a value column other than Close (here Volume) is also saved (#7914)."""
     cache, cache_path, saves = cache_store

@@ -1,3 +1,4 @@
+import datetime as dt
 import time
 
 import pytest
@@ -51,6 +52,35 @@ def test_price_and_changes_unresolved(monkeypatch):
     res = ia._price_and_changes("FOO")
     assert res["last_price_gbp"] is None
     assert res["is_stale"] is True
+
+
+def _fake_closes(monkeypatch, closes):
+    """Serve ``_close_on`` from ``closes`` (date -> price); other days have no close."""
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, loc: ("ABC", "L"))
+    monkeypatch.setattr(ia, "_close_on", lambda s, e, d: closes.get(ia._nearest_weekday(d, forward=False)))
+
+
+def _weekday_before(d: dt.date) -> dt.date:
+    return ia._nearest_weekday(ia._nearest_weekday(d, forward=False) - dt.timedelta(days=1), forward=False)
+
+
+def test_price_change_pct_skips_yesterdays_bar_without_close(monkeypatch):
+    """A NaN-close bar yesterday falls back to the prior close instead of blanking (#9926)."""
+    yday = dt.date.today() - dt.timedelta(days=1)
+    then = ia._nearest_weekday(yday - dt.timedelta(days=30), forward=False)
+    _fake_closes(monkeypatch, {_weekday_before(yday): 110.0, then: 100.0})
+
+    assert ia.price_change_pct("ABC.L", 30) == pytest.approx(10.0)
+
+
+def test_price_change_pct_lookback_is_bounded(monkeypatch):
+    """A close older than the lookback window is not used."""
+    yday = dt.date.today() - dt.timedelta(days=1)
+    stale = ia._nearest_weekday(yday - dt.timedelta(days=14), forward=False)
+    then = ia._nearest_weekday(yday - dt.timedelta(days=30), forward=False)
+    _fake_closes(monkeypatch, {stale: 110.0, then: 100.0})
+
+    assert ia.price_change_pct("ABC.L", 30) is None
 
 
 def test_price_and_changes_snapshot(monkeypatch):

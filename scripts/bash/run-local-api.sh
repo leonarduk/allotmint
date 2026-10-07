@@ -80,12 +80,10 @@ fi
 # The backend imports allotmint-pro from the same checkout as the MCP server,
 # so pro-only features (screener, risk, the strategy stress test's
 # long-history proxies) work locally; BACKEND_USE_PRO=0 runs it free-only.
-BACKEND_PRO_DIR=""
+# (Empty when backend_pro_dir fails: it prints nothing then.)
 if BACKEND_PRO_DIR=$(backend_pro_dir "$REPO_ROOT"); then
   export PYTHONPATH="$REPO_ROOT:$BACKEND_PRO_DIR${PYTHONPATH:+:$PYTHONPATH}"
   echo "Backend imports allotmint-pro from $BACKEND_PRO_DIR (BACKEND_USE_PRO=0 to run free-only)" >&2
-else
-  BACKEND_PRO_DIR=""
 fi
 
 CMD=(uvicorn backend.local_api.main:app --reload-dir backend --port "$UVICORN_PORT" --host "$UVICORN_HOST" --log-config "$LOG_CONFIG")

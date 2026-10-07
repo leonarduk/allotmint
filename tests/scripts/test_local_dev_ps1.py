@@ -83,3 +83,17 @@ def test_backend_use_pro_0_runs_the_backend_free_only(tmp_path):
 
 def test_no_pro_checkout_means_no_pro_for_the_backend(tmp_path):
     assert _backend_pro_dir(tmp_path, None, with_checkout=False) == ""
+
+
+def test_backend_pythonpath_keeps_an_existing_pythonpath():
+    """run-backend.ps1 sets the backend's PYTHONPATH with Get-McpServerPythonPath: repo, pro, then the old value."""
+    env = {**os.environ, "PYTHONPATH": "C:\\existing"}
+    result = subprocess.run(
+        [PWSH, "-NoProfile", "-NonInteractive", "-Command", f". '{LIB}'; Get-McpServerPythonPath 'C:\\repo' 'C:\\pro'"],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=True,
+        timeout=60,
+    )
+    assert result.stdout.strip().split(os.pathsep) == ["C:\\repo", "C:\\pro", "C:\\existing"]

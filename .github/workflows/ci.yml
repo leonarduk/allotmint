@@ -422,6 +422,10 @@ jobs:
       && needs.classify-change.outputs.frontend != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Cancel a superseded e2e run when a PR gets a new push; never cancel on main.
+    concurrency:
+      group: frontend-e2e-${{ github.event.pull_request.number || github.sha }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-frontend-deps

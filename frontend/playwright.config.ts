@@ -10,6 +10,10 @@ export default defineConfig({
   // per-test viewport sizes via `page.setViewportSize`. Setting a project
   // viewport would be overridden anyway, but leaving it unset avoids
   // confusion and keeps the config minimal.
+  // Specs that navigate with relative paths (e.g. overflow.spec.ts's
+  // `page.goto('/plot')`) need a baseURL; without it Chromium rejects them as
+  // invalid URLs. Points at the preview server started below (#7357).
+  use: { baseURL: 'http://localhost:2568' },
   webServer: {
     command: 'npm run preview -- --host 0.0.0.0 --port 2568',
     url: 'http://localhost:2568',

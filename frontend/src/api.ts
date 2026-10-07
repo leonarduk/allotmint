@@ -1150,6 +1150,28 @@ export const getReturnComparison = (owner: string, days = 365) =>
     `${API_BASE}/returns/compare?owner=${encodeURIComponent(owner)}&days=${days}`,
   );
 
+// The group performance endpoints are expensive (each recomputes the combined
+// household series), and the dashboard effect can fire twice for the same
+// inputs (React StrictMode double-invoke, a quick remount). Without sharing,
+// both copies hit the backend concurrently, roughly doubling server time
+// until one of them exceeds DEFAULT_FETCH_TIMEOUT_MS and is aborted -- and
+// that aborted copy was the one driving the page (#7629). Identical GETs
+// already in flight now share one request; the entry is dropped once it
+// settles so a later reload still fetches fresh data (same pattern as
+// getOwners/getGroups above).
+const inFlightGroupPerformanceFetches = new Map<string, Promise<unknown>>();
+
+const fetchGroupPerformanceJson = <T>(url: string): Promise<T> => {
+  let pending = inFlightGroupPerformanceFetches.get(url) as Promise<T> | undefined;
+  if (!pending) {
+    pending = fetchJson<T>(url).finally(() => {
+      inFlightGroupPerformanceFetches.delete(url);
+    });
+    inFlightGroupPerformanceFetches.set(url, pending);
+  }
+  return pending;
+};
+
 /**
  * Group-scope alpha vs benchmark.
  *
@@ -1171,7 +1193,7 @@ export const getGroupAlphaVsBenchmark = (
   benchmark: string,
   days = 365,
 ) =>
-  fetchJson<AlphaResponse>(
+  fetchGroupPerformanceJson<AlphaResponse>(
     `${API_BASE}/performance-group/${slug}/alpha?benchmark=${benchmark}&days=${days}`,
   );
 
@@ -1192,12 +1214,12 @@ export const getGroupTrackingError = (
   benchmark: string,
   days = 365,
 ) =>
-  fetchJson<TrackingErrorResponse>(
+  fetchGroupPerformanceJson<TrackingErrorResponse>(
     `${API_BASE}/performance-group/${slug}/tracking-error?benchmark=${benchmark}&days=${days}`,
   );
 
 export const getGroupMaxDrawdown = (slug: string, days = 365) =>
-  fetchJson<MaxDrawdownResponse>(
+  fetchGroupPerformanceJson<MaxDrawdownResponse>(
     `${API_BASE}/performance-group/${slug}/max-drawdown?days=${days}`,
   );
 
@@ -1211,7 +1233,7 @@ export const getGroupPerformance = (
   const params = new URLSearchParams({ days: String(days) });
   if (excludeCash) params.set("exclude_cash", "1");
   if (opts.asOf) params.set("as_of", opts.asOf);
-  const base = fetchJson<{
+  const base = fetchGroupPerformanceJson<{
     group: string;
     history: PerformancePoint[];
     reporting_date?: string | null;
@@ -1226,7 +1248,7 @@ export const getGroupPerformance = (
   }>(
     `${API_BASE}/performance-group/${slug}?${params.toString()}`,
   );
-  const twr = fetchJson<{
+  const twr = fetchGroupPerformanceJson<{
     group: string;
     time_weighted_return: number | null;
     partial?: boolean;
@@ -1236,7 +1258,7 @@ export const getGroupPerformance = (
       opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
     }`,
   );
-  const xirr = fetchJson<{
+  const xirr = fetchGroupPerformanceJson<{
     group: string;
     xirr: number | null;
     partial?: boolean;

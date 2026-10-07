@@ -1326,6 +1326,26 @@ describe("group alpha/tracking error API helpers (request shape and pass-through
     );
   });
 
+  it("shares one request between identical in-flight group metric calls, then refetches once settled (#7629)", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ alpha_vs_benchmark: 0.01 }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    const [first, second] = await Promise.all([
+      getGroupAlphaVsBenchmark("all", "VWRL.L", 365),
+      getGroupAlphaVsBenchmark("all", "VWRL.L", 365),
+    ]);
+    expect(first).toEqual({ alpha_vs_benchmark: 0.01 });
+    expect(second).toEqual(first);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    await getGroupAlphaVsBenchmark("all", "VWRL.L", 365);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   it("leaves owner-scoped alpha and tracking error on their own endpoints", async () => {
     const mockFetch = vi
       .fn()

@@ -177,6 +177,13 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         unavailable.push(t("dashboard.portfolioValue"));
       }
 
+      // Without this a failed metric left no diagnostic beyond the generic
+      // banner (#7629).
+      [alphaResult, teResult, mdResult, perfResult].forEach((result) => {
+        if (result.status === "rejected") {
+          console.error("Performance metric failed to load", result.reason);
+        }
+      });
       setUnavailableMetrics(unavailable);
     });
 
@@ -187,16 +194,9 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
 
   if (!activeGroup && !activeOwner) return <p>{t("dashboard.selectMember")}</p>;
   if (err) return <p style={{ color: "red" }}>{err}</p>;
-  if (!data.length) {
-    if (perfUnavailable) {
-      return (
-        <p data-testid="performance-chart-unavailable">
-          {t("dashboard.performanceUnavailable")}
-        </p>
-      );
-    }
-    return <p>{t("common.loading")}</p>;
-  }
+  // A failed history fetch only replaces the charts below; the metrics that
+  // did load must still render (#7629).
+  if (!data.length && !perfUnavailable) return <p>{t("common.loading")}</p>;
 
   const formatSummaryDate = (value: string | null) => {
     if (!value) return "—";
@@ -578,29 +578,37 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         />
       )}
       <h2>{t("dashboard.portfolioValue")}</h2>
-      <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={data}>
-          <XAxis dataKey="date" />
-          <YAxis />
-          <Tooltip />
-          <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
+      {perfUnavailable ? (
+        <p data-testid="performance-chart-unavailable">
+          {t("dashboard.performanceUnavailable")}
+        </p>
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={data}>
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
 
-      <h2 style={{ marginTop: "2rem" }}>{t("dashboard.cumulativeReturn")}</h2>
-      <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={data}>
-          <XAxis dataKey="date" />
-          <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
-          <Tooltip formatter={(v) => percent(((v as number | undefined) ?? 0) * 100, 2, i18n.language)} />
-          <Line
-            type="monotone"
-            dataKey="cumulative_return"
-            stroke="#82ca9d"
-            dot={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+          <h2 style={{ marginTop: "2rem" }}>{t("dashboard.cumulativeReturn")}</h2>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={data}>
+              <XAxis dataKey="date" />
+              <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
+              <Tooltip formatter={(v) => percent(((v as number | undefined) ?? 0) * 100, 2, i18n.language)} />
+              <Line
+                type="monotone"
+                dataKey="cumulative_return"
+                stroke="#82ca9d"
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </>
+      )}
       {activeOwner && (
         <div style={{ marginTop: "1rem" }}>
           <Link

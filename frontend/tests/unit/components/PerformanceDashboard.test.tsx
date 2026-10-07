@@ -606,6 +606,7 @@ describe("PerformanceDashboard", () => {
     });
 
     it("shows a chart-unavailable message, without losing alpha/tracking-error, when getGroupPerformance fails entirely", async () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
       vi.mocked(getGroupPerformance).mockRejectedValueOnce(
         new Error("HTTP 503 - Service Unavailable"),
       );
@@ -619,6 +620,18 @@ describe("PerformanceDashboard", () => {
       expect(
         await screen.findByTestId("performance-chart-unavailable"),
       ).toBeInTheDocument();
+      // #7629: the metrics that loaded must still render alongside it.
+      expect(screen.getByTestId("metric-alpha")).toHaveTextContent("3.00%");
+      expect(screen.getByTestId("metric-tracking-error")).toHaveTextContent("4.00%");
+      expect(screen.getByTestId("metric-max-drawdown")).toHaveTextContent("-20.00%");
+      expect(
+        screen.getByTestId("performance-metrics-unavailable-warning"),
+      ).toHaveTextContent("Portfolio Value");
+      expect(consoleError).toHaveBeenCalledWith(
+        "Performance metric failed to load",
+        expect.any(Error),
+      );
+      consoleError.mockRestore();
     });
   });
 });

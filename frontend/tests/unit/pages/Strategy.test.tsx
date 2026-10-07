@@ -255,6 +255,29 @@ describe('Strategy page', () => {
     expect(select).toHaveValue('alex');
   });
 
+  it('shows currency and percent unit affordances (#7824)', async () => {
+    await renderPage();
+    const drift = await screen.findByRole('region', {
+      name: 'Allocation drift',
+    });
+    const equityRow = within(drift)
+      .getByText('Equity')
+      .closest('tr') as HTMLElement;
+    // Current value carries the currency symbol.
+    expect(within(equityRow).getByText('£1,600.00')).toBeInTheDocument();
+    // Each target-weight input has a visible % suffix next to it, while
+    // its accessible name already states the unit ("Target % for ...").
+    const input = screen.getByLabelText('Target % for Equity');
+    const suffix = input.nextElementSibling as HTMLElement;
+    expect(suffix).toHaveTextContent('%');
+    expect(suffix).toHaveAttribute('aria-hidden', 'true');
+    // Amount and tolerance inputs name their units in their labels.
+    expect(screen.getByLabelText('Amount (£)')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Tolerance band (± percentage points)')
+    ).toBeInTheDocument();
+  });
+
   it('is titled Strategy', async () => {
     await renderPage();
     expect(

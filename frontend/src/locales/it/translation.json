@@ -112,7 +112,7 @@
     "menu": "Menu",
     "menuCategories": {
       "dashboard": "Cruscotto",
-      "goals": "Requisiti",
+      "goals": "Pianificazione",
       "holdings": "Posizioni",
       "insights": "Ricerca",
       "operations": "Amministrazione",
@@ -3153,6 +3153,7 @@
     "retryingConfig": "Caricamento... nuovo tentativo di configurazione.",
     "loadingConfig": "Caricamento della configurazione...",
     "configLoadFailed": "Impossibile caricare la configurazione.",
+    "serverUnreachable": "Impossibile raggiungere il server AllotMint all'indirizzo {{url}}.",
     "checkConnection": "Controlla la connessione e riprova.",
     "googleNotConfigured": "L'accesso con Google non è configurato.",
     "loading": "Caricamento...",

@@ -112,7 +112,7 @@
     "menu": "Menú",
     "menuCategories": {
       "dashboard": "Panel",
-      "goals": "Requisitos",
+      "goals": "Planificación",
       "holdings": "Posiciones",
       "insights": "Investigación",
       "operations": "Administración",
@@ -3153,6 +3153,7 @@
     "retryingConfig": "Cargando... reintentando la configuración.",
     "loadingConfig": "Cargando configuración...",
     "configLoadFailed": "No se pudo cargar la configuración.",
+    "serverUnreachable": "No se puede conectar con el servidor de AllotMint en {{url}}.",
     "checkConnection": "Compruebe su conexión e inténtelo de nuevo.",
     "googleNotConfigured": "El inicio de sesión con Google no está configurado.",
     "loading": "Cargando...",

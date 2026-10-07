@@ -112,7 +112,7 @@
     "menu": "Menu",
     "menuCategories": {
       "dashboard": "Dashboard",
-      "goals": "Requirements",
+      "goals": "Planning",
       "holdings": "Holdings",
       "insights": "Research",
       "operations": "Admin",
@@ -3146,6 +3146,7 @@
     "retryingConfig": "Loading... retrying configuration.",
     "loadingConfig": "Loading configuration...",
     "configLoadFailed": "Unable to load configuration.",
+    "serverUnreachable": "Can't reach the AllotMint server at {{url}}.",
     "checkConnection": "Please check your connection and try again.",
     "googleNotConfigured": "Google login is not configured.",
     "loading": "Loading...",

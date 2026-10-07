@@ -174,9 +174,10 @@ export const HELP_PAGES: HelpPageEntry[] = [
     path: '/settings',
     mode: 'settings',
     titleKey: 'app.modes.settings',
-    titleDefault: 'User Settings',
+    titleDefault: 'Trading Rules',
     descriptionKey: 'help.pages.settings',
-    descriptionDefault: 'Your profile, currency and display preferences.',
+    descriptionDefault:
+      'Per-owner trading rules: minimum holding period, monthly trade limit and instruments exempt from approval.',
   },
   {
     path: '/alert-settings',

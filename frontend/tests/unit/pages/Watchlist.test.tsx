@@ -100,6 +100,31 @@ describe("Watchlist page", () => {
     expect(rows[0]).toHaveTextContent("AAA");
   });
 
+  it("shows a loading skeleton instead of an empty table until quotes arrive (#7788)", async () => {
+    let resolveQuotes: (rows: QuoteRow[]) => void = () => {};
+    (getQuotes as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise<QuoteRow[]>((resolve) => {
+        resolveQuotes = resolve;
+      }),
+    );
+    localStorage.setItem("watchlistSymbols", "AAA,BBB");
+
+    renderWatchlist();
+
+    expect(
+      await screen.findByRole("status", { name: "Loading quotes…" }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      resolveQuotes(sampleRows);
+    });
+
+    expect(await screen.findByText("Alpha")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Loading quotes…" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows error message when API fails", async () => {
     (getQuotes as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
     localStorage.setItem("watchlistSymbols", "AAA");

@@ -28,10 +28,14 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
       return null;
     }
   }, [slug, days, limit]);
+  // The cache key shares one in-flight request between concurrent mounts
+  // (StrictMode's double effect, revisits) instead of a duplicate
+  // /opportunities call per mount (#7788 item 14).
   const { data, loading, error } = useFetch(
     fetchOpportunities,
     [slug, days, limit],
     !!slug,
+    { cacheKey: slug ? `opportunities:${slug}:${days}:${limit}` : null },
   );
 
   const [selected, setSelected] = useState<{ ticker: string; name: string; signal?: OpportunityEntry['signal'] } | null>(null);

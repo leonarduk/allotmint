@@ -209,6 +209,19 @@ const mockAllFetches = (
     if (url.endsWith("/accounts")) {
       return Promise.resolve({ ok: true, json: async () => ({ status: "created", owner: "alice", account: "isa", currency: "GBP" }) } as Response);
     }
+    if (url.endsWith("/holdings/manual")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          status: "preview",
+          owner: "alice",
+          account: "isa",
+          holding: { ticker: "VWRL", units: 1 },
+          transaction: { type: "TRANSFER_IN", ticker: "VWRL", units: 1, price_gbp: 100, date: "2026-10-07" },
+          units_before: 0,
+        }),
+      } as Response);
+    }
     if (url.includes("/instrument/admin/groups")) {
       return Promise.resolve({
         ok: true,
@@ -1436,7 +1449,9 @@ describe("GroupPortfolioView", () => {
     await user.type(within(positionForm).getByLabelText(/ticker/i), "VWRL");
     await user.type(within(positionForm).getByLabelText(/^units$/i), "1");
     await user.type(within(positionForm).getByLabelText(/price/i), "100");
-    await user.click(within(positionForm).getByRole("button", { name: /^add position$/i }));
+    // Add position is two-step: the first submit previews (dry run), the second saves.
+    await user.click(within(positionForm).getByRole("button", { name: /^preview$/i }));
+    await user.click(await within(positionForm).findByRole("button", { name: /^add position$/i }));
     await screen.findByRole("tab", { name: "Alice Example" });
 
     await user.click(screen.getByRole("button", { name: /import csv/i }));

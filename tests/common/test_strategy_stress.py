@@ -101,12 +101,14 @@ def test_falls_back_along_the_stand_in_chain(monkeypatch):
     assert row["series"]["equity"] == ["IOO.N"]
 
 
-def test_brunner_covers_equity_before_2000(monkeypatch):
+def test_brunner_is_not_an_equity_stand_in(monkeypatch):
+    # BUT.L's stored closes before 1988 are month-end prices carried across every day:
+    # it must not answer (a fake 0%) and so stop allotmint-pro's daily proxies being asked.
     monkeypatch.setitem(SERIES, "VWRL.L", ({}, TOTAL_RETURN_BASIS))
-    monkeypatch.setitem(SERIES, "BUT.L", ({"1m": -0.25, "1y": -0.15}, TOTAL_RETURN_BASIS))
+    monkeypatch.setitem(SERIES, "BUT.L", ({"1m": 0.0, "1y": 0.0}, TOTAL_RETURN_BASIS))
     row = _row({"equity": 100.0})
-    assert row["horizons"]["1m"]["return_pct"] == -25.0
-    assert row["series"]["equity"] == ["BUT.L"]
+    assert row["horizons"]["1m"]["return_pct"] is None
+    assert row["horizons"]["1m"]["missing"] == ["equity"]
 
 
 def test_pro_fills_only_what_stand_ins_cannot(monkeypatch):
@@ -157,7 +159,7 @@ def test_portfolio_result_matches_the_holdings_scenario(monkeypatch):
     portfolio = {"total_value_estimate_gbp": 1000.0, "accounts": []}
     monkeypatch.setattr(strategy_stress, "build_owner_portfolio", lambda owner, root: portfolio)
 
-    def fake_event(pf, event, horizons):
+    def fake_event(pf, event, horizons, holding_fallback):
         assert pf is portfolio and event["date"] == "2020-02-19"
         return {
             "1m": {"delta_gbp": -150.0, "coverage_pct": 92.0, "return_basis": "total"},
@@ -177,3 +179,45 @@ def test_portfolio_result_none_without_account_data(monkeypatch):
 
     monkeypatch.setattr(strategy_stress, "build_owner_portfolio", missing)
     assert strategy_stress.portfolio_result("ghost", {"date": "2020-02-19"}, HORIZONS, None) is None
+
+
+def test_a_holding_without_prices_moves_with_its_sleeve_before_the_event_proxy(monkeypatch):
+    from backend.utils import scenario_tester
+
+    portfolio = {
+        "total_value_estimate_gbp": 1000.0,
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "OWN.L", "market_value_gbp": 500.0, "asset_class": "equity"},
+                    # No prices of its own: moves with intermediate gilts (IGLT.L), not SPY.
+                    {
+                        "ticker": "NEW.L",
+                        "market_value_gbp": 500.0,
+                        "asset_class": "bond",
+                        "sub_asset_class": "intermediate_gilts",
+                    },
+                ]
+            }
+        ],
+    }
+    monkeypatch.setattr(strategy_stress, "build_owner_portfolio", lambda owner, root: portfolio)
+    own = {"OWN.L": {"1m": -0.10, "1y": 0.0}, "SPY.N": {"1m": -0.30, "1y": -0.30}}
+
+    def forward(ticker, exchange, event_date, horizons):
+        returns = own.get(f"{ticker}.{exchange}", {})
+        return {label: returns.get(label) for label in horizons}, TOTAL_RETURN_BASIS
+
+    monkeypatch.setattr(scenario_tester, "_forward_returns", forward)
+    event = {"date": "2020-02-19", "proxy_index": "SPY.N"}
+    out = strategy_stress.portfolio_result("alex", event, HORIZONS, None)
+    assert out["horizons"]["1m"]["return_pct"] == -4.0  # 500 * -0.10 + 500 * 0.02
+    assert out["horizons"]["1y"]["return_pct"] == -0.5  # 500 * 0.0 + 500 * -0.01
+
+
+def test_a_holding_with_no_known_sleeve_still_falls_back_to_the_event_proxy():
+    assert strategy_stress._holding_sleeve({"asset_class": "property"}) is None
+    assert strategy_stress._holding_sleeve({"asset_class": "bond", "sub_asset_class": None}) == "bond"
+    assert strategy_stress._holding_sleeve({"asset_class": "equity", "sub_asset_class": "small_cap_value"}) == (
+        "small_cap_value"
+    )

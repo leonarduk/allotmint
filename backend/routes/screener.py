@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from backend.common import instrument_api
 from backend.common.core_optional import missing_package, require_core
+from backend.common.instruments import get_instrument_meta
 from backend.common.prices import get_security_meta
 from backend.logging_setup import sanitise_log_value
 from backend.utils import page_cache
@@ -106,6 +107,9 @@ class RankedFundamentals(BaseModel):
     # metadata after screen() returns -- see allotmint#6876 and
     # _ROUTE_ONLY_FIELDS in tests/routes/test_screener_schema.py.
     instrument_type: str | None = None
+    # Route-only, like instrument_type: read from instrument metadata so the
+    # Screener can show it on hover over the ticker.
+    sector: str | None = None
 
 
 router = APIRouter(prefix="/screener", tags=["screener"])
@@ -223,6 +227,7 @@ def _hash_params(
             )
         ]
         _apply_instrument_type(rows)
+        _apply_instrument_meta(rows)
         return rows
 
     return page, _call
@@ -239,6 +244,19 @@ def _apply_instrument_type(rows: List[dict]) -> None:
     for row in rows:
         meta = get_security_meta(row["ticker"]) or {}
         row["instrument_type"] = meta.get("instrument_type")
+
+
+def _apply_instrument_meta(rows: List[dict]) -> None:
+    """Populate ``sector`` (and a missing ``name``) from instrument metadata.
+
+    Reads the stored instrument file only -- ``get_instrument_meta`` never
+    makes a live provider call -- so a ticker with no file keeps ``None``.
+    """
+    for row in rows:
+        meta = get_instrument_meta(row["ticker"])
+        row["sector"] = meta.get("sector") or None
+        if not row.get("name") and meta.get("name"):
+            row["name"] = meta["name"]
 
 
 def _apply_rank(rows: List[dict]) -> None:

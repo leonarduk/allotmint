@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { checkScreenerAvailable, getScreener } from "../api";
 import type { ScreenerResult } from "../types";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -59,6 +60,12 @@ function RatioHeaderInfoTip({ column }: { column: string }) {
       {t(`screener.tips.${tip.key}`, tip.defaultText)}
     </InfoTip>
   );
+}
+
+// Hover text for the ticker cell: "Name — Sector", or whichever is known.
+function tickerTooltip(r: ScreenerResult): string | undefined {
+  const parts = [r.name, r.sector].filter((p): p is string => Boolean(p));
+  return parts.length ? parts.join(" — ") : undefined;
 }
 
 type ScreenerCriteria = NonNullable<Parameters<typeof getScreener>[1]>;
@@ -528,7 +535,17 @@ export function Screener() {
               >
                 <td style={right}>{r.rank}</td>
                 <td style={{ ...cell, whiteSpace: "nowrap" }}>
-                  {r.ticker}
+                  {/* Ticker opens the full research page; the rest of the row
+                      keeps opening the quick-look detail panel. */}
+                  <Link
+                    to={`/research/${encodeURIComponent(r.ticker)}`}
+                    title={tickerTooltip(r)}
+                    className="underline"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    {r.ticker}
+                  </Link>
                   <WatchlistToggle ticker={r.ticker} />
                 </td>
                 <td style={right}>{r.peg_ratio ?? "—"}</td>

@@ -774,6 +774,7 @@ export interface ScreenerResult {
   rank: number;
   ticker: string;
   name?: string | null;
+  sector?: string | null;
   peg_ratio: number | null;
   pe_ratio: number | null;
   de_ratio: number | null;

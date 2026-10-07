@@ -55,6 +55,10 @@ from backend.utils.scenario_tester import (
 
 logger = logging.getLogger(__name__)
 
+#: Sleeves allotmint-pro's hook knows by its backtest block name instead.
+#: Outbound only: the hook's result is keyed by horizon label, never by sleeve name.
+PRO_SLEEVE_NAMES: dict[str, str] = {"other_commodities": "commodities"}
+
 ProSleeveReturns = Callable[[str, dt.date, Mapping[str, int]], Optional[tuple[dict[str, Optional[float]], str, str]]]
 
 try:
@@ -87,7 +91,7 @@ STAND_INS: dict[str, tuple[str, ...]] = {
     "corporate_bonds": ("SLXX.L",),
     "commodity": ("DBC.N",),
     "gold": ("PHAU.L",),
-    "commodities": ("DBC.N",),
+    "other_commodities": ("DBC.N",),
     "property": (),
 }
 
@@ -132,7 +136,7 @@ def _fill_from_pro(sleeve: str, event_date: dt.date, horizons: Mapping[str, int]
     if PRO_SLEEVE_RETURNS is None or all(h.value is not None for h in out.values()):
         return
     try:
-        found = PRO_SLEEVE_RETURNS(sleeve, event_date, horizons)
+        found = PRO_SLEEVE_RETURNS(PRO_SLEEVE_NAMES.get(sleeve, sleeve), event_date, horizons)
     except Exception as exc:  # a pro bug must not fail the whole stress test; the stand-ins still answer
         logger.warning(
             "allotmint-pro sleeve returns failed for %s on %s: %s",

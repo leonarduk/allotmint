@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
-import { allowancesUnavailableMessage } from '../plotModel';
 import {
   buildSeasonBadges,
   buildSeasonGroups,
@@ -38,16 +37,12 @@ function GroupRow({ group }: { group: SeasonGroupProgress }) {
             group.complete ? styles.choreTitleDone : ''
           }`}
         >
-          {group.unavailable
-            ? group.group
-            : group.complete
-              ? t('plot.season.everyTierEarned', { group: group.group })
-              : group.next?.title}
+          {group.complete
+            ? t('plot.season.everyTierEarned', { group: group.group })
+            : group.next?.title}
         </div>
 
-        {group.unavailable ? (
-          <p className={styles.sectionNote}>{allowancesUnavailableMessage()}</p>
-        ) : group.next ? (
+        {group.next ? (
           <div className={styles.groupProgress}>
             <div className={styles.goalMeter}>
               <Meter
@@ -74,29 +69,27 @@ function GroupRow({ group }: { group: SeasonGroupProgress }) {
           </p>
         )}
 
-        {!group.unavailable && (
-          <ul className={styles.tierRow}>
-            {group.tiers.map((tier) => {
-              const isNext =
-                !tier.complete && group.next?.target === tier.target;
-              return (
-                <li
-                  key={tier.target}
-                  className={`${styles.tierBadge} ${
-                    tier.complete
-                      ? styles.tierBadgeEarned
-                      : isNext
-                        ? styles.tierBadgeNext
-                        : ''
-                  }`}
-                >
-                  {tier.complete ? '✓ ' : ''}
-                  {tier.displayTarget}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <ul className={styles.tierRow}>
+          {group.tiers.map((tier) => {
+            const isNext =
+              !tier.complete && group.next?.target === tier.target;
+            return (
+              <li
+                key={tier.target}
+                className={`${styles.tierBadge} ${
+                  tier.complete
+                    ? styles.tierBadgeEarned
+                    : isNext
+                      ? styles.tierBadgeNext
+                      : ''
+                }`}
+              >
+                {tier.complete ? '✓ ' : ''}
+                {tier.displayTarget}
+              </li>
+            );
+          })}
+        </ul>
       </div>
       <span
         className={styles.choreReward}
@@ -202,8 +195,6 @@ export default function SeasonTrack() {
         </h2>
         {countdown ? (
           <p className={styles.seasonCountdown}>{countdown.label}</p>
-        ) : allowancesUnavailable ? (
-          <p className={styles.sectionNote}>{allowancesUnavailableMessage()}</p>
         ) : (
           <p className={styles.sectionNote}>
             {t('plot.season.noTaxYear')}

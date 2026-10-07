@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from backend import alerts as alert_utils
 from backend.agent import trading_agent
-from backend.agent.models import TradingSignal
+from backend.agent.models import TradingSignal, TradingSignalsReport
 from backend.common.alerts import publish_alert
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -87,3 +87,20 @@ def signals(notify_email: bool = False, notify_telegram: bool = False) -> List[T
                 logger.warning("Telegram send failed: %s", sanitise_log_value(redact_token(str(exc))))
 
     return [TradingSignal.model_validate(sig) for sig in raw_signals]
+
+
+@router.get(
+    "/signals/report",
+    response_model=TradingSignalsReport,
+    response_model_exclude_none=True,
+)
+def signals_report() -> TradingSignalsReport:
+    """Return current signals plus any that compliance blocked.
+
+    Lets the Trading page tell "blocked by compliance" apart from "no
+    threshold crossed" (#9453). Sends no notifications.
+    """
+
+    blocked: List[dict] = []
+    raw_signals = trading_agent.run(notify=False, blocked=blocked)
+    return TradingSignalsReport.model_validate({"signals": raw_signals, "blocked": blocked})

@@ -127,6 +127,7 @@
       "dataadmin": "Administration des données",
       "dataexplorer": "Explorateur de fichiers",
       "dataquality": "Qualité des données",
+      "dividends": "Dividendes",
       "group": "Groupe",
       "help": "Aide",
       "ideas": "Idées",
@@ -386,6 +387,11 @@
     "alphaVsBenchmarkInfoLabel": "Que signifie Alpha vs Indice ?",
     "alphaVsBenchmarkInfo": "L'alpha mesure l'écart entre le rendement du portefeuille et celui de {{ticker}} sur la période sélectionnée.",
     "vsBenchmark": "vs {{ticker}}",
+    "cumulativeReturnPortfolio": "Votre portefeuille",
+    "cumulativeReturnBenchmark": "{{ticker}} (indice de référence)",
+    "cumulativeReturnBasis": "Les deux courbes utilisent les dividendes réinvestis, les positions actuelles et les mêmes dates ({{from}} au {{to}}) que l'alpha vs {{ticker}}.",
+    "benchmarkSeriesFailed": "Impossible de charger {{ticker}} pour la comparaison ; seul le rendement cumulé de votre portefeuille, basé sur sa valeur, est affiché.",
+    "benchmarkSeriesEmpty": "Aucun cours de {{ticker}} ne couvre cette période ; seul le rendement cumulé de votre portefeuille, basé sur sa valeur, est affiché.",
     "trackingErrorInfoLabel": "Que signifie l'erreur de suivi ?",
     "trackingErrorInfo": "L'erreur de suivi mesure l'écart entre les rendements quotidiens du portefeuille et ceux de {{ticker}}, annualisé.",
     "maxDrawdownInfoLabel": "Que signifie le drawdown maximal ?",
@@ -500,6 +506,11 @@
       "account": "Compte"
     },
     "columnsLabel": "Colonnes :",
+    "columnPresets": {
+      "label": "Préréglage des colonnes :",
+      "simple": "Simple",
+      "detailed": "Détaillé"
+    },
     "eligible": "Éligible",
     "filters": {
       "all": "Tous",
@@ -1809,6 +1820,8 @@
     "signalsTitle": "Signaux actuels",
     "noSignalsTitle": "Aucun signal pour le moment",
     "noSignalsDescription": "Aucun instrument suivi ne franchit actuellement les seuils actifs. Les signaux apparaissent lorsque les conditions RSI ou de moyenne mobile sont réunies et que les filtres d'évaluation et de risque activés sont également satisfaits.",
+    "blockedTitle": "Signaux bloqués par la conformité",
+    "blockedDescription": "Ces instruments ont franchi les seuils actifs, mais l'opération proposée déclencherait un nouvel avertissement de conformité ; aucun signal n'est donc affiché pour eux.",
     "checksSkippedBadge": "Contrôles ignorés",
     "checksSkippedTitle": "Contrôles ignorés : {{checks}}",
     "checksSkippedInfo": "Une vérification facultative nécessitant le module complémentaire allotmint-pro n'a pas pu être exécutée. « compliance » signifie que la transaction n'a pas été vérifiée par rapport à vos règles de conformité ; « fundamental_screen » signifie que les filtres de PER et de ratio dette/capitaux propres ci-dessus (selon leur configuration) n'ont pas été appliqués à ce candidat à l'achat.",
@@ -2664,6 +2677,33 @@
     "estValue": "Valeur est. : ",
     "lastUpdated": "Dernière mise à jour : "
   },
+  "dividends": {
+    "title": "Dividendes",
+    "description": "Revenus de dividendes perçus, par période et par position. Les montants dans des devises différentes sont affichés séparément, jamais additionnés.",
+    "owner": "Titulaire",
+    "allOwners": "Tous les titulaires",
+    "period": "Regrouper par",
+    "periods": {
+      "taxYear": "Année fiscale",
+      "year": "Année civile",
+      "month": "Mois"
+    },
+    "trailing12m": "12 derniers mois",
+    "allTime": "Depuis le début",
+    "byPeriod": "Par période",
+    "byHolding": "Par position",
+    "payments": "Versements",
+    "received": "Perçu",
+    "holding": "Position",
+    "lastPaid": "Dernier versement",
+    "none": "—",
+    "empty": "Aucun versement de dividende enregistré pour le moment.",
+    "undated": "Sans date",
+    "unattributed": "Non rattaché à une position",
+    "unattributedHelp": "Versements de dividendes enregistrés sans ticker, par ex. transferts depuis un compte de revenus.",
+    "noHistory": "Aucun dividende enregistré",
+    "holdingsUnavailable": "Les positions actuelles n’ont pas pu être chargées ; les positions sans dividendes ne sont donc pas listées."
+  },
   "dividendHistory": {
     "trendAria": "Évolution des dividendes",
     "date": "Date",
@@ -2983,7 +3023,6 @@
     },
     "model": {
       "unnamedBed": "Planche sans nom",
-      "allowancesUnavailable": "Plafonds indisponibles pour le moment",
       "water": "Eau",
       "feed": "Engrais",
       "sunlight": "Lumière du soleil",
@@ -3353,7 +3392,7 @@
     "overseas_government": "Obligations d’État étrangères",
     "corporate_bonds": "Entreprises / crédit",
     "gold": "Or",
-    "commodities": "Autres matières premières"
+    "other_commodities": "Autres matières premières"
   },
   "planForm": {
     "errors": {

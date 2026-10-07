@@ -6,6 +6,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from backend.common import holdings_rebuild
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_scaffold import load_transactions
 from backend.config import config
@@ -43,7 +44,7 @@ def position_periods(owner: str, txs: Optional[List[Dict[str, Any]]] = None) -> 
         ticker = (t.get("ticker") or "").upper()
         action = (t.get("type") or t.get("kind") or "").lower()
         d = _parse_date(t.get("date"))
-        qty = float(t.get("shares") or t.get("quantity") or 0)
+        qty = holdings_rebuild.transaction_quantity(t) or 0.0
         if not ticker or not d or action not in {"buy", "purchase", "sell"}:
             continue
         pos = ledgers.get(ticker)

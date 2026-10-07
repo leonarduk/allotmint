@@ -238,6 +238,23 @@ describe('Strategy page', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('shows owner display names in the owner selector (#7824)', async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: 'alex', full_name: 'Alex Leonard', accounts: [] },
+      { owner: 'joe', accounts: [] },
+    ]);
+    await renderPage();
+    const select = await screen.findByLabelText('Portfolio owner');
+    await waitFor(() =>
+      expect(
+        within(select)
+          .getAllByRole('option')
+          .map((o) => o.textContent)
+      ).toEqual(['Alex Leonard', 'joe'])
+    );
+    expect(select).toHaveValue('alex');
+  });
+
   it('is titled Strategy', async () => {
     await renderPage();
     expect(

@@ -5,7 +5,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { axe } from 'jest-axe';
 import Trading from '@/pages/Trading';
 import useFetchWithRetry from '@/hooks/useFetchWithRetry';
-import type { TradingAgentSettings, TradingSignal } from '@/types';
+import type {
+  BlockedTradingSignal,
+  TradingAgentSettings,
+  TradingSignal,
+} from '@/types';
 
 vi.mock('@/api', () => ({
   getTradingPageData: vi.fn(),
@@ -60,6 +64,7 @@ const defaultSettings: TradingAgentSettings = {
 
 function mockFetchState(overrides: {
   data?: TradingSignal[] | null;
+  blocked?: BlockedTradingSignal[];
   settings?: Partial<TradingAgentSettings>;
   loading?: boolean;
   error?: Error | null;
@@ -70,6 +75,7 @@ function mockFetchState(overrides: {
         ? null
         : {
             signals: overrides.data ?? [],
+            blocked: overrides.blocked ?? [],
             settings: { ...defaultSettings, ...overrides.settings },
           },
     loading: overrides.loading ?? false,
@@ -117,6 +123,33 @@ describe('Trading page', () => {
       screen.getByText(/No tracked instrument currently crosses/)
     ).toBeInTheDocument();
     expect(screen.queryByText(/backend unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it('reports compliance-blocked signals instead of "no threshold crossed"', async () => {
+    mockFetchState({
+      data: [],
+      blocked: [
+        {
+          ticker: 'BBB',
+          action: 'SELL',
+          reasons: ['alex: 21 trades in 2026-10 (max 20)'],
+        },
+      ],
+    });
+
+    render(<Trading />);
+
+    expect(
+      await screen.findByText('Signals blocked by compliance')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/alex: 21 trades in 2026-10 \(max 20\)/)
+    ).toBeInTheDocument();
+    expect(screen.getByText('BBB Sell')).toBeInTheDocument();
+    expect(screen.queryByText('No signals right now')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/No tracked instrument currently crosses/)
+    ).not.toBeInTheDocument();
   });
 
   it('renders "Not enabled" for null (disabled) thresholds', async () => {

@@ -1165,8 +1165,9 @@ describe("pension forecast", () => {
 });
 
 describe("trading page data", () => {
-  it("fetches signals and settings and combines them", async () => {
+  it("fetches the signals report and settings and combines them", async () => {
     const signals = [{ ticker: "AAA", action: "BUY", reason: "r" }];
+    const blocked = [{ ticker: "BBB", action: "SELL", reasons: ["alex: x"] }];
     const settings = {
       rsi_buy: 30,
       rsi_sell: 70,
@@ -1183,17 +1184,23 @@ describe("trading page data", () => {
         ok: true,
         json: () =>
           Promise.resolve(
-            url.endsWith("/trading-agent/settings") ? settings : signals,
+            url.endsWith("/trading-agent/settings")
+              ? settings
+              : { signals, blocked },
           ),
       }),
     );
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
-    await expect(getTradingPageData()).resolves.toEqual({ signals, settings });
+    await expect(getTradingPageData()).resolves.toEqual({
+      signals,
+      blocked,
+      settings,
+    });
 
     const calledUrls = mockFetch.mock.calls.map(([url]) => url as string);
-    expect(calledUrls).toContain(`${API_BASE}/trading-agent/signals`);
+    expect(calledUrls).toContain(`${API_BASE}/trading-agent/signals/report`);
     expect(calledUrls).toContain(`${API_BASE}/trading-agent/settings`);
   });
 

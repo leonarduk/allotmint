@@ -1806,6 +1806,8 @@
     "signalsTitle": "Sinais atuais",
     "noSignalsTitle": "Sem sinais neste momento",
     "noSignalsDescription": "Nenhum instrumento monitorizado cruza atualmente os limiares ativos. Os sinais aparecem quando as condições de RSI ou de médias móveis são cumpridas e quaisquer filtros de avaliação e risco ativados também passam.",
+    "blockedTitle": "Sinais bloqueados pela conformidade",
+    "blockedDescription": "Estes instrumentos ultrapassaram os limites ativos, mas a operação proposta geraria um novo aviso de conformidade, por isso nenhum sinal é mostrado para eles.",
     "checksSkippedBadge": "Verificações ignoradas",
     "checksSkippedTitle": "Verificações ignoradas: {{checks}}",
     "checksSkippedInfo": "Não foi possível executar uma verificação opcional que requer o suplemento allotmint-pro. «compliance» significa que a operação não foi verificada face às suas regras de conformidade; «fundamental_screen» significa que os filtros de P/E e dívida/capital próprio acima (os que estiverem configurados) não foram aplicados a este candidato de compra.",

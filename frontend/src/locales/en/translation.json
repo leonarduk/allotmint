@@ -1800,6 +1800,8 @@
     "signalsTitle": "Current signals",
     "noSignalsTitle": "No signals right now",
     "noSignalsDescription": "No tracked instrument currently crosses the active thresholds. Signals appear when RSI or moving-average conditions are met and any enabled valuation and risk filters also pass.",
+    "blockedTitle": "Signals blocked by compliance",
+    "blockedDescription": "These instruments crossed the active thresholds, but the proposed trade would raise a new compliance warning, so no signal is shown for them.",
     "checksSkippedBadge": "Checks skipped",
     "checksSkippedTitle": "Skipped checks: {{checks}}",
     "checksSkippedInfo": "An optional check that needs the allotmint-pro add-on could not run. “compliance” means the trade was not checked against your compliance rules; “fundamental_screen” means the P/E and debt/equity filters above (whichever are configured) were not applied to this buy candidate.",

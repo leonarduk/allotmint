@@ -5,6 +5,9 @@ import { getQuotes } from "../api";
 import type { QuoteRow } from "../types";
 import { priceDecimals } from "../utils/priceFormatting";
 import { readWatchlistRaw, writeWatchlist } from "../lib/watchlistStore";
+import TableRowsSkeleton from "../components/skeletons/TableRowsSkeleton";
+
+const WATCHLIST_COLUMN_COUNT = 11;
 
 
 function formatValue(symbol: string, val: number | null): string {
@@ -130,6 +133,10 @@ export function Watchlist() {
   const [auto, setAuto] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allClosed, setAllClosed] = useState(false);
+  // False until the first quote request settles, so the table shows a
+  // loading skeleton rather than bare headers that read as "empty watchlist"
+  // (#7788 item 5). Later refreshes keep showing the previous rows.
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [sortKey, setSortKey] = useState<keyof QuoteRow>("symbol");
   const [asc, setAsc] = useState(true);
 
@@ -194,6 +201,8 @@ export function Watchlist() {
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setHasLoaded(true);
     }
   }, [symbolList]);
 
@@ -378,6 +387,13 @@ export function Watchlist() {
             </tr>
           </thead>
           <tbody>
+            {!hasLoaded && symbolList.length > 0 && (
+              <TableRowsSkeleton
+                rows={Math.min(symbolList.length, 8)}
+                colSpan={WATCHLIST_COLUMN_COUNT}
+                label={t("watchlist.loading", { defaultValue: "Loading quotes…" })}
+              />
+            )}
             {sorted.map((r) => {
               const color = r.change ? (r.change > 0 ? "green" : "red") : undefined;
               const pctBg =

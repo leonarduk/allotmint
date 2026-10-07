@@ -165,6 +165,30 @@ def test_positions_for_ticker_matches(monkeypatch):
     ]
 
 
+
+def test_positions_for_ticker_keeps_unknown_gain_null(monkeypatch):
+    """A holding with no known gain stays null, never a fabricated 0.0 (#8490)."""
+    gp = {
+        "accounts": [
+            {
+                "owner": "Alice",
+                "holdings": [
+                    {
+                        "ticker": "ABC.L",
+                        "units": 5,
+                        "market_value_gbp": 20.0,
+                        "gain_gbp": None,
+                        "gain_pct": None,
+                    },
+                    {"ticker": "ABC.L", "units": 3, "market_value_gbp": 9.0},
+                ],
+            }
+        ]
+    }
+    monkeypatch.setattr(ia, "build_group_portfolio", lambda slug, **_: gp)
+    rows = ia.positions_for_ticker("grp", "ABC")
+    assert [(r["gain_gbp"], r["gain_pct"]) for r in rows] == [(None, None), (None, None)]
+
 def test_build_exchange_map_uses_metadata(monkeypatch):
     monkeypatch.setattr(
         ia,

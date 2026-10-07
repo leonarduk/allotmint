@@ -37,6 +37,28 @@ def test_close_column_native_fallback_only_for_sterling(monkeypatch, currency, e
     assert holding_utils._close_column(converted, "AAPL", "N") == "Close_gbp"
 
 
+@pytest.mark.parametrize("column", ["Adj Close", "adj_close"])
+def test_close_column_adj_close_fallback_only_for_sterling(monkeypatch, column):
+    """The Adj Close fallbacks follow the same sterling-only rule as Close (#7722)."""
+    frame = pd.DataFrame({column: [100.0]})
+    monkeypatch.setattr(holding_utils, "instrument_currency", lambda t, e: "USD")
+    assert holding_utils._close_column(frame, "AAPL", "N") is None
+    monkeypatch.setattr(holding_utils, "instrument_currency", lambda t, e: "GBP")
+    assert holding_utils._close_column(frame, "VOD", "L") == column
+
+
+def test_close_column_unknown_currency_fails_closed(monkeypatch):
+    """An unresolvable currency never lets a native close through as GBP (#7722)."""
+
+    def unparseable(_ticker, _exchange):
+        raise ValueError("invalid ticker or exchange")
+
+    monkeypatch.setattr(holding_utils, "instrument_currency", unparseable)
+    assert holding_utils._close_column(pd.DataFrame({"Close": [100.0]}), "BRK.B", "N") is None
+    converted = pd.DataFrame({"Close": [100.0], "Close_gbp": [79.0]})
+    assert holding_utils._close_column(converted, "BRK.B", "N") == "Close_gbp"
+
+
 def test_unscaled_price_never_values_unconverted_usd_close_as_gbp(monkeypatch):
     """No FX rate -> no Close_gbp -> unpriced, not the USD close at 1:1 (#7722)."""
     day = dt.date(2024, 1, 8)

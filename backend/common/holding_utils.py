@@ -340,14 +340,16 @@ def _native_close_is_gbp(ticker: str, exchange: str) -> bool:
     try:
         currency = instrument_currency(ticker, exchange)
     except ValueError as exc:
-        # Same GBP default as _holding_fx_rate_source for an unparseable symbol.
+        # Fail closed: with the currency unknown, a native close could be in
+        # any currency, and reading it as GBP is exactly the 1:1 bug (#7722).
+        # Leaving the holding unpriced is the visible failure.
         logger.warning(
-            "No currency for %s.%s; assuming GBP: %s",
+            "No currency for %s.%s; not treating its native close as GBP: %s",
             sanitise_log_value(ticker),
             sanitise_log_value(exchange),
             sanitise_log_value(exc),
         )
-        return True
+        return False
     normaliser = CurrencyNormaliser.from_raw(currency)
     return normaliser.is_pence or normaliser.canonical == "GBP"
 

@@ -55,6 +55,36 @@ def test_fetch_headlines_stops_on_quota_exhaustion(monkeypatch):
     assert all(item["headline"].endswith("fresh") for item in headlines)
 
 
+def test_fetch_headlines_status_explains_an_empty_list(monkeypatch):
+    """An empty feed says why: quota exhausted vs no source answered (#7788)."""
+
+    def quota(_symbol: str) -> List[dict[str, str]]:
+        raise NewsQuotaExceeded("news quota exceeded")
+
+    monkeypatch.setattr(market_module, "get_cached_news", quota)
+    headlines = market_module._fetch_headlines()
+    assert headlines == [] and headlines.status == "quota_exhausted"
+
+    monkeypatch.setattr(market_module, "get_cached_news", lambda _symbol: [])
+    headlines = market_module._fetch_headlines()
+    assert headlines == [] and headlines.status == "unavailable"
+
+    monkeypatch.setattr(market_module, "get_cached_news", lambda s: _make_payload(s, "fresh"))
+    assert market_module._fetch_headlines().status == "ok"
+
+
+def test_fetch_headlines_partial_data_before_quota_is_ok(monkeypatch):
+    symbols = list(market_module.INDEX_SYMBOLS.values())
+
+    def fake_get_cached_news(symbol: str) -> List[dict[str, str]]:
+        if symbol == symbols[1]:
+            raise NewsQuotaExceeded("news quota exceeded")
+        return _make_payload(symbol, "fresh")
+
+    monkeypatch.setattr(market_module, "get_cached_news", fake_get_cached_news)
+    assert market_module._fetch_headlines().status == "ok"
+
+
 def test_fetch_headlines_skips_symbol_on_unexpected_error(monkeypatch):
     """A non-quota error for one symbol must not be mistaken for quota
     exhaustion and abort the remaining symbols."""
@@ -120,6 +150,7 @@ async def test_market_overview_selects_region(monkeypatch):
         "indexes": indexes_result,
         "sectors": sectors_by_region["us"],
         "headlines": headlines_result,
+        "headlines_status": "ok",
     }
 
     regions.clear()

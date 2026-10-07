@@ -199,7 +199,8 @@ def test_indexes_level_is_traded_close_even_with_dividends(monkeypatch):
 
     resp = _client().get("/market/indexes", params={"period": "1W"})
 
-    assert resp.json()["indexes"]["FTSE 100"] == {"value": 100.0, "change": pytest.approx(1.0)}
+    ftse = resp.json()["indexes"]["FTSE 100"]
+    assert {k: ftse[k] for k in ("value", "change")} == {"value": 100.0, "change": pytest.approx(1.0)}
 
 
 def test_fetch_region_sectors_skips_sector_without_data(monkeypatch, small_universe):
@@ -361,9 +362,18 @@ def test_indexes_endpoint_computes_period_change_from_closes(monkeypatch):
     resp = _client().get("/market/indexes", params={"period": "1W"})
 
     assert resp.status_code == 200
+    frame_last_date = frame.index[-1].isoformat()
     assert resp.json() == {
         "period": "1W",
-        "indexes": {"FTSE 100": {"value": pytest.approx(110.0), "change": pytest.approx(10.0)}},
+        # as_of is the last close's date, so a multi-day level is not mistaken
+        # for a live quote (#7788).
+        "indexes": {
+            "FTSE 100": {
+                "value": pytest.approx(110.0),
+                "change": pytest.approx(10.0),
+                "as_of": frame_last_date,
+            }
+        },
     }
     assert windows == [(["^FTSE", "^FTMC"], "1mo")]
 

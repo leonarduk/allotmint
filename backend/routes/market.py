@@ -8,7 +8,7 @@ import logging
 import math
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Literal, NotRequired, Optional, TypedDict
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -82,6 +82,18 @@ HEADLINE_MAX_AGE = _get_headline_max_age()
 class IndexPayload(TypedDict):
     value: float
     change: float
+    # When the level was struck (ISO-8601, UTC), so the page can say how old
+    # it is instead of leaving live and stale data indistinguishable (#7788).
+    # Omitted when the provider gives no timestamp.
+    as_of: NotRequired[str]
+
+
+def _epoch_to_iso(epoch: Any) -> Optional[str]:
+    """Return ``epoch`` seconds as an ISO-8601 UTC string, or ``None``."""
+
+    if not isinstance(epoch, (int, float)) or isinstance(epoch, bool) or epoch <= 0:
+        return None
+    return datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat()
 
 
 def _fetch_indexes() -> Dict[str, IndexPayload]:
@@ -97,10 +109,14 @@ def _fetch_indexes() -> Dict[str, IndexPayload]:
         price = info.get("regularMarketPrice")
         change = info.get("regularMarketChangePercent")
         if price is not None:
-            out[name] = {
+            payload: IndexPayload = {
                 "value": float(price),
                 "change": float(change) if change is not None else 0.0,
             }
+            as_of = _epoch_to_iso(info.get("regularMarketTime"))
+            if as_of is not None:
+                payload["as_of"] = as_of
+            out[name] = payload
     return out
 
 
@@ -122,8 +138,19 @@ def _fetch_index_period_changes(period: market_sectors.Period) -> Dict[str, Inde
             continue
         # The level shown is the traded close, not the reinvested index.
         traded = market_sectors.series_for(history.traded, sym)
-        out[name] = {"value": float(traded.iloc[-1]), "change": change}
+        payload: IndexPayload = {"value": float(traded.iloc[-1]), "change": change}
+        as_of = _index_label_to_iso(traded.index[-1])
+        if as_of is not None:
+            payload["as_of"] = as_of
+        out[name] = payload
     return out
+
+
+def _index_label_to_iso(label: Any) -> Optional[str]:
+    """Return a close's date label as ISO-8601, or ``None`` if it isn't a date."""
+
+    isoformat = getattr(label, "isoformat", None)
+    return isoformat() if callable(isoformat) else None
 
 
 def _parse_published_at(value: Any) -> Optional[datetime]:
@@ -173,7 +200,33 @@ def _sort_and_filter_headlines(headlines: List[Dict[str, Any]]) -> List[Dict[str
     return [item for _, item in dated] + undated
 
 
-def _fetch_headlines() -> List[Dict[str, Any]]:
+HeadlineStatus = Literal["ok", "quota_exhausted", "unavailable"]
+
+
+class HeadlineList(List[Dict[str, Any]]):
+    """Headlines plus why the list is what it is.
+
+    A plain ``list`` subclass so existing callers and tests that compare it to
+    a list keep working; ``status`` lets the page tell "no news source
+    answered" apart from "the provider quota ran out" instead of one bare
+    "No headlines available" (#7788 item 13).
+    """
+
+    def __init__(self, items: List[Dict[str, Any]], status: HeadlineStatus) -> None:
+        super().__init__(items)
+        self.status: HeadlineStatus = status
+
+
+def _headline_status(headlines: List[Dict[str, Any]]) -> HeadlineStatus:
+    """Return the status for ``headlines``, defaulting plain lists by emptiness."""
+
+    status = getattr(headlines, "status", None)
+    if status is not None:
+        return status
+    return "ok" if headlines else "unavailable"
+
+
+def _fetch_headlines() -> HeadlineList:
     """Fetch latest headlines for all known index symbols.
 
     Each index symbol is queried individually; results are aggregated and
@@ -188,12 +241,14 @@ def _fetch_headlines() -> List[Dict[str, Any]]:
     headlines: List[Dict[str, Any]] = []
     seen: set[str] = set()
     success = False
+    quota_exhausted = False
 
     for sym in INDEX_SYMBOLS.values():
         try:
             items = get_cached_news(sym)
         except NewsQuotaExceeded:
             logger.warning("News quota exhausted while building market headlines; returning partial data")
+            quota_exhausted = True
             break
         except Exception:
             # One failing symbol must not blank the whole headline list, and
@@ -214,7 +269,10 @@ def _fetch_headlines() -> List[Dict[str, Any]]:
     if not success:
         logger.error("Failed to fetch news for all index symbols")
 
-    return _sort_and_filter_headlines(headlines)
+    items = _sort_and_filter_headlines(headlines)
+    if items:
+        return HeadlineList(items, "ok")
+    return HeadlineList(items, "quota_exhausted" if quota_exhausted else "unavailable")
 
 
 def _safe(func, default):
@@ -267,7 +325,12 @@ async def market_overview(
         loop.run_in_executor(None, _safe, fetcher, []),
         loop.run_in_executor(None, _safe, _fetch_headlines, []),
     )
-    return {"indexes": indexes, "sectors": sector_rows, "headlines": headlines}
+    return {
+        "indexes": indexes,
+        "sectors": sector_rows,
+        "headlines": headlines,
+        "headlines_status": _headline_status(headlines),
+    }
 
 
 def _no_sectors() -> List[market_sectors.RegionSector]:

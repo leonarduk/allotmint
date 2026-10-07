@@ -52,6 +52,22 @@ def test_fetch_indexes_with_mocked_yfinance(monkeypatch):
     assert result == expected
 
 
+def test_fetch_indexes_reports_when_each_level_was_struck(monkeypatch):
+    """Each index carries its quote time so the page can show an "as of" (#7788)."""
+
+    monkeypatch.setattr(market, "INDEX_SYMBOLS", {"Timed": "^T", "Untimed": "^U"})
+    tickers = {
+        "^T": FakeChartTicker({"regularMarketPrice": 100.0, "regularMarketTime": 1_758_200_000}),
+        "^U": FakeChartTicker({"regularMarketPrice": 50.0}),
+    }
+    monkeypatch.setattr(market.yf, "Tickers", lambda _requested: SimpleNamespace(tickers=tickers))
+
+    result = market._fetch_indexes()
+
+    assert result["Timed"]["as_of"] == "2025-09-18T12:53:20+00:00"
+    assert "as_of" not in result["Untimed"]
+
+
 def test_fetch_headlines_with_mocked_news(monkeypatch):
     monkeypatch.setattr(market, "INDEX_SYMBOLS", {"One": "ONE", "Two": "TWO"})
     calls = []
@@ -136,7 +152,7 @@ def test_market_overview_default_region_handles_fetch_failures(monkeypatch):
 
     resp = client.get("/market/overview")
     assert resp.status_code == 200
-    assert resp.json() == {"indexes": {}, "sectors": [], "headlines": []}
+    assert resp.json() == {"indexes": {}, "sectors": [], "headlines": [], "headlines_status": "unavailable"}
     # Fetchers run concurrently on separate threads, so call order isn't
     # guaranteed - only that all three ran.
     assert set(calls) == {"indexes", "sectors", "headlines"}
@@ -225,7 +241,7 @@ def test_market_overview_returns_200(
     client = _client()
     resp = client.get("/market/overview")
     assert resp.status_code == 200
-    assert resp.json() == {"indexes": {}, "sectors": [], "headlines": []}
+    assert resp.json() == {"indexes": {}, "sectors": [], "headlines": [], "headlines_status": "unavailable"}
 
 
 @patch(

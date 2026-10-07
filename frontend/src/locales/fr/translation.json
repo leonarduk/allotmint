@@ -1228,7 +1228,7 @@
     "signalInfoLabel": "Que signifie la colonne Signal ?",
     "signalInfo": "Indique si le dernier signal généré pour cet instrument, avec les mêmes seuils de stratégie que la page Trading, était un candidat à l'achat ou à la vente.",
     "signalsTableTitle": "Détails des signaux",
-    "signalsTableNote": "Chaque signal est mesuré sur sa propre fenêtre d'analyse, qui peut différer de la variation de prix sur {{period}} affichée ci-dessus."
+    "signalsTableNote": "Chaque signal est mesuré sur sa propre fenêtre d'analyse (indiquée dans la colonne « Pourquoi »), qui peut différer de la variation de prix sur {{period}} affichée ci-dessus."
   },
   "owner": {
     "label": "Propriétaire",

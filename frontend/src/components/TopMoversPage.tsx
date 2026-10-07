@@ -10,6 +10,7 @@ import { InstrumentDetail } from "./InstrumentDetail";
 import { SignalBadge } from "./SignalBadge";
 import {
   ChecksSkippedBadge,
+  SignalFactors,
   SignalStrength,
 } from "./SignalDetails";
 import { formatSignalAction } from "../utils/formatSignalAction";
@@ -461,6 +462,9 @@ export function TopMoversPage() {
                   {t("trading.columns.strengthHeader")}
                 </th>
                 <th style={{ textAlign: "left", padding: "4px" }}>{t("common.reason")}</th>
+                <th style={{ textAlign: "left", padding: "4px" }}>
+                  {t("trading.columns.why")}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -485,6 +489,9 @@ export function TopMoversPage() {
                     <SignalStrength confidence={s.confidence} />
                   </td>
                   <td style={{ padding: "4px" }}>{s.reason}</td>
+                  <td style={{ padding: "4px" }}>
+                    <SignalFactors factors={s.factors} rationale={s.rationale} />
+                  </td>
                 </tr>
               ))}
             </tbody>

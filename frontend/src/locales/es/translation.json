@@ -1228,7 +1228,7 @@
     "signalInfoLabel": "¿Qué significa la columna Señal?",
     "signalInfo": "Muestra si la última señal generada para ese instrumento, con los mismos umbrales de estrategia que la página de Trading, fue candidata a compra o a venta.",
     "signalsTableTitle": "Detalles de la señal",
-    "signalsTableNote": "Cada señal se mide en su propia ventana de referencia, que puede diferir del cambio de precio de {{period}} mostrado arriba."
+    "signalsTableNote": "Cada señal se mide en su propia ventana de referencia (indicada en la columna «Por qué»), que puede diferir del cambio de precio de {{period}} mostrado arriba."
   },
   "owner": {
     "label": "Propietario",

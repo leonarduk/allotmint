@@ -1222,7 +1222,7 @@
     "signalInfoLabel": "What does the Signal column mean?",
     "signalInfo": "Shows whether the latest signal generated for that instrument, using the same strategy thresholds as the Trading page, was a buy or sell candidate.",
     "signalsTableTitle": "Signal details",
-    "signalsTableNote": "Each signal is measured over its own lookback window, which may differ from the {{period}} price change shown above."
+    "signalsTableNote": "Each signal is measured over its own lookback window (named in the Why column), which may differ from the {{period}} price change shown above."
   },
   "owner": {
     "label": "Owner",

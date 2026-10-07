@@ -8,6 +8,7 @@ import InfoTip from '../components/InfoTip';
 import WatchlistToggle from '../components/WatchlistToggle';
 import {
   ChecksSkippedBadge,
+  SignalFactors,
   SignalStrength,
 } from '../components/SignalDetails';
 import { formatSignalAction } from '../utils/formatSignalAction';
@@ -147,22 +148,6 @@ export default function Trading() {
 
   const signals = data?.signals ?? [];
   const visibleSignals = signals.slice(0, MAX_TRADING_SIGNAL_ROWS);
-
-  const renderFactors = (factors?: string[], fallback?: string) => {
-    if (factors && factors.length) {
-      return (
-        <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-          {factors.map((factor, idx) => (
-            <li key={idx}>{factor}</li>
-          ))}
-        </ul>
-      );
-    }
-    if (fallback) {
-      return <span>{fallback}</span>;
-    }
-    return '—';
-  };
 
   return (
     <main className={styles.page}>
@@ -364,7 +349,7 @@ export default function Trading() {
                         </td>
                         <td className={tableStyles.cell}>{s.reason}</td>
                         <td className={tableStyles.cell}>
-                          {renderFactors(s.factors, s.rationale)}
+                          <SignalFactors factors={s.factors} rationale={s.rationale} />
                         </td>
                       </tr>
                     ))}

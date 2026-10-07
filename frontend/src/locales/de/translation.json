@@ -1228,7 +1228,7 @@
     "signalInfoLabel": "Was bedeutet die Spalte „Signal“?",
     "signalInfo": "Zeigt, ob das jüngste Signal für dieses Instrument – mit denselben Strategieschwellen wie auf der Handelsseite – ein Kauf- oder Verkaufskandidat war.",
     "signalsTableTitle": "Signaldetails",
-    "signalsTableNote": "Jedes Signal wird über sein eigenes Zeitfenster gemessen, das von der oben angezeigten {{period}}-Kursänderung abweichen kann."
+    "signalsTableNote": "Jedes Signal wird über sein eigenes Zeitfenster gemessen (in der Spalte „Warum“ genannt), das von der oben angezeigten {{period}}-Kursänderung abweichen kann."
   },
   "owner": {
     "label": "Besitzer",

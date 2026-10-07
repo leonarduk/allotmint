@@ -371,6 +371,7 @@ describe("TopMoversPage", () => {
       ...signal,
       confidence: 1,
       checks_skipped: ["compliance", "fundamental_screen"],
+      rationale: "The price gained 9.10% in the last 7 days, exceeding the 5% momentum trigger.",
     };
     mockGetOpportunities.mockImplementation(() =>
       Promise.resolve({
@@ -406,6 +407,15 @@ describe("TopMoversPage", () => {
       within(section).getByText("Skipped checks: fundamental_screen"),
     ).toBeInTheDocument();
     expect(within(section).getByText("go long")).toBeInTheDocument();
+    // Each row states the window its signal was measured over, so a Movers
+    // period that differs from the signal's lookback no longer reads as a
+    // contradiction with Trading.
+    expect(
+      within(section).getByRole("columnheader", { name: enTranslation.trading.columns.why }),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByText(/in the last 7 days/),
+    ).toBeInTheDocument();
   });
 
   it("shows page-shaped skeletons instead of a bare loading message while the fetch is pending (#7229)", async () => {

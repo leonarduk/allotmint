@@ -36,6 +36,34 @@ export function SignalStrength({ confidence }: { confidence?: number | null }) {
   return <>{t('trading.strength.label', '{{label}} ({{percent}}%)', { label, percent })}</>;
 }
 
+/**
+ * The per-indicator detail behind a signal (e.g. "The price dropped 7.30% in
+ * the last 7 days, ..."). Each factor names the window it was measured over,
+ * which is what lets Movers and Trading agree for the same ticker even when
+ * the Movers period differs from the signal's lookback (#7217).
+ */
+export function SignalFactors({
+  factors,
+  rationale,
+}: {
+  factors?: string[];
+  rationale?: string | null;
+}) {
+  if (factors && factors.length) {
+    return (
+      <ul className={styles.factors}>
+        {factors.map((factor, idx) => (
+          <li key={idx}>{factor}</li>
+        ))}
+      </ul>
+    );
+  }
+  if (rationale) {
+    return <span>{rationale}</span>;
+  }
+  return <>—</>;
+}
+
 export function ChecksSkippedBadge({ checksSkipped }: { checksSkipped?: string[] }) {
   const { t } = useTranslation();
   if (!checksSkipped || !checksSkipped.length) {

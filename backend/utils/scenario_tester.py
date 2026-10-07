@@ -9,7 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import math
 from copy import deepcopy
-from typing import Any, Dict, Iterable, Mapping
+from typing import Any, Callable, Dict, Iterable, Mapping, Optional
 
 import pandas as pd
 
@@ -300,15 +300,19 @@ def instrument_forward_returns(
 _MIN_COVERAGE = 0.5
 
 _TickerReturns = tuple[str, tuple[Dict[str, float | None], str]]
+#: Returns for a holding that has no price history of its own (e.g. its asset
+#: class's stand-in), tried before the event's proxy index; ``None`` for none.
+HoldingFallback = Callable[[Mapping[str, Any]], Optional[_TickerReturns]]
 
 
-def _horizon_return(label: str, own: _TickerReturns, proxy: _TickerReturns) -> tuple[float | None, str | None]:
-    """A holding's return for ``label``, falling back to the proxy's; ``None`` when neither has one.
+def _horizon_return(label: str, *sources: Optional[_TickerReturns]) -> tuple[float | None, str | None]:
+    """A holding's return for ``label`` from the first of ``sources`` with one; ``None`` when none has.
 
+    ``sources`` are the holding's own returns, then its fallbacks in order.
     Also returns the ticker whose price-basis return was used, or ``None``
     when the return used was a total return (or there was none at all).
     """
-    for ticker, (returns, basis) in (own, proxy):
+    for ticker, (returns, basis) in (source for source in sources if source is not None):
         r = returns.get(label)
         if r is not None:
             return r, (ticker if basis == PRICE_RETURN_BASIS else None)
@@ -320,12 +324,14 @@ def _holding_returns(
     event_date: dt.date,
     horizon_days: Mapping[str, int],
     proxy: _TickerReturns,
+    holding_fallback: Optional[HoldingFallback] = None,
 ) -> tuple[list[tuple[float, Dict[str, float | None]]], Dict[str, set[str]]]:
     """Return ``(rows, price_basis)`` for the portfolio's priced holdings.
 
     ``rows`` holds ``(market_value, {label: return | None})`` per holding. A
-    holding's own forward return is used where available, then the proxy
-    index's; cash is held flat. ``None`` means neither had prices.
+    holding's own forward return is used where available, then
+    ``holding_fallback``'s for it, then the proxy index's; cash is held flat.
+    ``None`` means none of them had prices.
     ``price_basis`` maps each label to the tickers whose return used for it was
     price-only (no stored dividends).
     """
@@ -346,9 +352,10 @@ def _holding_returns(
             key = f"{tkr}.{ex}"
             if key not in cache:
                 cache[key] = _forward_returns(tkr, ex, event_date, horizon_days)
+            fallback = holding_fallback(h) if holding_fallback is not None else None
             rets: Dict[str, float | None] = {}
             for label in horizon_days:
-                rets[label], source = _horizon_return(label, (key, cache[key]), proxy)
+                rets[label], source = _horizon_return(label, (key, cache[key]), fallback, proxy)
                 if source is not None:
                     price_basis[label].add(source)
             rows.append((mv, rets))
@@ -384,11 +391,15 @@ def apply_historical_event_portfolio(
     event: Mapping[str, Any] | None,
     *,
     horizons: Mapping[str, int] | None = None,
+    holding_fallback: Optional[HoldingFallback] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Return shocked portfolio valuations for a historical ``event``.
 
     ``event`` must define ``date`` and ``proxy_index``. ``horizons`` maps a
-    result label to a day offset (defaults to ``_HORIZONS``). Each result has
+    result label to a day offset (defaults to ``_HORIZONS``).
+    ``holding_fallback`` gives returns for a holding without its own prices
+    before the proxy index is used (the strategy stress test passes the
+    holding's asset-class stand-in). Each result has
     ``total_value_gbp``, ``delta_gbp``, ``coverage_pct`` (share of invested
     value with real price history), ``return_basis`` (``"total"`` unless some
     return used was price-only; ``None`` when the horizon has no value) and
@@ -411,7 +422,7 @@ def apply_historical_event_portfolio(
         proxy_tkr, proxy_ex = _parse_full_ticker(event["proxy_index"])
         proxy = (f"{proxy_tkr}.{proxy_ex}", _forward_returns(proxy_tkr, proxy_ex, event_date, horizon_days))
 
-    rows, price_basis = _holding_returns(portfolio, event_date, horizon_days, proxy)
+    rows, price_basis = _holding_returns(portfolio, event_date, horizon_days, proxy, holding_fallback)
     # Value not represented by a holding (e.g. an account total that includes
     # unlisted items) is carried at baseline, so it never reads as a loss.
     start = baseline or sum(mv for mv, _ in rows)

@@ -2223,6 +2223,20 @@
     "viewGoals": "Ver objetivos",
     "pensionForecast": "Previsión de pensión"
   },
+  "costBasisChecklist": {
+    "summary_one": "Completar coste: {{count}} posición sin coste fiable",
+    "summary_other": "Completar coste: {{count}} posiciones sin coste fiable",
+    "intro": "Ganancia/pérdida excluye estas posiciones hasta que se registre su coste. Ordenadas de mayor a menor: las {{top}} primeras suman el {{share}} de su valor. Elija Añadir coste e introduzca el precio pagado por unidad.",
+    "holding": "Posición",
+    "account": "Cuenta",
+    "value": "Valor",
+    "problem": "Problema",
+    "missing": "Sin coste registrado",
+    "suspect": "El coste registrado parece erróneo",
+    "addCost": "Añadir coste",
+    "showAll": "Mostrar las {{count}}",
+    "showTop": "Mostrar solo las {{count}} primeras"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} sin tipo de cambio)",
     "reasonNoCostBasis": "sin base de coste fiable",
@@ -2678,6 +2692,7 @@
     "units": "Unidades",
     "priceGbp": "Precio (GBP)",
     "inputTitle": "Entrada de cuentas y posiciones",
+    "costBasisHint": "Registrando el coste de {{ticker}}: introduzca las unidades que tiene y el precio pagado por unidad y guarde. Si introduce un valor, se usará el precio de hoy como su coste.",
     "inputIntro": "Crea cuentas y define posiciones. Al guardar se registra la transferencia de saldo inicial que lleva la cuenta a las unidades que introduces, por lo que aparece junto a tus operaciones en <txlink>Transacciones</txlink>.",
     "saving": "Guardando...",
     "saveHolding": "Guardar posición",

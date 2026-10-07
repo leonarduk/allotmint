@@ -2216,6 +2216,20 @@
     "viewGoals": "View Goals",
     "pensionForecast": "Pension Forecast"
   },
+  "costBasisChecklist": {
+    "summary_one": "Fill in cost basis: {{count}} holding has no reliable cost basis",
+    "summary_other": "Fill in cost basis: {{count}} holdings have no reliable cost basis",
+    "intro": "Gain/loss leaves these holdings out until their cost is recorded. They are sorted largest first: the top {{top}} hold {{share}} of their value. Choose Add cost and enter the price you paid per unit.",
+    "holding": "Holding",
+    "account": "Account",
+    "value": "Value",
+    "problem": "Problem",
+    "missing": "No cost on record",
+    "suspect": "Recorded cost looks wrong",
+    "addCost": "Add cost",
+    "showAll": "Show all {{count}}",
+    "showTop": "Show top {{count}} only"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} with no FX rate)",
     "reasonNoCostBasis": "no reliable cost basis",
@@ -2671,6 +2685,7 @@
     "units": "Units",
     "priceGbp": "Price (GBP)",
     "inputTitle": "Account + Holdings Input",
+    "costBasisHint": "Recording the cost of {{ticker}}: enter the units you hold and the price you paid per unit, then save. Entering a value instead uses today's price, which would record today's price as your cost.",
     "inputIntro": "Create accounts and set holdings. Saving records the opening-balance transfer that brings the account to the units you enter, so it shows up alongside your trades on <txlink>Transactions</txlink>.",
     "saving": "Saving...",
     "saveHolding": "Save holding",

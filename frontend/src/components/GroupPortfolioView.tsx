@@ -42,6 +42,7 @@ import {
   TRACKING_ERROR_RANGE,
 } from "../lib/metricPlausibility";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
+import { CostBasisChecklist } from "./CostBasisChecklist";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
 import { isFresh, readFetchCache, runDeduped } from "../utils/fetchCache";
@@ -1080,7 +1081,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       {portfolioLoading && kpiTilesSkeleton}
 
       {!portfolioLoading && !relativeViewEnabled && hasFilteredAccounts && (
-        <PortfolioSummary totals={totals} />
+        <>
+          <PortfolioSummary totals={totals} />
+          <CostBasisChecklist accounts={filteredAccounts} />
+        </>
       )}
 
       {!portfolioLoading && isAllPositions && enableAdvancedAnalytics && (

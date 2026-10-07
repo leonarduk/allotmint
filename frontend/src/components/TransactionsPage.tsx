@@ -12,7 +12,7 @@ import {
 import { useFetch } from '../hooks/useFetch';
 import { useReportingCurrency } from '../hooks/useReportingCurrency';
 import { Trans, useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { createOwnerDisplayLookup, findOwnerForUser } from '../utils/owners';
 import { useAuth } from '../AuthContext';
 import { useDemoReadOnly } from '../hooks/useDemoReadOnly';
@@ -63,11 +63,21 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       holding_count: number;
     }>
   >([]);
-  const [manualOwner, setManualOwner] = useState('');
-  const [manualAccount, setManualAccount] = useState('');
-  const [manualTicker, setManualTicker] = useState('');
+  // The dashboard's cost-basis checklist links here with the holding to
+  // fill in (#7825); prefill the set-holding form from those params.
+  const [searchParams] = useSearchParams();
+  const costBasisTicker = (searchParams.get('ticker') ?? '').toUpperCase();
+  const [manualOwner, setManualOwner] = useState(
+    () => searchParams.get('owner') ?? ''
+  );
+  const [manualAccount, setManualAccount] = useState(
+    () => searchParams.get('account') ?? ''
+  );
+  const [manualTicker, setManualTicker] = useState(costBasisTicker);
   const [manualValue, setManualValue] = useState('');
-  const [manualUnits, setManualUnits] = useState('');
+  const [manualUnits, setManualUnits] = useState(
+    () => searchParams.get('units') ?? ''
+  );
   const [manualPrice, setManualPrice] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const { t } = useTranslation();
@@ -520,6 +530,15 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           components={{ txlink: <Link to="/transactions" /> }}
         />
       </p>
+      {costBasisTicker && (
+        <p
+          role="note"
+          data-testid="cost-basis-hint"
+          className="mb-3 rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900"
+        >
+          {t('transactionsPage.costBasisHint', { ticker: costBasisTicker })}
+        </p>
+      )}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-sm">
           {t('transactionsPage.owner')}

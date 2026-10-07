@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import types
 from datetime import UTC, date, datetime, timedelta
@@ -270,6 +271,46 @@ def test_refresh_prices_uploads_to_s3_in_aws_env(tmp_path: Path, monkeypatch: py
     assert put_calls[0]["Bucket"] == "test-bucket"
     assert put_calls[0]["Key"] == PRICES_S3_KEY
     assert "Uploaded price snapshot" in caplog.text
+
+
+def test_refresh_prices_persists_scaled_gbp_not_raw_pence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """#8923: ``latest_prices.json`` stores scaled GBP, not the raw pence series.
+
+    The cached ADM.L series holds raw pence (3588); the 0.01 override is applied
+    before persistence, so the snapshot carries GBP 35.88. This is why an
+    override-table change needs a snapshot refresh (done on every deploy).
+    """
+    from types import SimpleNamespace
+
+    from backend.common import holding_utils
+    from backend.utils import timeseries_helpers as th
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "scaling_overrides.json").write_text('{"L": {"ADM": 0.01}}')
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=tmp_path))
+
+    cached = pd.DataFrame({"Date": [date.today() - timedelta(days=1)], "Close": [3588.0]})
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: cached)
+    # Metadata wrongly says GBP (the AV/CLIG/HICL failure mode), so only the
+    # override can turn 3588 into 35.88.
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBP"})
+
+    prices_file = tmp_path / "latest_prices.json"
+    monkeypatch.setattr(prices.config, "prices_json", prices_file, raising=False)
+    monkeypatch.setattr(prices.config, "app_env", "local", raising=False)
+    monkeypatch.setattr(prices, "refresh_universe", lambda: ["ADM.L"])
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+    monkeypatch.setattr(prices, "_close_on", lambda *a, **k: None)
+    monkeypatch.setattr(prices, "_refresh_reference_data", lambda tickers: None)
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", lambda s: None)
+    monkeypatch.setattr(prices, "check_price_alerts", lambda: None)
+
+    prices.refresh_prices()
+
+    persisted = json.loads(prices_file.read_text())
+    assert persisted["ADM.L"]["last_price"] == pytest.approx(35.88)
+    assert persisted["ADM.L"]["price_currency"] == "GBP"
 
 
 def test_refresh_prices_s3_upload_failure_logs_warning_not_error(

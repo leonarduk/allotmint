@@ -24,6 +24,17 @@ Note on price_currency semantics
 * ``_load_latest_closes`` also returns GBP-normalised prices, so fallback
   snapshots emit ``price_currency = "GBP"``.
 
+Note on scaling (#8923)
+-----------------------
+The persisted snapshot (``latest_prices.json``, local and S3) stores
+**scaled** GBP values: ``get_scaling_override`` (``data/scaling_overrides.json``)
+is applied before ``last_price`` is written. This differs from the cached meta
+timeseries, which stay raw and are scaled at read time. A change to the
+override table therefore only reaches the snapshot when :func:`refresh_prices`
+runs again -- on every deploy (the CDK post-deploy Trigger and the
+"Warm price snapshot" step in ``.github/workflows/deploy-lambda.yml``) and on
+the ``DailyPriceRefresh`` schedule -- so no extra regeneration step is needed.
+
 Note on is_stale semantics (#8595)
 ----------------------------------
 * A live quote is fresh while its timestamp is under 15 minutes old.

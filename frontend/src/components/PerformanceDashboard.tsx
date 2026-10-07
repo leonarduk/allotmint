@@ -30,6 +30,8 @@ import type { DrawdownExtrema, DrawdownSeriesPoint } from "../types";
 import InfoTip from "./InfoTip";
 import PortfolioFxAttribution from "./PortfolioFxAttribution";
 import FractionMetric from "./FractionMetric";
+import LoadingStatus from "./skeletons/LoadingStatus";
+import PortfolioDashboardSkeleton from "./skeletons/PortfolioDashboardSkeleton";
 import {
   buildCumulativeComparison,
   type CumulativeComparisonPoint,
@@ -223,7 +225,13 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   if (err) return <p style={{ color: "red" }}>{err}</p>;
   // A failed or empty history only replaces the charts below; the metrics
   // that did load must still render (#7629).
-  if (!loaded) return <p>{t("common.loading")}</p>;
+  if (!loaded) {
+    return (
+      <LoadingStatus label={t("app.loading")}>
+        <PortfolioDashboardSkeleton />
+      </LoadingStatus>
+    );
+  }
 
   const formatSummaryDate = (value: string | null) => {
     if (!value) return "—";

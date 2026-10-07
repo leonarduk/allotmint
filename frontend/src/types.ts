@@ -38,6 +38,11 @@ export interface Holding {
   total_return_gbp?: number | null;
   /** total_return_gbp over all cost put into the position, as a percentage. */
   total_return_pct?: number | null;
+  /**
+   * Trailing 12-month income received over market value, as a percentage
+   * (#7019); null when no income was received in that window.
+   */
+  yield_pct?: number | null;
   current_price_gbp?: number | null;
   current_price_currency?: string | null;
   /** Date of the last known price for this holding */
@@ -581,6 +586,8 @@ export interface SectorDetail {
 export interface IndexPerformance {
   value: number;
   change: number;
+  /** When the level was struck (ISO-8601); absent if the provider gave none. */
+  as_of?: string;
 }
 
 /** `GET /market/indexes`: index level and % change over `period`. */
@@ -593,6 +600,8 @@ export interface MarketOverview {
   indexes: Record<string, IndexPerformance>;
   sectors: RegionSectorPerformance[];
   headlines: NewsItem[];
+  /** Why `headlines` is empty, when it is (#7788). */
+  headlines_status?: 'ok' | 'quota_exhausted' | 'unavailable';
 }
 
 /**

@@ -76,6 +76,19 @@ describe("PerformanceDashboard", () => {
     vi.clearAllMocks();
   });
 
+  it("shows a skeleton, not a bare Loading line, while performance loads (#7215)", () => {
+    vi.mocked(getPerformance).mockReturnValue(new Promise(() => {}));
+    render(
+      <MemoryRouter>
+        <PerformanceDashboard owner="jane" />
+      </MemoryRouter>,
+    );
+
+    const status = screen.getByRole("status", { name: "Loading…" });
+    expect(status.querySelector(".animate-pulse")).not.toBeNull();
+    expect(screen.queryByText("Loading…", { selector: "p" })).toBeNull();
+  });
+
   it("renders reporting and previous date summary", async () => {
     render(
       <MemoryRouter>

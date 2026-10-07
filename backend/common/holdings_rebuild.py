@@ -124,8 +124,20 @@ def _quantity(tx: Mapping[str, Any]) -> float | None:
     return None if qty is None else abs(qty)
 
 
-def _settled_value(tx: Mapping[str, Any], qty: float, *, acquisition: bool) -> float | None:
-    """Settled GBP value: ``amount_minor`` if non-zero, else price x units +/- fees.
+def _priced_value(tx: Mapping[str, Any], qty: float, *, acquisition: bool) -> float | None:
+    """Price x units, plus fees on an acquisition or minus them on a disposal."""
+    price = _float(tx.get("price_gbp"))
+    if price is None:
+        return None
+    fees = _float(tx.get("fees")) or 0.0
+    return price * qty + fees if acquisition else price * qty - fees
+
+
+def _settled_cash(tx: Mapping[str, Any], qty: float, *, acquisition: bool) -> float | None:
+    """Unsigned settled GBP value: ``amount_minor`` if non-zero, else price x units +/- fees.
+
+    This is the magnitude of the trade's cash effect; the caller applies the
+    direction from ``_SETTLED_TRADES``, so either sign convention works.
 
     ``amount_minor`` is the cash that actually settled, so it is already *net*
     of fees: the total paid on an acquisition (fees included) and the proceeds
@@ -133,21 +145,36 @@ def _settled_value(tx: Mapping[str, Any], qty: float, *, acquisition: bool) -> f
     exports as a portfolio transaction's ``amount`` (copied verbatim, with no
     ``fees`` field, by ``convert_portfolio_xml_to_account_transactions``), and
     it is the same figure credited to cash under ``trade_cash_effects``, so
-    ``fees`` is never
-    subtracted from it again.  Only the price x units fallback, a gross figure,
-    applies ``fees`` -- so both paths yield the same net value.
+    ``fees`` is never subtracted from it again.  Only the price x units
+    fallback, a gross figure, applies ``fees`` -- so both paths yield the same
+    net value.
 
     A zero ``amount_minor`` (common on transfers-in) records no value, so it is
-    treated as unknown rather than as a known cost of nothing.
+    treated as unknown rather than as a known value of nothing.
     """
     amount_minor = _float(tx.get("amount_minor"))
     if amount_minor:
         return abs(amount_minor) / 100.0
-    price = _float(tx.get("price_gbp"))
-    if price is None:
-        return None
-    fees = _float(tx.get("fees")) or 0.0
-    return price * qty + fees if acquisition else price * qty - fees
+    return _priced_value(tx, qty, acquisition=acquisition)
+
+
+def _settled_cost(tx: Mapping[str, Any], qty: float, *, warn: bool) -> float | None:
+    """Allowable cost of an acquisition: a positive ``amount_minor``, else price x units + fees.
+
+    A negative ``amount_minor`` cannot be trusted as a cost (it may be a
+    cash-outflow sign convention or a reversal), so rather than silently
+    flipping its sign the cost falls back to the priced value, or to unknown.
+    """
+    amount_minor = _float(tx.get("amount_minor"))
+    if amount_minor is not None and amount_minor < 0:
+        if warn:
+            logger.warning(
+                "Ignoring negative amount_minor on %s of %s as an acquisition cost",
+                sanitise_log_value(tx.get("type")),
+                sanitise_log_value(tx.get("ticker") or tx.get("instrument_name")),
+            )
+        return _priced_value(tx, qty, acquisition=True)
+    return _settled_cash(tx, qty, acquisition=True)
 
 
 def _name(record: Mapping[str, Any]) -> str | None:
@@ -233,9 +260,9 @@ def _apply_trade(replay: Replay, index: int, tx: Mapping[str, Any], tx_type: str
         return
     position = replay.positions.setdefault(key, Position())
     acquisition = tx_type in _ACQUIRE
-    value = _settled_value(tx, qty, acquisition=acquisition)
+    value = _settled_cash(tx, qty, acquisition=acquisition)
     if acquisition:
-        position.acquire(qty, value, str(tx.get("date") or "")[:10])
+        position.acquire(qty, _settled_cost(tx, qty, warn=replay.warn), str(tx.get("date") or "")[:10])
     else:
         cost_out, unknown_out, unmatched = position.dispose(qty)
         if replay.on_disposal is not None:

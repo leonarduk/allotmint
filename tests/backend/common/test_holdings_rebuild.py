@@ -48,6 +48,46 @@ def test_cost_falls_back_to_price_and_fees_without_amount() -> None:
     assert _holdings(rebuild_holdings_document(tx, "a", "isa"))["X"]["cost_basis_gbp"] == pytest.approx(26.5)
 
 
+@pytest.mark.parametrize("tx_type", ["BUY", "TRANSFER_IN"])
+def test_negative_acquisition_amount_is_unknown_cost_not_flipped(
+    tx_type: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    tx = {"transactions": [{"type": tx_type, "ticker": "X", "units": 10, "amount_minor": -5_000, "date": "2024-01-01"}]}
+    existing = {"holdings": [{"ticker": "X", "units": 10, "cost_basis_gbp": 42.5}]}
+    caplog.set_level(logging.WARNING, logger="backend.common.holdings_rebuild")
+
+    x = _holdings(rebuild_holdings_document(tx, "a", "isa", existing))["X"]
+
+    # Not the sign-flipped 50.0: the cost is unknown, so the stored cost carries forward.
+    assert x["cost_basis_gbp"] == 42.5
+    assert "Ignoring negative amount_minor" in caplog.text
+
+
+def test_negative_acquisition_amount_falls_back_to_price_and_fees() -> None:
+    tx = {
+        "transactions": [
+            {"type": "BUY", "ticker": "X", "units": 10, "amount_minor": -9_999, "price_gbp": 2.5, "fees": 1.5}
+        ]
+    }
+
+    assert _holdings(rebuild_holdings_document(tx, "a", "isa"))["X"]["cost_basis_gbp"] == pytest.approx(26.5)
+
+
+def test_positive_acquisition_amount_is_the_cost() -> None:
+    tx = {"transactions": [_buy("X", 10, 50.0, "2024-01-01")]}
+
+    assert _holdings(rebuild_holdings_document(tx, "a", "isa"))["X"]["cost_basis_gbp"] == pytest.approx(50.0)
+
+
+def test_negative_trade_amounts_keep_their_cash_effect() -> None:
+    transactions = [_buy("X", 10, -400, "2024-01-01"), _sell("X", 5, -300, "2024-02-01")]
+
+    replay = replay_transactions(transactions, trade_cash=True)
+
+    # BUY still debits and SELL still credits, whatever the recorded sign.
+    assert replay.cash == pytest.approx(-400 + 300)
+
+
 def test_same_day_acquisition_is_pooled_before_disposal() -> None:
     # Listed sell-first, as broker statements often are.
     tx = {"transactions": [_sell("ABC", 10, 120, "2024-01-10"), _buy("ABC", 20, 200, "2024-01-10")]}

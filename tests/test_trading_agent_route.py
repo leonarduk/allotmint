@@ -45,3 +45,19 @@ def test_trading_agent_email_error(monkeypatch, caplog):
         result = ta.signals(notify_email=True)
     assert result == [ta.TradingSignal.model_validate(s) for s in fake_signals]
     assert any("SNS topic ARN not configured" in r.message for r in caplog.records)
+
+
+def test_trading_agent_signals_report_includes_blocked(monkeypatch):
+    def fake_run(*, notify, blocked):
+        assert notify is False
+        blocked.append({"ticker": "BBB", "action": "SELL", "reasons": ["alex: Sold BBB without approval"]})
+        return [{"ticker": "AAA", "action": "BUY", "reason": "r"}]
+
+    monkeypatch.setattr(ta.trading_agent, "run", fake_run)
+    result = ta.signals_report()
+    assert [s.ticker for s in result.signals] == ["AAA"]
+    assert result.blocked[0].model_dump() == {
+        "ticker": "BBB",
+        "action": "SELL",
+        "reasons": ["alex: Sold BBB without approval"],
+    }

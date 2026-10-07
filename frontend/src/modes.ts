@@ -3,6 +3,7 @@ export type Mode =
   | "group"
   | "instrument"
   | "transactions"
+  | "dividends"
   | "trading"
   | "performance"
   | "screener"
@@ -41,6 +42,7 @@ export const MODES: Mode[] = [
   "owner",
   "performance",
   "transactions",
+  "dividends",
   "trading",
   "screener",
   "timeseries",

@@ -235,6 +235,19 @@ describe("Custom Query page", () => {
     expect(screen.queryByLabelText("CCC")).not.toBeInTheDocument();
   });
 
+  it("keeps every checkbox on the same line as its label (#7818)", async () => {
+    renderWithI18n(<CustomQuery />);
+    const checkboxes = [
+      await screen.findByLabelText("Alice Example"),
+      await screen.findByLabelText("VOD"),
+      await screen.findByLabelText("Market value (£)"),
+    ];
+    for (const box of checkboxes) {
+      const label = box.closest("label");
+      expect(label).toHaveClass("inline-block", "whitespace-nowrap");
+    }
+  });
+
   it("narrows the ticker list to the selected owner's holdings", async () => {
     renderWithI18n(<CustomQuery />);
     await screen.findByLabelText("VOD");

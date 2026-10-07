@@ -127,6 +127,7 @@
       "dataadmin": "Amministrazione dati",
       "dataexplorer": "Esplora file",
       "dataquality": "Qualità dei dati",
+      "dividends": "Dividendi",
       "group": "Gruppo",
       "help": "Aiuto",
       "ideas": "Idee",
@@ -386,6 +387,11 @@
     "alphaVsBenchmarkInfoLabel": "Cosa significa Alpha vs benchmark?",
     "alphaVsBenchmarkInfo": "L'alfa misura quanto il rendimento del portafoglio si è discostato da {{ticker}} nel periodo selezionato.",
     "vsBenchmark": "vs {{ticker}}",
+    "cumulativeReturnPortfolio": "Il tuo portafoglio",
+    "cumulativeReturnBenchmark": "{{ticker}} (benchmark)",
+    "cumulativeReturnBasis": "Entrambe le linee usano dividendi reinvestiti, le posizioni attuali e le stesse date ({{from}} - {{to}}) dell'alpha vs {{ticker}}.",
+    "benchmarkSeriesFailed": "Impossibile caricare {{ticker}} per il confronto, quindi viene mostrato solo il rendimento cumulato del tuo portafoglio basato sul valore.",
+    "benchmarkSeriesEmpty": "Nessun prezzo di {{ticker}} copre questo periodo, quindi viene mostrato solo il rendimento cumulato del tuo portafoglio basato sul valore.",
     "trackingErrorInfoLabel": "Cosa significa l'errore di tracciamento?",
     "trackingErrorInfo": "L'errore di tracciamento misura quanto i rendimenti giornalieri del portafoglio hanno variato rispetto a quelli di {{ticker}}, su base annua.",
     "maxDrawdownInfoLabel": "Cosa significa il drawdown massimo?",
@@ -440,6 +446,9 @@
     "atAGlance": "A colpo d'occhio",
     "pricingAsOf": "Prezzi al {{date}}",
     "pricingDatePickerLabel": "Cambia data dei prezzi",
+    "pricingRefreshError": "Impossibile aggiornare i prezzi: {{detail}}",
+    "pricingStale_one": "I prezzi hanno {{count}} giorno",
+    "pricingStale_other": "I prezzi hanno {{count}} giorni",
     "resetPricingDate": "Reimposta all'ultima disponibile",
     "select": "Seleziona un gruppo.",
     "allAccounts": "Tutti i conti",
@@ -497,6 +506,11 @@
       "account": "Conto"
     },
     "columnsLabel": "Colonne:",
+    "columnPresets": {
+      "label": "Preimpostazione colonne:",
+      "simple": "Semplice",
+      "detailed": "Dettagliato"
+    },
     "eligible": "Idoneo",
     "filters": {
       "all": "Tutto",
@@ -1236,6 +1250,7 @@
     "select": "Seleziona un proprietario."
   },
   "pensionForecast": {
+    "relativeViewNotice": "La previsione pensionistica si basa su importi in sterline, quindi è nascosta con la vista relativa attiva. Disattiva la vista relativa per vederla.",
     "ages": {
       "ageNowHelper": "Dalla data di nascita registrata ({{dob}}).",
       "ageNowLabel": "Età attuale",
@@ -1808,6 +1823,8 @@
     "signalsTitle": "Segnali correnti",
     "noSignalsTitle": "Nessun segnale al momento",
     "noSignalsDescription": "Nessuno strumento monitorato supera attualmente le soglie attive. I segnali compaiono quando le condizioni RSI o di media mobile sono soddisfatte e passano anche i filtri di valutazione e rischio abilitati.",
+    "blockedTitle": "Segnali bloccati dalla conformità",
+    "blockedDescription": "Questi strumenti hanno superato le soglie attive, ma l'operazione proposta genererebbe un nuovo avviso di conformità, quindi non viene mostrato alcun segnale.",
     "checksSkippedBadge": "Controlli saltati",
     "checksSkippedTitle": "Controlli saltati: {{checks}}",
     "checksSkippedInfo": "Un controllo opzionale che richiede il componente aggiuntivo allotmint-pro non ha potuto essere eseguito. «compliance» significa che l'operazione non è stata verificata rispetto alle tue regole di conformità; «fundamental_screen» significa che i filtri P/E e debito/patrimonio netto sopra indicati (quelli configurati) non sono stati applicati a questo candidato all'acquisto.",
@@ -1910,7 +1927,9 @@
     "details": "Dettagli di simulazione storica",
     "noData": "Nessun dati VAR disponibile.",
     "title": "Valore a rischio",
-    "chartAria": "Grafico del Value at Risk"
+    "chartAria": "Grafico del Value at Risk",
+    "relativeHidden": "Gli importi sono nascosti nella vista relativa; apri un dettaglio per vedere la perdita in percentuale.",
+    "viewBreakdown": "Vedi dettaglio"
   },
   "watchlist": {
     "refresh": "Rinfrescare",
@@ -1934,6 +1953,7 @@
     "everyMinute": "Ogni minuto",
     "manual": "Manuale",
     "marketsClosed": "Mercati chiusi",
+    "staleAge": "{{days}} g fa",
     "addTicker": "Aggiungi {{symbol}} alla lista di osservazione",
     "removeTicker": "Rimuovi {{symbol}} dalla lista di osservazione"
   },
@@ -2301,6 +2321,7 @@
     "risk": "Rischio",
     "volatility1y": "Volatilità (1 a)",
     "beta": "Beta vs {{ticker}} (3 a, settimanale)",
+    "betaNoBenchmark": "Beta (3 a, settimanale)",
     "providerBeta": "Beta del fornitore: {{value}}",
     "maxDrawdown": "Drawdown massimo",
     "history": "Storico",
@@ -2313,6 +2334,9 @@
     "ariaValuation": "Valutazione",
     "benchmark": "Benchmark:",
     "exchangeDefault": ", predefinito per la borsa di quotazione",
+    "noComparableBenchmark": "nessuno comparabile",
+    "assetClass": "fondo {{assetClass}}",
+    "assetClassBasis": "fondo {{assetClass}}: {{basis}}",
     "dataQuality": "Qualità dei dati"
   },
   "instrumentTechnicals": {
@@ -2661,6 +2685,33 @@
     "estValue": "Valore stim.: ",
     "lastUpdated": "Ultimo aggiornamento: "
   },
+  "dividends": {
+    "title": "Dividendi",
+    "description": "Dividendi incassati, per periodo e per posizione. Gli importi in valute diverse sono mostrati separatamente, mai sommati.",
+    "owner": "Titolare",
+    "allOwners": "Tutti i titolari",
+    "period": "Raggruppa per",
+    "periods": {
+      "taxYear": "Anno fiscale",
+      "year": "Anno solare",
+      "month": "Mese"
+    },
+    "trailing12m": "Ultimi 12 mesi",
+    "allTime": "Totale",
+    "byPeriod": "Per periodo",
+    "byHolding": "Per posizione",
+    "payments": "Pagamenti",
+    "received": "Incassato",
+    "holding": "Posizione",
+    "lastPaid": "Ultimo pagamento",
+    "none": "—",
+    "empty": "Nessun pagamento di dividendi registrato finora.",
+    "undated": "Senza data",
+    "unattributed": "Non collegato a una posizione",
+    "unattributedHelp": "Pagamenti di dividendi registrati senza ticker, ad es. trasferimenti da un conto proventi.",
+    "noHistory": "Nessun dividendo registrato",
+    "holdingsUnavailable": "Impossibile caricare le posizioni attuali, quindi le posizioni senza dividendi non sono elencate."
+  },
   "dividendHistory": {
     "trendAria": "Andamento dei dividendi",
     "date": "Data",
@@ -2980,7 +3031,6 @@
     },
     "model": {
       "unnamedBed": "Aiuola senza nome",
-      "allowancesUnavailable": "Limiti non disponibili al momento",
       "water": "Acqua",
       "feed": "Concime",
       "sunlight": "Luce del sole",
@@ -3124,6 +3174,11 @@
     "reportTitle": "Segnala un problema",
     "reportDescription": "Hai trovato un bug o qualcosa di poco chiaro? Faccelo sapere su GitHub così può essere tracciato e risolto.",
     "reportLink": "Apri una issue su GitHub"
+  },
+  "firstRunHelp": {
+    "title": "Nuovo su AllotMint?",
+    "openHelp": "Apri Guida e primi passi",
+    "dismiss": "Ho capito, non mostrare più"
   },
   "reportingCurrency": {
     "converted": "Importi in {{currency}}, convertiti da GBP al tasso odierno (1 {{currency}} = £{{rate}}).",
@@ -3345,7 +3400,7 @@
     "overseas_government": "Titoli di Stato esteri",
     "corporate_bonds": "Societari / credito",
     "gold": "Oro",
-    "commodities": "Altre materie prime"
+    "other_commodities": "Altre materie prime"
   },
   "planForm": {
     "errors": {

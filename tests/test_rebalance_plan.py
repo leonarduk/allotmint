@@ -79,11 +79,16 @@ def test_parse_policy_rejects_invalid(data, match):
         parse_policy(data)
 
 
-def test_parse_policy_reads_commodities_as_the_sub_class():
-    # "commodities" is also an alias of the Commodity class; as a target key it
-    # means the "other commodities" sub-class, so it can sit beside gold (#9653).
+def test_parse_policy_reads_other_commodities_without_gold():
+    # The #9718 key is an exact sub-class match: no gold sibling needed.
+    policy = parse_policy({"targets": {"equity": 90, "other_commodities": 10}})
+    assert policy.targets == {"equity": 90.0, "other_commodities": 10.0}
+
+
+def test_parse_policy_reads_legacy_commodities_beside_gold_as_the_sub_class():
+    # Pre-#9718 "commodities" beside gold was the "other commodities" sub-class (#9653).
     policy = parse_policy({"targets": {"equity": 85, "gold": 7.5, "commodities": 7.5}})
-    assert policy.targets == {"equity": 85.0, "gold": 7.5, "commodities": 7.5}
+    assert policy.targets == {"equity": 85.0, "gold": 7.5, "other_commodities": 7.5}
 
 
 @pytest.mark.parametrize("key", ["commodities", "Commodities", " commodities "])
@@ -97,7 +102,25 @@ def test_parse_policy_reads_lone_commodities_as_the_whole_class(key):
 
 def test_parse_policy_zero_gold_still_marks_commodities_as_the_sub_class():
     policy = parse_policy({"targets": {"equity": 90, "gold": 0, "commodities": 10}})
-    assert policy.targets == {"equity": 90.0, "commodities": 10.0}
+    assert policy.targets == {"equity": 90.0, "other_commodities": 10.0}
+
+
+def test_parse_policy_rejects_legacy_and_new_other_commodities_together():
+    with pytest.raises(ValueError, match="more than once"):
+        parse_policy({"targets": {"equity": 80, "commodities": 10, "other_commodities": 10}})
+
+
+def test_saved_legacy_sub_class_policy_loads_and_saves_with_the_new_key(tmp_path):
+    (tmp_path / "alex").mkdir()
+    legacy = {"allocation_policy": {"targets": {"equity": 85, "gold": 7.5, "commodities": 7.5}, "tolerance_pct": 5}}
+    (tmp_path / "alex" / "settings.json").write_text(json.dumps(legacy))
+    policy = load_allocation_policy("alex", tmp_path)
+    assert policy.targets == {"equity": 85.0, "gold": 7.5, "other_commodities": 7.5}
+    stored = json.loads((tmp_path / "alex" / "settings.json").read_text())["allocation_policy"]["targets"]
+    assert "commodities" in stored  # read-side migration only
+    save_allocation_policy("alex", policy, tmp_path)
+    stored = json.loads((tmp_path / "alex" / "settings.json").read_text())["allocation_policy"]["targets"]
+    assert stored == {"equity": 85.0, "gold": 7.5, "other_commodities": 7.5}
 
 
 def test_saved_whole_commodity_target_keeps_its_meaning(tmp_path):
@@ -577,7 +600,7 @@ def _gilt_portfolio():
                 _hs("IGLT.L", 150, "bond", "intermediate_gilts"),
                 _hs("SEGA.L", 100, "bond", "overseas_government"),
                 _hs("PHGP.L", 100, "commodity", "gold"),
-                _hs("PHSP.L", 50, "commodity", "commodities"),
+                _hs("PHSP.L", 50, "commodity", "other_commodities"),
                 _h("CASH.GBP", 150, instrument_type="Cash"),
             ],
         )
@@ -651,7 +674,7 @@ def test_sub_class_policy_drift_rows_and_trades():
         "overseas_government",
         "cash",
         "gold",
-        "commodities",
+        "other_commodities",
     ]
     assert rows["long_gilts"]["parent"] == "bond"
     assert rows["long_gilts"]["label"] == "Long gilts"
@@ -665,7 +688,7 @@ def test_sub_class_policy_drift_rows_and_trades():
     assert trades[("sell", "overseas_government")]["ticker"] == "SEGA.L"
     assert ("buy", "short_gilts") in trades
     assert trades[("buy", "gold")]["ticker"] == "PHGP.L"
-    assert ("sell", "commodities") not in trades  # 5pp over: inside the band
+    assert ("sell", "other_commodities") not in trades  # 5pp over: inside the band
 
 
 def test_split_class_holding_without_sub_class_is_reported_not_dropped():
@@ -699,7 +722,7 @@ def test_plan_reports_sub_class_breakdown_for_class_level_policy():
         "intermediate_gilts": 15.0,
         "overseas_government": 10.0,
         "gold": 10.0,
-        "commodities": 5.0,
+        "other_commodities": 5.0,
     }
 
 

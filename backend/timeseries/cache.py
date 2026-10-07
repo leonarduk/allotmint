@@ -354,19 +354,49 @@ def _value_matrix(df: pd.DataFrame) -> np.ndarray:
     return df[_VALUE_COLS].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
 
 
+# Rows dated on or before this are a null/zero timestamp parsed as a date, not
+# a real close. Yahoo pads some long LSE histories with a row at timestamp
+# -90000 (1969-12-31 in Europe/London), e.g. JEGI.L (#10024). 1970-01-01 itself
+# is dropped too (the issue's "<= 1970-01-01"): Yahoo's bar for that day is the
+# same flat zero-volume filler (timestamp -3600), and losing one genuine
+# New Year's Day 1970 close is a cheaper error than serving filler as a price.
+_EPOCH_DATE = pd.Timestamp("1970-01-01")
+
+
+def _pre_epoch_mask(df: pd.DataFrame) -> np.ndarray:
+    """True for rows whose ``Date`` is on or before :data:`_EPOCH_DATE` (#10024)."""
+    return (pd.to_datetime(df["Date"], errors="coerce") <= _EPOCH_DATE).to_numpy()
+
+
+def _without_pre_epoch_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """``df`` minus rows dated on or before 1970-01-01, for read paths (#10024)."""
+    if df.empty or "Date" not in df.columns:
+        return df
+    stale = _pre_epoch_mask(df)
+    if not stale.any():
+        return df
+    return df.loc[~stale].reset_index(drop=True)
+
+
 def _without_unpriced_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
-    """Drop rows with no usable Close (NaN or <= 0); return ``(kept, dropped_count)``.
+    """Drop rows with no usable Close or date; return ``(kept, dropped_count)``.
 
     Yahoo sometimes serves a partial-day bar -- Open/High/Low 0, Close NaN.
     Cached, it blanks every %-change anchored on that day and, dated
     yesterday, makes the series look fully covered so it is never refetched
     and corrected (#9926). Rows with a valid Close are kept whatever their
     Open/High/Low, since some sources leave those 0.
+
+    Rows dated on or before 1970-01-01 are dropped too: an epoch-zero
+    timestamp read as a date, which put a 1969-12-31 row at the start of
+    JEGI.L's full history (#10024).
     """
     if df.empty or "Close" not in df.columns:
         return df, 0
     close = pd.to_numeric(df["Close"], errors="coerce")
     priced = (close > 0).to_numpy()
+    if "Date" in df.columns:
+        priced = priced & ~_pre_epoch_mask(df)
     dropped = int((~priced).sum())
     if not dropped:
         return df, 0
@@ -430,7 +460,7 @@ def _rolling_cache(
         # Persist the clean-up so readers of the parquet stop seeing the
         # junk rows, and so the coverage check below sees the real gap.
         logger.info(
-            "Dropped %s cached row(s) with no close for %s.%s",
+            "Dropped %s cached row(s) with no close or a pre-1970 date for %s.%s",
             sanitise_log_value(purged),
             sanitise_log_value(ticker),
             sanitise_log_value(exchange),
@@ -491,7 +521,7 @@ def _rolling_cache(
     new, unpriced = _without_unpriced_rows(_ensure_schema(new))
     if unpriced:
         logger.warning(
-            "Ignoring %s fetched row(s) with no close for %s.%s",
+            "Ignoring %s fetched row(s) with no close or a pre-1970 date for %s.%s",
             sanitise_log_value(unpriced),
             sanitise_log_value(ticker),
             sanitise_log_value(exchange),
@@ -849,7 +879,9 @@ def _cached_window(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     _queue_if_stale(ticker, exchange, existing)
     if existing.empty:
         return _empty_ts()
-    return _ensure_schema(apply_date_range(existing, cutoff, today))
+    # Cache-only reads never rewrite the parquet, so a file still holding an
+    # epoch-zero row is filtered here until the next live refresh purges it.
+    return _ensure_schema(apply_date_range(_without_pre_epoch_rows(existing), cutoff, today))
 
 
 @lru_cache(maxsize=512)
@@ -927,7 +959,7 @@ def _guarded_range(
     here, inside the LRU cache, keeps every path guarded exactly once and logs
     dropped rows once per cache fill rather than on every read.
     """
-    guarded = drop_zero_volume_spikes(existing, ticker=ticker, exchange=exchange)
+    guarded = drop_zero_volume_spikes(_without_pre_epoch_rows(existing), ticker=ticker, exchange=exchange)
     return _ensure_schema(apply_date_range(guarded, start_date, end_date))
 
 

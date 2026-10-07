@@ -127,6 +127,7 @@
       "dataadmin": "Data Admin",
       "dataexplorer": "Data Explorer",
       "dataquality": "Data Quality",
+      "dividends": "Dividends",
       "group": "Group",
       "help": "Help",
       "ideas": "Ideas",
@@ -380,6 +381,11 @@
     "alphaVsBenchmarkInfoLabel": "What does Alpha vs Benchmark mean?",
     "alphaVsBenchmarkInfo": "Alpha measures how much the portfolio's return differed from {{ticker}} over the selected period.",
     "vsBenchmark": "vs {{ticker}}",
+    "cumulativeReturnPortfolio": "Your portfolio",
+    "cumulativeReturnBenchmark": "{{ticker}} (benchmark)",
+    "cumulativeReturnBasis": "Both lines use dividends reinvested, the current holdings and the same dates ({{from}} to {{to}}) as Alpha vs {{ticker}}.",
+    "benchmarkSeriesFailed": "Couldn't load {{ticker}} for comparison, so only your portfolio's value-based cumulative return is shown.",
+    "benchmarkSeriesEmpty": "No {{ticker}} prices overlap this period, so only your portfolio's value-based cumulative return is shown.",
     "trackingErrorInfoLabel": "What does Tracking Error mean?",
     "trackingErrorInfo": "Tracking error measures how much the portfolio's daily returns varied from {{ticker}}'s, annualised.",
     "maxDrawdownInfoLabel": "What does Max Drawdown mean?",
@@ -434,6 +440,9 @@
     "atAGlance": "At a glance",
     "pricingAsOf": "Pricing as of {{date}}",
     "pricingDatePickerLabel": "Change pricing date",
+    "pricingRefreshError": "Couldn’t refresh prices: {{detail}}",
+    "pricingStale_one": "Prices are {{count}} day old",
+    "pricingStale_other": "Prices are {{count}} days old",
     "resetPricingDate": "Reset to latest",
     "select": "Select a group.",
     "allAccounts": "All accounts",
@@ -491,6 +500,11 @@
       "account": "Account"
     },
     "columnsLabel": "Columns:",
+    "columnPresets": {
+      "label": "Column preset:",
+      "simple": "Simple",
+      "detailed": "Detailed"
+    },
     "eligible": "Eligible",
     "filters": {
       "all": "All",
@@ -1230,6 +1244,7 @@
     "select": "Select an owner."
   },
   "pensionForecast": {
+    "relativeViewNotice": "The pension forecast is built from pound amounts, so it is hidden while relative view is on. Turn off relative view to see it.",
     "ages": {
       "ageNowHelper": "From the date of birth on file ({{dob}}).",
       "ageNowLabel": "Age now",
@@ -1802,6 +1817,8 @@
     "signalsTitle": "Current signals",
     "noSignalsTitle": "No signals right now",
     "noSignalsDescription": "No tracked instrument currently crosses the active thresholds. Signals appear when RSI or moving-average conditions are met and any enabled valuation and risk filters also pass.",
+    "blockedTitle": "Signals blocked by compliance",
+    "blockedDescription": "These instruments crossed the active thresholds, but the proposed trade would raise a new compliance warning, so no signal is shown for them.",
     "checksSkippedBadge": "Checks skipped",
     "checksSkippedTitle": "Skipped checks: {{checks}}",
     "checksSkippedInfo": "An optional check that needs the allotmint-pro add-on could not run. “compliance” means the trade was not checked against your compliance rules; “fundamental_screen” means the P/E and debt/equity filters above (whichever are configured) were not applied to this buy candidate.",
@@ -1903,7 +1920,9 @@
     "details": "Historical simulation details",
     "noData": "No VaR data available.",
     "title": "Value at Risk",
-    "chartAria": "Value at Risk chart"
+    "chartAria": "Value at Risk chart",
+    "relativeHidden": "Amounts are hidden in relative view; open a breakdown to see the loss as a percentage.",
+    "viewBreakdown": "View breakdown"
   },
   "watchlist": {
     "refresh": "Refresh",
@@ -1927,6 +1946,7 @@
     "everyMinute": "Every minute",
     "manual": "Manual",
     "marketsClosed": "Markets closed",
+    "staleAge": "{{days}}d old",
     "addTicker": "Add {{symbol}} to watchlist",
     "removeTicker": "Remove {{symbol}} from watchlist"
   },
@@ -2294,6 +2314,7 @@
     "risk": "Risk",
     "volatility1y": "Volatility (1y)",
     "beta": "Beta vs {{ticker}} (3y weekly)",
+    "betaNoBenchmark": "Beta (3y weekly)",
     "providerBeta": "Provider beta: {{value}}",
     "maxDrawdown": "Max drawdown",
     "history": "History",
@@ -2306,6 +2327,9 @@
     "ariaValuation": "Valuation",
     "benchmark": "Benchmark:",
     "exchangeDefault": ", default for the listing exchange",
+    "noComparableBenchmark": "none comparable",
+    "assetClass": "{{assetClass}} fund",
+    "assetClassBasis": "{{assetClass}} fund: {{basis}}",
     "dataQuality": "Data quality"
   },
   "instrumentTechnicals": {
@@ -2654,6 +2678,33 @@
     "estValue": "Est Value: ",
     "lastUpdated": "Last updated: "
   },
+  "dividends": {
+    "title": "Dividends",
+    "description": "Dividend income received, by period and by holding. Amounts in different currencies are shown separately, never added together.",
+    "owner": "Owner",
+    "allOwners": "All owners",
+    "period": "Group by",
+    "periods": {
+      "taxYear": "Tax year",
+      "year": "Calendar year",
+      "month": "Month"
+    },
+    "trailing12m": "Last 12 months",
+    "allTime": "All time",
+    "byPeriod": "By period",
+    "byHolding": "By holding",
+    "payments": "Payments",
+    "received": "Received",
+    "holding": "Holding",
+    "lastPaid": "Last paid",
+    "none": "—",
+    "empty": "No dividend payments recorded yet.",
+    "undated": "Undated",
+    "unattributed": "Not linked to a holding",
+    "unattributedHelp": "Dividend payments recorded without a ticker, e.g. transfers from an income account.",
+    "noHistory": "No dividends recorded",
+    "holdingsUnavailable": "Current holdings could not be loaded, so holdings without dividends are not listed."
+  },
   "dividendHistory": {
     "trendAria": "Dividend trend",
     "date": "Date",
@@ -2973,7 +3024,6 @@
     },
     "model": {
       "unnamedBed": "Unnamed bed",
-      "allowancesUnavailable": "Allowances unavailable right now",
       "water": "Water",
       "feed": "Feed",
       "sunlight": "Sunlight",
@@ -3117,6 +3167,11 @@
     "reportTitle": "Report a problem",
     "reportDescription": "Found a bug or something confusing? Let us know on GitHub so it can be tracked and fixed.",
     "reportLink": "Open a GitHub issue"
+  },
+  "firstRunHelp": {
+    "title": "New to AllotMint?",
+    "openHelp": "Open Help & Getting Started",
+    "dismiss": "Got it, don't show again"
   },
   "reportingCurrency": {
     "converted": "Amounts in {{currency}}, translated from GBP at today's rate (1 {{currency}} = £{{rate}}).",
@@ -3338,7 +3393,7 @@
     "overseas_government": "Overseas government",
     "corporate_bonds": "Corporate / credit",
     "gold": "Gold",
-    "commodities": "Other commodities"
+    "other_commodities": "Other commodities"
   },
   "planForm": {
     "errors": {

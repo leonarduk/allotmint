@@ -493,6 +493,11 @@ def _pct_change(latest: float, base: float) -> Optional[float]:
 
 
 def _day_change(series: pd.Series) -> Optional[float]:
+    """% change between the last two closes of ``series``.
+
+    The basis (traded vs total-return) is whatever the caller passes in.
+    """
+
     if len(series) < 2:
         return None
     return _pct_change(float(series.iloc[-1]), float(series.iloc[-2]))
@@ -633,10 +638,11 @@ def fetch_sector_detail(region: Region, sector: str) -> SectorDetail:
             {
                 "ticker": ticker,
                 "name": name,
-                # Price is what it trades at; the change includes any dividend
-                # going ex that day, matching the sector's total-return basis.
+                # Price and day change share the traded basis, so a flat stock
+                # going ex-dividend shows 0% next to its unchanged price (#9598).
+                # Total return stays on the sector headline (``returns``/``history``).
                 "price": float(traded.iloc[-1]) if not traded.empty else None,
-                "change": _day_change(_series(closes, ticker)),
+                "change": _day_change(traded),
             }
         )
 

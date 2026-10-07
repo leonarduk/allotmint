@@ -224,6 +224,7 @@ def test_run_compliance_gates_actions(monkeypatch):
         return {"owner": trade["owner"], "warnings": ["blocked"]}
 
     monkeypatch.setattr("backend.agent.trading_agent.compliance.check_trade", fake_check)
+    monkeypatch.setattr("backend.agent.trading_agent.compliance.check_owner", lambda owner: {"warnings": []})
 
     published: list = []
     monkeypatch.setattr("backend.agent.trading_agent.publish_alert", lambda alert: published.append(alert))
@@ -260,6 +261,7 @@ def test_run_skips_signal_when_compliance_blocks(monkeypatch):
         return {"owner": owner, "warnings": ["limit"]}
 
     monkeypatch.setattr("backend.agent.trading_agent.compliance.check_trade", fake_check)
+    monkeypatch.setattr("backend.agent.trading_agent.compliance.check_owner", lambda owner: {"warnings": []})
 
     published: list = []
     monkeypatch.setattr("backend.agent.trading_agent.publish_alert", lambda alert: published.append(alert))
@@ -274,6 +276,120 @@ def test_run_skips_signal_when_compliance_blocks(monkeypatch):
     assert len(calls) == 2
     # second signal blocked, so only one alert published
     assert len(published) == 1
+
+
+def _setup_historical_compliance(monkeypatch, trade_warnings: list[str]) -> None:
+    """One BUY signal for AAA; alice's history already raises an old warning."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        return pd.DataFrame({"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]})
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+    monkeypatch.setattr(
+        trading_agent,
+        "compliance",
+        SimpleNamespace(
+            check_owner=lambda owner: {"warnings": ["Sold CGT.L without approval"]},
+            check_trade=lambda trade: {"warnings": list(trade_warnings)},
+        ),
+    )
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "pe_max", None)
+    monkeypatch.setattr(cfg, "de_max", None)
+    monkeypatch.setattr(cfg, "require_pro_checks", False)
+
+
+def test_run_ignores_historical_compliance_warnings(monkeypatch):
+    """#9453: a warning already in the owner's history must not block a
+    signal whose proposed trade adds no new warning."""
+    _setup_historical_compliance(monkeypatch, ["Sold CGT.L without approval"])
+
+    blocked: list = []
+    signals = trading_agent.run(blocked=blocked)
+
+    assert [s["ticker"] for s in signals] == ["AAA"]
+    assert signals[0]["checks_skipped"] == []
+    assert blocked == []
+
+
+def test_run_blocks_warning_introduced_by_proposed_trade(monkeypatch):
+    """A warning the proposed trade itself triggers still blocks, and is
+    reported to the caller with the owner it applies to."""
+    _setup_historical_compliance(
+        monkeypatch,
+        ["Sold CGT.L without approval", "21 trades in 2026-10 (max 20)"],
+    )
+
+    blocked: list = []
+    signals = trading_agent.run(blocked=blocked)
+
+    assert signals == []
+    assert blocked == [
+        {"ticker": "AAA", "action": "BUY", "reasons": ["alice: 21 trades in 2026-10 (max 20)"]},
+    ]
+
+
+def test_run_snapshots_baseline_before_check_trade(monkeypatch):
+    """The baseline must be taken before ``check_trade`` runs, so it can never
+    include the proposed trade even if ``check_trade`` were to persist it into
+    the history ``check_owner`` reads (baseline pollution)."""
+    from types import SimpleNamespace
+
+    _setup_historical_compliance(monkeypatch, [])
+    history: list[str] = ["Sold CGT.L without approval"]
+    order: list[str] = []
+
+    def check_owner(owner):
+        order.append("check_owner")
+        return {"warnings": list(history)}
+
+    def check_trade(trade):
+        order.append("check_trade")
+        # Simulate a check_trade that leaks the proposed trade into storage.
+        history.append("21 trades in 2026-10 (max 20)")
+        return {"warnings": list(history)}
+
+    monkeypatch.setattr(trading_agent, "compliance", SimpleNamespace(check_owner=check_owner, check_trade=check_trade))
+
+    blocked: list = []
+    signals = trading_agent.run(blocked=blocked)
+
+    assert order[:2] == ["check_owner", "check_trade"]
+    assert signals == []
+    assert blocked == [
+        {"ticker": "AAA", "action": "BUY", "reasons": ["alice: 21 trades in 2026-10 (max 20)"]},
+    ]
+
+
+def test_new_compliance_warnings_is_a_multiset_diff(monkeypatch):
+    """A repeated warning counts as new once it occurs more often than in
+    the owner's history."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(trading_agent, "compliance", SimpleNamespace(check_owner=lambda owner: {"warnings": ["w"]}))
+
+    assert trading_agent._new_compliance_warnings("alice", ["w"], {}) == []
+    assert trading_agent._new_compliance_warnings("alice", ["w", "w"], {}) == ["w"]
+
+
+def test_new_compliance_warnings_fails_closed_when_baseline_raises(monkeypatch):
+    from types import SimpleNamespace
+
+    def boom(owner):
+        raise ValueError("bad data")
+
+    monkeypatch.setattr(trading_agent, "compliance", SimpleNamespace(check_owner=boom))
+
+    assert trading_agent._new_compliance_warnings("alice", ["w"], {}) == ["w"]
 
 
 def test_log_trade_recreates_directory(tmp_path, monkeypatch):
@@ -490,7 +606,11 @@ def _setup_raising_compliance(monkeypatch, require_pro_checks: bool) -> list[str
             raise ValueError("invalid ticker or exchange")
         return {"owner": trade["owner"], "warnings": []}
 
-    monkeypatch.setattr(trading_agent, "compliance", SimpleNamespace(check_trade=fake_check))
+    monkeypatch.setattr(
+        trading_agent,
+        "compliance",
+        SimpleNamespace(check_owner=lambda owner: {"warnings": []}, check_trade=fake_check),
+    )
     monkeypatch.setattr(trading_agent, "screen", lambda tickers, **kw: [])
 
     cfg = trading_agent.config.trading_agent

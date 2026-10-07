@@ -10,12 +10,14 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.security.utils import get_authorization_scheme_param
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
+from starlette.datastructures import Headers
+from starlette.types import Receive, Scope, Send
 
 from backend.auth import _resolve_demo_request, decode_demo_token
 from backend.auth import demo_readonly as demo_readonly_var
@@ -85,14 +87,21 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
     cors_kwargs: dict[str, Any] = {}
     if cfg.cors_origin_regex:
         cors_kwargs["allow_origin_regex"] = cfg.cors_origin_regex
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_methods=_CORS_ALLOW_METHODS,
-        allow_headers=_CORS_ALLOW_HEADERS,
-        allow_credentials=True,
+    cors_options: dict[str, Any] = {
+        "allow_origins": cors_origins,
+        "allow_methods": _CORS_ALLOW_METHODS,
+        "allow_headers": _CORS_ALLOW_HEADERS,
+        "allow_credentials": True,
         **cors_kwargs,
-    )
+    }
+    app.add_middleware(CORSMiddleware, **cors_options)
+    # Unhandled exceptions are turned into a 500 by Starlette's
+    # ServerErrorMiddleware, which always sits *outside* CORSMiddleware, so
+    # that 500 would otherwise carry no CORS headers and the browser would hide
+    # it behind an opaque network error (#9016). Registering an ``Exception``
+    # handler installs it on ServerErrorMiddleware itself, so it also covers
+    # failures raised before CORSMiddleware runs (e.g. in outer middleware).
+    app.add_exception_handler(Exception, _make_unhandled_error_handler(cors_options))
     app.add_middleware(SlowAPIMiddleware)
 
     @app.middleware("http")
@@ -203,6 +212,37 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
     async def validation_exception_handler(_: Request, exc: RequestValidationError):
         status = 422 if exc.body is not None else 400
         return JSONResponse(status_code=status, content={"detail": _sanitize_error_details(exc.errors())})
+
+
+class _CORSPlainTextResponse(PlainTextResponse):
+    """A plain-text response that applies the app's CORS policy when sent.
+
+    The CORS headers are computed by a :class:`CORSMiddleware` built from the
+    same options as the app's own middleware, so the error path cannot drift
+    from the policy applied to successful responses.
+    """
+
+    def __init__(self, content: str, status_code: int, cors_options: dict[str, Any]) -> None:
+        super().__init__(content, status_code=status_code)
+        self._cors_options = cors_options
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        cors = CORSMiddleware(app=super().__call__, **self._cors_options)
+        await cors.simple_response(scope, receive, send, Headers(scope=scope))
+
+
+def _make_unhandled_error_handler(cors_options: dict[str, Any]):
+    """Build the catch-all handler for exceptions no other handler claimed.
+
+    It keeps Starlette's default status and body (``500`` /
+    ``Internal Server Error``) and only adds the CORS headers. Logging is left
+    to ServerErrorMiddleware, which re-raises the exception after responding.
+    """
+
+    async def unhandled_exception_handler(_: Request, __: Exception) -> PlainTextResponse:
+        return _CORSPlainTextResponse("Internal Server Error", 500, cors_options)
+
+    return unhandled_exception_handler
 
 
 def _validate_cors_origins(origins: list[str]) -> list[str]:

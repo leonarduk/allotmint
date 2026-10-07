@@ -126,19 +126,23 @@ def test_get_mcp_tools_merges_server_listing_config_and_local_tools(config_path,
     ]
 
 
-def test_get_mcp_tools_reports_an_unreachable_server(config_path, monkeypatch):
+def test_get_mcp_tools_reports_an_unreachable_server(config_path, monkeypatch, caplog):
     monkeypatch.setenv("MCP_SERVER_URL", "http://localhost:8001/mcp")
     reload_config()
 
     async def listing(url):
-        raise ConnectionError("refused by http://internal-host:8001")
+        raise ConnectionError("refused by http://internal-host:8001?token=SENTINEL-TOKEN")
 
     monkeypatch.setattr(routes_config, "_list_mcp_server_tools", listing)
 
-    body = TestClient(create_app()).get("/config/mcp-tools").json()
+    with caplog.at_level("WARNING", logger=routes_config.__name__):
+        body = TestClient(create_app()).get("/config/mcp-tools").json()
 
     assert "Could not list the MCP server's tools" in body["mcp_error"]
     assert "internal-host" not in body["mcp_error"]
+    assert "SENTINEL-TOKEN" not in str(body)
+    # The detail is kept server-side so operators can still diagnose the failure.
+    assert "SENTINEL-TOKEN" in caplog.text
     assert [tool["name"] for tool in body["tools"]] == ["export_file", "get_nav_discount", "navigate_to_page"]
     assert all(tool["not_configured"] is None for tool in body["tools"])
 

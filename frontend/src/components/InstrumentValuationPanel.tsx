@@ -136,9 +136,10 @@ export function InstrumentValuationPanel({
       rows: [
         { label: t('instrumentValuation.volatility1y'), value: pct(risk.volatility_1y) },
         {
-          label: t('instrumentValuation.beta', {
-            ticker: benchmark.ticker,
-          }),
+          label:
+            benchmark.ticker == null
+              ? t('instrumentValuation.betaNoBenchmark')
+              : t('instrumentValuation.beta', { ticker: benchmark.ticker }),
           value: ratio(risk.beta_3y),
           hint:
             risk.beta_provider != null
@@ -205,14 +206,33 @@ export function InstrumentValuationPanel({
 
   return (
     <section aria-label={t('instrumentValuation.ariaValuation')} style={{ marginBottom: '1.5rem' }}>
-      <p style={{ margin: '0 0 0.75rem' }}>
-        {t('instrumentValuation.benchmark')} <strong>{benchmark.name ?? benchmark.ticker}</strong> (
-        {benchmark.ticker}
-        {benchmark.source === 'exchange_default'
-          ? t('instrumentValuation.exchangeDefault')
-          : ''}
-        )
-      </p>
+      {benchmark.ticker == null ? (
+        // No comparable index (bond, cash, commodity fund): the backend's
+        // note is already listed under Data quality, so keep this short.
+        <p style={{ margin: '0 0 0.75rem' }} title={benchmark.note ?? undefined}>
+          {t('instrumentValuation.benchmark')}{' '}
+          <strong>{t('instrumentValuation.noComparableBenchmark')}</strong>
+          {benchmark.asset_class &&
+            ` (${t(
+              benchmark.asset_class_basis
+                ? 'instrumentValuation.assetClassBasis'
+                : 'instrumentValuation.assetClass',
+              {
+                assetClass: benchmark.asset_class,
+                basis: benchmark.asset_class_basis,
+              }
+            )})`}
+        </p>
+      ) : (
+        <p style={{ margin: '0 0 0.75rem' }}>
+          {t('instrumentValuation.benchmark')} <strong>{benchmark.name ?? benchmark.ticker}</strong> (
+          {benchmark.ticker}
+          {benchmark.source === 'exchange_default'
+            ? t('instrumentValuation.exchangeDefault')
+            : ''}
+          )
+        </p>
+      )}
       {caveats.length > 0 && (
         <div
           role="alert"

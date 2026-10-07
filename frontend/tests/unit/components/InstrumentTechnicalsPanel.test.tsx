@@ -102,6 +102,30 @@ describe('InstrumentTechnicalsPanel', () => {
     );
   });
 
+  it('omits relative strength when there is no comparable benchmark', async () => {
+    mockGetTechnicals.mockResolvedValue(
+      technicals({
+        relative_strength: {
+          benchmark: {
+            ticker: null,
+            name: null,
+            source: 'none',
+            asset_class: 'bond',
+          },
+          excess_3m: null,
+          excess_1y: null,
+        },
+      })
+    );
+
+    render(<InstrumentTechnicalsPanel ticker="GILG.L" />);
+
+    const returns = await screen.findByRole('table', { name: 'Returns' });
+    expect(within(returns).getByText('12 months')).toBeInTheDocument();
+    expect(within(returns).queryByText(/^vs /)).not.toBeInTheDocument();
+    expect(returns.textContent).not.toMatch(/null|undefined/);
+  });
+
   it('explains the jargon with info tips linking to the glossary', async () => {
     mockGetTechnicals.mockResolvedValue(technicals());
 

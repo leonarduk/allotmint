@@ -744,7 +744,6 @@ def test_compute_owner_performance_filters_single_day_zero(monkeypatch):
 
 
 def test_compute_owner_performance_drops_partial_close_nans(monkeypatch):
-    pytest.importorskip("allotmint_pro")
     portfolio = {"accounts": [{"holdings": [{"ticker": "NAN.L", "units": 2}, {"ticker": "CASH.GBP", "units": 1}]}]}
     monkeypatch.setattr(
         pu.portfolio_mod,
@@ -773,7 +772,50 @@ def test_compute_owner_performance_drops_partial_close_nans(monkeypatch):
     result = pu.compute_owner_performance("owner", days=10, include_cash=True)
 
     assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-02", "2024-01-03"]
-    assert [row["value"] for row in result["history"]] == [21.0, 22.0, 23.0]
+    # Day 2's NaN close carries the last known close (10.0) forward rather
+    # than dropping the holding to 0 (#6862), so no flash-crash repair is
+    # needed and the result no longer depends on allotmint_pro (#9491).
+    assert [row["value"] for row in result["history"]] == [21.0, 21.0, 23.0]
+
+
+def test_compute_owner_performance_forward_fills_nan_close_without_repair(monkeypatch):
+    """#9491: pin the per-ticker forward-fill (#6862) for a NaN close directly.
+
+    The flash-crash repair hook is disabled, so the middle value can only come
+    from ``reindex(all_dates).ffill()`` carrying A.L's last close (10.0)
+    forward -- not from an ``allotmint_pro`` repair. Without the forward-fill
+    A.L would contribute 0 on day 2 (old ``fill_value=0`` behaviour: 6.0).
+    """
+    portfolio = {"accounts": [{"holdings": [{"ticker": "A.L", "units": 1}, {"ticker": "B.L", "units": 1}]}]}
+    monkeypatch.setattr(
+        pu.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, *, pricing_date=None, **_: portfolio,
+    )
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(pu, "_detect_single_day_flash_crash", None)
+    monkeypatch.setattr(
+        instrument_api,
+        "_resolve_full_ticker",
+        lambda ticker, snapshot: tuple(ticker.split(".", 1)) if "." in ticker else (ticker, None),
+    )
+
+    dates = pd.date_range("2024-01-01", periods=3, freq="D")  # Mon, Tue, Wed
+    frames = {
+        ("A", "L"): pd.DataFrame({"Date": dates, "Close": [10.0, float("nan"), 12.0]}),
+        ("B", "L"): pd.DataFrame({"Date": dates, "Close": [5.0, 6.0, 7.0]}),
+    }
+    monkeypatch.setattr(
+        pu,
+        "load_meta_timeseries",
+        lambda ticker, exchange, days: frames[(ticker, exchange)].copy(),
+    )
+
+    result = pu.compute_owner_performance("owner", days=10)
+
+    assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-02", "2024-01-03"]
+    assert [row["value"] for row in result["history"]] == [15.0, 16.0, 19.0]
+    assert result["data_quality_issues"] == []
 
 
 def test_cash_flow_signs_treat_dividend_singular_same_as_plural():

@@ -692,6 +692,11 @@ def test_hash_params_helper(monkeypatch):
         high_52w_max=None,
         low_52w_min=None,
         avg_volume_min=None,
+        pb_max=None,
+        ps_max=None,
+        ev_ebitda_max=None,
+        revenue_growth_min=None,
+        earnings_growth_min=None,
     )
     page2, _ = _hash_params(
         symbols,
@@ -720,6 +725,11 @@ def test_hash_params_helper(monkeypatch):
         high_52w_max=None,
         low_52w_min=None,
         avg_volume_min=None,
+        pb_max=None,
+        ps_max=None,
+        ev_ebitda_max=None,
+        revenue_growth_min=None,
+        earnings_growth_min=None,
     )
     assert page1 == page2
     payload = call1()

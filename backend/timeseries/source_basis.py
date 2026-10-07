@@ -117,12 +117,26 @@ def same_basis(reference: pd.DataFrame, candidate: pd.DataFrame) -> bool:
     return bool(((_shared_ratios(reference, candidate) - 1.0).abs() <= DIVIDEND_BASIS_TOLERANCE).all())
 
 
+def _warn_same_source_without_overlap(group: pd.DataFrame, source: str, label: str) -> None:
+    logger.warning(
+        "Accepting %s %s row(s) for %s without shared-date evidence: no dates overlap the cached series",
+        sanitise_log_value(len(group)),
+        sanitise_log_value(source or "<unknown>"),
+        sanitise_log_value(label),
+    )
+
+
 def compatible_rows(existing: pd.DataFrame, new: pd.DataFrame, *, label: str = "") -> pd.DataFrame:
     """Return the rows of ``new`` that may be merged into ``existing``.
 
     A source group in ``new`` is kept when every existing row already comes
     from that source, or when it matches ``existing`` on shared dates
     (``same_basis``). Other groups are dropped and logged.
+
+    Same-source rows are kept even with no shared dates, since rejecting
+    them could stall a cache whose provider skipped the overlap window, but
+    that case is logged: there is no evidence the provider has not re-based
+    its history (#8791).
 
     Rows converted from an alternate listing (``is_alternate_listing_source``)
     are kept: ``alternate_listing`` already checked them against the stored
@@ -135,9 +149,13 @@ def compatible_rows(existing: pd.DataFrame, new: pd.DataFrame, *, label: str = "
     new_sources = _source_labels(new)
     keep = pd.Series(True, index=new.index)
     for source in new_sources.unique():
-        if existing_sources == {source} or is_alternate_listing_source(source):
+        if is_alternate_listing_source(source):
             continue
         group = new.loc[new_sources == source]
+        if existing_sources == {source}:
+            if basis_ratio(existing, group) is None:
+                _warn_same_source_without_overlap(group, source, label)
+            continue
         if same_basis(existing, group):
             continue
         logger.warning(

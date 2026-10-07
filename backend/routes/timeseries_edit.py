@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import io
+import json
 import logging
 import os
 import re
 import shutil
+from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 import pandas as pd
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -232,6 +237,36 @@ def _move_timeseries(ticker: str, source_exchange: str, destination_exchange: st
     return len(df)
 
 
+def _json_default(obj: Any) -> Any:
+    """Encode the non-JSON-native scalars a cached parquet can hold (#8446).
+
+    A parquet ``decimal128`` price column loads as ``Decimal``, and
+    datetime/numpy values can survive ``df.astype(object)``; the stock encoder
+    rejects all of them with a 500 that escapes CORSMiddleware.
+    """
+    if isinstance(obj, (datetime, date)):  # pd.Timestamp subclasses datetime
+        return obj.isoformat()
+    if isinstance(obj, Decimal):
+        return float(obj)
+    if isinstance(obj, np.generic):
+        return obj.item()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+class _TimeseriesJSONResponse(JSONResponse):
+    """JSONResponse with Starlette's encoding settings plus ``_json_default``."""
+
+    def render(self, content: Any) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+            default=_json_default,
+        ).encode("utf-8")
+
+
 @router.get("/edit")
 def get_timeseries_edit(ticker: str = Query(...), exchange: str | None = Query(None)) -> JSONResponse:
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
@@ -243,7 +278,7 @@ def get_timeseries_edit(ticker: str = Query(...), exchange: str | None = Query(N
         # rejects NaN, and that 500 escapes CORSMiddleware, so the browser only
         # sees an opaque "Failed to fetch". Emit missing values as JSON null.
         df = df.astype(object).where(df.notna(), None)
-    return JSONResponse(df.to_dict(orient="records"))
+    return _TimeseriesJSONResponse(df.to_dict(orient="records"))
 
 
 @router.post("/edit")

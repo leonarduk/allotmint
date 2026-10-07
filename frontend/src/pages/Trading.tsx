@@ -141,6 +141,7 @@ export default function Trading() {
   };
 
   const signals = data?.signals ?? [];
+  const blocked = data?.blocked ?? [];
   const visibleSignals = signals.slice(0, MAX_TRADING_SIGNAL_ROWS);
 
   const formatAction = (action: string) => {
@@ -360,6 +361,9 @@ export default function Trading() {
                 </div>
               </LoadingStatus>
             ) : !signals.length ? (
+              // A crossed threshold that compliance held back isn't "no
+              // signal" -- the blocked list below explains it instead (#9453).
+              blocked.length ? null : (
               <div className={styles.emptyState}>
                 <h3>{t('trading.noSignalsTitle', 'No signals right now')}</h3>
                 <p>
@@ -369,6 +373,7 @@ export default function Trading() {
                   )}
                 </p>
               </div>
+              )
             ) : (
               <div className={tableStyles.scrollContainer}>
                 <table className={tableStyles.table}>
@@ -435,6 +440,30 @@ export default function Trading() {
                   }
                 )}
               </p>
+            )}
+            {!loading && blocked.length > 0 && (
+              <div className={styles.emptyState}>
+                <h3>
+                  {t('trading.blockedTitle', 'Signals blocked by compliance')}{' '}
+                  <span data-testid="blocked-count">({blocked.length})</span>
+                </h3>
+                <p>
+                  {t(
+                    'trading.blockedDescription',
+                    'These instruments crossed the active thresholds, but the proposed trade would raise a new compliance warning, so no signal is shown for them.'
+                  )}
+                </p>
+                <ul>
+                  {blocked.map((b, i) => (
+                    <li key={`${b.ticker}-${b.action}-${i}`}>
+                      <strong>
+                        {b.ticker} {formatAction(b.action)}
+                      </strong>
+                      : {b.reasons.join('; ')}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
             {selected && (
               <InstrumentDetail

@@ -325,3 +325,34 @@ def test_connection_cooldown_resets_consecutive_read_timeouts(monkeypatch):
 
     monkeypatch.setattr(fst.requests, "get", _ok_response)
     assert not fst.fetch_stooq_timeseries_range("OTHER", "L", date(2024, 1, 1), date(2024, 1, 1)).empty
+
+
+def _fetch_stooq_csv(monkeypatch, csv_text: str) -> pd.DataFrame:
+    monkeypatch.setattr(fst, "is_valid_ticker", lambda *a, **k: True)
+    monkeypatch.setattr(fst, "record_skipped_ticker", lambda *a, **k: None)
+    monkeypatch.setattr(
+        fst.requests, "get", lambda url, params, **kwargs: SimpleNamespace(ok=True, status_code=200, text=csv_text)
+    )
+    return fst.fetch_stooq_timeseries_range("BPCR", "L", date(2026, 9, 30), date(2026, 9, 30))
+
+
+def test_fetch_stooq_keeps_sub_one_precision(monkeypatch):
+    """A sub-1 quote keeps its 4th decimal rather than a 2 dp tick (#9456)."""
+    df = _fetch_stooq_csv(
+        monkeypatch, "Date,Open,High,Low,Close,Volume\n2026-09-30,0.9399,0.9449,0.9387,0.9416,12345\n"
+    )
+
+    assert df[["Open", "High", "Low", "Close"]].iloc[0].tolist() == [0.9399, 0.9449, 0.9387, 0.9416]
+    assert df["Close"].dtype == "float64"
+    assert df.loc[df.index[0], "Volume"] == 12345
+    assert df["Ticker"].iloc[0] == "BPCR"
+
+
+def test_fetch_stooq_keeps_pence_scale_precision(monkeypatch):
+    """A >1000p close keeps its decimal pence (six significant figures)."""
+    df = _fetch_stooq_csv(
+        monkeypatch, "Date,Open,High,Low,Close,Volume\n2026-09-30,4567.25,4580.5,4551,4573.5,987654321\n"
+    )
+
+    assert df[["Open", "High", "Low", "Close"]].iloc[0].tolist() == [4567.25, 4580.5, 4551.0, 4573.5]
+    assert df.loc[df.index[0], "Volume"] == 987654321

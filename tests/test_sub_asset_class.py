@@ -9,6 +9,7 @@ from backend.common.sub_asset_class import (
     SUB_ASSET_CLASS_PARENT,
     SUB_ASSET_CLASSES,
     derive_bond_sub_class,
+    legacy_target_key,
     policy_targets,
     resolve_sub_asset_class,
 )
@@ -87,8 +88,8 @@ def test_bond_sub_classes_derive_from_fund_facts_and_name(ticker, name, facts, e
     [
         ("PHGP.L", "WisdomTree Physical Gold (GBP)", "gold"),
         ("PHAU.L", "WisdomTree Physical Gold", "gold"),
-        ("PHSP.L", "WisdomTree Physical Silver (GBP)", "commodities"),
-        ("AIGE.L", "WisdomTree Energy *R", "commodities"),
+        ("PHSP.L", "WisdomTree Physical Silver (GBP)", "other_commodities"),
+        ("AIGE.L", "WisdomTree Energy *R", "other_commodities"),
     ],
 )
 def test_commodity_sub_classes(ticker, name, expected):
@@ -112,6 +113,23 @@ def test_gilt_maturity_band_fact_used_without_duration():
 def test_gilt_maturity_band_falls_back_to_name():
     assert derive_bond_sub_class({"name": "UK Gilts 0-5yr ETF"}) == "short_gilts"
     assert derive_bond_sub_class({"name": "15+ Year Gilt ETF"}) == "long_gilts"
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("Global Government Bond Income Fund", "overseas_government"),
+        ("US Treasury Income ETF", "overseas_government"),
+        ("Global Bond Income Fund", "corporate_bonds"),
+        ("Government & Corporate Bond Income Fund", "corporate_bonds"),
+        ("TwentyFour Income Fund Ltd Ordinary GBP 0.01", "corporate_bonds"),
+        # The gilt rule still runs before "income".
+        ("UK Gilts 0-5yr Income Fund", "short_gilts"),
+    ],
+)
+def test_income_is_weaker_than_government_issuer(name, expected):
+    """#9636: "income" only means credit when no government issuer is named."""
+    assert derive_bond_sub_class({"name": name}) == expected
 
 
 def test_unknown_bond_has_no_sub_class():
@@ -156,6 +174,43 @@ def test_policy_targets_renames_equity_beside_an_equity_sub_class():
         "gold": 60,
     }
     assert policy_targets({"equity": 40, "long_gilts": 60}) == {"equity": 40, "long_gilts": 60}
+
+
+def test_policy_targets_renames_the_backtest_commodities_block_beside_gold():
+    assert policy_targets({"equity": 85, "gold": 7.5, "commodities": 7.5}) == {
+        "equity": 85,
+        "gold": 7.5,
+        "other_commodities": 7.5,
+    }
+    assert policy_targets({"equity": 80, "commodities": 20}) == {"equity": 80, "commodities": 20}
+
+
+def test_policy_targets_sums_legacy_and_new_other_commodities():
+    # Both keys name the same sleeve, so their weights add rather than one being dropped.
+    assert policy_targets({"equity": 85, "gold": 5, "commodities": 5, "other_commodities": 5}) == {
+        "equity": 85,
+        "gold": 5,
+        "other_commodities": 10,
+    }
+
+
+def test_legacy_target_key_needs_a_sibling_other_than_itself():
+    assert legacy_target_key("commodities", frozenset({"commodities", "equity"})) == "commodities"
+    assert legacy_target_key("commodities", frozenset({"commodities", "gold"})) == "other_commodities"
+
+
+@pytest.mark.parametrize("override", ["commodities", "Commodities", "other_commodities"])
+def test_legacy_commodities_override_is_the_other_commodities_sub_class(override, caplog):
+    # An override is always a sub-class, so the pre-#9718 key needs no gold beside it.
+    meta = {"ticker": "PHGP.L", "name": "WisdomTree Physical Gold", "sub_asset_class": override}
+    assert resolve_sub_asset_class(meta, "commodity") == "other_commodities"
+    assert "Ignoring sub_asset_class override" not in caplog.text
+
+
+def test_legacy_commodities_override_in_the_overrides_file(_no_overrides):
+    _no_overrides.write_text(json.dumps({"PHGP.L": {"sub_asset_class": "commodities"}}))
+    meta = {"ticker": "PHGP.L", "name": "WisdomTree Physical Gold"}
+    assert resolve_sub_asset_class(meta, "commodity") == "other_commodities"
 
 
 def test_metadata_override_wins_over_derivation():

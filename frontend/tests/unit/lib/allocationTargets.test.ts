@@ -45,7 +45,7 @@ describe('activeKeys', () => {
       'bond',
       'cash',
       'gold',
-      'commodities',
+      'other_commodities',
       'property',
       'multi-asset',
     ]);

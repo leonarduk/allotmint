@@ -1,5 +1,6 @@
 import type { MoneyFormatter } from "@/hooks/useReportingCurrency";
 import { money } from "@/lib/money";
+import { transactionUnits } from "@/lib/transactionQuantity";
 import type { Transaction } from "@/types";
 
 /**
@@ -55,14 +56,7 @@ export function formatTransactionAmount(
     typeof transaction.price_gbp === "number" && Number.isFinite(transaction.price_gbp)
       ? transaction.price_gbp
       : null;
-  const units =
-    typeof transaction.units === "number" && Number.isFinite(transaction.units)
-      ? transaction.units
-      : null;
-  const shares =
-    typeof transaction.shares === "number" && Number.isFinite(transaction.shares)
-      ? transaction.shares
-      : null;
+  const units = transactionUnits(transaction);
 
   if (transaction.amount_minor != null) {
     // A missing (or empty) currency is GBP; a GBP amount is converted to the
@@ -74,20 +68,8 @@ export function formatTransactionAmount(
     return "";
   }
 
-  if (units != null && shares != null) {
-    console.warn(
-      "Transaction contains both units and shares; using units for amount display.",
-      transaction,
-    );
-    return format(price * units);
-  }
-
   if (units != null) {
     return format(price * units);
-  }
-
-  if (shares != null) {
-    return format(price * shares);
   }
 
   return "";

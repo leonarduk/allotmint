@@ -21,7 +21,12 @@ from backend.common.constants import (
     UNITS,
 )
 from backend.common.currency import CurrencyNormaliser
-from backend.common.instrument_classification import canonical_asset_class, exposure_sector, resolve_instrument_type
+from backend.common.instrument_classification import (
+    canonical_asset_class,
+    exposure_region,
+    exposure_sector,
+    resolve_instrument_type,
+)
 from backend.common.instrument_proxy import proxied_daily_history
 from backend.common.instruments import get_instrument_meta
 from backend.common.numeric_utils import is_nan
@@ -895,7 +900,9 @@ def enrich_holding(
         approval_exempt_tickers=config.approval_exempt_tickers,
     )
 
-    account_ccy = (h.get("currency") or "GBP").upper()
+    # A "CASH.USD" holding with no currency field takes its currency from the
+    # ticker, so it values like the currency-bearing spelling (#9763).
+    account_ccy = (h.get("currency") or _cash_ticker_ccy(full) or "GBP").upper()
     from backend.common.portfolio_utils import get_security_meta  # local import to avoid circular
 
     sec_meta = get_security_meta(full) or {}
@@ -973,7 +980,11 @@ def enrich_holding(
         }
     )
     out["sector"] = normalise_optional_sector(sector)
-    out["region"] = normalise_optional_region(out.get("region") or meta.get("region"))
+    # Stored region is the fund's domicile; a fund reports the region it
+    # invests in, with the domicile kept alongside (#9296).
+    domicile_region = out.get("domicile_region") or out.get("region") or meta.get("region")
+    out["domicile_region"] = normalise_optional_region(domicile_region)
+    out["region"] = normalise_optional_region(exposure_region({**meta, "name": out["name"], "region": domicile_region}))
     if is_cash_instrument(full, out.get("instrument_type")):
         # Cash that _is_cash() doesn't catch (e.g. CASH.USD in a GBP account)
         # still gets the same "Cash" sector as aggregate_by_ticker rows (#8530).
@@ -1057,6 +1068,11 @@ def enrich_holding(
             approved = is_approval_valid(approved_on, today)
 
     out["sell_eligible"] = None if eligible is None else bool(eligible and (approved or not needs_approval))
+    # A hold period that has elapsed but is still blocked on approval has no
+    # countdown left to report; a bare 0 next to sell_eligible=False would
+    # read as "eligible now" (#7242). Positive countdowns are kept.
+    if out["sell_eligible"] is False and out["days_until_eligible"] == 0:
+        out["days_until_eligible"] = None
 
     px = px_source = prev_px = None
     last_price_time = None
@@ -1244,6 +1260,15 @@ def _holding_fx_rate_source(currency: object, ticker: str, exchange: str) -> Opt
 def _is_cash(full: str, account_ccy: str = "GBP") -> bool:
     f = (full or "").upper()
     return f in {f"CASH.{account_ccy}", f"{account_ccy}.CASH", "CASH"}
+
+
+def _cash_ticker_ccy(full: str) -> Optional[str]:
+    """Currency encoded in a ``CASH.<CCY>``/``<CCY>.CASH`` ticker, else ``None``."""
+    parts = (full or "").upper().split(".")
+    if len(parts) != 2 or "CASH" not in parts:
+        return None
+    ccy = parts[1] if parts[0] == "CASH" else parts[0]
+    return ccy if ccy and ccy != "CASH" else None
 
 
 def _cash_name(full: str, account_ccy: str = "GBP") -> str:

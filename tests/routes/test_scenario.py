@@ -77,7 +77,7 @@ def test_run_historical_scenario_valid_horizons(monkeypatch):
 
     captured = {}
 
-    def fake_apply_historical_event(portfolio, event=None, horizons=None):
+    def fake_apply_historical_event(portfolio, event=None, horizons=None, holding_fallback=None):
         captured["event"] = event
         captured["horizons"] = dict(horizons)
         total = portfolio["total_value_estimate_gbp"]
@@ -160,3 +160,41 @@ def test_run_historical_scenario_adhoc_date_uses_default_proxy():
     with pytest.raises(HTTPException) as excinfo:
         scenario.run_historical_scenario(event_id=None, date="not-a-date", horizons=["1d"])
     assert excinfo.value.status_code == 400
+
+
+def test_historical_scenario_shocks_an_unpriced_gilt_with_the_gilt_stand_in(monkeypatch):
+    """/scenario/historical uses the asset-class stand-ins, so a new gilt ETF does not track SPY (#9492)."""
+    from backend.common import strategy_stress
+    from backend.utils import scenario_tester
+
+    portfolio = {
+        "total_value_estimate_gbp": 1000.0,
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "EQNEW.L", "market_value_gbp": 600.0, "asset_class": "equity"},
+                    {"ticker": "GBPG.L", "market_value_gbp": 400.0, "asset_class": "bond"},
+                ]
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        scenario, "list_plots", lambda: [OwnerSummaryRecord(owner="alice", full_name="A", accounts=["isa"])]
+    )
+    monkeypatch.setattr(scenario, "build_owner_portfolio", lambda owner, **_: portfolio)
+    monkeypatch.setattr(strategy_stress, "PRO_SLEEVE_RETURNS", None)
+    series = {"SPY.N": -0.30, "IGLT.L": 0.02}
+
+    def forward(ticker, exchange, event_date, horizons):
+        ret = series.get(f"{ticker}.{exchange}")
+        return {label: ret for label in horizons}, "total"
+
+    monkeypatch.setattr(scenario_tester, "_forward_returns", forward)
+    event = {"id": "covid", "name": "Covid", "date": "2020-02-19", "proxy_index": "SPY.N"}
+    monkeypatch.setattr(scenario, "get_event", lambda eid: event)
+
+    [row] = scenario.run_historical_scenario(event_id="covid", date=None, horizons=["1m"])
+
+    # 600 * -0.30 (equity proxy) + 400 * 0.02 (IGLT.L gilt stand-in)
+    assert row["horizons"]["1m"]["shocked_total_value_gbp"] == pytest.approx(828.0)
+    assert row["horizons"]["1m"]["coverage_pct"] == 100.0

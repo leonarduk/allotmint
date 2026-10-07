@@ -17,6 +17,62 @@ def test_resolve_full_ticker_variants(monkeypatch):
     assert ia._resolve_full_ticker("", latest) is None
 
 
+def test_import_does_not_list_owners(monkeypatch):
+    """#8914: importing instrument_api must not run owner/ticker discovery."""
+    import importlib
+    import sys
+
+    import backend.common as common_pkg
+    from backend.common import portfolio_utils as pu
+
+    def fail():
+        raise AssertionError("list_all_unique_tickers called at import")
+
+    monkeypatch.setattr(pu, "list_all_unique_tickers", fail)
+    monkeypatch.delitem(sys.modules, "backend.common.instrument_api")
+    monkeypatch.setattr(common_pkg, "instrument_api", ia)
+
+    fresh = importlib.import_module("backend.common.instrument_api")
+
+    assert fresh is not ia
+    assert fresh._ALL_TICKERS is None
+    assert fresh._TICKER_EXCHANGE_MAP is None
+
+
+def test_ticker_index_built_lazily_once(monkeypatch):
+    """The ticker list and exchange map are built on first use and cached."""
+    calls = []
+
+    def fake_list():
+        calls.append(True)
+        return ["ABC", "DEF.N"]
+
+    monkeypatch.setattr(ia, "list_all_unique_tickers", fake_list)
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: {"exchange": "l"} if t == "ABC" else {})
+    monkeypatch.setattr(ia, "_ALL_TICKERS", None)
+    monkeypatch.setattr(ia, "_TICKER_EXCHANGE_MAP", None)
+
+    assert ia._resolve_full_ticker("abc", {}) == ("ABC", "L")
+    assert ia._resolve_full_ticker("def", {}) == ("DEF", "N")
+    assert ia._all_tickers() == ["ABC", "DEF.N"]
+    assert calls == [True]
+
+
+def test_ticker_index_built_inside_callers_system_job_context(monkeypatch):
+    """Lazy build runs in the caller's context, so a Lambda handler's
+    system_job_context() applies to owner discovery (#8914)."""
+    from backend.auth import is_system_job, system_job_context
+
+    seen = []
+    monkeypatch.setattr(ia, "list_all_unique_tickers", lambda: seen.append(is_system_job()) or [])
+    monkeypatch.setattr(ia, "_ALL_TICKERS", None)
+
+    with system_job_context():
+        ia._all_tickers()
+
+    assert seen == [True]
+
+
 def test_prime_latest_prices_respects_skip(monkeypatch):
     monkeypatch.setattr(ia.config, "skip_snapshot_warm", True)
     called = {"v": False}

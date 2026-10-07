@@ -325,6 +325,17 @@ _TickerReturns = tuple[str, tuple[Dict[str, float | None], str]]
 #: class's stand-in), tried before the event's proxy index; ``None`` for none.
 HoldingFallback = Callable[[Mapping[str, Any]], Optional[_TickerReturns]]
 
+#: Asset classes the event's ``proxy_index`` (an equity index) may stand in
+#: for; empty covers holdings with no asset class. A bond, commodity or other
+#: holding without its own prices never borrows equity returns (#9492): it
+#: stays uncovered, which shows in ``coverage_pct``.
+_EQUITY_PROXY_ASSET_CLASSES = frozenset({"", "none", "equity"})
+
+
+def _proxy_applies(holding: Mapping[str, Any]) -> bool:
+    """Whether the event's equity ``proxy_index`` may stand in for ``holding``."""
+    return str(holding.get("asset_class") or "").strip().lower() in _EQUITY_PROXY_ASSET_CLASSES
+
 
 def _horizon_return(label: str, *sources: Optional[_TickerReturns]) -> tuple[float | None, str | None]:
     """A holding's return for ``label`` from the first of ``sources`` with one; ``None`` when none has.
@@ -351,7 +362,8 @@ def _holding_returns(
 
     ``rows`` holds ``(market_value, {label: return | None})`` per holding. A
     holding's own forward return is used where available, then
-    ``holding_fallback``'s for it, then the proxy index's; cash is held flat.
+    ``holding_fallback``'s for it, then the proxy index's (equity and
+    unclassified holdings only); cash is held flat.
     ``None`` means none of them had prices.
     ``price_basis`` maps each label to the tickers whose return used for it was
     price-only (no stored dividends).
@@ -374,9 +386,10 @@ def _holding_returns(
             if key not in cache:
                 cache[key] = _forward_returns(tkr, ex, event_date, horizon_days)
             fallback = holding_fallback(h) if holding_fallback is not None else None
+            holding_proxy = proxy if _proxy_applies(h) else None
             rets: Dict[str, float | None] = {}
             for label in horizon_days:
-                rets[label], source = _horizon_return(label, (key, cache[key]), fallback, proxy)
+                rets[label], source = _horizon_return(label, (key, cache[key]), fallback, holding_proxy)
                 if source is not None:
                     price_basis[label].add(source)
             rows.append((mv, rets))
@@ -419,8 +432,10 @@ def apply_historical_event_portfolio(
     ``event`` must define ``date`` and ``proxy_index``. ``horizons`` maps a
     result label to a day offset (defaults to ``_HORIZONS``).
     ``holding_fallback`` gives returns for a holding without its own prices
-    before the proxy index is used (the strategy stress test passes the
-    holding's asset-class stand-in). Each result has
+    before the proxy index is used (the strategy stress test and
+    ``/scenario/historical`` pass the holding's asset-class stand-in). The
+    proxy index is equity, so it only stands in for equity or unclassified
+    holdings. Each result has
     ``total_value_gbp``, ``delta_gbp``, ``coverage_pct`` (share of invested
     value with real price history), ``return_basis`` (``"total"`` unless some
     return used was price-only; ``None`` when the horizon has no value) and

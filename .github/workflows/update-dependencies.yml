@@ -1,0 +1,305 @@
+name: Update Dependencies
+
+# Keeps the cicaid pins current. They are hardcoded git tags in
+# requirements-automation.txt and .github/cicaid-pins.env, and nothing else
+# bumps them -- Dependabot cannot track git+https URLs. This checks the
+# latest release of each daily, rewrites every file that pins it, runs the
+# review-automation tests against it, and opens a PR when it's behind.
+#
+# Ported from leonarduk/issue-worm's workflow of the same name (#6597),
+# without its ollama-tools leg, which only feeds issue-worm's aider coder.
+#
+# No pin this workflow rewrites lives under .github/workflows/ -- the review
+# workflow reads both from .github/cicaid-pins.env at install time. That is
+# deliberate: the default GITHUB_TOKEN can never push a commit touching
+# .github/workflows/, whatever the permissions block below grants, so
+# keeping the pins out of that directory is what lets this workflow push
+# unattended with no PAT beyond the read-only CICAID_PRO_TOKEN.
+on:
+  schedule:
+    # Daily at 06:00 UTC.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write # gh issue create for the linked tracking issue
+
+# One run at a time; a manual run should not cancel a scheduled one.
+concurrency:
+  group: dependency-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update ${{ matrix.dependency }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        dependency: [cicaid-devtools, cicaid-devtools-pro]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Check for update
+        id: check
+        env:
+          # cicaid-devtools-pro's releases API call is against the private
+          # leonarduk/cicaid-pro, which the auto-generated token cannot
+          # read -- it needs the same fine-grained PAT the install uses.
+          # Unused (and harmless) for the cicaid-devtools leg, whose repo
+          # is public.
+          GITHUB_TOKEN: ${{ secrets.CICAID_PRO_TOKEN }}
+        run: |
+          OUTPUT=$(python scripts/update_dependency_pins.py "${{ matrix.dependency }}" --check)
+          echo "$OUTPUT"
+          if [[ "$OUTPUT" == UP-TO-DATE* ]]; then
+            echo "Already up to date; nothing to do."
+            exit 0
+          fi
+          # Fail loudly if the helper's output format ever changes, instead
+          # of silently parsing garbage into branch/PR names. (Regex in a
+          # variable: an inline one with a character class is a bash [[ ]]
+          # syntax error.) Versions are constrained to the PEP 440 character
+          # set because they are interpolated into `git commit -m` and a
+          # branch name; a shell metacharacter must stop the run.
+          CHECK_RE='^UPDATE [a-z0-9-]+ [A-Za-z0-9._+-]+ -> [A-Za-z0-9._+-]+$'
+          if ! [[ "$OUTPUT" =~ $CHECK_RE ]]; then
+            echo "Unexpected output from update_dependency_pins.py: $OUTPUT" >&2
+            exit 1
+          fi
+          OLD_VERSION=$(awk '{print $3}' <<<"$OUTPUT")
+          NEW_VERSION=$(awk '{print $5}' <<<"$OUTPUT")
+          # A PEP 440 local version's "+" is URL-encoded by `gh` and reads as
+          # a space in the PR UI, so use "-" in the branch name only.
+          BRANCH_VERSION=${NEW_VERSION//+/-}
+          case "${{ matrix.dependency }}" in
+            cicaid-devtools)
+              RELEASE_URL="https://github.com/leonarduk/cicaid/releases/tag/v${NEW_VERSION}"
+              RELEASE_NOTE="" ;;
+            cicaid-devtools-pro)
+              RELEASE_URL="https://github.com/leonarduk/cicaid-pro/releases/tag/v${NEW_VERSION}"
+              RELEASE_NOTE=" (private repo; requires access)" ;;
+          esac
+          {
+            echo "old_version=$OLD_VERSION"
+            echo "new_version=$NEW_VERSION"
+            echo "branch_version=$BRANCH_VERSION"
+            echo "release_url=$RELEASE_URL"
+            echo "release_note=$RELEASE_NOTE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Skip if a PR for this update already exists
+        id: skip
+        if: steps.check.outputs.new_version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="deps/${{ matrix.dependency }}-v${{ steps.check.outputs.branch_version }}"
+          PR_COUNT=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open \
+            --json number --jq 'length')
+          if [[ "$PR_COUNT" != "0" ]]; then
+            echo "Skipping: a PR for $BRANCH is already open."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No open PR for $BRANCH; proceeding."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # CICAID_PRO_TOKEN is scoped to this step (and the Check step) because
+      # the rewrite re-fetches the latest release from the private
+      # leonarduk/cicaid-pro releases API rather than reusing the Check
+      # step's output. No other step needs it at workflow level.
+      - name: Update pins on a dependency branch
+        if: steps.check.outputs.new_version != '' && steps.skip.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.CICAID_PRO_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "deps/${{ matrix.dependency }}-v${{ steps.check.outputs.branch_version }}"
+          python scripts/update_dependency_pins.py "${{ matrix.dependency }}"
+          git diff --stat
+
+      # Installs from the *updated* pins, since the branch is already checked
+      # out: this is what proves the new tag exists and resolves alongside the
+      # other package's pin.
+      - name: Install dependencies from updated pins
+        if: steps.check.outputs.new_version != '' && steps.skip.outputs.skip != 'true'
+        env:
+          CICAID_PRO_TOKEN: ${{ secrets.CICAID_PRO_TOKEN }}
+        run: |
+          pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+          bash .github/scripts/pip_install_cicaid_pro.sh \
+            pip install --retries 10 -r requirements-automation.txt
+
+      # The bot's PR will not trigger ci.yml on its own (events created by
+      # the default GITHUB_TOKEN do not start other workflow runs), so this
+      # workflow runs the cicaid-dependent tests itself before opening the PR
+      # -- the same modules ci.yml's `test` job runs with the automation deps.
+      - name: Run review-automation tests
+        if: steps.check.outputs.new_version != '' && steps.skip.outputs.skip != 'true'
+        run: >-
+          pytest tests/test_review_common.py tests/test_ai_review_scripts.py
+          tests/scripts/test_n_review_issue.py tests/scripts/test_update_dependency_pins.py
+          -v --no-cov
+
+      - name: Create or reuse linked issue for the update
+        id: issue
+        if: steps.check.outputs.new_version != '' && steps.skip.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OLD_VERSION: ${{ steps.check.outputs.old_version }}
+          NEW_VERSION: ${{ steps.check.outputs.new_version }}
+          RELEASE_URL: ${{ steps.check.outputs.release_url }}
+          RELEASE_NOTE: ${{ steps.check.outputs.release_note }}
+          DEPENDENCY: ${{ matrix.dependency }}
+        run: |
+          TITLE="Update ${DEPENDENCY} to v${NEW_VERSION}"
+          # Reuse an open issue with this exact title so a retried run links
+          # to the same issue instead of stacking duplicates.
+          EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')
+          if [[ -n "$EXISTING" ]]; then
+            echo "Reusing issue #$EXISTING for this update."
+            echo "issue_number=$EXISTING" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Sections follow .github/ISSUE_TEMPLATE/feature_request.md.
+          BODY=$(cat <<EOF
+          ## What
+
+          Update \`${DEPENDENCY}\` from ${OLD_VERSION} to ${NEW_VERSION}.
+
+          ## Why
+
+          Keep the cicaid automation pins current. Release notes: ${RELEASE_URL}${RELEASE_NOTE}
+
+          ## How
+
+          Opened by the update-dependencies workflow, which rewrote the pins with
+          \`scripts/update_dependency_pins.py\` and ran the review-automation tests.
+
+          ## Constraints
+
+          Pins in requirements-automation.txt and .github/cicaid-pins.env must agree.
+
+          ## Success looks like
+
+          - [ ] The linked dependency PR's checks pass and it merges, closing this issue.
+
+          ## Failure looks like
+
+          - The review workflows fail to install or import cicaid after merge.
+          EOF
+          )
+          ISSUE_URL=$(gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY")
+          ISSUE_NUMBER=${ISSUE_URL##*/}
+          echo "Created issue #$ISSUE_NUMBER."
+          echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Push and open pull request
+        id: pr
+        if: steps.check.outputs.new_version != '' && steps.skip.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OLD_VERSION: ${{ steps.check.outputs.old_version }}
+          NEW_VERSION: ${{ steps.check.outputs.new_version }}
+          BRANCH_VERSION: ${{ steps.check.outputs.branch_version }}
+          RELEASE_URL: ${{ steps.check.outputs.release_url }}
+          RELEASE_NOTE: ${{ steps.check.outputs.release_note }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+          DEPENDENCY: ${{ matrix.dependency }}
+        run: |
+          BRANCH="deps/${DEPENDENCY}-v${BRANCH_VERSION}"
+          # Stage exactly the two pin files; the test run above may have
+          # left caches or other artefacts in the tree.
+          git add requirements-automation.txt .github/cicaid-pins.env
+          git commit -m "Update ${DEPENDENCY} to v${NEW_VERSION}"
+          # The skip step guarantees no open PR exists for this branch, so a
+          # surviving remote branch is a leftover from a failed run. Delete it
+          # and recreate instead of colliding on a non-fast-forward push.
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "Deleting stale branch $BRANCH from a previous failed run."
+            git push origin --delete "$BRANCH"
+          fi
+          git push -u origin "$BRANCH"
+          BODY=$(cat <<EOF
+          Update \`${DEPENDENCY}\` from ${OLD_VERSION} to ${NEW_VERSION}.
+
+          - Release notes: ${RELEASE_URL}${RELEASE_NOTE}
+          - Verified in this workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - This PR was opened with the default GITHUB_TOKEN, so required CI
+            checks will not start on their own: close and reopen it (or push
+            an empty commit) to run them.
+
+          Closes #${ISSUE_NUMBER}
+          EOF
+          )
+          PR_URL=$(gh pr create --repo "$GITHUB_REPOSITORY" \
+            --title "Update ${DEPENDENCY} to v${NEW_VERSION}" \
+            --body "$BODY" \
+            --base main \
+            --head "$BRANCH")
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+          echo "head_ref=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      # The skip step only catches a PR for *this exact* version; an older,
+      # still-open PR for the same dependency would otherwise be left stacked
+      # next to the new one. Close it -- and its linked tracking issue, which
+      # a close-without-merge does not auto-close. `run:` steps are
+      # `bash -eo pipefail`, so a failing close aborts with a red check
+      # rather than being swallowed.
+      - name: Close superseded dependency PRs and issues
+        if: >-
+          steps.check.outputs.new_version != '' && steps.skip.outputs.skip != 'true'
+          && steps.pr.outputs.pr_url != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPENDENCY: ${{ matrix.dependency }}
+          NEW_ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+          NEW_PR_URL: ${{ steps.pr.outputs.pr_url }}
+          # The branch actually pushed, not re-derived from branch_version,
+          # so the new PR can never match itself here.
+          CURRENT_BRANCH: ${{ steps.pr.outputs.head_ref }}
+        run: |
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,headRefName --limit 500 |
+            jq -r --arg branch "$CURRENT_BRANCH" --arg prefix "deps/${DEPENDENCY}-v" \
+              '.[] | select(.headRefName | startswith($prefix)) | select(.headRefName != $branch) | "\(.number)\t\(.headRefName)"' |
+          while IFS=$'\t' read -r OLD_PR OLD_BRANCH; do
+            [[ -z "$OLD_PR" ]] && continue
+            echo "Closing superseded PR #$OLD_PR"
+            gh pr close "$OLD_PR" --repo "$GITHUB_REPOSITORY" \
+              --comment "Superseded by ${NEW_PR_URL}, which bumps \`${DEPENDENCY}\` to a newer version."
+            # Best-effort cleanup: a stale ref that is already gone or
+            # protected must not abort the loop and skip the remaining PRs.
+            gh api "repos/$GITHUB_REPOSITORY/git/refs/heads/$OLD_BRANCH" -X DELETE >/dev/null 2>&1 || true
+          done
+
+          # Without this run's issue number there is nothing safe to exclude
+          # by, and a title match alone could close the issue just created.
+          if [[ -n "$NEW_ISSUE_NUMBER" ]]; then
+            # Title *prefix* match, not gh's substring search alone -- that
+            # would also catch "Update cicaid-devtools-pro to v..." for the
+            # cicaid-devtools leg.
+            gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+              --search "in:title \"Update ${DEPENDENCY} to v\"" --json number,title --limit 500 |
+              jq -r --arg prefix "Update ${DEPENDENCY} to v" --arg new "$NEW_ISSUE_NUMBER" \
+                '.[] | select(.title | startswith($prefix)) | select((.number | tostring) != $new) | .number' |
+            while read -r OLD_ISSUE; do
+              [[ -z "$OLD_ISSUE" ]] && continue
+              echo "Closing superseded issue #$OLD_ISSUE"
+              gh issue close "$OLD_ISSUE" --repo "$GITHUB_REPOSITORY" \
+                --reason "not planned" \
+                --comment "Superseded by ${NEW_PR_URL}."
+            done
+          else
+            echo "NEW_ISSUE_NUMBER is empty; skipping superseded-issue cleanup."
+          fi

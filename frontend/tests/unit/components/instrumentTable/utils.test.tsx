@@ -143,6 +143,23 @@ describe('calculateGroupTotals with unknown cost basis (#7785)', () => {
     expect(totals.gainPct).toBeNull();
   });
 
+  it('sums whole pence so sub-penny row gains that each show £0.00 total £0.00 (#7653)', () => {
+    // Each row displays £0.00 gain; unrounded, the five gains sum to £0.02.
+    const rows = createRowsWithCost(
+      ['V', 'W', 'X', 'Y', 'Z'].map((ticker) => ({
+        ...base,
+        ticker,
+        market_value_gbp: 2595.49,
+        gain_gbp: 0.004,
+      })),
+    );
+    const totals = calculateGroupTotals(rows, 'Energy');
+    expect(totals.gain).toBe(0);
+    expect(totals.gainPct).toBe(0);
+    expect(totals.cost).toBe(12977.45);
+    expect(totals.marketValue).toBe(12977.45);
+  });
+
   it('counts distinct tickers so callers can suppress cross-instrument unit sums (#8531)', () => {
     const rows = createRowsWithCost([base, { ...base, units: 4 }, { ...base, ticker: 'B', units: 2 }]);
     expect(calculateGroupTotals(rows, 'All').instrumentCount).toBe(2);

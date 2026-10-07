@@ -315,6 +315,34 @@ def test_enrich_holding_days_held_never_negative_with_explicit_reporting_date(mo
     assert earlier["days_held"] == 4
 
 
+@pytest.mark.parametrize(
+    "acquired, approvals, expected_sellable, expected_days",
+    [
+        # Hold period elapsed but no approval on record: not sellable, so no
+        # bare 0 countdown (#7242).
+        ("2026-01-01", {}, False, None),
+        # Hold period not yet elapsed: the real positive countdown is kept.
+        ("2026-10-01", {}, False, 26),  # 31 Oct is a Saturday -> Mon 2 Nov
+        # Hold period elapsed and approved: sellable keeps 0 ("eligible now").
+        ("2026-01-01", {"FOO.L": dt.date(2026, 10, 6)}, True, 0),
+    ],
+)
+def test_enrich_holding_days_until_eligible_never_zero_when_not_sellable(
+    monkeypatch, acquired, approvals, expected_sellable, expected_days
+):
+    """Regression for #7242: days_until_eligible is null, not 0, when the
+    hold period has elapsed but the approval gate still blocks the sale."""
+    _stub_days_held_deps(monkeypatch)
+    ucfg = hu.UserConfig(hold_days_min=30, approval_exempt_types=[], approval_exempt_tickers=[])
+    holding = {TICKER: "FOO.L", UNITS: 1, ACQUIRED_DATE: acquired}
+
+    today = dt.date(2026, 10, 7)
+    out = hu.enrich_holding(holding, today, price_cache={}, approvals=approvals, user_config=ucfg)
+
+    assert out["sell_eligible"] is expected_sellable
+    assert out["days_until_eligible"] == expected_days
+
+
 def test_get_effective_cost_basis_gbp_falls_back_to_price_hint_when_unknown(monkeypatch):
     """Direct unit test for the price_hint fallback added alongside #7220.
 

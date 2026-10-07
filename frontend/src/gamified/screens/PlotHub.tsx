@@ -104,7 +104,7 @@ function Champion({
 
 /**
  * The hub screen: a glance-able read of the whole allotment — the standout
- * and struggling crops on the stage, the three resource meters, and the beds
+ * and struggling crops on the stage, the resource meters, and the beds
  * (accounts) that make up the plot.
  */
 export default function PlotHub({ basePath }: { basePath: string }) {

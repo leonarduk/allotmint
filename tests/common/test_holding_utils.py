@@ -1,4 +1,5 @@
 import datetime as dt
+from types import SimpleNamespace
 from typing import Dict
 
 import pandas as pd
@@ -90,6 +91,42 @@ def test_derived_cost_basis_skips_unconverted_usd_close(monkeypatch):
     )
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 1.0)
     assert holding_utils._derived_cost_basis_close_px("AAPL", "N", dt.date(2024, 1, 8), {}) is None
+
+
+@pytest.mark.parametrize(
+    ("snap_currency", "usable"),
+    [("USD", False), ("EUR", False), ("GBP", True), ("GBX", True), ("GBp", True), (None, True)],
+)
+def test_snapshot_usable_only_for_sterling_price_currency(snap_currency, usable):
+    """enrich_holding reads the snapshot price as GBP, so a USD-tagged one is not usable (#7722)."""
+    calc = SimpleNamespace(has_explicit_reporting_date=False)
+    snap = {"last_price": 150.0}
+    if snap_currency is not None:
+        snap["price_currency"] = snap_currency
+    assert holding_utils._snapshot_usable(snap, calc) is usable
+
+
+def test_enrich_holding_ignores_usd_tagged_snapshot_price(monkeypatch):
+    """A native USD close in the snapshot (#7788 tags it USD) is never valued 1:1 as GBP (#7722)."""
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "USD"})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_PRICE_SNAPSHOT",
+        {"AAPL.N": {"last_price": 150.0, "price_currency": "USD", "last_price_date": "2026-09-25"}},
+    )
+    monkeypatch.setattr(holding_utils, "_holding_fx_rate_source", lambda *_: "live")
+    monkeypatch.setattr(holding_utils, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
+    monkeypatch.setattr(
+        holding_utils, "_get_dated_price_for_date_scaled", lambda *a, **k: (118.5, "Yahoo", dt.date(2026, 9, 25))
+    )
+    monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *a, **k: (118.0, "Yahoo"))
+
+    holding = {"ticker": "AAPL.N", "units": 10, "cost_basis_gbp": 0.0, "acquired_date": "2025-01-01"}
+    result = holding_utils.enrich_holding(holding, dt.date(2026, 9, 26), price_cache={})
+
+    assert result["latest_source"] == "Yahoo"
+    assert result["current_price_gbp"] == pytest.approx(118.5)
 
 
 def test_derived_cost_basis_close_px_caches_and_window(monkeypatch):

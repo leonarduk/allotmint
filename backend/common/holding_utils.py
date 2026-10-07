@@ -335,6 +335,16 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
 latest_prices: Dict[str, float] = {}
 
 
+def _is_sterling(currency: object) -> bool:
+    """Whether ``currency`` is GBP or a pence code (``None``/blank counts as GBP).
+
+    The one test both GBP-only price readers apply (#7722): the native-close
+    fallback in ``_close_column`` and the snapshot entry in ``_snapshot_usable``.
+    """
+    normaliser = CurrencyNormaliser.from_raw(currency)
+    return normaliser.is_pence or normaliser.canonical == "GBP"
+
+
 def _native_close_is_gbp(ticker: str, exchange: str) -> bool:
     """Whether ``ticker.exchange``'s native close is already sterling (GBP or pence).
 
@@ -355,8 +365,7 @@ def _native_close_is_gbp(ticker: str, exchange: str) -> bool:
             sanitise_log_value(exc),
         )
         return False
-    normaliser = CurrencyNormaliser.from_raw(currency)
-    return normaliser.is_pence or normaliser.canonical == "GBP"
+    return _is_sterling(currency)
 
 
 def _close_column(df: pd.DataFrame, ticker: Optional[str] = None, exchange: Optional[str] = None) -> Optional[str]:
@@ -653,8 +662,15 @@ def _snapshot_usable(snap: Any, calc: PricingDateCalculator) -> bool:
     The snapshot holds the latest price. For an explicitly requested date
     (``as_of``) it is only usable when its ``last_price_date`` is known and not
     after that date; otherwise a historical valuation would use today's price.
+
+    ``enrich_holding`` reads ``last_price`` as GBP, so an entry tagged with a
+    non-sterling ``price_currency`` (a native close the snapshot builder could
+    not convert) is not usable: valuing it 1:1 is the #7722 bug. The holding
+    then falls back to the dated ``Close_gbp`` lookup instead.
     """
     if not isinstance(snap, dict) or is_nan(snap.get("last_price")):
+        return False
+    if not _is_sterling(snap.get("price_currency")):
         return False
     if not calc.has_explicit_reporting_date:
         return True

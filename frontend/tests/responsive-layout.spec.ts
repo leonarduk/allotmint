@@ -537,3 +537,37 @@ test('research tab bar and settings Add form fit on a 375px viewport', async ({
   }
   await assertNoPageOverflow(page);
 });
+
+test('issue 7812: dashboard header fits one row with no page overflow at 390px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await preparePage(page);
+
+  await page.goto(new URL('/', baseUrl).toString());
+  const chatButton = page.getByRole('button', { name: 'chat', exact: true });
+  await expect(chatButton).toBeVisible();
+  await expect(page.getByRole('table').first()).toBeVisible();
+
+  // The owner summary table scrolls inside its own wrapper (#6684), so the
+  // document itself never scrolls sideways.
+  await assertNoPageOverflow(page);
+
+  // Every visible header item (language switcher, menu, search, bell, chat,
+  // avatar) must share one row: all their vertical spans overlap, so nothing
+  // has wrapped below. Before #7812 the bell and chat buttons were ~91px wide
+  // each and pushed chat + avatar onto a second row.
+  const spans = await chatButton.locator('..').evaluate((row) =>
+    Array.from(row.children)
+      .map((child) => child.getBoundingClientRect())
+      .filter((rect) => rect.width > 0 && rect.height > 0)
+      .map((rect) => ({ top: rect.top, bottom: rect.bottom }))
+  );
+  expect(spans.length).toBeGreaterThan(2);
+  const lowestTop = Math.max(...spans.map((s) => s.top));
+  const highestBottom = Math.min(...spans.map((s) => s.bottom));
+  expect(
+    lowestTop,
+    `header wrapped onto a second row: ${JSON.stringify(spans)}`
+  ).toBeLessThan(highestBottom);
+});

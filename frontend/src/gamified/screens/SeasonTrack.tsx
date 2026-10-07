@@ -226,6 +226,11 @@ export default function SeasonTrack() {
             {group.tiers.filter((tier) => tier.complete).length}/
             {group.tiers.length})
           </h3>
+          {group.personal && (
+            <p className={styles.sectionNote}>
+              {t('plot.season.personalNote')}
+            </p>
+          )}
           <ul className={styles.plainList}>
             <GroupRow group={group} />
           </ul>

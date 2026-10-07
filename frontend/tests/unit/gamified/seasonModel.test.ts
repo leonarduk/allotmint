@@ -225,6 +225,14 @@ describe('buildSeasonGroups', () => {
     ]);
   });
 
+  it("flags only the Trail-driven streak and rank groups as the user's own progress (#7191)", () => {
+    // `/trail` is not owner-scoped, so these two must not read as the
+    // selected grower's — the rest are the grower's portfolio figures.
+    expect(
+      groups.filter((group) => group.personal).map((group) => group.id)
+    ).toEqual(['streak', 'rank']);
+  });
+
   it('tracks progress toward the first tier not yet earned, not the last', () => {
     // Plot value is £60k: the £1k/£10k/£50k tiers are cleared, £250k is next.
     const grow = groups.find((group) => group.id === 'grow');

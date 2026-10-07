@@ -130,6 +130,8 @@ interface GoalGroup {
    */
   chipFormat?: (value: number) => string;
   unavailable?: boolean;
+  /** See `SeasonGroupProgress.personal`. */
+  personal?: boolean;
 }
 
 /**
@@ -202,6 +204,7 @@ function buildGoalGroups(
       title: (target) => i18n.t('plot.goals.streak.title', { target }),
       format: (value) => pluralize(value, 'day'),
       chipFormat: (value) => pluralize(value, 'day'),
+      personal: true,
     },
     {
       id: 'rank',
@@ -213,6 +216,7 @@ function buildGoalGroups(
       title: (target) => i18n.t('plot.goals.rank.title', { target }),
       format: (value) =>
         i18n.t('plot.model.level', { level: Math.round(value) }),
+      personal: true,
     },
   ];
 }
@@ -328,6 +332,12 @@ export interface SeasonGroupProgress {
    * distinct error notice instead of a progress bar (#7005).
    */
   unavailable?: boolean;
+  /**
+   * True when the figure is the signed-in user's Trail progress (streak,
+   * level) rather than the selected grower's portfolio — `/trail` is not
+   * owner-scoped, so the UI must not present it as the grower's (#7191).
+   */
+  personal?: boolean;
 }
 
 /**
@@ -371,6 +381,7 @@ export function buildSeasonGroups(
       next,
       complete: next === null,
       unavailable: group.unavailable,
+      personal: group.personal,
     };
   });
 }

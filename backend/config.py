@@ -302,6 +302,23 @@ def _flatten_dict(src: Dict[str, Any], dst: Dict[str, Any]) -> None:
             dst.setdefault(key, value)
 
 
+def _parse_error_summary(val: Any) -> Optional[dict]:
+    """Return ``error_summary`` only when it is a mapping.
+
+    The old Settings UI saved this section back as the string
+    ``'[object Object]'`` (and ``config.example.yaml`` shipped that value), which
+    then leaked out of ``/config`` verbatim (#7788). Ignore any non-mapping with
+    a warning rather than failing startup on configs that still carry it.
+    """
+    if val is None or isinstance(val, dict):
+        return val
+    logger.warning(
+        "Ignoring error_summary: expected a mapping such as {default_command: [...]}, got %s",
+        type(val).__name__,
+    )
+    return None
+
+
 def _parse_mcp_tools(val: Any) -> Dict[str, bool]:
     """Validate ``mcp.mcp_tools``: a map of tool name to boolean (missing names are on)."""
     if val is None:
@@ -614,7 +631,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         ft_url_template=data.get("ft_url_template"),
         selenium_user_agent=data.get("selenium_user_agent"),
         selenium_headless=data.get("selenium_headless"),
-        error_summary=data.get("error_summary"),
+        error_summary=_parse_error_summary(data.get("error_summary")),
         offline_mode=data.get("offline_mode"),
         disable_auth=data.get("disable_auth"),
         google_auth_enabled=google_auth_enabled,

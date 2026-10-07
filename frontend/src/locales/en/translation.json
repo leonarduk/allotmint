@@ -776,7 +776,8 @@
         "insufficient_price_history": "No split: fewer than two stored prices in this range.",
         "currency_mismatch": "No split: this instrument's quote currency ({{currency}}) disagrees with the currency its GBP prices are converted from."
       }
-    }
+    },
+    "ongoingCharge": "Ongoing charge: {{value}}"
   },
   "instrumentTable": {
     "columns": {
@@ -3465,5 +3466,11 @@
     "refreshNotCovered": "Neither Morningstar nor justETF has look-through data for this fund.",
     "refreshFailed": "Refresh failed: {{message}}",
     "manualSource": "Manual (fund reports)"
+  },
+  "fundCharges": {
+    "unknown": "Unknown",
+    "weightedCharge": "Weighted ongoing charge",
+    "annualCost": "Est. annual fund cost",
+    "excludesUnknown": "Excludes {{unknown}} of {{total}} holdings with no fee data"
   }
 }

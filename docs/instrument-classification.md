@@ -126,6 +126,19 @@ A bond with no recognised sub-class stays in Bond. When Bond is targeted by
 sub-class, the Strategy page shows it in a "Bond — no sub-class" row and a
 note. It counts towards the total but is never traded.
 
+## Fund ongoing charges (OCF/TER)
+
+Set `ongoing_charge_pct` on the instrument file to the fund's annual ongoing
+charge as a percentage, copied from its own KIID or factsheet, for example
+`"ongoing_charge_pct": 0.22` for 0.22%. No third-party OCF feed is used, so
+there is no data-licensing dependency (#7834).
+
+The instrument detail panel shows the charge, and the portfolio view shows a
+value-weighted average charge and an estimated annual cost. A missing,
+non-numeric, negative or implausible (over 10%) value is shown as unknown,
+never as 0%. Holdings with no fee data are left out of the average and the
+cost estimate, and the portfolio view says how many were left out.
+
 ## Gaps
 
 The data-quality page (`/data-quality`, Issues and Holdings tabs) reports a

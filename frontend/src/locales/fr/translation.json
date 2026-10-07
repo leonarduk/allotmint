@@ -2243,6 +2243,20 @@
     "viewGoals": "Voir les objectifs",
     "pensionForecast": "Prévision de retraite"
   },
+  "costBasisChecklist": {
+    "summary_one": "Compléter le prix de revient : {{count}} ligne sans prix de revient fiable",
+    "summary_other": "Compléter le prix de revient : {{count}} lignes sans prix de revient fiable",
+    "intro": "Le gain/la perte exclut ces lignes tant que leur coût n'est pas saisi. Triées de la plus grande à la plus petite : les {{top}} premières représentent {{share}} de leur valeur. Choisissez Ajouter le coût et saisissez le prix payé par part.",
+    "holding": "Ligne",
+    "account": "Compte",
+    "value": "Valeur",
+    "problem": "Problème",
+    "missing": "Aucun coût enregistré",
+    "suspect": "Le coût enregistré semble erroné",
+    "addCost": "Ajouter le coût",
+    "showAll": "Tout afficher ({{count}})",
+    "showTop": "Afficher seulement les {{count}} premières"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} sans taux de change)",
     "reasonNoCostBasis": "pas de prix de revient fiable",
@@ -2729,6 +2743,8 @@
     "units": "Parts",
     "priceGbp": "Prix (GBP)",
     "inputTitle": "Saisie des comptes et positions",
+    "costBasisHint": "Saisie du coût de {{ticker}} : indiquez les parts détenues et le prix payé par part, puis enregistrez. Le champ Valeur est désactivé ici, car il enregistrerait le cours du jour comme s'il s'agissait de votre prix d'achat.",
+    "costBasisNeedsPrice": "Pour enregistrer un coût, saisissez les parts et le prix payé par part. Une valeur enregistrerait le cours du jour comme votre coût.",
     "inputIntro": "Créez des comptes et définissez vos positions. L'enregistrement crée le transfert de solde d'ouverture qui amène le compte aux parts saisies ; il apparaît ainsi avec vos opérations dans <txlink>Transactions</txlink>.",
     "saving": "Enregistrement...",
     "saveHolding": "Enregistrer la position",

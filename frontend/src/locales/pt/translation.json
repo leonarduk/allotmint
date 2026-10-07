@@ -2243,6 +2243,20 @@
     "viewGoals": "Ver objetivos",
     "pensionForecast": "Previsão de pensão"
   },
+  "costBasisChecklist": {
+    "summary_one": "Preencher custo: {{count}} posição sem custo fiável",
+    "summary_other": "Preencher custo: {{count}} posições sem custo fiável",
+    "intro": "Ganho/perda exclui estas posições até o custo ser registado. Ordenadas da maior para a menor: as {{top}} primeiras valem {{share}} do seu valor. Escolha Adicionar custo e introduza o preço pago por unidade.",
+    "holding": "Posição",
+    "account": "Conta",
+    "value": "Valor",
+    "problem": "Problema",
+    "missing": "Sem custo registado",
+    "suspect": "O custo registado parece errado",
+    "addCost": "Adicionar custo",
+    "showAll": "Mostrar todas ({{count}})",
+    "showTop": "Mostrar só as {{count}} primeiras"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} sem taxa de câmbio)",
     "reasonNoCostBasis": "sem base de custo fiável",
@@ -2729,6 +2743,8 @@
     "units": "Unidades",
     "priceGbp": "Preço (GBP)",
     "inputTitle": "Introdução de contas e posições",
+    "costBasisHint": "A registar o custo de {{ticker}}: introduza as unidades detidas e o preço pago por unidade e guarde. O campo Valor está desativado aqui, porque registaria o preço de hoje como se fosse o que pagou.",
+    "costBasisNeedsPrice": "Para registar um custo, introduza as unidades e o preço pago por unidade. Um valor registaria o preço de hoje como o seu custo.",
     "inputIntro": "Crie contas e defina posições. Ao guardar, é registada a transferência de saldo inicial que leva a conta às unidades introduzidas, pelo que aparece junto das suas operações em <txlink>Transações</txlink>.",
     "saving": "A guardar...",
     "saveHolding": "Guardar posição",

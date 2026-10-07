@@ -2243,6 +2243,20 @@
     "viewGoals": "Ziele anzeigen",
     "pensionForecast": "Rentenprognose"
   },
+  "costBasisChecklist": {
+    "summary_one": "Einstandskosten ergänzen: {{count}} Position ohne verlässliche Einstandskosten",
+    "summary_other": "Einstandskosten ergänzen: {{count}} Positionen ohne verlässliche Einstandskosten",
+    "intro": "Gewinn/Verlust lässt diese Positionen aus, bis ihre Kosten erfasst sind. Sortiert nach Größe: Die größten {{top}} machen {{share}} ihres Werts aus. Wählen Sie „Kosten erfassen“ und geben Sie den gezahlten Preis je Anteil ein.",
+    "holding": "Position",
+    "account": "Konto",
+    "value": "Wert",
+    "problem": "Problem",
+    "missing": "Keine Kosten erfasst",
+    "suspect": "Erfasste Kosten wirken falsch",
+    "addCost": "Kosten erfassen",
+    "showAll": "Alle {{count}} anzeigen",
+    "showTop": "Nur die größten {{count}} anzeigen"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} ohne Wechselkurs)",
     "reasonNoCostBasis": "keine verlässliche Anschaffungsbasis",
@@ -2729,6 +2743,8 @@
     "units": "Anteile",
     "priceGbp": "Preis (GBP)",
     "inputTitle": "Konto- und Bestandserfassung",
+    "costBasisHint": "Kosten für {{ticker}} erfassen: Geben Sie die gehaltenen Anteile und den gezahlten Preis je Anteil ein und speichern Sie. Das Feld Wert ist hier deaktiviert, da es den heutigen Kurs so erfassen würde, als hätten Sie ihn gezahlt.",
+    "costBasisNeedsPrice": "Um Kosten zu erfassen, geben Sie Anteile und den gezahlten Preis je Anteil ein. Ein Wert würde den heutigen Kurs als Ihre Kosten erfassen.",
     "inputIntro": "Legen Sie Konten an und erfassen Sie Bestände. Beim Speichern wird die Eröffnungsbuchung erfasst, die das Konto auf die eingegebenen Anteile bringt, sodass sie neben Ihren Trades unter <txlink>Transaktionen</txlink> erscheint.",
     "saving": "Speichern...",
     "saveHolding": "Bestand speichern",

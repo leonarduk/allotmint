@@ -2243,6 +2243,20 @@
     "viewGoals": "Visualizza obiettivi",
     "pensionForecast": "Previsione pensionistica"
   },
+  "costBasisChecklist": {
+    "summary_one": "Completa il costo: {{count}} posizione senza costo affidabile",
+    "summary_other": "Completa il costo: {{count}} posizioni senza costo affidabile",
+    "intro": "Guadagno/perdita esclude queste posizioni finché il loro costo non è registrato. Ordinate dalla più grande: le prime {{top}} valgono il {{share}} del loro valore. Scegli Aggiungi costo e inserisci il prezzo pagato per quota.",
+    "holding": "Posizione",
+    "account": "Conto",
+    "value": "Valore",
+    "problem": "Problema",
+    "missing": "Nessun costo registrato",
+    "suspect": "Il costo registrato sembra errato",
+    "addCost": "Aggiungi costo",
+    "showAll": "Mostra tutte ({{count}})",
+    "showTop": "Mostra solo le prime {{count}}"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} senza tasso di cambio)",
     "reasonNoCostBasis": "nessuna base di costo affidabile",
@@ -2729,6 +2743,8 @@
     "units": "Quote",
     "priceGbp": "Prezzo (GBP)",
     "inputTitle": "Inserimento conti e posizioni",
+    "costBasisHint": "Registrazione del costo di {{ticker}}: inserisci le quote detenute e il prezzo pagato per quota, poi salva. Il campo Valore è disattivato qui, perché registrerebbe il prezzo di oggi come se fosse quanto hai pagato.",
+    "costBasisNeedsPrice": "Per registrare un costo, inserisci le quote e il prezzo pagato per quota. Un valore registrerebbe il prezzo di oggi come tuo costo.",
     "inputIntro": "Crea conti e imposta le posizioni. Il salvataggio registra il trasferimento del saldo iniziale che porta il conto alle quote inserite, così compare insieme alle tue operazioni in <txlink>Transazioni</txlink>.",
     "saving": "Salvataggio...",
     "saveHolding": "Salva posizione",

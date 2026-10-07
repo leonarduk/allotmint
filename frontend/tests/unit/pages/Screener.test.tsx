@@ -285,6 +285,22 @@ describe("Screener", () => {
     expect(link).toHaveAttribute("href", "/metrics-explained#peg-ratio");
   });
 
+  it("shows the name and sector when hovering a ticker", async () => {
+    mockGetScreener.mockResolvedValueOnce([
+      { rank: 1, ticker: "AAA", name: "AAA Corp", sector: "Energy" },
+      { rank: 2, ticker: "BBB", name: "BBB Corp", sector: null },
+      { rank: 3, ticker: "CCC", name: null, sector: null },
+    ]);
+
+    render(<Screener />);
+    await enterCustomTickers("AAA,BBB,CCC");
+    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
+
+    expect(await screen.findByText("AAA")).toHaveAttribute("title", "AAA Corp — Energy");
+    expect(screen.getByText("BBB")).toHaveAttribute("title", "BBB Corp");
+    expect(screen.getByText("CCC")).not.toHaveAttribute("title");
+  });
+
   it("renders every body cell under its matching column header", async () => {
     // Header label -> row field, in header order. Each field gets a distinct
     // value (< 1000 so locale grouping never alters it) so a misplaced cell

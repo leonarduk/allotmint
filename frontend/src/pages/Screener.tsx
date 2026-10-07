@@ -59,6 +59,12 @@ function RatioHeaderInfoTip({ column }: { column: string }) {
   );
 }
 
+// Hover text for the ticker cell: "Name — Sector", or whichever is known.
+function tickerTooltip(r: ScreenerResult): string | undefined {
+  const parts = [r.name, r.sector].filter((p): p is string => Boolean(p));
+  return parts.length ? parts.join(" — ") : undefined;
+}
+
 type ScreenerCriteria = NonNullable<Parameters<typeof getScreener>[1]>;
 type FilterParam = keyof ScreenerCriteria;
 
@@ -496,7 +502,7 @@ export function Screener() {
               >
                 <td style={right}>{r.rank}</td>
                 <td style={{ ...cell, whiteSpace: "nowrap" }}>
-                  {r.ticker}
+                  <span title={tickerTooltip(r)}>{r.ticker}</span>
                   <WatchlistToggle ticker={r.ticker} />
                 </td>
                 <td style={right}>{r.peg_ratio ?? "—"}</td>

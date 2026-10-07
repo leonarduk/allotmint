@@ -390,7 +390,7 @@ export default function Trading() {
                   {blocked.map((b, i) => (
                     <li key={`${b.ticker}-${b.action}-${i}`}>
                       <strong>
-                        {b.ticker} {formatAction(b.action)}
+                        {b.ticker} {formatSignalAction(b.action)}
                       </strong>
                       : {b.reasons.join('; ')}
                     </li>

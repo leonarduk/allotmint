@@ -31,8 +31,10 @@ from backend.common.data_loader import DATA_BUCKET_ENV
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, _get_price_for_date_scaled, is_cost_basis_unreliable
 from backend.common.instrument_classification import (
     canonical_asset_class,
+    explicit_instrument_type,
     exposure_region,
     exposure_sector,
+    normalise_instrument_type,
     resolve_instrument_type,
 )
 from backend.common.instruments import (
@@ -595,7 +597,9 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                     # value (which is usually absent for CSV-import and
                     # transaction-rebuild paths); fall back to the holding
                     # only if canonical metadata has nothing. See #6876.
-                    "instrument_type": file_meta.get("instrument_type") or h.get("instrument_type"),
+                    # (file_meta's value is already resolved/canonical.)
+                    "instrument_type": file_meta.get("instrument_type")
+                    or normalise_instrument_type(h.get("instrument_type")),
                 }
     return securities
 
@@ -804,7 +808,7 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
                     "last_price_time": None,
                     "is_stale": None,
                     **{key: None for key in PRICE_CHANGE_WINDOWS},
-                    "instrument_type": instrument_meta.get("instrumentType") or instrument_meta.get("instrument_type"),
+                    "instrument_type": explicit_instrument_type(instrument_meta),
                     "cost_currency": base_currency,
                     "market_value_currency": base_currency,
                     "gain_currency": base_currency,
@@ -1338,7 +1342,7 @@ def holding_quote_currency(holding: dict) -> str:
         "ticker": full_tkr,
         "exchange": exch,
         "currency": currency,
-        "instrument_type": instrument_meta.get("instrumentType") or instrument_meta.get("instrument_type"),
+        "instrument_type": explicit_instrument_type(instrument_meta),
     }
     return _quote_currency_key(row)
 
@@ -2892,6 +2896,30 @@ def compute_cash_apy(owner: str, days: int = 365) -> float | None:
 # ──────────────────────────────────────────────────────────────
 # Snapshot refresher (used by /prices/refresh)
 # ──────────────────────────────────────────────────────────────
+def _snapshot_close_column(df: pd.DataFrame, ticker: str) -> tuple[str, str] | None:
+    """Return ``(close column, its currency)`` for a snapshot row, or ``None``.
+
+    ``close_gbp`` is already GBP. The native ``close``/``adj close`` fallback is
+    in the instrument's own currency, so it is tagged with that: labelling a
+    USD close "GBP" made readers apply it with no FX conversion (#7788 item 10).
+    A native close whose currency is unknown is skipped rather than guessed.
+    """
+    name_map = {c.lower(): c for c in df.columns}
+    if "close_gbp" in name_map:
+        return name_map["close_gbp"], "GBP"
+    native_col = name_map.get("close") or name_map.get("adj close") or name_map.get("adj_close")
+    if not native_col:
+        return None
+    currency = (get_instrument_meta(ticker) or {}).get("currency")
+    if not isinstance(currency, str) or not currency.strip():
+        logger.warning(
+            "Skipping %s: timeseries has no close_gbp and the instrument currency is unknown",
+            sanitise_log_value(ticker),
+        )
+        return None
+    return native_col, _normalize_currency_code(currency)
+
+
 def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
     """
     Pull a closing-price snapshot from the meta timeseries cache
@@ -2924,15 +2952,9 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             if df is not None and not df.empty:
                 scale = get_scaling_override(ticker_only, exchange, None)
                 df = apply_scaling(df, scale)
-                name_map = {c.lower(): c for c in df.columns}
-
-                close_col = (
-                    name_map.get("close_gbp")
-                    or name_map.get("close")
-                    or name_map.get("adj close")
-                    or name_map.get("adj_close")
-                )
-                if close_col:
+                close = _snapshot_close_column(df, t)
+                if close:
+                    close_col, close_currency = close
                     # Prefer the most recent row with a finite close over the
                     # literal last row: the current day's row can be an
                     # incomplete placeholder (NaN OHLC) before intraday data
@@ -2947,7 +2969,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                         if price > 0:
                             snapshot[t] = {
                                 "last_price": price,
-                                "price_currency": "GBP",
+                                "price_currency": close_currency,
                                 "last_price_date": pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d"),
                             }
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:

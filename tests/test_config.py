@@ -37,6 +37,30 @@ def test_nav_max_age_days_is_read_from_market_data():
     assert build_config({}, check_google_auth=False).nav_max_age_days is None
 
 
+@pytest.mark.parametrize("raw", ["[object Object]", ["pytest"], 3])
+def test_error_summary_ignores_non_mapping_values(raw, caplog):
+    """A stringified JS object must not leak out of /config (#7788)."""
+
+    with caplog.at_level("WARNING", logger="backend.config"):
+        cfg = build_config({"error_summary": raw}, check_google_auth=False)
+
+    assert cfg.error_summary is None
+    assert "Ignoring error_summary" in caplog.text
+
+
+def test_error_summary_keeps_a_mapping():
+    value = {"default_command": ["pytest"]}
+
+    assert build_config({"error_summary": value}, check_google_auth=False).error_summary == value
+
+
+def test_example_config_has_no_stringified_objects():
+    from pathlib import Path
+
+    example = Path(__file__).resolve().parents[1] / "config.example.yaml"
+    assert "[object Object]" not in example.read_text(encoding="utf-8")
+
+
 def test_uvicorn_port_default():
     """Pin the local dev backend port so a future config edit can't drift silently.
 

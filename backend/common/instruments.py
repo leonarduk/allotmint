@@ -11,7 +11,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from backend.common.instrument_classification import cached_classification_overrides, classify_instrument
+from backend.common.instrument_classification import (
+    cached_classification_overrides,
+    classify_instrument,
+    normalise_instrument_type,
+)
 from backend.common.isin import check_isin_change
 from backend.common.yahoo_chart import chart_quote
 from backend.config import config
@@ -591,7 +595,9 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
         "region": region,
         "industry": industry,
         "category": category,
-        "instrument_type": quote_type,
+        # Stored in canonical casing ("Equity", not Yahoo's "EQUITY") so new
+        # metadata matches hand-edited records (#7788 item 9).
+        "instrument_type": normalise_instrument_type(quote_type),
     }
     # Asset class and an exposure-based fund sector, not the issuer's (#9196).
     classification_input = {**metadata, "ticker": full_ticker}

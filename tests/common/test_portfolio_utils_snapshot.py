@@ -7,6 +7,19 @@ import pytest
 
 from backend.common import portfolio_utils as pu
 
+# Native ``Close`` columns are tagged with the instrument's own currency
+# (#7788), so these tests need one: ``.N`` listings trade in USD here.
+_META_CURRENCY = {"L": "GBP", "N": "USD"}
+
+
+@pytest.fixture(autouse=True)
+def _instrument_currency(monkeypatch):
+    monkeypatch.setattr(
+        pu,
+        "get_instrument_meta",
+        lambda ticker: {"currency": _META_CURRENCY.get(ticker.rsplit(".", 1)[-1], "GBP")},
+    )
+
 
 def test_refresh_snapshot_in_memory_from_timeseries_writes_file(tmp_path, monkeypatch):
     tickers = ["FOO.L", "BAR.N"]
@@ -57,7 +70,8 @@ def test_refresh_snapshot_in_memory_from_timeseries_writes_file(tmp_path, monkey
     assert scale_calls == [1, 1]
     expected_snapshot = {
         "FOO.L": {"last_price": 11.0, "price_currency": "GBP", "last_price_date": "2024-01-02"},
-        "BAR.N": {"last_price": 22.0, "price_currency": "GBP", "last_price_date": "2024-01-03"},
+        # A native USD close is tagged USD, not GBP (#7788).
+        "BAR.N": {"last_price": 22.0, "price_currency": "USD", "last_price_date": "2024-01-03"},
     }
     assert refreshed["snapshot"] == expected_snapshot
     assert isinstance(refreshed["timestamp"], datetime)
@@ -340,3 +354,24 @@ def test_refresh_snapshot_from_timeseries_stays_live(monkeypatch):
     pu.refresh_snapshot_in_memory_from_timeseries(days=5)
 
     assert seen == [False]
+
+
+def test_refresh_snapshot_skips_native_close_with_unknown_currency(tmp_path, monkeypatch, caplog):
+    """Guessing GBP for an unknown currency is what mislabelled US prices (#7788)."""
+
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {"ODD.X": {}})
+    monkeypatch.setattr(pu, "list_all_unique_tickers", lambda: ["ODD.X"])
+    frame = pd.DataFrame({"Date": pd.to_datetime(["2024-01-02"]), "Close": [5.0]})
+    monkeypatch.setattr(pu, "load_meta_timeseries_range", lambda **_: frame)
+    monkeypatch.setattr(pu, "get_scaling_override", lambda ticker, exchange, meta: 1)
+    monkeypatch.setattr(pu, "apply_scaling", lambda df, scale: df)
+    monkeypatch.setattr(pu, "get_instrument_meta", lambda ticker: {})
+    refreshed = {}
+    monkeypatch.setattr(pu, "refresh_snapshot_in_memory", lambda snap, ts: refreshed.update(snap))
+    monkeypatch.setattr(pu, "_PRICES_PATH", tmp_path / "latest_prices.json")
+
+    with caplog.at_level("WARNING"):
+        pu.refresh_snapshot_in_memory_from_timeseries(days=7)
+
+    assert refreshed == {}
+    assert "instrument currency is unknown" in caplog.text

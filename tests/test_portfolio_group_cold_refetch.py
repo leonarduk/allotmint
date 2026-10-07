@@ -109,6 +109,10 @@ def _stub_refresh(monkeypatch, tickers: tuple[str, ...] = (FULL_TICKER,)) -> Non
     monkeypatch.setattr(portfolio_utils, "_PRICES_PATH", None)
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT_TS", None)
+    # The synthetic tickers have no instrument file. The snapshot refresher
+    # skips a native close whose currency is unknown (#7788 item 10), so give
+    # them a GBP listing currency.
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _ticker: {"currency": "GBP"})
 
 
 def _stub_price_sources(monkeypatch, cache, histories: dict[str, pd.DataFrame]) -> _Counters:

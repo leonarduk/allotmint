@@ -25,6 +25,7 @@ from backend.common.instrument_classification import (
     canonical_asset_class,
     exposure_region,
     exposure_sector,
+    normalise_instrument_type,
     resolve_instrument_type,
 )
 from backend.common.instrument_proxy import proxied_daily_history
@@ -606,14 +607,31 @@ def _snapshot_is_stale(snap: Dict[str, Any], reporting_date: dt.date) -> bool:
     return flag is None
 
 
+def _is_sterling(currency: object) -> bool:
+    """Whether ``currency`` is GBP or a pence code (``None``/blank counts as GBP).
+
+    The test every GBP-only price reader applies before taking a price as GBP
+    (#7722), e.g. a snapshot entry in ``_snapshot_usable``.
+    """
+    normaliser = CurrencyNormaliser.from_raw(currency)
+    return normaliser.is_pence or normaliser.canonical == "GBP"
+
+
 def _snapshot_usable(snap: Any, calc: PricingDateCalculator) -> bool:
     """Whether a price snapshot entry may price a holding for ``calc``'s date (#9834).
 
     The snapshot holds the latest price. For an explicitly requested date
     (``as_of``) it is only usable when its ``last_price_date`` is known and not
     after that date; otherwise a historical valuation would use today's price.
+
+    ``enrich_holding`` reads ``last_price`` as GBP, so an entry tagged with a
+    non-sterling ``price_currency`` (a native close the snapshot builder could
+    not convert) is not usable: valuing it 1:1 is the #7722 bug. The holding
+    then falls back to the dated ``Close_gbp`` lookup instead.
     """
     if not isinstance(snap, dict) or is_nan(snap.get("last_price")):
+        return False
+    if not _is_sterling(snap.get("price_currency")):
         return False
     if not calc.has_explicit_reporting_date:
         return True
@@ -873,7 +891,9 @@ def enrich_holding(
         units = float(out.get(UNITS, 0) or 0.0)
         out["name"] = out.get("name") or _cash_name(full, account_ccy)
         out["currency"] = meta.get("currency") or account_ccy
-        out["instrument_type"] = meta.get("instrumentType") or meta.get("instrument_type") or "Cash"
+        out["instrument_type"] = (
+            normalise_instrument_type(meta.get("instrumentType") or meta.get("instrument_type")) or "Cash"
+        )
         # Cash is labelled "Cash" in every sector view rather than left blank
         # (shown as "Unknown sector"/"Other"); see #8530.
         out["sector"] = CASH_SECTOR_LABEL
@@ -922,7 +942,9 @@ def enrich_holding(
         logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(full))
 
     out["currency"] = meta.get("currency")
-    # Legacy "Equity" and post-#9196 "equity" asset classes resolve alike.
+    # Legacy "Equity" and post-#9196 "equity" asset classes resolve alike, and
+    # every source (instrument file, sec_meta, asset-class fallback) comes out
+    # in one display casing, e.g. "Equity" (#7788 item 9).
     out["instrument_type"] = resolve_instrument_type(meta)
     out["name"] = out.get("name") or meta.get("name") or full
     stored_asset_class = out.get("asset_class") or meta.get("assetClass") or meta.get("asset_class")

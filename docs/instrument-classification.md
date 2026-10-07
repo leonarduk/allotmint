@@ -60,11 +60,17 @@ Metadata written before #9196 spells asset classes `Equity`, `Bond`,
 served), both spellings are in circulation, so consumers compare
 case-insensitively:
 
-- Backend: `canonical_asset_class()` and `resolve_instrument_type()` in
-  `instrument_classification.py` map `Equity` and `equity` to `equity`. They
-  are used by `enrich_holding`, `portfolio_utils.get_security_meta`,
+- Backend: `canonical_asset_class()` in `instrument_classification.py` maps
+  `Equity` and `equity` to the `asset_class` value `equity`. They are used by
+  `enrich_holding`, `portfolio_utils.get_security_meta`,
   `prices._resolve_instrument_type` and the report asset-class breakdown
   (which shows `Equity`). An unrecognised label such as `Fund` is kept as is.
+- `instrument_type` has one display casing whatever its source (#7788 item 9):
+  `resolve_instrument_type()` returns an explicit type through
+  `normalise_instrument_type()` (`EQUITY` and `Equity` give `Equity`), and the
+  asset-class fallback in the same form (`equity` gives `Equity`,
+  `multi-asset` gives `Multi-asset`). Only `asset_class` uses the lowercase
+  vocabulary.
 - Frontend: `translateInstrumentType` (`src/lib/instrumentType.ts`) and
   `assetClassLabel` (`src/lib/assetClass.ts`) look values up lower-cased.
 

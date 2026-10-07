@@ -35,7 +35,8 @@ server:
   sns_topic_arn: ''                   # AWS SNS topic for alerts
   telegram_bot_token: ""              # Telegram bot token (TELEGRAM_BOT_TOKEN)
   telegram_chat_id: ""               # Telegram chat id (TELEGRAM_CHAT_ID)
-  error_summary: '[object Object]'    # Settings for error summary script
+  # error_summary:                    # Settings for scripts/run_with_error_summary.py
+  #   default_command: ["pytest"]     # Command run when the script gets no arguments
   cors:                               # Cross-origin settings by environment
     local:
       - http://localhost:3000

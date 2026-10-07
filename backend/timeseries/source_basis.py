@@ -155,19 +155,39 @@ def _dates(df: pd.DataFrame) -> pd.Series:
     return pd.to_datetime(df["Date"]).dt.normalize()
 
 
-def combine_sources(frames: Iterable[pd.DataFrame], *, label: str = "") -> pd.DataFrame:
+def _primary_index(candidates: list[pd.DataFrame], prefer_source: str | None, label: str) -> int:
+    indices = range(len(candidates))
+    if prefer_source is not None:
+        preferred = [i for i in indices if prefer_source in set(_source_labels(candidates[i]))]
+        if preferred:
+            indices = preferred
+        else:
+            logger.info(
+                "Preferred source %s has no rows for %s; choosing the primary by coverage",
+                sanitise_log_value(prefer_source),
+                sanitise_log_value(label),
+            )
+    # ``-i`` makes ``max`` pick the earliest frame among equally covered ones.
+    return max(indices, key=lambda i: (_dates(candidates[i]).nunique(), -i))
+
+
+def combine_sources(
+    frames: Iterable[pd.DataFrame], *, label: str = "", prefer_source: str | None = None
+) -> pd.DataFrame:
     """Combine per-source frames without mixing price bases.
 
-    The frame with the most distinct dates is the primary (earlier frames
-    win ties, so pass them in provider-priority order). Every other frame
-    only fills dates the result still lacks, and only if it is on the same
-    basis as the primary on shared dates.
+    The primary is chosen from the frames carrying ``prefer_source`` rows
+    when given and any do; otherwise from all frames. Among those, the frame
+    with the most distinct dates wins, and earlier frames win ties (so pass
+    them in provider-priority order). Without ``prefer_source`` a longer
+    lower-priority frame therefore becomes the primary (#8792). Every other
+    frame only fills dates the result still lacks, and only if it is on the
+    same basis as the primary on shared dates.
     """
     candidates = [f for f in frames if f is not None and not f.empty]
     if not candidates:
         return pd.DataFrame()
-    # ``-i`` makes ``max`` pick the earliest frame among equally covered ones.
-    primary_idx = max(range(len(candidates)), key=lambda i: (_dates(candidates[i]).nunique(), -i))
+    primary_idx = _primary_index(candidates, prefer_source, label)
     primary = candidates[primary_idx]
     combined = primary.loc[~_dates(primary).duplicated(keep="last").to_numpy()]
     for idx, frame in enumerate(candidates):

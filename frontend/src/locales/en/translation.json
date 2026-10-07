@@ -1304,7 +1304,7 @@
     "end": "End",
     "exportCsv": "Export CSV",
     "exportXlsx": "Export XLSX",
-    "gainNote": "Gain is on the units held today: from the start-date price, or from cost for holdings bought during the range.",
+    "gainNote": "Gain is on the position held at the end date: units held at the start count from the start-date price, units bought during the range from their average cost.",
     "intro": "Market value or gain for your own holdings over a date range, by owner and ticker, plus value at risk and security info per ticker. Save, share or export the results.",
     "metricGainGbp": "Gain (£)",
     "metricMarketValueGbp": "Market value (£)",

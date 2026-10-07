@@ -1310,7 +1310,7 @@
     "end": "Fin",
     "exportCsv": "Exporter CSV",
     "exportXlsx": "Exporter XLSX",
-    "gainNote": "Le gain porte sur les parts détenues aujourd'hui : depuis le cours de la date de début, ou depuis le coût pour les achats effectués pendant la période.",
+    "gainNote": "Le gain porte sur la position détenue à la date de fin : les parts détenues au début comptent depuis le cours de la date de début, celles achetées pendant la période depuis leur coût moyen.",
     "intro": "Valeur de marché ou gain de vos positions sur une période, par titulaire et ticker, ainsi que la valeur à risque et les infos de chaque titre. Enregistrez, partagez ou exportez les résultats.",
     "metricGainGbp": "Gain (£)",
     "metricMarketValueGbp": "Valeur de marché (£)",

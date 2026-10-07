@@ -705,3 +705,38 @@ def test_get_run_per_ticker_metrics_give_one_row_per_ticker(holdings_env):
             {"ticker": "NEW.L", "name": "new.l"},
         ]
     }
+
+
+def test_per_ticker_metrics_keep_the_owner_filter_when_tickers_are_selected(holdings_env):
+    # Bob doesn't hold NEW.L: selecting him and it must not produce a row.
+    q = query.CustomQuery(
+        start=date(2020, 1, 1), end=date(2020, 12, 31), owners=["bob"], tickers=["NEW.L"], metrics=[query.Metric.META]
+    )
+    assert query.run_query(q) == {"results": []}
+    q = q.model_copy(update={"tickers": ["ABC.L", "NEW.L"]})
+    assert query.run_query(q) == {"results": [{"ticker": "ABC.L", "name": "abc.l"}]}
+
+
+def test_tickers_without_owners_are_queried_even_if_nobody_holds_them(holdings_env):
+    q = query.CustomQuery(start=date(2020, 1, 1), end=date(2020, 12, 31), tickers=["ZZZ.L"], metrics=["meta"])
+    assert query.run_query(q) == {"results": [{"ticker": "ZZZ.L", "name": "zzz.l"}]}
+
+
+def test_historical_range_values_the_units_held_at_its_end(holdings_env, monkeypatch):
+    # Range 2018-12-01..2019-03-01: alice's first 10 ABC (bought 2019-01-01)
+    # are held at the end; the 5 bought in June are not yet. Pooled cost is
+    # 80 for 15 units, so the 10 bought inside the range start at 53.33.
+    prices = {("ABC", date(2019, 3, 1)): 6.0}
+    monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (prices.get((sym, d)), None))
+    q = query.CustomQuery(
+        start=date(2018, 12, 1),
+        end=date(2019, 3, 1),
+        owners=["alice"],
+        tickers=["ABC.L"],
+        metrics=[query.Metric.MARKET_VALUE_GBP, query.Metric.GAIN_GBP],
+    )
+    row = query.run_query(q)["results"][0]
+    assert row["units"] == 10.0
+    assert row["market_value_gbp"] == 60.0
+    assert row["start_value_gbp"] == 53.33
+    assert row["gain_gbp"] == 6.67

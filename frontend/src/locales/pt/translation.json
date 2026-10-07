@@ -1310,7 +1310,7 @@
     "end": "Fim",
     "exportCsv": "Exportar CSV",
     "exportXlsx": "Exportar XLSX",
-    "gainNote": "O ganho refere-se às unidades detidas hoje: a partir do preço da data de início, ou do custo para compras feitas no período.",
+    "gainNote": "O ganho refere-se à posição detida na data final: as unidades já detidas no início contam a partir do preço da data de início e as compradas no período a partir do seu custo médio.",
     "intro": "Valor de mercado ou ganho das suas posições num período, por titular e ticker, além do valor em risco e das informações de cada título. Guarde, partilhe ou exporte os resultados.",
     "metricGainGbp": "Ganho (£)",
     "metricMarketValueGbp": "Valor de mercado (£)",

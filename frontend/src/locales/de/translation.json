@@ -1310,7 +1310,7 @@
     "end": "Ende",
     "exportCsv": "CSV exportieren",
     "exportXlsx": "XLSX exportieren",
-    "gainNote": "Der Gewinn bezieht sich auf die heute gehaltenen Anteile: ab dem Kurs am Startdatum oder ab den Kosten bei Käufen im Zeitraum.",
+    "gainNote": "Der Gewinn bezieht sich auf die zum Enddatum gehaltene Position: zu Beginn gehaltene Anteile ab dem Kurs am Startdatum, im Zeitraum gekaufte Anteile ab ihren durchschnittlichen Kosten.",
     "intro": "Marktwert oder Gewinn Ihrer Bestände über einen Zeitraum, nach Eigentümer und Ticker, dazu Value at Risk und Wertpapierinfo pro Ticker. Ergebnisse speichern, teilen oder exportieren.",
     "metricGainGbp": "Gewinn (£)",
     "metricMarketValueGbp": "Marktwert (£)",

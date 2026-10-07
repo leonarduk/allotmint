@@ -112,8 +112,14 @@ def _iter_holdings(q: CustomQuery) -> Iterator[tuple[str, str, dict]]:
 
 
 def _resolve_tickers(q: CustomQuery) -> List[str]:
-    """Tickers for the per-ticker metrics: the selected ones, else everything held in scope."""
-    if q.tickers:
+    """Tickers for the per-ticker metrics.
+
+    With owners selected: the tickers those owners hold, narrowed to the
+    selected tickers if any. With only tickers selected: exactly those, held
+    or not (the page lets a share link carry a ticker nobody holds). With
+    neither: everything held.
+    """
+    if q.tickers and not q.owners:
         return sorted({t.upper() for t in q.tickers})
     return sorted({t for _owner, t, _h in _iter_holdings(q)})
 
@@ -151,40 +157,44 @@ def _owner_transactions(owner: str, cache: dict[str, dict | None]) -> dict | Non
     return cache[owner]
 
 
-def _units_at_start(tx: dict | None, ticker: str, units_now: float, q: CustomQuery) -> float | None:
-    """Units of ``ticker`` held at the close of ``q.start``, replayed from ``tx``.
+def _range_units(tx: dict | None, ticker: str, units_now: float, q: CustomQuery) -> tuple[float, float | None]:
+    """``(units held at q.end, units held at q.start)`` for ``ticker``.
 
-    ``None`` when the replay can't be trusted: no history, or replaying it to
-    today doesn't reproduce the units held now (e.g. a holding seeded without
-    its transactions).
+    Both come from replaying ``tx``, but only when that replay is trusted:
+    replayed up to *today* it must reproduce the units held now (it is the
+    current holdings it is checked against, so today -- not ``q.end`` -- is
+    the right anchor). Otherwise the current units stand in for the end of
+    the range and the start is unknown (``None``).
     """
-    if tx is None:
-        return None
-    replayed_now = get_units_as_of(tx, ticker, date.today().isoformat())
-    if abs(replayed_now - units_now) > 1e-6 * max(1.0, abs(units_now)):
-        return None
-    return min(max(get_units_as_of(tx, ticker, q.start.isoformat()), 0.0), units_now)
+    if tx is not None:
+        replayed_now = get_units_as_of(tx, ticker, date.today().isoformat())
+        if abs(replayed_now - units_now) <= 1e-6 * max(1.0, abs(units_now)):
+            end_units = max(get_units_as_of(tx, ticker, q.end.isoformat()), 0.0)
+            start_units = max(get_units_as_of(tx, ticker, q.start.isoformat()), 0.0)
+            return end_units, start_units
+    return units_now, None
 
 
-def _start_value(acc: dict, start_units: float | None, start_price: float | None) -> float | None:
-    """GBP value the current position "started" the range at.
+def _start_value(acc: dict, end_units: float, start_units: float | None, start_price: float | None) -> float | None:
+    """GBP value the position held at ``q.end`` "started" the range at.
 
-    Units already held at ``q.start`` count at the start-date price; units
-    bought inside the range count at the position's average cost, so their
-    gain runs from what was paid, not from a date they weren't yet held. With
-    no trustworthy replay, every current unit counts at the start-date price.
+    Of those ``end_units``, the ones already held at ``q.start`` count at the
+    start-date price; the rest were bought inside the range and count at the
+    position's average cost, so their gain runs from what was paid, not from
+    a date they weren't yet held. Without a trusted replay, every unit counts
+    at the start-date price.
     """
-    units = acc["units"]
     if start_units is None:
-        return units * start_price if start_price is not None else None
-    held_value = start_units * start_price if start_price is not None else None
-    if start_units <= 0:
+        return end_units * start_price if start_price is not None else None
+    held = min(start_units, end_units)
+    held_value = held * start_price if start_price is not None else None
+    if held <= 0:
         held_value = 0.0
-    bought = units - start_units
+    bought = end_units - held
     if bought <= 1e-9:
         return held_value
-    cost = acc["cost"]
-    bought_value = cost * bought / units if cost is not None and units else None
+    cost, units_now = acc["cost"], acc["units"]
+    bought_value = cost * bought / units_now if cost is not None and units_now > 0 else None
     return _add_or_none(held_value, bought_value)
 
 
@@ -208,15 +218,17 @@ def _aggregate_holdings(q: CustomQuery) -> dict[tuple[str, str], dict]:
 
 
 def _holding_row(owner: str, ticker: str, acc: dict, q: CustomQuery, tx_cache: dict) -> dict:
-    row: dict = {"owner": owner, "ticker": ticker, "units": round(acc["units"], 4)}
-    end_price = _gbp_price(ticker, acc["holding"], q.end)
-    end_value = acc["units"] * end_price if end_price is not None else None
+    tx = _owner_transactions(owner, tx_cache)
+    end_units, start_units = _range_units(tx, ticker, acc["units"], q)
+    row: dict = {"owner": owner, "ticker": ticker, "units": round(end_units, 4)}
+    end_price = _gbp_price(ticker, acc["holding"], q.end) if end_units > 0 else 0.0
+    end_value = end_units * end_price if end_price is not None else None
     if Metric.MARKET_VALUE_GBP in q.metrics:
         row[Metric.MARKET_VALUE_GBP.value] = _round_or_none(end_value)
     if Metric.GAIN_GBP in q.metrics:
-        start_units = _units_at_start(_owner_transactions(owner, tx_cache), ticker, acc["units"], q)
-        start_price = _gbp_price(ticker, acc["holding"], q.start) if start_units != 0 else None
-        start_value = _start_value(acc, start_units, start_price)
+        needs_start_price = start_units is None or min(start_units, end_units) > 0
+        start_price = _gbp_price(ticker, acc["holding"], q.start) if needs_start_price else None
+        start_value = _start_value(acc, end_units, start_units, start_price)
         row["start_value_gbp"] = _round_or_none(start_value)
         gain = None if end_value is None or start_value is None else end_value - start_value
         row[Metric.GAIN_GBP.value] = _round_or_none(gain)
@@ -224,12 +236,14 @@ def _holding_row(owner: str, ticker: str, acc: dict, q: CustomQuery, tx_cache: d
 
 
 def _holding_rows(q: CustomQuery) -> List[dict]:
-    """One row per (owner, ticker), summing that owner's accounts.
+    """One row per (owner, ticker) currently held, summing that owner's accounts.
 
-    Values use the units held *now*: a sale part-way through the range is not
-    replayed, so ``gain_gbp`` is the gain on the current position (see
-    ``_start_value``). Any unpriced component leaves the value ``None``
-    rather than understating it.
+    ``units`` and the values are for the position held at ``q.end`` (replayed
+    from the owner's transactions; the current units when that replay can't
+    be trusted). ``gain_gbp`` is that position's gain over the range (see
+    ``_start_value``); a sale inside the range is not counted as realised
+    gain. Any unpriced component leaves the value ``None`` rather than
+    understating it.
     """
     tx_cache: dict[str, dict | None] = {}
     return [

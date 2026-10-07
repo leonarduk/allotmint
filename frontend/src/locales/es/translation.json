@@ -1310,7 +1310,7 @@
     "end": "Fin",
     "exportCsv": "Exportar CSV",
     "exportXlsx": "Exportar XLSX",
-    "gainNote": "La ganancia se calcula sobre las unidades actuales: desde el precio de la fecha de inicio, o desde el coste si se compraron durante el periodo.",
+    "gainNote": "La ganancia se refiere a la posición mantenida en la fecha final: las unidades ya mantenidas al inicio cuentan desde el precio de la fecha de inicio y las compradas durante el periodo desde su coste medio.",
     "intro": "Valor de mercado o ganancia de tus posiciones en un periodo, por titular y ticker, además del valor en riesgo y la información de cada valor. Guarda, comparte o exporta los resultados.",
     "metricGainGbp": "Ganancia (£)",
     "metricMarketValueGbp": "Valor de mercado (£)",

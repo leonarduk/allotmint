@@ -1310,7 +1310,7 @@
     "end": "FINE",
     "exportCsv": "Esportazione CSV",
     "exportXlsx": "Esporta XLSX",
-    "gainNote": "Il guadagno si riferisce alle quote detenute oggi: dal prezzo alla data di inizio, o dal costo per gli acquisti nel periodo.",
+    "gainNote": "Il guadagno si riferisce alla posizione detenuta alla data finale: le quote già detenute all'inizio contano dal prezzo alla data di inizio, quelle acquistate nel periodo dal loro costo medio.",
     "intro": "Valore di mercato o guadagno delle tue posizioni in un periodo, per titolare e ticker, oltre al valore a rischio e alle info di ogni titolo. Salva, condividi o esporta i risultati.",
     "metricGainGbp": "Guadagno (£)",
     "metricMarketValueGbp": "Valore di mercato (£)",

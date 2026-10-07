@@ -1209,12 +1209,32 @@ def test_aws_transactions_read_canonical_prefixes_once(monkeypatch):
     # The writable ISA ledger replaces the accounts/ one; SIPP comes from accounts/.
     assert sorted(reports._load_transactions(owner), key=lambda t: t["date"]) == canonical + sipp
 
+    # Canonical ISA SELL 1000p -> 10.00 realised; DIVIDEND 250p + SIPP
+    # INTEREST 100p -> 3.50 income. The stale 99999p SELL is never read.
     summary = reports.compile_report(owner)
     assert summary.realized_gains_gbp == 10.0
     assert summary.income_gbp == 3.5
 
     rows = reports.ReportContext(owner, start=None, end=None).transactions()
     assert len(rows) == 3
+
+
+def test_aws_transactions_include_writable_only_account(monkeypatch):
+    """An account that exists only in the writable overlay is still read (#8476)."""
+    owner = "alice"
+    isa = [{"date": "2024-01-02", "type": "SELL", "amount_minor": 1000}]
+    gia = [{"date": "2024-02-01", "type": "DIVIDEND", "amount_minor": 400}]
+    _install_fake_s3(
+        monkeypatch,
+        {
+            f"accounts/{owner}/ISA_transactions.json": {"transactions": isa},
+            f"writable-accounts/{owner}/GIA_transactions.json": {"transactions": gia},
+        },
+    )
+    monkeypatch.setattr(reports.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv("DATA_BUCKET", "bucket")
+
+    assert sorted(reports._load_transactions(owner), key=lambda t: t["date"]) == isa + gia
 
 
 def test_build_key_findings_section_parses_valid_file(tmp_path, monkeypatch):

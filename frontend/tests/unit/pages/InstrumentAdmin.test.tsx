@@ -140,6 +140,55 @@ describe("InstrumentAdmin page", () => {
     expect(updateInstrumentMetadata).not.toHaveBeenCalled();
   });
 
+  it("keeps a new row pinned to the top while its ticker is typed", async () => {
+    render(
+      <MemoryRouter>
+        <InstrumentAdmin />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByDisplayValue("AAA")).toBeInTheDocument();
+
+    // An active search must not hide the blank row being added.
+    fireEvent.change(
+      screen.getByPlaceholderText(i18n.t("instrumentadmin.searchPlaceholder")),
+      { target: { value: "alpha" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /add instrument/i }));
+
+    const firstDataRow = () => screen.getAllByRole("row")[1];
+    const tickerInput = within(firstDataRow()).getAllByRole("textbox")[0];
+    expect((tickerInput as HTMLInputElement).value).toBe("");
+
+    // "ZZZ" sorts after every existing ticker; the row must not move there
+    // and its input element must survive (otherwise focus is lost mid-typing).
+    fireEvent.change(tickerInput, { target: { value: "ZZZ" } });
+    expect(within(firstDataRow()).getAllByRole("textbox")[0]).toBe(tickerInput);
+    expect((tickerInput as HTMLInputElement).value).toBe("ZZZ");
+  });
+
+  it("shows the server error when saving fails", async () => {
+    vi.mocked(createInstrumentMetadata).mockRejectedValueOnce(
+      new Error("Instrument already exists"),
+    );
+    render(
+      <MemoryRouter>
+        <InstrumentAdmin />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByDisplayValue("AAA")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /add instrument/i }));
+    const [tickerInput, exchangeInput, nameInput] = within(
+      screen.getAllByRole("row")[1],
+    ).getAllByRole("textbox");
+    fireEvent.change(tickerInput, { target: { value: "AAA" } });
+    fireEvent.change(exchangeInput, { target: { value: "L" } });
+    fireEvent.change(nameInput, { target: { value: "Dup" } });
+    fireEvent.click(
+      within(screen.getAllByRole("row")[1]).getByRole("button", { name: /save/i }),
+    );
+    expect(await screen.findByText(/Instrument already exists/)).toBeInTheDocument();
+  });
+
   it("renders duplicate symbols without duplicate-key errors and keeps rows independent", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(listInstrumentMetadata).mockResolvedValueOnce([

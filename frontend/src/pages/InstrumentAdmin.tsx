@@ -15,9 +15,18 @@ interface Row {
   sector?: string | null;
   grouping?: string | null;
   isNew?: boolean;
+  /** Stable React key for unsaved rows, which have no ticker identity yet. */
+  _newKey?: string;
   _originalTicker?: string;
   _originalExchange?: string;
 }
+
+// Unsaved rows stay pinned to the top regardless of sort order, so editing the
+// ticker of a new row doesn't make it jump to its alphabetical position.
+const pinNewRowsFirst = (a: Row, b: Row) =>
+  Boolean(a.isNew) === Boolean(b.isNew) ? 0 : a.isNew ? -1 : 1;
+
+let newRowCounter = 0;
 
 export default function InstrumentAdmin() {
   const { t } = useTranslation();
@@ -33,7 +42,7 @@ export default function InstrumentAdmin() {
     search: {
       value: "" as unknown,
       predicate: (row, value) => {
-        if (!value) return true;
+        if (!value || row.isNew) return true;
         const q = String(value).toLowerCase();
         return [
           row.ticker,
@@ -46,7 +55,7 @@ export default function InstrumentAdmin() {
           .some((field) => field.toLowerCase().includes(q));
       },
     },
-  });
+  }, pinNewRowsFirst);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +119,7 @@ export default function InstrumentAdmin() {
         sector: "",
         grouping: "",
         isNew: true,
+        _newKey: `new-${(newRowCounter += 1)}`,
       },
     ]);
 
@@ -155,8 +165,9 @@ export default function InstrumentAdmin() {
           } as Row;
         }),
       );
-    } catch {
-      setMessage(t("instrumentadmin.saveError"));
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      setMessage(`${t("instrumentadmin.saveError")}: ${detail}`);
     }
   };
 
@@ -201,9 +212,10 @@ export default function InstrumentAdmin() {
           {filteredRows.map((r, idx) => (
             <tr
               key={
-                r._originalTicker && r._originalExchange
+                r._newKey ??
+                (r._originalTicker && r._originalExchange
                   ? `${r._originalTicker}.${r._originalExchange}`
-                  : idx
+                  : idx)
               }
             >
               <td>

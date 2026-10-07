@@ -2815,7 +2815,9 @@
       "badgesSr": "distintivi di stagione ottenuti",
       "xpLabel": "Livello {{level}} · {{xp}}/{{xpForLevel}} XP",
       "meterLabel": "Livello coltivatore {{level}}, {{xp}} di {{xpForLevel}} XP per il livello successivo",
-      "classicView": "Vista classica"
+      "classicView": "Vista classica",
+      "progressLabel": "I tuoi progressi",
+      "progressTitle": "Livello, grado, XP e serie si guadagnano con le tue faccende: sono uguali sull'orto di ogni coltivatore."
     },
     "rail": {
       "ariaLabel": "Sezioni dell'orto",
@@ -2985,6 +2987,7 @@
       "earned": "Ottenuto",
       "badgeShelf": "Mensola dei distintivi ({{earned}}/{{total}})",
       "badgeNote": "Un distintivo si ottiene quando tutti i livelli della sua categoria sono completati.",
+      "personalNote": "I tuoi progressi: guadagnati con le tue faccende, non con l'orto di questo coltivatore.",
       "growingSeasonLabel": "Stagione di crescita {{label}}",
       "growingSeason": "Stagione di crescita",
       "noTaxYear": "Nessun anno fiscale indicato per questo coltivatore, quindi la stagione non ha una data di fine per il conto alla rovescia.",

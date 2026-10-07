@@ -2815,7 +2815,9 @@
       "badgesSr": "insignias de temporada obtenidas",
       "xpLabel": "Nivel {{level}} · {{xp}}/{{xpForLevel}} XP",
       "meterLabel": "Nivel de cultivador {{level}}, {{xp}} de {{xpForLevel}} XP para el siguiente nivel",
-      "classicView": "Vista clásica"
+      "classicView": "Vista clásica",
+      "progressLabel": "Tu progreso",
+      "progressTitle": "El nivel, el rango, los XP y la racha se ganan con tus propias tareas: son los mismos en la parcela de cualquier cultivador."
     },
     "rail": {
       "ariaLabel": "Secciones del huerto",
@@ -2985,6 +2987,7 @@
       "earned": "Conseguido",
       "badgeShelf": "Estante de insignias ({{earned}}/{{total}})",
       "badgeNote": "Una insignia se consigue cuando se superan todos los niveles de su categoría.",
+      "personalNote": "Tu progreso: se gana con tus propias tareas, no con la parcela de este cultivador.",
       "growingSeasonLabel": "Temporada de cultivo {{label}}",
       "growingSeason": "Temporada de cultivo",
       "noTaxYear": "No se ha informado de ningún ejercicio fiscal para este cultivador, así que la temporada no tiene fecha de fin para la cuenta atrás.",

@@ -2815,7 +2815,9 @@
       "badgesSr": "verdiente Saisonabzeichen",
       "xpLabel": "Level {{level}} · {{xp}}/{{xpForLevel}} XP",
       "meterLabel": "Gärtner-Level {{level}}, {{xp}} von {{xpForLevel}} XP bis zum nächsten Level",
-      "classicView": "Klassische Ansicht"
+      "classicView": "Klassische Ansicht",
+      "progressLabel": "Dein Fortschritt",
+      "progressTitle": "Stufe, Rang, XP und Serie verdienst du mit deinen eigenen Aufgaben – sie sind auf jedem Beet gleich."
     },
     "rail": {
       "ariaLabel": "Bereiche des Gartens",
@@ -2985,6 +2987,7 @@
       "earned": "Verdient",
       "badgeShelf": "Abzeichen-Regal ({{earned}}/{{total}})",
       "badgeNote": "Ein Abzeichen wird verdient, wenn alle Stufen seiner Kategorie abgeschlossen sind.",
+      "personalNote": "Dein Fortschritt – mit deinen eigenen Aufgaben verdient, nicht mit dem Beet dieses Gärtners.",
       "growingSeasonLabel": "Wachstumssaison {{label}}",
       "growingSeason": "Wachstumssaison",
       "noTaxYear": "Für diesen Gärtner wurde kein Steuerjahr gemeldet, daher gibt es kein Enddatum für den Countdown.",

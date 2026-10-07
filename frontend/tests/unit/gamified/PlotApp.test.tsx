@@ -162,11 +162,20 @@ describe('Plot mode hub', () => {
     const hud = screen.getByRole('banner');
     expect(within(hud).getByText('£10.0k')).toBeInTheDocument();
     expect(within(hud).getByText('£1.0k')).toBeInTheDocument();
-    expect(within(hud).getByText('Seedling Sower')).toBeInTheDocument();
+    // Level, rank, XP and streak come from the unscoped `/trail`, so they sit
+    // in a "Your progress" group rather than under the plot heading (#7191).
+    const progress = within(hud).getByRole('group', { name: 'Your progress' });
+    expect(within(progress).getByText('Seedling Sower')).toBeInTheDocument();
+    expect(
+      within(progress).getByText('Level 3 · 0/150 XP')
+    ).toBeInTheDocument();
+    expect(
+      within(hud).getByRole('heading', { name: 'The Plot' })
+    ).not.toHaveTextContent('Seedling Sower');
     // Trail streak of 3 renders its own HUD chip (matched by title, since the
     // bare "3" also appears in the level badge).
     expect(
-      within(hud).getByTitle('Consecutive days of chores done')
+      within(progress).getByTitle('Consecutive days of chores done')
     ).toHaveTextContent('3');
   });
 
@@ -698,6 +707,17 @@ describe('Plot mode season track', () => {
     ).toBeInTheDocument();
   });
 
+  it("labels the streak and rank categories as the user's own progress (#7191)", async () => {
+    renderPlot('/plot/season');
+
+    await screen.findByRole('heading', { name: /Keep the streak/ });
+    expect(
+      screen.getAllByText(
+        "Your progress — earned from your own chores, not from this grower's plot."
+      )
+    ).toHaveLength(2);
+  });
+
   it('derives the season from the calendar when the backend reports no tax year (#7195)', async () => {
     mocks.getAllowances.mockResolvedValue({
       owner: 'steve',
@@ -812,6 +832,57 @@ describe('Plot mode provider hardening', () => {
     );
     // Steve's plot value must not still be sitting under Alex's name.
     expect(within(hud).queryByText('£10.0k')).toBeNull();
+  });
+
+  it('keeps "Your progress" session-wide while the plot figures follow the grower (#7191)', async () => {
+    mocks.getOwners.mockResolvedValue([
+      { owner: 'steve', accounts: ['stocks-isa'] },
+      { owner: 'alex', accounts: ['stocks-isa'] },
+    ]);
+    renderPlot();
+
+    const hud = screen.getByRole('banner');
+    await waitFor(() =>
+      expect(within(hud).getByText('£10.0k')).toBeInTheDocument()
+    );
+    const progressBefore = within(hud).getByRole('group', {
+      name: 'Your progress',
+    });
+    expect(
+      within(progressBefore).getByText('Level 3 · 0/150 XP')
+    ).toBeInTheDocument();
+
+    mocks.getPortfolio.mockResolvedValue({
+      ...portfolio,
+      owner: 'alex',
+      total_value_estimate_gbp: 20_000,
+      accounts: portfolio.accounts.map((account) => ({
+        ...account,
+        owner: 'alex',
+        value_estimate_gbp: 20_000,
+      })),
+    });
+    fireEvent.change(screen.getByLabelText('Grower'), {
+      target: { value: 'alex' },
+    });
+
+    await waitFor(() =>
+      expect(within(hud).getByText('£20.0k')).toBeInTheDocument()
+    );
+    expect(within(hud).queryByText('£10.0k')).toBeNull();
+    // `/trail` is not owner-scoped: the same session progress is shown under
+    // the "Your progress" label for Alex, not as Alex's own rank/XP.
+    const progressAfter = within(hud).getByRole('group', {
+      name: 'Your progress',
+    });
+    expect(
+      within(progressAfter).getByText('Level 3 · 0/150 XP')
+    ).toBeInTheDocument();
+    expect(
+      within(progressAfter).getByTitle('Consecutive days of chores done')
+    ).toHaveTextContent('3');
+    expect(mocks.getTrailTasks).toHaveBeenCalledTimes(2);
+    expect(mocks.getTrailTasks).toHaveBeenLastCalledWith();
   });
 
   it('stops loading with a distinct message when grower discovery fails', async () => {

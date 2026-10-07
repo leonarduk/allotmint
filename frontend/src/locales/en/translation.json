@@ -2808,7 +2808,9 @@
       "badgesSr": "season badges earned",
       "xpLabel": "Level {{level}} · {{xp}}/{{xpForLevel}} XP",
       "meterLabel": "Grower level {{level}}, {{xp}} of {{xpForLevel}} XP to the next level",
-      "classicView": "Classic view"
+      "classicView": "Classic view",
+      "progressLabel": "Your progress",
+      "progressTitle": "Level, rank, XP and streak are earned from your own chores — they are the same on every grower's plot."
     },
     "rail": {
       "ariaLabel": "Plot sections",
@@ -2978,6 +2980,7 @@
       "earned": "Earned",
       "badgeShelf": "Badge shelf ({{earned}}/{{total}})",
       "badgeNote": "A badge is earned when every tier in its category is cleared.",
+      "personalNote": "Your progress — earned from your own chores, not from this grower's plot.",
       "growingSeasonLabel": "Growing season {{label}}",
       "growingSeason": "Growing season",
       "noTaxYear": "No tax year reported for this grower, so the season has no end date to count down to.",

@@ -2815,7 +2815,9 @@
       "badgesSr": "distintivos de temporada conquistados",
       "xpLabel": "Nível {{level}} · {{xp}}/{{xpForLevel}} XP",
       "meterLabel": "Nível de cultivador {{level}}, {{xp}} de {{xpForLevel}} XP para o próximo nível",
-      "classicView": "Vista clássica"
+      "classicView": "Vista clássica",
+      "progressLabel": "O seu progresso",
+      "progressTitle": "O nível, a patente, os XP e a sequência vêm das suas próprias tarefas — são iguais no terreno de qualquer cultivador."
     },
     "rail": {
       "ariaLabel": "Secções da horta",
@@ -2985,6 +2987,7 @@
       "earned": "Conquistado",
       "badgeShelf": "Prateleira de distintivos ({{earned}}/{{total}})",
       "badgeNote": "Um distintivo é conquistado quando todos os níveis da sua categoria são concluídos.",
+      "personalNote": "O seu progresso — conquistado com as suas próprias tarefas, não com o terreno deste cultivador.",
       "growingSeasonLabel": "Época de cultivo {{label}}",
       "growingSeason": "Época de cultivo",
       "noTaxYear": "Não foi comunicado nenhum ano fiscal para este cultivador, por isso a época não tem data de fim para a contagem decrescente.",

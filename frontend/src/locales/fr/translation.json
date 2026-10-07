@@ -2815,7 +2815,9 @@
       "badgesSr": "badges de saison obtenus",
       "xpLabel": "Niveau {{level}} · {{xp}}/{{xpForLevel}} XP",
       "meterLabel": "Niveau de jardinier {{level}}, {{xp}} sur {{xpForLevel}} XP pour le niveau suivant",
-      "classicView": "Vue classique"
+      "classicView": "Vue classique",
+      "progressLabel": "Votre progression",
+      "progressTitle": "Le niveau, le rang, les XP et la série proviennent de vos propres corvées — ils sont identiques sur la parcelle de chaque jardinier."
     },
     "rail": {
       "ariaLabel": "Sections du potager",
@@ -2985,6 +2987,7 @@
       "earned": "Obtenu",
       "badgeShelf": "Étagère de badges ({{earned}}/{{total}})",
       "badgeNote": "Un badge est obtenu lorsque tous les paliers de sa catégorie sont franchis.",
+      "personalNote": "Votre progression — gagnée par vos propres corvées, pas par la parcelle de ce jardinier.",
       "growingSeasonLabel": "Saison de culture {{label}}",
       "growingSeason": "Saison de culture",
       "noTaxYear": "Aucune année fiscale n'est indiquée pour ce jardinier, la saison n'a donc pas de date de fin pour le compte à rebours.",

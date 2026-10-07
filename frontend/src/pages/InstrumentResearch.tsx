@@ -14,6 +14,7 @@ import { InstrumentTechnicalsPanel } from "../components/InstrumentTechnicalsPan
 import { InstrumentAllocationPanel } from "../components/LookThrough";
 import {
   confirmInstrumentMetadata,
+  createInstrumentMetadata,
   getNews,
   getScreener,
   listInstrumentMetadata,
@@ -52,6 +53,13 @@ function normaliseUppercase(value: unknown) {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim().toUpperCase();
   return trimmed || undefined;
+}
+
+// Two-letter country, nine alphanumerics, one check digit.
+const ISIN_PATTERN = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
+
+function errorStatus(err: unknown) {
+  return (err as { status?: number } | null)?.status;
 }
 
 function normaliseInstrumentType(value: unknown) {
@@ -218,6 +226,11 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const [newsError, setNewsError] = useState<string | null>(null);
   const [instrumentExchange, setInstrumentExchange] = useState(initialExchange);
   const [instrumentIsin, setInstrumentIsin] = useState("");
+  const [isinInput, setIsinInput] = useState("");
+  // Shown once the backend rejects the ISIN's country prefix for this
+  // exchange (422); ticking it resends with allow_foreign_isin (#10005).
+  const [foreignIsinRejected, setForeignIsinRejected] = useState(false);
+  const [allowForeignIsin, setAllowForeignIsin] = useState(false);
   const [catalogueEntry, setCatalogueEntry] = useState<InstrumentMetadata | null>(null);
   type MetadataState = {
     name: string;
@@ -321,6 +334,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   useEffect(() => {
     setInstrumentExchange(initialExchange);
     setInstrumentIsin("");
+    setIsinInput("");
+    setForeignIsinRejected(false);
+    setAllowForeignIsin(false);
     setCatalogueEntry(null);
     setIsEditingMetadata(false);
     setMetadataSaving(false);
@@ -532,11 +548,18 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     setMetadataStatus((prev) => (prev?.kind === "error" ? null : prev));
   };
 
+  const resetIsinEditor = () => {
+    setIsinInput(instrumentIsin);
+    setForeignIsinRejected(false);
+    setAllowForeignIsin(false);
+  };
+
   const handleStartEditing = () => {
     setRefreshPreview(null);
     setRefreshContext(null);
     setRefreshError(null);
     setFormValues(metadata);
+    resetIsinEditor();
     setMetadataStatus(null);
     setIsEditingMetadata(true);
   };
@@ -546,6 +569,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     setRefreshContext(null);
     setRefreshError(null);
     setFormValues(metadata);
+    resetIsinEditor();
     setIsEditingMetadata(false);
     setMetadataStatus((prev) => (prev?.kind === "success" ? prev : null));
   };
@@ -601,6 +625,8 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     try {
       const result = await confirmInstrumentMetadata(baseTicker, exchange);
       const next = metadataStateFromResponse(result.metadata);
+      const refreshedIsin = normaliseUppercase(result.metadata?.isin);
+      if (refreshedIsin) setInstrumentIsin(refreshedIsin);
       setMetadata(next);
       setMetadataOverrides({ name: true, sector: true, instrumentType: true, currency: true });
       setFormValues(next);
@@ -629,7 +655,13 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       if (next.instrumentType) {
         setInstrumentTypeOptions((prev) => addInstrumentTypeOption(prev, next.instrumentType));
       }
-      setMetadataStatus({ kind: "success", text: t("instrumentDetail.refreshSuccess") });
+      setMetadataStatus({
+        kind: "success",
+        text:
+          result.status === "created"
+            ? t("instrumentDetail.metadataCreateSuccess")
+            : t("instrumentDetail.refreshSuccess"),
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setRefreshError(`${t("instrumentDetail.refreshError")} ${message}`);
@@ -652,6 +684,21 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     setRefreshError(null);
   };
 
+  // PUT the metadata; a 404 means the instrument has no metadata file yet
+  // (e.g. first research of ZPRX.DE), so create it instead (#10005).
+  // Resolves true when the instrument was created.
+  const persistMetadata = async (exchange: string, payload: InstrumentMetadata) => {
+    const allowForeign = foreignIsinRejected && allowForeignIsin;
+    try {
+      await updateInstrumentMetadata(baseTicker, exchange, payload, allowForeign);
+      return false;
+    } catch (err) {
+      if (errorStatus(err) !== 404) throw err;
+    }
+    await createInstrumentMetadata(baseTicker, exchange, payload, allowForeign);
+    return true;
+  };
+
   const handleSaveMetadata = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!isEditingMetadata) return;
@@ -659,8 +706,13 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     const trimmedSector = formValues.sector.trim();
     const trimmedInstrumentType = formValues.instrumentType.trim();
     const selectedCurrency = formValues.currency.trim().toUpperCase();
+    const isin = isinInput.trim().toUpperCase();
     if (!selectedCurrency || !SUPPORTED_CURRENCIES.includes(selectedCurrency)) {
       setMetadataStatus({ kind: "error", text: t("instrumentDetail.metadataCurrencyError") });
+      return;
+    }
+    if (isin && !ISIN_PATTERN.test(isin)) {
+      setMetadataStatus({ kind: "error", text: t("instrumentDetail.metadataIsinError") });
       return;
     }
     const exchange = instrumentExchange.trim().toUpperCase();
@@ -680,7 +732,14 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         instrument_type: trimmedInstrumentType || null,
         instrumentType: trimmedInstrumentType || null,
       };
-      await updateInstrumentMetadata(baseTicker, exchange, payload);
+      // Only send the ISIN when it changed, so a catalogue that failed to
+      // load (blank instrumentIsin) can't wipe a stored one.
+      const isinChanged = isin !== instrumentIsin;
+      if (isinChanged) payload.isin = isin || null;
+      const created = await persistMetadata(exchange, payload);
+      setInstrumentIsin(isin);
+      setForeignIsinRejected(false);
+      setAllowForeignIsin(false);
       setMetadata({
         name: trimmedName,
         sector: trimmedSector,
@@ -724,8 +783,16 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           addInstrumentTypeOption(prev, trimmedInstrumentType),
         );
       }
-      setMetadataStatus({ kind: "success", text: t("instrumentDetail.metadataSaveSuccess") });
+      setMetadataStatus({
+        kind: "success",
+        text: created
+          ? t("instrumentDetail.metadataCreateSuccess")
+          : t("instrumentDetail.metadataSaveSuccess"),
+      });
     } catch (err) {
+      if (errorStatus(err) === 422 && isin && isin !== instrumentIsin) {
+        setForeignIsinRejected(true);
+      }
       const baseMessage = t("instrumentDetail.metadataSaveError");
       const extra = err instanceof Error ? err.message : String(err);
       setMetadataStatus({ kind: "error", text: `${baseMessage} ${extra}` });
@@ -1238,6 +1305,43 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             morningstarId={morningstarId}
             entry={catalogueEntry}
           />
+          {isEditingMetadata && !refreshPreview && (
+            <li style={{ marginBottom: "0.5rem" }}>
+              <label htmlFor="instrument-isin" style={{ display: "block" }}>
+                {t("instrumentDetail.identifiers.isin")}
+                <input
+                  id="instrument-isin"
+                  value={isinInput}
+                  onChange={(e) => {
+                    setIsinInput(e.target.value);
+                    setForeignIsinRejected(false);
+                    setAllowForeignIsin(false);
+                    setMetadataStatus((prev) => (prev?.kind === "error" ? null : prev));
+                  }}
+                  maxLength={12}
+                  autoComplete="off"
+                  spellCheck={false}
+                  style={{ display: "block", marginTop: "0.25rem", width: "100%" }}
+                  disabled={metadataInputsDisabled}
+                />
+              </label>
+              {foreignIsinRejected && (
+                <label
+                  htmlFor="instrument-allow-foreign-isin"
+                  style={{ display: "flex", gap: "0.4rem", marginTop: "0.25rem" }}
+                >
+                  <input
+                    id="instrument-allow-foreign-isin"
+                    type="checkbox"
+                    checked={allowForeignIsin}
+                    onChange={(e) => setAllowForeignIsin(e.target.checked)}
+                    disabled={metadataInputsDisabled}
+                  />
+                  {t("instrumentDetail.allowForeignIsin")}
+                </label>
+              )}
+            </li>
+          )}
           <li style={{ marginBottom: "0.5rem" }}>
             {isEditingMetadata ? (
               <label htmlFor="instrument-name" style={{ display: "block" }}>

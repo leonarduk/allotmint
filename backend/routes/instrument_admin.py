@@ -172,7 +172,12 @@ def update_instrument(
 
 @router.post("/admin/{exchange}/{ticker}/refresh")
 def refresh_instrument(exchange: str, ticker: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Fetch fresh metadata for an instrument and optionally persist it."""
+    """Fetch fresh metadata for an instrument and optionally persist it.
+
+    The instrument need not have a metadata file yet: confirming the preview
+    then creates one, so a ticker researched for the first time can get
+    metadata (and with it prices) from the Research page (#10005).
+    """
 
     try:
         path = instrument_meta_path(ticker, exchange)
@@ -183,9 +188,6 @@ def refresh_instrument(exchange: str, ticker: str, body: dict[str, Any] | None =
         exists = path.exists()
     except OSError as exc:
         raise HTTPException(status_code=500, detail="Filesystem error") from exc
-
-    if not exists:
-        raise HTTPException(status_code=404, detail="Instrument not found")
 
     if config.offline_mode and _fetch_metadata_from_yahoo is _ORIGINAL_FETCH_METADATA:
         raise HTTPException(status_code=503, detail="Metadata refresh disabled in offline mode")
@@ -227,8 +229,8 @@ def refresh_instrument(exchange: str, ticker: str, body: dict[str, Any] | None =
     merged["exchange"] = exchange
 
     if not preview:
-        save_instrument_meta(ticker, exchange, merged)
-        status = "updated"
+        _save(ticker, exchange, merged, allow_foreign_isin=False)
+        status = "updated" if exists else "created"
     else:
         status = "preview"
 

@@ -714,6 +714,38 @@ def test_update_trade_without_trade_fields_is_rejected(tmp_path, monkeypatch):
     assert path.read_text() == before
 
 
+def test_update_trade_without_date_is_rejected(tmp_path, monkeypatch):
+    # ``date`` had no default on TransactionCreate either, so a trade edit
+    # always had to send it; omitting only it is still a 422 (#8193).
+    client = _make_client(tmp_path, monkeypatch)
+    created = client.post("/transactions", json=_valid_payload(account="isa")).json()
+    path = tmp_path / "alice" / "isa_transactions.json"
+    before = path.read_text()
+
+    resp = client.put(f"/transactions/{created['id']}", json=_valid_payload(account="isa", date=None))
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "date required to edit a trade"
+    assert path.read_text() == before
+
+
+def test_moving_dividend_to_another_account_keeps_trade_fields(tmp_path, monkeypatch):
+    _seed_imported_dividend(tmp_path)
+    client = _make_client(tmp_path, monkeypatch)
+
+    resp = client.put(
+        "/transactions/alice:isa:0",
+        json=_valid_payload(account="sipp", ticker="MSFT", price_gbp=99.0, units=1, date=None),
+    )
+
+    assert resp.status_code == 200
+    moved = json.loads((tmp_path / "alice" / "sipp_transactions.json").read_text())["transactions"]
+    assert [{k: t[k] for k in ("type", "ticker", "price_gbp", "units", "date")} for t in moved] == [
+        {"type": "DIVIDEND", "ticker": "PFE", "price_gbp": 0.42, "units": 10, "date": "2024-05-01"}
+    ]
+    assert json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())["transactions"] == []
+
+
 def test_update_dividend_to_explicit_trade_type_applies_trade_fields(tmp_path, monkeypatch):
     path = _seed_imported_dividend(tmp_path)
     client = _make_client(tmp_path, monkeypatch)

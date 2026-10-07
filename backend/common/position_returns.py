@@ -142,8 +142,10 @@ def apply_total_return(holding: Dict[str, Any], entry: Optional[PositionReturn])
 
     gain = _float_or_none(holding.get("gain_gbp"))
     market = _float_or_none(holding.get("market_value_gbp"))
-    has_yield = entry.trailing_income_gbp > _EPS and market is not None and market > _EPS
-    holding["yield_pct"] = entry.trailing_income_gbp / market * 100.0 if has_yield else None
+    if entry.trailing_income_gbp > _EPS and market is not None and market > _EPS:
+        holding["yield_pct"] = entry.trailing_income_gbp / market * 100.0
+    else:
+        holding["yield_pct"] = None
     if gain is None or market is None or realised is None:
         holding["total_return_gbp"] = None
         holding["total_return_pct"] = None

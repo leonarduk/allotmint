@@ -333,12 +333,12 @@ export default function ScenarioTester() {
 
   return (
     <div className="container mx-auto flex flex-col gap-6 p-4">
-      <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+      <section className="rounded-md border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] p-4 text-[var(--surface-card-color)] shadow-sm">
         <header className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <h1 className="text-xl font-semibold">{t("scenarioTester.title")}</h1>
           <div className="flex flex-wrap gap-2">
             <button
-              className="rounded border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+              className="rounded border border-[var(--surface-card-border)] bg-transparent px-3 py-1 text-sm hover:bg-[var(--menu-hover-bg)] disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               onClick={handleSelectAllOwners}
               disabled={!ownersLoaded}
@@ -346,7 +346,7 @@ export default function ScenarioTester() {
               {t("scenarioTester.selectAll")}
             </button>
             <button
-              className="rounded border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+              className="rounded border border-[var(--surface-card-border)] bg-transparent px-3 py-1 text-sm hover:bg-[var(--menu-hover-bg)] disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               onClick={handleClearOwners}
               disabled={selectedOwners.length === 0}
@@ -373,7 +373,7 @@ export default function ScenarioTester() {
             return (
               <label
                 key={owner.owner}
-                className="flex flex-col gap-1 rounded border border-slate-200 p-3 hover:border-slate-400"
+                className="flex flex-col gap-1 rounded border border-[var(--surface-card-border)] p-3 hover:border-indigo-400"
               >
                 <span className="flex items-center gap-2">
                   <input
@@ -386,28 +386,28 @@ export default function ScenarioTester() {
                   </span>
                 </span>
                 {statusLabel ? (
-                  <span className="text-xs text-slate-500">{statusLabel}</span>
+                  <span className="text-xs text-[var(--surface-muted-color)]">{statusLabel}</span>
                 ) : null}
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-[var(--surface-muted-color)]">
                   {t("scenarioTester.accounts", { count: owner.accounts?.length ?? 0 })}
                 </span>
               </label>
             );
           })}
           {owners.length === 0 && !ownerError && (
-            <p className="text-sm text-slate-500">{t("scenarioTester.loadingPortfolios")}</p>
+            <p className="text-sm text-[var(--surface-muted-color)]">{t("scenarioTester.loadingPortfolios")}</p>
           )}
         </div>
       </section>
 
-      <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+      <section className="rounded-md border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] p-4 text-[var(--surface-card-color)] shadow-sm">
         <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <h2 className="text-lg font-semibold">{t("scenarioTester.positions")}</h2>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={resetRemovals}
-              className="rounded border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+              className="rounded border border-[var(--surface-card-border)] bg-transparent px-3 py-1 text-sm hover:bg-[var(--menu-hover-bg)] disabled:cursor-not-allowed disabled:opacity-50"
               disabled={removedKeys.size === 0}
             >
               {t("scenarioTester.restoreRemoved")}
@@ -415,14 +415,14 @@ export default function ScenarioTester() {
             <button
               type="button"
               onClick={handleAddCustomHolding}
-              className="rounded border border-indigo-500 bg-white px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-50"
+              className="rounded border border-indigo-500 bg-transparent px-3 py-1 text-sm text-indigo-500 hover:bg-[var(--menu-hover-bg)]"
             >
               {t("scenarioTester.addCustom")}
             </button>
             <button
               type="button"
               onClick={clearCustomHoldings}
-              className="rounded border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+              className="rounded border border-[var(--surface-card-border)] bg-transparent px-3 py-1 text-sm hover:bg-[var(--menu-hover-bg)] disabled:cursor-not-allowed disabled:opacity-50"
               disabled={customHoldings.length === 0}
             >
               {t("scenarioTester.removeCustom")}
@@ -431,13 +431,13 @@ export default function ScenarioTester() {
         </div>
 
         {selectedOwners.length === 0 && customHoldings.length === 0 ? (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-[var(--surface-muted-color)]">
             {t("scenarioTester.emptyState")}
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full border border-slate-200 text-sm">
-              <thead className="bg-slate-50">
+            <table className="min-w-full border border-[var(--surface-card-border)] text-sm">
+              <thead className="bg-[var(--tab-active-bg)]">
                 <tr>
                   <th className="p-2 text-left">{t("scenarioTester.columns.ticker")}</th>
                   <th className="p-2 text-left">{t("scenarioTester.columns.name")}</th>
@@ -516,7 +516,7 @@ export default function ScenarioTester() {
                           <button
                             type="button"
                             onClick={() => removeCustomHolding(row.customIndex ?? 0)}
-                            className="rounded border border-red-300 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                            className="rounded border border-red-400 bg-transparent px-2 py-1 text-xs text-red-500 hover:bg-[var(--menu-hover-bg)]"
                           >
                             {t("scenarioTester.remove")}
                           </button>
@@ -529,7 +529,7 @@ export default function ScenarioTester() {
                     <tr
                       key={row.key}
                       className={`border-t ${
-                        row.isRemoved ? "bg-red-50 text-slate-500" : ""
+                        row.isRemoved ? "bg-red-500/10 text-[var(--surface-muted-color)]" : ""
                       }`}
                     >
                       <td className="p-2 align-top font-mono text-sm">{row.ticker}</td>
@@ -545,7 +545,7 @@ export default function ScenarioTester() {
                           : "—"}
                       </td>
                       <td className="p-2 align-top capitalize">{t(`scenarioTester.source.${row.source}`)}</td>
-                      <td className="p-2 align-top text-xs text-slate-600">
+                      <td className="p-2 align-top text-xs text-[var(--surface-muted-color)]">
                         {row.owners
                           .map((o) => getOwnerDisplayName(ownerLookup, o, o))
                           .join(", ")}
@@ -556,8 +556,8 @@ export default function ScenarioTester() {
                           onClick={() => toggleHoldingRemoval(row.key)}
                           className={`rounded px-2 py-1 text-xs transition-colors ${
                             row.isRemoved
-                              ? "border border-green-300 bg-white text-green-600 hover:bg-green-50"
-                              : "border border-red-300 bg-white text-red-600 hover:bg-red-50"
+                              ? "border border-green-500 bg-transparent text-green-500 hover:bg-[var(--menu-hover-bg)]"
+                              : "border border-red-400 bg-transparent text-red-500 hover:bg-[var(--menu-hover-bg)]"
                           }`}
                         >
                           {row.isRemoved ? t("scenarioTester.restore") : t("scenarioTester.remove")}
@@ -568,7 +568,7 @@ export default function ScenarioTester() {
                 })}
               </tbody>
               <tfoot>
-                <tr className="bg-slate-50">
+                <tr className="bg-[var(--tab-active-bg)]">
                   <td className="p-2 font-semibold" colSpan={3}>
                     {t("scenarioTester.total")}
                   </td>
@@ -580,7 +580,7 @@ export default function ScenarioTester() {
               </tfoot>
             </table>
             {combinedHoldings.length > MAX_SCENARIO_HOLDING_ROWS && (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-[var(--surface-muted-color)]">
                 {t("scenarioTester.showingFirst", {
                   shown: MAX_SCENARIO_HOLDING_ROWS.toLocaleString(),
                   total: combinedHoldings.length.toLocaleString(),
@@ -591,7 +591,7 @@ export default function ScenarioTester() {
         )}
       </section>
 
-      <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+      <section className="rounded-md border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] p-4 text-[var(--surface-card-color)] shadow-sm">
         <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <h2 className="text-lg font-semibold">{t("scenarioTester.save.title")}</h2>
           <button
@@ -603,12 +603,12 @@ export default function ScenarioTester() {
             {t("scenarioTester.save.download")}
           </button>
         </div>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-[var(--surface-muted-color)]">
           {t("scenarioTester.save.description")}
         </p>
       </section>
 
-      <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+      <section className="rounded-md border border-[var(--surface-card-border)] bg-[var(--surface-card-bg)] p-4 text-[var(--surface-card-color)] shadow-sm">
         {owners.length > 1 && (
           <label className="mb-3 flex items-center gap-2 text-sm">
             <span>{t("scenarioTester.stressOwner")}</span>

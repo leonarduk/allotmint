@@ -30,6 +30,7 @@ from backend.bootstrap import (
     register_routers,
 )
 from backend.common.core_optional import CoreFeatureUnavailableError
+from backend.common.request_metrics import runtime_snapshot
 from backend.config import reload_config
 from backend.integrations.moneyhub_api import MoneyhubNotConfiguredError
 from backend.logging_setup import sanitise_log_value, setup_logging
@@ -248,6 +249,19 @@ def create_app() -> FastAPI:
         """Return a small payload used by tests and uptime monitors."""
 
         return {"status": "ok", "env": cfg.app_env}
+
+    @app.get("/health/runtime")
+    async def health_runtime(_: str | None = Depends(require_admin)):
+        """Request and worker-thread-pool metrics for diagnosing a stalled backend (#10359).
+
+        ``/health`` stays green even when every AnyIO worker thread is busy,
+        because it is async and never needs one. This reports the pool's
+        busy/total threads, in-flight requests (and the oldest one's age), and
+        recent slow requests. Async and lock-free so it answers while the pool is full.
+        Admin-gated like ``/whoami`` (open in local dev with auth disabled).
+        """
+
+        return {"status": "ok", "env": cfg.app_env, **runtime_snapshot()}
 
     @app.get("/whoami")
     async def whoami(

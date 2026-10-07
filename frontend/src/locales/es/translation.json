@@ -108,6 +108,7 @@
     "close": "Cerrar",
     "last": "Último:",
     "loading": "Cargando…",
+    "stillLoading": "Seguimos trabajando — la primera carga puede tardar hasta un minuto.",
     "logout": "Cerrar sesión",
     "menu": "Menú",
     "menuCategories": {

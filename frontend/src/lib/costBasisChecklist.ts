@@ -36,9 +36,12 @@ export function buildCostBasisChecklist(accounts: Account[]): CostBasisGap[] {
       });
     }
   }
-  return gaps.sort(
-    (a, b) => (b.marketValue ?? -Infinity) - (a.marketValue ?? -Infinity)
-  );
+  return gaps.sort((a, b) => {
+    if (a.marketValue === null && b.marketValue === null) return 0;
+    if (a.marketValue === null) return 1;
+    if (b.marketValue === null) return -1;
+    return b.marketValue - a.marketValue;
+  });
 }
 
 /** Share (0-1) of the gaps' total market value held by the first ``count`` gaps. */

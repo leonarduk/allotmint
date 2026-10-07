@@ -258,14 +258,18 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       return;
     }
 
-    const hasValueInput = manualValue.trim() !== '';
+    // In cost-basis mode the Value field is disabled and blanked, so any value
+    // typed before returning to the checklist ticker is ignored here: it can
+    // never be sent, and it cannot trap the save behind a hidden field.
+    const effectiveValue = costBasisMode ? '' : manualValue;
+    const hasValueInput = effectiveValue.trim() !== '';
     const hasUnitsInput = manualUnits.trim() !== '';
     const hasPriceInput = manualPrice.trim() !== '';
-    const value = Number(manualValue);
+    const value = Number(effectiveValue);
     const units = Number(manualUnits);
     const price = Number(manualPrice);
 
-    if (costBasisMode && (hasValueInput || !hasUnitsInput || !hasPriceInput)) {
+    if (costBasisMode && (!hasUnitsInput || !hasPriceInput)) {
       setManualError(t('transactionsPage.costBasisNeedsPrice'));
       return;
     }

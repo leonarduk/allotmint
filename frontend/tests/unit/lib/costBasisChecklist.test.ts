@@ -71,6 +71,24 @@ describe('buildCostBasisChecklist', () => {
     expect(gaps[2].marketValue).toBeNull();
   });
 
+  it('keeps several unpriced gaps after every priced one, in input order', () => {
+    const gaps = buildCostBasisChecklist([
+      account('alex', 'isa', [
+        holding({ ticker: 'NONE1.L', market_value_gbp: null }),
+        holding({ ticker: 'NONE2.L', market_value_gbp: null }),
+        holding({ ticker: 'PRICED.L', market_value_gbp: 1 }),
+        holding({ ticker: 'NONE3.L', market_value_gbp: null }),
+      ]),
+    ]);
+
+    expect(gaps.map((g) => g.ticker)).toEqual([
+      'PRICED.L',
+      'NONE1.L',
+      'NONE2.L',
+      'NONE3.L',
+    ]);
+  });
+
   it('returns an empty list when every cost basis is reliable', () => {
     expect(
       buildCostBasisChecklist([

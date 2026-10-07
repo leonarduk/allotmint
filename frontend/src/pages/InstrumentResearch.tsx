@@ -28,7 +28,11 @@ import { formatDateISO } from "../lib/date";
 import { money, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { completeTrackedChore } from "../choreCompletion";
-import { buildInvestingComUrl, buildMorningstarUrl } from "../utils/urlUtils";
+import {
+  buildInvestingComUrl,
+  buildJustEtfUrl,
+  buildMorningstarUrl,
+} from "../utils/urlUtils";
 
 function normaliseOptional(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -896,6 +900,8 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const exchangeForActions = deriveExchangeForActions();
   const investingComUrl = buildInvestingComUrl(instrumentIsin, tkr);
   const morningstarUrl = buildMorningstarUrl(instrumentIsin);
+  const justEtfUrl =
+    instrumentType?.toUpperCase() === "ETF" ? buildJustEtfUrl(instrumentIsin) : null;
 
   // Price triggers are matched against price-snapshot keys, which are full
   // TICKER.EXCHANGE symbols -- prefer the resolved exchange over whatever
@@ -1014,6 +1020,16 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             style={{ marginLeft: "1rem" }}
           >
             {t("instrumentDetail.research.viewOnMorningstar")}
+          </a>
+        )}
+        {justEtfUrl && (
+          <a
+            href={justEtfUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginLeft: "1rem" }}
+          >
+            {t("instrumentDetail.research.viewOnJustEtf")}
           </a>
         )}
         {baseTicker && instrumentExchange && (

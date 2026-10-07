@@ -97,3 +97,18 @@ export function buildMorningstarUrl(
   if (!value) return null;
   return `https://global.morningstar.com/en-gb/search?query=${encodeURIComponent(value)}`;
 }
+
+/**
+ * Build a justETF profile link for an ETF from its ISIN.
+ *
+ * justETF profile pages are keyed directly by ISIN, so this links straight
+ * to the fund profile. Returns null without a valid ISIN; callers decide
+ * whether the instrument is an ETF.
+ */
+export function buildJustEtfUrl(
+  isin: string | null | undefined
+): string | null {
+  const value = normaliseIsin(isin);
+  if (!value) return null;
+  return `https://www.justetf.com/en/etf-profile.html?isin=${encodeURIComponent(value)}`;
+}

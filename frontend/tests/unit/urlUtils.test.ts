@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildInvestingComUrl,
+  buildJustEtfUrl,
   buildMorningstarUrl,
   decodePathSegment,
   encodePathSegment,
@@ -190,5 +191,18 @@ describe("buildMorningstarUrl", () => {
     expect(buildMorningstarUrl(null)).toBeNull();
     expect(buildMorningstarUrl("")).toBeNull();
     expect(buildMorningstarUrl("VOD")).toBeNull();
+  });
+});
+
+describe("buildJustEtfUrl", () => {
+  it("links to the justETF profile by ISIN", () => {
+    expect(buildJustEtfUrl(" ie00bl25jn58 ")).toBe(
+      "https://www.justetf.com/en/etf-profile.html?isin=IE00BL25JN58",
+    );
+  });
+
+  it("returns null without a valid ISIN", () => {
+    expect(buildJustEtfUrl(undefined)).toBeNull();
+    expect(buildJustEtfUrl("XDEB")).toBeNull();
   });
 });

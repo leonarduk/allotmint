@@ -871,6 +871,33 @@ describe("InstrumentResearch page", () => {
     expect(investing).toHaveAttribute("rel", "noopener noreferrer");
   });
 
+  it("links to the justETF profile for an ETF with an ISIN", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme ETF", isin: "IE00BL25JN58", instrument_type: "ETF" },
+    ] as any);
+    renderPage();
+
+    const justEtf = await screen.findByRole("link", { name: "View on justETF" });
+    expect(justEtf).toHaveAttribute(
+      "href",
+      "https://www.justetf.com/en/etf-profile.html?isin=IE00BL25JN58",
+    );
+    expect(justEtf).toHaveAttribute("target", "_blank");
+    expect(justEtf).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("hides the justETF link for non-ETF instruments", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme Corp", isin: "GB00BH4HKS39", instrument_type: "Equity" },
+    ] as any);
+    renderPage();
+
+    expect(
+      await screen.findByRole("link", { name: "View on Morningstar" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View on justETF" })).toBeNull();
+  });
+
   it("falls back to a ticker search and hides Morningstar without an ISIN", async () => {
     mockListInstrumentMetadata.mockResolvedValue([
       { ticker: "AAA", name: "Acme Corp" },

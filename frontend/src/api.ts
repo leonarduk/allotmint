@@ -1725,13 +1725,21 @@ export const clearInstrumentGroup = (ticker: string, exchange: string) =>
     },
   );
 
+// `allowForeignIsin` confirms an ISIN whose country prefix does not fit the
+// exchange (e.g. an Irish UCITS ETF on Xetra); without it the backend answers
+// 422 for such an ISIN change (#9609).
+const instrumentAdminUrl = (ticker: string, exchange: string, allowForeignIsin = false) =>
+  `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}` +
+  (allowForeignIsin ? "?allow_foreign_isin=true" : "");
+
 export const createInstrumentMetadata = (
   ticker: string,
   exchange: string,
   payload: InstrumentMetadata,
+  allowForeignIsin = false,
 ) =>
   fetchJson<InstrumentMetadata>(
-    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}`,
+    instrumentAdminUrl(ticker, exchange, allowForeignIsin),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1743,9 +1751,10 @@ export const updateInstrumentMetadata = (
   ticker: string,
   exchange: string,
   payload: InstrumentMetadata,
+  allowForeignIsin = false,
 ) =>
   fetchJson<InstrumentMetadata>(
-    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}`,
+    instrumentAdminUrl(ticker, exchange, allowForeignIsin),
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

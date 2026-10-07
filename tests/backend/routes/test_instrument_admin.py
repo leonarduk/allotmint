@@ -270,6 +270,51 @@ async def test_refresh_instrument_persists_when_not_preview(
     assert merged["currency"] == "USD"
 
 
+async def test_refresh_instrument_creates_missing_instrument_on_confirm(
+    monkeypatch: pytest.MonkeyPatch,
+    path_states: dict[tuple[str, str], Any],
+    save_calls: dict[str, Any],
+) -> None:
+    """A ticker with no metadata file can be previewed and then created (#10005)."""
+    path_states[("ZPRX", "DE")] = False
+    monkeypatch.setattr(instrument_admin.config, "offline_mode", False)
+    monkeypatch.setattr(instrument_admin, "get_instrument_meta", lambda _t: {})
+    fetched = {"name": "SPDR Europe Small Cap Value", "currency": "EUR", "instrument_type": "ETF"}
+    monkeypatch.setattr(instrument_admin, "_fetch_metadata_from_yahoo", lambda *_a: dict(fetched))
+
+    preview = instrument_admin.refresh_instrument("DE", "ZPRX")
+    assert preview["status"] == "preview"
+    assert preview["changes"]["name"] == {"from": None, "to": "SPDR Europe Small Cap Value"}
+    assert save_calls["saved"] == []
+
+    created = instrument_admin.refresh_instrument("DE", "ZPRX", {"preview": False})
+    assert created["status"] == "created"
+    assert save_calls["saved"][-1][0:2] == ("ZPRX", "DE")
+    saved = save_calls["saved"][-1][2]
+    assert saved["ticker"] == "ZPRX.DE"
+    assert saved["exchange"] == "DE"
+    assert saved["currency"] == "EUR"
+
+
+async def test_refresh_instrument_foreign_isin_returns_422(
+    monkeypatch: pytest.MonkeyPatch,
+    path_states: dict[tuple[str, str], Any],
+) -> None:
+    path_states[("ZPRX", "DE")] = True
+    monkeypatch.setattr(instrument_admin.config, "offline_mode", False)
+    monkeypatch.setattr(instrument_admin, "_load_meta_for_update", lambda *_a: {"ticker": "ZPRX.DE"})
+    monkeypatch.setattr(instrument_admin, "_fetch_metadata_from_yahoo", lambda *_a: {"isin": "IE00BSPLC298"})
+
+    def reject(*_a: Any, **_k: Any) -> None:
+        raise instrument_admin.ForeignIsinError("ISIN IE00BSPLC298 has country prefix IE")
+
+    monkeypatch.setattr(instrument_admin, "save_instrument_meta", reject)
+
+    with pytest.raises(HTTPException) as exc:
+        instrument_admin.refresh_instrument("DE", "ZPRX", {"preview": False})
+    assert exc.value.status_code == 422
+
+
 async def test_normalise_group_rejects_invalid_values() -> None:
     with pytest.raises(HTTPException) as exc_type:
         instrument_admin._normalise_group(123)

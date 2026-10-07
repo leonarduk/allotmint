@@ -9,6 +9,7 @@ vi.mock("@/api", () => ({
   getNews: vi.fn(),
   listInstrumentMetadata: vi.fn(),
   updateInstrumentMetadata: vi.fn(),
+  createInstrumentMetadata: vi.fn(),
   refreshInstrumentMetadata: vi.fn(),
   confirmInstrumentMetadata: vi.fn(),
   resolveMorningstarId: vi.fn(() => Promise.resolve({ status: "unresolved", morningstar_id: null })),
@@ -40,6 +41,7 @@ import { configContext, type ConfigContextValue } from "@/ConfigContext";
 const mockGetNews = vi.mocked(api.getNews);
 const mockListInstrumentMetadata = vi.mocked(api.listInstrumentMetadata);
 const mockUpdateInstrumentMetadata = vi.mocked(api.updateInstrumentMetadata);
+const mockCreateInstrumentMetadata = vi.mocked(api.createInstrumentMetadata);
 const mockRefreshInstrumentMetadata = vi.mocked(api.refreshInstrumentMetadata);
 const mockConfirmInstrumentMetadata = vi.mocked(api.confirmInstrumentMetadata);
 const mockResolveMorningstarId = vi.mocked(api.resolveMorningstarId);
@@ -143,6 +145,7 @@ describe("InstrumentResearch page", () => {
     } as any);
     mockListInstrumentMetadata.mockReset();
     mockUpdateInstrumentMetadata.mockReset();
+    mockCreateInstrumentMetadata.mockReset().mockResolvedValue({} as any);
     mockRefreshInstrumentMetadata.mockReset();
     mockConfirmInstrumentMetadata.mockReset();
     mockGetScreener.mockReset();
@@ -1119,7 +1122,11 @@ describe("InstrumentResearch page", () => {
         sector: "Healthcare",
         currency: "EUR",
       }),
+      false,
     );
+    // An unchanged (blank) ISIN is left out so it can't overwrite a stored one.
+    expect(mockUpdateInstrumentMetadata.mock.calls[0][2]).not.toHaveProperty("isin");
+    expect(mockCreateInstrumentMetadata).not.toHaveBeenCalled();
     expect(screen.getByText(/Name:/)).toHaveTextContent("Name: Acme Updated");
     expect(screen.getByText(/Sector:/)).toHaveTextContent("Sector: Healthcare");
     expect(
@@ -1157,6 +1164,75 @@ describe("InstrumentResearch page", () => {
       await screen.findByText("Unable to save instrument details. save failed"),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/Currency/i)).toBeInTheDocument();
+  });
+
+  it("creates the instrument when it has no metadata yet (#10005)", async () => {
+    mockUpdateInstrumentMetadata.mockRejectedValueOnce(
+      Object.assign(new Error("Instrument not found"), { status: 404 }),
+    );
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Edit/i }));
+    await userEvent.type(screen.getByLabelText("ISIN"), "ie00bsplc298");
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(
+      await screen.findByText("Instrument created. Use Refresh prices to load its price history."),
+    ).toBeInTheDocument();
+    expect(mockCreateInstrumentMetadata).toHaveBeenCalledWith(
+      "AAA",
+      "L",
+      expect.objectContaining({ ticker: "AAA.L", isin: "IE00BSPLC298" }),
+      false,
+    );
+    expect(screen.getByText(/ISIN:/)).toHaveTextContent("ISIN: IE00BSPLC298");
+  });
+
+  it("rejects a malformed ISIN before saving", async () => {
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Edit/i }));
+    await userEvent.type(screen.getByLabelText("ISIN"), "IE00BAD");
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(
+      await screen.findByText(
+        "Enter a 12-character ISIN (e.g. IE00BSPLC298) or leave it blank.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockUpdateInstrumentMetadata).not.toHaveBeenCalled();
+  });
+
+  it("offers the foreign-ISIN override after a 422 and resends with it", async () => {
+    mockUpdateInstrumentMetadata.mockRejectedValueOnce(
+      Object.assign(new Error("ISIN IE00BSPLC298 has country prefix IE"), { status: 422 }),
+    );
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Edit/i }));
+    await userEvent.type(screen.getByLabelText("ISIN"), "IE00BSPLC298");
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    const override = await screen.findByRole("checkbox", {
+      name: /country differs from the exchange/i,
+    });
+    expect(mockUpdateInstrumentMetadata).toHaveBeenLastCalledWith(
+      "AAA",
+      "L",
+      expect.objectContaining({ isin: "IE00BSPLC298" }),
+      false,
+    );
+
+    await userEvent.click(override);
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(await screen.findByText("Instrument details updated.")).toBeInTheDocument();
+    expect(mockUpdateInstrumentMetadata).toHaveBeenLastCalledWith(
+      "AAA",
+      "L",
+      expect.objectContaining({ isin: "IE00BSPLC298" }),
+      true,
+    );
   });
 
   it("refresh populates metadata fields and applies confirmed changes", async () => {

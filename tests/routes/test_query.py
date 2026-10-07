@@ -768,3 +768,38 @@ def test_in_range_buys_use_what_was_paid_not_a_later_average(holdings_env, monke
     assert row["market_value_gbp"] == 60.0
     assert row["start_value_gbp"] == 30.0
     assert row["gain_gbp"] == 30.0
+
+
+def test_save_route_name_cannot_escape_the_queries_dir(monkeypatch, tmp_path):
+    queries_dir = tmp_path / "queries"
+    monkeypatch.setattr(query.config, "app_env", "local")
+    monkeypatch.setattr(query, "QUERIES_DIR", queries_dir)
+    body = {"name": "../../etc/passwd", "start": "2020-01-01", "end": "2020-12-31"}
+    resp = make_client().post("/custom-query/save", json=body)
+    # _slugify keeps only [a-z0-9-], so separators and dots never reach the path.
+    assert resp.json()["id"] == "etc-passwd"
+    assert [p.name for p in tmp_path.rglob("*.json")] == ["etc-passwd.json"]
+    assert (queries_dir / "etc-passwd.json").exists()
+
+
+def test_non_sterling_cash_is_left_unvalued(holdings_env, monkeypatch):
+    portfolios = [{"owner": "alice", "accounts": [{"holdings": [{"ticker": "CASH.USD", "units": 100}]}]}]
+    monkeypatch.setattr(query, "list_portfolios", lambda: portfolios)
+    row = query.run_query(_holding_query())["results"][0]
+    assert row["market_value_gbp"] is None
+
+
+def test_get_run_exports_xlsx_attachment(holdings_env):
+    resp = make_client().get(
+        "/custom-query/run",
+        params={
+            "start": "2020-01-01",
+            "end": "2020-12-31",
+            "owners": "bob",
+            "metrics": "market_value_gbp",
+            "format": "xlsx",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-disposition"] == "attachment; filename=custom-query.xlsx"
+    assert b"ABC.L" in zipfile.ZipFile(io.BytesIO(resp.content)).read("xl/worksheets/sheet1.xml")

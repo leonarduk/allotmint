@@ -5,9 +5,10 @@ from __future__ import annotations
 
 from typing import Any
 
+import requests
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.common import instrument_groups, morningstar
+from backend.common import instrument_groups, look_through, morningstar
 from backend.common.instruments import (
     _ORIGINAL_FETCH_METADATA,
     _fetch_metadata_from_yahoo,
@@ -19,6 +20,7 @@ from backend.common.instruments import (
     save_instrument_meta,
 )
 from backend.common.isin import ForeignIsinError
+from backend.common.look_through_sources import LookThroughFetchError
 from backend.config import config
 
 router = APIRouter(
@@ -262,6 +264,30 @@ def resolve_morningstar_id(exchange: str, ticker: str) -> dict[str, Any]:
     updated["morningstar_id"] = sec_id
     save_instrument_meta(ticker, exchange, updated)
     return {"status": "resolved", "morningstar_id": sec_id}
+
+
+@router.post("/admin/{exchange}/{ticker}/look-through")
+def refresh_look_through(exchange: str, ticker: str) -> dict[str, Any]:
+    """Fetch this fund's country/sector/top-holding breakdown now and store it (#9974).
+
+    An explicit, per-instrument action: page reads never fetch. 404 for an
+    unknown instrument, 422 without an ISIN, 502 when the source fails.
+    """
+    try:
+        instrument_meta_path(ticker, exchange)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if config.offline_mode:
+        raise HTTPException(status_code=503, detail="Look-through refresh disabled in offline mode")
+    full_ticker = f"{ticker}.{exchange}".upper()
+    if not get_instrument_meta(full_ticker):
+        raise HTTPException(status_code=404, detail="Instrument not found")
+    try:
+        return look_through.refresh_instrument_look_through(full_ticker)
+    except look_through.LookThroughRefreshError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except (requests.RequestException, LookThroughFetchError) as exc:
+        raise HTTPException(status_code=502, detail=f"Look-through source failed: {exc}") from exc
 
 
 @router.delete("/admin/{exchange}/{ticker}")

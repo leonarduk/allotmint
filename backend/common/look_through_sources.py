@@ -72,6 +72,18 @@ _PCT_RE = re.compile(r"(-?\d+(?:\.\d+)?)\s*%")
 _JUSTETF_AS_OF_RE = re.compile(r"As of (\d{2})/(\d{2})/(\d{4})")
 
 
+def source_page_url(source: object, isin: object) -> Optional[str]:
+    """A public page for the fund on ``source`` (by ISIN), for showing where the data came from."""
+    if not isinstance(isin, str) or not isin.strip():
+        return None
+    query = requests.utils.quote(isin.strip().upper())
+    if source == "morningstar":
+        return f"https://global.morningstar.com/en-gb/search?query={query}"
+    if source == "justetf":
+        return f"{JUSTETF_PROFILE_URL}?isin={query}"
+    return None
+
+
 class LookThroughFetchError(RuntimeError):
     """A source answered, but not with usable data (HTTP error, bad payload)."""
 

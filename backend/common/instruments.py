@@ -314,6 +314,7 @@ def save_instrument_meta(
     data: Optional[Dict[str, Any]] = None,
     *,
     allow_foreign_isin: bool = False,
+    sort_keys: bool = True,
 ) -> Optional[Path]:
     """Persist metadata for an instrument and optionally upload to S3.
 
@@ -324,6 +325,9 @@ def save_instrument_meta(
     when ``data`` sets or changes the ISIN to one whose country prefix does
     not fit ``exchange`` (a London line given ``US1101221083``, #9295), unless
     ``allow_foreign_isin`` is set. An unchanged ISIN is never re-judged.
+
+    ``sort_keys=False`` keeps the dict's key order on disk, so adding one
+    block to a hand-ordered file diffs as just that block (#9974).
 
     Returns the path written on success, or ``None`` if the local filesystem
     write failed (e.g. a read-only filesystem in the Lambda runtime). A
@@ -352,7 +356,9 @@ def save_instrument_meta(
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8") as fh:
-            json.dump(data, fh, indent=2, sort_keys=True)
+            # Order-preserving writes match the scripts that hand-maintain these
+            # files (classify_instruments, refresh_look_through): unescaped UTF-8.
+            json.dump(data, fh, indent=2, sort_keys=sort_keys, ensure_ascii=sort_keys)
             fh.write("\n")
     except OSError as exc:
         logger.warning(

@@ -24,7 +24,8 @@ from typing import Any, Dict, List, Optional
 
 from backend.common.country_codes import country_from_isin, country_name
 from backend.common.instrument_classification import COMMODITY, derive_asset_class, exposure_sector, is_fund
-from backend.common.instruments import get_instrument_meta
+from backend.common.instruments import get_instrument_meta, save_instrument_meta
+from backend.common.look_through_sources import fetch_look_through, source_page_url
 from backend.common.portfolio_utils import aggregate_by_ticker
 from backend.common.sector_labels import (
     CASH_SECTOR_LABEL,
@@ -268,6 +269,22 @@ def _pct_rows(weights: Dict[str, float]) -> List[Dict[str, Any]]:
     return sorted(rows, key=lambda r: r["weight_pct"], reverse=True)
 
 
+def _fund_allocation(base: Dict[str, Any], block: Dict[str, Any], isin: Any) -> Dict[str, Any]:
+    return {
+        **base,
+        "kind": "fund",
+        "source": block.get("source"),
+        "source_url": source_page_url(block.get("source"), isin),
+        "as_of": block.get("as_of"),
+        "fetched": block.get("fetched"),
+        "holdings_count": block.get("holdings_count"),
+        "asset_mix": block.get("asset_mix"),
+        "countries": _pct_rows(_weights(block, "countries")),
+        "sectors": _pct_rows(_weights(block, "sectors")),
+        "top_holdings": [h for h in block.get("top_holdings") or [] if isinstance(h, dict)],
+    }
+
+
 def instrument_allocation(ticker: str) -> Dict[str, Any]:
     """Country/sector/holding breakdown of one instrument for its Research page (#9974).
 
@@ -278,23 +295,21 @@ def instrument_allocation(ticker: str) -> Dict[str, Any]:
     meta = get_instrument_meta(ticker) or {}
     name = str(meta.get("name") or ticker)
     sector = normalise_optional_sector(exposure_sector(meta) or meta.get("sector")) or UNKNOWN_LABEL
-    base: Dict[str, Any] = {"ticker": ticker, "name": name, "source": None, "as_of": None, "holdings_count": None}
+    base: Dict[str, Any] = {
+        "ticker": ticker,
+        "name": name,
+        "source": None,
+        "source_url": None,
+        "as_of": None,
+        "fetched": None,
+        "holdings_count": None,
+    }
     if is_cash_instrument(ticker, meta.get("instrumentType")):
         cash = [{"label": CASH_SECTOR_LABEL, "weight_pct": 100.0}]
         return {**base, "kind": "cash", "asset_mix": None, "countries": cash, "sectors": cash, "top_holdings": []}
     block = usable_look_through(meta)
     if block is not None:
-        return {
-            **base,
-            "kind": "fund",
-            "source": block.get("source"),
-            "as_of": block.get("as_of"),
-            "holdings_count": block.get("holdings_count"),
-            "asset_mix": block.get("asset_mix"),
-            "countries": _pct_rows(_weights(block, "countries")),
-            "sectors": _pct_rows(_weights(block, "sectors")),
-            "top_holdings": [h for h in block.get("top_holdings") or [] if isinstance(h, dict)],
-        }
+        return _fund_allocation(base, block, meta.get("isin"))
     if is_fund(meta):
         country = COMMODITIES_COUNTRY if derive_asset_class(meta) == COMMODITY else NOT_LOOKED_THROUGH
         return {
@@ -321,3 +336,27 @@ def instrument_allocation(ticker: str) -> Dict[str, Any]:
         "sectors": [{"label": sector, "weight_pct": 100.0}],
         "top_holdings": [holding],
     }
+
+
+class LookThroughRefreshError(ValueError):
+    """The instrument cannot be refreshed (unknown, or no ISIN to look it up by)."""
+
+
+def refresh_instrument_look_through(ticker: str) -> Dict[str, Any]:
+    """Fetch ``ticker``'s look-through data now (Morningstar, then justETF) and store it (#9974).
+
+    Returns ``{"updated": bool, "allocation": ...}``; ``updated`` is false when
+    no source covers the fund, leaving any stored block untouched. Network and
+    source errors propagate (``requests.RequestException`` /
+    ``LookThroughFetchError``) for the caller to report.
+    """
+    meta = get_instrument_meta(ticker)
+    if not meta:
+        raise LookThroughRefreshError(f"No metadata for {ticker}")
+    isin = _clean_isin(meta.get("isin"))
+    if not isin:
+        raise LookThroughRefreshError(f"{ticker} has no ISIN to look up")
+    block = fetch_look_through(isin)
+    if block is not None:
+        save_instrument_meta(ticker, {**meta, "look_through": block}, sort_keys=False)
+    return {"updated": block is not None, "allocation": instrument_allocation(ticker)}

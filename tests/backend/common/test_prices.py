@@ -273,11 +273,16 @@ def test_refresh_prices_uploads_to_s3_in_aws_env(tmp_path: Path, monkeypatch: py
     assert "Uploaded price snapshot" in caplog.text
 
 
-def test_refresh_prices_persists_scaled_gbp_not_raw_pence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("ticker", ["AV", "CLIG", "HICL", "ADM"])
+def test_refresh_prices_persists_scaled_gbp_not_raw_pence(
+    ticker: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """#8923: ``latest_prices.json`` stores scaled GBP, not the raw pence series.
 
-    The cached ADM.L series holds raw pence (3588); the 0.01 override is applied
-    before persistence, so the snapshot carries GBP 35.88. This is why an
+    Uses the repo's real ``data/scaling_overrides.json`` for the four tickers
+    #8589 corrected, so dropping one from the table fails here. The cached
+    series holds raw pence (3588); the 0.01 override is applied before
+    persistence, so the snapshot carries GBP 35.88. This is why an
     override-table change needs a snapshot refresh (done on every deploy).
     """
     from types import SimpleNamespace
@@ -285,10 +290,11 @@ def test_refresh_prices_persists_scaled_gbp_not_raw_pence(tmp_path: Path, monkey
     from backend.common import holding_utils
     from backend.utils import timeseries_helpers as th
 
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    (data_dir / "scaling_overrides.json").write_text('{"L": {"ADM": 0.01}}')
-    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=tmp_path))
+    repo_root = Path(__file__).resolve().parents[3]
+    assert (repo_root / "data" / "scaling_overrides.json").exists()
+    # Repo table only: no DATA_ROOT overlay from the developer's machine.
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=repo_root, data_root=None))
+    full_ticker = f"{ticker}.L"
 
     cached = pd.DataFrame({"Date": [date.today() - timedelta(days=1)], "Close": [3588.0]})
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: cached)
@@ -299,7 +305,7 @@ def test_refresh_prices_persists_scaled_gbp_not_raw_pence(tmp_path: Path, monkey
     prices_file = tmp_path / "latest_prices.json"
     monkeypatch.setattr(prices.config, "prices_json", prices_file, raising=False)
     monkeypatch.setattr(prices.config, "app_env", "local", raising=False)
-    monkeypatch.setattr(prices, "refresh_universe", lambda: ["ADM.L"])
+    monkeypatch.setattr(prices, "refresh_universe", lambda: [full_ticker])
     monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
     monkeypatch.setattr(prices, "_close_on", lambda *a, **k: None)
     monkeypatch.setattr(prices, "_refresh_reference_data", lambda tickers: None)
@@ -309,8 +315,8 @@ def test_refresh_prices_persists_scaled_gbp_not_raw_pence(tmp_path: Path, monkey
     prices.refresh_prices()
 
     persisted = json.loads(prices_file.read_text())
-    assert persisted["ADM.L"]["last_price"] == pytest.approx(35.88)
-    assert persisted["ADM.L"]["price_currency"] == "GBP"
+    assert persisted[full_ticker]["last_price"] == pytest.approx(35.88)
+    assert persisted[full_ticker]["price_currency"] == "GBP"
 
 
 def test_refresh_prices_s3_upload_failure_logs_warning_not_error(

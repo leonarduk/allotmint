@@ -196,7 +196,7 @@ describe("AllocationCharts page", () => {
       expect(screen.getByRole("tab", { name: "Alice Smith" })).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "bob" })).toBeInTheDocument();
       expect(screen.queryByRole("tab", { name: "All accounts" })).not.toBeInTheDocument();
-      expect(sliceNames()).toHaveLength(3);
+      await waitFor(() => expect(sliceNames()).toHaveLength(3));
     });
 
     it("narrows the charts by owner, then by account", async () => {

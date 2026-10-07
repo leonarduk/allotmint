@@ -482,6 +482,9 @@
     },
     "clearFilters": "Filter löschen",
     "horizontalScroll": "Bestandsspalten horizontal scrollen",
+    "filtersLabel": "Bestände filtern",
+    "filterBy": "Filtern nach {{field}}",
+    "moreColumnsHint": "Weitere Spalten →",
     "columns": {
       "sector": "Sektor",
       "acquired": "Erworben",

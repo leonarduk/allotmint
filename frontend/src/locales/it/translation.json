@@ -482,6 +482,9 @@
     },
     "clearFilters": "Cancella filtri",
     "horizontalScroll": "Scorri orizzontalmente le colonne delle posizioni",
+    "filtersLabel": "Filtra posizioni",
+    "filterBy": "Filtra per {{field}}",
+    "moreColumnsHint": "Altre colonne →",
     "columns": {
       "sector": "Settore",
       "acquired": "Acquisito",

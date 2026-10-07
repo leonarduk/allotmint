@@ -194,7 +194,7 @@ def legacy_target_key(key: str, keys: frozenset[str]) -> str:
     """
     if key != LEGACY_OTHER_COMMODITIES:
         return key
-    siblings = any(SUB_ASSET_CLASS_PARENT.get(other) == COMMODITY for other in keys)
+    siblings = any(other != key and SUB_ASSET_CLASS_PARENT.get(other) == COMMODITY for other in keys)
     return OTHER_COMMODITIES if siblings else key
 
 

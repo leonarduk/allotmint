@@ -56,6 +56,7 @@ from backend.utils.scenario_tester import (
 logger = logging.getLogger(__name__)
 
 #: Sleeves allotmint-pro's hook knows by its backtest block name instead.
+#: Outbound only: the hook's result is keyed by horizon label, never by sleeve name.
 PRO_SLEEVE_NAMES: dict[str, str] = {"other_commodities": "commodities"}
 
 ProSleeveReturns = Callable[[str, dt.date, Mapping[str, int]], Optional[tuple[dict[str, Optional[float]], str, str]]]

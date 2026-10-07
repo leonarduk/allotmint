@@ -9,6 +9,7 @@ from backend.common.sub_asset_class import (
     SUB_ASSET_CLASS_PARENT,
     SUB_ASSET_CLASSES,
     derive_bond_sub_class,
+    legacy_target_key,
     policy_targets,
     resolve_sub_asset_class,
 )
@@ -165,6 +166,20 @@ def test_policy_targets_renames_the_backtest_commodities_block_beside_gold():
         "other_commodities": 7.5,
     }
     assert policy_targets({"equity": 80, "commodities": 20}) == {"equity": 80, "commodities": 20}
+
+
+def test_policy_targets_sums_legacy_and_new_other_commodities():
+    # Both keys name the same sleeve, so their weights add rather than one being dropped.
+    assert policy_targets({"equity": 85, "gold": 5, "commodities": 5, "other_commodities": 5}) == {
+        "equity": 85,
+        "gold": 5,
+        "other_commodities": 10,
+    }
+
+
+def test_legacy_target_key_needs_a_sibling_other_than_itself():
+    assert legacy_target_key("commodities", frozenset({"commodities", "equity"})) == "commodities"
+    assert legacy_target_key("commodities", frozenset({"commodities", "gold"})) == "other_commodities"
 
 
 @pytest.mark.parametrize("override", ["commodities", "Commodities", "other_commodities"])

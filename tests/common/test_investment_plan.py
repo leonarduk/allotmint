@@ -212,6 +212,12 @@ def test_lone_legacy_commodities_stays_the_whole_class():
     assert rebalance_weights(plan) == {"equity": 80, "commodity": 20}
 
 
+def test_legacy_and_new_other_commodities_rows_together_are_rejected():
+    # The legacy row renames onto the existing one; the duplicate check must catch it.
+    with pytest.raises(ValidationError, match="appears more than once"):
+        _commodity_plan(("gold", 5), ("commodities", 5), ("other_commodities", 10))
+
+
 def test_other_commodities_plan_class_needs_no_gold():
     plan = _commodity_plan(("other_commodities", 20))
     assert rebalance_weights(plan) == {"equity": 80, "other_commodities": 20}

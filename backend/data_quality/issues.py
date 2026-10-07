@@ -19,10 +19,13 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Sequence
 
+import pandas as pd
+
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, enrich_holding
 from backend.common.instrument_classification import ASSET_CLASSES, normalise_asset_class
 from backend.common.instruments import get_instrument_meta, resolve_instrument_ticker
 from backend.config import config
+from backend.data_quality import price_scale
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
     cache_only,
@@ -30,12 +33,14 @@ from backend.timeseries.cache import (
     list_cached_meta_tickers,
     load_cached_meta_timeseries_full,
 )
+from backend.timeseries.corporate_actions import SPLIT, load_corporate_actions
 from backend.timeseries.quality import (
     DEFAULT_GAP_THRESHOLD_DAYS,
     DEFAULT_OUTLIER_SIGMA,
     DEFAULT_ROLLING_WINDOW,
     compute_quality,
 )
+from backend.utils.timeseries_helpers import get_scaling_override, invalid_scaling_override
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +67,10 @@ class IssueType:
     IMPLAUSIBLE_BOOK_COST = "IMPLAUSIBLE_BOOK_COST"
     # Held instrument whose metadata has no recognised asset class (#9196).
     MISSING_ASSET_CLASS = "MISSING_ASSET_CLASS"
+    # Price ~10x/100x wrong: a pence/pounds mix-up or bad scaling override (#7789).
+    PRICE_SCALE_SUSPECT = "PRICE_SCALE_SUSPECT"
+    # Day-on-day move above a threshold that is not a scale step (#8602).
+    LARGE_DAILY_MOVE = "LARGE_DAILY_MOVE"
 
 
 SEVERITY = {
@@ -77,6 +86,8 @@ SEVERITY = {
     IssueType.TICKER_MISMATCH: "low",
     IssueType.IMPLAUSIBLE_BOOK_COST: "high",
     IssueType.MISSING_ASSET_CLASS: "low",
+    IssueType.PRICE_SCALE_SUSPECT: "high",
+    IssueType.LARGE_DAILY_MOVE: "low",
 }
 
 # Issue types whose fix is a fetch/refetch of the cached series.
@@ -489,16 +500,161 @@ def _stale_series_issue(
     )
 
 
+def _split_dates(ticker: str, exchange: str) -> frozenset[str]:
+    """ISO dates of recorded splits, which legitimately move the price."""
+    try:
+        actions = load_corporate_actions(ticker, exchange)
+    except ValueError as exc:
+        logger.warning(
+            "Could not load corporate actions for %s.%s: %s",
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+            sanitise_log_value(exc),
+        )
+        return frozenset()
+    if actions.empty:
+        return frozenset()
+    splits = actions[actions["Action"] == SPLIT]
+    return frozenset(pd.to_datetime(splits["Date"]).dt.date.map(date.isoformat))
+
+
+def _price_ceiling_reason(
+    ticker: str, exchange: str, closes: pd.Series, meta: dict[str, Any] | None
+) -> tuple[str, dict[str, Any]] | None:
+    """Reason + preview when the effective GBP price exceeds its type's ceiling."""
+    ceiling = price_scale.plausible_max_gbp_price(exchange, meta)
+    if ceiling is None or closes.empty:
+        return None
+    scale = get_scaling_override(ticker, exchange, None)
+    price_gbp = float(closes.iloc[-1]) * scale
+    if price_gbp <= ceiling:
+        return None
+    factor = price_scale.suggested_override_factor(scale)
+    reason = (
+        f"latest price £{price_gbp:,.2f} is above the £{ceiling:,.0f} plausible for instrument type "
+        f"{price_scale.instrument_type(meta)!r} (raw close {closes.iloc[-1]:g} x factor {scale:g})"
+    )
+    return reason, {"price_gbp": round(price_gbp, 4), "scale": scale, "suggested_factor": factor}
+
+
+def _invalid_override_reason(
+    ticker: str, exchange: str, ceiling_factor: float | None
+) -> tuple[str, dict[str, Any]] | None:
+    """Reason + preview when scaling_overrides.json lists an invalid factor.
+
+    ``get_scaling_override`` ignores e.g. ADM.L's old ``0.1`` (#8597) and falls
+    back to currency metadata, so the table drifts without anything noticing.
+    The replacement is the price-ceiling suggestion when that check fired,
+    else the valid factor actually applied now (0.01, 1 or 100).
+    """
+    bad = invalid_scaling_override(ticker, exchange)
+    if bad is None:
+        return None
+    replacement = ceiling_factor if ceiling_factor is not None else get_scaling_override(ticker, exchange, None)
+    reason = (
+        f"data/scaling_overrides.json lists factor {bad:g}, which is ignored because only 0.01, 1 or 100 "
+        f"are valid pence/pounds factors"
+    )
+    return reason, {"invalid_override": bad, "suggested_factor": replacement}
+
+
+def _price_scale_fix(ticker: str, exchange: str, before: dict[str, Any]) -> str:
+    factor = before.get("suggested_factor")
+    invalid = before.get("invalid_override")
+    if invalid is not None and factor is not None:
+        return (
+            f'Replace "{ticker}": {invalid:g} under "{exchange}" in data/scaling_overrides.json with '
+            f'"{ticker}": {factor:g}, then recheck.'
+        )
+    if factor is not None:
+        return (
+            f'Add "{ticker}": {factor:g} under "{exchange}" in data/scaling_overrides.json '
+            f"(or correct the instrument currency metadata), then recheck."
+        )
+    # A step inside the cached series cannot be fixed by an override: the
+    # factor is applied to the whole series at read time (#8597), so it would
+    # move the points on both sides of the step together.
+    return (
+        "Check the instrument's scaling factor and currency metadata, then refetch or edit "
+        "any bad points around the flagged dates."
+    )
+
+
+def _price_scale_issue(
+    ticker: str,
+    exchange: str,
+    closes: pd.Series,
+    meta: dict[str, Any] | None,
+    split_dates: frozenset[str],
+) -> DataQualityIssue | None:
+    """Flag a price that looks 10x/100x wrong (#7789). Detection only."""
+    reasons: list[str] = []
+    before: dict[str, Any] = {}
+    steps = price_scale.find_scale_steps(closes, exclude_dates=split_dates)
+    if steps:
+        reasons.append(f"{len(steps)} step change(s) of a power of ten between consecutive closes")
+        before["scale_steps"] = price_scale.limit_points(steps)
+    ratio = price_scale.trailing_median_ratio(closes)
+    factor_limit = price_scale.TRAILING_MEDIAN_FACTOR
+    if ratio is not None and (ratio >= factor_limit or ratio <= 1 / factor_limit):
+        reasons.append(f"latest close is {ratio:.3g}x its trailing median")
+        before["trailing_median_ratio"] = round(ratio, 4)
+    ceiling = _price_ceiling_reason(ticker, exchange, closes, meta)
+    if ceiling is not None:
+        reasons.append(ceiling[0])
+        before.update(ceiling[1])
+    invalid = _invalid_override_reason(ticker, exchange, before.get("suggested_factor"))
+    if invalid is not None:
+        reasons.append(invalid[0])
+        before.update(invalid[1])
+    if not reasons:
+        return None
+    return DataQualityIssue(
+        id=_issue_id(IssueType.PRICE_SCALE_SUSPECT, ticker, exchange),
+        type=IssueType.PRICE_SCALE_SUSPECT,
+        severity=SEVERITY[IssueType.PRICE_SCALE_SUSPECT],
+        entity={"ticker": ticker, "exchange": exchange},
+        description=f"{ticker}.{exchange} price looks mis-scaled: " + "; ".join(reasons) + ".",
+        suggested_fix=_price_scale_fix(ticker, exchange, before),
+        preview={"before": before, "after": {"price": "rescaled"}},
+        fixable=False,
+    )
+
+
+def _large_move_issue(
+    ticker: str, exchange: str, closes: pd.Series, threshold: float, split_dates: frozenset[str]
+) -> DataQualityIssue | None:
+    """Flag day-on-day moves above ``threshold`` with no split on record (#8602)."""
+    moves = price_scale.find_large_moves(closes, threshold, exclude_dates=split_dates)
+    if not moves:
+        return None
+    return DataQualityIssue(
+        id=_issue_id(IssueType.LARGE_DAILY_MOVE, ticker, exchange),
+        type=IssueType.LARGE_DAILY_MOVE,
+        severity=SEVERITY[IssueType.LARGE_DAILY_MOVE],
+        entity={"ticker": ticker, "exchange": exchange},
+        description=(
+            f"{len(moves)} day-on-day move(s) over {threshold:.0%} in {ticker}.{exchange} "
+            f"with no split on record (latest {moves[-1]['date']})."
+        ),
+        suggested_fix="Check the flagged dates against another source; edit bad ticks in the Time Series editor.",
+        preview={"before": {"moves": price_scale.limit_points(moves)}, "after": {"reviewed": True}},
+        fixable=False,
+    )
+
+
 def aggregate_series_issues(
     *,
     stale_max_age_days: int = DEFAULT_STALE_SERIES_MAX_AGE_DAYS,
     gap_threshold_days: int = DEFAULT_GAP_THRESHOLD_DAYS,
     outlier_sigma: float = DEFAULT_OUTLIER_SIGMA,
     rolling_window: int = DEFAULT_ROLLING_WINDOW,
+    large_move_threshold: float = price_scale.DEFAULT_LARGE_MOVE_THRESHOLD,
     accounts_root: Path | None = None,
 ) -> list[DataQualityIssue]:
     """Detect timeseries-side issues: stale, gaps, duplicates, outliers,
-    missing metadata, and ticker/cache-key mismatches.
+    missing metadata, ticker/cache-key mismatches, mis-scaled prices and
+    large day-on-day moves.
 
     A stale series is ``STALE_SERIES`` only when the scheduled refresh is
     responsible for it; otherwise it is ``UNTRACKED_STALE_SERIES`` (#8599).
@@ -546,6 +702,16 @@ def aggregate_series_issues(
                     },
                 )
             )
+
+        closes = price_scale.close_series(df)
+        split_dates = _split_dates(ticker, exchange)
+        move_threshold = price_scale.large_move_threshold(meta, large_move_threshold)
+        for detected in (
+            _price_scale_issue(ticker, exchange, closes, meta, split_dates),
+            _large_move_issue(ticker, exchange, closes, move_threshold, split_dates),
+        ):
+            if detected is not None:
+                issues.append(detected)
 
         if quality.get("gap_count", 0) > 0:
             issues.append(

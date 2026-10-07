@@ -23,7 +23,7 @@ from backend.common.constants import (
     OWNER,
 )
 from backend.common.holding_utils import enrich_holding
-from backend.common.portfolio_loader import ACCOUNT_STEM_KEY
+from backend.common.portfolio_loader import ACCOUNT_STEM_KEY, strip_account_stem
 from backend.common.user_config import load_user_config
 from backend.config import config
 from backend.config import demo_identity as get_demo_identity
@@ -225,12 +225,11 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
     for pf in portfolios_to_merge:
         for acct in pf.get(ACCOUNTS, []):
             owner = pf[OWNER]
-            acct_copy = dict(acct)
+            account_name = _account_file_name(acct)
+            # The stem is loader-internal; AccountContract forbids extra keys.
+            acct_copy = strip_account_stem(acct)
             acct_copy[OWNER] = owner
             acct_copy["currency"] = _normalise_account_currency(acct_copy.get("currency"))
-            account_name = _account_file_name(acct_copy)
-            # The stem is loader-internal; AccountContract forbids extra keys.
-            acct_copy.pop(ACCOUNT_STEM_KEY, None)
 
             holdings = _holdings_with_derived_costs(owner, acct_copy, account_name)
             # Page request: price from the timeseries cache only; the

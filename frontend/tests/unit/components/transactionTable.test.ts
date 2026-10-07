@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   buildBulkDeletionOrder,
   filterAndSortTransactions,
@@ -60,14 +60,14 @@ describe("transactionTable helpers", () => {
           owner: "alex",
           account: "isa",
           price_gbp: 8,
-          shares: 2.5,
+          // Portfolio Performance fixed-point: 2.5 units x 10^8 (#10203).
+          shares: 250_000_000,
         },
       ),
     ).toBe("£20.00");
   });
 
-  it("uses units precedence and warns when units and shares both exist", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("uses units over shares when a PP row was edited in the app", () => {
     expect(
       formatTransactionAmount(
         {
@@ -75,12 +75,10 @@ describe("transactionTable helpers", () => {
           account: "isa",
           price_gbp: 10,
           units: 3,
-          shares: 9,
+          shares: 900_000_000,
         },
       ),
     ).toBe("£30.00");
-    expect(warnSpy).toHaveBeenCalledOnce();
-    warnSpy.mockRestore();
   });
 
   it("returns blank when price is missing or non-numeric", () => {

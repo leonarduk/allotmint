@@ -96,15 +96,32 @@ def _float(value: Any) -> float | None:
     return None if result != result else result  # NaN check
 
 
-def _quantity(tx: Mapping[str, Any]) -> float | None:
-    for key in ("shares", "quantity", "units"):
+# Quantity fields in precedence order, with the divisor that turns each into
+# real units.  ``units`` and ``quantity`` hold real units.  ``shares`` is
+# Portfolio Performance's fixed-point share count (real units x 10^8), as
+# written by ``convert_portfolio_xml_to_account_transactions``.  ``units`` wins
+# so that a PP row edited in the app (which sets ``units``) uses the edit.
+_QUANTITY_FIELDS = (("units", 1), ("quantity", 1), ("shares", _SHARE_SCALE))
+
+
+def transaction_quantity(tx: Mapping[str, Any]) -> float | None:
+    """Signed number of real units ``tx`` records, or ``None`` if unknown.
+
+    Scale is decided by which field is present (see ``_QUANTITY_FIELDS``),
+    never by the size of the value: 2,000,000 ``units`` is 2,000,000 units and
+    999,999 ``shares`` is 0.00999999 units.  The first field that is present
+    decides; an unparseable value there makes the quantity unknown.
+    """
+    for key, scale in _QUANTITY_FIELDS:
         if tx.get(key) is not None:
             qty = _float(tx[key])
-            if qty is None:
-                return None
-            qty = abs(qty)
-            return qty / _SHARE_SCALE if qty > 1_000_000 else qty  # PP's 1e8 scaling
+            return None if qty is None else qty / scale
     return None
+
+
+def _quantity(tx: Mapping[str, Any]) -> float | None:
+    qty = transaction_quantity(tx)
+    return None if qty is None else abs(qty)
 
 
 def _priced_value(tx: Mapping[str, Any], qty: float, *, acquisition: bool) -> float | None:
@@ -120,8 +137,19 @@ def _settled_cash(tx: Mapping[str, Any], qty: float, *, acquisition: bool) -> fl
     """Unsigned settled GBP value: ``amount_minor`` if non-zero, else price x units +/- fees.
 
     This is the magnitude of the trade's cash effect; the caller applies the
-    direction from ``_SETTLED_TRADES``, so either sign convention works.  A zero
-    ``amount_minor`` (common on transfers-in) records no value, so it is
+    direction from ``_SETTLED_TRADES``, so either sign convention works.
+
+    ``amount_minor`` is the cash that actually settled, so it is already *net*
+    of fees: the total paid on an acquisition (fees included) and the proceeds
+    received on a disposal (fees deducted).  That is what Portfolio Performance
+    exports as a portfolio transaction's ``amount`` (copied verbatim, with no
+    ``fees`` field, by ``convert_portfolio_xml_to_account_transactions``), and
+    it is the same figure credited to cash under ``trade_cash_effects``, so
+    ``fees`` is never subtracted from it again.  Only the price x units
+    fallback, a gross figure, applies ``fees`` -- so both paths yield the same
+    net value.
+
+    A zero ``amount_minor`` (common on transfers-in) records no value, so it is
     treated as unknown rather than as a known value of nothing.
     """
     amount_minor = _float(tx.get("amount_minor"))

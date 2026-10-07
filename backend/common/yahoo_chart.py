@@ -14,6 +14,7 @@ callers can swap the source without remapping.
 
 from __future__ import annotations
 
+import math
 import time
 from typing import Any, Dict, Mapping, Optional
 
@@ -58,13 +59,30 @@ def market_state(metadata: Mapping[str, Any], now: Optional[float] = None) -> Op
     return "CLOSED"
 
 
+def _price_or_none(value: Any) -> Optional[float]:
+    """Return ``value`` as a price, or ``None`` when Yahoo had no figure for it.
+
+    Yahoo fills price fields it has no data for (an index's open/high/low,
+    a weekend bar) with a literal ``0`` or ``NaN`` rather than omitting them.
+    No instrument we quote trades at exactly zero, so passing those through
+    renders "we don't know" as a confident ``0.00`` (#7819).
+    """
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if value == 0 or not math.isfinite(value):
+        return None
+    return float(value)
+
+
 def _last_row_value(history: Any, column: str) -> Optional[float]:
-    """Return the last non-null ``column`` value of a history frame, if any."""
+    """Return the last non-null, non-zero ``column`` price of a history frame, if any."""
 
     try:
         series = history[column].dropna()
     except (KeyError, TypeError, AttributeError):
         return None
+    series = series[series != 0]
     if series.empty:
         return None
     return float(series.iloc[-1])
@@ -90,10 +108,12 @@ def chart_quote(ticker: Any) -> Dict[str, Any]:
     history = ticker.history(period="1d", interval="1d", auto_adjust=False)
     metadata: Mapping[str, Any] = ticker.get_history_metadata() or {}
 
-    price = metadata.get("regularMarketPrice")
+    price = _price_or_none(metadata.get("regularMarketPrice"))
     if price is None:
         price = _last_row_value(history, "Close")
-    previous_close = metadata.get("chartPreviousClose", metadata.get("previousClose"))
+    previous_close = _price_or_none(metadata.get("chartPreviousClose"))
+    if previous_close is None:
+        previous_close = _price_or_none(metadata.get("previousClose"))
     market_time = _to_epoch(metadata.get("regularMarketTime"))
 
     return {
@@ -101,8 +121,8 @@ def chart_quote(ticker: Any) -> Dict[str, Any]:
         "regularMarketPreviousClose": previous_close,
         "regularMarketChangePercent": _change_percent(price, previous_close),
         "regularMarketOpen": _last_row_value(history, "Open"),
-        "regularMarketDayHigh": metadata.get("regularMarketDayHigh"),
-        "regularMarketDayLow": metadata.get("regularMarketDayLow"),
+        "regularMarketDayHigh": _price_or_none(metadata.get("regularMarketDayHigh")),
+        "regularMarketDayLow": _price_or_none(metadata.get("regularMarketDayLow")),
         "regularMarketVolume": metadata.get("regularMarketVolume"),
         "regularMarketTime": int(market_time) if market_time is not None else None,
         "exchangeTimezoneName": metadata.get("exchangeTimezoneName"),

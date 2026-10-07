@@ -1,3 +1,4 @@
+import { transactionUnits } from "@/lib/transactionQuantity";
 import type { Transaction } from "@/types";
 
 export type TradeType = "BUY" | "SELL";
@@ -43,13 +44,7 @@ export function createTransactionFormValues(
   const tickerValue = (
     transaction.ticker ?? transaction.security_ref ?? ""
   ).toUpperCase();
-  const unitsValue = transaction.units ?? transaction.shares ?? null;
-  const numericUnits =
-    typeof unitsValue === "number"
-      ? unitsValue
-      : unitsValue != null
-        ? Number(unitsValue)
-        : null;
+  const numericUnits = transactionUnits(transaction);
 
   // Prefer explicit price_gbp. When deriving from amount_minor, round to 2dp
   // to avoid floating-point precision loss (e.g. 1000 minor / 100 / 3 = 3.333...).

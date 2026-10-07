@@ -109,6 +109,67 @@ describe('InstrumentValuationPanel', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  it('keeps the equity benchmark header and beta label', async () => {
+    mockGetValuation.mockResolvedValue(profile());
+
+    render(<InstrumentValuationPanel ticker="UKW.L" positions={[]} />);
+
+    expect(
+      await screen.findByText('Beta vs FTAL.L (3y weekly)')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Benchmark:/).closest('p')?.textContent
+    ).toBe(
+      'Benchmark: FTSE All-Share (SPDR FTAL ETF) (FTAL.L, default for the listing exchange)'
+    );
+  });
+
+  it('says there is no comparable benchmark for a cash fund', async () => {
+    const note =
+      'No comparable benchmark: it is a cash instrument. Set ' +
+      "'benchmark' in its metadata to compare it with a suitable index.";
+    mockGetValuation.mockResolvedValue(
+      profile({
+        ticker: 'ERNS.L',
+        benchmark: {
+          ticker: null,
+          name: null,
+          source: 'none',
+          asset_class: 'cash',
+          asset_class_basis: "name mentions 'ultrashort'",
+          note,
+        },
+        risk: { ...profile().risk, beta_3y: null },
+      })
+    );
+
+    render(<InstrumentValuationPanel ticker="ERNS.L" positions={[]} />);
+
+    expect(await screen.findByText('Beta (3y weekly)')).toBeInTheDocument();
+    expect(rowValue('Beta (3y weekly)')).toBe('—');
+    const header = screen.getByText(/^Benchmark:/).closest('p');
+    expect(header?.textContent).toBe(
+      "Benchmark: none comparable (cash fund: name mentions 'ultrashort')"
+    );
+    expect(header).toHaveAttribute('title', note);
+    const text = document.body.textContent ?? '';
+    expect(text).not.toMatch(/null|undefined|\(\)/);
+  });
+
+  it('omits the asset class when the backend gives none', async () => {
+    mockGetValuation.mockResolvedValue(
+      profile({
+        benchmark: { ticker: null, name: null, source: 'none' },
+      })
+    );
+
+    render(<InstrumentValuationPanel ticker="UKW.L" positions={[]} />);
+
+    expect(
+      (await screen.findByText(/^Benchmark:/)).closest('p')?.textContent
+    ).toBe('Benchmark: none comparable');
+  });
+
   it('omits the NAV card for an instrument without a NAV', async () => {
     mockGetValuation.mockResolvedValue(
       profile({

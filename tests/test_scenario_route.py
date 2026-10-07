@@ -68,7 +68,7 @@ def _patch_single_owner(monkeypatch, portfolio):
 def test_historical_scenario_route(monkeypatch):
     captured = {}
 
-    def fake_apply_historical_event(portfolio, event=None, horizons=None):
+    def fake_apply_historical_event(portfolio, event=None, horizons=None, holding_fallback=None):
         captured["event"] = event
         captured["horizons"] = dict(horizons)
         total = portfolio.get("total_value_estimate_gbp") or 0.0

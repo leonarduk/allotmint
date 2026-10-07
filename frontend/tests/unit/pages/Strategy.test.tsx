@@ -562,6 +562,17 @@ describe('Strategy page', () => {
     ).toBeInTheDocument();
   });
 
+  it('links the unclassified row to the classify page for the owner (#9495)', async () => {
+    mockGetRebalancePlan.mockResolvedValue(
+      makePlan({ unclassified_value: 250, unclassified_pct: 12.5 })
+    );
+    await renderPage();
+    const link = await screen.findByRole('link', {
+      name: 'Needs an asset class',
+    });
+    expect(link).toHaveAttribute('href', '/strategy/classify?owner=alex');
+  });
+
   it('prompts for targets and hides trades when no policy is stored', async () => {
     mockGetRebalancePlan.mockResolvedValue(
       makePlan({ policy: { targets: {}, tolerance_pct: 5 }, trades: [] })

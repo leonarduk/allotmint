@@ -156,7 +156,7 @@ def _dates(df: pd.DataFrame) -> pd.Series:
 
 
 def _primary_index(candidates: list[pd.DataFrame], prefer_source: str | None, label: str) -> int:
-    indices = range(len(candidates))
+    indices: list[int] = list(range(len(candidates)))
     if prefer_source is not None:
         preferred = [i for i in indices if prefer_source in set(_source_labels(candidates[i]))]
         if preferred:

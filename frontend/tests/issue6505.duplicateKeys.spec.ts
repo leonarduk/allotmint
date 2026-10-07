@@ -145,16 +145,20 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     const warnings = collectDuplicateKeyWarnings(page);
     await applyAuth(page);
     await setupCoreMocks(page);
-    await page.route('**/trading-agent/signals', async (route) => {
+    // The Trading page reads /trading-agent/signals/report (#9453).
+    await page.route('**/trading-agent/signals/report', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([
-          { ticker: 'CASH', name: 'Cash GBP', action: 'buy', reason: 'a' },
-          { ticker: 'CASH', name: 'Cash L', action: 'sell', reason: 'b' },
-          { ticker: 'PFE', name: 'Pfizer N', action: 'buy', reason: 'c' },
-          { ticker: 'PFE', name: 'Pfizer L', action: 'sell', reason: 'd' },
-        ]),
+        body: JSON.stringify({
+          signals: [
+            { ticker: 'CASH', name: 'Cash GBP', action: 'buy', reason: 'a' },
+            { ticker: 'CASH', name: 'Cash L', action: 'sell', reason: 'b' },
+            { ticker: 'PFE', name: 'Pfizer N', action: 'buy', reason: 'c' },
+            { ticker: 'PFE', name: 'Pfizer L', action: 'sell', reason: 'd' },
+          ],
+          blocked: [],
+        }),
       });
     });
     await page.route('**/trading-agent/settings', async (route) => {

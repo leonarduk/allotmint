@@ -186,12 +186,16 @@ def _with_estimated_income(
     ticker: str,
     changes: Optional[UnitChanges],
     load_dividends: Optional[DividendLoader],
+    as_of: date,
 ) -> Optional[PositionReturn]:
-    """``entry`` with estimated income when no transaction row names the instrument."""
+    """``entry`` with estimated income when no transaction row names the instrument.
+
+    Uses the same ``as_of`` and trailing window as :func:`position_returns`.
+    """
     if (entry is not None and entry.income_rows) or not changes:
         return entry
-    since = date.today() - timedelta(days=TRAILING_YIELD_DAYS)
-    estimate = estimated_income_gbp(ticker, changes, load_dividends=load_dividends, trailing_since=since)
+    since = as_of - timedelta(days=TRAILING_YIELD_DAYS)
+    estimate = estimated_income_gbp(ticker, changes, load_dividends=load_dividends, today=as_of, trailing_since=since)
     if estimate is None or not estimate.total_gbp:
         return entry
     entry = replace(entry) if entry is not None else PositionReturn()
@@ -207,15 +211,18 @@ def attach_total_returns(
     transactions: Optional[Sequence[Mapping[str, Any]]],
     match_key: Callable[[str, List[str]], Optional[str]],
     load_dividends: Optional[DividendLoader] = None,
+    as_of: Optional[date] = None,
 ) -> None:
     """Attach total-return fields to every non-cash enriched holding.
 
     ``match_key(ticker, pool_keys)`` maps a held ticker to its pool key (or
     ``None``); it is injected so callers can reuse their own matching rules.
     ``load_dividends`` overrides the stored dividend history used to estimate
-    income for positions no income row names (tests).
+    income for positions no income row names (tests).  ``as_of`` (default
+    today) dates both the recorded and the estimated income.
     """
-    returns = position_returns(transactions) if transactions is not None else None
+    as_of = as_of or date.today()
+    returns = position_returns(transactions, as_of=as_of) if transactions is not None else None
     rows = [tx for tx in transactions or () if isinstance(tx, Mapping)]
     changes = unit_changes(rows, name_aliases(rows))
     pool_keys = [k for k in {*(returns or {}), *changes} if not k.startswith(("name:", "ref:"))]
@@ -231,4 +238,5 @@ def attach_total_returns(
             continue
         key = match_key(ticker, pool_keys)
         entry = returns.get(key) if key else None
-        apply_total_return(h, _with_estimated_income(entry, ticker, changes.get(key) if key else None, load_dividends))
+        estimated = _with_estimated_income(entry, ticker, changes.get(key) if key else None, load_dividends, as_of)
+        apply_total_return(h, estimated)

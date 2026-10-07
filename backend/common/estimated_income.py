@@ -97,8 +97,8 @@ def estimated_income_gbp(
 
     ``None`` when it can't be estimated: the ticker has no exchange, no
     dividend history is stored, or the quote currency can't be resolved or
-    converted.  Zero (not ``None``) when the history shows nothing paid while
-    the units were held.
+    converted.  Zero when the history shows nothing paid while the units
+    were held (callers keep their recorded income then: no estimate is made).
     """
     symbol, exchange = split_ticker(ticker)
     if not symbol or not exchange or not changes:

@@ -223,6 +223,15 @@ def test_untagged_dividends_are_estimated_from_history(gbx):
     assert holding["total_return_gbp"] == pytest.approx(-600.0 + 254.0)
 
 
+def test_estimate_uses_the_callers_as_of(gbx):
+    series = _dividends(("2025-07-03", 2.5), ("2025-11-20", 2.15))
+    holding = {"ticker": "REC.L", "market_value_gbp": 2400.0, "gain_gbp": -600.0}
+    attach_total_returns([holding], HL_TXS, lambda ticker, keys: ticker, _loader(series), as_of=date(2025, 8, 1))
+    # Only the July ex-date is on or before 2025-08-01, and it is in the trailing year.
+    assert holding["income_gbp"] == pytest.approx(125.0)
+    assert holding["yield_pct"] == pytest.approx(125.0 / 2400.0 * 100.0)
+
+
 def test_estimated_income_feeds_the_trailing_yield(gbx, monkeypatch):
     monkeypatch.setattr(position_returns_module, "date", _FixedDate)
     series = _dividends(("2025-07-03", 2.5), ("2025-11-20", 2.15))

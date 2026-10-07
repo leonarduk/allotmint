@@ -700,7 +700,8 @@
         "timeseries": "Serie storica",
         "fundamentals": "Dati fondamentali",
         "technicals": "Analisi tecnica",
-        "news": "Notizie"
+        "news": "Notizie",
+        "allocation": "Allocazione"
       },
       "section": {
         "keyFacts": "Dati chiave",
@@ -3382,5 +3383,41 @@
       "watchlist": "Lista di osservazione"
     },
     "tabsLabel": "Viste delle idee"
+  },
+  "lookThrough": {
+    "countriesView": "Paesi (look-through)",
+    "sectorsView": "Settori (look-through)",
+    "holdingsView": "Posizioni (look-through)",
+    "note": "Look-through: ogni fondo viene suddiviso nei paesi, settori e posizioni in cui investe, poi combinato con le azioni detenute direttamente. Comprende tutti i conti di questo gruppo.",
+    "coverage": "{{funds}} fondi ({{value}}) analizzati in look-through, con dati dei fondi dal {{from}} al {{to}}.",
+    "notCovered": "Nessun dato look-through per {{tickers}} ({{value}}): mantengono il proprio settore e per paese contano come «Non analizzato».",
+    "otherInFunds": "Altre posizioni nei fondi (oltre alle principali posizioni pubblicate)",
+    "cash": "Liquidità",
+    "holdingsTitle": "Posizioni sottostanti",
+    "holding": "Posizione",
+    "total": "Totale",
+    "weight": "Peso",
+    "direct": "Diretto",
+    "viaFunds": "Tramite fondi",
+    "heldThrough": "Detenuto tramite",
+    "countries": "Paesi",
+    "sectors": "Settori",
+    "country": "Paese",
+    "sector": "Settore",
+    "topHoldings": "Principali posizioni",
+    "topHoldingsCovered": "Le principali posizioni mostrate rappresentano il {{pct}} del fondo.",
+    "fundSource": "Dove investe questo fondo: portafoglio al {{date}} ({{holdings}} posizioni).",
+    "singleSecurity": "Una singola società: tutto il suo valore è nel proprio paese e settore.",
+    "cashInstrument": "La liquidità non ha esposizione a paesi o settori.",
+    "fundUncovered": "Ancora nessun dato look-through per questo fondo; usa Aggiorna per ottenerlo. Viene mostrato il suo settore.",
+    "otherRows_one": "Altri ({{count}} in più)",
+    "otherRows_other": "Altri ({{count}} in più)",
+    "sourceLabel": "Fonte",
+    "lastUpdated": "aggiornato il {{date}}",
+    "refresh": "Aggiorna",
+    "refreshing": "Aggiornamento…",
+    "refreshUpdated": "Aggiornato da {{source}}.",
+    "refreshNotCovered": "Né Morningstar né justETF hanno dati look-through per questo fondo.",
+    "refreshFailed": "Aggiornamento non riuscito: {{message}}"
   }
 }

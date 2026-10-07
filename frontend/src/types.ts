@@ -175,6 +175,89 @@ export type RegionContribution = {
   unknown_cost_market_value_gbp?: number;
 };
 
+/** One country/sector bucket of a look-through breakdown (#9974). */
+export type LookThroughBucket = {
+  label: string;
+  value_gbp: number;
+  weight_pct: number;
+};
+
+/**
+ * One underlying holding of `GET /portfolio-group/{slug}/look-through`
+ * (#9974): a security owned directly and/or inside funds, matched by ISIN.
+ * `kind` "other" is the unpublished remainder of the funds' holdings.
+ */
+export type LookThroughHolding = {
+  key: string;
+  name: string;
+  isin: string | null;
+  kind: "security" | "fund" | "cash" | "other";
+  value_gbp: number;
+  weight_pct: number;
+  direct_value_gbp: number;
+  via_funds_value_gbp: number;
+  sources: { ticker: string; value_gbp: number }[];
+};
+
+export type LookThroughFund = {
+  ticker: string;
+  name: string;
+  value_gbp: number;
+  source?: string | null;
+  as_of?: string | null;
+  holdings_count?: number | null;
+};
+
+/** Real exposure by country, sector and holding, looking through funds (#9974). */
+export type LookThroughExposure = {
+  total_value_gbp: number;
+  countries: LookThroughBucket[];
+  sectors: LookThroughBucket[];
+  holdings: LookThroughHolding[];
+  coverage: {
+    looked_through_value_gbp: number;
+    direct_value_gbp: number;
+    not_covered_value_gbp: number;
+    cash_value_gbp: number;
+    funds: LookThroughFund[];
+    not_covered: { ticker: string; name: string; value_gbp: number }[];
+  };
+};
+
+/** A fund's top holding in `GET /instrument/allocation` (#9974). */
+export type InstrumentTopHolding = {
+  name: string;
+  isin: string | null;
+  weight_pct: number;
+  country?: string | null;
+  sector?: string | null;
+};
+
+/** Result of refreshing one fund's look-through data (#9974); `updated` is false when no source covers it. */
+export type InstrumentAllocationRefresh = {
+  updated: boolean;
+  allocation: InstrumentAllocation;
+};
+
+/** One instrument's country/sector/holding breakdown for its Research page (#9974). */
+export type InstrumentAllocation = {
+  ticker: string;
+  name: string;
+  kind: "fund" | "security" | "fund_uncovered" | "cash";
+  source: string | null;
+  /** A public page for the fund on its data source, looked up by ISIN. */
+  source_url: string | null;
+  /** Date the fund's portfolio data refers to. */
+  as_of: string | null;
+  /** Date the data was last fetched from the source. */
+  fetched: string | null;
+  holdings_count: number | null;
+  asset_mix: Record<string, number> | null;
+  countries: { label: string; weight_pct: number }[];
+  sectors: { label: string; weight_pct: number }[];
+  top_holdings: InstrumentTopHolding[];
+};
+
 /**
  * One group of `GET /portfolio/{owner}/currencies` or
  * `/portfolio-group/{slug}/currencies` (#9686): exposure by the currency an

@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
-import { getGroupCurrencyContributions, getGroupPortfolio, getSleeves } from "../api";
-import type { Account, CurrencyContribution, GroupPortfolio, SleeveList } from "../types";
+import { getGroupCurrencyContributions, getGroupLookThrough, getGroupPortfolio, getSleeves } from "../api";
+import type {
+  Account,
+  CurrencyContribution,
+  GroupPortfolio,
+  LookThroughBucket,
+  LookThroughExposure,
+  SleeveList,
+} from "../types";
+import { LookThroughCoverageNote, LookThroughHoldingsTable } from "../components/LookThrough";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { ReportingCurrencyNote } from "../components/ReportingCurrencyNote";
@@ -45,9 +53,21 @@ const isInvalidNumericInput = (value: unknown): boolean => {
 
 const isDevEnvironment = (): boolean => import.meta.env.MODE !== "production";
 
-type AllocationView = "asset" | "sector" | "region" | "currency" | "sleeve";
+type LookThroughView = "lt-country" | "lt-sector" | "lt-holdings";
+type AllocationView = "asset" | "sector" | "region" | "currency" | "sleeve" | LookThroughView;
 
-const ALLOCATION_VIEWS: readonly AllocationView[] = ["asset", "sector", "region", "currency", "sleeve"];
+const LOOK_THROUGH_VIEWS: readonly AllocationView[] = ["lt-country", "lt-sector", "lt-holdings"];
+const ALLOCATION_VIEWS: readonly AllocationView[] = [
+  "asset",
+  "sector",
+  "region",
+  "currency",
+  "sleeve",
+  ...LOOK_THROUGH_VIEWS,
+];
+
+/** Look-through pie slices beyond this many are folded into one "Other" slice. */
+const MAX_LOOK_THROUGH_SLICES = 12;
 
 const isAllocationView = (value: string | null): value is AllocationView =>
   value !== null && (ALLOCATION_VIEWS as readonly string[]).includes(value);
@@ -108,6 +128,56 @@ function useGroupCurrencyExposure(slug: string, enabled: boolean) {
   }, [enabled, slug, rows]);
 
   return { rows, error };
+}
+
+/** Pie slices for a look-through breakdown, largest first, the tail folded into ``otherLabel``. */
+const toLookThroughSlices = (
+  rows: LookThroughBucket[],
+  otherLabel: string,
+): { name: string; value: number }[] => {
+  const slices = rows
+    .map((row) => ({ name: row.label, value: toFiniteNumber(row.value_gbp) }))
+    .filter((slice) => slice.value > 0)
+    .sort((a, b) => b.value - a.value);
+  if (slices.length <= MAX_LOOK_THROUGH_SLICES) return slices;
+  const head = slices.slice(0, MAX_LOOK_THROUGH_SLICES - 1);
+  const rest = slices.slice(MAX_LOOK_THROUGH_SLICES - 1).reduce((sum, s) => sum + s.value, 0);
+  return [...head, { name: otherLabel, value: rest }];
+};
+
+/**
+ * Look-through exposure for ``slug`` (#9974): funds split into their
+ * underlying countries, sectors and holdings, combined with direct shares.
+ * Fetched only once ``enabled`` (a look-through view is open); covers the
+ * whole group, like the currency view.
+ */
+function useGroupLookThrough(slug: string, enabled: boolean) {
+  const [data, setData] = useState<LookThroughExposure | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setData(null);
+    setError(null);
+  }, [slug]);
+
+  useEffect(() => {
+    if (!enabled || data !== null) return;
+    let cancelled = false;
+    getGroupLookThrough(slug)
+      .then((result) => {
+        if (cancelled) return;
+        setData(result);
+        setError(null);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, slug, data]);
+
+  return { data, error };
 }
 
 /**
@@ -178,6 +248,11 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const { rows: currencyRows, error: currencyError } = useGroupCurrencyExposure(
     resolvedSlug,
     view === "currency",
+  );
+  const isLookThroughView = LOOK_THROUGH_VIEWS.includes(view);
+  const { data: lookThrough, error: lookThroughError } = useGroupLookThrough(
+    resolvedSlug,
+    isLookThroughView,
   );
   const [sleeveData, setSleeveData] = useState<{ name: string; value: number }[]>([]);
   const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
@@ -335,9 +410,13 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
     currency: currencyData,
     // Until every owner's tags have loaded, a sleeve chart would show everything as core.
     sleeve: ownerSleeves ? sleeveData : [],
+    "lt-country": toLookThroughSlices(lookThrough?.countries ?? [], t("common.other")),
+    "lt-sector": toLookThroughSlices(lookThrough?.sectors ?? [], t("common.other")),
+    "lt-holdings": [],
   };
   const chartData = chartDataByView[view];
   const isCurrencyView = view === "currency";
+  const isGroupWideView = isCurrencyView || isLookThroughView;
   const missingFx = missingFxSummary(currencyRows ?? []);
 
   const total = chartData.reduce((sum, d) => sum + d.value, 0);
@@ -390,7 +469,24 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
         <button onClick={() => setView("sleeve")} disabled={view === "sleeve"}>
           {t("allocation.sleeve")}
         </button>
+        <button onClick={() => setView("lt-country")} disabled={view === "lt-country"}>
+          {t("lookThrough.countriesView")}
+        </button>
+        <button onClick={() => setView("lt-sector")} disabled={view === "lt-sector"}>
+          {t("lookThrough.sectorsView")}
+        </button>
+        <button onClick={() => setView("lt-holdings")} disabled={view === "lt-holdings"}>
+          {t("lookThrough.holdingsView")}
+        </button>
       </div>
+      {isLookThroughView && (
+        <p className="mb-2 text-sm text-gray-600" data-testid="look-through-note">
+          {t("lookThrough.note")}
+        </p>
+      )}
+      {isLookThroughView && lookThrough && (
+        <LookThroughCoverageNote coverage={lookThrough.coverage} format={(v) => reporting.format(v)} />
+      )}
       {isCurrencyView && (
         <p className="mb-4 text-sm text-gray-600" data-testid="currency-exposure-note">
           {t("allocation.currencyNote")}
@@ -401,7 +497,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
           {t("allocation.sleeveNote")}
         </p>
       )}
-      {portfolio && !isCurrencyView && (
+      {portfolio && !isGroupWideView && (
         <div className="mb-4 flex flex-wrap gap-4">
           <label className="flex items-center gap-1 font-semibold">
             <input
@@ -434,81 +530,90 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
       {error && <p className="text-red-500">{error}</p>}
       {isCurrencyView && currencyError && <p className="text-red-500">{currencyError}</p>}
       {view === "sleeve" && sleeveError && <p className="text-red-500">{sleeveError}</p>}
+      {isLookThroughView && lookThroughError && <p className="text-red-500">{lookThroughError}</p>}
       {isCurrencyView && missingFx && (
         <p className="mb-4 text-sm text-amber-700" role="status" data-testid="currency-missing-fx">
           {t("allocation.currencyMissingFx", { currencies: missingFx })}
         </p>
       )}
-      <div style={{ width: "100%", height: 400 }}>
-        {supportsResizeObserver ? (
-          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-            <PieChart>
-              <Pie
-                data={chartData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius="80%"
-                // "percent" may be undefined for empty datasets; default it to 0
-                label={showInlinePieLabels && ((props) => {
-                  const { name, value, percent: slicePercent } = props as PieLabelRenderProps;
-                  const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
-                  const percentValue = (slicePercent ?? 0) * 100;
-                  const rawValue =
-                    typeof value === "number"
-                      ? value
-                      : typeof value === "string"
-                        ? Number(value)
-                        : 0;
-                  const numericValue = Number.isFinite(rawValue) ? rawValue : 0;
-                  return relativeViewEnabled
-                    ? `${labelName}: ${percentValue.toFixed(2)}%`
-                    : `${labelName}: ${reporting.format(numericValue)} (${percentValue.toFixed(2)}%)`;
-                })}
-              >
-                {chartData.map((_, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={COLORS[index % COLORS.length]}
-                  />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(v, _n, item) =>
-                  relativeViewEnabled
-                    ? `${
-                        total
-                          ? (((item as any)?.payload?.value / total) * 100).toFixed(2)
-                          : "0.00"
-                      }%`
-                    : reporting.format(v as number | undefined)
-                }
-              />
-              <Legend
-                formatter={(value: string, entry: any) =>
-                  relativeViewEnabled
-                    ? `${value}: ${
-                        total
-                          ? ((entry?.payload?.value / total) * 100).toFixed(2)
-                          : "0.00"
-                      }%`
-                    : `${value}: ${reporting.format(entry?.payload?.value)}`
-                }
-              />
-            </PieChart>
-          </ResponsiveContainer>
+      {view === "lt-holdings" ? (
+        lookThrough ? (
+          <LookThroughHoldingsTable holdings={lookThrough.holdings} format={(v) => reporting.format(v)} />
         ) : (
-          <div
-            data-testid="allocation-chart-fallback"
-            className="flex h-full items-center justify-center rounded border border-dashed border-gray-300 bg-gray-50 p-4 text-center text-sm text-gray-600"
-          >
-            {t("allocation.chartsUnavailable", {
-              defaultValue: "Charts are unavailable in this environment.",
-            })}
-          </div>
-        )}
-      </div>
+          !lookThroughError && <ChartSkeleton height={400} label={t("app.loading")} />
+        )
+      ) : (
+        <div style={{ width: "100%", height: 400 }}>
+          {supportsResizeObserver ? (
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius="80%"
+                  // "percent" may be undefined for empty datasets; default it to 0
+                  label={showInlinePieLabels && ((props) => {
+                    const { name, value, percent: slicePercent } = props as PieLabelRenderProps;
+                    const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
+                    const percentValue = (slicePercent ?? 0) * 100;
+                    const rawValue =
+                      typeof value === "number"
+                        ? value
+                        : typeof value === "string"
+                          ? Number(value)
+                          : 0;
+                    const numericValue = Number.isFinite(rawValue) ? rawValue : 0;
+                    return relativeViewEnabled
+                      ? `${labelName}: ${percentValue.toFixed(2)}%`
+                      : `${labelName}: ${reporting.format(numericValue)} (${percentValue.toFixed(2)}%)`;
+                  })}
+                >
+                  {chartData.map((_, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(v, _n, item) =>
+                    relativeViewEnabled
+                      ? `${
+                          total
+                            ? (((item as any)?.payload?.value / total) * 100).toFixed(2)
+                            : "0.00"
+                        }%`
+                      : reporting.format(v as number | undefined)
+                  }
+                />
+                <Legend
+                  formatter={(value: string, entry: any) =>
+                    relativeViewEnabled
+                      ? `${value}: ${
+                          total
+                            ? ((entry?.payload?.value / total) * 100).toFixed(2)
+                            : "0.00"
+                        }%`
+                      : `${value}: ${reporting.format(entry?.payload?.value)}`
+                  }
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div
+              data-testid="allocation-chart-fallback"
+              className="flex h-full items-center justify-center rounded border border-dashed border-gray-300 bg-gray-50 p-4 text-center text-sm text-gray-600"
+            >
+              {t("allocation.chartsUnavailable", {
+                defaultValue: "Charts are unavailable in this environment.",
+              })}
+            </div>
+          )}
+        </div>
+      )}
       {!relativeViewEnabled && <ReportingCurrencyNote reporting={reporting} />}
     </div>
   );

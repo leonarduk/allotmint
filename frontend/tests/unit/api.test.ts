@@ -33,6 +33,10 @@ import {
   getGroupTrackingError,
   getGroupCurrencyContributions,
   getOwnerCurrencyContributions,
+  getGroupLookThrough,
+  getOwnerLookThrough,
+  getInstrumentAllocation,
+  refreshInstrumentLookThrough,
 } from "@/api";
 import {
   clearFetchCache,
@@ -1377,6 +1381,44 @@ describe("quote-currency exposure endpoints (#9686)", () => {
 
     const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(`${DEFAULT_API_BASE}${path}`);
+  });
+});
+
+describe("look-through endpoints (#9974)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setAuthToken(null);
+    setApiBase(DEFAULT_API_BASE);
+  });
+
+  it.each([
+    [() => getGroupLookThrough("all"), "/portfolio-group/all/look-through"],
+    [() => getGroupLookThrough("all", { asOf: "2024-01-15" }), "/portfolio-group/all/look-through?as_of=2024-01-15"],
+    [() => getOwnerLookThrough("jane"), "/portfolio/jane/look-through"],
+    [() => getInstrumentAllocation("MINV.L"), "/instrument/allocation?ticker=MINV.L"],
+  ])("requests %#", async (call, path) => {
+    const body = { total_value_gbp: 0 };
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(body) });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(call()).resolves.toEqual(body);
+
+    const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${DEFAULT_API_BASE}${path}`);
+  });
+
+  it("posts a single-fund refresh to the admin route", async () => {
+    const body = { updated: true, allocation: {} };
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(body) });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(refreshInstrumentLookThrough("BT-A.L")).resolves.toEqual(body);
+
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${DEFAULT_API_BASE}/instrument/admin/L/BT-A/look-through`);
+    expect(init.method).toBe("POST");
   });
 });
 

@@ -694,7 +694,8 @@
         "timeseries": "Timeseries",
         "fundamentals": "Fundamentals",
         "technicals": "Technicals",
-        "news": "News"
+        "news": "News",
+        "allocation": "Allocation"
       },
       "section": {
         "keyFacts": "Key Facts",
@@ -3375,5 +3376,41 @@
       "watchlist": "Watchlist"
     },
     "tabsLabel": "Ideas views"
+  },
+  "lookThrough": {
+    "countriesView": "Countries (look-through)",
+    "sectorsView": "Sectors (look-through)",
+    "holdingsView": "Holdings (look-through)",
+    "note": "Look-through: each fund is split into the countries, sectors and holdings it invests in, then combined with your directly held shares. Covers every account in this group.",
+    "coverage": "{{funds}} funds ({{value}}) looked through, using fund data dated {{from}} to {{to}}.",
+    "notCovered": "No look-through data for {{tickers}} ({{value}}): they keep their own sector and count as \"Not looked through\" by country.",
+    "otherInFunds": "Other holdings in funds (beyond each fund's published top holdings)",
+    "cash": "Cash",
+    "holdingsTitle": "Underlying holdings",
+    "holding": "Holding",
+    "total": "Total",
+    "weight": "Weight",
+    "direct": "Direct",
+    "viaFunds": "Via funds",
+    "heldThrough": "Held through",
+    "countries": "Countries",
+    "sectors": "Sectors",
+    "country": "Country",
+    "sector": "Sector",
+    "topHoldings": "Top holdings",
+    "topHoldingsCovered": "The top holdings shown make up {{pct}} of the fund.",
+    "fundSource": "Where this fund invests: portfolio as of {{date}} ({{holdings}} holdings).",
+    "singleSecurity": "A single company: all of its value is in its own country and sector.",
+    "cashInstrument": "Cash has no country or sector exposure.",
+    "fundUncovered": "No look-through data for this fund yet; use Refresh to fetch it. Showing its own sector.",
+    "otherRows_one": "Other ({{count}} more)",
+    "otherRows_other": "Other ({{count}} more)",
+    "sourceLabel": "Source",
+    "lastUpdated": "last updated {{date}}",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "refreshUpdated": "Updated from {{source}}.",
+    "refreshNotCovered": "Neither Morningstar nor justETF has look-through data for this fund.",
+    "refreshFailed": "Refresh failed: {{message}}"
   }
 }

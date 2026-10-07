@@ -700,7 +700,8 @@
         "timeseries": "Série temporelle",
         "fundamentals": "Données fondamentales",
         "technicals": "Analyse technique",
-        "news": "Actualités"
+        "news": "Actualités",
+        "allocation": "Allocation"
       },
       "section": {
         "keyFacts": "Informations clés",
@@ -3382,5 +3383,41 @@
       "watchlist": "Liste de suivi"
     },
     "tabsLabel": "Vues des idées"
+  },
+  "lookThrough": {
+    "countriesView": "Pays (transparence)",
+    "sectorsView": "Secteurs (transparence)",
+    "holdingsView": "Positions (transparence)",
+    "note": "Transparence : chaque fonds est réparti entre les pays, secteurs et positions dans lesquels il investit, puis combiné avec vos actions détenues en direct. Couvre tous les comptes de ce groupe.",
+    "coverage": "{{funds}} fonds ({{value}}) analysés en transparence, avec des données datées du {{from}} au {{to}}.",
+    "notCovered": "Aucune donnée de transparence pour {{tickers}} ({{value}}) : ils gardent leur propre secteur et comptent comme « Non analysé » par pays.",
+    "otherInFunds": "Autres positions dans les fonds (au-delà des principales positions publiées)",
+    "cash": "Liquidités",
+    "holdingsTitle": "Positions sous-jacentes",
+    "holding": "Position",
+    "total": "Total",
+    "weight": "Poids",
+    "direct": "En direct",
+    "viaFunds": "Via des fonds",
+    "heldThrough": "Détenu via",
+    "countries": "Pays",
+    "sectors": "Secteurs",
+    "country": "Pays",
+    "sector": "Secteur",
+    "topHoldings": "Principales positions",
+    "topHoldingsCovered": "Les principales positions affichées représentent {{pct}} du fonds.",
+    "fundSource": "Où ce fonds investit : portefeuille au {{date}} ({{holdings}} positions).",
+    "singleSecurity": "Une seule société : toute sa valeur est dans son propre pays et secteur.",
+    "cashInstrument": "Les liquidités n'ont pas d'exposition pays ou secteur.",
+    "fundUncovered": "Pas encore de données de transparence pour ce fonds ; utilisez Actualiser pour les obtenir. Son propre secteur est affiché.",
+    "otherRows_one": "Autres ({{count}} de plus)",
+    "otherRows_other": "Autres ({{count}} de plus)",
+    "sourceLabel": "Source",
+    "lastUpdated": "mis à jour le {{date}}",
+    "refresh": "Actualiser",
+    "refreshing": "Actualisation…",
+    "refreshUpdated": "Mis à jour depuis {{source}}.",
+    "refreshNotCovered": "Ni Morningstar ni justETF n'ont de données de transparence pour ce fonds.",
+    "refreshFailed": "Échec de l'actualisation : {{message}}"
   }
 }

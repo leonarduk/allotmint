@@ -60,6 +60,9 @@ import type {
   SectorContribution,
   RegionContribution,
   CurrencyContribution,
+  LookThroughExposure,
+  InstrumentAllocation,
+  InstrumentAllocationRefresh,
   UserConfig,
   InstrumentMetadata,
   InstrumentGroupDefinition,
@@ -977,6 +980,53 @@ export const getGroupCurrencyContributions = (
     ? `${API_BASE}/portfolio-group/${slug}/currencies?${qs}`
     : `${API_BASE}/portfolio-group/${slug}/currencies`;
   return fetchJson<CurrencyContribution[]>(url);
+};
+
+/** Real exposure by country, sector and holding, looking through funds (#9974). */
+export const getGroupLookThrough = (slug: string, opts: { asOf?: string | null } = {}) => {
+  const params = new URLSearchParams();
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  const qs = params.toString();
+  const url = qs
+    ? `${API_BASE}/portfolio-group/${slug}/look-through?${qs}`
+    : `${API_BASE}/portfolio-group/${slug}/look-through`;
+  return fetchJson<LookThroughExposure>(url);
+};
+
+/** Real exposure by country, sector and holding for an owner portfolio (#9974). */
+export const getOwnerLookThrough = (owner: string, opts: { asOf?: string | null } = {}) => {
+  const params = new URLSearchParams();
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  const qs = params.toString();
+  const url = qs
+    ? `${API_BASE}/portfolio/${owner}/look-through?${qs}`
+    : `${API_BASE}/portfolio/${owner}/look-through`;
+  return fetchJson<LookThroughExposure>(url);
+};
+
+/** One instrument's country/sector/top-holding breakdown (#9974). */
+export const getInstrumentAllocation = (ticker: string, signal?: AbortSignal) =>
+  fetchJson<InstrumentAllocation>(
+    `${API_BASE}/instrument/allocation?${new URLSearchParams({ ticker }).toString()}`,
+    { signal },
+  );
+
+/** Look-through fetches can take several seconds (two sources, throttled). */
+const LOOK_THROUGH_REFRESH_TIMEOUT_MS = 60_000;
+
+/**
+ * Fetch one fund's look-through data from Morningstar/justETF now and store
+ * it (#9974). ``ticker`` is the full ticker, e.g. ``MINV.L``.
+ */
+export const refreshInstrumentLookThrough = (ticker: string) => {
+  const lastDot = ticker.lastIndexOf(".");
+  const symbol = lastDot > 0 ? ticker.slice(0, lastDot) : ticker;
+  const exchange = lastDot > 0 ? ticker.slice(lastDot + 1) : "L";
+  return fetchJson<InstrumentAllocationRefresh>(
+    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(symbol)}/look-through`,
+    { method: "POST" },
+    LOOK_THROUGH_REFRESH_TIMEOUT_MS,
+  );
 };
 
 /** Fetch performance metrics for an owner */

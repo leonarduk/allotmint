@@ -338,6 +338,44 @@ def test_refresh_prices_persists_scaled_gbp_not_raw_pence(
     assert (persisted[full_ticker]["last_price_time"] is not None) == (source == "live_quote")
 
 
+def test_snapshot_deploy_ordering_claims_hold() -> None:
+    """#8923: pin the deploy-ordering chain the ``prices`` docstring relies on.
+
+    The module docstring says an override-table change reaches the deployed
+    snapshot without an extra workflow step because (1) the table is tracked
+    in git and baked into the Lambda image, (2) ``PriceRefreshLambda`` is built
+    from that image and a REQUEST_RESPONSE ``PriceRefreshOnDeploy`` Trigger
+    runs it during the CDK deploy, and (3) the "Warm price snapshot" workflow
+    step invokes it again after the deploy. If any link is removed, this fails
+    and the docstring must be revisited.
+    """
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[3]
+
+    # (1) Table is part of the image build context.
+    assert (repo_root / "data" / "scaling_overrides.json").exists()
+    dockerfile = (repo_root / "backend" / "Dockerfile.lambda").read_text(encoding="utf-8")
+    assert "COPY data/ /var/task/data/" in dockerfile
+    dockerignore = (repo_root / ".dockerignore").read_text(encoding="utf-8").splitlines()
+    assert not any(line.strip().rstrip("/") == "data" for line in dockerignore)
+
+    # (2) Refresh Lambda uses that image and is triggered synchronously on deploy.
+    stack = (repo_root / "cdk" / "stacks" / "backend_lambda_stack.py").read_text(encoding="utf-8")
+    refresh_block = stack[stack.index("refresh_code = ") : stack.index('"PriceRefreshLambda",')]
+    assert 'file="backend/Dockerfile.lambda"' in refresh_block
+    assert "backend.lambda_api.price_refresh.lambda_handler" in refresh_block
+    trigger_block = stack[stack.index('"PriceRefreshOnDeploy",') :][:300]
+    assert "handler=refresh_fn" in trigger_block
+    assert "InvocationType.REQUEST_RESPONSE" in trigger_block
+
+    # (3) Workflow warms the snapshot after the CDK deploy.
+    workflow_path = repo_root / ".github" / "workflows" / "deploy-lambda.yml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    names = [step.get("name", "") for step in workflow["jobs"]["deploy"]["steps"]]
+    assert names.index("Warm price snapshot") > names.index("Deploy BackendLambdaStack")
+
+
 def test_refresh_prices_s3_upload_failure_logs_warning_not_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog
 ):

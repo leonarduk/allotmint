@@ -175,14 +175,42 @@ def _range_units(tx: dict | None, ticker: str, units_now: float, q: CustomQuery)
     return units_now, None
 
 
-def _start_value(acc: dict, end_units: float, start_units: float | None, start_price: float | None) -> float | None:
+_ACQUIRE_TYPES = {"BUY", "PURCHASE", "TRANSFER_IN"}
+
+
+def _range_buy_unit_cost(tx: dict, ticker: str, q: CustomQuery) -> float | None:
+    """Average GBP paid per unit of ``ticker`` acquired inside the range, from ``tx``.
+
+    ``None`` when nothing was acquired in the range or any acquisition there
+    has no recorded amount (e.g. a transfer in), so the caller can fall back
+    to the position's pooled average cost.
+    """
+    start, end = q.start.isoformat(), q.end.isoformat()
+    units = paid = 0.0
+    for t in tx.get("transactions", []):
+        if (t.get("type") or "").upper() not in _ACQUIRE_TYPES or (t.get("ticker") or "").upper() != ticker:
+            continue
+        when = str(t.get("date") or "")[:10]
+        if not start < when <= end:
+            continue
+        if t.get("amount_minor") is None:
+            return None
+        # A one-transaction replay reuses get_units_as_of's quantity parsing.
+        units += get_units_as_of({"transactions": [t]}, ticker, when)
+        paid += abs(float(t["amount_minor"])) / 100
+    return paid / units if units > 0 else None
+
+
+def _start_value(
+    end_units: float, start_units: float | None, start_price: float | None, unit_cost: float | None
+) -> float | None:
     """GBP value the position held at ``q.end`` "started" the range at.
 
     Of those ``end_units``, the ones already held at ``q.start`` count at the
-    start-date price; the rest were bought inside the range and count at the
-    position's average cost, so their gain runs from what was paid, not from
-    a date they weren't yet held. Without a trusted replay, every unit counts
-    at the start-date price.
+    start-date price; the rest were bought inside the range and count at
+    ``unit_cost``, so their gain runs from what was paid, not from a date they
+    weren't yet held. Without a trusted replay, every unit counts at the
+    start-date price.
     """
     if start_units is None:
         return end_units * start_price if start_price is not None else None
@@ -193,9 +221,16 @@ def _start_value(acc: dict, end_units: float, start_units: float | None, start_p
     bought = end_units - held
     if bought <= 1e-9:
         return held_value
+    return _add_or_none(held_value, bought * unit_cost if unit_cost is not None else None)
+
+
+def _unit_cost(acc: dict, tx: dict | None, ticker: str, q: CustomQuery) -> float | None:
+    """GBP per unit for units bought inside the range: what those buys cost, else the pooled average."""
+    paid = _range_buy_unit_cost(tx, ticker, q) if tx is not None else None
+    if paid is not None:
+        return paid
     cost, units_now = acc["cost"], acc["units"]
-    bought_value = cost * bought / units_now if cost is not None and units_now > 0 else None
-    return _add_or_none(held_value, bought_value)
+    return cost / units_now if cost is not None and units_now > 0 else None
 
 
 def _add_or_none(total: float | None, value: float | None) -> float | None:
@@ -228,7 +263,8 @@ def _holding_row(owner: str, ticker: str, acc: dict, q: CustomQuery, tx_cache: d
     if Metric.GAIN_GBP in q.metrics:
         needs_start_price = start_units is None or min(start_units, end_units) > 0
         start_price = _gbp_price(ticker, acc["holding"], q.start) if needs_start_price else None
-        start_value = _start_value(acc, end_units, start_units, start_price)
+        unit_cost = _unit_cost(acc, tx if start_units is not None else None, ticker, q)
+        start_value = _start_value(end_units, start_units, start_price, unit_cost)
         row["start_value_gbp"] = _round_or_none(start_value)
         gain = None if end_value is None or start_value is None else end_value - start_value
         row[Metric.GAIN_GBP.value] = _round_or_none(gain)
@@ -242,8 +278,9 @@ def _holding_rows(q: CustomQuery) -> List[dict]:
     from the owner's transactions; the current units when that replay can't
     be trusted). ``gain_gbp`` is that position's gain over the range (see
     ``_start_value``); a sale inside the range is not counted as realised
-    gain. Any unpriced component leaves the value ``None`` rather than
-    understating it.
+    gain. A position sold out completely before today has no current holding
+    and so no row, even for a range it was held in. Any unpriced component
+    leaves the value ``None`` rather than understating it.
     """
     tx_cache: dict[str, dict | None] = {}
     return [

@@ -740,3 +740,31 @@ def test_historical_range_values_the_units_held_at_its_end(holdings_env, monkeyp
     assert row["market_value_gbp"] == 60.0
     assert row["start_value_gbp"] == 53.33
     assert row["gain_gbp"] == 6.67
+
+
+def test_in_range_buys_use_what_was_paid_not_a_later_average(holdings_env, monkeypatch):
+    # 10 held before the range (start price 1.00), 10 bought inside it for
+    # 20.00 in total, 10 more bought after it for 100.00. The pooled average
+    # (130 / 30) must not leak into the range: start = 10 x 1.00 + 20.00.
+    portfolios = [
+        {
+            "owner": "alice",
+            "accounts": [
+                {"holdings": [{"ticker": "TOP.L", "units": 30, "acquired_date": "2021-03-01", "cost_basis_gbp": 130}]}
+            ],
+        }
+    ]
+    tx = [
+        {"date": "2019-01-01", "type": "BUY", "ticker": "TOP.L", "units": 10, "amount_minor": 1000},
+        {"date": "2020-06-01", "type": "BUY", "ticker": "TOP.L", "units": 10, "amount_minor": 2000},
+        {"date": "2021-03-01", "type": "BUY", "ticker": "TOP.L", "units": 10, "amount_minor": 10000},
+    ]
+    prices = {("TOP", date(2020, 1, 1)): 1.0, ("TOP", date(2020, 12, 31)): 3.0}
+    monkeypatch.setattr(query, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(query, "load_transactions", lambda owner: tx)
+    monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (prices.get((sym, d)), None))
+    row = query.run_query(_holding_query(metrics=[query.Metric.MARKET_VALUE_GBP, query.Metric.GAIN_GBP]))["results"][0]
+    assert row["units"] == 20.0
+    assert row["market_value_gbp"] == 60.0
+    assert row["start_value_gbp"] == 30.0
+    assert row["gain_gbp"] == 30.0

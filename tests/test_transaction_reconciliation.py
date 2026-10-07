@@ -58,7 +58,11 @@ def test_reconcile_injects_synthetic_transaction(tmp_path, monkeypatch):
     assert len(synthetic) == 1
     adj = synthetic[0]
     assert adj["type"] == "BUY"
-    assert adj["shares"] == 5
+    # Synthetic rows carry real units in ``units`` only.  ``shares`` is
+    # Portfolio Performance's fixed-point count (units x 10^8), so writing the
+    # real count there too would contradict it (#7920).
+    assert adj["units"] == 5
+    assert "shares" not in adj
 
     expected_date = (date.today() - timedelta(days=365)).isoformat()
     assert adj["date"] == expected_date

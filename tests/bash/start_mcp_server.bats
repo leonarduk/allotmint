@@ -17,7 +17,7 @@ echo "\$PYTHONPATH \$*" >"$BATS_TEST_TMPDIR/uvicorn.args"
 EOF
   chmod +x "$BATS_TEST_TMPDIR/bin/uvicorn"
   PATH="$BATS_TEST_TMPDIR/bin:$PATH"
-  unset MCP_SERVER_URL MCP_SERVER_PORT START_MCP_SERVER ALLOTMINT_PRO_DIR ALLOTMINT_MCP_BRAVE_API_KEY
+  unset MCP_SERVER_URL MCP_SERVER_PORT START_MCP_SERVER ALLOTMINT_PRO_DIR ALLOTMINT_MCP_BRAVE_API_KEY BACKEND_USE_PRO
 }
 
 wait_for_stub() {
@@ -118,4 +118,21 @@ wait_for_stub() {
   wait_for_stub
   run cat "$BATS_TEST_TMPDIR/uvicorn.env"
   [ "$output" = "test-key" ]
+}
+
+@test "backend_pro_dir prints the sibling allotmint-pro checkout for the backend (#9879)" {
+  run backend_pro_dir "$REPO"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$REPO/../allotmint-pro" ]
+}
+
+@test "backend_pro_dir is off when BACKEND_USE_PRO=0" {
+  BACKEND_USE_PRO=0 run backend_pro_dir "$REPO"
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
+}
+
+@test "backend_pro_dir fails without an allotmint-pro checkout" {
+  ALLOTMINT_PRO_DIR="$BATS_TEST_TMPDIR/missing" run backend_pro_dir "$REPO"
+  [ "$status" -eq 1 ]
 }

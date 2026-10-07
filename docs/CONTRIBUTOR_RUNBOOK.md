@@ -428,6 +428,11 @@ when `START_MCP_SERVER=0`, when `MCP_SERVER_URL` points somewhere other than
 localhost, or when the port is already listening (assumed to be a server you
 started yourself). `MCP_SERVER_PORT` changes the port.
 
+The same checkout is also put on the backend's own `PYTHONPATH`, so pro-only
+backend features (the screener, risk, the strategy stress test's long-history
+proxies) work locally, and with reload on, edits under `allotmint_pro/` restart
+the backend too. Set `BACKEND_USE_PRO=0` to run the backend free-only.
+
 ```bash
 export CHAT_PROVIDER=ollama          # or deepseek (needs DEEPSEEK_API_KEY); default: ollama when app_env is local, else bedrock
 export CHAT_MODEL=qwen3.5:9b         # any tool-calling model; defaults: qwen3.5:9b (ollama), deepseek-chat (deepseek)

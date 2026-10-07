@@ -51,3 +51,50 @@ def test_shared_env_variable_reaches_child_processes(tmp_path):
 )
 def test_quotes_padding_and_export_are_handled_like_bash_source(tmp_path, line):
     assert _child_sees(tmp_path, f"# comment\n{line}\n", "KEY_9198") == "test-key"
+
+
+def _backend_pro_dir(tmp_path: Path, use_pro: str | None, with_checkout: bool = True) -> str:
+    """``Get-BackendProDir`` for a repo whose sibling allotmint-pro has (or lacks) an MCP package (#9879)."""
+    repo = tmp_path / "allotmint"
+    repo.mkdir()
+    if with_checkout:
+        (tmp_path / "allotmint-pro" / "allotmint_pro" / "mcp_server").mkdir(parents=True)
+    env = {k: v for k, v in os.environ.items() if k not in ("ALLOTMINT_PRO_DIR", "BACKEND_USE_PRO")}
+    if use_pro is not None:
+        env["BACKEND_USE_PRO"] = use_pro
+    result = subprocess.run(
+        [PWSH, "-NoProfile", "-NonInteractive", "-Command", f". '{LIB}'; Get-BackendProDir '{repo}'"],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=True,
+        timeout=60,
+    )
+    return result.stdout.strip()
+
+
+def test_backend_imports_the_sibling_pro_checkout(tmp_path):
+    assert Path(_backend_pro_dir(tmp_path, None)) == tmp_path / "allotmint-pro"
+
+
+def test_backend_use_pro_0_runs_the_backend_free_only(tmp_path):
+    assert _backend_pro_dir(tmp_path, "0") == ""
+
+
+def test_no_pro_checkout_means_no_pro_for_the_backend(tmp_path):
+    assert _backend_pro_dir(tmp_path, None, with_checkout=False) == ""
+
+
+def test_backend_pythonpath_keeps_an_existing_pythonpath():
+    """run-backend.ps1 sets the backend's PYTHONPATH with Get-McpServerPythonPath: repo, pro, then the old value."""
+    # Plain names: a drive letter's colon is the path separator on Linux runners.
+    env = {**os.environ, "PYTHONPATH": "existing"}
+    result = subprocess.run(
+        [PWSH, "-NoProfile", "-NonInteractive", "-Command", f". '{LIB}'; Get-McpServerPythonPath 'repo' 'pro'"],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=True,
+        timeout=60,
+    )
+    assert result.stdout.strip().split(os.pathsep) == ["repo", "pro", "existing"]

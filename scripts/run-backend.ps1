@@ -489,6 +489,16 @@ function Start-LocalMcpServer {
 $mcpProcess = Start-LocalMcpServer
 
 # ───────────── start server ───────────────────
+# The backend imports allotmint-pro from the same checkout as the MCP server, so
+# pro-only features (screener, risk, the strategy stress test's long-history
+# proxies) work locally. Mirrors scripts/bash/run-local-api.sh; BACKEND_USE_PRO=0
+# runs it free-only.
+$backendProDir = Get-BackendProDir $REPO_ROOT
+if ($backendProDir) {
+  $env:PYTHONPATH = Get-McpServerPythonPath $REPO_ROOT $backendProDir
+  Write-Host "Backend imports allotmint-pro from $backendProDir (BACKEND_USE_PRO=0 to run free-only)" -ForegroundColor Green
+}
+
 Write-Host "Starting AllotMint Local API on http://localhost:$port ... (recorded in .local/ports/backend.port)" -ForegroundColor Green
 
 $arguments = @(
@@ -498,7 +508,11 @@ $arguments = @(
   '--app-dir', '.'
 )
 if ($resolvedLogConfig) { $arguments += @('--log-config', $resolvedLogConfig) }
-if ($reload) { $arguments += '--reload' }
+if ($reload) {
+  $arguments += '--reload'
+  # Reload on pro changes too, not only backend/.
+  if ($backendProDir) { $arguments += @('--reload-dir', (Join-Path $backendProDir 'allotmint_pro')) }
+}
 
 try {
   & $PYTHON -m uvicorn @arguments

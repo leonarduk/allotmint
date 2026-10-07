@@ -41,6 +41,15 @@ function Get-AllotmintProDir([string]$RepoRoot) {
   return $null
 }
 
+# The allotmint-pro checkout the backend itself should import (the one the MCP
+# server uses), so pro-only backend features work locally (e.g. the strategy
+# stress test's long-history proxies, #9879); $null when $env:BACKEND_USE_PRO
+# is '0' or there is no checkout.
+function Get-BackendProDir([string]$RepoRoot) {
+  if ($env:BACKEND_USE_PRO -eq '0') { return $null }
+  return Get-AllotmintProDir $RepoRoot
+}
+
 # True if $Value is a TCP port number (1-65535).
 function Test-ValidPort([string]$Value) {
   $number = 0

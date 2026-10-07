@@ -333,6 +333,31 @@ def test_actions_merge_incrementally_and_skip_identical_writes(cache_base):
     assert load_dividends("ABC", "L").tolist() == [1.0, 1.2]
 
 
+@pytest.mark.parametrize("failing", ["to_parquet", "replace"])
+def test_failed_write_leaves_the_stored_file_intact(cache_base, failing):
+    """#9398: a write that fails part-way must not truncate the store or leave a temp file."""
+    assert record_corporate_actions("ABC", "L", _one_dividend()) is True
+    path = importlib.import_module("pathlib").Path(corporate_actions.corporate_actions_path("ABC", "L"))
+    before = path.read_bytes()
+    update = _one_dividend().assign(Value=[2.0])
+
+    def truncated_write(_frame, dest, **_kw):
+        with open(dest, "wb") as handle:
+            handle.write(b"PAR1")
+        raise OSError("disk full")
+
+    if failing == "to_parquet":
+        target = patch.object(pd.DataFrame, "to_parquet", autospec=True, side_effect=truncated_write)
+    else:
+        target = patch.object(corporate_actions.os, "replace", side_effect=OSError("denied"))
+    with target, pytest.raises(OSError):
+        record_corporate_actions("ABC", "L", update)
+
+    assert path.read_bytes() == before
+    assert load_dividends("ABC", "L").tolist() == [1.0]
+    assert [p.name for p in path.parent.iterdir()] == [path.name]
+
+
 def test_merge_actions_reports_value_corrections():
     base = _one_dividend()
     corrected = base.assign(Value=[1.05])

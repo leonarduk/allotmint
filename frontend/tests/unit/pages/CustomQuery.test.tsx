@@ -491,6 +491,27 @@ describe("Custom Query page", () => {
     ).toBeInTheDocument();
   });
 
+  it("round-trips the value-at-risk and security-info metrics through export and share links", async () => {
+    runCustomQuery.mockResolvedValue(mockQueryData);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    const { i18n } = renderWithI18n(<CustomQuery />);
+    await screen.findByLabelText("Alice Example");
+    fireEvent.click(screen.getByLabelText(i18n.t("query.metricVar")));
+    fireEvent.click(screen.getByLabelText(i18n.t("query.metricMeta")));
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("query.run") }));
+
+    const csv = await screen.findByRole("link", { name: /csv/i });
+    expect(csv.getAttribute("href")).toContain("metrics=var%2Cmeta");
+    expect(runCustomQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ metrics: ["var", "meta"] }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("query.copyLink") }));
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining("metrics=var,meta"),
+    );
+  });
+
   it("restores exchange-suffixed tickers from a share link", async () => {
     getPortfolio.mockResolvedValue(makePortfolio("alice", ["VOD.L"]));
     window.history.pushState(

@@ -545,10 +545,26 @@ _PRICES = {
     ("NEW", date(2020, 12, 31)): 4.0,
 }
 
+# Alice's history replays to her current holdings; Bob has none on file.
+_TRANSACTIONS = {
+    "alice": [
+        {"date": "2019-01-01", "type": "BUY", "ticker": "ABC.L", "units": 10},
+        {"date": "2019-06-01", "type": "BUY", "ticker": "ABC.L", "units": 5},
+        {"date": "2020-06-01", "type": "BUY", "ticker": "NEW.L", "units": 2},
+    ],
+}
+
+
+def _fake_load_transactions(owner):
+    if owner not in _TRANSACTIONS:
+        raise FileNotFoundError(owner)
+    return _TRANSACTIONS[owner]
+
 
 @pytest.fixture
 def holdings_env(monkeypatch):
     monkeypatch.setattr(query, "list_portfolios", lambda: _HOLDING_PORTFOLIOS)
+    monkeypatch.setattr(query, "load_transactions", _fake_load_transactions)
     monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (_PRICES.get((sym, d)), None))
     monkeypatch.setattr(query, "get_security_meta", lambda t: {"name": t.lower()})
 
@@ -638,3 +654,54 @@ def test_price_steps_back_past_an_empty_close(holdings_env, monkeypatch):
     monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (prices.get((sym, d)), None))
     rows = query.run_query(_holding_query(owners=["bob"]))["results"]
     assert rows[0]["market_value_gbp"] == 3.0
+
+
+def test_top_up_inside_range_splits_start_price_and_cost(holdings_env, monkeypatch):
+    # 10 units held before the range at 1.00, 10 more bought inside it; the
+    # pooled cost of all 20 is 40 (2.00 each). Ends at 3.00.
+    portfolios = [
+        {
+            "owner": "alice",
+            "accounts": [
+                {"holdings": [{"ticker": "TOP.L", "units": 20, "acquired_date": "2020-06-01", "cost_basis_gbp": 40}]}
+            ],
+        }
+    ]
+    tx = [
+        {"date": "2019-01-01", "type": "BUY", "ticker": "TOP.L", "units": 10},
+        {"date": "2020-06-01", "type": "BUY", "ticker": "TOP.L", "units": 10},
+    ]
+    prices = {("TOP", date(2020, 1, 1)): 1.0, ("TOP", date(2020, 12, 31)): 3.0}
+    monkeypatch.setattr(query, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(query, "load_transactions", lambda owner: tx)
+    monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (prices.get((sym, d)), None))
+    row = query.run_query(_holding_query(metrics=[query.Metric.GAIN_GBP]))["results"][0]
+    # Not the whole pooled cost (40): 10 x 1.00 held + 10 x 2.00 bought.
+    assert row["start_value_gbp"] == 30.0
+    assert row["gain_gbp"] == 30.0
+
+
+def test_gain_falls_back_to_start_price_when_history_does_not_replay(holdings_env, monkeypatch):
+    # The history only explains 10 of alice's 15 ABC units, so it isn't
+    # trusted: all 15 count at the start-date price.
+    partial = [{"date": "2019-01-01", "type": "BUY", "ticker": "ABC.L", "units": 10}]
+    monkeypatch.setattr(query, "load_transactions", lambda owner: partial)
+    q = _holding_query(owners=["alice"], tickers=["ABC.L"], metrics=[query.Metric.GAIN_GBP])
+    row = query.run_query(q)["results"][0]
+    assert row["start_value_gbp"] == 30.0
+    assert row["gain_gbp"] == 15.0
+
+
+def test_get_run_per_ticker_metrics_give_one_row_per_ticker(holdings_env):
+    resp = make_client().get(
+        "/custom-query/run",
+        params={"start": "2020-01-01", "end": "2020-12-31", "owners": "alice,bob", "metrics": "meta"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "results": [
+            {"ticker": "ABC.L", "name": "abc.l"},
+            {"ticker": "CASH.GBP", "name": "cash.gbp"},
+            {"ticker": "NEW.L", "name": "new.l"},
+        ]
+    }

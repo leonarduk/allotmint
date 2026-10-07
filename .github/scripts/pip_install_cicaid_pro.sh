@@ -4,8 +4,9 @@
 # private and renamed away from leonarduk/cicaid, and its old name was then
 # reused by a new, unrelated public repo -- so the old
 # github.com/leonarduk/cicaid/releases/... wheel URLs now 404 (#6754).
-# requirements-automation.txt pins cicaid-devtools to the private repo under its
-# current name.
+# requirements-automation.txt pins cicaid-devtools-pro to the private repo under
+# its current name; the public cicaid-devtools it depends on (leonarduk/cicaid)
+# needs no credential and is not rewritten here (#6597).
 #
 # The URLs below deliberately name cicaid-pro rather than leaning on GitHub's
 # rename redirects: #6754 is precisely what happens when an old name is reused

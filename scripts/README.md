@@ -159,21 +159,43 @@ own) are reported as skipped rather than persisted or silently dropped.
 ## Shared developer automation (cicaid)
 
 The issue, pull-request, review, commit, and local CI automation that previously
-lived in this repository is maintained by the shared `cicaid-devtools` package,
-which now lives in the private
-[`leonarduk/cicaid-pro`](https://github.com/leonarduk/cicaid-pro) repo (renamed
-from `leonarduk/cicaid`, whose old name was then reused for a smaller,
-unrelated public repo containing only thin GitHub-plumbing commands — see
-#6754).
-It is installed separately from the public development toolchain by
+lived in this repository is maintained as two shared packages that install into
+one `cicaid_devtools` namespace:
+
+- `cicaid-devtools` — the public GitHub-plumbing CLI shell, from
+  [`leonarduk/cicaid`](https://github.com/leonarduk/cicaid).
+- `cicaid-devtools-pro` — the LLM review/triage modules the AI PR review
+  workflows import, from the private
+  [`leonarduk/cicaid-pro`](https://github.com/leonarduk/cicaid-pro) repo (see
+  #6754 for its rename history).
+
+Both are installed separately from the public development toolchain by
 `requirements-automation.txt`. This separation keeps normal development and
 required pull-request CI usable when the private-repository credential is not
 available, including fork and Dependabot pull requests.
 
+### Updating the cicaid pins
+
+Both packages are pinned to release tags in two places that must agree:
+`requirements-automation.txt` and `.github/cicaid-pins.env` (which
+`_ai-pr-review.yml` reads at install time). The daily
+`.github/workflows/update-dependencies.yml` workflow checks each package's
+latest release, rewrites both files, runs the review-automation tests, and
+opens a PR with a linked tracking issue when a pin is behind (#6597). Because
+that PR is opened with the default `GITHUB_TOKEN`, its required checks don't
+start on their own — close and reopen it to run them.
+
+To check or bump by hand:
+
+```bash
+python scripts/update_dependency_pins.py cicaid-devtools --check
+GITHUB_TOKEN=$(gh auth token) python scripts/update_dependency_pins.py cicaid-devtools-pro
+```
+
 ### Local access to the private cicaid-pro repo
 
-`requirements-automation.txt` pins `cicaid-devtools` via a `git+https://` URL
-against `leonarduk/cicaid-pro`, which is private. Before `pip install -r
+`requirements-automation.txt` pins `cicaid-devtools-pro` via a `git+https://`
+URL against `leonarduk/cicaid-pro`, which is private. Before `pip install -r
 requirements-automation.txt` will succeed on your machine:
 
 1. Ask a repo owner for read access to `leonarduk/cicaid-pro` (or a

@@ -565,7 +565,7 @@ export function HoldingsTable({
     (showForward30d ? 1 : 0) +
     (Object.keys(visibleColumns) as ColumnKey[]).filter(show).length;
   // Ticker + name (+ sector) share the label cell in group and total rows.
-  const labelColSpan = 2 + (show("sector") ? 1 : 0);
+  const labelColSpan = ALWAYS_VISIBLE_COLUMN_COUNT + (show("sector") ? 1 : 0);
   // Grouped mode walks the groups in their own (totals-sorted) order so each
   // group's rows stay contiguous under its header (#8529). Every grouped row
   // comes from groupingRows above, which always stamps __holdingsIndex.

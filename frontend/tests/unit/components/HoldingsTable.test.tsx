@@ -1547,6 +1547,8 @@ describe("HoldingsTable", () => {
 
           expect(headerTitles(container)).toHaveLength(18);
           expect(presetButton("Detailed")).toHaveAttribute("aria-pressed", "true");
+          // With sector shown, the total row label spans ticker + name + sector.
+          expect(container.querySelector("tfoot td")).toHaveAttribute("colspan", "3");
           const columnCheckboxes = within(
               screen.getByRole("group", { name: "Columns:" }),
           ).getAllByRole("checkbox");

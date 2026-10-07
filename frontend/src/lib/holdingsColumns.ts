@@ -3,8 +3,9 @@
 
 export const COLUMN_VISIBILITY_STORAGE_KEY = 'holdingsTableColumns';
 
-// Toggleable columns, in table order. "Detailed" is the full set.
-export const DETAILED_COLUMNS = {
+// Toggleable columns, in table order. "Detailed" is the full set. Presets are
+// frozen so they are only ever copied into state, never shared and mutated.
+export const DETAILED_COLUMNS = Object.freeze({
   sector: true,
   units: true,
   market: true,
@@ -21,20 +22,20 @@ export const DETAILED_COLUMNS = {
   days_held: true,
   stage: true,
   eligible: true,
-};
+});
 export type ColumnKey = keyof typeof DETAILED_COLUMNS;
 export type ColumnVisibility = Record<ColumnKey, boolean>;
 
 // "Simple" (ticker, name, units, market value, gain) fits without horizontal
 // scrolling and is the default for anyone without a saved choice (#7832).
-export const SIMPLE_COLUMNS: ColumnVisibility = {
+export const SIMPLE_COLUMNS: Readonly<ColumnVisibility> = Object.freeze({
   ...(Object.fromEntries(
     Object.keys(DETAILED_COLUMNS).map((key) => [key, false])
   ) as ColumnVisibility),
   units: true,
   market: true,
   gain: true,
-};
+});
 
 export const COLUMN_PRESETS = {
   simple: SIMPLE_COLUMNS,

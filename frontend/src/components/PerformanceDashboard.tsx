@@ -28,6 +28,8 @@ import type { DrawdownExtrema, DrawdownSeriesPoint } from "../types";
 import InfoTip from "./InfoTip";
 import PortfolioFxAttribution from "./PortfolioFxAttribution";
 import FractionMetric from "./FractionMetric";
+import LoadingStatus from "./skeletons/LoadingStatus";
+import PortfolioDashboardSkeleton from "./skeletons/PortfolioDashboardSkeleton";
 import {
   classifyDrawdown,
   DRAWDOWN_RANGE,
@@ -195,7 +197,11 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         </p>
       );
     }
-    return <p>{t("common.loading")}</p>;
+    return (
+      <LoadingStatus label={t("app.loading")}>
+        <PortfolioDashboardSkeleton />
+      </LoadingStatus>
+    );
   }
 
   const formatSummaryDate = (value: string | null) => {

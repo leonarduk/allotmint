@@ -278,7 +278,9 @@ export default function Trading() {
               </span>
             </div>
             {loading && (
-              <LoadingStatus label={loadingLabel}>
+              // The signals table below carries the "still working" hint;
+              // one per screen is enough.
+              <LoadingStatus label={loadingLabel} slowAfterMs={null}>
                 <span aria-hidden="true" />
               </LoadingStatus>
             )}

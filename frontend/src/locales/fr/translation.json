@@ -108,6 +108,7 @@
     "close": "Fermer",
     "last": "Dernier :",
     "loading": "Chargement…",
+    "stillLoading": "Chargement en cours — le premier chargement peut prendre jusqu’à une minute.",
     "logout": "Déconnexion",
     "menu": "Menu",
     "menuCategories": {

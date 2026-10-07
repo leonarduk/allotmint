@@ -407,6 +407,12 @@
                           "null"
                         ]
                       },
+                      "domicile_region": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "forward_7d_change_pct": {
                         "type": [
                           "number",
@@ -782,6 +788,12 @@
                         ]
                       },
                       "region": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "domicile_region": {
                         "type": [
                           "string",
                           "null"

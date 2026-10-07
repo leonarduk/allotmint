@@ -74,6 +74,7 @@ from backend.timeseries.cache import (
 from backend.timeseries.total_return import (
     MIXED_RETURN_BASIS,
     PRICE_RETURN_BASIS,
+    stored_return_basis,
     total_return_closes,
     total_return_frame,
 )
@@ -1510,7 +1511,7 @@ def compute_owner_performance(
     # Holdings are valued in GBP by the same path as the max-drawdown series
     # (#9678): pence scaled, other currencies at the stored FX rate per date.
     window = _series_window(days, effective_days, calc.reporting_date)
-    per_holding, unconverted = _gbp_holding_values(holdings, effective_days, window, total_return=False)
+    per_holding, unconverted, _unpriced = _gbp_holding_values(holdings, effective_days, window, total_return=False)
     # Guard against duplicate dates (shouldn't happen, but a duplicated index
     # breaks ``reindex`` below).
     value_series = [values[~values.index.duplicated(keep="last")] for values, _basis in per_holding]
@@ -1728,6 +1729,9 @@ def _sum_holding_values(value_series: list[pd.Series], days: int, reporting_date
 # GBP on some dates (those dates count as missing prices) or on any date (the
 # holding is left out of the value series).
 UNCONVERTED_HOLDINGS_KEY = "unconverted_holdings"
+# ``attrs`` key on the value series listing the non-cash holdings left out of
+# it for want of closes, each with the return basis it would have had (#9606).
+UNPRICED_HOLDINGS_KEY = "unpriced_holdings"
 
 
 def _holding_currency(ticker: str, exchange: str) -> CurrencyNormaliser:
@@ -1890,8 +1894,8 @@ def _gbp_holding_values(
     window: tuple[date, date],
     *,
     total_return: bool,
-) -> tuple[list[tuple[pd.Series, str | None]], list[dict[str, Any]]]:
-    """Each holding's GBP value series with its return basis, plus the holdings missing FX rates.
+) -> tuple[list[tuple[pd.Series, str | None]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Each holding's GBP value series with its return basis, the holdings missing FX rates, and the unpriced.
 
     The one GBP valuation path (#7786, #9678): the value series behind max
     drawdown, alpha and tracking error and ``compute_owner_performance`` all
@@ -1900,12 +1904,17 @@ def _gbp_holding_values(
     absent from a holding's values, so each caller's gap handling for missing
     prices applies to them; the holding is listed (with those dates) in the
     second list, and left out entirely only when no date could be converted.
+    The third list holds the non-cash holdings with no closes in the window
+    (see :func:`_unpriced_holding`).
     """
     per_holding: list[tuple[pd.Series, str | None]] = []
     unconverted: list[dict[str, Any]] = []
+    unpriced: list[dict[str, Any]] = []
     for ticker, exchange, units in holdings:
         priced = _window_closes(ticker, exchange, effective_days, window, total_return=total_return)
         if priced is None:
+            if not _is_cash_holding(ticker, exchange):
+                unpriced.append(_unpriced_holding(ticker, exchange, window[0], total_return=total_return))
             continue
         closes, basis = priced
         gbp_closes, currency, missing = _closes_in_gbp(closes, ticker, exchange)
@@ -1914,7 +1923,20 @@ def _gbp_holding_values(
         if gbp_closes.empty:
             continue
         per_holding.append((gbp_closes * units, basis))
-    return per_holding, unconverted
+    return per_holding, unconverted, unpriced
+
+
+def _unpriced_holding(ticker: str, exchange: str, window_start: date, *, total_return: bool) -> dict[str, Any]:
+    """An ``unpriced_holdings`` entry: a holding left out for want of closes, with its intended basis (#9606).
+
+    The basis is the one it would have had if priced: on the total-return
+    path, :func:`stored_return_basis` with the window start standing in for
+    the first close (``"total"`` when corporate actions are stored for it and,
+    if they hold no dividends, confirmed from the window start), else
+    ``"price"``.
+    """
+    basis = stored_return_basis(ticker, exchange, first_close=window_start) if total_return else PRICE_RETURN_BASIS
+    return {"ticker": f"{ticker}.{exchange}", "return_basis": basis}
 
 
 def _holding_value_series(
@@ -1932,7 +1954,8 @@ def _holding_value_series(
     (:func:`_closes_in_gbp`), so the series agrees with the dashboard. Dates
     with no usable FX rate count as missing prices; a holding with no usable
     rate at all is left out. Either way it is listed under
-    ``total.attrs[UNCONVERTED_HOLDINGS_KEY]``. With
+    ``total.attrs[UNCONVERTED_HOLDINGS_KEY]``. Non-cash holdings with no
+    closes at all are listed under ``total.attrs[UNPRICED_HOLDINGS_KEY]``. With
     ``total_return`` the closes are first put on a total-return basis.
     """
     calc = PricingDateCalculator(reporting_date=pricing_date)
@@ -1943,9 +1966,12 @@ def _holding_value_series(
         reporting_date=calc.reporting_date,
     )
     window = _series_window(days, effective_days, calc.reporting_date)
-    per_holding, unconverted = _gbp_holding_values(holdings, effective_days, window, total_return=total_return)
+    per_holding, unconverted, unpriced = _gbp_holding_values(
+        holdings, effective_days, window, total_return=total_return
+    )
     total = _sum_holding_values([values for values, _basis in per_holding], days, calc.reporting_date)
     total.attrs[UNCONVERTED_HOLDINGS_KEY] = unconverted
+    total.attrs[UNPRICED_HOLDINGS_KEY] = unpriced
     return total, per_holding
 
 
@@ -1976,18 +2002,29 @@ def _is_cash_holding(ticker: str, exchange: str) -> bool:
     return ticker.upper() == "CASH" or exchange.upper() == "CASH"
 
 
-def _portfolio_return_basis(per_holding: list[tuple[pd.Series, str | None]]) -> dict[str, Any]:
+def _portfolio_return_basis(
+    per_holding: list[tuple[pd.Series, str | None]],
+    unpriced: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """``portfolio_return_basis`` and the share of value on price, from each holding's latest value.
 
     ``"total"`` when every non-cash holding has stored corporate actions,
     ``"price"`` when none has, ``"mixed"`` otherwise. Cash (basis ``None``)
-    is left out of both. ``portfolio_price_basis_share`` is the fraction of the
-    non-cash holdings' latest value in the series whose returns are price only
-    (``None`` when no non-cash holding was priced).
+    is left out of both.
+
+    Unpriced holdings (``unpriced``, see :func:`_unpriced_holding`) count
+    toward the label with the basis they would have had, so a price-only
+    holding dropped for want of closes beside total-return holdings makes
+    the label ``"mixed"``, not ``"total"`` (#9606). Having no value they
+    cannot be weighted, so ``portfolio_price_basis_share`` stays the fraction
+    of the priced non-cash holdings' latest value whose returns are price only
+    (``None`` when no non-cash holding was priced); the unpriced holdings are
+    returned under ``portfolio_unpriced_holdings`` so the gap is visible.
     """
+    unpriced = list(unpriced or [])
     total_value = 0.0
     price_value = 0.0
-    bases: set[str] = set()
+    bases: set[str] = {entry["return_basis"] for entry in unpriced}
     for values, basis in per_holding:
         latest = values.dropna()
         if basis is None or latest.empty:
@@ -1997,11 +2034,12 @@ def _portfolio_return_basis(per_holding: list[tuple[pd.Series, str | None]]) -> 
         total_value += value
         if basis == PRICE_RETURN_BASIS:
             price_value += value
+    fields: dict[str, Any] = {"portfolio_unpriced_holdings": unpriced}
     if not bases:
-        return {"portfolio_return_basis": PRICE_RETURN_BASIS, "portfolio_price_basis_share": None}
+        return {"portfolio_return_basis": PRICE_RETURN_BASIS, "portfolio_price_basis_share": None, **fields}
     basis = bases.pop() if len(bases) == 1 else MIXED_RETURN_BASIS
     share = price_value / total_value if total_value else None
-    return {"portfolio_return_basis": basis, "portfolio_price_basis_share": share}
+    return {"portfolio_return_basis": basis, "portfolio_price_basis_share": share, **fields}
 
 
 def _portfolio_return_series(
@@ -2021,11 +2059,15 @@ def _portfolio_return_series(
     reinvested stored dividends are the only income in it. Dividends are
     reinvested in each holding's own currency, then the closes are converted
     to GBP like the price series (#7786). Returns the series and its
-    ``portfolio_return_basis`` fields, plus the holdings missing FX rates
-    under ``UNCONVERTED_HOLDINGS_KEY``.
+    ``portfolio_return_basis`` fields (including the unpriced holdings), plus
+    the holdings missing FX rates under ``UNCONVERTED_HOLDINGS_KEY``.
     """
     total, per_holding = _holding_value_series(name, days, group=group, pricing_date=pricing_date, total_return=True)
-    return total, {**_portfolio_return_basis(per_holding), UNCONVERTED_HOLDINGS_KEY: _unconverted_holdings(total)}
+    unpriced = list(total.attrs.get(UNPRICED_HOLDINGS_KEY, []))
+    return total, {
+        **_portfolio_return_basis(per_holding, unpriced),
+        UNCONVERTED_HOLDINGS_KEY: _unconverted_holdings(total),
+    }
 
 
 def _benchmark_daily_returns(benchmark: str, effective_days: int, reporting_date: date) -> tuple[pd.Series | None, str]:

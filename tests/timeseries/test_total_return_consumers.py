@@ -514,6 +514,90 @@ def test_portfolio_without_any_actions_is_price(store, portfolio_env):
     assert breakdown["portfolio_cumulative_return"] == pytest.approx(0.0)
 
 
+UNPRICEABLE = [float("nan")] * len(DATES)  # all-NaN closes: ``_holding_closes`` returns None
+
+
+def test_unpriced_price_only_holding_makes_basis_mixed(store, portfolio_env):
+    """A price-only holding dropped for want of closes is not hidden behind a "total" label (#9606)."""
+    store("PAY", "L", {EX_DATE: 2.0})
+    portfolio_env["holdings"] = [
+        {"ticker": "PAY", "exchange": "L", "units": 2},
+        {"ticker": "NOFILE", "exchange": "L", "units": 1},
+    ]
+    portfolio_env["closes"]["NOFILE"] = UNPRICEABLE
+
+    breakdown = _alpha_breakdown()
+
+    assert breakdown["portfolio_return_basis"] == tr.MIXED_RETURN_BASIS
+    # The unpriced holding has no value to weight: the share covers the priced holdings.
+    assert breakdown["portfolio_price_basis_share"] == pytest.approx(0.0)
+    assert breakdown["portfolio_unpriced_holdings"] == [{"ticker": "NOFILE.L", "return_basis": tr.PRICE_RETURN_BASIS}]
+
+
+def test_unpriced_holding_with_actions_counts_as_total(store, portfolio_env):
+    store("PAY", "L", {EX_DATE: 2.0})
+    portfolio_env["holdings"] = [
+        {"ticker": "PAY", "exchange": "L", "units": 2},
+        {"ticker": "NOFILE", "exchange": "L", "units": 1},
+    ]
+    portfolio_env["closes"]["PAY"] = UNPRICEABLE
+
+    breakdown = _alpha_breakdown()
+
+    assert breakdown["portfolio_return_basis"] == tr.MIXED_RETURN_BASIS
+    assert breakdown["portfolio_price_basis_share"] == pytest.approx(1.0)
+    assert breakdown["portfolio_unpriced_holdings"] == [{"ticker": "PAY.L", "return_basis": tr.TOTAL_RETURN_BASIS}]
+
+
+@pytest.mark.parametrize(
+    ("confirmed_from", "expected"),
+    [("2000-01-01", tr.TOTAL_RETURN_BASIS), ("2999-01-01", tr.PRICE_RETURN_BASIS)],
+)
+def test_unpriced_no_dividend_file_uses_confirmed_from(store, portfolio_env, confirmed_from, expected):
+    """An unpriced holding's no-dividend file is judged against the window start, as the priced path would (#9606)."""
+    store("NODIV", "L", confirmed_from=confirmed_from)
+    portfolio_env["holdings"] = [
+        {"ticker": "NOFILE", "exchange": "L", "units": 1},  # priced, so the series is not empty
+        {"ticker": "NODIV", "exchange": "L", "units": 1},
+    ]
+    portfolio_env["closes"]["NODIV"] = UNPRICEABLE
+
+    breakdown = _alpha_breakdown()
+
+    assert breakdown["portfolio_unpriced_holdings"] == [{"ticker": "NODIV.L", "return_basis": expected}]
+
+
+def test_stored_return_basis_matches_total_return_closes(store):
+    store("PAY", "L", {EX_DATE: 2.0})
+    store("LATE", "L", confirmed_from="2030-01-01")
+
+    for ticker in ("PAY", "LATE", "MISSING"):
+        _closes_out, priced_basis = tr.total_return_closes(_closes(), ticker, "L")
+        assert tr.stored_return_basis(ticker, "L", first_close=DATES[0]) == priced_basis
+    # Without a first close there is nothing to test confirmed_from against.
+    assert tr.stored_return_basis("LATE", "L") == tr.TOTAL_RETURN_BASIS
+
+
+def test_unpriced_cash_is_not_listed(store, portfolio_env):
+    """Cash with no stored series is valued at 1.0, never reported as unpriced."""
+    portfolio_env["holdings"] = [
+        {"ticker": "NOFILE", "exchange": "L", "units": 1},
+        {"ticker": "CASH", "exchange": "L", "units": 50},
+    ]
+    portfolio_env["closes"]["CASH"] = UNPRICEABLE
+
+    breakdown = _alpha_breakdown()
+
+    assert breakdown["portfolio_unpriced_holdings"] == []
+    assert breakdown["portfolio_return_basis"] == tr.PRICE_RETURN_BASIS
+
+
+def test_fully_priced_portfolio_lists_no_unpriced_holdings(store, portfolio_env):
+    portfolio_env["holdings"] = [{"ticker": "NOFILE", "exchange": "L", "units": 1}]
+
+    assert _alpha_breakdown()["portfolio_unpriced_holdings"] == []
+
+
 def test_ledger_dividend_cash_is_not_double_counted(store, portfolio_env, monkeypatch):
     """The dividend is booked in the ledger and sits in the current cash balance; it still counts once.
 

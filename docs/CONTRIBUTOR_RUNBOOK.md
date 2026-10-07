@@ -452,6 +452,15 @@ bash scripts/bash/run-mcp-server.sh [port]         # macOS/Linux
 .\scripts\run-mcp-server.ps1 [-Port 8001]           # Windows PowerShell
 ```
 
+Add `--restart` (bash, before the port) or `-Restart` (PowerShell) to stop
+the MCP server already on the port first; anything else holding the port is
+left alone. To stop it without starting a new one, run
+`python -m backend.utils.mcp_server_process stop [--port 8001]` from the repo
+root. Restart from a **new** terminal after adding a credential such as
+`ALLOTMINT_MCP_BRAVE_API_KEY` as a Windows user variable: a running server,
+the backend, and terminals opened earlier keep their old environment, so the
+Support page's **Restart** button doesn't pick it up either.
+
 The MCP server imports the backend and allotmint-pro once at startup, so
 merged changes (new tools, fixes) need a restart. On a local run the Support
 page's **MCP server** panel (next to the MCP tools list) shows whether it is

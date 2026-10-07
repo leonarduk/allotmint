@@ -110,6 +110,16 @@ def _quantity(tx: Mapping[str, Any]) -> float | None:
 def _settled_value(tx: Mapping[str, Any], qty: float, *, acquisition: bool) -> float | None:
     """Settled GBP value: ``amount_minor`` if non-zero, else price x units +/- fees.
 
+    ``amount_minor`` is the cash that actually settled, so it is already *net*
+    of fees: the total paid on an acquisition (fees included) and the proceeds
+    received on a disposal (fees deducted).  That is what Portfolio Performance
+    exports as a portfolio transaction's ``amount`` (copied verbatim, with no
+    ``fees`` field, by ``convert_portfolio_xml_to_account_transactions``), and
+    it is the same figure credited to cash under ``trade_cash_effects``, so
+    ``fees`` is never
+    subtracted from it again.  Only the price x units fallback, a gross figure,
+    applies ``fees`` -- so both paths yield the same net value.
+
     A zero ``amount_minor`` (common on transfers-in) records no value, so it is
     treated as unknown rather than as a known cost of nothing.
     """

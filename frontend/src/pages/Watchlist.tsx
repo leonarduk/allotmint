@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { getQuotes } from "../api";
 import type { QuoteRow } from "../types";
 import { priceDecimals } from "../utils/priceFormatting";
-import { WATCHLIST_STORAGE_KEY, readWatchlistRaw } from "../lib/watchlistStore";
+import { readWatchlistRaw, writeWatchlist } from "../lib/watchlistStore";
 
 
 function formatValue(symbol: string, val: number | null): string {
@@ -199,8 +199,12 @@ export function Watchlist() {
 
   useEffect(() => {
     fetchData();
-    localStorage.setItem(WATCHLIST_STORAGE_KEY, symbols);
-  }, [fetchData, symbols]);
+  }, [fetchData]);
+
+  // Persist through the shared store so the Signals/Screen stars see edits.
+  useEffect(() => {
+    writeWatchlist(symbolList);
+  }, [symbolList]);
 
   useEffect(() => {
     if (intervalMs <= 0 || auto) return;

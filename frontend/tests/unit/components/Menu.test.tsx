@@ -827,7 +827,7 @@ describe('Menu: Ideas page (#9852)', () => {
       screen.getByRole('button', { name: i18n.t('app.menuCategories.insights') })
     );
 
-  it('shows one Ideas item instead of separate Trading and Screener items', () => {
+  it('shows one Ideas item instead of separate Trading, Screener and Watchlist items', () => {
     render(
       <configContext.Provider value={configWithTransactions}>
         <MemoryRouter>
@@ -841,6 +841,9 @@ describe('Menu: Ideas page (#9852)', () => {
     ).toHaveAttribute('href', '/trading');
     expect(
       screen.queryByRole('menuitem', { name: i18n.t('app.modes.screener') })
+    ).toBeNull();
+    expect(
+      screen.queryByRole('menuitem', { name: i18n.t('app.modes.watchlist') })
     ).toBeNull();
   });
 
@@ -858,7 +861,7 @@ describe('Menu: Ideas page (#9852)', () => {
     ).toHaveClass('font-semibold');
   });
 
-  it('keeps a Screener item when trading signals are disabled', () => {
+  it('keeps Screener and Watchlist items when trading signals are disabled', () => {
     render(
       <configContext.Provider
         value={{
@@ -875,6 +878,9 @@ describe('Menu: Ideas page (#9852)', () => {
     expect(
       screen.getByRole('menuitem', { name: i18n.t('app.modes.screener') })
     ).toHaveAttribute('href', '/screener');
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.watchlist') })
+    ).toHaveAttribute('href', '/watchlist');
     expect(
       screen.queryByRole('menuitem', { name: i18n.t('app.modes.ideas') })
     ).toBeNull();

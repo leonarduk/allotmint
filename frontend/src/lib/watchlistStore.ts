@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 
 /**
  * One watchlist, stored in localStorage, shared by the Watchlist tab and the
@@ -40,13 +40,13 @@ function subscribe(onChange: () => void): () => void {
 /** Live watchlist membership plus a toggle, for per-row add/remove buttons. */
 export function useWatchlist() {
   const raw = useSyncExternalStore(subscribe, readWatchlistRaw);
-  const symbols = parseWatchlist(raw);
+  const symbols = useMemo(() => parseWatchlist(raw), [raw]);
   const has = useCallback(
     (ticker: string) => {
       const target = ticker.toUpperCase();
-      return parseWatchlist(raw).some((s) => s.toUpperCase() === target);
+      return symbols.some((s) => s.toUpperCase() === target);
     },
-    [raw],
+    [symbols],
   );
   const toggle = useCallback((ticker: string) => {
     const target = ticker.toUpperCase();

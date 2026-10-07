@@ -40,7 +40,7 @@ from backend.timeseries.quality import (
     DEFAULT_ROLLING_WINDOW,
     compute_quality,
 )
-from backend.utils.timeseries_helpers import get_scaling_override
+from backend.utils.timeseries_helpers import get_scaling_override, invalid_scaling_override
 
 logger = logging.getLogger(__name__)
 
@@ -537,12 +537,43 @@ def _price_ceiling_reason(
     return reason, {"price_gbp": round(price_gbp, 4), "scale": scale, "suggested_factor": factor}
 
 
-def _price_scale_fix(ticker: str, exchange: str, factor: float | None) -> str:
+def _invalid_override_reason(
+    ticker: str, exchange: str, ceiling_factor: float | None
+) -> tuple[str, dict[str, Any]] | None:
+    """Reason + preview when scaling_overrides.json lists an invalid factor.
+
+    ``get_scaling_override`` ignores e.g. ADM.L's old ``0.1`` (#8597) and falls
+    back to currency metadata, so the table drifts without anything noticing.
+    The replacement is the price-ceiling suggestion when that check fired,
+    else the valid factor actually applied now (0.01, 1 or 100).
+    """
+    bad = invalid_scaling_override(ticker, exchange)
+    if bad is None:
+        return None
+    replacement = ceiling_factor if ceiling_factor is not None else get_scaling_override(ticker, exchange, None)
+    reason = (
+        f"data/scaling_overrides.json lists factor {bad:g}, which is ignored because only 0.01, 1 or 100 "
+        f"are valid pence/pounds factors"
+    )
+    return reason, {"invalid_override": bad, "suggested_factor": replacement}
+
+
+def _price_scale_fix(ticker: str, exchange: str, before: dict[str, Any]) -> str:
+    factor = before.get("suggested_factor")
+    invalid = before.get("invalid_override")
+    if invalid is not None and factor is not None:
+        return (
+            f'Replace "{ticker}": {invalid:g} under "{exchange}" in data/scaling_overrides.json with '
+            f'"{ticker}": {factor:g}, then recheck.'
+        )
     if factor is not None:
         return (
             f'Add "{ticker}": {factor:g} under "{exchange}" in data/scaling_overrides.json '
             f"(or correct the instrument currency metadata), then recheck."
         )
+    # A step inside the cached series cannot be fixed by an override: the
+    # factor is applied to the whole series at read time (#8597), so it would
+    # move the points on both sides of the step together.
     return (
         "Check the instrument's scaling factor and currency metadata, then refetch or edit "
         "any bad points around the flagged dates."
@@ -572,6 +603,10 @@ def _price_scale_issue(
     if ceiling is not None:
         reasons.append(ceiling[0])
         before.update(ceiling[1])
+    invalid = _invalid_override_reason(ticker, exchange, before.get("suggested_factor"))
+    if invalid is not None:
+        reasons.append(invalid[0])
+        before.update(invalid[1])
     if not reasons:
         return None
     return DataQualityIssue(
@@ -580,7 +615,7 @@ def _price_scale_issue(
         severity=SEVERITY[IssueType.PRICE_SCALE_SUSPECT],
         entity={"ticker": ticker, "exchange": exchange},
         description=f"{ticker}.{exchange} price looks mis-scaled: " + "; ".join(reasons) + ".",
-        suggested_fix=_price_scale_fix(ticker, exchange, before.get("suggested_factor")),
+        suggested_fix=_price_scale_fix(ticker, exchange, before),
         preview={"before": before, "after": {"price": "rescaled"}},
         fixable=False,
     )

@@ -193,6 +193,32 @@ def _infer_override_exchange(ticker: str, base: str, overrides: dict) -> str:
     return matches[0] if len(matches) == 1 else ""
 
 
+def invalid_scaling_override(ticker: str, exchange: str) -> Optional[float]:
+    """The factor ``scaling_overrides.json`` lists for ``ticker`` on ``exchange``
+    when it is numeric but not a valid pence/pounds factor, else ``None``.
+
+    :func:`get_scaling_override` ignores such an entry (ADM.L's ``0.1``,
+    #8597), so the table can hold a wrong factor that nothing reports. The
+    Data Quality engine uses this to surface it (#7789). Only the
+    ticker-specific entries (exact ticker, then base) are checked; wildcard
+    rows apply to many tickers and are not a per-instrument finding.
+    """
+    overrides, _ = _load_scaling_overrides()
+    section = overrides.get((exchange or "").upper())
+    if not isinstance(section, dict):
+        return None
+    base = re.split(r"[.:]", ticker)[0].upper()
+    for key in (ticker, base):
+        if key not in section:
+            continue
+        try:
+            value = float(section[key])
+        except (TypeError, ValueError):
+            return None  # get_scaling_override skips it too; nothing numeric to report
+        return None if is_valid_override_factor(value) else value
+    return None
+
+
 def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional[float]) -> float:
     """Return the factor to multiply a fetched OHLC/quote value by to get GBP.
 

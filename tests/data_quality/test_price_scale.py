@@ -28,6 +28,7 @@ def _closes(values: list[float]) -> pd.Series:
 def _isolate(monkeypatch):
     monkeypatch.setattr(issues_module, "_refresh_universe", lambda: [])
     monkeypatch.setattr(issues_module, "_split_dates", lambda t, e: frozenset())
+    monkeypatch.setattr(issues_module, "invalid_scaling_override", lambda t, e: None)
 
 
 def _run(monkeypatch, closes, meta, *, scale=1.0, ticker="AV", exchange="L", **kwargs):
@@ -91,7 +92,13 @@ def test_price_ceiling_ignores_non_lse_exchanges(monkeypatch):
 
 
 def test_ten_x_step_change_is_flagged(monkeypatch):
-    """ADM.L's 0.1 override showed as a ~10x discontinuity (#8597)."""
+    """A ~10x discontinuity inside the cached series (#8597).
+
+    No override factor is suggested: overrides are applied to the whole series
+    at read time, so no factor can remove a step between two of its points.
+    ADM.L's actual root cause, an invalid ``0.1`` in scaling_overrides.json,
+    is reported with its replacement factor by the invalid-override tests.
+    """
     closes = [35.88, 35.9, 36.1, 358.8, 359.0]
     issues = _run(monkeypatch, closes, {}, ticker="ADM")
 
@@ -266,3 +273,136 @@ def test_split_dates_missing_or_unreadable_file_is_empty_not_fatal(monkeypatch, 
 
     (folder / "AV_L.parquet").write_bytes(b"not a parquet file")
     assert _real_split_dates("AV", "L") == frozenset()  # corrupt file is logged, not raised
+
+
+# ── Shared real-resolution harness for the tests below ─────────────────────
+def _real_env(monkeypatch, tmp_path, *, overrides_json, meta, series):
+    """Run aggregate_series_issues with the real get_scaling_override and
+    invalid_scaling_override over ``series`` ({ticker: closes}) on "L"."""
+    from backend.common import instruments as instruments_module
+    from backend.utils import timeseries_helpers
+
+    overrides = tmp_path / "scaling_overrides.json"
+    overrides.write_text(overrides_json, encoding="utf-8")
+    monkeypatch.setattr(timeseries_helpers, "_scaling_override_paths", lambda: [overrides])
+    monkeypatch.setattr(issues_module, "invalid_scaling_override", timeseries_helpers.invalid_scaling_override)
+    monkeypatch.setattr(instruments_module, "get_instrument_meta", lambda full: meta.get(full, {}))
+    monkeypatch.setattr(issues_module, "get_instrument_meta", lambda full: meta.get(full, {}))
+    monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [(t, "L") for t in series])
+    monkeypatch.setattr(issues_module, "load_cached_meta_timeseries_full", lambda t, e: _frame(series[t]))
+    return _of_type(aggregate_series_issues(), IssueType.PRICE_SCALE_SUSPECT)
+
+
+# ── ADM.L: an invalid override factor is reported with its replacement ──────
+# ADM.L was listed as 0.1 in scaling_overrides.json (#8597). get_scaling_override
+# ignores invalid factors, so the entry drifts silently unless the Data Quality
+# page reports it. The fix names the file and the valid factor to put there.
+
+
+@pytest.mark.parametrize(
+    ("currency", "expected_price_reason"),
+    [
+        # GBX metadata: the ignored 0.1 falls back to 0.01, so the price is
+        # right but the table entry is still wrong.
+        ("GBX", False),
+        # GBP metadata: the fallback is 1.0, so raw pence also breach the
+        # equity ceiling. Both reasons agree on the replacement factor.
+        ("GBP", True),
+    ],
+)
+def test_invalid_adm_override_names_file_and_factor(monkeypatch, tmp_path, currency, expected_price_reason):
+    issues = _real_env(
+        monkeypatch,
+        tmp_path,
+        overrides_json='{"L": {"ADM": 0.1}}',
+        meta={"ADM.L": {"name": "Admiral", "instrumentType": "Equity", "currency": currency}},
+        series={"ADM": [3588.0] * 40},
+    )
+
+    [issue] = issues
+    assert issue.severity == "high"
+    assert issue.fixable is False
+    assert issue.preview["before"]["invalid_override"] == 0.1
+    assert issue.preview["before"]["suggested_factor"] == 0.01
+    assert 'Replace "ADM": 0.1 under "L" in data/scaling_overrides.json with "ADM": 0.01' in issue.suggested_fix
+    assert ("plausible for instrument type" in issue.description) is expected_price_reason
+
+
+def test_valid_override_is_not_reported(monkeypatch, tmp_path):
+    issues = _real_env(
+        monkeypatch,
+        tmp_path,
+        overrides_json='{"L": {"ADM": 0.01}}',
+        meta={"ADM.L": {"name": "Admiral", "instrumentType": "Equity", "currency": "GBP"}},
+        series={"ADM": [3588.0] * 40},
+    )
+    assert issues == []
+
+
+@pytest.mark.parametrize(
+    ("table", "expected"),
+    [
+        ('{"L": {"ADM": 0.1}}', 0.1),
+        ('{"l": {"ADM": 0.1}}', 0.1),  # exchange sections are case-insensitive
+        ('{"L": {"ADM": 0.01}}', None),
+        ('{"L": {"ADM": 100}}', None),
+        ('{"L": {"ADM": "pence"}}', None),
+        ('{"L": {"OTHER": 0.1}}', None),
+        ('{"*": {"ADM": 0.1}}', None),  # wildcard rows are not a per-instrument finding
+        ("{}", None),
+    ],
+)
+def test_invalid_scaling_override(monkeypatch, tmp_path, table, expected):
+    from backend.utils import timeseries_helpers
+
+    overrides = tmp_path / "scaling_overrides.json"
+    overrides.write_text(table, encoding="utf-8")
+    monkeypatch.setattr(timeseries_helpers, "_scaling_override_paths", lambda: [overrides])
+    assert timeseries_helpers.invalid_scaling_override("ADM.L", "L") == expected
+
+
+# ── Issue #7789 AC: the named false-positive candidates ─────────────────────
+# Metadata (instrumentType, currency) mirrors allotmint-data/instruments/L/*.json.
+# Levels are approximate GBP (ETFs) or pence (GBX equities) prices; the issue
+# gives ERNS ~GBP 100, VWRL ~GBP 139, GBPG ~GBP 42 and the GBX holdings' GBP
+# values. The override table is empty, so GBX holdings must resolve via metadata.
+_AC_ETFS = {
+    "ERNS": ("GBP", 100.6),
+    "GBPG": ("GBP", 42.0),
+    "SEGA": ("GBP", 22.5),
+    "VHYL": ("GBP", 62.0),
+    "VWRL": ("GBP", 139.0),
+    "ISXF": ("GBP", 4.4),
+    "WCOS": ("USD", 6.1),
+    "GILG": ("GBP", 9.6),
+    "AIGE": ("USD", 30.5),
+    "ESIH": ("GBP", 7.3),
+}
+_AC_GBX_HOLDINGS = {"ULVR": 4633.0, "AZN": 12428.0, "III": 2715.0, "GAW": 17760.0}
+
+
+def _random_walk(end: float, seed: int, days: int = 260, daily_vol: float = 0.012) -> list[float]:
+    """A year of business-day closes: lognormal steps, fixed seed, ending at ``end``."""
+    import numpy as np
+
+    steps = np.random.default_rng(seed).normal(0.0, daily_vol, days - 1)
+    path = np.exp(np.concatenate([[0.0], np.cumsum(steps)]))
+    return [float(v) for v in end * path / path[-1]]
+
+
+@pytest.mark.parametrize(
+    ("ticker", "currency", "instrument_type", "level"),
+    [(t, c, "ETF", p) for t, (c, p) in _AC_ETFS.items()]
+    + [(t, "GBX", "Equity", p) for t, p in _AC_GBX_HOLDINGS.items()],
+)
+def test_issue_ac_false_positive_candidates_are_not_flagged(
+    monkeypatch, tmp_path, ticker, currency, instrument_type, level
+):
+    issues = _real_env(
+        monkeypatch,
+        tmp_path,
+        overrides_json='{"L": {}}',
+        meta={f"{ticker}.L": {"name": ticker, "instrumentType": instrument_type, "currency": currency}},
+        series={ticker: _random_walk(level, seed=sum(map(ord, ticker)))},
+    )
+    assert issues == []

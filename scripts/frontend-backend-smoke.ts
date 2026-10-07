@@ -378,6 +378,13 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
+    "path": "/instrument/allocation",
+    "query": {
+      "ticker": "PFE"
+    }
+  },
+  {
+    "method": "GET",
     "path": "/instrument/intraday",
     "query": {
       "ticker": "PFE"
@@ -521,6 +528,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
+    "path": "/portfolio-group/{slug}/look-through"
+  },
+  {
+    "method": "GET",
     "path": "/portfolio-group/{slug}/regions"
   },
   {
@@ -534,6 +545,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "GET",
     "path": "/portfolio/{owner}/currencies"
+  },
+  {
+    "method": "GET",
+    "path": "/portfolio/{owner}/look-through"
   },
   {
     "method": "GET",

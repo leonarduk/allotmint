@@ -3,8 +3,13 @@ import { fireEvent, render as rtlRender, screen, within, waitFor } from "@testin
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AllocationCharts from "@/pages/AllocationCharts";
 import * as api from "@/api";
-import type { GroupPortfolio, Holding } from "@/types";
+import type { GroupPortfolio, Holding, LookThroughExposure } from "@/types";
 import { MemoryRouter } from "react-router-dom";
+
+const chartFormatters = vi.hoisted(() => ({
+  legend: null as null | ((value: string, entry: unknown) => string),
+  tooltip: null as null | ((value: unknown, name: unknown, item: unknown) => string),
+}));
 
 vi.mock("@/api");
 vi.mock("recharts", () => ({
@@ -27,12 +32,19 @@ vi.mock("recharts", () => ({
     </div>
   ),
   Cell: () => null,
-  Tooltip: () => null,
-  Legend: () => null,
+  Tooltip: ({ formatter }: { formatter: typeof chartFormatters.tooltip }) => {
+    chartFormatters.tooltip = formatter;
+    return null;
+  },
+  Legend: ({ formatter }: { formatter: typeof chartFormatters.legend }) => {
+    chartFormatters.legend = formatter;
+    return null;
+  },
 }));
 
 const mockGetGroupPortfolio = vi.mocked(api.getGroupPortfolio);
 const mockGetGroupCurrencies = vi.mocked(api.getGroupCurrencyContributions);
+const mockGetGroupLookThrough = vi.mocked(api.getGroupLookThrough);
 
 const render = (ui: ReactNode, initialEntry = "/allocation") =>
   rtlRender(<MemoryRouter initialEntries={[initialEntry]}>{ui}</MemoryRouter>);
@@ -166,7 +178,7 @@ describe("AllocationCharts page", () => {
     });
 
     // sector dimension
-    fireEvent.click(screen.getByRole("button", { name: /industries|sector/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^(industries|sectors?)$/i }));
     let slices = screen.getByTestId("pie-slices");
     expect(within(slices).getByText("Tech: 100")).toBeInTheDocument();
     expect(within(slices).queryByText(/Utilities/)).not.toBeInTheDocument();
@@ -198,7 +210,7 @@ describe("AllocationCharts page", () => {
     render(<AllocationCharts />);
 
     await screen.findByText(/Instrument Types/);
-    fireEvent.click(screen.getByRole("button", { name: /industries|sector/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^(industries|sectors?)$/i }));
 
     const slices = screen.getByTestId("pie-slices");
     expect(within(slices).getByText("Tech: 50")).toBeInTheDocument();
@@ -217,7 +229,7 @@ describe("AllocationCharts page", () => {
     render(<AllocationCharts />);
 
     await screen.findByText(/Instrument Types/);
-    fireEvent.click(screen.getByRole("button", { name: /industries|sector/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^(industries|sectors?)$/i }));
 
     const slices = screen.getByTestId("pie-slices");
     expect(within(slices).getByText("Tech: 25")).toBeInTheDocument();
@@ -406,7 +418,7 @@ describe("AllocationCharts page", () => {
     render(<AllocationCharts />);
 
     await screen.findByText(/Instrument Types/);
-    fireEvent.click(screen.getByRole("button", { name: /industries|sector/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^(industries|sectors?)$/i }));
 
     const slices = screen.getByTestId("pie-slices");
     expect(within(slices).getByText("Tech: 100")).toBeInTheDocument();
@@ -588,6 +600,141 @@ describe("AllocationCharts page", () => {
       render(<AllocationCharts />, "/allocation?view=sleeve");
       expect(await screen.findByText("sleeve boom")).toBeInTheDocument();
       expect(screen.getByTestId("no-slices")).toBeInTheDocument();
+    });
+  });
+
+  it("shows each slice's percentage in the legend and tooltip", async () => {
+    mockGetGroupPortfolio.mockResolvedValueOnce(
+      buildPortfolio([
+        { ...baseHolding, ticker: "AAA", instrument_type: "equity", market_value_gbp: 75 },
+        { ...baseHolding, ticker: "BBB", instrument_type: "etf", market_value_gbp: 25 },
+      ]),
+    );
+
+    render(<AllocationCharts />);
+
+    await waitFor(() => expect(screen.getAllByTestId("slice-row")).toHaveLength(2));
+    const legend = chartFormatters.legend!("Equity", { payload: { value: 75 } });
+    expect(legend).toMatch(/^Equity: .*75.* \(75\.00%\)$/);
+    expect(chartFormatters.tooltip!(25, "ETF", { payload: { value: 25 } })).toMatch(/25.* \(25\.00%\)$/);
+  });
+
+  describe("look-through views (#9974)", () => {
+    const bucket = (label: string, value_gbp: number) => ({ label, value_gbp, weight_pct: value_gbp / 10 });
+    const lookThrough = (countries: ReturnType<typeof bucket>[]): LookThroughExposure => ({
+      total_value_gbp: 1000,
+      countries,
+      sectors: [bucket("Information Technology", 700), bucket("Financials", 300)],
+      holdings: [
+        {
+          key: "US5949181045",
+          name: "Microsoft",
+          isin: "US5949181045",
+          kind: "security",
+          value_gbp: 300,
+          weight_pct: 30,
+          direct_value_gbp: 200,
+          via_funds_value_gbp: 100,
+          sources: [
+            { ticker: "MSFT.N", value_gbp: 200 },
+            { ticker: "VWRL.L", value_gbp: 100 },
+          ],
+        },
+        {
+          key: "OTHER-IN-FUNDS",
+          name: "Other holdings in funds",
+          isin: null,
+          kind: "other",
+          value_gbp: 700,
+          weight_pct: 70,
+          direct_value_gbp: 0,
+          via_funds_value_gbp: 700,
+          sources: [{ ticker: "VWRL.L", value_gbp: 700 }],
+        },
+      ],
+      coverage: {
+        looked_through_value_gbp: 800,
+        direct_value_gbp: 200,
+        not_covered_value_gbp: 50,
+        cash_value_gbp: 0,
+        funds: [{ ticker: "VWRL.L", name: "All-World", value_gbp: 800, source: "morningstar", as_of: "2026-08-31" }],
+        not_covered: [{ ticker: "HICL.L", name: "HICL", value_gbp: 50 }],
+      },
+    });
+
+    it("fetches look-through only when a look-through view is opened", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupLookThrough.mockResolvedValueOnce(
+        lookThrough([bucket("United States", 600), bucket("Japan", 400)]),
+      );
+
+      render(<AllocationCharts />);
+      await screen.findByRole("button", { name: "Countries (look-through)" });
+      expect(mockGetGroupLookThrough).not.toHaveBeenCalled();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Countries (look-through)" }));
+
+      await waitFor(() => expect(mockGetGroupLookThrough).toHaveBeenCalledWith("all"));
+      await waitFor(() =>
+        expect(screen.getAllByTestId("slice-row").map((el) => el.textContent)).toEqual([
+          "United States: 600",
+          "Japan: 400",
+        ]),
+      );
+      expect(screen.getByTestId("look-through-note")).toBeInTheDocument();
+      expect(screen.queryByRole("checkbox", { name: "alice - taxable" })).not.toBeInTheDocument();
+    });
+
+    it("reports coverage and funds that were not looked through", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupLookThrough.mockResolvedValueOnce(lookThrough([bucket("United States", 1000)]));
+
+      render(<AllocationCharts />, "/allocation?view=lt-sector");
+
+      expect(await screen.findByTestId("look-through-coverage")).toHaveTextContent(/1 funds .* 2026-08-31/);
+      expect(screen.getByTestId("look-through-not-covered")).toHaveTextContent("HICL.L");
+      await waitFor(() =>
+        expect(screen.getAllByTestId("slice-row").map((el) => el.textContent)).toEqual([
+          "Information Technology: 700",
+          "Financials: 300",
+        ]),
+      );
+    });
+
+    it("folds the tail of many countries into one Other slice", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      const many = Array.from({ length: 15 }, (_, i) => bucket(`C${i}`, 100 - i));
+      mockGetGroupLookThrough.mockResolvedValueOnce(lookThrough(many));
+
+      render(<AllocationCharts />, "/allocation?view=lt-country");
+
+      await waitFor(() => expect(screen.getAllByTestId("slice-row")).toHaveLength(12));
+      const rows = screen.getAllByTestId("slice-row").map((el) => el.textContent);
+      // 11 largest kept; C11..C14 (89+88+87+86) folded together.
+      expect(rows[11]).toBe("Other: 350");
+    });
+
+    it("lists combined holdings with direct and via-fund values", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupLookThrough.mockResolvedValueOnce(lookThrough([bucket("United States", 1000)]));
+
+      render(<AllocationCharts />, "/allocation?view=lt-holdings");
+
+      const table = await screen.findByRole("table", { name: "Underlying holdings" });
+      const msft = within(table).getByText("Microsoft").closest("tr") as HTMLElement;
+      expect(within(msft).getByRole("link", { name: "MSFT.N" })).toHaveAttribute("href", "/research/MSFT.N");
+      expect(within(msft).getByRole("link", { name: "VWRL.L" })).toBeInTheDocument();
+      expect(within(table).getByText(/Other holdings in funds/)).toBeInTheDocument();
+      expect(screen.queryByTestId("pie-chart")).not.toBeInTheDocument();
+    });
+
+    it("shows the look-through endpoint error", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupLookThrough.mockRejectedValueOnce(new Error("look-through boom"));
+
+      render(<AllocationCharts />, "/allocation?view=lt-holdings");
+
+      expect(await screen.findByText("look-through boom")).toBeInTheDocument();
     });
   });
 });

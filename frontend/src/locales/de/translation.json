@@ -700,7 +700,8 @@
         "timeseries": "Zeitreihe",
         "fundamentals": "Fundamentaldaten",
         "technicals": "Technische Analyse",
-        "news": "Nachrichten"
+        "news": "Nachrichten",
+        "allocation": "Allokation"
       },
       "section": {
         "keyFacts": "Eckdaten",
@@ -3382,5 +3383,42 @@
       "watchlist": "Beobachtungsliste"
     },
     "tabsLabel": "Ideen-Ansichten"
+  },
+  "lookThrough": {
+    "countriesView": "Länder (Durchschau)",
+    "sectorsView": "Branchen (Durchschau)",
+    "holdingsView": "Positionen (Durchschau)",
+    "note": "Durchschau: Jeder Fonds wird in die Länder, Branchen und Positionen aufgeteilt, in die er investiert, und mit Ihren direkt gehaltenen Aktien kombiniert. Umfasst alle Konten dieser Gruppe.",
+    "coverage": "{{funds}} Fonds ({{value}}) durchleuchtet, mit Fondsdaten vom {{from}} bis {{to}}.",
+    "notCovered": "Keine Durchschau-Daten für {{tickers}} ({{value}}): Sie behalten ihre eigene Branche und zählen nach Land als „Nicht durchleuchtet“.",
+    "otherInFunds": "Weitere Positionen in Fonds (über die veröffentlichten Top-Positionen hinaus)",
+    "cash": "Bargeld",
+    "holdingsTitle": "Zugrunde liegende Positionen",
+    "holding": "Position",
+    "total": "Gesamt",
+    "weight": "Gewicht",
+    "direct": "Direkt",
+    "viaFunds": "Über Fonds",
+    "heldThrough": "Gehalten über",
+    "countries": "Länder",
+    "sectors": "Branchen",
+    "country": "Land",
+    "sector": "Branche",
+    "topHoldings": "Top-Positionen",
+    "topHoldingsCovered": "Die angezeigten Top-Positionen machen {{pct}} des Fonds aus.",
+    "fundSource": "Wo dieser Fonds investiert: Portfolio zum {{date}} ({{holdings}} Positionen).",
+    "singleSecurity": "Ein einzelnes Unternehmen: Sein gesamter Wert entfällt auf sein eigenes Land und seine Branche.",
+    "cashInstrument": "Bargeld hat kein Länder- oder Branchenengagement.",
+    "fundUncovered": "Noch keine Durchschau-Daten für diesen Fonds; mit „Aktualisieren“ abrufen. Es wird seine eigene Branche angezeigt.",
+    "otherRows_one": "Sonstige ({{count}} weitere)",
+    "otherRows_other": "Sonstige ({{count}} weitere)",
+    "sourceLabel": "Quelle",
+    "lastUpdated": "zuletzt aktualisiert {{date}}",
+    "refresh": "Aktualisieren",
+    "refreshing": "Wird aktualisiert…",
+    "refreshUpdated": "Aktualisiert von {{source}}.",
+    "refreshNotCovered": "Weder Morningstar noch justETF haben Durchschau-Daten für diesen Fonds.",
+    "refreshFailed": "Aktualisierung fehlgeschlagen: {{message}}",
+    "manualSource": "Manuell (Fondsberichte)"
   }
 }

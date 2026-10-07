@@ -11,6 +11,7 @@ import { InstrumentDetail, InstrumentPositionsTable } from "../components/Instru
 import { InstrumentTransactions } from "../components/InstrumentTransactions";
 import { InstrumentValuationPanel } from "../components/InstrumentValuationPanel";
 import { InstrumentTechnicalsPanel } from "../components/InstrumentTechnicalsPanel";
+import { InstrumentAllocationPanel } from "../components/LookThrough";
 import {
   confirmInstrumentMetadata,
   getNews,
@@ -281,6 +282,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     | "overview"
     | "timeseries"
     | "positions"
+    | "allocation"
     | "fundamentals"
     | "technicals"
     | "news"
@@ -946,6 +948,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     { id: "overview", label: t("instrumentDetail.research.tabs.overview") },
     { id: "timeseries", label: t("instrumentDetail.research.tabs.timeseries") },
     { id: "positions", label: t("instrumentDetail.positions") },
+    { id: "allocation", label: t("instrumentDetail.research.tabs.allocation") },
     { id: "fundamentals", label: t("instrumentDetail.research.tabs.fundamentals") },
     { id: "technicals", label: t("instrumentDetail.research.tabs.technicals") },
     { id: "news", label: t("instrumentDetail.research.tabs.news") },
@@ -1852,6 +1855,13 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
               );
             })()
           )}
+        </div>
+      )}
+
+      {activeTab === "allocation" && (
+        <div style={{ marginBottom: "2rem" }}>
+          <h2 style={{ marginBottom: "0.75rem" }}>{t("instrumentDetail.research.tabs.allocation")}</h2>
+          <InstrumentAllocationPanel ticker={tkr} />
         </div>
       )}
 

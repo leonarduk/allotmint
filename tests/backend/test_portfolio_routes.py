@@ -208,6 +208,47 @@ def test_group_currencies_not_found(monkeypatch, tmp_path):
     assert resp.status_code == 404
 
 
+@pytest.mark.parametrize("path", ["/portfolio/alice/look-through", "/portfolio-group/all/look-through"])
+def test_look_through_routes_compute_cache_only(monkeypatch, tmp_path, path):
+    """Look-through (#9974) reads stored metadata and cached prices only (#8028)."""
+    from backend.timeseries.cache import is_cache_only
+
+    client = _client(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "backend.routes.portfolio.portfolio_mod.build_owner_portfolio",
+        lambda owner, root, pricing_date=None: {"owner": owner, "accounts": []},
+    )
+    monkeypatch.setattr(
+        "backend.routes.portfolio.group_portfolio.build_group_portfolio",
+        lambda slug, **_kwargs: {"slug": slug, "accounts": []},
+    )
+    seen = []
+    monkeypatch.setattr(
+        "backend.routes.portfolio.look_through.compute_look_through",
+        lambda data: seen.append(is_cache_only()) or {"total_value_gbp": 0.0},
+    )
+
+    resp = client.get(path)
+    assert resp.status_code == 200
+    assert resp.json() == {"total_value_gbp": 0.0}
+    assert seen == [True]
+
+
+def test_look_through_routes_not_found(monkeypatch, tmp_path):
+    client = _client(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "backend.routes.portfolio.portfolio_mod.build_owner_portfolio",
+        lambda owner, root, pricing_date=None: (_ for _ in ()).throw(FileNotFoundError()),
+    )
+
+    def _missing(slug, **_kwargs):
+        raise ValueError(slug)
+
+    monkeypatch.setattr("backend.routes.portfolio.group_portfolio.build_group_portfolio", _missing)
+    assert client.get("/portfolio/bob/look-through").status_code == 404
+    assert client.get("/portfolio-group/nope/look-through").status_code == 404
+
+
 def test_portfolio_var(monkeypatch, tmp_path):
     pytest.importorskip("allotmint_pro")
     client = _client(monkeypatch, tmp_path)

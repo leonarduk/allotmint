@@ -28,6 +28,7 @@ from backend.common import (
     group_portfolio,
     holding_utils,
     instrument_api,
+    look_through,
     portfolio_utils,
     prices,
     refresh_progress,
@@ -599,6 +600,26 @@ def portfolio_currencies(owner: str, request: Request, as_of: str | None = None)
         return portfolio_utils.aggregate_by_currency(portfolio_data)
 
 
+@router.get("/portfolio/{owner}/look-through")
+def portfolio_look_through(owner: str, request: Request, as_of: str | None = None):
+    """Real exposure by country, sector and holding, looking through funds (#9974)."""
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    if owner_dir:
+        owner = owner_dir.name
+    pricing_date = _resolve_pricing_date(as_of)
+
+    try:
+        portfolio_data = portfolio_mod.build_owner_portfolio(owner, accounts_root, pricing_date=pricing_date)
+    except FileNotFoundError:
+        log_owner_not_found(owner)
+        raise HTTPException(status_code=404, detail="Owner not found")
+
+    # Page request: aggregation reads cached prices and FX only (#8028).
+    with cache_only():
+        return look_through.compute_look_through(portfolio_data)
+
+
 @router.get("/var/{owner}")
 def portfolio_var(
     owner: str,
@@ -806,6 +827,18 @@ def group_currencies(slug: str, as_of: str | None = None):
         raise HTTPException(status_code=404, detail="Group not found") from exc
     with cache_only():
         return portfolio_utils.aggregate_by_currency(gp)
+
+
+@router.get("/portfolio-group/{slug}/look-through")
+def group_look_through(slug: str, as_of: str | None = None):
+    """Real exposure by country, sector and holding, looking through funds (#9974)."""
+    try:
+        pricing_date = _resolve_pricing_date(as_of)
+        gp = _build_group_portfolio(slug, pricing_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Group not found") from exc
+    with cache_only():
+        return look_through.compute_look_through(gp)
 
 
 @router.get("/portfolio-group/{slug}/exposure", response_model=GroupExposureResponse)

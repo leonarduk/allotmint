@@ -360,10 +360,13 @@ jobs:
           fi
           [ "$failed" -eq 0 ] || exit 1
 
+      # scaling_overrides.json is excluded so the git-tracked table is the one
+      # baked into the Lambda image; a stale bucket copy must not replace it
+      # and silently undo override fixes in the price snapshot (#8923).
       - name: Sync data from S3
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
-        run: aws s3 sync "s3://$DATA_BUCKET/" data/
+        run: aws s3 sync "s3://$DATA_BUCKET/" data/ --exclude "scaling_overrides.json"
 
       - name: Verify DATA_BUCKET secret
         env:

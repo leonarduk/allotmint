@@ -346,7 +346,9 @@ def test_snapshot_deploy_ordering_claims_hold() -> None:
     in git and baked into the Lambda image, (2) ``PriceRefreshLambda`` is built
     from that image and a REQUEST_RESPONSE ``PriceRefreshOnDeploy`` Trigger
     runs it during the CDK deploy, and (3) the "Warm price snapshot" workflow
-    step invokes it again after the deploy. If any link is removed, this fails
+    step invokes it again after the deploy, and (4) the pre-build "Sync data
+    from S3" step excludes the table so a bucket copy cannot replace the
+    git-tracked one in the image. If any link is removed, this fails
     and the docstring must be revisited.
     """
     import yaml
@@ -372,20 +374,33 @@ def test_snapshot_deploy_ordering_claims_hold() -> None:
     # (3) Workflow warms the snapshot after the CDK deploy.
     workflow_path = repo_root / ".github" / "workflows" / "deploy-lambda.yml"
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
-    names = [step.get("name", "") for step in workflow["jobs"]["deploy"]["steps"]]
+    steps = workflow["jobs"]["deploy"]["steps"]
+    names = [step.get("name", "") for step in steps]
     assert names.index("Warm price snapshot") > names.index("Deploy BackendLambdaStack")
 
-    # Caveat in the docstring: a bucket-root table can override the git copy,
-    # both via the pre-build S3 sync into data/ and via the DATA_ROOT overlay.
-    assert names.index("Sync data from S3") < names.index("Deploy BackendLambdaStack")
+    # (4) The S3 data sync runs before the image is built (the CDK deploy
+    # builds it), so it could replace the git-tracked table in data/; it must
+    # exclude scaling_overrides.json, or (1) no longer holds.
+    sync_idx = names.index("Sync data from S3")
+    assert sync_idx < names.index("Deploy BackendLambdaStack")
+    sync_run = steps[sync_idx]["run"]
+    assert 'aws s3 sync "s3://$DATA_BUCKET/" data/' in sync_run
+    assert '--exclude "scaling_overrides.json"' in sync_run
+    # No other step may sync or copy into data/ ahead of the deploy without
+    # the same exclude.
+    for step in steps[: names.index("Deploy BackendLambdaStack")]:
+        run = step.get("run", "")
+        if "aws s3 sync" in run or "aws s3 cp" in run:
+            assert '--exclude "scaling_overrides.json"' in run, step.get("name")
 
 
 def test_data_root_override_table_wins_over_bundled_table(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """#8923 caveat: a bucket-derived ``DATA_ROOT`` table beats the git table.
+    """#8923 runtime caveat: a ``DATA_ROOT`` table beats the bundled git table.
 
-    The ``prices`` docstring warns that a stale bucket copy of
-    ``scaling_overrides.json`` would keep the snapshot wrong after a git fix;
-    this pins that precedence so the warning can't silently go stale.
+    The ``prices`` docstring warns that anything copying a stale
+    ``scaling_overrides.json`` into ``data_root`` (``/tmp/data`` on Lambda)
+    would keep the snapshot wrong after a git fix; this pins that precedence
+    so the warning can't silently go stale.
     """
     from types import SimpleNamespace
 

@@ -40,21 +40,26 @@ A change to the override table therefore only reaches the snapshot when
 :func:`refresh_prices` runs again with the new table. On deploy that is
 guaranteed in order: ``backend/Dockerfile.lambda`` copies ``data/`` (the
 table included) into the Lambda image, so a table change is a new image and
-the new ``PriceRefreshLambda`` version reads the new table; the CDK
+the new ``PriceRefreshLambda`` version reads the new table. Caveat: before
+the image build, the "Sync data from S3" step of
+``.github/workflows/deploy-lambda.yml`` runs ``aws s3 sync`` from
+``DATA_BUCKET`` into ``data/``, which would overwrite any file the bucket
+also holds. That step passes ``--exclude "scaling_overrides.json"``, so the
+image always carries the git-tracked table, never a stale bucket copy; a
+post-deploy check of the snapshot's content is tracked in #10352. The CDK
 ``PriceRefreshOnDeploy`` Trigger (``cdk/stacks/backend_lambda_stack.py``,
 REQUEST_RESPONSE) runs that version during ``cdk deploy BackendLambdaStack``,
 and the "Warm price snapshot" step of ``.github/workflows/deploy-lambda.yml``
 invokes its ``live`` alias again after the deploy. The ``DailyPriceRefresh``
 schedule repeats it daily, so no extra regeneration step is needed.
 
-Caveat: the git table is only authoritative while the data bucket root holds
-no ``scaling_overrides.json``. The workflow's "Sync data from S3" step
-(``aws s3 sync s3://$DATA_BUCKET/ data/``) runs before the image build and
-would replace the git copy, and at runtime ``DATA_ROOT`` (``/tmp/data``,
-filled from the same bucket) is overlaid on the bundled table and wins on
-conflicts (``timeseries_helpers._scaling_override_paths``). An override fix
-must therefore also be applied to any bucket copy, or it never reaches the
-snapshot.
+Runtime caveat: on Lambda ``data_root`` is ``/tmp/data``
+(``config.lambda.yaml``), and a ``scaling_overrides.json`` there is overlaid
+on the bundled table and wins on conflicts
+(``timeseries_helpers._scaling_override_paths``). Nothing in the backend
+writes that file into ``/tmp/data`` today, so the bundled git table applies;
+anything that starts copying a bucket table there must carry the same fixes,
+or it silently undoes them in the snapshot.
 
 Note on is_stale semantics (#8595)
 ----------------------------------

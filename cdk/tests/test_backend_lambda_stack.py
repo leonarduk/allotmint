@@ -6,6 +6,7 @@ Run from the repo root:
 """
 import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -627,6 +628,66 @@ def test_portfolio_group_5xx_alarm_notifies_operational_topic(template):
     ]
 
 
+_EMPTY_UNIVERSE_PHRASE = "Price refresh universe is empty"
+
+
+def _empty_universe_filter(template):
+    filters = [
+        resource
+        for resource in template.find_resources("AWS::Logs::MetricFilter").values()
+        if resource["Properties"]["MetricTransformations"][0]["MetricName"] == "EmptyUniverse"
+    ]
+    assert len(filters) == 1
+    return filters[0]["Properties"]
+
+
+def test_price_refresh_empty_universe_metric_filter(template):
+    """#8932: refresh_prices() logs an ERROR on an empty universe but the
+    Lambda still succeeds, so the alarm must key off the log line."""
+    props = _empty_universe_filter(template)
+    assert props["FilterPattern"] == f'"{_EMPTY_UNIVERSE_PHRASE}"'
+    assert props["MetricTransformations"] == [
+        {
+            "DefaultValue": 0,
+            "MetricName": "EmptyUniverse",
+            "MetricNamespace": "AllotMint/PriceRefresh",
+            "MetricValue": "1",
+        }
+    ]
+    log_groups = template.find_resources("AWS::Logs::LogGroup")
+    refresh_group_ids = [lid for lid in log_groups if lid.startswith("PriceRefreshLambdaLogGroup")]
+    assert len(refresh_group_ids) == 1
+    assert props["LogGroupName"] == {"Ref": refresh_group_ids[0]}
+
+
+def test_price_refresh_empty_universe_phrase_matches_log_message():
+    """The filter phrase must stay a substring of the ERROR refresh_prices() emits."""
+    prices_py = Path(__file__).resolve().parents[2] / "backend" / "common" / "prices.py"
+    prices_src = prices_py.read_text(encoding="utf-8")
+    assert f'logger.error("{_EMPTY_UNIVERSE_PHRASE}' in prices_src
+
+
+def test_price_refresh_empty_universe_alarm_notifies_operational_topic(template):
+    topics = template.find_resources("AWS::SNS::Topic")
+    assert len(topics) == 1
+    topic_logical_id = next(iter(topics))
+
+    alarms = [
+        alarm["Properties"]
+        for alarm in template.find_resources("AWS::CloudWatch::Alarm").values()
+        if alarm.get("Properties", {}).get("MetricName") == "EmptyUniverse"
+    ]
+    assert len(alarms) == 1
+    alarm = alarms[0]
+    assert alarm["Namespace"] == "AllotMint/PriceRefresh"
+    assert alarm["Statistic"] == "Sum"
+    assert alarm["Threshold"] == 1
+    assert alarm["EvaluationPeriods"] == 1
+    assert alarm["ComparisonOperator"] == "GreaterThanOrEqualToThreshold"
+    assert alarm["TreatMissingData"] == "notBreaching"
+    assert alarm["AlarmActions"] == [{"Ref": topic_logical_id}]
+
+
 def test_monthly_budget_exists(template):
     resources = template.find_resources("AWS::Budgets::Budget")
     assert resources, "Expected an AWS::Budgets::Budget resource"
@@ -1198,6 +1259,10 @@ def test_backend_lambda_error_alarm_output_exists(template):
 
 def test_portfolio_group_5xx_alarm_output_exists(template):
     template.has_output("PortfolioGroup5xxAlarmName", {})
+
+
+def test_price_refresh_empty_universe_alarm_output_exists(template):
+    template.has_output("PriceRefreshEmptyUniverseAlarmName", {})
 
 
 # ---------------------------------------------------------------------------

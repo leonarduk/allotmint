@@ -1303,6 +1303,34 @@ class BackendLambdaStack(Stack):
             cloudwatch_actions.SnsAction(operational_alerts_topic)
         )
 
+        # refresh_prices() (backend/common/prices.py) logs this ERROR when it
+        # finds nothing held or watched -- almost always a discovery failure
+        # (#8805) -- but the Lambda still succeeds, so metric_errors() never
+        # sees it. Key the alarm off the log line itself (#8932). The quoted
+        # phrase must stay in sync with that log message.
+        price_refresh_empty_metric = logs.MetricFilter(
+            self,
+            "PriceRefreshEmptyUniverseMetricFilter",
+            log_group=refresh_log_group,
+            filter_pattern=logs.FilterPattern.literal('"Price refresh universe is empty"'),
+            metric_namespace="AllotMint/PriceRefresh",
+            metric_name="EmptyUniverse",
+            metric_value="1",
+            default_value=0,
+        )
+        price_refresh_empty_alarm = cloudwatch.Alarm(
+            self,
+            "PriceRefreshEmptyUniverseAlarm",
+            metric=price_refresh_empty_metric.metric(statistic="Sum", period=Duration.minutes(5)),
+            threshold=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            evaluation_periods=1,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        price_refresh_empty_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(operational_alerts_topic)
+        )
+
         budget_notification = None
         if budget_alert_email:
             budget_notification = budgets.CfnBudget.NotificationWithSubscribersProperty(
@@ -1354,4 +1382,9 @@ class BackendLambdaStack(Stack):
             self,
             "PortfolioGroup5xxAlarmName",
             value=portfolio_group_5xx_alarm.alarm_name,
+        )
+        CfnOutput(
+            self,
+            "PriceRefreshEmptyUniverseAlarmName",
+            value=price_refresh_empty_alarm.alarm_name,
         )

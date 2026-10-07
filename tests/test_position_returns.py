@@ -314,6 +314,31 @@ def test_tagged_income_keeps_its_own_trailing_yield(gbx, monkeypatch):
     assert holding["yield_pct"] == pytest.approx(60.0 / 2400.0 * 100.0)
 
 
+def test_estimate_with_unreadable_currency_metadata_is_unknown():
+    def unreadable(symbol, exchange):
+        raise OSError("metadata unreadable")
+
+    result = estimated_income.estimated_income_gbp(
+        "KO.N",
+        [("2024-01-01", 10.0)],
+        load_dividends=lambda s, e: _dividends(("2024-06-01", 0.5)),
+        currency_of=unreadable,
+    )
+    assert result is None
+
+
+def test_add_total_returns_estimates_with_the_stored_history(tmp_path, gbx, monkeypatch):
+    """The portfolio path (add_total_returns) reaches the default dividend loader."""
+    series = _dividends(("2025-07-03", 2.5))
+    monkeypatch.setattr(estimated_income, "_default_loader", _loader(series))
+    _write_transactions(tmp_path, "steve", "ISA", HL_TXS)
+    holdings = [{"ticker": "REC.L", "market_value_gbp": 2400.0, "gain_gbp": -600.0}]
+    add_total_returns("steve", "isa", holdings, tmp_path)
+    assert holdings[0]["income_gbp"] == pytest.approx(125.0)
+    assert holdings[0]["income_estimated"] is True
+    assert holdings[0]["total_return_gbp"] == pytest.approx(-475.0)
+
+
 def test_estimate_without_fx_rate_is_unknown(monkeypatch):
     def no_rate(value, *args, **kwargs):
         raise ValueError("No FX rate for USD->GBP")

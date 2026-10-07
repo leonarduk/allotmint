@@ -96,7 +96,9 @@ def estimated_income_gbp(
     exclusive of its start like :func:`position_returns`); without it, all.
 
     ``None`` when it can't be estimated: the ticker has no exchange, no
-    dividend history is stored, or the quote currency can't be converted.
+    dividend history is stored, or the quote currency can't be resolved or
+    converted.  Zero (not ``None``) when the history shows nothing paid while
+    the units were held.
     """
     symbol, exchange = split_ticker(ticker)
     if not symbol or not exchange or not changes:
@@ -120,10 +122,10 @@ def estimated_income_gbp(
             trailing_native += amount
     if not total_native:
         return IncomeEstimate(0.0, 0.0)
-    normaliser = CurrencyNormaliser.from_raw((currency_of or _default_currency)(symbol, exchange))
     try:
-        total_gbp = normaliser.to_gbp(total_native)
-    except ValueError as exc:
+        currency = (currency_of or _default_currency)(symbol, exchange)
+        total_gbp = CurrencyNormaliser.from_raw(currency).to_gbp(total_native)
+    except (OSError, ValueError) as exc:  # unreadable metadata, or no FX rate
         logger.warning("Can't estimate dividends for %s: %s", sanitise_log_value(ticker), sanitise_log_value(exc))
         return None
     # One conversion rate for both, so the two figures stay consistent.

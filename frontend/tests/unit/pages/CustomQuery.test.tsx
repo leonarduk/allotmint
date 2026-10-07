@@ -240,6 +240,7 @@ describe("Custom Query page", () => {
     const checkboxes = [
       await screen.findByLabelText("Alice Example"),
       await screen.findByLabelText("VOD"),
+      await screen.findByLabelText("Market value (£)"),
     ];
     for (const box of checkboxes) {
       const label = box.closest("label");

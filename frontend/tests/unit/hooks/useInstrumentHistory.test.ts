@@ -10,6 +10,7 @@ import {
   useInstrumentHistory,
   preloadInstrumentHistory,
   getCachedInstrumentHistory,
+  invalidateInstrumentHistory,
   __clearInstrumentHistoryCache,
 } from '@/hooks/useInstrumentHistory';
 
@@ -32,6 +33,19 @@ describe('useInstrumentHistory', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('refetches after invalidateInstrumentHistory instead of keeping an empty cached result', async () => {
+    mockGetInstrumentDetail
+      .mockResolvedValueOnce({ prices: [], positions: [] })
+      .mockResolvedValueOnce({ prices: [{ date: '2026-10-05', close_gbp: 38.5 }], positions: [] });
+    const { result } = renderHook(() => useInstrumentHistory('XDEB.L', 30));
+    await waitFor(() => expect(result.current.data?.prices).toEqual([]));
+
+    act(() => invalidateInstrumentHistory('XDEB.L'));
+
+    await waitFor(() => expect(result.current.data?.prices).toHaveLength(1));
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
   });
 
   it.each([

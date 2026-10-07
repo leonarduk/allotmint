@@ -1017,7 +1017,7 @@ describe("InstrumentResearch page", () => {
 
     await screen.findByText("Instrument info");
 
-    await user.click(screen.getByRole("button", { name: /refresh/i }));
+    await user.click(screen.getByRole("button", { name: /^refresh$/i }));
 
     expect(mockRefreshInstrumentMetadata).toHaveBeenCalledWith("AAA", "L");
 
@@ -1059,7 +1059,7 @@ describe("InstrumentResearch page", () => {
     renderPage();
 
     await screen.findByText("Instrument info");
-    await user.click(screen.getByRole("button", { name: /refresh/i }));
+    await user.click(screen.getByRole("button", { name: /^refresh$/i }));
 
     expect(await screen.findByRole("button", { name: /confirm/i })).toBeInTheDocument();
 

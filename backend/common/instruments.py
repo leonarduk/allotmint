@@ -379,9 +379,26 @@ def save_instrument_meta(
                 sanitise_log_value(exc),
             )
 
+    _clear_meta_caches()
+    return path
+
+
+def _clear_meta_caches() -> None:
+    """Drop every in-process cache derived from instrument metadata files.
+
+    A ticker first seen without metadata is cached as invalid by
+    ``is_valid_ticker`` (which skips every upstream price fetch) and its empty
+    price frame is memoized by the timeseries LRUs; both are dropped so the
+    ticker is fetchable as soon as its metadata is written (#9963). Imported
+    lazily because both modules import this one.
+    """
+    from backend.timeseries.cache import clear_meta_timeseries_caches
+    from backend.timeseries.ticker_validator import is_valid_ticker
+
     get_instrument_meta.cache_clear()
     _persisted_metadata_exchanges.cache_clear()
-    return path
+    is_valid_ticker.cache_clear()
+    clear_meta_timeseries_caches()
 
 
 def _clean_str(value: Any, *, upper: bool = False) -> Optional[str]:
@@ -717,8 +734,7 @@ def delete_instrument_meta(ticker: str, exchange: str) -> None:
     except PermissionError:
         logger.warning("Permission denied deleting %s", path)
         return
-    get_instrument_meta.cache_clear()
-    _persisted_metadata_exchanges.cache_clear()
+    _clear_meta_caches()
 
 
 # def save_instrument_meta(ticker: str, meta: Dict[str, Any]) -> None:

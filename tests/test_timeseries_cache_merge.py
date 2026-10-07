@@ -1371,3 +1371,18 @@ def test_load_parquet_fast_path_never_shares_an_object_across_calls(monkeypatch,
 
     third = cache.load_cached_meta_timeseries_full("ABC", "L")
     assert list(third["Date"].dt.date) == expected_dates
+
+
+def test_clear_meta_timeseries_caches_drops_mtimes_and_extra_clearers(monkeypatch):
+    """An explicit clear must also forget mtimes, else a no-file ticker stays memoized (#9963)."""
+    cache = import_cache()
+    cleared: list[str] = []
+    monkeypatch.setattr(cache, "_EXTRA_META_CACHE_CLEARERS", [lambda: cleared.append("extra")])
+    cache._CACHE_FILE_MTIMES["missing.parquet"] = 0.0
+
+    cache.clear_meta_timeseries_caches()
+
+    assert cleared == ["extra"]
+    assert cache._CACHE_FILE_MTIMES == {}
+    assert cache._memoized_range_cached.cache_info().currsize == 0
+    assert cache._load_meta_timeseries_cached.cache_info().currsize == 0

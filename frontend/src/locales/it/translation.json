@@ -666,6 +666,10 @@
     "research": {
       "invalidTicker": "Ticker non valido",
       "viewScreener": "Vai allo Screener",
+      "refreshPrices": "Aggiorna prezzi",
+      "refreshingPrices": "Aggiornamento…",
+      "refreshPricesDone": "Recuperate {{rows}} righe di prezzi.",
+      "refreshPricesError": "Aggiornamento prezzi non riuscito:",
       "watchlist": "Watchlist",
       "removeFromWatchlist": "Rimuovi dalla Watchlist",
       "addToWatchlist": "Aggiungi alla Watchlist",

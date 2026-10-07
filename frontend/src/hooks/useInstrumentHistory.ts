@@ -243,6 +243,17 @@ export function updateCachedInstrumentHistory(
   }
 }
 
+// Subscribers notified when a ticker's cached history is invalidated, so
+// mounted hooks refetch instead of keeping a stale (often empty) result (#9963).
+const invalidationListeners = new Set<(ticker: string) => void>();
+
+/** Drop the cached history for `ticker` and make mounted hooks refetch it. */
+export function invalidateInstrumentHistory(ticker: string) {
+  cache.delete(ticker);
+  miniCache.delete(ticker);
+  for (const listener of invalidationListeners) listener(ticker);
+}
+
 function hasNoHistory(detail: { prices: unknown }): boolean {
   return Array.isArray(detail.prices) && detail.prices.length === 0;
 }
@@ -346,6 +357,17 @@ export function useInstrumentHistory(
     return true;
   });
   const [error, setError] = useState<Error | null>(null);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const listener = (invalidated: string) => {
+      if (invalidated === ticker) setVersion((v) => v + 1);
+    };
+    invalidationListeners.add(listener);
+    return () => {
+      invalidationListeners.delete(listener);
+    };
+  }, [ticker]);
 
   useEffect(() => {
     if (!ticker || days <= 0) {
@@ -437,7 +459,7 @@ export function useInstrumentHistory(
     return () => {
       active = false;
     };
-  }, [ticker, days, acceptMiniOnly]);
+  }, [ticker, days, acceptMiniOnly, version]);
 
   return { data, loading, error };
 }
@@ -451,4 +473,5 @@ export function __clearInstrumentHistoryCache() {
   miniFlushScheduled.clear();
   miniInFlight.clear();
   miniResolvers.clear();
+  invalidationListeners.clear();
 }

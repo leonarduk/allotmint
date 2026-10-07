@@ -332,3 +332,19 @@ def test_refetch_and_rebuild(monkeypatch, tmp_path):
         assert not cache_path.exists()
 
     asyncio.run(run())
+
+
+def test_refetch_clears_stale_caches_before_loading(monkeypatch):
+    """An empty result memoized before metadata existed must not survive a refetch (#9963)."""
+    calls: list[str] = []
+    monkeypatch.setattr(timeseries_admin, "clear_meta_timeseries_caches", lambda: calls.append("ts"))
+    monkeypatch.setattr(timeseries_admin.is_valid_ticker, "cache_clear", lambda: calls.append("valid"), raising=False)
+
+    def fake_load(t, e, days):
+        calls.append("load")
+        return pd.DataFrame({"Date": pd.date_range("2024-01-01", periods=3)})
+
+    monkeypatch.setattr(timeseries_admin, "load_meta_timeseries", fake_load)
+
+    assert timeseries_admin.refetch_timeseries("xdeb", "l") == {"status": "ok", "rows": 3}
+    assert calls == ["valid", "ts", "load"]

@@ -660,6 +660,10 @@
     "research": {
       "invalidTicker": "Invalid ticker",
       "viewScreener": "View Screener",
+      "refreshPrices": "Refresh prices",
+      "refreshingPrices": "Refreshing…",
+      "refreshPricesDone": "Fetched {{rows}} price rows.",
+      "refreshPricesError": "Price refresh failed:",
       "watchlist": "Watchlist",
       "removeFromWatchlist": "Remove from Watchlist",
       "addToWatchlist": "Add to Watchlist",

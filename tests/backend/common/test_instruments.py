@@ -185,6 +185,31 @@ def test_delete_instrument_meta_removes_file_and_handles_missing(monkeypatch, tm
     instruments.delete_instrument_meta("ABC", "L")
 
 
+def test_save_instrument_meta_revalidates_ticker_cached_as_invalid(monkeypatch, tmp_path) -> None:
+    """A ticker seen before its metadata existed becomes fetchable once saved (#9963)."""
+    from backend.timeseries.ticker_validator import is_valid_ticker
+
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    monkeypatch.delenv(instruments.METADATA_BUCKET_ENV, raising=False)
+    monkeypatch.delenv(instruments.METADATA_PREFIX_ENV, raising=False)
+    instruments.get_instrument_meta.cache_clear()
+    is_valid_ticker.cache_clear()
+
+    assert is_valid_ticker("NEWX", "L") is False
+
+    from backend.timeseries import cache
+
+    cleared: list[bool] = []
+    monkeypatch.setattr(cache, "clear_meta_timeseries_caches", lambda: cleared.append(True))
+
+    instruments.save_instrument_meta("NEWX", "L", {"ticker": "NEWX.L", "instrument_type": "ETF"})
+    assert is_valid_ticker("NEWX", "L") is True
+    assert cleared, "saving metadata must drop the memoized (empty) price frames"
+
+    instruments.delete_instrument_meta("NEWX", "L")
+    assert is_valid_ticker("NEWX", "L") is False
+
+
 def test_list_instruments_adds_default_fields(monkeypatch, tmp_path) -> None:
     instruments.get_instrument_meta.cache_clear()
     monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)

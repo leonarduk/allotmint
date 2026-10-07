@@ -13,9 +13,11 @@ from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
     _ensure_schema,
+    clear_meta_timeseries_caches,
     load_meta_timeseries,
     meta_timeseries_cache_path,
 )
+from backend.timeseries.ticker_validator import is_valid_ticker
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"], dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
@@ -114,7 +116,13 @@ def timeseries_admin() -> list[dict[str, Any]]:
 
 @router.post("/admin/{ticker}/{exchange}/refetch")
 def refetch_timeseries(ticker: str, exchange: str) -> dict[str, Any]:
-    """Fetch latest timeseries data for a ticker/exchange pair."""
+    """Fetch latest timeseries data for a ticker/exchange pair.
+
+    Drops the in-process caches first so a ticker whose earlier lookup came
+    back empty (e.g. before its metadata existed) is fetched afresh (#9963).
+    """
+    is_valid_ticker.cache_clear()
+    clear_meta_timeseries_caches()
     df = load_meta_timeseries(ticker.upper(), exchange.upper(), days=3650)
     return {"status": "ok", "rows": len(df)}
 

@@ -31,7 +31,7 @@ import { useInstrumentAlertCount } from "../hooks/useInstrumentAlertCount";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import surfaceStyles from "../styles/surface.module.css";
 import { formatDateISO } from "../lib/date";
-import { money, percent, quotedPrice } from "../lib/money";
+import { money, normalizeDisplayCurrency, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { completeTrackedChore } from "../choreCompletion";
 import {
@@ -878,13 +878,18 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     ? resolveDisplayPrice(latestRawPriceEntry, displayCurrency, detail?.base_currency ?? undefined)
     : null;
   const resolvedCurrentCurrency = resolvedLatestPrice?.currency || displayCurrency || "";
+  // Compare as currencies, not unit codes: GBX (pence) is the quote unit of
+  // GBP, and the price pipeline always normalises GBX closes to pounds
+  // (scaling override / close_gbp), so a GBX catalogue entry next to a GBP
+  // resolved price is expected, not stale metadata (#9989).
   const metadataCurrencyMismatch = (() => {
     const normalizedMetadata = normaliseUppercase(metadata.currency);
     const normalizedResolved = normaliseUppercase(resolvedCurrentCurrency);
     return (
       normalizedMetadata != null &&
       normalizedResolved != null &&
-      normalizedMetadata !== normalizedResolved
+      normalizeDisplayCurrency(normalizedMetadata) !==
+        normalizeDisplayCurrency(normalizedResolved)
     );
   })();
   const fundamentalsCurrency =

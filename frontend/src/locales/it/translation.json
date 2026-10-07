@@ -1811,6 +1811,8 @@
     "signalsTitle": "Segnali correnti",
     "noSignalsTitle": "Nessun segnale al momento",
     "noSignalsDescription": "Nessuno strumento monitorato supera attualmente le soglie attive. I segnali compaiono quando le condizioni RSI o di media mobile sono soddisfatte e passano anche i filtri di valutazione e rischio abilitati.",
+    "blockedTitle": "Segnali bloccati dalla conformità",
+    "blockedDescription": "Questi strumenti hanno superato le soglie attive, ma l'operazione proposta genererebbe un nuovo avviso di conformità, quindi non viene mostrato alcun segnale.",
     "checksSkippedBadge": "Controlli saltati",
     "checksSkippedTitle": "Controlli saltati: {{checks}}",
     "checksSkippedInfo": "Un controllo opzionale che richiede il componente aggiuntivo allotmint-pro non ha potuto essere eseguito. «compliance» significa che l'operazione non è stata verificata rispetto alle tue regole di conformità; «fundamental_screen» significa che i filtri P/E e debito/patrimonio netto sopra indicati (quelli configurati) non sono stati applicati a questo candidato all'acquisto.",

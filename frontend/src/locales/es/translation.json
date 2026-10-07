@@ -1811,6 +1811,8 @@
     "signalsTitle": "Señales actuales",
     "noSignalsTitle": "No hay señales en este momento",
     "noSignalsDescription": "Ningún instrumento seguido cruza actualmente los umbrales activos. Las señales aparecen cuando se cumplen las condiciones de RSI o de medias móviles y también se superan los filtros de valoración y riesgo habilitados.",
+    "blockedTitle": "Señales bloqueadas por cumplimiento",
+    "blockedDescription": "Estos instrumentos superaron los umbrales activos, pero la operación propuesta generaría una nueva advertencia de cumplimiento, por lo que no se muestra ninguna señal para ellos.",
     "checksSkippedBadge": "Comprobaciones omitidas",
     "checksSkippedTitle": "Comprobaciones omitidas: {{checks}}",
     "checksSkippedInfo": "No se pudo ejecutar una comprobación opcional que requiere el complemento allotmint-pro. «compliance» significa que la operación no se comprobó con tus reglas de cumplimiento; «fundamental_screen» significa que los filtros de PER y deuda/patrimonio anteriores (los que estén configurados) no se aplicaron a este candidato de compra.",

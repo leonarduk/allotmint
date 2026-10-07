@@ -1811,6 +1811,8 @@
     "signalsTitle": "Aktuelle Signale",
     "noSignalsTitle": "Derzeit keine Signale",
     "noSignalsDescription": "Kein überwachtes Instrument überschreitet derzeit die aktiven Schwellenwerte. Signale erscheinen, wenn die RSI- oder Gleitendurchschnittsbedingungen erfüllt sind und alle aktivierten Bewertungs- und Risikofilter ebenfalls erfüllt werden.",
+    "blockedTitle": "Durch Compliance blockierte Signale",
+    "blockedDescription": "Diese Instrumente haben die aktiven Schwellenwerte überschritten, aber der vorgeschlagene Handel würde eine neue Compliance-Warnung auslösen, daher wird für sie kein Signal angezeigt.",
     "checksSkippedBadge": "Prüfungen übersprungen",
     "checksSkippedTitle": "Übersprungene Prüfungen: {{checks}}",
     "checksSkippedInfo": "Eine optionale Prüfung, die das allotmint-pro-Add-on benötigt, konnte nicht ausgeführt werden. „compliance“ bedeutet, dass der Handel nicht anhand Ihrer Compliance-Regeln geprüft wurde; „fundamental_screen“ bedeutet, dass die oben genannten KGV- und Verschuldungsgrad-Filter (soweit konfiguriert) für diesen Kaufkandidaten nicht angewendet wurden.",

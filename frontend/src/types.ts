@@ -1131,8 +1131,23 @@ export interface TradingAgentSettings {
   max_volatility: number | null;
 }
 
+/** A signal that crossed a threshold but was blocked by compliance. */
+export interface BlockedTradingSignal {
+  ticker: string;
+  action: 'BUY' | 'SELL';
+  /** Warnings the proposed trade would introduce, each prefixed with its owner. */
+  reasons: string[];
+}
+
+export interface TradingSignalsReport {
+  signals: TradingSignal[];
+  blocked: BlockedTradingSignal[];
+}
+
 export interface TradingPageData {
   signals: TradingSignal[];
+  /** Signals compliance blocked; absent when the backend didn't report them. */
+  blocked?: BlockedTradingSignal[];
   settings: TradingAgentSettings;
 }
 

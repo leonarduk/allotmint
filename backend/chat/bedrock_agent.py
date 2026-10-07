@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 import boto3
+from botocore.config import Config
+from botocore.exceptions import ClientError
+from botocore.exceptions import ConnectionError as BotocoreConnectionError
 from mcp.types import CallToolResult, Tool
 
 from backend.chat.local_tools import LocalTools, merge_tool_lists
@@ -21,6 +25,25 @@ logger = logging.getLogger(__name__)
 # so a model stuck re-calling tools can't run away with the Lambda's timeout.
 MAX_TOOL_ITERATIONS = 5
 
+# Retry policy for transient converse() failures (#7611): up to 3 retries with
+# exponential backoff (1s, 2s, 4s) plus jitter. This is the only retry layer --
+# botocore's own retries are disabled on the client below so attempts don't
+# multiply (botocore legacy mode would otherwise retry each attempt 4 more times).
+CONVERSE_MAX_RETRIES = 3
+CONVERSE_RETRY_BASE_DELAY_SECONDS = 1.0
+TRANSIENT_BEDROCK_ERROR_CODES = frozenset(
+    {
+        "ThrottlingException",
+        "TooManyRequestsException",
+        "ServiceUnavailableException",
+        "ServiceUnavailable",
+        "InternalServerException",
+        "InternalServerError",
+        "ModelNotReadyException",
+        "ModelTimeoutException",
+    }
+)
+
 
 @lru_cache(maxsize=1)
 def _bedrock_client():
@@ -29,7 +52,50 @@ def _bedrock_client():
     re-resolves credentials/config every time, which is too slow to redo per
     chat turn)."""
 
-    return boto3.client("bedrock-runtime")
+    return boto3.client("bedrock-runtime", config=Config(retries={"max_attempts": 1}))
+
+
+def _is_transient_converse_error(exc: Exception) -> bool:
+    """True for throttling/5xx/connection failures worth retrying; False for
+    validation, access-denied and other client errors that would fail again."""
+
+    if isinstance(exc, BotocoreConnectionError):
+        return True
+    if not isinstance(exc, ClientError):
+        return False
+    error = exc.response.get("Error", {})
+    status = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode") or 0
+    return error.get("Code") in TRANSIENT_BEDROCK_ERROR_CODES or status >= 500
+
+
+async def _converse_with_retry(bedrock: Any, **kwargs: Any) -> Dict[str, Any]:
+    """Call ``bedrock.converse`` off the event loop, retrying transient failures.
+
+    Every attempt resends the same ``kwargs`` (including the same ``messages``
+    list object), so a retry never rebuilds or duplicates conversation state.
+    """
+
+    attempt = 0
+    while True:
+        try:
+            # bedrock.converse() is a blocking boto3 call; run it off the
+            # event loop thread so a slow Bedrock response doesn't stall
+            # other concurrent requests being served by the same process.
+            return await asyncio.to_thread(bedrock.converse, **kwargs)
+        except Exception as exc:
+            if attempt >= CONVERSE_MAX_RETRIES or not _is_transient_converse_error(exc):
+                raise
+            delay = CONVERSE_RETRY_BASE_DELAY_SECONDS * 2**attempt
+            delay += random.uniform(0, delay / 2)  # nosec B311 - jitter, not crypto
+            logger.warning(
+                "Bedrock converse() attempt %d/%d failed transiently, retrying in %.1fs: %s",
+                attempt + 1,
+                CONVERSE_MAX_RETRIES + 1,
+                delay,
+                sanitise_log_value(exc),
+            )
+            await asyncio.sleep(delay)
+            attempt += 1
 
 
 def _tool_to_bedrock_spec(tool: Tool) -> Dict[str, Any]:
@@ -110,11 +176,8 @@ async def run_chat_turn(
         tool_config = {"tools": [_tool_to_bedrock_spec(tool) for tool in tools]}
 
         for _ in range(MAX_TOOL_ITERATIONS):
-            # bedrock.converse() is a blocking boto3 call; run it off the
-            # event loop thread so a slow Bedrock response doesn't stall
-            # other concurrent requests being served by the same process.
-            response = await asyncio.to_thread(
-                bedrock.converse,
+            response = await _converse_with_retry(
+                bedrock,
                 modelId=bedrock_model_id,
                 messages=messages,
                 toolConfig=tool_config,

@@ -115,6 +115,23 @@ def test_gilt_maturity_band_falls_back_to_name():
     assert derive_bond_sub_class({"name": "15+ Year Gilt ETF"}) == "long_gilts"
 
 
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("Global Government Bond Income Fund", "overseas_government"),
+        ("US Treasury Income ETF", "overseas_government"),
+        ("Global Bond Income Fund", "corporate_bonds"),
+        ("Government & Corporate Bond Income Fund", "corporate_bonds"),
+        ("TwentyFour Income Fund Ltd Ordinary GBP 0.01", "corporate_bonds"),
+        # The gilt rule still runs before "income".
+        ("UK Gilts 0-5yr Income Fund", "short_gilts"),
+    ],
+)
+def test_income_is_weaker_than_government_issuer(name, expected):
+    """#9636: "income" only means credit when no government issuer is named."""
+    assert derive_bond_sub_class({"name": name}) == expected
+
+
 def test_unknown_bond_has_no_sub_class():
     assert derive_bond_sub_class({"name": "Strategic Bond Fund"}) is None
     # A gilt fund with no duration, band or maturity in its name can't be banded.

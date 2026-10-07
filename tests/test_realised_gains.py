@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from backend.app import create_app
 from backend.common.realised_gains import compute_disposal_gains
 from backend.config import config
+from backend.utils.convert_portfolio_xml_to_account_transactions import extract_transactions_by_account
 
 
 def _buy(date, units, amount, ticker="AAA.L"):
@@ -103,6 +104,76 @@ def test_amount_minor_and_price_fallback_agree_on_net_proceeds():
         {**fallback[1], "amount_minor": 11500},
     ]
     assert compute_disposal_gains(settled)[1] == compute_disposal_gains(fallback)[1]
+
+
+def test_amount_minor_wins_over_price_and_fees_when_they_disagree():
+    # When the settled ``amount_minor`` and the gross price x units +/- fees
+    # figure disagree, ``amount_minor`` is used as-is: neither ``price_gbp``
+    # nor ``fees`` alters it, so fees cannot be applied twice.
+    txs = [
+        {
+            "date": "2024-01-01",
+            "type": "BUY",
+            "ticker": "AAA.L",
+            "units": 10,
+            "amount_minor": 10000,
+            "price_gbp": 999,
+            "fees": 50,
+        },
+        {
+            "date": "2024-02-01",
+            "type": "SELL",
+            "ticker": "AAA.L",
+            "units": 10,
+            "amount_minor": 12000,
+            "price_gbp": 1,
+            "fees": 50,
+        },
+    ]
+    gains = compute_disposal_gains(txs)
+    assert gains[1].cost_basis_gbp == pytest.approx(100.0)
+    assert gains[1].proceeds_gbp == pytest.approx(120.0)
+    assert gains[1].realised_gain_gbp == pytest.approx(20.0)
+
+
+def test_pp_importer_writes_settled_amount_and_no_fees_on_sell(tmp_path):
+    # Ingestion side of the convention: the Portfolio Performance converter
+    # copies a portfolio-transaction's <amount> (the settled cash, after the
+    # FEE unit) into ``amount_minor`` and never emits a ``fees`` field, so the
+    # realised gain is computed from net proceeds with no further deduction.
+    xml = """<?xml version='1.0' encoding='UTF-8'?>
+<root>
+  <securities><security id="S1"><name>Alpha</name><tickerSymbol>AAA.L</tickerSymbol></security></securities>
+  <accounts><account id="a1"><name>Steve ISA Cash</name><transactions/></account></accounts>
+  <portfolio id="p1">
+    <name>Steve ISA Portfolio</name>
+    <referenceAccount reference="a1" />
+    <transactions>
+      <portfolio-transaction id="pt1">
+        <date>2024-01-01</date><currencyCode>GBP</currencyCode><amount>10500</amount>
+        <type>BUY</type><security reference="S1" /><shares>1000000000</shares>
+        <units><unit type="FEE"><amount currency="GBP" amount="500"/></unit></units>
+      </portfolio-transaction>
+      <portfolio-transaction id="pt2">
+        <date>2024-02-01</date><currencyCode>GBP</currencyCode><amount>11500</amount>
+        <type>SELL</type><security reference="S1" /><shares>1000000000</shares>
+        <units><unit type="FEE"><amount currency="GBP" amount="500"/></unit></units>
+      </portfolio-transaction>
+    </transactions>
+  </portfolio>
+</root>
+"""
+    path = tmp_path / "pp.xml"
+    path.write_text(xml)
+    df = extract_transactions_by_account(str(path))
+    assert "fees" not in df.columns
+    records = df.to_dict(orient="records")
+    assert [r["amount_minor"] for r in records] == [10500, 11500]
+
+    gains = compute_disposal_gains(records)
+    assert gains[1].cost_basis_gbp == pytest.approx(105.0)
+    assert gains[1].proceeds_gbp == pytest.approx(115.0)
+    assert gains[1].realised_gain_gbp == pytest.approx(10.0)
 
 
 def test_instruments_are_pooled_separately_and_scaled_shares_handled():

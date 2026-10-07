@@ -2,20 +2,20 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import ScenarioTester from "@/pages/ScenarioTester";
-import type { ScenarioResult } from "@/types";
 
 // Create mocks before vi.mock call
 const mockGetEvents = vi.fn();
 const mockGetOwners = vi.fn();
 const mockGetPortfolio = vi.fn();
-const mockRunScenario = vi.fn();
+const mockRunStrategyStress = vi.fn();
 const mockRunFxScenario = vi.fn();
 
 vi.mock("@/api", () => ({
   getEvents: () => mockGetEvents(),
   getOwners: () => mockGetOwners(),
   getPortfolio: (...args: unknown[]) => mockGetPortfolio(...args),
-  runScenario: (params: any) => mockRunScenario(params),
+  runStrategyStress: (...args: unknown[]) => mockRunStrategyStress(...args),
+  applyStrategy: vi.fn(),
   runFxScenario: (params: any) => mockRunFxScenario(params),
 }));
 
@@ -35,182 +35,81 @@ describe("ScenarioTester page", () => {
     mockGetEvents.mockReset();
     mockGetOwners.mockReset();
     mockGetPortfolio.mockReset();
-    mockRunScenario.mockReset();
+    mockRunStrategyStress.mockReset();
     mockRunFxScenario.mockReset();
     
     // Provide default mock implementations
+    mockGetEvents.mockResolvedValue([]);
     mockGetOwners.mockResolvedValue([]);
     mockGetPortfolio.mockResolvedValue({ holdings: [], cash: [] } as any);
   });
 
-  it("links to the strategy stress test for the chosen event and horizons", async () => {
-    mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
+  it("has no reporting date picker", async () => {
     renderPage();
-    expect(
-      screen.queryByRole("link", { name: /Compare strategies/ }),
-    ).toBeNull();
-    await screen.findByRole("option", { name: "Event 1" });
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "e1" },
-    });
-    const link = await screen.findByRole("link", {
-      name: /Compare strategies for this event/,
-    });
-    expect(link.getAttribute("href")).toBe("/strategy?stress_event=e1");
-    fireEvent.click(screen.getByLabelText("1w"));
-    fireEvent.click(screen.getByLabelText("1y"));
-    expect(link.getAttribute("href")).toBe(
-      "/strategy?stress_event=e1&horizons=1w%2C1y",
-    );
+    await waitFor(() => expect(mockGetOwners).toHaveBeenCalled());
+    expect(screen.queryByText("Reporting date")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Use latest data" })).toBeNull();
   });
 
-  it("fetches events and populates dropdown", async () => {
-    mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
-    renderPage();
-    await waitFor(() => expect(mockGetEvents).toHaveBeenCalled());
-    expect(
-      await screen.findByRole("option", { name: "Event 1" }),
-    ).toBeInTheDocument();
-  });
-
-  it("runs scenario and displays results in table", async () => {
-    mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
-    mockRunScenario.mockResolvedValueOnce([
-      {
-        owner: "Test Owner",
-        horizons: {
-          "1d": {
-            baseline_total_value_gbp: 100,
-            shocked_total_value_gbp: 110,
-          },
-          "1w": {
-            baseline_total_value_gbp: 200,
-            shocked_total_value_gbp: 180,
-          },
-        },
-      } as ScenarioResult,
+  it("runs the strategy stress test for the first selected portfolio", async () => {
+    localStorage.setItem("scenario.selectedOwners", JSON.stringify(["beth"]));
+    mockGetEvents.mockResolvedValue([{ id: "covid", name: "Covid crash" }]);
+    mockGetOwners.mockResolvedValueOnce([
+      { owner: "alex", accounts: ["isa"], full_name: "Alex Leonard" },
+      { owner: "beth", accounts: ["isa"], full_name: "Beth Leonard" },
     ]);
+    mockGetPortfolio.mockResolvedValue({ accounts: [] } as any);
+    mockRunStrategyStress.mockResolvedValueOnce({
+      event: { id: "covid", name: "Covid crash", date: "2020-02-19" },
+      horizons: ["1m"],
+      portfolio: {
+        baseline_total_value_gbp: 1000,
+        horizons: {
+          "1m": { return_pct: -15, coverage_pct: 100, return_basis: "total", missing: [] },
+        },
+      },
+      strategies: [],
+      disclaimer: "",
+    });
 
     renderPage();
 
-    await screen.findByRole("option", { name: "Event 1" });
-
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "e1" },
+    const owner = await screen.findByLabelText("Stress test portfolio:");
+    expect((owner as HTMLSelectElement).value).toBe("beth");
+    await screen.findByRole("option", { name: "Covid crash" });
+    fireEvent.change(screen.getByLabelText("Event"), {
+      target: { value: "covid" },
     });
-    fireEvent.click(screen.getByLabelText("1d"));
-    fireEvent.click(screen.getByLabelText("1w"));
-
-    const runButton = screen.getByText("Run stress test");
-    expect(runButton).not.toBeDisabled();
-
-    fireEvent.click(runButton);
+    fireEvent.click(screen.getByRole("button", { name: "Run stress test" }));
 
     await waitFor(() =>
-      expect(mockRunScenario).toHaveBeenCalledWith({
-        event_id: "e1",
-        horizons: ["1d", "1w"],
+      expect(mockRunStrategyStress).toHaveBeenCalledWith("beth", {
+        event_id: "covid",
+        horizons: ["1m", "3m", "1y"],
       }),
     );
-
-    const fmt = new Intl.NumberFormat("en-GB", {
-      style: "currency",
-      currency: "GBP",
-    });
-
-    // findByText waits for React to re-render after the async runScenario
-    // response arrives; getByText would race the render and fail intermittently.
-    await screen.findByText("Test Owner");
-    expect(screen.getByText(fmt.format(100))).toBeInTheDocument();
-    expect(screen.getByText(fmt.format(110))).toBeInTheDocument();
-    expect(screen.getByText("10.00%")).toBeInTheDocument();
-    expect(screen.getByText(fmt.format(200))).toBeInTheDocument();
-    expect(screen.getByText(fmt.format(180))).toBeInTheDocument();
-    expect(screen.getByText("-10.00%")).toBeInTheDocument();
+    expect(await screen.findByText("-15.00%")).toBeInTheDocument();
+    // The scenario page cannot apply strategies, so no Apply buttons.
+    expect(screen.queryByRole("button", { name: /Apply/ })).toBeNull();
   });
 
-  it("flags partially priced horizons and shows unavailable ones as a dash", async () => {
-    mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
-    mockRunScenario.mockResolvedValueOnce([
-      {
-        owner: "Test Owner",
-        horizons: {
-          "1m": {
-            baseline_total_value_gbp: 100,
-            shocked_total_value_gbp: 80,
-            coverage_pct: 62.4,
-          },
-          "1y": {
-            baseline_total_value_gbp: 100,
-            shocked_total_value_gbp: null,
-            coverage_pct: 30,
-          },
-        },
-      } as ScenarioResult,
+  it("keeps a loaded portfolio when a second one is selected", async () => {
+    mockGetOwners.mockResolvedValueOnce([
+      { owner: "alex", accounts: ["isa"], full_name: "Alex Leonard" },
+      { owner: "beth", accounts: ["isa"], full_name: "Beth Leonard" },
     ]);
-
-    renderPage();
-    await screen.findByRole("option", { name: "Event 1" });
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "e1" },
-    });
-    fireEvent.click(screen.getByLabelText("1m"));
-    fireEvent.click(screen.getByLabelText("1y"));
-    fireEvent.click(screen.getByText("Run stress test"));
-
-    await screen.findByText("Test Owner");
-    expect(screen.getByText("-20.00%")).toBeInTheDocument();
-    expect(screen.getByText("62% priced")).toBeInTheDocument();
-    expect(screen.getByText("30% priced")).toBeInTheDocument();
-    expect(screen.queryByText(new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(0))).toBeNull();
-  });
-
-  it("disables Apply button until valid inputs provided", async () => {
-    mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
-    mockRunScenario.mockResolvedValueOnce([
-      {
-        owner: "Test Owner",
-        horizons: {
-          "1d": {
-            baseline_total_value_gbp: 100,
-            shocked_total_value_gbp: 110,
-          },
-        },
-        baseline_total_value_gbp: 100,
-        shocked_total_value_gbp: 110,
-        delta_gbp: 10,
-      } as ScenarioResult,
-    ]);
-    renderPage();
-
-    await screen.findByRole("combobox");
-    const runButton = screen.getByText("Run stress test");
-
-    expect(runButton).toBeDisabled();
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "e1" },
-    });
-    expect(runButton).toBeDisabled();
-    fireEvent.click(screen.getByLabelText("1d"));
-    expect(runButton).not.toBeDisabled();
-    fireEvent.click(runButton);
-    await waitFor(() => expect(mockRunScenario).toHaveBeenCalled());
-    expect(screen.getByText("Test Owner")).toBeInTheDocument();
-  });
-
-  it("shows error message on failure", async () => {
-    mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
-    mockRunScenario.mockRejectedValueOnce(new Error("fail"));
+    mockGetPortfolio.mockResolvedValue({ accounts: [] } as any);
 
     renderPage();
 
-    await screen.findByRole("combobox");
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "e1" } });
-    fireEvent.click(screen.getByLabelText("1d"));
+    await screen.findByRole("option", { name: "Alex Leonard" });
+    const checkboxes = screen.getAllByRole("checkbox");
+    fireEvent.click(checkboxes[0]);
+    await screen.findByText("Loaded");
+    fireEvent.click(checkboxes[1]);
 
-    fireEvent.click(screen.getByText("Run stress test"));
-
-    expect(await screen.findByText("fail")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText("Loaded")).toHaveLength(2));
+    expect(screen.queryByText("Loading…")).toBeNull();
   });
 
   it("fires exactly one GET /portfolio/{owner} request when a single portfolio is selected (#7105)", async () => {
@@ -233,7 +132,7 @@ describe("ScenarioTester page", () => {
     expect(mockGetPortfolio).toHaveBeenCalledTimes(1);
   });
 
-  it("requests the bare owner, not the owner::date dedupe key (#8576)", async () => {
+  it("requests the bare owner (#8576)", async () => {
     mockGetEvents.mockResolvedValueOnce([]);
     mockGetOwners.mockResolvedValueOnce([
       { owner: "alex", accounts: ["isa"], full_name: "Alex Leonard" },
@@ -243,7 +142,7 @@ describe("ScenarioTester page", () => {
 
     renderPage();
 
-    await screen.findByText("Beth Leonard");
+    await screen.findByRole("option", { name: "Beth Leonard" });
     fireEvent.click(
       screen.getByRole("button", { name: /select all portfolios/i }),
     );
@@ -266,7 +165,7 @@ describe("ScenarioTester page", () => {
 
     renderPage();
 
-    await screen.findByText("Alex Leonard");
+    await screen.findByRole("option", { name: "Alex Leonard" });
     const checkboxes = screen.getAllByRole("checkbox");
     fireEvent.click(checkboxes[0]);
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledTimes(1));
@@ -290,7 +189,7 @@ describe("ScenarioTester page", () => {
 
     renderPage();
 
-    await screen.findByText("Beth Leonard");
+    await screen.findByRole("option", { name: "Beth Leonard" });
     // Load the SECOND owner first, so "Select all" walks an unloaded owner
     // (alex) before the loaded one (beth).
     fireEvent.click(screen.getAllByRole("checkbox")[1]);

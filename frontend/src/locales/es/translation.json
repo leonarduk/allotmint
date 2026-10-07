@@ -1907,22 +1907,6 @@
     "loaded": "Cargado",
     "accounts": "Cuentas: {{count}}",
     "loadingPortfolios": "Cargando carteras…",
-    "reportingDate": "Fecha del informe",
-    "date": "Fecha:",
-    "useLatest": "Usar los datos más recientes",
-    "suggested": {
-      "covid": "Mínimo de mercado por COVID-19",
-      "giltCrisis": "Crisis de los gilts británicos",
-      "energyShock": "Shock energético",
-      "bankingTurmoil": "Turbulencias bancarias",
-      "dotComPeak": "Pico de las puntocom",
-      "dotComLow": "Mínimo del mercado bajista puntocom",
-      "lehman": "Quiebra de Lehman",
-      "gfcLow": "Mínimo de la crisis financiera",
-      "eurozone": "Crisis del euro / rebaja de EE. UU.",
-      "brexit": "Votación del Brexit",
-      "selloff2018": "Mínimo de la caída del T4 2018"
-    },
     "positions": "Posiciones del escenario",
     "restoreRemoved": "Restaurar posiciones eliminadas",
     "addCustom": "Añadir posición personalizada",
@@ -1952,22 +1936,9 @@
     "save": {
       "title": "Guardar escenario",
       "download": "Descargar JSON del escenario",
-      "description": "El archivo exportado resume las carteras seleccionadas, la fecha del informe y los ajustes personalizados para que pueda volver a cargar el escenario en otro lugar."
+      "description": "El archivo exportado resume las carteras seleccionadas y los ajustes personalizados para que puedas recargar el escenario en otro lugar."
     },
-    "stress": {
-      "title": "Prueba de estrés histórica",
-      "description": "Aplique eventos históricos a sus carteras subyacentes. Utiliza el motor de escenarios del servidor y siempre refleja las últimas carteras guardadas.",
-      "selectEvent": "Seleccionar evento",
-      "run": "Ejecutar prueba de estrés",
-      "owner": "Titular",
-      "baseline": "{{horizon}} base (£)",
-      "shocked": "{{horizon}} con shock (£)",
-      "impact": "{{horizon}} % de impacto",
-      "coverageTitle": "El {{pct}}% de las posiciones por valor tiene historial de precios para este evento",
-      "priced": "{{pct}}% con precio",
-      "footnote": "Cada posición reproduce sus propios precios desde la fecha del evento. Las posiciones sin historial siguen el índice de referencia del evento y luego el resto de la cartera; «—» significa que menos de la mitad de la cartera tiene historial de precios para esa fecha.",
-      "compareStrategies": "Comparar estrategias para este evento →"
-    }
+    "stressOwner": "Cartera para la prueba de estrés:"
   },
   "virtualPortfolio": {
     "status": {

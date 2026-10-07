@@ -1,20 +1,8 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
 
-import {
-  getEvents,
-  getOwners,
-  getPortfolio,
-  runScenario,
-} from "../api";
-import type {
-  OwnerSummary,
-  Portfolio,
-  ScenarioEvent,
-  ScenarioResult,
-  SyntheticHolding,
-} from "../types";
+import { getOwners, getPortfolio } from "../api";
+import type { OwnerSummary, Portfolio, SyntheticHolding } from "../types";
 import {
   createOwnerDisplayLookup,
   getOwnerDisplayName,
@@ -26,12 +14,10 @@ import { MAX_SCENARIO_HOLDING_ROWS } from "../constants/renderLimits";
 import { useDedupedRequest } from "../hooks/useDedupedRequest";
 import { money } from "../lib/money";
 import { FxShockPanel } from "../components/FxShockPanel";
-
-const HORIZONS = ["1d", "1w", "1m", "3m", "1y"];
+import StrategyStressPanel from "../components/StrategyStressPanel";
 
 type PortfolioState = {
   status: "idle" | "loading" | "ready" | "error";
-  asOf: string | null;
   data?: Portfolio;
   error?: string;
 };
@@ -51,38 +37,15 @@ type ScenarioHoldingRow = {
 
 type CustomHolding = SyntheticHolding & { name?: string };
 
-// Oldest first. Older dates can only price holdings whose price history
-// reaches back that far.
-const SUGGESTED_DATES: { date: string; labelKey: string }[] = [
-  { date: "2000-03-10", labelKey: "scenarioTester.suggested.dotComPeak" },
-  { date: "2002-10-09", labelKey: "scenarioTester.suggested.dotComLow" },
-  { date: "2008-09-15", labelKey: "scenarioTester.suggested.lehman" },
-  { date: "2009-03-09", labelKey: "scenarioTester.suggested.gfcLow" },
-  { date: "2011-08-08", labelKey: "scenarioTester.suggested.eurozone" },
-  { date: "2016-06-24", labelKey: "scenarioTester.suggested.brexit" },
-  { date: "2018-12-24", labelKey: "scenarioTester.suggested.selloff2018" },
-  { date: "2020-03-16", labelKey: "scenarioTester.suggested.covid" },
-  { date: "2022-03-08", labelKey: "scenarioTester.suggested.energyShock" },
-  { date: "2022-09-26", labelKey: "scenarioTester.suggested.giltCrisis" },
-  { date: "2023-03-13", labelKey: "scenarioTester.suggested.bankingTurmoil" },
-];
-
 export default function ScenarioTester() {
   const { t } = useTranslation();
-  const [events, setEvents] = useState<ScenarioEvent[]>([]);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [portfolioStates, setPortfolioStates] = useState<Record<string, PortfolioState>>({});
-  const [eventId, setEventId] = useState("");
-  const [horizons, setHorizons] = useState<string[]>([]);
-  const [results, setResults] = useState<ScenarioResult[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [ownerError, setOwnerError] = useState<string | null>(null);
   const [selectedOwners, setSelectedOwners] = useState<string[]>(() =>
     loadJSON<string[]>("scenario.selectedOwners", []),
   );
-  const [reportingDate, setReportingDate] = useState<string>(() =>
-    loadJSON<string>("scenario.reportingDate", ""),
-  );
+  const [stressOwner, setStressOwner] = useState("");
   const [customHoldings, setCustomHoldings] = useState<CustomHolding[]>(() =>
     loadJSON<CustomHolding[]>("scenario.customHoldings", []),
   );
@@ -91,12 +54,6 @@ export default function ScenarioTester() {
   // Market values and scenario results are GBP amounts; money() labels them,
   // it does not convert, so they stay labelled GBP (#9725).
   const fmt = { format: (v: number) => money(v, "GBP") };
-
-  useEffect(() => {
-    getEvents()
-      .then(setEvents)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, []);
 
   useEffect(() => {
     getOwners()
@@ -113,10 +70,6 @@ export default function ScenarioTester() {
   }, [selectedOwners]);
 
   useEffect(() => {
-    saveJSON("scenario.reportingDate", reportingDate);
-  }, [reportingDate]);
-
-  useEffect(() => {
     saveJSON("scenario.customHoldings", customHoldings);
   }, [customHoldings]);
 
@@ -125,93 +78,50 @@ export default function ScenarioTester() {
     [owners],
   );
 
-  const effectiveDate = reportingDate.trim() === "" ? null : reportingDate.trim();
+  // The stress test runs for one owner: the chosen one, else the first
+  // selected portfolio, else the first owner.
+  const effectiveStressOwner =
+    stressOwner || selectedOwners[0] || owners[0]?.owner || "";
 
-  const { run: runPortfolioRequest, clear: clearPortfolioRequests } =
-    useDedupedRequest<Portfolio>();
+  const { run: runPortfolioRequest } = useDedupedRequest<Portfolio>();
 
   const ensurePortfolioLoaded = useCallback(
     (owner: string) => {
-      const requestKey = `${owner}::${effectiveDate ?? ""}`;
+      // A loaded owner keeps its data: the deduped request below is skipped
+      // for it, so marking it loading again would hide its holdings.
+      setPortfolioStates((prev) =>
+        prev[owner]?.status === "ready"
+          ? prev
+          : { ...prev, [owner]: { status: "loading" } },
+      );
 
-      setPortfolioStates((prev) => ({
-        ...prev,
-        [owner]: { status: "loading", asOf: effectiveDate ?? null },
-      }));
-
-      // The dedupe key is owner+date, but the request itself must receive the
-      // bare owner; passing the key through produced /portfolio/{owner}:: (#8576).
-      runPortfolioRequest(requestKey, () =>
-        getPortfolio(owner, { asOf: effectiveDate }),
-      )
+      runPortfolioRequest(owner, () => getPortfolio(owner))
         .then((pf) => {
           if (pf === undefined) {
             return;
           }
-          setPortfolioStates((prev) => {
-            const state = prev[owner];
-            if (!state || state.asOf !== (effectiveDate ?? null)) {
-              return prev;
-            }
-            return {
-              ...prev,
-              [owner]: {
-                status: "ready",
-                asOf: effectiveDate ?? null,
-                data: pf,
-              },
-            };
-          });
+          setPortfolioStates((prev) =>
+            prev[owner]
+              ? { ...prev, [owner]: { status: "ready", data: pf } }
+              : prev,
+          );
         })
         .catch((e) => {
           const msg = e instanceof Error ? e.message : String(e);
-          setPortfolioStates((prev) => {
-            const state = prev[owner];
-            if (!state || state.asOf !== (effectiveDate ?? null)) {
-              return prev;
-            }
-            return {
-              ...prev,
-              [owner]: {
-                status: "error",
-                asOf: effectiveDate ?? null,
-                error: msg,
-              },
-            };
-          });
+          setPortfolioStates((prev) =>
+            prev[owner]
+              ? { ...prev, [owner]: { status: "error", error: msg } }
+              : prev,
+          );
         });
     },
-    [effectiveDate, runPortfolioRequest],
+    [runPortfolioRequest],
   );
 
   useEffect(() => {
     if (selectedOwners.length === 0) return;
     selectedOwners.forEach((owner) => ensurePortfolioLoaded(owner));
   }, [selectedOwners, ensurePortfolioLoaded]);
-
-  useEffect(() => {
-    clearPortfolioRequests();
-    setPortfolioStates({});
-  }, [effectiveDate, clearPortfolioRequests]);
-
-  const toggleHorizon = (h: string) => {
-    setHorizons((prev) =>
-      prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h],
-    );
-  };
-
-  const canRun = eventId !== "" && horizons.length > 0;
-
-  async function handleRun() {
-    setError(null);
-    try {
-      const data = await runScenario({ event_id: eventId, horizons });
-      setResults(data);
-    } catch (e) {
-      setResults(null);
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }
 
   const combinedHoldings: ScenarioHoldingRow[] = useMemo(() => {
     const aggregated = new Map<string, ScenarioHoldingRow>();
@@ -380,21 +290,12 @@ export default function ScenarioTester() {
     );
   }
 
-  function handleSuggestedDate(date: string) {
-    setReportingDate(date);
-  }
-
-  function clearReportingDate() {
-    setReportingDate("");
-  }
-
   function downloadScenario() {
     if (activeHoldings.length === 0) {
       return;
     }
     const payload = {
       generated_at: new Date().toISOString(),
-      reporting_date: effectiveDate,
       owners: selectedOwners,
       holdings: activeHoldings.map((row) => ({
         ticker: row.ticker,
@@ -417,7 +318,7 @@ export default function ScenarioTester() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      const datePart = effectiveDate ?? new Date().toISOString().slice(0, 10);
+      const datePart = new Date().toISOString().slice(0, 10);
       anchor.download = `scenario-${datePart}.json`;
       document.body.appendChild(anchor);
       anchor.click();
@@ -496,45 +397,6 @@ export default function ScenarioTester() {
           {owners.length === 0 && !ownerError && (
             <p className="text-sm text-slate-500">{t("scenarioTester.loadingPortfolios")}</p>
           )}
-        </div>
-      </section>
-
-      <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold">{t("scenarioTester.reportingDate")}</h2>
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
-          <label className="flex items-center gap-2 text-sm">
-            <span>{t("scenarioTester.date")}</span>
-            <input
-              type="date"
-              value={reportingDate}
-              onChange={(e) => setReportingDate(e.target.value)}
-              className="rounded border border-slate-300 px-2 py-1"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={clearReportingDate}
-            className="w-fit rounded border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
-            disabled={reportingDate.trim() === ""}
-          >
-            {t("scenarioTester.useLatest")}
-          </button>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {SUGGESTED_DATES.map((item) => (
-            <button
-              key={item.date}
-              type="button"
-              onClick={() => handleSuggestedDate(item.date)}
-              className={`rounded px-3 py-1 text-sm shadow-sm transition-colors ${
-                reportingDate === item.date
-                  ? "bg-indigo-600 text-white"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              {t(item.labelKey)} ({item.date})
-            </button>
-          ))}
         </div>
       </section>
 
@@ -747,128 +609,27 @@ export default function ScenarioTester() {
       </section>
 
       <section className="rounded-md border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold">{t("scenarioTester.stress.title")}</h2>
-        <p className="mb-4 text-sm text-slate-600">
-          {t("scenarioTester.stress.description")}
-        </p>
-        <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center">
-          <select
-            value={eventId}
-            onChange={(e) => setEventId(e.target.value)}
-            className="rounded border border-slate-300 px-3 py-2 md:mr-2"
-          >
-            <option value="">{t("scenarioTester.stress.selectEvent")}</option>
-            {events.map((ev) => (
-              <option key={ev.id} value={ev.id}>
-                {ev.name}
-              </option>
-            ))}
-          </select>
-          <div className="flex flex-wrap items-center gap-2 md:mr-2">
-            {HORIZONS.map((h) => (
-              <label key={h} className="flex items-center gap-1 text-sm">
-                <input
-                  type="checkbox"
-                  checked={horizons.includes(h)}
-                  onChange={() => toggleHorizon(h)}
-                />
-                {h}
-              </label>
-            ))}
-          </div>
-          <button
-            onClick={handleRun}
-            disabled={!canRun}
-            className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400"
-          >
-            {t("scenarioTester.stress.run")}
-          </button>
-        </div>
-        {eventId && (
-          <p className="mb-3 text-sm">
-            <Link
-              to={`/strategy?${new URLSearchParams({
-                stress_event: eventId,
-                ...(horizons.length ? { horizons: horizons.join(",") } : {}),
-              }).toString()}`}
-              className="text-indigo-700 underline"
+        {owners.length > 1 && (
+          <label className="mb-3 flex items-center gap-2 text-sm">
+            <span>{t("scenarioTester.stressOwner")}</span>
+            <select
+              value={effectiveStressOwner}
+              onChange={(e) => setStressOwner(e.target.value)}
+              className="rounded border border-slate-300 px-2 py-1"
             >
-              {t("scenarioTester.stress.compareStrategies")}
-            </Link>
-          </p>
+              {owners.map((o) => (
+                <option key={o.owner} value={o.owner}>
+                  {getOwnerDisplayName(ownerLookup, o.owner)}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
-        {error && <div className="mb-3 text-sm text-red-500">{error}</div>}
-        {results && (
-          <div className="overflow-auto">
-            <table className="min-w-full border border-slate-200 text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="p-2 text-left">{t("scenarioTester.stress.owner")}</th>
-                  {horizons.flatMap((h) => [
-                    <th key={`${h}-b`} className="p-2 text-right">
-                      {t("scenarioTester.stress.baseline", { horizon: h })}
-                    </th>,
-                    <th key={`${h}-s`} className="p-2 text-right">
-                      {t("scenarioTester.stress.shocked", { horizon: h })}
-                    </th>,
-                    <th key={`${h}-p`} className="p-2 text-right">
-                      {t("scenarioTester.stress.impact", { horizon: h })}
-                    </th>,
-                  ])}
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((r, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="p-2 font-medium">{r.owner}</td>
-                    {horizons.map((h) => {
-                      const data = r.horizons[h];
-                      const baseline = data?.baseline_total_value_gbp ?? null;
-                      const shocked = data?.shocked_total_value_gbp ?? null;
-                      const pct =
-                        baseline != null && shocked != null
-                          ? ((shocked - baseline) / baseline) * 100.0
-                          : null;
-                      const coverage = data?.coverage_pct ?? null;
-                      const partial = coverage != null && coverage < 100;
-                      return (
-                        <Fragment key={h}>
-                          <td className="p-2 text-right">
-                            {baseline != null ? fmt.format(baseline) : "—"}
-                          </td>
-                          <td className="p-2 text-right">
-                            {shocked != null ? fmt.format(shocked) : "—"}
-                          </td>
-                          <td
-                            className="p-2 text-right"
-                            title={
-                              partial
-                                ? t("scenarioTester.stress.coverageTitle", {
-                                    pct: coverage.toFixed(0),
-                                  })
-                                : undefined
-                            }
-                          >
-                            {pct != null
-                              ? `${pct.toFixed(2)}%`
-                              : "—"}
-                            {partial && (
-                              <span className="block text-xs text-slate-500">
-                                {t("scenarioTester.stress.priced", { pct: coverage.toFixed(0) })}
-                              </span>
-                            )}
-                          </td>
-                        </Fragment>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="mt-2 text-xs text-slate-500">
-              {t("scenarioTester.stress.footnote")}
-            </p>
-          </div>
+        {effectiveStressOwner && (
+          <StrategyStressPanel
+            key={effectiveStressOwner}
+            owner={effectiveStressOwner}
+          />
         )}
       </section>
 

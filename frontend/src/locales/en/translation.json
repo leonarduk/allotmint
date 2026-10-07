@@ -1900,22 +1900,6 @@
     "loaded": "Loaded",
     "accounts": "Accounts: {{count}}",
     "loadingPortfolios": "Loading portfolios…",
-    "reportingDate": "Reporting date",
-    "date": "Date:",
-    "useLatest": "Use latest data",
-    "suggested": {
-      "covid": "COVID-19 market low",
-      "giltCrisis": "UK gilt crisis",
-      "energyShock": "Energy shock",
-      "bankingTurmoil": "Banking turmoil",
-      "dotComPeak": "Dot-com peak",
-      "dotComLow": "Dot-com bear market low",
-      "lehman": "Lehman collapse",
-      "gfcLow": "Financial crisis low",
-      "eurozone": "Eurozone crisis / US downgrade",
-      "brexit": "Brexit vote",
-      "selloff2018": "Q4 2018 sell-off low"
-    },
     "positions": "Scenario positions",
     "restoreRemoved": "Restore removed holdings",
     "addCustom": "Add custom position",
@@ -1945,22 +1929,9 @@
     "save": {
       "title": "Save scenario",
       "download": "Download scenario JSON",
-      "description": "The exported file summarises the selected portfolios, reporting date and any custom adjustments so you can reload the scenario elsewhere."
+      "description": "The exported file summarises the selected portfolios and any custom adjustments so you can reload the scenario elsewhere."
     },
-    "stress": {
-      "title": "Historical stress test",
-      "description": "Apply historical events to your underlying portfolios. This uses the server-side scenario engine and always reflects the latest stored portfolios.",
-      "selectEvent": "Select event",
-      "run": "Run stress test",
-      "owner": "Owner",
-      "baseline": "{{horizon}} baseline (£)",
-      "shocked": "{{horizon}} shocked (£)",
-      "impact": "{{horizon}} % impact",
-      "coverageTitle": "{{pct}}% of holdings by value have price history for this event",
-      "priced": "{{pct}}% priced",
-      "footnote": "Each holding replays its own prices from the event date. Holdings without history follow the event's proxy index, then the rest of the portfolio; \"—\" means under half of the portfolio has price history for that date.",
-      "compareStrategies": "Compare strategies for this event →"
-    }
+    "stressOwner": "Stress test portfolio:"
   },
   "virtualPortfolio": {
     "status": {

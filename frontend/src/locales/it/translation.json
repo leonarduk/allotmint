@@ -1907,22 +1907,6 @@
     "loaded": "Caricato",
     "accounts": "Conti: {{count}}",
     "loadingPortfolios": "Caricamento portafogli…",
-    "reportingDate": "Data di riferimento",
-    "date": "Data:",
-    "useLatest": "Usa i dati più recenti",
-    "suggested": {
-      "covid": "Minimo di mercato COVID-19",
-      "giltCrisis": "Crisi dei gilt britannici",
-      "energyShock": "Shock energetico",
-      "bankingTurmoil": "Turbolenze bancarie",
-      "dotComPeak": "Picco delle dot-com",
-      "dotComLow": "Minimo del mercato ribassista dot-com",
-      "lehman": "Crollo di Lehman",
-      "gfcLow": "Minimo della crisi finanziaria",
-      "eurozone": "Crisi dell'eurozona / declassamento USA",
-      "brexit": "Voto sulla Brexit",
-      "selloff2018": "Minimo del calo del T4 2018"
-    },
     "positions": "Posizioni dello scenario",
     "restoreRemoved": "Ripristina posizioni rimosse",
     "addCustom": "Aggiungi posizione personalizzata",
@@ -1952,22 +1936,9 @@
     "save": {
       "title": "Salva scenario",
       "download": "Scarica JSON dello scenario",
-      "description": "Il file esportato riepiloga i portafogli selezionati, la data di riferimento e le eventuali modifiche personalizzate, così potrai ricaricare lo scenario altrove."
+      "description": "Il file esportato riassume i portafogli selezionati e le eventuali modifiche personalizzate, così puoi ricaricare lo scenario altrove."
     },
-    "stress": {
-      "title": "Stress test storico",
-      "description": "Applica eventi storici ai tuoi portafogli sottostanti. Utilizza il motore di scenari lato server e riflette sempre gli ultimi portafogli salvati.",
-      "selectEvent": "Seleziona evento",
-      "run": "Esegui stress test",
-      "owner": "Titolare",
-      "baseline": "{{horizon}} base (£)",
-      "shocked": "{{horizon}} dopo shock (£)",
-      "impact": "{{horizon}} % impatto",
-      "coverageTitle": "Il {{pct}}% delle posizioni per valore ha uno storico prezzi per questo evento",
-      "priced": "{{pct}}% con prezzo",
-      "footnote": "Ogni posizione riproduce i propri prezzi dalla data dell'evento. Le posizioni senza storico seguono l'indice proxy dell'evento, poi il resto del portafoglio; «—» indica che meno della metà del portafoglio ha uno storico prezzi per quella data.",
-      "compareStrategies": "Confronta le strategie per questo evento →"
-    }
+    "stressOwner": "Portafoglio per lo stress test:"
   },
   "virtualPortfolio": {
     "status": {

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configContext, type ConfigContextValue } from '@/ConfigContext';
 import { clearReportingRateCache } from '@/hooks/useReportingCurrency';
 import { currencySymbol } from '@/lib/money';
-import type { Holding, InstrumentSummary } from '@/types';
+import type { Account, Holding, InstrumentSummary } from '@/types';
 
 const mockGetGbpRate = vi.fn();
 
@@ -62,6 +62,7 @@ vi.mock('@/components/InstrumentDetail', () => ({
   InstrumentDetail: () => null,
 }));
 
+import { AccountBlock } from '@/components/AccountBlock';
 import { HoldingsTable } from '@/components/HoldingsTable';
 import { InstrumentTable } from '@/components/InstrumentTable';
 import ValueAtRisk from '@/components/ValueAtRisk';
@@ -199,6 +200,62 @@ describe('InstrumentTable in the reporting currency', () => {
       screen.queryByRole('columnheader', { name: /£/ })
     ).not.toBeInTheDocument();
     expect(screen.getAllByText(usd(1250)).length).toBeGreaterThan(0);
+  });
+});
+
+describe('AccountBlock estimated value (#9795)', () => {
+  // Same options as AccountBlock's compact formatter, so the locale matches.
+  const compact = (v: number, currency: string) =>
+    new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+      notation: 'compact',
+      maximumFractionDigits: 2,
+    }).format(v);
+  const account = (overrides: Partial<Account> = {}): Account => ({
+    account_type: 'ISA',
+    currency: 'GBP',
+    value_estimate_gbp: 1000,
+    value_estimate_currency: 'GBP',
+    holdings: [],
+    ...overrides,
+  });
+
+  it('shows GBP unchanged when reporting in GBP', async () => {
+    render(<AccountBlock account={account()} />, {
+      wrapper: withCurrency('GBP'),
+    });
+
+    expect(
+      await screen.findByText(compact(1000, 'GBP'), { exact: false })
+    ).toBeInTheDocument();
+    expect(mockGetGbpRate).not.toHaveBeenCalled();
+  });
+
+  it('converts the GBP value into the reporting currency', async () => {
+    render(<AccountBlock account={account()} />, {
+      wrapper: withCurrency('USD'),
+    });
+
+    expect(
+      await screen.findByText(compact(1250, 'USD'), { exact: false })
+    ).toBeInTheDocument();
+  });
+
+  it('ignores a non-GBP value_estimate_currency tag: the value is GBP', async () => {
+    render(
+      <AccountBlock
+        account={account({ currency: 'USD', value_estimate_currency: 'USD' })}
+      />,
+      { wrapper: withCurrency('GBP') }
+    );
+
+    expect(
+      await screen.findByText(compact(1000, 'GBP'), { exact: false })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(compact(1000, 'USD'), { exact: false })
+    ).not.toBeInTheDocument();
   });
 });
 

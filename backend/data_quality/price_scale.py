@@ -33,6 +33,9 @@ TRAILING_MEDIAN_WINDOW = 30
 TRAILING_MEDIAN_FACTOR = 20.0
 # Default |day-on-day move| reported as LARGE_DAILY_MOVE (0.5 = 50%).
 DEFAULT_LARGE_MOVE_THRESHOLD = 0.5
+# Instrument metadata key that overrides the default for one instrument, e.g.
+# a volatile small cap that legitimately moves more than 50% in a day (#8602).
+LARGE_MOVE_THRESHOLD_META_KEY = "large_move_threshold"
 # Highest plausible per-share GBP price for an LSE instrument type. GBP-quoted
 # ETFs legitimately trade at ~GBP 100-300, so they are deliberately absent.
 # Equity headroom: Flutter (~GBP 208) and Games Workshop (~GBP 166) are the
@@ -102,6 +105,34 @@ def find_large_moves(
         for s in _steps(closes)
         if s["date"] not in exclude_dates and abs(s["ratio"] - 1.0) > threshold and not is_scale_step(s["ratio"])
     ]
+
+
+def large_move_threshold(meta: dict[str, Any] | None, default: float = DEFAULT_LARGE_MOVE_THRESHOLD) -> float:
+    """The instrument's own move threshold from metadata, else ``default``.
+
+    A missing, non-numeric, non-finite or non-positive value falls back to
+    ``default`` so a typo in one metadata file cannot silence the check.
+    """
+    raw = (meta or {}).get(LARGE_MOVE_THRESHOLD_META_KEY)
+    if raw is None or isinstance(raw, bool):
+        return default
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return default
+    return value if math.isfinite(value) and value > 0 else default
+
+
+def latest_move(closes: pd.Series, threshold: float) -> PriceStep | None:
+    """The most recent day-on-day step if ``|ratio - 1| > threshold``, else None.
+
+    Unlike :func:`find_large_moves` this includes power-of-ten steps: at
+    refresh time a fresh 10x step is exactly what should be surfaced.
+    """
+    if len(closes) < 2:
+        return None
+    step = list(_steps(closes.iloc[-2:]))[-1]
+    return step if abs(step["ratio"] - 1.0) > threshold else None
 
 
 def trailing_median_ratio(closes: pd.Series, window: int = TRAILING_MEDIAN_WINDOW) -> float | None:

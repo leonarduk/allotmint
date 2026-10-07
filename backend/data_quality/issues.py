@@ -670,9 +670,10 @@ def aggregate_series_issues(
 
         closes = price_scale.close_series(df)
         split_dates = _split_dates(ticker, exchange)
+        move_threshold = price_scale.large_move_threshold(meta, large_move_threshold)
         for detected in (
             _price_scale_issue(ticker, exchange, closes, meta, split_dates),
-            _large_move_issue(ticker, exchange, closes, large_move_threshold, split_dates),
+            _large_move_issue(ticker, exchange, closes, move_threshold, split_dates),
         ):
             if detected is not None:
                 issues.append(detected)

@@ -81,6 +81,9 @@ export function loadColumnVisibility(): ColumnVisibility {
   }
 }
 
+// The preset whose every column matches, or null for a custom mix. Relies on
+// `visibility` being a complete record, which loadColumnVisibility guarantees
+// by filling any key missing from a saved choice.
 export function matchingPreset(
   visibility: ColumnVisibility
 ): ColumnPreset | null {

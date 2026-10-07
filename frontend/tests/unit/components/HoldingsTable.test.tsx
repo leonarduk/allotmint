@@ -1578,6 +1578,26 @@ describe("HoldingsTable", () => {
           expect(screen.getByRole("checkbox", { name: "Sector" })).not.toBeChecked();
       });
 
+      it("relative view still hides money columns a preset turns on, until it is switched off", async () => {
+          localStorage.removeItem(COLUMN_VISIBILITY_STORAGE_KEY);
+          const { container } = renderWithConfig(<HoldingsTable holdings={holdings} />);
+          await userEvent.click(screen.getByLabelText("Relative view"));
+
+          await userEvent.click(presetButton("Detailed"));
+
+          expect(presetButton("Detailed")).toHaveAttribute("aria-pressed", "true");
+          expect(screen.getByRole("checkbox", { name: "Units" })).toBeChecked();
+          const relativeHeaders = headerTitles(container);
+          for (const hidden of ["Units", "Mkt £", "Gain £", "Total return £", "Cost £"]) {
+              expect(relativeHeaders).not.toContain(hidden);
+          }
+          expect(relativeHeaders).toContain("Gain %");
+          expect(relativeHeaders).toHaveLength(13);
+
+          await userEvent.click(screen.getByLabelText("Relative view"));
+          expect(headerTitles(container)).toHaveLength(18);
+      });
+
       it("falls back to Simple when the saved choice is unreadable", () => {
           localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, "{not json");
           const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

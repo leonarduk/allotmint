@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
+  Legend,
   Line,
   LineChart,
   ReferenceArea,
@@ -29,6 +30,10 @@ import InfoTip from "./InfoTip";
 import PortfolioFxAttribution from "./PortfolioFxAttribution";
 import FractionMetric from "./FractionMetric";
 import {
+  buildCumulativeComparison,
+  type CumulativeComparisonPoint,
+} from "../lib/benchmarkSeries";
+import {
   classifyDrawdown,
   DRAWDOWN_RANGE,
   drawdownNeedsAttention,
@@ -52,6 +57,13 @@ type Props = {
 // (see #7230) because "Alpha vs Benchmark" is not interpretable without it.
 const BENCHMARK_TICKER = "VWRL.L";
 
+// Distinct hue and dash so the benchmark never reads as the portfolio line (#7833).
+const PORTFOLIO_LINE_COLOUR = "#82ca9d";
+const BENCHMARK_LINE_COLOUR = "#f59e0b";
+
+// Why the Cumulative Return chart shows the portfolio alone (#7833).
+type BenchmarkSeriesState = "ok" | "failed" | "empty";
+
 // Metric units (fractions) and plausibility handling live in
 // lib/metricPlausibility.ts and FractionMetric, shared with the group view
 // (#8570).
@@ -62,6 +74,8 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [days, setDays] = useState<number>(365);
   const [alpha, setAlpha] = useState<number | null>(null);
+  const [comparison, setComparison] = useState<CumulativeComparisonPoint[]>([]);
+  const [benchmarkState, setBenchmarkState] = useState<BenchmarkSeriesState>("empty");
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
   const [drawdownSeries, setDrawdownSeries] = useState<DrawdownSeriesPoint[]>([]);
@@ -100,6 +114,8 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     setDrawdownTrough(null);
     setShowDrawdownDetails(false);
     setAlpha(null);
+    setComparison([]);
+    setBenchmarkState("empty");
     setTrackingError(null);
     setMaxDrawdown(null);
     setTimeWeightedReturn(null);
@@ -139,8 +155,12 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
 
       if (alphaResult.status === "fulfilled") {
         setAlpha(alphaResult.value.alpha_vs_benchmark);
+        const points = buildCumulativeComparison(alphaResult.value.series);
+        setComparison(points);
+        setBenchmarkState(points.length > 0 ? "ok" : "empty");
       } else {
         unavailable.push(t("dashboard.alphaVsBenchmark"));
+        setBenchmarkState("failed");
       }
 
       if (teResult.status === "fulfilled") {
@@ -243,6 +263,9 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     : "#";
 
   const drawdownDetailsAvailable = drawdownSeries.length > 0;
+
+  const formatReturnTooltip = (v: unknown) =>
+    percent(((v as number | undefined) ?? 0) * 100, 2, i18n.language);
 
   return (
     <div style={{ marginTop: "1rem" }}>
@@ -588,19 +611,67 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
       </ResponsiveContainer>
 
       <h2 style={{ marginTop: "2rem" }}>{t("dashboard.cumulativeReturn")}</h2>
-      <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={data}>
-          <XAxis dataKey="date" />
-          <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
-          <Tooltip formatter={(v) => percent(((v as number | undefined) ?? 0) * 100, 2, i18n.language)} />
-          <Line
-            type="monotone"
-            dataKey="cumulative_return"
-            stroke="#82ca9d"
-            dot={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+      {benchmarkState === "ok" ? (
+        <>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={comparison}>
+              <XAxis dataKey="date" />
+              <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
+              <Tooltip formatter={formatReturnTooltip} />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="portfolio"
+                name={t("dashboard.cumulativeReturnPortfolio")}
+                stroke={PORTFOLIO_LINE_COLOUR}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="benchmark"
+                name={t("dashboard.cumulativeReturnBenchmark", { ticker: BENCHMARK_TICKER })}
+                stroke={BENCHMARK_LINE_COLOUR}
+                strokeDasharray="6 3"
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+          <p
+            data-testid="cumulative-return-basis"
+            style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "0.25rem" }}
+          >
+            {t("dashboard.cumulativeReturnBasis", {
+              ticker: BENCHMARK_TICKER,
+              from: comparison[0].date,
+              to: comparison[comparison.length - 1].date,
+            })}
+          </p>
+        </>
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={data}>
+              <XAxis dataKey="date" />
+              <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
+              <Tooltip formatter={formatReturnTooltip} />
+              <Line
+                type="monotone"
+                dataKey="cumulative_return"
+                stroke={PORTFOLIO_LINE_COLOUR}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+          <p
+            data-testid="benchmark-series-unavailable"
+            style={{ fontSize: "0.8rem", color: "#facc15", marginTop: "0.25rem" }}
+          >
+            {benchmarkState === "failed"
+              ? t("dashboard.benchmarkSeriesFailed", { ticker: BENCHMARK_TICKER })
+              : t("dashboard.benchmarkSeriesEmpty", { ticker: BENCHMARK_TICKER })}
+          </p>
+        </>
+      )}
       {activeOwner && (
         <div style={{ marginTop: "1rem" }}>
           <Link

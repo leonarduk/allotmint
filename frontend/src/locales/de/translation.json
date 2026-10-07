@@ -2356,6 +2356,28 @@
     "split": "Aufteilen",
     "save": "Speichern"
   },
+  "recordTrade": {
+    "buy": "Kaufen",
+    "sell": "Verkaufen",
+    "title": "Trade in {{ticker}} erfassen",
+    "account": "Inhaber / Konto",
+    "accountHeld": "{{owner}} / {{account}} (hält {{units}})",
+    "pricePence": "Preis je Einheit (Pence)",
+    "pricePounds": "Preis je Einheit (£)",
+    "priceUnit": "Preis in",
+    "unitGbp": "Pfund (GBP)",
+    "unitGbx": "Pence (GBX)",
+    "feesGbp": "Gebühren (£)",
+    "total": "Gesamt",
+    "priceInPounds": "= {{price}} je Einheit",
+    "oversell": "Verkauf von {{units}} Einheiten, aber dieses Konto hält {{held}}.",
+    "oversellConfirm": "Trotzdem erfassen",
+    "save": "{{side}} erfassen",
+    "saved": "{{side}} von {{ticker}} erfasst.",
+    "saveFailed": "Trade konnte nicht erfasst werden.",
+    "ownersFailed": "Konten konnten nicht geladen werden.",
+    "noAccount": "Inhaber und Konto wählen."
+  },
   "varBreakdown": {
     "title": "VaR-Aufschlüsselung",
     "quantileDate": "VaR-Quantilsdatum:",

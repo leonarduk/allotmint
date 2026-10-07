@@ -10,7 +10,11 @@ import {
   type TransactionFormValues,
 } from './transactions/transactionForm';
 
-type Props = { ticker: string };
+type Props = {
+  ticker: string;
+  /** Bump to reload the list, e.g. after a trade is recorded elsewhere. */
+  refreshToken?: number;
+};
 
 type Mode =
   | { kind: 'edit'; id: string; values: TransactionFormValues }
@@ -23,7 +27,7 @@ const rowUnits = (tx: Transaction) => tx.units ?? tx.shares ?? null;
  * edit and split.  Editing goes through PUT /transactions/{id}; splitting
  * through POST /transactions/{id}/split.
  */
-export function InstrumentTransactions({ ticker }: Props) {
+export function InstrumentTransactions({ ticker, refreshToken = 0 }: Props) {
   const { t } = useTranslation();
   const { demoReadOnly, reason } = useDemoReadOnly();
   const [rows, setRows] = useState<Transaction[]>([]);
@@ -56,7 +60,7 @@ export function InstrumentTransactions({ ticker }: Props) {
     return () => {
       active = false;
     };
-  }, [ticker, refreshKey, t]);
+  }, [ticker, refreshKey, refreshToken, t]);
 
   const run = useCallback(
     async (action: () => Promise<unknown>, failure: string) => {

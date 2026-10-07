@@ -8,7 +8,7 @@ import {
   updateCachedInstrumentHistory,
 } from "../hooks/useInstrumentHistory";
 import { InstrumentDetail, InstrumentPositionsTable } from "../components/InstrumentDetail";
-import { InstrumentTransactions } from "../components/InstrumentTransactions";
+import { InstrumentTradeSection } from "../components/InstrumentTradeSection";
 import { InstrumentValuationPanel } from "../components/InstrumentValuationPanel";
 import { InstrumentTechnicalsPanel } from "../components/InstrumentTechnicalsPanel";
 import { InstrumentAllocationPanel } from "../components/LookThrough";
@@ -1661,10 +1661,11 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       )}
 
       {activeTab === "positions" && (
-        <section aria-label={t("instrumentDetail.research.transactions")}>
-          <h2 style={{ marginBottom: "0.75rem" }}>{t("instrumentDetail.research.transactions")}</h2>
-          <InstrumentTransactions ticker={tkr} />
-        </section>
+        <InstrumentTradeSection
+          ticker={tkr}
+          positions={positions}
+          quoteCurrency={displayCurrency || resolvedCurrentCurrency}
+        />
       )}
 
       {activeTab === "fundamentals" && (

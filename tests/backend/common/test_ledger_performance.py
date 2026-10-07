@@ -79,11 +79,13 @@ def test_dividend_counts_as_return():
 
 
 def test_interest_counts_as_return():
-    # Cash interest goes through the same _INCOME path as a dividend (#9637).
+    # Cash interest goes through the same _INCOME path as a dividend (#9637,
+    # #9169): a return, not an external flow.
     interest = [*TRANSACTIONS[:-1], {"date": "2026-02-13", "type": "INTEREST", "amount_minor": 3000}]
     perf = build(interest)
 
     assert perf.returns[pd.Timestamp("2026-02-13")] == pytest.approx(2010 / 1980 - 1)
+    assert perf.flows[pd.Timestamp("2026-02-13")] == pytest.approx(0.0)
     assert lp.chained_return(perf.returns, None, END) == pytest.approx(0.005)
 
 

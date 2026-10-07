@@ -38,6 +38,11 @@ export interface Holding {
   total_return_gbp?: number | null;
   /** total_return_gbp over all cost put into the position, as a percentage. */
   total_return_pct?: number | null;
+  /**
+   * Trailing 12-month income received over market value, as a percentage
+   * (#7019); null when no income was received in that window.
+   */
+  yield_pct?: number | null;
   current_price_gbp?: number | null;
   current_price_currency?: string | null;
   /** Date of the last known price for this holding */

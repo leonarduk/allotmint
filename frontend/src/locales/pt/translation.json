@@ -108,6 +108,7 @@
     "close": "Fechar",
     "last": "Último:",
     "loading": "Carregando…",
+    "stillLoading": "Ainda a carregar — o primeiro carregamento pode demorar até um minuto.",
     "logout": "Sair",
     "menu": "Menu",
     "menuCategories": {
@@ -2926,6 +2927,8 @@
       "growth": "Crescimento",
       "gainUnknown": "Ganho desconhecido — sem custo base registado",
       "gainDetail": "{{gain}} de ganho não realizado ({{pct}})",
+      "yield": "Rendimento",
+      "yieldDetail": "{{pct}}% de rendimento de proventos dos últimos 12 meses",
       "vigour": "Vigor",
       "noMoveToday": "Sem movimento registado hoje",
       "pctToday": "{{pct}} hoje",

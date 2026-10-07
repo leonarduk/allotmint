@@ -644,6 +644,85 @@ def test_update_imported_dividend_without_type_keeps_dividend(tmp_path, monkeypa
     stored = json.loads((owner_dir / "ISA_transactions.json").read_text())["transactions"][0]
     assert stored["type"] == "DIVIDEND"
     assert stored["comments"] == "edited"
+    # The trade-shaped body must not clobber the dividend's own fields (#8193).
+    assert "price_gbp" not in stored and "units" not in stored
+    assert (stored["ticker"], stored["amount_minor"]) == ("PFE", 500)
+
+
+def _seed_imported_dividend(tmp_path):
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    dividend = {
+        "type": "DIVIDEND",
+        "ticker": "PFE",
+        "date": "2024-05-01",
+        "price_gbp": 0.42,
+        "units": 10,
+        "reason": "income",
+    }
+    (owner_dir / "isa_transactions.json").write_text(
+        json.dumps({"owner": "alice", "account_type": "isa", "transactions": [dividend]})
+    )
+    return owner_dir / "isa_transactions.json"
+
+
+def test_update_dividend_keeps_trade_fields_and_omitted_date(tmp_path, monkeypatch):
+    path = _seed_imported_dividend(tmp_path)
+    client = _make_client(tmp_path, monkeypatch)
+
+    resp = client.put(
+        "/transactions/alice:isa:0",
+        json=_valid_payload(account="isa", ticker="MSFT", price_gbp=99.0, units=1, date=None, comments="edited"),
+    )
+
+    assert resp.status_code == 200
+    stored = json.loads(path.read_text())["transactions"][0]
+    assert {k: stored[k] for k in ("type", "ticker", "price_gbp", "units", "date", "comments")} == {
+        "type": "DIVIDEND",
+        "ticker": "PFE",
+        "price_gbp": 0.42,
+        "units": 10,
+        "date": "2024-05-01",
+        "comments": "edited",
+    }
+
+
+def test_update_dividend_accepts_body_without_trade_fields(tmp_path, monkeypatch):
+    path = _seed_imported_dividend(tmp_path)
+    client = _make_client(tmp_path, monkeypatch)
+
+    resp = client.put(
+        "/transactions/alice:isa:0",
+        json={"owner": "alice", "account": "isa", "date": "2024-05-02", "reason": "income, re-dated"},
+    )
+
+    assert resp.status_code == 200
+    stored = json.loads(path.read_text())["transactions"][0]
+    assert (stored["date"], stored["price_gbp"], stored["units"]) == ("2024-05-02", 0.42, 10)
+
+
+def test_update_trade_without_trade_fields_is_rejected(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    created = client.post("/transactions", json=_valid_payload(account="isa")).json()
+    path = tmp_path / "alice" / "isa_transactions.json"
+    before = path.read_text()
+
+    resp = client.put(f"/transactions/{created['id']}", json={"owner": "alice", "account": "isa", "reason": "x"})
+
+    assert resp.status_code == 422
+    assert "price_gbp" in resp.json()["detail"]
+    assert path.read_text() == before
+
+
+def test_update_dividend_to_explicit_trade_type_applies_trade_fields(tmp_path, monkeypatch):
+    path = _seed_imported_dividend(tmp_path)
+    client = _make_client(tmp_path, monkeypatch)
+
+    resp = client.put("/transactions/alice:isa:0", json=_valid_payload(account="isa", type="BUY", units=3))
+
+    assert resp.status_code == 200
+    stored = json.loads(path.read_text())["transactions"][0]
+    assert (stored["type"], stored["units"], stored["price_gbp"]) == ("BUY", 3, 10.5)
 
 
 def test_import_transactions_rolls_back_when_later_write_fails(tmp_path, monkeypatch):

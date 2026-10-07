@@ -60,13 +60,27 @@ describe('seasonFromCalendar', () => {
   });
 
   it('keeps dates up to 5 April in the previous tax year', () => {
-    expect(seasonFromCalendar(new Date('2026-04-05T23:59:00Z'))).toEqual({
+    expect(seasonFromCalendar(new Date('2026-04-05T22:59:00Z'))).toEqual({
       label: '2025/26',
       endsOn: '2026-04-05',
     });
     expect(seasonFromCalendar(new Date('2027-01-15T12:00:00Z'))).toEqual({
       label: '2026/27',
       endsOn: '2027-04-05',
+    });
+  });
+
+  it('reads the boundary in UK local time, not UTC', () => {
+    // 00:30 BST on 6 April is still 5 April in UTC, but already the new
+    // UK tax year.
+    expect(seasonFromCalendar(new Date('2026-04-05T23:30:00Z'))).toEqual({
+      label: '2026/27',
+      endsOn: '2027-04-05',
+    });
+    // 23:30 BST on 5 April is still the old tax year.
+    expect(seasonFromCalendar(new Date('2026-04-05T22:30:00Z'))).toEqual({
+      label: '2025/26',
+      endsOn: '2026-04-05',
     });
   });
 

@@ -50,13 +50,22 @@ export function parseTaxYear(
  * window (6 April – 5 April) is public, so it needs no backend: this is the
  * fallback when `/tax/allowances` is unavailable (e.g. the 402 billing gate
  * on a deployment without the pro package) or omits `tax_year` (#7195).
- * Uses UTC date fields to match `seasonCountdown`'s UTC deadline.
+ * The boundary is a UK-local date, so the calendar day is read in
+ * Europe/London: 00:30 BST on 6 April (23:30 UTC on 5 April) is already the
+ * new tax year.
  */
 export function seasonFromCalendar(now: Date): Season {
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth(); // 0-based: 3 = April
-  const beforeSixthApril =
-    month < 3 || (month === 3 && now.getUTCDate() < 6);
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).formatToParts(now);
+  const part = (type: 'year' | 'month' | 'day'): number =>
+    Number(parts.find((entry) => entry.type === type)?.value);
+  const year = part('year');
+  const month = part('month'); // 1-based: 4 = April
+  const beforeSixthApril = month < 4 || (month === 4 && part('day') < 6);
   const startYear = beforeSixthApril ? year - 1 : year;
   return {
     label: `${startYear}/${String(startYear + 1).slice(-2)}`,

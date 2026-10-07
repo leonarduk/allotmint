@@ -819,6 +819,57 @@ describe('Plot mode provider hardening', () => {
     expect(within(hud).queryByText('£10.0k')).toBeNull();
   });
 
+  it('keeps "Your progress" session-wide while the plot figures follow the grower (#7191)', async () => {
+    mocks.getOwners.mockResolvedValue([
+      { owner: 'steve', accounts: ['stocks-isa'] },
+      { owner: 'alex', accounts: ['stocks-isa'] },
+    ]);
+    renderPlot();
+
+    const hud = screen.getByRole('banner');
+    await waitFor(() =>
+      expect(within(hud).getByText('£10.0k')).toBeInTheDocument()
+    );
+    const progressBefore = within(hud).getByRole('group', {
+      name: 'Your progress',
+    });
+    expect(
+      within(progressBefore).getByText('Level 3 · 0/150 XP')
+    ).toBeInTheDocument();
+
+    mocks.getPortfolio.mockResolvedValue({
+      ...portfolio,
+      owner: 'alex',
+      total_value_estimate_gbp: 20_000,
+      accounts: portfolio.accounts.map((account) => ({
+        ...account,
+        owner: 'alex',
+        value_estimate_gbp: 20_000,
+      })),
+    });
+    fireEvent.change(screen.getByLabelText('Grower'), {
+      target: { value: 'alex' },
+    });
+
+    await waitFor(() =>
+      expect(within(hud).getByText('£20.0k')).toBeInTheDocument()
+    );
+    expect(within(hud).queryByText('£10.0k')).toBeNull();
+    // `/trail` is not owner-scoped: the same session progress is shown under
+    // the "Your progress" label for Alex, not as Alex's own rank/XP.
+    const progressAfter = within(hud).getByRole('group', {
+      name: 'Your progress',
+    });
+    expect(
+      within(progressAfter).getByText('Level 3 · 0/150 XP')
+    ).toBeInTheDocument();
+    expect(
+      within(progressAfter).getByTitle('Consecutive days of chores done')
+    ).toHaveTextContent('3');
+    expect(mocks.getTrailTasks).toHaveBeenCalledTimes(2);
+    expect(mocks.getTrailTasks).toHaveBeenLastCalledWith();
+  });
+
   it('stops loading with a distinct message when grower discovery fails', async () => {
     mocks.getOwners.mockRejectedValue(new Error('offline'));
     renderPlot();

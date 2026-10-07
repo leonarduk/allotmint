@@ -1924,6 +1924,7 @@
     "everyMinute": "Every minute",
     "manual": "Manual",
     "marketsClosed": "Markets closed",
+    "staleAge": "{{days}}d old",
     "addTicker": "Add {{symbol}} to watchlist",
     "removeTicker": "Remove {{symbol}} from watchlist"
   },

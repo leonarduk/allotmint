@@ -1931,6 +1931,7 @@
     "everyMinute": "Ogni minuto",
     "manual": "Manuale",
     "marketsClosed": "Mercati chiusi",
+    "staleAge": "{{days}} g fa",
     "addTicker": "Aggiungi {{symbol}} alla lista di osservazione",
     "removeTicker": "Rimuovi {{symbol}} dalla lista di osservazione"
   },

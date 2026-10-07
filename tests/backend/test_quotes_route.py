@@ -160,3 +160,34 @@ def test_get_quotes_labels_pence_as_gbx_without_scaling_price(monkeypatch):
     data = resp.json()
     assert data[0]["currency"] == "GBX"
     assert data[0]["price"] == 517.05
+
+
+def test_get_quotes_returns_null_not_zero_for_missing_index_fields(monkeypatch):
+    """^NYA-style rows: Yahoo zero-fills open/high/low; the API must send null (#7819)."""
+
+    import pandas as pd
+
+    app = FastAPI()
+    app.include_router(quotes.router)
+
+    ticker = FakeChartTicker(
+        {
+            "regularMarketPrice": 23999.0,
+            "chartPreviousClose": 24090.0,
+            "regularMarketDayHigh": 0,
+            "regularMarketDayLow": 0,
+            "instrumentType": "INDEX",
+        },
+        pd.DataFrame({"Open": [0.0], "Close": [23999.0]}),
+    )
+    monkeypatch.setattr(quotes.yf, "Tickers", lambda symbols: type("TT", (), {"tickers": {"^NYA": ticker}})())
+    monkeypatch.setattr(quotes.config, "offline_mode", False)
+
+    with TestClient(app) as client:
+        row = client.get("/api/quotes?symbols=^NYA").json()[0]
+
+    assert row["price"] == 23999.0
+    assert row["previous_close"] == 24090.0
+    assert row["open"] is None
+    assert row["high"] is None
+    assert row["low"] is None

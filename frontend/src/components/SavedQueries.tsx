@@ -6,6 +6,8 @@ import { useFetch } from "../hooks/useFetch";
 
 type Props = {
   onLoad: (params: CustomQuery) => void;
+  /** Change it to re-fetch the list, e.g. after the page saves a query. */
+  refreshKey?: number;
 };
 
 // Issue #7202: `data/queries/demo-slug.json` is a developer-seeded fixture
@@ -26,12 +28,12 @@ type Props = {
 // trade-off for a rare, unlikely-to-occur name collision.
 const SEEDED_EXAMPLE_QUERY_IDS = new Set(["demo-slug"]);
 
-export function SavedQueries({ onLoad }: Props) {
+export function SavedQueries({ onLoad, refreshKey = 0 }: Props) {
   const { t } = useTranslation();
   const loadQueries = useCallback(() => listSavedQueries({ detailed: true }), []);
   const { data: queries, loading, error } = useFetch<SavedQuery[]>(
     loadQueries,
-    [],
+    [refreshKey],
   );
 
   if (loading) return <p>{t("query.savedQueriesLoading")}</p>;

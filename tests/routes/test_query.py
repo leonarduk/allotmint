@@ -37,7 +37,9 @@ def test_resolve_tickers(monkeypatch):
         owners=["Alice"],
         tickers=["def.l"],
     )
-    assert query._resolve_tickers(q) == ["ABC.L", "DEF.L"]
+    # Selected tickers restrict the query; they are not unioned with every
+    # holding of the selected owners (#7380).
+    assert query._resolve_tickers(q) == ["DEF.L"]
 
 
 def test_resolve_tickers_without_filters(monkeypatch):
@@ -515,3 +517,124 @@ def test_load_query_local_fallback_loads_from_repo_dir(monkeypatch, tmp_path):
     result = query._load_query_local("repo-query")
 
     assert result["tickers"] == ["XYZ.L"]
+
+
+# --- holding metrics, save and GET export (#7380) ---------------------------
+
+_HOLDING_PORTFOLIOS = [
+    {
+        "owner": "alice",
+        "accounts": [
+            {"holdings": [{"ticker": "ABC.L", "units": 10, "acquired_date": "2019-01-01", "cost_basis_gbp": 50}]},
+            {
+                "holdings": [
+                    {"ticker": "ABC.L", "units": 5, "acquired_date": "2019-06-01", "cost_basis_gbp": 30},
+                    {"ticker": "NEW.L", "units": 2, "acquired_date": "2020-06-01", "cost_basis_gbp": 7},
+                    {"ticker": "CASH.GBP", "units": 100},
+                ]
+            },
+        ],
+    },
+    {"owner": "bob", "accounts": [{"holdings": [{"ticker": "ABC.L", "units": 1}]}]},
+]
+
+# GBP closes by (symbol, date): ABC rises 2 -> 3, NEW is 4 at the end.
+_PRICES = {
+    ("ABC", date(2020, 1, 1)): 2.0,
+    ("ABC", date(2020, 12, 31)): 3.0,
+    ("NEW", date(2020, 12, 31)): 4.0,
+}
+
+
+@pytest.fixture
+def holdings_env(monkeypatch):
+    monkeypatch.setattr(query, "list_portfolios", lambda: _HOLDING_PORTFOLIOS)
+    monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (_PRICES.get((sym, d)), None))
+    monkeypatch.setattr(query, "get_security_meta", lambda t: {"name": t.lower()})
+
+
+def _holding_query(**kwargs):
+    base = {"start": date(2020, 1, 1), "end": date(2020, 12, 31), "metrics": [query.Metric.MARKET_VALUE_GBP]}
+    return query.CustomQuery(**{**base, **kwargs})
+
+
+def test_holding_rows_sum_accounts_per_owner_and_ticker(holdings_env):
+    rows = query.run_query(_holding_query(owners=["alice"], tickers=["ABC.L"]))["results"]
+    assert rows == [{"owner": "alice", "ticker": "ABC.L", "units": 15.0, "market_value_gbp": 45.0}]
+
+
+def test_gain_measures_from_start_price_or_cost_when_bought_in_range(holdings_env):
+    q = _holding_query(owners=["alice"], metrics=[query.Metric.GAIN_GBP])
+    rows = {r["ticker"]: r for r in query.run_query(q)["results"]}
+    # Held at the start: 15 units x (3 - 2).
+    assert rows["ABC.L"]["start_value_gbp"] == 30.0
+    assert rows["ABC.L"]["gain_gbp"] == 15.0
+    # Bought mid-range: from its cost of 7 to 2 x 4.
+    assert rows["NEW.L"]["start_value_gbp"] == 7.0
+    assert rows["NEW.L"]["gain_gbp"] == 1.0
+    # Sterling cash is flat.
+    assert rows["CASH.GBP"]["gain_gbp"] == 0.0
+
+
+def test_unpriced_holding_value_is_none_not_understated(holdings_env, monkeypatch):
+    monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda *a: (None, None))
+    rows = query.run_query(_holding_query(tickers=["ABC.L"]))["results"]
+    assert [r["market_value_gbp"] for r in rows] == [None, None]
+
+
+def test_holding_metrics_merge_per_ticker_metrics(holdings_env):
+    q = _holding_query(owners=["bob"], metrics=[query.Metric.MARKET_VALUE_GBP, query.Metric.META])
+    assert query.run_query(q)["results"] == [
+        {"owner": "bob", "ticker": "ABC.L", "units": 1.0, "market_value_gbp": 3.0, "name": "abc.l"}
+    ]
+
+
+def test_get_run_exports_csv_attachment(holdings_env):
+    resp = make_client().get(
+        "/custom-query/run",
+        params={
+            "start": "2020-01-01",
+            "end": "2020-12-31",
+            "owners": "bob",
+            "metrics": "market_value_gbp,gain_gbp",
+            "format": "csv",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-disposition"] == "attachment; filename=custom-query.csv"
+    lines = resp.text.strip().splitlines()
+    assert lines[0] == "owner,ticker,units,market_value_gbp,start_value_gbp,gain_gbp"
+    assert lines[1] == "bob,ABC.L,1.0,3.0,2.0,1.0"
+
+
+def test_get_run_rejects_unknown_metric(holdings_env):
+    resp = make_client().get(
+        "/custom-query/run", params={"start": "2020-01-01", "end": "2020-12-31", "metrics": "bogus"}
+    )
+    assert resp.status_code == 422
+
+
+def test_save_route_slugifies_name(monkeypatch, tmp_path):
+    monkeypatch.setattr(query.config, "app_env", "local")
+    monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
+    body = {"name": "My ISA gains!", "start": "2020-01-01", "end": "2020-12-31", "metrics": ["gain_gbp"]}
+    resp = make_client().post("/custom-query/save", json=body)
+    assert resp.status_code == 200
+    assert resp.json() == {"id": "my-isa-gains", "saved": "my-isa-gains"}
+    assert json.loads((tmp_path / "my-isa-gains.json").read_text())["metrics"] == ["gain_gbp"]
+
+
+def test_save_route_requires_a_name(monkeypatch, tmp_path):
+    monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
+    resp = make_client().post("/custom-query/save", json={"start": "2020-01-01", "end": "2020-12-31"})
+    assert resp.status_code == 400
+    assert not list(tmp_path.iterdir())
+
+
+def test_price_steps_back_past_an_empty_close(holdings_env, monkeypatch):
+    # Nothing stored for the end date or the day before (an empty bar), so
+    # the value comes from the latest usable close within the week.
+    prices = {("ABC", date(2020, 12, 29)): 3.0}
+    monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (prices.get((sym, d)), None))
+    rows = query.run_query(_holding_query(owners=["bob"]))["results"]
+    assert rows[0]["market_value_gbp"] == 3.0

@@ -226,6 +226,22 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
+    "path": "/custom-query/run",
+    "query": {
+      "start": "1970-01-01",
+      "end": "1970-01-01"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/custom-query/save",
+    "body": {
+      "start": "1970-01-01",
+      "end": "1970-01-01"
+    }
+  },
+  {
+    "method": "GET",
     "path": "/custom-query/saved"
   },
   {

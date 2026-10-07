@@ -70,6 +70,7 @@ import {
   getPortfolio,
   listSavedQueries,
   runCustomQuery,
+  saveCustomQuery,
 } from "@/api";
 import { CustomQuery } from "@/pages/CustomQuery";
 
@@ -488,6 +489,59 @@ describe("Custom Query page", () => {
     expect(
       await screen.findByLabelText(i18n.t("query.start")),
     ).toBeInTheDocument();
+  });
+
+  it("restores exchange-suffixed tickers from a share link", async () => {
+    getPortfolio.mockResolvedValue(makePortfolio("alice", ["VOD.L"]));
+    window.history.pushState(
+      {},
+      "",
+      "/?owners=alice&tickers=VOD.L&metrics=gain_gbp,var",
+    );
+    const { i18n } = renderWithI18n(<CustomQuery />);
+    expect(await screen.findByLabelText("VOD.L")).toBeChecked();
+    expect(screen.getByLabelText("Alice Example")).toBeChecked();
+    expect(screen.getByLabelText(i18n.t("query.metricGainGbp"))).toBeChecked();
+    expect(screen.getByLabelText(i18n.t("query.metricVar"))).toBeChecked();
+    expect(screen.getByText(i18n.t("query.gainNote"))).toBeInTheDocument();
+  });
+
+  it("offers the value-at-risk and security-info metrics", async () => {
+    const { i18n } = renderWithI18n(<CustomQuery />);
+    await screen.findByLabelText("Alice Example");
+    expect(screen.getByLabelText(i18n.t("query.metricVar"))).toBeInTheDocument();
+    expect(screen.getByLabelText(i18n.t("query.metricMeta"))).toBeInTheDocument();
+  });
+
+  it("saves under the prompted name, confirms, and refreshes the saved list", async () => {
+    saveCustomQuery.mockResolvedValue({ id: "my-query" });
+    const prompt = vi.spyOn(window, "prompt").mockReturnValue("My query");
+    const { i18n } = renderWithI18n(<CustomQuery />);
+    await screen.findByLabelText("Alice Example");
+    const listCalls = listSavedQueries.mock.calls.length;
+    fireEvent.click(screen.getByLabelText(i18n.t("query.metricGainGbp")));
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("query.save") }));
+    expect(
+      await screen.findByText(i18n.t("query.saved", { name: "My query" })),
+    ).toBeInTheDocument();
+    expect(saveCustomQuery).toHaveBeenCalledWith(
+      "My query",
+      expect.objectContaining({ metrics: ["gain_gbp"] }),
+    );
+    expect(listSavedQueries.mock.calls.length).toBeGreaterThan(listCalls);
+    prompt.mockRestore();
+  });
+
+  it("reports a failed save instead of dropping it silently", async () => {
+    saveCustomQuery.mockRejectedValue(new Error("HTTP 500"));
+    const prompt = vi.spyOn(window, "prompt").mockReturnValue("Broken");
+    const { i18n } = renderWithI18n(<CustomQuery />);
+    await screen.findByLabelText("Alice Example");
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("query.save") }));
+    expect(
+      await screen.findByText(i18n.t("query.saveFailed", { error: "HTTP 500" })),
+    ).toBeInTheDocument();
+    prompt.mockRestore();
   });
 });
 

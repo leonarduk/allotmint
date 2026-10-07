@@ -74,6 +74,7 @@ import type { PieLabelRenderProps } from "recharts";
 import { BadgeCheck, LineChart, Shield } from "lucide-react";
 import { toRollupRows, toScopedHoldingRows } from "../lib/rollupAdapter";
 import { OwnerPortfolioActions } from "./OwnerPortfolioActions";
+import { FirstRunHelpBanner } from "./FirstRunHelpBanner";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { readRouteScopeQuery } from "../routes/registry";
 import { useViewportWidth } from "../hooks/useViewportWidth";
@@ -956,6 +957,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
   return (
     <div style={{ marginTop: "1rem" }}>
+      <FirstRunHelpBanner />
       <div
         className="flex-wrap-row"
         style={{

@@ -3122,6 +3122,11 @@
     "reportDescription": "Vous avez trouvé un bug ou quelque chose de peu clair ? Signalez-le sur GitHub afin qu'il soit suivi et corrigé.",
     "reportLink": "Ouvrir un ticket GitHub"
   },
+  "firstRunHelp": {
+    "title": "Nouveau sur AllotMint ?",
+    "openHelp": "Ouvrir l'aide et la prise en main",
+    "dismiss": "Compris, ne plus afficher"
+  },
   "reportingCurrency": {
     "converted": "Montants en {{currency}}, convertis depuis la GBP au taux du jour (1 {{currency}} = £{{rate}}).",
     "unavailable": "Aucun taux GBP n'est enregistré pour {{currency}} : les montants sont affichés en GBP."

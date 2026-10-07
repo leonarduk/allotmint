@@ -21,7 +21,12 @@ from backend.common.constants import (
     UNITS,
 )
 from backend.common.currency import CurrencyNormaliser
-from backend.common.instrument_classification import canonical_asset_class, exposure_sector, resolve_instrument_type
+from backend.common.instrument_classification import (
+    canonical_asset_class,
+    exposure_region,
+    exposure_sector,
+    resolve_instrument_type,
+)
 from backend.common.instrument_proxy import proxied_daily_history
 from backend.common.instruments import get_instrument_meta
 from backend.common.numeric_utils import is_nan
@@ -932,7 +937,11 @@ def enrich_holding(
         }
     )
     out["sector"] = normalise_optional_sector(sector)
-    out["region"] = normalise_optional_region(out.get("region") or meta.get("region"))
+    # Stored region is the fund's domicile; a fund reports the region it
+    # invests in, with the domicile kept alongside (#9296).
+    domicile_region = out.get("domicile_region") or out.get("region") or meta.get("region")
+    out["domicile_region"] = normalise_optional_region(domicile_region)
+    out["region"] = normalise_optional_region(exposure_region({**meta, "name": out["name"], "region": domicile_region}))
     if is_cash_instrument(full, out.get("instrument_type")):
         # Cash that _is_cash() doesn't catch (e.g. CASH.USD in a GBP account)
         # still gets the same "Cash" sector as aggregate_by_ticker rows (#8530).

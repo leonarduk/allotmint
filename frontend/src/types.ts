@@ -58,7 +58,10 @@ export interface Holding {
   day_change_currency?: string | null;
   instrument_type?: string | null;
   sector?: string | null;
+  /** Where the money is invested; for a fund this can differ from its domicile (#9296). */
   region?: string | null;
+  /** Fund domicile / ISIN country region, as stored in instrument metadata (#9296). */
+  domicile_region?: string | null;
   forward_7d_change_pct?: number | null;
   forward_30d_change_pct?: number | null;
 

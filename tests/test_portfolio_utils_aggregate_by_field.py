@@ -515,3 +515,27 @@ def test_aggregate_by_ticker_does_not_leak_fx_missing_marker():
     )
 
     assert all("_fx_rate_missing" not in r for r in rows)
+
+
+def test_aggregate_by_region_uses_fund_exposure_not_domicile(monkeypatch):
+    # An Irish-domiciled world ETF and a Jersey Far East trust were counted as
+    # Europe/UK; region aggregates now use where they invest (#9296).
+    metas = {
+        "WLDX.L": {"name": "Vanguard FTSE All World High Dividend Yield UCITS ETF", "instrumentType": "ETF"},
+        "FEIX.L": {"name": "Henderson Far East Income Ltd", "instrumentType": "Investment Trust"},
+        "BNKX.L": {"name": "Lloyds Banking Group plc", "instrumentType": "Equity"},
+    }
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: metas.get(ticker, {}))
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda ticker, snapshot: (ticker, None))
+    holdings = [
+        {"ticker": "WLDX.L", "region": "Europe", "market_value_gbp": 60, "cost_gbp": 50, "gain_gbp": 10},
+        {"ticker": "FEIX.L", "region": "UK", "market_value_gbp": 30, "cost_gbp": 30, "gain_gbp": 0},
+        {"ticker": "BNKX.L", "region": "UK", "market_value_gbp": 10, "cost_gbp": 10, "gain_gbp": 0},
+    ]
+    portfolio = {"accounts": [{"holdings": holdings}]}
+
+    regions = {row["region"]: row["market_value_gbp"] for row in portfolio_utils.aggregate_by_region(portfolio)}
+    assert regions == {"Global": 60, "Asia Pacific": 30, "United Kingdom": 10}
+
+    rows = {r["ticker"]: r for r in portfolio_utils.aggregate_by_ticker(portfolio)}
+    assert (rows["WLDX.L"]["region"], rows["WLDX.L"]["domicile_region"]) == ("Global", "Europe")

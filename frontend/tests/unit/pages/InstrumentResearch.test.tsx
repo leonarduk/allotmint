@@ -619,13 +619,47 @@ describe("InstrumentResearch page", () => {
 
     // The declared/metadata currency is still shown (GBX, as the catalogue
     // says) but explicitly labelled as such -- distinct from the resolved
-    // price currency above -- with a data-quality note surfacing the
-    // disagreement instead of silently picking one (#7219).
+    // price currency above (#7219). GBX is the pence unit of GBP and the
+    // pipeline normalises GBX closes to pounds, so this is NOT a mismatch
+    // and must not raise the "Metadata may be stale" note (#9989).
     expect(
       screen.getByText(/Declared currency \(metadata\):/),
     ).toHaveTextContent("Declared currency (metadata): GBX");
+    expect(screen.queryByText(/Metadata may be stale/)).not.toBeInTheDocument();
+  });
+
+  it("still flags a genuine cross-currency catalogue mismatch (#9989)", async () => {
+    mockListInstrumentMetadata.mockResolvedValueOnce([
+      {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp",
+        sector: "Health Care",
+        currency: "EUR",
+      } as InstrumentMetadata,
+    ]);
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        ticker: "AAA.L",
+        name: "Acme Corp",
+        sector: "Health Care",
+        currency: "GBP",
+        base_currency: "GBP",
+        prices: [{ date: "2024-01-02", close: 121.1, close_gbp: 121.1 }],
+        rows: 1,
+        from: "2024-01-02",
+        to: "2024-01-02",
+      },
+      loading: false,
+      error: null,
+    } as any);
+
+    renderPage();
+
     expect(
-      screen.getByText(/Catalogue says GBX; price feed is GBP/),
+      await screen.findByText(/Catalogue says EUR; price feed is GBP/),
     ).toBeInTheDocument();
   });
 

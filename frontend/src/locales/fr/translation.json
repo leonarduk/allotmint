@@ -3418,6 +3418,7 @@
     "refreshing": "Actualisation…",
     "refreshUpdated": "Mis à jour depuis {{source}}.",
     "refreshNotCovered": "Ni Morningstar ni justETF n'ont de données de transparence pour ce fonds.",
-    "refreshFailed": "Échec de l'actualisation : {{message}}"
+    "refreshFailed": "Échec de l'actualisation : {{message}}",
+    "manualSource": "Manuel (rapports du fonds)"
   }
 }

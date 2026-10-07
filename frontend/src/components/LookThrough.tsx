@@ -186,12 +186,14 @@ export function LookThroughCoverageNote({
   );
 }
 
-const sourceName = (source: string | null) =>
+const sourceName = (source: string | null, t: (key: string) => string) =>
   source === 'justetf'
     ? 'justETF'
     : source === 'morningstar'
       ? 'Morningstar'
-      : (source ?? '—');
+      : source === 'manual'
+        ? t('lookThrough.manualSource')
+        : (source ?? '—');
 
 function AllocationSummary({ data }: { data: InstrumentAllocation }) {
   const { t } = useTranslation();
@@ -252,10 +254,10 @@ function SourceAndRefresh({
           {t('lookThrough.sourceLabel')}:{' '}
           {data.source_url ? (
             <a href={data.source_url} target="_blank" rel="noopener noreferrer">
-              {sourceName(data.source)}
+              {sourceName(data.source, t)}
             </a>
           ) : (
-            sourceName(data.source)
+            sourceName(data.source, t)
           )}
           {' · '}
           {t('lookThrough.lastUpdated', { date: data.fetched ?? '—' })}
@@ -354,7 +356,7 @@ export function InstrumentAllocationPanel({ ticker }: { ticker: string }) {
             ? {
                 ok: true,
                 text: t('lookThrough.refreshUpdated', {
-                  source: sourceName(result.allocation.source),
+                  source: sourceName(result.allocation.source, t),
                 }),
               }
             : { ok: false, text: t('lookThrough.refreshNotCovered') }

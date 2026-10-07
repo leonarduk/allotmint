@@ -174,3 +174,21 @@ def test_instrument_allocation_for_uncovered_fund_and_cash():
     assert gold["countries"] == [{"label": look_through.COMMODITIES_COUNTRY, "weight_pct": 100.0}]
     assert cash["kind"] == "cash"
     assert cash["top_holdings"] == []
+
+
+def test_manual_block_keeps_its_own_document_url(monkeypatch):
+    block = {
+        "source": "manual",
+        "source_url": "https://example.com/factsheet.pdf",
+        "as_of": "2026-06-30",
+        "fetched": "2026-10-07",
+        "countries": {"Europe": 100.0},
+        "sectors": {"Real Estate": 100.0},
+    }
+    monkeypatch.setattr(look_through, "get_instrument_meta", lambda t: {"isin": "GB00BY7R8K77", "look_through": block})
+
+    result = look_through.instrument_allocation("SERE.L")
+
+    assert result["kind"] == "fund"
+    assert result["source_url"] == "https://example.com/factsheet.pdf"
+    assert result["countries"] == [{"label": "Europe", "weight_pct": 100.0}]

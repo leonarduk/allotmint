@@ -80,6 +80,17 @@ describe("InstrumentAllocationPanel (#9974)", () => {
     expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
   });
 
+  it("labels hand-entered data and links its source document", async () => {
+    mockGetAllocation.mockResolvedValueOnce(
+      allocation({ source: "manual", source_url: "https://example.com/factsheet.pdf" }),
+    );
+
+    render(<InstrumentAllocationPanel ticker="SERE.L" />);
+
+    const link = await screen.findByRole("link", { name: "Manual (fund reports)" });
+    expect(link).toHaveAttribute("href", "https://example.com/factsheet.pdf");
+  });
+
   it("refreshes a fund and shows the new data", async () => {
     mockGetAllocation.mockResolvedValueOnce(allocation({ kind: "fund_uncovered", source: null, top_holdings: [] }));
     mockRefresh.mockResolvedValueOnce({ updated: true, allocation: allocation() });

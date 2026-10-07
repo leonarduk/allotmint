@@ -274,7 +274,8 @@ def _fund_allocation(base: Dict[str, Any], block: Dict[str, Any], isin: Any) -> 
         **base,
         "kind": "fund",
         "source": block.get("source"),
-        "source_url": source_page_url(block.get("source"), isin),
+        # A manual block (from a fund's own report) records its document URL.
+        "source_url": block.get("source_url") or source_page_url(block.get("source"), isin),
         "as_of": block.get("as_of"),
         "fetched": block.get("fetched"),
         "holdings_count": block.get("holdings_count"),

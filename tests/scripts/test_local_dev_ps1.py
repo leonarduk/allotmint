@@ -87,13 +87,14 @@ def test_no_pro_checkout_means_no_pro_for_the_backend(tmp_path):
 
 def test_backend_pythonpath_keeps_an_existing_pythonpath():
     """run-backend.ps1 sets the backend's PYTHONPATH with Get-McpServerPythonPath: repo, pro, then the old value."""
-    env = {**os.environ, "PYTHONPATH": "C:\\existing"}
+    # Plain names: a drive letter's colon is the path separator on Linux runners.
+    env = {**os.environ, "PYTHONPATH": "existing"}
     result = subprocess.run(
-        [PWSH, "-NoProfile", "-NonInteractive", "-Command", f". '{LIB}'; Get-McpServerPythonPath 'C:\\repo' 'C:\\pro'"],
+        [PWSH, "-NoProfile", "-NonInteractive", "-Command", f". '{LIB}'; Get-McpServerPythonPath 'repo' 'pro'"],
         capture_output=True,
         text=True,
         env=env,
         check=True,
         timeout=60,
     )
-    assert result.stdout.strip().split(os.pathsep) == ["C:\\repo", "C:\\pro", "C:\\existing"]
+    assert result.stdout.strip().split(os.pathsep) == ["repo", "pro", "existing"]

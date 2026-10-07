@@ -12,7 +12,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Mapping, cast
 
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -35,6 +35,17 @@ logger = logging.getLogger(__name__)
 # ``account_type`` differs from the filename.  Not part of any API contract:
 # consumers that serialise account dicts must drop it first.
 ACCOUNT_STEM_KEY = "_account_stem"
+
+
+def strip_account_stem(account: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a shallow copy of ``account`` without :data:`ACCOUNT_STEM_KEY`.
+
+    Call this at the API boundary -- after reading anything that needs the
+    stem -- so the input (e.g. ``list_portfolios()`` data) is never mutated.
+    """
+    stripped = dict(account)
+    stripped.pop(ACCOUNT_STEM_KEY, None)
+    return stripped
 
 
 # ────────────────────────────────────────────────────────────────

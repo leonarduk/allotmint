@@ -29,7 +29,13 @@ from backend.common.constants import PRICE_CHANGE_WINDOWS
 from backend.common.currency import CurrencyNormaliser
 from backend.common.data_loader import DATA_BUCKET_ENV
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, _get_price_for_date_scaled, is_cost_basis_unreliable
-from backend.common.instrument_classification import canonical_asset_class, exposure_sector, resolve_instrument_type
+from backend.common.instrument_classification import (
+    canonical_asset_class,
+    explicit_instrument_type,
+    exposure_sector,
+    normalise_instrument_type,
+    resolve_instrument_type,
+)
 from backend.common.instruments import (
     decode_html_entities,
     get_instrument_meta,
@@ -589,7 +595,9 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                     # value (which is usually absent for CSV-import and
                     # transaction-rebuild paths); fall back to the holding
                     # only if canonical metadata has nothing. See #6876.
-                    "instrument_type": file_meta.get("instrument_type") or h.get("instrument_type"),
+                    # (file_meta's value is already resolved/canonical.)
+                    "instrument_type": file_meta.get("instrument_type")
+                    or normalise_instrument_type(h.get("instrument_type")),
                 }
     return securities
 
@@ -798,7 +806,7 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
                     "last_price_time": None,
                     "is_stale": None,
                     **{key: None for key in PRICE_CHANGE_WINDOWS},
-                    "instrument_type": instrument_meta.get("instrumentType") or instrument_meta.get("instrument_type"),
+                    "instrument_type": explicit_instrument_type(instrument_meta),
                     "cost_currency": base_currency,
                     "market_value_currency": base_currency,
                     "gain_currency": base_currency,
@@ -1316,7 +1324,7 @@ def holding_quote_currency(holding: dict) -> str:
         "ticker": full_tkr,
         "exchange": exch,
         "currency": currency,
-        "instrument_type": instrument_meta.get("instrumentType") or instrument_meta.get("instrument_type"),
+        "instrument_type": explicit_instrument_type(instrument_meta),
     }
     return _quote_currency_key(row)
 

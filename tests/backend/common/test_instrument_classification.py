@@ -198,6 +198,12 @@ def test_canonical_asset_class(value, expected) -> None:
     [
         ({"instrumentType": "ETF", "asset_class": "Equity"}, "ETF"),
         ({"instrument_type": "Investment Trust"}, "Investment Trust"),
+        # Explicit types share one casing whatever the provider sent (#7788).
+        ({"instrumentType": "EQUITY"}, "Equity"),
+        ({"instrumentType": "Equity"}, "Equity"),
+        ({"instrument_type": " equity "}, "Equity"),
+        ({"instrument_type": "INVESTMENT TRUST"}, "Investment Trust"),
+        ({"instrumentType": "MUTUALFUND"}, "MUTUALFUND"),
         # Legacy and new asset classes resolve to the same instrument type.
         ({"asset_class": "Equity"}, "equity"),
         ({"asset_class": "equity"}, "equity"),
@@ -208,6 +214,14 @@ def test_canonical_asset_class(value, expected) -> None:
 )
 def test_resolve_instrument_type(meta, expected) -> None:
     assert ic.resolve_instrument_type(meta) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [("EQUITY", "Equity"), ("etf", "ETF"), ("Cash", "Cash"), ("Index", "Index"), ("  ", None), (None, None), (3, None)],
+)
+def test_normalise_instrument_type(value, expected) -> None:
+    assert ic.normalise_instrument_type(value) == expected
 
 
 @pytest.mark.parametrize(

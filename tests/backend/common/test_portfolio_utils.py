@@ -360,6 +360,32 @@ def test_aggregate_by_ticker_prefers_cost_basis(monkeypatch):
     assert row["gain_pct"] == pytest.approx(10.0)
 
 
+def test_aggregate_by_ticker_emits_one_instrument_type_casing(monkeypatch):
+    """Yahoo's "EQUITY" and hand-edited "Equity" must not both reach the API (#7788)."""
+
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "UPP.L", "units": 1.0, "market_value_gbp": 10.0},
+                    {"ticker": "TTL.L", "units": 1.0, "market_value_gbp": 10.0},
+                ]
+            }
+        ]
+    }
+    stored = {"UPP.L": {"instrumentType": "EQUITY"}, "TTL.L": {"instrumentType": "Equity"}}
+
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
+    monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: stored.get(ticker, {}))
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: {})
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+
+    assert {row["ticker"]: row["instrument_type"] for row in rows} == {"UPP.L": "Equity", "TTL.L": "Equity"}
+
+
 def test_aggregate_by_ticker_uses_zero_snapshot_price(monkeypatch):
     portfolio = {
         "accounts": [

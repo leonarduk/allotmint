@@ -21,7 +21,12 @@ from backend.common.constants import (
     UNITS,
 )
 from backend.common.currency import CurrencyNormaliser
-from backend.common.instrument_classification import canonical_asset_class, exposure_sector, resolve_instrument_type
+from backend.common.instrument_classification import (
+    canonical_asset_class,
+    exposure_sector,
+    normalise_instrument_type,
+    resolve_instrument_type,
+)
 from backend.common.instrument_proxy import proxied_daily_history
 from backend.common.instruments import get_instrument_meta
 from backend.common.numeric_utils import is_nan
@@ -866,7 +871,9 @@ def enrich_holding(
         units = float(out.get(UNITS, 0) or 0.0)
         out["name"] = out.get("name") or _cash_name(full, account_ccy)
         out["currency"] = meta.get("currency") or account_ccy
-        out["instrument_type"] = meta.get("instrumentType") or meta.get("instrument_type") or "Cash"
+        out["instrument_type"] = (
+            normalise_instrument_type(meta.get("instrumentType") or meta.get("instrument_type")) or "Cash"
+        )
         # Cash is labelled "Cash" in every sector view rather than left blank
         # (shown as "Unknown sector"/"Other"); see #8530.
         out["sector"] = CASH_SECTOR_LABEL

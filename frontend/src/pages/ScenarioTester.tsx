@@ -437,7 +437,7 @@ export default function ScenarioTester() {
           <h1 className="text-xl font-semibold">{t("scenarioTester.title")}</h1>
           <div className="flex flex-wrap gap-2">
             <button
-              className="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100"
+              className="rounded border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
               type="button"
               onClick={handleSelectAllOwners}
               disabled={!ownersLoaded}
@@ -445,7 +445,7 @@ export default function ScenarioTester() {
               {t("scenarioTester.selectAll")}
             </button>
             <button
-              className="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100"
+              className="rounded border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
               type="button"
               onClick={handleClearOwners}
               disabled={selectedOwners.length === 0}
@@ -514,7 +514,7 @@ export default function ScenarioTester() {
           <button
             type="button"
             onClick={clearReportingDate}
-            className="w-fit rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100"
+            className="w-fit rounded border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
             disabled={reportingDate.trim() === ""}
           >
             {t("scenarioTester.useLatest")}
@@ -545,7 +545,7 @@ export default function ScenarioTester() {
             <button
               type="button"
               onClick={resetRemovals}
-              className="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100"
+              className="rounded border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
               disabled={removedKeys.size === 0}
             >
               {t("scenarioTester.restoreRemoved")}
@@ -553,14 +553,14 @@ export default function ScenarioTester() {
             <button
               type="button"
               onClick={handleAddCustomHolding}
-              className="rounded border border-indigo-500 px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-50"
+              className="rounded border border-indigo-500 bg-white px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-50"
             >
               {t("scenarioTester.addCustom")}
             </button>
             <button
               type="button"
               onClick={clearCustomHoldings}
-              className="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100"
+              className="rounded border border-slate-300 bg-white px-3 py-1 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
               disabled={customHoldings.length === 0}
             >
               {t("scenarioTester.removeCustom")}
@@ -654,7 +654,7 @@ export default function ScenarioTester() {
                           <button
                             type="button"
                             onClick={() => removeCustomHolding(row.customIndex ?? 0)}
-                            className="rounded border border-red-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                            className="rounded border border-red-300 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50"
                           >
                             {t("scenarioTester.remove")}
                           </button>
@@ -694,8 +694,8 @@ export default function ScenarioTester() {
                           onClick={() => toggleHoldingRemoval(row.key)}
                           className={`rounded px-2 py-1 text-xs transition-colors ${
                             row.isRemoved
-                              ? "border border-green-300 text-green-600 hover:bg-green-50"
-                              : "border border-red-300 text-red-600 hover:bg-red-50"
+                              ? "border border-green-300 bg-white text-green-600 hover:bg-green-50"
+                              : "border border-red-300 bg-white text-red-600 hover:bg-red-50"
                           }`}
                         >
                           {row.isRemoved ? t("scenarioTester.restore") : t("scenarioTester.remove")}

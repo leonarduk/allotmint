@@ -251,6 +251,20 @@ def test_units_sold_before_the_ex_date_get_no_dividend(gbx):
     assert holding["income_gbp"] == pytest.approx(1.5)
 
 
+def test_estimate_does_not_depend_on_transaction_order(gbx):
+    series = _dividends(("2025-07-03", 2.5), ("2025-11-20", 2.15))
+    holding = {"ticker": "REC.L", "market_value_gbp": 2400.0, "gain_gbp": -600.0}
+    in_order = _attach(dict(holding), HL_TXS, series)["income_gbp"]
+    reversed_ = _attach(dict(holding), list(reversed(HL_TXS)), series)["income_gbp"]
+    assert reversed_ == in_order == pytest.approx(254.0)
+
+
+def test_holding_without_an_entry_reports_income_not_estimated():
+    holding = {"ticker": "VWRL.L", "market_value_gbp": 120.0, "gain_gbp": 20.0}
+    apply_total_return(holding, None)
+    assert holding["income_estimated"] is False
+
+
 def test_tagged_income_rows_win_over_the_estimate(gbx):
     txs = [*HL_TXS, {"date": "2025-07-20", "ticker": "REC.L", "type": "DIVIDEND", "amount_minor": 12000}]
     holding = _attach(

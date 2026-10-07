@@ -31,6 +31,10 @@ backend/auth.py::_allowed_emails::logger.warning('Accounts root %s does not exis
 # caller, never attacker-controlled; email/token on the same call are already
 # wrapped in sanitise_log_value.
 backend/auth.py::_authorize_email::logger.warning('Unauthorized %s login attempt for %s (token %.8s)', provider, sanitise_log_value(email), sanitise_log_value(token[:8]))
+# attempt/CONVERSE_MAX_RETRIES/delay are internal retry-loop ints/floats
+# (counter, module constant, computed backoff) -- never user input; the
+# exception text is already wrapped in sanitise_log_value (#7611).
+backend/chat/bedrock_agent.py::_converse_with_retry::logger.warning('Bedrock converse() attempt %d/%d failed transiently, retrying in %.1fs: %s', attempt + 1, CONVERSE_MAX_RETRIES + 1, delay, sanitise_log_value(exc))
 backend/common/accounts_store.py::S3AccountsStore._iter_keys::logger.warning('S3 list failed for s3://%s/%s: %s', self.bucket, sanitise_log_value(prefix), sanitise_log_value(exc))
 backend/common/accounts_store.py::S3AccountsStore.read_document::logger.warning('S3 read failed for s3://%s/%s: %s', self.bucket, sanitise_log_value(key), sanitise_log_value(exc))
 backend/common/accounts_store.py::S3AccountsStore.read_document::logger.warning('S3 read failed for s3://%s/%s: %s', self.bucket, sanitise_log_value(key), sanitise_log_value(exc))

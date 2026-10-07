@@ -94,6 +94,9 @@ backend/common/storage.py::S3JSONStorage.load::logger.warning('S3 load failed fo
 # len(adjustments) is always an int (a count of synthetic transactions just
 # built in this function) and can't carry attacker-controlled string content.
 backend/common/transaction_reconciliation.py::reconcile_transactions_with_holdings::logger.info('Injecting %d synthetic transaction(s) for %s/%s', len(adjustments), sanitise_log_value(owner_dir.name), sanitise_log_value(stem))
+# type(val).__name__ is a Python builtin type name ("str", "list", ...), never
+# the config value itself, so it can't carry attacker-controlled content.
+backend/config.py::_parse_error_summary::logger.warning('Ignoring error_summary: expected a mapping such as {default_command: [...]}, got %s', type(val).__name__)
 backend/config.py::load_config::logger.exception('Failed to parse config file %s', path)
 backend/config.py::load_config::logger.exception('Failed to read config file %s', path)
 # len(lines)/len(data) are always ints (row counts produced by the CSV

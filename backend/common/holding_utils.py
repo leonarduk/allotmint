@@ -23,6 +23,7 @@ from backend.common.constants import (
 from backend.common.currency import CurrencyNormaliser
 from backend.common.instrument_classification import (
     canonical_asset_class,
+    explicit_instrument_type,
     exposure_sector,
     normalise_instrument_type,
     resolve_instrument_type,
@@ -923,7 +924,12 @@ def enrich_holding(
 
     out["currency"] = meta.get("currency")
     # Legacy "Equity" and post-#9196 "equity" asset classes resolve alike.
-    out["instrument_type"] = resolve_instrument_type(meta)
+    # sec_meta's instrument_type is already resolved by _meta_from_file (often
+    # the lowercase asset-class fallback, e.g. "equity"), so it is used as-is:
+    # re-normalising it as an explicit type would turn "equity" into "Equity".
+    out["instrument_type"] = (
+        explicit_instrument_type(instr_meta) or sec_meta.get("instrument_type") or resolve_instrument_type(meta)
+    )
     out["name"] = out.get("name") or meta.get("name") or full
     stored_asset_class = out.get("asset_class") or meta.get("assetClass") or meta.get("asset_class")
     # Canonical labels so per-holding consumers (e.g. /allocation) bucket the

@@ -75,6 +75,10 @@ function extractInstrumentType(
   return undefined;
 }
 
+// Exchange-traded products justETF profiles by ISIN (ETCs such as
+// physical gold share its etf-profile page).
+const JUSTETF_INSTRUMENT_TYPES = new Set(["ETF", "ETC", "ETN"]);
+
 const DEFAULT_INSTRUMENT_TYPES = [
   "Equity",
   "Bond",
@@ -904,8 +908,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const exchangeForActions = deriveExchangeForActions();
   const investingComUrl = buildInvestingComUrl(instrumentIsin, tkr);
   const morningstarUrl = buildMorningstarUrl(instrumentIsin);
-  const justEtfUrl =
-    instrumentType?.toUpperCase() === "ETF" ? buildJustEtfUrl(instrumentIsin) : null;
+  const justEtfUrl = JUSTETF_INSTRUMENT_TYPES.has(instrumentType?.toUpperCase() ?? "")
+    ? buildJustEtfUrl(instrumentIsin)
+    : null;
 
   // Price triggers are matched against price-snapshot keys, which are full
   // TICKER.EXCHANGE symbols -- prefer the resolved exchange over whatever

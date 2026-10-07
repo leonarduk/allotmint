@@ -909,6 +909,18 @@ describe("InstrumentResearch page", () => {
     expect(screen.queryByText(/^Industry:/)).toBeNull();
   });
 
+  it("links ETCs to their justETF profile", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme Gold", isin: "JE00B1VS3770", instrumentType: "ETC" },
+    ] as any);
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "View on justETF" })).toHaveAttribute(
+      "href",
+      "https://www.justetf.com/en/etf-profile.html?isin=JE00B1VS3770",
+    );
+  });
+
   it("hides the justETF link for non-ETF instruments", async () => {
     mockListInstrumentMetadata.mockResolvedValue([
       { ticker: "AAA", name: "Acme Corp", isin: "GB00BH4HKS39", instrument_type: "Equity" },

@@ -78,6 +78,15 @@ def test_dividend_counts_as_return():
     assert perf.returns[pd.Timestamp("2026-02-13")] == pytest.approx(2010 / 1980 - 1)
 
 
+def test_cash_interest_counts_as_return():
+    # INTEREST shares the income path with DIVIDEND (#9169): return, not a flow.
+    transactions = [*TRANSACTIONS[:-1], {"date": "2026-02-13", "type": "INTEREST", "amount_minor": 3000}]
+    perf = build(transactions)
+
+    assert perf.returns[pd.Timestamp("2026-02-13")] == pytest.approx(2010 / 1980 - 1)
+    assert perf.flows[pd.Timestamp("2026-02-13")] == pytest.approx(0.0)
+
+
 def test_monthly_and_ytd_chained_returns_match_hand_calculation():
     perf = build()
 

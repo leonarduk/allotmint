@@ -411,7 +411,12 @@ class BackendLambdaStack(Stack):
             # alerts/price_triggers.json (404) from denied access (403), which
             # otherwise drops every watched ticker from the refresh (#8805).
             "price_refresh": ("accounts", "alerts", "prices"),
-            "trading_agent": ("prices",),
+            # trading_agent's run() discovers owners and tickers via
+            # list_all_unique_tickers()/list_portfolios() -> list_plots(), which
+            # needs ListBucket on accounts/ for the same reason as price_refresh
+            # above; without it the Lambda fails at init with AccessDenied
+            # (issue #8914).
+            "trading_agent": ("accounts", "prices"),
             # dividend_refresh reads holdings/transactions via AccountsStore
             # (iter_transaction_documents() → ListBucket on writable-accounts/)
             # and writes new DIVIDEND transactions back to the same prefix.
@@ -1089,11 +1094,19 @@ class BackendLambdaStack(Stack):
             code=agent_code,
             environment=agent_env,
             log_group=agent_log_group,
+            # The 3 s / 128 MB defaults time out at init with memory exhausted
+            # (issue #8914); match the other scheduled job Lambdas.
+            timeout=Duration.minutes(5),
+            memory_size=512,
         )
 
         # TradingAgentLambda: read-only, no put, no general list. It has scoped
         # ListBucket on prices/ so the price-snapshot loader can distinguish missing
-        # snapshots from denied access during cold start.
+        # snapshots from denied access during cold start, and on accounts/ for
+        # owner/ticker discovery: trading_agent.py:run() and _alert_on_drawdown()
+        # → list_all_unique_tickers()/list_portfolios() → S3DataProvider.list_plots()
+        # (list_objects_v2 on accounts/); importing backend.common.instrument_api
+        # also calls list_all_unique_tickers() at module load (issue #8914).
         # Audited: trading_agent.py:run() → load_prices_for_tickers()
         # → load_meta_timeseries_range() reads parquet from S3 by known key.
         # No S3 writes: _log_trade() writes to TRADE_LOG_PATH (local filesystem / CloudWatch).

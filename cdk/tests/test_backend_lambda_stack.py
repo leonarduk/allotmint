@@ -467,6 +467,27 @@ def test_price_refresh_lambda_has_sufficient_timeout(template):
         )
 
 
+def test_trading_agent_lambda_has_explicit_timeout_and_memory(template):
+    """TradingAgentLambda must not run on the 3 s / 128 MB Lambda defaults.
+
+    With the defaults every scheduled run timed out during init with memory
+    exhausted (issue #8914).
+    """
+    functions = template.find_resources("AWS::Lambda::Function")
+    agents = [
+        resource["Properties"]
+        for resource in functions.values()
+        if resource.get("Properties", {}).get("PackageType") == "Image"
+        and "lambda_api.trading_agent" in json.dumps(
+            resource.get("Properties", {}).get("ImageConfig", {}).get("Command", [])
+        )
+    ]
+    assert len(agents) == 1, f"Expected one TradingAgentLambda, found {len(agents)}"
+    timeout, memory = agents[0].get("Timeout"), agents[0].get("MemorySize")
+    assert timeout == 300, f"TradingAgentLambda Timeout is {timeout}, expected 300 s"
+    assert memory == 512, f"TradingAgentLambda MemorySize is {memory}, expected 512 MB"
+
+
 def test_price_refresh_trigger_timeout_exceeds_lambda_timeout(template):
     """The CDK Trigger timeout must be strictly greater than PriceRefreshLambda's timeout.
 

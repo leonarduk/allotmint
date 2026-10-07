@@ -10,10 +10,14 @@ Windows, ``scripts/bash/run-mcp-server.sh`` elsewhere) rather than rebuilding
 their command line here, so the env loading, allotmint-pro lookup, PYTHONPATH
 and port check stay in one place per platform. The launcher runs detached,
 appending its output to ``logs/mcp-server.log``.
+
+Run as ``python -m backend.utils.mcp_server_process stop [--port N]`` to stop
+the server from a shell; the launchers' restart flag uses this.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import shutil
@@ -228,6 +232,28 @@ def stop_processes(pids: list[int], port: int, timeout: float = 15.0) -> None:
     raise McpProcessError(f"Port {port} is still in use after stopping the MCP server{detail}.")
 
 
+def stop_mcp_server(port: int) -> list[int]:
+    """Stop the MCP server listening on ``port``; return the PIDs stopped.
+
+    Raises :class:`McpProcessError`, stopping nothing, if anything else holds
+    the port. An empty list means nothing was listening.
+    """
+
+    owners = find_port_owners(port)
+    foreign = [owner.process for owner in owners if not owner.process.is_mcp_server]
+    if foreign:
+        holder = foreign[0]
+        command = (holder.command_line or "unknown command")[:200]
+        raise McpProcessError(
+            f"Port {port} is held by another program (pid {holder.pid}: {command}); "
+            "it is not the allotmint-pro MCP server, so it was not stopped."
+        )
+    pids = [pid for owner in owners for pid in owner.pids_to_stop()]
+    if pids:
+        stop_processes(pids, port)
+    return pids
+
+
 def launcher_command(repo_root: Path, port: int) -> list[str]:
     """The foreground launcher script for this platform, as an argv."""
 
@@ -297,3 +323,33 @@ def log_size(log_path: Path) -> int:
         return log_path.stat().st_size
     except OSError:
         return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m backend.utils.mcp_server_process",
+        description="Stop the local allotmint-pro MCP server.",
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+    stop = commands.add_parser("stop", help="Stop the MCP server listening on the port.")
+    stop.add_argument(
+        "--port",
+        type=int,
+        default=os.environ.get("MCP_SERVER_PORT") or "8001",
+        help="Port the server listens on (default: $MCP_SERVER_PORT, else 8001).",
+    )
+    args = parser.parse_args(argv)
+    try:
+        pids = stop_mcp_server(args.port)
+    except McpProcessError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    if pids:
+        print(f"Stopped the MCP server on port {args.port} (pid {', '.join(map(str, pids))}).", file=sys.stderr)
+    else:
+        print(f"No MCP server is listening on port {args.port}.", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

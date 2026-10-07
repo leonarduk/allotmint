@@ -3,14 +3,18 @@
 # the background by run-backend.ps1 (which then finds the port in use and
 # leaves it alone). Ctrl+C stops it.
 #
-# Usage: .\scripts\run-mcp-server.ps1 [-Port 8001]
+# Usage: .\scripts\run-mcp-server.ps1 [-Port 8001] [-Restart]
 #   -Port defaults to $env:MCP_SERVER_PORT, else 8001. Needs an allotmint-pro
 #   checkout at $env:ALLOTMINT_PRO_DIR, else the sibling ..\allotmint-pro.
 #   Point the backend at it with MCP_SERVER_URL=http://localhost:<port>/mcp.
+#   -Restart first stops the MCP server already on the port (only that server;
+#   anything else holding the port is left alone). Run it from a new terminal
+#   to pick up environment variables set since the old server started.
 Param(
   # A string, so a bad value gets the usage message below rather than a
   # parameter-binding error. Its default is resolved after the env files load.
-  [string]$Port
+  [string]$Port,
+  [switch]$Restart
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,7 +30,7 @@ Import-AllotmintEnv $REPO_ROOT
 if (-not $Port) { $Port = if ($env:MCP_SERVER_PORT) { $env:MCP_SERVER_PORT } else { '8001' } }
 if (-not (Test-ValidPort $Port)) {
   Write-Host "Invalid port '$Port' (from -Port or MCP_SERVER_PORT; expected 1-65535)." -ForegroundColor Red
-  Write-Host 'Usage: .\scripts\run-mcp-server.ps1 [-Port 8001]' -ForegroundColor Red
+  Write-Host 'Usage: .\scripts\run-mcp-server.ps1 [-Port 8001] [-Restart]' -ForegroundColor Red
   exit 2
 }
 $portNumber = [int]$Port
@@ -37,17 +41,23 @@ if (-not $proDir) {
   exit 1
 }
 
-if (-not (Test-PortFree $portNumber)) {
-  Write-Host "Port $portNumber is already in use (an MCP server may already be running); pass -Port or stop it first." -ForegroundColor Red
-  exit 1
-}
-
 # Prefer the repo's virtualenv (created by run-backend.ps1), else python / py.
 $venvPython = Join-Path $REPO_ROOT '.venv\Scripts\python.exe'
 $python = if (Test-Path $venvPython) { $venvPython }
           elseif (Get-Command python -ErrorAction SilentlyContinue) { 'python' }
           elseif (Get-Command py -ErrorAction SilentlyContinue) { 'py' }
           else { Write-Host 'Python not found; install it from https://www.python.org/downloads/' -ForegroundColor Red; exit 1 }
+
+if ($Restart -and -not (Test-PortFree $portNumber)) {
+  # Stops only the allotmint-pro MCP server and waits for the port to free.
+  & $python -m backend.utils.mcp_server_process stop --port $portNumber
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
+if (-not (Test-PortFree $portNumber)) {
+  Write-Host "Port $portNumber is already in use (an MCP server may already be running); pass -Restart to replace it, or another -Port." -ForegroundColor Red
+  exit 1
+}
 
 $env:PYTHONPATH = Get-McpServerPythonPath $REPO_ROOT $proDir
 Write-Host "Starting the MCP server at http://localhost:$portNumber/mcp (allotmint-pro: $proDir)" -ForegroundColor Green

@@ -6,6 +6,7 @@ import {
   buildStreakPath,
   parseTaxYear,
   seasonCountdown,
+  seasonFromCalendar,
 } from '@/gamified/seasonModel';
 import { buildPlotSnapshot } from '@/gamified/plotModel';
 import type { Portfolio } from '@/types';
@@ -45,6 +46,36 @@ const portfolio: Portfolio = {
     },
   ],
 };
+
+describe('seasonFromCalendar', () => {
+  it('starts the UK tax year on 6 April', () => {
+    expect(seasonFromCalendar(new Date('2026-04-06T00:00:00Z'))).toEqual({
+      label: '2026/27',
+      endsOn: '2027-04-05',
+    });
+    expect(seasonFromCalendar(new Date('2026-12-31T23:00:00Z'))).toEqual({
+      label: '2026/27',
+      endsOn: '2027-04-05',
+    });
+  });
+
+  it('keeps dates up to 5 April in the previous tax year', () => {
+    expect(seasonFromCalendar(new Date('2026-04-05T23:59:00Z'))).toEqual({
+      label: '2025/26',
+      endsOn: '2026-04-05',
+    });
+    expect(seasonFromCalendar(new Date('2027-01-15T12:00:00Z'))).toEqual({
+      label: '2026/27',
+      endsOn: '2027-04-05',
+    });
+  });
+
+  it('agrees with the backend form for the same year', () => {
+    expect(seasonFromCalendar(new Date('2026-10-07T12:00:00Z'))).toEqual(
+      parseTaxYear('2026-2027')
+    );
+  });
+});
 
 describe('parseTaxYear', () => {
   it('turns the backend "YYYY-YYYY" form into a season ending 5 April', () => {
@@ -192,18 +223,16 @@ describe('buildSeasonGoals', () => {
     ).toMatchObject({ current: 0, complete: false, pct: 0 });
   });
 
-  it('marks only the "Feed the beds" tiers unavailable when the allowances fetch failed', () => {
+  it('drops only the "Feed the beds" tiers when the allowances fetch failed, so every milestone is reachable (#7195)', () => {
+    const all = buildSeasonGoals(snapshot, null);
     const failed = buildSeasonGoals(snapshot, null, true);
-    const feedGoals = failed.filter((goal) => goal.id.startsWith('feed-'));
-    expect(feedGoals).toHaveLength(4);
-    for (const goal of feedGoals) {
-      expect(goal.unavailable).toBe(true);
-      expect(goal.complete).toBe(false);
-      expect(goal.display).toBe('Allowances unavailable right now');
-    }
+    expect(all).toHaveLength(20);
+    expect(failed).toHaveLength(16);
+    expect(failed.some((goal) => goal.id.startsWith('feed-'))).toBe(false);
     // Other groups are unaffected by an allowances failure.
-    const nonFeedGoals = failed.filter((goal) => !goal.id.startsWith('feed-'));
-    expect(nonFeedGoals.every((goal) => !goal.unavailable)).toBe(true);
+    expect(failed).toEqual(
+      all.filter((goal) => !goal.id.startsWith('feed-'))
+    );
   });
 });
 
@@ -340,6 +369,16 @@ describe('buildSeasonBadges', () => {
     }
   });
 
+  it('leaves the "Feed the beds" badge off the shelf when allowances are unavailable (#7195)', () => {
+    const badges = buildSeasonBadges(buildSeasonGroups(snapshot, null, true));
+    expect(badges.map((badge) => badge.id)).toEqual([
+      'tend',
+      'grow',
+      'streak',
+      'rank',
+    ]);
+  });
+
   it('reports progress and the next tier while a badge is unearned', () => {
     const groups = buildSeasonGroups(snapshot, null);
     const badges = buildSeasonBadges(groups);
@@ -361,12 +400,6 @@ describe('buildSeasonBadges', () => {
 
     expect(grow).toMatchObject({ earned: true, progress: '4/4' });
     expect(grow?.nextTitle).toBeNull();
-  });
-
-  it('never marks a badge earned when its data failed to load', () => {
-    const badges = buildSeasonBadges(buildSeasonGroups(snapshot, null, true));
-    const feed = badges.find((badge) => badge.id === 'feed');
-    expect(feed?.earned).toBe(false);
   });
 });
 

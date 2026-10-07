@@ -264,6 +264,7 @@ describe('page manifest', () => {
 
   it('folds the Screener into the Ideas menu item (#9852)', () => {
     expect(pageManifestByMode.screener.menuMergedInto).toBe('trading');
+    expect(pageManifestByMode.watchlist.menuMergedInto).toBe('trading');
     expect(pageManifestByMode.trading.menuLabelKey).toBe('ideas');
     expect(buildPathForMode('trading')).toBe('/trading');
     expect(buildPathForMode('screener')).toBe('/screener');

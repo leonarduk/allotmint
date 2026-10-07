@@ -1875,7 +1875,9 @@
     "refreshFrequency": "Automatisch aktualisieren",
     "everyMinute": "Jede Minute",
     "manual": "Manuell",
-    "marketsClosed": "Märkte geschlossen"
+    "marketsClosed": "Märkte geschlossen",
+    "addTicker": "{{symbol}} zur Beobachtungsliste hinzufügen",
+    "removeTicker": "{{symbol}} von der Beobachtungsliste entfernen"
   },
   "scenarioFx": {
     "title": "Währungsschock",
@@ -3335,11 +3337,13 @@
   "ideas": {
     "explain": {
       "screen": "Filter: Durchsuchen Sie beliebige Watchlists oder Tickerlisten nach selbst gewählten Kennzahlen. Es gibt keine Kauf- oder Verkaufsempfehlung; das leisten die Signale für Ihre Bestände.",
-      "signals": "Signale: Kauf- und Verkaufskandidaten unter Ihren gehaltenen Instrumenten, nach festen, serverseitig eingestellten Momentum- und Risikoregeln. Mit „Filter“ durchsuchen Sie beliebige Watchlists nach selbst gewählten Kennzahlen."
+      "signals": "Signale: Kauf- und Verkaufskandidaten unter Ihren gehaltenen Instrumenten, nach festen, serverseitig eingestellten Momentum- und Risikoregeln. Mit „Filter“ durchsuchen Sie beliebige Watchlists nach selbst gewählten Kennzahlen.",
+      "watchlist": "Beobachtungsliste: Live-Kurse der Ticker, die Sie verfolgen. Ticker hier hinzufügen oder entfernen, oder mit dem Stern in jeder Signale- oder Screen-Zeile."
     },
     "tabs": {
       "screen": "Filter",
-      "signals": "Signale"
+      "signals": "Signale",
+      "watchlist": "Beobachtungsliste"
     },
     "tabsLabel": "Ideen-Ansichten"
   }

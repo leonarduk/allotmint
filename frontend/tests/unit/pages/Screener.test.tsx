@@ -337,7 +337,8 @@ describe("Screener", () => {
 
     expect(cells).toHaveLength(headers.length);
     expect(cells[headers.indexOf("Rank")]).toBe("1");
-    expect(cells[headers.indexOf("Ticker")]).toBe("AAA");
+    // The ticker cell also carries the add-to-watchlist star.
+    expect(cells[headers.indexOf("Ticker")]).toBe("AAA☆");
     columns.forEach(([label], i) => {
       const idx = headers.indexOf(label);
       expect(idx, `header ${label}`).toBeGreaterThan(-1);

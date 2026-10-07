@@ -11,18 +11,21 @@ vi.mock("@/pages/Trading", () => ({
 vi.mock("@/pages/Screener", () => ({
   Screener: () => <div data-testid="screener" />,
 }));
+vi.mock("@/pages/Watchlist", () => ({
+  default: () => <div data-testid="watchlist" />,
+}));
 
 const baseConfig: ConfigContextValue = {
   relativeViewEnabled: false,
   disabledTabs: [],
-  tabs: { trading: true, screener: true },
+  tabs: { trading: true, screener: true, watchlist: true },
   theme: "system",
   reportingCurrency: "GBP",
   refreshConfig: async () => {},
   setRelativeViewEnabled: () => {},
 } as unknown as ConfigContextValue;
 
-function renderIdeas(tab: "signals" | "screen", config = baseConfig) {
+function renderIdeas(tab: "signals" | "screen" | "watchlist", config = baseConfig) {
   return render(
     <configContext.Provider value={config}>
       <MemoryRouter>
@@ -59,12 +62,21 @@ describe("Ideas page (#9852)", () => {
     expect(screenTab).toHaveAttribute("aria-current", "page");
   });
 
-  it("hides the tab bar when the other tab is disabled", () => {
+  it("hides the tab bar when the other tabs are disabled", () => {
     renderIdeas("screen", {
       ...baseConfig,
-      tabs: { ...baseConfig.tabs, trading: false },
+      tabs: { ...baseConfig.tabs, trading: false, watchlist: false },
     });
     expect(screen.queryByRole("navigation")).toBeNull();
     expect(screen.getByTestId("screener")).toBeInTheDocument();
+  });
+
+  it("mounts the Watchlist as a third tab on /watchlist", () => {
+    renderIdeas("watchlist");
+    expect(screen.getByTestId("watchlist")).toBeInTheDocument();
+    expect(screen.queryByTestId("screener")).toBeNull();
+    const tab = screen.getByRole("link", { name: i18n.t("ideas.tabs.watchlist") });
+    expect(tab).toHaveAttribute("href", "/watchlist");
+    expect(tab).toHaveAttribute("aria-current", "page");
   });
 });

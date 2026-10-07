@@ -8,6 +8,7 @@ vi.mock("@/api", () => ({
 }));
 
 import { Watchlist } from "@/pages/Watchlist";
+import WatchlistToggle from "@/components/WatchlistToggle";
 import { getQuotes } from "@/api";
 import type { QuoteRow } from "@/types";
 
@@ -250,6 +251,20 @@ describe("Watchlist page", () => {
       expect(input.value).toBe("");
       expect(screen.getByLabelText("Remove CCC")).toBeInTheDocument();
       expect(localStorage.getItem("watchlistSymbols")).toBe("AAA,BBB,CCC");
+    });
+
+    it("keeps a mounted watchlist star in sync with chip edits", async () => {
+      render(
+        <MemoryRouter>
+          <Watchlist />
+          <WatchlistToggle ticker="AAA" />
+        </MemoryRouter>,
+      );
+      const star = screen.getByRole("button", { pressed: true });
+
+      fireEvent.click(await screen.findByLabelText("Remove AAA"));
+
+      await waitFor(() => expect(star).toHaveAttribute("aria-pressed", "false"));
     });
 
     it("removes a symbol via its chip button", async () => {

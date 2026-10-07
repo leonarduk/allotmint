@@ -1875,7 +1875,9 @@
     "refreshFrequency": "Aggiornamento automatico",
     "everyMinute": "Ogni minuto",
     "manual": "Manuale",
-    "marketsClosed": "Mercati chiusi"
+    "marketsClosed": "Mercati chiusi",
+    "addTicker": "Aggiungi {{symbol}} alla lista di osservazione",
+    "removeTicker": "Rimuovi {{symbol}} dalla lista di osservazione"
   },
   "scenarioFx": {
     "title": "Shock valutario",
@@ -3335,11 +3337,13 @@
   "ideas": {
     "explain": {
       "screen": "Filtro: filtra qualsiasi watchlist o elenco di ticker in base ai fondamentali che scegli. Non dà indicazioni di acquisto o vendita; lo fanno i Segnali per le tue posizioni.",
-      "signals": "Segnali: candidati all'acquisto e alla vendita tra gli strumenti che già detieni, secondo regole fisse di momentum e rischio impostate sul server. Usa Filtro per filtrare qualsiasi lista in base ai fondamentali che scegli."
+      "signals": "Segnali: candidati all'acquisto e alla vendita tra gli strumenti che già detieni, secondo regole fisse di momentum e rischio impostate sul server. Usa Filtro per filtrare qualsiasi lista in base ai fondamentali che scegli.",
+      "watchlist": "Lista di osservazione: prezzi in tempo reale dei ticker che segui. Aggiungi o rimuovi ticker qui, oppure con la stella su qualsiasi riga di Segnali o Filtro."
     },
     "tabs": {
       "screen": "Filtro",
-      "signals": "Segnali"
+      "signals": "Segnali",
+      "watchlist": "Lista di osservazione"
     },
     "tabsLabel": "Viste delle idee"
   }

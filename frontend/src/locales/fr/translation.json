@@ -1875,7 +1875,9 @@
     "refreshFrequency": "Actualisation automatique",
     "everyMinute": "Toutes les minutes",
     "manual": "Manuel",
-    "marketsClosed": "Marchés fermés"
+    "marketsClosed": "Marchés fermés",
+    "addTicker": "Ajouter {{symbol}} à la liste de suivi",
+    "removeTicker": "Retirer {{symbol}} de la liste de suivi"
   },
   "scenarioFx": {
     "title": "Choc de change",
@@ -3335,11 +3337,13 @@
   "ideas": {
     "explain": {
       "screen": "Filtre : filtrez n'importe quelle liste de suivi ou de tickers selon les fondamentaux de votre choix. Aucun conseil d'achat ou de vente ; les Signaux s'en chargent pour vos positions.",
-      "signals": "Signaux : candidats à l'achat et à la vente parmi les instruments que vous détenez, selon des règles fixes de momentum et de risque définies sur le serveur. Utilisez Filtre pour filtrer n'importe quelle liste selon les fondamentaux de votre choix."
+      "signals": "Signaux : candidats à l'achat et à la vente parmi les instruments que vous détenez, selon des règles fixes de momentum et de risque définies sur le serveur. Utilisez Filtre pour filtrer n'importe quelle liste selon les fondamentaux de votre choix.",
+      "watchlist": "Liste de suivi : cours en direct des tickers que vous suivez. Ajoutez ou retirez des tickers ici, ou avec l'étoile de n'importe quelle ligne Signaux ou Filtre."
     },
     "tabs": {
       "screen": "Filtre",
-      "signals": "Signaux"
+      "signals": "Signaux",
+      "watchlist": "Liste de suivi"
     },
     "tabsLabel": "Vues des idées"
   }

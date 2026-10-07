@@ -1875,7 +1875,9 @@
     "refreshFrequency": "Actualización automática",
     "everyMinute": "Cada minuto",
     "manual": "Manual",
-    "marketsClosed": "Mercados cerrados"
+    "marketsClosed": "Mercados cerrados",
+    "addTicker": "Añadir {{symbol}} a la lista de seguimiento",
+    "removeTicker": "Quitar {{symbol}} de la lista de seguimiento"
   },
   "scenarioFx": {
     "title": "Shock de divisa",
@@ -3335,11 +3337,13 @@
   "ideas": {
     "explain": {
       "screen": "Filtro: filtre cualquier lista de seguimiento o de tickers por los fundamentales que elija. No da recomendaciones de compra o venta; eso lo hacen las Señales para sus posiciones.",
-      "signals": "Señales: candidatos de compra y venta entre los instrumentos que ya tiene, según reglas fijas de momento y riesgo definidas en el servidor. Use Filtro para filtrar cualquier lista por los fundamentales que elija."
+      "signals": "Señales: candidatos de compra y venta entre los instrumentos que ya tiene, según reglas fijas de momento y riesgo definidas en el servidor. Use Filtro para filtrar cualquier lista por los fundamentales que elija.",
+      "watchlist": "Lista de seguimiento: precios en directo de los tickers que sigues. Añade o quita tickers aquí, o con la estrella de cualquier fila de Señales o Filtro."
     },
     "tabs": {
       "screen": "Filtro",
-      "signals": "Señales"
+      "signals": "Señales",
+      "watchlist": "Lista de seguimiento"
     },
     "tabsLabel": "Vistas de ideas"
   }

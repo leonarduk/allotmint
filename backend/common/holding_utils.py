@@ -335,16 +335,6 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
 latest_prices: Dict[str, float] = {}
 
 
-def _is_sterling(currency: object) -> bool:
-    """Whether ``currency`` is GBP or a pence code (``None``/blank counts as GBP).
-
-    The one test both GBP-only price readers apply (#7722): the native-close
-    fallback in ``_close_column`` and the snapshot entry in ``_snapshot_usable``.
-    """
-    normaliser = CurrencyNormaliser.from_raw(currency)
-    return normaliser.is_pence or normaliser.canonical == "GBP"
-
-
 def _native_close_is_gbp(ticker: str, exchange: str) -> bool:
     """Whether ``ticker.exchange``'s native close is already sterling (GBP or pence).
 
@@ -654,6 +644,16 @@ def _snapshot_is_stale(snap: Dict[str, Any], reporting_date: dt.date) -> bool:
     if price_date is not None:
         return price_date < reporting_date
     return flag is None
+
+
+def _is_sterling(currency: object) -> bool:
+    """Whether ``currency`` is GBP or a pence code (``None``/blank counts as GBP).
+
+    The test every GBP-only price reader applies before taking a price as GBP
+    (#7722), e.g. a snapshot entry in ``_snapshot_usable``.
+    """
+    normaliser = CurrencyNormaliser.from_raw(currency)
+    return normaliser.is_pence or normaliser.canonical == "GBP"
 
 
 def _snapshot_usable(snap: Any, calc: PricingDateCalculator) -> bool:

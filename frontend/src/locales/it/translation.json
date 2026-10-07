@@ -21,7 +21,17 @@
     },
     "emptyAccountCta": "Aggiungi la tua prima posizione",
     "collapse": "Comprimi il modulo di aggiunta posizione",
-    "collapseShort": "Comprimi"
+    "collapseShort": "Comprimi",
+    "totalHint": "Inserisci il TOTALE delle quote detenute in questo conto dopo la modifica, non la dimensione di una singola operazione. La differenza rispetto a quanto detieni ora viene registrata come trasferimento e mostrata prima del salvataggio.",
+    "date": "Data della modifica",
+    "openingBalance": "Saldo iniziale (datato alla prima transazione del conto)",
+    "preview": {
+      "button": "Anteprima",
+      "change": "Verranno registrate {{sign}}{{units}} quote di {{ticker}} come {{type}} in data {{date}} a £{{price}}/quota (attuali: {{before}}, nuovo totale: {{target}}).",
+      "noChange": "Nessuna modifica: detieni già {{units}} quote.",
+      "priceWarning": "Controlla il prezzo: {{message}}",
+      "saveAnyway": "Salva comunque"
+    }
   },
   "alertSettings": {
     "description": "Questa soglia non è ancora collegata alla generazione degli avvisi in questo ambiente. Gli avvisi attuali derivano da un controllo fisso, valido per l'intero account, eseguito durante l'aggiornamento giornaliero dei prezzi: qualsiasi posizione che si discosti di oltre il 10% dal proprio prezzo di carico viene segnalata, in tutti i portafogli.",

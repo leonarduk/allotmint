@@ -21,7 +21,17 @@
     },
     "emptyAccountCta": "Erste Position hinzufügen",
     "collapse": "Formular zum Hinzufügen einer Position einklappen",
-    "collapseShort": "Einklappen"
+    "collapseShort": "Einklappen",
+    "totalHint": "Geben Sie die GESAMTZAHL der Anteile ein, die Sie nach der Änderung in diesem Konto halten, nicht die Größe eines einzelnen Trades. Die Differenz zum aktuellen Bestand wird als Übertrag erfasst und vor dem Speichern angezeigt.",
+    "date": "Datum der Änderung",
+    "openingBalance": "Anfangsbestand (auf die erste Transaktion des Kontos datieren)",
+    "preview": {
+      "button": "Vorschau",
+      "change": "Dies erfasst {{sign}}{{units}} Anteile von {{ticker}} als {{type}} zum {{date}} zu £{{price}}/Anteil (aktuell: {{before}}, neuer Bestand: {{target}}).",
+      "noChange": "Keine Änderung: Sie halten bereits {{units}} Anteile.",
+      "priceWarning": "Preis prüfen: {{message}}",
+      "saveAnyway": "Trotzdem speichern"
+    }
   },
   "alertSettings": {
     "description": "Dieser Schwellenwert ist in dieser Umgebung noch nicht mit der Alarmerzeugung verbunden. Die heutigen Alarme stammen aus einer festen, kontoübergreifenden Prüfung, die während der täglichen Kursaktualisierung läuft: Jede Position, die mehr als 10 % von ihrem Einstandspreis abweicht, wird über alle Portfolios hinweg markiert.",

@@ -987,6 +987,165 @@ def test_create_manual_holding_rejects_invalid_metric_combo(tmp_path, monkeypatc
         assert resp.json()["detail"] == "Provide either value_gbp or both units and price_gbp"
 
 
+def _seed_sipp_with_21_units(tmp_path):
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    (owner_dir / "sipp_transactions.json").write_text(
+        json.dumps(
+            {"transactions": [{"type": "BUY", "ticker": "PHGP.L", "date": "2020-09-29", "price_gbp": 150, "units": 21}]}
+        )
+    )
+
+
+def test_manual_holding_dry_run_previews_without_writing(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr(transactions, "get_price_gbp", lambda ticker: 290.0)
+    _seed_sipp_with_21_units(tmp_path)
+    before = (tmp_path / "alice" / "sipp_transactions.json").read_text()
+
+    resp = client.post(
+        "/holdings/manual",
+        json={
+            "owner": "alice",
+            "account": "SIPP",
+            "ticker": "PHGP.L",
+            "units": 34,
+            "price_gbp": 288.894,
+            "dry_run": True,
+        },
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "preview"
+    assert data["units_before"] == 21.0
+    assert data["price_warning"] is None
+    tx = data["transaction"]
+    assert (tx["type"], tx["units"], tx["date"]) == ("TRANSFER_IN", 13.0, "2020-09-29")
+    assert (tmp_path / "alice" / "sipp_transactions.json").read_text() == before
+
+
+def test_manual_holding_with_date_is_dated_then_not_backdated(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr(transactions, "get_price_gbp", lambda ticker: 290.0)
+    _seed_sipp_with_21_units(tmp_path)
+    today = date.today().isoformat()
+
+    resp = client.post(
+        "/holdings/manual",
+        json={
+            "owner": "alice",
+            "account": "sipp",
+            "ticker": "PHGP.L",
+            "units": 34,
+            "price_gbp": 288.894,
+            "date": today,
+        },
+    )
+
+    assert resp.status_code == 200
+    tx = resp.json()["transaction"]
+    assert (tx["type"], tx["units"], tx["date"]) == ("TRANSFER_IN", 13.0, today)
+    assert tx["reason"] == transactions.SET_HOLDING_REASON
+    assert _replayed_units(tmp_path, "alice", "sipp_transactions.json", "PHGP.L") == pytest.approx(34.0)
+
+
+def test_manual_holding_rejects_future_date(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    resp = client.post(
+        "/holdings/manual",
+        json={
+            "owner": "alice",
+            "account": "isa",
+            "ticker": "VUSA.L",
+            "units": 1,
+            "price_gbp": 50,
+            "date": "2999-01-01",
+        },
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "date cannot be in the future"
+
+
+@pytest.mark.parametrize(
+    ("price", "mix_up", "suggested"),
+    [(28889.4, "pence entered as pounds", "288.89"), (2.89, "pounds entered as pence", "289.00")],
+)
+def test_manual_holding_rejects_pence_pounds_mix_up(tmp_path, monkeypatch, price, mix_up, suggested):
+    client = _make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr(transactions, "get_price_gbp", lambda ticker: 290.0)
+    _seed_sipp_with_21_units(tmp_path)
+    before = (tmp_path / "alice" / "sipp_transactions.json").read_text()
+
+    resp = client.post(
+        "/holdings/manual",
+        json={"owner": "alice", "account": "sipp", "ticker": "PHGP.L", "units": 34, "price_gbp": price},
+    )
+
+    assert resp.status_code == 422
+    assert mix_up in resp.json()["detail"]
+    assert suggested in resp.json()["detail"]
+    assert (tmp_path / "alice" / "sipp_transactions.json").read_text() == before
+
+
+def test_manual_holding_dry_run_reports_price_warning(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr(transactions, "get_price_gbp", lambda ticker: 290.0)
+
+    resp = client.post(
+        "/holdings/manual",
+        json={
+            "owner": "alice",
+            "account": "sipp",
+            "ticker": "PHGP.L",
+            "units": 34,
+            "price_gbp": 28889.4,
+            "dry_run": True,
+        },
+    )
+
+    assert resp.status_code == 200
+    warning = resp.json()["price_warning"]
+    assert warning["latest_price_gbp"] == 290.0
+    assert warning["suggested_price_gbp"] == pytest.approx(288.894)
+
+
+def test_manual_holding_confirm_price_saves_despite_warning(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr(transactions, "get_price_gbp", lambda ticker: 290.0)
+
+    resp = client.post(
+        "/holdings/manual",
+        json={
+            "owner": "alice",
+            "account": "sipp",
+            "ticker": "PHGP.L",
+            "units": 1,
+            "price_gbp": 28889.4,
+            "confirm_price": True,
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["transaction"]["price_gbp"] == 28889.4
+    assert resp.json()["price_warning"] is not None
+
+
+def test_manual_holding_price_check_skipped_without_cached_price(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr(transactions, "get_price_gbp", lambda ticker: None)
+
+    resp = client.post(
+        "/holdings/manual",
+        json={"owner": "alice", "account": "sipp", "ticker": "PHGP.L", "units": 1, "price_gbp": 28889.4},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["price_warning"] is None
+
+
 def test_create_account_creates_empty_skeleton(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
 

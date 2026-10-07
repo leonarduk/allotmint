@@ -310,7 +310,21 @@ class TransactionSplit(BaseModel):
     units: float = Field(gt=0)
 
 
+# Alias so ManualHoldingCreate can have a field named ``date`` with a default
+# (a bare ``date`` annotation would then resolve to the field's default value).
+_Date = date
+
+
 class ManualHoldingCreate(BaseModel):
+    """Set ``ticker``'s total units in an account (not a single trade).
+
+    ``date`` dates the offsetting transaction; omitted, an increase is an
+    opening balance dated at the account's oldest transaction. ``dry_run``
+    returns that transaction without writing it, and ``confirm_price``
+    accepts a price far from the last close (see
+    :func:`_manual_price_warning`).
+    """
+
     owner: str
     account: str
     ticker: str
@@ -318,6 +332,9 @@ class ManualHoldingCreate(BaseModel):
     units: float | None = Field(default=None, gt=0)
     price_gbp: float | None = Field(default=None, gt=0)
     currency: str | None = None
+    date: Optional[_Date] = None
+    dry_run: bool = False
+    confirm_price: bool = False
 
 
 class AccountCreate(BaseModel):
@@ -1185,6 +1202,10 @@ async def reconcile_holdings(
 
 
 OPENING_BALANCE_REASON = "Opening balance from holdings input"
+SET_HOLDING_REASON = "Set holding from holdings input"
+# A manual price this many times above (or below) the last close is rejected
+# unless confirmed: a pence/pounds mix-up is exactly 100x.
+PRICE_MISMATCH_FACTOR = 50.0
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -1220,50 +1241,123 @@ def _transactions_account_name(owner: str, account: str, store: "AccountsStore")
         return _normalise_account_file_name(account)
 
 
+def _replayed_units(transactions: List[Mapping[str, Any]], holdings: List[Mapping[str, Any]], ticker: str) -> float:
+    """``ticker``'s units after replaying ``transactions`` as the rebuild does.
+
+    Uses the rebuild's own replay (including its name -> ticker aliases), so
+    an offset computed from it agrees with the rebuilt holding.
+    """
+    aliases = name_aliases(transactions, holdings)
+    position = replay_transactions(transactions, aliases=aliases, warn=False).positions.get(ticker)
+    return position.units if position else 0.0
+
+
 def _opening_balance_transaction(
     transactions: List[Mapping[str, Any]],
     holdings: List[Mapping[str, Any]],
     ticker: str,
     units: float,
     price: float,
+    tx_date: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """The transaction that makes ``ticker``'s replayed units equal ``units``, or None if they already do.
 
-    An increase is a TRANSFER_IN dated at the account's oldest transaction, so
-    it reads as a balance held from the start. A decrease is a TRANSFER_OUT
-    dated today: dated earlier, it could exceed the units held on that date,
-    and the rebuild would ignore the excess.
+    With ``tx_date`` the transaction is dated then (the user's choice).
+    Without it, an increase is an opening-balance TRANSFER_IN dated at the
+    account's oldest transaction, so it reads as a balance held from the
+    start, and a decrease is a TRANSFER_OUT dated today: dated earlier, it
+    could exceed the units held on that date, and the rebuild would ignore
+    the excess.
     """
-    # The same replay the rebuild uses (including its name -> ticker aliases),
-    # so the offset agrees with the rebuilt holding.
-    aliases = name_aliases(transactions, holdings)
-    position = replay_transactions(transactions, aliases=aliases, warn=False).positions.get(ticker)
-    held = position.units if position else 0.0
-    delta = round(units - held, 8)
+    delta = round(units - _replayed_units(transactions, holdings, ticker), 8)
     if abs(delta) < 1e-8:
         return None
-    dates = sorted(
-        str(t.get("date") or "")[:10] for t in transactions if _ISO_DATE.match(str(t.get("date") or "")[:10])
-    )
     today = date.today().isoformat()
+    if tx_date:
+        when, reason = tx_date, SET_HOLDING_REASON
+    elif delta > 0:
+        dates = sorted(
+            str(t.get("date") or "")[:10] for t in transactions if _ISO_DATE.match(str(t.get("date") or "")[:10])
+        )
+        when, reason = (dates[0] if dates else today), OPENING_BALANCE_REASON
+    else:
+        when, reason = today, OPENING_BALANCE_REASON
     return {
         "type": "TRANSFER_IN" if delta > 0 else "TRANSFER_OUT",
         "ticker": ticker,
-        "date": (dates[0] if dates else today) if delta > 0 else today,
+        "date": when,
         "units": abs(delta),
         "price_gbp": price,
-        "reason": OPENING_BALANCE_REASON,
+        "reason": reason,
     }
+
+
+def _manual_price_warning(ticker: str, price: float) -> Optional[Dict[str, Any]]:
+    """A warning when ``price`` is ~100x (or 1/100x) the cached last close, else None.
+
+    A pence price typed into a GBP field (or the reverse) is off by exactly
+    100x; :data:`PRICE_MISMATCH_FACTOR` flags anything that far out. No cached
+    close means no warning.
+    """
+    latest = get_price_gbp(ticker)
+    if not latest or latest <= 0:
+        return None
+    ratio = price / latest
+    if 1 / PRICE_MISMATCH_FACTOR < ratio < PRICE_MISMATCH_FACTOR:
+        return None
+    suggested = price / 100 if ratio > 1 else price * 100
+    mix_up = "pence entered as pounds" if ratio > 1 else "pounds entered as pence"
+    return {
+        "latest_price_gbp": latest,
+        "ratio": ratio,
+        "suggested_price_gbp": suggested,
+        "message": (
+            f"Price £{price:,.2f} for {ticker} is {ratio:,.1f}x the latest known price "
+            f"£{latest:,.2f}; possibly {mix_up} (did you mean £{suggested:,.2f}?)"
+        ),
+    }
+
+
+def _manual_tx_date(payload: ManualHoldingCreate) -> Optional[str]:
+    """The requested transaction date as ISO text, rejecting a future date.
+
+    One day of slack allows for a browser whose local date is ahead of the
+    server's (e.g. just after midnight in the UK against a UTC server).
+    """
+    if payload.date is None:
+        return None
+    if payload.date > date.today() + timedelta(days=1):
+        raise HTTPException(status_code=400, detail="date cannot be in the future")
+    return payload.date.isoformat()
+
+
+def _manual_holding_plan(
+    store: "AccountsStore", owner: str, account: str, ticker: str, units: float, price: float, tx_date: Optional[str]
+) -> Tuple[str, float, Optional[Dict[str, Any]]]:
+    """``(transactions account, units held now, offsetting transaction or None)`` for a manual holding."""
+    tx_account = _transactions_account_name(owner, account, store)
+    existing = store.read_document(owner, f"{tx_account}_transactions.json") or {}
+    holdings_doc = store.read_document(owner, f"{_normalise_account_file_name(account)}.json") or {}
+    transactions = list(existing.get("transactions") or [])
+    holdings = list(holdings_doc.get("holdings") or [])
+    held = _replayed_units(transactions, holdings, ticker)
+    tx = _opening_balance_transaction(transactions, holdings, ticker, units, price, tx_date)
+    return tx_account, held, tx
 
 
 @router.post("/holdings/manual")
 def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dict[str, Any]:
-    """Set a holding by recording the transaction that brings the account to it.
+    """Set a holding's total units by recording the transaction that brings the account to it.
 
     Holdings are rebuilt from transactions on every transaction write, so a
     holding written straight into ``<account>.json`` could be lost. Instead
     this records an offsetting TRANSFER_IN/TRANSFER_OUT (see
     :func:`_opening_balance_transaction`) and rebuilds the account.
+
+    ``dry_run`` returns that transaction (and any price warning) without
+    writing anything, so the UI can preview it. A save whose price looks like
+    a pence/pounds mix-up (:func:`_manual_price_warning`) is rejected with 422
+    unless ``confirm_price`` is set.
 
     If the owner does not yet have a writable account root, one is created
     implicitly via :meth:`~backend.common.accounts_store.AccountsStore.ensure_owner`.
@@ -1277,29 +1371,30 @@ def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dic
     ticker = str(payload.ticker or "").strip().upper()
     if not ticker:
         raise HTTPException(status_code=400, detail="ticker is required")
+    tx_date = _manual_tx_date(payload)
 
     store = _require_writable_store(request)
     units, price = _manual_holding_units_and_price(payload, ticker)
-    store.ensure_owner(owner)
-    tx_account = _transactions_account_name(owner, account, store)
-    if payload.currency:
-        with _locked_account_holdings_data(owner, _normalise_account_file_name(account), store) as (doc, _):
-            doc["currency"] = payload.currency.strip().upper() or "GBP"
-
-    existing = store.read_document(owner, f"{tx_account}_transactions.json") or {}
-    holdings_doc = store.read_document(owner, f"{_normalise_account_file_name(account)}.json") or {}
-    tx = _opening_balance_transaction(
-        list(existing.get("transactions") or []), list(holdings_doc.get("holdings") or []), ticker, units, price
-    )
-    persisted = _persist_transaction(store, owner, tx_account, tx) if tx else None
-
-    return {
-        "status": "saved",
+    price_warning = _manual_price_warning(ticker, price)
+    result: dict[str, Any] = {
         "owner": owner,
         "account": _normalise_account_file_name(account),
         "holding": {"ticker": ticker, "units": units, "price": price},
-        "transaction": persisted,
+        "price_warning": price_warning,
     }
+    if payload.dry_run:
+        _, held, tx = _manual_holding_plan(store, owner, account, ticker, units, price, tx_date)
+        return {**result, "status": "preview", "units_before": held, "transaction": tx}
+    if price_warning and not payload.confirm_price:
+        raise HTTPException(status_code=422, detail=price_warning["message"])
+
+    store.ensure_owner(owner)
+    if payload.currency:
+        with _locked_account_holdings_data(owner, _normalise_account_file_name(account), store) as (doc, _):
+            doc["currency"] = payload.currency.strip().upper() or "GBP"
+    tx_account, held, tx = _manual_holding_plan(store, owner, account, ticker, units, price, tx_date)
+    persisted = _persist_transaction(store, owner, tx_account, tx) if tx else None
+    return {**result, "status": "saved", "units_before": held, "transaction": persisted}
 
 
 @router.post("/accounts", status_code=201)

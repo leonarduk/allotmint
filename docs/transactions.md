@@ -96,9 +96,23 @@ entered:
   could exceed the units held on that date);
 - the same: nothing is recorded (`"transaction": null`).
 
+Those dates apply when the body has no `date`. With `date` (ISO, not in the
+future) the transfer is dated then instead, with reason
+`Set holding from holdings input`; the portfolio page's **Add position** form
+sends today's date by default and offers the opening-balance dating as an
+explicit checkbox (#9992). The units are always the *total* held afterwards,
+not the size of a trade.
+
 Transfers carry `price_gbp` as their cost and have no cash effect. The body
 takes `units` + `price_gbp`, or `value_gbp`, which is converted to units at
 `price_gbp` if given, else at the cached last close (400 if none is known).
+
+`"dry_run": true` returns the would-be `transaction`, the `units_before` it
+offsets and any `price_warning` without writing anything; the Add position
+form shows that as a preview before saving. A save whose `price_gbp` is 50x
+or more above (or below) the cached last close is rejected with 422 as a
+likely pence/pounds mix-up, unless the body sets `"confirm_price": true`.
+The check applies only to this endpoint, not to imports or `POST /transactions`.
 
 A rebuild keeps any holding that no transaction mentions, so holdings entered
 before this change, or imported as a snapshot, are not dropped. Such a holding

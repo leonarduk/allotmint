@@ -21,7 +21,17 @@
     },
     "emptyAccountCta": "Ajouter votre première position",
     "collapse": "Réduire le formulaire d'ajout de position",
-    "collapseShort": "Réduire"
+    "collapseShort": "Réduire",
+    "totalHint": "Saisissez le nombre TOTAL de parts détenues dans ce compte après la modification, pas la taille d'une seule transaction. L'écart avec la position actuelle est enregistré comme un transfert, affiché avant l'enregistrement.",
+    "date": "Date de la modification",
+    "openingBalance": "Solde d'ouverture (daté de la première transaction du compte)",
+    "preview": {
+      "button": "Aperçu",
+      "change": "Cela enregistrera {{sign}}{{units}} parts de {{ticker}} en {{type}} daté du {{date}} à £{{price}}/part (actuel : {{before}}, nouveau total : {{target}}).",
+      "noChange": "Aucun changement : vous détenez déjà {{units}} parts.",
+      "priceWarning": "Vérifiez le prix : {{message}}",
+      "saveAnyway": "Enregistrer quand même"
+    }
   },
   "alertSettings": {
     "description": "Ce seuil n'est pas encore relié à la génération des alertes dans cet environnement. Les alertes actuelles proviennent d'une vérification fixe, appliquée à l'ensemble du compte, exécutée lors de l'actualisation quotidienne des prix : toute position s'écartant de plus de 10 % de son prix de revient est signalée, pour tous les portefeuilles.",

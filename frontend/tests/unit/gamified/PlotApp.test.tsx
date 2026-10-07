@@ -377,6 +377,38 @@ describe('Plot mode crop detail', () => {
     expect(screen.getByText('Lv 4/5')).toBeInTheDocument();
   });
 
+  it('falls back to the Growth trait when there is no yield on record (#7019)', async () => {
+    renderPlot('/plot/crops/VUSA.L');
+
+    expect(await screen.findByText('Growth')).toBeInTheDocument();
+    expect(screen.getByText('£3.0k unrealised gain (+75.0%)')).toBeInTheDocument();
+    expect(screen.queryByText('Yield')).not.toBeInTheDocument();
+  });
+
+  it('shows the real trailing yield, labelled Yield, when the backend sends one (#7019)', async () => {
+    const [vusa, wilt] = portfolio.accounts[0].holdings;
+    mocks.getPortfolio.mockResolvedValue({
+      ...portfolio,
+      accounts: [
+        {
+          ...portfolio.accounts[0],
+          holdings: [{ ...vusa, yield_pct: 3.24 }, wilt],
+        },
+      ],
+    });
+    renderPlot('/plot/crops/VUSA.L');
+
+    expect(await screen.findByText('Yield')).toBeInTheDocument();
+    expect(
+      screen.getByText('3.2% trailing 12-month income yield')
+    ).toBeInTheDocument();
+    // The yield replaces the Growth trait rather than sitting beside it.
+    expect(screen.queryByText('Growth')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('£3.0k unrealised gain (+75.0%)')
+    ).not.toBeInTheDocument();
+  });
+
   it('shows the not-found panel for a malformed crop id rather than throwing', async () => {
     // React Router passes a bad percent-sequence through undecoded, so an
     // unguarded decodeURIComponent threw URIError mid-render and the screen

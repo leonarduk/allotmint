@@ -13,6 +13,10 @@ module adds, per position, from the account's transactions:
 * ``total_return_gbp`` -- ``gain_gbp + realised_gain_gbp + income_gbp``.
 * ``total_return_pct`` -- ``total_return_gbp`` over all the cost ever put into
   the position (the cost still held plus the cost of the units sold).
+* ``yield_pct`` -- trailing income yield (#7019): income received in the
+  :data:`TRAILING_YIELD_DAYS` days up to today over the current market value.
+  ``None`` when nothing was received in that window -- an accumulating fund
+  or a holding with no recorded payouts has no known yield, not a 0% one.
 
 ``amount_minor`` is treated as GBP pence, as everywhere else that replays
 transactions (see :mod:`backend.common.holdings_rebuild`).  When the account
@@ -23,6 +27,7 @@ disposal's gain is unknown the total is ``None`` rather than a partial figure.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
 from backend.common.holdings_rebuild import (
@@ -36,7 +41,8 @@ from backend.common.holdings_rebuild import (
 _INCOME_TYPES = {"DIVIDEND", "DIVIDENDS", "INTEREST"}
 _EPS = 1e-9
 
-TOTAL_RETURN_FIELDS = ("income_gbp", "realised_gain_gbp", "total_return_gbp", "total_return_pct")
+TOTAL_RETURN_FIELDS = ("income_gbp", "realised_gain_gbp", "total_return_gbp", "total_return_pct", "yield_pct")
+TRAILING_YIELD_DAYS = 365
 
 
 @dataclass
@@ -44,6 +50,7 @@ class PositionReturn:
     """Income and realised figures for one instrument pool."""
 
     income_gbp: float = 0.0
+    trailing_income_gbp: float = 0.0
     realised_gain_gbp: float = 0.0
     disposed_cost_gbp: float = 0.0
     realised_known: bool = True
@@ -61,12 +68,25 @@ def _amount_gbp(tx: Mapping[str, Any]) -> Optional[float]:
     return None if value != value else abs(value) / 100.0
 
 
-def position_returns(transactions: Sequence[Mapping[str, Any]]) -> Dict[str, PositionReturn]:
+def _tx_date(tx: Mapping[str, Any]) -> Optional[date]:
+    try:
+        return datetime.fromisoformat(str(tx.get("date") or "")[:10]).date()
+    except ValueError:
+        return None
+
+
+def position_returns(
+    transactions: Sequence[Mapping[str, Any]], as_of: Optional[date] = None
+) -> Dict[str, PositionReturn]:
     """Return income and realised gains keyed by instrument pool key.
 
     Keys match :func:`backend.common.holdings_rebuild.transaction_cost_hints`
     (canonical tickers, or ``name:``/``ref:`` keys for unresolved rows).
+    Income dated in the :data:`TRAILING_YIELD_DAYS` days up to ``as_of``
+    (default today) is also summed into ``trailing_income_gbp``.
     """
+    as_of = as_of or date.today()
+    window_start = as_of - timedelta(days=TRAILING_YIELD_DAYS)
     rows = [tx for tx in transactions if isinstance(tx, Mapping)]
     aliases = name_aliases(rows)
     results: Dict[str, PositionReturn] = {}
@@ -78,7 +98,11 @@ def position_returns(transactions: Sequence[Mapping[str, Any]]) -> Dict[str, Pos
         amount = _amount_gbp(tx)
         if key is None or key == CASH_TICKER or amount is None:
             continue
-        results.setdefault(key, PositionReturn()).income_gbp += amount
+        entry = results.setdefault(key, PositionReturn())
+        entry.income_gbp += amount
+        paid = _tx_date(tx)
+        if paid is not None and window_start < paid <= as_of:
+            entry.trailing_income_gbp += amount
 
     def record(disposal: Disposal) -> None:
         if disposal.tx_type != "SELL":
@@ -118,6 +142,8 @@ def apply_total_return(holding: Dict[str, Any], entry: Optional[PositionReturn])
 
     gain = _float_or_none(holding.get("gain_gbp"))
     market = _float_or_none(holding.get("market_value_gbp"))
+    has_yield = entry.trailing_income_gbp > _EPS and market is not None and market > _EPS
+    holding["yield_pct"] = entry.trailing_income_gbp / market * 100.0 if has_yield else None
     if gain is None or market is None or realised is None:
         holding["total_return_gbp"] = None
         holding["total_return_pct"] = None

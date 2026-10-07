@@ -148,6 +148,9 @@ class HoldingContract(SpaContractBase):
     realised_gain_gbp: float | None = None
     total_return_gbp: float | None = None
     total_return_pct: float | None = None
+    # Trailing 12-month income received over market value, % (#7019); None
+    # when no income was received in that window.
+    yield_pct: float | None = None
     current_price_gbp: float | None = None
     current_price_currency: str | None = None  # currency code e.g. "GBP"
     last_price_date: str | None = None

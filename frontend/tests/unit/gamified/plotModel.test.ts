@@ -24,6 +24,7 @@ import {
   starsFor,
   vigourFor,
   xpThresholdForLevel,
+  yieldLevelFor,
   type Crop,
 } from '@/gamified/plotModel';
 import type { Portfolio } from '@/types';
@@ -1032,5 +1033,36 @@ describe('growthLevelFor', () => {
     expect(growthLevelFor(growthStageFor(60))).toBe(3); // flowering
     expect(growthLevelFor(growthStageFor(15))).toBe(1); // leafing
     expect(growthLevelFor(growthStageFor(-40))).toBe(0); // wilting
+  });
+});
+
+describe('yield (#7019)', () => {
+  const withYield = (yieldPct: number | null | undefined): Portfolio => ({
+    ...portfolio,
+    accounts: [
+      {
+        ...portfolio.accounts[0],
+        holdings: [
+          { ...portfolio.accounts[0].holdings[0], yield_pct: yieldPct },
+        ],
+      },
+    ],
+  });
+
+  it('carries the backend trailing yield onto the crop', () => {
+    const [crop] = buildPlotSnapshot({ portfolio: withYield(3.25) }).crops;
+    expect(crop.yieldPct).toBe(3.25);
+  });
+
+  it('keeps a missing yield unknown rather than 0%', () => {
+    for (const value of [null, undefined, Number.NaN]) {
+      const [crop] = buildPlotSnapshot({ portfolio: withYield(value) }).crops;
+      expect(crop.yieldPct).toBeNull();
+    }
+  });
+
+  it('bands yield into a 0-5 trait level', () => {
+    expect([0, 0.5, 1.5, 3, 5, 8].map(yieldLevelFor)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(yieldLevelFor(Number.NaN)).toBe(0);
   });
 });

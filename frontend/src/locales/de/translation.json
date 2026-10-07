@@ -2850,6 +2850,8 @@
       "growth": "Wachstum",
       "gainUnknown": "Gewinn unbekannt – keine Anschaffungskosten erfasst",
       "gainDetail": "{{gain}} nicht realisierter Gewinn ({{pct}})",
+      "yield": "Rendite",
+      "yieldDetail": "{{pct}} % Ertragsrendite der letzten 12 Monate",
       "vigour": "Vitalität",
       "noMoveToday": "Heute keine Bewegung erfasst",
       "pctToday": "{{pct}} heute",

@@ -3350,7 +3350,7 @@
     "overseas_government": "Deuda pública extranjera",
     "corporate_bonds": "Corporativos / crédito",
     "gold": "Oro",
-    "commodities": "Otras materias primas"
+    "other_commodities": "Otras materias primas"
   },
   "planForm": {
     "errors": {

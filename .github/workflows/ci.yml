@@ -406,3 +406,40 @@ jobs:
             frontend/playwright-report/
             frontend/test-results/
           if-no-files-found: ignore
+
+  # Full Playwright suite (every tests/*.spec.ts), not just the two specs
+  # frontend-smoke runs. Added for #7357 after data-quality and systemTheme
+  # regressions slipped through because only the smoke subset ran on PRs.
+  # Same gating as frontend-smoke. It is NOT a required status check yet, so
+  # a red run is visible on the PR without blocking merge; add it to branch
+  # protection once the suite is stable.
+  frontend-e2e:
+    name: Frontend e2e tests (full Playwright suite)
+    needs: [classify-change, frontend-checks]
+    if: >-
+      !cancelled()
+      && needs.frontend-checks.result != 'failure'
+      && needs.classify-change.outputs.frontend != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-frontend-deps
+      - name: Build preview
+        run: npm run build:preview
+        working-directory: frontend
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Run full Playwright suite
+        run: npx playwright test --config playwright.config.ts
+        working-directory: frontend
+      - name: Upload Playwright e2e artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-frontend-e2e-artifacts
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: ignore

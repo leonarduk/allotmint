@@ -39,6 +39,9 @@ beforeEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   api.clearGroupInstrumentCache();
+  // Shared in-flight group metric requests (#7629) must not outlive a test:
+  // a stub that falls through to the real network leaves one pending.
+  api.clearGroupPerformanceInFlight();
   vi
     .spyOn(api, "getCachedGroupInstruments")
     .mockImplementation((slug, filters) => api.getGroupInstruments(slug, filters));

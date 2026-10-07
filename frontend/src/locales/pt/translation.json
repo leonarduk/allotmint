@@ -368,6 +368,7 @@
     "performancePartialMembers": "O retorno ponderado pelo tempo e o XIRR estão incompletos: não foi encontrado histórico de transações para {{members}}, por isso estes valores provavelmente estão acima do retorno real do agregado familiar.",
     "performanceMetricsUnavailable": "Algumas métricas não puderam ser carregadas e são apresentadas como indisponíveis: {{metrics}}.",
     "performanceUnavailable": "Não foi possível carregar o gráfico do valor da carteira para este período. Outras métricas desta página podem continuar disponíveis.",
+    "performanceEmpty": "Ainda não há histórico do valor da carteira para este período.",
     "openDiagnostics": "Abrir diagnósticos",
     "viewMetricsExplanation": "Ler a explicação completa",
     "portfolioValue": "Valor da carteira",

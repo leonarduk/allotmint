@@ -368,6 +368,7 @@
     "performancePartialMembers": "La rentabilidad ponderada por tiempo y la XIRR están incompletas: no se encontró historial de transacciones de {{members}}, por lo que estas cifras probablemente son superiores a la rentabilidad real del hogar.",
     "performanceMetricsUnavailable": "Algunas métricas no se pudieron cargar y se muestran como no disponibles: {{metrics}}.",
     "performanceUnavailable": "No pudimos cargar el gráfico de valor de la cartera de este periodo. Es posible que otras métricas de esta página sigan disponibles.",
+    "performanceEmpty": "Todavía no hay historial del valor de la cartera para este periodo.",
     "openDiagnostics": "Abrir diagnósticos",
     "viewMetricsExplanation": "Leer la explicación completa",
     "portfolioValue": "Valor de la cartera",

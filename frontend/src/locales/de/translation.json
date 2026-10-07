@@ -368,6 +368,7 @@
     "performancePartialMembers": "Zeitgewichtete Rendite und XIRR sind unvollständig: Für {{members}} wurde keine Transaktionshistorie gefunden, daher liegen diese Werte wahrscheinlich über der tatsächlichen Rendite des Haushalts.",
     "performanceMetricsUnavailable": "Einige Kennzahlen konnten nicht geladen werden und werden als nicht verfügbar angezeigt: {{metrics}}.",
     "performanceUnavailable": "Das Diagramm des Portfoliowerts für diesen Zeitraum konnte nicht geladen werden. Andere Kennzahlen auf dieser Seite sind möglicherweise weiterhin verfügbar.",
+    "performanceEmpty": "Für diesen Zeitraum gibt es noch keinen Verlauf des Portfoliowerts.",
     "openDiagnostics": "Diagnose öffnen",
     "viewMetricsExplanation": "Ausführliche Erklärung lesen",
     "portfolioValue": "Portfoliowert",

@@ -1547,6 +1547,21 @@ describe("chat conversation is scoped to the login session", () => {
 
     expect(getChatMessages()).toEqual([message]);
   });
+
+  it("on a direct switch to another user's token, keeps the chat only until the sync reloads (#8770)", () => {
+    setAuthToken("token-for-user-a");
+    appendChatMessage(message);
+    const epoch = getChatIdentityEpoch();
+
+    // No intervening null: indistinguishable here from a refresh, so nothing
+    // is cleared yet. The epoch bump makes the chat sync reload before it
+    // shows or saves anything else, and that reload replaces a conversation
+    // cached for a different owner (utils/chatSync.test.ts).
+    setAuthToken("token-for-user-b");
+
+    expect(getChatMessages()).toEqual([message]);
+    expect(getChatIdentityEpoch()).toBeGreaterThan(epoch);
+  });
 });
 
 describe("saved chat conversation API (#8870)", () => {

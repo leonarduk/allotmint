@@ -22,13 +22,30 @@ def test_select_treats_pence_as_sterling():
     assert morningstar.select_sec_id(ROWS, "L", "GBX") == "0P0000AATZ"
 
 
-def test_select_falls_back_to_first_listing_on_exchange():
-    assert morningstar.select_sec_id(ROWS, "L", "JPY") == "0P00008UKW"
+def test_select_never_guesses_another_currency_line():
+    assert morningstar.select_sec_id(ROWS, "L", "JPY") is None
+
+
+def test_select_without_currency_needs_a_single_listing():
+    assert morningstar.select_sec_id(ROWS, "L", None) is None
+    assert morningstar.select_sec_id(ROWS, "AS", None) == "0P0000HYBM"
+
+
+def test_select_ignores_malformed_exchange_ids():
+    rows = [{"SecId": "0P0000BAD1", "ExchangeId": "LON", "Currency": "GBP"}, {"SecId": "0P0000BAD2"}]
+    assert morningstar.select_sec_id(rows, "L", "GBP") is None
 
 
 def test_select_returns_none_without_a_listing_on_the_exchange():
     assert morningstar.select_sec_id(ROWS, "N", "USD") is None
     assert morningstar.select_sec_id(ROWS, "XX", "GBP") is None
+
+
+@pytest.fixture(autouse=True)
+def _clear_unresolved_cache():
+    morningstar._UNRESOLVED.clear()
+    yield
+    morningstar._UNRESOLVED.clear()
 
 
 class _Response:
@@ -61,6 +78,19 @@ def test_resolve_returns_none_on_network_error(monkeypatch):
 
     monkeypatch.setattr(morningstar.requests, "get", fake_get)
     assert morningstar.resolve_sec_id("JE00B1VS3770", "L", "GBP") is None
+
+
+def test_resolve_remembers_unresolvable_listings(monkeypatch):
+    calls: list[dict] = []
+
+    def fake_get(url, params, timeout):
+        calls.append(params)
+        return _Response({"rows": ROWS})
+
+    monkeypatch.setattr(morningstar.requests, "get", fake_get)
+    assert morningstar.resolve_sec_id("JE00B1VS3770", "N", "USD") is None
+    assert morningstar.resolve_sec_id("JE00B1VS3770", "N", "USD") is None
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize("payload", [{}, {"rows": None}, {"rows": "nope"}])

@@ -216,3 +216,13 @@ def test_morningstar_id_unresolved_without_isin_or_match(monkeypatch):
         resp = client.post("/instrument/admin/L/ABC/morningstar-id")
     assert resp.json() == {"status": "unresolved", "morningstar_id": None}
     assert "saved" not in state
+
+
+def test_morningstar_id_skips_lookup_offline(monkeypatch):
+    meta = {"ticker": "PHGP.L", "exchange": "L", "isin": "JE00B1VS3770"}
+    client, state = _morningstar_client(monkeypatch, meta, "0P0000AATZ")
+    monkeypatch.setattr(instrument_admin.config, "offline_mode", True)
+    with client:
+        resp = client.post("/instrument/admin/L/PHGP/morningstar-id")
+    assert resp.json() == {"status": "unresolved", "morningstar_id": None}
+    assert state["lookups"] == []

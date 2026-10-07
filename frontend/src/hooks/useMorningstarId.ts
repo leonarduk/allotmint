@@ -12,7 +12,7 @@ export function useMorningstarId(
   isin: string | null | undefined,
   savedId: string | null | undefined,
 ): string | null {
-  const key = `${exchange ?? ""}/${ticker}`;
+  const key = `${exchange ?? ""}/${ticker}/${isin ?? ""}`;
   const [resolved, setResolved] = useState<{ key: string; id: string | null } | null>(null);
 
   useEffect(() => {

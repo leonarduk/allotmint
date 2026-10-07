@@ -951,6 +951,34 @@ describe("InstrumentResearch page", () => {
     expect(mockResolveMorningstarId).toHaveBeenCalledWith("AAA", "L");
   });
 
+  it("keeps the Morningstar search link when the id lookup fails", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA.L", exchange: "L", name: "Acme", isin: "GB00BH4HKS39", instrumentType: "Equity" },
+    ] as any);
+    mockResolveMorningstarId.mockRejectedValueOnce(new Error("offline"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    renderPage();
+
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(screen.getByRole("link", { name: "View on Morningstar" })).toHaveAttribute(
+      "href",
+      "https://global.morningstar.com/en-gb/search?query=GB00BH4HKS39",
+    );
+    warn.mockRestore();
+  });
+
+  it("links ETN instruments to their justETF profile", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme", isin: "JE00B1VS3770", instrumentType: "ETN" },
+    ] as any);
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "View on justETF" })).toHaveAttribute(
+      "href",
+      "https://www.justetf.com/en/etf-profile.html?isin=JE00B1VS3770",
+    );
+  });
+
   it("links ETCs to their justETF profile", async () => {
     mockListInstrumentMetadata.mockResolvedValue([
       { ticker: "AAA", name: "Acme Gold", isin: "JE00B1VS3770", instrumentType: "ETC" },

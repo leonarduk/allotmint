@@ -127,6 +127,7 @@
       "dataadmin": "Administração de dados",
       "dataexplorer": "Explorador de arquivos",
       "dataquality": "Qualidade dos dados",
+      "dividends": "Dividendos",
       "group": "Grupo",
       "help": "Ajuda",
       "ideas": "Ideias",
@@ -386,6 +387,11 @@
     "alphaVsBenchmarkInfoLabel": "O que significa Alfa vs Referência?",
     "alphaVsBenchmarkInfo": "O alfa mede em que medida o retorno da carteira diferiu do de {{ticker}} durante o período selecionado.",
     "vsBenchmark": "vs {{ticker}}",
+    "cumulativeReturnPortfolio": "A sua carteira",
+    "cumulativeReturnBenchmark": "{{ticker}} (referência)",
+    "cumulativeReturnBasis": "Ambas as linhas usam dividendos reinvestidos, as posições atuais e as mesmas datas ({{from}} a {{to}}) que o alfa vs {{ticker}}.",
+    "benchmarkSeriesFailed": "Não foi possível carregar {{ticker}} para comparação, por isso só é mostrado o retorno acumulado da sua carteira baseado no valor.",
+    "benchmarkSeriesEmpty": "Não há preços de {{ticker}} que coincidam com este período, por isso só é mostrado o retorno acumulado da sua carteira baseado no valor.",
     "trackingErrorInfoLabel": "O que significa o erro de acompanhamento?",
     "trackingErrorInfo": "O erro de acompanhamento mede quanto os retornos diários da carteira variaram em relação aos de {{ticker}}, anualizado.",
     "maxDrawdownInfoLabel": "O que significa a máxima queda?",
@@ -440,6 +446,9 @@
     "atAGlance": "Visão geral",
     "pricingAsOf": "Preços em {{date}}",
     "pricingDatePickerLabel": "Alterar data de preços",
+    "pricingRefreshError": "Não foi possível atualizar os preços: {{detail}}",
+    "pricingStale_one": "Os preços têm {{count}} dia",
+    "pricingStale_other": "Os preços têm {{count}} dias",
     "resetPricingDate": "Repor para o mais recente",
     "select": "Selecione um grupo.",
     "allAccounts": "Todas as contas",
@@ -497,6 +506,11 @@
       "account": "Conta"
     },
     "columnsLabel": "Colunas:",
+    "columnPresets": {
+      "label": "Predefinição de colunas:",
+      "simple": "Simples",
+      "detailed": "Detalhado"
+    },
     "eligible": "Elegível",
     "filters": {
       "all": "Todos",
@@ -1806,6 +1820,8 @@
     "signalsTitle": "Sinais atuais",
     "noSignalsTitle": "Sem sinais neste momento",
     "noSignalsDescription": "Nenhum instrumento monitorizado cruza atualmente os limiares ativos. Os sinais aparecem quando as condições de RSI ou de médias móveis são cumpridas e quaisquer filtros de avaliação e risco ativados também passam.",
+    "blockedTitle": "Sinais bloqueados pela conformidade",
+    "blockedDescription": "Estes instrumentos ultrapassaram os limites ativos, mas a operação proposta geraria um novo aviso de conformidade, por isso nenhum sinal é mostrado para eles.",
     "checksSkippedBadge": "Verificações ignoradas",
     "checksSkippedTitle": "Verificações ignoradas: {{checks}}",
     "checksSkippedInfo": "Não foi possível executar uma verificação opcional que requer o suplemento allotmint-pro. «compliance» significa que a operação não foi verificada face às suas regras de conformidade; «fundamental_screen» significa que os filtros de P/E e dívida/capital próprio acima (os que estiverem configurados) não foram aplicados a este candidato de compra.",
@@ -1934,6 +1950,7 @@
     "everyMinute": "A cada minuto",
     "manual": "Manual",
     "marketsClosed": "Mercados fechados",
+    "staleAge": "há {{days}} d",
     "addTicker": "Adicionar {{symbol}} à lista de observação",
     "removeTicker": "Remover {{symbol}} da lista de observação"
   },
@@ -2301,6 +2318,7 @@
     "risk": "Risco",
     "volatility1y": "Volatilidade (1 a)",
     "beta": "Beta vs {{ticker}} (3 a, semanal)",
+    "betaNoBenchmark": "Beta (3 a, semanal)",
     "providerBeta": "Beta do fornecedor: {{value}}",
     "maxDrawdown": "Perda máxima",
     "history": "Histórico",
@@ -2313,6 +2331,9 @@
     "ariaValuation": "Avaliação",
     "benchmark": "Índice de referência:",
     "exchangeDefault": ", predefinido para a bolsa de cotação",
+    "noComparableBenchmark": "nenhum comparável",
+    "assetClass": "fundo {{assetClass}}",
+    "assetClassBasis": "fundo {{assetClass}}: {{basis}}",
     "dataQuality": "Qualidade dos dados"
   },
   "instrumentTechnicals": {
@@ -2661,6 +2682,33 @@
     "estValue": "Valor est.: ",
     "lastUpdated": "Última atualização: "
   },
+  "dividends": {
+    "title": "Dividendos",
+    "description": "Rendimentos de dividendos recebidos, por período e por posição. Valores em moedas diferentes são mostrados em separado, nunca somados.",
+    "owner": "Titular",
+    "allOwners": "Todos os titulares",
+    "period": "Agrupar por",
+    "periods": {
+      "taxYear": "Ano fiscal",
+      "year": "Ano civil",
+      "month": "Mês"
+    },
+    "trailing12m": "Últimos 12 meses",
+    "allTime": "Total",
+    "byPeriod": "Por período",
+    "byHolding": "Por posição",
+    "payments": "Pagamentos",
+    "received": "Recebido",
+    "holding": "Posição",
+    "lastPaid": "Último pagamento",
+    "none": "—",
+    "empty": "Ainda não há pagamentos de dividendos registados.",
+    "undated": "Sem data",
+    "unattributed": "Sem posição associada",
+    "unattributedHelp": "Pagamentos de dividendos registados sem ticker, p. ex. transferências de uma conta de rendimentos.",
+    "noHistory": "Sem dividendos registados",
+    "holdingsUnavailable": "Não foi possível carregar as posições atuais, por isso as posições sem dividendos não são listadas."
+  },
   "dividendHistory": {
     "trendAria": "Tendência de dividendos",
     "date": "Data",
@@ -2980,7 +3028,6 @@
     },
     "model": {
       "unnamedBed": "Canteiro sem nome",
-      "allowancesUnavailable": "Limites indisponíveis neste momento",
       "water": "Água",
       "feed": "Adubo",
       "sunlight": "Luz solar",
@@ -3205,6 +3252,26 @@
     "noPlan": "Ainda não há um plano de investimento guardado para {{owner}}.",
     "createPlan": "Criar plano"
   },
+  "classify": {
+    "title": "Classificar posições",
+    "intro": "Estas posições não têm classe de ativos, por isso a página Estratégia não as conta para as suas metas. Escolha uma classe para cada uma; é guardada nos metadados do instrumento.",
+    "back": "Voltar à Estratégia",
+    "noOwner": "Escolha primeiro um titular na página Estratégia.",
+    "empty": "Todas as posições têm classe de ativos — nada a classificar.",
+    "loadError": "Não foi possível carregar as posições de {{owner}}: {{error}}",
+    "saveError": "Não foi possível guardar: {{error}}",
+    "saved": "{{ticker}} guardado como {{assetClass}}.",
+    "choose": "Escolher…",
+    "selectLabel": "Classe de ativos de {{ticker}}",
+    "save": "Guardar",
+    "saving": "A guardar…",
+    "noExchange": "Este ticker não tem sufixo de bolsa; defina a classe de ativos na administração de instrumentos.",
+    "col": {
+      "holding": "Posição",
+      "value": "Valor",
+      "assetClass": "Classe de ativos"
+    }
+  },
   "strategy": {
     "title": "Estratégia",
     "intro": "Escolha uma alocação-alvo (uma estratégia integrada, uma sua ou metas personalizadas), compare as suas posições com ela e veja que operações de reequilíbrio, ou que contribuição, a trariam de volta à sua banda de tolerância.",
@@ -3240,6 +3307,7 @@
       "underweight": "Subponderado",
       "unclassified": "Não classificado",
       "needsAssetClass": "Requer uma classe de ativos",
+      "classifyLink": "Atribuir classes de ativos a estas posições",
       "totalLine": "Total {{total}} · tolerância ±{{tolerance}} pp",
       "sleeveTitle": "Desvio — bloco {{sleeve}}"
     },
@@ -3350,7 +3418,7 @@
     "overseas_government": "Dívida pública estrangeira",
     "corporate_bonds": "Empresariais / crédito",
     "gold": "Ouro",
-    "commodities": "Outras matérias-primas"
+    "other_commodities": "Outras matérias-primas"
   },
   "planForm": {
     "errors": {

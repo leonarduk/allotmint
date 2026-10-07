@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTransactions, splitTransaction, updateTransaction } from '../api';
 import { useDemoReadOnly } from '../hooks/useDemoReadOnly';
+import { transactionUnits } from '../lib/transactionQuantity';
 import tableStyles from '../styles/table.module.css';
 import type { Transaction } from '../types';
 import {
@@ -20,7 +21,7 @@ type Mode =
   | { kind: 'edit'; id: string; values: TransactionFormValues }
   | { kind: 'split'; id: string; units: string };
 
-const rowUnits = (tx: Transaction) => tx.units ?? tx.shares ?? null;
+const rowUnits = transactionUnits;
 
 /**
  * Every transaction for one instrument across owners/accounts, with per-row

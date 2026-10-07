@@ -22,13 +22,13 @@ def test_parse_date_handles_various_inputs(value, expected):
 
 def test_position_periods_tracks_closed_and_open_positions():
     txs = [
-        {"date": "2024-01-01", "ticker": "aaa", "type": "Buy", "shares": 5},
+        {"date": "2024-01-01", "ticker": "aaa", "type": "Buy", "units": 5},
         {"date": "2024-01-03", "ticker": "AAA", "type": "purchase", "quantity": 5},
-        {"date": "2024-01-10", "ticker": "AAA", "type": "Sell", "shares": 4},
-        {"date": "2024-01-15", "ticker": "AAA", "kind": "SELL", "shares": 6},
-        {"date": None, "ticker": "CCC", "type": "BUY", "shares": 1},
-        {"date": "2024-02-01", "ticker": "bbb", "type": "BUY", "shares": 2},
-        {"date": "2024-02-05", "ticker": "BBB", "type": "DIVIDEND", "shares": 1},
+        {"date": "2024-01-10", "ticker": "AAA", "type": "Sell", "units": 4},
+        {"date": "2024-01-15", "ticker": "AAA", "kind": "SELL", "units": 6},
+        {"date": None, "ticker": "CCC", "type": "BUY", "units": 1},
+        {"date": "2024-02-01", "ticker": "bbb", "type": "BUY", "units": 2},
+        {"date": "2024-02-05", "ticker": "BBB", "type": "DIVIDEND", "units": 1},
     ]
 
     periods = metrics.position_periods("owner", txs)
@@ -41,16 +41,28 @@ def test_position_periods_tracks_closed_and_open_positions():
 
 def test_position_periods_ignores_incomplete_transactions():
     txs = [
-        {"date": "", "ticker": "AAA", "type": "BUY", "shares": 1},
-        {"date": "2024-01-01", "ticker": "", "type": "BUY", "shares": 1},
-        {"date": "2024-01-02", "ticker": "BBB", "type": "UNKNOWN", "shares": 1},
-        {"date": "2024-01-03", "ticker": "CCC", "type": "SELL", "shares": 1},
+        {"date": "", "ticker": "AAA", "type": "BUY", "units": 1},
+        {"date": "2024-01-01", "ticker": "", "type": "BUY", "units": 1},
+        {"date": "2024-01-02", "ticker": "BBB", "type": "UNKNOWN", "units": 1},
+        {"date": "2024-01-03", "ticker": "CCC", "type": "SELL", "units": 1},
     ]
 
     periods = metrics.position_periods("owner", txs)
 
     # Only the last transaction has usable data, but without a prior buy it shouldn't create a period.
     assert periods == []
+
+
+def test_position_periods_closes_pp_shares_with_a_units_sell():
+    # #7920: PP rows count in ``shares`` x 10^8; reconciler synthetic rows carry only ``units``.
+    txs = [
+        {"date": "2024-01-01", "ticker": "AAA", "type": "BUY", "shares": 3 * 10**8},
+        {"date": "2024-02-01", "ticker": "AAA", "type": "SELL", "units": 3, "synthetic": True},
+    ]
+
+    periods = metrics.position_periods("owner", txs)
+
+    assert periods == [metrics.PositionPeriod("AAA", dt.date(2024, 1, 1), dt.date(2024, 2, 1))]
 
 
 def test_calculate_portfolio_turnover_with_zero_portfolio_value():
@@ -78,9 +90,9 @@ def test_calculate_portfolio_turnover_aggregates_trade_amounts():
 
 def test_calculate_average_holding_period_includes_open_positions():
     txs = [
-        {"date": "2024-01-01", "ticker": "AAA", "type": "BUY", "shares": 10},
-        {"date": "2024-01-05", "ticker": "AAA", "type": "SELL", "shares": 10},
-        {"date": "2024-02-01", "ticker": "BBB", "type": "BUY", "shares": 5},
+        {"date": "2024-01-01", "ticker": "AAA", "type": "BUY", "units": 10},
+        {"date": "2024-01-05", "ticker": "AAA", "type": "SELL", "units": 10},
+        {"date": "2024-02-01", "ticker": "BBB", "type": "BUY", "units": 5},
     ]
 
     as_of = dt.date(2024, 2, 11)
@@ -96,8 +108,8 @@ def test_compute_and_store_metrics_writes_file(monkeypatch, tmp_path):
     monkeypatch.setattr(metrics, "METRICS_DIR", tmp_path)
 
     txs = [
-        {"date": "2024-01-01", "ticker": "AAA", "type": "BUY", "shares": 5, "amount_minor": 1000},
-        {"date": "2024-01-10", "ticker": "AAA", "type": "SELL", "shares": 5, "amount_minor": 1500},
+        {"date": "2024-01-01", "ticker": "AAA", "type": "BUY", "units": 5, "amount_minor": 1000},
+        {"date": "2024-01-10", "ticker": "AAA", "type": "SELL", "units": 5, "amount_minor": 1500},
     ]
 
     as_of = dt.date(2024, 1, 31)

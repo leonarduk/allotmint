@@ -23,7 +23,8 @@ describe("transactionForm helpers", () => {
         account: "isa",
         ticker: "vusa",
         amount_minor: 1050,
-        shares: 2,
+        // Portfolio Performance fixed-point: 2 units x 10^8 (#10203).
+        shares: 200_000_000,
         fees: 1.5,
         comments: "note",
         reason_to_buy: "long term",
@@ -47,7 +48,7 @@ describe("transactionForm helpers", () => {
       owner: "alex",
       account: "isa",
       amount_minor: 1000,
-      shares: 3,
+      shares: 300_000_000,
       date: "2024-02-01T00:00:00Z",
     });
     expect(result.price).toBe("3.33");

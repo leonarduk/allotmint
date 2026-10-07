@@ -50,6 +50,18 @@ function formatTime(val: string | null): string {
   return new Date(val).toLocaleString("en-GB", { timeZone: "Europe/London" });
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Whole days a row's quote trails the newest quote in the table. Rows from
+// different exchanges legitimately differ by hours, so only a gap of a full
+// day or more counts -- that's a closed/stale market sitting next to live
+// prices, e.g. a Friday index level beside Sunday FX quotes (#7819).
+function staleDays(val: string | null, newestMs: number | null): number | null {
+  if (!val || newestMs == null) return null;
+  const days = Math.floor((newestMs - new Date(val).getTime()) / DAY_MS);
+  return days >= 1 ? days : null;
+}
+
 // CBOE Treasury-yield indices: their "price" is a yield in percent, not a
 // currency amount or a raw index-points level.
 const YIELD_INDEX_SYMBOLS = new Set(["^TNX", "^TYX", "^FVX", "^IRX"]);
@@ -240,6 +252,13 @@ export function Watchlist() {
     return data;
   }, [rows, sortKey, asc]);
 
+  const newestMs = useMemo(() => {
+    const times = rows
+      .map((r) => (r.marketTime ? new Date(r.marketTime).getTime() : NaN))
+      .filter((ms) => !Number.isNaN(ms));
+    return times.length ? Math.max(...times) : null;
+  }, [rows]);
+
   function toggleSort(k: keyof QuoteRow) {
     if (sortKey === k) {
       setAsc(!asc);
@@ -387,6 +406,7 @@ export function Watchlist() {
                     : `rgba(255,0,0,${Math.min(Math.abs(r.changePct) / 5, 0.5)})`
                   : undefined;
               const linkable = isLinkableSymbol(r.symbol);
+              const ageDays = staleDays(r.marketTime, newestMs);
               // The instrument-page link and the row's own hover title both
               // want the full instrument name; keeping the anchor's text
               // untruncated (with only the surrounding <td> clipped by CSS)
@@ -470,7 +490,17 @@ export function Watchlist() {
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
                     {formatVol(r.symbol, r.volume)}
                   </td>
-                  <td style={{ minWidth: 88, padding: "4px 6px" }}>{formatTime(r.marketTime)}</td>
+                  <td style={{ minWidth: 88, padding: "4px 6px" }}>
+                    {formatTime(r.marketTime)}
+                    {ageDays != null && (
+                      <span className="ml-1 rounded bg-amber-100 px-1 text-xs text-amber-900 dark:bg-amber-900 dark:text-amber-100">
+                        {t("watchlist.staleAge", {
+                          defaultValue: "{{days}}d old",
+                          days: ageDays,
+                        })}
+                      </span>
+                    )}
+                  </td>
                 </tr>
               );
             })}

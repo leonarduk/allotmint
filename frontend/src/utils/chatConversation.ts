@@ -337,6 +337,15 @@ export function adoptChatFromWindow(raw: unknown, sync: ChatSyncState) {
 // saved copy stays with the user (#8870). Any other new token may be a
 // different user, so the chat sync reloads before it saves again and never
 // uploads one user's cached conversation into another's account.
+//
+// A token to a different user's token, with no null between (#8770), is
+// reachable only while the app starts, before the chat panel can be open:
+// main.tsx re-applies the stored token at module load and then the Cognito ID
+// token in bootstrap, and demoAuth.ts applies a /demo token on load. In a
+// running session the only token-to-token change is the Cognito refresh (same
+// user); every sign-out (logout(), the 401 handler) passes through null, and
+// LoginPage renders only once signed out. The first load after any such
+// switch replaces a conversation cached for another owner (chatSync.ts load()).
 onAuthChange((change) => {
   if (isLogout(change)) resetChat();
   else if (change.nextToken !== null) markChatIdentityChanged();

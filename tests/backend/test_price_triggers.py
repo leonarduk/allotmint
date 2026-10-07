@@ -117,6 +117,47 @@ def test_disabled_trigger_is_ignored_and_amend_rearms(store):
     assert len(pt.evaluate({"VOD.L": 2.0})) == 1
 
 
+@pytest.mark.parametrize(
+    "changes",
+    [{"price": 2.5}, {"ticker": "BARC.L"}, {"condition": "below"}, {"mode": "continuous"}],
+)
+def test_editing_a_fired_once_trigger_re_enables_it(changes):
+    row = pt.create_trigger("alice", ticker="VOD.L", condition="above", price=1.0, mode="once")
+    assert len(pt.evaluate({"VOD.L": 1.5})) == 1
+    updated = pt.update_trigger("alice", row["id"], **changes)
+    assert updated["enabled"] is True
+    assert updated["armed"] is True
+
+
+def test_editing_a_fired_once_trigger_with_enabled_false_keeps_it_disabled():
+    row = pt.create_trigger("alice", ticker="VOD.L", condition="above", price=1.0, mode="once")
+    assert len(pt.evaluate({"VOD.L": 1.5})) == 1
+    updated = pt.update_trigger("alice", row["id"], price=2.5, enabled=False)
+    assert updated["enabled"] is False
+    assert pt.evaluate({"VOD.L": 3.0}) == []
+
+
+def test_editing_note_or_never_fired_disabled_trigger_does_not_enable():
+    fired = pt.create_trigger("alice", ticker="VOD.L", condition="above", price=1.0, mode="once")
+    assert len(pt.evaluate({"VOD.L": 1.5})) == 1
+    assert pt.update_trigger("alice", fired["id"], note="just a note")["enabled"] is False
+    paused = pt.create_trigger("alice", ticker="BARC.L", condition="above", price=1.0, enabled=False)
+    assert pt.update_trigger("alice", paused["id"], price=2.0)["enabled"] is False
+
+
+def test_route_edit_of_fired_once_trigger_re_enables_it(client):
+    tid = client.post("/price-triggers/alice", json={"ticker": "VOD.L", "condition": "above", "price": 1.0}).json()[
+        "id"
+    ]
+    assert len(pt.evaluate({"VOD.L": 1.5})) == 1
+    r = client.patch(f"/price-triggers/alice/{tid}", json={"price": 2.5})
+    assert r.json()["enabled"] is True
+    assert len(pt.evaluate({"VOD.L": 3.0})) == 1
+    pt.evaluate({"VOD.L": 1.0})
+    r = client.patch(f"/price-triggers/alice/{tid}", json={"price": 4.0, "enabled": False})
+    assert r.json()["enabled"] is False
+
+
 def test_publish_failure_does_not_lose_other_alerts(monkeypatch):
     calls = []
 

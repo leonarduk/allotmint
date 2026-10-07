@@ -1165,8 +1165,9 @@ describe("pension forecast", () => {
 });
 
 describe("trading page data", () => {
-  it("fetches signals and settings and combines them", async () => {
+  it("fetches the signals report and settings and combines them", async () => {
     const signals = [{ ticker: "AAA", action: "BUY", reason: "r" }];
+    const blocked = [{ ticker: "BBB", action: "SELL", reasons: ["alex: x"] }];
     const settings = {
       rsi_buy: 30,
       rsi_sell: 70,
@@ -1183,18 +1184,76 @@ describe("trading page data", () => {
         ok: true,
         json: () =>
           Promise.resolve(
-            url.endsWith("/trading-agent/settings") ? settings : signals,
+            url.endsWith("/trading-agent/settings")
+              ? settings
+              : { signals, blocked },
           ),
       }),
     );
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
-    await expect(getTradingPageData()).resolves.toEqual({ signals, settings });
+    await expect(getTradingPageData()).resolves.toEqual({
+      signals,
+      blocked,
+      settings,
+    });
 
     const calledUrls = mockFetch.mock.calls.map(([url]) => url as string);
-    expect(calledUrls).toContain(`${API_BASE}/trading-agent/signals`);
+    expect(calledUrls).toContain(`${API_BASE}/trading-agent/signals/report`);
     expect(calledUrls).toContain(`${API_BASE}/trading-agent/settings`);
+  });
+
+  it("falls back to /trading-agent/signals when the report endpoint 404s", async () => {
+    const signals = [{ ticker: "AAA", action: "BUY", reason: "r" }];
+    const settings = { rsi_buy: 30 };
+    const mockFetch = vi.fn((url: string) => {
+      if (url.endsWith("/trading-agent/signals/report")) {
+        return Promise.resolve({
+          ok: false,
+          status: 404,
+          statusText: "Not Found",
+          json: () => Promise.resolve({ detail: "Not Found" }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve(
+            url.endsWith("/trading-agent/settings") ? settings : signals,
+          ),
+      });
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    const data = await getTradingPageData();
+
+    expect(data).toEqual({ signals, settings });
+    expect(data.blocked).toBeUndefined();
+    const calledUrls = mockFetch.mock.calls.map(([url]) => url as string);
+    expect(calledUrls).toContain(`${API_BASE}/trading-agent/signals`);
+  });
+
+  it("does not fall back when the report endpoint fails with a non-404", async () => {
+    const mockFetch = vi.fn((url: string) =>
+      Promise.resolve(
+        url.endsWith("/trading-agent/signals/report")
+          ? {
+              ok: false,
+              status: 500,
+              statusText: "Internal Server Error",
+              json: () => Promise.resolve({}),
+            }
+          : { ok: true, json: () => Promise.resolve({}) },
+      ),
+    );
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(getTradingPageData()).rejects.toThrow();
+    const calledUrls = mockFetch.mock.calls.map(([url]) => url as string);
+    expect(calledUrls).not.toContain(`${API_BASE}/trading-agent/signals`);
   });
 
   it("rejects when either endpoint fails", async () => {
@@ -1566,6 +1625,21 @@ describe("chat conversation is scoped to the login session", () => {
     setAuthToken("refreshed-token-for-user-a");
 
     expect(getChatMessages()).toEqual([message]);
+  });
+
+  it("on a direct switch to another user's token, keeps the chat only until the sync reloads (#8770)", () => {
+    setAuthToken("token-for-user-a");
+    appendChatMessage(message);
+    const epoch = getChatIdentityEpoch();
+
+    // No intervening null: indistinguishable here from a refresh, so nothing
+    // is cleared yet. The epoch bump makes the chat sync reload before it
+    // shows or saves anything else, and that reload replaces a conversation
+    // cached for a different owner (utils/chatSync.test.ts).
+    setAuthToken("token-for-user-b");
+
+    expect(getChatMessages()).toEqual([message]);
+    expect(getChatIdentityEpoch()).toBeGreaterThan(epoch);
   });
 });
 

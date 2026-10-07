@@ -427,6 +427,65 @@ describe("PerformanceDashboard", () => {
     });
   });
 
+  describe("benchmark on the Cumulative Return chart (#7833)", () => {
+    it("plots the benchmark over the alpha series' date range when it is available", async () => {
+      vi.mocked(getAlphaVsBenchmark).mockResolvedValue({
+        alpha_vs_benchmark: 0.01,
+        benchmark: "VWRL.L",
+        series: [
+          {
+            date: "2024-03-01",
+            portfolio_cumulative_return: 0,
+            benchmark_cumulative_return: 0,
+            excess_cumulative_return: 0,
+          },
+          {
+            date: "2024-03-28",
+            portfolio_cumulative_return: 0.05,
+            benchmark_cumulative_return: 0.04,
+            excess_cumulative_return: 0.01,
+          },
+        ],
+      });
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+
+      const basis = await screen.findByTestId("cumulative-return-basis");
+      expect(basis).toHaveTextContent("2024-03-01 to 2024-03-28");
+      expect(basis).toHaveTextContent("Alpha vs VWRL.L");
+      expect(screen.queryByTestId("benchmark-series-unavailable")).toBeNull();
+    });
+
+    it("says the benchmark has no overlapping prices when the alpha series is empty", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("benchmark-series-unavailable"),
+      ).toHaveTextContent("No VWRL.L prices overlap this period");
+      expect(screen.queryByTestId("cumulative-return-basis")).toBeNull();
+    });
+
+    it("says the benchmark could not be loaded when the alpha request fails", async () => {
+      vi.mocked(getAlphaVsBenchmark).mockRejectedValue(new Error("HTTP 500"));
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("benchmark-series-unavailable"),
+      ).toHaveTextContent("Couldn't load VWRL.L for comparison");
+    });
+  });
+
   describe("group scope (#7228)", () => {
     beforeEach(() => {
       vi.mocked(getGroupAlphaVsBenchmark).mockResolvedValue({

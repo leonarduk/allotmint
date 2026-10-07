@@ -207,7 +207,7 @@ describe('StrategyStressPanel', () => {
         {
           ...RESULT.strategies[1],
           horizons: {
-            '1m': horizon(null, ['property', 'commodities']),
+            '1m': horizon(null, ['property', 'other_commodities']),
             '1y': horizon(null, ['property', 'equity']),
           },
         },

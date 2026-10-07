@@ -234,15 +234,25 @@ export function sanitizeGroupKey(key: string): string {
   return sanitized || 'group';
 }
 
+/**
+ * Sum money values as whole pence, so a total equals the sum of the rows as
+ * displayed (2dp): sub-penny float noise on rows that each show £0.00 must not
+ * add up to a visible nonzero total (#7653).
+ */
+function sumPence<T>(rows: T[], accessor: (row: T) => number): number {
+  const pence = rows.reduce((sum, row) => sum + Math.round(accessor(row) * 100), 0);
+  return pence / 100;
+}
+
 export function calculateGroupTotals(rows: RowWithCost[], label: string): GroupTotals {
   const totalUnits = rows.reduce((sum, row) => sum + (row.units ?? 0), 0);
-  const totalMarket = rows.reduce((sum, row) => sum + row.market_value_gbp, 0);
+  const totalMarket = sumPence(rows, (row) => row.market_value_gbp);
   // Rows with an unknown cost basis carry a guessed cost (== market value) and a
   // meaningless £0 gain; leave them out of cost/gain so they don't dilute the totals.
   // Rows with an implausible booked cost (#8472) have no gain at all.
   const costKnown = rows.filter((row) => !isCostBasisUnreliable(row.cost_basis_source));
-  const totalGain = costKnown.reduce((sum, row) => sum + row.gain_gbp, 0);
-  const totalCost = costKnown.reduce((sum, row) => sum + row.cost, 0);
+  const totalGain = sumPence(costKnown, (row) => row.gain_gbp);
+  const totalCost = sumPence(costKnown, (row) => row.cost);
   // With no reliable cost at all, gain/cost/gain % are unknown rather than £0 (#8531).
   const hasKnownCost = costKnown.length > 0;
   const gainPct =

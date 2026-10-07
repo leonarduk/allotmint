@@ -703,4 +703,80 @@ describe("Watchlist page", () => {
       expect(nameCell.style.textOverflow).not.toBe("ellipsis");
     });
   });
+
+  describe("missing vs zero market data (#7819)", () => {
+    const base: QuoteRow = {
+      name: null,
+      symbol: "",
+      last: null,
+      open: null,
+      high: null,
+      low: null,
+      change: null,
+      changePct: null,
+      volume: null,
+      marketTime: null,
+      marketState: "CLOSED",
+    };
+
+    function cells(row: HTMLElement) {
+      return Array.from(row.querySelectorAll("td")).map((td) => td.textContent);
+    }
+
+    it("renders absent Open/High/Low/Chg as an em dash but a genuine flat close as 0.00", async () => {
+      const rows: QuoteRow[] = [
+        {
+          ...base,
+          name: "NYSE Composite Index",
+          symbol: "^NYA",
+          last: 23999.1,
+          change: -91.5,
+          changePct: -0.38,
+          marketTime: "2026-09-18T20:00:00Z",
+        },
+        {
+          ...base,
+          name: "Flat plc",
+          symbol: "FLAT",
+          last: 100,
+          open: 100,
+          high: 101,
+          low: 99,
+          change: 0,
+          changePct: 0,
+          marketTime: "2026-09-18T20:00:00Z",
+        },
+      ];
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(rows);
+      localStorage.setItem("watchlistSymbols", "^NYA,FLAT");
+
+      renderWatchlist();
+
+      // Columns: Name, Symbol, Unit, Last, Open, High, Low, Chg, Chg %, Vol, Time
+      const nya = cells(await findRow("^NYA"));
+      expect(nya.slice(4, 7)).toEqual(["—", "—", "—"]);
+      expect(nya.slice(4, 7)).not.toContain("0.00");
+
+      const flat = cells(await findRow("FLAT"));
+      expect(flat[7]).toBe("0.00");
+      expect(flat[8]).toBe("0.00%");
+    });
+
+    it("marks rows a day or more older than the newest quote, and only those", async () => {
+      const rows: QuoteRow[] = [
+        { ...base, name: "Index", symbol: "^NYA", last: 1, marketTime: "2026-09-18T20:00:00Z" },
+        { ...base, name: "FX", symbol: "EURGBP=X", last: 0.87, marketTime: "2026-09-20T21:00:00Z" },
+        { ...base, name: "London", symbol: "VUSA.L", last: 90, marketTime: "2026-09-20T15:30:00Z" },
+      ];
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(rows);
+      localStorage.setItem("watchlistSymbols", "^NYA,EURGBP=X,VUSA.L");
+
+      renderWatchlist();
+
+      expect(await findRow("^NYA")).toHaveTextContent("2d old");
+      expect(await findRow("EURGBP=X")).not.toHaveTextContent("old");
+      // Hours behind, not days: a different exchange's close, not stale.
+      expect(await findRow("VUSA.L")).not.toHaveTextContent("old");
+    });
+  });
 });

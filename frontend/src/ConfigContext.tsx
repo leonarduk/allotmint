@@ -26,6 +26,7 @@ export interface TabsConfig {
   instrument: boolean;
   performance: boolean;
   transactions: boolean;
+  dividends: boolean;
   screener: boolean;
   query: boolean;
   trading: boolean;
@@ -106,6 +107,7 @@ const defaultTabs: TabsConfig = {
   // transactions enabled by default; Family MVP uses /transactions as its
   // entry point so it must remain on. Non-MVP deployments also show it.
   transactions: true,
+  dividends: true,
   screener: true,
   query: true,
   trading: true,

@@ -79,6 +79,11 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     () => searchParams.get('units') ?? ''
   );
   const [manualPrice, setManualPrice] = useState('');
+  // While filling in the checklist's holding, only units + price paid may be
+  // saved: a Value-only save books today's price as a real ("book") cost,
+  // which #7825 forbids (an estimate must never read as a recorded cost).
+  const costBasisMode =
+    costBasisTicker !== '' && manualTicker.trim() === costBasisTicker;
   const [editingId, setEditingId] = useState<string | null>(null);
   const { t } = useTranslation();
   const reporting = useReportingCurrency();
@@ -260,6 +265,10 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     const units = Number(manualUnits);
     const price = Number(manualPrice);
 
+    if (costBasisMode && (hasValueInput || !hasUnitsInput || !hasPriceInput)) {
+      setManualError(t('transactionsPage.costBasisNeedsPrice'));
+      return;
+    }
     if (hasValueInput && (!Number.isFinite(value) || value <= 0)) {
       setManualError(t('transactionsPage.valuePositive'));
       return;
@@ -316,6 +325,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
       setManualSubmitting(false);
     }
   }, [
+    costBasisMode,
     fetchManualAccounts,
     manualAccount,
     manualOwner,
@@ -530,7 +540,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
           components={{ txlink: <Link to="/transactions" /> }}
         />
       </p>
-      {costBasisTicker && (
+      {costBasisMode && (
         <p
           role="note"
           data-testid="cost-basis-hint"
@@ -578,8 +588,9 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
         <label className="text-sm">
           {t('transactionsPage.valueGbp')}
           <input
-            className="mt-1 w-full rounded border border-slate-300 p-2"
-            value={manualValue}
+            className="mt-1 w-full rounded border border-slate-300 p-2 disabled:opacity-60"
+            value={costBasisMode ? '' : manualValue}
+            disabled={costBasisMode}
             onChange={(event) => setManualValue(event.target.value)}
             placeholder="1250"
           />

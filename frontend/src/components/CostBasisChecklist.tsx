@@ -78,8 +78,8 @@ export function CostBasisChecklist({ accounts }: Props) {
           {visible.map((gap) => (
             <tr key={`${gap.owner}/${gap.account}/${gap.ticker}`}>
               <td className={tableStyles.cell}>
-                <strong>{gap.ticker}</strong>{' '}
-                {gap.name !== gap.ticker ? gap.name : ''}
+                <strong>{gap.ticker}</strong>
+                {gap.name !== gap.ticker && ` ${gap.name}`}
               </td>
               <td className={tableStyles.cell}>
                 {gap.owner ? `${gap.owner} · ${gap.account}` : gap.account}

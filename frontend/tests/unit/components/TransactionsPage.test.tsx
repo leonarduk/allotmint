@@ -417,6 +417,42 @@ describe('TransactionsPage', () => {
     });
   });
 
+  it('never books a value-only save as the checklist holding cost (#7825)', async () => {
+    const user = userEvent.setup();
+    rtlRender(
+      <MemoryRouter
+        initialEntries={[
+          '/input?owner=alex&account=isa&ticker=vusa.l&units=12',
+        ]}
+      >
+        <TransactionsPage
+          owners={[
+            { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+          ]}
+          inputOnly
+        />
+      </MemoryRouter>
+    );
+
+    await screen.findByText('Account + Holdings Input');
+    // Value would record today's price as a real cost, so it is off here.
+    expect(screen.getByLabelText('Value (GBP)')).toBeDisabled();
+
+    // Units alone (no price paid) must not save either.
+    await user.click(screen.getByRole('button', { name: 'Save holding' }));
+    expect(
+      await screen.findByText(/enter units and the price you paid per unit/i)
+    ).toBeInTheDocument();
+    expect(createManualHoldingMock).not.toHaveBeenCalled();
+
+    // Switching to another ticker leaves cost-basis mode: Value works again.
+    const ticker = screen.getByLabelText(/^Ticker$/i);
+    await user.clear(ticker);
+    await user.type(ticker, 'PFE');
+    expect(screen.getByLabelText('Value (GBP)')).toBeEnabled();
+    expect(screen.queryByTestId('cost-basis-hint')).not.toBeInTheDocument();
+  });
+
   it('shows no cost-basis hint without a ticker param', async () => {
     render(
       <TransactionsPage

@@ -85,9 +85,13 @@ jobs:
       # Its current name, cicaid-pro, is spelled out below deliberately rather
       # than leaning on GitHub's rename redirects, since #6754 is exactly what
       # a reused old name causes.
-      # cicaid-pro still has the full package (incl. the LLM review
-      # integrations this workflow imports below) but is private, so pip
-      # needs a scoped token rewritten in as git credentials to clone it.
+      # cicaid-pro has since split in two: the public CLI shell is
+      # cicaid-devtools (leonarduk/cicaid, the reused name), and the LLM
+      # review integrations this workflow imports below are
+      # cicaid-devtools-pro (private leonarduk/cicaid-pro), which installs
+      # into the same cicaid_devtools namespace (#6597). cicaid-pro is
+      # private, so pip needs a scoped token rewritten in as git
+      # credentials to clone it.
       # pip_install_cicaid_pro.sh validates the token up front and exposes the
       # credential only to the pip process through GIT_CONFIG_* variables.
       - name: Install cicaid-devtools (PR review helpers)
@@ -109,13 +113,23 @@ jobs:
           # BSD/macOS grep) so this keeps working if the runner OS ever
           # changes; tr strips a possible CRLF line ending up front instead
           # of relying on a \r-tolerant lookahead inside the pattern.
-          CICAID_PRO_REF=$(tr -d '\r' < "$PINS" | grep -E '^CICAID_PRO_REF=v[0-9][A-Za-z0-9.+-]*$' | head -n1 | cut -d= -f2- || true)
-          if [ -z "${CICAID_PRO_REF}" ]; then
-            echo "::error::no valid CICAID_PRO_REF=<tag> line in $PINS" >&2
-            exit 1
-          fi
+          read_ref() {
+            tr -d '\r' < "$PINS" | grep -E "^$1=v[0-9][A-Za-z0-9.+-]*\$" | head -n1 | cut -d= -f2- || true
+          }
+          CICAID_REF=$(read_ref CICAID_REF)
+          CICAID_PRO_REF=$(read_ref CICAID_PRO_REF)
+          for key in CICAID_REF CICAID_PRO_REF; do
+            if [ -z "${!key}" ]; then
+              echo "::error::no valid $key=<tag> line in $PINS" >&2
+              exit 1
+            fi
+          done
+          # One pip invocation for both: cicaid-devtools-pro depends on
+          # cicaid-devtools, which is git-only (not on PyPI), so pip can only
+          # resolve it from the URL passed alongside.
           bash .github/scripts/pip_install_cicaid_pro.sh pip install --retries 10 \
-            "cicaid-devtools @ git+https://github.com/leonarduk/cicaid-pro.git@${CICAID_PRO_REF}"
+            "cicaid-devtools @ git+https://github.com/leonarduk/cicaid.git@${CICAID_REF}" \
+            "cicaid-devtools-pro @ git+https://github.com/leonarduk/cicaid-pro.git@${CICAID_PRO_REF}"
 
       - name: Get linked issue body
         id: issue

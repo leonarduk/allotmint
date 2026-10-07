@@ -50,6 +50,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import tempfile
 from datetime import date, datetime
 from pathlib import Path
 
@@ -338,6 +339,23 @@ def _merged_confirmed_from(stored: pd.DataFrame | None, window_start: pd.Timesta
     return min(current, window_start)
 
 
+def _replace_parquet(frame: pd.DataFrame, path: str) -> None:
+    """Write ``frame`` to ``path`` all-or-nothing (#9398).
+
+    The parquet goes to a temp file beside ``path`` (same filesystem) and is
+    then swapped in with ``os.replace``, so a failed write leaves the stored
+    file untouched rather than truncated, and removes the temp file.
+    """
+    fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".", suffix=".parquet.tmp")
+    os.close(fd)
+    try:
+        frame.to_parquet(tmp_path, index=False)
+        os.replace(tmp_path, path)
+    except BaseException:
+        Path(tmp_path).unlink(missing_ok=True)
+        raise
+
+
 def record_corporate_actions(
     ticker: str,
     exchange: str,
@@ -376,7 +394,11 @@ def record_corporate_actions(
         if not path.startswith(root + os.sep):
             raise ValueError(f"Corporate actions path escapes {sanitise_log_value(root)!r}")
         os.makedirs(root, exist_ok=True)
-    merged.to_parquet(path, index=False)
+    if path.startswith("s3://"):
+        # An S3 PUT is all-or-nothing already; there is no rename to make it atomic.
+        merged.to_parquet(path, index=False)
+    else:
+        _replace_parquet(merged, path)
     logger.info(
         "Stored %s corporate action(s) for %s.%s",
         sanitise_log_value(len(merged)),

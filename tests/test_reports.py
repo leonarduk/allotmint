@@ -174,6 +174,68 @@ def test_compile_report_cumulative_return_includes_income(monkeypatch, income_ro
     assert data.cumulative_return == pytest.approx(periodic)
 
 
+def _dip_closes(key, start, end):
+    """AAA.L at 100, dipping to 80 for 9-13 Feb, back to 100 from 16 Feb."""
+    days = pd.bdate_range(date(2026, 1, 5), _FLAT_END)
+    prices = pd.Series(100.0, index=days)
+    prices[(days >= pd.Timestamp("2026-02-09")) & (days <= pd.Timestamp("2026-02-13"))] = 80.0
+    return prices if key == "AAA.L" else pd.Series(dtype=float)
+
+
+def test_compile_report_max_drawdown_uses_ledger_twr_not_value_series(monkeypatch):
+    """A withdrawal at the trough deepens a value-based drawdown but not the TWR one (#9637).
+
+    £10,000 in AAA.L plus £10,000 cash; AAA.L falls 20% (portfolio -10%) and
+    £10,000 is withdrawn at the trough. The raw value series falls from £20,000
+    to £8,000 (-60%), but the withdrawal is an external flow, so the ledger TWR
+    drawdown -- the periodic report's basis -- stays at -10%.
+    """
+    transactions = [
+        {"date": "2026-01-05", "type": "DEPOSIT", "amount_minor": 2_000_000},
+        {"date": "2026-01-05", "type": "BUY", "ticker": "AAA.L", "units": 100, "amount_minor": 1_000_000},
+        {"date": "2026-02-11", "type": "WITHDRAWAL", "amount_minor": 1_000_000},
+    ]
+    ledgers = [reports.ledger_performance.AccountLedger("isa", transactions, True)]
+    value_history = {
+        "history": [{"date": "2026-02-27", "value": 10_000.0, "cumulative_return": -0.5}],
+        "max_drawdown": -0.6,
+    }
+    monkeypatch.setattr(reports, "_load_transactions", lambda owner: transactions)
+    monkeypatch.setattr(reports.portfolio_utils, "compute_owner_performance", lambda owner, **kw: value_history)
+    monkeypatch.setattr(reports.ledger_performance, "load_owner_ledgers", lambda owner: ledgers)
+    monkeypatch.setattr(reports.ledger_performance, "load_gbp_closes", _dip_closes)
+
+    data = reports.compile_report("alice", start=_FLAT_START, end=_FLAT_END)
+
+    # The two bases genuinely disagree on this ledger.
+    perf = reports.ledger_performance.build_ledger_performance(ledgers, _FLAT_END)
+    window = perf.values[perf.values.index >= pd.Timestamp(_FLAT_START)]
+    value_based = float((window / window.cummax() - 1).min())
+    assert value_based == pytest.approx(-0.6)
+    assert data.max_drawdown == pytest.approx(-0.1)
+    # Same figure the periodic report computes for this window.
+    periodic = reports.ledger_performance.drawdown(perf.returns, date(2026, 2, 1), _FLAT_END)
+    assert data.max_drawdown == pytest.approx(periodic.max_drawdown)
+    # -10% to the trough, then the all-equity remainder recovers 80 -> 100
+    # (+25%): 0.9 * 1.25 - 1 = +12.5%, though value fell from £20,000 to £10,000.
+    assert data.cumulative_return == pytest.approx(0.125)
+
+
+def test_ledger_return_and_drawdown_without_start_is_since_inception(monkeypatch):
+    """``start=None`` chains from the first ledger day, as the periodic since-inception figure does."""
+    ledgers = _flat_portfolio_ledger({"type": "INTEREST", "amount_minor": 10_000})
+    monkeypatch.setattr(reports.ledger_performance, "load_owner_ledgers", lambda owner: ledgers)
+    monkeypatch.setattr(reports.ledger_performance, "load_gbp_closes", _dip_closes)
+
+    cumulative, max_drawdown = reports._ledger_return_and_drawdown("alice", None, _FLAT_END)
+
+    perf = reports.ledger_performance.build_ledger_performance(ledgers, _FLAT_END)
+    since_inception = reports.ledger_performance.drawdown(perf.returns, None, _FLAT_END)
+    assert cumulative == pytest.approx(reports.ledger_performance.chained_return(perf.returns, None, _FLAT_END))
+    assert max_drawdown == pytest.approx(since_inception.max_drawdown)
+    assert max_drawdown == pytest.approx(-0.2)
+
+
 def test_load_transactions_requires_data_bucket(monkeypatch):
     monkeypatch.setattr(reports.config, "app_env", "aws")
     monkeypatch.delenv("DATA_BUCKET", raising=False)

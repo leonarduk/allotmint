@@ -1907,22 +1907,6 @@
     "loaded": "Geladen",
     "accounts": "Konten: {{count}}",
     "loadingPortfolios": "Portfolios werden geladen…",
-    "reportingDate": "Stichtag",
-    "date": "Datum:",
-    "useLatest": "Neueste Daten verwenden",
-    "suggested": {
-      "covid": "COVID-19-Markttief",
-      "giltCrisis": "Krise bei britischen Staatsanleihen",
-      "energyShock": "Energieschock",
-      "bankingTurmoil": "Bankenturbulenzen",
-      "dotComPeak": "Dotcom-Höhepunkt",
-      "dotComLow": "Tief nach der Dotcom-Blase",
-      "lehman": "Lehman-Pleite",
-      "gfcLow": "Tief der Finanzkrise",
-      "eurozone": "Eurokrise / US-Herabstufung",
-      "brexit": "Brexit-Referendum",
-      "selloff2018": "Tief des Ausverkaufs Q4 2018"
-    },
     "positions": "Szenariopositionen",
     "restoreRemoved": "Entfernte Bestände wiederherstellen",
     "addCustom": "Eigene Position hinzufügen",
@@ -1952,22 +1936,9 @@
     "save": {
       "title": "Szenario speichern",
       "download": "Szenario-JSON herunterladen",
-      "description": "Die exportierte Datei fasst die ausgewählten Portfolios, den Stichtag und alle individuellen Anpassungen zusammen, damit Sie das Szenario anderswo erneut laden können."
+      "description": "Die exportierte Datei fasst die ausgewählten Portfolios und alle benutzerdefinierten Anpassungen zusammen, damit Sie das Szenario an anderer Stelle erneut laden können."
     },
-    "stress": {
-      "title": "Historischer Stresstest",
-      "description": "Wenden Sie historische Ereignisse auf Ihre zugrunde liegenden Portfolios an. Dies nutzt die serverseitige Szenario-Engine und spiegelt stets die zuletzt gespeicherten Portfolios wider.",
-      "selectEvent": "Ereignis auswählen",
-      "run": "Stresstest ausführen",
-      "owner": "Inhaber",
-      "baseline": "{{horizon}} Basis (£)",
-      "shocked": "{{horizon}} nach Schock (£)",
-      "impact": "{{horizon}} % Auswirkung",
-      "coverageTitle": "{{pct}}% der Bestände (nach Wert) haben eine Kurshistorie für dieses Ereignis",
-      "priced": "{{pct}}% bewertet",
-      "footnote": "Jeder Bestand spielt seine eigenen Kurse ab dem Ereignisdatum nach. Bestände ohne Historie folgen dem Proxy-Index des Ereignisses, danach dem Rest des Portfolios; „—“ bedeutet, dass weniger als die Hälfte des Portfolios für dieses Datum eine Kurshistorie hat.",
-      "compareStrategies": "Strategien für dieses Ereignis vergleichen →"
-    }
+    "stressOwner": "Portfolio für den Stresstest:"
   },
   "virtualPortfolio": {
     "status": {

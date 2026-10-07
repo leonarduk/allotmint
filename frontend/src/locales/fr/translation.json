@@ -1907,22 +1907,6 @@
     "loaded": "Chargé",
     "accounts": "Comptes : {{count}}",
     "loadingPortfolios": "Chargement des portefeuilles…",
-    "reportingDate": "Date du rapport",
-    "date": "Date :",
-    "useLatest": "Utiliser les dernières données",
-    "suggested": {
-      "covid": "Plus bas de marché COVID-19",
-      "giltCrisis": "Crise des gilts britanniques",
-      "energyShock": "Choc énergétique",
-      "bankingTurmoil": "Turbulences bancaires",
-      "dotComPeak": "Sommet de la bulle Internet",
-      "dotComLow": "Plus bas du marché baissier Internet",
-      "lehman": "Faillite de Lehman",
-      "gfcLow": "Plus bas de la crise financière",
-      "eurozone": "Crise de la zone euro / dégradation des États-Unis",
-      "brexit": "Vote du Brexit",
-      "selloff2018": "Plus bas de la chute du T4 2018"
-    },
     "positions": "Positions du scénario",
     "restoreRemoved": "Restaurer les positions supprimées",
     "addCustom": "Ajouter une position personnalisée",
@@ -1952,22 +1936,9 @@
     "save": {
       "title": "Enregistrer le scénario",
       "download": "Télécharger le JSON du scénario",
-      "description": "Le fichier exporté résume les portefeuilles sélectionnés, la date du rapport et les ajustements personnalisés afin que vous puissiez recharger le scénario ailleurs."
+      "description": "Le fichier exporté résume les portefeuilles sélectionnés et les ajustements personnalisés afin que vous puissiez recharger le scénario ailleurs."
     },
-    "stress": {
-      "title": "Test de résistance historique",
-      "description": "Appliquez des événements historiques à vos portefeuilles sous-jacents. Cela utilise le moteur de scénarios côté serveur et reflète toujours les derniers portefeuilles enregistrés.",
-      "selectEvent": "Sélectionner un événement",
-      "run": "Lancer le test de résistance",
-      "owner": "Titulaire",
-      "baseline": "{{horizon}} référence (£)",
-      "shocked": "{{horizon}} après choc (£)",
-      "impact": "{{horizon}} % d'impact",
-      "coverageTitle": "{{pct}} % des positions en valeur disposent d'un historique de prix pour cet événement",
-      "priced": "{{pct}} % valorisé",
-      "footnote": "Chaque position rejoue ses propres prix à partir de la date de l'événement. Les positions sans historique suivent l'indice de référence de l'événement, puis le reste du portefeuille ; « — » signifie que moins de la moitié du portefeuille dispose d'un historique de prix pour cette date.",
-      "compareStrategies": "Comparer les stratégies pour cet événement →"
-    }
+    "stressOwner": "Portefeuille pour le test de résistance :"
   },
   "virtualPortfolio": {
     "status": {

@@ -1,7 +1,7 @@
 // Stress test for the strategy page (#9824): replay one historical event
 // against every strategy, beside the owner's current portfolio, to help
-// choose a strategy. Opens preselected from /strategy?stress_event=&horizons=
-// (the scenario page links here).
+// choose a strategy. Opens preselected from /strategy?stress_event=&horizons=.
+// The scenario page reuses it without the Apply buttons (no strategy data).
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -141,7 +141,8 @@ function ResultTable({
 }: {
   result: StrategyStressResult;
   busy: boolean;
-  onApply: (row: StrategyStressRow) => void;
+  /** Omitted where strategies cannot be applied; hides the Apply column. */
+  onApply?: (row: StrategyStressRow) => void;
 }) {
   const { t } = useTranslation();
   const [sortBy, setSortBy] = useState<string | null>(null);
@@ -177,10 +178,12 @@ function ResultTable({
                 </button>
               </th>
             ))}
-            <th
-              className="px-2 py-1"
-              aria-label={t('strategyStress.col.actions')}
-            />
+            {onApply && (
+              <th
+                className="px-2 py-1"
+                aria-label={t('strategyStress.col.actions')}
+              />
+            )}
           </tr>
         </thead>
         <tbody>
@@ -190,7 +193,7 @@ function ResultTable({
               {result.horizons.map((h) => (
                 <ReturnCell key={h} value={result.portfolio?.horizons[h]} />
               ))}
-              <td />
+              {onApply && <td />}
             </tr>
           )}
           {rows.map((row) => (
@@ -211,19 +214,21 @@ function ResultTable({
               {result.horizons.map((h) => (
                 <ReturnCell key={h} value={row.horizons[h]} />
               ))}
-              <td className="px-2 py-1 text-right">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => onApply(row)}
-                  aria-label={t('strategyLibrary.row.applyAria', {
-                    name: row.name,
-                  })}
-                  className="rounded bg-blue-500 px-2 py-1 text-white disabled:opacity-50"
-                >
-                  {t('strategyLibrary.row.apply')}
-                </button>
-              </td>
+              {onApply && (
+                <td className="px-2 py-1 text-right">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onApply(row)}
+                    aria-label={t('strategyLibrary.row.applyAria', {
+                      name: row.name,
+                    })}
+                    className="rounded bg-blue-500 px-2 py-1 text-white disabled:opacity-50"
+                  >
+                    {t('strategyLibrary.row.apply')}
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -268,10 +273,11 @@ export default function StrategyStressPanel({
   onChanged,
 }: {
   owner: string;
-  data: StrategyList;
-  hasTargets: boolean;
+  /** Strategy data, targets flag and reload hook enable the Apply buttons. */
+  data?: StrategyList;
+  hasTargets?: boolean;
   /** Reload strategies and the plan after a strategy is applied. */
-  onChanged: () => Promise<void>;
+  onChanged?: () => Promise<void>;
 }) {
   const { t } = useTranslation();
   const [params] = useSearchParams();
@@ -308,7 +314,8 @@ export default function StrategyStressPanel({
     );
 
   async function handleApply(row: StrategyStressRow) {
-    if (!confirmApply(data, hasTargets, row.name, t)) return;
+    if (!data || !onChanged) return;
+    if (!confirmApply(data, hasTargets ?? false, row.name, t)) return;
     setBusy(true);
     setNotice(null);
     setApplyError(null);
@@ -388,7 +395,11 @@ export default function StrategyStressPanel({
         </p>
       )}
       {result && (
-        <ResultTable result={result} busy={busy} onApply={handleApply} />
+        <ResultTable
+          result={result}
+          busy={busy}
+          onApply={data && onChanged ? handleApply : undefined}
+        />
       )}
     </section>
   );

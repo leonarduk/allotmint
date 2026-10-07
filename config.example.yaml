@@ -101,6 +101,7 @@ ui:
     owner: true
     performance: true
     transactions: true
+    dividends: true
     screener: true
     trading: true
     timeseries: true

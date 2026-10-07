@@ -127,6 +127,7 @@
       "dataadmin": "Datenverwaltung",
       "dataexplorer": "Datei-Explorer",
       "dataquality": "Datenqualität",
+      "dividends": "Dividenden",
       "group": "Gruppe",
       "help": "Hilfe",
       "ideas": "Ideen",
@@ -2652,6 +2653,33 @@
   "accountBlock": {
     "estValue": "Gesch. Wert: ",
     "lastUpdated": "Zuletzt aktualisiert: "
+  },
+  "dividends": {
+    "title": "Dividenden",
+    "description": "Erhaltene Dividendenerträge nach Zeitraum und nach Position. Beträge in verschiedenen Währungen werden getrennt angezeigt, nie addiert.",
+    "owner": "Eigentümer",
+    "allOwners": "Alle Eigentümer",
+    "period": "Gruppieren nach",
+    "periods": {
+      "taxYear": "Steuerjahr",
+      "year": "Kalenderjahr",
+      "month": "Monat"
+    },
+    "trailing12m": "Letzte 12 Monate",
+    "allTime": "Gesamt",
+    "byPeriod": "Nach Zeitraum",
+    "byHolding": "Nach Position",
+    "payments": "Zahlungen",
+    "received": "Erhalten",
+    "holding": "Position",
+    "lastPaid": "Zuletzt gezahlt",
+    "none": "—",
+    "empty": "Noch keine Dividendenzahlungen erfasst.",
+    "undated": "Ohne Datum",
+    "unattributed": "Keiner Position zugeordnet",
+    "unattributedHelp": "Dividendenzahlungen ohne Ticker, z. B. Überträge von einem Ertragskonto.",
+    "noHistory": "Keine Dividenden erfasst",
+    "holdingsUnavailable": "Aktuelle Positionen konnten nicht geladen werden, daher fehlen Positionen ohne Dividenden."
   },
   "dividendHistory": {
     "trendAria": "Dividendentrend",

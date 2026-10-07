@@ -112,7 +112,7 @@
     "menu": "Menu",
     "menuCategories": {
       "dashboard": "Tableau de bord",
-      "goals": "Exigences",
+      "goals": "Planification",
       "holdings": "Positions",
       "insights": "Recherche",
       "operations": "Administration",
@@ -482,6 +482,9 @@
     },
     "clearFilters": "Effacer les filtres",
     "horizontalScroll": "Faire défiler horizontalement les colonnes des positions",
+    "filtersLabel": "Filtrer les positions",
+    "filterBy": "Filtrer par {{field}}",
+    "moreColumnsHint": "Plus de colonnes →",
     "columns": {
       "sector": "Secteur",
       "acquired": "Acquis",
@@ -891,6 +894,9 @@
     "level": "Niveau",
     "changePct": "% de variation",
     "noHeadlines": "Aucun titre disponible",
+    "headlinesQuotaExhausted": "Aucun titre : le quota de requêtes du fournisseur d'actualités est épuisé. Réessayez plus tard.",
+    "headlinesUnavailable": "Aucun titre : aucune source d'actualités n'a répondu. Vérifiez la configuration du fournisseur d'actualités (par ex. ALPHA_VANTAGE_KEY) ou réessayez plus tard.",
+    "asOf": "Au {{date}}",
     "staleHeadline": "Obsolète",
     "staleHeadlineTooltip": "Ce titre provient d'un cache qui n'a pas été actualisé récemment ; les récupérations d'actualités en direct échouent peut-être ou sont limitées.",
     "tooltipLevel": "Niveau : {{value}}",
@@ -2240,6 +2246,20 @@
     "viewGoals": "Voir les objectifs",
     "pensionForecast": "Prévision de retraite"
   },
+  "costBasisChecklist": {
+    "summary_one": "Compléter le prix de revient : {{count}} ligne sans prix de revient fiable",
+    "summary_other": "Compléter le prix de revient : {{count}} lignes sans prix de revient fiable",
+    "intro": "Le gain/la perte exclut ces lignes tant que leur coût n'est pas saisi. Triées de la plus grande à la plus petite : les {{top}} premières représentent {{share}} de leur valeur. Choisissez Ajouter le coût et saisissez le prix payé par part.",
+    "holding": "Ligne",
+    "account": "Compte",
+    "value": "Valeur",
+    "problem": "Problème",
+    "missing": "Aucun coût enregistré",
+    "suspect": "Le coût enregistré semble erroné",
+    "addCost": "Ajouter le coût",
+    "showAll": "Tout afficher ({{count}})",
+    "showTop": "Afficher seulement les {{count}} premières"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} sans taux de change)",
     "reasonNoCostBasis": "pas de prix de revient fiable",
@@ -2726,6 +2746,8 @@
     "units": "Parts",
     "priceGbp": "Prix (GBP)",
     "inputTitle": "Saisie des comptes et positions",
+    "costBasisHint": "Saisie du coût de {{ticker}} : indiquez les parts détenues et le prix payé par part, puis enregistrez. Le champ Valeur est désactivé ici, car il enregistrerait le cours du jour comme s'il s'agissait de votre prix d'achat.",
+    "costBasisNeedsPrice": "Pour enregistrer un coût, saisissez les parts et le prix payé par part. Une valeur enregistrerait le cours du jour comme votre coût.",
     "inputIntro": "Créez des comptes et définissez vos positions. L'enregistrement crée le transfert de solde d'ouverture qui amène le compte aux parts saisies ; il apparaît ainsi avec vos opérations dans <txlink>Transactions</txlink>.",
     "saving": "Enregistrement...",
     "saveHolding": "Enregistrer la position",
@@ -2812,7 +2834,9 @@
       "badgesSr": "badges de saison obtenus",
       "xpLabel": "Niveau {{level}} · {{xp}}/{{xpForLevel}} XP",
       "meterLabel": "Niveau de jardinier {{level}}, {{xp}} sur {{xpForLevel}} XP pour le niveau suivant",
-      "classicView": "Vue classique"
+      "classicView": "Vue classique",
+      "progressLabel": "Votre progression",
+      "progressTitle": "Le niveau, le rang, les XP et la série proviennent de vos propres corvées — ils sont identiques sur la parcelle de chaque jardinier."
     },
     "rail": {
       "ariaLabel": "Sections du potager",
@@ -2982,6 +3006,7 @@
       "earned": "Obtenu",
       "badgeShelf": "Étagère de badges ({{earned}}/{{total}})",
       "badgeNote": "Un badge est obtenu lorsque tous les paliers de sa catégorie sont franchis.",
+      "personalNote": "Votre progression — gagnée par vos propres corvées, pas par la parcelle de ce jardinier.",
       "growingSeasonLabel": "Saison de culture {{label}}",
       "growingSeason": "Saison de culture",
       "noTaxYear": "Aucune année fiscale n'est indiquée pour ce jardinier, la saison n'a donc pas de date de fin pour le compte à rebours.",
@@ -3150,6 +3175,7 @@
     "retryingConfig": "Chargement... nouvelle tentative de configuration.",
     "loadingConfig": "Chargement de la configuration...",
     "configLoadFailed": "Impossible de charger la configuration.",
+    "serverUnreachable": "Impossible de joindre le serveur AllotMint à {{url}}.",
     "checkConnection": "Veuillez vérifier votre connexion et réessayer.",
     "googleNotConfigured": "La connexion Google n'est pas configurée.",
     "loading": "Chargement...",

@@ -223,7 +223,7 @@ describe("HoldingsTable", () => {
         renderWithConfig(<HoldingsTable holdings={holdings} />);
 
         const headerRows = await screen.findAllByRole("row");
-        const headers = within(headerRows[1])
+        const headers = within(headerRows[0])
             .getAllByRole("columnheader")
             .map((header) => header.textContent);
 
@@ -979,7 +979,7 @@ describe("HoldingsTable", () => {
         );
 
         const rows = await screen.findAllByRole("row");
-        const headerColumnCount = within(rows[1]).getAllByRole("columnheader").length;
+        const headerColumnCount = within(rows[0]).getAllByRole("columnheader").length;
 
         const table = screen.getByRole("table");
         const footerRow = table.querySelector("tfoot tr") as HTMLTableRowElement;
@@ -1148,11 +1148,11 @@ describe("HoldingsTable", () => {
         await screen.findByText("AAA");
         // initially sorted ascending by ticker => AAA first
         let rows = screen.getAllByRole("row");
-        expect(within(rows[2]).getByText("AAA")).toBeInTheDocument();
+        expect(within(rows[1]).getByText("AAA")).toBeInTheDocument();
 
         await userEvent.click(screen.getByText(/^Ticker/));
         rows = screen.getAllByRole("row");
-        expect(within(rows[2]).getByText("XYZ")).toBeInTheDocument();
+        expect(within(rows[1]).getByText("XYZ")).toBeInTheDocument();
     });
 
     it("filters by ticker", async () => {
@@ -1161,6 +1161,23 @@ describe("HoldingsTable", () => {
         await userEvent.type(input, "AA");
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.queryByText("XYZ")).toBeNull();
+    });
+
+    it("renders a single header row with the filters outside the table (#7814)", async () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        await screen.findByText("AAA");
+        const table = screen.getByRole("table");
+        expect(table.querySelectorAll("thead tr")).toHaveLength(1);
+        const filters = screen.getByRole("group", { name: "Filter holdings" });
+        expect(table.contains(filters)).toBe(false);
+        expect(within(filters).getByLabelText("Filter by Ticker")).toBeInTheDocument();
+    });
+
+    it("keeps the filter inputs available when nothing matches (#7814)", async () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        await userEvent.type(await screen.findByPlaceholderText("Ticker"), "missing");
+        expect(screen.queryByRole("table")).toBeNull();
+        expect(screen.getByPlaceholderText("Ticker")).toHaveValue("missing");
     });
 
     it("filters by eligibility", async () => {
@@ -1470,6 +1487,30 @@ describe("HoldingsTable", () => {
           scrollWidth.mockRestore();
       });
 
+      it("shows the more-columns hint only while columns remain off-screen (#7814)", () => {
+          const clientWidth = vi.spyOn(HTMLElement.prototype, "clientWidth", "get");
+          const scrollWidth = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get");
+          clientWidth.mockReturnValue(600);
+          scrollWidth.mockReturnValue(1200);
+          try {
+              render(<HoldingsTable holdings={holdings} />);
+              const tableContainer = screen.getByRole('table').parentElement as HTMLElement;
+              expect(screen.getByText("More columns →")).toBeInTheDocument();
+
+              tableContainer.scrollLeft = 600;
+              fireEvent.scroll(tableContainer);
+              expect(screen.queryByText("More columns →")).toBeNull();
+          } finally {
+              clientWidth.mockRestore();
+              scrollWidth.mockRestore();
+          }
+      });
+
+      it("does not show the more-columns hint when every column fits", () => {
+          render(<HoldingsTable holdings={holdings} />);
+          expect(screen.queryByText("More columns →")).toBeNull();
+      });
+
       it("shows a consolidated notice when some holdings have no price history", async () => {
           __clearInstrumentHistoryCache();
           vi.mocked(getInstrumentDetail).mockResolvedValue({
@@ -1518,7 +1559,7 @@ describe("HoldingsTable", () => {
 
   describe("column presets (#7832)", () => {
       const headerTitles = (container: HTMLElement) =>
-          Array.from(container.querySelectorAll("thead tr")[1].querySelectorAll("th")).map(
+          Array.from(container.querySelector("thead tr")!.querySelectorAll("th")).map(
               (th) => th.textContent?.replace(/[▲▼]/g, "").trim(),
           );
       const presetButton = (name: string) =>
@@ -1632,9 +1673,10 @@ describe("HoldingsTable", () => {
                       0,
                   ),
               );
-              const headerWidth = container.querySelectorAll("thead tr")[1].children.length;
-              // Header rows, two group headers, holding rows and the total row.
-              expect(widths.length).toBeGreaterThan(holdings.length + 4);
+              const headerWidth = container.querySelector("thead tr")!.children.length;
+              // The single header row (#7814), two group headers, holding rows
+              // and the total row.
+              expect(widths.length).toBe(holdings.length + 4);
               expect(new Set(widths)).toEqual(new Set([headerWidth]));
           },
       );

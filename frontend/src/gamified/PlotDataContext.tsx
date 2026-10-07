@@ -294,7 +294,11 @@ export function PlotDataProvider({
 
   // Everything below is scoped to one grower. Dropping it whenever the
   // grower changes (and whenever a load fails) stops the HUD from showing the
-  // previous grower's money under the new grower's name.
+  // previous grower's money under the new grower's name. `progress` is reset
+  // here too (see `setProgress(EMPTY_PROGRESS)` below), but only as a loading
+  // placeholder: `/trail` is the signed-in user's progress, not the grower's
+  // (#7191), so the refetch restores the same session-wide values for every
+  // grower. The HUD labels them "Your progress", not as the grower's.
   const clearOwnerScopedState = useCallback(() => {
     setPortfolio(null);
     setAllowances(null);

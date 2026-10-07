@@ -112,7 +112,7 @@
     "menu": "Menu",
     "menuCategories": {
       "dashboard": "Painel",
-      "goals": "Requisitos",
+      "goals": "Planejamento",
       "holdings": "Participações",
       "insights": "Pesquisa",
       "operations": "Administração",
@@ -482,6 +482,9 @@
     },
     "clearFilters": "Limpar filtros",
     "horizontalScroll": "Deslocar horizontalmente as colunas das posições",
+    "filtersLabel": "Filtrar posições",
+    "filterBy": "Filtrar por {{field}}",
+    "moreColumnsHint": "Mais colunas →",
     "columns": {
       "sector": "Setor",
       "acquired": "Adquirido",
@@ -891,6 +894,9 @@
     "level": "Nível",
     "changePct": "% de variação",
     "noHeadlines": "Sem manchetes disponíveis",
+    "headlinesQuotaExhausted": "Sem manchetes: a cota de solicitações do provedor de notícias foi esgotada. Tente novamente mais tarde.",
+    "headlinesUnavailable": "Sem manchetes: nenhuma fonte de notícias respondeu. Verifique a configuração do provedor de notícias (por ex., ALPHA_VANTAGE_KEY) ou tente novamente mais tarde.",
+    "asOf": "Em {{date}}",
     "staleHeadline": "Desatualizado",
     "staleHeadlineTooltip": "Esta manchete vem de uma cache que não foi atualizada recentemente; as obtenções de notícias em direto podem estar a falhar ou limitadas.",
     "tooltipLevel": "Nível: {{value}}",
@@ -2240,6 +2246,20 @@
     "viewGoals": "Ver objetivos",
     "pensionForecast": "Previsão de pensão"
   },
+  "costBasisChecklist": {
+    "summary_one": "Preencher custo: {{count}} posição sem custo fiável",
+    "summary_other": "Preencher custo: {{count}} posições sem custo fiável",
+    "intro": "Ganho/perda exclui estas posições até o custo ser registado. Ordenadas da maior para a menor: as {{top}} primeiras valem {{share}} do seu valor. Escolha Adicionar custo e introduza o preço pago por unidade.",
+    "holding": "Posição",
+    "account": "Conta",
+    "value": "Valor",
+    "problem": "Problema",
+    "missing": "Sem custo registado",
+    "suspect": "O custo registado parece errado",
+    "addCost": "Adicionar custo",
+    "showAll": "Mostrar todas ({{count}})",
+    "showTop": "Mostrar só as {{count}} primeiras"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} sem taxa de câmbio)",
     "reasonNoCostBasis": "sem base de custo fiável",
@@ -2726,6 +2746,8 @@
     "units": "Unidades",
     "priceGbp": "Preço (GBP)",
     "inputTitle": "Introdução de contas e posições",
+    "costBasisHint": "A registar o custo de {{ticker}}: introduza as unidades detidas e o preço pago por unidade e guarde. O campo Valor está desativado aqui, porque registaria o preço de hoje como se fosse o que pagou.",
+    "costBasisNeedsPrice": "Para registar um custo, introduza as unidades e o preço pago por unidade. Um valor registaria o preço de hoje como o seu custo.",
     "inputIntro": "Crie contas e defina posições. Ao guardar, é registada a transferência de saldo inicial que leva a conta às unidades introduzidas, pelo que aparece junto das suas operações em <txlink>Transações</txlink>.",
     "saving": "A guardar...",
     "saveHolding": "Guardar posição",
@@ -2812,7 +2834,9 @@
       "badgesSr": "distintivos de temporada conquistados",
       "xpLabel": "Nível {{level}} · {{xp}}/{{xpForLevel}} XP",
       "meterLabel": "Nível de cultivador {{level}}, {{xp}} de {{xpForLevel}} XP para o próximo nível",
-      "classicView": "Vista clássica"
+      "classicView": "Vista clássica",
+      "progressLabel": "O seu progresso",
+      "progressTitle": "O nível, a patente, os XP e a sequência vêm das suas próprias tarefas — são iguais no terreno de qualquer cultivador."
     },
     "rail": {
       "ariaLabel": "Secções da horta",
@@ -2982,6 +3006,7 @@
       "earned": "Conquistado",
       "badgeShelf": "Prateleira de distintivos ({{earned}}/{{total}})",
       "badgeNote": "Um distintivo é conquistado quando todos os níveis da sua categoria são concluídos.",
+      "personalNote": "O seu progresso — conquistado com as suas próprias tarefas, não com o terreno deste cultivador.",
       "growingSeasonLabel": "Época de cultivo {{label}}",
       "growingSeason": "Época de cultivo",
       "noTaxYear": "Não foi comunicado nenhum ano fiscal para este cultivador, por isso a época não tem data de fim para a contagem decrescente.",
@@ -3150,6 +3175,7 @@
     "retryingConfig": "A carregar... a repetir a configuração.",
     "loadingConfig": "A carregar a configuração...",
     "configLoadFailed": "Não foi possível carregar a configuração.",
+    "serverUnreachable": "Não foi possível alcançar o servidor AllotMint em {{url}}.",
     "checkConnection": "Verifique a sua ligação e tente novamente.",
     "googleNotConfigured": "O início de sessão com Google não está configurado.",
     "loading": "A carregar...",

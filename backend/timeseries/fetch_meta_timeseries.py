@@ -59,6 +59,10 @@ from backend.utils.timeseries_helpers import (
 
 logger = logging.getLogger(__name__)
 
+# First-choice provider: its traded-price rows anchor the merged series even
+# when a fallback covers more dates (#8792).
+_PREFERRED_SOURCE = "Yahoo"
+
 # ──────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────
@@ -373,13 +377,14 @@ def _explicit_exchange_from_ticker(ticker: str) -> str:
     return parts[1].strip().upper() if len(parts) == 2 else ""
 
 
-def _merge(sources: List[pd.DataFrame], label: str = "") -> pd.DataFrame:
+def _merge(sources: List[pd.DataFrame], label: str = "", prefer_source: str | None = None) -> pd.DataFrame:
     """Combine provider frames without interleaving price bases (#8597).
 
-    The best-covered source is kept whole; other sources only fill its
-    missing dates, and only when they agree with it on shared dates.
+    The primary source (``prefer_source`` if it has rows, else the
+    best-covered one) is kept whole; other sources only fill its missing
+    dates, and only when they agree with it on shared dates.
     """
-    df = combine_sources(sources, label=label)
+    df = combine_sources(sources, label=label, prefer_source=prefer_source)
     if df.empty:
         return pd.DataFrame(columns=STANDARD_COLUMNS)
     return df
@@ -503,7 +508,7 @@ def _fetch_from_providers(
     try:
         stooq = fetch_stooq_timeseries_range(ticker, exchange, start_date, end_date)
         if not stooq.empty:
-            combined = _merge([*data, stooq], label)
+            combined = _merge([*data, stooq], label, prefer_source=_PREFERRED_SOURCE)
             if _coverage_ratio(combined, expected_dates) >= min_coverage:
                 return combined
             data.append(stooq)
@@ -527,7 +532,7 @@ def _fetch_from_providers(
         try:
             av = fetch_alphavantage_timeseries_range(ticker, exchange, start_date, end_date)
             if not av.empty:
-                combined = _merge([*data, av], label)
+                combined = _merge([*data, av], label, prefer_source=_PREFERRED_SOURCE)
                 if _coverage_ratio(combined, expected_dates) >= min_coverage:
                     return combined
                 data.append(av)
@@ -564,7 +569,7 @@ def _fetch_from_providers(
         logger.info("No data sources succeeded for %s.%s", sanitise_log_value(ticker), sanitise_log_value(exchange))
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
-    df = _merge(data, label)
+    df = _merge(data, label, prefer_source=_PREFERRED_SOURCE)
     # Ensure we compare like-for-like datatypes. Some sources (e.g. FT) may
     # return plain ``datetime.date`` objects which cannot be directly
     # compared against ``pd.Timestamp``. Convert the column on the fly to

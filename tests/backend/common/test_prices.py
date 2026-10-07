@@ -273,17 +273,21 @@ def test_refresh_prices_uploads_to_s3_in_aws_env(tmp_path: Path, monkeypatch: py
     assert "Uploaded price snapshot" in caplog.text
 
 
+@pytest.mark.parametrize("source", ["last_close", "live_quote"])
 @pytest.mark.parametrize("ticker", ["AV", "CLIG", "HICL", "ADM"])
 def test_refresh_prices_persists_scaled_gbp_not_raw_pence(
-    ticker: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ticker: str, source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """#8923: ``latest_prices.json`` stores scaled GBP, not the raw pence series.
+    """#8923: ``latest_prices.json`` stores scaled GBP, not the raw pence value.
 
     Uses the repo's real ``data/scaling_overrides.json`` for the four tickers
-    #8589 corrected, so dropping one from the table fails here. The cached
-    series holds raw pence (3588); the 0.01 override is applied before
-    persistence, so the snapshot carries GBP 35.88. This is why an
-    override-table change needs a snapshot refresh (done on every deploy).
+    #8589 corrected, so dropping one from the table fails here. Covers both
+    sources :func:`get_price_snapshot` can take ``last_price`` from: the
+    cached close (``holding_utils.load_latest_closes``) and the live quote
+    (``holding_utils.load_live_prices``, preferred when present). Either way
+    the raw pence value (3588) gets the 0.01 override before persistence, so
+    the snapshot carries GBP 35.88. This is why an override-table change needs
+    a snapshot refresh (done on every deploy).
     """
     from types import SimpleNamespace
 
@@ -296,8 +300,22 @@ def test_refresh_prices_persists_scaled_gbp_not_raw_pence(
     monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=repo_root, data_root=None))
     full_ticker = f"{ticker}.L"
 
-    cached = pd.DataFrame({"Date": [date.today() - timedelta(days=1)], "Close": [3588.0]})
-    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: cached)
+    if source == "last_close":
+        cached = pd.DataFrame({"Date": [date.today() - timedelta(days=1)], "Close": [3588.0]})
+        monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: cached)
+        monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+    else:
+        monkeypatch.setattr(prices, "_load_latest_closes", lambda tickers, **k: {})
+        quote = {
+            "symbol": full_ticker,
+            "regularMarketPrice": 3588.0,
+            "regularMarketTime": int(datetime.now(UTC).timestamp()),
+        }
+        response = SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: {"quoteResponse": {"result": [quote]}},
+        )
+        monkeypatch.setattr(holding_utils.requests, "get", lambda *a, **k: response)
     # Metadata wrongly says GBP (the AV/CLIG/HICL failure mode), so only the
     # override can turn 3588 into 35.88.
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBP"})
@@ -306,7 +324,6 @@ def test_refresh_prices_persists_scaled_gbp_not_raw_pence(
     monkeypatch.setattr(prices.config, "prices_json", prices_file, raising=False)
     monkeypatch.setattr(prices.config, "app_env", "local", raising=False)
     monkeypatch.setattr(prices, "refresh_universe", lambda: [full_ticker])
-    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
     monkeypatch.setattr(prices, "_close_on", lambda *a, **k: None)
     monkeypatch.setattr(prices, "_refresh_reference_data", lambda tickers: None)
     monkeypatch.setattr(prices, "refresh_snapshot_in_memory", lambda s: None)
@@ -317,6 +334,8 @@ def test_refresh_prices_persists_scaled_gbp_not_raw_pence(
     persisted = json.loads(prices_file.read_text())
     assert persisted[full_ticker]["last_price"] == pytest.approx(35.88)
     assert persisted[full_ticker]["price_currency"] == "GBP"
+    # Only the live path stamps a quote time, so this pins which source ran.
+    assert (persisted[full_ticker]["last_price_time"] is not None) == (source == "live_quote")
 
 
 def test_refresh_prices_s3_upload_failure_logs_warning_not_error(

@@ -973,8 +973,12 @@ def enrich_holding(
     pricing_date = calc.reporting_date
 
     if acq:
-        days = (pricing_date - acq).days
-        out["days_held"] = days
+        # Live views measure days held to today (matching the eligibility
+        # anchor below); reporting_date is the *previous* trading day, which
+        # made a same-day buy report -1 (#9990). An explicit as_of keeps
+        # measuring to that date. Never negative.
+        held_to = pricing_date if calc.has_explicit_reporting_date else calc.today
+        out["days_held"] = max(0, (held_to - acq).days)
         hold_days = ucfg.hold_days_min or 0
         next_date_candidate = acq + dt.timedelta(days=hold_days)
         next_date = calc.resolve_weekday(next_date_candidate, forward=True)

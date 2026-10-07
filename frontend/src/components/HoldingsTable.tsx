@@ -1168,7 +1168,9 @@ export function HoldingsTable({
                         : undefined
                   }
                 >
-                  {h.sell_eligible == null ? (
+                  {h.sell_eligible == null ||
+                  (!h.sell_eligible && h.days_until_eligible == null) ? (
+                    // An unknown hold period yields no verdict (#7196).
                     <span className={tableStyles.notApplicable}>
                       {t("holdingsTable.notApplicable")}
                     </span>

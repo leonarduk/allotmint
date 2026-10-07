@@ -1044,6 +1044,14 @@ describe("HoldingsTable", () => {
         expect(within(row!).queryByText("✗ 0")).toBeNull();
     });
 
+    it("gives no verdict when days until eligible is unknown (#7196)", async () => {
+        const unknown: Holding = { ...holdings[0], ticker: "UNK", name: "Unknown Period", sell_eligible: false, days_until_eligible: null };
+        render(<HoldingsTable holdings={[unknown]}/>);
+        const row = (await screen.findByText("Unknown Period")).closest("tr");
+        expect(within(row!).queryByText(/Needs approval/)).toBeNull();
+        expect(within(row!).queryByText(/^✗/)).toBeNull();
+    });
+
     it("marks stale prices with an asterisk", async () => {
         const stale: Holding = {
             ticker: "STALE",

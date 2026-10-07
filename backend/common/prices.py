@@ -72,9 +72,12 @@ from backend.common.portfolio_utils import (
 # Local imports
 # ──────────────────────────────────────────────────────────────
 from backend.config import config
+from backend.data_quality import price_scale
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.boe_rates import refresh_boe_series
 from backend.timeseries.cache import (
+    cache_only,
+    load_meta_timeseries,
     load_meta_timeseries_range,
     map_in_caller_context,
     refresh_fx_cache_for_tickers,
@@ -443,6 +446,55 @@ def _refresh_reference_data(tickers: List[str]) -> None:
         logger.warning("Bank of England rates refresh failed: %s", sanitise_log_value(exc))
 
 
+# Calendar days of cached closes read per ticker for the refresh-time move check.
+_MOVE_CHECK_DAYS = 10
+
+
+def _latest_move_suspect(full: str) -> Optional[Dict]:
+    """The latest day-on-day move of ``full`` if it exceeds its threshold (#8602)."""
+    from backend.common.instruments import get_instrument_meta
+
+    resolved = instrument_api._resolve_full_ticker(full, {})
+    if not resolved:
+        return None
+    sym, exch = resolved
+    with cache_only():
+        closes = price_scale.close_series(load_meta_timeseries(sym, exch, _MOVE_CHECK_DAYS))
+    threshold = price_scale.large_move_threshold(get_instrument_meta(f"{sym}.{exch}"))
+    step = price_scale.latest_move(closes, threshold)
+    return None if step is None else {"ticker": f"{sym}.{exch}", "threshold": threshold, **step}
+
+
+def log_large_move_suspects(tickers: Iterable[str]) -> List[Dict]:
+    """Warn about each ticker whose latest close moved more than its threshold (#8602).
+
+    Detection only: reads the cached series and never alters prices. Runs at
+    the end of every refresh so a bad override or unit mismatch (e.g. ADM.L's
+    10x step, #8597 / PR #8598) shows in the refresh log the day it lands; the
+    Data Quality page's ``LARGE_DAILY_MOVE`` check covers the full history.
+    """
+    suspects: List[Dict] = []
+    for full in tickers:
+        try:
+            suspect = _latest_move_suspect(full)
+        except Exception as exc:  # a detector failure must not fail the refresh
+            logger.warning("Large-move check failed for %s: %s", sanitise_log_value(full), sanitise_log_value(exc))
+            continue
+        if suspect is None:
+            continue
+        suspects.append(suspect)
+        logger.warning(
+            "Price move suspect: %s moved %+.0f%% on %s (%g -> %g), above its %.0f%% threshold",
+            sanitise_log_value(suspect["ticker"]),
+            (suspect["ratio"] - 1.0) * 100.0,
+            sanitise_log_value(suspect["date"]),
+            suspect["previous"],
+            suspect["value"],
+            suspect["threshold"] * 100.0,
+        )
+    return suspects
+
+
 def refresh_prices() -> Dict:
     """
     Pulls latest close, 7- and 30-day % moves for every ticker in
@@ -463,6 +515,7 @@ def refresh_prices() -> Dict:
         refresh_progress.finish()
 
     _refresh_reference_data(tickers)
+    log_large_move_suspects(tickers)
 
     # ---- persist to disk --------------------------------------------------
     if not config.prices_json:

@@ -47,6 +47,15 @@ and the "Warm price snapshot" step of ``.github/workflows/deploy-lambda.yml``
 invokes its ``live`` alias again after the deploy. The ``DailyPriceRefresh``
 schedule repeats it daily, so no extra regeneration step is needed.
 
+Caveat: the git table is only authoritative while the data bucket root holds
+no ``scaling_overrides.json``. The workflow's "Sync data from S3" step
+(``aws s3 sync s3://$DATA_BUCKET/ data/``) runs before the image build and
+would replace the git copy, and at runtime ``DATA_ROOT`` (``/tmp/data``,
+filled from the same bucket) is overlaid on the bundled table and wins on
+conflicts (``timeseries_helpers._scaling_override_paths``). An override fix
+must therefore also be applied to any bucket copy, or it never reaches the
+snapshot.
+
 Note on is_stale semantics (#8595)
 ----------------------------------
 * A live quote is fresh while its timestamp is under 15 minutes old.

@@ -375,6 +375,32 @@ def test_snapshot_deploy_ordering_claims_hold() -> None:
     names = [step.get("name", "") for step in workflow["jobs"]["deploy"]["steps"]]
     assert names.index("Warm price snapshot") > names.index("Deploy BackendLambdaStack")
 
+    # Caveat in the docstring: a bucket-root table can override the git copy,
+    # both via the pre-build S3 sync into data/ and via the DATA_ROOT overlay.
+    assert names.index("Sync data from S3") < names.index("Deploy BackendLambdaStack")
+
+
+def test_data_root_override_table_wins_over_bundled_table(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """#8923 caveat: a bucket-derived ``DATA_ROOT`` table beats the git table.
+
+    The ``prices`` docstring warns that a stale bucket copy of
+    ``scaling_overrides.json`` would keep the snapshot wrong after a git fix;
+    this pins that precedence so the warning can't silently go stale.
+    """
+    from types import SimpleNamespace
+
+    from backend.utils import timeseries_helpers as th
+
+    repo_root = tmp_path / "repo"
+    (repo_root / "data").mkdir(parents=True)
+    (repo_root / "data" / "scaling_overrides.json").write_text('{"L": {"ADM": 0.01}}')
+    data_root = tmp_path / "bucket"
+    data_root.mkdir()
+    (data_root / "scaling_overrides.json").write_text('{"L": {"ADM": 1.0}}')
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=repo_root, data_root=data_root))
+
+    assert th.get_scaling_override("ADM", "L", None) == 1.0
+
 
 def test_refresh_prices_s3_upload_failure_logs_warning_not_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog

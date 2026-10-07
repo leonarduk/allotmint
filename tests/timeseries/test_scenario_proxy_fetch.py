@@ -124,11 +124,11 @@ def test_holding_without_history_follows_spy_proxy(live_pipeline):
         portfolio, {"date": event_date.isoformat(), "proxy_index": "SPY.N"}, horizons={"1m": 30}
     )
 
-    # Closes fall 1.0 per weekday from 100 at the fetch window's first weekday.
-    weekdays = pd.bdate_range(event_date - dt.timedelta(days=7), event_date + dt.timedelta(days=37)).date
-    base = 100.0 - [i for i, d in enumerate(weekdays) if d < event_date][-1]
-    target = 100.0 - next(i for i, d in enumerate(weekdays) if d >= event_date + dt.timedelta(days=30))
-    expected_delta = 1000.0 * (target - base) / base
+    # Fixed, hand-derived expectation (not recomputed from the fixture): the
+    # fetch window opens Mon 2008-09-08 at close 100, falling 1.0 per weekday.
+    # Base = last close before the event, Fri 2008-09-12 (4th weekday) = 96.
+    # Target = first close on/after event + 30d, Wed 2008-10-15 (27th) = 73.
+    expected_delta = 1000.0 * (73.0 - 96.0) / 96.0  # -239.58
 
     assert result["1m"]["coverage_pct"] == 100.0
     assert result["1m"]["delta_gbp"] == pytest.approx(expected_delta, abs=0.01)

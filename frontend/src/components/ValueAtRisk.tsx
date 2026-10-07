@@ -7,6 +7,7 @@ import {
   getVarBreakdown,
 } from "../api";
 import VarBreakdownModal from "./VarBreakdownModal";
+import { useConfig } from "../ConfigContext";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import type { VarBreakdown, VarScenario } from "../types";
 
@@ -18,6 +19,7 @@ interface Props {
 export function ValueAtRisk({ owner, onDateChange }: Props) {
   const reporting = useReportingCurrency();
   const { t } = useTranslation();
+  const { relativeViewEnabled } = useConfig();
   const [days, setDays] = useState<number>(30);
   const [var95, setVar95] = useState<number | null>(null);
   const [var99, setVar99] = useState<number | null>(null);
@@ -57,8 +59,12 @@ export function ValueAtRisk({ owner, onDateChange }: Props) {
     };
   }, [owner, days]);
 
-  // VaR is a GBP amount; shown in the reporting currency (#9805).
-  const format = (v: number | null) => (v != null ? reporting.format(v) : "–");
+  // VaR is a GBP amount; shown in the reporting currency (#9805). Relative
+  // view hides it (#10022): the breakdown still shows the loss as a percent.
+  const format = (v: number | null) => {
+    if (v == null) return "–";
+    return relativeViewEnabled ? t("var.viewBreakdown") : reporting.format(v);
+  };
 
   const clearBreakdown = useCallback(() => {
     setScenarios([]);
@@ -155,6 +161,11 @@ export function ValueAtRisk({ owner, onDateChange }: Props) {
             </button>
           </li>
         </ul>
+      )}
+      {relativeViewEnabled && !loading && !err && !(var95 == null && var99 == null) && (
+        <p style={{ fontSize: "0.85rem", color: "#666" }} data-testid="var-relative-note">
+          {t("var.relativeHidden")}
+        </p>
       )}
       {breakdown && (
         <VarBreakdownModal

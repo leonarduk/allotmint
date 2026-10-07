@@ -1228,6 +1228,7 @@
     "select": "Seleziona un proprietario."
   },
   "pensionForecast": {
+    "relativeViewNotice": "La previsione pensionistica si basa su importi in sterline, quindi è nascosta con la vista relativa attiva. Disattiva la vista relativa per vederla.",
     "ages": {
       "ageNowHelper": "Dalla data di nascita registrata ({{dob}}).",
       "ageNowLabel": "Età attuale",
@@ -1902,7 +1903,9 @@
     "details": "Dettagli di simulazione storica",
     "noData": "Nessun dati VAR disponibile.",
     "title": "Valore a rischio",
-    "chartAria": "Grafico del Value at Risk"
+    "chartAria": "Grafico del Value at Risk",
+    "relativeHidden": "Gli importi sono nascosti nella vista relativa; apri un dettaglio per vedere la perdita in percentuale.",
+    "viewBreakdown": "Vedi dettaglio"
   },
   "watchlist": {
     "refresh": "Rinfrescare",

@@ -92,7 +92,9 @@ const defaultConfig: AppConfig = {
 };
 
 const TestProvider = ({ children, config = {} }: { children: React.ReactNode; config?: Partial<AppConfig> }) => {
-  const [relativeViewEnabled, setRelativeViewEnabled] = useState(false);
+  const [relativeViewEnabled, setRelativeViewEnabled] = useState(
+    config.relativeViewEnabled ?? false,
+  );
   return (
     <configContext.Provider
       value={{
@@ -1745,6 +1747,48 @@ describe("GroupPortfolioView", () => {
       ),
     ).toBe(false);
   });
+
+  it.each([
+    { relative: true, tick: /%$/, hidden: /^-?[\d,]+$/ },
+    { relative: false, tick: /^-?[\d,]+$/, hidden: /%$/ },
+  ])(
+    "plots sector contribution in % only under relative view ($relative) (#10022)",
+    async ({ relative, tick, hidden }) => {
+      vi.spyOn(api, "getOwnerSectorContributions").mockResolvedValue([
+        { sector: "Technology", gain_gbp: 12000, contribution_pct: 12, market_value_gbp: 0, cost_gbp: 0 },
+      ]);
+      mockAllFetches({
+        name: "At a glance",
+        accounts: [
+          { owner: "alice", account_type: "isa", value_estimate_gbp: 100, holdings: [] },
+        ],
+      });
+
+      const { container } = render(
+        <MemoryRouter initialEntries={["/?owner=alice"]}>
+          <TestProvider config={{ relativeViewEnabled: relative }}>
+            <GroupPortfolioView slug="all" owners={ownerFixtures} />
+          </TestProvider>
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByText("Technology")).toBeInTheDocument();
+      const ticks = await waitFor(() => {
+        // Recharts renders tick labels in a shared layer; drop the X-axis label.
+        const values = Array.from(
+          container.querySelectorAll(".recharts-cartesian-axis-tick-value"),
+        )
+          .map((el) => el.textContent ?? "")
+          .filter((value) => value !== "Technology");
+        expect(values.length).toBeGreaterThan(0);
+        return values;
+      });
+      expect(ticks.every((value) => tick.test(value))).toBe(true);
+      expect(ticks.some((value) => hidden.test(value))).toBe(false);
+      // Relative view plots gain/cost %, so the £ gain's scale never appears.
+      expect(ticks.some((value) => /12,?000/.test(value))).toBe(!relative);
+    },
+  );
 
   it("keeps the current path and unrelated query parameters when changing scope", async () => {
     const user = userEvent.setup();

@@ -1222,6 +1222,7 @@
     "select": "Select an owner."
   },
   "pensionForecast": {
+    "relativeViewNotice": "The pension forecast is built from pound amounts, so it is hidden while relative view is on. Turn off relative view to see it.",
     "ages": {
       "ageNowHelper": "From the date of birth on file ({{dob}}).",
       "ageNowLabel": "Age now",
@@ -1895,7 +1896,9 @@
     "details": "Historical simulation details",
     "noData": "No VaR data available.",
     "title": "Value at Risk",
-    "chartAria": "Value at Risk chart"
+    "chartAria": "Value at Risk chart",
+    "relativeHidden": "Amounts are hidden in relative view; open a breakdown to see the loss as a percentage.",
+    "viewBreakdown": "View breakdown"
   },
   "watchlist": {
     "refresh": "Refresh",

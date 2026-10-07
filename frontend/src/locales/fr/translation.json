@@ -1228,6 +1228,7 @@
     "select": "Sélectionnez un propriétaire."
   },
   "pensionForecast": {
+    "relativeViewNotice": "La prévision de retraite repose sur des montants en livres ; elle est donc masquée en vue relative. Désactivez la vue relative pour la voir.",
     "ages": {
       "ageNowHelper": "D'après la date de naissance enregistrée ({{dob}}).",
       "ageNowLabel": "Âge actuel",
@@ -1902,7 +1903,9 @@
     "details": "Détails de la simulation historique",
     "noData": "Pas de données VaR disponibles.",
     "title": "Valeur à risque",
-    "chartAria": "Graphique de la Value at Risk"
+    "chartAria": "Graphique de la Value at Risk",
+    "relativeHidden": "Les montants sont masqués en vue relative ; ouvrez un détail pour voir la perte en pourcentage.",
+    "viewBreakdown": "Voir le détail"
   },
   "watchlist": {
     "refresh": "Actualiser",

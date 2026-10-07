@@ -1228,6 +1228,7 @@
     "select": "Wählen Sie einen Besitzer."
   },
   "pensionForecast": {
+    "relativeViewNotice": "Die Rentenprognose basiert auf Pfundbeträgen und ist daher in der relativen Ansicht ausgeblendet. Deaktivieren Sie die relative Ansicht, um sie zu sehen.",
     "ages": {
       "ageNowHelper": "Aus dem hinterlegten Geburtsdatum ({{dob}}).",
       "ageNowLabel": "Aktuelles Alter",
@@ -1902,7 +1903,9 @@
     "details": "Details zur historischen Simulation",
     "noData": "Keine VaR-Daten verfügbar.",
     "title": "Value at Risk",
-    "chartAria": "Value-at-Risk-Diagramm"
+    "chartAria": "Value-at-Risk-Diagramm",
+    "relativeHidden": "Beträge sind in der relativen Ansicht ausgeblendet; öffnen Sie eine Aufschlüsselung, um den Verlust in Prozent zu sehen.",
+    "viewBreakdown": "Aufschlüsselung anzeigen"
   },
   "watchlist": {
     "refresh": "Aktualisieren",

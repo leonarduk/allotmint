@@ -19,7 +19,7 @@ def test_fetch_headlines_uses_cached_helper(monkeypatch):
     symbols = list(market_module.INDEX_SYMBOLS.values())
     seen_fresh: set[str] = set()
 
-    def fake_get_cached_news(symbol: str) -> List[dict[str, str]]:
+    def fake_get_cached_news(symbol: str, **_kwargs) -> List[dict[str, str]]:
         if symbol in seen_fresh:
             return _make_payload(symbol, "cached")
         seen_fresh.add(symbol)
@@ -35,14 +35,19 @@ def test_fetch_headlines_uses_cached_helper(monkeypatch):
     assert sorted(item["headline"] for item in second) == sorted(f"{sym} cached" for sym in symbols)
 
 
-def test_fetch_headlines_stops_on_quota_exhaustion(monkeypatch):
-    symbols = list(market_module.INDEX_SYMBOLS.values())
-    stop_after = symbols[2]
-    calls: list[str] = []
+def test_fetch_headlines_skips_quota_exhausted_symbol_and_keeps_the_rest(monkeypatch):
+    """Quota exhaustion for one symbol (no cache to fall back on) skips it, but
+    a later symbol's cached payload is still served (#7788)."""
 
-    def fake_get_cached_news(symbol: str) -> List[dict[str, str]]:
+    symbols = list(market_module.INDEX_SYMBOLS.values())
+    exhausted = symbols[2]
+    calls: list[str] = []
+    raise_flags: list[bool] = []
+
+    def fake_get_cached_news(symbol: str, *, raise_on_quota_exhausted: bool = False) -> List[dict[str, str]]:
         calls.append(symbol)
-        if symbol == stop_after:
+        raise_flags.append(raise_on_quota_exhausted)
+        if symbol == exhausted:
             raise NewsQuotaExceeded("news quota exceeded")
         return _make_payload(symbol, "fresh")
 
@@ -50,33 +55,64 @@ def test_fetch_headlines_stops_on_quota_exhaustion(monkeypatch):
 
     headlines = market_module._fetch_headlines()
 
-    assert calls == symbols[: symbols.index(stop_after) + 1]
-    assert all(stop_after not in item["headline"] for item in headlines)
-    assert all(item["headline"].endswith("fresh") for item in headlines)
+    assert calls == symbols
+    # Without the flag get_cached_news returns [] on exhaustion and the
+    # quota_exhausted status could never be reported.
+    assert all(raise_flags)
+    expected = sorted(f"{sym} fresh" for sym in symbols if sym != exhausted)
+    assert sorted(item["headline"] for item in headlines) == expected
+    assert headlines.status == "ok"
 
 
 def test_fetch_headlines_status_explains_an_empty_list(monkeypatch):
-    """An empty feed says why: quota exhausted vs no source answered (#7788)."""
+    """An empty feed says why: quota exhausted, no source answered, or a quiet day (#7788)."""
 
-    def quota(_symbol: str) -> List[dict[str, str]]:
+    def quota(_symbol: str, **_kwargs) -> List[dict[str, str]]:
         raise NewsQuotaExceeded("news quota exceeded")
 
     monkeypatch.setattr(market_module, "get_cached_news", quota)
     headlines = market_module._fetch_headlines()
     assert headlines == [] and headlines.status == "quota_exhausted"
 
-    monkeypatch.setattr(market_module, "get_cached_news", lambda _symbol: [])
+    def broken(_symbol: str, **_kwargs) -> List[dict[str, str]]:
+        raise RuntimeError("news backend down")
+
+    monkeypatch.setattr(market_module, "get_cached_news", broken)
     headlines = market_module._fetch_headlines()
     assert headlines == [] and headlines.status == "unavailable"
 
-    monkeypatch.setattr(market_module, "get_cached_news", lambda s: _make_payload(s, "fresh"))
+    monkeypatch.setattr(market_module, "get_cached_news", lambda s, **_kwargs: _make_payload(s, "fresh"))
     assert market_module._fetch_headlines().status == "ok"
+
+
+def test_fetch_headlines_quiet_day_is_ok_not_unavailable(monkeypatch):
+    """Sources that answer with no news are a quiet day, not a missing source:
+    the page must not tell the user to check the provider configuration."""
+
+    monkeypatch.setattr(market_module, "get_cached_news", lambda _symbol, **_kwargs: [])
+    headlines = market_module._fetch_headlines()
+    assert headlines == [] and headlines.status == "ok"
+
+
+def test_fetch_headlines_quota_after_quiet_symbols_is_quota_exhausted(monkeypatch):
+    """Empty answers followed by exhaustion: the quota is the reason given."""
+
+    symbols = list(market_module.INDEX_SYMBOLS.values())
+
+    def fake_get_cached_news(symbol: str, **_kwargs) -> List[dict[str, str]]:
+        if symbol == symbols[-1]:
+            raise NewsQuotaExceeded("news quota exceeded")
+        return []
+
+    monkeypatch.setattr(market_module, "get_cached_news", fake_get_cached_news)
+    headlines = market_module._fetch_headlines()
+    assert headlines == [] and headlines.status == "quota_exhausted"
 
 
 def test_fetch_headlines_partial_data_before_quota_is_ok(monkeypatch):
     symbols = list(market_module.INDEX_SYMBOLS.values())
 
-    def fake_get_cached_news(symbol: str) -> List[dict[str, str]]:
+    def fake_get_cached_news(symbol: str, **_kwargs) -> List[dict[str, str]]:
         if symbol == symbols[1]:
             raise NewsQuotaExceeded("news quota exceeded")
         return _make_payload(symbol, "fresh")
@@ -93,7 +129,7 @@ def test_fetch_headlines_skips_symbol_on_unexpected_error(monkeypatch):
     failing = symbols[0]
     calls: list[str] = []
 
-    def fake_get_cached_news(symbol: str) -> list[dict[str, str]]:
+    def fake_get_cached_news(symbol: str, **_kwargs) -> list[dict[str, str]]:
         calls.append(symbol)
         if symbol == failing:
             raise RuntimeError("no running event loop")
@@ -259,3 +295,11 @@ def test_sort_and_filter_headlines_keeps_undated_when_no_dated_items():
     undated = [{"headline": "A", "url": "https://example.com/a"}]
 
     assert market_module._sort_and_filter_headlines(undated) == undated
+
+
+def test_index_label_to_iso_returns_none_for_a_non_date_label():
+    """A close labelled by something other than a date carries no ``as_of`` (#7788)."""
+
+    assert market_module._index_label_to_iso(datetime(2026, 9, 18, tzinfo=timezone.utc)) == "2026-09-18T00:00:00+00:00"
+    assert market_module._index_label_to_iso("2026-09-18") is None
+    assert market_module._index_label_to_iso(5) is None

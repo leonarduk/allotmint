@@ -84,7 +84,7 @@ def test_fetch_headlines_with_mocked_news(monkeypatch):
         ],
     }
 
-    def fake_get_cached_news(symbol):
+    def fake_get_cached_news(symbol, **_kwargs):
         calls.append(symbol)
         return responses[symbol]
 

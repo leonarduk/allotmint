@@ -242,20 +242,26 @@ def _fetch_headlines() -> HeadlineList:
     seen: set[str] = set()
     success = False
     quota_exhausted = False
+    # Some symbol's lookup completed without an error, even if it found
+    # nothing: an empty feed is then a quiet day, not a dead source (#7788).
+    answered = False
 
     for sym in INDEX_SYMBOLS.values():
         try:
-            items = get_cached_news(sym)
+            # Raise rather than return [] on exhaustion, so the page can say
+            # the quota ran out; a symbol with a cached payload still returns it.
+            items = get_cached_news(sym, raise_on_quota_exhausted=True)
         except NewsQuotaExceeded:
-            logger.warning("News quota exhausted while building market headlines; returning partial data")
+            logger.warning("News quota exhausted for %s; skipping it", sanitise_log_value(sym))
             quota_exhausted = True
-            break
+            continue
         except Exception:
             # One failing symbol must not blank the whole headline list, and
             # an unexpected error must not masquerade as quota exhaustion.
             logger.exception("Failed to fetch news for %s", sanitise_log_value(sym))
             continue
 
+        answered = True
         if not items:
             continue
 
@@ -269,10 +275,25 @@ def _fetch_headlines() -> HeadlineList:
     if not success:
         logger.error("Failed to fetch news for all index symbols")
 
-    items = _sort_and_filter_headlines(headlines)
-    if items:
-        return HeadlineList(items, "ok")
-    return HeadlineList(items, "quota_exhausted" if quota_exhausted else "unavailable")
+    return HeadlineList(
+        _sort_and_filter_headlines(headlines),
+        _empty_or_ok_status(success, quota_exhausted, answered),
+    )
+
+
+def _empty_or_ok_status(success: bool, quota_exhausted: bool, answered: bool) -> HeadlineStatus:
+    """Status for a headline fetch: ``ok`` unless the feed is empty for a known reason.
+
+    An empty feed after the quota ran out is ``quota_exhausted``; one where no
+    symbol's lookup completed is ``unavailable``. Otherwise a source answered
+    with nothing (a quiet day), which is ``ok`` with no headlines.
+    """
+
+    if success:
+        return "ok"
+    if quota_exhausted:
+        return "quota_exhausted"
+    return "ok" if answered else "unavailable"
 
 
 def _safe(func, default):

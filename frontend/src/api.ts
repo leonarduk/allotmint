@@ -1016,12 +1016,18 @@ const LOOK_THROUGH_REFRESH_TIMEOUT_MS = 60_000;
 
 /**
  * Fetch one fund's look-through data from Morningstar/justETF now and store
- * it (#9974). ``ticker`` is the full ticker, e.g. ``MINV.L``.
+ * it (#9974). ``ticker`` is the full ``SYMBOL.EXCHANGE`` ticker, e.g.
+ * ``MINV.L``; dots inside a symbol are written as hyphens (``BT-A.L``), so
+ * the exchange is everything after the last dot. A ticker without an
+ * exchange is rejected rather than guessed.
  */
 export const refreshInstrumentLookThrough = (ticker: string) => {
   const lastDot = ticker.lastIndexOf(".");
-  const symbol = lastDot > 0 ? ticker.slice(0, lastDot) : ticker;
-  const exchange = lastDot > 0 ? ticker.slice(lastDot + 1) : "L";
+  if (lastDot <= 0 || lastDot === ticker.length - 1) {
+    return Promise.reject(new Error(`Ticker ${ticker} has no exchange suffix`));
+  }
+  const symbol = ticker.slice(0, lastDot);
+  const exchange = ticker.slice(lastDot + 1);
   return fetchJson<InstrumentAllocationRefresh>(
     `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(symbol)}/look-through`,
     { method: "POST" },

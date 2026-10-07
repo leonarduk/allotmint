@@ -205,3 +205,8 @@ def test_manual_block_without_holdings_keeps_the_fund_as_one_line(monkeypatch):
     assert [(h["key"], h["kind"], h["value_gbp"]) for h in result["holdings"]] == [("GB00B8SC6K54", "fund", 500.0)]
     assert _by_label(result["countries"]) == {"United Kingdom": 500.0}
     assert result["coverage"]["not_covered"] == []
+
+
+def test_zero_holdings_limit_returns_no_holding_rows(portfolio, monkeypatch):
+    monkeypatch.setattr(look_through, "aggregate_by_ticker", lambda _p: _rows(("WRLD.L", 1000.0, None, None)))
+    assert look_through.compute_look_through({"accounts": []}, holdings_limit=0)["holdings"] == []

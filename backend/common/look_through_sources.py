@@ -29,6 +29,7 @@ from bs4 import BeautifulSoup
 
 from backend.common.country_codes import country_name
 from backend.common.sector_labels import CASH_SECTOR_LABEL, normalise_sector_label
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -194,8 +195,10 @@ def _ms_countries(portfolio: Dict[str, Any], mix: Dict[str, float]) -> Dict[str,
     for sleeve, weight in mix.items():
         shares = by_sleeve.get(sleeve) or {}
         if sleeve == "cash":
+            # Cash is one bucket even if a country split is published for it.
             _add(countries, CASH_SECTOR_LABEL, weight)
-        elif not shares:
+            continue
+        if not shares:
             _add(countries, UNCLASSIFIED_COUNTRY if sleeve != "other" else OTHER_LABEL, weight)
         for code, share in shares.items():
             _add(countries, country_name(code) or UNCLASSIFIED_COUNTRY, weight * share)
@@ -218,7 +221,7 @@ def _ms_sectors(portfolio: Dict[str, Any], mix: Dict[str, float]) -> Dict[str, f
 
 
 def _ms_holdings(portfolio: Dict[str, Any]) -> List[Dict[str, Any]]:
-    holdings = []
+    holdings: List[Dict[str, Any]] = []
     for h in portfolio.get("PortfolioHoldings") or []:
         weight = h.get("Weighting")
         name = h.get("SecurityName") or h.get("ExternalName")
@@ -297,7 +300,8 @@ def _justetf_rows(soup: BeautifulSoup, test_id: str) -> List[tuple[str, float, O
         if not match or not cells[0]:
             continue
         link = tr.find("a")
-        rows.append((cells[0], float(match.group(1)), link.get("href") if link else None))
+        href = link.get("href") if link else None
+        rows.append((cells[0], float(match.group(1)), href if isinstance(href, str) else None))
     return rows
 
 
@@ -362,7 +366,11 @@ def fetch_look_through(
     try:
         block = fetch_morningstar(isin, s, today)
     except (requests.RequestException, LookThroughFetchError) as exc:
-        logger.warning("Morningstar look-through failed for %s: %s; trying justETF", isin, exc)
+        logger.warning(
+            "Morningstar look-through failed for %s: %s; trying justETF",
+            sanitise_log_value(isin),
+            sanitise_log_value(exc),
+        )
         block = None
     if block is not None:
         return block

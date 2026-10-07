@@ -228,7 +228,7 @@ def _holding_rows(exp: _Exposure, total: float, limit: int) -> List[Dict[str, An
     ranked = sorted(exp.holdings.values(), key=lambda h: h.value_gbp, reverse=True)
     other = exp.holdings.get(OTHER_FUND_HOLDINGS_KEY)
     shown = [h for h in ranked if h.key != OTHER_FUND_HOLDINGS_KEY][:limit]
-    if other is not None:
+    if other is not None and limit > 0:
         shown.append(other)
     return [
         {

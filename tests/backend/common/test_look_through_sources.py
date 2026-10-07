@@ -183,3 +183,17 @@ def test_http_error_from_last_source_propagates():
     session = _Session({"screener": _Resp(payload={"rows": []}), "justetf": _Resp(403)})
     with pytest.raises(src.LookThroughFetchError):
         src.fetch_look_through("IE00B3RBWM25", session, TODAY)
+
+
+def test_morningstar_cash_sleeve_is_counted_once_even_with_a_country_split():
+    snap = _snapshot(
+        AssetAllocations=[{"Type": "MorningStarDefault", **_breakdown({"1": 90.0, "7": 10.0})}],
+        CountryExposure=[
+            _breakdown({"USA": 100.0}, Type="Equity"),
+            _breakdown({"GBR": 100.0}, Type="Cash"),
+        ],
+    )
+    block = src.parse_morningstar_snapshot(snap, "X", TODAY)
+
+    assert block["countries"] == {"United States": 90.0, "Cash": 10.0}
+    assert sum(block["countries"].values()) == pytest.approx(100.0)

@@ -1420,6 +1420,15 @@ describe("look-through endpoints (#9974)", () => {
     expect(url).toBe(`${DEFAULT_API_BASE}/instrument/admin/L/BT-A/look-through`);
     expect(init.method).toBe("POST");
   });
+
+  it("rejects a refresh for a ticker without an exchange suffix", async () => {
+    const mockFetch = vi.fn();
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(refreshInstrumentLookThrough("MINV")).rejects.toThrow("no exchange suffix");
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
 });
 
 describe("cached responses do not survive an identity change", () => {

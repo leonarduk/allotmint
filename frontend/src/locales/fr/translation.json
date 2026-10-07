@@ -446,6 +446,9 @@
     "atAGlance": "En un coup d'œil",
     "pricingAsOf": "Tarification au {{date}}",
     "pricingDatePickerLabel": "Changer la date de tarification",
+    "pricingRefreshError": "Impossible d’actualiser les prix : {{detail}}",
+    "pricingStale_one": "Les prix datent de {{count}} jour",
+    "pricingStale_other": "Les prix datent de {{count}} jours",
     "resetPricingDate": "Réinitialiser sur la plus récente",
     "select": "Sélectionnez un groupe.",
     "allAccounts": "Tous les comptes",
@@ -1948,6 +1951,7 @@
     "everyMinute": "Toutes les minutes",
     "manual": "Manuel",
     "marketsClosed": "Marchés fermés",
+    "staleAge": "il y a {{days}} j",
     "addTicker": "Ajouter {{symbol}} à la liste de suivi",
     "removeTicker": "Retirer {{symbol}} de la liste de suivi"
   },
@@ -2315,6 +2319,7 @@
     "risk": "Risque",
     "volatility1y": "Volatilité (1 an)",
     "beta": "Bêta vs {{ticker}} (3 ans, hebdo)",
+    "betaNoBenchmark": "Bêta (3 ans, hebdo)",
     "providerBeta": "Bêta du fournisseur : {{value}}",
     "maxDrawdown": "Perte maximale",
     "history": "Historique",
@@ -2327,6 +2332,9 @@
     "ariaValuation": "Valorisation",
     "benchmark": "Indice de référence :",
     "exchangeDefault": ", par défaut pour la place de cotation",
+    "noComparableBenchmark": "aucun comparable",
+    "assetClass": "fonds {{assetClass}}",
+    "assetClassBasis": "fonds {{assetClass}} : {{basis}}",
     "dataQuality": "Qualité des données"
   },
   "instrumentTechnicals": {
@@ -3245,6 +3253,26 @@
     "noPlan": "Aucun plan d'investissement enregistré pour {{owner}} pour le moment.",
     "createPlan": "Créer un plan"
   },
+  "classify": {
+    "title": "Classer les positions",
+    "intro": "Ces positions n'ont pas de classe d'actifs, la page Stratégie ne peut donc pas les compter dans vos objectifs. Choisissez une classe pour chacune ; elle est enregistrée dans les métadonnées de l'instrument.",
+    "back": "Retour à Stratégie",
+    "noOwner": "Choisissez d'abord un titulaire sur la page Stratégie.",
+    "empty": "Chaque position a une classe d'actifs — rien à classer.",
+    "loadError": "Impossible de charger les positions de {{owner}} : {{error}}",
+    "saveError": "Échec de l'enregistrement : {{error}}",
+    "saved": "{{ticker}} enregistré comme {{assetClass}}.",
+    "choose": "Choisir…",
+    "selectLabel": "Classe d'actifs de {{ticker}}",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "noExchange": "Ce ticker n'a pas de suffixe de place ; définissez sa classe d'actifs dans l'administration des instruments.",
+    "col": {
+      "holding": "Position",
+      "value": "Valeur",
+      "assetClass": "Classe d'actifs"
+    }
+  },
   "strategy": {
     "title": "Stratégie",
     "intro": "Choisissez une allocation cible (une stratégie intégrée, une des vôtres ou des cibles personnalisées), puis comparez vos positions avec elle et voyez quelles opérations de rééquilibrage, ou quel versement, la ramèneraient dans votre bande de tolérance.",
@@ -3280,6 +3308,7 @@
       "underweight": "Sous-pondéré",
       "unclassified": "Non classé",
       "needsAssetClass": "Classe d'actifs requise",
+      "classifyLink": "Attribuer des classes d'actifs à ces positions",
       "totalLine": "Total {{total}} · tolérance ±{{tolerance}} pp",
       "sleeveTitle": "Écart — poche {{sleeve}}"
     },

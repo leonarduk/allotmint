@@ -41,8 +41,9 @@ AIGE_META = {
     "exchange": "L",
     "currency": "USD",
     "name": "WisdomTree Energy",
-    "price_source": {"ticker": "AIGE", "exchange": "MI", "currency": "EUR"},
+    "price_source": {"ticker": "AIGE", "exchange": "MI", "currency": "EUR", "reviewed": "2026-10-06"},
 }
+UNREVIEWED_META = {**AIGE_META, "price_source": {"ticker": "AIGE", "exchange": "MI", "currency": "EUR"}}
 
 
 @pytest.fixture(autouse=True)
@@ -130,6 +131,11 @@ def test_parse_reads_the_mode_and_defaults_to_fill_gaps():
     assert parse_price_source(primary, own="AIGE.L").mode == MODE_PRIMARY
 
 
+def test_parse_reads_the_reviewed_date():
+    assert parse_price_source(AIGE_META, own="AIGE.L").reviewed == date(2026, 10, 6)
+    assert parse_price_source(UNREVIEWED_META, own="AIGE.L").reviewed is None
+
+
 @pytest.mark.parametrize(
     ("block", "currency", "problem"),
     [
@@ -141,6 +147,8 @@ def test_parse_reads_the_mode_and_defaults_to_fill_gaps():
         ("AIGE.MI", "USD", "JSON object"),
         ({"ticker": "AIGE", "exchange": "MI", "mode": "first"}, "USD", "mode 'first'"),
         ({"ticker": "AIGE", "exchange": "MI", "mode": "PRIMARY"}, "USD", "mode 'PRIMARY'"),
+        ({"ticker": "AIGE", "exchange": "MI", "reviewed": "last week"}, "USD", "reviewed 'last week'"),
+        ({"ticker": "AIGE", "exchange": "MI", "reviewed": 20261006}, "USD", "reviewed 20261006"),
     ],
 )
 def test_validate_reports_bad_blocks(block, currency, problem):
@@ -303,6 +311,42 @@ def test_overlay_falls_back_to_stored_converted_rows_for_continuity(caplog):
     assert out.empty and "do not match" in caplog.text
 
 
+def test_overlay_refuses_a_cold_start_without_the_opt_in(caplog):
+    """No native or stored close at all: nothing has checked the listing (#9667)."""
+    days = pd.bdate_range("2026-09-01", periods=3)
+    native = _rows([], [])
+    converted = _rows(days, [5.0] * 3, source=LABEL)
+
+    with caplog.at_level(logging.WARNING):
+        out = overlay_alternate_listing(native, native, converted, label="AIGE.L")
+
+    assert out is native
+    assert "not reviewed" in caplog.text
+
+
+def test_overlay_uses_a_cold_start_with_the_opt_in():
+    days = pd.bdate_range("2026-09-01", periods=3)
+    native = _rows([], [])
+    converted = _rows(days, [5.0] * 3, source=LABEL)
+
+    out = overlay_alternate_listing(native, native, converted, label="AIGE.L", trust_cold_start=True)
+
+    assert out["Source"].tolist() == [LABEL] * 3
+
+
+def test_overlay_still_trusts_references_that_share_no_date(caplog):
+    """Native closes exist but none on a converted date: the declared listing is trusted, as before."""
+    days = pd.bdate_range("2026-09-01", periods=4)
+    native = _rows(days[:2], [5.0, 5.0])
+    converted = _rows(days[2:], [5.0, 5.0], source=LABEL)
+
+    with caplog.at_level(logging.INFO):
+        out = overlay_alternate_listing(native, native.iloc[:0], converted, label="AIGE.L")
+
+    assert out["Source"].tolist() == ["Yahoo", "Yahoo", LABEL, LABEL]
+    assert "trusting the declared listing" in caplog.text
+
+
 def test_overlay_without_converted_rows_returns_native_unchanged():
     native = _rows(["2026-09-01"], [5.0])
     assert overlay_alternate_listing(native, native, native.iloc[:0], label="AIGE.L") is native
@@ -374,6 +418,10 @@ def test_fetch_meta_timeseries_without_the_field_is_unchanged(monkeypatch):
 # ── fetch order: mode "primary" vs "fill_gaps" (#9712) ─────────
 
 PRIMARY_META = {**AIGE_META, "price_source": {**AIGE_META["price_source"], "mode": MODE_PRIMARY}}
+PRIMARY_UNREVIEWED_META = {
+    **UNREVIEWED_META,
+    "price_source": {**UNREVIEWED_META["price_source"], "mode": MODE_PRIMARY},
+}
 MI_CLOSE = 4.41  # 4.41 EUR * 0.85 / 0.75 = 4.998 USD
 
 
@@ -481,6 +529,30 @@ def test_primary_falls_back_to_the_whole_native_window_when_the_listing_fails(mo
     assert native.calls == [(days[0].date(), days[-1].date())]
     assert set(out["Source"]) == {"Yahoo"}
     assert "quoted in USD" in caplog.text
+
+
+@pytest.mark.parametrize("meta", [UNREVIEWED_META, PRIMARY_UNREVIEWED_META], ids=["fill_gaps", "primary"])
+def test_an_unreviewed_block_is_refused_on_a_cold_start(monkeypatch, caplog, meta):
+    days = pd.bdate_range("2026-09-01", periods=3)
+    _install_listing(monkeypatch, meta, days)  # nothing stored, nothing native
+    native = NativeChain()
+
+    with caplog.at_level(logging.WARNING):
+        out = fetch_with_price_source(native, "AIGE", "L", days[0].date(), days[-1].date())
+
+    assert out.empty
+    assert native.calls[-1] == (days[0].date(), days[-1].date())
+    assert "not reviewed" in caplog.text
+
+
+def test_an_unreviewed_block_is_trusted_past_the_end_of_stored_history(monkeypatch):
+    """An incremental refresh: no stored close in the window, but the instrument has history."""
+    days = pd.bdate_range("2026-09-01", periods=5)
+    _install_listing(monkeypatch, PRIMARY_UNREVIEWED_META, days[2:], stored=_rows(days[:2], [5.0, 5.0]))
+
+    out = fetch_with_price_source(NativeChain(), "AIGE", "L", days[2].date(), days[-1].date())
+
+    assert out["Source"].tolist() == [LABEL] * 3
 
 
 def test_fill_gaps_fetches_native_for_the_whole_window_then_overlays(monkeypatch):

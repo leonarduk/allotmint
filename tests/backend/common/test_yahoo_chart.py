@@ -112,3 +112,35 @@ def test_chart_quote_zero_previous_close_has_no_change_percent():
 def test_chart_quote_propagates_fetch_errors():
     with pytest.raises(RuntimeError, match="rate limited"):
         yahoo_chart.chart_quote(FakeChartTicker(error=RuntimeError("rate limited")))
+
+
+def test_chart_quote_treats_zero_and_nan_prices_as_missing():
+    """Yahoo zero-fills fields it has no data for; those must not reach callers as 0.00 (#7819)."""
+
+    metadata = {
+        "regularMarketPrice": 23999.0,
+        "chartPreviousClose": 24090.0,
+        "regularMarketDayHigh": 0,
+        "regularMarketDayLow": float("nan"),
+    }
+    history = pd.DataFrame({"Open": [0.0], "Close": [23999.0]})
+
+    info = yahoo_chart.chart_quote(FakeChartTicker(metadata, history))
+
+    assert info["regularMarketPrice"] == 23999.0
+    assert info["regularMarketChangePercent"] == pytest.approx((23999.0 - 24090.0) / 24090.0 * 100)
+    assert info["regularMarketOpen"] is None
+    assert info["regularMarketDayHigh"] is None
+    assert info["regularMarketDayLow"] is None
+
+
+def test_chart_quote_zero_price_falls_back_to_close_and_zero_chart_close_to_previous_close():
+    metadata = {"regularMarketPrice": 0, "chartPreviousClose": 0, "previousClose": 50.0}
+    history = pd.DataFrame({"Open": [48.0], "Close": [50.0]})
+
+    info = yahoo_chart.chart_quote(FakeChartTicker(metadata, history))
+
+    assert info["regularMarketPrice"] == 50.0
+    assert info["regularMarketPreviousClose"] == 50.0
+    # A genuinely flat session is still a real 0% change, not "missing".
+    assert info["regularMarketChangePercent"] == 0.0

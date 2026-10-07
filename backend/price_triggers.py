@@ -191,8 +191,10 @@ def update_trigger(user: str, trigger_id: str, **changes: Any) -> Dict[str, Any]
     """Amend a trigger. Only fields in ``_UPDATABLE`` are accepted.
 
     Changing what a trigger watches (ticker, condition, price, mode) or
-    re-enabling it re-arms it and, for a spent ``once`` trigger, lets it fire
-    again.
+    re-enabling it re-arms it. A spent ``once`` trigger (one that fired and
+    disabled itself) is also re-enabled by such an edit unless ``enabled`` is
+    passed explicitly, since moving a fired alert almost always means setting
+    a new one (#8588).
     """
     user = _clean_user(user)
     unknown = set(changes) - set(_UPDATABLE)
@@ -214,8 +216,12 @@ def update_trigger(user: str, trigger_id: str, **changes: Any) -> Dict[str, Any]
         provided = {k: cleaners[k](v) for k, v in changes.items() if v is not None or k == "note"}
         if not provided:
             raise TriggerError("no fields to update")
+        spent_once = row.get("mode") == "once" and not row.get("enabled") and bool(row.get("trigger_count"))
         row.update(provided)
-        if provided.keys() & {"ticker", "condition", "price", "mode", "enabled"}:
+        watch_changed = bool(provided.keys() & {"ticker", "condition", "price", "mode"})
+        if watch_changed and spent_once and "enabled" not in provided:
+            row["enabled"] = True
+        if watch_changed or "enabled" in provided:
             row["armed"] = True
         _save(data)
     return row

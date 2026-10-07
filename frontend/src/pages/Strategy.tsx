@@ -267,7 +267,19 @@ function driftLabel(row: RebalanceClassRow): string {
   return `${assetClassLabel(row.parent)} › ${row.label}`;
 }
 
-function DriftTable({ plan, title }: { plan: RebalancePlan; title?: string }) {
+/** The classify page, scoped to ``owner`` (#9495). */
+const classifyPath = (owner: string) =>
+  `/strategy/classify${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`;
+
+function DriftTable({
+  plan,
+  owner,
+  title,
+}: {
+  plan: RebalancePlan;
+  owner: string;
+  title?: string;
+}) {
   const { t } = useTranslation();
   const heading = title
     ? t('strategy.drift.sleeveTitle', { sleeve: title })
@@ -344,7 +356,13 @@ function DriftTable({ plan, title }: { plan: RebalancePlan; title?: string }) {
                 <td className="px-2 py-1 text-right">—</td>
                 <td className="px-2 py-1 text-right">—</td>
                 <td className="px-2 py-1 text-amber-600 dark:text-amber-400">
-                  {t('strategy.drift.needsAssetClass')}
+                  <Link
+                    to={classifyPath(owner)}
+                    className="underline"
+                    title={t('strategy.drift.classifyLink')}
+                  >
+                    {t('strategy.drift.needsAssetClass')}
+                  </Link>
                 </td>
               </tr>
             )}
@@ -600,13 +618,19 @@ function NewCashPlanner({
 }
 
 /** Drift and trades for every sleeve but the core, which the page shows first (#9813). */
-function OtherSleevePlans({ sleeves }: { sleeves?: RebalanceSleeveRow[] }) {
+function OtherSleevePlans({
+  sleeves,
+  owner,
+}: {
+  sleeves?: RebalanceSleeveRow[];
+  owner: string;
+}) {
   return (
     <>
       {(sleeves ?? []).map((row) =>
         row.plan ? (
           <div key={row.id}>
-            <DriftTable plan={row.plan} title={row.name} />
+            <DriftTable plan={row.plan} owner={owner} title={row.name} />
             {row.plan.notes.length > 0 && (
               <ul className="mb-6 list-disc pl-5 text-sm text-amber-700 dark:text-amber-300">
                 {row.plan.notes.map((note) => (
@@ -714,7 +738,7 @@ export default function Strategy() {
       )}
       {plan && (
         <>
-          <DriftTable plan={plan} title={coreTitle} />
+          <DriftTable plan={plan} owner={selectedOwner} title={coreTitle} />
           {plan.notes.length > 0 && (
             <ul
               className="mb-6 list-disc pl-5 text-sm text-amber-700 dark:text-amber-300"
@@ -739,7 +763,7 @@ export default function Strategy() {
           ) : (
             <EmptyState message={t('strategy.emptyPolicy')} />
           )}
-          <OtherSleevePlans sleeves={plan.sleeves} />
+          <OtherSleevePlans sleeves={plan.sleeves} owner={selectedOwner} />
         </>
       )}
     </div>

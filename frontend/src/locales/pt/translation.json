@@ -446,6 +446,9 @@
     "atAGlance": "Visão geral",
     "pricingAsOf": "Preços em {{date}}",
     "pricingDatePickerLabel": "Alterar data de preços",
+    "pricingRefreshError": "Não foi possível atualizar os preços: {{detail}}",
+    "pricingStale_one": "Os preços têm {{count}} dia",
+    "pricingStale_other": "Os preços têm {{count}} dias",
     "resetPricingDate": "Repor para o mais recente",
     "select": "Selecione um grupo.",
     "allAccounts": "Todas as contas",
@@ -1948,6 +1951,7 @@
     "everyMinute": "A cada minuto",
     "manual": "Manual",
     "marketsClosed": "Mercados fechados",
+    "staleAge": "há {{days}} d",
     "addTicker": "Adicionar {{symbol}} à lista de observação",
     "removeTicker": "Remover {{symbol}} da lista de observação"
   },
@@ -2315,6 +2319,7 @@
     "risk": "Risco",
     "volatility1y": "Volatilidade (1 a)",
     "beta": "Beta vs {{ticker}} (3 a, semanal)",
+    "betaNoBenchmark": "Beta (3 a, semanal)",
     "providerBeta": "Beta do fornecedor: {{value}}",
     "maxDrawdown": "Perda máxima",
     "history": "Histórico",
@@ -2327,6 +2332,9 @@
     "ariaValuation": "Avaliação",
     "benchmark": "Índice de referência:",
     "exchangeDefault": ", predefinido para a bolsa de cotação",
+    "noComparableBenchmark": "nenhum comparável",
+    "assetClass": "fundo {{assetClass}}",
+    "assetClassBasis": "fundo {{assetClass}}: {{basis}}",
     "dataQuality": "Qualidade dos dados"
   },
   "instrumentTechnicals": {
@@ -3245,6 +3253,26 @@
     "noPlan": "Ainda não há um plano de investimento guardado para {{owner}}.",
     "createPlan": "Criar plano"
   },
+  "classify": {
+    "title": "Classificar posições",
+    "intro": "Estas posições não têm classe de ativos, por isso a página Estratégia não as conta para as suas metas. Escolha uma classe para cada uma; é guardada nos metadados do instrumento.",
+    "back": "Voltar à Estratégia",
+    "noOwner": "Escolha primeiro um titular na página Estratégia.",
+    "empty": "Todas as posições têm classe de ativos — nada a classificar.",
+    "loadError": "Não foi possível carregar as posições de {{owner}}: {{error}}",
+    "saveError": "Não foi possível guardar: {{error}}",
+    "saved": "{{ticker}} guardado como {{assetClass}}.",
+    "choose": "Escolher…",
+    "selectLabel": "Classe de ativos de {{ticker}}",
+    "save": "Guardar",
+    "saving": "A guardar…",
+    "noExchange": "Este ticker não tem sufixo de bolsa; defina a classe de ativos na administração de instrumentos.",
+    "col": {
+      "holding": "Posição",
+      "value": "Valor",
+      "assetClass": "Classe de ativos"
+    }
+  },
   "strategy": {
     "title": "Estratégia",
     "intro": "Escolha uma alocação-alvo (uma estratégia integrada, uma sua ou metas personalizadas), compare as suas posições com ela e veja que operações de reequilíbrio, ou que contribuição, a trariam de volta à sua banda de tolerância.",
@@ -3280,6 +3308,7 @@
       "underweight": "Subponderado",
       "unclassified": "Não classificado",
       "needsAssetClass": "Requer uma classe de ativos",
+      "classifyLink": "Atribuir classes de ativos a estas posições",
       "totalLine": "Total {{total}} · tolerância ±{{tolerance}} pp",
       "sleeveTitle": "Desvio — bloco {{sleeve}}"
     },

@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { formatDateISO } from "@/lib/date";
+import { transactionUnits } from "@/lib/transactionQuantity";
 import tableStyles from "@/styles/table.module.css";
 import type { Transaction } from "@/types";
 import { getOwnerDisplayName } from "@/utils/owners";
@@ -190,7 +191,7 @@ export function TransactionsTable({
                     {formatTransactionAmount(transaction, format)}
                   </td>
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {transaction.shares ?? transaction.units ?? ""}
+                    {transactionUnits(transaction) ?? ""}
                   </td>
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right} ${gain.className}`}

@@ -86,6 +86,8 @@ export const holdingContractSchema = z.object({
   instrument_type: nullableString.optional(),
   sector: nullableString.optional(),
   region: nullableString.optional(),
+  // Fund domicile; `region` is where the money is invested (#9296).
+  domicile_region: nullableString.optional(),
   forward_7d_change_pct: nullableNumber.optional(),
   forward_30d_change_pct: nullableNumber.optional(),
   days_held: nullableNumber.optional(),

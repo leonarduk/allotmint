@@ -324,3 +324,35 @@ def test_unrounded_sub_one_bar_is_not_mistaken_for_flat():
     flat = df.copy()
     flat.loc[1, ["Open", "High", "Low", "Close"]] = 0.9416
     assert drop_zero_volume_spikes(flat, ticker="BPCR", exchange="L")["Close"].tolist() == [0.80, 0.80]
+
+
+def _reference_sources(values) -> list[str]:
+    """The per-row normalisation ``_normalised_sources`` must match (#3424)."""
+    return ["" if pd.api.types.is_scalar(v) and pd.isna(v) else str(v).strip().lower() for v in values]
+
+
+@pytest.mark.parametrize(
+    "sources",
+    [
+        ["Yahoo", " stooq ", "YAHOO", "", "Stooq"],
+        ["Stooq", None, np.nan, "Yahoo", None],
+        pd.array(["Stooq", pd.NA, " Yahoo", pd.NA, "stooq"], dtype="string"),
+        pd.array(["Stooq", None, "Yahoo", "Yahoo", "Stooq"], dtype="str"),
+        [None, None, None, None, None],
+        [1, "1", "Ft", "ft ", np.nan],
+    ],
+)
+def test_normalised_sources_matches_per_row_normalisation(sources):
+    from backend.timeseries.outlier_guard import _normalised_sources
+
+    df = _frame([1.0] * 5, [0] * 5, sources=sources)
+    out = _normalised_sources(df)
+    assert out.dtype == object
+    assert out.tolist() == _reference_sources(df["Source"])
+    assert all(type(label) is str for label in out)
+
+
+def test_normalised_sources_empty_frame():
+    from backend.timeseries.outlier_guard import _normalised_sources
+
+    assert _normalised_sources(pd.DataFrame({"Source": pd.Series([], dtype=object)})).tolist() == []

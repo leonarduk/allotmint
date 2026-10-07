@@ -3096,6 +3096,7 @@
     "retryingConfig": "Loading... retrying configuration.",
     "loadingConfig": "Loading configuration...",
     "configLoadFailed": "Unable to load configuration.",
+    "serverUnreachable": "Can't reach the AllotMint server at {{url}}.",
     "checkConnection": "Please check your connection and try again.",
     "googleNotConfigured": "Google login is not configured.",
     "loading": "Loading...",

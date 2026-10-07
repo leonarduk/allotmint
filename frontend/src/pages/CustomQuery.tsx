@@ -18,20 +18,21 @@ import {
   getOwnerDisplayName,
 } from "../utils/owners";
 
-// Issue #7202: the metric *values* sent to the backend must stay the
-// existing snake_case identifiers (they round-trip through the
-// `?metrics=...` query string and the custom-query API contract) — only the
-// human-facing label changes, via the i18n keys below.
-//
-// Separately (filed as issue #7380): the backend's `/custom-query/run`
-// route only ever accepts `metrics: ["var", "meta"]` via a Pydantic enum —
-// neither of these two values is currently valid there, so submitting
-// either one is rejected with a 422 today. That's a pre-existing backend
-// contract gap, independent of this UI change, which only touches labels.
+// Metric values are the backend's `Metric` enum (backend/routes/query.py);
+// they round-trip through the `?metrics=...` share link and saved queries.
+// The first two give one row per owner and ticker; the last two are
+// per-ticker and are merged onto those rows when combined (#7380).
 const METRIC_OPTIONS: { value: string; labelKey: string }[] = [
   { value: "market_value_gbp", labelKey: "query.metricMarketValueGbp" },
   { value: "gain_gbp", labelKey: "query.metricGainGbp" },
+  { value: "var", labelKey: "query.metricVar" },
+  { value: "meta", labelKey: "query.metricMeta" },
 ];
+
+// Share-link list values: owner slugs and metrics are word characters and
+// hyphens; tickers also carry an exchange suffix (`ADM.L`, `PBR-A.N`).
+const LINK_ITEM = /^[\w-]+$/;
+const LINK_TICKER = /^[\w.-]+$/;
 
 type ResultRow = Record<string, string | number>;
 
@@ -94,6 +95,9 @@ export function CustomQuery() {
   const [rows, setRows] = useState<ResultRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  // Bumped after a save so the Saved Queries list re-fetches.
+  const [savedVersion, setSavedVersion] = useState(0);
 
   // Issue #7202: the Tickers control used to offer a hardcoded, fictional
   // list ("AAA"/"BBB"/"CCC"). Instead, scope the offered tickers to whatever
@@ -180,9 +184,9 @@ export function CustomQuery() {
     const schema = z.object({
       start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-      owners: z.array(z.string().regex(/^[\w-]+$/)).optional(),
-      tickers: z.array(z.string().regex(/^[\w-]+$/)).optional(),
-      metrics: z.array(z.string().regex(/^[\w-]+$/)).optional(),
+      owners: z.array(z.string().regex(LINK_ITEM)).optional(),
+      tickers: z.array(z.string().regex(LINK_TICKER)).optional(),
+      metrics: z.array(z.string().regex(LINK_ITEM)).optional(),
     });
     const parsed = schema.safeParse(raw);
     if (parsed.success) {
@@ -232,8 +236,8 @@ export function CustomQuery() {
     }
   }
 
-  function handleSave() {
-    const name = window.prompt("Save query as:");
+  async function handleSave() {
+    const name = window.prompt(t("query.savePrompt"));
     if (!name) return;
     const params: CustomQueryParams = {
       start,
@@ -242,7 +246,15 @@ export function CustomQuery() {
       tickers: selectedTickers,
       metrics,
     };
-    void saveCustomQuery(name, params);
+    try {
+      await saveCustomQuery(name, params);
+      setSaveStatus(t("query.saved", { name }));
+      setSavedVersion((v) => v + 1);
+    } catch (e) {
+      setSaveStatus(
+        t("query.saveFailed", { error: e instanceof Error ? e.message : String(e) }),
+      );
+    }
   }
 
   function buildCopyLink() {
@@ -401,11 +413,14 @@ export function CustomQuery() {
               {t(labelKey)}
             </label>
           ))}
+          {metrics.includes("gain_gbp") && (
+            <p className="text-sm">{t("query.gainNote")}</p>
+          )}
         </fieldset>
         <button type="submit" disabled={loading} className="mr-2">
           {loading ? t("query.running") : t("query.run")}
         </button>
-        <button type="button" onClick={handleSave} className="mr-2">
+        <button type="button" onClick={() => void handleSave()} className="mr-2">
           {t("query.save")}
         </button>
         <button type="button" onClick={handleCopyLink} className="mr-2">
@@ -418,6 +433,7 @@ export function CustomQuery() {
           </span>
         )}
       </form>
+      {saveStatus && <p role="status">{saveStatus}</p>}
       {error && <p className="text-red-500">{error}</p>}
       {safeRows.length > 0 && (
         <table className="w-full border-collapse">
@@ -458,7 +474,7 @@ export function CustomQuery() {
           </tbody>
         </table>
       )}
-      <SavedQueries onLoad={loadSaved} />
+      <SavedQueries onLoad={loadSaved} refreshKey={savedVersion} />
     </div>
   );
 }

@@ -6,18 +6,20 @@ import io
 import json
 import os
 import re
-from datetime import date
+from datetime import date, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import Iterator, List, Optional
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
+from backend.common.account_scaffold import load_transactions
+from backend.common.holding_utils import _get_price_for_date_scaled
 from backend.common.path_utils import safe_join
-from backend.common.portfolio_loader import list_portfolios
+from backend.common.portfolio_loader import get_units_as_of, list_portfolios
 from backend.common.portfolio_utils import compute_var_with_basis, get_security_meta
 from backend.config import config, demo_identity
 from backend.timeseries.cache import load_meta_timeseries_range
@@ -33,6 +35,13 @@ QUERIES_PREFIX = "queries/"
 class Metric(str, Enum):
     VAR = "var"
     META = "meta"
+    # Per (owner, ticker) holding metrics (#7380), valued in GBP from the
+    # stored ``Close_gbp`` series -- see ``_holding_rows``.
+    MARKET_VALUE_GBP = "market_value_gbp"
+    GAIN_GBP = "gain_gbp"
+
+
+HOLDING_METRICS = (Metric.MARKET_VALUE_GBP, Metric.GAIN_GBP)
 
 
 class CustomQuery(BaseModel):
@@ -82,12 +91,15 @@ def _seeded_fixture_slugs() -> set[str]:
     return {_DEMO_SLUG_FIXTURE_FILENAME, f"{demo_identity().lower()}-slug"}
 
 
-def _resolve_tickers(q: CustomQuery) -> List[str]:
-    tickers: set[str] = set()
-    if q.tickers:
-        tickers.update(t.upper() for t in q.tickers)
+def _iter_holdings(q: CustomQuery) -> Iterator[tuple[str, str, dict]]:
+    """Yield ``(owner, TICKER, holding)`` for every holding in the query's scope.
 
+    No owners selected means every owner; no tickers selected means every
+    ticker those owners hold. Selected tickers *restrict* the result -- they
+    are not added on top of the owners' holdings.
+    """
     owners_filter = {o.lower() for o in q.owners} if q.owners else None
+    tickers_filter = {t.upper() for t in q.tickers} if q.tickers else None
     for pf in list_portfolios():
         owner_slug = (pf.get("owner") or "").lower()
         if owners_filter is not None and owner_slug not in owners_filter:
@@ -95,10 +107,212 @@ def _resolve_tickers(q: CustomQuery) -> List[str]:
         for acct in pf.get("accounts", []):
             for h in acct.get("holdings", []):
                 t = (h.get("ticker") or "").upper()
-                if t:
-                    tickers.add(t)
+                if t and (tickers_filter is None or t in tickers_filter):
+                    yield owner_slug, t, h
 
-    return sorted(tickers)
+
+def _resolve_tickers(q: CustomQuery) -> List[str]:
+    """Tickers for the per-ticker metrics.
+
+    With owners selected: the tickers those owners hold, narrowed to the
+    selected tickers if any. With only tickers selected: exactly those, held
+    or not (the page lets a share link carry a ticker nobody holds). With
+    neither: everything held.
+    """
+    if q.tickers and not q.owners:
+        return sorted({t.upper() for t in q.tickers})
+    return sorted({t for _owner, t, _h in _iter_holdings(q)})
+
+
+_PRICE_LOOKBACK_DAYS = 7
+
+
+def _gbp_price(ticker: str, holding: dict, on: date) -> float | None:
+    """GBP close for ``ticker`` on ``on``, else the latest usable close in the week before.
+
+    The single-day lookup already walks back over a missing day, but a stored
+    row with an empty close (e.g. a partial Yahoo bar for the current day)
+    stops it there, so step back a day at a time past such rows.
+    """
+    sym, _, suffix = ticker.partition(".")
+    exch = (holding.get("exchange") or suffix or "L").upper()
+    if sym == "CASH":
+        # Cash is 1.0 per unit of its own currency; only sterling cash is 1.0
+        # in GBP, so leave other currencies unvalued rather than wrong.
+        return 1.0 if exch == "GBP" else None
+    for back in range(_PRICE_LOOKBACK_DAYS + 1):
+        price, _src = _get_price_for_date_scaled(sym, exch, on - timedelta(days=back))
+        if price is not None:
+            return price
+    return None
+
+
+def _owner_transactions(owner: str, cache: dict[str, dict | None]) -> dict | None:
+    """``{"transactions": [...]}`` for ``owner`` (all accounts), or ``None`` if there are none."""
+    if owner not in cache:
+        try:
+            cache[owner] = {"transactions": load_transactions(owner)}
+        except FileNotFoundError:
+            cache[owner] = None
+    return cache[owner]
+
+
+def _range_units(tx: dict | None, ticker: str, units_now: float, q: CustomQuery) -> tuple[float | None, float | None]:
+    """``(units held at q.end, units held at q.start)`` for ``ticker``.
+
+    Both come from replaying ``tx``, but only when that replay is trusted:
+    replayed up to *today* it must reproduce the units held now (it is the
+    current holdings it is checked against, so today -- not ``q.end`` -- is
+    the right anchor). Otherwise the start is unknown (``None``), and the
+    current units stand in for the end only when the range ends today: for a
+    range ending in the past they would be a guess, so the end is unknown too.
+    """
+    if tx is not None:
+        replayed_now = get_units_as_of(tx, ticker, date.today().isoformat())
+        if abs(replayed_now - units_now) <= 1e-6 * max(1.0, abs(units_now)):
+            end_units = max(get_units_as_of(tx, ticker, q.end.isoformat()), 0.0)
+            start_units = max(get_units_as_of(tx, ticker, q.start.isoformat()), 0.0)
+            return end_units, start_units
+    return (units_now if q.end >= date.today() else None), None
+
+
+_ACQUIRE_TYPES = {"BUY", "PURCHASE", "TRANSFER_IN"}
+
+
+def _acquisition_value(t: dict, ticker: str, holding: dict, units: float, when: str) -> float | None:
+    """GBP an in-range acquisition entered the position at: its recorded amount,
+    else (a transfer in carries none) its units at that day's close."""
+    if t.get("amount_minor") is not None:
+        return abs(float(t["amount_minor"])) / 100
+    price = _gbp_price(ticker, holding, date.fromisoformat(when))
+    return units * price if price is not None else None
+
+
+def _range_buy_unit_cost(tx: dict, ticker: str, holding: dict, q: CustomQuery) -> float | None:
+    """Average GBP per unit of ``ticker`` acquired inside the range, from ``tx``.
+
+    Buys count at what was paid; a transfer in at the close on its date, as
+    if bought then. ``None`` when nothing was acquired in the range or an
+    acquisition can't be valued, so the caller falls back to the position's
+    pooled average cost.
+    """
+    start, end = q.start.isoformat(), q.end.isoformat()
+    units = paid = 0.0
+    for t in tx.get("transactions", []):
+        if (t.get("type") or "").upper() not in _ACQUIRE_TYPES or (t.get("ticker") or "").upper() != ticker:
+            continue
+        when = str(t.get("date") or "")[:10]
+        if not start < when <= end:
+            continue
+        # A one-transaction replay (as_of = its own date, inclusive) reuses
+        # get_units_as_of's quantity parsing, including the PP 1e8 scaling.
+        t_units = get_units_as_of({"transactions": [t]}, ticker, when)
+        value = _acquisition_value(t, ticker, holding, t_units, when)
+        if value is None:
+            return None
+        units += t_units
+        paid += value
+    return paid / units if units > 0 else None
+
+
+def _start_value(
+    end_units: float, start_units: float | None, start_price: float | None, unit_cost: float | None
+) -> float | None:
+    """GBP value the position held at ``q.end`` "started" the range at.
+
+    Of those ``end_units``, the ones already held at ``q.start`` count at the
+    start-date price; the rest were bought inside the range and count at
+    ``unit_cost``, so their gain runs from what was paid, not from a date they
+    weren't yet held. Without a trusted replay, every unit counts at the
+    start-date price.
+    """
+    if start_units is None:
+        return end_units * start_price if start_price is not None else None
+    held = min(start_units, end_units)
+    held_value = held * start_price if start_price is not None else None
+    if held <= 0:
+        held_value = 0.0
+    bought = end_units - held
+    if bought <= 1e-9:
+        return held_value
+    return _add_or_none(held_value, bought * unit_cost if unit_cost is not None else None)
+
+
+def _unit_cost(acc: dict, tx: dict | None, ticker: str, q: CustomQuery) -> float | None:
+    """GBP per unit for units bought inside the range: what those buys cost, else the pooled average."""
+    paid = _range_buy_unit_cost(tx, ticker, acc["holding"], q) if tx is not None else None
+    if paid is not None:
+        return paid
+    cost, units_now = acc["cost"], acc["units"]
+    return cost / units_now if cost is not None and units_now > 0 else None
+
+
+def _add_or_none(total: float | None, value: float | None) -> float | None:
+    return None if total is None or value is None else total + value
+
+
+def _round_or_none(value: float | None) -> float | None:
+    return None if value is None else round(value, 2)
+
+
+def _aggregate_holdings(q: CustomQuery) -> dict[tuple[str, str], dict]:
+    """``(owner, ticker) -> {units, cost, holding}`` summed over the owner's accounts."""
+    agg: dict[tuple[str, str], dict] = {}
+    for owner, ticker, h in _iter_holdings(q):
+        acc = agg.setdefault((owner, ticker), {"units": 0.0, "cost": 0.0, "holding": h})
+        acc["units"] += float(h.get("units") or 0)
+        cost = h.get("cost_basis_gbp")
+        acc["cost"] = _add_or_none(acc["cost"], float(cost) if cost is not None else None)
+    return agg
+
+
+def _unknown_row(owner: str, ticker: str, q: CustomQuery) -> dict:
+    """A row whose units at ``q.end`` can't be established: every value unknown."""
+    row: dict = {"owner": owner, "ticker": ticker, "units": None}
+    if Metric.MARKET_VALUE_GBP in q.metrics:
+        row[Metric.MARKET_VALUE_GBP.value] = None
+    if Metric.GAIN_GBP in q.metrics:
+        row["start_value_gbp"] = None
+        row[Metric.GAIN_GBP.value] = None
+    return row
+
+
+def _holding_row(owner: str, ticker: str, acc: dict, q: CustomQuery, tx_cache: dict) -> dict:
+    tx = _owner_transactions(owner, tx_cache)
+    end_units, start_units = _range_units(tx, ticker, acc["units"], q)
+    if end_units is None:
+        return _unknown_row(owner, ticker, q)
+    row: dict = {"owner": owner, "ticker": ticker, "units": round(end_units, 4)}
+    end_price = _gbp_price(ticker, acc["holding"], q.end) if end_units > 0 else 0.0
+    end_value = end_units * end_price if end_price is not None else None
+    if Metric.MARKET_VALUE_GBP in q.metrics:
+        row[Metric.MARKET_VALUE_GBP.value] = _round_or_none(end_value)
+    if Metric.GAIN_GBP in q.metrics:
+        needs_start_price = start_units is None or min(start_units, end_units) > 0
+        start_price = _gbp_price(ticker, acc["holding"], q.start) if needs_start_price else None
+        unit_cost = _unit_cost(acc, tx if start_units is not None else None, ticker, q)
+        start_value = _start_value(end_units, start_units, start_price, unit_cost)
+        row["start_value_gbp"] = _round_or_none(start_value)
+        gain = None if end_value is None or start_value is None else end_value - start_value
+        row[Metric.GAIN_GBP.value] = _round_or_none(gain)
+    return row
+
+
+def _holding_rows(q: CustomQuery) -> List[dict]:
+    """One row per (owner, ticker) currently held, summing that owner's accounts.
+
+    ``units`` and the values are for the position held at ``q.end`` (replayed
+    from the owner's transactions; the current units when that replay can't
+    be trusted). ``gain_gbp`` is that position's gain over the range (see
+    ``_start_value``); a sale inside the range is not counted as realised
+    gain. A position sold out completely before today has no current holding
+    and so no row, even for a range it was held in. Any unpriced component
+    leaves the value ``None`` rather than understating it.
+    """
+    tx_cache: dict[str, dict | None] = {}
+    return [
+        _holding_row(owner, ticker, acc, q, tx_cache) for (owner, ticker), acc in sorted(_aggregate_holdings(q).items())
+    ]
 
 
 def _save_query_local(slug: str, q: CustomQuery) -> None:
@@ -207,60 +421,111 @@ def _load_query_s3(slug: str) -> dict:
     return json.loads(txt)
 
 
-@router.post("/run")
-def run_query(q: CustomQuery):
-    tickers = _resolve_tickers(q)
-    if not tickers:
-        return {"results": []}
+def _ticker_fields(t: str, q: CustomQuery) -> dict:
+    """The per-ticker metrics (VaR, security metadata) for ``t``."""
+    sym, exch = (t.split(".", 1) + ["L"])[:2]
+    fields: dict = {}
+    if Metric.VAR in q.metrics:
+        df = load_meta_timeseries_range(sym, exch, start_date=q.start, end_date=q.end)
+        # VaR from total returns (#9370); return_basis says "price" when the
+        # ticker has no stored corporate actions.
+        var, basis = compute_var_with_basis(df, ticker=sym, exchange=exch)
+        fields[Metric.VAR.value] = var
+        fields["return_basis"] = basis
+    if Metric.META in q.metrics:
+        fields.update(get_security_meta(t) or {})
+    return fields
 
-    needs_timeseries = Metric.VAR in q.metrics
 
-    rows = []
-    for t in tickers:
-        sym, exch = (t.split(".", 1) + ["L"])[:2]
-        df = None
-        if needs_timeseries:
-            df = load_meta_timeseries_range(
-                sym,
-                exch,
-                start_date=q.start,
-                end_date=q.end,
-            )
-        row = {"ticker": t}
-        if needs_timeseries:
-            # VaR from total returns (#9370); return_basis says "price" when the
-            # ticker has no stored corporate actions.
-            var, basis = compute_var_with_basis(df, ticker=sym, exchange=exch)
-            row[Metric.VAR.value] = var
-            row["return_basis"] = basis
-        if Metric.META in q.metrics:
-            meta = get_security_meta(t) or {}
-            row.update(meta)
-        rows.append(row)
+def _query_rows(q: CustomQuery) -> List[dict]:
+    """Rows for ``q``: per (owner, ticker) when a holding metric is asked for, else per ticker."""
+    if any(m in q.metrics for m in HOLDING_METRICS):
+        rows = _holding_rows(q)
+    else:
+        rows = [{"ticker": t} for t in _resolve_tickers(q)]
+    cache: dict[str, dict] = {}
+    for row in rows:
+        t = row["ticker"]
+        if t not in cache:
+            cache[t] = _ticker_fields(t, q)
+        row.update(cache[t])
+    return rows
 
-    if q.name:
-        slug = _slugify(q.name)
-        if config.app_env == "aws":
-            try:
-                _save_query_s3(slug, q)
-            except HTTPException:
-                _save_query_local(slug, q)
-        else:
-            _save_query_local(slug, q)
 
-    if q.format == "csv":
-        df = pd.DataFrame(rows)
-        return PlainTextResponse(df.to_csv(index=False), media_type="text/csv")
-    if q.format == "xlsx":
-        df = pd.DataFrame(rows)
+def _persist_query(slug: str, q: CustomQuery) -> None:
+    if config.app_env == "aws":
+        try:
+            _save_query_s3(slug, q)
+            return
+        except HTTPException:
+            pass
+    _save_query_local(slug, q)
+
+
+def _render(rows: List[dict], fmt: str | None):
+    if fmt == "csv":
+        return PlainTextResponse(
+            pd.DataFrame(rows).to_csv(index=False),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=custom-query.csv"},
+        )
+    if fmt == "xlsx":
         buf = io.BytesIO()
-        df.to_excel(buf, index=False)
+        pd.DataFrame(rows).to_excel(buf, index=False)
         buf.seek(0)
         return StreamingResponse(
             buf,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=custom-query.xlsx"},
         )
     return {"results": rows}
+
+
+@router.post("/run")
+def run_query(q: CustomQuery):
+    rows = _query_rows(q)
+    if q.name:
+        _persist_query(_slugify(q.name), q)
+    return _render(rows, q.format)
+
+
+def _csv_list(value: str | None) -> List[str] | None:
+    items = [v.strip() for v in (value or "").split(",") if v.strip()]
+    return items or None
+
+
+@router.get("/run")
+def run_query_get(
+    start: date,
+    end: date,
+    owners: str | None = None,
+    tickers: str | None = None,
+    metrics: str | None = None,
+    format: str = "json",
+):
+    """``POST /run`` as a GET with comma-separated lists, so the page's export links can download."""
+    try:
+        q = CustomQuery(
+            start=start,
+            end=end,
+            owners=_csv_list(owners),
+            tickers=_csv_list(tickers),
+            metrics=_csv_list(metrics) or [],
+            format=format,
+        )
+    except ValidationError as exc:
+        raise HTTPException(422, exc.errors(include_url=False, include_context=False)) from exc
+    return _render(_query_rows(q), q.format)
+
+
+@router.post("/save")
+def save_named_query(q: CustomQuery):
+    """Save ``q`` under the slug of its ``name`` (the page's "Save" button)."""
+    slug = _slugify(q.name or "")
+    if not slug:
+        raise HTTPException(400, "A query name is required")
+    _persist_query(slug, q)
+    return {"id": slug, "saved": slug}
 
 
 def _format_saved_query(slug: str, payload: dict) -> dict:
@@ -325,13 +590,5 @@ def load_query(slug: str):
 
 @router.post("/{slug}")
 def save_query(slug: str, q: CustomQuery):
-    if config.app_env == "aws":
-        try:
-            _save_query_s3(slug, q)
-        except HTTPException:
-            _save_query_local(slug, q)
-        else:
-            return {"saved": slug}
-    else:
-        _save_query_local(slug, q)
+    _persist_query(slug, q)
     return {"saved": slug}

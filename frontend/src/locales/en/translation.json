@@ -1483,6 +1483,20 @@
     },
     "tips": {
       "infoLabel": "What does {{column}} mean?"
+    },
+    "saved": {
+      "label": "Saved screens",
+      "choose": "— choose a screen —",
+      "none": "— none saved yet —",
+      "saveAs": "Save as…",
+      "update": "Update",
+      "rename": "Rename",
+      "delete": "Delete",
+      "promptSave": "Save screen as:",
+      "promptRename": "Rename screen to:",
+      "confirmOverwrite": "Replace the existing screen \"{{name}}\"?",
+      "confirmDelete": "Delete the screen \"{{name}}\"?",
+      "nameTaken": "A screen called \"{{name}}\" already exists."
     }
   },
   "dataadmin": {

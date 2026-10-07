@@ -1489,6 +1489,20 @@
     },
     "tips": {
       "infoLabel": "Was bedeutet {{column}}?"
+    },
+    "saved": {
+      "label": "Gespeicherte Screens",
+      "choose": "— Screen wählen —",
+      "none": "— noch keine gespeichert —",
+      "saveAs": "Speichern unter…",
+      "update": "Aktualisieren",
+      "rename": "Umbenennen",
+      "delete": "Löschen",
+      "promptSave": "Screen speichern als:",
+      "promptRename": "Screen umbenennen in:",
+      "confirmOverwrite": "Vorhandenen Screen „{{name}}“ ersetzen?",
+      "confirmDelete": "Screen „{{name}}“ löschen?",
+      "nameTaken": "Ein Screen namens „{{name}}“ existiert bereits."
     }
   },
   "dataadmin": {

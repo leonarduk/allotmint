@@ -6,6 +6,8 @@ import { useSortableTable } from "../hooks/useSortableTable";
 import { InstrumentDetail } from "../components/InstrumentDetail";
 import InfoTip from "../components/InfoTip";
 import WatchlistToggle from "../components/WatchlistToggle";
+import SavedScreensBar from "../components/SavedScreensBar";
+import type { SavedScreen } from "../lib/savedScreensStore";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import i18n from "../i18n";
 
@@ -129,6 +131,24 @@ function toCriteria(filters: FilterValues): ScreenerCriteria {
   return criteria;
 }
 
+// A saved screen may predate a renamed watchlist or a removed filter; keep
+// only what the current form understands.
+function screenToForm(screen: SavedScreen): {
+  watchlist: WatchlistName | "Custom";
+  filters: FilterValues;
+} {
+  const watchlist =
+    screen.watchlist === "Custom" || screen.watchlist in WATCHLISTS
+      ? (screen.watchlist as WatchlistName | "Custom")
+      : "Custom";
+  const filters: FilterValues = {};
+  for (const { param } of FILTER_FIELDS) {
+    const value = screen.filters[param];
+    if (typeof value === "string") filters[param] = value;
+  }
+  return { watchlist, filters };
+}
+
 export function Screener() {
   const [watchlist, setWatchlist] = useState<WatchlistName | "Custom">(
     DEFAULT_WATCHLIST,
@@ -244,6 +264,18 @@ export function Screener() {
       >
         {statusMessage}
       </p>
+
+      {screenerAvailable === true && (
+        <SavedScreensBar
+          current={{ watchlist, tickers, filters: filters as Record<string, string> }}
+          onLoad={(screen) => {
+            const form = screenToForm(screen);
+            setWatchlist(form.watchlist);
+            setTickers(screen.tickers);
+            setFilters(form.filters);
+          }}
+        />
+      )}
 
       {screenerAvailable === true && (
         <form

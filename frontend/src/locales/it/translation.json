@@ -1489,6 +1489,20 @@
     },
     "tips": {
       "infoLabel": "Cosa significa {{column}}?"
+    },
+    "saved": {
+      "label": "Filtri salvati",
+      "choose": "— scegli un filtro —",
+      "none": "— nessuno salvato —",
+      "saveAs": "Salva come…",
+      "update": "Aggiorna",
+      "rename": "Rinomina",
+      "delete": "Elimina",
+      "promptSave": "Salva filtro come:",
+      "promptRename": "Rinomina filtro in:",
+      "confirmOverwrite": "Sostituire il filtro esistente \"{{name}}\"?",
+      "confirmDelete": "Eliminare il filtro \"{{name}}\"?",
+      "nameTaken": "Esiste già un filtro chiamato \"{{name}}\"."
     }
   },
   "dataadmin": {

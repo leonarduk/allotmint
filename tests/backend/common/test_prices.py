@@ -385,13 +385,13 @@ def test_snapshot_deploy_ordering_claims_hold() -> None:
     assert sync_idx < names.index("Deploy BackendLambdaStack")
     sync_run = steps[sync_idx]["run"]
     assert 'aws s3 sync "s3://$DATA_BUCKET/" data/' in sync_run
-    assert '--exclude "scaling_overrides.json"' in sync_run
+    assert '--exclude "*scaling_overrides.json"' in sync_run
     # No other step may sync or copy into data/ ahead of the deploy without
     # the same exclude.
     for step in steps[: names.index("Deploy BackendLambdaStack")]:
         run = step.get("run", "")
         if "aws s3 sync" in run or "aws s3 cp" in run:
-            assert '--exclude "scaling_overrides.json"' in run, step.get("name")
+            assert '--exclude "*scaling_overrides.json"' in run, step.get("name")
 
 
 def test_data_root_override_table_wins_over_bundled_table(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -45,10 +45,9 @@ and CDK publishes a new ``currentVersion``. Caveat: before the image build,
 the "Sync data from S3" step of ``.github/workflows/deploy-lambda.yml`` runs
 ``aws s3 sync`` from ``DATA_BUCKET`` into ``data/``, which would overwrite
 any file the bucket also holds. That step passes
-``--exclude "scaling_overrides.json"``, which AWS CLI matches against the key
-path relative to the bucket root, so it skips only the bucket-root copy, the
-one that would land on ``data/scaling_overrides.json`` (the only path the
-table is read from). The image therefore carries the git-tracked table; a
+``--exclude "*scaling_overrides.json"``, which skips that file at any depth,
+including the bucket-root copy that would land on ``data/scaling_overrides.json``
+(the only path the table is read from). The image therefore carries the git-tracked table; a
 post-deploy check of the snapshot's content is tracked in #10352. The CDK
 ``PriceRefreshOnDeploy`` Trigger (``cdk/stacks/backend_lambda_stack.py``,
 REQUEST_RESPONSE) has that ``currentVersion`` as its ``HandlerArn``, as does

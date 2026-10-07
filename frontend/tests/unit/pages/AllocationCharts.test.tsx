@@ -5,6 +5,7 @@ import AllocationCharts from "@/pages/AllocationCharts";
 import * as api from "@/api";
 import type { GroupPortfolio, Holding, LookThroughExposure } from "@/types";
 import { MemoryRouter } from "react-router-dom";
+import { configContext, useConfig } from "@/ConfigContext";
 
 const chartFormatters = vi.hoisted(() => ({
   legend: null as null | ((value: string, entry: unknown) => string),
@@ -795,6 +796,36 @@ describe("AllocationCharts page", () => {
           "Financials: 300",
         ]),
       );
+    });
+
+    it("shows coverage as % of the look-through total under relative view (#10022)", async () => {
+      // Inherit the default config and only flip relative view on, so the
+      // page's other config reads behave as in the tests above.
+      const RelativeView = ({ children }: { children: ReactNode }) => {
+        const config = useConfig();
+        return (
+          <configContext.Provider value={{ ...config, relativeViewEnabled: true }}>
+            {children}
+          </configContext.Provider>
+        );
+      };
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetGroupLookThrough.mockResolvedValueOnce(lookThrough([bucket("United States", 1000)]));
+
+      render(
+        <RelativeView>
+          <AllocationCharts />
+        </RelativeView>,
+        "/allocation?view=lt-sector",
+      );
+
+      // 800 / 1000 and 50 / 1000 of lookThrough.total_value_gbp.
+      const coverage = await screen.findByTestId("look-through-coverage");
+      expect(coverage).toHaveTextContent("80.0%");
+      expect(coverage).not.toHaveTextContent("£");
+      const notCovered = screen.getByTestId("look-through-not-covered");
+      expect(notCovered).toHaveTextContent("5.0%");
+      expect(notCovered).not.toHaveTextContent("£");
     });
 
     it("folds the tail of many countries into one Other slice", async () => {

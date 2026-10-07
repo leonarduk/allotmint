@@ -2368,7 +2368,8 @@
     "saved": "{{side}} of {{ticker}} recorded.",
     "saveFailed": "Failed to record trade.",
     "ownersFailed": "Failed to load accounts.",
-    "noAccount": "Choose an owner and account."
+    "noAccount": "Choose an owner and account.",
+  "noAccounts": "No accounts to record this trade in. Add an account first."
   },
   "varBreakdown": {
     "title": "VaR Breakdown",

@@ -2375,7 +2375,8 @@
     "saved": "{{side}} de {{ticker}} enregistré.",
     "saveFailed": "Échec de l'enregistrement de la transaction.",
     "ownersFailed": "Échec du chargement des comptes.",
-    "noAccount": "Choisissez un titulaire et un compte."
+    "noAccount": "Choisissez un titulaire et un compte.",
+  "noAccounts": "Aucun compte dans lequel enregistrer cette opération. Ajoutez d’abord un compte."
   },
   "varBreakdown": {
     "title": "Détail de la VaR",

@@ -147,6 +147,22 @@ describe('RecordTradeForm', () => {
     expect(mockCreate.mock.calls[0][0].price_gbp).toBe(288.89);
   });
 
+  it('explains a disabled save when there are no accounts to trade in', async () => {
+    mockOwners.mockResolvedValue([]);
+    render(
+      <RecordTradeForm
+        ticker="PHGP.L"
+        side="BUY"
+        positions={[]}
+        quoteCurrency="GBX"
+        onSaved={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent(/No accounts to record this trade in/);
+    expect(screen.getByRole('button', { name: 'Record Buy' })).toBeDisabled();
+  });
+
   it('keeps save disabled until units and price are positive', async () => {
     const user = userEvent.setup();
     render(

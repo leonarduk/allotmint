@@ -39,12 +39,15 @@ const column = { display: "flex", flexDirection: "column" } as const;
 function useTradeAccounts(positions: InstrumentPosition[]) {
   const { t } = useTranslation();
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     getOwners()
       .then((data) => {
-        if (active) setOwners(data);
+        if (!active) return;
+        setOwners(data);
+        setLoaded(true);
       })
       .catch((err: unknown) => {
         if (active)
@@ -55,7 +58,9 @@ function useTradeAccounts(positions: InstrumentPosition[]) {
     };
   }, [t]);
   const accounts = useMemo(() => buildTradeAccounts(positions, owners), [positions, owners]);
-  return { accounts, error };
+  // Without any account Save stays disabled, so say why rather than leave a dead form.
+  const noAccounts = loaded && accounts.length === 0 ? t("recordTrade.noAccounts") : null;
+  return { accounts, error: error ?? noAccounts };
 }
 
 /** Form state, derived trade figures and the submit handler. */

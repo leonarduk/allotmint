@@ -2375,7 +2375,8 @@
     "saved": "{{side}} von {{ticker}} erfasst.",
     "saveFailed": "Trade konnte nicht erfasst werden.",
     "ownersFailed": "Konten konnten nicht geladen werden.",
-    "noAccount": "Inhaber und Konto wählen."
+    "noAccount": "Inhaber und Konto wählen.",
+  "noAccounts": "Keine Konten, in denen dieser Handel erfasst werden kann. Legen Sie zuerst ein Konto an."
   },
   "varBreakdown": {
     "title": "VaR-Aufschlüsselung",

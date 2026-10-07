@@ -2375,7 +2375,8 @@
     "saved": "{{side}} di {{ticker}} registrata.",
     "saveFailed": "Impossibile registrare l'operazione.",
     "ownersFailed": "Impossibile caricare i conti.",
-    "noAccount": "Scegli un titolare e un conto."
+    "noAccount": "Scegli un titolare e un conto.",
+  "noAccounts": "Nessun conto in cui registrare questa operazione. Aggiungi prima un conto."
   },
   "varBreakdown": {
     "title": "Dettaglio del VaR",

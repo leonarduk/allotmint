@@ -127,6 +127,7 @@
       "dataadmin": "Data Admin",
       "dataexplorer": "Data Explorer",
       "dataquality": "Data Quality",
+      "dividends": "Dividends",
       "group": "Group",
       "help": "Help",
       "ideas": "Ideas",
@@ -2660,6 +2661,33 @@
   "accountBlock": {
     "estValue": "Est Value: ",
     "lastUpdated": "Last updated: "
+  },
+  "dividends": {
+    "title": "Dividends",
+    "description": "Dividend income received, by period and by holding. Amounts in different currencies are shown separately, never added together.",
+    "owner": "Owner",
+    "allOwners": "All owners",
+    "period": "Group by",
+    "periods": {
+      "taxYear": "Tax year",
+      "year": "Calendar year",
+      "month": "Month"
+    },
+    "trailing12m": "Last 12 months",
+    "allTime": "All time",
+    "byPeriod": "By period",
+    "byHolding": "By holding",
+    "payments": "Payments",
+    "received": "Received",
+    "holding": "Holding",
+    "lastPaid": "Last paid",
+    "none": "—",
+    "empty": "No dividend payments recorded yet.",
+    "undated": "Undated",
+    "unattributed": "Not linked to a holding",
+    "unattributedHelp": "Dividend payments recorded without a ticker, e.g. transfers from an income account.",
+    "noHistory": "No dividends recorded",
+    "holdingsUnavailable": "Current holdings could not be loaded, so holdings without dividends are not listed."
   },
   "dividendHistory": {
     "trendAria": "Dividend trend",

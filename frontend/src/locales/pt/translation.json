@@ -127,6 +127,7 @@
       "dataadmin": "Administração de dados",
       "dataexplorer": "Explorador de arquivos",
       "dataquality": "Qualidade dos dados",
+      "dividends": "Dividendos",
       "group": "Grupo",
       "help": "Ajuda",
       "ideas": "Ideias",
@@ -2667,6 +2668,33 @@
   "accountBlock": {
     "estValue": "Valor est.: ",
     "lastUpdated": "Última atualização: "
+  },
+  "dividends": {
+    "title": "Dividendos",
+    "description": "Rendimentos de dividendos recebidos, por período e por posição. Valores em moedas diferentes são mostrados em separado, nunca somados.",
+    "owner": "Titular",
+    "allOwners": "Todos os titulares",
+    "period": "Agrupar por",
+    "periods": {
+      "taxYear": "Ano fiscal",
+      "year": "Ano civil",
+      "month": "Mês"
+    },
+    "trailing12m": "Últimos 12 meses",
+    "allTime": "Total",
+    "byPeriod": "Por período",
+    "byHolding": "Por posição",
+    "payments": "Pagamentos",
+    "received": "Recebido",
+    "holding": "Posição",
+    "lastPaid": "Último pagamento",
+    "none": "—",
+    "empty": "Ainda não há pagamentos de dividendos registados.",
+    "undated": "Sem data",
+    "unattributed": "Sem posição associada",
+    "unattributedHelp": "Pagamentos de dividendos registados sem ticker, p. ex. transferências de uma conta de rendimentos.",
+    "noHistory": "Sem dividendos registados",
+    "holdingsUnavailable": "Não foi possível carregar as posições atuais, por isso as posições sem dividendos não são listadas."
   },
   "dividendHistory": {
     "trendAria": "Tendência de dividendos",

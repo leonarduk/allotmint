@@ -866,6 +866,10 @@ export interface ScreenerResult {
   ticker: string;
   name?: string | null;
   sector?: string | null;
+  /** Provider that supplied the fundamentals, e.g. "yahoo". */
+  source?: string | null;
+  /** ISO date the fundamentals were fetched from `source`. */
+  as_of?: string | null;
   peg_ratio: number | null;
   pe_ratio: number | null;
   de_ratio: number | null;

@@ -506,13 +506,18 @@ export function InstrumentDetail({
   const [intradayError, setIntradayError] = useState<string | null>(null);
   const [intradaySupported, setIntradaySupported] = useState(true);
 
+  // Only the response for the current [ticker, days] may land: switching range
+  // while an earlier request is in flight (e.g. Max then 10Y) must not let the
+  // slower stale response overwrite the selected range (#10023).
   useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
     setData(null);
     setErr(null);
     setCurrencyFromData(null);
-    getInstrumentDetail(ticker, days)
+    getInstrumentDetail(ticker, days, controller.signal)
       .then((d) => {
+        if (controller.signal.aborted) return;
         const detail = d as {
           prices: Price[];
           positions: Position[];
@@ -521,8 +526,15 @@ export function InstrumentDetail({
         setData(detail);
         setCurrencyFromData(detail.currency ?? null);
       })
-      .catch((e: Error) => setErr(e.message))
-      .finally(() => setLoading(false));
+      .catch((e: Error) => {
+        if (!controller.signal.aborted) setErr(e.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => {
+      controller.abort();
+    };
   }, [ticker, days]);
 
   useEffect(() => {

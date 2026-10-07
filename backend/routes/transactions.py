@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Literal, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Literal, Mapping, Optional, Tuple, get_args
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
@@ -298,10 +298,31 @@ class TransactionCreate(BaseModel):
     external_id: Optional[str] = None
 
 
-class TransactionUpdate(TransactionCreate):
+_Date = date
+
+
+class TransactionUpdate(BaseModel):
+    """Body for ``PUT /transactions/{id}``.
+
+    Trade-shaped fields are optional here because a non-trade row (e.g. an
+    imported DIVIDEND) keeps its stored values for them; for a BUY/SELL or
+    untyped row ``update_transaction`` still requires them (#8193).
+    """
+
+    owner: str
+    account: str
+    ticker: Optional[str] = None
+    # ``_Date``, not ``date``: the field name would shadow the type here.
+    date: Optional[_Date] = None
     # Omitted means "keep the stored type", so editing an imported row of
     # another type (e.g. DIVIDEND) does not silently turn it into a BUY.
     type: Optional[ManualTradeType] = None
+    price_gbp: Optional[float] = Field(default=None, gt=0)
+    units: Optional[float] = Field(default=None, gt=0)
+    fees: Optional[float] = None
+    comments: Optional[str] = None
+    reason: Optional[str] = None
+    external_id: Optional[str] = None
 
 
 class TransactionSplit(BaseModel):
@@ -476,6 +497,36 @@ def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping
             updated[key] = value
     updated.pop("id", None)
     return updated
+
+
+# Fields that only describe a trade. A non-trade row keeps its stored values
+# for these on update, whatever the body carries.
+_TRADE_SHAPE_FIELDS = ("ticker", "price_gbp", "units")
+_REQUIRED_TRADE_UPDATE_FIELDS = ("ticker", "date", "price_gbp", "units")
+
+
+def _scope_update_to_type(existing: Mapping[str, object], update: Mapping[str, object]) -> Dict[str, object]:
+    """Limit ``update`` to the fields meaningful for the row's type (#8193).
+
+    The row is edited as a trade when the body sets ``type``, or the stored
+    type is BUY/SELL or missing (legacy untyped manual entries stay editable
+    as before). Then the trade fields are required and replace the stored row.
+    Any other stored type (DIVIDEND, TRANSFER_IN, ...) keeps its stored
+    ``ticker``/``price_gbp``/``units``, and its ``date`` when omitted.
+    """
+    stored_type = str(existing.get("type") or "").upper()
+    if update.get("type") or not stored_type or stored_type in get_args(ManualTradeType):
+        missing = [field for field in _REQUIRED_TRADE_UPDATE_FIELDS if update.get(field) is None]
+        if missing:
+            raise HTTPException(status_code=422, detail=f"{', '.join(missing)} required to edit a trade")
+        return dict(update)
+
+    scoped = {key: value for key, value in update.items() if key not in _TRADE_SHAPE_FIELDS}
+    for field in _TRADE_SHAPE_FIELDS:
+        scoped[field] = existing.get(field)
+    if scoped.get("date") is None:
+        scoped["date"] = existing.get("date")
+    return scoped
 
 
 _DERIVED_GAIN_FIELDS = ("realised_gain_gbp", "cost_basis_gbp", "proceeds_gbp", "unmatched_units")
@@ -767,6 +818,7 @@ def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> d
             raise HTTPException(status_code=404, detail="Transaction not found")
         existing = transactions[index]
 
+        tx_data = _scope_update_to_type(existing, tx_data)
         if same_location:
             updated_entry = _prepare_updated_transaction(existing, tx_data)
             transactions[index] = updated_entry

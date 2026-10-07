@@ -1244,14 +1244,24 @@ export function HoldingsTable({
                           : undefined
                     }
                   >
-                    {h.sell_eligible == null ? (
+                    {h.sell_eligible == null ||
+                    (!h.sell_eligible &&
+                      h.days_until_eligible == null &&
+                      !h.next_eligible_sell_date) ? (
+                      // An unknown hold period yields no verdict (#7196).
                       <span className={tableStyles.notApplicable}>
                         {t("holdingsTable.notApplicable")}
                       </span>
                     ) : h.sell_eligible ? (
                       `✓ ${t("holdingsTable.eligible")}`
+                    ) : h.days_until_eligible ? (
+                      `✗ ${t("holdingsTable.eligibleInDays", { count: h.days_until_eligible })}`
                     ) : (
-                      `✗ ${h.days_until_eligible ?? ""}`
+                      // Hold period elapsed (a known eligible date with no
+                      // countdown left -- null since #7242, 0 in older
+                      // payloads) but still not eligible: the sale needs
+                      // approval. Say so instead of a cryptic "✗ 0" (#7196).
+                      `✗ ${t("holdingsTable.eligibleNeedsApproval")}`
                     )}
                   </td>
                 )}

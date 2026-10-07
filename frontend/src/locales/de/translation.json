@@ -3103,6 +3103,7 @@
     "retryingConfig": "Wird geladen ... Konfiguration wird erneut versucht.",
     "loadingConfig": "Konfiguration wird geladen ...",
     "configLoadFailed": "Konfiguration konnte nicht geladen werden.",
+    "serverUnreachable": "Der AllotMint-Server unter {{url}} ist nicht erreichbar.",
     "checkConnection": "Bitte überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
     "googleNotConfigured": "Google-Anmeldung ist nicht konfiguriert.",
     "loading": "Wird geladen ...",

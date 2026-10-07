@@ -258,6 +258,63 @@ def test_enrich_holding_no_acquired_date_stays_null(monkeypatch):
     assert out["sell_eligible"] is None
 
 
+def _stub_days_held_deps(monkeypatch):
+    import backend.common.instrument_api as instrument_api
+    import backend.common.portfolio_utils as pu
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda *_: ("FOO", "L"))
+    monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(hu, "get_instrument_meta", lambda *_: {})
+    monkeypatch.setattr(hu, "_get_dated_price_for_date_scaled", lambda *a, **k: (1.0, "mock", None))
+    monkeypatch.setattr(hu, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 1.0)
+
+
+@pytest.mark.parametrize(
+    "acquired, expected",
+    [
+        ("2026-10-07", 0),  # bought today: was -1 (#9990)
+        ("2026-10-06", 1),
+        ("2026-10-01", 6),
+    ],
+)
+def test_enrich_holding_days_held_measured_to_today(monkeypatch, acquired, expected):
+    """Regression for #9990: live days_held is measured to today, not the
+    previous trading day, so a same-day buy reports 0 rather than -1."""
+    _stub_days_held_deps(monkeypatch)
+    holding = {TICKER: "FOO.L", UNITS: 1, ACQUIRED_DATE: acquired}
+
+    out = hu.enrich_holding(holding, dt.date(2026, 10, 7), price_cache={}, approvals={})
+
+    assert out["days_held"] == expected
+
+
+def test_enrich_holding_days_held_never_negative_with_explicit_reporting_date(monkeypatch):
+    """#9990: with an explicit as_of, days_held is measured to that date and
+    clamped at 0 when the acquisition is later."""
+    from backend.utils.pricing_dates import PricingDateCalculator
+
+    _stub_days_held_deps(monkeypatch)
+    calc = PricingDateCalculator(reporting_date=dt.date(2026, 10, 5))
+
+    later = hu.enrich_holding(
+        {TICKER: "FOO.L", UNITS: 1, ACQUIRED_DATE: "2026-10-07"},
+        calc.today,
+        price_cache={},
+        approvals={},
+        calc=calc,
+    )
+    earlier = hu.enrich_holding(
+        {TICKER: "FOO.L", UNITS: 1, ACQUIRED_DATE: "2026-10-01"},
+        calc.today,
+        price_cache={},
+        approvals={},
+        calc=calc,
+    )
+
+    assert later["days_held"] == 0
+    assert earlier["days_held"] == 4
+
+
 def test_get_effective_cost_basis_gbp_falls_back_to_price_hint_when_unknown(monkeypatch):
     """Direct unit test for the price_hint fallback added alongside #7220.
 

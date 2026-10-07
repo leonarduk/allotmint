@@ -1259,7 +1259,9 @@ def cached_fx_rate_to_gbp(curr: str) -> float | None:
         refresh_queue.enqueue_fx(curr)
     if cached.empty:
         return None
-    return float(cached["Rate"].iloc[-1])
+    # Read the rate from the max-Date row, the same row the staleness check
+    # above uses, rather than relying on the frame being sorted (#8042).
+    return float(cached.loc[cached["Date"].idxmax(), "Rate"])
 
 
 def fx_history_start() -> date:

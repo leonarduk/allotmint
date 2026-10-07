@@ -55,6 +55,24 @@ def test_cache_only_fx_to_base_uses_the_latest_cached_rate(fx_cache, no_live_fx)
     assert refresh_queue.pending() == []
 
 
+def test_cached_fx_rate_is_the_latest_dated_row_of_an_unsorted_file(fx_cache, no_live_fx):
+    """A file stored out of date order still yields the max-Date rate, not the last row (#8042)."""
+    days = pd.bdate_range(end=cache._last_close_target(), periods=5)
+    # Latest date first, so the last stored row is an older rate.
+    stored = pd.DataFrame({"Date": days[::-1], "Rate": [0.9, 0.6, 0.65, 0.7, 0.5]})
+    path = cache._fx_cache_path("USD")
+    cache._ensure_local_dir(path)
+    stored.to_parquet(path, index=False)
+
+    with cache.cache_only():
+        rate = portfolio_utils._fx_to_base("USD", "GBP", {})
+
+    assert cache.cached_fx_rate_to_gbp("USD") == pytest.approx(0.9)
+    assert rate == pytest.approx(0.9)
+    # The max date is fresh, so nothing is queued.
+    assert refresh_queue.pending() == []
+
+
 def test_cache_only_fx_to_base_converts_to_a_non_gbp_base(fx_cache, no_live_fx):
     _seed_fx("USD", cache._last_close_target(), rate=0.75)
 

@@ -1016,6 +1016,11 @@ def enrich_holding(
             approved = is_approval_valid(approved_on, today)
 
     out["sell_eligible"] = None if eligible is None else bool(eligible and (approved or not needs_approval))
+    # A hold period that has elapsed but is still blocked on approval has no
+    # countdown left to report; a bare 0 next to sell_eligible=False would
+    # read as "eligible now" (#7242). Positive countdowns are kept.
+    if out["sell_eligible"] is False and out["days_until_eligible"] == 0:
+        out["days_until_eligible"] = None
 
     px = px_source = prev_px = None
     last_price_time = None

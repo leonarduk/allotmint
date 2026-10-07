@@ -1174,8 +1174,12 @@ export function HoldingsTable({
                     </span>
                   ) : h.sell_eligible ? (
                     `✓ ${t("holdingsTable.eligible")}`
+                  ) : h.days_until_eligible ? (
+                    `✗ ${t("holdingsTable.eligibleInDays", { count: h.days_until_eligible })}`
                   ) : (
-                    `✗ ${h.days_until_eligible ?? ""}`
+                    // Past the hold period but still not eligible: the sale
+                    // needs approval. Say so instead of a cryptic "✗ 0" (#7196).
+                    `✗ ${t("holdingsTable.eligibleNeedsApproval")}`
                   )}
                 </td>
               </tr>

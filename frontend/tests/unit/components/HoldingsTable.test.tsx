@@ -1031,10 +1031,17 @@ describe("HoldingsTable", () => {
     it("shows days to go if not eligible", async () => {
         render(<HoldingsTable holdings={holdings}/>);
         const row = (await screen.findByText("Test Holding")).closest("tr");
-        const cell = within(row!).getByText("✗ 10");
+        const cell = within(row!).getByText("✗ 10 days left");
         expect(cell).toBeInTheDocument();
         const expected = formatDateISO(new Date('2024-07-20'));
         expect(cell).toHaveAttribute('title', expected);
+    });
+
+    it("says a sale needs approval instead of a cryptic ✗ 0 (#7196)", async () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        const row = (await screen.findByText("CAD Holding")).closest("tr");
+        expect(within(row!).getByText("✗ Needs approval")).toBeInTheDocument();
+        expect(within(row!).queryByText("✗ 0")).toBeNull();
     });
 
     it("marks stale prices with an asterisk", async () => {

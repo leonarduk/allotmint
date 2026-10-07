@@ -420,6 +420,9 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const missingFx = missingFxSummary(currencyRows ?? []);
 
   const total = chartData.reduce((sum, d) => sum + d.value, 0);
+  /** A slice's share of the chart total, e.g. "12.34%". */
+  const sharePct = (value: unknown): string =>
+    `${total ? ((toFiniteNumber(value) / total) * 100).toFixed(2) : "0.00"}%`;
   const allKeys = portfolio?.accounts.map((acct, idx) => accountKey(acct, idx)) ?? [];
   const selectedCount =
     selectedAccounts === null ? allKeys.length : selectedAccounts.length;
@@ -579,26 +582,20 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(v, _n, item) =>
-                    relativeViewEnabled
-                      ? `${
-                          total
-                            ? (((item as any)?.payload?.value / total) * 100).toFixed(2)
-                            : "0.00"
-                        }%`
-                      : reporting.format(v as number | undefined)
-                  }
+                  formatter={(v, _n, item) => {
+                    const share = sharePct((item as any)?.payload?.value);
+                    return relativeViewEnabled
+                      ? share
+                      : `${reporting.format(v as number | undefined)} (${share})`;
+                  }}
                 />
                 <Legend
-                  formatter={(value: string, entry: any) =>
-                    relativeViewEnabled
-                      ? `${value}: ${
-                          total
-                            ? ((entry?.payload?.value / total) * 100).toFixed(2)
-                            : "0.00"
-                        }%`
-                      : `${value}: ${reporting.format(entry?.payload?.value)}`
-                  }
+                  formatter={(value: string, entry: any) => {
+                    const share = sharePct(entry?.payload?.value);
+                    return relativeViewEnabled
+                      ? `${value}: ${share}`
+                      : `${value}: ${reporting.format(entry?.payload?.value)} (${share})`;
+                  }}
                 />
               </PieChart>
             </ResponsiveContainer>

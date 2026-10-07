@@ -6,6 +6,11 @@ import * as api from "@/api";
 import type { GroupPortfolio, Holding, LookThroughExposure } from "@/types";
 import { MemoryRouter } from "react-router-dom";
 
+const chartFormatters = vi.hoisted(() => ({
+  legend: null as null | ((value: string, entry: unknown) => string),
+  tooltip: null as null | ((value: unknown, name: unknown, item: unknown) => string),
+}));
+
 vi.mock("@/api");
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: { children: ReactNode }) => (
@@ -27,8 +32,14 @@ vi.mock("recharts", () => ({
     </div>
   ),
   Cell: () => null,
-  Tooltip: () => null,
-  Legend: () => null,
+  Tooltip: ({ formatter }: { formatter: typeof chartFormatters.tooltip }) => {
+    chartFormatters.tooltip = formatter;
+    return null;
+  },
+  Legend: ({ formatter }: { formatter: typeof chartFormatters.legend }) => {
+    chartFormatters.legend = formatter;
+    return null;
+  },
 }));
 
 const mockGetGroupPortfolio = vi.mocked(api.getGroupPortfolio);
@@ -590,6 +601,22 @@ describe("AllocationCharts page", () => {
       expect(await screen.findByText("sleeve boom")).toBeInTheDocument();
       expect(screen.getByTestId("no-slices")).toBeInTheDocument();
     });
+  });
+
+  it("shows each slice's percentage in the legend and tooltip", async () => {
+    mockGetGroupPortfolio.mockResolvedValueOnce(
+      buildPortfolio([
+        { ...baseHolding, ticker: "AAA", instrument_type: "equity", market_value_gbp: 75 },
+        { ...baseHolding, ticker: "BBB", instrument_type: "etf", market_value_gbp: 25 },
+      ]),
+    );
+
+    render(<AllocationCharts />);
+
+    await waitFor(() => expect(screen.getAllByTestId("slice-row")).toHaveLength(2));
+    const legend = chartFormatters.legend!("Equity", { payload: { value: 75 } });
+    expect(legend).toMatch(/^Equity: .*75.* \(75\.00%\)$/);
+    expect(chartFormatters.tooltip!(25, "ETF", { payload: { value: 25 } })).toMatch(/25.* \(25\.00%\)$/);
   });
 
   describe("look-through views (#9974)", () => {

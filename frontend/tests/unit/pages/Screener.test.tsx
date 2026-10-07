@@ -88,6 +88,17 @@ describe("Screener", () => {
     expect(screen.queryByText("github.com", { exact: false })).not.toBeInTheDocument();
   });
 
+  it("offers no Run button and issues no screener request when gated (#7818)", async () => {
+    mockCheckScreenerAvailable.mockResolvedValue(false);
+
+    renderScreener();
+
+    await screen.findByText(/doesn't include the fundamentals screener/i);
+    expect(screen.queryByRole("button", { name: /run/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+    expect(mockGetScreener).not.toHaveBeenCalled();
+  });
+
   it("renders the form once the gate check resolves available", async () => {
     renderScreener();
 

@@ -114,24 +114,22 @@ def test_brunner_is_not_an_equity_stand_in(monkeypatch):
 
 
 def test_stand_in_returns_include_the_event_day_move(monkeypatch):
-    """Black Monday on Brunner: the base is the pre-event close, so 1d shows the crash (#9950)."""
-    black_monday = dt.date(1987, 10, 19)
-    closes = pd.DataFrame(
-        {"Date": [dt.date(1987, 10, 16), black_monday, dt.date(1987, 10, 20)], "Close": [150.0, 120.0, 123.0]}
-    )
+    """Lehman on IOO.N: the base is the pre-event close, so 1d includes the event-day fall (#9950)."""
+    lehman = dt.date(2008, 9, 15)
+    closes = pd.DataFrame({"Date": [dt.date(2008, 9, 12), lehman, dt.date(2008, 9, 16)], "Close": [100.0, 90.0, 91.0]})
 
     def load(ticker, exchange, start_date, end_date):
-        return closes if ticker == "BUT" else pd.DataFrame()
+        return closes if ticker == "IOO" else pd.DataFrame()
 
     monkeypatch.setattr(strategy_stress, "instrument_forward_returns", scenario_tester.instrument_forward_returns)
     monkeypatch.setattr(scenario_tester, "load_meta_timeseries_range", load)
     monkeypatch.setattr(scenario_tester, "total_return_frame", lambda df, t, e: (df, TOTAL_RETURN_BASIS))
     monkeypatch.setattr(scenario_tester, "get_scaling_override", lambda *a, **k: 1.0)
 
-    sleeve = strategy_stress.sleeve_returns("equity", black_monday, {"1d": 1})
+    sleeve = strategy_stress.sleeve_returns("equity", lehman, {"1d": 1})
 
-    assert sleeve["1d"].series == "BUT.L"
-    assert sleeve["1d"].value == pytest.approx(123.0 / 150.0 - 1.0)
+    assert sleeve["1d"].series == "IOO.N"
+    assert sleeve["1d"].value == pytest.approx(91.0 / 100.0 - 1.0)
 
 
 def test_pro_fills_only_what_stand_ins_cannot(monkeypatch):

@@ -1174,6 +1174,16 @@ const fetchGroupPerformanceJson = <T>(url: string): Promise<T> => {
 };
 
 /**
+ * Forget in-flight group performance requests so the next call fetches anew.
+ * Each entry clears itself on settle, so the app has no need for this. Tests
+ * do: a stub that never settles, or one that falls through to the real
+ * network, would otherwise hand its pending promise to the next test.
+ */
+export const clearGroupPerformanceInFlight = () => {
+  inFlightGroupPerformanceFetches.clear();
+};
+
+/**
  * Group-scope alpha vs benchmark.
  *
  * Valid for group scope: the backend computes this from the *combined* group

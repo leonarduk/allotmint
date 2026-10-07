@@ -711,5 +711,41 @@ describe("PerformanceDashboard", () => {
       );
       consoleError.mockRestore();
     });
+
+    it("renders the metrics and an empty-history message, not endless loading, when getGroupPerformance succeeds with no history (#7629)", async () => {
+      const consoleError = vi.spyOn(console, "error");
+      vi.mocked(getGroupPerformance).mockResolvedValueOnce({
+        history: [],
+        time_weighted_return: null,
+        xirr: null,
+        reportingDate: null,
+        previousDate: null,
+      });
+
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner={null} group="all" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("performance-chart-empty"),
+      ).toHaveTextContent("There is no portfolio value history for this period yet.");
+      expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("performance-chart-unavailable"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("metric-alpha")).toHaveTextContent("3.00%");
+      expect(screen.getByTestId("metric-tracking-error")).toHaveTextContent("4.00%");
+      // A successful (if empty) response is not a failure: no warning, no log.
+      expect(
+        screen.queryByTestId("performance-metrics-unavailable-warning"),
+      ).not.toBeInTheDocument();
+      expect(consoleError).not.toHaveBeenCalledWith(
+        "Performance metric failed to load",
+        expect.anything(),
+      );
+      consoleError.mockRestore();
+    });
   });
 });

@@ -1405,6 +1405,46 @@ describe("group alpha/tracking error API helpers (request shape and pass-through
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
+  it("gives every sharer the same rejection, then drops the entry so a retry refetches (#7629)", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ alpha_vs_benchmark: 0.02 }),
+      });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    const results = await Promise.allSettled([
+      getGroupAlphaVsBenchmark("all", "VWRL.L", 365),
+      getGroupAlphaVsBenchmark("all", "VWRL.L", 365),
+    ]);
+    expect(results.map((r) => r.status)).toEqual(["rejected", "rejected"]);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    await expect(getGroupAlphaVsBenchmark("all", "VWRL.L", 365)).resolves.toEqual({
+      alpha_vs_benchmark: 0.02,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not share requests between different group metric URLs (#7629)", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await Promise.all([
+      getGroupAlphaVsBenchmark("all", "VWRL.L", 365),
+      getGroupAlphaVsBenchmark("all", "VWRL.L", 30),
+      getGroupTrackingError("all", "VWRL.L", 365),
+    ]);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
   it("leaves owner-scoped alpha and tracking error on their own endpoints", async () => {
     const mockFetch = vi
       .fn()

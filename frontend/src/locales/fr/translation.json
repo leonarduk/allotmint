@@ -367,6 +367,7 @@
     "performancePartialMembers": "Le rendement pondéré par le temps et le XIRR sont incomplets : aucun historique de transactions n'a été trouvé pour {{members}}, ces chiffres sont donc probablement supérieurs au rendement réel du foyer.",
     "performanceMetricsUnavailable": "Certaines métriques n'ont pas pu être chargées et sont affichées comme indisponibles : {{metrics}}.",
     "performanceUnavailable": "Impossible de charger le graphique de valeur du portefeuille pour cette période. Les autres métriques de cette page peuvent rester disponibles.",
+    "performanceEmpty": "Il n'y a pas encore d'historique de valeur du portefeuille pour cette période.",
     "openDiagnostics": "Ouvrir les diagnostics",
     "viewMetricsExplanation": "Lire l'explication complète",
     "portfolioValue": "Valeur du portefeuille",

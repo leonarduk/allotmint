@@ -367,6 +367,7 @@
     "performancePartialMembers": "Il rendimento ponderato per il tempo e l'XIRR sono incompleti: non è stato trovato alcuno storico delle transazioni per {{members}}, quindi questi valori probabilmente risultano più alti del rendimento reale del nucleo familiare.",
     "performanceMetricsUnavailable": "Alcune metriche non sono state caricate e sono mostrate come non disponibili: {{metrics}}.",
     "performanceUnavailable": "Non siamo riusciti a caricare il grafico del valore del portafoglio per questo periodo. Le altre metriche di questa pagina potrebbero comunque essere disponibili.",
+    "performanceEmpty": "Non c'è ancora uno storico del valore del portafoglio per questo periodo.",
     "openDiagnostics": "Apri diagnostica",
     "viewMetricsExplanation": "Leggi la spiegazione completa",
     "portfolioValue": "Valore del portafoglio",

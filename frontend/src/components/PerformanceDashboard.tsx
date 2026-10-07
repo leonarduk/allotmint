@@ -99,6 +99,10 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   // (DeepSeek review round 2, #7228).
   const [unavailableMetrics, setUnavailableMetrics] = useState<string[]>([]);
   const [perfUnavailable, setPerfUnavailable] = useState<boolean>(false);
+  // True once this load's fetches have settled. Gating "loading" on this,
+  // not on `data.length`, keeps a successful-but-empty history from showing
+  // "Loading..." forever (#7629).
+  const [loaded, setLoaded] = useState<boolean>(false);
   const { t, i18n } = useTranslation();
 
   const activeGroup = group || null;
@@ -124,6 +128,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     setXirr(null);
     setUnavailableMetrics([]);
     setPerfUnavailable(false);
+    setLoaded(false);
     const reqDays = days === 0 ? 36500 : days;
     const opts = asOf ? { asOf } : undefined;
     // Group alpha/tracking error are computed by the backend from the
@@ -205,6 +210,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         }
       });
       setUnavailableMetrics(unavailable);
+      setLoaded(true);
     });
 
     return () => {
@@ -214,9 +220,9 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
 
   if (!activeGroup && !activeOwner) return <p>{t("dashboard.selectMember")}</p>;
   if (err) return <p style={{ color: "red" }}>{err}</p>;
-  // A failed history fetch only replaces the charts below; the metrics that
-  // did load must still render (#7629).
-  if (!data.length && !perfUnavailable) return <p>{t("common.loading")}</p>;
+  // A failed or empty history only replaces the charts below; the metrics
+  // that did load must still render (#7629).
+  if (!loaded) return <p>{t("common.loading")}</p>;
 
   const formatSummaryDate = (value: string | null) => {
     if (!value) return "—";
@@ -604,6 +610,10 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
       {perfUnavailable ? (
         <p data-testid="performance-chart-unavailable">
           {t("dashboard.performanceUnavailable")}
+        </p>
+      ) : data.length === 0 ? (
+        <p data-testid="performance-chart-empty">
+          {t("dashboard.performanceEmpty")}
         </p>
       ) : (
         <>

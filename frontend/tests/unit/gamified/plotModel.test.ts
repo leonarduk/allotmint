@@ -514,13 +514,15 @@ describe('buildPlotSnapshot', () => {
     expect(snapshot.resources).toHaveLength(3);
   });
 
-  it('threads an allowances fetch failure through to the FEED meter hint', () => {
+  it('threads an allowances fetch failure through to the HUD by omitting FEED (#7195)', () => {
     const snapshot = buildPlotSnapshot({
       portfolio: null,
       allowancesUnavailable: true,
     });
-    const feed = snapshot.resources.find((resource) => resource.id === 'feed');
-    expect(feed?.hint).toBe('Allowances unavailable right now');
+    expect(snapshot.resources.map((resource) => resource.id)).toEqual([
+      'water',
+      'sun',
+    ]);
   });
 });
 
@@ -566,10 +568,9 @@ describe('resourcesFromPlot', () => {
     expect(sun.pct).toBe(0);
   });
 
-  it('shows a distinct unavailable hint when the allowances fetch failed, not the empty-data copy', () => {
-    const [, feed] = resourcesFromPlot(null, [], null, true);
-    expect(feed.hint).toBe('Allowances unavailable right now');
-    expect(feed.hint).not.toContain('No allowance data');
+  it('omits FEED rather than rendering an empty £0.00 meter when the allowances fetch failed (#7195)', () => {
+    const resources = resourcesFromPlot(null, crops, null, true);
+    expect(resources.map((resource) => resource.id)).toEqual(['water', 'sun']);
   });
 
   it('treats missing is_stale as a third "unknown" state, not fresh (#7186)', () => {

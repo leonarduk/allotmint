@@ -127,6 +127,7 @@
       "dataadmin": "Datenverwaltung",
       "dataexplorer": "Datei-Explorer",
       "dataquality": "Datenqualität",
+      "dividends": "Dividenden",
       "group": "Gruppe",
       "help": "Hilfe",
       "ideas": "Ideen",
@@ -386,6 +387,11 @@
     "alphaVsBenchmarkInfoLabel": "Was bedeutet Alpha vs Benchmark?",
     "alphaVsBenchmarkInfo": "Alpha misst, wie stark die Rendite des Portfolios im gewählten Zeitraum von {{ticker}} abwich.",
     "vsBenchmark": "vs {{ticker}}",
+    "cumulativeReturnPortfolio": "Ihr Portfolio",
+    "cumulativeReturnBenchmark": "{{ticker}} (Benchmark)",
+    "cumulativeReturnBasis": "Beide Linien verwenden reinvestierte Dividenden, die aktuellen Positionen und dieselben Daten ({{from}} bis {{to}}) wie Alpha vs. {{ticker}}.",
+    "benchmarkSeriesFailed": "{{ticker}} konnte zum Vergleich nicht geladen werden, daher wird nur die wertbasierte kumulierte Rendite Ihres Portfolios angezeigt.",
+    "benchmarkSeriesEmpty": "Für diesen Zeitraum gibt es keine überlappenden {{ticker}}-Kurse, daher wird nur die wertbasierte kumulierte Rendite Ihres Portfolios angezeigt.",
     "trackingErrorInfoLabel": "Was bedeutet Tracking Error?",
     "trackingErrorInfo": "Der Tracking Error misst, wie stark die täglichen Renditen des Portfolios von denen von {{ticker}} abwichen, annualisiert.",
     "maxDrawdownInfoLabel": "Was bedeutet Max Drawdown?",
@@ -497,6 +503,11 @@
       "account": "Konto"
     },
     "columnsLabel": "Spalten:",
+    "columnPresets": {
+      "label": "Spaltenvorlage:",
+      "simple": "Einfach",
+      "detailed": "Detailliert"
+    },
     "eligible": "Berechtigt",
     "filters": {
       "all": "Alle",
@@ -1806,6 +1817,8 @@
     "signalsTitle": "Aktuelle Signale",
     "noSignalsTitle": "Derzeit keine Signale",
     "noSignalsDescription": "Kein überwachtes Instrument überschreitet derzeit die aktiven Schwellenwerte. Signale erscheinen, wenn die RSI- oder Gleitendurchschnittsbedingungen erfüllt sind und alle aktivierten Bewertungs- und Risikofilter ebenfalls erfüllt werden.",
+    "blockedTitle": "Durch Compliance blockierte Signale",
+    "blockedDescription": "Diese Instrumente haben die aktiven Schwellenwerte überschritten, aber der vorgeschlagene Handel würde eine neue Compliance-Warnung auslösen, daher wird für sie kein Signal angezeigt.",
     "checksSkippedBadge": "Prüfungen übersprungen",
     "checksSkippedTitle": "Übersprungene Prüfungen: {{checks}}",
     "checksSkippedInfo": "Eine optionale Prüfung, die das allotmint-pro-Add-on benötigt, konnte nicht ausgeführt werden. „compliance“ bedeutet, dass der Handel nicht anhand Ihrer Compliance-Regeln geprüft wurde; „fundamental_screen“ bedeutet, dass die oben genannten KGV- und Verschuldungsgrad-Filter (soweit konfiguriert) für diesen Kaufkandidaten nicht angewendet wurden.",
@@ -2661,6 +2674,33 @@
     "estValue": "Gesch. Wert: ",
     "lastUpdated": "Zuletzt aktualisiert: "
   },
+  "dividends": {
+    "title": "Dividenden",
+    "description": "Erhaltene Dividendenerträge nach Zeitraum und nach Position. Beträge in verschiedenen Währungen werden getrennt angezeigt, nie addiert.",
+    "owner": "Eigentümer",
+    "allOwners": "Alle Eigentümer",
+    "period": "Gruppieren nach",
+    "periods": {
+      "taxYear": "Steuerjahr",
+      "year": "Kalenderjahr",
+      "month": "Monat"
+    },
+    "trailing12m": "Letzte 12 Monate",
+    "allTime": "Gesamt",
+    "byPeriod": "Nach Zeitraum",
+    "byHolding": "Nach Position",
+    "payments": "Zahlungen",
+    "received": "Erhalten",
+    "holding": "Position",
+    "lastPaid": "Zuletzt gezahlt",
+    "none": "—",
+    "empty": "Noch keine Dividendenzahlungen erfasst.",
+    "undated": "Ohne Datum",
+    "unattributed": "Keiner Position zugeordnet",
+    "unattributedHelp": "Dividendenzahlungen ohne Ticker, z. B. Überträge von einem Ertragskonto.",
+    "noHistory": "Keine Dividenden erfasst",
+    "holdingsUnavailable": "Aktuelle Positionen konnten nicht geladen werden, daher fehlen Positionen ohne Dividenden."
+  },
   "dividendHistory": {
     "trendAria": "Dividendentrend",
     "date": "Datum",
@@ -2983,7 +3023,6 @@
     },
     "model": {
       "unnamedBed": "Unbenanntes Beet",
-      "allowancesUnavailable": "Freibeträge derzeit nicht verfügbar",
       "water": "Wasser",
       "feed": "Dünger",
       "sunlight": "Sonnenlicht",
@@ -3353,7 +3392,7 @@
     "overseas_government": "Ausländische Staatsanleihen",
     "corporate_bonds": "Unternehmensanleihen / Kredit",
     "gold": "Gold",
-    "commodities": "Sonstige Rohstoffe"
+    "other_commodities": "Sonstige Rohstoffe"
   },
   "planForm": {
     "errors": {

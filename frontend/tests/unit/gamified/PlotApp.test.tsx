@@ -8,6 +8,7 @@ import {
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Portfolio } from '@/types';
+import { seasonFromCalendar } from '@/gamified/seasonModel';
 
 const portfolio: Portfolio = {
   owner: 'steve',
@@ -302,15 +303,17 @@ describe('Plot mode hub', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows a distinct unavailable notice on the FEED meter when the allowances fetch fails, not the empty-data copy', async () => {
+  it('omits the FEED meter rather than showing an empty one when the allowances fetch fails (#7195)', async () => {
     mocks.getAllowances.mockRejectedValue(
       Object.assign(new Error('HTTP 402 - Payment Required'), { status: 402 })
     );
     renderPlot();
 
+    // The other meters still render once the plot has loaded.
     expect(
-      await screen.findByText('Allowances unavailable right now')
+      await screen.findByText('8 of 10 trades left this month')
     ).toBeInTheDocument();
+    expect(screen.queryByText('£0.00 / £0.00')).toBeNull();
     expect(
       screen.queryByText('No allowance data for this grower yet')
     ).toBeNull();
@@ -715,7 +718,7 @@ describe('Plot mode season track', () => {
     ).toHaveLength(2);
   });
 
-  it('says so when the backend reports no tax year', async () => {
+  it('derives the season from the calendar when the backend reports no tax year (#7195)', async () => {
     mocks.getAllowances.mockResolvedValue({
       owner: 'steve',
       tax_year: null,
@@ -723,27 +726,39 @@ describe('Plot mode season track', () => {
     });
     renderPlot('/plot/season');
 
+    const { label } = seasonFromCalendar(new Date());
     expect(
-      await screen.findByText(/No tax year reported for this grower/)
+      await screen.findByRole('heading', {
+        name: new RegExp(`Growing season ${label}`),
+      })
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Ends in \d+ days? and \d+ hours?$|^Ends in \d+ hours?$/)
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/No tax year reported for this grower/)
+    ).toBeNull();
   });
 
-  it('shows the same distinct unavailable notice, not "no tax year", when the allowances fetch fails', async () => {
+  it('counts down from the calendar and drops "Feed the beds" when the allowances fetch fails (#7195)', async () => {
     mocks.getAllowances.mockRejectedValue(
       Object.assign(new Error('HTTP 402 - Payment Required'), { status: 402 })
     );
     renderPlot('/plot/season');
 
-    // Countdown copy, and the "Feed the beds" milestone group, both use the
-    // same notice instead of "no tax year" / a £0.00 progress bar.
-    const notices = await screen.findAllByText('Allowances unavailable right now');
-    expect(notices.length).toBeGreaterThan(1);
+    const { label } = seasonFromCalendar(new Date());
+    // 4 groups × 4 tiers: the denominator only counts reachable milestones.
+    expect(
+      await screen.findByRole('heading', {
+        name: new RegExp(`Growing season ${label} \\(\\d+/16\\)`),
+      })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /Feed the beds/ })
+    ).toBeNull();
     expect(
       screen.queryByText(/No tax year reported for this grower/)
     ).toBeNull();
-    expect(
-      screen.getByRole('heading', { name: /Feed the beds/ })
-    ).toBeInTheDocument();
   });
 });
 

@@ -39,6 +39,17 @@ import { getGrowthStage } from "../utils/growthStage";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 import type { InstrumentGroupDefinition } from "../types";
 import type { RollupRow } from "../lib/rollupAdapter";
+import {
+  COLUMN_PRESETS,
+  COLUMN_VISIBILITY_STORAGE_KEY,
+  RELATIVE_VIEW_HIDDEN,
+  TRAILING_COLUMNS,
+  loadColumnVisibility,
+  matchingPreset,
+  type ColumnKey,
+  type ColumnPreset,
+  type ColumnVisibility,
+} from "../lib/holdingsColumns";
 import { getVirtualSpacerHeights } from "./instrumentTable/virtualPadding";
 import {
   buildCategoryLookup,
@@ -54,10 +65,9 @@ import type {
 
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
 const ESTIMATED_ROW_HEIGHT = 32;
-// Columns rendered unconditionally in every header/body row: ticker, name, sector,
-// price, weight %, trend, ccy, type, acquired, days held, stage, eligible. Everything
-// else is gated on showAccount / relative view / visibleColumns / forward ranges.
-const ALWAYS_VISIBLE_COLUMN_COUNT = 12;
+// Ticker and name are rendered in every row. Everything else is gated on
+// showAccount / relative view / visibleColumns / forward ranges.
+const ALWAYS_VISIBLE_COLUMN_COUNT = 2;
 
 // Every column HoldingsTable can sort on. sortBy() only accepts these, so a new
 // sortable column fails to compile until it gets a GROUP_SORT_KEYS entry.
@@ -172,14 +182,24 @@ export function HoldingsTable({
       : localStorage.getItem(VIEW_PRESET_STORAGE_KEY) || ""
   );
 
-  const [visibleColumns, setVisibleColumns] = useState({
-    units: true,
-    cost: true,
-    market: true,
-    gain: true,
-    gain_pct: true,
-    total_return: true,
-  });
+  const [visibleColumns, setVisibleColumns] =
+    useState<ColumnVisibility>(loadColumnVisibility);
+  const activeColumnPreset = matchingPreset(visibleColumns);
+  const show = (key: ColumnKey) =>
+    visibleColumns[key] && !(relativeViewEnabled && RELATIVE_VIEW_HIDDEN.has(key));
+  const trailingColumnCount = TRAILING_COLUMNS.filter(show).length;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(
+        COLUMN_VISIBILITY_STORAGE_KEY,
+        JSON.stringify(visibleColumns),
+      );
+    } catch (error) {
+      console.warn("Could not save holdings column preferences", error);
+    }
+  }, [visibleColumns]);
 
   const [sparkRange, setSparkRange] = useState<SparkRange>(30);
 
@@ -204,7 +224,7 @@ export function HoldingsTable({
     }
   }, [holdingRows, sparkRange]);
 
-  const toggleColumn = (key: keyof typeof visibleColumns) => {
+  const toggleColumn = (key: ColumnKey) => {
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
@@ -430,13 +450,23 @@ export function HoldingsTable({
   // within each group, and groups follow their first row in that order.
   const daysHeldSortable = !rollupMode;
 
-  const columnLabels: [keyof typeof visibleColumns, string][] = [
+  const columnLabels: [ColumnKey, string][] = [
+    ["sector", t("holdingsTable.columns.sector")],
     ["units", t("holdingsTable.columns.units")],
-    ["cost", t("holdingsTable.columns.cost", { symbol: reporting.symbol })],
     ["market", t("holdingsTable.columns.market", { symbol: reporting.symbol })],
     ["gain", t("holdingsTable.columns.gain", { symbol: reporting.symbol })],
     ["gain_pct", t("holdingsTable.columns.gainPct")],
     ["total_return", t("holdingsTable.columns.totalReturn", { symbol: reporting.symbol })],
+    ["price", t("holdingsTable.columns.price", { symbol: reporting.symbol })],
+    ["cost", t("holdingsTable.columns.cost", { symbol: reporting.symbol })],
+    ["weight_pct", t("holdingsTable.columns.weightPct")],
+    ["trend", t("holdingsTable.columns.trend")],
+    ["ccy", t("holdingsTable.columns.ccy")],
+    ["type", t("holdingsTable.columns.type")],
+    ["acquired", t("holdingsTable.columns.acquired")],
+    ["days_held", t("holdingsTable.columns.daysHeld")],
+    ["stage", t("holdingsTable.columns.stage")],
+    ["eligible", t("holdingsTable.columns.eligible")],
   ];
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -533,16 +563,9 @@ export function HoldingsTable({
     (showAccount ? 1 : 0) +
     (showForward7d ? 1 : 0) +
     (showForward30d ? 1 : 0) +
-    (visibleColumns.gain_pct ? 1 : 0) +
-    (relativeViewEnabled
-      ? 0
-      : [
-          visibleColumns.units,
-          visibleColumns.cost,
-          visibleColumns.market,
-          visibleColumns.gain,
-          visibleColumns.total_return,
-        ].filter(Boolean).length);
+    (Object.keys(visibleColumns) as ColumnKey[]).filter(show).length;
+  // Ticker + name (+ sector) share the label cell in group and total rows.
+  const labelColSpan = ALWAYS_VISIBLE_COLUMN_COUNT + (show("sector") ? 1 : 0);
   // Grouped mode walks the groups in their own (totals-sorted) order so each
   // group's rows stay contiguous under its header (#8529). Every grouped row
   // comes from groupingRows above, which always stamps __holdingsIndex.
@@ -575,7 +598,7 @@ export function HoldingsTable({
         <th
           scope="row"
           className={`${tableStyles.cell} ${tableStyles.groupCell}`}
-          colSpan={3}
+          colSpan={labelColSpan}
         >
           <button
             type="button"
@@ -602,7 +625,7 @@ export function HoldingsTable({
             <span className={tableStyles.groupCount}>({group.rows.length})</span>
           </button>
         </th>
-        {!relativeViewEnabled && visibleColumns.units && (
+        {show("units") && (
           <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
             {/* Units summed across different instruments mean nothing (#8531). */}
             {group.totals.instrumentCount > 1
@@ -610,12 +633,12 @@ export function HoldingsTable({
               : new Intl.NumberFormat(i18n.language).format(group.totals.units)}
           </td>
         )}
-        {!relativeViewEnabled && visibleColumns.market && (
+        {show("market") && (
           <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
             {reporting.format(group.totals.marketValue)}
           </td>
         )}
-        {!relativeViewEnabled && visibleColumns.gain && (
+        {show("gain") && (
           <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
             {group.totals.gain === null ? (
               <span
@@ -629,16 +652,18 @@ export function HoldingsTable({
             )}
           </td>
         )}
-        {visibleColumns.gain_pct && (
+        {show("gain_pct") && (
           <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
             {percent(group.totals.gainPct, 1)}
           </td>
         )}
-        {!relativeViewEnabled && visibleColumns.total_return && (
+        {show("total_return") && (
           <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>—</td>
         )}
-        <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>—</td>
-        {!relativeViewEnabled && visibleColumns.cost && (
+        {show("price") && (
+          <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>—</td>
+        )}
+        {show("cost") && (
           <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
             {group.totals.cost === null ? (
               <span
@@ -662,10 +687,12 @@ export function HoldingsTable({
             {percent(group.totals.change30dPct, 1)}
           </td>
         )}
-        <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-          {percent(groupWeight, 1)}
-        </td>
-        {Array.from({ length: 7 }, (_, index) => (
+        {show("weight_pct") && (
+          <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+            {percent(groupWeight, 1)}
+          </td>
+        )}
+        {Array.from({ length: trailingColumnCount }, (_, index) => (
           <td key={index} className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
         ))}
       </tr>
@@ -699,7 +726,30 @@ export function HoldingsTable({
                 : () => handleFilterChange("sell_eligible", "true")
             }
           />
-          <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+          {/* Presets set the per-column checkboxes below rather than replacing them (#7832). */}
+          <div
+            role="group"
+            aria-label={t("holdingsTable.columnPresets.label")}
+            className="mb-1 flex flex-wrap items-center gap-1"
+          >
+            {t("holdingsTable.columnPresets.label")}
+            {(Object.keys(COLUMN_PRESETS) as ColumnPreset[]).map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                aria-pressed={activeColumnPreset === preset}
+                onClick={() => setVisibleColumns({ ...COLUMN_PRESETS[preset] })}
+                className={`ml-1 ${activeColumnPreset === preset ? "font-bold" : ""} focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500`}
+              >
+                {t(`holdingsTable.columnPresets.${preset}`)}
+              </button>
+            ))}
+          </div>
+          <div
+            role="group"
+            aria-label={t("holdingsTable.columnsLabel")}
+            className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1"
+          >
             {t("holdingsTable.columnsLabel")}
             {columnLabels.map(([key, label]) => (
               <label key={key} className="ml-1">
@@ -748,8 +798,8 @@ export function HoldingsTable({
                 onChange={(e) => handleFilterChange("name", e.target.value)}
               />
             </th>
-            <th className={tableStyles.cell}></th>
-            {!relativeViewEnabled && visibleColumns.units && (
+            {show("sector") && <th className={tableStyles.cell}></th>}
+            {show("units") && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>
                 <input
                   placeholder={t("holdingsTable.filters.units")}
@@ -758,13 +808,13 @@ export function HoldingsTable({
                 />
               </th>
             )}
-            {!relativeViewEnabled && visibleColumns.market && (
+            {show("market") && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             )}
-            {!relativeViewEnabled && visibleColumns.gain && (
+            {show("gain") && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             )}
-            {visibleColumns.gain_pct && (
+            {show("gain_pct") && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>
                 <input
                   placeholder={t("holdingsTable.filters.gainPct")}
@@ -773,11 +823,13 @@ export function HoldingsTable({
                 />
               </th>
             )}
-            {!relativeViewEnabled && visibleColumns.total_return && (
+            {show("total_return") && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
-            {!relativeViewEnabled && visibleColumns.cost && (
+            {show("price") && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
+            )}
+            {show("cost") && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             )}
             {showForward7d && (
@@ -786,32 +838,40 @@ export function HoldingsTable({
             {showForward30d && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
-            <th className={tableStyles.cell}></th>
-            <th className={tableStyles.cell}></th>
-            <th className={tableStyles.cell}>
-              <input
-                placeholder={t("holdingsTable.filters.type")}
-                value={filters.instrument_type}
-                onChange={(e) => handleFilterChange("instrument_type", e.target.value)}
-              />
-            </th>
-            <th className={tableStyles.cell}></th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
-            <th className={tableStyles.cell}></th>
-            <th className={`${tableStyles.cell} ${tableStyles.center}`}>
-              {!rollupMode && (
-                <select
-                  aria-label={t("holdingsTable.filters.sellEligible")}
-                  value={filters.sell_eligible}
-                  onChange={(e) => handleFilterChange("sell_eligible", e.target.value)}
-                >
-                  <option value="">{t("holdingsTable.filters.all")}</option>
-                  <option value="true">{t("holdingsTable.filters.yes")}</option>
-                  <option value="false">{t("holdingsTable.filters.no")}</option>
-                </select>
-              )}
-            </th>
+            {show("weight_pct") && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
+            )}
+            {show("trend") && <th className={tableStyles.cell}></th>}
+            {show("ccy") && <th className={tableStyles.cell}></th>}
+            {show("type") && (
+              <th className={tableStyles.cell}>
+                <input
+                  placeholder={t("holdingsTable.filters.type")}
+                  value={filters.instrument_type}
+                  onChange={(e) => handleFilterChange("instrument_type", e.target.value)}
+                />
+              </th>
+            )}
+            {show("acquired") && <th className={tableStyles.cell}></th>}
+            {show("days_held") && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
+            )}
+            {show("stage") && <th className={tableStyles.cell}></th>}
+            {show("eligible") && (
+              <th className={`${tableStyles.cell} ${tableStyles.center}`}>
+                {!rollupMode && (
+                  <select
+                    aria-label={t("holdingsTable.filters.sellEligible")}
+                    value={filters.sell_eligible}
+                    onChange={(e) => handleFilterChange("sell_eligible", e.target.value)}
+                  >
+                    <option value="">{t("holdingsTable.filters.all")}</option>
+                    <option value="true">{t("holdingsTable.filters.yes")}</option>
+                    <option value="false">{t("holdingsTable.filters.no")}</option>
+                  </select>
+                )}
+              </th>
+            )}
           </tr>
           <tr>
             {showAccount && (
@@ -827,16 +887,18 @@ export function HoldingsTable({
             <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => sortBy("name")}>
               {t("holdingsTable.columns.name")}{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
             </th>
-            <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => sortBy("sector")}>
-              {t("holdingsTable.columns.sector")}{sortKey === "sector" ? (asc ? " ▲" : " ▼") : ""}
-            </th>
-            {!relativeViewEnabled && visibleColumns.units && (
+            {show("sector") && (
+              <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => sortBy("sector")}>
+                {t("holdingsTable.columns.sector")}{sortKey === "sector" ? (asc ? " ▲" : " ▼") : ""}
+              </th>
+            )}
+            {show("units") && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.units")}</th>
             )}
-            {!relativeViewEnabled && visibleColumns.market && (
+            {show("market") && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.market", { symbol: reporting.symbol })}</th>
             )}
-            {!relativeViewEnabled && visibleColumns.gain && (
+            {show("gain") && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => sortBy("gain")}
@@ -844,7 +906,7 @@ export function HoldingsTable({
                 {t("holdingsTable.columns.gain", { symbol: reporting.symbol })}{sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
-            {visibleColumns.gain_pct && (
+            {show("gain_pct") && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => sortBy("gain_pct")}
@@ -852,7 +914,7 @@ export function HoldingsTable({
                 {t("holdingsTable.columns.gainPct")}{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
-            {!relativeViewEnabled && visibleColumns.total_return && (
+            {show("total_return") && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right}`}
                 title={t("holdingsTable.totalReturnHeaderTitle")}
@@ -860,8 +922,10 @@ export function HoldingsTable({
                 {t("holdingsTable.columns.totalReturn", { symbol: reporting.symbol })}
               </th>
             )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.price", { symbol: reporting.symbol })}</th>
-            {!relativeViewEnabled && visibleColumns.cost && (
+            {show("price") && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.price", { symbol: reporting.symbol })}</th>
+            )}
+            {show("cost") && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => sortBy("cost")}
@@ -887,27 +951,43 @@ export function HoldingsTable({
                 {sortKey === "forward_30d_change_pct" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
-            <th
-              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-              onClick={() => sortBy("weight_pct")}
-            >
-              {t("holdingsTable.columns.weightPct")}{sortKey === "weight_pct" ? (asc ? " ▲" : " ▼") : ""}
-            </th>
-            <th className={`${tableStyles.cell} ${tableStyles.trend}`}>
-              {t("holdingsTable.trendHeader", { range: sparkRange })}
-            </th>
-            <th className={tableStyles.cell}>{t("instrumentTable.columns.ccy")}</th>
-            <th className={tableStyles.cell}>{t("instrumentTable.columns.type")}</th>
-            <th className={tableStyles.cell}>{t("holdingsTable.columns.acquired")}</th>
-            <th
-              className={`${tableStyles.cell} ${tableStyles.right}${daysHeldSortable ? ` ${tableStyles.clickable}` : ""}`}
-              onClick={daysHeldSortable ? () => sortBy("days_held") : undefined}
-            >
-              {t("holdingsTable.columns.daysHeld")}
-              {daysHeldSortable && sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}
-            </th>
-            <th className={`${tableStyles.cell} ${tableStyles.center}`}>{t("holdingsTable.columns.stage")}</th>
-            <th className={`${tableStyles.cell} ${tableStyles.center}`}>{t("holdingsTable.columns.eligible")}</th>
+            {show("weight_pct") && (
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                onClick={() => sortBy("weight_pct")}
+              >
+                {t("holdingsTable.columns.weightPct")}{sortKey === "weight_pct" ? (asc ? " ▲" : " ▼") : ""}
+              </th>
+            )}
+            {show("trend") && (
+              <th className={`${tableStyles.cell} ${tableStyles.trend}`}>
+                {t("holdingsTable.trendHeader", { range: sparkRange })}
+              </th>
+            )}
+            {show("ccy") && (
+              <th className={tableStyles.cell}>{t("instrumentTable.columns.ccy")}</th>
+            )}
+            {show("type") && (
+              <th className={tableStyles.cell}>{t("instrumentTable.columns.type")}</th>
+            )}
+            {show("acquired") && (
+              <th className={tableStyles.cell}>{t("holdingsTable.columns.acquired")}</th>
+            )}
+            {show("days_held") && (
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right}${daysHeldSortable ? ` ${tableStyles.clickable}` : ""}`}
+                onClick={daysHeldSortable ? () => sortBy("days_held") : undefined}
+              >
+                {t("holdingsTable.columns.daysHeld")}
+                {daysHeldSortable && sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}
+              </th>
+            )}
+            {show("stage") && (
+              <th className={`${tableStyles.cell} ${tableStyles.center}`}>{t("holdingsTable.columns.stage")}</th>
+            )}
+            {show("eligible") && (
+              <th className={`${tableStyles.cell} ${tableStyles.center}`}>{t("holdingsTable.columns.eligible")}</th>
+            )}
           </tr>
         </thead>
 
@@ -962,18 +1042,20 @@ export function HoldingsTable({
                   </button>
                 </td>
                 <td className={`${tableStyles.cell} ${tableStyles.name}`}>{h.name}</td>
-                <td className={tableStyles.cell}>{h.sector || "—"}</td>
-                {!relativeViewEnabled && visibleColumns.units && (
+                {show("sector") && (
+                  <td className={tableStyles.cell}>{h.sector || "—"}</td>
+                )}
+                {show("units") && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {new Intl.NumberFormat(i18n.language).format(h.units ?? 0)}
                   </td>
                 )}
-                {!relativeViewEnabled && visibleColumns.market && (
+                {show("market") && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {reporting.format(h.market, h.market_value_currency)}
                   </td>
                 )}
-                {!relativeViewEnabled && visibleColumns.gain && (
+                {show("gain") && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right} ${h.gain === null ? "" : getPerformanceClass(h.gain)}`}
                   >
@@ -989,7 +1071,7 @@ export function HoldingsTable({
                     )}
                   </td>
                 )}
-                {visibleColumns.gain_pct && (
+                {show("gain_pct") && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right} ${h.gain_pct === null ? "" : getPerformanceClass(h.gain_pct)}`}
                   >
@@ -1005,7 +1087,7 @@ export function HoldingsTable({
                     )}
                   </td>
                 )}
-                {!relativeViewEnabled && visibleColumns.total_return && (
+                {show("total_return") && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right} ${h.total_return_gbp == null ? "" : getPerformanceClass(h.total_return_gbp)}`}
                     title={totalReturnTitle(h)}
@@ -1021,38 +1103,40 @@ export function HoldingsTable({
                     )}
                   </td>
                 )}
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  <span className={h.is_stale ? "text-gray" : undefined}>
-                    {reporting.format(h.current_price_gbp, h.current_price_currency)}
-                  </span>
-                  {h.is_stale && (
-                    <span
-                      className="ml-1 text-warning"
-                      title={h.last_price_time ?? undefined}
-                    >
-                      *
+                {show("price") && (
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    <span className={h.is_stale ? "text-gray" : undefined}>
+                      {reporting.format(h.current_price_gbp, h.current_price_currency)}
                     </span>
-                  )}
-                  {isFxRateFlagged(h.fx_rate_source) && (
-                    // Approximate or absent FX rate (#9664, #9730).
-                    <span
-                      className="ml-1 text-warning"
-                      title={fxRateTitle(h.fx_rate_source)}
-                      aria-label={fxRateTitle(h.fx_rate_source)}
-                    >
-                      {h.fx_rate_source === FX_RATE_SOURCE_MISSING ? "FX" : "≈"}
-                    </span>
-                  )}
-                  {h.last_price_date && (
-                    <span
-                      className={tableStyles.badge}
-                      title={h.last_price_date}
-                    >
-                      {formatDateISO(new Date(h.last_price_date))}
-                    </span>
-                  )}
-                </td>
-                {!relativeViewEnabled && visibleColumns.cost && (
+                    {h.is_stale && (
+                      <span
+                        className="ml-1 text-warning"
+                        title={h.last_price_time ?? undefined}
+                      >
+                        *
+                      </span>
+                    )}
+                    {isFxRateFlagged(h.fx_rate_source) && (
+                      // Approximate or absent FX rate (#9664, #9730).
+                      <span
+                        className="ml-1 text-warning"
+                        title={fxRateTitle(h.fx_rate_source)}
+                        aria-label={fxRateTitle(h.fx_rate_source)}
+                      >
+                        {h.fx_rate_source === FX_RATE_SOURCE_MISSING ? "FX" : "≈"}
+                      </span>
+                    )}
+                    {h.last_price_date && (
+                      <span
+                        className={tableStyles.badge}
+                        title={h.last_price_date}
+                      >
+                        {formatDateISO(new Date(h.last_price_date))}
+                      </span>
+                    )}
+                  </td>
+                )}
+                {show("cost") && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}
                     title={
@@ -1085,99 +1169,115 @@ export function HoldingsTable({
                     {percent(h.forward_30d_change_pct ?? null, 1)}
                   </td>
                 )}
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {percent(h.weight_pct ?? 0, 1)}
-                </td>
-                <td className={`${tableStyles.cell} ${tableStyles.trend}`}>
-                  <Sparkline
-                    ticker={h.ticker}
-                    days={sparkRange}
-                    width={80}
-                    ariaLabel={t("holdingsTable.sparklineAria", { ticker: h.ticker })}
-                  />
-                </td>
-                <td className={tableStyles.cell}>
-                  {isSupportedFx(h.currency) ? (
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onSelectInstrument?.(`${h.currency!}GBP.FX`, h.currency!);
-                      }}
-                      className="link-button"
-                    >
-                      {h.currency}
-                    </button>
-                  ) : (
-                    h.currency ?? "—"
-                  )}
-                </td>
-                <td className={tableStyles.cell}>
-                  {translateInstrumentType(t, h.instrument_type)}
-                </td>
-                <td className={tableStyles.cell}>
-                  {h.acquired_date && !isNaN(Date.parse(h.acquired_date))
-                    ? formatDateISO(new Date(h.acquired_date))
-                    : (
-                        <span
-                          className={tableStyles.notApplicable}
-                          title={t("holdingsTable.acquiredNotAvailable")}
-                        >
-                          {t("holdingsTable.notApplicable")}
-                        </span>
-                      )}
-                </td>
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {h.days_held ?? (
-                    <span
-                      className={tableStyles.notApplicable}
-                      title={t("holdingsTable.daysHeldNotAvailable")}
-                    >
-                      {t("holdingsTable.notApplicable")}
-                    </span>
-                  )}
-                </td>
-                <td className={`${tableStyles.cell} ${tableStyles.center}`}>
-                  {h.days_held != null
-                    ? (() => {
-                        const stage = getGrowthStage({ daysHeld: h.days_held });
-                        return <span title={stage.message}>{stage.icon}</span>;
-                      })()
-                    : (
-                        <span
-                          className={tableStyles.notApplicable}
-                          title={t("holdingsTable.stageNotAvailable")}
-                        >
-                          {t("holdingsTable.notApplicable")}
-                        </span>
-                      )}
-                </td>
-                <td
-                  className={`${tableStyles.cell} ${tableStyles.center} ${
-                    h.sell_eligible == null
-                      ? ""
-                      : h.sell_eligible
-                        ? "text-positive"
-                        : "text-warning"
-                  }`}
-                  title={
-                    h.next_eligible_sell_date
-                      ? formatDateISO(new Date(h.next_eligible_sell_date))
-                      : h.sell_eligible == null
-                        ? t("holdingsTable.eligibleNotAvailable")
-                        : undefined
-                  }
-                >
-                  {h.sell_eligible == null ? (
-                    <span className={tableStyles.notApplicable}>
-                      {t("holdingsTable.notApplicable")}
-                    </span>
-                  ) : h.sell_eligible ? (
-                    `✓ ${t("holdingsTable.eligible")}`
-                  ) : (
-                    `✗ ${h.days_until_eligible ?? ""}`
-                  )}
-                </td>
+                {show("weight_pct") && (
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    {percent(h.weight_pct ?? 0, 1)}
+                  </td>
+                )}
+                {show("trend") && (
+                  <td className={`${tableStyles.cell} ${tableStyles.trend}`}>
+                    <Sparkline
+                      ticker={h.ticker}
+                      days={sparkRange}
+                      width={80}
+                      ariaLabel={t("holdingsTable.sparklineAria", { ticker: h.ticker })}
+                    />
+                  </td>
+                )}
+                {show("ccy") && (
+                  <td className={tableStyles.cell}>
+                    {isSupportedFx(h.currency) ? (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSelectInstrument?.(`${h.currency!}GBP.FX`, h.currency!);
+                        }}
+                        className="link-button"
+                      >
+                        {h.currency}
+                      </button>
+                    ) : (
+                      h.currency ?? "—"
+                    )}
+                  </td>
+                )}
+                {show("type") && (
+                  <td className={tableStyles.cell}>
+                    {translateInstrumentType(t, h.instrument_type)}
+                  </td>
+                )}
+                {show("acquired") && (
+                  <td className={tableStyles.cell}>
+                    {h.acquired_date && !isNaN(Date.parse(h.acquired_date))
+                      ? formatDateISO(new Date(h.acquired_date))
+                      : (
+                          <span
+                            className={tableStyles.notApplicable}
+                            title={t("holdingsTable.acquiredNotAvailable")}
+                          >
+                            {t("holdingsTable.notApplicable")}
+                          </span>
+                        )}
+                  </td>
+                )}
+                {show("days_held") && (
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    {h.days_held ?? (
+                      <span
+                        className={tableStyles.notApplicable}
+                        title={t("holdingsTable.daysHeldNotAvailable")}
+                      >
+                        {t("holdingsTable.notApplicable")}
+                      </span>
+                    )}
+                  </td>
+                )}
+                {show("stage") && (
+                  <td className={`${tableStyles.cell} ${tableStyles.center}`}>
+                    {h.days_held != null
+                      ? (() => {
+                          const stage = getGrowthStage({ daysHeld: h.days_held });
+                          return <span title={stage.message}>{stage.icon}</span>;
+                        })()
+                      : (
+                          <span
+                            className={tableStyles.notApplicable}
+                            title={t("holdingsTable.stageNotAvailable")}
+                          >
+                            {t("holdingsTable.notApplicable")}
+                          </span>
+                        )}
+                  </td>
+                )}
+                {show("eligible") && (
+                  <td
+                    className={`${tableStyles.cell} ${tableStyles.center} ${
+                      h.sell_eligible == null
+                        ? ""
+                        : h.sell_eligible
+                          ? "text-positive"
+                          : "text-warning"
+                    }`}
+                    title={
+                      h.next_eligible_sell_date
+                        ? formatDateISO(new Date(h.next_eligible_sell_date))
+                        : h.sell_eligible == null
+                          ? t("holdingsTable.eligibleNotAvailable")
+                          : undefined
+                    }
+                  >
+                    {h.sell_eligible == null ? (
+                      <span className={tableStyles.notApplicable}>
+                        {t("holdingsTable.notApplicable")}
+                      </span>
+                    ) : h.sell_eligible ? (
+                      `✓ ${t("holdingsTable.eligible")}`
+                    ) : (
+                      `✗ ${h.days_until_eligible ?? ""}`
+                    )}
+                  </td>
+                )}
               </tr>
             );
             if (!group) return holdingRow;
@@ -1196,40 +1296,45 @@ export function HoldingsTable({
         </tbody>
         <tfoot>
           <tr>
-            <td className={`${tableStyles.cell} font-semibold`} colSpan={showAccount ? 4 : 3}>
+            <td
+              className={`${tableStyles.cell} font-semibold`}
+              colSpan={labelColSpan + (showAccount ? 1 : 0)}
+            >
               {t("holdingsTable.totalRowLabel")}
             </td>
-            {!relativeViewEnabled && visibleColumns.units && (
+            {show("units") && (
               <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>—</td>
             )}
-            {!relativeViewEnabled && visibleColumns.market && (
+            {show("market") && (
               <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
                 {reporting.format(totals.market)}
               </td>
             )}
-            {!relativeViewEnabled && visibleColumns.gain && (
+            {show("gain") && (
               <td
                 className={`${tableStyles.cell} ${tableStyles.right} font-semibold ${getPerformanceClass(totals.gain)}`}
               >
                 {reporting.format(totals.gain)}
               </td>
             )}
-            {visibleColumns.gain_pct && (
+            {show("gain_pct") && (
               <td
                 className={`${tableStyles.cell} ${tableStyles.right} font-semibold ${getPerformanceClass(totalGainPct)}`}
               >
                 {percent(totalGainPct, 1)}
               </td>
             )}
-            {!relativeViewEnabled && visibleColumns.total_return && (
+            {show("total_return") && (
               <td
                 className={`${tableStyles.cell} ${tableStyles.right} font-semibold ${totalReturn === null ? "" : getPerformanceClass(totalReturn)}`}
               >
                 {totalReturn === null ? "—" : reporting.format(totalReturn)}
               </td>
             )}
-            <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>—</td>
-            {!relativeViewEnabled && visibleColumns.cost && (
+            {show("price") && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>—</td>
+            )}
+            {show("cost") && (
               <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
                 {reporting.format(totals.cost)}
               </td>
@@ -1240,10 +1345,12 @@ export function HoldingsTable({
             {showForward30d && (
               <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>—</td>
             )}
-            <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-              {percent(totals.weight, 1)}
-            </td>
-            {Array.from({ length: 7 }, (_, index) => (
+            {show("weight_pct") && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                {percent(totals.weight, 1)}
+              </td>
+            )}
+            {Array.from({ length: trailingColumnCount }, (_, index) => (
               <td key={index} className={tableStyles.cell}></td>
             ))}
           </tr>

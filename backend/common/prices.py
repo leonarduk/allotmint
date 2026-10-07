@@ -483,22 +483,54 @@ def log_large_move_suspects(tickers: Iterable[str]) -> List[Dict]:
         if suspect is None:
             continue
         suspects.append(suspect)
+        move = (
+            f"{(suspect['ratio'] - 1.0) * 100.0:+.0f}% on {suspect['date']} "
+            f"({suspect['previous']:g} -> {suspect['value']:g}), "
+            f"above its {suspect['threshold'] * 100.0:.0f}% threshold"
+        )
         logger.warning(
-            "Price move suspect: %s moved %+.0f%% on %s (%g -> %g), above its %.0f%% threshold",
+            "Price move suspect: %s moved %s",
             sanitise_log_value(suspect["ticker"]),
-            (suspect["ratio"] - 1.0) * 100.0,
-            sanitise_log_value(suspect["date"]),
-            suspect["previous"],
-            suspect["value"],
-            suspect["threshold"] * 100.0,
+            sanitise_log_value(move),
         )
     return suspects
+
+
+def _unpriced_reason(entry: Optional[Dict]) -> Optional[str]:
+    """Why a snapshot entry can't be persisted, or ``None`` when it can."""
+    if entry is None:
+        return "missing from snapshot"
+    price = entry.get("last_price")
+    if price is None or pd.isna(price):
+        return "no price returned"
+    if price <= 0:
+        return f"non-positive price {price}"
+    return None
+
+
+def _unpriced_reasons(tickers: List[str], snapshot: Dict, previous: Dict) -> Dict[str, str]:
+    """Return ``{ticker: reason}`` for every ticker the refresh could not price (#8595).
+
+    These tickers keep their previous cached price, which goes stale; naming
+    them, with the age of the price they keep (from ``previous``, the snapshot
+    on disk), lets the refresh job's logs say which series failed and why.
+    """
+    reasons: Dict[str, str] = {}
+    for t in tickers:
+        reason = _unpriced_reason(snapshot.get(t))
+        if reason is None:
+            continue
+        kept = previous.get(t)
+        kept_date = kept.get("last_price_date") if isinstance(kept, dict) else None
+        reasons[t] = f"{reason}; keeping price from {kept_date}" if kept_date else f"{reason}; no previous price"
+    return reasons
 
 
 def refresh_prices() -> Dict:
     """
     Pulls latest close, 7- and 30-day % moves for every ticker in
     the current portfolios.  Writes to JSON and updates the cache.
+    Tickers it could not price are logged and returned under ``unpriced``.
     """
     tickers = refresh_universe()
     if not tickers:
@@ -539,6 +571,15 @@ def refresh_prices() -> Dict:
         except (json.JSONDecodeError, OSError):
             pass
 
+    # Reported in the log and the return value only; never written to prices.json.
+    unpriced = _unpriced_reasons(tickers, snapshot, existing)
+    if unpriced:
+        logger.warning(
+            "Price refresh could not price %s tickers (keeping previous prices): %s",
+            sanitise_log_value(f"{len(unpriced)} of {len(tickers)}"),
+            sanitise_log_value(dict(sorted(unpriced.items()))),
+        )
+
     if to_persist:
         merged = {**existing, **to_persist}
         path.write_text(json.dumps(merged, indent=2))
@@ -576,6 +617,7 @@ def refresh_prices() -> Dict:
     return {
         "tickers": tickers,
         "snapshot": snapshot,
+        "unpriced": unpriced,
         "timestamp": ts,
     }
 

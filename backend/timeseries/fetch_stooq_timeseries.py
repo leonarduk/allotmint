@@ -9,7 +9,7 @@ import requests
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
-from backend.utils.timeseries_helpers import STANDARD_COLUMNS
+from backend.utils.timeseries_helpers import STANDARD_COLUMNS, round_price_columns
 
 logger = logging.getLogger("stooq_timeseries")
 
@@ -181,6 +181,8 @@ def fetch_stooq_timeseries_range(ticker: str, exchange: str, start_date: date, e
         logger.info("Fetched %d rows for %s", len(df), sanitise_log_value(full_ticker))
 
         df["Source"] = "Stooq"
+        # Significant figures, not fixed dp, matching the other providers (#9456).
+        round_price_columns(df)
 
         return df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]]
 

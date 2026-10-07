@@ -66,6 +66,19 @@ def test_get_units_as_of_reflects_a_sell_before_cutoff() -> None:
     assert get_units_as_of(tx_data, "ABC", "2024-02-01") == pytest.approx(100.0)
 
 
+def test_get_units_as_of_scales_by_field_not_magnitude() -> None:
+    """#7920: ``units`` are real units at any size; ``shares`` are always PP x 10^8."""
+    tx_data = {
+        "transactions": [
+            {"type": "BUY", "ticker": "ABC", "units": 2_000_000, "date": "2024-01-01"},
+            {"type": "BUY", "ticker": "XYZ", "shares": 999_999, "date": "2024-01-01"},
+        ]
+    }
+
+    assert get_units_as_of(tx_data, "ABC", "2024-06-01") == pytest.approx(2_000_000.0)
+    assert get_units_as_of(tx_data, "XYZ", "2024-06-01") == pytest.approx(0.00999999)
+
+
 def test_get_units_as_of_ignores_other_tickers() -> None:
     tx_data = {
         "transactions": [

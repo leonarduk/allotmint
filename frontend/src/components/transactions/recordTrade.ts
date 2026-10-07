@@ -29,9 +29,11 @@ export function defaultPriceUnit(quoteCurrency: string | null | undefined): Pric
 export function toPriceGbp(priceText: string, unit: PriceUnit): number {
   const price = Number(priceText);
   if (!priceText.trim() || !Number.isFinite(price)) return Number.NaN;
-  // Round away binary noise from the /100 (28889.4 / 100 is not exactly
-  // 288.894 in floating point) without losing any precision a broker quotes.
-  return unit === "GBX" ? Math.round(price * 1e6) / 1e8 : price;
+  if (unit !== "GBX") return price;
+  // Pence -> pounds. Round to 8 decimal places to drop binary noise from the
+  // division (28889.4 / 100 is not exactly 288.894 in floating point); that
+  // keeps every digit of a pence quote with up to 6 decimal places.
+  return Number((price / 100).toFixed(8));
 }
 
 /**

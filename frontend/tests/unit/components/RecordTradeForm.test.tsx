@@ -63,6 +63,9 @@ describe('recordTrade helpers', () => {
     expect(toPriceGbp('28889.4', 'GBX')).toBe(288.894);
     expect(toPriceGbp('288.894', 'GBP')).toBe(288.894);
     expect(toPriceGbp('', 'GBX')).toBeNaN();
+    expect(toPriceGbp('123.456', 'GBX')).toBe(1.23456);
+    expect(toPriceGbp('0.1', 'GBX')).toBe(0.001);
+    expect(toPriceGbp('12345.678901', 'GBX')).toBe(123.45678901);
   });
 
   it('adds fees to a buy and deducts them from a sell', () => {
@@ -75,6 +78,16 @@ describe('recordTrade helpers', () => {
     const accounts = buildTradeAccounts(POSITIONS, OWNERS);
     expect(accounts[0]).toEqual({ owner: 'steve', account: 'isa', heldUnits: 10 });
     expect(accounts).toHaveLength(3);
+  });
+
+  it('keeps /owners order when the instrument is not held anywhere', () => {
+    const accounts = buildTradeAccounts([], OWNERS);
+    expect(accounts.map((a) => `${a.owner}/${a.account}`)).toEqual([
+      'steve/isa',
+      'steve/sipp',
+      'alice/isa',
+    ]);
+    expect(accounts.every((a) => a.heldUnits === 0)).toBe(true);
   });
 });
 

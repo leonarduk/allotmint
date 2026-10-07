@@ -84,9 +84,10 @@ LONG_GILT_MIN_YEARS = 10.0
 _INDEX_LINKED_RE = re.compile(r"inflati?on[- ]linked|inflatin|index[- ]linked|\blinkers?\b|\bTIPS\b", re.IGNORECASE)
 _ULTRASHORT_RE = re.compile(r"ultra[- ]?short", re.IGNORECASE)
 _GILT_RE = re.compile(r"\bgilts?\b|\bUK (government|govt|conventional)\b", re.IGNORECASE)
-_CREDIT_RE = re.compile(
-    r"\bcorp(orates?)?\b|\bcredit\b|\bincome\b|\binvestment grade\b|\bhigh yield\b|\bloans?\b", re.IGNORECASE
-)
+_CREDIT_RE = re.compile(r"\bcorp(orates?)?\b|\bcredit\b|\binvestment grade\b|\bhigh yield\b|\bloans?\b", re.IGNORECASE)
+# "Income" alone means credit (TwentyFour Income Fund, TFIF.L) but is weaker
+# than a government issuer: "Global Government Bond Income" is sovereign (#9636).
+_INCOME_RE = re.compile(r"\bincome\b", re.IGNORECASE)
 _GOVERNMENT_RE = re.compile(r"\bgovernment\b|\bgovt\b|\btreasur(y|ies)\b|\bbunds?\b|\bsovereign\b", re.IGNORECASE)
 _GOLD_RE = re.compile(r"\bgold\b", re.IGNORECASE)
 # "Small Cap Value", "Small-Cap 600 Value", "SmallCap Value Weighted".
@@ -164,6 +165,8 @@ def derive_bond_sub_class(meta: Mapping[str, Any]) -> Optional[str]:
         return CORPORATE_BONDS
     if _GOVERNMENT_RE.search(text):
         return OVERSEAS_GOVERNMENT
+    if _INCOME_RE.search(text):
+        return CORPORATE_BONDS
     return None
 
 

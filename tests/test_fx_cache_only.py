@@ -73,6 +73,19 @@ def test_cached_fx_rate_is_the_latest_dated_row_of_an_unsorted_file(fx_cache, no
     assert refresh_queue.pending() == []
 
 
+def test_cached_fx_rate_ignores_row_order_of_the_cached_frame(fx_cache, no_live_fx, monkeypatch):
+    """``cached_fx_rate_to_gbp`` picks the max-Date row itself, even from an unsorted frame (#8042).
+
+    Bypasses ``_read_fx_parquet``'s sort so the function's own guard is what is tested.
+    """
+    days = pd.bdate_range(end=cache._last_close_target(), periods=3)
+    unsorted = pd.DataFrame({"Date": [days[2], days[0], days[1]], "Rate": [0.9, 0.5, 0.6]}, index=[7, 3, 5])
+    monkeypatch.setattr(cache, "_cached_fx_frame", lambda curr: unsorted)
+
+    assert cache.cached_fx_rate_to_gbp("USD") == pytest.approx(0.9)
+    assert refresh_queue.pending() == []
+
+
 def test_cache_only_fx_to_base_converts_to_a_non_gbp_base(fx_cache, no_live_fx):
     _seed_fx("USD", cache._last_close_target(), rate=0.75)
 

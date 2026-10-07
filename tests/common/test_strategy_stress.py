@@ -124,6 +124,18 @@ def test_pro_fills_only_what_stand_ins_cannot(monkeypatch):
     assert row["series"]["long_gilts"] == ["GLTL.L", "synthetic 20y gilt"]
 
 
+def test_a_failing_pro_hook_is_logged_and_the_stand_ins_still_answer(monkeypatch, caplog):
+    def broken(sleeve, event_date, horizons):
+        raise IndexError("index 0 is out of bounds")
+
+    monkeypatch.setattr(strategy_stress, "PRO_SLEEVE_RETURNS", broken)
+    with caplog.at_level("WARNING"):
+        row = _row({"equity": 50.0, "long_gilts": 50.0})
+    assert row["horizons"]["1m"]["return_pct"] == -8.5  # stand-ins answered 1m
+    assert row["horizons"]["1y"]["missing"] == ["long_gilts"]  # pro could not fill 1y
+    assert "allotmint-pro sleeve returns failed for long_gilts" in caplog.text
+
+
 def test_stress_strategies_lists_builtins_and_user_strategies(tmp_path, monkeypatch, fake_series):
     (tmp_path / "alex").mkdir()
     create_strategy("alex", {"name": "Mine", "targets": {"equity": 90, "gold": 10}}, tmp_path)

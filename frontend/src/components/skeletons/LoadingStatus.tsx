@@ -35,7 +35,12 @@ export default function LoadingStatus({
   useEffect(() => {
     if (slowAfterMs === null) return undefined;
     const timer = setTimeout(() => setSlow(true), slowAfterMs);
-    return () => clearTimeout(timer);
+    // Reset on cleanup so a changed (or `null`) threshold starts from a hidden
+    // hint instead of keeping one raised under the previous threshold.
+    return () => {
+      clearTimeout(timer);
+      setSlow(false);
+    };
   }, [slowAfterMs]);
 
   return (

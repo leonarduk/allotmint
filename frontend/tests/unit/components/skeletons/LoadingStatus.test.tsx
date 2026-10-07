@@ -42,6 +42,25 @@ describe("LoadingStatus", () => {
     expect(screen.getByTestId("loading-still-working")).toHaveTextContent(/still working/i);
   });
 
+  it("drops a raised hint when slowAfterMs switches to null", () => {
+    const { rerender } = render(
+      <LoadingStatus label="Loading things">
+        <span>skeleton</span>
+      </LoadingStatus>,
+    );
+    act(() => {
+      vi.advanceTimersByTime(SLOW_LOAD_HINT_MS);
+    });
+    expect(screen.getByTestId("loading-still-working")).toBeInTheDocument();
+
+    rerender(
+      <LoadingStatus label="Loading things" slowAfterMs={null}>
+        <span>skeleton</span>
+      </LoadingStatus>,
+    );
+    expect(screen.queryByTestId("loading-still-working")).toBeNull();
+  });
+
   it("never shows the hint when slowAfterMs is null", () => {
     render(
       <LoadingStatus label="Loading things" slowAfterMs={null}>

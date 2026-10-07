@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sys
 import time
 from datetime import UTC, date, datetime, timedelta
@@ -784,6 +785,34 @@ def test_refresh_prices_partial_null_preserves_existing_prices(tmp_path, monkeyp
     assert price_cache.get("BBB.L") == pytest.approx(
         20.0
     ), "_price_cache must contain preserved seed price for null-returning ticker"
+
+
+def test_refresh_prices_reports_unpriced_tickers(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Tickers the refresh cannot price are logged and returned with a reason (#8595)."""
+    snapshot = {
+        "AAA.L": {"last_price": 11.5},
+        "BBB.L": {"last_price": None},
+        "CCC.L": {"last_price": 0.0},
+    }
+    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: ["AAA.L", "BBB.L", "CCC.L", "DDD.L"])
+    monkeypatch.setattr(prices, "get_price_snapshot", lambda _: snapshot)
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
+    monkeypatch.setattr(prices, "check_price_alerts", Mock())
+    monkeypatch.setattr(prices.config, "prices_json", tmp_path / "prices.json")
+    monkeypatch.setattr(prices, "_price_cache", {})
+
+    with caplog.at_level(logging.WARNING, logger=prices.logger.name):
+        result = prices.refresh_prices()
+
+    assert result["unpriced"] == {
+        "BBB.L": "no price returned",
+        "CCC.L": "non-positive price 0.0",
+        "DDD.L": "missing from snapshot",
+    }
+    assert "could not price 3 of 4 tickers" in caplog.text
+    assert "BBB.L" in caplog.text and "AAA.L" not in caplog.text
 
 
 def test_refresh_prices_filters_nan_zero_and_negative_prices(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:

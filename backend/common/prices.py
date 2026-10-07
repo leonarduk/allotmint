@@ -443,10 +443,31 @@ def _refresh_reference_data(tickers: List[str]) -> None:
         logger.warning("Bank of England rates refresh failed: %s", sanitise_log_value(exc))
 
 
+def _unpriced_reasons(tickers: List[str], snapshot: Dict) -> Dict[str, str]:
+    """Return ``{ticker: reason}`` for every ticker the refresh could not price (#8595).
+
+    These tickers keep their previous cached price, which goes stale; naming
+    them lets the refresh job's logs say which series failed and why.
+    """
+    reasons: Dict[str, str] = {}
+    for t in tickers:
+        entry = snapshot.get(t)
+        if entry is None:
+            reasons[t] = "missing from snapshot"
+            continue
+        price = entry.get("last_price")
+        if price is None or pd.isna(price):
+            reasons[t] = "no price returned"
+        elif price <= 0:
+            reasons[t] = f"non-positive price {price}"
+    return reasons
+
+
 def refresh_prices() -> Dict:
     """
     Pulls latest close, 7- and 30-day % moves for every ticker in
     the current portfolios.  Writes to JSON and updates the cache.
+    Tickers it could not price are logged and returned under ``unpriced``.
     """
     tickers = refresh_universe()
     if not tickers:
@@ -479,6 +500,13 @@ def refresh_prices() -> Dict:
         for t, v in snapshot.items()
         if v.get("last_price") is not None and pd.notna(v.get("last_price")) and v.get("last_price") > 0
     }
+    unpriced = _unpriced_reasons(tickers, snapshot)
+    if unpriced:
+        logger.warning(
+            "Price refresh could not price %s tickers (keeping previous prices): %s",
+            sanitise_log_value(f"{len(unpriced)} of {len(tickers)}"),
+            sanitise_log_value(dict(sorted(unpriced.items()))),
+        )
     existing: Dict = {}
     if path.exists():
         try:
@@ -523,6 +551,7 @@ def refresh_prices() -> Dict:
     return {
         "tickers": tickers,
         "snapshot": snapshot,
+        "unpriced": unpriced,
         "timestamp": ts,
     }
 

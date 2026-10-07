@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { checkScreenerAvailable, getScreener } from "../api";
 import type { ScreenerResult } from "../types";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -502,7 +503,17 @@ export function Screener() {
               >
                 <td style={right}>{r.rank}</td>
                 <td style={{ ...cell, whiteSpace: "nowrap" }}>
-                  <span title={tickerTooltip(r)}>{r.ticker}</span>
+                  {/* Ticker opens the full research page; the rest of the row
+                      keeps opening the quick-look detail panel. */}
+                  <Link
+                    to={`/research/${encodeURIComponent(r.ticker)}`}
+                    title={tickerTooltip(r)}
+                    className="underline"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    {r.ticker}
+                  </Link>
                   <WatchlistToggle ticker={r.ticker} />
                 </td>
                 <td style={right}>{r.peg_ratio ?? "—"}</td>

@@ -1,12 +1,34 @@
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { MemoryRouter, Route, Routes, useParams } from "react-router-dom";
 import { Screener } from "@/pages/Screener";
 import * as api from "@/api";
 
 vi.mock("@/api");
+vi.mock("@/components/InstrumentDetail", () => ({
+  InstrumentDetail: ({ ticker }: { ticker: string }) => (
+    <div data-testid="instrument-detail">{ticker}</div>
+  ),
+}));
 
 const mockGetScreener = vi.mocked(api.getScreener);
 const mockCheckScreenerAvailable = vi.mocked(api.checkScreenerAvailable);
+
+function ResearchStub() {
+  const { ticker } = useParams();
+  return <p>research page for {ticker}</p>;
+}
+
+// Ticker cells are router <Link>s, so the page needs a router context.
+const renderScreener = () =>
+  render(
+    <MemoryRouter initialEntries={["/screener"]}>
+      <Routes>
+        <Route path="/screener" element={<Screener />} />
+        <Route path="/research/:ticker" element={<ResearchStub />} />
+      </Routes>
+    </MemoryRouter>,
+  );
 
 // The page defaults to the FTSE 100 watchlist, so the free-text Tickers
 // input only appears once "Custom" is chosen.
@@ -26,7 +48,7 @@ describe("Screener", () => {
   });
 
   it("renders a page heading and description before the form", () => {
-    render(<Screener />);
+    renderScreener();
 
     expect(
       screen.getByRole("heading", { name: /screener/i }),
@@ -41,7 +63,7 @@ describe("Screener", () => {
     // in-flight window between mount and the gate check settling.
     mockCheckScreenerAvailable.mockReturnValue(new Promise(() => {}));
 
-    render(<Screener />);
+    renderScreener();
 
     // Success bullet 2: unavailability (or, here, "don't know yet") must be
     // stated before any input is requested -- the 24-filter form must not
@@ -55,7 +77,7 @@ describe("Screener", () => {
   it("hides the filter form and shows an honest message when the screener is gated (#7221)", async () => {
     mockCheckScreenerAvailable.mockResolvedValue(false);
 
-    render(<Screener />);
+    renderScreener();
 
     expect(
       await screen.findByText(/doesn't include the fundamentals screener/i),
@@ -67,7 +89,7 @@ describe("Screener", () => {
   });
 
   it("renders the form once the gate check resolves available", async () => {
-    render(<Screener />);
+    renderScreener();
 
     expect(await screen.findByLabelText("Watchlist")).toBeInTheDocument();
   });
@@ -82,7 +104,7 @@ describe("Screener", () => {
       ),
     );
 
-    render(<Screener />);
+    renderScreener();
 
     await enterCustomTickers("AAA");
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
@@ -128,7 +150,7 @@ describe("Screener", () => {
       },
     ]);
 
-    render(<Screener />);
+    renderScreener();
 
     await enterCustomTickers("AAA");
     fireEvent.change(screen.getByLabelText(/Max LT D\/E/i), { target: { value: "1" } });
@@ -199,7 +221,7 @@ describe("Screener", () => {
       },
     ]);
 
-    render(<Screener />);
+    renderScreener();
 
     await enterCustomTickers("AAA");
     fireEvent.change(screen.getByLabelText("Max P/B"), { target: { value: "2" } });
@@ -271,7 +293,7 @@ describe("Screener", () => {
       },
     ]);
 
-    render(<Screener />);
+    renderScreener();
     await enterCustomTickers("AAA");
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
 
@@ -292,13 +314,38 @@ describe("Screener", () => {
       { rank: 3, ticker: "CCC", name: null, sector: null },
     ]);
 
-    render(<Screener />);
+    renderScreener();
     await enterCustomTickers("AAA,BBB,CCC");
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
 
     expect(await screen.findByText("AAA")).toHaveAttribute("title", "AAA Corp — Energy");
     expect(screen.getByText("BBB")).toHaveAttribute("title", "BBB Corp");
     expect(screen.getByText("CCC")).not.toHaveAttribute("title");
+  });
+
+  it("links each ticker to its research page without opening the row's detail panel", async () => {
+    mockGetScreener.mockResolvedValueOnce([{ rank: 1, ticker: "GLEN.L", name: "Glencore" }]);
+
+    renderScreener();
+    await enterCustomTickers("GLEN.L");
+    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
+
+    const link = await screen.findByRole("link", { name: "GLEN.L" });
+    expect(link).toHaveAttribute("href", "/research/GLEN.L");
+    fireEvent.click(link);
+    expect(screen.queryByTestId("instrument-detail")).not.toBeInTheDocument();
+    expect(await screen.findByText("research page for GLEN.L")).toBeInTheDocument();
+  });
+
+  it("still opens the detail panel when the rest of the row is clicked", async () => {
+    mockGetScreener.mockResolvedValueOnce([{ rank: 1, ticker: "GLEN.L", name: "Glencore" }]);
+
+    renderScreener();
+    await enterCustomTickers("GLEN.L");
+    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
+
+    fireEvent.click((await screen.findByRole("link", { name: "GLEN.L" })).closest("tr")!);
+    expect(screen.getByTestId("instrument-detail")).toHaveTextContent("GLEN.L");
   });
 
   it("renders every body cell under its matching column header", async () => {
@@ -338,7 +385,7 @@ describe("Screener", () => {
     });
     mockGetScreener.mockResolvedValueOnce([row as never]);
 
-    const { container } = render(<Screener />);
+    const { container } = renderScreener();
     await enterCustomTickers("AAA");
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
     await screen.findByText("AAA");
@@ -427,7 +474,7 @@ describe("Screener", () => {
       },
     ]);
 
-    render(<Screener />);
+    renderScreener();
     await enterCustomTickers("CASH");
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
 
@@ -440,7 +487,7 @@ describe("Screener", () => {
   });
   it("prefills a conservative default screen against the FTSE 100", async () => {
     mockGetScreener.mockResolvedValueOnce([]);
-    render(<Screener />);
+    renderScreener();
 
     expect(await screen.findByLabelText("Watchlist")).toHaveValue("FTSE 100");
     expect(screen.getByLabelText("Max P/E")).toHaveValue(25);
@@ -462,7 +509,7 @@ describe("Screener", () => {
   });
 
   it("clears and restores the default filters", async () => {
-    render(<Screener />);
+    renderScreener();
 
     fireEvent.change(await screen.findByLabelText("Max Beta"), {
       target: { value: "1.2" },
@@ -481,7 +528,7 @@ describe("Screener", () => {
 
   it("labels the 52-week-high filter as a high, not a low", async () => {
     mockGetScreener.mockResolvedValueOnce([]);
-    render(<Screener />);
+    renderScreener();
 
     fireEvent.change(await screen.findByLabelText("Max 52W High"), {
       target: { value: "150" },
@@ -497,7 +544,7 @@ describe("Screener", () => {
 
   it("explains instead of silently ignoring Run with no custom tickers", async () => {
     mockGetScreener.mockClear();
-    render(<Screener />);
+    renderScreener();
 
     fireEvent.change(await screen.findByLabelText("Watchlist"), {
       target: { value: "Custom" },
@@ -511,7 +558,7 @@ describe("Screener", () => {
   });
 
   it("marks fraction-scaled filters with their scale", async () => {
-    render(<Screener />);
+    renderScreener();
 
     expect(await screen.findByLabelText("Min Gross Margin")).toHaveAttribute(
       "placeholder",
@@ -522,7 +569,7 @@ describe("Screener", () => {
 
   it("never sends a decimal for an integer-typed filter", async () => {
     mockGetScreener.mockResolvedValueOnce([]);
-    render(<Screener />);
+    renderScreener();
 
     fireEvent.change(await screen.findByLabelText("Min Avg Volume"), {
       target: { value: "1500.6" },

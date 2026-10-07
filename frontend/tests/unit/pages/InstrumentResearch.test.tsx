@@ -991,6 +991,17 @@ describe("InstrumentResearch page", () => {
     );
   });
 
+  it("hides the justETF link for an ETF without an ISIN", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme ETF", instrumentType: "ETF" },
+    ] as any);
+    renderPage();
+
+    expect(await screen.findByText("ISIN: —")).toBeInTheDocument();
+    await screen.findByRole("link", { name: "View on Investing.com" });
+    expect(screen.queryByRole("link", { name: "View on justETF" })).toBeNull();
+  });
+
   it("hides the justETF link for non-ETF instruments", async () => {
     mockListInstrumentMetadata.mockResolvedValue([
       { ticker: "AAA", name: "Acme Corp", isin: "GB00BH4HKS39", instrument_type: "Equity" },

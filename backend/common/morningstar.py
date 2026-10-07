@@ -83,8 +83,11 @@ def _fetch_rows(isin: str) -> list[dict[str, Any]]:
 
 
 # Listings already looked up with no match, so a research page viewed again
-# does not re-query Morningstar for them until the process restarts.
+# does not re-query Morningstar for them until the process restarts. Bounded
+# by clearing when full: the catalogue is a few hundred instruments, so the
+# cap is only a backstop.
 _UNRESOLVED: set[tuple[str, str, str]] = set()
+_UNRESOLVED_MAX = 1024
 
 
 def resolve_sec_id(isin: str, exchange: str, currency: Optional[str]) -> Optional[str]:
@@ -99,5 +102,7 @@ def resolve_sec_id(isin: str, exchange: str, currency: Optional[str]) -> Optiona
         return None
     sec_id = select_sec_id(rows, exchange, currency)
     if sec_id is None:
+        if len(_UNRESOLVED) >= _UNRESOLVED_MAX:
+            _UNRESOLVED.clear()
         _UNRESOLVED.add(key)
     return sec_id

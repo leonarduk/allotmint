@@ -97,3 +97,20 @@ def test_resolve_remembers_unresolvable_listings(monkeypatch):
 def test_resolve_handles_unexpected_payloads(monkeypatch, payload):
     monkeypatch.setattr(morningstar.requests, "get", lambda *a, **k: _Response(payload))
     assert morningstar.resolve_sec_id("JE00B1VS3770", "L", "GBP") is None
+
+
+def test_unresolved_cache_is_keyed_by_currency_and_bounded(monkeypatch):
+    calls: list[dict] = []
+
+    def fake_get(url, params, timeout):
+        calls.append(params)
+        return _Response({"rows": ROWS})
+
+    monkeypatch.setattr(morningstar.requests, "get", fake_get)
+    monkeypatch.setattr(morningstar, "_UNRESOLVED_MAX", 2)
+    assert morningstar.resolve_sec_id("JE00B1VS3770", "L", "JPY") is None
+    assert morningstar.resolve_sec_id("JE00B1VS3770", "L", "GBP") == "0P0000AATZ"
+    assert morningstar.resolve_sec_id("JE00B1VS3770", "L", "CHF") is None
+    assert len(calls) == 3
+    assert morningstar.resolve_sec_id("JE00B1VS3770", "N", "USD") is None
+    assert len(morningstar._UNRESOLVED) == 1

@@ -51,7 +51,7 @@ from backend.common.holdings_rebuild import (
     TRADE_CASH_FLAG,
     _instrument_key,
     _quantity,
-    _settled_value,
+    _settled_cash,
     name_aliases,
     replay_transactions,
 )
@@ -347,7 +347,7 @@ def _record_instrument_event(
     if tx_type in _UNIT_ONLY:
         return
     sign = _TRADES[tx_type]
-    value = _settled_value(tx, qty, acquisition=sign > 0)
+    value = _settled_cash(tx, qty, acquisition=sign > 0)
     if value is None:
         return
     events.implied_prices[(key, day)] = value / qty

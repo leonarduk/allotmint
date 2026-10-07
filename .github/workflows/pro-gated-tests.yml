@@ -1,0 +1,78 @@
+name: Pro-gated tests
+
+# Many tests here are gated with `pytest.importorskip("allotmint_pro")`, and
+# the regular CI jobs never install the private allotmint-pro package, so those
+# tests are always skipped and drift between the two repos stays green (#9491).
+# This job installs allotmint-pro `main` next to this repo and runs every test
+# file that references allotmint_pro, nightly and on demand, so drift fails
+# loudly within a day.
+#
+# Checking out the private repo reuses ALLOTMINT_PRO_DISPATCH_TOKEN (see
+# notify-allotmint-pro.yml): a fine-grained PAT scoped to
+# leonarduk/allotmint-pro with Contents access, which covers a read-only clone.
+# Unlike the dispatch job, a missing secret is an error here: skipping quietly
+# is exactly how these tests rotted unseen.
+
+on:
+  schedule:
+    - cron: '41 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pro-gated-tests
+  cancel-in-progress: false
+
+jobs:
+  pro-gated-tests:
+    name: Pro-gated pytest (with allotmint-pro main)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Require allotmint-pro token
+        env:
+          TOKEN: ${{ secrets.ALLOTMINT_PRO_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::ALLOTMINT_PRO_DISPATCH_TOKEN is not set; cannot check out allotmint-pro, so the pro-gated tests cannot run."
+            exit 1
+          fi
+
+      # Sibling checkouts: allotmint-pro's pyproject.toml expects allotmint at
+      # ../allotmint.
+      - uses: actions/checkout@v7
+        with:
+          path: allotmint
+
+      - name: Checkout allotmint-pro
+        uses: actions/checkout@v7
+        with:
+          repository: leonarduk/allotmint-pro
+          ref: main
+          token: ${{ secrets.ALLOTMINT_PRO_DISPATCH_TOKEN }}
+          persist-credentials: false
+          path: allotmint-pro
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # One resolve, so a pin conflict between the two repos fails here
+      # instead of one side silently overriding the other.
+      - name: Install dependencies
+        working-directory: allotmint
+        run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt -e ../allotmint-pro
+
+      - name: Run tests that reference allotmint_pro
+        working-directory: allotmint
+        run: |
+          set -euo pipefail
+          FILES=$(grep -rl --include='*.py' 'allotmint_pro' tests | sort)
+          if [ -z "$FILES" ]; then
+            echo "::error::No test files reference allotmint_pro; the selection is broken."
+            exit 1
+          fi
+          echo "$FILES"
+          echo "$FILES" | xargs -d '\n' pytest -q --tb=short --no-cov

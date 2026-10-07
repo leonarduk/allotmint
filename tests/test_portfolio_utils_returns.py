@@ -744,7 +744,6 @@ def test_compute_owner_performance_filters_single_day_zero(monkeypatch):
 
 
 def test_compute_owner_performance_drops_partial_close_nans(monkeypatch):
-    pytest.importorskip("allotmint_pro")
     portfolio = {"accounts": [{"holdings": [{"ticker": "NAN.L", "units": 2}, {"ticker": "CASH.GBP", "units": 1}]}]}
     monkeypatch.setattr(
         pu.portfolio_mod,
@@ -773,7 +772,10 @@ def test_compute_owner_performance_drops_partial_close_nans(monkeypatch):
     result = pu.compute_owner_performance("owner", days=10, include_cash=True)
 
     assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-02", "2024-01-03"]
-    assert [row["value"] for row in result["history"]] == [21.0, 22.0, 23.0]
+    # Day 2's NaN close carries the last known close (10.0) forward rather
+    # than dropping the holding to 0 (#6862), so no flash-crash repair is
+    # needed and the result no longer depends on allotmint_pro (#9491).
+    assert [row["value"] for row in result["history"]] == [21.0, 21.0, 23.0]
 
 
 def test_cash_flow_signs_treat_dividend_singular_same_as_plural():

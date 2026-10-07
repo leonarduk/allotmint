@@ -8,6 +8,10 @@ module adds, per position, from the account's transactions:
   that was reinvested shows up as a separate ``BUY`` and is part of the cost
   basis, so it is not double counted.  Interest with no instrument (cash
   interest) belongs to no position and is ignored here.
+  When no row names the instrument (Hargreaves Lansdown sweeps all income
+  into one untagged monthly row), income is estimated from the stored
+  dividend history instead and ``income_estimated`` is set (#10351, see
+  :mod:`backend.common.estimated_income`).
 * ``realised_gain_gbp`` -- the Section 104 gain on units of the instrument
   already sold, so a partly sold position's return includes what was banked.
 * ``total_return_gbp`` -- ``gain_gbp + realised_gain_gbp + income_gbp``.
@@ -22,9 +26,10 @@ disposal's gain is unknown the total is ``None`` rather than a partial figure.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
+from backend.common.estimated_income import DividendLoader, UnitChanges, estimated_income_gbp, unit_changes
 from backend.common.holdings_rebuild import (
     CASH_TICKER,
     Disposal,
@@ -36,7 +41,7 @@ from backend.common.holdings_rebuild import (
 _INCOME_TYPES = {"DIVIDEND", "DIVIDENDS", "INTEREST"}
 _EPS = 1e-9
 
-TOTAL_RETURN_FIELDS = ("income_gbp", "realised_gain_gbp", "total_return_gbp", "total_return_pct")
+TOTAL_RETURN_FIELDS = ("income_gbp", "income_estimated", "realised_gain_gbp", "total_return_gbp", "total_return_pct")
 
 
 @dataclass
@@ -44,6 +49,8 @@ class PositionReturn:
     """Income and realised figures for one instrument pool."""
 
     income_gbp: float = 0.0
+    income_rows: int = 0
+    income_estimated: bool = False
     realised_gain_gbp: float = 0.0
     disposed_cost_gbp: float = 0.0
     realised_known: bool = True
@@ -78,7 +85,9 @@ def position_returns(transactions: Sequence[Mapping[str, Any]]) -> Dict[str, Pos
         amount = _amount_gbp(tx)
         if key is None or key == CASH_TICKER or amount is None:
             continue
-        results.setdefault(key, PositionReturn()).income_gbp += amount
+        entry = results.setdefault(key, PositionReturn())
+        entry.income_gbp += amount
+        entry.income_rows += 1
 
     def record(disposal: Disposal) -> None:
         if disposal.tx_type != "SELL":
@@ -114,6 +123,7 @@ def apply_total_return(holding: Dict[str, Any], entry: Optional[PositionReturn])
     income = round(entry.income_gbp, 2)
     realised = round(entry.realised_gain_gbp, 2) if entry.realised_known else None
     holding["income_gbp"] = income
+    holding["income_estimated"] = entry.income_estimated
     holding["realised_gain_gbp"] = realised
 
     gain = _float_or_none(holding.get("gain_gbp"))
@@ -136,18 +146,41 @@ def clear_total_return(holding: Dict[str, Any]) -> None:
         holding[key] = None
 
 
+def _with_estimated_income(
+    entry: Optional[PositionReturn],
+    ticker: str,
+    changes: Optional[UnitChanges],
+    load_dividends: Optional[DividendLoader],
+) -> Optional[PositionReturn]:
+    """``entry`` with estimated income when no transaction row names the instrument."""
+    if (entry is not None and entry.income_rows) or not changes:
+        return entry
+    estimate = estimated_income_gbp(ticker, changes, load_dividends=load_dividends)
+    if not estimate:
+        return entry
+    entry = replace(entry) if entry is not None else PositionReturn()
+    entry.income_gbp = estimate
+    entry.income_estimated = True
+    return entry
+
+
 def attach_total_returns(
     holdings: List[Dict[str, Any]],
     transactions: Optional[Sequence[Mapping[str, Any]]],
     match_key: Callable[[str, List[str]], Optional[str]],
+    load_dividends: Optional[DividendLoader] = None,
 ) -> None:
     """Attach total-return fields to every non-cash enriched holding.
 
     ``match_key(ticker, pool_keys)`` maps a held ticker to its pool key (or
     ``None``); it is injected so callers can reuse their own matching rules.
+    ``load_dividends`` overrides the stored dividend history used to estimate
+    income for positions no income row names (tests).
     """
     returns = position_returns(transactions) if transactions is not None else None
-    pool_keys = [k for k in (returns or {}) if not k.startswith(("name:", "ref:"))]
+    rows = [tx for tx in transactions or () if isinstance(tx, Mapping)]
+    changes = unit_changes(rows, name_aliases(rows))
+    pool_keys = [k for k in {*(returns or {}), *changes} if not k.startswith(("name:", "ref:"))]
     for h in holdings:
         if not isinstance(h, dict):
             continue
@@ -159,4 +192,5 @@ def attach_total_returns(
             clear_total_return(h)
             continue
         key = match_key(ticker, pool_keys)
-        apply_total_return(h, returns.get(key) if key else None)
+        entry = returns.get(key) if key else None
+        apply_total_return(h, _with_estimated_income(entry, ticker, changes.get(key) if key else None, load_dividends))

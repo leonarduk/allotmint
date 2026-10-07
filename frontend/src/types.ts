@@ -32,6 +32,8 @@ export interface Holding {
   gain_pct?: number | null;
   /** Dividends and interest received on this position, GBP (#9038). */
   income_gbp?: number | null;
+  /** True when income_gbp is estimated from dividend history, not received cash rows (#10351). */
+  income_estimated?: boolean | null;
   /** Gain already realised on units of this position that were sold, GBP. */
   realised_gain_gbp?: number | null;
   /** gain_gbp + realised_gain_gbp + income_gbp; null when any part is unknown. */
@@ -622,6 +624,13 @@ export interface InstrumentPosition {
   days_held?: number | null;
   cost_basis_source?: string | null;
   cost_basis_warning?: string | null;
+  /** Dividends/interest received on this position, GBP (#9038/#10351). */
+  income_gbp?: number | null;
+  /** True when income_gbp is estimated from dividend history (#10351). */
+  income_estimated?: boolean | null;
+  /** Capital gain + realised gain + income, GBP; null when any part is unknown. */
+  total_return_gbp?: number | null;
+  total_return_pct?: number | null;
 }
 
 export interface InstrumentDetail {

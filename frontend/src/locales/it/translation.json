@@ -597,8 +597,11 @@
       "daysHeld": "Giorni di detenzione",
       "gain": "Guadagna {{symbol}}",
       "gainPct": "Guadagno %",
+      "income": "Reddito {{symbol}}",
       "market": "Mkt {{symbol}}",
       "price": "Prezzo {{symbol}}",
+      "totalReturn": "Rendimento totale {{symbol}}",
+      "totalReturnPct": "Rendimento totale %",
       "units": "Unità",
       "weightPct": "Peso %"
     },
@@ -799,7 +802,8 @@
         "insufficient_price_history": "Nessuna ripartizione: meno di due prezzi memorizzati in questo periodo.",
         "currency_mismatch": "Nessuna ripartizione: la valuta di quotazione ({{currency}}) non coincide con la valuta da cui sono convertiti i prezzi in GBP."
       }
-    }
+    },
+    "incomeEstimated": "Stimato dallo storico dei dividendi: il broker registra i dividendi senza indicare la posizione, quindi è il dividendo per azione × unità detenute a ogni data ex."
   },
   "instrumentTable": {
     "columns": {

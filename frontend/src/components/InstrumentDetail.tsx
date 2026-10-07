@@ -157,6 +157,9 @@ const POSITION_COLUMNS = [
   { key: "market", absolute: true, align: "right" },
   { key: "gain", absolute: true, align: "right" },
   { key: "gainPct", absolute: false, align: "right" },
+  { key: "income", absolute: true, align: "right" },
+  { key: "totalReturn", absolute: true, align: "right" },
+  { key: "totalReturnPct", absolute: false, align: "right" },
   { key: "weightPct", absolute: false, align: "right" },
   { key: "acquired", absolute: false, align: "left" },
   { key: "daysHeld", absolute: false, align: "right" },
@@ -177,6 +180,9 @@ type PositionTotals = {
   avgCost: number | null;
   gain: number | null;
   gainPct: number | null;
+  income: number | null;
+  incomeEstimated: boolean;
+  totalReturn: number | null;
   weightPct: number | null;
   costUnknown: boolean;
 };
@@ -202,6 +208,8 @@ function totalPositions(positions: Position[]): PositionTotals {
   const gainKnown = positions.every((p) => Number.isFinite(toNum(positionGain(p))));
   const cost = costUnknown ? null : sumFinite(positions.map((p) => p.cost_basis_gbp));
   const gain = costUnknown || !gainKnown ? null : sumFinite(positions.map(positionGain));
+  const incomeKnown = positions.every((p) => Number.isFinite(toNum(p.income_gbp)));
+  const totalReturnKnown = positions.every((p) => Number.isFinite(toNum(p.total_return_gbp)));
   const owners = new Set(positions.map((p) => p.owner));
   const weightKnown = positions.every((p) => Number.isFinite(toNum(p.weight_pct)));
   return {
@@ -211,6 +219,9 @@ function totalPositions(positions: Position[]): PositionTotals {
     avgCost: cost != null && units ? cost / units : null,
     gain,
     gainPct: gain != null && cost ? (gain / cost) * 100 : null,
+    income: incomeKnown ? sumFinite(positions.map((p) => p.income_gbp)) : null,
+    incomeEstimated: positions.some((p) => p.income_estimated),
+    totalReturn: totalReturnKnown ? sumFinite(positions.map((p) => p.total_return_gbp)) : null,
     weightPct:
       owners.size === 1 && weightKnown
         ? sumFinite(positions.map((p) => p.weight_pct))
@@ -252,6 +263,17 @@ function NotRecorded({ title }: { title: string }) {
   );
 }
 
+/** Income figure, marked when it is estimated from dividend history (#10351). */
+function IncomeAmount({ text, estimated }: { text: string; estimated: boolean }) {
+  const { t } = useTranslation();
+  if (!estimated) return <>{text}</>;
+  return (
+    <span title={t("instrumentDetail.incomeEstimated")} data-testid="income-estimated">
+      ~{text}
+    </span>
+  );
+}
+
 const cellClass = (align: "left" | "right") =>
   align === "right" ? `${tableStyles.cell} ${tableStyles.right}` : tableStyles.cell;
 
@@ -284,6 +306,25 @@ function usePositionCells(
           unknown()
         ) : (
           <span style={{ color: colorForValue(pos.gain_pct) }}>{percent(pos.gain_pct, 1)}</span>
+        ),
+      income: () => (
+        <IncomeAmount text={gbp(pos.income_gbp)} estimated={Boolean(pos.income_estimated)} />
+      ),
+      totalReturn: () =>
+        costUnknown ? (
+          unknown()
+        ) : (
+          <span style={{ color: colorForValue(pos.total_return_gbp) }}>
+            {gbp(pos.total_return_gbp)}
+          </span>
+        ),
+      totalReturnPct: () =>
+        costUnknown ? (
+          unknown()
+        ) : (
+          <span style={{ color: colorForValue(pos.total_return_pct) }}>
+            {percent(pos.total_return_pct, 1)}
+          </span>
         ),
       weightPct: () => percent(pos.weight_pct, 1),
       acquired: () =>
@@ -322,6 +363,16 @@ function usePositionCells(
             {percent(totals.gainPct, 1)}
           </span>
         ),
+      income: () => <IncomeAmount text={gbp(totals.income)} estimated={totals.incomeEstimated} />,
+      totalReturn: () =>
+        totals.costUnknown ? (
+          incomplete()
+        ) : (
+          <span style={{ color: colorForValue(totals.totalReturn) }}>{gbp(totals.totalReturn)}</span>
+        ),
+      // A percentage needs every position's total invested cost, which the
+      // positions don't carry; summing per-position percentages would be wrong.
+      totalReturnPct: () => "",
       weightPct: () => percent(totals.weightPct, 1),
       acquired: () => "",
       daysHeld: () => "",

@@ -75,6 +75,7 @@ export const holdingContractSchema = z
     gain_currency: nullableString,
     gain_pct: nullableNumber,
     income_gbp: nullableNumber,
+    income_estimated: nullableBoolean,
     realised_gain_gbp: nullableNumber,
     total_return_gbp: nullableNumber,
     total_return_pct: nullableNumber,

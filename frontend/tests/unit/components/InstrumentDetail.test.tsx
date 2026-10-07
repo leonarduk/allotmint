@@ -367,6 +367,10 @@ describe("InstrumentDetail", () => {
       acquired_date: "2024-01-02",
       days_held: 100,
       cost_basis_source: "book",
+      income_gbp: 30,
+      income_estimated: true,
+      total_return_gbp: 176,
+      total_return_pct: 24.1,
     };
 
     const renderPositions = async (positions: unknown[]) => {
@@ -391,6 +395,9 @@ describe("InstrumentDetail", () => {
         "Mkt £",
         "Gain £",
         "Gain %",
+        "Income £",
+        "Total return £",
+        "Total return %",
         "Weight %",
         "Acquired",
         "Days held",
@@ -407,22 +414,38 @@ describe("InstrumentDetail", () => {
         "£876.00",
         "£146.00",
         "20.0%",
+        "~£30.00",
+        "£176.00",
+        "24.1%",
         "87.6%",
         "2024-01-02",
         "100",
       ]);
       expect(screen.queryByTestId("positions-total-row")).toBeNull();
+      expect(screen.getByTestId("income-estimated")).toHaveAttribute(
+        "title",
+        i18n.t("instrumentDetail.incomeEstimated"),
+      );
     });
 
     it("keeps the % and holding-period columns in relative view", async () => {
       await renderPositions([fullPosition]);
       await userEvent.click(screen.getByLabelText("Relative view"));
 
-      for (const hidden of ["Units", "Avg cost £", "Cost £", "Price £", "Mkt £", "Gain £"]) {
+      for (const hidden of [
+        "Units",
+        "Avg cost £",
+        "Cost £",
+        "Price £",
+        "Mkt £",
+        "Gain £",
+        "Income £",
+        "Total return £",
+      ]) {
         expect(screen.queryByRole("columnheader", { name: hidden })).toBeNull();
       }
       const row = screen.getByText("steve – SIPP").closest("tr")!;
-      expect(rowCells(row)).toEqual(["steve – SIPP", "20.0%", "87.6%", "2024-01-02", "100"]);
+      expect(rowCells(row)).toEqual(["steve – SIPP", "20.0%", "24.1%", "87.6%", "2024-01-02", "100"]);
     });
 
     it("shows N/A with a tooltip for an unreliable cost instead of a bare dash", async () => {
@@ -446,6 +469,9 @@ describe("InstrumentDetail", () => {
       expect(cells.slice(2, 4)).toEqual(["N/A", "N/A"]);
       expect(cells[5]).toBe("£876.00");
       expect(cells.slice(6, 8)).toEqual(["N/A", "N/A"]);
+      // Income is still known; total return depends on the cost, so N/A.
+      expect(cells[8]).toBe("~£30.00");
+      expect(cells.slice(9, 11)).toEqual(["N/A", "N/A"]);
       expect(cells).not.toContain("—");
       const na = row.querySelectorAll("td")[3].querySelector("span")!;
       expect(na).toHaveAttribute("title", i18n.t("holdingsTable.gainNotAvailable"));
@@ -502,6 +528,9 @@ describe("InstrumentDetail", () => {
         "£1,200.00",
         "£200.00",
         "20.0%",
+        "~£60.00",
+        "£352.00",
+        "",
         "90.0%",
         "",
         "",
@@ -528,8 +557,9 @@ describe("InstrumentDetail", () => {
       expect(cells.slice(2, 4)).toEqual(["N/A", "N/A"]);
       expect(cells[5]).toBe("£1,752.00");
       expect(cells.slice(6, 8)).toEqual(["N/A", "N/A"]);
+      expect(cells[9]).toBe("N/A");
       // Weights are shares of different owners' portfolios: not summed.
-      expect(cells[8]).toBe("—");
+      expect(cells[11]).toBe("—");
     });
 
     it("withholds the total gain when a position's gain is unknown but its cost is known (#8490)", async () => {

@@ -3,14 +3,20 @@
 import json
 from unittest.mock import patch
 
+import pandas as pd
 import pytest
 
-from backend.common import group_portfolio
+from backend.common import estimated_income, group_portfolio
 from backend.common import portfolio as owner_portfolio
 from backend.common.account_models import OwnerSummaryRecord
 from backend.common.constants import ACCOUNTS, HOLDINGS
 from backend.common.portfolio import add_total_returns
-from backend.common.position_returns import TOTAL_RETURN_FIELDS, apply_total_return, position_returns
+from backend.common.position_returns import (
+    TOTAL_RETURN_FIELDS,
+    apply_total_return,
+    attach_total_returns,
+    position_returns,
+)
 from backend.config import config
 
 TXS = [
@@ -170,3 +176,98 @@ def test_group_portfolio_gets_same_total_return_as_owner_portfolio(tmp_path, mon
     assert group_holding["total_return_gbp"] == 90.0
     for key in TOTAL_RETURN_FIELDS:
         assert group_holding[key] == owner_holding[key]
+
+
+# ── Estimated income from dividend history (#10351) ──
+
+HL_TXS = [
+    {"date": "2025-05-23", "ticker": "REC.L", "type": "BUY", "units": 5000.0, "price_gbp": 0.5},
+    {"date": "2025-09-01", "ticker": "REC.L", "type": "BUY", "units": 1000.0, "price_gbp": 0.5},
+    # HL sweeps income into one untagged row: it belongs to no position.
+    {"date": "2025-08-10", "type": "DIVIDEND", "amount_minor": 48028, "comments": "Transfer from Income Account"},
+]
+
+
+def _dividends(*pairs):
+    return pd.Series([v for _, v in pairs], index=pd.to_datetime([d for d, _ in pairs]))
+
+
+def _loader(series):
+    return lambda symbol, exchange: series if (symbol, exchange) == ("REC", "L") else None
+
+
+def _attach(holding, txs, series):
+    attach_total_returns([holding], txs, lambda ticker, keys: ticker if ticker in keys else None, _loader(series))
+    return holding
+
+
+@pytest.fixture
+def gbx(monkeypatch):
+    monkeypatch.setattr(estimated_income, "_default_currency", lambda symbol, exchange: "GBX")
+
+
+def test_untagged_dividends_are_estimated_from_history(gbx):
+    # 2.5p on 5000 units, then (after the second buy) 2.15p on 6000 units.
+    series = _dividends(("2025-07-03", 2.5), ("2025-11-20", 2.15), ("2099-01-01", 9.0))
+    holding = _attach({"ticker": "REC.L", "market_value_gbp": 2400.0, "gain_gbp": -600.0}, HL_TXS, series)
+    assert holding["income_gbp"] == pytest.approx(125.0 + 129.0)
+    assert holding["income_estimated"] is True
+    assert holding["total_return_gbp"] == pytest.approx(-600.0 + 254.0)
+
+
+def test_units_bought_on_the_ex_date_get_no_dividend(gbx):
+    txs = [{"date": "2025-07-03", "ticker": "REC.L", "type": "BUY", "units": 100.0, "price_gbp": 0.5}]
+    holding = _attach(
+        {"ticker": "REC.L", "market_value_gbp": 50.0, "gain_gbp": 0.0}, txs, _dividends(("2025-07-03", 2.5))
+    )
+    assert holding["income_gbp"] == 0.0
+    assert holding["income_estimated"] is False
+
+
+def test_units_sold_before_the_ex_date_get_no_dividend(gbx):
+    txs = [
+        {"date": "2025-01-01", "ticker": "REC.L", "type": "BUY", "units": 100.0, "price_gbp": 0.5},
+        {"date": "2025-03-01", "ticker": "REC.L", "type": "SELL", "units": 40.0, "price_gbp": 0.5},
+    ]
+    holding = _attach(
+        {"ticker": "REC.L", "market_value_gbp": 30.0, "gain_gbp": 0.0}, txs, _dividends(("2025-07-03", 2.5))
+    )
+    assert holding["income_gbp"] == pytest.approx(1.5)
+
+
+def test_tagged_income_rows_win_over_the_estimate(gbx):
+    txs = [*HL_TXS, {"date": "2025-07-20", "ticker": "REC.L", "type": "DIVIDEND", "amount_minor": 12000}]
+    holding = _attach(
+        {"ticker": "REC.L", "market_value_gbp": 2400.0, "gain_gbp": -600.0}, txs, _dividends(("2025-07-03", 2.5))
+    )
+    assert holding["income_gbp"] == 120.0
+    assert holding["income_estimated"] is False
+
+
+def test_unknown_dividend_history_keeps_ledger_income(gbx):
+    holding = _attach({"ticker": "REC.L", "market_value_gbp": 2400.0, "gain_gbp": -600.0}, HL_TXS, None)
+    assert holding["income_gbp"] == 0.0
+    assert holding["income_estimated"] is False
+
+
+def test_estimate_in_pounds_is_not_scaled():
+    changes = [("2024-01-01", 10.0)]
+    series = _dividends(("2024-06-01", 0.5))
+    income = estimated_income.estimated_income_gbp(
+        "KO.N", changes, load_dividends=lambda s, e: series, currency_of=lambda s, e: "GBP"
+    )
+    assert income == pytest.approx(5.0)
+
+
+def test_estimate_without_fx_rate_is_unknown(monkeypatch):
+    def no_rate(value, *args, **kwargs):
+        raise ValueError("No FX rate for USD->GBP")
+
+    monkeypatch.setattr(estimated_income.CurrencyNormaliser, "to_gbp", no_rate)
+    result = estimated_income.estimated_income_gbp(
+        "KO.N",
+        [("2024-01-01", 10.0)],
+        load_dividends=lambda s, e: _dividends(("2024-06-01", 0.5)),
+        currency_of=lambda s, e: "USD",
+    )
+    assert result is None

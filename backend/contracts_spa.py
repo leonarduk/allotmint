@@ -146,6 +146,9 @@ class HoldingContract(SpaContractBase):
     # Total return (#9038): capital gain plus income received and gains
     # already realised on the position; see backend/common/position_returns.py.
     income_gbp: float | None = None
+    # True when income_gbp is estimated from stored dividend history because
+    # no transaction row names the instrument (#10351).
+    income_estimated: bool | None = None
     realised_gain_gbp: float | None = None
     total_return_gbp: float | None = None
     total_return_pct: float | None = None

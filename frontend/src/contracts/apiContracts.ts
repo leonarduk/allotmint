@@ -71,6 +71,7 @@ export const holdingContractSchema = z.object({
   gain_currency: nullableString.optional(),
   gain_pct: nullableNumber.optional(),
   income_gbp: nullableNumber.optional(),
+  income_estimated: z.boolean().nullable().optional(),
   realised_gain_gbp: nullableNumber.optional(),
   total_return_gbp: nullableNumber.optional(),
   total_return_pct: nullableNumber.optional(),

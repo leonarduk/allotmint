@@ -205,8 +205,24 @@ def test_manual_block_without_holdings_keeps_the_fund_as_one_line(monkeypatch):
     assert [(h["key"], h["kind"], h["value_gbp"]) for h in result["holdings"]] == [("GB00B8SC6K54", "fund", 500.0)]
     assert _by_label(result["countries"]) == {"United Kingdom": 500.0}
     assert result["coverage"]["not_covered"] == []
+    # Coverage buckets partition the total: the fund counts once, as looked through.
+    cov = result["coverage"]
+    assert cov["looked_through_value_gbp"] == 500.0
+    assert cov["direct_value_gbp"] == 0.0
+    parts = ("looked_through_value_gbp", "direct_value_gbp", "not_covered_value_gbp", "cash_value_gbp")
+    assert sum(cov[k] for k in parts) == result["total_value_gbp"]
 
 
 def test_zero_holdings_limit_returns_no_holding_rows(portfolio, monkeypatch):
     monkeypatch.setattr(look_through, "aggregate_by_ticker", lambda _p: _rows(("WRLD.L", 1000.0, None, None)))
     assert look_through.compute_look_through({"accounts": []}, holdings_limit=0)["holdings"] == []
+
+
+def test_direct_share_with_uk_region_joins_the_united_kingdom_bucket(portfolio, monkeypatch):
+    meta = {**META, "SHEL.L": {"name": "Shell", "instrumentType": "Equity"}}
+    block = {**FUND_BLOCK, "countries": {"United Kingdom": 100.0}}
+    meta["WRLD.L"] = {**META["WRLD.L"], "look_through": block}
+    monkeypatch.setattr(look_through, "get_instrument_meta", lambda t: meta.get(t, {}))
+    result = portfolio(("SHEL.L", 100.0, "Energy", "UK"), ("WRLD.L", 100.0, None, None))
+
+    assert _by_label(result["countries"]) == {"United Kingdom": 200.0}

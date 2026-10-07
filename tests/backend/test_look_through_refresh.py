@@ -30,6 +30,11 @@ def instruments_dir(tmp_path, monkeypatch):
     (root / "L" / "VWRL.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", root)
     monkeypatch.setattr(instruments, "_s3_location", lambda: None)
+    # Other tests importlib.reload(backend.common.instruments); look_through
+    # would then still hold the old module's functions, reading the real data
+    # root. Bind it to the module object patched above.
+    monkeypatch.setattr(look_through, "get_instrument_meta", instruments.get_instrument_meta)
+    monkeypatch.setattr(look_through, "save_instrument_meta", instruments.save_instrument_meta)
     instruments.get_instrument_meta.cache_clear()
     yield root
     instruments.get_instrument_meta.cache_clear()

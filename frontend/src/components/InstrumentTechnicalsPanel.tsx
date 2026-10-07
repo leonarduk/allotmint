@@ -118,7 +118,8 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
     v == null
       ? undefined
       : t('instrumentTechnicals.priceVsAverage', { value: signedPct(v) });
-  const benchmarkName = rs.benchmark.name ?? rs.benchmark.ticker;
+  const benchmarkTicker = rs.benchmark.ticker;
+  const benchmarkName = rs.benchmark.name ?? benchmarkTicker ?? undefined;
 
   const sections: { title: string; term?: TechnicalsTerm; rows: Row[] }[] = [
     {
@@ -231,20 +232,28 @@ export function InstrumentTechnicalsPanel({ ticker }: { ticker: string }) {
           label: t(text),
           value: signedPct(returns[key] ?? null),
         })),
-        {
-          label: t('instrumentTechnicals.vs3m', { ticker: rs.benchmark.ticker }),
-          value: signedPct(rs.excess_3m),
-          hint: benchmarkName,
-          term: 'relativeStrength',
-        },
-        {
-          label: t('instrumentTechnicals.vs12m', {
-            ticker: rs.benchmark.ticker,
-          }),
-          value: signedPct(rs.excess_1y),
-          hint: benchmarkName,
-          term: 'relativeStrength',
-        },
+        // No comparable benchmark (bond, cash, commodity fund): there is
+        // nothing to measure relative strength against, so omit the rows.
+        ...(benchmarkTicker == null
+          ? []
+          : [
+              {
+                label: t('instrumentTechnicals.vs3m', {
+                  ticker: benchmarkTicker,
+                }),
+                value: signedPct(rs.excess_3m),
+                hint: benchmarkName,
+                term: 'relativeStrength' as const,
+              },
+              {
+                label: t('instrumentTechnicals.vs12m', {
+                  ticker: benchmarkTicker,
+                }),
+                value: signedPct(rs.excess_1y),
+                hint: benchmarkName,
+                term: 'relativeStrength' as const,
+              },
+            ]),
       ],
     },
   ];

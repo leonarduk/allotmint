@@ -2301,6 +2301,7 @@
     "risk": "Risiko",
     "volatility1y": "Volatilität (1 J.)",
     "beta": "Beta vs. {{ticker}} (3 J., wöchentlich)",
+    "betaNoBenchmark": "Beta (3 J., wöchentlich)",
     "providerBeta": "Beta des Anbieters: {{value}}",
     "maxDrawdown": "Maximaler Drawdown",
     "history": "Historie",
@@ -2313,6 +2314,9 @@
     "ariaValuation": "Bewertung",
     "benchmark": "Vergleichsindex:",
     "exchangeDefault": ", Standard für die Börse der Notierung",
+    "noComparableBenchmark": "kein vergleichbarer",
+    "assetClass": "{{assetClass}}-Fonds",
+    "assetClassBasis": "{{assetClass}}-Fonds: {{basis}}",
     "dataQuality": "Datenqualität"
   },
   "instrumentTechnicals": {

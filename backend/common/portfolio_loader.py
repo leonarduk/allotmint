@@ -240,8 +240,8 @@ def get_units_as_of(tx_data: dict[str, Any], ticker: str, as_of: str) -> float:
 
     Replays ``BUY``/``PURCHASE``/``SELL``/``TRANSFER_IN``/``TRANSFER_OUT``/
     ``REMOVAL`` transactions dated on or before ``as_of``, using the same sign
-    convention and PP 1e8-scaling heuristic as
-    :func:`compute_holdings_from_transactions`, but ignores any transaction
+    convention and quantity fields (:func:`holdings_rebuild.transaction_quantity`)
+    as :func:`compute_holdings_from_transactions`, but ignores any transaction
     dated after ``as_of``.
 
     Used by :mod:`backend.common.dividends` to size a dividend by the units
@@ -264,7 +264,6 @@ def get_units_as_of(tx_data: dict[str, Any], ticker: str, as_of: str) -> float:
         "TRANSFER_OUT": -1,
         "REMOVAL": -1,
     }
-    SHARE_SCALE = 10**8
     ticker = ticker.upper()
     as_of_str = str(as_of)[:10]
 
@@ -278,15 +277,8 @@ def get_units_as_of(tx_data: dict[str, Any], ticker: str, as_of: str) -> float:
         tx_date = str(t.get("date") or "")[:10]
         if not _ISO_DATE_RE.match(tx_date) or tx_date > as_of_str:
             continue
-        raw = next(
-            (t[k] for k in ("shares", "quantity", "units") if k in t and t[k] is not None),
-            None,
-        )
-        try:
-            qty = float(raw) if isinstance(raw, (int, float, str)) else 0.0
-        except (TypeError, ValueError):
+        qty = holdings_rebuild.transaction_quantity(t)
+        if qty is None:
             continue
-        if abs(qty) > 1_000_000:  # detect PP's 1e8 scaling
-            qty /= SHARE_SCALE
         total += qty * TYPE_SIGN[ttype]
     return total

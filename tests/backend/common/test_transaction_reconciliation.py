@@ -49,8 +49,8 @@ def test_load_json_parses_valid_json(tmp_path: Path):
     [
         pytest.param(
             [
-                {"type": "BUY", "ticker": "abc", "shares": 5},
-                {"type": "SELL", "ticker": "ABC", "shares": 2},
+                {"type": "BUY", "ticker": "abc", "units": 5},
+                {"type": "SELL", "ticker": "ABC", "units": 2},
             ],
             {"ABC": 3.0},
             id="basic-buys-sells",
@@ -65,16 +65,23 @@ def test_load_json_parses_valid_json(tmp_path: Path):
         ),
         pytest.param(
             [
-                {"type": "BUY", "ticker": "ghi", "shares": 2_000_000},
+                {"type": "BUY", "ticker": "ghi", "shares": 999_999},
             ],
-            {"GHI": 2_000_000 / tr._SHARE_SCALE},
-            id="scaled-quantity",
+            {"GHI": 0.00999999},
+            id="pp-scaled-shares",
         ),
         pytest.param(
             [
-                {"type": "BUY", "ticker": "", "shares": 3},
-                {"type": "BUY", "ticker": "jkl", "shares": "oops"},
-                {"type": "BUY", "ticker": "jkl", "shares": 4},
+                {"type": "BUY", "ticker": "mno", "units": 2_000_000},
+            ],
+            {"MNO": 2_000_000.0},
+            id="large-raw-units",
+        ),
+        pytest.param(
+            [
+                {"type": "BUY", "ticker": "", "units": 3},
+                {"type": "BUY", "ticker": "jkl", "units": "oops"},
+                {"type": "BUY", "ticker": "jkl", "units": 4},
             ],
             {"JKL": 4.0},
             id="skip-malformed-rows",
@@ -110,7 +117,7 @@ def test_reconcile_transactions_with_holdings_adds_synthetic_entries(tmp_path: P
         json.dumps(
             {
                 "transactions": [
-                    {"date": "2024-01-01", "type": "BUY", "ticker": "ABC", "shares": 5},
+                    {"date": "2024-01-01", "type": "BUY", "ticker": "ABC", "shares": 500_000_000},
                     {"date": "2024-01-02", "type": "SELL", "ticker": "ABC", "units": 1},
                     {"date": "2024-01-03", "type": "BUY", "ticker": "XYZ", "quantity": 2},
                 ]
@@ -134,7 +141,6 @@ def test_reconcile_transactions_with_holdings_adds_synthetic_entries(tmp_path: P
         "date": synthetic_date,
         "ticker": "ABC",
         "type": "BUY",
-        "shares": 6.0,
         "units": 6.0,
         "synthetic": True,
     }
@@ -142,7 +148,6 @@ def test_reconcile_transactions_with_holdings_adds_synthetic_entries(tmp_path: P
         "date": synthetic_date,
         "ticker": "XYZ",
         "type": "SELL",
-        "shares": 2.0,
         "units": 2.0,
         "synthetic": True,
     }

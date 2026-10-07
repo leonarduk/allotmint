@@ -61,9 +61,6 @@ const BENCHMARK_TICKER = "VWRL.L";
 const PORTFOLIO_LINE_COLOUR = "#82ca9d";
 const BENCHMARK_LINE_COLOUR = "#f59e0b";
 
-// Why the Cumulative Return chart shows the portfolio alone (#7833).
-type BenchmarkSeriesState = "ok" | "failed" | "empty";
-
 // Metric units (fractions) and plausibility handling live in
 // lib/metricPlausibility.ts and FractionMetric, shared with the group view
 // (#8570).
@@ -75,7 +72,9 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [days, setDays] = useState<number>(365);
   const [alpha, setAlpha] = useState<number | null>(null);
   const [comparison, setComparison] = useState<CumulativeComparisonPoint[]>([]);
-  const [benchmarkState, setBenchmarkState] = useState<BenchmarkSeriesState>("empty");
+  // Whether the benchmark could not be fetched at all, as opposed to having
+  // no overlapping prices; picks the fallback message (#7833).
+  const [benchmarkFailed, setBenchmarkFailed] = useState(false);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
   const [drawdownSeries, setDrawdownSeries] = useState<DrawdownSeriesPoint[]>([]);
@@ -115,7 +114,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     setShowDrawdownDetails(false);
     setAlpha(null);
     setComparison([]);
-    setBenchmarkState("empty");
+    setBenchmarkFailed(false);
     setTrackingError(null);
     setMaxDrawdown(null);
     setTimeWeightedReturn(null);
@@ -155,12 +154,10 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
 
       if (alphaResult.status === "fulfilled") {
         setAlpha(alphaResult.value.alpha_vs_benchmark);
-        const points = buildCumulativeComparison(alphaResult.value.series);
-        setComparison(points);
-        setBenchmarkState(points.length > 0 ? "ok" : "empty");
+        setComparison(buildCumulativeComparison(alphaResult.value.series));
       } else {
         unavailable.push(t("dashboard.alphaVsBenchmark"));
-        setBenchmarkState("failed");
+        setBenchmarkFailed(true);
       }
 
       if (teResult.status === "fulfilled") {
@@ -611,7 +608,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
       </ResponsiveContainer>
 
       <h2 style={{ marginTop: "2rem" }}>{t("dashboard.cumulativeReturn")}</h2>
-      {benchmarkState === "ok" ? (
+      {comparison.length > 0 ? (
         <>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={comparison}>
@@ -666,7 +663,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
             data-testid="benchmark-series-unavailable"
             style={{ fontSize: "0.8rem", color: "#facc15", marginTop: "0.25rem" }}
           >
-            {benchmarkState === "failed"
+            {benchmarkFailed
               ? t("dashboard.benchmarkSeriesFailed", { ticker: BENCHMARK_TICKER })
               : t("dashboard.benchmarkSeriesEmpty", { ticker: BENCHMARK_TICKER })}
           </p>

@@ -14,7 +14,9 @@ export interface CumulativeComparisonPoint {
  * (``backend/common/portfolio_utils.py:_alpha_vs_benchmark``), so every point
  * carries both values for the same date and the two lines can never cover
  * different date ranges. Points with a non-finite value are dropped as a pair
- * for the same reason. Returns an empty array when there is nothing to plot.
+ * for the same reason. Output is sorted by date (ISO strings sort
+ * chronologically) so the lines never zig-zag whatever order the response
+ * uses. Returns an empty array when there is nothing to plot.
  */
 export function buildCumulativeComparison(
   series: AlphaSeriesPoint[] | null | undefined,
@@ -31,5 +33,6 @@ export function buildCumulativeComparison(
       date: p.date,
       portfolio: p.portfolio_cumulative_return,
       benchmark: p.benchmark_cumulative_return,
-    }));
+    }))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }

@@ -48,6 +48,24 @@ describe("buildCumulativeComparison (#7833)", () => {
     expect(out.map((p) => p.date)).toEqual(["2024-03-05"]);
   });
 
+  it("sorts points by date whatever order the response uses", () => {
+    const out = buildCumulativeComparison([
+      {
+        date: "2024-03-05",
+        portfolio_cumulative_return: 0.04,
+        benchmark_cumulative_return: 0.03,
+        excess_cumulative_return: 0.01,
+      },
+      {
+        date: "2024-03-01",
+        portfolio_cumulative_return: 0,
+        benchmark_cumulative_return: 0,
+        excess_cumulative_return: 0,
+      },
+    ]);
+    expect(out.map((p) => p.date)).toEqual(["2024-03-01", "2024-03-05"]);
+  });
+
   it("returns an empty array for missing or empty series", () => {
     expect(buildCumulativeComparison(undefined)).toEqual([]);
     expect(buildCumulativeComparison(null)).toEqual([]);

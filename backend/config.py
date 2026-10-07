@@ -77,6 +77,8 @@ class TabsConfig:
     reports: bool = True
     scenario: bool = True
     logs: bool = True
+    # Dividends page: received dividend income at /dividends (#7831).
+    dividends: bool = True
     research: bool = True
     # Plot mode: the optional gamified skin served at /plot in the SPA.
     plot: bool = True

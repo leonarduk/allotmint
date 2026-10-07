@@ -276,4 +276,24 @@ describe("buildTradeMarkers", () => {
 
     expect(markers[0].key).toBe("alice-isa-2024-03-04-0");
   });
+
+  it("reports real units: units first, else PP shares / 10^8 (#10203)", () => {
+    const markers = buildTradeMarkers(
+      [
+        tx({ id: "pp", date: "2024-03-04", shares: 1_000_000_000 }),
+        tx({ id: "edited", date: "2024-03-05", units: 4, shares: 1_000_000_000 }),
+        tx({ id: "manual", date: "2024-03-06", units: 2_000_000 }),
+        tx({ id: "none", date: "2024-03-07" }),
+      ],
+      "AAPL.N",
+      CHART_DATES,
+    );
+
+    expect(Object.fromEntries(markers.map((m) => [m.key, m.units]))).toEqual({
+      pp: 10,
+      edited: 4,
+      manual: 2_000_000,
+      none: null,
+    });
+  });
 });

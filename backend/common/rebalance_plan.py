@@ -30,6 +30,7 @@ from backend.common.instrument_classification import ASSET_CLASS_LABELS, ASSET_C
 from backend.common.portfolio_loader import ACCOUNT_STEM_KEY
 from backend.common.sector_labels import is_cash_instrument
 from backend.common.sub_asset_class import SUB_ASSET_CLASS_LABELS, SUB_ASSET_CLASS_PARENT, SUB_ASSET_CLASSES
+from backend.common.ticker_utils import split_ticker
 
 UNCLASSIFIED = "unclassified"
 #: Suggestions smaller than this (GBP) are dropped as dust.
@@ -444,6 +445,35 @@ def _notes(holdings: Holdings, policy: AllocationPolicy, trades: Mapping[str, An
     return notes
 
 
+def unclassified_holdings(holdings: Holdings) -> list[dict[str, Any]]:
+    """Holdings in the unclassified bucket, largest first, for the classify page (#9495).
+
+    ``symbol``/``exchange`` address the instrument metadata the asset class is
+    saved to; ``exchange`` is ``None`` when the ticker carries no suffix.
+    """
+
+    values: dict[str, float] = {}
+    names: dict[str, str] = {}
+    for account in holdings.accounts:
+        for ticker, value in account.class_tickers.get(UNCLASSIFIED, {}).items():
+            values[ticker] = values.get(ticker, 0.0) + value
+            if ticker in account.ticker_names:
+                names.setdefault(ticker, account.ticker_names[ticker])
+    rows = []
+    for ticker, value in sorted(values.items(), key=lambda item: (-item[1], item[0])):
+        symbol, exchange = split_ticker(ticker)
+        rows.append(
+            {
+                "ticker": ticker,
+                "symbol": symbol,
+                "exchange": exchange,
+                "name": names.get(ticker),
+                "value": round(value, 2),
+            }
+        )
+    return rows
+
+
 def build_plan(portfolio: Mapping[str, Any], policy: AllocationPolicy) -> dict[str, Any]:
     """Drift table, per-account trades and notes for one owner."""
 
@@ -458,6 +488,7 @@ def build_plan(portfolio: Mapping[str, Any], policy: AllocationPolicy) -> dict[s
         "sub_classes": sub_class_breakdown(portfolio),
         "unclassified_value": round(unclassified, 2),
         "unclassified_pct": round(_pct(unclassified, holdings.total), 2),
+        "unclassified_holdings": unclassified_holdings(holdings),
         "unpriced_tickers": holdings.unpriced,
         "accounts": [
             {"id": a.id, "label": a.label, "value": round(sum(a.class_values.values()), 2), "cash": round(a.cash, 2)}

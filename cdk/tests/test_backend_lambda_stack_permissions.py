@@ -54,7 +54,9 @@ BACKEND_LIST_PREFIXES = (
 # alerts/ lets refresh_universe() → price_triggers.watched_tickers() tell a missing
 # alerts/price_triggers.json (404) from denied access (403) (#8805).
 PRICE_REFRESH_LIST_PREFIXES = ("accounts", "alerts", "prices")
-TRADING_AGENT_LIST_PREFIXES = ("prices",)
+# trading_agent discovers owners/tickers via list_all_unique_tickers() and
+# list_portfolios() → S3DataProvider.list_plots() on accounts/ (#8914).
+TRADING_AGENT_LIST_PREFIXES = ("accounts", "prices")
 # dividend_refresh only touches AccountsStore (writable-accounts/); unlike
 # price_refresh it never calls list_portfolios(), so it needs no accounts/
 # list grant. See backend/common/dividends.py::refresh_dividends() (#2750).
@@ -213,6 +215,7 @@ def _expected_prefix_condition(prefixes: tuple[str, ...]) -> dict:
 #                        and may need to list the timeseries/ prefix via pyarrow.
 #   TradingAgentLambda — calls load_prices_for_tickers() → load_meta_timeseries_range() which
 #                        reads parquet from S3 by known key. No writes anywhere in this path.
+#                        Lists accounts/ via list_all_unique_tickers()/list_portfolios() (#8914).
 #                        Pyarrow may list the timeseries/ prefix before reading cached files.
 #   BackendLambda also deletes saved chat history, on chat/* only (#8870; see
 #   test_backend_lambda_can_delete_only_chat_history).
@@ -287,7 +290,7 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
     trading_conditions = _conditions_for_s3_action(template, trading_role, "s3:ListBucket")
     assert (
         _expected_prefix_condition(TRADING_AGENT_LIST_PREFIXES) in trading_conditions
-    ), "TradingAgentLambda s3:ListBucket must be conditioned to the prices/ prefix"
+    ), "TradingAgentLambda s3:ListBucket must be conditioned to the accounts/ and prices/ prefixes"
 
 
 # DividendRefreshLambda reads/writes writable-accounts/ only (issue #2750).

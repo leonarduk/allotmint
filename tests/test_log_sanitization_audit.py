@@ -20,6 +20,11 @@ wrapping it in ``sanitise_log_value`` or, if the value is provably internal
 (e.g. a loop counter), adding its key (as printed in the failure message, or
 by ``python scripts/build_tools/_scan_log_sanitisation.py``) to the baseline
 file with a comment explaining why.
+
+The ratchet also runs in reverse (#7702): a baseline entry that no longer
+matches any current call site (because the call was removed, sanitised, or
+edited) fails the test, so dead exemptions are pruned instead of lingering
+and silently grandfathering a later unsafe call that happens to share the key.
 """
 
 from __future__ import annotations
@@ -56,6 +61,12 @@ def _unbaselined_findings(findings: list[LogCallFinding], baseline: Counter[str]
     return [finding for finding in findings if finding.key in excess]
 
 
+def _stale_baseline_keys(findings: list[LogCallFinding], baseline: Counter[str]) -> Counter[str]:
+    """Return baseline keys (with surplus counts) that no current call accounts for."""
+
+    return baseline - Counter(finding.key for finding in findings)
+
+
 def _format_findings(findings: list[LogCallFinding], baseline: Counter[str]) -> str:
     current = Counter(finding.key for finding in findings)
     lines = []
@@ -80,6 +91,19 @@ def test_no_new_unwrapped_logger_calls() -> None:
         "explaining why the value can't carry attacker-controlled input). "
         "`python scripts/build_tools/_scan_log_sanitisation.py` prints every "
         "current key."
+    )
+
+
+def test_baseline_has_no_stale_entries() -> None:
+    """Every baseline entry must still match a current call site (#7702)."""
+
+    stale = _stale_baseline_keys(find_unwrapped_log_call_findings(), _load_baseline())
+
+    assert not stale, (
+        "tests/data/log_sanitization_baseline.txt lists exemption(s) that match no "
+        "current unsanitised logger call (the call was removed, sanitised, or "
+        "edited). Delete these lines (and their # comment, if any):\n"
+        + "\n".join(f"    {key} (x{count})" if count > 1 else f"    {key}" for key, count in sorted(stale.items()))
     )
 
 
@@ -167,6 +191,28 @@ def test_baseline_still_flags_genuinely_new_unwrapped_calls(monkeypatch, tmp_pat
     assert [finding.lineno for finding in new_findings] == [8, 9, 10]
     assert {finding.key for finding in new_findings} == {_DUPLICATE_KEY}
     assert "found 3, baseline allows 2" in _format_findings(new_findings, baseline)
+
+
+def test_stale_baseline_keys_reports_entries_with_no_matching_call(monkeypatch, tmp_path) -> None:
+    """Removing or sanitising a baselined call must surface its now-dead entry (#7702)."""
+
+    fake_backend = _point_scanner_at(monkeypatch, tmp_path)
+    module = fake_backend / "example.py"
+    module.write_text(_GRANDFATHERED_SOURCE, encoding="utf-8")
+    baseline = Counter(finding.key for finding in find_unwrapped_log_call_findings())
+    assert _stale_baseline_keys(find_unwrapped_log_call_findings(), baseline) == Counter()
+
+    # Drop one of the two duplicate calls, and sanitise handler()'s call.
+    edited = _GRANDFATHERED_SOURCE.replace("        logger.warning('read failed for %s', path)\n", "", 1)
+    edited = edited.replace("        owner,\n", "        sanitise_log_value(owner),\n")
+    module.write_text(edited, encoding="utf-8")
+
+    assert _stale_baseline_keys(find_unwrapped_log_call_findings(), baseline) == Counter(
+        {
+            _DUPLICATE_KEY: 1,
+            "backend/example.py::handler::logger.debug('owner lookup failed for %s', owner)": 1,
+        }
+    )
 
 
 def test_find_unwrapped_log_calls_flags_multi_line_debug_and_exception_calls(monkeypatch, tmp_path) -> None:

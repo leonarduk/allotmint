@@ -1,3 +1,4 @@
+import { transactionUnits } from "../lib/transactionQuantity";
 import type { Transaction } from "../types";
 
 /** Maximum number of trade markers drawn before collapsing to first/last per side. */
@@ -180,7 +181,7 @@ export function buildTradeMarkers(
       side,
       owner: tx.owner,
       account: tx.account,
-      units: tx.shares ?? tx.units ?? null,
+      units: transactionUnits(tx),
       price: tx.price_gbp ?? null,
     });
   });

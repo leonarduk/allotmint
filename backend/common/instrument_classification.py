@@ -333,6 +333,50 @@ def exposure_sector(meta: Mapping[str, Any]) -> Optional[str]:
     return _fund_sector(sector, asset_class) or sector or None
 
 
+#: Region label for a fund spread across developed and/or emerging markets.
+GLOBAL_REGION = "Global"
+
+# Fund-name keywords that say where a fund invests, checked in this order; the
+# first match wins. Single countries come before blocs ("MSCI EM Asia" is
+# Asia, "Global Emerging Markets" is EM), and Europe before UK so "Europe ex
+# UK" is Europe. Labels reuse the stored region vocabulary ("US", "UK", ...).
+_REGION_KEYWORD_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("India", re.compile(r"\bindia\b", re.IGNORECASE)),
+    ("Brazil", re.compile(r"\bbrazil\b", re.IGNORECASE)),
+    ("China", re.compile(r"\bchina\b|\bchinese\b", re.IGNORECASE)),
+    ("Japan", re.compile(r"\bjapan(ese)?\b", re.IGNORECASE)),
+    ("Asia Pacific", re.compile(r"\bfar east\b|\basia(n)?\b|\bpacific\b", re.IGNORECASE)),
+    ("Emerging Markets", re.compile(r"\bemerging\b", re.IGNORECASE)),
+    (GLOBAL_REGION, re.compile(r"\ball[- ]world\b|\bworld(wide)?\b|\bglobal\b|\bACWI\b", re.IGNORECASE)),
+    ("US", re.compile(r"(?-i:\bUS\b)|\bU\.S\.|\bS&P 500\b|\bnasdaq\b|\bamerica(n)?\b", re.IGNORECASE)),
+    ("Europe", re.compile(r"\beurope(an)?\b|\beuro stoxx\b|\beurozone\b", re.IGNORECASE)),
+    ("UK", re.compile(r"\bUK\b|\bFTSE (100|250|350|all[- ]share)\b|\bbritish\b|\bunited kingdom\b", re.IGNORECASE)),
+)
+
+
+def exposure_region(meta: Mapping[str, Any]) -> Optional[str]:
+    """Return the region a holding's money is invested in (read-time correction).
+
+    Stored ``region`` is the issuer's domicile / ISIN country, so an Irish
+    MSCI World ETF reads "Europe" and a Jersey-listed Far East trust "UK"
+    (#9296). An explicit ``exposure_region`` in the metadata wins; otherwise a
+    fund whose name names a region or country gets that label, with
+    :data:`GLOBAL_REGION` for world funds. Company shares, and funds whose
+    name says nothing about geography, keep their stored region.
+    """
+    explicit = _text(meta, "exposure_region")
+    if explicit:
+        return explicit
+    region = _text(meta, "region") or None
+    if not is_fund(meta):
+        return region
+    name = _text(meta, "name")
+    for label, pattern in _REGION_KEYWORD_RULES:
+        if pattern.search(name):
+            return label
+    return region
+
+
 def classify_instrument(
     meta: Mapping[str, Any],
     override: Optional[Mapping[str, Any]] = None,

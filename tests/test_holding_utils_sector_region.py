@@ -143,3 +143,27 @@ def test_enrich_holding_sets_sub_asset_class_from_fund_facts(monkeypatch):
     assert enrich_holding({"ticker": "GLTL.L", "units": 0}, date.today(), {}, {})["sub_asset_class"] == "long_gilts"
     # Equity without a small-cap value tilt is broad equity (#9653).
     assert enrich_holding({"ticker": "VWRL.L", "units": 0}, date.today(), {}, {})["sub_asset_class"] == "broad_equity"
+
+
+def test_enrich_holding_reports_fund_exposure_region_and_keeps_domicile(monkeypatch):
+    # Region is where the money is invested, not the fund's domicile (#9296).
+    vhyl = {
+        "name": "Vanguard Funds Plc FTSE All World High Dividend Yield UCITS ETF",
+        "instrumentType": "ETF",
+        "asset_class": "equity",
+        "region": "Europe",
+    }
+    _patch_instrument_meta(monkeypatch, {"VWRL.L": vhyl})
+    out = enrich_holding({"ticker": "VWRL.L", "units": 0}, date.today(), {}, {})
+    assert out["region"] == "Global"
+    assert out["domicile_region"] == "Europe"
+    # Re-enriching an enriched holding does not lose the domicile.
+    again = enrich_holding(out, date.today(), {}, {})
+    assert (again["region"], again["domicile_region"]) == ("Global", "Europe")
+
+
+def test_enrich_holding_keeps_company_share_region(monkeypatch):
+    bank = {"name": "Lloyds Banking Group plc", "instrumentType": "Equity", "region": "UK"}
+    _patch_instrument_meta(monkeypatch, {"LLOY.L": bank})
+    out = enrich_holding({"ticker": "LLOY.L", "units": 0}, date.today(), {}, {})
+    assert (out["region"], out["domicile_region"]) == ("United Kingdom", "United Kingdom")

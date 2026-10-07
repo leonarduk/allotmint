@@ -245,6 +245,40 @@ def test_exposure_sector(meta, expected) -> None:
     assert ic.exposure_sector(meta) == expected
 
 
+@pytest.mark.parametrize(
+    "meta,expected",
+    [
+        # Funds report where they invest, not their domicile (#9296).
+        (_meta("Vanguard Funds Plc FTSE All World High Dividend Yield UCITS ETF", "ETF", region="Europe"), "Global"),
+        (_meta("iShares VI plc Edge MSCI World Minimum Volatility UCITS ETF Acc", "ETF", region="Europe"), "Global"),
+        (_meta("SPDR MSCI World Consumer Staples UCITS ETF *1 *R", "ETF", region="UK"), "Global"),
+        (_meta("Henderson Far East Income Ltd Ordinary NPV", "Investment Trust", region="UK"), "Asia Pacific"),
+        (_meta("Ashoka India Equity Inv Trust Plc Ord GBP0.01", "Investment Trust", region="UK"), "India"),
+        (_meta("iShares plc MSCI Brazil UCITS ETF (Dist)", "ETF", region="Europe"), "Brazil"),
+        (
+            _meta("iShares Core MSCI EM IMI Global Emerging Markets UCITS ETF", "ETF", region="Europe"),
+            "Emerging Markets",
+        ),
+        (_meta("Vanguard S&P 500 UCITS ETF", "ETF", region="Europe"), "US"),
+        (_meta("iShares Core FTSE 100 UCITS ETF", "ETF", region="Europe"), "UK"),
+        (_meta("BlackRock European Dynamic ex UK Fund", "Fund", region="UK"), "Europe"),
+        # "USD" in a share-class name is not the US.
+        (_meta("BioPharma Credit plc ORD USD0.01 *R", "Investment Trust", region="UK"), "UK"),
+        # An explicit exposure region in the metadata wins.
+        (
+            _meta("BioPharma Credit plc ORD USD0.01 *R", "Investment Trust", region="UK", exposure_region="US"),
+            "US",
+        ),
+        # Company shares keep their region, even with a region word in the name.
+        (_meta("Fidelity China Special Situations PLC", "Equity", region="UK"), "UK"),
+        (_meta("Apple Inc", "Equity", region="US"), "US"),
+        (_meta("Apple Inc", "Equity"), None),
+    ],
+)
+def test_exposure_region(meta, expected) -> None:
+    assert ic.exposure_region(meta) == expected
+
+
 def test_exposure_sector_matches_backfill() -> None:
     """Read-time correction gives the same sector the backfill writes."""
     meta = _meta("iShares VII plc MSCI UK Small CAP UCITS ETF", "ETF", "Financials", asset_class="Fund")

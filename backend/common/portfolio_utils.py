@@ -32,6 +32,7 @@ from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, _get_price_fo
 from backend.common.instrument_classification import (
     canonical_asset_class,
     explicit_instrument_type,
+    exposure_region,
     exposure_sector,
     normalise_instrument_type,
     resolve_instrument_type,
@@ -814,7 +815,7 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
                 },
             )
             row["exchange"] = exch
-            # Kept for the read-time fund sector correction below (#9196).
+            # Kept for the read-time fund sector/region corrections below (#9196, #9296).
             row.setdefault("_instrument_meta", instrument_meta)
             row.setdefault("_grouping_from_fallback", False)
             row.setdefault("_currency_source", None)
@@ -829,6 +830,9 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
             _update_row_field(row, "currency", h.get("currency"), "holding")
             _update_row_field(row, "sector", h.get("sector"), "holding")
             _update_row_field(row, "region", h.get("region"), "holding")
+            if _first_nonempty_str(h.get("domicile_region")):
+                # An enriched holding's region is already its exposure (#9296).
+                row.setdefault("domicile_region", h["domicile_region"])
             _update_row_field(row, "currency", instrument_meta.get("currency"), "instrument_meta")
             _update_row_field(row, "sector", instrument_meta.get("sector"), "instrument_meta")
             _update_row_field(row, "region", instrument_meta.get("region"), "instrument_meta")
@@ -1088,7 +1092,20 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
                 }
             )
         )
-        r["region"] = normalise_optional_region(r.get("region"))
+        # Region aggregates count a fund under the region it invests in, not
+        # its domicile; the domicile stays on the row (#9296).
+        r["domicile_region"] = normalise_optional_region(
+            _first_nonempty_str(r.get("domicile_region"), classification_meta.get("region"), r.get("region"))
+        )
+        r["region"] = normalise_optional_region(
+            exposure_region(
+                {
+                    **classification_meta,
+                    "name": classification_meta.get("name") or r.get("name"),
+                    "region": r.get("region"),
+                }
+            )
+        )
         if not _first_nonempty_str(r.get("grouping")):
             fallback = _first_nonempty_str(
                 r.get("sector"),

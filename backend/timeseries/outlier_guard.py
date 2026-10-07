@@ -125,13 +125,18 @@ def _normalised_sources(df: pd.DataFrame) -> np.ndarray:
     Missing values (``None``, ``NaN``, ``pd.NA``) are mapped to ``""`` *before*
     converting, so the elementwise ``!=`` in :func:`_spike_mask` only ever
     compares Python strings and never propagates ``pd.NA``.
+
+    Normalises each *distinct* label once and maps it back by factorize code
+    rather than looping over every row: a stored parquet holds a handful of
+    sources over thousands of rows, and the per-row loop was the single largest
+    cost of a cold custom-query run (#3424).
     """
     if "Source" not in df.columns:
         return np.full(len(df), "", dtype=object)
-    labels = [
-        "" if pd.api.types.is_scalar(value) and pd.isna(value) else str(value).strip().lower() for value in df["Source"]
-    ]
-    return np.asarray(labels, dtype=object)
+    codes, uniques = pd.factorize(df["Source"], use_na_sentinel=True)
+    # The trailing "" is what the NA sentinel code -1 indexes.
+    labels = np.asarray([str(value).strip().lower() for value in uniques] + [""], dtype=object)
+    return labels[codes]
 
 
 def drop_zero_volume_spikes(df: pd.DataFrame, *, ticker: str, exchange: str) -> pd.DataFrame:

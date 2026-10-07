@@ -61,6 +61,11 @@ class RankedFundamentals(BaseModel):
 
     ticker: str
     name: str | None = None
+    # Provenance: the provider that supplied the values ("yahoo",
+    # "alpha_vantage") and the ISO date they were fetched. Kept as plain str
+    # so this schema stays independent of allotmint_pro's Literal type.
+    source: str | None = None
+    as_of: str | None = None
     peg_ratio: float | None = None
     pe_ratio: float | None = None
     forward_pe: float | None = None

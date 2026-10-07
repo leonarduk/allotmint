@@ -63,7 +63,8 @@ export function assetClassLabel(
 // Mirrors backend/common/sub_asset_class.py (#9543, #9653): Equity, Bond and
 // Commodity can be targeted by sub-class on the strategy page. Keys match
 // allotmint-pro's backtest_portfolio asset-class blocks, except broad_equity,
-// which the backtest calls "equity" when it sits beside small_cap_value.
+// which the backtest calls "equity" when it sits beside small_cap_value, and
+// other_commodities, the backtest's "commodities" block (#9718).
 export { option as assetClassOption };
 
 export const SUB_ASSET_CLASSES: Record<
@@ -79,7 +80,7 @@ export const SUB_ASSET_CLASSES: Record<
     option('overseas_government'),
     option('corporate_bonds'),
   ],
-  commodity: [option('gold'), option('commodities')],
+  commodity: [option('gold'), option('other_commodities')],
 };
 
 /** Parent asset class of a sub-class key, or ``null`` for anything else. */

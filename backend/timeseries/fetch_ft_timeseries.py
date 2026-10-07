@@ -17,7 +17,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from backend import config
 from backend.logging_setup import sanitise_log_value
 from backend.utils.currency_utils import currency_from_isin
-from backend.utils.timeseries_helpers import STANDARD_COLUMNS, _is_isin
+from backend.utils.timeseries_helpers import STANDARD_COLUMNS, _is_isin, round_price_columns
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,8 @@ def fetch_ft_timeseries_range(
         for col in STANDARD_COLUMNS:
             if col not in df.columns:
                 df[col] = None
+        # Significant figures, not fixed dp, matching the other providers (#9456).
+        round_price_columns(df)
 
         return df[STANDARD_COLUMNS]
 

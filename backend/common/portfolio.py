@@ -114,6 +114,11 @@ def _warn_unmatched(owner: str, account: str, ticker: str) -> None:
     )
 
 
+def _has_booked_cost(holding: Any) -> bool:
+    """Return whether ``holding`` carries a non-zero booked cost (never overwritten by a fill)."""
+    return isinstance(holding, dict) and bool(holding.get("cost_basis_gbp"))
+
+
 def _held_base_counts(holdings: List[Any]) -> Dict[str, int]:
     counts: Dict[str, int] = {}
     for h in holdings:
@@ -137,7 +142,7 @@ def fill_missing_costs(owner: str, account: str, holdings: List[Any], accounts_r
     so ``enrich_holding`` derives the cost from the price on that date.  A
     non-zero booked cost always wins.  Never writes to the data files.
     """
-    needy = [h for h in holdings if isinstance(h, dict) and not h.get("cost_basis_gbp")]
+    needy = [h for h in holdings if isinstance(h, dict) and not _has_booked_cost(h)]
     if not needy:
         return
     transactions = _read_account_transactions(owner, account, accounts_root)
@@ -146,14 +151,13 @@ def fill_missing_costs(owner: str, account: str, holdings: List[Any], accounts_r
     hints = transaction_cost_hints(transactions)
     hint_keys = [k for k in hints if not k.startswith(("name:", "ref:"))]
     # A holding with a booked cost never takes a fill, so it must not make a
-    # zero-cost sibling's base symbol look ambiguous (#8480).  Its own pool is
-    # still off-limits to a suffix-only guess from that sibling.
+    # zero-cost sibling's base symbol look ambiguous (#8480).  But its own
+    # (canonically keyed) pool still belongs to it: a zero-cost sibling may
+    # only take that pool on an exact/canonical match, never via the
+    # suffix-only guess -- before #8480 the ambiguity guard blocked that guess,
+    # and dropping the booked holding from ``held_bases`` must not unblock it.
     held_bases = _held_base_counts(needy)
-    booked_keys = {
-        canonical_ticker(str(h.get("ticker") or ""))
-        for h in holdings
-        if isinstance(h, dict) and h.get("cost_basis_gbp")
-    }
+    booked_keys = {canonical_ticker(str(h.get("ticker") or "")) for h in holdings if _has_booked_cost(h)}
     for h in needy:
         ticker = str(h.get("ticker") or "").strip().upper()
         if not ticker or _strip_suffix(ticker) == "CASH":  # cash has no transaction pool

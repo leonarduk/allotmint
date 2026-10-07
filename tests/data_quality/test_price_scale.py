@@ -166,3 +166,93 @@ def test_is_scale_step(ratio, expected):
 @pytest.mark.parametrize(("scale", "expected"), [(1.0, 0.01), (100.0, 1.0), (0.01, None)])
 def test_suggested_override_factor(scale, expected):
     assert price_scale.suggested_override_factor(scale) == expected
+
+
+# ── Real get_scaling_override, no stub (#7789 review) ───────────────────────
+# ``_price_ceiling_reason`` calls ``get_scaling_override(ticker, exchange,
+# None)``. ``None`` means "no caller-requested factor", which makes the helper
+# resolve the *effective* factor: the scaling_overrides.json entry first, then
+# the instrument's currency metadata (GBX -> 0.01). These tests run that real
+# resolution against an override table shaped like the demo dataset before the
+# companion data fix (no AV/HICL entries, ULVR present), so a correctly
+# converted GBX holding cannot be mistaken for a raw pence price.
+
+_REAL_META = {
+    "AV.L": {"name": "Aviva", "instrumentType": "Equity", "currency": "GBP"},
+    "HICL.L": {"name": "HICL", "instrumentType": "Investment Trust", "currency": "GBP"},
+    "ULVR.L": {"name": "Unilever", "instrumentType": "Equity", "currency": "GBP"},
+    "GAW.L": {"name": "Games Workshop", "instrumentType": "Equity", "currency": "GBX"},
+    "ERNS.L": {"name": "iShares GBP Ultrashort", "instrumentType": "ETF", "currency": "GBP"},
+}
+_REAL_RAW_CLOSE = {"AV": 726.0, "HICL": 134.4, "ULVR": 4633.0, "GAW": 17760.0, "ERNS": 100.6}
+
+
+@pytest.fixture
+def real_scaling(monkeypatch, tmp_path):
+    from backend.common import instruments as instruments_module
+    from backend.utils import timeseries_helpers
+
+    overrides = tmp_path / "scaling_overrides.json"
+    overrides.write_text('{"L": {"ULVR": 0.01}}', encoding="utf-8")
+    monkeypatch.setattr(timeseries_helpers, "_scaling_override_paths", lambda: [overrides])
+    monkeypatch.setattr(instruments_module, "get_instrument_meta", lambda full: _REAL_META.get(full, {}))
+    monkeypatch.setattr(issues_module, "get_instrument_meta", lambda full: _REAL_META.get(full, {}))
+    monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [(t, "L") for t in _REAL_RAW_CLOSE])
+    monkeypatch.setattr(
+        issues_module,
+        "load_cached_meta_timeseries_full",
+        lambda t, e: _frame([_REAL_RAW_CLOSE[t]] * 40),
+    )
+
+
+def test_real_scaling_override_flags_only_unconverted_pence(real_scaling):
+    issues = _of_type(aggregate_series_issues(), IssueType.PRICE_SCALE_SUSPECT)
+
+    # AV / HICL have neither an override nor GBX metadata: raw pence read as GBP.
+    # ULVR (override 0.01) and GAW (GBX metadata) resolve to 0.01 and are fine;
+    # ERNS is a GBP ETF and never price-gated.
+    by_ticker = {i.entity["ticker"]: i for i in issues}
+    assert set(by_ticker) == {"AV", "HICL"}
+    assert by_ticker["AV"].preview["before"]["scale"] == 1.0
+    assert '"AV": 0.01 under "L"' in by_ticker["AV"].suggested_fix
+
+
+# ── _split_dates against the real corporate-actions loader ──────────────────
+_real_split_dates = issues_module._split_dates  # captured before _isolate stubs it
+
+
+def _actions_folder(monkeypatch, tmp_path):
+    from backend.timeseries import corporate_actions
+
+    real_loader = corporate_actions.load_corporate_actions
+    monkeypatch.setattr(
+        issues_module,
+        "load_corporate_actions",
+        lambda t, e: real_loader(t, e, base=str(tmp_path)),
+    )
+    folder = tmp_path / corporate_actions.ACTIONS_DIR
+    folder.mkdir()
+    return folder
+
+
+def test_split_dates_reads_recorded_splits(monkeypatch, tmp_path):
+    folder = _actions_folder(monkeypatch, tmp_path)
+    pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-03-01", "2024-06-03"]),
+            "Action": ["split", "dividend"],
+            "Value": [10.0, 0.5],
+            "Currency": ["", "GBP"],
+            "Source": ["test", "test"],
+        }
+    ).to_parquet(folder / "AV_L.parquet")
+
+    assert _real_split_dates("AV", "L") == frozenset({"2024-03-01"})
+
+
+def test_split_dates_missing_or_unreadable_file_is_empty_not_fatal(monkeypatch, tmp_path):
+    folder = _actions_folder(monkeypatch, tmp_path)
+    assert _real_split_dates("AV", "L") == frozenset()  # no file at all
+
+    (folder / "AV_L.parquet").write_bytes(b"not a parquet file")
+    assert _real_split_dates("AV", "L") == frozenset()  # corrupt file is logged, not raised

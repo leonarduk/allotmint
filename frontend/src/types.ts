@@ -923,6 +923,20 @@ export type NavStatus = 'current' | 'stale' | 'undated';
  * Valuation profile from GET /screener/valuation (allotmint-pro#259).
  * Ratios are fractions (0.05 = 5%); a value no source supplies is null.
  */
+/**
+ * The index an instrument is compared with. `source` is "none" when no
+ * comparable benchmark applies (bond, cash, commodity or unclassifiable
+ * funds); `ticker` and `name` are then null and `note` says why.
+ */
+export interface BenchmarkInfo {
+  ticker: string | null;
+  name: string | null;
+  source: string;
+  asset_class?: string | null;
+  asset_class_basis?: string | null;
+  note?: string | null;
+}
+
 export interface InstrumentValuation {
   ticker: string;
   name: string | null;
@@ -965,7 +979,7 @@ export interface InstrumentValuation {
     /** Percent, as Yahoo reports it (45.4 = 45.4%). */
     debt_to_equity: number | null;
   };
-  benchmark: { ticker: string; name: string | null; source: string };
+  benchmark: BenchmarkInfo;
   risk: {
     volatility_1y: number | null;
     beta_3y: number | null;
@@ -1045,7 +1059,7 @@ export interface InstrumentTechnicals {
   };
   returns: Record<string, number | null>;
   relative_strength: {
-    benchmark: { ticker: string; name: string | null; source: string };
+    benchmark: BenchmarkInfo;
     excess_3m: number | null;
     excess_1y: number | null;
   };

@@ -2307,6 +2307,7 @@
     "risk": "Risk",
     "volatility1y": "Volatility (1y)",
     "beta": "Beta vs {{ticker}} (3y weekly)",
+    "betaNoBenchmark": "Beta (3y weekly)",
     "providerBeta": "Provider beta: {{value}}",
     "maxDrawdown": "Max drawdown",
     "history": "History",
@@ -2319,6 +2320,9 @@
     "ariaValuation": "Valuation",
     "benchmark": "Benchmark:",
     "exchangeDefault": ", default for the listing exchange",
+    "noComparableBenchmark": "none comparable",
+    "assetClass": "{{assetClass}} fund",
+    "assetClassBasis": "{{assetClass}} fund: {{basis}}",
     "dataQuality": "Data quality"
   },
   "instrumentTechnicals": {

@@ -2314,6 +2314,7 @@
     "risk": "Riesgo",
     "volatility1y": "Volatilidad (1 a)",
     "beta": "Beta vs {{ticker}} (3 a, semanal)",
+    "betaNoBenchmark": "Beta (3 a, semanal)",
     "providerBeta": "Beta del proveedor: {{value}}",
     "maxDrawdown": "Caída máxima",
     "history": "Historial",
@@ -2326,6 +2327,9 @@
     "ariaValuation": "Valoración",
     "benchmark": "Índice de referencia:",
     "exchangeDefault": ", predeterminado para la bolsa de cotización",
+    "noComparableBenchmark": "ninguno comparable",
+    "assetClass": "fondo {{assetClass}}",
+    "assetClassBasis": "fondo {{assetClass}}: {{basis}}",
     "dataQuality": "Calidad de los datos"
   },
   "instrumentTechnicals": {

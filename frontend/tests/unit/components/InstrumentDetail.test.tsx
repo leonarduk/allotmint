@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, type Mock, beforeEach } from "vitest";
@@ -300,6 +300,55 @@ describe("InstrumentDetail", () => {
     expect(screen.queryByRole('columnheader', { name: /Mkt £/ })).toBeNull();
     expect(screen.queryByRole('columnheader', { name: /Gain £/ })).toBeNull();
     expect(screen.getByRole('columnheader', { name: /Gain %/ })).toBeInTheDocument();
+  });
+
+  it("discards a stale range response that resolves after the selected one (#10023)", async () => {
+    const series = (latest: number) => {
+      const prices = Array.from({ length: 30 }, (_, i) => ({
+        date: `2024-01-${String(i + 1).padStart(2, "0")}`,
+        close_gbp: 100,
+      }));
+      prices.push({ date: "2024-01-31", close_gbp: latest });
+      return { prices, positions: [], currency: null };
+    };
+    const pending = new Map<number, (value: ReturnType<typeof series>) => void>();
+    mockGetInstrumentDetail.mockImplementation(
+      (_ticker: string, days: number) =>
+        new Promise((resolve) => {
+          pending.set(days, resolve);
+        }),
+    );
+    i18n.changeLanguage("en");
+
+    // The research page mounts the chart with days=0 (Max) before the user picks 10Y.
+    render(
+      <MemoryRouter>
+        <InstrumentDetail ticker="JEGI.L" name="JEGI" variant="standalone" initialHistoryDays={0} />
+      </MemoryRouter>,
+    );
+    expect(mockGetInstrumentDetail).toHaveBeenLastCalledWith("JEGI.L", 0, expect.any(AbortSignal));
+
+    await userEvent.selectOptions(
+      screen.getByLabelText(i18n.t("instrumentDetail.range")),
+      "3650",
+    );
+    expect(mockGetInstrumentDetail).toHaveBeenLastCalledWith(
+      "JEGI.L",
+      3650,
+      expect.any(AbortSignal),
+    );
+    const maxSignal = mockGetInstrumentDetail.mock.calls[0][2] as AbortSignal;
+    expect(maxSignal.aborted).toBe(true);
+
+    const change7d = i18n.t("instrumentDetail.change7d");
+    await act(async () => pending.get(3650)!(series(130)));
+    expect(await screen.findByText(`${change7d} £30.00 (30.0%)`)).toBeInTheDocument();
+
+    // The Max response arrives last; it must not replace the 10Y series.
+    await act(async () => pending.get(0)!(series(150)));
+    expect(screen.getByText(`${change7d} £30.00 (30.0%)`)).toBeInTheDocument();
+    expect(screen.queryByText(`${change7d} £50.00 (50.0%)`)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(i18n.t("instrumentDetail.range"))).toHaveValue("3650");
   });
 
   describe("positions table (#8533)", () => {

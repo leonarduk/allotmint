@@ -577,6 +577,16 @@
     "declaredCurrencyLabel": "Valuta dichiarata (metadati)",
     "edit": "Modificare",
     "fundamentalsUnavailable": "I fondamentali non sono disponibili in questa distribuzione.",
+    "identifiers": {
+      "ticker": "Ticker",
+      "isin": "ISIN",
+      "exchange": "Borsa",
+      "assetClass": "Classe di attivo",
+      "region": "Regione",
+      "industry": "Settore industriale",
+      "grouping": "Raggruppamento",
+      "priceSource": "Fonte prezzi"
+    },
     "infoHeading": "Informazioni sullo strumento",
     "intraday": "Intraday",
     "intradayUnavailable": "Dati intraday non disponibili",

@@ -577,6 +577,16 @@
     "declaredCurrencyLabel": "Devise déclarée (métadonnées)",
     "edit": "Modifier",
     "fundamentalsUnavailable": "Les données fondamentales ne sont pas disponibles dans ce déploiement.",
+    "identifiers": {
+      "ticker": "Ticker",
+      "isin": "ISIN",
+      "exchange": "Place de cotation",
+      "assetClass": "Classe d'actifs",
+      "region": "Région",
+      "industry": "Industrie",
+      "grouping": "Regroupement",
+      "priceSource": "Source de prix"
+    },
     "infoHeading": "Informations sur l'instrument",
     "intraday": "Intraday",
     "intradayUnavailable": "Données intraday indisponibles",

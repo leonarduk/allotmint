@@ -687,6 +687,10 @@ export interface InstrumentMetadata {
   instrument_type?: string | null;
   instrumentType?: string | null;
   isin?: string | null;
+  asset_class?: string | null;
+  industry?: string | null;
+  /** Alternate listing used as the price source (#9657). */
+  price_source?: { ticker?: string | null; exchange?: string | null } | null;
 }
 
 export interface QuoteRow {

@@ -33,6 +33,7 @@ import {
   buildJustEtfUrl,
   buildMorningstarUrl,
 } from "../utils/urlUtils";
+import { InstrumentIdentifiers } from "../components/InstrumentIdentifiers";
 
 function normaliseOptional(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -203,6 +204,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const [newsError, setNewsError] = useState<string | null>(null);
   const [instrumentExchange, setInstrumentExchange] = useState(initialExchange);
   const [instrumentIsin, setInstrumentIsin] = useState("");
+  const [catalogueEntry, setCatalogueEntry] = useState<InstrumentMetadata | null>(null);
   type MetadataState = {
     name: string;
     sector: string;
@@ -304,6 +306,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   useEffect(() => {
     setInstrumentExchange(initialExchange);
     setInstrumentIsin("");
+    setCatalogueEntry(null);
     setIsEditingMetadata(false);
     setMetadataSaving(false);
     setMetadataStatus(null);
@@ -439,6 +442,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         );
         if (matched) {
           setInstrumentIsin(normaliseUppercase(matched.isin) ?? "");
+          setCatalogueEntry(matched);
           const name = normaliseOptional(matched.name) ?? matched.name;
           const sector = normaliseOptional(matched.sector);
           const currency = normaliseUppercase(matched.currency);
@@ -1189,6 +1193,12 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           </div>
         )}
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <InstrumentIdentifiers
+            ticker={alertTicker || tkr}
+            exchange={exchangeForActions}
+            isin={instrumentIsin}
+            entry={catalogueEntry}
+          />
           <li style={{ marginBottom: "0.5rem" }}>
             {isEditingMetadata ? (
               <label htmlFor="instrument-name" style={{ display: "block" }}>

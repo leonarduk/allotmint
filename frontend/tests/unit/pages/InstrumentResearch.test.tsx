@@ -886,6 +886,29 @@ describe("InstrumentResearch page", () => {
     expect(justEtf).toHaveAttribute("rel", "noopener noreferrer");
   });
 
+  it("shows catalogue identifiers in the instrument info", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme ETF",
+        isin: "IE00BL25JN58",
+        asset_class: "equity",
+        region: "Global",
+        industry: null,
+        price_source: { ticker: "AAA", exchange: "MI" },
+      },
+    ] as any);
+    renderPage();
+
+    expect(await screen.findByText("ISIN: IE00BL25JN58")).toBeInTheDocument();
+    expect(screen.getByText("Exchange: L")).toBeInTheDocument();
+    expect(screen.getByText("Asset class: equity")).toBeInTheDocument();
+    expect(screen.getByText("Region: Global")).toBeInTheDocument();
+    expect(screen.getByText("Price source: AAA.MI")).toBeInTheDocument();
+    expect(screen.queryByText(/^Industry:/)).toBeNull();
+  });
+
   it("hides the justETF link for non-ETF instruments", async () => {
     mockListInstrumentMetadata.mockResolvedValue([
       { ticker: "AAA", name: "Acme Corp", isin: "GB00BH4HKS39", instrument_type: "Equity" },

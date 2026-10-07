@@ -764,7 +764,7 @@ export default function App({ onLogout }: AppProps) {
         {mode === 'instrumentadmin' && <InstrumentAdmin />}
         {mode === 'dataadmin' && <DataAdmin />}
         {mode === 'watchlist' && <Ideas tab="watchlist" />}
-        {mode === 'allocation' && <AllocationCharts />}
+        {mode === 'allocation' && <AllocationCharts owners={owners} />}
         {mode === 'rebalance' && <Strategy />}
         {mode === 'market' && <MarketOverview />}
         {mode === 'movers' && <TopMovers />}

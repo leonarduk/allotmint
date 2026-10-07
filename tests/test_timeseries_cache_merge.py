@@ -712,6 +712,70 @@ def test_rolling_cache_refetches_over_cached_partial_day_bar(cache_store):
     assert stored.loc[stored["Date"].dt.date == window_end, "Close"].tolist() == [12.0]
 
 
+_EPOCH_ROW_DATES = [date(1969, 12, 31), date(1970, 1, 1)]
+
+
+def test_rolling_cache_does_not_store_fetched_epoch_zero_rows(cache_store):
+    """Rows dated on or before 1970-01-01 from a fetch never reach the cache (#10024).
+
+    Yahoo pads JEGI.L's full history with a row at timestamp -90000, which
+    normalises to 1969-12-31 and became the first row of the Max chart.
+    """
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    new_day = day + timedelta(days=1)
+    fetched = pd.concat(
+        [_day_frame(cache, d, 5.0) for d in _EPOCH_ROW_DATES]
+        + [_day_frame(cache, date(1970, 1, 2), 5.0), _day_frame(cache, new_day, 12.0)],
+        ignore_index=True,
+    )
+
+    _run(cache, cache_path, fetched)
+
+    stored = cache._load_parquet(cache_path)["Date"].dt.date.tolist()
+    assert stored == [date(1970, 1, 2), day, new_day]
+
+
+def test_rolling_cache_purges_cached_epoch_zero_rows(cache_store):
+    """An already-cached 1969-12-31 row is dropped and the clean-up persisted (#10024)."""
+    cache, cache_path, saves = cache_store
+    day = _seed_close_10(cache, cache_path, saves)
+    seeded = pd.concat(
+        [_day_frame(cache, d, 5.0) for d in _EPOCH_ROW_DATES] + [_day_frame(cache, day, 10.0)],
+        ignore_index=True,
+    )
+    cache._save_parquet(seeded, cache_path)
+    saves.clear()
+
+    _run(cache, cache_path, _day_frame(cache, day, 10.0))
+
+    assert len(saves) == 1
+    assert cache._load_parquet(cache_path)["Date"].dt.date.tolist() == [day]
+
+
+def test_cache_only_read_hides_cached_epoch_zero_rows(monkeypatch, tmp_path):
+    """A cache-only full-history read never serves a pre-1970 row from an unrepaired parquet (#10024)."""
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache.config, "offline_mode", False)
+    _clear_meta_lrus(cache)
+    last = _seed_stale_meta_cache(cache, "ABC", "L")
+    path = cache.meta_timeseries_cache_path("ABC", "L")
+    stored = cache._load_parquet(path)
+    epoch_rows = pd.concat([_day_frame(cache, d, 5.0) for d in _EPOCH_ROW_DATES], ignore_index=True)
+    cache._save_parquet(pd.concat([epoch_rows, stored], ignore_index=True), path)
+    _clear_meta_lrus(cache)
+
+    with cache.cache_only():
+        ranged = cache.load_meta_timeseries_range("ABC", "L", start_date=date(1960, 1, 1), end_date=last)
+        windowed = cache.load_meta_timeseries("ABC", "L", days=40000)
+
+    for frame in (ranged, windowed):
+        assert not frame.empty
+        assert frame["Date"].min() > pd.Timestamp("1970-01-01")
+
+
 def test_rolling_cache_keeps_priced_row_with_zero_open_high_low(cache_store):
     """Only a missing Close makes a row junk; zero Open/High/Low with a Close is kept."""
     cache, cache_path, saves = cache_store

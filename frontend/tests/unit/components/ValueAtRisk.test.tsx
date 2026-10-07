@@ -1,6 +1,17 @@
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import ValueAtRisk from "@/components/ValueAtRisk";
+import { configContext, type ConfigContextValue } from "@/ConfigContext";
+
+const configWith = (relativeViewEnabled: boolean) =>
+  ({
+    relativeViewEnabled,
+    tabs: {},
+    theme: "system",
+    reportingCurrency: "GBP",
+    refreshConfig: async () => {},
+    setRelativeViewEnabled: () => {},
+  }) as unknown as ConfigContextValue;
 
 // Mock the api module directly to avoid depending on globalThis.fetch
 // indirection through dynamicFetch, which can be timing-sensitive in CI.
@@ -164,5 +175,72 @@ describe("ValueAtRisk component", () => {
     );
     expect(keyWarnings).toEqual([]);
     errorSpy.mockRestore();
+  });
+});
+
+describe("ValueAtRisk relative view (#10022)", () => {
+  const renderVar = (relative: boolean, portfolioValue?: number | null) => {
+    vi.mocked(api.getValueAtRisk).mockResolvedValue({
+      owner: "alice",
+      as_of: "2024-01-01",
+      var: { "1d": 1234.5, "10d": 6789 },
+    } as any);
+    vi.mocked(api.getVarBreakdown).mockResolvedValue({
+      varDate: "2024-01-02",
+      varLossPercent: 5.0,
+      scenarios: [],
+      breakdown: [
+        { ticker: "AAA", name: "Alpha Plc", relative_change_percent: -12.5, scenario_amount_gbp: -75, contribution: 60 },
+      ],
+    } as any);
+    return render(
+      <configContext.Provider value={configWith(relative)}>
+        <ValueAtRisk owner="alice" portfolioValue={portfolioValue} />
+      </configContext.Provider>,
+    );
+  };
+
+  it("shows VaR as a % of portfolio value when the value is known", async () => {
+    renderVar(true, 100000);
+
+    await waitFor(() => expect(screen.getByText(/95%:/)).toHaveTextContent("1.23%"));
+    expect(screen.getByText(/99%:/)).toHaveTextContent("6.79%");
+    expect(screen.queryByTestId("var-relative-note")).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/£/);
+  });
+
+  it("falls back to the breakdown link when portfolio value is unusable", async () => {
+    renderVar(true, 0);
+
+    await waitFor(() =>
+      expect(screen.getByText(/95%:/)).toHaveTextContent("View breakdown"),
+    );
+    expect(screen.getByTestId("var-relative-note")).toBeInTheDocument();
+  });
+
+  it("hides absolute VaR amounts but still opens the % breakdown", async () => {
+    renderVar(true);
+
+    await waitFor(() =>
+      expect(screen.getByText(/95%:/)).toHaveTextContent("View breakdown"),
+    );
+    expect(screen.getByText(/99%:/)).toHaveTextContent("View breakdown");
+    expect(screen.getByTestId("var-relative-note")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/£/);
+
+    fireEvent.click(screen.getAllByRole("button")[0]);
+    await waitFor(() => screen.getByRole("dialog"));
+    expect(screen.getByRole("dialog")).toHaveTextContent("-12.50%");
+    expect(document.body.textContent).not.toMatch(/£/);
+  });
+
+  it("shows VaR amounts when relative view is off", async () => {
+    renderVar(false, 100000);
+
+    await waitFor(() =>
+      expect(screen.getByText(/95%:/)).toHaveTextContent("£1,234.50"),
+    );
+    expect(screen.getByText(/99%:/)).toHaveTextContent("£6,789.00");
+    expect(screen.queryByTestId("var-relative-note")).not.toBeInTheDocument();
   });
 });

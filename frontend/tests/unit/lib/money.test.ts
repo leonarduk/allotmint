@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { money, normalizeDisplayCurrency } from "@/lib/money";
+import { money, normalizeDisplayCurrency, wholeMoney } from "@/lib/money";
 
 describe("money", () => {
   it("formats a GBP value to the correct string for en-GB locale", () => {
@@ -51,3 +51,14 @@ describe("normalizeDisplayCurrency", () => {
   });
 });
 
+describe("wholeMoney", () => {
+  it("formats axis ticks in whole units with the currency symbol (#7815)", () => {
+    expect(wholeMoney(72000, "GBP", "en-GB")).toBe("£72,000");
+    expect(wholeMoney(71999.6, "GBP", "en-GB")).toBe("£72,000");
+  });
+
+  it("maps pence codes to GBP and returns the sentinel for non-finite values", () => {
+    expect(wholeMoney(1500, "GBX", "en-GB")).toBe("£1,500");
+    expect(wholeMoney(NaN, "GBP", "en-GB")).toBe("—");
+  });
+});

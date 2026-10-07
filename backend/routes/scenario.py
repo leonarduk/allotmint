@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from backend.common.data_loader import ProviderUnavailable, list_plots
 from backend.common.portfolio import build_owner_portfolio
 from backend.common.portfolio_utils import UNCONVERTED_HOLDINGS_KEY
+from backend.common.strategy_stress import holding_fallback
 from backend.routes.events import get_event
 from backend.utils.scenario_tester import (
     _HORIZONS,
@@ -196,6 +197,9 @@ def run_historical_scenario(
 
     horizon_days = parse_horizons(horizons)
     event = resolve_event(event_id, date)
+    # Unpriced holdings move with their asset class's stand-in (a gilt fund
+    # with a gilt ETF) before the event's equity proxy index (#9492).
+    fallback = holding_fallback(_dt.date.fromisoformat(str(event["date"])[:10]), horizon_days)
 
     results = []
     try:
@@ -213,7 +217,7 @@ def run_historical_scenario(
             baseline = sum(a.get("value_estimate_gbp") or 0.0 for a in pf.get("accounts", []))
             pf["total_value_estimate_gbp"] = baseline
 
-        shocked = apply_historical_event(pf, event=event, horizons=horizon_days)
+        shocked = apply_historical_event(pf, event=event, horizons=horizon_days, holding_fallback=fallback)
         horizon_map = {}
         for label in horizon_days:
             shocked_label = shocked.get(label) or {}

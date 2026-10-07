@@ -238,6 +238,46 @@ describe('Strategy page', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('shows owner display names in the owner selector (#7824)', async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: 'alex', full_name: 'Alex Leonard', accounts: [] },
+      { owner: 'joe', accounts: [] },
+    ]);
+    await renderPage();
+    const select = await screen.findByLabelText('Portfolio owner');
+    await waitFor(() =>
+      expect(
+        within(select)
+          .getAllByRole('option')
+          .map((o) => o.textContent)
+      ).toEqual(['Alex Leonard', 'joe'])
+    );
+    expect(select).toHaveValue('alex');
+  });
+
+  it('shows currency and percent unit affordances (#7824)', async () => {
+    await renderPage();
+    const drift = await screen.findByRole('region', {
+      name: 'Allocation drift',
+    });
+    const equityRow = within(drift)
+      .getByText('Equity')
+      .closest('tr') as HTMLElement;
+    // Current value carries the currency symbol.
+    expect(within(equityRow).getByText('£1,600.00')).toBeInTheDocument();
+    // Each target-weight input has a visible % suffix next to it, while
+    // its accessible name already states the unit ("Target % for ...").
+    const input = screen.getByLabelText('Target % for Equity');
+    const suffix = input.nextElementSibling as HTMLElement;
+    expect(suffix).toHaveTextContent('%');
+    expect(suffix).toHaveAttribute('aria-hidden', 'true');
+    // Amount and tolerance inputs name their units in their labels.
+    expect(screen.getByLabelText('Amount (£)')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Tolerance band (± percentage points)')
+    ).toBeInTheDocument();
+  });
+
   it('is titled Strategy', async () => {
     await renderPage();
     expect(
@@ -520,6 +560,17 @@ describe('Strategy page', () => {
     expect(
       screen.getByText(/is in holdings with no asset class/)
     ).toBeInTheDocument();
+  });
+
+  it('links the unclassified row to the classify page for the owner (#9495)', async () => {
+    mockGetRebalancePlan.mockResolvedValue(
+      makePlan({ unclassified_value: 250, unclassified_pct: 12.5 })
+    );
+    await renderPage();
+    const link = await screen.findByRole('link', {
+      name: 'Needs an asset class',
+    });
+    expect(link).toHaveAttribute('href', '/strategy/classify?owner=alex');
   });
 
   it('prompts for targets and hides trades when no policy is stored', async () => {

@@ -620,6 +620,33 @@ describe("GroupPortfolioView", () => {
     );
   });
 
+  it("renders the weighted fund charge from holdings' ongoing_charge_pct (#7834)", async () => {
+    // Shaped as enrich_holding emits it (tests/test_fund_charges_e2e.py):
+    // a catalogue charge on one fund, null for the fund with no fee data.
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 1500,
+          holdings: [
+            { ticker: "VWRL.L", units: 10, market_value_gbp: 1000, instrument_type: "etf", ongoing_charge_pct: 0.22 },
+            { ticker: "NOFEE.L", units: 5, market_value_gbp: 500, instrument_type: "fund", ongoing_charge_pct: null },
+          ],
+        },
+      ],
+    };
+    mockAllFetches(mockPortfolio);
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    expect(await screen.findByTestId("fund-charges-weighted")).toHaveTextContent("0.22%");
+    expect(screen.getByTestId("fund-charges-weighted")).not.toHaveTextContent("Unknown");
+    expect(screen.getByTestId("fund-charges-annual")).toHaveTextContent("2.20");
+    expect(screen.getByText(/1 of 2 holdings with no fee data/)).toBeInTheDocument();
+  });
+
   it("shows concentration warning when holdings data exceeds 20%", async () => {
     const mockPortfolio = {
       name: "At a glance",

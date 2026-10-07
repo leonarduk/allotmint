@@ -189,6 +189,15 @@ def apply_fx_shock(portfolio: Dict[str, Any], currency: str, pct_change: float) 
 
 # ---------------------------------------------------------------------------
 # Historical event application
+#
+# Base-price rule for historical events (#9950), shared with allotmint-pro's
+# ``strategy_stress.sleeve_forward_returns``: a forward return is measured
+# from the last close strictly BEFORE the event date (the pre-event close),
+# so the event day's own move is included -- Black Monday's 1d return is the
+# 19 Oct 1987 crash, not the 20 Oct rebound. Horizons are calendar days
+# counted from the event date: the "1d" end price is the first close on or
+# after event_date + 1 day. An event dated on a market peak (e.g. 2000-03-10,
+# 2020-02-19) therefore also includes the peak day's own move.
 
 _HORIZONS: Dict[str, int] = {
     "1d": 1,
@@ -239,19 +248,33 @@ def _price_on_or_after(df: pd.DataFrame, date_col: str, price_col: str, target: 
         return None
 
 
+def _price_before(df: pd.DataFrame, date_col: str, price_col: str, target: dt.date) -> float | None:
+    """The last finite close strictly before ``target``, within ``_MAX_PRICE_GAP_DAYS``; else ``None``."""
+    mask = (df[date_col] < target) & (df[date_col] >= target - dt.timedelta(days=_MAX_PRICE_GAP_DAYS))
+    prices = df.loc[mask, price_col]
+    prices = prices[prices.map(lambda v: math.isfinite(v))]
+    return None if prices.empty else float(prices.iloc[-1])
+
+
 def _forward_returns(
     ticker: str,
     exchange: str,
     event_date: dt.date,
     horizons: Mapping[str, int] = _HORIZONS,
 ) -> tuple[Dict[str, float | None], str]:
-    """Total returns (price + reinvested dividends) from ``event_date`` per horizon.
+    """Total returns (price + reinvested dividends) through ``event_date`` per horizon.
+
+    Each return runs from the pre-event close (the last close before
+    ``event_date``, so the event day's own move is included) to the first
+    close on or after ``event_date + days``. A horizon is ``None`` when either
+    close is missing or more than ``_MAX_PRICE_GAP_DAYS`` from its date.
 
     Returns ``(returns, return_basis)``; the basis is ``"price"`` when the
     ticker has no stored corporate actions (see ``total_return_frame``).
     """
+    start = event_date - dt.timedelta(days=_MAX_PRICE_GAP_DAYS)
     end = event_date + dt.timedelta(days=max(horizons.values()) + _MAX_PRICE_GAP_DAYS)
-    df = load_meta_timeseries_range(ticker, exchange, start_date=event_date, end_date=end)
+    df = load_meta_timeseries_range(ticker, exchange, start_date=start, end_date=end)
     if df is None or df.empty:
         return {k: None for k in horizons}, PRICE_RETURN_BASIS
 
@@ -269,9 +292,7 @@ def _forward_returns(
     df[price_col] = pd.to_numeric(df[price_col], errors="coerce")
     df = df.sort_values(date_col)
 
-    base = _price_on_or_after(df, date_col, price_col, event_date)
-    if base is not None and not math.isfinite(base):
-        base = None
+    base = _price_before(df, date_col, price_col, event_date)
 
     results: Dict[str, float | None] = {}
     for label, days in horizons.items():

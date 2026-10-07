@@ -47,6 +47,24 @@ export const money = (
 };
 
 /**
+ * ``money`` rounded to whole units -- "£72,000" -- for chart axis ticks,
+ * where pence only widen the label (#7815).
+ */
+export const wholeMoney = (
+    v: number | null | undefined,
+    currency = "GBP",
+    locale: string = i18n.language,
+): string => {
+    if (typeof v !== "number" || !Number.isFinite(v)) return "—";
+    return new Intl.NumberFormat(locale, {
+        style: "currency",
+        currency: normalizeDisplayCurrency(currency),
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(v);
+};
+
+/**
  * The symbol ``currency`` is written with in ``locale`` -- "£" for GBP, "$"
  * for USD in English, "US$" in some locales -- for headers like "Mkt £"
  * (#9805). Falls back to the code itself.

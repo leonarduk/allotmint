@@ -9,9 +9,9 @@ from backend.config import config
 
 def _sample_txs():
     return [
-        {"date": "2024-01-01", "ticker": "AAA", "type": "BUY", "shares": 10, "amount_minor": 10000},
-        {"date": "2024-02-01", "ticker": "AAA", "type": "SELL", "shares": 10, "amount_minor": 12000},
-        {"date": "2024-03-01", "ticker": "BBB", "type": "BUY", "shares": 5, "amount_minor": 5000},
+        {"date": "2024-01-01", "ticker": "AAA", "type": "BUY", "units": 10, "amount_minor": 10000},
+        {"date": "2024-02-01", "ticker": "AAA", "type": "SELL", "units": 10, "amount_minor": 12000},
+        {"date": "2024-03-01", "ticker": "BBB", "type": "BUY", "units": 5, "amount_minor": 5000},
     ]
 
 

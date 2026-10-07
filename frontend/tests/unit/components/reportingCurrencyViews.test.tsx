@@ -64,6 +64,10 @@ vi.mock('@/components/InstrumentDetail', () => ({
 
 import { AccountBlock } from '@/components/AccountBlock';
 import { HoldingsTable } from '@/components/HoldingsTable';
+import {
+  COLUMN_VISIBILITY_STORAGE_KEY,
+  DETAILED_COLUMNS,
+} from '@/lib/holdingsColumns';
 import { InstrumentTable } from '@/components/InstrumentTable';
 import ValueAtRisk from '@/components/ValueAtRisk';
 import { DividendHistory } from '@/components/DividendHistory';
@@ -159,6 +163,15 @@ describe('currencySymbol', () => {
 });
 
 describe('HoldingsTable in the reporting currency', () => {
+  // Every money column, so no £ header can slip through unconverted.
+  beforeEach(() => {
+    localStorage.setItem(
+      COLUMN_VISIBILITY_STORAGE_KEY,
+      JSON.stringify(DETAILED_COLUMNS)
+    );
+  });
+  afterEach(() => localStorage.removeItem(COLUMN_VISIBILITY_STORAGE_KEY));
+
   it('keeps £ headers when reporting in GBP', async () => {
     render(<HoldingsTable holdings={[holding]} />, {
       wrapper: withCurrency('GBP'),

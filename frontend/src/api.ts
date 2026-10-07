@@ -35,6 +35,7 @@ import type {
   TradingSignal,
   TradingAgentSettings,
   TradingPageData,
+  TradingSignalsReport,
   OpportunityEntry,
   ComplianceResult,
   MoverRow,
@@ -2068,13 +2069,36 @@ export const setAlertSettings = setAlertThreshold;
 export const getTradingSignals = () =>
   fetchJson<TradingSignal[]>(`${API_BASE}/trading-agent/signals`);
 
-/** Retrieve the signals and the active thresholds that produced them. */
+/**
+ * Fetch `/trading-agent/signals/report`, falling back to the plain signals
+ * list when the backend predates that endpoint (404) so a frontend deployed
+ * ahead of the backend still renders the Trading page. `blocked` is then
+ * left undefined, i.e. "not reported" rather than "none blocked".
+ */
+const getTradingSignalsReport = async (): Promise<
+  Pick<TradingPageData, "signals" | "blocked">
+> => {
+  try {
+    return await fetchJson<TradingSignalsReport>(
+      `${API_BASE}/trading-agent/signals/report`,
+    );
+  } catch (err) {
+    if ((err as { status?: number } | undefined)?.status !== 404) throw err;
+    return { signals: await getTradingSignals() };
+  }
+};
+
+/**
+ * Retrieve the signals, the ones compliance blocked, and the active thresholds
+ * that produced them. Blocked signals let the page tell "blocked by
+ * compliance" apart from "no threshold crossed" (#9453).
+ */
 export const getTradingPageData = async (): Promise<TradingPageData> => {
-  const [signals, settings] = await Promise.all([
-    getTradingSignals(),
+  const [report, settings] = await Promise.all([
+    getTradingSignalsReport(),
     fetchJson<TradingAgentSettings>(`${API_BASE}/trading-agent/settings`),
   ]);
-  return { signals, settings };
+  return { signals: report.signals, blocked: report.blocked, settings };
 };
 
 /** Retrieve compliance warnings for an owner */

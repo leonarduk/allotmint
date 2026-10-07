@@ -245,6 +245,58 @@ def test_guarded_frame_recomputed_when_warm_frame_is_replaced(monkeypatch, fresh
     assert after["Close"].tolist() == [120.25, 121.52, 121.90, 121.73]
 
 
+def test_guard_reused_after_range_lru_clear_while_warm_frame_unchanged(monkeypatch, fresh_range_cache):
+    # The case #8105 optimises: the per-range LRU misses (new window, or it
+    # was cleared) but the warm parquet frame is still the same object.
+    raw = _frame(VWRL_CLOSES, VWRL_VOLUMES)
+    monkeypatch.setattr(cache, "_load_meta_parquet_cached", lambda path: raw)
+    monkeypatch.setattr(cache, "_queue_if_stale", lambda *a, **k: None)
+    calls = _count_guard_calls(monkeypatch)
+    token = cache._CACHE_ONLY.set(True)
+    try:
+        cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+        cache._memoized_range_cached.cache_clear()
+        tail = cache._memoized_range("VWRL", "L", "2025-10-02", "2025-10-06")
+    finally:
+        cache._CACHE_ONLY.reset(token)
+    assert calls == [len(VWRL_CLOSES)]
+    assert tail["Close"].tolist() == [120.90, 120.73]
+
+
+def test_guarded_frames_are_keyed_per_ticker_path(monkeypatch, fresh_range_cache):
+    vwrl = _frame(VWRL_CLOSES, VWRL_VOLUMES)
+    other = _frame([c + 1 for c in VWRL_CLOSES], VWRL_VOLUMES)
+    monkeypatch.setattr(
+        cache,
+        "_load_meta_parquet_cached",
+        lambda path: vwrl if "VWRL" in path else other,
+    )
+    monkeypatch.setattr(cache, "_queue_if_stale", lambda *a, **k: None)
+    calls = _count_guard_calls(monkeypatch)
+    token = cache._CACHE_ONLY.set(True)
+    try:
+        first = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+        second = cache._memoized_range("OTHR", "L", "2025-09-29", "2025-10-06")
+    finally:
+        cache._CACHE_ONLY.reset(token)
+    assert len(calls) == 2
+    assert first["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
+    assert second["Close"].tolist() == [120.25, 121.52, 121.90, 121.73]
+
+
+def test_guarded_frames_are_bounded_least_recently_used_first(monkeypatch):
+    # Never outlive the warm cache: a long-running process with a large
+    # universe must not pin frames `_load_meta_parquet_cached` has evicted.
+    monkeypatch.setattr(cache, "_GUARDED_META_FRAMES_MAX", 2)
+    monkeypatch.setattr(cache, "_GUARDED_META_FRAMES", cache.OrderedDict())
+    frames = {name: _frame(VWRL_CLOSES, VWRL_VOLUMES) for name in ("a", "b", "c")}
+    cache._guarded_meta_frame(frames["a"], "a", "A", "L")
+    cache._guarded_meta_frame(frames["b"], "b", "B", "L")
+    cache._guarded_meta_frame(frames["a"], "a", "A", "L")  # touch "a"
+    cache._guarded_meta_frame(frames["c"], "c", "C", "L")
+    assert list(cache._GUARDED_META_FRAMES) == ["a", "c"]
+
+
 def test_clear_meta_lrus_drops_guarded_frames(monkeypatch, fresh_range_cache):
     raw = _frame(VWRL_CLOSES, VWRL_VOLUMES)
     monkeypatch.setattr(cache, "_load_meta_parquet_cached", lambda path: raw)

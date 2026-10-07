@@ -16,6 +16,7 @@ import os
 import re
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Iterator
 from concurrent.futures import Executor
 from contextlib import contextmanager
@@ -826,7 +827,8 @@ def _clear_meta_lrus() -> None:
     _load_meta_timeseries_cached.cache_clear()
     _memoized_range_cached.cache_clear()
     _load_meta_parquet_cached.cache_clear()
-    _GUARDED_META_FRAMES.clear()
+    with _GUARDED_META_FRAMES_LOCK:
+        _GUARDED_META_FRAMES.clear()
     for clear_fn in _EXTRA_META_CACHE_CLEARERS:
         clear_fn()
 
@@ -952,8 +954,12 @@ _MIN_CACHE_WINDOW_DAYS = 60
 
 
 # Spike-guarded copy of each warm ``_load_meta_parquet_cached`` frame, keyed by
-# path and stored with the source frame it was computed from (#8105).
-_GUARDED_META_FRAMES: Dict[str, tuple[pd.DataFrame, pd.DataFrame]] = {}
+# path and stored with the source frame it was computed from (#8105). Bounded
+# to the warm cache's own size (least recently used evicted first) so it never
+# keeps alive frames that ``_load_meta_parquet_cached`` has already evicted.
+_GUARDED_META_FRAMES_MAX = 512
+_GUARDED_META_FRAMES: OrderedDict[str, tuple[pd.DataFrame, pd.DataFrame]] = OrderedDict()
+_GUARDED_META_FRAMES_LOCK = threading.Lock()
 
 
 def _guarded_meta_frame(existing: pd.DataFrame, path: str, ticker: str, exchange: str) -> pd.DataFrame:
@@ -967,11 +973,17 @@ def _guarded_meta_frame(existing: pd.DataFrame, path: str, ticker: str, exchange
     ``_load_meta_parquet_cached`` (the #7877 mtime invalidation included)
     recomputes it -- no separate invalidation rule to keep in step.
     """
-    hit = _GUARDED_META_FRAMES.get(path)
-    if hit is not None and hit[0] is existing:
-        return hit[1]
+    with _GUARDED_META_FRAMES_LOCK:
+        hit = _GUARDED_META_FRAMES.get(path)
+        if hit is not None and hit[0] is existing:
+            _GUARDED_META_FRAMES.move_to_end(path)
+            return hit[1]
     guarded = drop_zero_volume_spikes(_without_pre_epoch_rows(existing), ticker=ticker, exchange=exchange)
-    _GUARDED_META_FRAMES[path] = (existing, guarded)
+    with _GUARDED_META_FRAMES_LOCK:
+        _GUARDED_META_FRAMES[path] = (existing, guarded)
+        _GUARDED_META_FRAMES.move_to_end(path)
+        while len(_GUARDED_META_FRAMES) > _GUARDED_META_FRAMES_MAX:
+            _GUARDED_META_FRAMES.popitem(last=False)
     return guarded
 
 

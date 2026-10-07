@@ -2926,6 +2926,8 @@
       "growth": "Croissance",
       "gainUnknown": "Gain inconnu — aucun prix de revient enregistré",
       "gainDetail": "{{gain}} de gain latent ({{pct}})",
+      "yield": "Rendement",
+      "yieldDetail": "{{pct}} % de rendement des revenus sur 12 mois glissants",
       "vigour": "Vigueur",
       "noMoveToday": "Aucun mouvement enregistré aujourd'hui",
       "pctToday": "{{pct}} aujourd'hui",

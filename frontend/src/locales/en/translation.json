@@ -2919,6 +2919,8 @@
       "growth": "Growth",
       "gainUnknown": "Gain unknown — no cost basis on record",
       "gainDetail": "{{gain}} unrealised gain ({{pct}})",
+      "yield": "Yield",
+      "yieldDetail": "{{pct}}% trailing 12-month income yield",
       "vigour": "Vigour",
       "noMoveToday": "No move recorded today",
       "pctToday": "{{pct}} today",

@@ -6,6 +6,7 @@ type Props = {
   ticker: string;
   exchange: string | null | undefined;
   isin: string | null | undefined;
+  morningstarId: string | null;
   /** Matching catalogue entry, when the instrument is in the catalogue. */
   entry: InstrumentMetadata | null;
 };
@@ -32,9 +33,10 @@ function priceSourceSymbol(entry: InstrumentMetadata | null): string | null {
  * so users can see what is missing; the optional catalogue classifications
  * only render when the catalogue has a value.
  */
-export function InstrumentIdentifiers({ ticker, exchange, isin, entry }: Props) {
+export function InstrumentIdentifiers({ ticker, exchange, isin, morningstarId, entry }: Props) {
   const { t } = useTranslation();
   const optional: [string, string | null][] = [
+    ["morningstarId", text(morningstarId)],
     ["assetClass", text(entry?.asset_class)],
     ["region", text(entry?.region)],
     ["industry", text(entry?.industry)],

@@ -11,6 +11,7 @@ vi.mock("@/api", () => ({
   updateInstrumentMetadata: vi.fn(),
   refreshInstrumentMetadata: vi.fn(),
   confirmInstrumentMetadata: vi.fn(),
+  resolveMorningstarId: vi.fn(() => Promise.resolve({ status: "unresolved", morningstar_id: null })),
   getScreener: vi.fn(),
   getInstrumentValuation: vi.fn(() => Promise.reject(Object.assign(new Error("gated"), { status: 402 }))),
   getInstrumentDetail: vi.fn(),
@@ -41,6 +42,7 @@ const mockListInstrumentMetadata = vi.mocked(api.listInstrumentMetadata);
 const mockUpdateInstrumentMetadata = vi.mocked(api.updateInstrumentMetadata);
 const mockRefreshInstrumentMetadata = vi.mocked(api.refreshInstrumentMetadata);
 const mockConfirmInstrumentMetadata = vi.mocked(api.confirmInstrumentMetadata);
+const mockResolveMorningstarId = vi.mocked(api.resolveMorningstarId);
 const mockGetScreener = vi.mocked(api.getScreener);
 const mockGetInstrumentDetail = vi.mocked(api.getInstrumentDetail);
 const mockGetInstrumentIntraday = vi.mocked(api.getInstrumentIntraday);
@@ -907,6 +909,46 @@ describe("InstrumentResearch page", () => {
     expect(screen.getByText("Region: Global")).toBeInTheDocument();
     expect(screen.getByText("Price source: AAA.MI")).toBeInTheDocument();
     expect(screen.queryByText(/^Industry:/)).toBeNull();
+  });
+
+  it("links Morningstar straight to the saved quote page", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      {
+        ticker: "AAA",
+        name: "Acme Gold",
+        isin: "JE00B1VS3770",
+        instrumentType: "ETC",
+        morningstar_id: "0P0000AATZ",
+      },
+    ] as any);
+    mockResolveMorningstarId.mockClear();
+    renderPage();
+
+    expect(await screen.findByText("Morningstar ID: 0P0000AATZ")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View on Morningstar" })).toHaveAttribute(
+      "href",
+      "https://global.morningstar.com/en-gb/investments/etfs/0P0000AATZ/quote",
+    );
+    expect(mockResolveMorningstarId).not.toHaveBeenCalled();
+  });
+
+  it("resolves the Morningstar id when none is saved", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA.L", exchange: "L", name: "Acme", isin: "GB00BH4HKS39", instrumentType: "Equity" },
+    ] as any);
+    mockResolveMorningstarId.mockResolvedValueOnce({
+      status: "resolved",
+      morningstar_id: "0P00007WPO",
+    });
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "View on Morningstar" })).toHaveAttribute(
+        "href",
+        "https://global.morningstar.com/en-gb/investments/stocks/0P00007WPO/quote",
+      ),
+    );
+    expect(mockResolveMorningstarId).toHaveBeenCalledWith("AAA", "L");
   });
 
   it("links ETCs to their justETF profile", async () => {

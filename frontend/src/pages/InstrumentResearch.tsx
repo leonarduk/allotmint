@@ -34,6 +34,7 @@ import {
   buildMorningstarUrl,
 } from "../utils/urlUtils";
 import { InstrumentIdentifiers } from "../components/InstrumentIdentifiers";
+import { useMorningstarId } from "../hooks/useMorningstarId";
 
 function normaliseOptional(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -907,7 +908,13 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     metadataSaving || refreshingMetadata || confirmingRefresh || !!refreshPreview;
   const exchangeForActions = deriveExchangeForActions();
   const investingComUrl = buildInvestingComUrl(instrumentIsin, tkr);
-  const morningstarUrl = buildMorningstarUrl(instrumentIsin);
+  const morningstarId = useMorningstarId(
+    baseTicker,
+    exchangeForActions,
+    instrumentIsin,
+    catalogueEntry?.morningstar_id,
+  );
+  const morningstarUrl = buildMorningstarUrl(instrumentIsin, morningstarId, instrumentType);
   const justEtfUrl = JUSTETF_INSTRUMENT_TYPES.has(instrumentType?.toUpperCase() ?? "")
     ? buildJustEtfUrl(instrumentIsin)
     : null;
@@ -1202,6 +1209,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             ticker={alertTicker || tkr}
             exchange={exchangeForActions}
             isin={instrumentIsin}
+            morningstarId={morningstarId}
             entry={catalogueEntry}
           />
           <li style={{ marginBottom: "0.5rem" }}>

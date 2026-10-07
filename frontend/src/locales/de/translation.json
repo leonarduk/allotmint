@@ -580,6 +580,7 @@
     "identifiers": {
       "ticker": "Ticker",
       "isin": "ISIN",
+      "morningstarId": "Morningstar-ID",
       "exchange": "Börse",
       "assetClass": "Anlageklasse",
       "region": "Region",

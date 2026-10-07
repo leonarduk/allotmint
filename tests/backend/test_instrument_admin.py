@@ -160,3 +160,59 @@ def test_refresh_instrument_confirm(monkeypatch):
     assert payload["instrumentType"] == "EQUITY"
     assert payload["ticker"] == "ABC.NYSE"
     assert payload["exchange"] == "NYSE"
+
+
+def _morningstar_client(monkeypatch, meta: dict, resolved: str | None) -> tuple[TestClient, dict]:
+    app = FastAPI()
+    app.include_router(instrument_admin.router)
+    state: dict[str, Any] = {"lookups": []}
+
+    def fake_resolve(isin: str, exchange: str, currency: str | None) -> str | None:
+        state["lookups"].append((isin, exchange, currency))
+        return resolved
+
+    def fake_save(ticker: str, exchange: str, payload: dict, **_kwargs: Any) -> None:
+        state["saved"] = payload
+
+    monkeypatch.setattr(instrument_admin, "instrument_meta_path", lambda *_a: _DummyPath())
+    monkeypatch.setattr(instrument_admin, "get_instrument_meta", lambda _t: dict(meta))
+    monkeypatch.setattr(instrument_admin, "save_instrument_meta", fake_save)
+    monkeypatch.setattr(instrument_admin.morningstar, "resolve_sec_id", fake_resolve)
+    monkeypatch.setattr(instrument_admin.config, "offline_mode", False)
+    return TestClient(app), state
+
+
+def test_morningstar_id_resolves_and_saves(monkeypatch):
+    meta = {"ticker": "PHGP.L", "exchange": "L", "isin": "JE00B1VS3770", "currency": "GBX"}
+    client, state = _morningstar_client(monkeypatch, meta, "0P0000AATZ")
+    with client:
+        resp = client.post("/instrument/admin/L/PHGP/morningstar-id")
+    assert resp.json() == {"status": "resolved", "morningstar_id": "0P0000AATZ"}
+    assert state["lookups"] == [("JE00B1VS3770", "L", "GBX")]
+    assert state["saved"]["morningstar_id"] == "0P0000AATZ"
+    assert state["saved"]["isin"] == "JE00B1VS3770"
+
+
+def test_morningstar_id_returns_saved_id_without_lookup(monkeypatch):
+    meta = {"ticker": "PHGP.L", "exchange": "L", "isin": "JE00B1VS3770", "morningstar_id": "0P0000AATZ"}
+    client, state = _morningstar_client(monkeypatch, meta, "0P0SHOULDNT")
+    with client:
+        resp = client.post("/instrument/admin/L/PHGP/morningstar-id")
+    assert resp.json() == {"status": "saved", "morningstar_id": "0P0000AATZ"}
+    assert state["lookups"] == []
+    assert "saved" not in state
+
+
+def test_morningstar_id_unresolved_without_isin_or_match(monkeypatch):
+    client, state = _morningstar_client(monkeypatch, {"ticker": "ABC.L", "exchange": "L"}, "0P0SHOULDNT")
+    with client:
+        resp = client.post("/instrument/admin/L/ABC/morningstar-id")
+    assert resp.json() == {"status": "unresolved", "morningstar_id": None}
+    assert state["lookups"] == []
+
+    meta = {"ticker": "ABC.L", "exchange": "L", "isin": "GB00BH4HKS39"}
+    client, state = _morningstar_client(monkeypatch, meta, None)
+    with client:
+        resp = client.post("/instrument/admin/L/ABC/morningstar-id")
+    assert resp.json() == {"status": "unresolved", "morningstar_id": None}
+    assert "saved" not in state

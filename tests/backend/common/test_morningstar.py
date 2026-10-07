@@ -22,6 +22,12 @@ def test_select_treats_pence_as_sterling():
     assert morningstar.select_sec_id(ROWS, "L", "GBX") == "0P0000AATZ"
 
 
+def test_select_matches_pence_quoted_rows_too():
+    rows = [{"SecId": "0P0000PENC", "ExchangeId": "EX$$$$XLON", "Currency": "GBX"}]
+    assert morningstar.select_sec_id(rows, "L", "GBP") == "0P0000PENC"
+    assert morningstar.select_sec_id(rows, "L", "GBX") == "0P0000PENC"
+
+
 def test_select_never_guesses_another_currency_line():
     assert morningstar.select_sec_id(ROWS, "L", "JPY") is None
 

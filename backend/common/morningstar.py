@@ -45,9 +45,14 @@ def _row_mic(row: dict[str, Any]) -> str:
     return mic if mic.isalnum() else ""
 
 
+def _sterling(currency: object) -> str:
+    """Upper-case currency code with pence (GBX/GBp) folded into GBP."""
+    code = currency.upper() if isinstance(currency, str) else ""
+    return "GBP" if code == "GBX" else code
+
+
 def _row_currency(row: dict[str, Any]) -> str:
-    value = row.get("Currency")
-    return value.upper() if isinstance(value, str) else ""
+    return _sterling(row.get("Currency"))
 
 
 def select_sec_id(rows: Iterable[dict[str, Any]], exchange: str, currency: Optional[str]) -> Optional[str]:
@@ -60,8 +65,7 @@ def select_sec_id(rows: Iterable[dict[str, Any]], exchange: str, currency: Optio
     """
     mics = EXCHANGE_MICS.get(exchange.upper(), ())
     on_exchange = [r for r in rows if _row_mic(r) in mics and isinstance(r.get("SecId"), str)]
-    wanted = (currency or "").upper()
-    wanted = "GBP" if wanted == "GBX" else wanted
+    wanted = _sterling(currency)
     if not wanted:
         return on_exchange[0]["SecId"] if len(on_exchange) == 1 else None
     return next((r["SecId"] for r in on_exchange if _row_currency(r) == wanted), None)

@@ -58,7 +58,8 @@ def _row_currency(row: dict[str, Any]) -> str:
 def select_sec_id(rows: Iterable[dict[str, Any]], exchange: str, currency: Optional[str]) -> Optional[str]:
     """Pick the SecId for the listing on ``exchange`` in ``currency``.
 
-    Pence-quoted London lines (GBX) list in GBP on Morningstar. Never
+    Pence (GBX) and sterling (GBP) are treated as the same currency on
+    either side, since London lines may be quoted in either. Never
     guesses: returns ``None`` when no listing on the exchange is in the
     currency (another line's quote page would show the wrong price), or,
     without a currency, when the exchange has more than one listing.
@@ -87,7 +88,8 @@ def _fetch_rows(isin: str) -> list[dict[str, Any]]:
 
 
 # Listings already looked up with no match, so a research page viewed again
-# does not re-query Morningstar for them until the process restarts. Bounded
+# does not re-query Morningstar for them while this process (or warm Lambda
+# container) lives; a fresh process looks them up once more. Bounded
 # by clearing when full: the catalogue is a few hundred instruments, so the
 # cap is only a backstop.
 _UNRESOLVED: set[tuple[str, str, str]] = set()

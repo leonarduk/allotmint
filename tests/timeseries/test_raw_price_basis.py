@@ -333,6 +333,19 @@ def test_actions_merge_incrementally_and_skip_identical_writes(cache_base):
     assert load_dividends("ABC", "L").tolist() == [1.0, 1.2]
 
 
+def test_write_swaps_in_a_temp_file_from_the_target_directory(cache_base):
+    """#9398: the temp file must sit beside the target so ``os.replace`` is a same-filesystem rename."""
+    real_replace = corporate_actions.os.replace
+    with patch.object(corporate_actions.os, "replace", side_effect=real_replace) as spy:
+        assert record_corporate_actions("ABC", "L", _one_dividend()) is True
+
+    path = importlib.import_module("pathlib").Path(corporate_actions.corporate_actions_path("ABC", "L"))
+    (src, dest), _ = spy.call_args
+    assert importlib.import_module("pathlib").Path(src).parent == path.parent
+    assert dest == str(path)
+    assert load_dividends("ABC", "L").tolist() == [1.0]
+
+
 @pytest.mark.parametrize("failing", ["to_parquet", "replace"])
 def test_failed_write_leaves_the_stored_file_intact(cache_base, failing):
     """#9398: a write that fails part-way must not truncate the store or leave a temp file."""

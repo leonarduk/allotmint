@@ -45,6 +45,15 @@ describe('InstrumentTransactions', () => {
     expect(mockGet).toHaveBeenCalledWith({ ticker: 'PFE' });
   });
 
+  it('shows a PP-imported row in real units (#10203)', async () => {
+    mockGet.mockResolvedValue([
+      { ...ROW, units: undefined, shares: 1_000_000_000 },
+    ]);
+    render(<InstrumentTransactions ticker="PFE" />);
+    expect(await screen.findByText('10')).toBeInTheDocument();
+    expect(screen.queryByText('1000000000')).not.toBeInTheDocument();
+  });
+
   it('splits a transaction and reloads', async () => {
     const user = userEvent.setup();
     render(<InstrumentTransactions ticker="PFE" />);

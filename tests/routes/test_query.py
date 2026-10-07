@@ -803,3 +803,48 @@ def test_get_run_exports_xlsx_attachment(holdings_env):
     assert resp.status_code == 200
     assert resp.headers["content-disposition"] == "attachment; filename=custom-query.xlsx"
     assert b"ABC.L" in zipfile.ZipFile(io.BytesIO(resp.content)).read("xl/worksheets/sheet1.xml")
+
+
+def test_transfer_in_inside_range_counts_at_that_days_close(holdings_env, monkeypatch):
+    # 10 held before the range (1.00), 10 transferred in mid-range with no
+    # amount (close that day 2.50), 10 bought after it. The transfer is
+    # valued like a buy at that day's close, not at the pooled average.
+    portfolios = [
+        {
+            "owner": "alice",
+            "accounts": [
+                {"holdings": [{"ticker": "TOP.L", "units": 30, "acquired_date": "2021-03-01", "cost_basis_gbp": 130}]}
+            ],
+        }
+    ]
+    tx = [
+        {"date": "2019-01-01", "type": "BUY", "ticker": "TOP.L", "units": 10, "amount_minor": 1000},
+        {"date": "2020-06-01", "type": "TRANSFER_IN", "ticker": "TOP.L", "units": 10},
+        {"date": "2021-03-01", "type": "BUY", "ticker": "TOP.L", "units": 10, "amount_minor": 10000},
+    ]
+    prices = {("TOP", date(2020, 1, 1)): 1.0, ("TOP", date(2020, 6, 1)): 2.5, ("TOP", date(2020, 12, 31)): 3.0}
+    monkeypatch.setattr(query, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(query, "load_transactions", lambda owner: tx)
+    monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (prices.get((sym, d)), None))
+    row = query.run_query(_holding_query(metrics=[query.Metric.GAIN_GBP]))["results"][0]
+    assert row["start_value_gbp"] == 35.0
+    assert row["gain_gbp"] == 25.0
+
+
+def test_owners_only_per_ticker_query_lists_their_holdings(holdings_env):
+    q = query.CustomQuery(start=date(2020, 1, 1), end=date(2020, 12, 31), owners=["bob"])
+    assert query._resolve_tickers(q) == ["ABC.L"]
+
+
+def test_position_sold_out_before_today_has_no_row(holdings_env, monkeypatch):
+    # GONE.L was held through 2020 but sold in 2021: no current holding, no row.
+    monkeypatch.setattr(
+        query,
+        "load_transactions",
+        lambda owner: [
+            {"date": "2019-01-01", "type": "BUY", "ticker": "GONE.L", "units": 5, "amount_minor": 500},
+            {"date": "2021-01-01", "type": "SELL", "ticker": "GONE.L", "units": 5},
+        ],
+    )
+    rows = query.run_query(_holding_query(owners=["alice"]))["results"]
+    assert "GONE.L" not in {r["ticker"] for r in rows}

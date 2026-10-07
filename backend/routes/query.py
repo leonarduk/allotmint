@@ -178,12 +178,22 @@ def _range_units(tx: dict | None, ticker: str, units_now: float, q: CustomQuery)
 _ACQUIRE_TYPES = {"BUY", "PURCHASE", "TRANSFER_IN"}
 
 
-def _range_buy_unit_cost(tx: dict, ticker: str, q: CustomQuery) -> float | None:
-    """Average GBP paid per unit of ``ticker`` acquired inside the range, from ``tx``.
+def _acquisition_value(t: dict, ticker: str, holding: dict, units: float, when: str) -> float | None:
+    """GBP an in-range acquisition entered the position at: its recorded amount,
+    else (a transfer in carries none) its units at that day's close."""
+    if t.get("amount_minor") is not None:
+        return abs(float(t["amount_minor"])) / 100
+    price = _gbp_price(ticker, holding, date.fromisoformat(when))
+    return units * price if price is not None else None
 
-    ``None`` when nothing was acquired in the range or any acquisition there
-    has no recorded amount (e.g. a transfer in), so the caller can fall back
-    to the position's pooled average cost.
+
+def _range_buy_unit_cost(tx: dict, ticker: str, holding: dict, q: CustomQuery) -> float | None:
+    """Average GBP per unit of ``ticker`` acquired inside the range, from ``tx``.
+
+    Buys count at what was paid; a transfer in at the close on its date, as
+    if bought then. ``None`` when nothing was acquired in the range or an
+    acquisition can't be valued, so the caller falls back to the position's
+    pooled average cost.
     """
     start, end = q.start.isoformat(), q.end.isoformat()
     units = paid = 0.0
@@ -193,11 +203,14 @@ def _range_buy_unit_cost(tx: dict, ticker: str, q: CustomQuery) -> float | None:
         when = str(t.get("date") or "")[:10]
         if not start < when <= end:
             continue
-        if t.get("amount_minor") is None:
+        # A one-transaction replay (as_of = its own date, inclusive) reuses
+        # get_units_as_of's quantity parsing, including the PP 1e8 scaling.
+        t_units = get_units_as_of({"transactions": [t]}, ticker, when)
+        value = _acquisition_value(t, ticker, holding, t_units, when)
+        if value is None:
             return None
-        # A one-transaction replay reuses get_units_as_of's quantity parsing.
-        units += get_units_as_of({"transactions": [t]}, ticker, when)
-        paid += abs(float(t["amount_minor"])) / 100
+        units += t_units
+        paid += value
     return paid / units if units > 0 else None
 
 
@@ -226,7 +239,7 @@ def _start_value(
 
 def _unit_cost(acc: dict, tx: dict | None, ticker: str, q: CustomQuery) -> float | None:
     """GBP per unit for units bought inside the range: what those buys cost, else the pooled average."""
-    paid = _range_buy_unit_cost(tx, ticker, q) if tx is not None else None
+    paid = _range_buy_unit_cost(tx, ticker, acc["holding"], q) if tx is not None else None
     if paid is not None:
         return paid
     cost, units_now = acc["cost"], acc["units"]

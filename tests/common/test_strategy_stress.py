@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import datetime as dt
 
+import pandas as pd
 import pytest
 
 from backend.common import strategy_stress
 from backend.common.strategies import Strategy, create_strategy
 from backend.timeseries.total_return import PRICE_RETURN_BASIS, TOTAL_RETURN_BASIS
+from backend.utils import scenario_tester
 
 EVENT_DATE = dt.date(2020, 2, 19)
 HORIZONS = {"1m": 30, "1y": 365}
@@ -109,6 +111,27 @@ def test_brunner_is_not_an_equity_stand_in(monkeypatch):
     row = _row({"equity": 100.0})
     assert row["horizons"]["1m"]["return_pct"] is None
     assert row["horizons"]["1m"]["missing"] == ["equity"]
+
+
+def test_stand_in_returns_include_the_event_day_move(monkeypatch):
+    """Black Monday on Brunner: the base is the pre-event close, so 1d shows the crash (#9950)."""
+    black_monday = dt.date(1987, 10, 19)
+    closes = pd.DataFrame(
+        {"Date": [dt.date(1987, 10, 16), black_monday, dt.date(1987, 10, 20)], "Close": [150.0, 120.0, 123.0]}
+    )
+
+    def load(ticker, exchange, start_date, end_date):
+        return closes if ticker == "BUT" else pd.DataFrame()
+
+    monkeypatch.setattr(strategy_stress, "instrument_forward_returns", scenario_tester.instrument_forward_returns)
+    monkeypatch.setattr(scenario_tester, "load_meta_timeseries_range", load)
+    monkeypatch.setattr(scenario_tester, "total_return_frame", lambda df, t, e: (df, TOTAL_RETURN_BASIS))
+    monkeypatch.setattr(scenario_tester, "get_scaling_override", lambda *a, **k: 1.0)
+
+    sleeve = strategy_stress.sleeve_returns("equity", black_monday, {"1d": 1})
+
+    assert sleeve["1d"].series == "BUT.L"
+    assert sleeve["1d"].value == pytest.approx(123.0 / 150.0 - 1.0)
 
 
 def test_pro_fills_only_what_stand_ins_cannot(monkeypatch):

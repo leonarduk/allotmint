@@ -146,12 +146,18 @@ def test_forward_returns_empty(monkeypatch):
 
 
 def test_forward_returns_with_data(monkeypatch):
-    event_date = dt.date(2024, 1, 1)
-    dates = [event_date + dt.timedelta(days=d) for d in [0, 1, 7, 30, 90, 365]]
-    prices = [100, 110, 120, 130, 140, 200]
+    event_date = dt.date(2024, 1, 2)
+    # The pre-event close (day -1) is the base; the event-day close is not.
+    dates = [event_date + dt.timedelta(days=d) for d in [-1, 0, 1, 7, 30, 90, 365]]
+    prices = [100, 50, 110, 120, 130, 140, 200]
     df = pd.DataFrame({"Date": dates, "Close_gbp": prices}).set_index("Date")
+    requested = {}
 
-    monkeypatch.setattr(sc_tester, "load_meta_timeseries_range", lambda *a, **k: df)
+    def fake_load(ticker, exchange, start_date, end_date):
+        requested.update(start=start_date, end=end_date)
+        return df
+
+    monkeypatch.setattr(sc_tester, "load_meta_timeseries_range", fake_load)
     monkeypatch.setattr(sc_tester, "get_scaling_override", lambda *a, **k: 1.0)
     monkeypatch.setattr(sc_tester, "apply_scaling", lambda d, s: d)
 
@@ -164,11 +170,45 @@ def test_forward_returns_with_data(monkeypatch):
     assert returns["1m"] == pytest.approx(0.30)
     assert returns["3m"] == pytest.approx(0.40)
     assert returns["1y"] == pytest.approx(1.00)
+    # The load reaches back far enough to find the pre-event close.
+    assert requested["start"] == event_date - dt.timedelta(days=sc_tester._MAX_PRICE_GAP_DAYS)
+
+
+def test_forward_returns_include_the_event_day_move(monkeypatch):
+    """Black Monday: the 1d return is the 19 Oct crash, not the 20 Oct rebound (#9950)."""
+    event_date = dt.date(1987, 10, 19)
+    dates = [dt.date(1987, 10, 16), event_date, dt.date(1987, 10, 20)]
+    _no_scaling(monkeypatch, pd.DataFrame({"Date": dates, "Close_gbp": [100.0, 80.0, 82.0]}).set_index("Date"))
+
+    returns, _basis = sc_tester._forward_returns("SPX", "N", event_date, {"1d": 1})
+
+    assert returns["1d"] == pytest.approx(-0.18)
+
+
+def test_forward_returns_base_skips_a_nonfinite_pre_event_close(monkeypatch):
+    event_date = dt.date(2024, 1, 10)
+    dates = [event_date - dt.timedelta(days=d) for d in (3, 1)] + [event_date + dt.timedelta(days=1)]
+    _no_scaling(monkeypatch, pd.DataFrame({"Date": dates, "Close_gbp": [100.0, float("nan"), 90.0]}).set_index("Date"))
+
+    returns, _basis = sc_tester._forward_returns("ABC", "L", event_date, {"1d": 1})
+
+    assert returns["1d"] == pytest.approx(-0.10)
+
+
+def test_forward_returns_without_a_pre_event_close_are_none(monkeypatch):
+    """A fund first priced on the event day has no pre-event base; nothing is fabricated."""
+    event_date = dt.date(2024, 1, 10)
+    dates = [event_date - dt.timedelta(days=8), event_date, event_date + dt.timedelta(days=1)]
+    _no_scaling(monkeypatch, pd.DataFrame({"Date": dates, "Close_gbp": [100.0, 95.0, 90.0]}).set_index("Date"))
+
+    returns, _basis = sc_tester._forward_returns("NEW", "L", event_date, {"1d": 1})
+
+    assert returns["1d"] is None
 
 
 def test_forward_returns_nonfinite_prices(monkeypatch):
-    event_date = dt.date(2024, 1, 1)
-    dates = [event_date + dt.timedelta(days=d) for d in [0, 1, 7, 30, 90, 365]]
+    event_date = dt.date(2024, 1, 2)
+    dates = [event_date + dt.timedelta(days=d) for d in [-1, 1, 7, 30, 90, 365]]
     prices = [100, float("nan"), 120, float("inf"), 140, 200]
     df = pd.DataFrame({"Date": dates, "Close_gbp": prices}).set_index("Date")
 
@@ -352,7 +392,7 @@ def test_apply_historical_event_portfolio_custom_horizons(monkeypatch):
 
 
 def test_forward_returns_ignores_prices_far_from_target(monkeypatch):
-    """A fund that only started trading months after the event has no event-date base."""
+    """A fund that only started trading months after the event has no pre-event base."""
     event_date = dt.date(2008, 9, 15)
     dates = [event_date + dt.timedelta(days=d) for d in [60, 90, 365]]
     _no_scaling(monkeypatch, pd.DataFrame({"Date": dates, "Close_gbp": [100, 110, 120]}).set_index("Date"))
@@ -364,8 +404,9 @@ def test_forward_returns_ignores_prices_far_from_target(monkeypatch):
 
 def test_forward_returns_tolerates_weekend_gaps(monkeypatch):
     event_date = dt.date(2020, 2, 19)
-    # The 1y target is covered by a close three days later.
-    dates = [event_date, event_date + dt.timedelta(days=368)]
+    # Base on the prior Friday's close (the Monday is a holiday); the 1y
+    # target is covered by a close three days later.
+    dates = [event_date - dt.timedelta(days=5), event_date + dt.timedelta(days=368)]
     _no_scaling(monkeypatch, pd.DataFrame({"Date": dates, "Close_gbp": [100, 90]}).set_index("Date"))
 
     returns, _basis = sc_tester._forward_returns("ABC", "L", event_date)

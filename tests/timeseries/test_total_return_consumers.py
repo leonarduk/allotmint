@@ -282,11 +282,12 @@ def test_forward_returns_use_total_return(store, monkeypatch):
     monkeypatch.setattr(scenario_tester, "load_meta_timeseries_range", _range_loader({"PAY": _frame()}))
     _no_scaling(monkeypatch)
 
-    returns, basis = scenario_tester._forward_returns("PAY", "L", DATES[0].date())
+    # Event on the ex-date: the base is the pre-event close (DATES[0]).
+    returns, basis = scenario_tester._forward_returns("PAY", "L", EX_DATE.date())
 
     assert basis == tr.TOTAL_RETURN_BASIS
-    # 1 calendar day -> ex-date close: price says -2%, total return says 0%.
-    assert returns["1d"] == pytest.approx(0.0)
+    # 1 calendar day -> DATES[2]: price says -1% (99/100), total return +1.0% (99/98).
+    assert returns["1d"] == pytest.approx(TOTAL_LEVELS[2] / 100.0 - 1.0)
     assert returns["1w"] is None  # the five-day fixture ends before a week has passed
 
 
@@ -321,12 +322,13 @@ def test_historical_event_portfolio_reports_price_fallbacks(store, monkeypatch):
         ],
         "total_value_estimate_gbp": 200.0,
     }
-    event = {"date": DATES[0].date(), "proxy_index": "PRX.L"}
+    event = {"date": EX_DATE.date(), "proxy_index": "PRX.L"}
 
     result = scenario_tester.apply_historical_event_portfolio(portfolio, event)
 
     one_day = result["1d"]
-    assert one_day["total_value_gbp"] == pytest.approx(100.0 + 98.0)
+    # From the pre-event close (100) to DATES[2]: PAY total return, NOFILE price 99.
+    assert one_day["total_value_gbp"] == pytest.approx(TOTAL_LEVELS[2] + 99.0, abs=0.01)
     assert one_day["return_basis"] == tr.PRICE_RETURN_BASIS
     assert one_day["price_return_tickers"] == ["NOFILE.L"]
 
@@ -337,7 +339,7 @@ def test_historical_event_portfolio_all_total_return(store, monkeypatch):
     _no_scaling(monkeypatch)
     portfolio = {"accounts": [{"holdings": [{"ticker": "PAY.L", "market_value_gbp": 100.0}]}]}
 
-    result = scenario_tester.apply_historical_event_portfolio(portfolio, {"date": DATES[0].date()})
+    result = scenario_tester.apply_historical_event_portfolio(portfolio, {"date": EX_DATE.date()})
 
     assert result["1d"]["total_value_gbp"] is not None
     assert result["1d"]["return_basis"] == tr.TOTAL_RETURN_BASIS

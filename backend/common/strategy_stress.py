@@ -7,6 +7,11 @@ for a horizon is used. Returns are total return where dividends are stored
 (see :func:`backend.utils.scenario_tester.instrument_forward_returns`) and in
 GBP. Cash is held flat, as the holdings scenario holds cash.
 
+Every return is measured from the pre-event close (the last close strictly
+before the event date), so the event day's own move counts: Black Monday's 1d
+is the 19 Oct 1987 crash. Horizons are calendar days from the event date. The
+stand-ins, the pro hook and the portfolio row all follow this rule (#9950).
+
 A strategy's return for a horizon is the weighted sum of its sleeves' returns
 with weights fixed at the event date (buy and hold, no rebalancing). It is
 ``None`` whenever any sleeve has no return, and the missing sleeves are named:
@@ -18,7 +23,7 @@ sleeves (gilt ETFs). When allotmint-pro provides
 ``allotmint_pro.strategy_stress.sleeve_forward_returns`` it fills the
 horizons the stand-ins cannot (e.g. synthetic gilts before 2012); its contract
 is ``(sleeve, event_date, horizons) -> (returns, return_basis, series_label)``
-or ``None``.
+or ``None``, with returns based on the pre-event close as above.
 
 The owner's current portfolio is replayed through the same holdings engine as
 ``/scenario/historical`` so it can sit beside the strategies as a baseline. A

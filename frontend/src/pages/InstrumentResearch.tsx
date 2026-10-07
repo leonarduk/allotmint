@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useInstrumentHistory, updateCachedInstrumentHistory } from "../hooks/useInstrumentHistory";
+import {
+  invalidateInstrumentHistory,
+  useInstrumentHistory,
+  updateCachedInstrumentHistory,
+} from "../hooks/useInstrumentHistory";
 import { InstrumentDetail, InstrumentPositionsTable } from "../components/InstrumentDetail";
 import { InstrumentTransactions } from "../components/InstrumentTransactions";
 import { InstrumentValuationPanel } from "../components/InstrumentValuationPanel";
@@ -20,6 +24,7 @@ import type { NewsItem, InstrumentMetadata, ScreenerResult } from "../types";
 import EmptyState from "../components/EmptyState";
 import { InstrumentSearchBar } from "../components/InstrumentSearchBar";
 import { DeleteSeriesButton } from "../components/DeleteSeriesButton";
+import { RefreshPricesButton } from "../components/RefreshPricesButton";
 import InstrumentAlertsSection from "../components/InstrumentAlertsSection";
 import { useInstrumentAlertCount } from "../hooks/useInstrumentAlertCount";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
@@ -175,6 +180,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const initialExchange = tickerParts.length > 1 ? tickerParts[1] ?? "" : "";
   const { tabs, disabledTabs } = useConfig();
   const [overviewHistoryDays, setOverviewHistoryDays] = useState<number>(0);
+  // Bumped by "Refresh prices" to remount the Timeseries tab's chart, which
+  // fetches its own history outside useInstrumentHistory (#9963).
+  const [pricesVersion, setPricesVersion] = useState(0);
   // Overview has no range selector of its own; default to 365d until the
   // Timeseries tab reports a range (0 means "unset"/Max and must still fetch,
   // so resolve it to a positive default here rather than in the hook).
@@ -1017,6 +1025,16 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           </a>
         )}
         {baseTicker && instrumentExchange && (
+          <RefreshPricesButton
+            ticker={baseTicker}
+            exchange={instrumentExchange.toUpperCase()}
+            onRefreshed={() => {
+              invalidateInstrumentHistory(tkr);
+              setPricesVersion((v) => v + 1);
+            }}
+          />
+        )}
+        {baseTicker && instrumentExchange && (
           <DeleteSeriesButton ticker={baseTicker} exchange={instrumentExchange.toUpperCase()} />
         )}
       </div>
@@ -1567,6 +1585,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       {activeTab === "timeseries" && (
         <div style={{ marginBottom: "2rem" }}>
           <InstrumentDetail
+            key={pricesVersion}
             ticker={tkr}
             name={displayName ?? tkr}
             currency={resolvedCurrentCurrency || undefined}

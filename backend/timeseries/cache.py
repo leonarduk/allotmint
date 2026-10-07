@@ -791,6 +791,27 @@ def register_meta_cache_clearer(clear_fn: Callable[[], None]) -> None:
         _EXTRA_META_CACHE_CLEARERS.append(clear_fn)
 
 
+def _clear_meta_lrus() -> None:
+    """Clear this module's meta LRUs plus every registered external one."""
+    _load_meta_timeseries_cached.cache_clear()
+    _memoized_range_cached.cache_clear()
+    _load_meta_parquet_cached.cache_clear()
+    for clear_fn in _EXTRA_META_CACHE_CLEARERS:
+        clear_fn()
+
+
+def clear_meta_timeseries_caches() -> None:
+    """Force the next meta-timeseries read to go back to disk/upstream.
+
+    ``_invalidate_meta_caches_if_stale`` only fires on an mtime change, so an
+    empty frame memoized for a ticker with no parquet yet (mtime stays 0.0)
+    would otherwise be served until the process restarts. An explicit
+    refetch calls this first (#9963).
+    """
+    _clear_meta_lrus()
+    _CACHE_FILE_MTIMES.clear()
+
+
 def _invalidate_meta_caches_if_stale(ticker: str, exchange: str) -> None:
     """Clear both meta LRUs when the backing file's mtime has changed."""
     cache = meta_timeseries_cache_path(ticker, exchange)
@@ -806,11 +827,7 @@ def _invalidate_meta_caches_if_stale(ticker: str, exchange: str) -> None:
         mtime = p.stat().st_mtime if p.exists() else 0.0
     prev = _CACHE_FILE_MTIMES.get(cache)
     if prev is not None and prev != mtime:
-        _load_meta_timeseries_cached.cache_clear()
-        _memoized_range_cached.cache_clear()
-        _load_meta_parquet_cached.cache_clear()
-        for clear_fn in _EXTRA_META_CACHE_CLEARERS:
-            clear_fn()
+        _clear_meta_lrus()
     _CACHE_FILE_MTIMES[cache] = mtime
 
 

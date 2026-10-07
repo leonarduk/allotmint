@@ -62,6 +62,95 @@ def test_get_price_for_date_scaled_nan_close(monkeypatch):
     assert src is None
 
 
+def _adm_series() -> pd.DataFrame:
+    """ADM.L as cached on 2026-10-07: a good 10-05 close, then a junk partial-day
+    Yahoo bar for 10-06 (Open/High/Low 0, Close NaN)."""
+    return pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2026-10-02", "2026-10-05", "2026-10-06"]),
+            "Open": [3550.0, 3560.0, 0.0],
+            "High": [3580.0, 3590.0, 0.0],
+            "Low": [3540.0, 3550.0, 0.0],
+            "Close": [3561.0, 3574.0, float("nan")],
+            "Close_gbp": [35.61, 35.74, float("nan")],
+            "Source": ["Yahoo", "Yahoo", "Yahoo"],
+        }
+    )
+
+
+def _range_loader(series: pd.DataFrame, calls: list):
+    """Mimic load_meta_timeseries_range: rows in [start, end], walking back up
+    to four days while that slice is empty."""
+
+    def loader(ticker, exchange, start_date, end_date, **_kwargs):
+        calls.append((start_date, end_date))
+        for offset in range(5):
+            s = pd.Timestamp(start_date - dt.timedelta(days=offset))
+            e = pd.Timestamp(end_date - dt.timedelta(days=offset))
+            out = series[(series["Date"] >= s) & (series["Date"] <= e)]
+            if not out.empty:
+                return out.reset_index(drop=True)
+        return pd.DataFrame()
+
+    return loader
+
+
+@pytest.mark.parametrize("day", [dt.date(2026, 10, 6), dt.date(2026, 10, 7)])
+def test_price_for_date_skips_nan_close_row_to_last_good_close(monkeypatch, day):
+    """#9938: a NaN-close row on (or walked back to) the day is skipped for the
+    latest usable close in the walk-back window, dated as that row."""
+    calls: list = []
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", _range_loader(_adm_series(), calls))
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: 1.0)
+    monkeypatch.setattr(holding_utils, "is_cache_only", lambda: False)
+
+    price, src, row_date = holding_utils._get_dated_price_for_date_scaled("ADM", "L", day)
+
+    assert price == pytest.approx(35.74)
+    assert src == "Yahoo"
+    assert row_date == dt.date(2026, 10, 5)
+    assert calls[-1] == (day - dt.timedelta(days=4), day)
+
+
+def test_price_for_date_falls_back_to_raw_close_column_and_scales_it(monkeypatch):
+    """With no GBP column the skipped-to row's raw Close is still scalable."""
+    series = _adm_series().drop(columns=["Close_gbp"])
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", _range_loader(series, []))
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: 0.01)
+    monkeypatch.setattr(holding_utils, "is_cache_only", lambda: False)
+
+    price, _src = holding_utils._get_price_for_date_scaled("ADM", "L", dt.date(2026, 10, 7))
+
+    assert price == pytest.approx(35.74)
+
+
+def test_price_for_date_clean_row_needs_one_load(monkeypatch):
+    """A usable row on the day is served without a second, wider read."""
+    calls: list = []
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", _range_loader(_adm_series(), calls))
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: 1.0)
+    monkeypatch.setattr(holding_utils, "is_cache_only", lambda: False)
+
+    price, src = holding_utils._get_price_for_date_scaled("ADM", "L", dt.date(2026, 10, 5))
+
+    assert price == pytest.approx(35.74)
+    assert calls == [(dt.date(2026, 10, 5), dt.date(2026, 10, 5))]
+
+
+@pytest.mark.parametrize("bad_close", [float("nan"), 0.0])
+def test_price_for_date_without_usable_close_in_window_is_none(monkeypatch, bad_close):
+    """No usable close within the four-day window still means unpriced -- an
+    older good close is never served for the day."""
+    series = _adm_series()
+    series = series[series["Date"] == pd.Timestamp("2026-10-06")].copy()
+    series["Close"] = bad_close
+    series["Close_gbp"] = bad_close
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", _range_loader(series, []))
+    monkeypatch.setattr(holding_utils, "is_cache_only", lambda: False)
+
+    assert holding_utils._get_price_for_date_scaled("ADM", "L", dt.date(2026, 10, 7)) == (None, None)
+
+
 def test_get_price_for_date_scaled_memoizes_only_inside_cache_only(monkeypatch):
     """#8211: _get_price_for_date_scaled should skip repeat load_meta_timeseries_range
     calls for the same (ticker, exchange, d, field) inside cache_only(), but never

@@ -393,7 +393,9 @@ def _load_unscaled_price_for_date_impl(
 
     ``load_meta_timeseries_range`` walks back up to four days when ``d`` has
     no row, so the row date can be earlier than ``d``; ``enrich_holding``
-    compares it with the reporting date to decide staleness (#7919).
+    compares it with the reporting date to decide staleness (#7919). A served
+    row with no usable value (NaN close) is skipped for the latest usable row
+    in that same window (#9938).
 
     Deliberately does not apply ``get_scaling_override``/``apply_scaling`` --
     see ``_load_unscaled_price_for_date_cache_only`` for why (#8232 review).
@@ -416,28 +418,54 @@ def _load_unscaled_price_for_date_impl(
     df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=d, end_date=d)
     if df is None or df.empty:
         return None, None, False, None
-
-    nm = _lower_name_map(df)
-    col = None
-    if field.lower() in {"close", "close_gbp"}:
-        col = nm.get("close_gbp") or nm.get("close") or nm.get("adj close") or nm.get("adj_close")
-    else:
-        col = nm.get(field.lower())
-    if not col:
+    found = _last_usable_row(df, field)
+    if found is None:
+        # The loader only walks back past *missing* days, so it can stop on a
+        # row with no usable value -- e.g. a partial-day Yahoo bar with
+        # Open/High/Low 0 and Close NaN -- and leave the instrument unpriced
+        # although an earlier day has a good close (#9938). Re-read the same
+        # walk-back window and take its latest usable row instead.
+        start = d - dt.timedelta(days=_PRICE_WALK_BACK_DAYS)
+        df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=start, end_date=d)
+        found = None if df is None or df.empty else _last_usable_row(df, field)
+    if found is None:
         return None, None, False, None
 
-    try:
-        price = float(df.iloc[0][col])
-    except (ValueError, TypeError, KeyError, IndexError):
-        return None, None, False, None
-
-    if is_nan(price):
-        return None, None, False, None
-
-    src = df.iloc[0].get("Source")
+    row, col, price = found
+    src = row.get("Source")
     if is_nan(src):
         src = None
-    return price, src, col.lower() in _SCALABLE_COLUMNS, _parse_date(df.iloc[0].get("Date"))
+    return price, src, col.lower() in _SCALABLE_COLUMNS, _parse_date(row.get("Date"))
+
+
+# How far ``load_meta_timeseries_range`` walks back from a day with no row
+# (its ``range(0, 5)`` offsets); a day-``d`` lookup never serves anything older.
+_PRICE_WALK_BACK_DAYS = 4
+
+
+def _value_column(df: pd.DataFrame, field: str) -> Optional[str]:
+    """Physical column holding ``field``; for a close, prefer the GBP-converted one."""
+    nm = _lower_name_map(df)
+    if field.lower() in {"close", "close_gbp"}:
+        return nm.get("close_gbp") or nm.get("close") or nm.get("adj close") or nm.get("adj_close")
+    return nm.get(field.lower())
+
+
+def _last_usable_row(df: pd.DataFrame, field: str) -> Optional[tuple[pd.Series, str, float]]:
+    """``(row, column, value)`` of the latest row with a usable ``field`` value.
+
+    Usable means numeric and not NaN, and for a close also > 0: a zero close
+    is a placeholder in an empty bar, never a traded price.
+    """
+    col = _value_column(df, field)
+    if not col:
+        return None
+    values = pd.to_numeric(df[col], errors="coerce")
+    usable = values.notna() & (values > 0) if field.lower() in {"close", "close_gbp"} else values.notna()
+    if not usable.any():
+        return None
+    pos = int(usable.to_numpy().nonzero()[0][-1])
+    return df.iloc[pos], col, float(values.iloc[pos])
 
 
 _UNSCALED_PRICE_CACHE_MAXSIZE = 2048

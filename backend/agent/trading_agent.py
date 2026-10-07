@@ -422,6 +422,22 @@ def _alert_on_drawdown(threshold: float = DRAWDOWN_ALERT_THRESHOLD) -> None:
             send_trade_alert(f"{owner} portfolio drawdown {max_dd*100:.2f}% exceeds {threshold*100:.2f}%")
 
 
+def _compliance_baseline(owner: str, baselines: Dict[str, Counter]) -> Counter:
+    """Return (and cache in ``baselines``) ``owner``'s existing-history warnings.
+
+    An empty baseline is cached when ``check_owner`` raises, so every warning
+    then counts as new and the check fails closed.
+    """
+
+    if owner not in baselines:
+        try:
+            baselines[owner] = Counter(compliance.check_owner(owner).get("warnings") or [])
+        except Exception:
+            logger.exception("Compliance baseline failed for %s", sanitise_log_value(owner))
+            baselines[owner] = Counter()
+    return baselines[owner]
+
+
 def _new_compliance_warnings(owner: str, warnings: List[str], baselines: Dict[str, Counter]) -> List[str]:
     """Return the ``warnings`` that ``owner``'s existing history doesn't already raise.
 
@@ -435,13 +451,7 @@ def _new_compliance_warnings(owner: str, warnings: List[str], baselines: Dict[st
     fails closed.
     """
 
-    if owner not in baselines:
-        try:
-            baselines[owner] = Counter(compliance.check_owner(owner).get("warnings") or [])
-        except Exception:
-            logger.exception("Compliance baseline failed for %s", sanitise_log_value(owner))
-            baselines[owner] = Counter()
-    remaining = baselines[owner].copy()
+    remaining = _compliance_baseline(owner, baselines).copy()
     new_warnings: List[str] = []
     for warning in warnings:
         if remaining[warning] > 0:
@@ -475,6 +485,9 @@ def _check_signal_compliance(
             "type": sig["action"].lower(),
             "date": date.today().isoformat(),
         }
+        # Snapshot the baseline before check_trade so it can never include the
+        # proposed trade, whatever check_trade does with it.
+        _compliance_baseline(owner, baselines)
         try:
             result = compliance.check_trade(trade)
         except Exception:

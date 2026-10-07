@@ -338,6 +338,38 @@ def test_run_blocks_warning_introduced_by_proposed_trade(monkeypatch):
     ]
 
 
+def test_run_snapshots_baseline_before_check_trade(monkeypatch):
+    """The baseline must be taken before ``check_trade`` runs, so it can never
+    include the proposed trade even if ``check_trade`` were to persist it into
+    the history ``check_owner`` reads (baseline pollution)."""
+    from types import SimpleNamespace
+
+    _setup_historical_compliance(monkeypatch, [])
+    history: list[str] = ["Sold CGT.L without approval"]
+    order: list[str] = []
+
+    def check_owner(owner):
+        order.append("check_owner")
+        return {"warnings": list(history)}
+
+    def check_trade(trade):
+        order.append("check_trade")
+        # Simulate a check_trade that leaks the proposed trade into storage.
+        history.append("21 trades in 2026-10 (max 20)")
+        return {"warnings": list(history)}
+
+    monkeypatch.setattr(trading_agent, "compliance", SimpleNamespace(check_owner=check_owner, check_trade=check_trade))
+
+    blocked: list = []
+    signals = trading_agent.run(blocked=blocked)
+
+    assert order[:2] == ["check_owner", "check_trade"]
+    assert signals == []
+    assert blocked == [
+        {"ticker": "AAA", "action": "BUY", "reasons": ["alice: 21 trades in 2026-10 (max 20)"]},
+    ]
+
+
 def test_new_compliance_warnings_is_a_multiset_diff(monkeypatch):
     """A repeated warning counts as new once it occurs more often than in
     the owner's history."""
@@ -574,7 +606,11 @@ def _setup_raising_compliance(monkeypatch, require_pro_checks: bool) -> list[str
             raise ValueError("invalid ticker or exchange")
         return {"owner": trade["owner"], "warnings": []}
 
-    monkeypatch.setattr(trading_agent, "compliance", SimpleNamespace(check_trade=fake_check))
+    monkeypatch.setattr(
+        trading_agent,
+        "compliance",
+        SimpleNamespace(check_owner=lambda owner: {"warnings": []}, check_trade=fake_check),
+    )
     monkeypatch.setattr(trading_agent, "screen", lambda tickers, **kw: [])
 
     cfg = trading_agent.config.trading_agent

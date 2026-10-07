@@ -444,7 +444,8 @@ export default function Trading() {
             {!loading && blocked.length > 0 && (
               <div className={styles.emptyState}>
                 <h3>
-                  {t('trading.blockedTitle', 'Signals blocked by compliance')}
+                  {t('trading.blockedTitle', 'Signals blocked by compliance')}{' '}
+                  <span data-testid="blocked-count">({blocked.length})</span>
                 </h3>
                 <p>
                   {t(
@@ -453,8 +454,8 @@ export default function Trading() {
                   )}
                 </p>
                 <ul>
-                  {blocked.map((b) => (
-                    <li key={`${b.ticker}-${b.action}`}>
+                  {blocked.map((b, i) => (
+                    <li key={`${b.ticker}-${b.action}-${i}`}>
                       <strong>
                         {b.ticker} {formatAction(b.action)}
                       </strong>

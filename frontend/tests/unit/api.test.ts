@@ -1204,6 +1204,58 @@ describe("trading page data", () => {
     expect(calledUrls).toContain(`${API_BASE}/trading-agent/settings`);
   });
 
+  it("falls back to /trading-agent/signals when the report endpoint 404s", async () => {
+    const signals = [{ ticker: "AAA", action: "BUY", reason: "r" }];
+    const settings = { rsi_buy: 30 };
+    const mockFetch = vi.fn((url: string) => {
+      if (url.endsWith("/trading-agent/signals/report")) {
+        return Promise.resolve({
+          ok: false,
+          status: 404,
+          statusText: "Not Found",
+          json: () => Promise.resolve({ detail: "Not Found" }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve(
+            url.endsWith("/trading-agent/settings") ? settings : signals,
+          ),
+      });
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    const data = await getTradingPageData();
+
+    expect(data).toEqual({ signals, settings });
+    expect(data.blocked).toBeUndefined();
+    const calledUrls = mockFetch.mock.calls.map(([url]) => url as string);
+    expect(calledUrls).toContain(`${API_BASE}/trading-agent/signals`);
+  });
+
+  it("does not fall back when the report endpoint fails with a non-404", async () => {
+    const mockFetch = vi.fn((url: string) =>
+      Promise.resolve(
+        url.endsWith("/trading-agent/signals/report")
+          ? {
+              ok: false,
+              status: 500,
+              statusText: "Internal Server Error",
+              json: () => Promise.resolve({}),
+            }
+          : { ok: true, json: () => Promise.resolve({}) },
+      ),
+    );
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(getTradingPageData()).rejects.toThrow();
+    const calledUrls = mockFetch.mock.calls.map(([url]) => url as string);
+    expect(calledUrls).not.toContain(`${API_BASE}/trading-agent/signals`);
+  });
+
   it("rejects when either endpoint fails", async () => {
     const mockFetch = vi
       .fn()

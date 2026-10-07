@@ -146,6 +146,7 @@ describe('Trading page', () => {
       screen.getByText(/alex: 21 trades in 2026-10 \(max 20\)/)
     ).toBeInTheDocument();
     expect(screen.getByText('BBB Sell')).toBeInTheDocument();
+    expect(screen.getByTestId('blocked-count')).toHaveTextContent('(1)');
     expect(screen.queryByText('No signals right now')).not.toBeInTheDocument();
     expect(
       screen.queryByText(/No tracked instrument currently crosses/)

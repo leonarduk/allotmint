@@ -222,8 +222,16 @@ def _sleeve_as_ticker_returns(
     return f"{sleeve} stand-in", ({label: h.value for label, h in returns.items()}, basis)
 
 
-def _holding_fallback(event_date: dt.date, horizons: Mapping[str, int], cache: _TickerCache) -> HoldingFallback:
-    """Fallback for the holdings engine: a holding's sleeve returns, each sleeve computed once."""
+def holding_fallback(
+    event_date: dt.date, horizons: Mapping[str, int], cache: Optional[_TickerCache] = None
+) -> HoldingFallback:
+    """Fallback for the holdings engine: a holding's sleeve returns, each sleeve computed once.
+
+    Shared by the strategy stress test and ``/scenario/historical`` so a gilt
+    fund without event-date prices moves with the gilt stand-in, not the
+    event's equity proxy index (#9492).
+    """
+    cache = {} if cache is None else cache
     sleeves: dict[str, SleeveReturns] = {}
 
     def fallback(holding: Mapping[str, Any]):
@@ -268,7 +276,7 @@ def portfolio_result(
         baseline = sum(a.get("value_estimate_gbp") or 0.0 for a in portfolio.get("accounts", []))
         portfolio["total_value_estimate_gbp"] = baseline
     event_date = dt.date.fromisoformat(str(event["date"])[:10])
-    fallback = _holding_fallback(event_date, horizons, {} if cache is None else cache)
+    fallback = holding_fallback(event_date, horizons, cache)
     shocked = apply_historical_event_portfolio(portfolio, event, horizons=horizons, holding_fallback=fallback)
     return {
         "baseline_total_value_gbp": baseline,

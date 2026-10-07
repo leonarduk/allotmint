@@ -30,7 +30,7 @@ def _client(monkeypatch, list_plots_return, build_map=None):
         lambda pf, ticker, pct: {"total_value_estimate_gbp": pf["total_value_estimate_gbp"] * (1 + pct)},
     )
 
-    def fake_historical(pf, event=None, horizons=None):
+    def fake_historical(pf, event=None, horizons=None, holding_fallback=None):
         return {
             label: {"total_value_gbp": pf["total_value_estimate_gbp"] * (1 + days / 1000)}
             for label, days in horizons.items()

@@ -492,6 +492,11 @@
       "account": "Konto"
     },
     "columnsLabel": "Spalten:",
+    "columnPresets": {
+      "label": "Spaltenvorlage:",
+      "simple": "Einfach",
+      "detailed": "Detailliert"
+    },
     "eligible": "Berechtigt",
     "filters": {
       "all": "Alle",

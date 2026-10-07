@@ -486,6 +486,11 @@
       "account": "Account"
     },
     "columnsLabel": "Columns:",
+    "columnPresets": {
+      "label": "Column preset:",
+      "simple": "Simple",
+      "detailed": "Detailed"
+    },
     "eligible": "Eligible",
     "filters": {
       "all": "All",

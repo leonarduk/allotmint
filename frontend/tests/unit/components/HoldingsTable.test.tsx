@@ -23,6 +23,7 @@ vi.mock("@/components/TopMoversSummary", () => ({
     TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
 import { HoldingsTable } from "@/components/HoldingsTable";
+import { COLUMN_VISIBILITY_STORAGE_KEY, DETAILED_COLUMNS } from "@/lib/holdingsColumns";
 import { __clearInstrumentHistoryCache } from "@/hooks/useInstrumentHistory";
 import { InstrumentTable } from "@/components/InstrumentTable";
 import { GroupPortfolioView } from "@/components/GroupPortfolioView";
@@ -65,6 +66,12 @@ import type { Holding } from "@/types";
 describe("HoldingsTable", () => {
     beforeEach(() => {
         localStorage.clear();
+        // Most tests check column contents, so start from the full column set;
+        // the "column presets" tests below cover the Simple default (#7832).
+        localStorage.setItem(
+            COLUMN_VISIBILITY_STORAGE_KEY,
+            JSON.stringify(DETAILED_COLUMNS),
+        );
     });
     const holdings: Holding[] = [
         {
@@ -1506,4 +1513,79 @@ describe("HoldingsTable", () => {
           expect(screen.getAllByText(/no price history/i)).toHaveLength(1);
           vi.unstubAllGlobals();
       });
+
+  describe("column presets (#7832)", () => {
+      const headerTitles = (container: HTMLElement) =>
+          Array.from(container.querySelectorAll("thead tr")[1].querySelectorAll("th")).map(
+              (th) => th.textContent?.replace(/[▲▼]/g, "").trim(),
+          );
+      const presetButton = (name: string) =>
+          within(screen.getByRole("group", { name: "Column preset:" })).getByRole("button", {
+              name,
+          });
+
+      it("defaults to the Simple preset when no column choice is saved", () => {
+          localStorage.removeItem(COLUMN_VISIBILITY_STORAGE_KEY);
+          const { container } = render(<HoldingsTable holdings={holdings} />);
+
+          expect(headerTitles(container)).toEqual(["Ticker", "Name", "Units", "Mkt £", "Gain £"]);
+          expect(presetButton("Simple")).toHaveAttribute("aria-pressed", "true");
+          expect(presetButton("Detailed")).toHaveAttribute("aria-pressed", "false");
+          expect(screen.getByRole("checkbox", { name: "Units" })).toBeChecked();
+          expect(screen.getByRole("checkbox", { name: "Sector" })).not.toBeChecked();
+          // Total row label spans ticker + name only, so the footer stays aligned.
+          const footerCells = container.querySelectorAll("tfoot td");
+          expect(footerCells[0]).toHaveAttribute("colspan", "2");
+          expect(footerCells).toHaveLength(4);
+      });
+
+      it("Detailed restores the full column set, checks every box and is saved", async () => {
+          localStorage.removeItem(COLUMN_VISIBILITY_STORAGE_KEY);
+          const { container, unmount } = render(<HoldingsTable holdings={holdings} />);
+
+          await userEvent.click(presetButton("Detailed"));
+
+          expect(headerTitles(container)).toHaveLength(18);
+          expect(presetButton("Detailed")).toHaveAttribute("aria-pressed", "true");
+          const columnCheckboxes = within(
+              screen.getByRole("group", { name: "Columns:" }),
+          ).getAllByRole("checkbox");
+          expect(columnCheckboxes).toHaveLength(16);
+          for (const checkbox of columnCheckboxes) {
+              expect(checkbox).toBeChecked();
+          }
+          expect(JSON.parse(localStorage.getItem(COLUMN_VISIBILITY_STORAGE_KEY)!)).toEqual(
+              DETAILED_COLUMNS,
+          );
+
+          unmount();
+          const { container: remounted } = render(<HoldingsTable holdings={holdings} />);
+          expect(headerTitles(remounted)).toHaveLength(18);
+      });
+
+      it("keeps per-column checkboxes working on top of a preset", async () => {
+          localStorage.removeItem(COLUMN_VISIBILITY_STORAGE_KEY);
+          const { container } = render(<HoldingsTable holdings={holdings} />);
+
+          await userEvent.click(screen.getByRole("checkbox", { name: "Sector" }));
+
+          expect(headerTitles(container)).toContain("Sector");
+          expect(presetButton("Simple")).toHaveAttribute("aria-pressed", "false");
+          expect(presetButton("Detailed")).toHaveAttribute("aria-pressed", "false");
+
+          await userEvent.click(presetButton("Simple"));
+          expect(headerTitles(container)).not.toContain("Sector");
+          expect(screen.getByRole("checkbox", { name: "Sector" })).not.toBeChecked();
+      });
+
+      it("falls back to Simple when the saved choice is unreadable", () => {
+          localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, "{not json");
+          const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+          const { container } = render(<HoldingsTable holdings={holdings} />);
+
+          expect(headerTitles(container)).toEqual(["Ticker", "Name", "Units", "Mkt £", "Gain £"]);
+          expect(warn).toHaveBeenCalled();
+          warn.mockRestore();
+      });
+  });
   });

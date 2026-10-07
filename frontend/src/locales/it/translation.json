@@ -492,6 +492,11 @@
       "account": "Conto"
     },
     "columnsLabel": "Colonne:",
+    "columnPresets": {
+      "label": "Preimpostazione colonne:",
+      "simple": "Semplice",
+      "detailed": "Dettagliato"
+    },
     "eligible": "Idoneo",
     "filters": {
       "all": "Tutto",

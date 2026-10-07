@@ -112,7 +112,7 @@
     "menu": "Menu",
     "menuCategories": {
       "dashboard": "Dashboard",
-      "goals": "Requirements",
+      "goals": "Planning",
       "holdings": "Holdings",
       "insights": "Research",
       "operations": "Admin",
@@ -127,6 +127,7 @@
       "dataadmin": "Data Admin",
       "dataexplorer": "Data Explorer",
       "dataquality": "Data Quality",
+      "dividends": "Dividends",
       "group": "Group",
       "help": "Help",
       "ideas": "Ideas",
@@ -380,6 +381,11 @@
     "alphaVsBenchmarkInfoLabel": "What does Alpha vs Benchmark mean?",
     "alphaVsBenchmarkInfo": "Alpha measures how much the portfolio's return differed from {{ticker}} over the selected period.",
     "vsBenchmark": "vs {{ticker}}",
+    "cumulativeReturnPortfolio": "Your portfolio",
+    "cumulativeReturnBenchmark": "{{ticker}} (benchmark)",
+    "cumulativeReturnBasis": "Both lines use dividends reinvested, the current holdings and the same dates ({{from}} to {{to}}) as Alpha vs {{ticker}}.",
+    "benchmarkSeriesFailed": "Couldn't load {{ticker}} for comparison, so only your portfolio's value-based cumulative return is shown.",
+    "benchmarkSeriesEmpty": "No {{ticker}} prices overlap this period, so only your portfolio's value-based cumulative return is shown.",
     "trackingErrorInfoLabel": "What does Tracking Error mean?",
     "trackingErrorInfo": "Tracking error measures how much the portfolio's daily returns varied from {{ticker}}'s, annualised.",
     "maxDrawdownInfoLabel": "What does Max Drawdown mean?",
@@ -434,6 +440,9 @@
     "atAGlance": "At a glance",
     "pricingAsOf": "Pricing as of {{date}}",
     "pricingDatePickerLabel": "Change pricing date",
+    "pricingRefreshError": "Couldn’t refresh prices: {{detail}}",
+    "pricingStale_one": "Prices are {{count}} day old",
+    "pricingStale_other": "Prices are {{count}} days old",
     "resetPricingDate": "Reset to latest",
     "select": "Select a group.",
     "allAccounts": "All accounts",
@@ -467,6 +476,9 @@
     },
     "clearFilters": "Clear filters",
     "horizontalScroll": "Scroll holdings columns horizontally",
+    "filtersLabel": "Filter holdings",
+    "filterBy": "Filter by {{field}}",
+    "moreColumnsHint": "More columns →",
     "columns": {
       "sector": "Sector",
       "acquired": "Acquired",
@@ -491,6 +503,11 @@
       "account": "Account"
     },
     "columnsLabel": "Columns:",
+    "columnPresets": {
+      "label": "Column preset:",
+      "simple": "Simple",
+      "detailed": "Detailed"
+    },
     "eligible": "Eligible",
     "filters": {
       "all": "All",
@@ -1800,6 +1817,8 @@
     "signalsTitle": "Current signals",
     "noSignalsTitle": "No signals right now",
     "noSignalsDescription": "No tracked instrument currently crosses the active thresholds. Signals appear when RSI or moving-average conditions are met and any enabled valuation and risk filters also pass.",
+    "blockedTitle": "Signals blocked by compliance",
+    "blockedDescription": "These instruments crossed the active thresholds, but the proposed trade would raise a new compliance warning, so no signal is shown for them.",
     "checksSkippedBadge": "Checks skipped",
     "checksSkippedTitle": "Skipped checks: {{checks}}",
     "checksSkippedInfo": "An optional check that needs the allotmint-pro add-on could not run. “compliance” means the trade was not checked against your compliance rules; “fundamental_screen” means the P/E and debt/equity filters above (whichever are configured) were not applied to this buy candidate.",
@@ -1927,6 +1946,7 @@
     "everyMinute": "Every minute",
     "manual": "Manual",
     "marketsClosed": "Markets closed",
+    "staleAge": "{{days}}d old",
     "addTicker": "Add {{symbol}} to watchlist",
     "removeTicker": "Remove {{symbol}} from watchlist"
   },
@@ -2216,6 +2236,20 @@
     "viewGoals": "View Goals",
     "pensionForecast": "Pension Forecast"
   },
+  "costBasisChecklist": {
+    "summary_one": "Fill in cost basis: {{count}} holding has no reliable cost basis",
+    "summary_other": "Fill in cost basis: {{count}} holdings have no reliable cost basis",
+    "intro": "Gain/loss leaves these holdings out until their cost is recorded. They are sorted largest first: the top {{top}} hold {{share}} of their value. Choose Add cost and enter the price you paid per unit.",
+    "holding": "Holding",
+    "account": "Account",
+    "value": "Value",
+    "problem": "Problem",
+    "missing": "No cost on record",
+    "suspect": "Recorded cost looks wrong",
+    "addCost": "Add cost",
+    "showAll": "Show all {{count}}",
+    "showTop": "Show top {{count}} only"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} with no FX rate)",
     "reasonNoCostBasis": "no reliable cost basis",
@@ -2294,6 +2328,7 @@
     "risk": "Risk",
     "volatility1y": "Volatility (1y)",
     "beta": "Beta vs {{ticker}} (3y weekly)",
+    "betaNoBenchmark": "Beta (3y weekly)",
     "providerBeta": "Provider beta: {{value}}",
     "maxDrawdown": "Max drawdown",
     "history": "History",
@@ -2306,6 +2341,9 @@
     "ariaValuation": "Valuation",
     "benchmark": "Benchmark:",
     "exchangeDefault": ", default for the listing exchange",
+    "noComparableBenchmark": "none comparable",
+    "assetClass": "{{assetClass}} fund",
+    "assetClassBasis": "{{assetClass}} fund: {{basis}}",
     "dataQuality": "Data quality"
   },
   "instrumentTechnicals": {
@@ -2654,6 +2692,33 @@
     "estValue": "Est Value: ",
     "lastUpdated": "Last updated: "
   },
+  "dividends": {
+    "title": "Dividends",
+    "description": "Dividend income received, by period and by holding. Amounts in different currencies are shown separately, never added together.",
+    "owner": "Owner",
+    "allOwners": "All owners",
+    "period": "Group by",
+    "periods": {
+      "taxYear": "Tax year",
+      "year": "Calendar year",
+      "month": "Month"
+    },
+    "trailing12m": "Last 12 months",
+    "allTime": "All time",
+    "byPeriod": "By period",
+    "byHolding": "By holding",
+    "payments": "Payments",
+    "received": "Received",
+    "holding": "Holding",
+    "lastPaid": "Last paid",
+    "none": "—",
+    "empty": "No dividend payments recorded yet.",
+    "undated": "Undated",
+    "unattributed": "Not linked to a holding",
+    "unattributedHelp": "Dividend payments recorded without a ticker, e.g. transfers from an income account.",
+    "noHistory": "No dividends recorded",
+    "holdingsUnavailable": "Current holdings could not be loaded, so holdings without dividends are not listed."
+  },
   "dividendHistory": {
     "trendAria": "Dividend trend",
     "date": "Date",
@@ -2671,6 +2736,8 @@
     "units": "Units",
     "priceGbp": "Price (GBP)",
     "inputTitle": "Account + Holdings Input",
+    "costBasisHint": "Recording the cost of {{ticker}}: enter the units you hold and the price you paid per unit, then save. Value is turned off here, because it would record today's price as if it were what you paid.",
+    "costBasisNeedsPrice": "To record a cost, enter units and the price you paid per unit. Value would record today's price as your cost.",
     "inputIntro": "Create accounts and set holdings. Saving records the opening-balance transfer that brings the account to the units you enter, so it shows up alongside your trades on <txlink>Transactions</txlink>.",
     "saving": "Saving...",
     "saveHolding": "Save holding",
@@ -2757,7 +2824,9 @@
       "badgesSr": "season badges earned",
       "xpLabel": "Level {{level}} · {{xp}}/{{xpForLevel}} XP",
       "meterLabel": "Grower level {{level}}, {{xp}} of {{xpForLevel}} XP to the next level",
-      "classicView": "Classic view"
+      "classicView": "Classic view",
+      "progressLabel": "Your progress",
+      "progressTitle": "Level, rank, XP and streak are earned from your own chores — they are the same on every grower's plot."
     },
     "rail": {
       "ariaLabel": "Plot sections",
@@ -2927,6 +2996,7 @@
       "earned": "Earned",
       "badgeShelf": "Badge shelf ({{earned}}/{{total}})",
       "badgeNote": "A badge is earned when every tier in its category is cleared.",
+      "personalNote": "Your progress — earned from your own chores, not from this grower's plot.",
       "growingSeasonLabel": "Growing season {{label}}",
       "growingSeason": "Growing season",
       "noTaxYear": "No tax year reported for this grower, so the season has no end date to count down to.",
@@ -2973,7 +3043,6 @@
     },
     "model": {
       "unnamedBed": "Unnamed bed",
-      "allowancesUnavailable": "Allowances unavailable right now",
       "water": "Water",
       "feed": "Feed",
       "sunlight": "Sunlight",
@@ -3096,6 +3165,7 @@
     "retryingConfig": "Loading... retrying configuration.",
     "loadingConfig": "Loading configuration...",
     "configLoadFailed": "Unable to load configuration.",
+    "serverUnreachable": "Can't reach the AllotMint server at {{url}}.",
     "checkConnection": "Please check your connection and try again.",
     "googleNotConfigured": "Google login is not configured.",
     "loading": "Loading...",
@@ -3198,6 +3268,26 @@
     "noPlan": "No investment plan saved for {{owner}} yet.",
     "createPlan": "Create plan"
   },
+  "classify": {
+    "title": "Classify holdings",
+    "intro": "These holdings have no asset class, so the Strategy page cannot count them towards your targets. Pick a class for each; it is saved to the instrument's metadata.",
+    "back": "Back to Strategy",
+    "noOwner": "Choose an owner on the Strategy page first.",
+    "empty": "Every holding has an asset class — nothing to classify.",
+    "loadError": "Could not load holdings for {{owner}}: {{error}}",
+    "saveError": "Could not save: {{error}}",
+    "saved": "Saved {{ticker}} as {{assetClass}}.",
+    "choose": "Choose…",
+    "selectLabel": "Asset class for {{ticker}}",
+    "save": "Save",
+    "saving": "Saving…",
+    "noExchange": "No exchange suffix on this ticker; set its asset class in Instrument admin.",
+    "col": {
+      "holding": "Holding",
+      "value": "Value",
+      "assetClass": "Asset class"
+    }
+  },
   "strategy": {
     "title": "Strategy",
     "intro": "Choose a target allocation — a built-in strategy, one of your own, or custom targets — then compare your holdings against it and see which rebalancing trades, or which contribution, would bring it back within your tolerance band.",
@@ -3233,6 +3323,7 @@
       "underweight": "Underweight",
       "unclassified": "Unclassified",
       "needsAssetClass": "Needs an asset class",
+      "classifyLink": "Assign asset classes to these holdings",
       "totalLine": "Total {{total}} · tolerance ±{{tolerance}} pp",
       "sleeveTitle": "Drift — {{sleeve}} sleeve"
     },
@@ -3343,7 +3434,7 @@
     "overseas_government": "Overseas government",
     "corporate_bonds": "Corporate / credit",
     "gold": "Gold",
-    "commodities": "Other commodities"
+    "other_commodities": "Other commodities"
   },
   "planForm": {
     "errors": {

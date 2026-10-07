@@ -2,7 +2,7 @@
 // is held as text so a half-typed number survives re-renders; toPlan converts
 // back to the backend's InvestmentPlan shape (backend/common/investment_plan.py).
 import i18n from '../i18n';
-import { classKeyLabel } from './assetClass';
+import { assetClassLabel, classKeyLabel } from './assetClass';
 import type {
   InvestmentPlan,
   InvestmentPlanGoalPurpose,
@@ -23,7 +23,7 @@ export const PLAN_CLASSES = [
   'overseas_government',
   'corporate_bonds',
   'gold',
-  'commodities',
+  'other_commodities',
   'cash',
 ] as const;
 
@@ -74,7 +74,7 @@ const CLASS_KEYS = new Set([
   'overseas_government',
   'corporate_bonds',
   'gold',
-  'commodities',
+  'other_commodities',
   'cash',
   'bond',
   'commodity',
@@ -82,8 +82,9 @@ const CLASS_KEYS = new Set([
   'multi-asset',
 ]);
 
+// A lone pre-#9718 "commodities" plan class is the whole Commodity class.
 export const classLabel = (key: string) =>
-  CLASS_KEYS.has(key) ? classKeyLabel(key) : key;
+  CLASS_KEYS.has(key) ? classKeyLabel(key) : assetClassLabel(key, key);
 
 export interface TargetRow {
   class: string;

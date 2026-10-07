@@ -8,6 +8,7 @@ import {
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Portfolio } from '@/types';
+import { seasonFromCalendar } from '@/gamified/seasonModel';
 
 const portfolio: Portfolio = {
   owner: 'steve',
@@ -161,11 +162,20 @@ describe('Plot mode hub', () => {
     const hud = screen.getByRole('banner');
     expect(within(hud).getByText('£10.0k')).toBeInTheDocument();
     expect(within(hud).getByText('£1.0k')).toBeInTheDocument();
-    expect(within(hud).getByText('Seedling Sower')).toBeInTheDocument();
+    // Level, rank, XP and streak come from the unscoped `/trail`, so they sit
+    // in a "Your progress" group rather than under the plot heading (#7191).
+    const progress = within(hud).getByRole('group', { name: 'Your progress' });
+    expect(within(progress).getByText('Seedling Sower')).toBeInTheDocument();
+    expect(
+      within(progress).getByText('Level 3 · 0/150 XP')
+    ).toBeInTheDocument();
+    expect(
+      within(hud).getByRole('heading', { name: 'The Plot' })
+    ).not.toHaveTextContent('Seedling Sower');
     // Trail streak of 3 renders its own HUD chip (matched by title, since the
     // bare "3" also appears in the level badge).
     expect(
-      within(hud).getByTitle('Consecutive days of chores done')
+      within(progress).getByTitle('Consecutive days of chores done')
     ).toHaveTextContent('3');
   });
 
@@ -293,15 +303,17 @@ describe('Plot mode hub', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows a distinct unavailable notice on the FEED meter when the allowances fetch fails, not the empty-data copy', async () => {
+  it('omits the FEED meter rather than showing an empty one when the allowances fetch fails (#7195)', async () => {
     mocks.getAllowances.mockRejectedValue(
       Object.assign(new Error('HTTP 402 - Payment Required'), { status: 402 })
     );
     renderPlot();
 
+    // The other meters still render once the plot has loaded.
     expect(
-      await screen.findByText('Allowances unavailable right now')
+      await screen.findByText('8 of 10 trades left this month')
     ).toBeInTheDocument();
+    expect(screen.queryByText('£0.00 / £0.00')).toBeNull();
     expect(
       screen.queryByText('No allowance data for this grower yet')
     ).toBeNull();
@@ -695,7 +707,18 @@ describe('Plot mode season track', () => {
     ).toBeInTheDocument();
   });
 
-  it('says so when the backend reports no tax year', async () => {
+  it("labels the streak and rank categories as the user's own progress (#7191)", async () => {
+    renderPlot('/plot/season');
+
+    await screen.findByRole('heading', { name: /Keep the streak/ });
+    expect(
+      screen.getAllByText(
+        "Your progress — earned from your own chores, not from this grower's plot."
+      )
+    ).toHaveLength(2);
+  });
+
+  it('derives the season from the calendar when the backend reports no tax year (#7195)', async () => {
     mocks.getAllowances.mockResolvedValue({
       owner: 'steve',
       tax_year: null,
@@ -703,27 +726,39 @@ describe('Plot mode season track', () => {
     });
     renderPlot('/plot/season');
 
+    const { label } = seasonFromCalendar(new Date());
     expect(
-      await screen.findByText(/No tax year reported for this grower/)
+      await screen.findByRole('heading', {
+        name: new RegExp(`Growing season ${label}`),
+      })
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Ends in \d+ days? and \d+ hours?$|^Ends in \d+ hours?$/)
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/No tax year reported for this grower/)
+    ).toBeNull();
   });
 
-  it('shows the same distinct unavailable notice, not "no tax year", when the allowances fetch fails', async () => {
+  it('counts down from the calendar and drops "Feed the beds" when the allowances fetch fails (#7195)', async () => {
     mocks.getAllowances.mockRejectedValue(
       Object.assign(new Error('HTTP 402 - Payment Required'), { status: 402 })
     );
     renderPlot('/plot/season');
 
-    // Countdown copy, and the "Feed the beds" milestone group, both use the
-    // same notice instead of "no tax year" / a £0.00 progress bar.
-    const notices = await screen.findAllByText('Allowances unavailable right now');
-    expect(notices.length).toBeGreaterThan(1);
+    const { label } = seasonFromCalendar(new Date());
+    // 4 groups × 4 tiers: the denominator only counts reachable milestones.
+    expect(
+      await screen.findByRole('heading', {
+        name: new RegExp(`Growing season ${label} \\(\\d+/16\\)`),
+      })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /Feed the beds/ })
+    ).toBeNull();
     expect(
       screen.queryByText(/No tax year reported for this grower/)
     ).toBeNull();
-    expect(
-      screen.getByRole('heading', { name: /Feed the beds/ })
-    ).toBeInTheDocument();
   });
 });
 
@@ -797,6 +832,57 @@ describe('Plot mode provider hardening', () => {
     );
     // Steve's plot value must not still be sitting under Alex's name.
     expect(within(hud).queryByText('£10.0k')).toBeNull();
+  });
+
+  it('keeps "Your progress" session-wide while the plot figures follow the grower (#7191)', async () => {
+    mocks.getOwners.mockResolvedValue([
+      { owner: 'steve', accounts: ['stocks-isa'] },
+      { owner: 'alex', accounts: ['stocks-isa'] },
+    ]);
+    renderPlot();
+
+    const hud = screen.getByRole('banner');
+    await waitFor(() =>
+      expect(within(hud).getByText('£10.0k')).toBeInTheDocument()
+    );
+    const progressBefore = within(hud).getByRole('group', {
+      name: 'Your progress',
+    });
+    expect(
+      within(progressBefore).getByText('Level 3 · 0/150 XP')
+    ).toBeInTheDocument();
+
+    mocks.getPortfolio.mockResolvedValue({
+      ...portfolio,
+      owner: 'alex',
+      total_value_estimate_gbp: 20_000,
+      accounts: portfolio.accounts.map((account) => ({
+        ...account,
+        owner: 'alex',
+        value_estimate_gbp: 20_000,
+      })),
+    });
+    fireEvent.change(screen.getByLabelText('Grower'), {
+      target: { value: 'alex' },
+    });
+
+    await waitFor(() =>
+      expect(within(hud).getByText('£20.0k')).toBeInTheDocument()
+    );
+    expect(within(hud).queryByText('£10.0k')).toBeNull();
+    // `/trail` is not owner-scoped: the same session progress is shown under
+    // the "Your progress" label for Alex, not as Alex's own rank/XP.
+    const progressAfter = within(hud).getByRole('group', {
+      name: 'Your progress',
+    });
+    expect(
+      within(progressAfter).getByText('Level 3 · 0/150 XP')
+    ).toBeInTheDocument();
+    expect(
+      within(progressAfter).getByTitle('Consecutive days of chores done')
+    ).toHaveTextContent('3');
+    expect(mocks.getTrailTasks).toHaveBeenCalledTimes(2);
+    expect(mocks.getTrailTasks).toHaveBeenLastCalledWith();
   });
 
   it('stops loading with a distinct message when grower discovery fails', async () => {

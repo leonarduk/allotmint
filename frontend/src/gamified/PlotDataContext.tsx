@@ -31,7 +31,12 @@ import {
   type AllowanceMap,
   type PlotSnapshot,
 } from './plotModel';
-import { parseTaxYear, type DailyTotals, type Season } from './seasonModel';
+import {
+  parseTaxYear,
+  seasonFromCalendar,
+  type DailyTotals,
+  type Season,
+} from './seasonModel';
 
 /** A chore is either a Trail task or a daily Quest, normalised for the UI. */
 export interface Chore {
@@ -94,12 +99,14 @@ export interface PlotDataValue {
   /**
    * True when the last `/tax/allowances` fetch failed (HTTP error, e.g. the
    * upstream 402 billing gate) rather than genuinely returning no data. The
-   * FEED meter, the Season page's countdown, and the "Feed the beds"
-   * milestone tier all key off this to show one consistent error notice
-   * instead of reusing the "no allowances set up" empty-state copy (#7005).
+   * FEED meter and the "Feed the beds" milestone group are omitted in that
+   * case rather than rendered as empty, unearnable progress (#7195).
    */
   allowancesUnavailable: boolean;
-  /** The UK tax year this plot is in, when the backend reports one. */
+  /**
+   * The UK tax year this plot is in: the backend's value when it reports
+   * one, otherwise derived from the calendar (#7195). Null until loaded.
+   */
   season: Season | null;
   /** Per-day chore totals from the Trail, for the streak path. */
   dailyTotals: DailyTotals | null;
@@ -287,7 +294,11 @@ export function PlotDataProvider({
 
   // Everything below is scoped to one grower. Dropping it whenever the
   // grower changes (and whenever a load fails) stops the HUD from showing the
-  // previous grower's money under the new grower's name.
+  // previous grower's money under the new grower's name. `progress` is reset
+  // here too (see `setProgress(EMPTY_PROGRESS)` below), but only as a loading
+  // placeholder: `/trail` is the signed-in user's progress, not the grower's
+  // (#7191), so the refetch restores the same session-wide values for every
+  // grower. The HUD labels them "Your progress", not as the grower's.
   const clearOwnerScopedState = useCallback(() => {
     setPortfolio(null);
     setAllowances(null);
@@ -350,8 +361,13 @@ export function PlotDataProvider({
                 | undefined) ?? null)
             : null
         );
+        // The API's tax year is an override; the window itself is public,
+        // so the countdown still works when the allowances fetch fails or
+        // omits it (#7195).
         setSeason(
-          allowanceOutcome.ok ? parseTaxYear(allowanceOutcome.value.tax_year) : null
+          (allowanceOutcome.ok
+            ? parseTaxYear(allowanceOutcome.value.tax_year)
+            : null) ?? seasonFromCalendar(new Date())
         );
         setAllowancesUnavailable(!allowanceOutcome.ok);
         setProgress(progressResult);

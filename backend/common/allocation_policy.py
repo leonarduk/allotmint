@@ -20,7 +20,7 @@ from typing import Any, Mapping
 
 from backend.common.instrument_classification import ASSET_CLASS_LABELS, ASSET_CLASSES, normalise_asset_class
 from backend.common.settings_file import SettingsUnreadableError, read_settings, settings_path
-from backend.common.sub_asset_class import SUB_ASSET_CLASS_PARENT
+from backend.common.sub_asset_class import SUB_ASSET_CLASS_PARENT, legacy_target_key
 from backend.logging_setup import sanitise_log_value
 
 __all__ = [
@@ -53,26 +53,21 @@ class AllocationPolicy:
 def _target_key(key: Any, raw_keys: frozenset[str] = frozenset()) -> str:
     """Canonical asset class or sub-class key for a target, or ``ValueError``.
 
-    ``commodities`` is both an alias of the Commodity class and the "other
-    commodities" sub-class. It means the sub-class only when ``raw_keys`` (the
-    lower-cased keys of the same target set) also names another commodity
-    sub-class such as ``gold``; on its own it keeps its pre-#9653 meaning of
-    the whole class, so a saved policy never changes meaning on upgrade.
+    Sub-class keys are matched exactly. The pre-#9718 ``commodities`` key is
+    read as before (:func:`~backend.common.sub_asset_class.legacy_target_key`):
+    the "other commodities" sub-class beside another commodity sub-class in
+    ``raw_keys`` (the lower-cased keys of the same target set), otherwise the
+    whole Commodity class, so a saved policy never changes meaning on upgrade.
     """
-    asset_class = normalise_asset_class(key)
     if isinstance(key, str):
-        sub_class = key.strip().lower()
-        parent = SUB_ASSET_CLASS_PARENT.get(sub_class)
-        if parent is not None and (asset_class is None or _has_sibling_sub_class(sub_class, parent, raw_keys)):
+        sub_class = legacy_target_key(key.strip().lower(), raw_keys)
+        if sub_class in SUB_ASSET_CLASS_PARENT:
             return sub_class
+    asset_class = normalise_asset_class(key)
     if asset_class is not None:
         return asset_class
     expected = ", ".join((*ASSET_CLASSES, *SUB_ASSET_CLASS_PARENT))
     raise ValueError(f"Unknown asset class {key!r}; expected one of {expected}")
-
-
-def _has_sibling_sub_class(sub_class: str, parent: str, raw_keys: frozenset[str]) -> bool:
-    return any(key != sub_class and SUB_ASSET_CLASS_PARENT.get(key) == parent for key in raw_keys)
 
 
 def _check_levels(targets: Mapping[str, float]) -> None:

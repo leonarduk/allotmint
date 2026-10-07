@@ -237,7 +237,7 @@ _BUILTIN_DEFINITIONS: tuple[Strategy, ...] = (
             "long_gilts": 40.0,
             "intermediate_gilts": 15.0,
             "gold": 7.5,
-            "commodities": 7.5,
+            "other_commodities": 7.5,
         },
         description=(
             "A risk-balanced mix weighted towards bonds: 30% equity, 55% government bonds, "

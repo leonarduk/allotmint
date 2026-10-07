@@ -10,7 +10,7 @@ from backend import importers
 from backend.app import create_app
 from backend.config import config
 from backend.importers import moneyhub
-from backend.routes.transactions import Transaction, _tx_data_from_parsed
+from backend.routes.transactions import ImportPriceCurrencyError, Transaction, _tx_data_from_parsed
 from backend.timeseries import cache as timeseries_cache
 
 MONEYHUB_SAMPLE = Path(__file__).parent / "data" / "moneyhub_sample.csv"
@@ -394,6 +394,24 @@ def test_import_fx_lookback_window_boundary(tmp_path, monkeypatch, rate_day, per
 
 
 def test_import_non_gbp_row_with_conflicting_price_gbp_still_raises():
-    """The price/price_gbp conflict check (#5419) runs before any currency handling."""
-    with pytest.raises(ValueError, match="Conflicting values"):
+    """The price/price_gbp conflict check (#5419) runs before any currency handling.
+
+    It raises the per-row import error (#9701), which is still a ``ValueError``.
+    """
+    with pytest.raises(ImportPriceCurrencyError, match="Conflicting values"):
         _tx_data_from_parsed(_usd_row(price=100.0, price_gbp=80.0))
+    assert issubclass(ImportPriceCurrencyError, ValueError)
+
+
+def test_import_skips_conflicting_price_row_and_imports_the_rest(tmp_path, monkeypatch):
+    """A price/price_gbp conflict skips only that row instead of 500-ing the batch (#9701)."""
+    client = _make_client(tmp_path, monkeypatch)
+    monkeypatch.setattr(timeseries_cache, "load_fx_history", _fake_fx_history({}))
+    gbp_row = Transaction(owner="alice", account="ISA", date="2024-05-04", ticker="PFE", price=10.5, units=1)
+
+    data = _post_rows(client, monkeypatch, [_usd_row(price=100.0, price_gbp=80.0), gbp_row])
+
+    assert [row["ticker"] for row in data["persisted"]] == ["PFE"]
+    [skipped] = data["skipped"]
+    assert skipped["ticker"] == "MSFT"
+    assert "Conflicting values for price" in skipped["skip_reason"]

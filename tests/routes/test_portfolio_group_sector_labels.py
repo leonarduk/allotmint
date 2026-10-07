@@ -106,7 +106,9 @@ def test_group_portfolio_holdings_carry_canonical_labels():
     assert holdings["HFEL.L"]["sector"] == "Financials"
     assert holdings["HFEL.L"]["region"] == "United Kingdom"
     assert holdings["VWRL.L"]["sector"] == "Information Technology"
-    assert holdings["VWRL.L"]["region"] == "United Kingdom"
+    # An All-World ETF counts as Global; its domicile is kept alongside (#9296).
+    assert holdings["VWRL.L"]["region"] == "Global"
+    assert holdings["VWRL.L"]["domicile_region"] == "United Kingdom"
     assert holdings["CASH.GBP"]["sector"] == "Cash"
     assert holdings["CASH.GBP"]["region"] == "United Kingdom"
     for h in holdings.values():
@@ -123,7 +125,9 @@ def test_group_instruments_rows_carry_canonical_labels():
     assert rows["HFEL.L"]["sector"] == "Financials"
     assert rows["HFEL.L"]["region"] == "United Kingdom"
     assert rows["VWRL.L"]["sector"] == "Information Technology"
-    assert rows["VWRL.L"]["region"] == "United Kingdom"
+    # An All-World ETF counts as Global; its domicile is kept alongside (#9296).
+    assert rows["VWRL.L"]["region"] == "Global"
+    assert rows["VWRL.L"]["domicile_region"] == "United Kingdom"
     assert rows["CASH.GBP"]["sector"] == "Cash"
     assert rows["CASH.GBP"]["region"] == "United Kingdom"
     for r in rows.values():

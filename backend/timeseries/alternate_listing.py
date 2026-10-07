@@ -29,7 +29,8 @@ an optional top-level ``price_source`` block::
 ``mode`` (optional)
     ``"fill_gaps"`` (the default) or ``"primary"``; see *Fetch order* below.
 ``rationale``/``reviewed``
-    Optional free text and ISO date, as for ``proxy``.
+    Optional free text and ISO date, as for ``proxy``. ``reviewed`` is also the
+    opt-in for a cold start (see *Merging with the native listing* below).
 
 This is not the ``proxy`` block (``backend.common.instrument_proxy``). A proxy
 is a *different* series whose returns stand in for the instrument before its
@@ -81,7 +82,11 @@ shares a date with it: the traded-basis native rows (not Stooq, which
 ``same_basis`` holds to 0.5% on every date), all native rows, then the stored
 window including earlier converted rows (so a refresh window with no native
 close is still checked for continuity). If the check fails, nothing converted
-is used. If no stored close shares a date, the declared listing is trusted.
+is used. If none of them shares a date, the declared listing is trusted, except
+on a cold start (#9667): with no native or stored close in the window and no
+stored close for the instrument at all, nothing has ever checked the listing,
+so it is used only when the block has a ``reviewed`` date. Otherwise nothing
+converted is used.
 
 Fetch order (#9712)
 -------------------
@@ -171,6 +176,7 @@ class PriceSource:
     exchange: str
     currency: str
     mode: str = MODE_FILL_GAPS
+    reviewed: Optional[date] = None
 
     @property
     def full_ticker(self) -> str:
@@ -190,6 +196,16 @@ def _is_iso_currency(code: Any) -> bool:
         return False
     text = code.strip()
     return bool(_ISO_CURRENCY_RE.match(text)) and text not in _PENCE_CODES
+
+
+def _reviewed_date(raw: Mapping[str, Any]) -> Optional[date]:
+    """``raw["reviewed"]`` as a date, ``None`` when absent; ``ValueError`` when not an ISO date."""
+    value = raw.get("reviewed")
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"not an ISO date: {value!r}")
+    return date.fromisoformat(value.strip())
 
 
 def _split_ticker(raw: Any, exchange: str) -> str:
@@ -228,6 +244,10 @@ def validate_price_source(meta: Mapping[str, Any] | None, *, own: str = "") -> l
     mode = raw.get("mode")
     if mode is not None and mode not in PRICE_SOURCE_MODES:
         problems.append(f"price_source: mode {mode!r} is not one of {', '.join(PRICE_SOURCE_MODES)}")
+    try:
+        _reviewed_date(raw)
+    except ValueError:
+        problems.append(f"price_source: reviewed {raw.get('reviewed')!r} is not an ISO date")
     return problems
 
 
@@ -246,6 +266,7 @@ def parse_price_source(meta: Mapping[str, Any] | None, *, own: str = "") -> Pric
         exchange=exchange,
         currency=currency,
         mode=raw.get("mode") or MODE_FILL_GAPS,
+        reviewed=_reviewed_date(raw),
     )
 
 
@@ -457,10 +478,22 @@ def _basis_references(reference: pd.DataFrame, stored: pd.DataFrame) -> list[pd.
     return [_closes(traded), _closes(reference), _closes(_by_date(stored))]
 
 
-def _basis_ok(reference: pd.DataFrame, stored: pd.DataFrame, converted: pd.DataFrame, label: str) -> bool:
-    """Whether ``converted`` is on the native basis, judged on the first reference sharing a date."""
+def _basis_ok(
+    reference: pd.DataFrame, stored: pd.DataFrame, converted: pd.DataFrame, label: str, trust_cold_start: bool
+) -> bool:
+    """Whether ``converted`` is on the native basis, judged on the first reference sharing a date.
+
+    With no reference close at all, ``trust_cold_start`` decides (#9667).
+    """
     conv_dates = set(_closes(_by_date(converted))["Date"])
-    for candidate in _basis_references(reference, stored):
+    candidates = _basis_references(reference, stored)
+    if not trust_cold_start and all(candidate.empty for candidate in candidates):
+        logger.warning(
+            "Not using alternate listing for %s: no stored close to check it against and price_source is not reviewed",
+            sanitise_log_value(label),
+        )
+        return False
+    for candidate in candidates:
         if candidate.empty or not conv_dates & set(candidate["Date"]):
             continue
         if same_basis(candidate, converted):
@@ -479,26 +512,33 @@ def _basis_ok(reference: pd.DataFrame, stored: pd.DataFrame, converted: pd.DataF
 
 
 def overlay_alternate_listing(
-    native: pd.DataFrame, stored: pd.DataFrame, converted: pd.DataFrame, *, label: str
+    native: pd.DataFrame,
+    stored: pd.DataFrame,
+    converted: pd.DataFrame,
+    *,
+    label: str,
+    trust_cold_start: bool = False,
 ) -> pd.DataFrame:
     """Freshly fetched ``native`` rows with ``converted`` rows filling what native lacks.
 
     See the module docs for the per-date rule. ``stored`` is the cached series
     for the instrument; its rows are consulted but not returned, so a stored
-    native row with a real close stays as it is.
+    native row with a real close stays as it is. ``trust_cold_start`` allows
+    ``converted`` when neither ``native`` nor ``stored`` has a close (see
+    :func:`_trusts_cold_start`).
     """
     if converted.empty:
         return native
-    merged = _overlay_if_same_basis(native, stored, converted, label)
+    merged = _overlay_if_same_basis(native, stored, converted, label, trust_cold_start)
     return native if merged is None else merged
 
 
 def _overlay_if_same_basis(
-    native: pd.DataFrame, stored: pd.DataFrame, converted: pd.DataFrame, label: str
+    native: pd.DataFrame, stored: pd.DataFrame, converted: pd.DataFrame, label: str, trust_cold_start: bool
 ) -> pd.DataFrame | None:
     """:func:`overlay_alternate_listing` for a non-empty ``converted``; ``None`` when its basis is refused."""
     reference = _native_reference(native, stored)
-    if not _basis_ok(reference, stored, converted, label):
+    if not _basis_ok(reference, stored, converted, label, trust_cold_start):
         return None
     conv = _closes(_by_date(converted)).set_index("Date")
     conv = conv.loc[~conv.index.isin(_keep_native(reference, conv))]
@@ -526,6 +566,23 @@ def _window(df: pd.DataFrame, start: date, end: date) -> pd.DataFrame:
         return df
     days = pd.to_datetime(df["Date"]).dt.date
     return df.loc[((days >= start) & (days <= end)).to_numpy()]
+
+
+def _trusts_cold_start(source: PriceSource, history: pd.DataFrame) -> bool:
+    """Whether a converted window with no reference close may be used (#9667).
+
+    Yes when the block was ``reviewed``, or the instrument has stored closes
+    outside the window (an incremental refresh past the end of the series).
+    """
+    return source.reviewed is not None or not _closes(_by_date(history)).empty
+
+
+def _stored_window(
+    source: PriceSource, ticker: str, exchange: str, start: date, end: date
+) -> tuple[pd.DataFrame, bool]:
+    """The stored series inside the window, and :func:`_trusts_cold_start` for the instrument."""
+    history = _stored_series(ticker, exchange)
+    return _window(history, start, end), _trusts_cold_start(source, history)
 
 
 NativeFetch = Callable[[date, date], pd.DataFrame]
@@ -571,11 +628,11 @@ def _fill_gaps(
         )
     try:
         converted = _converted_listing(source, target, label, start, end)
-        stored = _window(_stored_series(ticker, exchange), start, end)
+        stored, trust_cold_start = _stored_window(source, ticker, exchange, start, end)
     except Exception as exc:
         _log_failure(label, exc)
         return native
-    return overlay_alternate_listing(native, stored, converted, label=label)
+    return overlay_alternate_listing(native, stored, converted, label=label, trust_cold_start=trust_cold_start)
 
 
 def _alternate_first(
@@ -585,7 +642,7 @@ def _alternate_first(
     label = f"{ticker}.{exchange}"
     try:
         converted = _converted_listing(source, target, label, start, end)
-        stored = _window(_stored_series(ticker, exchange), start, end)
+        stored, trust_cold_start = _stored_window(source, ticker, exchange, start, end)
     except Exception as exc:
         _log_failure(label, exc)
         return fetch_native(start, end)
@@ -612,7 +669,7 @@ def _alternate_first(
         native = pd.DataFrame(columns=STANDARD_COLUMNS)
     if converted.empty:
         return native
-    merged = _overlay_if_same_basis(native, stored, converted, label)
+    merged = _overlay_if_same_basis(native, stored, converted, label, trust_cold_start)
     if merged is None:
         # Refused as a whole: the native chain is all there is, for every date.
         return fetch_native(start, end)
@@ -666,8 +723,8 @@ def apply_price_source(native: pd.DataFrame, ticker: str, exchange: str, start: 
     source, target = resolved
     try:
         converted = _converted_listing(source, target, label, start, end)
-        stored = _window(_stored_series(ticker, exchange), start, end)
+        stored, trust_cold_start = _stored_window(source, ticker, exchange, start, end)
     except Exception as exc:
         _log_failure(label, exc)
         return native
-    return overlay_alternate_listing(native, stored, converted, label=label)
+    return overlay_alternate_listing(native, stored, converted, label=label, trust_cold_start=trust_cold_start)

@@ -3,13 +3,13 @@
  *
  * Like the domain model in `plotModel.ts`, everything here is pure and free
  * of network access. The season is not an invented event window: it is the
- * real UK tax year reported by `GET /tax/allowances`, which runs 6 April to
- * 5 April and is when unused ISA and pension allowances actually expire.
+ * real UK tax year, which runs 6 April to 5 April and is when unused ISA and
+ * pension allowances actually expire. `GET /tax/allowances` reports it when
+ * available; otherwise it is derived from the calendar (#7195).
  */
 
 import i18n from '../i18n';
 import {
-  allowancesUnavailableMessage,
   clamp,
   formatGbp,
   type AllowanceMap,
@@ -42,6 +42,34 @@ export function parseTaxYear(
   return {
     label: `${startYear}/${String(endYear).slice(-2)}`,
     endsOn: `${endYear}-04-05`,
+  };
+}
+
+/**
+ * The UK tax year containing `now`, derived from the calendar alone. The
+ * window (6 April – 5 April) is public, so it needs no backend: this is the
+ * fallback when `/tax/allowances` is unavailable (e.g. the 402 billing gate
+ * on a deployment without the pro package) or omits `tax_year` (#7195).
+ * The boundary is a UK-local date, so the calendar day is read in
+ * Europe/London: 00:30 BST on 6 April (23:30 UTC on 5 April) is already the
+ * new tax year.
+ */
+export function seasonFromCalendar(now: Date): Season {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).formatToParts(now);
+  const part = (type: 'year' | 'month' | 'day'): number =>
+    Number(parts.find((entry) => entry.type === type)?.value);
+  const year = part('year');
+  const month = part('month'); // 1-based: 4 = April
+  const beforeSixthApril = month < 4 || (month === 4 && part('day') < 6);
+  const startYear = beforeSixthApril ? year - 1 : year;
+  return {
+    label: `${startYear}/${String(startYear + 1).slice(-2)}`,
+    endsOn: `${startYear + 1}-04-05`,
   };
 }
 
@@ -101,12 +129,6 @@ export interface SeasonGoal {
   display: string;
   rewardIcon: string;
   rewardLabel: string;
-  /**
-   * True when this goal's underlying data (currently only the allowances
-   * feed) failed to load, so the UI should show a distinct error notice
-   * instead of a "0 of target" progress bar (#7005).
-   */
-  unavailable?: boolean;
 }
 
 interface GoalGroup {
@@ -129,7 +151,8 @@ interface GoalGroup {
    * line picked up a unit (#7194).
    */
   chipFormat?: (value: number) => string;
-  unavailable?: boolean;
+  /** See `SeasonGroupProgress.personal`. */
+  personal?: boolean;
 }
 
 /**
@@ -145,6 +168,11 @@ const pluralize = (value: number, unit: 'crop' | 'day'): string =>
  * used by the flat milestone list) and `buildSeasonGroups` (one row per
  * category, used by the Season page's collapsed view) are built from — kept
  * in one place so the two never drift on tier thresholds or reward copy.
+ *
+ * When the allowances fetch failed (e.g. the 402 billing gate on a
+ * deployment without the pro package), "Feed the beds" is left out entirely
+ * rather than shown as four permanently unearnable tiers, so the ladder's
+ * denominator only counts milestones the grower can actually reach (#7195).
  */
 function buildGoalGroups(
   snapshot: PlotSnapshot,
@@ -157,7 +185,7 @@ function buildGoalGroups(
     0
   );
 
-  return [
+  const groups: GoalGroup[] = [
     {
       id: 'tend',
       group: i18n.t('plot.goals.tend.group'),
@@ -190,7 +218,6 @@ function buildGoalGroups(
       title: (target) =>
         i18n.t('plot.goals.feed.title', { amount: formatGbp(target) }),
       format: formatGbp,
-      unavailable: allowancesUnavailable,
     },
     {
       id: 'streak',
@@ -202,6 +229,7 @@ function buildGoalGroups(
       title: (target) => i18n.t('plot.goals.streak.title', { target }),
       format: (value) => pluralize(value, 'day'),
       chipFormat: (value) => pluralize(value, 'day'),
+      personal: true,
     },
     {
       id: 'rank',
@@ -213,8 +241,12 @@ function buildGoalGroups(
       title: (target) => i18n.t('plot.goals.rank.title', { target }),
       format: (value) =>
         i18n.t('plot.model.level', { level: Math.round(value) }),
+      personal: true,
     },
   ];
+  return allowancesUnavailable
+    ? groups.filter((group) => group.id !== 'feed')
+    : groups;
 }
 
 /**
@@ -237,13 +269,10 @@ export function buildSeasonGoals(
       current: group.current,
       target,
       pct: target > 0 ? clamp((group.current / target) * 100, 0, 100) : 0,
-      complete: !group.unavailable && group.current >= target,
-      display: group.unavailable
-        ? allowancesUnavailableMessage()
-        : group.format(group.current),
+      complete: group.current >= target,
+      display: group.format(group.current),
       rewardIcon: group.rewardIcon,
       rewardLabel: group.rewardLabel,
-      unavailable: group.unavailable,
     }))
   );
 }
@@ -291,7 +320,7 @@ export function buildSeasonBadges(
     group: group.group,
     rewardIcon: group.rewardIcon,
     rewardLabel: group.rewardLabel,
-    earned: group.complete && !group.unavailable,
+    earned: group.complete,
     progress: `${group.tiers.filter((tier) => tier.complete).length}/${
       group.tiers.length
     }`,
@@ -323,11 +352,11 @@ export interface SeasonGroupProgress {
   /** True once every tier in the group has been earned. */
   complete: boolean;
   /**
-   * True when this group's underlying data (currently only the allowances
-   * feed, for "Feed the beds") failed to load, so the UI should show a
-   * distinct error notice instead of a progress bar (#7005).
+   * True when the figure is the signed-in user's Trail progress (streak,
+   * level) rather than the selected grower's portfolio — `/trail` is not
+   * owner-scoped, so the UI must not present it as the grower's (#7191).
    */
-  unavailable?: boolean;
+  personal?: boolean;
 }
 
 /**
@@ -370,7 +399,7 @@ export function buildSeasonGroups(
       tiers,
       next,
       complete: next === null,
-      unavailable: group.unavailable,
+      personal: group.personal,
     };
   });
 }

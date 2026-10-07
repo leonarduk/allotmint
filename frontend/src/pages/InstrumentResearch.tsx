@@ -1471,6 +1471,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           // 768px viewport, so scroll the row itself instead of the page.
           overflowX: "auto",
           gap: "0.5rem",
+          // At md+ the row is nowrap; with eight tabs it can exceed a
+          // tablet-width viewport, so scroll the row rather than the page.
+          overflowX: "auto",
           borderBottom: "1px solid #ccc",
           marginTop: "1rem",
           marginBottom: "1rem",

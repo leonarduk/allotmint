@@ -112,7 +112,7 @@
     "menu": "Menu",
     "menuCategories": {
       "dashboard": "Tableau de bord",
-      "goals": "Exigences",
+      "goals": "Planification",
       "holdings": "Positions",
       "insights": "Recherche",
       "operations": "Administration",
@@ -127,6 +127,7 @@
       "dataadmin": "Administration des données",
       "dataexplorer": "Explorateur de fichiers",
       "dataquality": "Qualité des données",
+      "dividends": "Dividendes",
       "group": "Groupe",
       "help": "Aide",
       "ideas": "Idées",
@@ -386,6 +387,11 @@
     "alphaVsBenchmarkInfoLabel": "Que signifie Alpha vs Indice ?",
     "alphaVsBenchmarkInfo": "L'alpha mesure l'écart entre le rendement du portefeuille et celui de {{ticker}} sur la période sélectionnée.",
     "vsBenchmark": "vs {{ticker}}",
+    "cumulativeReturnPortfolio": "Votre portefeuille",
+    "cumulativeReturnBenchmark": "{{ticker}} (indice de référence)",
+    "cumulativeReturnBasis": "Les deux courbes utilisent les dividendes réinvestis, les positions actuelles et les mêmes dates ({{from}} au {{to}}) que l'alpha vs {{ticker}}.",
+    "benchmarkSeriesFailed": "Impossible de charger {{ticker}} pour la comparaison ; seul le rendement cumulé de votre portefeuille, basé sur sa valeur, est affiché.",
+    "benchmarkSeriesEmpty": "Aucun cours de {{ticker}} ne couvre cette période ; seul le rendement cumulé de votre portefeuille, basé sur sa valeur, est affiché.",
     "trackingErrorInfoLabel": "Que signifie l'erreur de suivi ?",
     "trackingErrorInfo": "L'erreur de suivi mesure l'écart entre les rendements quotidiens du portefeuille et ceux de {{ticker}}, annualisé.",
     "maxDrawdownInfoLabel": "Que signifie le drawdown maximal ?",
@@ -440,6 +446,9 @@
     "atAGlance": "En un coup d'œil",
     "pricingAsOf": "Tarification au {{date}}",
     "pricingDatePickerLabel": "Changer la date de tarification",
+    "pricingRefreshError": "Impossible d’actualiser les prix : {{detail}}",
+    "pricingStale_one": "Les prix datent de {{count}} jour",
+    "pricingStale_other": "Les prix datent de {{count}} jours",
     "resetPricingDate": "Réinitialiser sur la plus récente",
     "select": "Sélectionnez un groupe.",
     "allAccounts": "Tous les comptes",
@@ -473,6 +482,9 @@
     },
     "clearFilters": "Effacer les filtres",
     "horizontalScroll": "Faire défiler horizontalement les colonnes des positions",
+    "filtersLabel": "Filtrer les positions",
+    "filterBy": "Filtrer par {{field}}",
+    "moreColumnsHint": "Plus de colonnes →",
     "columns": {
       "sector": "Secteur",
       "acquired": "Acquis",
@@ -497,6 +509,11 @@
       "account": "Compte"
     },
     "columnsLabel": "Colonnes :",
+    "columnPresets": {
+      "label": "Préréglage des colonnes :",
+      "simple": "Simple",
+      "detailed": "Détaillé"
+    },
     "eligible": "Éligible",
     "filters": {
       "all": "Tous",
@@ -1806,6 +1823,8 @@
     "signalsTitle": "Signaux actuels",
     "noSignalsTitle": "Aucun signal pour le moment",
     "noSignalsDescription": "Aucun instrument suivi ne franchit actuellement les seuils actifs. Les signaux apparaissent lorsque les conditions RSI ou de moyenne mobile sont réunies et que les filtres d'évaluation et de risque activés sont également satisfaits.",
+    "blockedTitle": "Signaux bloqués par la conformité",
+    "blockedDescription": "Ces instruments ont franchi les seuils actifs, mais l'opération proposée déclencherait un nouvel avertissement de conformité ; aucun signal n'est donc affiché pour eux.",
     "checksSkippedBadge": "Contrôles ignorés",
     "checksSkippedTitle": "Contrôles ignorés : {{checks}}",
     "checksSkippedInfo": "Une vérification facultative nécessitant le module complémentaire allotmint-pro n'a pas pu être exécutée. « compliance » signifie que la transaction n'a pas été vérifiée par rapport à vos règles de conformité ; « fundamental_screen » signifie que les filtres de PER et de ratio dette/capitaux propres ci-dessus (selon leur configuration) n'ont pas été appliqués à ce candidat à l'achat.",
@@ -1934,6 +1953,7 @@
     "everyMinute": "Toutes les minutes",
     "manual": "Manuel",
     "marketsClosed": "Marchés fermés",
+    "staleAge": "il y a {{days}} j",
     "addTicker": "Ajouter {{symbol}} à la liste de suivi",
     "removeTicker": "Retirer {{symbol}} de la liste de suivi"
   },
@@ -2223,6 +2243,20 @@
     "viewGoals": "Voir les objectifs",
     "pensionForecast": "Prévision de retraite"
   },
+  "costBasisChecklist": {
+    "summary_one": "Compléter le prix de revient : {{count}} ligne sans prix de revient fiable",
+    "summary_other": "Compléter le prix de revient : {{count}} lignes sans prix de revient fiable",
+    "intro": "Le gain/la perte exclut ces lignes tant que leur coût n'est pas saisi. Triées de la plus grande à la plus petite : les {{top}} premières représentent {{share}} de leur valeur. Choisissez Ajouter le coût et saisissez le prix payé par part.",
+    "holding": "Ligne",
+    "account": "Compte",
+    "value": "Valeur",
+    "problem": "Problème",
+    "missing": "Aucun coût enregistré",
+    "suspect": "Le coût enregistré semble erroné",
+    "addCost": "Ajouter le coût",
+    "showAll": "Tout afficher ({{count}})",
+    "showTop": "Afficher seulement les {{count}} premières"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} sans taux de change)",
     "reasonNoCostBasis": "pas de prix de revient fiable",
@@ -2301,6 +2335,7 @@
     "risk": "Risque",
     "volatility1y": "Volatilité (1 an)",
     "beta": "Bêta vs {{ticker}} (3 ans, hebdo)",
+    "betaNoBenchmark": "Bêta (3 ans, hebdo)",
     "providerBeta": "Bêta du fournisseur : {{value}}",
     "maxDrawdown": "Perte maximale",
     "history": "Historique",
@@ -2313,6 +2348,9 @@
     "ariaValuation": "Valorisation",
     "benchmark": "Indice de référence :",
     "exchangeDefault": ", par défaut pour la place de cotation",
+    "noComparableBenchmark": "aucun comparable",
+    "assetClass": "fonds {{assetClass}}",
+    "assetClassBasis": "fonds {{assetClass}} : {{basis}}",
     "dataQuality": "Qualité des données"
   },
   "instrumentTechnicals": {
@@ -2661,6 +2699,33 @@
     "estValue": "Valeur est. : ",
     "lastUpdated": "Dernière mise à jour : "
   },
+  "dividends": {
+    "title": "Dividendes",
+    "description": "Revenus de dividendes perçus, par période et par position. Les montants dans des devises différentes sont affichés séparément, jamais additionnés.",
+    "owner": "Titulaire",
+    "allOwners": "Tous les titulaires",
+    "period": "Regrouper par",
+    "periods": {
+      "taxYear": "Année fiscale",
+      "year": "Année civile",
+      "month": "Mois"
+    },
+    "trailing12m": "12 derniers mois",
+    "allTime": "Depuis le début",
+    "byPeriod": "Par période",
+    "byHolding": "Par position",
+    "payments": "Versements",
+    "received": "Perçu",
+    "holding": "Position",
+    "lastPaid": "Dernier versement",
+    "none": "—",
+    "empty": "Aucun versement de dividende enregistré pour le moment.",
+    "undated": "Sans date",
+    "unattributed": "Non rattaché à une position",
+    "unattributedHelp": "Versements de dividendes enregistrés sans ticker, par ex. transferts depuis un compte de revenus.",
+    "noHistory": "Aucun dividende enregistré",
+    "holdingsUnavailable": "Les positions actuelles n’ont pas pu être chargées ; les positions sans dividendes ne sont donc pas listées."
+  },
   "dividendHistory": {
     "trendAria": "Évolution des dividendes",
     "date": "Date",
@@ -2678,6 +2743,8 @@
     "units": "Parts",
     "priceGbp": "Prix (GBP)",
     "inputTitle": "Saisie des comptes et positions",
+    "costBasisHint": "Saisie du coût de {{ticker}} : indiquez les parts détenues et le prix payé par part, puis enregistrez. Le champ Valeur est désactivé ici, car il enregistrerait le cours du jour comme s'il s'agissait de votre prix d'achat.",
+    "costBasisNeedsPrice": "Pour enregistrer un coût, saisissez les parts et le prix payé par part. Une valeur enregistrerait le cours du jour comme votre coût.",
     "inputIntro": "Créez des comptes et définissez vos positions. L'enregistrement crée le transfert de solde d'ouverture qui amène le compte aux parts saisies ; il apparaît ainsi avec vos opérations dans <txlink>Transactions</txlink>.",
     "saving": "Enregistrement...",
     "saveHolding": "Enregistrer la position",
@@ -2764,7 +2831,9 @@
       "badgesSr": "badges de saison obtenus",
       "xpLabel": "Niveau {{level}} · {{xp}}/{{xpForLevel}} XP",
       "meterLabel": "Niveau de jardinier {{level}}, {{xp}} sur {{xpForLevel}} XP pour le niveau suivant",
-      "classicView": "Vue classique"
+      "classicView": "Vue classique",
+      "progressLabel": "Votre progression",
+      "progressTitle": "Le niveau, le rang, les XP et la série proviennent de vos propres corvées — ils sont identiques sur la parcelle de chaque jardinier."
     },
     "rail": {
       "ariaLabel": "Sections du potager",
@@ -2934,6 +3003,7 @@
       "earned": "Obtenu",
       "badgeShelf": "Étagère de badges ({{earned}}/{{total}})",
       "badgeNote": "Un badge est obtenu lorsque tous les paliers de sa catégorie sont franchis.",
+      "personalNote": "Votre progression — gagnée par vos propres corvées, pas par la parcelle de ce jardinier.",
       "growingSeasonLabel": "Saison de culture {{label}}",
       "growingSeason": "Saison de culture",
       "noTaxYear": "Aucune année fiscale n'est indiquée pour ce jardinier, la saison n'a donc pas de date de fin pour le compte à rebours.",
@@ -2980,7 +3050,6 @@
     },
     "model": {
       "unnamedBed": "Planche sans nom",
-      "allowancesUnavailable": "Plafonds indisponibles pour le moment",
       "water": "Eau",
       "feed": "Engrais",
       "sunlight": "Lumière du soleil",
@@ -3103,6 +3172,7 @@
     "retryingConfig": "Chargement... nouvelle tentative de configuration.",
     "loadingConfig": "Chargement de la configuration...",
     "configLoadFailed": "Impossible de charger la configuration.",
+    "serverUnreachable": "Impossible de joindre le serveur AllotMint à {{url}}.",
     "checkConnection": "Veuillez vérifier votre connexion et réessayer.",
     "googleNotConfigured": "La connexion Google n'est pas configurée.",
     "loading": "Chargement...",
@@ -3205,6 +3275,26 @@
     "noPlan": "Aucun plan d'investissement enregistré pour {{owner}} pour le moment.",
     "createPlan": "Créer un plan"
   },
+  "classify": {
+    "title": "Classer les positions",
+    "intro": "Ces positions n'ont pas de classe d'actifs, la page Stratégie ne peut donc pas les compter dans vos objectifs. Choisissez une classe pour chacune ; elle est enregistrée dans les métadonnées de l'instrument.",
+    "back": "Retour à Stratégie",
+    "noOwner": "Choisissez d'abord un titulaire sur la page Stratégie.",
+    "empty": "Chaque position a une classe d'actifs — rien à classer.",
+    "loadError": "Impossible de charger les positions de {{owner}} : {{error}}",
+    "saveError": "Échec de l'enregistrement : {{error}}",
+    "saved": "{{ticker}} enregistré comme {{assetClass}}.",
+    "choose": "Choisir…",
+    "selectLabel": "Classe d'actifs de {{ticker}}",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "noExchange": "Ce ticker n'a pas de suffixe de place ; définissez sa classe d'actifs dans l'administration des instruments.",
+    "col": {
+      "holding": "Position",
+      "value": "Valeur",
+      "assetClass": "Classe d'actifs"
+    }
+  },
   "strategy": {
     "title": "Stratégie",
     "intro": "Choisissez une allocation cible (une stratégie intégrée, une des vôtres ou des cibles personnalisées), puis comparez vos positions avec elle et voyez quelles opérations de rééquilibrage, ou quel versement, la ramèneraient dans votre bande de tolérance.",
@@ -3240,6 +3330,7 @@
       "underweight": "Sous-pondéré",
       "unclassified": "Non classé",
       "needsAssetClass": "Classe d'actifs requise",
+      "classifyLink": "Attribuer des classes d'actifs à ces positions",
       "totalLine": "Total {{total}} · tolérance ±{{tolerance}} pp",
       "sleeveTitle": "Écart — poche {{sleeve}}"
     },
@@ -3350,7 +3441,7 @@
     "overseas_government": "Obligations d’État étrangères",
     "corporate_bonds": "Entreprises / crédit",
     "gold": "Or",
-    "commodities": "Autres matières premières"
+    "other_commodities": "Autres matières premières"
   },
   "planForm": {
     "errors": {

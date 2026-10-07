@@ -48,6 +48,7 @@ import AllocationCharts from './pages/AllocationCharts';
 import InstrumentAdmin from './pages/InstrumentAdmin';
 import AppHeader from './components/AppHeader';
 import Strategy from './pages/Strategy';
+import ClassifyHoldings from './pages/ClassifyHoldings';
 import PensionForecast from './pages/PensionForecast';
 import TaxTools from './pages/TaxTools';
 import Alerts from './pages/Alerts';
@@ -173,6 +174,8 @@ export default function App({ onLogout }: AppProps) {
   );
 
   const scopeQuery = readRouteScopeQuery(location.search);
+  // Sub-page of Strategy for assigning asset classes (#9495).
+  const isClassifyRoute = location.pathname === '/strategy/classify';
   const isReportCreationRoute =
     location.pathname === '/reports/new' ||
     location.pathname.startsWith('/reports/new/');
@@ -765,7 +768,8 @@ export default function App({ onLogout }: AppProps) {
         {mode === 'dataadmin' && <DataAdmin />}
         {mode === 'watchlist' && <Ideas tab="watchlist" />}
         {mode === 'allocation' && <AllocationCharts owners={owners} />}
-        {mode === 'rebalance' && <Strategy />}
+        {mode === 'rebalance' &&
+          (isClassifyRoute ? <ClassifyHoldings /> : <Strategy />)}
         {mode === 'market' && <MarketOverview />}
         {mode === 'movers' && <TopMovers />}
         {mode === 'reports' &&

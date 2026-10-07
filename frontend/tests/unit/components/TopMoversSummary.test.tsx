@@ -54,6 +54,18 @@ describe("TopMoversSummary", () => {
     expect(link).toHaveAttribute("href", moversPlugin.path({ group: "all" }));
   });
 
+  it("shares one /opportunities request between concurrent mounts (#7788)", async () => {
+    render(
+      <MemoryRouter>
+        <TopMoversSummary slug="all" />
+        <TopMoversSummary slug="all" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findAllByRole("button", { name: "AAA" })).toHaveLength(2);
+    expect(mockGetOpportunities).toHaveBeenCalledTimes(1);
+  });
+
   it("handles missing slug", async () => {
     render(
       <MemoryRouter>

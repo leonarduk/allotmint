@@ -37,9 +37,16 @@
   box-shadow: inset -14px 0 12px -14px rgba(15, 23, 42, 0.85);
 }
 
-/* Stick the whole <thead> rather than each <th>: the header has two rows
-   (filter inputs + column titles), and per-cell `top: 0` made both rows pin
-   to the same offset so the filter inputs covered the titles (#8532). The
+/* Visible text cue alongside the edge shadow that more columns sit off-screen
+   to the right (#7814). */
+.moreColumnsHint {
+  margin: 0 0 0.25rem;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--surface-muted-color, #64748b);
+}
+
+/* Stick the whole <thead> rather than each <th> (#8532). The
    background must be opaque — `inherit` resolved to transparent, letting
    scrolled rows and group labels show through. Sticky positioning keeps the
    thead in flow, so its measured height (virtualizer scrollMargin) is

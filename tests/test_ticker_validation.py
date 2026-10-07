@@ -23,7 +23,8 @@ def _bundled_proxy_tickers() -> set[str]:
     from backend.routes import scenario
 
     events = json.loads((_REPO_ROOT / "data" / "events.json").read_text(encoding="utf-8"))
-    return {scenario._DEFAULT_PROXY_INDEX} | {e["proxy_index"] for e in events if e.get("proxy_index")}
+    proxies = {e["proxy_index"] for e in events if e.get("proxy_index")}
+    return proxies | {scenario._DEFAULT_PROXY_INDEX}
 
 
 def test_bundled_scenario_proxies_pass_ticker_validation(monkeypatch):

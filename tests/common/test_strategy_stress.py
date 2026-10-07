@@ -215,9 +215,24 @@ def test_a_holding_without_prices_moves_with_its_sleeve_before_the_event_proxy(m
     assert out["horizons"]["1y"]["return_pct"] == -0.5  # 500 * 0.0 + 500 * -0.01
 
 
-def test_a_holding_with_no_known_sleeve_still_falls_back_to_the_event_proxy():
-    assert strategy_stress._holding_sleeve({"asset_class": "property"}) is None
+def test_holding_sleeves_and_a_holding_with_no_known_sleeve():
+    assert strategy_stress._holding_sleeve({"asset_class": "multi-asset"}) is None
+    assert strategy_stress._holding_sleeve({"asset_class": "property"}) == "property"
     assert strategy_stress._holding_sleeve({"asset_class": "bond", "sub_asset_class": None}) == "bond"
     assert strategy_stress._holding_sleeve({"asset_class": "equity", "sub_asset_class": "small_cap_value"}) == (
         "small_cap_value"
     )
+
+
+def test_property_has_no_free_stand_in_and_asks_pro(monkeypatch):
+    seen = []
+
+    def pro(sleeve, event_date, horizons):
+        seen.append(sleeve)
+        return {"1m": -0.12, "1y": 0.05}, TOTAL_RETURN_BASIS, "US_REAL_ESTATE"
+
+    monkeypatch.setattr(strategy_stress, "PRO_SLEEVE_RETURNS", pro)
+    row = _row({"equity": 50.0, "property": 50.0})
+    assert "property" in seen
+    assert row["horizons"]["1m"]["return_pct"] == -16.0  # 50 * -0.20 + 50 * -0.12
+    assert row["series"]["property"] == ["US_REAL_ESTATE"]

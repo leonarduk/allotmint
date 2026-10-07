@@ -66,8 +66,10 @@ PRO_SLEEVE_RETURNS: Optional[ProSleeveReturns] = _pro_sleeve_returns
 #: (2009) and ``VWRL.L`` (2012). ``BUT.L`` (Brunner) is deliberately absent:
 #: before 1988 its stored closes are month-end prices carried across every
 #: day, so it reports a fake 0% over a day or a week and would stop
-#: allotmint-pro's daily proxies from being asked. Sleeves absent here
-#: (``property``, ``multi_asset``, ``overseas_government``) have no stored stand-in.
+#: allotmint-pro's daily proxies from being asked. ``property`` has no stored
+#: stand-in but is listed so its holdings and strategies ask allotmint-pro (US
+#: real estate, then UK property companies). Sleeves absent here
+#: (``multi_asset``, ``overseas_government``) have no stand-in at all.
 STAND_INS: dict[str, tuple[str, ...]] = {
     "equity": ("VWRL.L", "IWRD.L", "IOO.N"),
     "broad_equity": ("VWRL.L", "IWRD.L", "IOO.N"),
@@ -81,6 +83,7 @@ STAND_INS: dict[str, tuple[str, ...]] = {
     "commodity": ("DBC.N",),
     "gold": ("PHAU.L",),
     "commodities": ("DBC.N",),
+    "property": (),
 }
 
 #: Stand-ins that pay no income, so their price return is their total return

@@ -176,6 +176,17 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     defaultPath: () => '/transactions',
   },
   {
+    // Received dividend income by period and holding (#7831).
+    mode: 'dividends',
+    routeSegment: 'dividends',
+    section: 'user',
+    menuCategory: 'dashboard',
+    priority: 26,
+    defaultPath: () => '/dividends',
+    routePath: '/dividends',
+    lazyComponent: lazyPage(() => import('../pages/Dividends')),
+  },
+  {
     // The Ideas page (#9852): Signals tab here, Screen tab at /screener,
     // Watchlist tab at /watchlist.
     mode: 'trading',

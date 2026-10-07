@@ -117,11 +117,18 @@ match the asset-class blocks of allotmint-pro's `backtest_portfolio` tool.
 | bond | `corporate_bonds` | corporate, credit, income, investment grade, high yield or loans |
 | bond | `overseas_government` | any other government, treasury or bund fund |
 | commodity | `gold` | the name or index mentions gold |
-| commodity | `commodities` | every other commodity |
+| commodity | `other_commodities` | every other commodity; the backtest calls this sleeve `commodities` |
 
 To override a sub-class, set `sub_asset_class` on the instrument file or add it
 to the override entry, for example `"TFIF.L": {"sub_asset_class": "corporate_bonds"}`.
 An override that belongs to a different parent class is logged and ignored.
+
+Before #9718 the other-commodities key was `commodities`, which is also an
+alias of the whole Commodity class. Stored data is still read as before: an
+override of `commodities` is the sub-class, and a target set (policy, strategy,
+plan) that has `commodities` beside `gold` or `other_commodities` reads it as
+`other_commodities`. A lone `commodities` target is the whole Commodity class.
+Nothing is rewritten on disk; the new key is written on the next save.
 A bond with no recognised sub-class stays in Bond. When Bond is targeted by
 sub-class, the Strategy page shows it in a "Bond — no sub-class" row and a
 note. It counts towards the total but is never traded.

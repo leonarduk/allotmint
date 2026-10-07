@@ -16,6 +16,11 @@ import {
 } from '../utils/chatWindow';
 import UserAvatar from './UserAvatar';
 
+// Icon buttons otherwise inherit the global `button { padding: 0.6em 1.2em }`,
+// which at 1.5rem renders each emoji ~91px wide and wraps the header onto a
+// second row at phone widths (#7812). Matches the search/language toggles.
+const ICON_BUTTON_PADDING = '0.25rem';
+
 const CHAT_WINDOW_BLOCKED =
   'Your browser blocked the chat window. Allow pop-ups for this site to detach the chat.';
 
@@ -116,6 +121,7 @@ export default function AppHeader({
             border: 'none',
             cursor: 'pointer',
             fontSize: '1.5rem',
+            padding: ICON_BUTTON_PADDING,
           }}
         >
           🔔
@@ -130,6 +136,7 @@ export default function AppHeader({
             border: 'none',
             cursor: 'pointer',
             fontSize: '1.5rem',
+            padding: ICON_BUTTON_PADDING,
             borderRadius: '0.25rem',
             outline: chatDetached ? '2px solid currentColor' : undefined,
           }}

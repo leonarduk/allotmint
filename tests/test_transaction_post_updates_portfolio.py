@@ -22,7 +22,7 @@ def _setup_app(tmp_path, monkeypatch):
         "currency": "GBP",
         "last_updated": "2024-01-01",
         "transactions": [
-            {"date": "2024-01-10", "type": "BUY", "ticker": "AAA", "shares": 10},
+            {"date": "2024-01-10", "type": "BUY", "ticker": "AAA", "units": 10},
         ],
     }
     (owner_dir / "isa_transactions.json").write_text(json.dumps(txs))

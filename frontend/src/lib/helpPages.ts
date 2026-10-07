@@ -75,6 +75,15 @@ export const HELP_PAGES: HelpPageEntry[] = [
       'Record buys, sells and other transactions, or import them from a CSV.',
   },
   {
+    path: '/dividends',
+    mode: 'dividends',
+    titleKey: 'app.modes.dividends',
+    titleDefault: 'Dividends',
+    descriptionKey: 'help.pages.dividends',
+    descriptionDefault:
+      'Dividend income received, by tax year, year or month and by holding, with a trailing-12-month total.',
+  },
+  {
     path: '/trading',
     mode: 'trading',
     titleKey: 'help.pages.signalsTitle',

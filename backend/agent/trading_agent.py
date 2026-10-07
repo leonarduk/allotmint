@@ -6,7 +6,7 @@ import csv
 import json
 import logging
 import math
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import asdict
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -422,14 +422,59 @@ def _alert_on_drawdown(threshold: float = DRAWDOWN_ALERT_THRESHOLD) -> None:
             send_trade_alert(f"{owner} portfolio drawdown {max_dd*100:.2f}% exceeds {threshold*100:.2f}%")
 
 
-def _check_signal_compliance(sig: Dict, owners: Iterable[str], require_pro_checks: bool) -> tuple[bool, bool]:
+def _compliance_baseline(owner: str, baselines: Dict[str, Counter]) -> Counter:
+    """Return (and cache in ``baselines``) ``owner``'s existing-history warnings.
+
+    An empty baseline is cached when ``check_owner`` raises, so every warning
+    then counts as new and the check fails closed.
+    """
+
+    if owner not in baselines:
+        try:
+            baselines[owner] = Counter(compliance.check_owner(owner).get("warnings") or [])
+        except Exception:
+            logger.exception("Compliance baseline failed for %s", sanitise_log_value(owner))
+            baselines[owner] = Counter()
+    return baselines[owner]
+
+
+def _new_compliance_warnings(owner: str, warnings: List[str], baselines: Dict[str, Counter]) -> List[str]:
+    """Return the ``warnings`` that ``owner``'s existing history doesn't already raise.
+
+    ``compliance.check_trade`` evaluates the proposed trade appended to the
+    owner's whole transaction history, so it also returns every historical
+    warning (an old unapproved sale, a past over-limit month). Only warnings
+    the proposed trade itself introduces should block a signal (#9453), so
+    each owner's ``check_owner`` warnings are subtracted as a multiset.
+    Baselines are cached in ``baselines`` for the rest of the run. If the
+    baseline can't be computed, every warning is treated as new so the check
+    fails closed.
+    """
+
+    remaining = _compliance_baseline(owner, baselines).copy()
+    new_warnings: List[str] = []
+    for warning in warnings:
+        if remaining[warning] > 0:
+            remaining[warning] -= 1
+        else:
+            new_warnings.append(warning)
+    return new_warnings
+
+
+def _check_signal_compliance(
+    sig: Dict, owners: Iterable[str], require_pro_checks: bool, baselines: Dict[str, Counter]
+) -> tuple[List[str], bool]:
     """Run the compliance check for ``sig`` against every owner.
 
-    Returns ``(blocked, errored)``. An owner whose check raises (e.g. bad
-    imported transaction data) is logged and skipped rather than failing the
-    whole run, so one owner's data cannot take down signals for everyone.
-    The signal is then tagged as having skipped compliance, or blocked
-    outright when ``require_pro_checks`` demands that checks actually run.
+    Returns ``(block_reasons, errored)``; the signal is blocked when
+    ``block_reasons`` is non-empty. Only warnings the proposed trade itself
+    introduces block it -- see :func:`_new_compliance_warnings`.
+
+    An owner whose check raises (e.g. bad imported transaction data) is
+    logged and skipped rather than failing the whole run, so one owner's
+    data cannot take down signals for everyone. The signal is then tagged as
+    having skipped compliance, or blocked outright when
+    ``require_pro_checks`` demands that checks actually run.
     """
 
     errored = False
@@ -440,6 +485,9 @@ def _check_signal_compliance(sig: Dict, owners: Iterable[str], require_pro_check
             "type": sig["action"].lower(),
             "date": date.today().isoformat(),
         }
+        # Snapshot the baseline before check_trade so it can never include the
+        # proposed trade, whatever check_trade does with it.
+        _compliance_baseline(owner, baselines)
         try:
             result = compliance.check_trade(trade)
         except Exception:
@@ -449,26 +497,35 @@ def _check_signal_compliance(sig: Dict, owners: Iterable[str], require_pro_check
                 sanitise_log_value(sig["ticker"]),
             )
             if require_pro_checks:
-                return True, True
+                return [f"{owner}: compliance check failed"], True
             errored = True
             continue
-        if result.get("warnings"):
+        new_warnings = _new_compliance_warnings(owner, result.get("warnings") or [], baselines)
+        if new_warnings:
             logger.warning(
                 "Compliance warnings for %s: %s",
                 sanitise_log_value(owner),
-                sanitise_log_value(result["warnings"]),
+                sanitise_log_value(new_warnings),
             )
-            return True, errored
-    return False, errored
+            return [f"{owner}: {warning}" for warning in new_warnings], errored
+    return [], errored
 
 
-def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List[Dict]:
+def run(
+    tickers: Optional[Iterable[str]] = None,
+    *,
+    notify: bool = True,
+    blocked: Optional[List[Dict]] = None,
+) -> List[Dict]:
     """Refresh prices, generate signals and publish alerts.
 
     Args:
         tickers: optional iterable of ticker symbols. If omitted, all
             known instruments from the current portfolios are analysed.
         notify: When ``True`` send notifications for any generated signals.
+        blocked: Optional list that collects signals compliance blocked, as
+            ``{"ticker", "action", "reasons"}`` dicts, so callers can tell
+            "blocked by compliance" apart from "no threshold crossed".
 
     Returns:
         A list of generated signals.
@@ -602,11 +659,16 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
                 allowed = set(buy_tickers)
         signals = [s for s in signals if s["action"] != "BUY" or s["ticker"] in allowed]
     allowed_signals: List[Dict] = []
+    compliance_baselines: Dict[str, Counter] = {}
     for sig in signals:
         compliance_errored = False
         if not compliance_unavailable:
-            blocked, compliance_errored = _check_signal_compliance(sig, owners, cfg.require_pro_checks)
-            if blocked:
+            block_reasons, compliance_errored = _check_signal_compliance(
+                sig, owners, cfg.require_pro_checks, compliance_baselines
+            )
+            if block_reasons:
+                if blocked is not None:
+                    blocked.append({"ticker": sig["ticker"], "action": sig["action"], "reasons": block_reasons})
                 continue
         ticker = sig["ticker"]
         price = snapshot[ticker]["last_price"]

@@ -451,18 +451,13 @@ export type AllowanceMap = Record<
 >;
 
 /**
- * Shared copy for every place the allowances fetch failed (HTTP error, e.g.
- * the 402 billing gate) rather than genuinely returning no data. Kept as one
- * constant so the FEED meter, the Season page's countdown, and the "Feed the
- * beds" milestone tier all read identically (#7005).
- */
-export const allowancesUnavailableMessage = (): string =>
-  i18n.t('plot.model.allowancesUnavailable');
-
-/**
- * The three HUD meters, each backed by a real figure:
+ * The HUD meters, each backed by a real figure:
  * water = trades left this month, feed = tax-allowance headroom,
  * sunlight = share of crops priced today (data freshness).
+ *
+ * FEED is omitted when the allowances fetch failed (e.g. the 402 billing
+ * gate on a deployment without the pro package): a £0.00 / £0.00 bar would
+ * read as "all your feed is used up", the opposite of the truth (#7195).
  */
 export function resourcesFromPlot(
   portfolio: Pick<Portfolio, 'trades_this_month' | 'trades_remaining'> | null,
@@ -488,7 +483,7 @@ export function resourcesFromPlot(
   const stale = crops.filter((crop) => crop.freshness === 'stale').length;
   const unknown = crops.filter((crop) => crop.freshness === 'unknown').length;
 
-  return [
+  const resources: PlotResource[] = [
     {
       id: 'water',
       label: i18n.t('plot.model.water'),
@@ -510,9 +505,8 @@ export function resourcesFromPlot(
         allowanceLimit > 0
           ? clamp((allowanceLeft / allowanceLimit) * 100, 0, 100)
           : 0,
-      hint: allowancesUnavailable
-        ? allowancesUnavailableMessage()
-        : allowanceLimit > 0
+      hint:
+        allowanceLimit > 0
           ? i18n.t('plot.model.feedHint', { amount: formatGbp(allowanceLeft) })
           : i18n.t('plot.model.feedNoData'),
     },
@@ -530,6 +524,9 @@ export function resourcesFromPlot(
       hint: sunlightHint(fresh, stale, unknown, crops.length),
     },
   ];
+  return allowancesUnavailable
+    ? resources.filter((resource) => resource.id !== 'feed')
+    : resources;
 }
 
 /**

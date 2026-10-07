@@ -1233,6 +1233,7 @@
     "select": "Seleccione un propietario."
   },
   "pensionForecast": {
+    "relativeViewNotice": "La previsión de pensión se basa en importes en libras, por lo que se oculta con la vista relativa activada. Desactiva la vista relativa para verla.",
     "ages": {
       "ageNowHelper": "Según la fecha de nacimiento registrada ({{dob}}).",
       "ageNowLabel": "Edad actual",
@@ -1907,7 +1908,9 @@
     "details": "Detalles de la simulación histórica",
     "noData": "No hay datos de VaR disponibles.",
     "title": "Valor en Riesgo",
-    "chartAria": "Gráfico de Valor en Riesgo"
+    "chartAria": "Gráfico de Valor en Riesgo",
+    "relativeHidden": "Los importes se ocultan en la vista relativa; abre un desglose para ver la pérdida en porcentaje.",
+    "viewBreakdown": "Ver desglose"
   },
   "watchlist": {
     "refresh": "Actualizar",

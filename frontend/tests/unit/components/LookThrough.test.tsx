@@ -1,8 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { InstrumentAllocationPanel, LookThroughCoverageNote } from "@/components/LookThrough";
+import {
+  InstrumentAllocationPanel,
+  LookThroughCoverageNote,
+  LookThroughHoldingsTable,
+} from "@/components/LookThrough";
 import { foldWeightRows } from "@/lib/lookThrough";
+import { configContext, type ConfigContextValue } from "@/ConfigContext";
+import type { LookThroughExposure, LookThroughHolding } from "@/types";
+
+const configWith = (relativeViewEnabled: boolean) =>
+  ({
+    relativeViewEnabled,
+    tabs: {},
+    theme: "system",
+    reportingCurrency: "GBP",
+    refreshConfig: async () => {},
+    setRelativeViewEnabled: () => {},
+  }) as unknown as ConfigContextValue;
 import * as api from "@/api";
 import type { InstrumentAllocation } from "@/types";
 
@@ -159,6 +175,7 @@ describe("LookThroughCoverageNote (#9974)", () => {
       <MemoryRouter>
         <LookThroughCoverageNote
           format={(v) => `£${v}`}
+          totalValue={1000}
           coverage={{
             looked_through_value_gbp: 500,
             direct_value_gbp: 0,
@@ -185,5 +202,57 @@ describe("foldWeightRows (#9974)", () => {
     const folded = foldWeightRows(long, (n) => `Other (${n} more)`);
     expect(folded).toHaveLength(15);
     expect(folded[14]).toEqual({ label: "Other (6 more)", weight_pct: 30 });
+  });
+});
+
+describe("Look-through relative view (#10022)", () => {
+  const coverage: LookThroughExposure["coverage"] = {
+    looked_through_value_gbp: 600,
+    direct_value_gbp: 0,
+    not_covered_value_gbp: 250,
+    cash_value_gbp: 150,
+    funds: [{ ticker: "VWRL.L", name: "All-World", value_gbp: 600, as_of: "2026-08-31" }],
+    not_covered: [{ ticker: "GBPG.L", name: "Gilts", value_gbp: 250 }],
+  };
+  const holdings: LookThroughHolding[] = [
+    {
+      key: "apple",
+      name: "Apple",
+      isin: "US0378331005",
+      kind: "security",
+      value_gbp: 400,
+      weight_pct: 40,
+      direct_value_gbp: 100,
+      via_funds_value_gbp: 300,
+      sources: [{ ticker: "VWRL.L", value_gbp: 300 }],
+    },
+  ];
+  const renderLookThrough = (relative: boolean) =>
+    render(
+      <configContext.Provider value={configWith(relative)}>
+        <MemoryRouter>
+          <LookThroughCoverageNote coverage={coverage} format={(v) => `£${v}`} totalValue={1000} />
+          <LookThroughHoldingsTable holdings={holdings} format={(v) => `£${v}`} totalValue={1000} />
+        </MemoryRouter>
+      </configContext.Provider>,
+    );
+
+  it("shows shares of the total instead of £ values", () => {
+    renderLookThrough(true);
+
+    expect(screen.getByTestId("look-through-coverage")).toHaveTextContent("1 funds (60.0%) looked through");
+    expect(screen.getByTestId("look-through-not-covered")).toHaveTextContent("GBPG.L (25.0%)");
+    const row = screen.getByRole("row", { name: /Apple/ });
+    expect(row).toHaveTextContent("10.0%");
+    expect(row).toHaveTextContent("30.0%");
+    expect(document.body.textContent).not.toMatch(/£/);
+  });
+
+  it("shows £ values when relative view is off", () => {
+    renderLookThrough(false);
+
+    expect(screen.getByTestId("look-through-coverage")).toHaveTextContent("1 funds (£600) looked through");
+    expect(screen.getByTestId("look-through-not-covered")).toHaveTextContent("GBPG.L (£250)");
+    expect(screen.getByRole("row", { name: /Apple/ })).toHaveTextContent("£300");
   });
 });

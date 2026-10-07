@@ -9,6 +9,7 @@ import type {
 } from '../types';
 import { percent } from '../lib/money';
 import { foldWeightRows } from '../lib/lookThrough';
+import { useConfig } from '../ConfigContext';
 import surfaceStyles from '../styles/surface.module.css';
 
 const BAR_COLOR = '#8884d8';
@@ -75,6 +76,19 @@ export function WeightBars({
   );
 }
 
+/**
+ * Formats a look-through £ value, or under relative view its share of the
+ * look-through total so the note and table don't disclose wealth (#10022).
+ */
+function useLookThroughFormat(
+  format: (value: number) => string,
+  totalValue: number
+): (value: number) => string {
+  const { relativeViewEnabled } = useConfig();
+  if (!relativeViewEnabled) return format;
+  return (value) => percent(totalValue > 0 ? (value / totalValue) * 100 : 0, 1);
+}
+
 const holdingName = (h: LookThroughHolding, t: (key: string) => string) =>
   h.kind === 'other'
     ? t('lookThrough.otherInFunds')
@@ -85,12 +99,15 @@ const holdingName = (h: LookThroughHolding, t: (key: string) => string) =>
 /** Underlying holdings across direct shares and funds, with where each exposure comes from (#9974). */
 export function LookThroughHoldingsTable({
   holdings,
-  format,
+  format: formatValue,
+  totalValue,
 }: {
   holdings: LookThroughHolding[];
   format: (value: number) => string;
+  totalValue: number;
 }) {
   const { t } = useTranslation();
+  const format = useLookThroughFormat(formatValue, totalValue);
   return (
     <div style={{ overflowX: 'auto' }}>
       <table
@@ -151,12 +168,15 @@ export function LookThroughHoldingsTable({
 /** Which funds were looked through (with data dates) and which were not (#9974). */
 export function LookThroughCoverageNote({
   coverage,
-  format,
+  format: formatValue,
+  totalValue,
 }: {
   coverage: LookThroughExposure['coverage'];
   format: (value: number) => string;
+  totalValue: number;
 }) {
   const { t } = useTranslation();
+  const format = useLookThroughFormat(formatValue, totalValue);
   const dates = coverage.funds
     .map((f) => f.as_of)
     .filter((d): d is string => !!d)

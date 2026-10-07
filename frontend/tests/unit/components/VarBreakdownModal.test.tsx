@@ -2,6 +2,17 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { VarBreakdownModal } from "@/components/VarBreakdownModal";
 import type { VarBreakdown } from "@/types";
+import { configContext, type ConfigContextValue } from "@/ConfigContext";
+
+const configWith = (relativeViewEnabled: boolean) =>
+  ({
+    relativeViewEnabled,
+    tabs: {},
+    theme: "system",
+    reportingCurrency: "GBP",
+    refreshConfig: async () => {},
+    setRelativeViewEnabled: () => {},
+  }) as unknown as ConfigContextValue;
 
 const contributions: VarBreakdown[] = [
   {
@@ -70,5 +81,36 @@ describe("VarBreakdownModal (#6505)", () => {
     );
     expect(keyWarnings).toEqual([]);
     errorSpy.mockRestore();
+  });
+});
+
+describe("VarBreakdownModal relative view (#10022)", () => {
+  const renderModal = (relative: boolean) =>
+    render(
+      <configContext.Provider value={configWith(relative)}>
+        <VarBreakdownModal
+          contributions={contributions}
+          scenarios={[]}
+          varDate="2024-01-02"
+          varLossPercent={5}
+          onClose={vi.fn()}
+        />
+      </configContext.Provider>,
+    );
+
+  it("drops the Amount column and keeps Change %", () => {
+    renderModal(true);
+
+    expect(screen.queryByRole("columnheader", { name: "Amount" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Change" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveTextContent("-12.50%");
+    expect(screen.getByRole("dialog").textContent).not.toMatch(/£/);
+  });
+
+  it("keeps the Amount column when relative view is off", () => {
+    renderModal(false);
+
+    expect(screen.getByRole("columnheader", { name: "Amount" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveTextContent("-£75.00");
   });
 });

@@ -416,6 +416,24 @@ describe("TopMoversPage", () => {
     expect(
       within(section).getByText(/in the last 7 days/),
     ).toBeInTheDocument();
+    // The rest of #7217's Movers ACs landed with #7231 and must hold here
+    // too: the Trading page's own "not trade instructions" caveat is on the
+    // page, and the % / value headers name their period and unit in words.
+    expect(screen.getByText(enTranslation.trading.description)).toBeInTheDocument();
+    expect(enTranslation.trading.description).toMatch(/not trade instructions/);
+    expect(
+      screen.getByRole("columnheader", {
+        name: enTranslation.movers.pctChangeHeader.replace("{{period}}", "1d"),
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", {
+        name: enTranslation.movers.deltaGbpHeader
+          .replace("{{symbol}}", "£")
+          .replace("{{period}}", "1d"),
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Δ/)).not.toBeInTheDocument();
   });
 
   it("shows page-shaped skeletons instead of a bare loading message while the fetch is pending (#7229)", async () => {

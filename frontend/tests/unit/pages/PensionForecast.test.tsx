@@ -9,6 +9,17 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 
 import { humanizeForecastError } from "@/utils/forecastErrors";
+import { configContext, type ConfigContextValue } from "@/ConfigContext";
+
+const configWith = (relativeViewEnabled: boolean) =>
+  ({
+    relativeViewEnabled,
+    tabs: {},
+    theme: "system",
+    reportingCurrency: "GBP",
+    refreshConfig: async () => {},
+    setRelativeViewEnabled: () => {},
+  }) as unknown as ConfigContextValue;
 
 type RouteStateMock = {
   mode: "owner";
@@ -1093,3 +1104,57 @@ describe("PensionForecast page", () => {
   });
 });
 
+describe("PensionForecast relative view (#10022)", () => {
+  beforeEach(() => {
+    routeState = {
+      mode: "owner",
+      setMode: vi.fn(),
+      selectedOwner: "",
+      setSelectedOwner: vi.fn(),
+      selectedGroup: "",
+      setSelectedGroup: vi.fn(),
+    };
+    mockUseRoute.mockImplementation(() => routeState);
+    mockGetOwners.mockResolvedValue([{ owner: "alex", full_name: "Alex Example", accounts: ["sipp"] }]);
+    mockGetPortfolio.mockResolvedValue({
+      owner: "alex",
+      as_of: "",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 14352.26,
+      accounts: [{ account_type: "sipp", value_estimate_gbp: 14352.26, holdings: [] }],
+    });
+    mockGetPensionProfile.mockRejectedValue(new Error("missing or invalid dob"));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  const renderPage = async (relative: boolean) => {
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+    return renderWithI18n(
+      <configContext.Provider value={configWith(relative)}>
+        <PensionForecast />
+      </configContext.Provider>,
+    );
+  };
+
+  it("replaces the £ forecast with a notice", async () => {
+    await renderPage(true);
+
+    expect(await screen.findByTestId("pension-relative-view-notice")).toHaveTextContent(
+      "hidden while relative view is on",
+    );
+    expect(document.body.textContent).not.toMatch(/£/);
+  });
+
+  it("renders the forecast form when relative view is off", async () => {
+    await renderPage(false);
+
+    expect(await screen.findByText("Pension Forecast")).toBeInTheDocument();
+    expect(screen.queryByTestId("pension-relative-view-notice")).not.toBeInTheDocument();
+    expect(document.body.textContent).toMatch(/£/);
+  });
+});

@@ -421,10 +421,15 @@
     "add": "Ajouter un objectif",
     "back": "Retour au portefeuille",
     "currentAmount": "Montant actuel:",
+    "currentAmountHint": "Ce que vous avez déjà épargné pour cet objectif. Sert à calculer la progression.",
+    "empty": "Aucun objectif pour le moment.",
+    "errorRequired": "Saisissez un nom, un montant cible supérieur à zéro et une date cible.",
+    "errorSave": "Impossible d'enregistrer l'objectif. Veuillez réessayer.",
     "goalLine": "{{name}} – objectif {{amount}} d'ici {{date}}",
     "progress": "Progrès: {{progress}}%",
     "suggestedTrades": "Transactions suggérées",
     "targetAmount": "Montant cible",
+    "targetDate": "Date cible",
     "title": "Objectifs",
     "trade": "{{action}} {{amount}} de {{ticker}}",
     "view": "Voir"
@@ -1229,6 +1234,7 @@
     "select": "Sélectionnez un propriétaire."
   },
   "pensionForecast": {
+    "relativeViewNotice": "La prévision de retraite repose sur des montants en livres ; elle est donc masquée en vue relative. Désactivez la vue relative pour la voir.",
     "ages": {
       "ageNowHelper": "D'après la date de naissance enregistrée ({{dob}}).",
       "ageNowLabel": "Âge actuel",
@@ -1903,7 +1909,9 @@
     "details": "Détails de la simulation historique",
     "noData": "Pas de données VaR disponibles.",
     "title": "Valeur à risque",
-    "chartAria": "Graphique de la Value at Risk"
+    "chartAria": "Graphique de la Value at Risk",
+    "relativeHidden": "Les montants sont masqués en vue relative ; ouvrez un détail pour voir la perte en pourcentage.",
+    "viewBreakdown": "Voir le détail"
   },
   "watchlist": {
     "refresh": "Actualiser",
@@ -3144,6 +3152,11 @@
     "reportTitle": "Signaler un problème",
     "reportDescription": "Vous avez trouvé un bug ou quelque chose de peu clair ? Signalez-le sur GitHub afin qu'il soit suivi et corrigé.",
     "reportLink": "Ouvrir un ticket GitHub"
+  },
+  "firstRunHelp": {
+    "title": "Nouveau sur AllotMint ?",
+    "openHelp": "Ouvrir l'aide et la prise en main",
+    "dismiss": "Compris, ne plus afficher"
   },
   "reportingCurrency": {
     "converted": "Montants en {{currency}}, convertis depuis la GBP au taux du jour (1 {{currency}} = £{{rate}}).",

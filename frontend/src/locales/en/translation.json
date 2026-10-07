@@ -415,10 +415,15 @@
     "add": "Add Goal",
     "back": "Back to Portfolio",
     "currentAmount": "Current Amount:",
+    "currentAmountHint": "What you have saved toward this goal so far. Used to calculate progress when you view a goal.",
+    "empty": "No goals yet.",
+    "errorRequired": "Enter a name, a target amount greater than zero and a target date.",
+    "errorSave": "Could not save the goal. Please try again.",
     "goalLine": "{{name}} – target {{amount}} by {{date}}",
     "progress": "Progress: {{progress}}%",
     "suggestedTrades": "Suggested Trades",
     "targetAmount": "Target Amount",
+    "targetDate": "Target Date",
     "title": "Goals",
     "trade": "{{action}} {{amount}} of {{ticker}}",
     "view": "View"
@@ -1223,6 +1228,7 @@
     "select": "Select an owner."
   },
   "pensionForecast": {
+    "relativeViewNotice": "The pension forecast is built from pound amounts, so it is hidden while relative view is on. Turn off relative view to see it.",
     "ages": {
       "ageNowHelper": "From the date of birth on file ({{dob}}).",
       "ageNowLabel": "Age now",
@@ -1896,7 +1902,9 @@
     "details": "Historical simulation details",
     "noData": "No VaR data available.",
     "title": "Value at Risk",
-    "chartAria": "Value at Risk chart"
+    "chartAria": "Value at Risk chart",
+    "relativeHidden": "Amounts are hidden in relative view; open a breakdown to see the loss as a percentage.",
+    "viewBreakdown": "View breakdown"
   },
   "watchlist": {
     "refresh": "Refresh",
@@ -3137,6 +3145,11 @@
     "reportTitle": "Report a problem",
     "reportDescription": "Found a bug or something confusing? Let us know on GitHub so it can be tracked and fixed.",
     "reportLink": "Open a GitHub issue"
+  },
+  "firstRunHelp": {
+    "title": "New to AllotMint?",
+    "openHelp": "Open Help & Getting Started",
+    "dismiss": "Got it, don't show again"
   },
   "reportingCurrency": {
     "converted": "Amounts in {{currency}}, translated from GBP at today's rate (1 {{currency}} = £{{rate}}).",

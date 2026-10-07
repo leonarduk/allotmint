@@ -421,10 +421,15 @@
     "add": "Ziel hinzufügen",
     "back": "Zurück zum Portfolio",
     "currentAmount": "Aktueller Betrag:",
+    "currentAmountHint": "Was Sie bisher für dieses Ziel gespart haben. Wird zur Berechnung des Fortschritts verwendet.",
+    "empty": "Noch keine Ziele.",
+    "errorRequired": "Geben Sie einen Namen, einen Zielbetrag größer als null und ein Zieldatum ein.",
+    "errorSave": "Das Ziel konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
     "goalLine": "{{name}} – Ziel {{amount}} bis {{date}}",
     "progress": "Fortschritt: {{progress}}%",
     "suggestedTrades": "Vorgeschlagene Trades",
     "targetAmount": "Zielbetrag",
+    "targetDate": "Zieldatum",
     "title": "Ziele",
     "trade": "{{action}} {{amount}} von {{ticker}}",
     "view": "Ansehen"
@@ -1229,6 +1234,7 @@
     "select": "Wählen Sie einen Besitzer."
   },
   "pensionForecast": {
+    "relativeViewNotice": "Die Rentenprognose basiert auf Pfundbeträgen und ist daher in der relativen Ansicht ausgeblendet. Deaktivieren Sie die relative Ansicht, um sie zu sehen.",
     "ages": {
       "ageNowHelper": "Aus dem hinterlegten Geburtsdatum ({{dob}}).",
       "ageNowLabel": "Aktuelles Alter",
@@ -1903,7 +1909,9 @@
     "details": "Details zur historischen Simulation",
     "noData": "Keine VaR-Daten verfügbar.",
     "title": "Value at Risk",
-    "chartAria": "Value-at-Risk-Diagramm"
+    "chartAria": "Value-at-Risk-Diagramm",
+    "relativeHidden": "Beträge sind in der relativen Ansicht ausgeblendet; öffnen Sie eine Aufschlüsselung, um den Verlust in Prozent zu sehen.",
+    "viewBreakdown": "Aufschlüsselung anzeigen"
   },
   "watchlist": {
     "refresh": "Aktualisieren",
@@ -3144,6 +3152,11 @@
     "reportTitle": "Problem melden",
     "reportDescription": "Einen Fehler gefunden oder etwas Unklares entdeckt? Teilen Sie es uns auf GitHub mit, damit es nachverfolgt und behoben werden kann.",
     "reportLink": "GitHub-Issue öffnen"
+  },
+  "firstRunHelp": {
+    "title": "Neu bei AllotMint?",
+    "openHelp": "Hilfe & Erste Schritte öffnen",
+    "dismiss": "Verstanden, nicht mehr anzeigen"
   },
   "reportingCurrency": {
     "converted": "Beträge in {{currency}}, aus GBP zum heutigen Kurs umgerechnet (1 {{currency}} = £{{rate}}).",

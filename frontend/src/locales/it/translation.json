@@ -421,10 +421,15 @@
     "add": "Aggiungi obiettivo",
     "back": "Torna al portafoglio",
     "currentAmount": "Importo attuale:",
+    "currentAmountHint": "Quanto hai risparmiato finora per questo obiettivo. Usato per calcolare il progresso.",
+    "empty": "Nessun obiettivo ancora.",
+    "errorRequired": "Inserisci un nome, un importo obiettivo maggiore di zero e una data obiettivo.",
+    "errorSave": "Impossibile salvare l'obiettivo. Riprova.",
     "goalLine": "{{name}} – obiettivo {{amount}} entro {{date}}",
     "progress": "Progresso: {{progress}}%",
     "suggestedTrades": "Operazioni suggerite",
     "targetAmount": "Importo obiettivo",
+    "targetDate": "Data obiettivo",
     "title": "Obiettivi",
     "trade": "{{action}} {{amount}} di {{ticker}}",
     "view": "Visualizza"
@@ -1229,6 +1234,7 @@
     "select": "Seleziona un proprietario."
   },
   "pensionForecast": {
+    "relativeViewNotice": "La previsione pensionistica si basa su importi in sterline, quindi è nascosta con la vista relativa attiva. Disattiva la vista relativa per vederla.",
     "ages": {
       "ageNowHelper": "Dalla data di nascita registrata ({{dob}}).",
       "ageNowLabel": "Età attuale",
@@ -1903,7 +1909,9 @@
     "details": "Dettagli di simulazione storica",
     "noData": "Nessun dati VAR disponibile.",
     "title": "Valore a rischio",
-    "chartAria": "Grafico del Value at Risk"
+    "chartAria": "Grafico del Value at Risk",
+    "relativeHidden": "Gli importi sono nascosti nella vista relativa; apri un dettaglio per vedere la perdita in percentuale.",
+    "viewBreakdown": "Vedi dettaglio"
   },
   "watchlist": {
     "refresh": "Rinfrescare",
@@ -3144,6 +3152,11 @@
     "reportTitle": "Segnala un problema",
     "reportDescription": "Hai trovato un bug o qualcosa di poco chiaro? Faccelo sapere su GitHub così può essere tracciato e risolto.",
     "reportLink": "Apri una issue su GitHub"
+  },
+  "firstRunHelp": {
+    "title": "Nuovo su AllotMint?",
+    "openHelp": "Apri Guida e primi passi",
+    "dismiss": "Ho capito, non mostrare più"
   },
   "reportingCurrency": {
     "converted": "Importi in {{currency}}, convertiti da GBP al tasso odierno (1 {{currency}} = £{{rate}}).",

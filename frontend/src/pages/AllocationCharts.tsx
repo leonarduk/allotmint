@@ -478,7 +478,11 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         </p>
       )}
       {isLookThroughView && lookThrough && (
-        <LookThroughCoverageNote coverage={lookThrough.coverage} format={(v) => reporting.format(v)} />
+        <LookThroughCoverageNote
+          coverage={lookThrough.coverage}
+          format={(v) => reporting.format(v)}
+          totalValue={lookThrough.total_value_gbp}
+        />
       )}
       {isCurrencyView && (
         <p className="mb-4 text-sm text-gray-600" data-testid="currency-exposure-note">
@@ -510,7 +514,11 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
       )}
       {view === "lt-holdings" ? (
         lookThrough ? (
-          <LookThroughHoldingsTable holdings={lookThrough.holdings} format={(v) => reporting.format(v)} />
+          <LookThroughHoldingsTable
+            holdings={lookThrough.holdings}
+            format={(v) => reporting.format(v)}
+            totalValue={lookThrough.total_value_gbp}
+          />
         ) : (
           !lookThroughError && <ChartSkeleton height={400} label={t("app.loading")} />
         )

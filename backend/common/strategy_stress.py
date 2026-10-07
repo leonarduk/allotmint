@@ -27,6 +27,7 @@ The owner's current portfolio is replayed through the same holdings engine as
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
@@ -34,9 +35,12 @@ from typing import Any, Callable, Mapping, Optional
 from backend.common.core_optional import missing_package
 from backend.common.portfolio import build_owner_portfolio
 from backend.common.strategies import Strategy, list_strategies
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import cache_only
 from backend.timeseries.total_return import PRICE_RETURN_BASIS, TOTAL_RETURN_BASIS
 from backend.utils.scenario_tester import apply_historical_event_portfolio, instrument_forward_returns
+
+logger = logging.getLogger(__name__)
 
 ProSleeveReturns = Callable[[str, dt.date, Mapping[str, int]], Optional[tuple[dict[str, Optional[float]], str, str]]]
 
@@ -110,7 +114,16 @@ def _fill_from_pro(sleeve: str, event_date: dt.date, horizons: Mapping[str, int]
     """Fill the horizons the stand-ins left empty from allotmint-pro, when installed."""
     if PRO_SLEEVE_RETURNS is None or all(h.value is not None for h in out.values()):
         return
-    found = PRO_SLEEVE_RETURNS(sleeve, event_date, horizons)
+    try:
+        found = PRO_SLEEVE_RETURNS(sleeve, event_date, horizons)
+    except Exception as exc:  # a pro bug must not fail the whole stress test; the stand-ins still answer
+        logger.warning(
+            "allotmint-pro sleeve returns failed for %s on %s: %s",
+            sanitise_log_value(sleeve),
+            event_date,
+            sanitise_log_value(exc),
+        )
+        return
     if found is None:
         return
     returns, basis, series = found

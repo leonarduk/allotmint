@@ -132,7 +132,9 @@ export function RecordTradeForm(props: Props) {
     setConfirmOversell, saving, error, selected, tradeSide, priceGbp, total, oversell,
     onField, submit,
   } = useRecordTrade(props);
-  const blocked = saving || demoReadOnly || !selected || (oversell && !confirmOversell);
+  // total is null until units and price are both positive numbers.
+  const blocked =
+    saving || demoReadOnly || !selected || total === null || (oversell && !confirmOversell);
   return (
     <form
       aria-label={t("recordTrade.title", { ticker })}

@@ -147,6 +147,26 @@ describe('RecordTradeForm', () => {
     expect(mockCreate.mock.calls[0][0].price_gbp).toBe(288.89);
   });
 
+  it('keeps save disabled until units and price are positive', async () => {
+    const user = userEvent.setup();
+    render(
+      <RecordTradeForm
+        ticker="PHGP.L"
+        side="BUY"
+        positions={POSITIONS}
+        quoteCurrency="GBX"
+        onSaved={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+    const save = screen.getByRole('button', { name: 'Record Buy' });
+    await fillTrade(user, { units: '0', price: '28889.4' });
+    expect(save).toBeDisabled();
+    await user.clear(screen.getByLabelText('Units'));
+    await user.type(screen.getByLabelText('Units'), '34');
+    await waitFor(() => expect(save).toBeEnabled());
+  });
+
   it('warns and blocks a SELL above the units held until confirmed', async () => {
     const user = userEvent.setup();
     render(

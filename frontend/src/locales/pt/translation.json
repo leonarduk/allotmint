@@ -1233,6 +1233,7 @@
     "select": "Selecione um proprietário."
   },
   "pensionForecast": {
+    "relativeViewNotice": "A previsão de pensão baseia-se em valores em libras, por isso fica oculta com a vista relativa ativa. Desative a vista relativa para a ver.",
     "ages": {
       "ageNowHelper": "Com base na data de nascimento registada ({{dob}}).",
       "ageNowLabel": "Idade atual",
@@ -1907,7 +1908,9 @@
     "details": "Detalhes da simulação histórica",
     "noData": "Nenhum dado de VaR disponível.",
     "title": "Valor em Risco",
-    "chartAria": "Gráfico de Valor em Risco"
+    "chartAria": "Gráfico de Valor em Risco",
+    "relativeHidden": "Os valores ficam ocultos na vista relativa; abra um detalhe para ver a perda em percentagem.",
+    "viewBreakdown": "Ver detalhe"
   },
   "watchlist": {
     "refresh": "Atualizar",
@@ -3121,6 +3124,11 @@
     "reportTitle": "Comunicar um problema",
     "reportDescription": "Encontrou um erro ou algo confuso? Diga-nos no GitHub para que possa ser registado e corrigido.",
     "reportLink": "Abrir uma issue no GitHub"
+  },
+  "firstRunHelp": {
+    "title": "Novo no AllotMint?",
+    "openHelp": "Abrir Ajuda e primeiros passos",
+    "dismiss": "Entendi, não mostrar novamente"
   },
   "reportingCurrency": {
     "converted": "Montantes em {{currency}}, convertidos de GBP à taxa de hoje (1 {{currency}} = £{{rate}}).",

@@ -145,13 +145,28 @@ def fetch_yahoo_history(full_ticker: str, start_date: date, end_date: date) -> t
     return normalize_history(raw, full_ticker, "Yahoo"), actions
 
 
+def _store_symbol(ticker: str, exchange: str) -> str:
+    """The ticker part of the ``<SYMBOL>_<EXCHANGE>`` store key for ``ticker``.
+
+    Only the exchange's own Yahoo suffix is dropped, so dotted symbols such as
+    ``BRK.B`` keep their dot and stay keyed like their meta file, which the
+    repair scripts split back with ``path.stem.rpartition("_")`` (#9400).
+        _store_symbol("VHYL.L", "L") -> "VHYL"
+        _store_symbol("BRK.B", "US") -> "BRK.B"
+    """
+    suffix = get_yahoo_suffix(exchange)
+    if suffix and ticker.upper().endswith(suffix):
+        return ticker[: -len(suffix)]
+    return ticker
+
+
 def _store_actions(ticker: str, exchange: str, actions: pd.DataFrame) -> None:
     """Persist fetched dividends/splits; a failure here must not lose the prices.
 
     An empty frame from a successful fetch still records that the window was
     checked and none were paid (#9567); ``record_corporate_actions`` decides.
     """
-    symbol = ticker.split(".")[0]
+    symbol = _store_symbol(ticker, exchange)
     try:
         record_corporate_actions(symbol, exchange, actions)
     except Exception as exc:

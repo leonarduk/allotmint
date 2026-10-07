@@ -106,6 +106,30 @@ def test_transactions_after_end_are_ignored():
     assert lp.chained_return(perf.returns, None, date(2026, 2, 10)) == pytest.approx(0.10)
 
 
+def test_weekend_transaction_at_the_reporting_end_is_dropped_not_moved_back():
+    # Sat 28 Feb rolls to Mon 2 Mar, after the last business day (Fri 27 Feb)
+    # of a Saturday ``end``; it must not land on the Friday before it (#8455).
+    late_deposit = {"date": "2026-02-28", "type": "DEPOSIT", "amount_minor": 50000}
+
+    perf = build(TRANSACTIONS + [late_deposit], end=date(2026, 2, 28))
+
+    assert perf.values.index[-1] == pd.Timestamp("2026-02-27")
+    assert perf.values.iloc[-1] == pytest.approx(2010.0)
+    assert perf.flows[pd.Timestamp("2026-02-27")] == pytest.approx(0.0)
+    assert lp.chained_return(perf.returns, None, date(2026, 2, 28)) == pytest.approx(0.005)
+
+
+def test_weekend_transaction_inside_the_window_rolls_forward_to_monday():
+    weekend_deposit = {"date": "2026-02-14", "type": "DEPOSIT", "amount_minor": 50000}
+
+    perf = build(TRANSACTIONS + [weekend_deposit])
+
+    assert perf.values[pd.Timestamp("2026-02-13")] == pytest.approx(2010.0)
+    assert perf.values[pd.Timestamp("2026-02-16")] == pytest.approx(2510.0)
+    assert perf.flows[pd.Timestamp("2026-02-16")] == pytest.approx(500.0)
+    assert perf.returns[pd.Timestamp("2026-02-16")] == pytest.approx(0.0)
+
+
 def test_transfer_in_is_a_flow_at_market_value():
     transactions = [
         {"date": "2026-01-29", "type": "TRANSFER_IN", "ticker": "AAA.L", "units": 10, "amount_minor": 0},

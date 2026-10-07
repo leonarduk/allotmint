@@ -18,6 +18,7 @@ cash actually received.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import date
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -71,6 +72,14 @@ def _default_currency(symbol: str, exchange: str) -> str:
     return instrument_currency(symbol, exchange)
 
 
+@dataclass(frozen=True)
+class IncomeEstimate:
+    """Estimated GBP dividends: in total, and within the trailing window."""
+
+    total_gbp: float
+    trailing_gbp: float
+
+
 def estimated_income_gbp(
     ticker: str,
     changes: UnitChanges,
@@ -78,12 +87,13 @@ def estimated_income_gbp(
     load_dividends: Optional[DividendLoader] = None,
     currency_of: Optional[CurrencyResolver] = None,
     today: Optional[date] = None,
-    since: Optional[date] = None,
-) -> Optional[float]:
+    trailing_since: Optional[date] = None,
+) -> Optional[IncomeEstimate]:
     """Estimated GBP dividends received on ``ticker`` given its unit ``changes``.
 
-    Counts ex-dates up to ``today`` (default: today), and only those after
-    ``since`` when it is given (the trailing-yield window).
+    Counts ex-dates up to ``today`` (default: today).  ``trailing_gbp`` is the
+    part with an ex-date after ``trailing_since`` (the trailing-yield window,
+    exclusive of its start like :func:`position_returns`); without it, all.
 
     ``None`` when it can't be estimated: the ticker has no exchange, no
     dividend history is stored, or the quote currency can't be converted.
@@ -98,18 +108,23 @@ def estimated_income_gbp(
     if dividends is None:
         return None
     cutoff = (today or date.today()).isoformat()
-    after = since.isoformat() if since is not None else ""
-    total_native = 0.0
+    window_start = trailing_since.isoformat() if trailing_since is not None else ""
+    total_native = trailing_native = 0.0
     for ex_date, per_share in zip(pd.to_datetime(dividends.index), dividends.to_numpy()):
         day = ex_date.date().isoformat()
-        if day > cutoff or day <= after or not per_share or per_share != per_share:
+        if day > cutoff or not per_share or per_share != per_share:
             continue
-        total_native += float(per_share) * _units_before(changes, day)
+        amount = float(per_share) * _units_before(changes, day)
+        total_native += amount
+        if day > window_start:
+            trailing_native += amount
     if not total_native:
-        return 0.0
+        return IncomeEstimate(0.0, 0.0)
     normaliser = CurrencyNormaliser.from_raw((currency_of or _default_currency)(symbol, exchange))
     try:
-        return normaliser.to_gbp(total_native)
+        total_gbp = normaliser.to_gbp(total_native)
     except ValueError as exc:
         logger.warning("Can't estimate dividends for %s: %s", sanitise_log_value(ticker), sanitise_log_value(exc))
         return None
+    # One conversion rate for both, so the two figures stay consistent.
+    return IncomeEstimate(total_gbp, trailing_native * total_gbp / total_native)

@@ -272,7 +272,46 @@ def test_estimate_in_pounds_is_not_scaled():
     income = estimated_income.estimated_income_gbp(
         "KO.N", changes, load_dividends=lambda s, e: series, currency_of=lambda s, e: "GBP"
     )
-    assert income == pytest.approx(5.0)
+    assert income == estimated_income.IncomeEstimate(pytest.approx(5.0), pytest.approx(5.0))
+
+
+def test_trailing_window_excludes_its_start_date():
+    changes = [("2024-01-01", 10.0)]
+    series = _dividends(("2025-01-01", 1.0), ("2025-01-02", 2.0))
+    estimate = estimated_income.estimated_income_gbp(
+        "KO.N",
+        changes,
+        load_dividends=lambda s, e: series,
+        currency_of=lambda s, e: "GBP",
+        today=date(2025, 12, 31),
+        trailing_since=date(2025, 1, 1),
+    )
+    assert estimate.total_gbp == pytest.approx(30.0)
+    # Like position_returns' window, the start date itself is outside it.
+    assert estimate.trailing_gbp == pytest.approx(20.0)
+
+
+def test_transfers_move_the_units_entitled_to_a_dividend(gbx):
+    txs = [
+        {"date": "2024-01-01", "ticker": "REC.L", "type": "TRANSFER_IN", "units": 1000.0},
+        {"date": "2024-03-01", "ticker": "REC.L", "type": "TRANSFER_OUT", "units": 400.0},
+    ]
+    series = _dividends(("2024-02-01", 2.0), ("2024-04-01", 2.0))
+    holding = _attach({"ticker": "REC.L", "market_value_gbp": 300.0, "gain_gbp": None}, txs, series)
+    # 2p on 1000 units, then 2p on the 600 left after the transfer out.
+    assert holding["income_gbp"] == pytest.approx(20.0 + 12.0)
+    assert holding["income_estimated"] is True
+
+
+def test_tagged_income_keeps_its_own_trailing_yield(gbx, monkeypatch):
+    monkeypatch.setattr(position_returns_module, "date", _FixedDate)
+    txs = [*HL_TXS, {"date": "2026-08-01", "ticker": "REC.L", "type": "DIVIDEND", "amount_minor": 6000}]
+    series = _dividends(("2025-11-20", 2.15), ("2026-07-02", 1.45))
+    holding = _attach({"ticker": "REC.L", "market_value_gbp": 2400.0, "gain_gbp": -600.0}, txs, series)
+    # The recorded £60 drives both income and yield; the estimate is not used.
+    assert holding["income_gbp"] == 60.0
+    assert holding["income_estimated"] is False
+    assert holding["yield_pct"] == pytest.approx(60.0 / 2400.0 * 100.0)
 
 
 def test_estimate_without_fx_rate_is_unknown(monkeypatch):

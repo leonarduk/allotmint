@@ -190,15 +190,15 @@ def _with_estimated_income(
     """``entry`` with estimated income when no transaction row names the instrument."""
     if (entry is not None and entry.income_rows) or not changes:
         return entry
-    estimate = estimated_income_gbp(ticker, changes, load_dividends=load_dividends)
-    if not estimate:
+    since = date.today() - timedelta(days=TRAILING_YIELD_DAYS)
+    estimate = estimated_income_gbp(ticker, changes, load_dividends=load_dividends, trailing_since=since)
+    if estimate is None or not estimate.total_gbp:
         return entry
     entry = replace(entry) if entry is not None else PositionReturn()
-    entry.income_gbp = estimate
+    entry.income_gbp = estimate.total_gbp
+    # The trailing yield (#7019) comes from the same estimate, over its window.
+    entry.trailing_income_gbp = estimate.trailing_gbp
     entry.income_estimated = True
-    # The trailing yield (#7019) needs the same estimate over its window.
-    since = date.today() - timedelta(days=TRAILING_YIELD_DAYS)
-    entry.trailing_income_gbp = estimated_income_gbp(ticker, changes, load_dividends=load_dividends, since=since) or 0.0
     return entry
 
 

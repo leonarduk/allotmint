@@ -77,7 +77,7 @@ def test_falls_back_to_price_and_fees_and_groups_by_name_without_ticker():
 
 
 def test_amount_minor_is_settled_net_of_fees_so_fees_are_not_subtracted_again():
-    # Convention (#8568): amount_minor is the settled cash, already net of fees --
+    # Convention (#7967): amount_minor is the settled cash, already net of fees --
     # a SELL's amount_minor is proceeds after fees, a BUY's is cost including fees.
     # A stored ``fees`` value alongside it is informational and must not be applied again.
     txs = [

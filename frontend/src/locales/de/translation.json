@@ -1950,6 +1950,7 @@
     "everyMinute": "Jede Minute",
     "manual": "Manuell",
     "marketsClosed": "Märkte geschlossen",
+    "staleAge": "{{days}} T. alt",
     "addTicker": "{{symbol}} zur Beobachtungsliste hinzufügen",
     "removeTicker": "{{symbol}} von der Beobachtungsliste entfernen"
   },

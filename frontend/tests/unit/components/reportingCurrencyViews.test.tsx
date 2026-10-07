@@ -270,6 +270,36 @@ describe('AccountBlock estimated value (#9795)', () => {
       screen.queryByText(compact(1000, 'USD'), { exact: false })
     ).not.toBeInTheDocument();
   });
+
+  it('shows GBP unchanged when value_estimate_currency is unset', async () => {
+    render(
+      <AccountBlock
+        account={account({ value_estimate_currency: undefined })}
+      />,
+      { wrapper: withCurrency('GBP') }
+    );
+
+    expect(
+      await screen.findByText(compact(1000, 'GBP'), { exact: false })
+    ).toBeInTheDocument();
+    expect(mockGetGbpRate).not.toHaveBeenCalled();
+  });
+
+  it('converts to a non-GBP reporting currency despite a non-GBP tag', async () => {
+    render(
+      <AccountBlock
+        account={account({ currency: 'EUR', value_estimate_currency: 'EUR' })}
+      />,
+      { wrapper: withCurrency('USD') }
+    );
+
+    expect(
+      await screen.findByText(compact(1250, 'USD'), { exact: false })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(compact(1000, 'EUR'), { exact: false })
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe('ValueAtRisk in the reporting currency', () => {

@@ -3260,7 +3260,9 @@
     "col": {
       "strategy": "Strategy",
       "actions": "Actions"
-    }
+    },
+    "rowMissing": "No price history for: {{missing}}",
+    "nothingCovered": "None of the strategies or your holdings have stored prices around {{date}}. Choose a later event."
   },
   "assetClasses": {
     "equity": "Equity",

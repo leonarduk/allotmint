@@ -3267,7 +3267,9 @@
     "col": {
       "strategy": "Strategia",
       "actions": "Azioni"
-    }
+    },
+    "rowMissing": "Nessuno storico dei prezzi per: {{missing}}",
+    "nothingCovered": "Nessuna strategia e nessuna delle tue posizioni ha prezzi salvati intorno al {{date}}. Scegli un evento successivo."
   },
   "assetClasses": {
     "equity": "Azioni",

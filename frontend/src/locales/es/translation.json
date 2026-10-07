@@ -3267,7 +3267,9 @@
     "col": {
       "strategy": "Estrategia",
       "actions": "Acciones"
-    }
+    },
+    "rowMissing": "Sin historial de precios para: {{missing}}",
+    "nothingCovered": "Ninguna estrategia ni tus posiciones tienen precios guardados en torno al {{date}}. Elige un evento posterior."
   },
   "assetClasses": {
     "equity": "Renta variable",

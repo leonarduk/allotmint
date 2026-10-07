@@ -3267,7 +3267,9 @@
     "col": {
       "strategy": "Strategie",
       "actions": "Aktionen"
-    }
+    },
+    "rowMissing": "Keine Kursdaten für: {{missing}}",
+    "nothingCovered": "Für keine Strategie und keine Ihrer Positionen sind Kurse um den {{date}} gespeichert. Wählen Sie ein späteres Ereignis."
   },
   "assetClasses": {
     "equity": "Aktien",

@@ -668,6 +668,18 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     });
   }, [portfolio, activeOwner, activeAccountType]);
 
+  // The owner's whole portfolio value (ignoring any account-type filter, as
+  // VaR is computed over every account): relative view shows VaR as a % of
+  // it rather than a £ amount (#10022).
+  const ownerPortfolioValue = useMemo(() => {
+    if (!activeOwner || !portfolio) return null;
+    const summary = portfolio.members_summary?.find((m) => m.owner === activeOwner);
+    if (summary) return summary.total_value_estimate_gbp;
+    return portfolio.accounts
+      .filter((acct) => acct.owner === activeOwner)
+      .reduce((sum, acct) => sum + (acct.value_estimate_gbp ?? 0), 0);
+  }, [portfolio, activeOwner]);
+
   const scopedRows = useMemo(
     () => toScopedHoldingRows(filteredAccounts),
     [filteredAccounts],
@@ -1502,6 +1514,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           accounts={filteredAccounts}
           activeAccountType={activeAccountType}
           onDateChange={setAsOfOverride}
+          portfolioValue={ownerPortfolioValue}
           onMutated={() => {
             refetchPortfolio();
             setInstrumentRefreshVersion((version) => version + 1);

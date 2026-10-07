@@ -179,7 +179,7 @@ describe("ValueAtRisk component", () => {
 });
 
 describe("ValueAtRisk relative view (#10022)", () => {
-  const renderVar = (relative: boolean) => {
+  const renderVar = (relative: boolean, portfolioValue?: number | null) => {
     vi.mocked(api.getValueAtRisk).mockResolvedValue({
       owner: "alice",
       as_of: "2024-01-01",
@@ -195,10 +195,28 @@ describe("ValueAtRisk relative view (#10022)", () => {
     } as any);
     return render(
       <configContext.Provider value={configWith(relative)}>
-        <ValueAtRisk owner="alice" />
+        <ValueAtRisk owner="alice" portfolioValue={portfolioValue} />
       </configContext.Provider>,
     );
   };
+
+  it("shows VaR as a % of portfolio value when the value is known", async () => {
+    renderVar(true, 100000);
+
+    await waitFor(() => expect(screen.getByText(/95%:/)).toHaveTextContent("1.23%"));
+    expect(screen.getByText(/99%:/)).toHaveTextContent("6.79%");
+    expect(screen.queryByTestId("var-relative-note")).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/£/);
+  });
+
+  it("falls back to the breakdown link when portfolio value is unusable", async () => {
+    renderVar(true, 0);
+
+    await waitFor(() =>
+      expect(screen.getByText(/95%:/)).toHaveTextContent("View breakdown"),
+    );
+    expect(screen.getByTestId("var-relative-note")).toBeInTheDocument();
+  });
 
   it("hides absolute VaR amounts but still opens the % breakdown", async () => {
     renderVar(true);
@@ -217,7 +235,7 @@ describe("ValueAtRisk relative view (#10022)", () => {
   });
 
   it("shows VaR amounts when relative view is off", async () => {
-    renderVar(false);
+    renderVar(false, 100000);
 
     await waitFor(() =>
       expect(screen.getByText(/95%:/)).toHaveTextContent("£1,234.50"),

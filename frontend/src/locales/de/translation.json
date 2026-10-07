@@ -3205,6 +3205,26 @@
     "noPlan": "Für {{owner}} ist noch kein Anlageplan gespeichert.",
     "createPlan": "Plan erstellen"
   },
+  "classify": {
+    "title": "Positionen klassifizieren",
+    "intro": "Diese Positionen haben keine Anlageklasse und zählen daher auf der Strategie-Seite nicht zu Ihren Zielen. Wählen Sie für jede eine Klasse; sie wird in den Instrument-Metadaten gespeichert.",
+    "back": "Zurück zur Strategie",
+    "noOwner": "Wählen Sie zuerst auf der Strategie-Seite einen Inhaber.",
+    "empty": "Jede Position hat eine Anlageklasse – nichts zu klassifizieren.",
+    "loadError": "Positionen für {{owner}} konnten nicht geladen werden: {{error}}",
+    "saveError": "Speichern fehlgeschlagen: {{error}}",
+    "saved": "{{ticker}} als {{assetClass}} gespeichert.",
+    "choose": "Auswählen…",
+    "selectLabel": "Anlageklasse für {{ticker}}",
+    "save": "Speichern",
+    "saving": "Wird gespeichert…",
+    "noExchange": "Dieser Ticker hat kein Börsensuffix; legen Sie die Anlageklasse in der Instrumentverwaltung fest.",
+    "col": {
+      "holding": "Position",
+      "value": "Wert",
+      "assetClass": "Anlageklasse"
+    }
+  },
   "strategy": {
     "title": "Strategie",
     "intro": "Wählen Sie eine Zielallokation – eine integrierte Strategie, eine eigene oder individuelle Ziele – und vergleichen Sie dann Ihre Bestände damit. So sehen Sie, welche Rebalancing-Trades oder welcher Beitrag sie wieder in Ihr Toleranzband bringen würden.",
@@ -3240,6 +3260,7 @@
       "underweight": "Untergewichtet",
       "unclassified": "Nicht klassifiziert",
       "needsAssetClass": "Anlageklasse erforderlich",
+      "classifyLink": "Diesen Positionen Anlageklassen zuweisen",
       "totalLine": "Gesamt {{total}} · Toleranz ±{{tolerance}} PP",
       "sleeveTitle": "Abweichung — Segment {{sleeve}}"
     },

@@ -3205,6 +3205,26 @@
     "noPlan": "Todavía no hay un plan de inversión guardado para {{owner}}.",
     "createPlan": "Crear plan"
   },
+  "classify": {
+    "title": "Clasificar posiciones",
+    "intro": "Estas posiciones no tienen clase de activo, así que la página de Estrategia no puede contarlas para sus objetivos. Elija una clase para cada una; se guarda en los metadatos del instrumento.",
+    "back": "Volver a Estrategia",
+    "noOwner": "Elija primero un titular en la página de Estrategia.",
+    "empty": "Todas las posiciones tienen clase de activo: nada que clasificar.",
+    "loadError": "No se pudieron cargar las posiciones de {{owner}}: {{error}}",
+    "saveError": "No se pudo guardar: {{error}}",
+    "saved": "{{ticker}} guardado como {{assetClass}}.",
+    "choose": "Elegir…",
+    "selectLabel": "Clase de activo de {{ticker}}",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "noExchange": "Este ticker no tiene sufijo de mercado; defina su clase de activo en la administración de instrumentos.",
+    "col": {
+      "holding": "Posición",
+      "value": "Valor",
+      "assetClass": "Clase de activo"
+    }
+  },
   "strategy": {
     "title": "Estrategia",
     "intro": "Elija una asignación objetivo (una estrategia integrada, una propia u objetivos personalizados), compare sus posiciones con ella y vea qué operaciones de reequilibrio, o qué aportación, la devolverían a su banda de tolerancia.",
@@ -3240,6 +3260,7 @@
       "underweight": "Infraponderado",
       "unclassified": "Sin clasificar",
       "needsAssetClass": "Necesita una clase de activo",
+      "classifyLink": "Asignar clases de activo a estas posiciones",
       "totalLine": "Total {{total}} · tolerancia ±{{tolerance}} pp",
       "sleeveTitle": "Desviación — bloque {{sleeve}}"
     },

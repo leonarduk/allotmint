@@ -241,6 +241,23 @@ def test_unclassified_bucket_is_reported_not_dropped():
     assert any("no asset class" in note for note in plan["notes"])
 
 
+def test_unclassified_holdings_listed_for_classify_page():
+    # #9495: the classify page lists each unclassified instrument once, summed
+    # across accounts, largest first, with the symbol/exchange to save it under.
+    plan = build_plan(
+        _portfolio(
+            ("ISA", [_h("AAA.L", 500, "equity"), _h("QQQ.N", 100, None), _h("ZZZ", 300, None)]),
+            ("SIPP", [_h("QQQ.N", 150, None), _h("CASH.GBP", 50)]),
+        ),
+        _policy(equity=100),
+    )
+    assert plan["unclassified_holdings"] == [
+        {"ticker": "ZZZ", "symbol": "ZZZ", "exchange": None, "name": None, "value": 300.0},
+        {"ticker": "QQQ.N", "symbol": "QQQ", "exchange": "N", "name": None, "value": 250.0},
+    ]
+    assert plan["unclassified_value"] == 550.0
+
+
 # ----------------------------------------------------------------- trades
 
 

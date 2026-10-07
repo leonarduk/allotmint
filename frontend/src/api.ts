@@ -1762,6 +1762,33 @@ export const updateInstrumentMetadata = (
     },
   );
 
+/**
+ * Save an instrument's asset class (#9495): merges into its existing metadata,
+ * or creates the metadata when the instrument has none yet.
+ */
+export const setInstrumentAssetClass = async (
+  ticker: string,
+  exchange: string,
+  assetClass: string,
+  name?: string | null,
+): Promise<void> => {
+  try {
+    await fetchJson(instrumentAdminUrl(ticker, exchange), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ asset_class: assetClass }),
+    });
+  } catch (error) {
+    if ((error as { status?: number }).status !== 404) throw error;
+    await createInstrumentMetadata(ticker, exchange, {
+      ticker: `${ticker}.${exchange}`,
+      exchange,
+      name: name || ticker,
+      asset_class: assetClass,
+    });
+  }
+};
+
 export type InstrumentMetadataRefreshResponse = {
   status: string;
   metadata: InstrumentMetadata & Record<string, unknown>;

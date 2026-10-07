@@ -338,6 +338,12 @@
                           "null"
                         ]
                       },
+                      "yield_pct": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
                       "current_price_gbp": {
                         "type": [
                           "number",
@@ -402,6 +408,12 @@
                         ]
                       },
                       "region": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "domicile_region": {
                         "type": [
                           "string",
                           "null"
@@ -718,6 +730,12 @@
                           "null"
                         ]
                       },
+                      "yield_pct": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
                       "current_price_gbp": {
                         "type": [
                           "number",
@@ -782,6 +800,12 @@
                         ]
                       },
                       "region": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "domicile_region": {
                         "type": [
                           "string",
                           "null"

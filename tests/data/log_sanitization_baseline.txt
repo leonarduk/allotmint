@@ -11,6 +11,9 @@
 # or moving it to another function) does. Identical calls in the same scope
 # share a key: list it once per occurrence.
 #
+# Entries that no longer match any current call fail the audit too (#7702):
+# when you remove, sanitise, or edit a baselined call, delete its entry.
+#
 # Keep entries sorted. Lines starting with # are comments; put a comment
 # above any new entry explaining why its value can't carry
 # attacker-controlled input. Print the current findings in this format with:
@@ -31,6 +34,10 @@ backend/auth.py::_allowed_emails::logger.warning('Accounts root %s does not exis
 # caller, never attacker-controlled; email/token on the same call are already
 # wrapped in sanitise_log_value.
 backend/auth.py::_authorize_email::logger.warning('Unauthorized %s login attempt for %s (token %.8s)', provider, sanitise_log_value(email), sanitise_log_value(token[:8]))
+# attempt/CONVERSE_MAX_RETRIES/delay are internal retry-loop ints/floats
+# (counter, module constant, computed backoff) -- never user input; the
+# exception text is already wrapped in sanitise_log_value (#7611).
+backend/chat/bedrock_agent.py::_converse_with_retry::logger.warning('Bedrock converse() attempt %d/%d failed transiently, retrying in %.1fs: %s', attempt + 1, CONVERSE_MAX_RETRIES + 1, delay, sanitise_log_value(exc))
 backend/common/accounts_store.py::S3AccountsStore._iter_keys::logger.warning('S3 list failed for s3://%s/%s: %s', self.bucket, sanitise_log_value(prefix), sanitise_log_value(exc))
 backend/common/accounts_store.py::S3AccountsStore.read_document::logger.warning('S3 read failed for s3://%s/%s: %s', self.bucket, sanitise_log_value(key), sanitise_log_value(exc))
 backend/common/accounts_store.py::S3AccountsStore.read_document::logger.warning('S3 read failed for s3://%s/%s: %s', self.bucket, sanitise_log_value(key), sanitise_log_value(exc))
@@ -94,6 +101,9 @@ backend/common/storage.py::S3JSONStorage.load::logger.warning('S3 load failed fo
 # len(adjustments) is always an int (a count of synthetic transactions just
 # built in this function) and can't carry attacker-controlled string content.
 backend/common/transaction_reconciliation.py::reconcile_transactions_with_holdings::logger.info('Injecting %d synthetic transaction(s) for %s/%s', len(adjustments), sanitise_log_value(owner_dir.name), sanitise_log_value(stem))
+# type(val).__name__ is a Python builtin type name ("str", "list", ...), never
+# the config value itself, so it can't carry attacker-controlled content.
+backend/config.py::_parse_error_summary::logger.warning('Ignoring error_summary: expected a mapping such as {default_command: [...]}, got %s', type(val).__name__)
 backend/config.py::load_config::logger.exception('Failed to parse config file %s', path)
 backend/config.py::load_config::logger.exception('Failed to read config file %s', path)
 # len(lines)/len(data) are always ints (row counts produced by the CSV
@@ -105,15 +115,11 @@ backend/reports.py::FileTemplateStore.get_template::logger.warning('failed to lo
 backend/reports.py::FileTemplateStore.get_template::logger.warning('invalid template definition in %s: %s', path, sanitise_log_value(exc))
 backend/reports.py::FileTemplateStore.list_templates::logger.warning('failed to load report template %s: %s', path, sanitise_log_value(exc))
 backend/reports.py::FileTemplateStore.list_templates::logger.warning('invalid template definition in %s: %s', path, sanitise_log_value(exc))
-backend/reports.py::_load_transactions::logger.warning('failed to load %s from bucket %s: %s', key, bucket, sanitise_log_value(exc))
-backend/reports.py::_load_transactions::logger.warning('failed to paginate S3 objects for prefix %s: %s', prefix, sanitise_log_value(exc))
+backend/reports.py::_load_transactions_s3::logger.warning('failed to load %s from bucket %s: %s', key, bucket, sanitise_log_value(exc))
+backend/reports.py::_load_transactions_s3::logger.warning('failed to paginate S3 objects for prefix %s: %s', prefix, sanitise_log_value(exc))
 backend/reports.py::_load_transactions::logger.warning('failed to read %s: %s', path, sanitise_log_value(exc))
 backend/reports.py::_parse_key_findings_text::logger.error('Skipping invalid key finding from %s because it exceeds %s characters: %s', source_name, max_length, value)
 backend/reports.py::build_report_document::logger.warning('No builder registered for section source %s', schema.source)
-backend/routes/market.py::_fetch_us_sector_etf_changes::logger.warning('Skipping sector fallback for %s because %s close data is missing', sector, symbol)
-backend/routes/market.py::_fetch_us_sector_etf_changes::logger.warning('Skipping sector fallback for %s because %s has fewer than 2 closes', sector, symbol)
-backend/routes/market.py::_fetch_us_sector_etf_changes::logger.warning('Skipping sector fallback for %s because previous close is zero', sector)
-backend/routes/market.py::_fetch_us_sector_etf_changes::logger.warning('Skipping sector fallback for %s due to invalid close data', sector)
 backend/routes/market.py::_get_headline_max_age::logger.warning('HEADLINE_MAX_AGE_HOURS must be positive; using the %.0f-hour default', DEFAULT_HEADLINE_MAX_AGE_HOURS)
 backend/routes/market.py::_get_headline_max_age::logger.warning('Invalid HEADLINE_MAX_AGE_HOURS=%r; using the %.0f-hour default', sanitise_log_value(raw_hours), DEFAULT_HEADLINE_MAX_AGE_HOURS)
 backend/routes/signup.py::_post_signup_request_impl::logger.exception('Failed to send signup admin email for request %s', record.id)
@@ -125,7 +131,6 @@ backend/routes/support.py::post_portfolio_health::logger.exception('Portfolio he
 backend/routes/support.py::post_portfolio_health::logger.exception('Portfolio health refresh task failed: %s', exc)
 backend/routes/timeseries_admin.py::timeseries_admin::logger.warning('Failed to load %s from S3: %s', key, sanitise_log_value(exc))
 backend/routes/timeseries_admin.py::timeseries_admin::logger.warning('Failed to load %s: %s', path, sanitise_log_value(exc))
-backend/timeseries/cache.py::_convert_to_base_currency._load_rates::logger.debug('FX cache read miss (%s): %s', path, exc)
 backend/timeseries/cache.py::_ensure_schema::logger.warning("Timeseries 'Date' column is tz-aware (%s); converting to UTC and stripping timezone before casting to datetime64[ms].", dates.dt.tz)
 backend/timeseries/cache.py::_load_parquet::logger.debug('Cache read miss (%s): %s', path, exc)
 backend/timeseries/cache.py::_load_parquet::logger.debug('Loaded %s rows from cache: %s', len(df), path)

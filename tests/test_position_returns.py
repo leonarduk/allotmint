@@ -1,6 +1,7 @@
 """Per-position total return: capital gain plus income and realised gains (#9038)."""
 
 import json
+from datetime import date
 from unittest.mock import patch
 
 import pytest
@@ -170,3 +171,34 @@ def test_group_portfolio_gets_same_total_return_as_owner_portfolio(tmp_path, mon
     assert group_holding["total_return_gbp"] == 90.0
     for key in TOTAL_RETURN_FIELDS:
         assert group_holding[key] == owner_holding[key]
+
+
+def test_trailing_income_counts_only_the_last_twelve_months():
+    returns = position_returns(TXS, as_of=date(2023, 3, 1))
+    # 2022-06-01 (£12) and 2022-09-01 (£8) fall inside the year to 2023-03-01.
+    assert returns["KO.N"].trailing_income_gbp == pytest.approx(20.0)
+    later = position_returns(TXS, as_of=date(2023, 7, 1))
+    # The June payout has dropped out of the window by July 2023.
+    assert later["KO.N"].trailing_income_gbp == pytest.approx(8.0)
+    assert later["KO.N"].income_gbp == pytest.approx(20.0)
+
+
+def test_yield_pct_is_trailing_income_over_market_value():
+    holding = {"ticker": "KO.N", "market_value_gbp": 400.0, "gain_gbp": 100.0}
+    apply_total_return(holding, position_returns(TXS, as_of=date(2023, 3, 1))["KO.N"])
+    assert holding["yield_pct"] == pytest.approx(5.0)
+
+
+def test_yield_pct_unknown_without_recent_income():
+    holding = {"ticker": "KO.N", "market_value_gbp": 400.0, "gain_gbp": 100.0}
+    # Nothing paid in the year to 2025: no known yield, not a 0% one.
+    apply_total_return(holding, position_returns(TXS, as_of=date(2025, 1, 1))["KO.N"])
+    assert holding["yield_pct"] is None
+    apply_total_return(holding, None)
+    assert holding["yield_pct"] is None
+
+
+def test_yield_pct_unknown_without_market_value():
+    holding = {"ticker": "KO.N", "market_value_gbp": None, "gain_gbp": None}
+    apply_total_return(holding, position_returns(TXS, as_of=date(2023, 3, 1))["KO.N"])
+    assert holding["yield_pct"] is None

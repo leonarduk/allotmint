@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { getMarketIndexes, getMarketOverview } from '../api';
 import type {
   IndexPerformance,
@@ -10,7 +11,12 @@ import EmptyState from '../components/EmptyState';
 import SectorPerformance from '../components/market/SectorPerformance';
 import PeriodToggle from '../components/market/PeriodToggle';
 import { usePeriodLabel } from '../components/market/periods';
-import { changeColor, formatPctTick } from '../components/market/chartFormat';
+import {
+  changeColor,
+  formatIndexLevel,
+  formatLatestAsOf,
+  formatPctTick,
+} from '../components/market/chartFormat';
 import { formatPublishedAt } from '../lib/date';
 import {
   ResponsiveContainer,
@@ -30,7 +36,7 @@ export const IndexTooltip = ({ active, payload, label }: any) => {
     return (
       <div className="rounded border bg-white p-2 text-sm shadow text-gray-900">
         <p className="font-semibold">{label}</p>
-        <p>{t('market.tooltipLevel', { value: value.toLocaleString() })}</p>
+        <p>{t('market.tooltipLevel', { value: formatIndexLevel(value) })}</p>
         <p>{t('market.tooltipChange', { value: safeChange.toFixed(2) })}</p>
       </div>
     );
@@ -49,8 +55,14 @@ function IndexChart({
     value,
     change,
   }));
+  const asOf = formatLatestAsOf(indexes);
   return (
     <>
+      {asOf && (
+        <p className="mb-2 text-sm text-gray-500">
+          {t('market.asOf', { date: asOf, defaultValue: 'As of {{date}}' })}
+        </p>
+      )}
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={indexData}>
           <XAxis dataKey="name" />
@@ -75,7 +87,7 @@ function IndexChart({
           {indexData.map((row) => (
             <tr key={row.name}>
               <td>{row.name}</td>
-              <td>{row.value.toLocaleString()}</td>
+              <td>{formatIndexLevel(row.value)}</td>
               <td
                 className={
                   row.change !== undefined && row.change !== null
@@ -95,6 +107,27 @@ function IndexChart({
       </table>
     </>
   );
+}
+
+// Say why the feed is empty rather than one bare "No headlines available",
+// which read the same for a missing provider key as for a quiet day (#7788).
+function headlinesEmptyMessage(
+  status: MarketOverviewData['headlines_status'],
+  t: TFunction,
+): string {
+  if (status === 'quota_exhausted') {
+    return t('market.headlinesQuotaExhausted', {
+      defaultValue:
+        "No headlines: the news provider's request quota is used up. Try again later.",
+    });
+  }
+  if (status === 'unavailable') {
+    return t('market.headlinesUnavailable', {
+      defaultValue:
+        'No headlines: no news source responded. Check the news provider configuration (e.g. ALPHA_VANTAGE_KEY) or try again later.',
+    });
+  }
+  return t('market.noHeadlines', { defaultValue: 'No headlines available' });
 }
 
 export default function MarketOverview() {
@@ -203,9 +236,7 @@ export default function MarketOverview() {
           {t('market.latestHeadlines', { defaultValue: 'Latest Headlines' })}
         </h2>
         {data.headlines.length === 0 ? (
-          <EmptyState
-            message={t('market.noHeadlines', { defaultValue: 'No headlines available' })}
-          />
+          <EmptyState message={headlinesEmptyMessage(data.headlines_status, t)} />
         ) : (
           <ul className="list-disc pl-4">
             {data.headlines.map((h, idx) => {

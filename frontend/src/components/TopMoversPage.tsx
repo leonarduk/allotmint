@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +8,12 @@ import type { OpportunityEntry } from "../types";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { SignalBadge } from "./SignalBadge";
+import {
+  ChecksSkippedBadge,
+  SignalFactors,
+  SignalStrength,
+} from "./SignalDetails";
+import { formatSignalAction } from "../utils/formatSignalAction";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
 import LoadingStatus from "./skeletons/LoadingStatus";
@@ -17,7 +23,6 @@ import { useFetch } from "../hooks/useFetch";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { loadJSON, saveJSON } from "../utils/storage";
 import { MAX_TRADING_SIGNAL_ROWS } from "../constants/renderLimits";
 
@@ -85,35 +90,24 @@ export function TopMoversPage() {
   const fetchMovers = useCallback(async () => {
     if (watchlist === "Portfolio") {
       try {
-        const rows = await getGroupInstruments(ALL_PORTFOLIOS_SLUG);
-        const total = rows.reduce(
-          (sum, r) => sum + (r.market_value_gbp ?? 0),
-          0,
-        );
-        setPortfolioTotal(total);
-        setNeedsLogin(false);
-      } catch (e) {
-        if (e instanceof Error && /^HTTP 401/.test(e.message)) {
-          setNeedsLogin(true);
-          setWatchlist("FTSE 100");
-          setPortfolioTotal(null);
-          return getOpportunities({
-            tickers: WATCHLISTS["FTSE 100"],
+        setFallbackError(null);
+        // The holdings total (for "% of portfolio") and the movers themselves
+        // are independent, so fetch them concurrently rather than chaining a
+        // second slow round trip behind the first (#7788 item 4).
+        const [holdings, opportunities] = await Promise.all([
+          getGroupInstruments(ALL_PORTFOLIOS_SLUG),
+          getOpportunities({
+            group: ALL_PORTFOLIOS_SLUG,
             days: PERIODS[period],
             limit: 10,
-          });
-        }
-        throw e;
-      }
-
-      try {
-        setFallbackError(null);
-        return await getOpportunities({
-          group: ALL_PORTFOLIOS_SLUG,
-          days: PERIODS[period],
-          limit: 10,
-          minWeight: excludeSmall ? MIN_WEIGHT : 0,
-        });
+            minWeight: excludeSmall ? MIN_WEIGHT : 0,
+          }),
+        ]);
+        setPortfolioTotal(
+          holdings.reduce((sum, r) => sum + (r.market_value_gbp ?? 0), 0),
+        );
+        setNeedsLogin(false);
+        return opportunities;
       } catch (e) {
         if (e instanceof Error && /^HTTP 401/.test(e.message)) {
           setNeedsLogin(true);
@@ -159,35 +153,15 @@ export function TopMoversPage() {
     return entries;
   }, [data, watchlist, portfolioTotal]);
 
+  // Descending by default: the backend returns the top N gainers *and* the
+  // top N losers, and an ascending sort pushed every gainer below the losers
+  // (#7788 item 2).
   const { sorted, handleSort } = useSortableTable<ExtendedMoverRow>(
     rows,
     "change_pct",
+    false,
   );
 
-  const tableContainerRef = useRef<HTMLDivElement>(null);
-  const tableHeaderRef = useRef<HTMLTableSectionElement>(null);
-  const [headerHeight, setHeaderHeight] = useState(0);
-  useEffect(() => {
-    if (tableHeaderRef.current) {
-      setHeaderHeight(tableHeaderRef.current.getBoundingClientRect().height);
-    }
-  }, []);
-
-  const rowVirtualizer = useVirtualizer({
-    count: sorted.length,
-    getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => 40,
-    overscan: 5,
-    scrollMargin: headerHeight,
-  });
-  const virtualRows = rowVirtualizer.getVirtualItems();
-  const paddingTop = virtualRows.length ? virtualRows[0].start : 0;
-  const paddingBottom = virtualRows.length
-    ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
-    : 0;
-  const items = virtualRows.length
-    ? virtualRows
-    : sorted.map((_, index) => ({ index, start: index * 40, end: (index + 1) * 40 }));
   const colSpan = watchlist === "Portfolio" ? 6 : 4;
   const visibleSignals = data?.signals.slice(0, MAX_TRADING_SIGNAL_ROWS) ?? [];
   const loadingLabel = t("movers.loading");
@@ -300,12 +274,12 @@ export function TopMoversPage() {
         </LoadingStatus>
       )}
 
-      <div
-        ref={tableContainerRef}
-        style={{ maxHeight: "60vh", overflowY: "auto", overflowX: "auto" }}
-      >
+      {/* No scroll box or virtualisation: the list is capped at the top 10
+          gainers plus top 10 losers, and a clipped scroll box hid rows that
+          the Signals table below still listed (#7788 item 3). */}
+      <div style={{ overflowX: "auto" }}>
       <table className={tableStyles.table}>
-        <thead ref={tableHeaderRef}>
+        <thead>
           <tr>
             <th
               className={`${tableStyles.cell} ${tableStyles.clickable}`}
@@ -363,15 +337,9 @@ export function TopMoversPage() {
             />
           ) : (
             <>
-              {paddingTop > 0 && (
-                <tr style={{ height: paddingTop }}>
-                  <td colSpan={colSpan} style={{ padding: 0, border: 0 }} />
-                </tr>
-              )}
-              {items.map((virtualRow) => {
-                const r = sorted[virtualRow.index];
+              {sorted.map((r, index) => {
                 return (
-                  <tr key={`${r.ticker}-${virtualRow.index}`}>
+                  <tr key={`${r.ticker}-${index}`}>
                     <td className={tableStyles.cell}>
                       <button
                         type="button"
@@ -422,11 +390,6 @@ export function TopMoversPage() {
                   </tr>
                 );
               })}
-              {paddingBottom > 0 && (
-                <tr style={{ height: paddingBottom }}>
-                  <td colSpan={colSpan} style={{ padding: 0, border: 0 }} />
-                </tr>
-              )}
             </>
           )}
         </tbody>
@@ -439,13 +402,26 @@ export function TopMoversPage() {
       ) : !data || data.signals.length === 0 ? (
         <p>{t("trading.noSignals")}</p>
       ) : (
-        <>
-          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+        <section aria-labelledby="movers-signals-title" style={{ marginTop: "1rem" }}>
+          <h2 id="movers-signals-title" style={{ fontSize: "1.125rem", fontWeight: 600 }}>
+            {t("movers.signalsTableTitle")}
+          </h2>
+          <p style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+            {t("movers.signalsTableNote", { period })}
+          </p>
+          <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
                 <th style={{ textAlign: "left", padding: "4px" }}>{t("common.ticker")}</th>
                 <th style={{ textAlign: "left", padding: "4px" }}>{t("common.action")}</th>
+                <th style={{ textAlign: "left", padding: "4px" }}>
+                  {t("trading.columns.strengthHeader")}
+                </th>
                 <th style={{ textAlign: "left", padding: "4px" }}>{t("common.reason")}</th>
+                <th style={{ textAlign: "left", padding: "4px" }}>
+                  {t("trading.columns.why")}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -462,12 +438,22 @@ export function TopMoversPage() {
                       {s.ticker}
                     </a>
                   </td>
-                  <td style={{ padding: "4px" }}>{s.action}</td>
+                  <td style={{ padding: "4px" }}>
+                    {formatSignalAction(s.action)}
+                    <ChecksSkippedBadge checksSkipped={s.checks_skipped} />
+                  </td>
+                  <td style={{ padding: "4px" }}>
+                    <SignalStrength confidence={s.confidence} />
+                  </td>
                   <td style={{ padding: "4px" }}>{s.reason}</td>
+                  <td style={{ padding: "4px" }}>
+                    <SignalFactors factors={s.factors} rationale={s.rationale} />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
           {data.signals.length > MAX_TRADING_SIGNAL_ROWS && (
             <p style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "#64748b" }}>
               {t("topMoversPage.showingFirst", {
@@ -476,7 +462,7 @@ export function TopMoversPage() {
               })}
             </p>
           )}
-        </>
+        </section>
       )}
 
       {selected && (

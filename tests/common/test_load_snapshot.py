@@ -342,10 +342,14 @@ def test_seed_prices_file_loads_demo_holdings(tmp_path, monkeypatch):
     data, ts = pu._load_snapshot()
 
     assert data, "Seed prices file must not be empty"
-    for ticker in ("VWRL.L", "ERNS.L", "PFE.N"):
+    # Each close is tagged with the currency it is quoted in: PFE.N's seed value
+    # is a native US-dollar close, so it is USD, not GBP -- readers convert it
+    # rather than valuing it 1:1 as sterling (#7788 item 10).
+    expected_currency = {"VWRL.L": "GBP", "ERNS.L": "GBP", "PFE.N": "USD"}
+    for ticker, currency in expected_currency.items():
         assert ticker in data, f"Seed prices must include demo holding {ticker}"
         entry = data[ticker]
         assert (
             entry.get("last_price") is not None and entry["last_price"] > 0
         ), f"{ticker} must have a positive last_price"
-        assert entry.get("price_currency") == "GBP", f"{ticker} price must be in GBP"
+        assert entry.get("price_currency") == currency, f"{ticker} price must be in {currency}"

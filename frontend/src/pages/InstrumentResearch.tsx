@@ -1468,6 +1468,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         style={{
           display: "flex",
           gap: "0.5rem",
+          // At md+ the row is nowrap; with eight tabs it can exceed a
+          // tablet-width viewport, so scroll the row rather than the page.
+          overflowX: "auto",
           borderBottom: "1px solid #ccc",
           marginTop: "1rem",
           marginBottom: "1rem",

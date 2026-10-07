@@ -923,17 +923,17 @@ def test_compute_owner_performance_group_unknown_slug_raises(monkeypatch):
 
 
 def _forbid_ledger_rebuild(monkeypatch):
-    """Fail if group=True touches the single-owner ledger rebuild (#8461).
+    """No group member has a ledger, so groups fall back to the legacy series (#9169).
 
-    Groups stay on the legacy current-holdings value series and its
-    include_missing_members contract (#7228) until the follow-up.
+    The current-holdings series and its include_missing_members contract
+    (#7228) then apply; the rebuild itself must not run.
     """
 
     def no_ledger_rebuild(*args, **kwargs):
-        raise AssertionError("group=True must use the legacy group value series, not the ledger rebuild (#8461)")
+        raise AssertionError("a group with no member ledgers must not run the ledger rebuild")
 
     monkeypatch.setattr(pu, "_owner_ledger_performance", no_ledger_rebuild)
-    monkeypatch.setattr(pu.ledger_performance, "load_owner_ledgers", no_ledger_rebuild)
+    monkeypatch.setattr(pu.ledger_performance, "load_owner_ledgers", lambda owner: [])
     monkeypatch.setattr(pu.ledger_performance, "build_ledger_performance", no_ledger_rebuild)
 
 
@@ -1045,3 +1045,149 @@ def test_compute_xirr_group_reports_missing_members(monkeypatch, one_year_series
 
     assert missing == ["ghost"]
     assert value is not None
+
+
+@pytest.fixture
+def group_ledgers(monkeypatch):
+    """Back the group TWR/XIRR path with in-memory member ledgers (#9169).
+
+    Call it with ``(per_member, closes)``: ``per_member`` maps each group
+    member to their transactions (``None`` for a member with no ledger) and
+    ``closes`` is as for ``ledger_owner``. Each member has one tracked-cash
+    account.
+    """
+
+    def install(per_member, closes):
+        monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: list(per_member))
+        monkeypatch.setattr(
+            pu.group_portfolio, "build_group_portfolio", lambda slug, *, pricing_date=None: {"accounts": []}
+        )
+
+        def load_ledgers(owner):
+            transactions = per_member[owner]
+            return [pu.ledger_performance.AccountLedger("isa", transactions, True)] if transactions else []
+
+        monkeypatch.setattr(pu.ledger_performance, "load_owner_ledgers", load_ledgers)
+
+        def load(key, start, end):
+            points = closes.get(key, {})
+            return pd.Series({pd.Timestamp(day): price for day, price in points.items()}, dtype=float)
+
+        monkeypatch.setattr(pu.ledger_performance, "load_gbp_closes", load)
+
+        def no_legacy_series(*args, **kwargs):
+            raise AssertionError("a group with member ledgers must use the pooled ledger rebuild (#9169)")
+
+        monkeypatch.setattr(pu, "_portfolio_value_series", no_legacy_series)
+
+    return install
+
+
+GROUP_END = date(2026, 2, 2)
+FLAT_CLOSES = {"AAA.L": {"2026-01-05": 100.0}}
+
+
+def test_group_twr_deposit_is_neutral(group_ledgers):
+    """#9169: one member's mid-window deposit, flat prices: TWR is zero, not a loss."""
+    group_ledgers(
+        {
+            "steve": [_deposit("2026-01-05", 1000), _buy("2026-01-05", 10, 1000)],
+            "lucy": [_deposit("2026-01-20", 500)],
+        },
+        FLAT_CLOSES,
+    )
+
+    value, missing = pu.compute_time_weighted_return(
+        "all", 365, pricing_date=GROUP_END, group=True, include_missing_members=True
+    )
+
+    assert value == pytest.approx(0.0)
+    assert missing == []
+
+
+@pytest.mark.parametrize("income_type", ["DIVIDEND", "INTEREST"])
+def test_group_twr_income_is_return(group_ledgers, income_type):
+    """#9169: dividends and cash interest are return for a group, not contributions.
+
+    £2,000 pooled (steve's 10 units, lucy's cash), flat prices, then £30 of
+    income lands in lucy's cash: 2030 / 2000 - 1.
+    """
+    group_ledgers(
+        {
+            "steve": [_deposit("2026-01-05", 1000), _buy("2026-01-05", 10, 1000)],
+            "lucy": [
+                _deposit("2026-01-05", 1000),
+                {"date": "2026-01-20", "type": income_type, "amount_minor": 3000},
+            ],
+        },
+        FLAT_CLOSES,
+    )
+
+    assert pu.compute_time_weighted_return("all", 365, pricing_date=GROUP_END, group=True) == pytest.approx(0.015)
+
+
+def test_group_transfer_between_members_nets_to_zero(group_ledgers):
+    """#9169: units moved from one member to another are neither a flow nor a return.
+
+    10 units bought at 100 rise to 110 on 12 Jan, then move from steve to
+    lucy on 20 Jan: the group's TWR is just the 10% move.
+    """
+    closes = {"AAA.L": {"2026-01-05": 100.0, "2026-01-12": 110.0}}
+    move = {"date": "2026-01-20", "ticker": "AAA.L", "units": 10}
+    group_ledgers(
+        {
+            "steve": [_deposit("2026-01-05", 1000), _buy("2026-01-05", 10, 1000), {**move, "type": "TRANSFER_OUT"}],
+            "lucy": [{**move, "type": "TRANSFER_IN"}],
+        },
+        closes,
+    )
+
+    perf, missing = pu._group_ledger_performance("all", GROUP_END)
+
+    assert missing == []
+    assert perf.flows[pd.Timestamp("2026-01-20")] == pytest.approx(0.0)
+    assert perf.values.iloc[-1] == pytest.approx(1100.0)
+    assert pu.compute_time_weighted_return("all", 365, pricing_date=GROUP_END, group=True) == pytest.approx(0.10)
+
+
+def test_group_missing_member_is_left_out_and_reported(group_ledgers, caplog):
+    """#9169: a member with no ledger drops out of the pooled rebuild and is reported.
+
+    The figure is the other members' exact return (10%), not one inflated by
+    holdings no recorded flow explains (#7228).
+    """
+    closes = {"AAA.L": {"2026-01-05": 100.0, "2026-01-12": 110.0}}
+    group_ledgers({"steve": [_deposit("2026-01-05", 1000), _buy("2026-01-05", 10, 1000)], "ghost": None}, closes)
+
+    with caplog.at_level("WARNING", logger=pu.logger.name):
+        twr, twr_missing = pu.compute_time_weighted_return(
+            "all", 365, pricing_date=GROUP_END, group=True, include_missing_members=True
+        )
+    xirr, xirr_missing = pu.compute_xirr("all", 0, pricing_date=GROUP_END, group=True, include_missing_members=True)
+
+    assert twr == pytest.approx(0.10)
+    assert twr_missing == xirr_missing == ["ghost"]
+    assert xirr is not None
+    assert any("ghost" in record.getMessage() for record in caplog.records)
+
+
+def test_group_xirr_hand_worked_schedule(group_ledgers):
+    """#9169: XIRR over the pooled members' flows.
+
+    steve puts £1,000 into 10 units on 1 Jan 2025 that are worth £1,200 on
+    1 Jan 2026; lucy deposits £1,000 of cash 182 days in. The investor flows
+    are -1000 (day 0), -1000 (day 182) and +2200 (day 365), so r solves
+    -1000 - 1000 / (1 + r) ** (182 / 365) + 2200 / (1 + r) = 0, i.e. about 13.46%.
+    """
+    closes = {"AAA.L": {"2025-01-01": 100.0, "2026-01-01": 120.0}}
+    group_ledgers(
+        {
+            "steve": [_deposit("2025-01-01", 1000), _buy("2025-01-01", 10, 1000)],
+            "lucy": [_deposit("2025-07-02", 1000)],
+        },
+        closes,
+    )
+
+    result = pu.compute_xirr("all", 365, pricing_date=date(2026, 1, 1), group=True)
+
+    assert result == pytest.approx(0.13462697984706992, abs=1e-6)

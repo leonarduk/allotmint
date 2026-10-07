@@ -198,16 +198,32 @@ def test_canonical_asset_class(value, expected) -> None:
     [
         ({"instrumentType": "ETF", "asset_class": "Equity"}, "ETF"),
         ({"instrument_type": "Investment Trust"}, "Investment Trust"),
-        # Legacy and new asset classes resolve to the same instrument type.
-        ({"asset_class": "Equity"}, "equity"),
-        ({"asset_class": "equity"}, "equity"),
-        ({"assetClass": "Bond"}, "bond"),
+        # Explicit types share one casing whatever the provider sent (#7788).
+        ({"instrumentType": "EQUITY"}, "Equity"),
+        ({"instrumentType": "Equity"}, "Equity"),
+        ({"instrument_type": " equity "}, "Equity"),
+        ({"instrument_type": "INVESTMENT TRUST"}, "Investment Trust"),
+        ({"instrumentType": "MUTUALFUND"}, "MUTUALFUND"),
+        # Legacy and new asset classes resolve to the same instrument type, in
+        # the same display casing as an explicit type (#7788 item 9).
+        ({"asset_class": "Equity"}, "Equity"),
+        ({"asset_class": "equity"}, "Equity"),
+        ({"assetClass": "Bond"}, "Bond"),
+        ({"asset_class": "multi-asset"}, "Multi-asset"),
         ({"asset_class": "Fund"}, "Fund"),
         ({}, None),
     ],
 )
 def test_resolve_instrument_type(meta, expected) -> None:
     assert ic.resolve_instrument_type(meta) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [("EQUITY", "Equity"), ("etf", "ETF"), ("Cash", "Cash"), ("Index", "Index"), ("  ", None), (None, None), (3, None)],
+)
+def test_normalise_instrument_type(value, expected) -> None:
+    assert ic.normalise_instrument_type(value) == expected
 
 
 @pytest.mark.parametrize(
@@ -229,6 +245,40 @@ def test_resolve_instrument_type(meta, expected) -> None:
 )
 def test_exposure_sector(meta, expected) -> None:
     assert ic.exposure_sector(meta) == expected
+
+
+@pytest.mark.parametrize(
+    "meta,expected",
+    [
+        # Funds report where they invest, not their domicile (#9296).
+        (_meta("Vanguard Funds Plc FTSE All World High Dividend Yield UCITS ETF", "ETF", region="Europe"), "Global"),
+        (_meta("iShares VI plc Edge MSCI World Minimum Volatility UCITS ETF Acc", "ETF", region="Europe"), "Global"),
+        (_meta("SPDR MSCI World Consumer Staples UCITS ETF *1 *R", "ETF", region="UK"), "Global"),
+        (_meta("Henderson Far East Income Ltd Ordinary NPV", "Investment Trust", region="UK"), "Asia Pacific"),
+        (_meta("Ashoka India Equity Inv Trust Plc Ord GBP0.01", "Investment Trust", region="UK"), "India"),
+        (_meta("iShares plc MSCI Brazil UCITS ETF (Dist)", "ETF", region="Europe"), "Brazil"),
+        (
+            _meta("iShares Core MSCI EM IMI Global Emerging Markets UCITS ETF", "ETF", region="Europe"),
+            "Emerging Markets",
+        ),
+        (_meta("Vanguard S&P 500 UCITS ETF", "ETF", region="Europe"), "US"),
+        (_meta("iShares Core FTSE 100 UCITS ETF", "ETF", region="Europe"), "UK"),
+        (_meta("BlackRock European Dynamic ex UK Fund", "Fund", region="UK"), "Europe"),
+        # "USD" in a share-class name is not the US.
+        (_meta("BioPharma Credit plc ORD USD0.01 *R", "Investment Trust", region="UK"), "UK"),
+        # An explicit exposure region in the metadata wins.
+        (
+            _meta("BioPharma Credit plc ORD USD0.01 *R", "Investment Trust", region="UK", exposure_region="US"),
+            "US",
+        ),
+        # Company shares keep their region, even with a region word in the name.
+        (_meta("Fidelity China Special Situations PLC", "Equity", region="UK"), "UK"),
+        (_meta("Apple Inc", "Equity", region="US"), "US"),
+        (_meta("Apple Inc", "Equity"), None),
+    ],
+)
+def test_exposure_region(meta, expected) -> None:
+    assert ic.exposure_region(meta) == expected
 
 
 def test_exposure_sector_matches_backfill() -> None:

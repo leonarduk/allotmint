@@ -42,6 +42,7 @@ import {
   TRACKING_ERROR_RANGE,
 } from "../lib/metricPlausibility";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
+import { CostBasisChecklist } from "./CostBasisChecklist";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
 import { isFresh, readFetchCache, runDeduped } from "../utils/fetchCache";
@@ -75,6 +76,7 @@ import { BadgeCheck, LineChart, Shield } from "lucide-react";
 import { toRollupRows, toScopedHoldingRows } from "../lib/rollupAdapter";
 import { OwnerPortfolioActions } from "./OwnerPortfolioActions";
 import { FirstRunHelpBanner } from "./FirstRunHelpBanner";
+import { PricingAsOf } from "./PricingAsOf";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { readRouteScopeQuery } from "../routes/registry";
 import { useViewportWidth } from "../hooks/useViewportWidth";
@@ -987,15 +989,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             <h2>{getGroupDisplayName(slug, portfolio.name, t)}</h2>
           )}
           {pricingDate && (
-            <div
-              style={{
-                marginTop: "0.25rem",
-                fontSize: "0.85rem",
-                color: "var(--summary-card-label)",
-              }}
-            >
-              {t("group.pricingAsOf", { date: pricingDate })}
-            </div>
+            <PricingAsOf
+              pricingDate={pricingDate}
+              historical={Boolean(asOfOverride)}
+              onRefreshed={refetchPortfolio}
+            />
           )}
         </div>
         <div
@@ -1080,7 +1078,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       {portfolioLoading && kpiTilesSkeleton}
 
       {!portfolioLoading && !relativeViewEnabled && hasFilteredAccounts && (
-        <PortfolioSummary totals={totals} />
+        <>
+          <PortfolioSummary totals={totals} />
+          <CostBasisChecklist accounts={filteredAccounts} />
+        </>
       )}
 
       {!portfolioLoading && isAllPositions && enableAdvancedAnalytics && (

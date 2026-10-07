@@ -374,6 +374,9 @@ def test_cold_group_portfolio_build_makes_no_live_price_calls(cache, no_live_cal
     monkeypatch.setattr(hu, "load_meta_timeseries_range", cache.load_meta_timeseries_range)
     monkeypatch.setattr(gp, "cache_only", cache.cache_only)
     monkeypatch.setattr(hu, "get_instrument_meta", lambda full: cache.get_instrument_meta(full))
+    # Bound at import too: without this it reads the repo's real instrument
+    # files (VWRL.L is tagged USD there), not this test's .L->GBP stub.
+    monkeypatch.setattr(hu, "instrument_currency", cache.instrument_currency)
     monkeypatch.setattr(hu, "get_scaling_override", lambda *_args, **_kwargs: 1.0)
     monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {})
 

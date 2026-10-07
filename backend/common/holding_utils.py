@@ -21,7 +21,13 @@ from backend.common.constants import (
     UNITS,
 )
 from backend.common.currency import CurrencyNormaliser
-from backend.common.instrument_classification import canonical_asset_class, exposure_sector, resolve_instrument_type
+from backend.common.instrument_classification import (
+    canonical_asset_class,
+    exposure_region,
+    exposure_sector,
+    normalise_instrument_type,
+    resolve_instrument_type,
+)
 from backend.common.instrument_proxy import proxied_daily_history
 from backend.common.instruments import get_instrument_meta
 from backend.common.numeric_utils import is_nan
@@ -330,13 +336,51 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
 latest_prices: Dict[str, float] = {}
 
 
-def _close_column(df: pd.DataFrame) -> Optional[str]:
+def _native_close_is_gbp(ticker: str, exchange: str) -> bool:
+    """Whether ``ticker.exchange``'s native close is already sterling (GBP or pence).
+
+    The timeseries loader leaves a non-sterling frame without ``Close_gbp``
+    when it has no FX rate (#9664); its native close must then never be read
+    as a GBP price (#7722).
+    """
+    try:
+        currency = instrument_currency(ticker, exchange)
+    except ValueError as exc:
+        # Fail closed: with the currency unknown, a native close could be in
+        # any currency, and reading it as GBP is exactly the 1:1 bug (#7722).
+        # Leaving the holding unpriced is the visible failure.
+        logger.warning(
+            "No currency for %s.%s; not treating its native close as GBP: %s",
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+            sanitise_log_value(exc),
+        )
+        return False
+    return _is_sterling(currency)
+
+
+def _close_column(df: pd.DataFrame, ticker: Optional[str] = None, exchange: Optional[str] = None) -> Optional[str]:
     """
     Prefer GBP close if present, else fall back to Close or Adj Close,
     case-insensitive.
+
+    Given ``ticker``/``exchange``, the native fallback is only taken for a
+    sterling instrument: a non-GBP close with no ``Close_gbp`` was never
+    converted, so there is no GBP close (``None``) rather than one valued 1:1
+    in the wrong currency (#7722).
     """
     nm = _lower_name_map(df)
-    return nm.get("close_gbp") or nm.get("close") or nm.get("adj close") or nm.get("adj_close")
+    if nm.get("close_gbp"):
+        return nm["close_gbp"]
+    native = nm.get("close") or nm.get("adj close") or nm.get("adj_close")
+    if native and ticker is not None and not _native_close_is_gbp(ticker, exchange or ""):
+        logger.warning(
+            "No GBP close for %s.%s (no FX conversion); not using its native close",
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+        )
+        return None
+    return native
 
 
 # ─────── cost basis (single source of truth) ───────
@@ -362,7 +406,7 @@ def _derived_cost_basis_close_px(
     scale = get_scaling_override(ticker, exchange, None)
     df = apply_scaling(df, scale)
 
-    col = _close_column(df)
+    col = _close_column(df, ticker, exchange)
     if not col or df[col].empty:
         return None
 
@@ -418,7 +462,7 @@ def _load_unscaled_price_for_date_impl(
     df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=d, end_date=d)
     if df is None or df.empty:
         return None, None, False, None
-    found = _last_usable_row(df, field)
+    found = _last_usable_row(df, field, ticker, exchange)
     if found is None:
         # The loader only walks back past *missing* days, so it can stop on a
         # row with no usable value -- e.g. a partial-day Yahoo bar with
@@ -427,7 +471,7 @@ def _load_unscaled_price_for_date_impl(
         # walk-back window and take its latest usable row instead.
         start = d - dt.timedelta(days=_PRICE_WALK_BACK_DAYS)
         df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=start, end_date=d)
-        found = None if df is None or df.empty else _last_usable_row(df, field)
+        found = None if df is None or df.empty else _last_usable_row(df, field, ticker, exchange)
     if found is None:
         return None, None, False, None
 
@@ -443,21 +487,23 @@ def _load_unscaled_price_for_date_impl(
 _PRICE_WALK_BACK_DAYS = 4
 
 
-def _value_column(df: pd.DataFrame, field: str) -> Optional[str]:
-    """Physical column holding ``field``; for a close, prefer the GBP-converted one."""
-    nm = _lower_name_map(df)
+def _value_column(df: pd.DataFrame, field: str, ticker: str, exchange: str) -> Optional[str]:
+    """Physical column holding ``field``; for a close, the GBP-converted one,
+    or the native close only for a sterling instrument (see ``_close_column``)."""
     if field.lower() in {"close", "close_gbp"}:
-        return nm.get("close_gbp") or nm.get("close") or nm.get("adj close") or nm.get("adj_close")
-    return nm.get(field.lower())
+        return _close_column(df, ticker, exchange)
+    return _lower_name_map(df).get(field.lower())
 
 
-def _last_usable_row(df: pd.DataFrame, field: str) -> Optional[tuple[pd.Series, str, float]]:
+def _last_usable_row(
+    df: pd.DataFrame, field: str, ticker: str, exchange: str
+) -> Optional[tuple[pd.Series, str, float]]:
     """``(row, column, value)`` of the latest row with a usable ``field`` value.
 
     Usable means numeric and not NaN, and for a close also > 0: a zero close
     is a placeholder in an empty bar, never a traded price.
     """
-    col = _value_column(df, field)
+    col = _value_column(df, field, ticker, exchange)
     if not col:
         return None
     values = pd.to_numeric(df[col], errors="coerce")
@@ -601,14 +647,31 @@ def _snapshot_is_stale(snap: Dict[str, Any], reporting_date: dt.date) -> bool:
     return flag is None
 
 
+def _is_sterling(currency: object) -> bool:
+    """Whether ``currency`` is GBP or a pence code (``None``/blank counts as GBP).
+
+    The test every GBP-only price reader applies before taking a price as GBP
+    (#7722), e.g. a snapshot entry in ``_snapshot_usable``.
+    """
+    normaliser = CurrencyNormaliser.from_raw(currency)
+    return normaliser.is_pence or normaliser.canonical == "GBP"
+
+
 def _snapshot_usable(snap: Any, calc: PricingDateCalculator) -> bool:
     """Whether a price snapshot entry may price a holding for ``calc``'s date (#9834).
 
     The snapshot holds the latest price. For an explicitly requested date
     (``as_of``) it is only usable when its ``last_price_date`` is known and not
     after that date; otherwise a historical valuation would use today's price.
+
+    ``enrich_holding`` reads ``last_price`` as GBP, so an entry tagged with a
+    non-sterling ``price_currency`` (a native close the snapshot builder could
+    not convert) is not usable: valuing it 1:1 is the #7722 bug. The holding
+    then falls back to the dated ``Close_gbp`` lookup instead.
     """
     if not isinstance(snap, dict) or is_nan(snap.get("last_price")):
+        return False
+    if not _is_sterling(snap.get("price_currency")):
         return False
     if not calc.has_explicit_reporting_date:
         return True
@@ -854,7 +917,9 @@ def enrich_holding(
         approval_exempt_tickers=config.approval_exempt_tickers,
     )
 
-    account_ccy = (h.get("currency") or "GBP").upper()
+    # A "CASH.USD" holding with no currency field takes its currency from the
+    # ticker, so it values like the currency-bearing spelling (#9763).
+    account_ccy = (h.get("currency") or _cash_ticker_ccy(full) or "GBP").upper()
     from backend.common.portfolio_utils import get_security_meta  # local import to avoid circular
 
     sec_meta = get_security_meta(full) or {}
@@ -866,7 +931,9 @@ def enrich_holding(
         units = float(out.get(UNITS, 0) or 0.0)
         out["name"] = out.get("name") or _cash_name(full, account_ccy)
         out["currency"] = meta.get("currency") or account_ccy
-        out["instrument_type"] = meta.get("instrumentType") or meta.get("instrument_type") or "Cash"
+        out["instrument_type"] = (
+            normalise_instrument_type(meta.get("instrumentType") or meta.get("instrument_type")) or "Cash"
+        )
         # Cash is labelled "Cash" in every sector view rather than left blank
         # (shown as "Unknown sector"/"Other"); see #8530.
         out["sector"] = CASH_SECTOR_LABEL
@@ -915,7 +982,9 @@ def enrich_holding(
         logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(full))
 
     out["currency"] = meta.get("currency")
-    # Legacy "Equity" and post-#9196 "equity" asset classes resolve alike.
+    # Legacy "Equity" and post-#9196 "equity" asset classes resolve alike, and
+    # every source (instrument file, sec_meta, asset-class fallback) comes out
+    # in one display casing, e.g. "Equity" (#7788 item 9).
     out["instrument_type"] = resolve_instrument_type(meta)
     out["name"] = out.get("name") or meta.get("name") or full
     stored_asset_class = out.get("asset_class") or meta.get("assetClass") or meta.get("asset_class")
@@ -932,7 +1001,11 @@ def enrich_holding(
         }
     )
     out["sector"] = normalise_optional_sector(sector)
-    out["region"] = normalise_optional_region(out.get("region") or meta.get("region"))
+    # Stored region is the fund's domicile; a fund reports the region it
+    # invests in, with the domicile kept alongside (#9296).
+    domicile_region = out.get("domicile_region") or out.get("region") or meta.get("region")
+    out["domicile_region"] = normalise_optional_region(domicile_region)
+    out["region"] = normalise_optional_region(exposure_region({**meta, "name": out["name"], "region": domicile_region}))
     if is_cash_instrument(full, out.get("instrument_type")):
         # Cash that _is_cash() doesn't catch (e.g. CASH.USD in a GBP account)
         # still gets the same "Cash" sector as aggregate_by_ticker rows (#8530).
@@ -1016,6 +1089,11 @@ def enrich_holding(
             approved = is_approval_valid(approved_on, today)
 
     out["sell_eligible"] = None if eligible is None else bool(eligible and (approved or not needs_approval))
+    # A hold period that has elapsed but is still blocked on approval has no
+    # countdown left to report; a bare 0 next to sell_eligible=False would
+    # read as "eligible now" (#7242). Positive countdowns are kept.
+    if out["sell_eligible"] is False and out["days_until_eligible"] == 0:
+        out["days_until_eligible"] = None
 
     px = px_source = prev_px = None
     last_price_time = None
@@ -1203,6 +1281,15 @@ def _holding_fx_rate_source(currency: object, ticker: str, exchange: str) -> Opt
 def _is_cash(full: str, account_ccy: str = "GBP") -> bool:
     f = (full or "").upper()
     return f in {f"CASH.{account_ccy}", f"{account_ccy}.CASH", "CASH"}
+
+
+def _cash_ticker_ccy(full: str) -> Optional[str]:
+    """Currency encoded in a ``CASH.<CCY>``/``<CCY>.CASH`` ticker, else ``None``."""
+    parts = (full or "").upper().split(".")
+    if len(parts) != 2 or "CASH" not in parts:
+        return None
+    ccy = parts[1] if parts[0] == "CASH" else parts[0]
+    return ccy if ccy and ccy != "CASH" else None
 
 
 def _cash_name(full: str, account_ccy: str = "GBP") -> str:

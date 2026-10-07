@@ -312,6 +312,26 @@ def test_store_actions_false_does_not_write(cache_base):
     assert load_dividends("ABC", "L").empty
 
 
+@pytest.mark.parametrize(
+    ("ticker", "exchange", "symbol"),
+    [("ABC", "L", "ABC"), ("ABC.L", "L", "ABC"), ("abc.l", "L", "abc"), ("BRK.B", "US", "BRK.B"), ("ABC", "US", "ABC")],
+)
+def test_store_symbol_strips_only_the_exchange_suffix(ticker, exchange, symbol):
+    """The actions key matches the meta file's ``rpartition("_")`` stem (#9400)."""
+    assert fetch_yahoo_timeseries._store_symbol(ticker, exchange) == symbol
+
+
+def test_dotted_ticker_actions_are_not_truncated(cache_base):
+    days = pd.bdate_range("2024-03-01", periods=5)
+    fake = FakeYahooTicker(pd.Series(100.0, index=days), {days[2]: 1.0})
+
+    with patch.object(fetch_yahoo_timeseries.yf, "Ticker", return_value=fake):
+        fetch_yahoo_timeseries_range("BRK.B", "US", days[0].date(), days[-1].date())
+
+    assert load_dividends("BRK.B", "US").tolist() == [1.0]
+    assert load_dividends("BRK", "US").empty
+
+
 def test_actions_merge_incrementally_and_skip_identical_writes(cache_base):
     first = _one_dividend()
     second = pd.DataFrame(
@@ -331,6 +351,44 @@ def test_actions_merge_incrementally_and_skip_identical_writes(cache_base):
     stored = load_corporate_actions("ABC", "L")
     assert stored["Action"].tolist() == [DIVIDEND, DIVIDEND, SPLIT]
     assert load_dividends("ABC", "L").tolist() == [1.0, 1.2]
+
+
+def test_write_swaps_in_a_temp_file_from_the_target_directory(cache_base):
+    """#9398: the temp file must sit beside the target so ``os.replace`` is a same-filesystem rename."""
+    real_replace = corporate_actions.os.replace
+    with patch.object(corporate_actions.os, "replace", side_effect=real_replace) as spy:
+        assert record_corporate_actions("ABC", "L", _one_dividend()) is True
+
+    path = importlib.import_module("pathlib").Path(corporate_actions.corporate_actions_path("ABC", "L"))
+    (src, dest), _ = spy.call_args
+    assert importlib.import_module("pathlib").Path(src).parent == path.parent
+    assert dest == str(path)
+    assert load_dividends("ABC", "L").tolist() == [1.0]
+
+
+@pytest.mark.parametrize("failing", ["to_parquet", "replace"])
+def test_failed_write_leaves_the_stored_file_intact(cache_base, failing):
+    """#9398: a write that fails part-way must not truncate the store or leave a temp file."""
+    assert record_corporate_actions("ABC", "L", _one_dividend()) is True
+    path = importlib.import_module("pathlib").Path(corporate_actions.corporate_actions_path("ABC", "L"))
+    before = path.read_bytes()
+    update = _one_dividend().assign(Value=[2.0])
+
+    def truncated_write(_frame, dest, **_kw):
+        with open(dest, "wb") as handle:
+            handle.write(b"PAR1")
+        raise OSError("disk full")
+
+    if failing == "to_parquet":
+        target = patch.object(pd.DataFrame, "to_parquet", autospec=True, side_effect=truncated_write)
+    else:
+        target = patch.object(corporate_actions.os, "replace", side_effect=OSError("denied"))
+    with target, pytest.raises(OSError):
+        record_corporate_actions("ABC", "L", update)
+
+    assert path.read_bytes() == before
+    assert load_dividends("ABC", "L").tolist() == [1.0]
+    assert [p.name for p in path.parent.iterdir()] == [path.name]
 
 
 def test_merge_actions_reports_value_corrections():

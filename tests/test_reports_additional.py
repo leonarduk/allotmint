@@ -352,7 +352,7 @@ def test_build_report_document_requires_known_template(monkeypatch):
 
 def test_transaction_roots_aws(monkeypatch):
     monkeypatch.setattr(reports.config, "app_env", "aws", raising=False)
-    assert list(reports._transaction_roots()) == ["transactions"]
+    assert list(reports._transaction_roots()) == ["accounts", "writable-accounts"]
 
 
 def test_load_transactions_s3_pagination_errors(monkeypatch, caplog):
@@ -433,6 +433,7 @@ def test_compile_summary_filters_history(monkeypatch):
         "max_drawdown": -0.2,
     }
     monkeypatch.setattr(reports.portfolio_utils, "compute_owner_performance", lambda owner: performance)
+    monkeypatch.setattr(reports.ledger_performance, "load_owner_ledgers", lambda owner: [])
 
     summary, perf = reports._compile_summary("alice", start=date(2024, 1, 2), end=date(2024, 1, 6))
 

@@ -55,6 +55,10 @@ from backend.utils.scenario_tester import (
 
 logger = logging.getLogger(__name__)
 
+#: Sleeves allotmint-pro's hook knows by its backtest block name instead.
+#: Outbound only: the hook's result is keyed by horizon label, never by sleeve name.
+PRO_SLEEVE_NAMES: dict[str, str] = {"other_commodities": "commodities"}
+
 ProSleeveReturns = Callable[[str, dt.date, Mapping[str, int]], Optional[tuple[dict[str, Optional[float]], str, str]]]
 
 try:
@@ -87,7 +91,7 @@ STAND_INS: dict[str, tuple[str, ...]] = {
     "corporate_bonds": ("SLXX.L",),
     "commodity": ("DBC.N",),
     "gold": ("PHAU.L",),
-    "commodities": ("DBC.N",),
+    "other_commodities": ("DBC.N",),
     "property": (),
 }
 
@@ -132,7 +136,7 @@ def _fill_from_pro(sleeve: str, event_date: dt.date, horizons: Mapping[str, int]
     if PRO_SLEEVE_RETURNS is None or all(h.value is not None for h in out.values()):
         return
     try:
-        found = PRO_SLEEVE_RETURNS(sleeve, event_date, horizons)
+        found = PRO_SLEEVE_RETURNS(PRO_SLEEVE_NAMES.get(sleeve, sleeve), event_date, horizons)
     except Exception as exc:  # a pro bug must not fail the whole stress test; the stand-ins still answer
         logger.warning(
             "allotmint-pro sleeve returns failed for %s on %s: %s",
@@ -222,8 +226,16 @@ def _sleeve_as_ticker_returns(
     return f"{sleeve} stand-in", ({label: h.value for label, h in returns.items()}, basis)
 
 
-def _holding_fallback(event_date: dt.date, horizons: Mapping[str, int], cache: _TickerCache) -> HoldingFallback:
-    """Fallback for the holdings engine: a holding's sleeve returns, each sleeve computed once."""
+def holding_fallback(
+    event_date: dt.date, horizons: Mapping[str, int], cache: Optional[_TickerCache] = None
+) -> HoldingFallback:
+    """Fallback for the holdings engine: a holding's sleeve returns, each sleeve computed once.
+
+    Shared by the strategy stress test and ``/scenario/historical`` so a gilt
+    fund without event-date prices moves with the gilt stand-in, not the
+    event's equity proxy index (#9492).
+    """
+    cache = {} if cache is None else cache
     sleeves: dict[str, SleeveReturns] = {}
 
     def fallback(holding: Mapping[str, Any]):
@@ -268,7 +280,7 @@ def portfolio_result(
         baseline = sum(a.get("value_estimate_gbp") or 0.0 for a in portfolio.get("accounts", []))
         portfolio["total_value_estimate_gbp"] = baseline
     event_date = dt.date.fromisoformat(str(event["date"])[:10])
-    fallback = _holding_fallback(event_date, horizons, {} if cache is None else cache)
+    fallback = holding_fallback(event_date, horizons, cache)
     shocked = apply_historical_event_portfolio(portfolio, event, horizons=horizons, holding_fallback=fallback)
     return {
         "baseline_total_value_gbp": baseline,

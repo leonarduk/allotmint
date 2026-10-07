@@ -87,6 +87,20 @@ export function growthLevelFor(stage: GrowthStage): number {
   return STAGE_LEVELS[stage] ?? 0;
 }
 
+/**
+ * The crop detail screen's "Yield" trait level (0–5) for a trailing income
+ * yield %. Bands are spaced for typical UK income: ~1% for a global tracker,
+ * 3–5% for an equity-income fund or gilt, 6%+ for a high-yield holding.
+ */
+export function yieldLevelFor(yieldPct: number): number {
+  if (!Number.isFinite(yieldPct) || yieldPct <= 0) return 0;
+  if (yieldPct < 1) return 1;
+  if (yieldPct < 2) return 2;
+  if (yieldPct < 4) return 3;
+  if (yieldPct < 6) return 4;
+  return 5;
+}
+
 export function growthStageMeta(stage: GrowthStage): GrowthStageMeta {
   // STAGE_BY_ID covers the whole union, but a defensive fallback keeps a
   // malformed persisted value from crashing a render.
@@ -263,6 +277,12 @@ export interface Crop {
   /** Null when the cost basis is unknown, so the gain is too (#8471). */
   gainGbp: number | null;
   gainPct: number | null;
+  /**
+   * Trailing 12-month income yield %, from dividends/interest actually
+   * received (#7019). Null when the backend has no recent income on record,
+   * which is "unknown", not a 0% yield.
+   */
+  yieldPct: number | null;
   dayChangePct: number;
   stage: GrowthStage;
   stars: number;
@@ -405,6 +425,9 @@ function cropFromHolding(
     costGbp,
     gainGbp,
     gainPct,
+    yieldPct: Number.isFinite(holding.yield_pct)
+      ? (holding.yield_pct as number)
+      : null,
     dayChangePct: valueGbp > 0 ? (dayChangeGbp / valueGbp) * 100 : 0,
     stage: growthStageFor(gainPct),
     stars: starsFor(share),
@@ -451,18 +474,13 @@ export type AllowanceMap = Record<
 >;
 
 /**
- * Shared copy for every place the allowances fetch failed (HTTP error, e.g.
- * the 402 billing gate) rather than genuinely returning no data. Kept as one
- * constant so the FEED meter, the Season page's countdown, and the "Feed the
- * beds" milestone tier all read identically (#7005).
- */
-export const allowancesUnavailableMessage = (): string =>
-  i18n.t('plot.model.allowancesUnavailable');
-
-/**
- * The three HUD meters, each backed by a real figure:
+ * The HUD meters, each backed by a real figure:
  * water = trades left this month, feed = tax-allowance headroom,
  * sunlight = share of crops priced today (data freshness).
+ *
+ * FEED is omitted when the allowances fetch failed (e.g. the 402 billing
+ * gate on a deployment without the pro package): a £0.00 / £0.00 bar would
+ * read as "all your feed is used up", the opposite of the truth (#7195).
  */
 export function resourcesFromPlot(
   portfolio: Pick<Portfolio, 'trades_this_month' | 'trades_remaining'> | null,
@@ -488,7 +506,7 @@ export function resourcesFromPlot(
   const stale = crops.filter((crop) => crop.freshness === 'stale').length;
   const unknown = crops.filter((crop) => crop.freshness === 'unknown').length;
 
-  return [
+  const resources: PlotResource[] = [
     {
       id: 'water',
       label: i18n.t('plot.model.water'),
@@ -510,9 +528,8 @@ export function resourcesFromPlot(
         allowanceLimit > 0
           ? clamp((allowanceLeft / allowanceLimit) * 100, 0, 100)
           : 0,
-      hint: allowancesUnavailable
-        ? allowancesUnavailableMessage()
-        : allowanceLimit > 0
+      hint:
+        allowanceLimit > 0
           ? i18n.t('plot.model.feedHint', { amount: formatGbp(allowanceLeft) })
           : i18n.t('plot.model.feedNoData'),
     },
@@ -530,6 +547,9 @@ export function resourcesFromPlot(
       hint: sunlightHint(fresh, stale, unknown, crops.length),
     },
   ];
+  return allowancesUnavailable
+    ? resources.filter((resource) => resource.id !== 'feed')
+    : resources;
 }
 
 /**

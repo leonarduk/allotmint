@@ -74,6 +74,8 @@ export const holdingContractSchema = z.object({
   realised_gain_gbp: nullableNumber.optional(),
   total_return_gbp: nullableNumber.optional(),
   total_return_pct: nullableNumber.optional(),
+  // Trailing 12-month income over market value, %; null when none (#7019).
+  yield_pct: nullableNumber.optional(),
   current_price_gbp: nullableNumber.optional(),
   current_price_currency: nullableString.optional(),
   last_price_date: nullableString.optional(),
@@ -86,6 +88,8 @@ export const holdingContractSchema = z.object({
   instrument_type: nullableString.optional(),
   sector: nullableString.optional(),
   region: nullableString.optional(),
+  // Fund domicile; `region` is where the money is invested (#9296).
+  domicile_region: nullableString.optional(),
   forward_7d_change_pct: nullableNumber.optional(),
   forward_30d_change_pct: nullableNumber.optional(),
   days_held: nullableNumber.optional(),

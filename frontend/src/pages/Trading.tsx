@@ -6,6 +6,12 @@ import { InstrumentDetail } from '../components/InstrumentDetail';
 import BackendUnavailableCard from '../components/BackendUnavailableCard';
 import InfoTip from '../components/InfoTip';
 import WatchlistToggle from '../components/WatchlistToggle';
+import {
+  ChecksSkippedBadge,
+  SignalFactors,
+  SignalStrength,
+} from '../components/SignalDetails';
+import { formatSignalAction } from '../utils/formatSignalAction';
 import useFetchWithRetry from '../hooks/useFetchWithRetry';
 import TableRowsSkeleton from '../components/skeletons/TableRowsSkeleton';
 import TextSkeleton from '../components/skeletons/TextSkeleton';
@@ -141,80 +147,8 @@ export default function Trading() {
   };
 
   const signals = data?.signals ?? [];
+  const blocked = data?.blocked ?? [];
   const visibleSignals = signals.slice(0, MAX_TRADING_SIGNAL_ROWS);
-
-  const formatAction = (action: string) => {
-    if (!action) {
-      return action;
-    }
-    const lower = action.toLowerCase();
-    return lower.charAt(0).toUpperCase() + lower.slice(1);
-  };
-
-  const renderStrength = (confidence?: number | null) => {
-    if (confidence == null) {
-      return '—';
-    }
-
-    const percent = Math.round(confidence * 100);
-    let label = t('trading.strength.weak', 'Weak');
-    if (confidence >= 0.75) {
-      label = t('trading.strength.strong', 'Strong');
-    } else if (confidence >= 0.5) {
-      label = t('trading.strength.moderate', 'Moderate');
-    }
-
-    return t('trading.strength.label', '{{label}} ({{percent}}%)', {
-      label,
-      percent,
-    });
-  };
-
-  const renderChecksSkipped = (checksSkipped?: string[]) => {
-    if (!checksSkipped || !checksSkipped.length) {
-      return null;
-    }
-
-    return (
-      <span className={styles.checksSkippedBadge}>
-        {/* `title` is scoped to just this inner span, not the InfoTip below,
-            so hovering the "i" button doesn't also trigger a native browser
-            tooltip on top of the InfoTip popover. */}
-        <span
-          title={t('trading.checksSkippedTitle', 'Skipped checks: {{checks}}', {
-            checks: checksSkipped.join(', '),
-          })}
-        >
-          {t('trading.checksSkippedBadge', 'Checks skipped')}
-        </span>
-        <InfoTip
-          label={t('trading.checksSkippedInfoLabel', "What does 'Checks skipped' mean?")}
-          to="/metrics-explained#checks-skipped"
-        >
-          {t(
-            'trading.checksSkippedInfo',
-            "An optional check that needs the allotmint-pro add-on could not run. “compliance” means the trade was not checked against your compliance rules; “fundamental_screen” means the P/E and debt/equity filters above (whichever are configured) were not applied to this buy candidate."
-          )}
-        </InfoTip>
-      </span>
-    );
-  };
-
-  const renderFactors = (factors?: string[], fallback?: string) => {
-    if (factors && factors.length) {
-      return (
-        <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-          {factors.map((factor, idx) => (
-            <li key={idx}>{factor}</li>
-          ))}
-        </ul>
-      );
-    }
-    if (fallback) {
-      return <span>{fallback}</span>;
-    }
-    return '—';
-  };
 
   return (
     <main className={styles.page}>
@@ -278,7 +212,9 @@ export default function Trading() {
               </span>
             </div>
             {loading && (
-              <LoadingStatus label={loadingLabel}>
+              // The signals table below carries the "still working" hint;
+              // one per screen is enough.
+              <LoadingStatus label={loadingLabel} slowAfterMs={null}>
                 <span aria-hidden="true" />
               </LoadingStatus>
             )}
@@ -360,6 +296,9 @@ export default function Trading() {
                 </div>
               </LoadingStatus>
             ) : !signals.length ? (
+              // A crossed threshold that compliance held back isn't "no
+              // signal" -- the blocked list below explains it instead (#9453).
+              blocked.length ? null : (
               <div className={styles.emptyState}>
                 <h3>{t('trading.noSignalsTitle', 'No signals right now')}</h3>
                 <p>
@@ -369,6 +308,7 @@ export default function Trading() {
                   )}
                 </p>
               </div>
+              )
             ) : (
               <div className={tableStyles.scrollContainer}>
                 <table className={tableStyles.table}>
@@ -408,15 +348,15 @@ export default function Trading() {
                           <WatchlistToggle ticker={s.ticker} />
                         </td>
                         <td className={tableStyles.cell}>
-                          {formatAction(s.action)}
-                          {renderChecksSkipped(s.checks_skipped)}
+                          {formatSignalAction(s.action)}
+                          <ChecksSkippedBadge checksSkipped={s.checks_skipped} />
                         </td>
                         <td className={tableStyles.cell}>
-                          {renderStrength(s.confidence)}
+                          <SignalStrength confidence={s.confidence} />
                         </td>
                         <td className={tableStyles.cell}>{s.reason}</td>
                         <td className={tableStyles.cell}>
-                          {renderFactors(s.factors, s.rationale)}
+                          <SignalFactors factors={s.factors} rationale={s.rationale} />
                         </td>
                       </tr>
                     ))}
@@ -435,6 +375,30 @@ export default function Trading() {
                   }
                 )}
               </p>
+            )}
+            {!loading && blocked.length > 0 && (
+              <div className={styles.emptyState}>
+                <h3>
+                  {t('trading.blockedTitle', 'Signals blocked by compliance')}{' '}
+                  <span data-testid="blocked-count">({blocked.length})</span>
+                </h3>
+                <p>
+                  {t(
+                    'trading.blockedDescription',
+                    'These instruments crossed the active thresholds, but the proposed trade would raise a new compliance warning, so no signal is shown for them.'
+                  )}
+                </p>
+                <ul>
+                  {blocked.map((b, i) => (
+                    <li key={`${b.ticker}-${b.action}-${i}`}>
+                      <strong>
+                        {b.ticker} {formatSignalAction(b.action)}
+                      </strong>
+                      : {b.reasons.join('; ')}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
             {selected && (
               <InstrumentDetail

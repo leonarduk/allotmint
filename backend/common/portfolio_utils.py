@@ -29,7 +29,14 @@ from backend.common.constants import PRICE_CHANGE_WINDOWS
 from backend.common.currency import CurrencyNormaliser
 from backend.common.data_loader import DATA_BUCKET_ENV
 from backend.common.holding_utils import BOOK_COST_SUSPECT_SOURCE, _get_price_for_date_scaled, is_cost_basis_unreliable
-from backend.common.instrument_classification import canonical_asset_class, exposure_sector, resolve_instrument_type
+from backend.common.instrument_classification import (
+    canonical_asset_class,
+    explicit_instrument_type,
+    exposure_region,
+    exposure_sector,
+    normalise_instrument_type,
+    resolve_instrument_type,
+)
 from backend.common.instruments import (
     decode_html_entities,
     get_instrument_meta,
@@ -69,6 +76,7 @@ from backend.timeseries.cache import (
 from backend.timeseries.total_return import (
     MIXED_RETURN_BASIS,
     PRICE_RETURN_BASIS,
+    stored_return_basis,
     total_return_closes,
     total_return_frame,
 )
@@ -589,7 +597,9 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                     # value (which is usually absent for CSV-import and
                     # transaction-rebuild paths); fall back to the holding
                     # only if canonical metadata has nothing. See #6876.
-                    "instrument_type": file_meta.get("instrument_type") or h.get("instrument_type"),
+                    # (file_meta's value is already resolved/canonical.)
+                    "instrument_type": file_meta.get("instrument_type")
+                    or normalise_instrument_type(h.get("instrument_type")),
                 }
     return securities
 
@@ -798,7 +808,7 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
                     "last_price_time": None,
                     "is_stale": None,
                     **{key: None for key in PRICE_CHANGE_WINDOWS},
-                    "instrument_type": instrument_meta.get("instrumentType") or instrument_meta.get("instrument_type"),
+                    "instrument_type": explicit_instrument_type(instrument_meta),
                     "cost_currency": base_currency,
                     "market_value_currency": base_currency,
                     "gain_currency": base_currency,
@@ -806,7 +816,7 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
                 },
             )
             row["exchange"] = exch
-            # Kept for the read-time fund sector correction below (#9196).
+            # Kept for the read-time fund sector/region corrections below (#9196, #9296).
             row.setdefault("_instrument_meta", instrument_meta)
             row.setdefault("_grouping_from_fallback", False)
             row.setdefault("_currency_source", None)
@@ -821,6 +831,9 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
             _update_row_field(row, "currency", h.get("currency"), "holding")
             _update_row_field(row, "sector", h.get("sector"), "holding")
             _update_row_field(row, "region", h.get("region"), "holding")
+            if _first_nonempty_str(h.get("domicile_region")):
+                # An enriched holding's region is already its exposure (#9296).
+                row.setdefault("domicile_region", h["domicile_region"])
             _update_row_field(row, "currency", instrument_meta.get("currency"), "instrument_meta")
             _update_row_field(row, "sector", instrument_meta.get("sector"), "instrument_meta")
             _update_row_field(row, "region", instrument_meta.get("region"), "instrument_meta")
@@ -1080,7 +1093,20 @@ def _aggregate_ticker_rows(portfolio: dict | VirtualPortfolio, base_currency: st
                 }
             )
         )
-        r["region"] = normalise_optional_region(r.get("region"))
+        # Region aggregates count a fund under the region it invests in, not
+        # its domicile; the domicile stays on the row (#9296).
+        r["domicile_region"] = normalise_optional_region(
+            _first_nonempty_str(r.get("domicile_region"), classification_meta.get("region"), r.get("region"))
+        )
+        r["region"] = normalise_optional_region(
+            exposure_region(
+                {
+                    **classification_meta,
+                    "name": classification_meta.get("name") or r.get("name"),
+                    "region": r.get("region"),
+                }
+            )
+        )
         if not _first_nonempty_str(r.get("grouping")):
             fallback = _first_nonempty_str(
                 r.get("sector"),
@@ -1316,7 +1342,7 @@ def holding_quote_currency(holding: dict) -> str:
         "ticker": full_tkr,
         "exchange": exch,
         "currency": currency,
-        "instrument_type": instrument_meta.get("instrumentType") or instrument_meta.get("instrument_type"),
+        "instrument_type": explicit_instrument_type(instrument_meta),
     }
     return _quote_currency_key(row)
 
@@ -1489,7 +1515,7 @@ def compute_owner_performance(
     # Holdings are valued in GBP by the same path as the max-drawdown series
     # (#9678): pence scaled, other currencies at the stored FX rate per date.
     window = _series_window(days, effective_days, calc.reporting_date)
-    per_holding, unconverted = _gbp_holding_values(holdings, effective_days, window, total_return=False)
+    per_holding, unconverted, _unpriced = _gbp_holding_values(holdings, effective_days, window, total_return=False)
     # Guard against duplicate dates (shouldn't happen, but a duplicated index
     # breaks ``reindex`` below).
     value_series = [values[~values.index.duplicated(keep="last")] for values, _basis in per_holding]
@@ -1707,6 +1733,9 @@ def _sum_holding_values(value_series: list[pd.Series], days: int, reporting_date
 # GBP on some dates (those dates count as missing prices) or on any date (the
 # holding is left out of the value series).
 UNCONVERTED_HOLDINGS_KEY = "unconverted_holdings"
+# ``attrs`` key on the value series listing the non-cash holdings left out of
+# it for want of closes, each with the return basis it would have had (#9606).
+UNPRICED_HOLDINGS_KEY = "unpriced_holdings"
 
 
 def _holding_currency(ticker: str, exchange: str) -> CurrencyNormaliser:
@@ -1869,8 +1898,8 @@ def _gbp_holding_values(
     window: tuple[date, date],
     *,
     total_return: bool,
-) -> tuple[list[tuple[pd.Series, str | None]], list[dict[str, Any]]]:
-    """Each holding's GBP value series with its return basis, plus the holdings missing FX rates.
+) -> tuple[list[tuple[pd.Series, str | None]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Each holding's GBP value series with its return basis, the holdings missing FX rates, and the unpriced.
 
     The one GBP valuation path (#7786, #9678): the value series behind max
     drawdown, alpha and tracking error and ``compute_owner_performance`` all
@@ -1879,12 +1908,17 @@ def _gbp_holding_values(
     absent from a holding's values, so each caller's gap handling for missing
     prices applies to them; the holding is listed (with those dates) in the
     second list, and left out entirely only when no date could be converted.
+    The third list holds the non-cash holdings with no closes in the window
+    (see :func:`_unpriced_holding`).
     """
     per_holding: list[tuple[pd.Series, str | None]] = []
     unconverted: list[dict[str, Any]] = []
+    unpriced: list[dict[str, Any]] = []
     for ticker, exchange, units in holdings:
         priced = _window_closes(ticker, exchange, effective_days, window, total_return=total_return)
         if priced is None:
+            if not _is_cash_holding(ticker, exchange):
+                unpriced.append(_unpriced_holding(ticker, exchange, window[0], total_return=total_return))
             continue
         closes, basis = priced
         gbp_closes, currency, missing = _closes_in_gbp(closes, ticker, exchange)
@@ -1893,7 +1927,20 @@ def _gbp_holding_values(
         if gbp_closes.empty:
             continue
         per_holding.append((gbp_closes * units, basis))
-    return per_holding, unconverted
+    return per_holding, unconverted, unpriced
+
+
+def _unpriced_holding(ticker: str, exchange: str, window_start: date, *, total_return: bool) -> dict[str, Any]:
+    """An ``unpriced_holdings`` entry: a holding left out for want of closes, with its intended basis (#9606).
+
+    The basis is the one it would have had if priced: on the total-return
+    path, :func:`stored_return_basis` with the window start standing in for
+    the first close (``"total"`` when corporate actions are stored for it and,
+    if they hold no dividends, confirmed from the window start), else
+    ``"price"``.
+    """
+    basis = stored_return_basis(ticker, exchange, first_close=window_start) if total_return else PRICE_RETURN_BASIS
+    return {"ticker": f"{ticker}.{exchange}", "return_basis": basis}
 
 
 def _holding_value_series(
@@ -1911,7 +1958,8 @@ def _holding_value_series(
     (:func:`_closes_in_gbp`), so the series agrees with the dashboard. Dates
     with no usable FX rate count as missing prices; a holding with no usable
     rate at all is left out. Either way it is listed under
-    ``total.attrs[UNCONVERTED_HOLDINGS_KEY]``. With
+    ``total.attrs[UNCONVERTED_HOLDINGS_KEY]``. Non-cash holdings with no
+    closes at all are listed under ``total.attrs[UNPRICED_HOLDINGS_KEY]``. With
     ``total_return`` the closes are first put on a total-return basis.
     """
     calc = PricingDateCalculator(reporting_date=pricing_date)
@@ -1922,9 +1970,12 @@ def _holding_value_series(
         reporting_date=calc.reporting_date,
     )
     window = _series_window(days, effective_days, calc.reporting_date)
-    per_holding, unconverted = _gbp_holding_values(holdings, effective_days, window, total_return=total_return)
+    per_holding, unconverted, unpriced = _gbp_holding_values(
+        holdings, effective_days, window, total_return=total_return
+    )
     total = _sum_holding_values([values for values, _basis in per_holding], days, calc.reporting_date)
     total.attrs[UNCONVERTED_HOLDINGS_KEY] = unconverted
+    total.attrs[UNPRICED_HOLDINGS_KEY] = unpriced
     return total, per_holding
 
 
@@ -1955,18 +2006,29 @@ def _is_cash_holding(ticker: str, exchange: str) -> bool:
     return ticker.upper() == "CASH" or exchange.upper() == "CASH"
 
 
-def _portfolio_return_basis(per_holding: list[tuple[pd.Series, str | None]]) -> dict[str, Any]:
+def _portfolio_return_basis(
+    per_holding: list[tuple[pd.Series, str | None]],
+    unpriced: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """``portfolio_return_basis`` and the share of value on price, from each holding's latest value.
 
     ``"total"`` when every non-cash holding has stored corporate actions,
     ``"price"`` when none has, ``"mixed"`` otherwise. Cash (basis ``None``)
-    is left out of both. ``portfolio_price_basis_share`` is the fraction of the
-    non-cash holdings' latest value in the series whose returns are price only
-    (``None`` when no non-cash holding was priced).
+    is left out of both.
+
+    Unpriced holdings (``unpriced``, see :func:`_unpriced_holding`) count
+    toward the label with the basis they would have had, so a price-only
+    holding dropped for want of closes beside total-return holdings makes
+    the label ``"mixed"``, not ``"total"`` (#9606). Having no value they
+    cannot be weighted, so ``portfolio_price_basis_share`` stays the fraction
+    of the priced non-cash holdings' latest value whose returns are price only
+    (``None`` when no non-cash holding was priced); the unpriced holdings are
+    returned under ``portfolio_unpriced_holdings`` so the gap is visible.
     """
+    unpriced = list(unpriced or [])
     total_value = 0.0
     price_value = 0.0
-    bases: set[str] = set()
+    bases: set[str] = {entry["return_basis"] for entry in unpriced}
     for values, basis in per_holding:
         latest = values.dropna()
         if basis is None or latest.empty:
@@ -1976,11 +2038,12 @@ def _portfolio_return_basis(per_holding: list[tuple[pd.Series, str | None]]) -> 
         total_value += value
         if basis == PRICE_RETURN_BASIS:
             price_value += value
+    fields: dict[str, Any] = {"portfolio_unpriced_holdings": unpriced}
     if not bases:
-        return {"portfolio_return_basis": PRICE_RETURN_BASIS, "portfolio_price_basis_share": None}
+        return {"portfolio_return_basis": PRICE_RETURN_BASIS, "portfolio_price_basis_share": None, **fields}
     basis = bases.pop() if len(bases) == 1 else MIXED_RETURN_BASIS
     share = price_value / total_value if total_value else None
-    return {"portfolio_return_basis": basis, "portfolio_price_basis_share": share}
+    return {"portfolio_return_basis": basis, "portfolio_price_basis_share": share, **fields}
 
 
 def _portfolio_return_series(
@@ -2000,11 +2063,15 @@ def _portfolio_return_series(
     reinvested stored dividends are the only income in it. Dividends are
     reinvested in each holding's own currency, then the closes are converted
     to GBP like the price series (#7786). Returns the series and its
-    ``portfolio_return_basis`` fields, plus the holdings missing FX rates
-    under ``UNCONVERTED_HOLDINGS_KEY``.
+    ``portfolio_return_basis`` fields (including the unpriced holdings), plus
+    the holdings missing FX rates under ``UNCONVERTED_HOLDINGS_KEY``.
     """
     total, per_holding = _holding_value_series(name, days, group=group, pricing_date=pricing_date, total_return=True)
-    return total, {**_portfolio_return_basis(per_holding), UNCONVERTED_HOLDINGS_KEY: _unconverted_holdings(total)}
+    unpriced = list(total.attrs.get(UNPRICED_HOLDINGS_KEY, []))
+    return total, {
+        **_portfolio_return_basis(per_holding, unpriced),
+        UNCONVERTED_HOLDINGS_KEY: _unconverted_holdings(total),
+    }
 
 
 def _benchmark_daily_returns(benchmark: str, effective_days: int, reporting_date: date) -> tuple[pd.Series | None, str]:
@@ -2419,6 +2486,58 @@ def _ledger_performance_for(owner: str, pricing_date: date | None) -> ledger_per
     return perf
 
 
+def _group_ledger_performance(
+    slug: str, pricing_date: date | None
+) -> tuple[ledger_performance.LedgerPerformance | None, List[str]]:
+    """Group ``slug`` rebuilt from its members' pooled ledgers (#9169).
+
+    Every member's account ledgers are replayed together, exactly as one
+    owner's accounts are, so deposits are neutral, income counts as return
+    and a transfer from one member to another (a ``TRANSFER_OUT`` in one
+    ledger and the matching ``TRANSFER_IN`` in the other, on the same day)
+    nets to zero in the pooled flows.
+
+    Returns ``(perf, missing_members)``. A member with no ledger is left out
+    of the rebuild entirely -- neither their holdings nor their flows count
+    -- so the figure is the exact return of the members that do have one,
+    rather than one that mixes unexplained holdings into the value (which
+    read high, #7228). ``missing_members`` lists them so callers can flag the
+    figure as partial. ``perf`` is ``None`` when no member has dated ledger
+    history; callers then fall back to the current-holdings series.
+    ``group_members`` raises ``ValueError`` for an unknown slug.
+    """
+    ledgers: list[ledger_performance.AccountLedger] = []
+    missing: List[str] = []
+    for member in group_portfolio.group_members(slug):
+        member_ledgers = ledger_performance.load_owner_ledgers(member)
+        if member_ledgers:
+            ledgers.extend(member_ledgers)
+            continue
+        missing.append(member)
+        logger.warning(
+            "Group %s: no transaction ledger for member %s -- they are left out of the group's TWR/XIRR.",
+            sanitise_log_value(slug),
+            sanitise_log_value(member),
+        )
+    if not ledgers:
+        return None, missing
+    end = PricingDateCalculator(reporting_date=pricing_date).reporting_date
+    pf = group_portfolio.build_group_portfolio(slug, pricing_date=end)
+    perf = ledger_performance.build_ledger_performance(ledgers, end, holdings=_portfolio_holdings(pf))
+    if perf is None or perf.values.empty:
+        return None, missing
+    return perf, missing
+
+
+def _rebuilt_performance(
+    owner: str, *, group: bool, pricing_date: date | None
+) -> tuple[ledger_performance.LedgerPerformance | None, List[str]]:
+    """Ledger rebuild for an owner or a group, plus the group's missing members."""
+    if group:
+        return _group_ledger_performance(owner, pricing_date)
+    return _ledger_performance_for(owner, pricing_date), []
+
+
 def _ledger_window_start(perf: ledger_performance.LedgerPerformance, days: int) -> date | None:
     """Exclusive start of a ``days`` calendar-day window ending at ``perf.end`` (``None``: since inception)."""
     return perf.end - timedelta(days=days) if days else None
@@ -2478,22 +2597,20 @@ def compute_time_weighted_return(
     value series, which is exact when nothing was traded.
 
     Set ``group=True`` to treat ``owner`` as a group slug and compute the
-    combined time-weighted return across every member's cash flows. Groups
-    still use the current-holdings value series adjusted by the pooled
-    ledger cash flows (moving them to the ledger rebuild is a follow-up to
-    #8461). Set ``include_missing_members=True`` to get back
-    ``(value, missing_members)`` -- the group members whose transaction
-    ledger was missing and therefore excluded from the cash-flow
-    reconstruction, even though their holdings still count toward the value
-    series. A non-empty list means the returned figure is understated in
-    contributions (and so reads high); callers must not present it as exact
-    without surfacing this (#7228).
+    combined time-weighted return from the members' pooled ledgers (see
+    ``_group_ledger_performance``, #9169). Set ``include_missing_members=True``
+    to get back ``(value, missing_members)`` -- the group members without a
+    transaction ledger. They are left out of the rebuilt figure entirely, so
+    a non-empty list means it covers only part of the group; callers must
+    surface this rather than present the figure as the whole group's
+    (#7228). When no member has ledger history the group falls back to the
+    current-holdings series, where a missing member's holdings still count
+    but their flows do not (so that figure reads high).
     """
-    if not group:
-        perf = _ledger_performance_for(owner, pricing_date)
-        if perf is not None:
-            value = ledger_performance.chained_return(perf.returns, _ledger_window_start(perf, days), perf.end)
-            return _with_missing(value, [], include_missing_members)
+    perf, missing_members = _rebuilt_performance(owner, group=group, pricing_date=pricing_date)
+    if perf is not None:
+        value = ledger_performance.chained_return(perf.returns, _ledger_window_start(perf, days), perf.end)
+        return _with_missing(value, missing_members, include_missing_members)
     value, missing_members = _series_time_weighted_return(owner, days, group=group, pricing_date=pricing_date)
     return _with_missing(value, missing_members, include_missing_members)
 
@@ -2503,7 +2620,7 @@ def _series_time_weighted_return(
 ) -> tuple[float | None, List[str]]:
     """TWR over the current-holdings value series, adjusted by ledger cash flows.
 
-    Used for groups (#7228) and as the fallback for owners without dated
+    The fallback for owners, and groups (#7228, #9169), without dated ledger
     transactions. The series never received the flows it is adjusted by, so
     it is only exact when nothing was traded, deposited or paid out in the
     window (#8461).
@@ -2558,16 +2675,14 @@ def compute_xirr(
     For a single owner the flows come from the ledger rebuild (see
     ``_ledger_xirr_flows``, #8461), with the same fallback as
     ``compute_time_weighted_return``. Set ``group=True`` to treat ``owner``
-    as a group slug and compute the combined XIRR across every member's
-    cash flows on the current-holdings value series. Set
-    ``include_missing_members=True`` to get back ``(value, missing_members)``
-    -- see ``compute_time_weighted_return`` for why a non-empty list means
-    the returned figure is unreliable (#7228).
+    as a group slug and compute the combined XIRR from the members' pooled
+    ledgers (#9169). Set ``include_missing_members=True`` to get back
+    ``(value, missing_members)`` -- see ``compute_time_weighted_return`` for
+    what a non-empty list means (#7228).
     """
-    if not group:
-        perf = _ledger_performance_for(owner, pricing_date)
-        if perf is not None:
-            return _with_missing(_solve_xirr(_ledger_xirr_flows(perf, days)), [], include_missing_members)
+    perf, missing_members = _rebuilt_performance(owner, group=group, pricing_date=pricing_date)
+    if perf is not None:
+        return _with_missing(_solve_xirr(_ledger_xirr_flows(perf, days)), missing_members, include_missing_members)
     flows, missing_members = _series_xirr_flows(owner, days, group=group, pricing_date=pricing_date)
     return _with_missing(_solve_xirr(flows), missing_members, include_missing_members)
 
@@ -2633,7 +2748,7 @@ def _series_xirr_flows(
 ) -> tuple[list[tuple[date, float]], List[str]]:
     """XIRR flows from the current-holdings value series plus ledger cash flows.
 
-    Used for groups and the owner fallback; see ``_series_time_weighted_return``
+    The owner and group fallback; see ``_series_time_weighted_return``
     for why this is only exact when nothing moved in the window (#8461).
     """
     missing_members: List[str] = []
@@ -2781,6 +2896,30 @@ def compute_cash_apy(owner: str, days: int = 365) -> float | None:
 # ──────────────────────────────────────────────────────────────
 # Snapshot refresher (used by /prices/refresh)
 # ──────────────────────────────────────────────────────────────
+def _snapshot_close_column(df: pd.DataFrame, ticker: str) -> tuple[str, str] | None:
+    """Return ``(close column, its currency)`` for a snapshot row, or ``None``.
+
+    ``close_gbp`` is already GBP. The native ``close``/``adj close`` fallback is
+    in the instrument's own currency, so it is tagged with that: labelling a
+    USD close "GBP" made readers apply it with no FX conversion (#7788 item 10).
+    A native close whose currency is unknown is skipped rather than guessed.
+    """
+    name_map = {c.lower(): c for c in df.columns}
+    if "close_gbp" in name_map:
+        return name_map["close_gbp"], "GBP"
+    native_col = name_map.get("close") or name_map.get("adj close") or name_map.get("adj_close")
+    if not native_col:
+        return None
+    currency = (get_instrument_meta(ticker) or {}).get("currency")
+    if not isinstance(currency, str) or not currency.strip():
+        logger.warning(
+            "Skipping %s: timeseries has no close_gbp and the instrument currency is unknown",
+            sanitise_log_value(ticker),
+        )
+        return None
+    return native_col, _normalize_currency_code(currency)
+
+
 def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
     """
     Pull a closing-price snapshot from the meta timeseries cache
@@ -2813,15 +2952,9 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             if df is not None and not df.empty:
                 scale = get_scaling_override(ticker_only, exchange, None)
                 df = apply_scaling(df, scale)
-                name_map = {c.lower(): c for c in df.columns}
-
-                close_col = (
-                    name_map.get("close_gbp")
-                    or name_map.get("close")
-                    or name_map.get("adj close")
-                    or name_map.get("adj_close")
-                )
-                if close_col:
+                close = _snapshot_close_column(df, t)
+                if close:
+                    close_col, close_currency = close
                     # Prefer the most recent row with a finite close over the
                     # literal last row: the current day's row can be an
                     # incomplete placeholder (NaN OHLC) before intraday data
@@ -2836,7 +2969,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                         if price > 0:
                             snapshot[t] = {
                                 "last_price": price,
-                                "price_currency": "GBP",
+                                "price_currency": close_currency,
                                 "last_price_date": pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d"),
                             }
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:

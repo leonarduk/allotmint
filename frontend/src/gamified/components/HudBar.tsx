@@ -20,6 +20,12 @@ interface HudBarProps {
 /**
  * Top status strip: plot value, running gain, grower level and XP — the
  * gamified read-out of figures the classic dashboard shows as a table.
+ *
+ * Plot value and gain belong to the selected grower. Level, rank, XP and
+ * streak come from `/trail`, which is the signed-in user's progress and is
+ * not owner-scoped, so they sit in their own "Your progress" group rather
+ * than reading as an attribute of whichever grower's plot is on screen
+ * (#7191).
  */
 export default function HudBar({
   snapshot,
@@ -41,8 +47,7 @@ export default function HudBar({
   return (
     <header className={styles.hud}>
       <h1 className={styles.hudTitle}>
-        <span>{t('plot.hud.title')}</span>
-        <span className={styles.hudRank}>{rank}</span>
+        {t('plot.hud.title')}
       </h1>
 
       <div className={styles.hudSpacer} />
@@ -62,17 +67,6 @@ export default function HudBar({
         <span className={styles.srOnly}>{t('plot.hud.gainSr')}</span>
       </span>
 
-      {streak > 0 && (
-        <span
-          className={styles.hudChip}
-          title={t('plot.hud.streakTitle')}
-        >
-          <span aria-hidden="true">🔥</span>
-          <span>{streak}</span>
-          <span className={styles.srOnly}>{t('plot.hud.streakSr')}</span>
-        </span>
-      )}
-
       {badgesTotal > 0 && (
         <span
           className={styles.hudChip}
@@ -86,20 +80,43 @@ export default function HudBar({
         </span>
       )}
 
-      <div className={styles.hudLevel}>
-        <span className={styles.hudLevelBadge} aria-hidden="true">
-          {grower.level}
+      <div
+        className={styles.hudProgress}
+        role="group"
+        aria-label={t('plot.hud.progressLabel')}
+        title={t('plot.hud.progressTitle')}
+      >
+        <span className={styles.hudProgressLabel}>
+          <span>{t('plot.hud.progressLabel')}</span>
+          <span className={styles.hudRank}>{rank}</span>
         </span>
-        <div className={styles.hudXp}>
-          <span className={styles.hudXpLabel}>{xpLabel}</span>
-          <Meter
-            pct={grower.pct}
-            label={t('plot.hud.meterLabel', {
-              level: grower.level,
-              xp: grower.xpIntoLevel,
-              xpForLevel: grower.xpForLevel,
-            })}
-          />
+
+        {streak > 0 && (
+          <span
+            className={styles.hudChip}
+            title={t('plot.hud.streakTitle')}
+          >
+            <span aria-hidden="true">🔥</span>
+            <span>{streak}</span>
+            <span className={styles.srOnly}>{t('plot.hud.streakSr')}</span>
+          </span>
+        )}
+
+        <div className={styles.hudLevel}>
+          <span className={styles.hudLevelBadge} aria-hidden="true">
+            {grower.level}
+          </span>
+          <div className={styles.hudXp}>
+            <span className={styles.hudXpLabel}>{xpLabel}</span>
+            <Meter
+              pct={grower.pct}
+              label={t('plot.hud.meterLabel', {
+                level: grower.level,
+                xp: grower.xpIntoLevel,
+                xpForLevel: grower.xpForLevel,
+              })}
+            />
+          </div>
         </div>
       </div>
 

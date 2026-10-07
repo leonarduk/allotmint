@@ -38,6 +38,11 @@ export interface Holding {
   total_return_gbp?: number | null;
   /** total_return_gbp over all cost put into the position, as a percentage. */
   total_return_pct?: number | null;
+  /**
+   * Trailing 12-month income received over market value, as a percentage
+   * (#7019); null when no income was received in that window.
+   */
+  yield_pct?: number | null;
   current_price_gbp?: number | null;
   current_price_currency?: string | null;
   /** Date of the last known price for this holding */
@@ -58,7 +63,10 @@ export interface Holding {
   day_change_currency?: string | null;
   instrument_type?: string | null;
   sector?: string | null;
+  /** Where the money is invested; for a fund this can differ from its domicile (#9296). */
   region?: string | null;
+  /** Fund domicile / ISIN country region, as stored in instrument metadata (#9296). */
+  domicile_region?: string | null;
   forward_7d_change_pct?: number | null;
   forward_30d_change_pct?: number | null;
 
@@ -578,6 +586,8 @@ export interface SectorDetail {
 export interface IndexPerformance {
   value: number;
   change: number;
+  /** When the level was struck (ISO-8601); absent if the provider gave none. */
+  as_of?: string;
 }
 
 /** `GET /market/indexes`: index level and % change over `period`. */
@@ -590,6 +600,8 @@ export interface MarketOverview {
   indexes: Record<string, IndexPerformance>;
   sectors: RegionSectorPerformance[];
   headlines: NewsItem[];
+  /** Why `headlines` is empty, when it is (#7788). */
+  headlines_status?: 'ok' | 'quota_exhausted' | 'unavailable';
 }
 
 /**
@@ -866,6 +878,10 @@ export interface ScreenerResult {
   ticker: string;
   name?: string | null;
   sector?: string | null;
+  /** Provider that supplied the fundamentals, e.g. "yahoo". */
+  source?: string | null;
+  /** ISO date the fundamentals were fetched from `source`. */
+  as_of?: string | null;
   peg_ratio: number | null;
   pe_ratio: number | null;
   de_ratio: number | null;
@@ -916,6 +932,20 @@ export type NavStatus = 'current' | 'stale' | 'undated';
  * Valuation profile from GET /screener/valuation (allotmint-pro#259).
  * Ratios are fractions (0.05 = 5%); a value no source supplies is null.
  */
+/**
+ * The index an instrument is compared with. `source` is "none" when no
+ * comparable benchmark applies (bond, cash, commodity or unclassifiable
+ * funds); `ticker` and `name` are then null and `note` says why.
+ */
+export interface BenchmarkInfo {
+  ticker: string | null;
+  name: string | null;
+  source: string;
+  asset_class?: string | null;
+  asset_class_basis?: string | null;
+  note?: string | null;
+}
+
 export interface InstrumentValuation {
   ticker: string;
   name: string | null;
@@ -958,7 +988,7 @@ export interface InstrumentValuation {
     /** Percent, as Yahoo reports it (45.4 = 45.4%). */
     debt_to_equity: number | null;
   };
-  benchmark: { ticker: string; name: string | null; source: string };
+  benchmark: BenchmarkInfo;
   risk: {
     volatility_1y: number | null;
     beta_3y: number | null;
@@ -1038,7 +1068,7 @@ export interface InstrumentTechnicals {
   };
   returns: Record<string, number | null>;
   relative_strength: {
-    benchmark: { ticker: string; name: string | null; source: string };
+    benchmark: BenchmarkInfo;
     excess_3m: number | null;
     excess_1y: number | null;
   };
@@ -1131,8 +1161,23 @@ export interface TradingAgentSettings {
   max_volatility: number | null;
 }
 
+/** A signal that crossed a threshold but was blocked by compliance. */
+export interface BlockedTradingSignal {
+  ticker: string;
+  action: 'BUY' | 'SELL';
+  /** Warnings the proposed trade would introduce, each prefixed with its owner. */
+  reasons: string[];
+}
+
+export interface TradingSignalsReport {
+  signals: TradingSignal[];
+  blocked: BlockedTradingSignal[];
+}
+
 export interface TradingPageData {
   signals: TradingSignal[];
+  /** Signals compliance blocked; absent when the backend didn't report them. */
+  blocked?: BlockedTradingSignal[];
   settings: TradingAgentSettings;
 }
 
@@ -1286,6 +1331,15 @@ export interface RebalanceSubClassRow {
   current_pct: number;
 }
 
+/** A holding with no asset class; symbol/exchange address its metadata. */
+export interface UnclassifiedHolding {
+  ticker: string;
+  symbol: string;
+  exchange: string | null;
+  name: string | null;
+  value: number;
+}
+
 export interface RebalancePlan {
   policy: AllocationPolicy;
   total_value: number;
@@ -1293,6 +1347,8 @@ export interface RebalancePlan {
   sub_classes?: RebalanceSubClassRow[];
   unclassified_value: number;
   unclassified_pct: number;
+  /** Holdings in the unclassified bucket, largest first (#9495). */
+  unclassified_holdings?: UnclassifiedHolding[];
   unpriced_tickers: string[];
   accounts: RebalanceAccount[];
   trades: RebalanceTrade[];

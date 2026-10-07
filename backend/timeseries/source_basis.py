@@ -95,7 +95,11 @@ def _dividend_adjusted(df: pd.DataFrame) -> bool:
 
 
 def basis_ratio(reference: pd.DataFrame, candidate: pd.DataFrame) -> float | None:
-    """Median ``candidate / reference`` Close on shared dates, or ``None`` if none are shared."""
+    """Median ``candidate / reference`` Close on shared dates.
+
+    ``None`` exactly when no date has a positive Close on both sides, which
+    ``compatible_rows`` relies on as its "no shared-date evidence" test.
+    """
     ratios = _shared_ratios(reference, candidate)
     if ratios.empty:
         return None
@@ -117,12 +121,26 @@ def same_basis(reference: pd.DataFrame, candidate: pd.DataFrame) -> bool:
     return bool(((_shared_ratios(reference, candidate) - 1.0).abs() <= DIVIDEND_BASIS_TOLERANCE).all())
 
 
+def _warn_same_source_without_overlap(group: pd.DataFrame, source: str, label: str) -> None:
+    logger.warning(
+        "Accepting %s %s row(s) for %s without shared-date evidence: no dates overlap the cached series",
+        sanitise_log_value(len(group)),
+        sanitise_log_value(source or "<unknown>"),
+        sanitise_log_value(label),
+    )
+
+
 def compatible_rows(existing: pd.DataFrame, new: pd.DataFrame, *, label: str = "") -> pd.DataFrame:
     """Return the rows of ``new`` that may be merged into ``existing``.
 
     A source group in ``new`` is kept when every existing row already comes
     from that source, or when it matches ``existing`` on shared dates
     (``same_basis``). Other groups are dropped and logged.
+
+    Same-source rows are kept even with no shared dates, since rejecting
+    them could stall a cache whose provider skipped the overlap window, but
+    that case is logged: there is no evidence the provider has not re-based
+    its history (#8791).
 
     Rows converted from an alternate listing (``is_alternate_listing_source``)
     are kept: ``alternate_listing`` already checked them against the stored
@@ -135,9 +153,13 @@ def compatible_rows(existing: pd.DataFrame, new: pd.DataFrame, *, label: str = "
     new_sources = _source_labels(new)
     keep = pd.Series(True, index=new.index)
     for source in new_sources.unique():
-        if existing_sources == {source} or is_alternate_listing_source(source):
+        if is_alternate_listing_source(source):
             continue
         group = new.loc[new_sources == source]
+        if existing_sources == {source}:
+            if basis_ratio(existing, group) is None:
+                _warn_same_source_without_overlap(group, source, label)
+            continue
         if same_basis(existing, group):
             continue
         logger.warning(
@@ -155,19 +177,39 @@ def _dates(df: pd.DataFrame) -> pd.Series:
     return pd.to_datetime(df["Date"]).dt.normalize()
 
 
-def combine_sources(frames: Iterable[pd.DataFrame], *, label: str = "") -> pd.DataFrame:
+def _primary_index(candidates: list[pd.DataFrame], prefer_source: str | None, label: str) -> int:
+    indices: list[int] = list(range(len(candidates)))
+    if prefer_source is not None:
+        preferred = [i for i in indices if prefer_source in set(_source_labels(candidates[i]))]
+        if preferred:
+            indices = preferred
+        else:
+            logger.info(
+                "Preferred source %s has no rows for %s; choosing the primary by coverage",
+                sanitise_log_value(prefer_source),
+                sanitise_log_value(label),
+            )
+    # ``-i`` makes ``max`` pick the earliest frame among equally covered ones.
+    return max(indices, key=lambda i: (_dates(candidates[i]).nunique(), -i))
+
+
+def combine_sources(
+    frames: Iterable[pd.DataFrame], *, label: str = "", prefer_source: str | None = None
+) -> pd.DataFrame:
     """Combine per-source frames without mixing price bases.
 
-    The frame with the most distinct dates is the primary (earlier frames
-    win ties, so pass them in provider-priority order). Every other frame
-    only fills dates the result still lacks, and only if it is on the same
-    basis as the primary on shared dates.
+    The primary is chosen from the frames carrying ``prefer_source`` rows
+    when given and any do; otherwise from all frames. Among those, the frame
+    with the most distinct dates wins, and earlier frames win ties (so pass
+    them in provider-priority order). Without ``prefer_source`` a longer
+    lower-priority frame therefore becomes the primary (#8792). Every other
+    frame only fills dates the result still lacks, and only if it is on the
+    same basis as the primary on shared dates.
     """
     candidates = [f for f in frames if f is not None and not f.empty]
     if not candidates:
         return pd.DataFrame()
-    # ``-i`` makes ``max`` pick the earliest frame among equally covered ones.
-    primary_idx = max(range(len(candidates)), key=lambda i: (_dates(candidates[i]).nunique(), -i))
+    primary_idx = _primary_index(candidates, prefer_source, label)
     primary = candidates[primary_idx]
     combined = primary.loc[~_dates(primary).duplicated(keep="last").to_numpy()]
     for idx, frame in enumerate(candidates):

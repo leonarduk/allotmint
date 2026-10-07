@@ -1,3 +1,4 @@
+import logging
 import re
 from datetime import date
 from pathlib import Path
@@ -455,6 +456,57 @@ def test_merge_prefers_the_best_covered_source_as_primary():
     merged = _merge([yahoo, stooq])
 
     assert merged["Source"].tolist() == ["Stooq"] * 3
+
+
+def test_merge_prefer_source_keeps_the_preferred_source_primary_despite_lower_coverage():
+    """#8792: a longer fallback must not become the reference basis over the preferred source."""
+    yahoo = _priced_df({"2024-01-02": 20.0}, "Yahoo")
+    stooq = _priced_df({"2024-01-01": 10.0, "2024-01-02": 10.0, "2024-01-03": 10.0}, "Stooq")
+
+    merged = _merge([stooq, yahoo], prefer_source="Yahoo")
+
+    assert merged["Source"].tolist() == ["Yahoo"]
+    assert merged["Close"].tolist() == [20.0]
+
+
+def test_merge_prefer_source_still_fills_gaps_from_same_basis_sources():
+    yahoo = _priced_df({"2024-01-02": 10.0}, "Yahoo")
+    ft = _priced_df({"2024-01-01": 10.0, "2024-01-02": 10.02, "2024-01-03": 10.0}, "FT")
+
+    merged = _merge([yahoo, ft], prefer_source="Yahoo")
+
+    assert merged["Source"].tolist() == ["FT", "Yahoo", "FT"]
+
+
+def test_merge_prefer_source_absent_falls_back_to_coverage(caplog):
+    ft = _priced_df({"2024-01-02": 20.0}, "FT")
+    stooq = _priced_df({"2024-01-01": 10.0, "2024-01-02": 10.0, "2024-01-03": 10.0}, "Stooq")
+
+    with caplog.at_level(logging.INFO, logger="backend.timeseries.source_basis"):
+        merged = _merge([ft, stooq], "ABC.L", prefer_source="Yahoo")
+
+    assert merged["Source"].tolist() == ["Stooq"] * 3
+    assert "Preferred source Yahoo has no rows for ABC.L" in caplog.text
+
+
+def test_fetch_meta_timeseries_prefers_yahoo_over_better_covered_stooq():
+    start = date(2024, 1, 1)
+    end = date(2024, 1, 3)
+    yahoo_df = _priced_df({"2024-01-02": 20.0}, "Yahoo")
+    stooq_df = _priced_df({"2024-01-01": 10.0, "2024-01-02": 10.0, "2024-01-03": 10.0}, "Stooq")
+
+    import backend.timeseries.fetch_meta_timeseries as meta
+
+    with (
+        patch.object(meta, "fetch_yahoo_timeseries_range", return_value=yahoo_df),
+        patch.object(meta, "fetch_stooq_timeseries_range", return_value=stooq_df),
+        patch.object(meta, "fetch_ft_df", return_value=pd.DataFrame()),
+        patch.object(meta, "is_valid_ticker", return_value=True),
+        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=False)),
+    ):
+        df = meta.fetch_meta_timeseries("ABC", "L", start_date=start, end_date=end)
+
+    assert df["Source"].tolist() == ["Yahoo"]
 
 
 def test_fetch_meta_timeseries_coverage_shortfall():

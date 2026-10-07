@@ -108,11 +108,12 @@
     "close": "Schließen",
     "last": "Zuletzt:",
     "loading": "Laden…",
+    "stillLoading": "Wird noch geladen — der erste Ladevorgang kann bis zu einer Minute dauern.",
     "logout": "Abmelden",
     "menu": "Menü",
     "menuCategories": {
       "dashboard": "Übersicht",
-      "goals": "Anforderungen",
+      "goals": "Planung",
       "holdings": "Bestände",
       "insights": "Recherche",
       "operations": "Verwaltung",
@@ -127,6 +128,7 @@
       "dataadmin": "Datenverwaltung",
       "dataexplorer": "Datei-Explorer",
       "dataquality": "Datenqualität",
+      "dividends": "Dividenden",
       "group": "Gruppe",
       "help": "Hilfe",
       "ideas": "Ideen",
@@ -386,6 +388,11 @@
     "alphaVsBenchmarkInfoLabel": "Was bedeutet Alpha vs Benchmark?",
     "alphaVsBenchmarkInfo": "Alpha misst, wie stark die Rendite des Portfolios im gewählten Zeitraum von {{ticker}} abwich.",
     "vsBenchmark": "vs {{ticker}}",
+    "cumulativeReturnPortfolio": "Ihr Portfolio",
+    "cumulativeReturnBenchmark": "{{ticker}} (Benchmark)",
+    "cumulativeReturnBasis": "Beide Linien verwenden reinvestierte Dividenden, die aktuellen Positionen und dieselben Daten ({{from}} bis {{to}}) wie Alpha vs. {{ticker}}.",
+    "benchmarkSeriesFailed": "{{ticker}} konnte zum Vergleich nicht geladen werden, daher wird nur die wertbasierte kumulierte Rendite Ihres Portfolios angezeigt.",
+    "benchmarkSeriesEmpty": "Für diesen Zeitraum gibt es keine überlappenden {{ticker}}-Kurse, daher wird nur die wertbasierte kumulierte Rendite Ihres Portfolios angezeigt.",
     "trackingErrorInfoLabel": "Was bedeutet Tracking Error?",
     "trackingErrorInfo": "Der Tracking Error misst, wie stark die täglichen Renditen des Portfolios von denen von {{ticker}} abwichen, annualisiert.",
     "maxDrawdownInfoLabel": "Was bedeutet Max Drawdown?",
@@ -440,6 +447,9 @@
     "atAGlance": "Auf einen Blick",
     "pricingAsOf": "Preisstand vom {{date}}",
     "pricingDatePickerLabel": "Preisstand ändern",
+    "pricingRefreshError": "Preise konnten nicht aktualisiert werden: {{detail}}",
+    "pricingStale_one": "Preise sind {{count}} Tag alt",
+    "pricingStale_other": "Preise sind {{count}} Tage alt",
     "resetPricingDate": "Auf den neuesten Stand zurücksetzen",
     "select": "Wählen Sie eine Gruppe.",
     "allAccounts": "Alle Konten",
@@ -473,6 +483,9 @@
     },
     "clearFilters": "Filter löschen",
     "horizontalScroll": "Bestandsspalten horizontal scrollen",
+    "filtersLabel": "Bestände filtern",
+    "filterBy": "Filtern nach {{field}}",
+    "moreColumnsHint": "Weitere Spalten →",
     "columns": {
       "sector": "Sektor",
       "acquired": "Erworben",
@@ -497,6 +510,11 @@
       "account": "Konto"
     },
     "columnsLabel": "Spalten:",
+    "columnPresets": {
+      "label": "Spaltenvorlage:",
+      "simple": "Einfach",
+      "detailed": "Detailliert"
+    },
     "eligible": "Berechtigt",
     "filters": {
       "all": "Alle",
@@ -521,6 +539,9 @@
     "daysHeldNotAvailable": "Tage gehalten nicht verfügbar",
     "stageNotAvailable": "Wachstumsstufe nicht verfügbar",
     "eligibleNotAvailable": "Verkaufsberechtigung nicht verfügbar",
+    "eligibleInDays_one": "Noch {{count}} Tag",
+    "eligibleInDays_other": "Noch {{count}} Tage",
+    "eligibleNeedsApproval": "Freigabe erforderlich",
     "noHoldings": "Keine Bestände entsprechen den aktuellen Filtern.",
     "openScreener": "Screener öffnen",
     "quickFilters": "Schnellfilter:",
@@ -877,6 +898,9 @@
     "level": "Stand",
     "changePct": "% Veränderung",
     "noHeadlines": "Keine Schlagzeilen verfügbar",
+    "headlinesQuotaExhausted": "Keine Schlagzeilen: Das Anfragekontingent des Nachrichtenanbieters ist aufgebraucht. Bitte später erneut versuchen.",
+    "headlinesUnavailable": "Keine Schlagzeilen: Keine Nachrichtenquelle hat geantwortet. Prüfe die Konfiguration des Nachrichtenanbieters (z. B. ALPHA_VANTAGE_KEY) oder versuche es später erneut.",
+    "asOf": "Stand: {{date}}",
     "staleHeadline": "Veraltet",
     "staleHeadlineTooltip": "Diese Schlagzeile stammt aus einem Cache, der zuletzt nicht aktualisiert wurde; Live-Nachrichtenabrufe schlagen möglicherweise fehl oder sind ratenbegrenzt.",
     "tooltipLevel": "Stand: {{value}}",
@@ -1226,7 +1250,9 @@
     "watchlist": "Beobachtungsliste:",
     "windowNote": "Die Spalten % und Wertänderung zeigen die Bewegung im gewählten Zeitraum. Jedes Signal verwendet sein eigenes Zeitfenster — wählen Sie ein Kauf- oder Verkaufssignal aus, um Grund und Konfidenz zu sehen.",
     "signalInfoLabel": "Was bedeutet die Spalte „Signal“?",
-    "signalInfo": "Zeigt, ob das jüngste Signal für dieses Instrument – mit denselben Strategieschwellen wie auf der Handelsseite – ein Kauf- oder Verkaufskandidat war."
+    "signalInfo": "Zeigt, ob das jüngste Signal für dieses Instrument – mit denselben Strategieschwellen wie auf der Handelsseite – ein Kauf- oder Verkaufskandidat war.",
+    "signalsTableTitle": "Signaldetails",
+    "signalsTableNote": "Jedes Signal wird über sein eigenes Zeitfenster gemessen (in der Spalte „Warum“ genannt), das von der oben angezeigten {{period}}-Kursänderung abweichen kann."
   },
   "owner": {
     "label": "Besitzer",
@@ -1806,6 +1832,8 @@
     "signalsTitle": "Aktuelle Signale",
     "noSignalsTitle": "Derzeit keine Signale",
     "noSignalsDescription": "Kein überwachtes Instrument überschreitet derzeit die aktiven Schwellenwerte. Signale erscheinen, wenn die RSI- oder Gleitendurchschnittsbedingungen erfüllt sind und alle aktivierten Bewertungs- und Risikofilter ebenfalls erfüllt werden.",
+    "blockedTitle": "Durch Compliance blockierte Signale",
+    "blockedDescription": "Diese Instrumente haben die aktiven Schwellenwerte überschritten, aber der vorgeschlagene Handel würde eine neue Compliance-Warnung auslösen, daher wird für sie kein Signal angezeigt.",
     "checksSkippedBadge": "Prüfungen übersprungen",
     "checksSkippedTitle": "Übersprungene Prüfungen: {{checks}}",
     "checksSkippedInfo": "Eine optionale Prüfung, die das allotmint-pro-Add-on benötigt, konnte nicht ausgeführt werden. „compliance“ bedeutet, dass der Handel nicht anhand Ihrer Compliance-Regeln geprüft wurde; „fundamental_screen“ bedeutet, dass die oben genannten KGV- und Verschuldungsgrad-Filter (soweit konfiguriert) für diesen Kaufkandidaten nicht angewendet wurden.",
@@ -1824,7 +1852,8 @@
       "label": "{{label}} ({{percent}}%)",
       "moderate": "Mittel",
       "strong": "Stark",
-      "weak": "Schwach"
+      "weak": "Schwach",
+      "saturated": "Stark (deutlich über dem Schwellenwert)"
     },
     "thresholdDays": "{{value}} Tage",
     "thresholds": {
@@ -1853,7 +1882,8 @@
       "sharpeInfoLabel": "Was bedeutet Sharpe-Ratio?",
       "volatilityInfo": "Volatilität ist hier die tägliche (nicht annualisierte) Standardabweichung der Renditen – wie stark der Kurs von einem Tag zum nächsten geschwankt hat.",
       "volatilityInfoLabel": "Was bedeutet Volatilität?"
-    }
+    },
+    "complianceSkippedBadge": "Compliance nicht geprüft"
   },
   "trail": {
     "allDone": "Alle Trail-Aufgaben erledigt – großartig!",
@@ -1934,6 +1964,7 @@
     "everyMinute": "Jede Minute",
     "manual": "Manuell",
     "marketsClosed": "Märkte geschlossen",
+    "staleAge": "{{days}} T. alt",
     "addTicker": "{{symbol}} zur Beobachtungsliste hinzufügen",
     "removeTicker": "{{symbol}} von der Beobachtungsliste entfernen"
   },
@@ -2223,6 +2254,20 @@
     "viewGoals": "Ziele anzeigen",
     "pensionForecast": "Rentenprognose"
   },
+  "costBasisChecklist": {
+    "summary_one": "Einstandskosten ergänzen: {{count}} Position ohne verlässliche Einstandskosten",
+    "summary_other": "Einstandskosten ergänzen: {{count}} Positionen ohne verlässliche Einstandskosten",
+    "intro": "Gewinn/Verlust lässt diese Positionen aus, bis ihre Kosten erfasst sind. Sortiert nach Größe: Die größten {{top}} machen {{share}} ihres Werts aus. Wählen Sie „Kosten erfassen“ und geben Sie den gezahlten Preis je Anteil ein.",
+    "holding": "Position",
+    "account": "Konto",
+    "value": "Wert",
+    "problem": "Problem",
+    "missing": "Keine Kosten erfasst",
+    "suspect": "Erfasste Kosten wirken falsch",
+    "addCost": "Kosten erfassen",
+    "showAll": "Alle {{count}} anzeigen",
+    "showTop": "Nur die größten {{count}} anzeigen"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} ohne Wechselkurs)",
     "reasonNoCostBasis": "keine verlässliche Anschaffungsbasis",
@@ -2301,6 +2346,7 @@
     "risk": "Risiko",
     "volatility1y": "Volatilität (1 J.)",
     "beta": "Beta vs. {{ticker}} (3 J., wöchentlich)",
+    "betaNoBenchmark": "Beta (3 J., wöchentlich)",
     "providerBeta": "Beta des Anbieters: {{value}}",
     "maxDrawdown": "Maximaler Drawdown",
     "history": "Historie",
@@ -2313,6 +2359,9 @@
     "ariaValuation": "Bewertung",
     "benchmark": "Vergleichsindex:",
     "exchangeDefault": ", Standard für die Börse der Notierung",
+    "noComparableBenchmark": "kein vergleichbarer",
+    "assetClass": "{{assetClass}}-Fonds",
+    "assetClassBasis": "{{assetClass}}-Fonds: {{basis}}",
     "dataQuality": "Datenqualität"
   },
   "instrumentTechnicals": {
@@ -2661,6 +2710,33 @@
     "estValue": "Gesch. Wert: ",
     "lastUpdated": "Zuletzt aktualisiert: "
   },
+  "dividends": {
+    "title": "Dividenden",
+    "description": "Erhaltene Dividendenerträge nach Zeitraum und nach Position. Beträge in verschiedenen Währungen werden getrennt angezeigt, nie addiert.",
+    "owner": "Eigentümer",
+    "allOwners": "Alle Eigentümer",
+    "period": "Gruppieren nach",
+    "periods": {
+      "taxYear": "Steuerjahr",
+      "year": "Kalenderjahr",
+      "month": "Monat"
+    },
+    "trailing12m": "Letzte 12 Monate",
+    "allTime": "Gesamt",
+    "byPeriod": "Nach Zeitraum",
+    "byHolding": "Nach Position",
+    "payments": "Zahlungen",
+    "received": "Erhalten",
+    "holding": "Position",
+    "lastPaid": "Zuletzt gezahlt",
+    "none": "—",
+    "empty": "Noch keine Dividendenzahlungen erfasst.",
+    "undated": "Ohne Datum",
+    "unattributed": "Keiner Position zugeordnet",
+    "unattributedHelp": "Dividendenzahlungen ohne Ticker, z. B. Überträge von einem Ertragskonto.",
+    "noHistory": "Keine Dividenden erfasst",
+    "holdingsUnavailable": "Aktuelle Positionen konnten nicht geladen werden, daher fehlen Positionen ohne Dividenden."
+  },
   "dividendHistory": {
     "trendAria": "Dividendentrend",
     "date": "Datum",
@@ -2678,6 +2754,8 @@
     "units": "Anteile",
     "priceGbp": "Preis (GBP)",
     "inputTitle": "Konto- und Bestandserfassung",
+    "costBasisHint": "Kosten für {{ticker}} erfassen: Geben Sie die gehaltenen Anteile und den gezahlten Preis je Anteil ein und speichern Sie. Das Feld Wert ist hier deaktiviert, da es den heutigen Kurs so erfassen würde, als hätten Sie ihn gezahlt.",
+    "costBasisNeedsPrice": "Um Kosten zu erfassen, geben Sie Anteile und den gezahlten Preis je Anteil ein. Ein Wert würde den heutigen Kurs als Ihre Kosten erfassen.",
     "inputIntro": "Legen Sie Konten an und erfassen Sie Bestände. Beim Speichern wird die Eröffnungsbuchung erfasst, die das Konto auf die eingegebenen Anteile bringt, sodass sie neben Ihren Trades unter <txlink>Transaktionen</txlink> erscheint.",
     "saving": "Speichern...",
     "saveHolding": "Bestand speichern",
@@ -2764,7 +2842,9 @@
       "badgesSr": "verdiente Saisonabzeichen",
       "xpLabel": "Level {{level}} · {{xp}}/{{xpForLevel}} XP",
       "meterLabel": "Gärtner-Level {{level}}, {{xp}} von {{xpForLevel}} XP bis zum nächsten Level",
-      "classicView": "Klassische Ansicht"
+      "classicView": "Klassische Ansicht",
+      "progressLabel": "Dein Fortschritt",
+      "progressTitle": "Stufe, Rang, XP und Serie verdienst du mit deinen eigenen Aufgaben – sie sind auf jedem Beet gleich."
     },
     "rail": {
       "ariaLabel": "Bereiche des Gartens",
@@ -2853,6 +2933,8 @@
       "growth": "Wachstum",
       "gainUnknown": "Gewinn unbekannt – keine Anschaffungskosten erfasst",
       "gainDetail": "{{gain}} nicht realisierter Gewinn ({{pct}})",
+      "yield": "Rendite",
+      "yieldDetail": "{{pct}} % Ertragsrendite der letzten 12 Monate",
       "vigour": "Vitalität",
       "noMoveToday": "Heute keine Bewegung erfasst",
       "pctToday": "{{pct}} heute",
@@ -2934,6 +3016,7 @@
       "earned": "Verdient",
       "badgeShelf": "Abzeichen-Regal ({{earned}}/{{total}})",
       "badgeNote": "Ein Abzeichen wird verdient, wenn alle Stufen seiner Kategorie abgeschlossen sind.",
+      "personalNote": "Dein Fortschritt – mit deinen eigenen Aufgaben verdient, nicht mit dem Beet dieses Gärtners.",
       "growingSeasonLabel": "Wachstumssaison {{label}}",
       "growingSeason": "Wachstumssaison",
       "noTaxYear": "Für diesen Gärtner wurde kein Steuerjahr gemeldet, daher gibt es kein Enddatum für den Countdown.",
@@ -2980,7 +3063,6 @@
     },
     "model": {
       "unnamedBed": "Unbenanntes Beet",
-      "allowancesUnavailable": "Freibeträge derzeit nicht verfügbar",
       "water": "Wasser",
       "feed": "Dünger",
       "sunlight": "Sonnenlicht",
@@ -3103,6 +3185,7 @@
     "retryingConfig": "Wird geladen ... Konfiguration wird erneut versucht.",
     "loadingConfig": "Konfiguration wird geladen ...",
     "configLoadFailed": "Konfiguration konnte nicht geladen werden.",
+    "serverUnreachable": "Der AllotMint-Server unter {{url}} ist nicht erreichbar.",
     "checkConnection": "Bitte überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
     "googleNotConfigured": "Google-Anmeldung ist nicht konfiguriert.",
     "loading": "Wird geladen ...",
@@ -3205,6 +3288,26 @@
     "noPlan": "Für {{owner}} ist noch kein Anlageplan gespeichert.",
     "createPlan": "Plan erstellen"
   },
+  "classify": {
+    "title": "Positionen klassifizieren",
+    "intro": "Diese Positionen haben keine Anlageklasse und zählen daher auf der Strategie-Seite nicht zu Ihren Zielen. Wählen Sie für jede eine Klasse; sie wird in den Instrument-Metadaten gespeichert.",
+    "back": "Zurück zur Strategie",
+    "noOwner": "Wählen Sie zuerst auf der Strategie-Seite einen Inhaber.",
+    "empty": "Jede Position hat eine Anlageklasse – nichts zu klassifizieren.",
+    "loadError": "Positionen für {{owner}} konnten nicht geladen werden: {{error}}",
+    "saveError": "Speichern fehlgeschlagen: {{error}}",
+    "saved": "{{ticker}} als {{assetClass}} gespeichert.",
+    "choose": "Auswählen…",
+    "selectLabel": "Anlageklasse für {{ticker}}",
+    "save": "Speichern",
+    "saving": "Wird gespeichert…",
+    "noExchange": "Dieser Ticker hat kein Börsensuffix; legen Sie die Anlageklasse in der Instrumentverwaltung fest.",
+    "col": {
+      "holding": "Position",
+      "value": "Wert",
+      "assetClass": "Anlageklasse"
+    }
+  },
   "strategy": {
     "title": "Strategie",
     "intro": "Wählen Sie eine Zielallokation – eine integrierte Strategie, eine eigene oder individuelle Ziele – und vergleichen Sie dann Ihre Bestände damit. So sehen Sie, welche Rebalancing-Trades oder welcher Beitrag sie wieder in Ihr Toleranzband bringen würden.",
@@ -3240,6 +3343,7 @@
       "underweight": "Untergewichtet",
       "unclassified": "Nicht klassifiziert",
       "needsAssetClass": "Anlageklasse erforderlich",
+      "classifyLink": "Diesen Positionen Anlageklassen zuweisen",
       "totalLine": "Gesamt {{total}} · Toleranz ±{{tolerance}} PP",
       "sleeveTitle": "Abweichung — Segment {{sleeve}}"
     },
@@ -3350,7 +3454,7 @@
     "overseas_government": "Ausländische Staatsanleihen",
     "corporate_bonds": "Unternehmensanleihen / Kredit",
     "gold": "Gold",
-    "commodities": "Sonstige Rohstoffe"
+    "other_commodities": "Sonstige Rohstoffe"
   },
   "planForm": {
     "errors": {

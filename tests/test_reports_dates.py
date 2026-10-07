@@ -14,7 +14,7 @@ def test_parse_date_invalid():
 
 def test_transaction_roots_aws(monkeypatch):
     monkeypatch.setattr(reports.config, "app_env", "aws")
-    assert list(reports._transaction_roots()) == ["transactions"]
+    assert list(reports._transaction_roots()) == ["accounts", "writable-accounts"]
 
 
 def test_transaction_roots_local(monkeypatch):

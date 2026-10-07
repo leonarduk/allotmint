@@ -76,6 +76,19 @@ describe("PerformanceDashboard", () => {
     vi.clearAllMocks();
   });
 
+  it("shows a skeleton, not a bare Loading line, while performance loads (#7215)", () => {
+    vi.mocked(getPerformance).mockReturnValue(new Promise(() => {}));
+    render(
+      <MemoryRouter>
+        <PerformanceDashboard owner="jane" />
+      </MemoryRouter>,
+    );
+
+    const status = screen.getByRole("status", { name: "Loading…" });
+    expect(status.querySelector(".animate-pulse")).not.toBeNull();
+    expect(screen.queryByText("Loading…", { selector: "p" })).toBeNull();
+  });
+
   it("renders reporting and previous date summary", async () => {
     render(
       <MemoryRouter>
@@ -124,6 +137,25 @@ describe("PerformanceDashboard", () => {
     expect(
       screen.getByRole("button", { name: "What does Alpha vs Benchmark mean?" }),
     ).toBeInTheDocument();
+  });
+
+  it("renders metric labels in AA-contrast slate, not the old light greys (#7824)", async () => {
+    render(
+      <MemoryRouter>
+        <PerformanceDashboard owner="jane" />
+      </MemoryRouter>,
+    );
+
+    const subLabels = await screen.findAllByText("vs VWRL.L");
+    const alphaLabel = screen
+      .getByRole("button", { name: "What does Alpha vs Benchmark mean?" })
+      .closest("div") as HTMLElement;
+    for (const el of [alphaLabel, ...subLabels]) {
+      expect(el).toHaveClass("text-slate-600");
+      expect(el.style.color).toBe("");
+    }
+    // Labels keep normal weight so values still read as the emphasis.
+    expect(alphaLabel.style.fontWeight).toBe("");
   });
 
   it("auto-expands a plausible severe drawdown (-0.95) and shows the >90% warning", async () => {
@@ -405,6 +437,65 @@ describe("PerformanceDashboard", () => {
       expect(screen.queryByText(/NaN|Infinity|∞/)).not.toBeInTheDocument();
       // A non-finite drawdown is "missing", so nothing auto-expands.
       expect(screen.queryByText("Max drawdown details")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("benchmark on the Cumulative Return chart (#7833)", () => {
+    it("plots the benchmark over the alpha series' date range when it is available", async () => {
+      vi.mocked(getAlphaVsBenchmark).mockResolvedValue({
+        alpha_vs_benchmark: 0.01,
+        benchmark: "VWRL.L",
+        series: [
+          {
+            date: "2024-03-01",
+            portfolio_cumulative_return: 0,
+            benchmark_cumulative_return: 0,
+            excess_cumulative_return: 0,
+          },
+          {
+            date: "2024-03-28",
+            portfolio_cumulative_return: 0.05,
+            benchmark_cumulative_return: 0.04,
+            excess_cumulative_return: 0.01,
+          },
+        ],
+      });
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+
+      const basis = await screen.findByTestId("cumulative-return-basis");
+      expect(basis).toHaveTextContent("2024-03-01 to 2024-03-28");
+      expect(basis).toHaveTextContent("Alpha vs VWRL.L");
+      expect(screen.queryByTestId("benchmark-series-unavailable")).toBeNull();
+    });
+
+    it("says the benchmark has no overlapping prices when the alpha series is empty", async () => {
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("benchmark-series-unavailable"),
+      ).toHaveTextContent("No VWRL.L prices overlap this period");
+      expect(screen.queryByTestId("cumulative-return-basis")).toBeNull();
+    });
+
+    it("says the benchmark could not be loaded when the alpha request fails", async () => {
+      vi.mocked(getAlphaVsBenchmark).mockRejectedValue(new Error("HTTP 500"));
+      render(
+        <MemoryRouter>
+          <PerformanceDashboard owner="jane" />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByTestId("benchmark-series-unavailable"),
+      ).toHaveTextContent("Couldn't load VWRL.L for comparison");
     });
   });
 

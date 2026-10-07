@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
+  Legend,
   Line,
   LineChart,
   ReferenceArea,
@@ -21,13 +22,20 @@ import {
   getGroupMaxDrawdown,
 } from "../api";
 import type { PerformancePoint } from "../types";
-import { percent } from "../lib/money";
+import { percent, wholeMoney } from "../lib/money";
+import { paddedDomain } from "../lib/chartDomain";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { formatDateISO } from "../lib/date";
 import type { DrawdownExtrema, DrawdownSeriesPoint } from "../types";
 import InfoTip from "./InfoTip";
 import PortfolioFxAttribution from "./PortfolioFxAttribution";
 import FractionMetric from "./FractionMetric";
+import LoadingStatus from "./skeletons/LoadingStatus";
+import PortfolioDashboardSkeleton from "./skeletons/PortfolioDashboardSkeleton";
+import {
+  buildCumulativeComparison,
+  type CumulativeComparisonPoint,
+} from "../lib/benchmarkSeries";
 import {
   classifyDrawdown,
   DRAWDOWN_RANGE,
@@ -51,6 +59,13 @@ type Props = {
 // The benchmark alpha/tracking-error are measured against. Named on screen
 // (see #7230) because "Alpha vs Benchmark" is not interpretable without it.
 const BENCHMARK_TICKER = "VWRL.L";
+// Muted metric labels that still meet WCAG AA on both themes (#7824): the
+// old #aaa/#777 greys were ~2.3:1 / ~4.5:1 on the light background.
+const METRIC_LABEL_CLASS = "text-slate-600 dark:text-slate-400";
+
+// Distinct hue and dash so the benchmark never reads as the portfolio line (#7833).
+const PORTFOLIO_LINE_COLOUR = "#82ca9d";
+const BENCHMARK_LINE_COLOUR = "#f59e0b";
 
 // Metric units (fractions) and plausibility handling live in
 // lib/metricPlausibility.ts and FractionMetric, shared with the group view
@@ -62,6 +77,10 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [days, setDays] = useState<number>(365);
   const [alpha, setAlpha] = useState<number | null>(null);
+  const [comparison, setComparison] = useState<CumulativeComparisonPoint[]>([]);
+  // Whether the benchmark could not be fetched at all, as opposed to having
+  // no overlapping prices; picks the fallback message (#7833).
+  const [benchmarkFailed, setBenchmarkFailed] = useState(false);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
   const [drawdownSeries, setDrawdownSeries] = useState<DrawdownSeriesPoint[]>([]);
@@ -100,6 +119,8 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     setDrawdownTrough(null);
     setShowDrawdownDetails(false);
     setAlpha(null);
+    setComparison([]);
+    setBenchmarkFailed(false);
     setTrackingError(null);
     setMaxDrawdown(null);
     setTimeWeightedReturn(null);
@@ -139,8 +160,10 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
 
       if (alphaResult.status === "fulfilled") {
         setAlpha(alphaResult.value.alpha_vs_benchmark);
+        setComparison(buildCumulativeComparison(alphaResult.value.series));
       } else {
         unavailable.push(t("dashboard.alphaVsBenchmark"));
+        setBenchmarkFailed(true);
       }
 
       if (teResult.status === "fulfilled") {
@@ -195,7 +218,11 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         </p>
       );
     }
-    return <p>{t("common.loading")}</p>;
+    return (
+      <LoadingStatus label={t("app.loading")}>
+        <PortfolioDashboardSkeleton />
+      </LoadingStatus>
+    );
   }
 
   const formatSummaryDate = (value: string | null) => {
@@ -215,6 +242,12 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   // Peak/trough are GBP portfolio values; shown in the reporting currency (#9805).
   const formatDrawdownNumber = (value: number | undefined | null) =>
     typeof value === "number" && Number.isFinite(value) ? reporting.format(value) : "—";
+
+  // Fit the value axis to the series rather than 0 so movement is visible,
+  // with currency ticks in the reporting currency (#7815).
+  const valueDomain = paddedDomain(data.map((p) => p.value));
+  const formatValueTick = (value: number) =>
+    wholeMoney(reporting.convertGbp(value), reporting.currency, i18n.language);
 
   // The tile, this details text and the warnings below all derive from the
   // same classification, so an implausible drawdown is N/A everywhere and
@@ -244,6 +277,9 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
 
   const drawdownDetailsAvailable = drawdownSeries.length > 0;
 
+  const formatReturnTooltip = (v: unknown) =>
+    percent(((v as number | undefined) ?? 0) * 100, 2, i18n.language);
+
   return (
     <div style={{ marginTop: "1rem" }}>
       <div style={{ marginBottom: "0.5rem" }}>
@@ -272,12 +308,12 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         </label>
       </div>
       <div
+        className={METRIC_LABEL_CLASS}
         style={{
           display: "flex",
           gap: "1rem",
           flexWrap: "wrap",
           fontSize: "0.9rem",
-          color: "#aaa",
           marginBottom: "0.75rem",
         }}
       >
@@ -330,7 +366,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         }}
       >
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.9rem" }}>
             {t("dashboard.alphaVsBenchmark")}
             <InfoTip
               label={t("dashboard.alphaVsBenchmarkInfoLabel", "What does Alpha vs Benchmark mean?")}
@@ -346,12 +382,12 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
             <FractionMetric value={alpha} range={RETURN_RANGE} testId="metric-alpha" />
           </div>
-          <div style={{ fontSize: "0.75rem", color: "#777" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.75rem" }}>
             {t("dashboard.vsBenchmark", "vs {{ticker}}", { ticker: BENCHMARK_TICKER })}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.9rem" }}>
             {t("dashboard.trackingError")}
             <InfoTip
               label={t("dashboard.trackingErrorInfoLabel", "What does Tracking Error mean?")}
@@ -367,12 +403,12 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
             <FractionMetric value={trackingError} range={TRACKING_ERROR_RANGE} testId="metric-tracking-error" />
           </div>
-          <div style={{ fontSize: "0.75rem", color: "#777" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.75rem" }}>
             {t("dashboard.vsBenchmark", "vs {{ticker}}", { ticker: BENCHMARK_TICKER })}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.9rem" }}>
             {t("dashboard.maxDrawdown")}
             <InfoTip
               label={t("dashboard.maxDrawdownInfoLabel", "What does Max Drawdown mean?")}
@@ -411,7 +447,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.9rem" }}>
             {t("dashboard.timeWeightedReturn")}
             <InfoTip
               label={t("dashboard.timeWeightedReturnInfoLabel", "What does Time-Weighted Return mean?")}
@@ -428,7 +464,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.9rem" }}>
             {t("dashboard.xirr")}
             <InfoTip
               label={t("dashboard.xirrInfoLabel", "What does XIRR mean?")}
@@ -581,26 +617,78 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data}>
           <XAxis dataKey="date" />
-          <YAxis />
-          <Tooltip />
+          <YAxis
+            domain={valueDomain ?? ["auto", "auto"]}
+            tickFormatter={formatValueTick}
+            width={80}
+          />
+          <Tooltip formatter={(v) => reporting.format(v as number | undefined)} />
           <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} />
         </LineChart>
       </ResponsiveContainer>
 
       <h2 style={{ marginTop: "2rem" }}>{t("dashboard.cumulativeReturn")}</h2>
-      <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={data}>
-          <XAxis dataKey="date" />
-          <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
-          <Tooltip formatter={(v) => percent(((v as number | undefined) ?? 0) * 100, 2, i18n.language)} />
-          <Line
-            type="monotone"
-            dataKey="cumulative_return"
-            stroke="#82ca9d"
-            dot={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+      {comparison.length > 0 ? (
+        <>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={comparison}>
+              <XAxis dataKey="date" />
+              <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
+              <Tooltip formatter={formatReturnTooltip} />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="portfolio"
+                name={t("dashboard.cumulativeReturnPortfolio")}
+                stroke={PORTFOLIO_LINE_COLOUR}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="benchmark"
+                name={t("dashboard.cumulativeReturnBenchmark", { ticker: BENCHMARK_TICKER })}
+                stroke={BENCHMARK_LINE_COLOUR}
+                strokeDasharray="6 3"
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+          <p
+            data-testid="cumulative-return-basis"
+            style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "0.25rem" }}
+          >
+            {t("dashboard.cumulativeReturnBasis", {
+              ticker: BENCHMARK_TICKER,
+              from: comparison[0].date,
+              to: comparison[comparison.length - 1].date,
+            })}
+          </p>
+        </>
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={data}>
+              <XAxis dataKey="date" />
+              <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
+              <Tooltip formatter={formatReturnTooltip} />
+              <Line
+                type="monotone"
+                dataKey="cumulative_return"
+                stroke={PORTFOLIO_LINE_COLOUR}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+          <p
+            data-testid="benchmark-series-unavailable"
+            style={{ fontSize: "0.8rem", color: "#facc15", marginTop: "0.25rem" }}
+          >
+            {benchmarkFailed
+              ? t("dashboard.benchmarkSeriesFailed", { ticker: BENCHMARK_TICKER })
+              : t("dashboard.benchmarkSeriesEmpty", { ticker: BENCHMARK_TICKER })}
+          </p>
+        </>
+      )}
       {activeOwner && (
         <div style={{ marginTop: "1rem" }}>
           <Link

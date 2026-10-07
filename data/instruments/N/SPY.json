@@ -1,0 +1,11 @@
+{
+  "ticker": "SPY.N",
+  "name": "SPDR S&P 500 ETF Trust",
+  "exchange": "N",
+  "currency": "USD",
+  "instrumentType": "ETF",
+  "isin": "US78462F1030",
+  "asset_class": "equity",
+  "sector": "Multi-sector",
+  "region": "North America"
+}

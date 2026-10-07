@@ -176,7 +176,7 @@ def test_basket_change_reinvests_constituent_dividends(monkeypatch, small_univer
     assert rows == [{"sector": "Energy", "change": pytest.approx(2.5), "source": "basket"}]
 
 
-def test_sector_detail_reports_traded_price_and_total_return(monkeypatch, small_universe):
+def test_sector_detail_constituent_change_is_price_only(monkeypatch, small_universe):
     frame = _closes(
         {"XLE": [100.0] * 8, "XOM": [50.0] * 8, "CVX": [None] * 8},
         dividends={("XLE", 3): 2.0, ("XOM", 7): 1.0},
@@ -187,9 +187,18 @@ def test_sector_detail_reports_traded_price_and_total_return(monkeypatch, small_
 
     assert detail["returns"]["1W"] == pytest.approx(2.0)
     xom = detail["constituents"][0]
-    # Price is the traded close; the day change includes the dividend going ex.
+    # Price and day change are both traded: a flat stock going ex-dividend is 0%.
     assert xom["price"] == 50.0
-    assert xom["change"] == pytest.approx(2.0)
+    assert xom["change"] == pytest.approx(0.0)
+
+
+def test_download_history_without_dividends_is_price_return(monkeypatch):
+    frame = _closes({"XLE": [100.0, 101.0, 99.0], "XOM": [50.0, 51.0, 52.0]})
+    monkeypatch.setattr(market_sectors.yf, "download", lambda *_, **__: frame)
+
+    history = market_sectors.download_period_history(["XLE", "XOM"], "1W")
+
+    pd.testing.assert_frame_equal(history.total_return, history.traded, check_names=False, check_freq=False)
 
 
 def test_indexes_level_is_traded_close_even_with_dividends(monkeypatch):
@@ -199,7 +208,8 @@ def test_indexes_level_is_traded_close_even_with_dividends(monkeypatch):
 
     resp = _client().get("/market/indexes", params={"period": "1W"})
 
-    assert resp.json()["indexes"]["FTSE 100"] == {"value": 100.0, "change": pytest.approx(1.0)}
+    ftse = resp.json()["indexes"]["FTSE 100"]
+    assert {k: ftse[k] for k in ("value", "change")} == {"value": 100.0, "change": pytest.approx(1.0)}
 
 
 def test_fetch_region_sectors_skips_sector_without_data(monkeypatch, small_universe):
@@ -361,9 +371,18 @@ def test_indexes_endpoint_computes_period_change_from_closes(monkeypatch):
     resp = _client().get("/market/indexes", params={"period": "1W"})
 
     assert resp.status_code == 200
+    frame_last_date = frame.index[-1].isoformat()
     assert resp.json() == {
         "period": "1W",
-        "indexes": {"FTSE 100": {"value": pytest.approx(110.0), "change": pytest.approx(10.0)}},
+        # as_of is the last close's date, so a multi-day level is not mistaken
+        # for a live quote (#7788).
+        "indexes": {
+            "FTSE 100": {
+                "value": pytest.approx(110.0),
+                "change": pytest.approx(10.0),
+                "as_of": frame_last_date,
+            }
+        },
     }
     assert windows == [(["^FTSE", "^FTMC"], "1mo")]
 

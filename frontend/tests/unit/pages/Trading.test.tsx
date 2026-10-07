@@ -5,7 +5,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { axe } from 'jest-axe';
 import Trading from '@/pages/Trading';
 import useFetchWithRetry from '@/hooks/useFetchWithRetry';
-import type { TradingAgentSettings, TradingSignal } from '@/types';
+import type {
+  BlockedTradingSignal,
+  TradingAgentSettings,
+  TradingSignal,
+} from '@/types';
 
 vi.mock('@/api', () => ({
   getTradingPageData: vi.fn(),
@@ -60,6 +64,7 @@ const defaultSettings: TradingAgentSettings = {
 
 function mockFetchState(overrides: {
   data?: TradingSignal[] | null;
+  blocked?: BlockedTradingSignal[];
   settings?: Partial<TradingAgentSettings>;
   loading?: boolean;
   error?: Error | null;
@@ -70,6 +75,7 @@ function mockFetchState(overrides: {
         ? null
         : {
             signals: overrides.data ?? [],
+            blocked: overrides.blocked ?? [],
             settings: { ...defaultSettings, ...overrides.settings },
           },
     loading: overrides.loading ?? false,
@@ -117,6 +123,34 @@ describe('Trading page', () => {
       screen.getByText(/No tracked instrument currently crosses/)
     ).toBeInTheDocument();
     expect(screen.queryByText(/backend unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it('reports compliance-blocked signals instead of "no threshold crossed"', async () => {
+    mockFetchState({
+      data: [],
+      blocked: [
+        {
+          ticker: 'BBB',
+          action: 'SELL',
+          reasons: ['alex: 21 trades in 2026-10 (max 20)'],
+        },
+      ],
+    });
+
+    render(<Trading />);
+
+    expect(
+      await screen.findByText('Signals blocked by compliance')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/alex: 21 trades in 2026-10 \(max 20\)/)
+    ).toBeInTheDocument();
+    expect(screen.getByText('BBB Sell')).toBeInTheDocument();
+    expect(screen.getByTestId('blocked-count')).toHaveTextContent('(1)');
+    expect(screen.queryByText('No signals right now')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/No tracked instrument currently crosses/)
+    ).not.toBeInTheDocument();
   });
 
   it('renders "Not enabled" for null (disabled) thresholds', async () => {
@@ -221,13 +255,43 @@ describe('Trading page', () => {
     ).toBeInTheDocument();
   });
 
+  it('names skipped checks visibly and flags a skipped compliance check as a warning (#7217)', async () => {
+    mockFetchState({
+      data: [{ ...sampleSignal, checks_skipped: ['compliance', 'fundamental_screen'] }],
+    });
+
+    render(<Trading />);
+    await screen.findByText('AAA');
+
+    // Visible text, not a hover-only `title` attribute.
+    expect(screen.getByText('Compliance not checked')).toBeInTheDocument();
+    expect(screen.getByText('Skipped checks: fundamental_screen')).toBeInTheDocument();
+    expect(screen.queryByText('Checks skipped')).not.toBeInTheDocument();
+  });
+
+  it('describes a capped confidence instead of a meaningless "100%" (#7217)', async () => {
+    mockFetchState({
+      data: [
+        { ...sampleSignal, ticker: 'AAA', confidence: 1 },
+        { ...sampleSignal, ticker: 'BBB', confidence: 0.6 },
+      ],
+    });
+
+    render(<Trading />);
+    await screen.findByText('AAA');
+
+    expect(screen.getByText('Strong (well past threshold)')).toBeInTheDocument();
+    expect(screen.queryByText('Strong (100%)')).not.toBeInTheDocument();
+    expect(screen.getByText('Moderate (60%)')).toBeInTheDocument();
+  });
+
   it('pins the "Checks skipped" copy to the backend\'s actual checks_skipped vocabulary (#7230)', () => {
     // Guards against the copy drifting from what the backend can actually
     // emit — this is exactly how a previous review round caught the
     // explanation describing checks (P/E, Sharpe ratio, volatility) the
     // backend never tags as skipped, and omitting 'compliance' (the
     // consequential one) entirely. Checks both places that carry the same
-    // claim (Trading.tsx's inline tooltip and MetricsExplanation.tsx's
+    // claim (SignalDetails.tsx's inline tooltip and MetricsExplanation.tsx's
     // glossary entry) since either can drift independently.
     const backendSource = readFileSync(
       resolve(__dirname, '../../../../backend/agent/trading_agent.py'),
@@ -241,7 +305,7 @@ describe('Trading page', () => {
     expect(emitted).toEqual(new Set(['compliance', 'fundamental_screen']));
 
     const copySources = [
-      resolve(__dirname, '../../../src/pages/Trading.tsx'),
+      resolve(__dirname, '../../../src/components/SignalDetails.tsx'),
       resolve(__dirname, '../../../src/pages/MetricsExplanation.tsx'),
     ].map((path) => readFileSync(path, 'utf-8'));
 

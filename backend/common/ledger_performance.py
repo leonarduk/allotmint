@@ -51,7 +51,7 @@ from backend.common.holdings_rebuild import (
     TRADE_CASH_FLAG,
     _instrument_key,
     _quantity,
-    _settled_value,
+    _settled_cash,
     name_aliases,
     replay_transactions,
 )
@@ -280,12 +280,29 @@ def _parse_day(raw: Any) -> date | None:
         return None
 
 
-def _business_day(day: date, last: pd.Timestamp) -> pd.Timestamp:
-    """Roll a weekend date forward to Monday, but never past the last index day."""
+def _business_day(day: date, last: pd.Timestamp) -> pd.Timestamp | None:
+    """Roll a weekend date forward to Monday; ``None`` if that lands after the last index day.
+
+    A weekend transaction at the reporting boundary (e.g. Saturday with
+    ``end`` that Saturday) belongs after ``end``'s last business day, so it is
+    left out rather than moved back before its own date (#8455).
+    """
     stamp = pd.Timestamp(day)
     while stamp.weekday() >= 5:
         stamp += pd.Timedelta(days=1)
-    return min(stamp, last)
+    return stamp if stamp <= last else None
+
+
+def _business_rows(
+    rows: Sequence[tuple[date, Mapping[str, Any]]], last: pd.Timestamp
+) -> list[tuple[pd.Timestamp, Mapping[str, Any]]]:
+    """``rows`` keyed by the business day they apply on, dropping those after ``last``."""
+    stamped: list[tuple[pd.Timestamp, Mapping[str, Any]]] = []
+    for day, tx in rows:
+        stamp = _business_day(day, last)
+        if stamp is not None:
+            stamped.append((stamp, tx))
+    return stamped
 
 
 def _dated_rows(ledger: AccountLedger, end: date) -> list[tuple[date, Mapping[str, Any]]]:
@@ -299,7 +316,7 @@ def _dated_rows(ledger: AccountLedger, end: date) -> list[tuple[date, Mapping[st
 
 def _positions(
     ledger: AccountLedger,
-    rows: Sequence[tuple[date, Mapping[str, Any]]],
+    rows: Sequence[tuple[pd.Timestamp, Mapping[str, Any]]],
     aliases: Mapping[str, str],
     index: pd.DatetimeIndex,
 ) -> tuple[pd.DataFrame, pd.Series]:
@@ -311,7 +328,7 @@ def _positions(
     """
     by_day: dict[pd.Timestamp, list[Mapping[str, Any]]] = defaultdict(list)
     for day, tx in rows:
-        by_day[_business_day(day, index[-1])].append(tx)
+        by_day[day].append(tx)
     units: dict[pd.Timestamp, dict[str, float]] = {}
     cash: dict[pd.Timestamp, float] = {}
     prefix: list[Mapping[str, Any]] = []
@@ -347,7 +364,7 @@ def _record_instrument_event(
     if tx_type in _UNIT_ONLY:
         return
     sign = _TRADES[tx_type]
-    value = _settled_value(tx, qty, acquisition=sign > 0)
+    value = _settled_cash(tx, qty, acquisition=sign > 0)
     if value is None:
         return
     events.implied_prices[(key, day)] = value / qty
@@ -413,14 +430,15 @@ def _replay_accounts(
     units = pd.DataFrame(index=index, dtype=float)
     cash = pd.Series(0.0, index=index)
     events = _Events()
-    for ledger, rows in dated:
+    for ledger, dated_rows in dated:
+        rows = _business_rows(dated_rows, index[-1])
         if not rows:
             continue
         account_units, account_cash = _positions(ledger, rows, aliases, index)
         units = units.add(account_units, fill_value=0.0)
         cash = cash.add(account_cash, fill_value=0.0)
         for day, tx in rows:
-            _record_event(events, ledger, _business_day(day, index[-1]), tx, aliases)
+            _record_event(events, ledger, day, tx, aliases)
     return index, units.fillna(0.0), cash, events
 
 

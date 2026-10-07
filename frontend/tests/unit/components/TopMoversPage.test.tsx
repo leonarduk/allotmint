@@ -366,6 +366,76 @@ describe("TopMoversPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("gives the signal table a heading, period note, strength and visible skipped checks (#7217)", async () => {
+    const detailedSignal: TradingSignal = {
+      ...signal,
+      confidence: 1,
+      checks_skipped: ["compliance", "fundamental_screen"],
+      rationale: "The price gained 9.10% in the last 7 days, exceeding the 5% momentum trigger.",
+    };
+    mockGetOpportunities.mockImplementation(() =>
+      Promise.resolve({
+        entries: [{ ...groupEntries[0], signal: detailedSignal }],
+        signals: [detailedSignal],
+        context: { source: "group", group: "all", days: 1, anomalies: [] },
+      }),
+    );
+
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    const section = (
+      await screen.findByRole("heading", { name: enTranslation.movers.signalsTableTitle })
+    ).closest("section") as HTMLElement;
+    expect(
+      within(section).getByText(
+        enTranslation.movers.signalsTableNote.replace("{{period}}", "1d"),
+      ),
+    ).toBeInTheDocument();
+    expect(within(section).getByText("Buy")).toBeInTheDocument();
+    expect(
+      within(section).getByText(enTranslation.trading.strength.saturated),
+    ).toBeInTheDocument();
+    expect(within(section).queryByText(/100%/)).not.toBeInTheDocument();
+    expect(
+      within(section).getByText(enTranslation.trading.complianceSkippedBadge),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByText("Skipped checks: fundamental_screen"),
+    ).toBeInTheDocument();
+    expect(within(section).getByText("go long")).toBeInTheDocument();
+    // Each row states the window its signal was measured over, so a Movers
+    // period that differs from the signal's lookback no longer reads as a
+    // contradiction with Trading.
+    expect(
+      within(section).getByRole("columnheader", { name: enTranslation.trading.columns.why }),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByText(/in the last 7 days/),
+    ).toBeInTheDocument();
+    // The rest of #7217's Movers ACs landed with #7231 and must hold here
+    // too: the Trading page's own "not trade instructions" caveat is on the
+    // page, and the % / value headers name their period and unit in words.
+    expect(screen.getByText(enTranslation.trading.description)).toBeInTheDocument();
+    expect(enTranslation.trading.description).toMatch(/not trade instructions/);
+    expect(
+      screen.getByRole("columnheader", {
+        name: enTranslation.movers.pctChangeHeader.replace("{{period}}", "1d"),
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", {
+        name: enTranslation.movers.deltaGbpHeader
+          .replace("{{symbol}}", "£")
+          .replace("{{period}}", "1d"),
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Δ/)).not.toBeInTheDocument();
+  });
+
   it("shows page-shaped skeletons instead of a bare loading message while the fetch is pending (#7229)", async () => {
     // getGroupInstruments still resolves normally (fast, default mock); it's
     // the slow /opportunities call that never settles here, which is enough
@@ -540,6 +610,71 @@ describe("TopMoversPage", () => {
     );
     expect(keyWarnings).toEqual([]);
     errorSpy.mockRestore();
+  });
+
+  it("lists every gainer above the losers and renders all rows (#7788)", async () => {
+    // 12 losers + 3 gainers: the old ascending sort inside a clipped,
+    // virtualised scroll box left the gainers below the fold.
+    const entries: OpportunityEntry[] = [
+      ...Array.from({ length: 12 }, (_, i) => ({
+        ticker: `L${i}`,
+        name: `Loser ${i}`,
+        change_pct: -(i + 1),
+        side: "losers" as const,
+      })),
+      ...Array.from({ length: 3 }, (_, i) => ({
+        ticker: `G${i}`,
+        name: `Gainer ${i}`,
+        change_pct: i + 1,
+        side: "gainers" as const,
+      })),
+    ];
+    mockGetOpportunities.mockResolvedValue({
+      entries,
+      signals: [],
+      context: { source: "group", group: "all", days: 1, anomalies: [] },
+    });
+
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("G2");
+    const tickers = screen
+      .getAllByRole("button")
+      .map((b) => b.textContent ?? "")
+      .filter((text) => /^[GL]\d+$/.test(text));
+    expect(tickers).toHaveLength(15);
+    expect(tickers.slice(0, 3)).toEqual(["G2", "G1", "G0"]);
+    expect(tickers.at(-1)).toBe("L11");
+  });
+
+  it("starts the holdings and movers requests together rather than chaining them (#7788)", async () => {
+    let releaseHoldings: () => void = () => {};
+    mockGetGroupInstruments.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseHoldings = () => resolve([]);
+        }),
+    );
+
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(mockGetOpportunities).toHaveBeenCalledWith(
+        expect.objectContaining({ group: "all" }),
+      ),
+    );
+    releaseHoldings();
+    expect(
+      await screen.findByRole("button", { name: "AAA" }),
+    ).toBeInTheDocument();
   });
 });
 

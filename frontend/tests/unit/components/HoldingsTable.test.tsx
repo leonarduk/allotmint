@@ -23,6 +23,7 @@ vi.mock("@/components/TopMoversSummary", () => ({
     TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
 import { HoldingsTable } from "@/components/HoldingsTable";
+import { COLUMN_VISIBILITY_STORAGE_KEY, DETAILED_COLUMNS } from "@/lib/holdingsColumns";
 import { __clearInstrumentHistoryCache } from "@/hooks/useInstrumentHistory";
 import { InstrumentTable } from "@/components/InstrumentTable";
 import { GroupPortfolioView } from "@/components/GroupPortfolioView";
@@ -65,6 +66,14 @@ import type { Holding } from "@/types";
 describe("HoldingsTable", () => {
     beforeEach(() => {
         localStorage.clear();
+        // Start from Detailed: every column on, which is exactly the layout
+        // these tests were written against (before #7832 the six toggleable
+        // columns defaulted on and the other ten were always rendered). The
+        // "column presets" tests below cover the Simple default.
+        localStorage.setItem(
+            COLUMN_VISIBILITY_STORAGE_KEY,
+            JSON.stringify(DETAILED_COLUMNS),
+        );
     });
     const holdings: Holding[] = [
         {
@@ -214,7 +223,7 @@ describe("HoldingsTable", () => {
         renderWithConfig(<HoldingsTable holdings={holdings} />);
 
         const headerRows = await screen.findAllByRole("row");
-        const headers = within(headerRows[1])
+        const headers = within(headerRows[0])
             .getAllByRole("columnheader")
             .map((header) => header.textContent);
 
@@ -970,7 +979,7 @@ describe("HoldingsTable", () => {
         );
 
         const rows = await screen.findAllByRole("row");
-        const headerColumnCount = within(rows[1]).getAllByRole("columnheader").length;
+        const headerColumnCount = within(rows[0]).getAllByRole("columnheader").length;
 
         const table = screen.getByRole("table");
         const footerRow = table.querySelector("tfoot tr") as HTMLTableRowElement;
@@ -1031,10 +1040,32 @@ describe("HoldingsTable", () => {
     it("shows days to go if not eligible", async () => {
         render(<HoldingsTable holdings={holdings}/>);
         const row = (await screen.findByText("Test Holding")).closest("tr");
-        const cell = within(row!).getByText("✗ 10");
+        const cell = within(row!).getByText("✗ 10 days left");
         expect(cell).toBeInTheDocument();
         const expected = formatDateISO(new Date('2024-07-20'));
         expect(cell).toHaveAttribute('title', expected);
+    });
+
+    it("says a sale needs approval instead of a cryptic ✗ 0 (#7196)", async () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        const row = (await screen.findByText("CAD Holding")).closest("tr");
+        expect(within(row!).getByText("✗ Needs approval")).toBeInTheDocument();
+        expect(within(row!).queryByText("✗ 0")).toBeNull();
+    });
+
+    it("says a sale needs approval for the null-countdown payload the backend now sends (#7242)", async () => {
+        const blocked: Holding = { ...holdings[0], ticker: "APR", name: "Awaiting Approval", sell_eligible: false, days_until_eligible: null, next_eligible_sell_date: "2024-04-10" };
+        render(<HoldingsTable holdings={[blocked]}/>);
+        const row = (await screen.findByText("Awaiting Approval")).closest("tr");
+        expect(within(row!).getByText("✗ Needs approval")).toBeInTheDocument();
+    });
+
+    it("gives no verdict when days until eligible is unknown (#7196)", async () => {
+        const unknown: Holding = { ...holdings[0], ticker: "UNK", name: "Unknown Period", sell_eligible: false, days_until_eligible: null };
+        render(<HoldingsTable holdings={[unknown]}/>);
+        const row = (await screen.findByText("Unknown Period")).closest("tr");
+        expect(within(row!).queryByText(/Needs approval/)).toBeNull();
+        expect(within(row!).queryByText(/^✗/)).toBeNull();
     });
 
     it("marks stale prices with an asterisk", async () => {
@@ -1139,11 +1170,11 @@ describe("HoldingsTable", () => {
         await screen.findByText("AAA");
         // initially sorted ascending by ticker => AAA first
         let rows = screen.getAllByRole("row");
-        expect(within(rows[2]).getByText("AAA")).toBeInTheDocument();
+        expect(within(rows[1]).getByText("AAA")).toBeInTheDocument();
 
         await userEvent.click(screen.getByText(/^Ticker/));
         rows = screen.getAllByRole("row");
-        expect(within(rows[2]).getByText("XYZ")).toBeInTheDocument();
+        expect(within(rows[1]).getByText("XYZ")).toBeInTheDocument();
     });
 
     it("filters by ticker", async () => {
@@ -1152,6 +1183,23 @@ describe("HoldingsTable", () => {
         await userEvent.type(input, "AA");
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.queryByText("XYZ")).toBeNull();
+    });
+
+    it("renders a single header row with the filters outside the table (#7814)", async () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        await screen.findByText("AAA");
+        const table = screen.getByRole("table");
+        expect(table.querySelectorAll("thead tr")).toHaveLength(1);
+        const filters = screen.getByRole("group", { name: "Filter holdings" });
+        expect(table.contains(filters)).toBe(false);
+        expect(within(filters).getByLabelText("Filter by Ticker")).toBeInTheDocument();
+    });
+
+    it("keeps the filter inputs available when nothing matches (#7814)", async () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        await userEvent.type(await screen.findByPlaceholderText("Ticker"), "missing");
+        expect(screen.queryByRole("table")).toBeNull();
+        expect(screen.getByPlaceholderText("Ticker")).toHaveValue("missing");
     });
 
     it("filters by eligibility", async () => {
@@ -1461,6 +1509,30 @@ describe("HoldingsTable", () => {
           scrollWidth.mockRestore();
       });
 
+      it("shows the more-columns hint only while columns remain off-screen (#7814)", () => {
+          const clientWidth = vi.spyOn(HTMLElement.prototype, "clientWidth", "get");
+          const scrollWidth = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get");
+          clientWidth.mockReturnValue(600);
+          scrollWidth.mockReturnValue(1200);
+          try {
+              render(<HoldingsTable holdings={holdings} />);
+              const tableContainer = screen.getByRole('table').parentElement as HTMLElement;
+              expect(screen.getByText("More columns →")).toBeInTheDocument();
+
+              tableContainer.scrollLeft = 600;
+              fireEvent.scroll(tableContainer);
+              expect(screen.queryByText("More columns →")).toBeNull();
+          } finally {
+              clientWidth.mockRestore();
+              scrollWidth.mockRestore();
+          }
+      });
+
+      it("does not show the more-columns hint when every column fits", () => {
+          render(<HoldingsTable holdings={holdings} />);
+          expect(screen.queryByText("More columns →")).toBeNull();
+      });
+
       it("shows a consolidated notice when some holdings have no price history", async () => {
           __clearInstrumentHistoryCache();
           vi.mocked(getInstrumentDetail).mockResolvedValue({
@@ -1506,4 +1578,139 @@ describe("HoldingsTable", () => {
           expect(screen.getAllByText(/no price history/i)).toHaveLength(1);
           vi.unstubAllGlobals();
       });
+
+  describe("column presets (#7832)", () => {
+      const headerTitles = (container: HTMLElement) =>
+          Array.from(container.querySelector("thead tr")!.querySelectorAll("th")).map(
+              (th) => th.textContent?.replace(/[▲▼]/g, "").trim(),
+          );
+      const presetButton = (name: string) =>
+          within(screen.getByRole("group", { name: "Column preset:" })).getByRole("button", {
+              name,
+          });
+
+      it("defaults to the Simple preset when no column choice is saved", () => {
+          localStorage.removeItem(COLUMN_VISIBILITY_STORAGE_KEY);
+          const { container } = render(<HoldingsTable holdings={holdings} />);
+
+          expect(headerTitles(container)).toEqual(["Ticker", "Name", "Units", "Mkt £", "Gain £"]);
+          expect(presetButton("Simple")).toHaveAttribute("aria-pressed", "true");
+          expect(presetButton("Detailed")).toHaveAttribute("aria-pressed", "false");
+          expect(screen.getByRole("checkbox", { name: "Units" })).toBeChecked();
+          expect(screen.getByRole("checkbox", { name: "Sector" })).not.toBeChecked();
+          // Total row label spans ticker + name only, so the footer stays aligned.
+          const footerCells = container.querySelectorAll("tfoot td");
+          expect(footerCells[0]).toHaveAttribute("colspan", "2");
+          expect(footerCells).toHaveLength(4);
+      });
+
+      it("Detailed restores the full column set, checks every box and is saved", async () => {
+          localStorage.removeItem(COLUMN_VISIBILITY_STORAGE_KEY);
+          const { container, unmount } = render(<HoldingsTable holdings={holdings} />);
+
+          await userEvent.click(presetButton("Detailed"));
+
+          expect(headerTitles(container)).toHaveLength(18);
+          expect(presetButton("Detailed")).toHaveAttribute("aria-pressed", "true");
+          // With sector shown, the total row label spans ticker + name + sector.
+          expect(container.querySelector("tfoot td")).toHaveAttribute("colspan", "3");
+          const columnCheckboxes = within(
+              screen.getByRole("group", { name: "Columns:" }),
+          ).getAllByRole("checkbox");
+          expect(columnCheckboxes).toHaveLength(16);
+          for (const checkbox of columnCheckboxes) {
+              expect(checkbox).toBeChecked();
+          }
+          expect(JSON.parse(localStorage.getItem(COLUMN_VISIBILITY_STORAGE_KEY)!)).toEqual(
+              DETAILED_COLUMNS,
+          );
+
+          unmount();
+          const { container: remounted } = render(<HoldingsTable holdings={holdings} />);
+          expect(headerTitles(remounted)).toHaveLength(18);
+      });
+
+      it("keeps per-column checkboxes working on top of a preset", async () => {
+          localStorage.removeItem(COLUMN_VISIBILITY_STORAGE_KEY);
+          const { container } = render(<HoldingsTable holdings={holdings} />);
+
+          await userEvent.click(screen.getByRole("checkbox", { name: "Sector" }));
+
+          expect(headerTitles(container)).toContain("Sector");
+          expect(presetButton("Simple")).toHaveAttribute("aria-pressed", "false");
+          expect(presetButton("Detailed")).toHaveAttribute("aria-pressed", "false");
+
+          await userEvent.click(presetButton("Simple"));
+          expect(headerTitles(container)).not.toContain("Sector");
+          expect(screen.getByRole("checkbox", { name: "Sector" })).not.toBeChecked();
+      });
+
+      it("relative view still hides money columns a preset turns on, until it is switched off", async () => {
+          localStorage.removeItem(COLUMN_VISIBILITY_STORAGE_KEY);
+          const { container } = renderWithConfig(<HoldingsTable holdings={holdings} />);
+          await userEvent.click(screen.getByLabelText("Relative view"));
+
+          await userEvent.click(presetButton("Detailed"));
+
+          expect(presetButton("Detailed")).toHaveAttribute("aria-pressed", "true");
+          expect(screen.getByRole("checkbox", { name: "Units" })).toBeChecked();
+          const relativeHeaders = headerTitles(container);
+          for (const hidden of ["Units", "Mkt £", "Gain £", "Total return £", "Cost £"]) {
+              expect(relativeHeaders).not.toContain(hidden);
+          }
+          expect(relativeHeaders).toContain("Gain %");
+          expect(relativeHeaders).toHaveLength(13);
+
+          await userEvent.click(screen.getByLabelText("Relative view"));
+          expect(headerTitles(container)).toHaveLength(18);
+      });
+
+      it.each([
+          ["Simple", null],
+          ["Detailed", DETAILED_COLUMNS],
+          ["a custom mix", { ...DETAILED_COLUMNS, sector: false, weight_pct: false, trend: false }],
+      ])(
+          "keeps every grouped row aligned with an account column under %s",
+          async (_label, saved) => {
+              if (saved) {
+                  localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(saved));
+              } else {
+                  localStorage.removeItem(COLUMN_VISIBILITY_STORAGE_KEY);
+              }
+              const accountHoldings = holdings.map((h, index) => ({
+                  ...h,
+                  source_account: "isa",
+                  grouping: index % 2 ? "Growth" : "Income",
+              }));
+              const { container } = renderWithConfig(
+                  <HoldingsTable holdings={accountHoldings} showAccount groupingMode="group" />,
+              );
+              for (const toggle of screen.getAllByRole("button", { name: /^Toggle / })) {
+                  await userEvent.click(toggle);
+              }
+
+              const widths = Array.from(container.querySelectorAll("table tr")).map((row) =>
+                  Array.from(row.children).reduce(
+                      (sum, cell) => sum + ((cell as HTMLTableCellElement).colSpan || 1),
+                      0,
+                  ),
+              );
+              const headerWidth = container.querySelector("thead tr")!.children.length;
+              // The single header row (#7814), two group headers, holding rows
+              // and the total row.
+              expect(widths.length).toBe(holdings.length + 4);
+              expect(new Set(widths)).toEqual(new Set([headerWidth]));
+          },
+      );
+
+      it("falls back to Simple when the saved choice is unreadable", () => {
+          localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, "{not json");
+          const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+          const { container } = render(<HoldingsTable holdings={holdings} />);
+
+          expect(headerTitles(container)).toEqual(["Ticker", "Name", "Units", "Mkt £", "Gain £"]);
+          expect(warn).toHaveBeenCalled();
+          warn.mockRestore();
+      });
+  });
   });

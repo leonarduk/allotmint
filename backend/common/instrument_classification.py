@@ -186,18 +186,59 @@ def canonical_asset_class(value: Any) -> Optional[str]:
     return None
 
 
+# One display form per known instrument type, keyed case-insensitively.
+# Metadata arrives as "EQUITY" (Yahoo/HL) and "Equity" (hand-edited) for the
+# same thing, so the API emitted both and any exact comparison silently missed
+# one (#7788 item 9). Unknown types pass through, trimmed, so nothing is lost.
+# The asset-class display labels are included so the asset-class fallback in
+# resolve_instrument_type ("equity" -> "Equity") lands in the same vocabulary:
+# instrument_type has one casing whatever its source. ``asset_class`` itself
+# keeps its lowercase #9196 vocabulary.
+_CANONICAL_INSTRUMENT_TYPES = {
+    **{label.upper(): label for label in ASSET_CLASS_LABELS.values()},
+    "EQUITY": "Equity",
+    "ETF": "ETF",
+    "ETC": "ETC",
+    "ETP": "ETP",
+    "FUND": "Fund",
+    "INVESTMENT TRUST": "Investment Trust",
+    "OEIC": "OEIC",
+    "UNIT TRUST": "Unit Trust",
+    "BOND": "Bond",
+    "GILT": "Gilt",
+    "CASH": "Cash",
+}
+
+
+def normalise_instrument_type(value: Any) -> Optional[str]:
+    """Return ``value`` in its canonical casing, or ``None`` if it is blank."""
+
+    if not isinstance(value, str) or not value.strip():
+        return None
+    trimmed = value.strip()
+    return _CANONICAL_INSTRUMENT_TYPES.get(trimmed.upper(), trimmed)
+
+
+def explicit_instrument_type(meta: Mapping[str, Any]) -> Optional[str]:
+    """Return the canonical explicit ``instrumentType``/``instrument_type``, if any."""
+
+    return normalise_instrument_type(meta.get("instrumentType") or meta.get("instrument_type"))
+
+
 def resolve_instrument_type(meta: Mapping[str, Any]) -> Optional[str]:
     """Return ``instrument_type`` for ``meta``, falling back to its asset class.
 
-    An explicit ``instrumentType``/``instrument_type`` is returned verbatim
-    (providers use "ETF", "EQUITY", "Investment Trust", ...). Without one, the
-    asset class stands in, canonicalised by :func:`canonical_asset_class` so a
-    legacy "Equity" and a new "equity" record resolve identically.
+    An explicit ``instrumentType``/``instrument_type`` is returned in canonical
+    casing (see :func:`normalise_instrument_type`). Without one, the asset class
+    stands in, canonicalised by :func:`canonical_asset_class` so a legacy
+    "Equity" and a new "equity" record resolve identically, and then given the
+    same display casing ("Equity", "Multi-asset") so the field never carries
+    both "Equity" and "equity" (#7788 item 9).
     """
-    explicit = meta.get("instrumentType") or meta.get("instrument_type")
+    explicit = explicit_instrument_type(meta)
     if explicit:
         return explicit
-    return canonical_asset_class(meta.get("assetClass") or meta.get("asset_class"))
+    return normalise_instrument_type(canonical_asset_class(meta.get("assetClass") or meta.get("asset_class")))
 
 
 def _instrument_type(meta: Mapping[str, Any]) -> str:
@@ -297,6 +338,50 @@ def exposure_sector(meta: Mapping[str, Any]) -> Optional[str]:
     if asset_class is None:
         return sector or None
     return _fund_sector(sector, asset_class) or sector or None
+
+
+#: Region label for a fund spread across developed and/or emerging markets.
+GLOBAL_REGION = "Global"
+
+# Fund-name keywords that say where a fund invests, checked in this order; the
+# first match wins. Single countries come before blocs ("MSCI EM Asia" is
+# Asia, "Global Emerging Markets" is EM), and Europe before UK so "Europe ex
+# UK" is Europe. Labels reuse the stored region vocabulary ("US", "UK", ...).
+_REGION_KEYWORD_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("India", re.compile(r"\bindia\b", re.IGNORECASE)),
+    ("Brazil", re.compile(r"\bbrazil\b", re.IGNORECASE)),
+    ("China", re.compile(r"\bchina\b|\bchinese\b", re.IGNORECASE)),
+    ("Japan", re.compile(r"\bjapan(ese)?\b", re.IGNORECASE)),
+    ("Asia Pacific", re.compile(r"\bfar east\b|\basia(n)?\b|\bpacific\b", re.IGNORECASE)),
+    ("Emerging Markets", re.compile(r"\bemerging\b", re.IGNORECASE)),
+    (GLOBAL_REGION, re.compile(r"\ball[- ]world\b|\bworld(wide)?\b|\bglobal\b|\bACWI\b", re.IGNORECASE)),
+    ("US", re.compile(r"(?-i:\bUS\b)|\bU\.S\.|\bS&P 500\b|\bnasdaq\b|\bamerica(n)?\b", re.IGNORECASE)),
+    ("Europe", re.compile(r"\beurope(an)?\b|\beuro stoxx\b|\beurozone\b", re.IGNORECASE)),
+    ("UK", re.compile(r"\bUK\b|\bFTSE (100|250|350|all[- ]share)\b|\bbritish\b|\bunited kingdom\b", re.IGNORECASE)),
+)
+
+
+def exposure_region(meta: Mapping[str, Any]) -> Optional[str]:
+    """Return the region a holding's money is invested in (read-time correction).
+
+    Stored ``region`` is the issuer's domicile / ISIN country, so an Irish
+    MSCI World ETF reads "Europe" and a Jersey-listed Far East trust "UK"
+    (#9296). An explicit ``exposure_region`` in the metadata wins; otherwise a
+    fund whose name names a region or country gets that label, with
+    :data:`GLOBAL_REGION` for world funds. Company shares, and funds whose
+    name says nothing about geography, keep their stored region.
+    """
+    explicit = _text(meta, "exposure_region")
+    if explicit:
+        return explicit
+    region = _text(meta, "region") or None
+    if not is_fund(meta):
+        return region
+    name = _text(meta, "name")
+    for label, pattern in _REGION_KEYWORD_RULES:
+        if pattern.search(name):
+            return label
+    return region
 
 
 def classify_instrument(

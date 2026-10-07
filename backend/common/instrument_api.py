@@ -102,7 +102,7 @@ def _resolve_full_ticker(ticker: str, latest: Dict[str, float]) -> Optional[tupl
         sym, ex = (k.split(".", 1) + [None])[:2]
         if sym == base and ex:
             return sym, ex
-    ex = _TICKER_EXCHANGE_MAP.get(base)
+    ex = _ticker_exchange_map().get(base)
     if ex:
         return base, ex
     return None
@@ -204,9 +204,36 @@ def _derive_grouping(*sources: Optional[Mapping[str, Any]], current: Optional[An
     return name
 
 
-# Load once; callers can restart process to refresh or we can add a reload later.
-_ALL_TICKERS: List[str] = list_all_unique_tickers()
-_TICKER_EXCHANGE_MAP: Dict[str, str] = _build_exchange_map(_ALL_TICKERS)
+# Built lazily on first use, then cached for the process lifetime.  Owner
+# discovery must not run at import: in Lambda that happens during init, outside
+# any ``system_job_context()`` and before the handler runs, so with auth on it
+# saw no owners (and in TradingAgentLambda an S3 AccessDenied crashed init)
+# (#8914).  ``None`` means "not built yet"; tests may assign concrete values.
+_ALL_TICKERS: Optional[List[str]] = None
+_TICKER_EXCHANGE_MAP: Optional[Dict[str, str]] = None
+_TICKER_INDEX_LOCK = threading.Lock()
+
+
+def _all_tickers() -> List[str]:
+    """Return every held ticker, building (and caching) the list on first use."""
+    global _ALL_TICKERS
+    if _ALL_TICKERS is None:
+        with _TICKER_INDEX_LOCK:
+            if _ALL_TICKERS is None:
+                _ALL_TICKERS = list_all_unique_tickers()
+    return _ALL_TICKERS
+
+
+def _ticker_exchange_map() -> Dict[str, str]:
+    """Return the base-symbol -> exchange map, building it on first use."""
+    global _TICKER_EXCHANGE_MAP
+    if _TICKER_EXCHANGE_MAP is None:
+        tickers = _all_tickers()
+        with _TICKER_INDEX_LOCK:
+            if _TICKER_EXCHANGE_MAP is None:
+                _TICKER_EXCHANGE_MAP = _build_exchange_map(tickers)
+    return _TICKER_EXCHANGE_MAP
+
 
 # Global cache for the last known price of each instrument.  This is populated
 # on demand to avoid network access during module import.  ``create_app`` primes
@@ -228,7 +255,7 @@ def prime_latest_prices() -> None:
     if config.skip_snapshot_warm:
         _LATEST_PRICES = {}
         return
-    _LATEST_PRICES = load_latest_prices(_ALL_TICKERS)
+    _LATEST_PRICES = load_latest_prices(_all_tickers())
 
 
 def update_latest_prices_from_snapshot(snapshot: Dict[str, Dict[str, Any]]) -> None:
@@ -825,7 +852,8 @@ def positions_for_ticker(group_slug: str, ticker: str) -> List[Dict[str, Any]]:
                         "market_value_gbp": h.get("market_value_gbp"),
                         "book_cost_basis_gbp": h.get("cost_basis_gbp", 0.0),
                         "effective_cost_basis_gbp": h.get("effective_cost_basis_gbp", 0.0),
-                        "gain_gbp": h.get("gain_gbp", 0.0),
+                        # Unknown cost means unknown gain (#8471): never default to 0.0 (#8490).
+                        "gain_gbp": h.get("gain_gbp"),
                         "gain_pct": h.get("gain_pct"),
                         "days_held": h.get("days_held"),
                         "sell_eligible": h.get("sell_eligible"),

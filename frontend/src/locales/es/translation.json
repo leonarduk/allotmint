@@ -108,11 +108,12 @@
     "close": "Cerrar",
     "last": "Último:",
     "loading": "Cargando…",
+    "stillLoading": "Seguimos trabajando — la primera carga puede tardar hasta un minuto.",
     "logout": "Cerrar sesión",
     "menu": "Menú",
     "menuCategories": {
       "dashboard": "Panel",
-      "goals": "Requisitos",
+      "goals": "Planificación",
       "holdings": "Posiciones",
       "insights": "Investigación",
       "operations": "Administración",
@@ -127,6 +128,7 @@
       "dataadmin": "Administración de datos",
       "dataexplorer": "Explorador de archivos",
       "dataquality": "Calidad de datos",
+      "dividends": "Dividendos",
       "group": "Grupo",
       "help": "Ayuda",
       "ideas": "Ideas",
@@ -386,6 +388,11 @@
     "alphaVsBenchmarkInfoLabel": "¿Qué significa Alfa vs Referencia?",
     "alphaVsBenchmarkInfo": "El alfa mide en qué medida la rentabilidad de la cartera difirió de {{ticker}} durante el periodo seleccionado.",
     "vsBenchmark": "vs {{ticker}}",
+    "cumulativeReturnPortfolio": "Su cartera",
+    "cumulativeReturnBenchmark": "{{ticker}} (referencia)",
+    "cumulativeReturnBasis": "Ambas líneas usan dividendos reinvertidos, las posiciones actuales y las mismas fechas ({{from}} a {{to}}) que el alfa frente a {{ticker}}.",
+    "benchmarkSeriesFailed": "No se pudo cargar {{ticker}} para comparar, así que solo se muestra el retorno acumulado de su cartera basado en su valor.",
+    "benchmarkSeriesEmpty": "No hay precios de {{ticker}} que coincidan con este periodo, así que solo se muestra el retorno acumulado de su cartera basado en su valor.",
     "trackingErrorInfoLabel": "¿Qué significa el error de seguimiento?",
     "trackingErrorInfo": "El error de seguimiento mide cuánto variaron los rendimientos diarios de la cartera respecto a los de {{ticker}}, en términos anualizados.",
     "maxDrawdownInfoLabel": "¿Qué significa la máxima caída?",
@@ -440,6 +447,9 @@
     "atAGlance": "De un vistazo",
     "pricingAsOf": "Precios al {{date}}",
     "pricingDatePickerLabel": "Cambiar fecha de precios",
+    "pricingRefreshError": "No se pudieron actualizar los precios: {{detail}}",
+    "pricingStale_one": "Los precios tienen {{count}} día",
+    "pricingStale_other": "Los precios tienen {{count}} días",
     "resetPricingDate": "Restablecer al más reciente",
     "select": "Seleccione un grupo.",
     "allAccounts": "Todas las cuentas",
@@ -473,6 +483,9 @@
     },
     "clearFilters": "Limpiar filtros",
     "horizontalScroll": "Desplazar horizontalmente las columnas de posiciones",
+    "filtersLabel": "Filtrar posiciones",
+    "filterBy": "Filtrar por {{field}}",
+    "moreColumnsHint": "Más columnas →",
     "columns": {
       "sector": "Sector",
       "acquired": "Adquirido",
@@ -497,6 +510,11 @@
       "account": "Cuenta"
     },
     "columnsLabel": "Columnas:",
+    "columnPresets": {
+      "label": "Preajuste de columnas:",
+      "simple": "Sencillo",
+      "detailed": "Detallado"
+    },
     "eligible": "Elegible",
     "filters": {
       "all": "Todos",
@@ -521,6 +539,9 @@
     "daysHeldNotAvailable": "Días en cartera no disponibles",
     "stageNotAvailable": "Etapa de crecimiento no disponible",
     "eligibleNotAvailable": "Elegibilidad de venta no disponible",
+    "eligibleInDays_one": "Falta {{count}} día",
+    "eligibleInDays_other": "Faltan {{count}} días",
+    "eligibleNeedsApproval": "Requiere aprobación",
     "noHoldings": "No hay posiciones que coincidan con los filtros actuales.",
     "openScreener": "Abrir Screener",
     "quickFilters": "Filtros rápidos:",
@@ -877,6 +898,9 @@
     "level": "Nivel",
     "changePct": "% de variación",
     "noHeadlines": "No hay titulares disponibles",
+    "headlinesQuotaExhausted": "Sin titulares: se ha agotado la cuota de solicitudes del proveedor de noticias. Inténtalo más tarde.",
+    "headlinesUnavailable": "Sin titulares: ninguna fuente de noticias respondió. Revisa la configuración del proveedor de noticias (p. ej., ALPHA_VANTAGE_KEY) o inténtalo más tarde.",
+    "asOf": "A fecha de {{date}}",
     "staleHeadline": "Obsoleto",
     "staleHeadlineTooltip": "Este titular proviene de una caché que no se ha actualizado recientemente; es posible que las consultas de noticias en directo estén fallando o limitadas.",
     "tooltipLevel": "Nivel: {{value}}",
@@ -1226,7 +1250,9 @@
     "watchlist": "Lista de seguimiento:",
     "windowNote": "Las columnas de % y valor muestran el movimiento del período seleccionado. Cada señal usa su propia ventana de referencia — selecciona una señal de compra o venta para ver su motivo y confianza.",
     "signalInfoLabel": "¿Qué significa la columna Señal?",
-    "signalInfo": "Muestra si la última señal generada para ese instrumento, con los mismos umbrales de estrategia que la página de Trading, fue candidata a compra o a venta."
+    "signalInfo": "Muestra si la última señal generada para ese instrumento, con los mismos umbrales de estrategia que la página de Trading, fue candidata a compra o a venta.",
+    "signalsTableTitle": "Detalles de la señal",
+    "signalsTableNote": "Cada señal se mide en su propia ventana de referencia (indicada en la columna «Por qué»), que puede diferir del cambio de precio de {{period}} mostrado arriba."
   },
   "owner": {
     "label": "Propietario",
@@ -1806,6 +1832,8 @@
     "signalsTitle": "Señales actuales",
     "noSignalsTitle": "No hay señales en este momento",
     "noSignalsDescription": "Ningún instrumento seguido cruza actualmente los umbrales activos. Las señales aparecen cuando se cumplen las condiciones de RSI o de medias móviles y también se superan los filtros de valoración y riesgo habilitados.",
+    "blockedTitle": "Señales bloqueadas por cumplimiento",
+    "blockedDescription": "Estos instrumentos superaron los umbrales activos, pero la operación propuesta generaría una nueva advertencia de cumplimiento, por lo que no se muestra ninguna señal para ellos.",
     "checksSkippedBadge": "Comprobaciones omitidas",
     "checksSkippedTitle": "Comprobaciones omitidas: {{checks}}",
     "checksSkippedInfo": "No se pudo ejecutar una comprobación opcional que requiere el complemento allotmint-pro. «compliance» significa que la operación no se comprobó con tus reglas de cumplimiento; «fundamental_screen» significa que los filtros de PER y deuda/patrimonio anteriores (los que estén configurados) no se aplicaron a este candidato de compra.",
@@ -1824,7 +1852,8 @@
       "label": "{{label}} ({{percent}}%)",
       "moderate": "Moderada",
       "strong": "Fuerte",
-      "weak": "Débil"
+      "weak": "Débil",
+      "saturated": "Fuerte (muy por encima del umbral)"
     },
     "thresholdDays": "{{value}} días",
     "thresholds": {
@@ -1853,7 +1882,8 @@
       "sharpeInfoLabel": "¿Qué significa ratio de Sharpe?",
       "volatilityInfo": "La volatilidad aquí es la desviación típica diaria (no anualizada) de los rendimientos: cuánto ha fluctuado el precio de un día a otro.",
       "volatilityInfoLabel": "¿Qué significa volatilidad?"
-    }
+    },
+    "complianceSkippedBadge": "Cumplimiento no verificado"
   },
   "trail": {
     "allDone": "Todas las tareas de Trail están completas — ¡excelente!",
@@ -1934,6 +1964,7 @@
     "everyMinute": "Cada minuto",
     "manual": "Manual",
     "marketsClosed": "Mercados cerrados",
+    "staleAge": "hace {{days}} d",
     "addTicker": "Añadir {{symbol}} a la lista de seguimiento",
     "removeTicker": "Quitar {{symbol}} de la lista de seguimiento"
   },
@@ -2223,6 +2254,20 @@
     "viewGoals": "Ver objetivos",
     "pensionForecast": "Previsión de pensión"
   },
+  "costBasisChecklist": {
+    "summary_one": "Completar coste: {{count}} posición sin coste fiable",
+    "summary_other": "Completar coste: {{count}} posiciones sin coste fiable",
+    "intro": "Ganancia/pérdida excluye estas posiciones hasta que se registre su coste. Ordenadas de mayor a menor: las {{top}} primeras suman el {{share}} de su valor. Elija Añadir coste e introduzca el precio pagado por unidad.",
+    "holding": "Posición",
+    "account": "Cuenta",
+    "value": "Valor",
+    "problem": "Problema",
+    "missing": "Sin coste registrado",
+    "suspect": "El coste registrado parece erróneo",
+    "addCost": "Añadir coste",
+    "showAll": "Mostrar las {{count}}",
+    "showTop": "Mostrar solo las {{count}} primeras"
+  },
   "portfolioSummary": {
     "fxCause": "({{count}} sin tipo de cambio)",
     "reasonNoCostBasis": "sin base de coste fiable",
@@ -2301,6 +2346,7 @@
     "risk": "Riesgo",
     "volatility1y": "Volatilidad (1 a)",
     "beta": "Beta vs {{ticker}} (3 a, semanal)",
+    "betaNoBenchmark": "Beta (3 a, semanal)",
     "providerBeta": "Beta del proveedor: {{value}}",
     "maxDrawdown": "Caída máxima",
     "history": "Historial",
@@ -2313,6 +2359,9 @@
     "ariaValuation": "Valoración",
     "benchmark": "Índice de referencia:",
     "exchangeDefault": ", predeterminado para la bolsa de cotización",
+    "noComparableBenchmark": "ninguno comparable",
+    "assetClass": "fondo {{assetClass}}",
+    "assetClassBasis": "fondo {{assetClass}}: {{basis}}",
     "dataQuality": "Calidad de los datos"
   },
   "instrumentTechnicals": {
@@ -2661,6 +2710,33 @@
     "estValue": "Valor est.: ",
     "lastUpdated": "Última actualización: "
   },
+  "dividends": {
+    "title": "Dividendos",
+    "description": "Ingresos por dividendos recibidos, por periodo y por posición. Los importes en distintas divisas se muestran por separado, nunca sumados.",
+    "owner": "Titular",
+    "allOwners": "Todos los titulares",
+    "period": "Agrupar por",
+    "periods": {
+      "taxYear": "Año fiscal",
+      "year": "Año natural",
+      "month": "Mes"
+    },
+    "trailing12m": "Últimos 12 meses",
+    "allTime": "Total histórico",
+    "byPeriod": "Por periodo",
+    "byHolding": "Por posición",
+    "payments": "Pagos",
+    "received": "Recibido",
+    "holding": "Posición",
+    "lastPaid": "Último pago",
+    "none": "—",
+    "empty": "Aún no hay pagos de dividendos registrados.",
+    "undated": "Sin fecha",
+    "unattributed": "Sin posición asociada",
+    "unattributedHelp": "Pagos de dividendos registrados sin ticker, p. ej. transferencias desde una cuenta de rentas.",
+    "noHistory": "Sin dividendos registrados",
+    "holdingsUnavailable": "No se pudieron cargar las posiciones actuales, así que no se muestran las posiciones sin dividendos."
+  },
   "dividendHistory": {
     "trendAria": "Tendencia de dividendos",
     "date": "Fecha",
@@ -2678,6 +2754,8 @@
     "units": "Unidades",
     "priceGbp": "Precio (GBP)",
     "inputTitle": "Entrada de cuentas y posiciones",
+    "costBasisHint": "Registrando el coste de {{ticker}}: introduzca las unidades que tiene y el precio pagado por unidad y guarde. El campo Valor está desactivado aquí porque registraría el precio de hoy como si fuera lo que pagó.",
+    "costBasisNeedsPrice": "Para registrar un coste, introduzca unidades y el precio pagado por unidad. Un valor registraría el precio de hoy como su coste.",
     "inputIntro": "Crea cuentas y define posiciones. Al guardar se registra la transferencia de saldo inicial que lleva la cuenta a las unidades que introduces, por lo que aparece junto a tus operaciones en <txlink>Transacciones</txlink>.",
     "saving": "Guardando...",
     "saveHolding": "Guardar posición",
@@ -2764,7 +2842,9 @@
       "badgesSr": "insignias de temporada obtenidas",
       "xpLabel": "Nivel {{level}} · {{xp}}/{{xpForLevel}} XP",
       "meterLabel": "Nivel de cultivador {{level}}, {{xp}} de {{xpForLevel}} XP para el siguiente nivel",
-      "classicView": "Vista clásica"
+      "classicView": "Vista clásica",
+      "progressLabel": "Tu progreso",
+      "progressTitle": "El nivel, el rango, los XP y la racha se ganan con tus propias tareas: son los mismos en la parcela de cualquier cultivador."
     },
     "rail": {
       "ariaLabel": "Secciones del huerto",
@@ -2853,6 +2933,8 @@
       "growth": "Crecimiento",
       "gainUnknown": "Ganancia desconocida: no hay coste base registrado",
       "gainDetail": "{{gain}} de ganancia no realizada ({{pct}})",
+      "yield": "Rendimiento",
+      "yieldDetail": "{{pct}} % de rentabilidad por rentas de los últimos 12 meses",
       "vigour": "Vigor",
       "noMoveToday": "Sin movimiento registrado hoy",
       "pctToday": "{{pct}} hoy",
@@ -2934,6 +3016,7 @@
       "earned": "Conseguido",
       "badgeShelf": "Estante de insignias ({{earned}}/{{total}})",
       "badgeNote": "Una insignia se consigue cuando se superan todos los niveles de su categoría.",
+      "personalNote": "Tu progreso: se gana con tus propias tareas, no con la parcela de este cultivador.",
       "growingSeasonLabel": "Temporada de cultivo {{label}}",
       "growingSeason": "Temporada de cultivo",
       "noTaxYear": "No se ha informado de ningún ejercicio fiscal para este cultivador, así que la temporada no tiene fecha de fin para la cuenta atrás.",
@@ -2980,7 +3063,6 @@
     },
     "model": {
       "unnamedBed": "Bancal sin nombre",
-      "allowancesUnavailable": "Límites no disponibles ahora mismo",
       "water": "Agua",
       "feed": "Abono",
       "sunlight": "Luz solar",
@@ -3103,6 +3185,7 @@
     "retryingConfig": "Cargando... reintentando la configuración.",
     "loadingConfig": "Cargando configuración...",
     "configLoadFailed": "No se pudo cargar la configuración.",
+    "serverUnreachable": "No se puede conectar con el servidor de AllotMint en {{url}}.",
     "checkConnection": "Compruebe su conexión e inténtelo de nuevo.",
     "googleNotConfigured": "El inicio de sesión con Google no está configurado.",
     "loading": "Cargando...",
@@ -3205,6 +3288,26 @@
     "noPlan": "Todavía no hay un plan de inversión guardado para {{owner}}.",
     "createPlan": "Crear plan"
   },
+  "classify": {
+    "title": "Clasificar posiciones",
+    "intro": "Estas posiciones no tienen clase de activo, así que la página de Estrategia no puede contarlas para sus objetivos. Elija una clase para cada una; se guarda en los metadatos del instrumento.",
+    "back": "Volver a Estrategia",
+    "noOwner": "Elija primero un titular en la página de Estrategia.",
+    "empty": "Todas las posiciones tienen clase de activo: nada que clasificar.",
+    "loadError": "No se pudieron cargar las posiciones de {{owner}}: {{error}}",
+    "saveError": "No se pudo guardar: {{error}}",
+    "saved": "{{ticker}} guardado como {{assetClass}}.",
+    "choose": "Elegir…",
+    "selectLabel": "Clase de activo de {{ticker}}",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "noExchange": "Este ticker no tiene sufijo de mercado; defina su clase de activo en la administración de instrumentos.",
+    "col": {
+      "holding": "Posición",
+      "value": "Valor",
+      "assetClass": "Clase de activo"
+    }
+  },
   "strategy": {
     "title": "Estrategia",
     "intro": "Elija una asignación objetivo (una estrategia integrada, una propia u objetivos personalizados), compare sus posiciones con ella y vea qué operaciones de reequilibrio, o qué aportación, la devolverían a su banda de tolerancia.",
@@ -3240,6 +3343,7 @@
       "underweight": "Infraponderado",
       "unclassified": "Sin clasificar",
       "needsAssetClass": "Necesita una clase de activo",
+      "classifyLink": "Asignar clases de activo a estas posiciones",
       "totalLine": "Total {{total}} · tolerancia ±{{tolerance}} pp",
       "sleeveTitle": "Desviación — bloque {{sleeve}}"
     },
@@ -3350,7 +3454,7 @@
     "overseas_government": "Deuda pública extranjera",
     "corporate_bonds": "Corporativos / crédito",
     "gold": "Oro",
-    "commodities": "Otras materias primas"
+    "other_commodities": "Otras materias primas"
   },
   "planForm": {
     "errors": {

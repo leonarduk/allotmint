@@ -6,6 +6,7 @@ from datetime import date, datetime
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pandas as pd
 import pytest
 
 import backend.reports as reports
@@ -53,12 +54,14 @@ def test_load_transactions_s3(monkeypatch, caplog):
 
     class FakePaginator:
         def paginate(self, Bucket, Prefix):
+            if Prefix != f"accounts/{owner}/":
+                return []
             return [
                 {
                     "Contents": [
-                        {"Key": f"transactions/{owner}/good_transactions.json"},
-                        {"Key": f"transactions/{owner}/error_transactions.json"},
-                        {"Key": f"transactions/{owner}/ignore.txt"},
+                        {"Key": f"accounts/{owner}/good_transactions.json"},
+                        {"Key": f"accounts/{owner}/error_transactions.json"},
+                        {"Key": f"accounts/{owner}/ignore.txt"},
                     ]
                 }
             ]
@@ -107,6 +110,7 @@ def test_compile_report_filters_and_totals(monkeypatch):
         "backend.common.portfolio_utils.compute_owner_performance",
         lambda owner, **kwargs: performance,
     )
+    monkeypatch.setattr(reports.ledger_performance, "load_owner_ledgers", lambda owner: [])
 
     start = date(2024, 1, 2)
     end = date(2024, 1, 3)
@@ -114,8 +118,124 @@ def test_compile_report_filters_and_totals(monkeypatch):
 
     assert data.realized_gains_gbp == 20.0
     assert data.income_gbp == 5.0
-    assert data.cumulative_return == 0.3
-    assert data.max_drawdown == -0.1
+    # No ledger: the headline return is unavailable rather than falling back
+    # to the current-holdings series, which excludes income (#9637).
+    assert data.cumulative_return is None
+    assert data.max_drawdown is None
+    assert [row["date"] for row in data.history] == ["2024-01-02", "2024-01-03"]
+
+
+_FLAT_START = date(2026, 2, 2)
+_FLAT_END = date(2026, 2, 27)
+
+
+def _flat_portfolio_ledger(income_row: dict) -> list:
+    """£10,000 in AAA.L at a flat 100 from January, plus one income row in February."""
+    transactions = [
+        {"date": "2026-01-05", "type": "DEPOSIT", "amount_minor": 1_000_000},
+        {"date": "2026-01-05", "type": "BUY", "ticker": "AAA.L", "units": 100, "amount_minor": 1_000_000},
+        {"date": "2026-02-10", **income_row},
+    ]
+    return [reports.ledger_performance.AccountLedger("isa", transactions, True)]
+
+
+def _flat_closes(key, start, end):
+    days = pd.bdate_range(date(2026, 1, 5), _FLAT_END)
+    return pd.Series(100.0, index=days) if key == "AAA.L" else pd.Series(dtype=float)
+
+
+@pytest.mark.parametrize(
+    "income_row",
+    [
+        {"type": "INTEREST", "amount_minor": 10_000},
+        {"type": "DIVIDEND", "ticker": "AAA.L", "amount_minor": 10_000},
+    ],
+    ids=["interest", "dividend"],
+)
+def test_compile_report_cumulative_return_includes_income(monkeypatch, income_row):
+    """£100 of income on a flat £10,000 portfolio is a ~1% return, not 0% (#9637)."""
+    ledgers = _flat_portfolio_ledger(income_row)
+    flat_history = {
+        "history": [{"date": "2026-02-27", "value": 10_000.0, "cumulative_return": 0.0}],
+        "max_drawdown": 0.0,
+    }
+    transactions = ledgers[0].transactions
+    monkeypatch.setattr(reports, "_load_transactions", lambda owner: transactions)
+    monkeypatch.setattr(reports.portfolio_utils, "compute_owner_performance", lambda owner, **kw: flat_history)
+    monkeypatch.setattr(reports.ledger_performance, "load_owner_ledgers", lambda owner: ledgers)
+    monkeypatch.setattr(reports.ledger_performance, "load_gbp_closes", _flat_closes)
+
+    data = reports.compile_report("alice", start=_FLAT_START, end=_FLAT_END)
+
+    assert data.income_gbp == pytest.approx(100.0)
+    assert data.cumulative_return == pytest.approx(0.01)
+    assert data.max_drawdown == pytest.approx(0.0)
+    # Same basis and window as the periodic report's ledger TWR.
+    perf = reports.ledger_performance.build_ledger_performance(ledgers, _FLAT_END)
+    periodic = reports.ledger_performance.chained_return(perf.returns, date(2026, 2, 1), _FLAT_END)
+    assert data.cumulative_return == pytest.approx(periodic)
+
+
+def _dip_closes(key, start, end):
+    """AAA.L at 100, dipping to 80 for 9-13 Feb, back to 100 from 16 Feb."""
+    days = pd.bdate_range(date(2026, 1, 5), _FLAT_END)
+    prices = pd.Series(100.0, index=days)
+    prices[(days >= pd.Timestamp("2026-02-09")) & (days <= pd.Timestamp("2026-02-13"))] = 80.0
+    return prices if key == "AAA.L" else pd.Series(dtype=float)
+
+
+def test_compile_report_max_drawdown_uses_ledger_twr_not_value_series(monkeypatch):
+    """A withdrawal at the trough deepens a value-based drawdown but not the TWR one (#9637).
+
+    £10,000 in AAA.L plus £10,000 cash; AAA.L falls 20% (portfolio -10%) and
+    £10,000 is withdrawn at the trough. The raw value series falls from £20,000
+    to £8,000 (-60%), but the withdrawal is an external flow, so the ledger TWR
+    drawdown -- the periodic report's basis -- stays at -10%.
+    """
+    transactions = [
+        {"date": "2026-01-05", "type": "DEPOSIT", "amount_minor": 2_000_000},
+        {"date": "2026-01-05", "type": "BUY", "ticker": "AAA.L", "units": 100, "amount_minor": 1_000_000},
+        {"date": "2026-02-11", "type": "WITHDRAWAL", "amount_minor": 1_000_000},
+    ]
+    ledgers = [reports.ledger_performance.AccountLedger("isa", transactions, True)]
+    value_history = {
+        "history": [{"date": "2026-02-27", "value": 10_000.0, "cumulative_return": -0.5}],
+        "max_drawdown": -0.6,
+    }
+    monkeypatch.setattr(reports, "_load_transactions", lambda owner: transactions)
+    monkeypatch.setattr(reports.portfolio_utils, "compute_owner_performance", lambda owner, **kw: value_history)
+    monkeypatch.setattr(reports.ledger_performance, "load_owner_ledgers", lambda owner: ledgers)
+    monkeypatch.setattr(reports.ledger_performance, "load_gbp_closes", _dip_closes)
+
+    data = reports.compile_report("alice", start=_FLAT_START, end=_FLAT_END)
+
+    # The two bases genuinely disagree on this ledger.
+    perf = reports.ledger_performance.build_ledger_performance(ledgers, _FLAT_END)
+    window = perf.values[perf.values.index >= pd.Timestamp(_FLAT_START)]
+    value_based = float((window / window.cummax() - 1).min())
+    assert value_based == pytest.approx(-0.6)
+    assert data.max_drawdown == pytest.approx(-0.1)
+    # Same figure the periodic report computes for this window.
+    periodic = reports.ledger_performance.drawdown(perf.returns, date(2026, 2, 1), _FLAT_END)
+    assert data.max_drawdown == pytest.approx(periodic.max_drawdown)
+    # -10% to the trough, then the all-equity remainder recovers 80 -> 100
+    # (+25%): 0.9 * 1.25 - 1 = +12.5%, though value fell from £20,000 to £10,000.
+    assert data.cumulative_return == pytest.approx(0.125)
+
+
+def test_ledger_return_and_drawdown_without_start_is_since_inception(monkeypatch):
+    """``start=None`` chains from the first ledger day, as the periodic since-inception figure does."""
+    ledgers = _flat_portfolio_ledger({"type": "INTEREST", "amount_minor": 10_000})
+    monkeypatch.setattr(reports.ledger_performance, "load_owner_ledgers", lambda owner: ledgers)
+    monkeypatch.setattr(reports.ledger_performance, "load_gbp_closes", _dip_closes)
+
+    cumulative, max_drawdown = reports._ledger_return_and_drawdown("alice", None, _FLAT_END)
+
+    perf = reports.ledger_performance.build_ledger_performance(ledgers, _FLAT_END)
+    since_inception = reports.ledger_performance.drawdown(perf.returns, None, _FLAT_END)
+    assert cumulative == pytest.approx(reports.ledger_performance.chained_return(perf.returns, None, _FLAT_END))
+    assert max_drawdown == pytest.approx(since_inception.max_drawdown)
+    assert max_drawdown == pytest.approx(-0.2)
 
 
 def test_load_transactions_requires_data_bucket(monkeypatch):
@@ -1147,6 +1267,92 @@ def test_transactions_not_double_counted_across_legacy_root(monkeypatch, tmp_pat
 
     rows = reports.ReportContext(owner, start=None, end=None).transactions()
     assert len(rows) == 2
+
+
+def _install_fake_s3(monkeypatch, objects):
+    """Serve ``objects`` (key -> JSON payload) from a fake boto3 S3 client."""
+
+    class FakeError(Exception):
+        pass
+
+    exceptions_mod = types.ModuleType("exceptions")
+    exceptions_mod.BotoCoreError = FakeError
+    exceptions_mod.ClientError = FakeError
+    botocore_mod = types.ModuleType("botocore")
+    botocore_mod.exceptions = exceptions_mod
+    monkeypatch.setitem(sys.modules, "botocore", botocore_mod)
+    monkeypatch.setitem(sys.modules, "botocore.exceptions", exceptions_mod)
+
+    class FakePaginator:
+        def paginate(self, Bucket, Prefix):
+            return [{"Contents": [{"Key": key} for key in objects if key.startswith(Prefix)]}]
+
+    class FakeS3Client:
+        def get_paginator(self, name):
+            return FakePaginator()
+
+        def get_object(self, Bucket, Key):
+            return {"Body": io.BytesIO(json.dumps(objects[Key]).encode("utf-8"))}
+
+    boto3_mod = types.ModuleType("boto3")
+    boto3_mod.client = lambda name: FakeS3Client()
+    monkeypatch.setitem(sys.modules, "boto3", boto3_mod)
+
+
+def test_aws_transactions_read_canonical_prefixes_once(monkeypatch):
+    """AWS reads accounts/ + writable-accounts/, never legacy transactions/ (#8476)."""
+    owner = "alice"
+    canonical = [
+        {"date": "2024-01-02", "type": "SELL", "amount_minor": 1000},
+        {"date": "2024-01-03", "type": "DIVIDEND", "amount_minor": 250},
+    ]
+    sipp = [{"date": "2024-01-04", "type": "INTEREST", "amount_minor": 100}]
+    stale = [{"date": "2024-01-05", "type": "SELL", "amount_minor": 99999}]
+    _install_fake_s3(
+        monkeypatch,
+        {
+            f"transactions/{owner}/isa_transactions.json": {"transactions": canonical + stale},
+            f"accounts/{owner}/ISA_transactions.json": {"transactions": stale},
+            f"accounts/{owner}/SIPP_transactions.json": {"transactions": sipp},
+            f"writable-accounts/{owner}/isa_transactions.json": {"transactions": canonical},
+        },
+    )
+    monkeypatch.setattr(reports.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv("DATA_BUCKET", "bucket")
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.compute_owner_performance",
+        lambda owner, **kwargs: {"history": [], "max_drawdown": None},
+    )
+
+    # The writable ISA ledger replaces the accounts/ one; SIPP comes from accounts/.
+    assert sorted(reports._load_transactions(owner), key=lambda t: t["date"]) == canonical + sipp
+
+    # Canonical ISA SELL 1000p -> 10.00 realised; DIVIDEND 250p + SIPP
+    # INTEREST 100p -> 3.50 income. The stale 99999p SELL is never read.
+    summary = reports.compile_report(owner)
+    assert summary.realized_gains_gbp == 10.0
+    assert summary.income_gbp == 3.5
+
+    rows = reports.ReportContext(owner, start=None, end=None).transactions()
+    assert len(rows) == 3
+
+
+def test_aws_transactions_include_writable_only_account(monkeypatch):
+    """An account that exists only in the writable overlay is still read (#8476)."""
+    owner = "alice"
+    isa = [{"date": "2024-01-02", "type": "SELL", "amount_minor": 1000}]
+    gia = [{"date": "2024-02-01", "type": "DIVIDEND", "amount_minor": 400}]
+    _install_fake_s3(
+        monkeypatch,
+        {
+            f"accounts/{owner}/ISA_transactions.json": {"transactions": isa},
+            f"writable-accounts/{owner}/GIA_transactions.json": {"transactions": gia},
+        },
+    )
+    monkeypatch.setattr(reports.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv("DATA_BUCKET", "bucket")
+
+    assert sorted(reports._load_transactions(owner), key=lambda t: t["date"]) == isa + gia
 
 
 def test_build_key_findings_section_parses_valid_file(tmp_path, monkeypatch):

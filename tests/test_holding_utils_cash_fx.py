@@ -28,11 +28,20 @@ def _enrich(holding):
     return enrich_holding(holding, date.today(), {}, {})
 
 
-def test_usd_account_cash_is_valued_at_the_gbp_rate(fx_rates):
-    rates, _ = fx_rates
+# The currency may be carried in a field or only in the ticker (#9763).
+USD_SPELLINGS = pytest.mark.parametrize(
+    "spelling",
+    [{"ticker": "CASH.USD", "currency": "USD"}, {"ticker": "CASH.USD"}, {"ticker": "USD.CASH"}],
+    ids=["currency-field", "ticker-only", "ccy-first-ticker-only"],
+)
+
+
+@USD_SPELLINGS
+def test_usd_account_cash_is_valued_at_the_gbp_rate(fx_rates, spelling):
+    rates, asked = fx_rates
     rates["USD"] = 0.8
 
-    out = _enrich({"ticker": "CASH.USD", "units": 1000, "currency": "USD", "cost_basis_gbp": 5.0})
+    out = _enrich({**spelling, "units": 1000, "cost_basis_gbp": 5.0})
 
     assert out["market_value_gbp"] == pytest.approx(800.0)
     assert out["current_price_gbp"] == 0.8
@@ -41,20 +50,29 @@ def test_usd_account_cash_is_valued_at_the_gbp_rate(fx_rates):
     assert out["effective_cost_basis_gbp"] == pytest.approx(800.0)
     assert out["gain_gbp"] == 0.0
     assert out["fx_rate_source"] == FX_RATE_SOURCE_CACHE
+    assert out["currency"] == "USD"
+    assert out["cost_basis_source"] == "cash"
+    assert asked == ["USD"]
 
 
-def test_cash_with_no_rate_is_left_unvalued_and_flagged(fx_rates):
-    out = _enrich({"ticker": "CASH.USD", "units": 1000, "currency": "USD"})
+@USD_SPELLINGS
+def test_cash_with_no_rate_is_left_unvalued_and_flagged(fx_rates, spelling):
+    out = _enrich({**spelling, "units": 1000})
 
     assert out["market_value_gbp"] is None
     assert out["current_price_gbp"] is None
     assert out["fx_rate_source"] == FX_RATE_SOURCE_MISSING
 
 
-def test_pence_account_cash_is_gbp_without_fx(fx_rates):
+@pytest.mark.parametrize(
+    "spelling",
+    [{"ticker": "CASH.GBX", "currency": "GBX"}, {"ticker": "CASH.GBX"}],
+    ids=["currency-field", "ticker-only"],
+)
+def test_pence_account_cash_is_gbp_without_fx(fx_rates, spelling):
     _, asked = fx_rates
 
-    out = _enrich({"ticker": "CASH.GBX", "units": 500, "currency": "GBX"})
+    out = _enrich({**spelling, "units": 500})
 
     assert out["market_value_gbp"] == pytest.approx(5.0)
     assert out["current_price_gbp"] == 0.01

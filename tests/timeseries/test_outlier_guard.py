@@ -193,6 +193,125 @@ def test_memoized_range_live_branch_guards_once(monkeypatch, caplog, fresh_range
     assert _spike_log_count(caplog) == 1
 
 
+def _count_guard_calls(monkeypatch) -> list:
+    calls = []
+    real_guard = cache.drop_zero_volume_spikes
+
+    def counting_guard(df, **kwargs):
+        calls.append(len(df))
+        return real_guard(df, **kwargs)
+
+    monkeypatch.setattr(cache, "drop_zero_volume_spikes", counting_guard)
+    return calls
+
+
+def test_cache_only_ranges_share_one_guard_pass_per_warm_frame(monkeypatch, fresh_range_cache):
+    # #8105: the guard scans the full history, so distinct (ticker, range)
+    # lookups against one warm frame must reuse a single guarded result.
+    raw = _frame(VWRL_CLOSES, VWRL_VOLUMES)
+    monkeypatch.setattr(cache, "_load_meta_parquet_cached", lambda path: raw)
+    monkeypatch.setattr(cache, "_queue_if_stale", lambda *a, **k: None)
+    calls = _count_guard_calls(monkeypatch)
+    token = cache._CACHE_ONLY.set(True)
+    try:
+        whole = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+        head = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-09-30")
+        tail = cache._memoized_range("VWRL", "L", "2025-10-02", "2025-10-06")
+    finally:
+        cache._CACHE_ONLY.reset(token)
+    assert calls == [len(VWRL_CLOSES)]
+    assert whole["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
+    assert head["Close"].tolist() == [119.25]
+    assert tail["Close"].tolist() == [120.90, 120.73]
+
+
+def test_guarded_frame_recomputed_when_warm_frame_is_replaced(monkeypatch, fresh_range_cache):
+    # A refreshed parquet (new warm-cache object) must never be served the
+    # previous file's guarded rows, whichever path cleared the warm cache.
+    frames = {"current": _frame(VWRL_CLOSES, VWRL_VOLUMES)}
+    monkeypatch.setattr(cache, "_load_meta_parquet_cached", lambda path: frames["current"])
+    monkeypatch.setattr(cache, "_queue_if_stale", lambda *a, **k: None)
+    calls = _count_guard_calls(monkeypatch)
+    token = cache._CACHE_ONLY.set(True)
+    try:
+        before = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+        frames["current"] = _frame([c + 1 for c in VWRL_CLOSES], VWRL_VOLUMES)
+        cache._memoized_range_cached.cache_clear()
+        after = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+    finally:
+        cache._CACHE_ONLY.reset(token)
+    assert len(calls) == 2
+    assert before["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
+    assert after["Close"].tolist() == [120.25, 121.52, 121.90, 121.73]
+
+
+def test_guard_reused_after_range_lru_clear_while_warm_frame_unchanged(monkeypatch, fresh_range_cache):
+    # The case #8105 optimises: the per-range LRU misses (new window, or it
+    # was cleared) but the warm parquet frame is still the same object.
+    raw = _frame(VWRL_CLOSES, VWRL_VOLUMES)
+    monkeypatch.setattr(cache, "_load_meta_parquet_cached", lambda path: raw)
+    monkeypatch.setattr(cache, "_queue_if_stale", lambda *a, **k: None)
+    calls = _count_guard_calls(monkeypatch)
+    token = cache._CACHE_ONLY.set(True)
+    try:
+        cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+        cache._memoized_range_cached.cache_clear()
+        tail = cache._memoized_range("VWRL", "L", "2025-10-02", "2025-10-06")
+    finally:
+        cache._CACHE_ONLY.reset(token)
+    assert calls == [len(VWRL_CLOSES)]
+    assert tail["Close"].tolist() == [120.90, 120.73]
+
+
+def test_guarded_frames_are_keyed_per_ticker_path(monkeypatch, fresh_range_cache):
+    vwrl = _frame(VWRL_CLOSES, VWRL_VOLUMES)
+    other = _frame([c + 1 for c in VWRL_CLOSES], VWRL_VOLUMES)
+    monkeypatch.setattr(
+        cache,
+        "_load_meta_parquet_cached",
+        lambda path: vwrl if "VWRL" in path else other,
+    )
+    monkeypatch.setattr(cache, "_queue_if_stale", lambda *a, **k: None)
+    calls = _count_guard_calls(monkeypatch)
+    token = cache._CACHE_ONLY.set(True)
+    try:
+        first = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+        second = cache._memoized_range("OTHR", "L", "2025-09-29", "2025-10-06")
+    finally:
+        cache._CACHE_ONLY.reset(token)
+    assert len(calls) == 2
+    assert first["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
+    assert second["Close"].tolist() == [120.25, 121.52, 121.90, 121.73]
+
+
+def test_guarded_frames_are_bounded_least_recently_used_first(monkeypatch):
+    # Never outlive the warm cache: a long-running process with a large
+    # universe must not pin frames `_load_meta_parquet_cached` has evicted.
+    monkeypatch.setattr(cache, "_GUARDED_META_FRAMES_MAX", 2)
+    monkeypatch.setattr(cache, "_GUARDED_META_FRAMES", cache.OrderedDict())
+    frames = {name: _frame(VWRL_CLOSES, VWRL_VOLUMES) for name in ("a", "b", "c")}
+    cache._guarded_meta_frame(frames["a"], "a", "A", "L")
+    cache._guarded_meta_frame(frames["b"], "b", "B", "L")
+    cache._guarded_meta_frame(frames["a"], "a", "A", "L")  # touch "a"
+    cache._guarded_meta_frame(frames["c"], "c", "C", "L")
+    assert list(cache._GUARDED_META_FRAMES) == ["a", "c"]
+
+
+def test_clear_meta_lrus_drops_guarded_frames(monkeypatch, fresh_range_cache):
+    raw = _frame(VWRL_CLOSES, VWRL_VOLUMES)
+    monkeypatch.setattr(cache, "_load_meta_parquet_cached", lambda path: raw)
+    monkeypatch.setattr(cache, "_queue_if_stale", lambda *a, **k: None)
+    token = cache._CACHE_ONLY.set(True)
+    try:
+        cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+    finally:
+        cache._CACHE_ONLY.reset(token)
+    assert cache._GUARDED_META_FRAMES
+    monkeypatch.undo()  # restore the real lru_cache, whose cache_clear runs below
+    cache._clear_meta_lrus()
+    assert not cache._GUARDED_META_FRAMES
+
+
 def test_source_comparison_handles_pd_na_and_nan():
     sources = pd.array(["Stooq", pd.NA, "Stooq", "Stooq", "Yahoo", "Stooq"], dtype="string")
     df = _frame([120.0, 160.0, 121.0, 120.5, 161.0, 120.8], [10, 0, 10, 10, 0, 10], sources=sources)
@@ -324,3 +443,35 @@ def test_unrounded_sub_one_bar_is_not_mistaken_for_flat():
     flat = df.copy()
     flat.loc[1, ["Open", "High", "Low", "Close"]] = 0.9416
     assert drop_zero_volume_spikes(flat, ticker="BPCR", exchange="L")["Close"].tolist() == [0.80, 0.80]
+
+
+def _reference_sources(values) -> list[str]:
+    """The per-row normalisation ``_normalised_sources`` must match (#3424)."""
+    return ["" if pd.api.types.is_scalar(v) and pd.isna(v) else str(v).strip().lower() for v in values]
+
+
+@pytest.mark.parametrize(
+    "sources",
+    [
+        ["Yahoo", " stooq ", "YAHOO", "", "Stooq"],
+        ["Stooq", None, np.nan, "Yahoo", None],
+        pd.array(["Stooq", pd.NA, " Yahoo", pd.NA, "stooq"], dtype="string"),
+        pd.array(["Stooq", None, "Yahoo", "Yahoo", "Stooq"], dtype="str"),
+        [None, None, None, None, None],
+        [1, "1", "Ft", "ft ", np.nan],
+    ],
+)
+def test_normalised_sources_matches_per_row_normalisation(sources):
+    from backend.timeseries.outlier_guard import _normalised_sources
+
+    df = _frame([1.0] * 5, [0] * 5, sources=sources)
+    out = _normalised_sources(df)
+    assert out.dtype == object
+    assert out.tolist() == _reference_sources(df["Source"])
+    assert all(type(label) is str for label in out)
+
+
+def test_normalised_sources_empty_frame():
+    from backend.timeseries.outlier_guard import _normalised_sources
+
+    assert _normalised_sources(pd.DataFrame({"Source": pd.Series([], dtype=object)})).tolist() == []

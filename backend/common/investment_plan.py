@@ -30,7 +30,7 @@ from backend.common.instrument_classification import ASSET_CLASSES
 from backend.common.instruments import get_instrument_meta
 from backend.common.path_utils import safe_join
 from backend.common.pension import _age_from_dob
-from backend.common.sub_asset_class import SUB_ASSET_CLASS_PARENT, policy_targets
+from backend.common.sub_asset_class import SUB_ASSET_CLASS_PARENT, legacy_target_key, policy_targets
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -53,6 +53,9 @@ PLAN_CLASS_PARENT: dict[str, str] = {
     "overseas_government": "bond",
     "corporate_bonds": "bond",
     "gold": "commodity",
+    "other_commodities": "commodity",
+    # Pre-#9718 key (and the backtest block's name): the whole Commodity class
+    # on its own; beside ``gold`` it is read as ``other_commodities`` on load.
     "commodities": "commodity",
     "cash": "cash",
 }
@@ -210,6 +213,15 @@ class InvestmentPlan(BaseModel):
         if unknown:
             raise ValueError(f"Unknown vehicle class {unknown[0]!r}; expected one of {', '.join(PLAN_CLASSES)}")
         return value
+
+    @model_validator(mode="after")
+    def _legacy_class_keys(self) -> "InvestmentPlan":
+        """Read a pre-#9718 ``commodities`` beside ``gold`` as ``other_commodities``; saved with the new key."""
+        keys = frozenset(row.asset_class for row in self.target)
+        for row in self.target:
+            row.asset_class = legacy_target_key(row.asset_class, keys)
+        self.vehicles = {legacy_target_key(key, keys): items for key, items in self.vehicles.items()}
+        return self
 
     @model_validator(mode="after")
     def _targets_consistent(self) -> "InvestmentPlan":

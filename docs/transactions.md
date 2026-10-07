@@ -41,6 +41,15 @@ cash movements) come in through `POST /transactions/import`.
 default: omit it to keep the stored type, so editing an imported row of
 another type (e.g. `DIVIDEND`) does not change it.
 
+The update is type-aware. A row is edited as a trade when the body sets
+`type`, or its stored type is `BUY`, `SELL` or missing (legacy untyped
+entries): `ticker`, `date`, `price_gbp` and `units` are then required (422
+if any is absent) and the body replaces the stored row's fields. Any other
+stored type (`DIVIDEND`, `TRANSFER_IN`, ...) keeps its stored `ticker`,
+`price_gbp` and `units` whatever the body carries, and its `date` unless
+the body gives one, so a body of just `owner`, `account`, `reason` and the
+fields being changed (`date`, `fees`, `comments`, `external_id`) is enough.
+
 ## Example request
 
 ```bash

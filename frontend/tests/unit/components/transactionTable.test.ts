@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildBulkDeletionOrder,
+  filterAndSortTransactions,
   formatRealisedGain,
   formatTransactionAmount,
   summariseTransactions,
@@ -152,5 +153,46 @@ describe("realised gain helpers", () => {
         { ...base, type: "FEES_REFUND", amount_minor: 200 },
       ]),
     ).toEqual({ realisedGain: 60, sellsWithUnknownGain: 1, income: 12.5, fees: 3 });
+  });
+});
+
+describe("filterAndSortTransactions", () => {
+  const tx = (id: string, type: string, date: string | null) => ({
+    id,
+    owner: "alex",
+    account: "isa",
+    type,
+    date,
+  });
+  const rows = [
+    tx("a", "BUY", "2024-01-01"),
+    tx("b", "SELL", "2024-03-01"),
+    tx("c", "DIVIDEND", "2024-02-01"),
+    tx("d", "purchase", "2024-04-01"),
+    tx("e", "SALE", null),
+  ];
+
+  it("returns every row newest first, undated last", () => {
+    expect(filterAndSortTransactions(rows, "").map((r) => r.id)).toEqual([
+      "d",
+      "b",
+      "c",
+      "a",
+      "e",
+    ]);
+  });
+
+  it("keeps only buys (including PURCHASE) for the Buy filter", () => {
+    expect(filterAndSortTransactions(rows, "BUY").map((r) => r.id)).toEqual(["d", "a"]);
+  });
+
+  it("keeps only sells (including SALE) for the Sell filter", () => {
+    expect(filterAndSortTransactions(rows, "SELL").map((r) => r.id)).toEqual(["b", "e"]);
+  });
+
+  it("does not mutate the input array", () => {
+    const input = [...rows];
+    filterAndSortTransactions(input, "");
+    expect(input.map((r) => r.id)).toEqual(["a", "b", "c", "d", "e"]);
   });
 });

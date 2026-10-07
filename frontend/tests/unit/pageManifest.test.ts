@@ -71,7 +71,7 @@ describe('page manifest', () => {
     expect(buildPathForMode('owner', { owner: 'Alex Smith' })).toBe(
       '/?owner=Alex%20Smith'
     );
-    expect(buildPathForMode('transactions')).toBe('/input');
+    expect(buildPathForMode('transactions')).toBe('/transactions');
     expect(buildPathForMode('pension')).toBe('/pension/forecast');
   });
 
@@ -133,12 +133,7 @@ describe('page manifest', () => {
         page.mode !== 'group' &&
         page.mode !== 'owner'
       ) {
-        // 'transactions' mode has routeSegment 'transactions' but its canonical
-        // URL is '/input' (the entry screen). The segment and defaultPath are
-        // intentionally mismatched — exclude it from the containment check.
-        if (page.mode !== 'transactions') {
-          expect(defaultPath).toContain(page.routeSegment);
-        }
+        expect(defaultPath).toContain(page.routeSegment);
       }
     }
   });

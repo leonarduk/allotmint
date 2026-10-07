@@ -2506,7 +2506,10 @@
   },
   "transactionsFilters": {
     "all": "All",
-    "account": "Account"
+    "account": "Account",
+    "side": "Type",
+    "buy": "Buy",
+    "sell": "Sell"
   },
   "tradeCompliance": {
     "title": "Trade compliance",
@@ -2698,7 +2701,8 @@
     "updated": "Transaction updated successfully.",
     "created": "Transaction created successfully.",
     "updateFailed": "Failed to update transaction.",
-    "createFailed": "Failed to create transaction."
+    "createFailed": "Failed to create transaction.",
+    "inputLink": "Set up accounts or enter holdings directly →"
   },
   "alerts": {
     "title": "Alerts",

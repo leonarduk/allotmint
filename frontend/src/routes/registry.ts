@@ -171,7 +171,9 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     section: 'user',
     menuCategory: 'dashboard',
     priority: 25,
-    defaultPath: () => '/input',
+    // The menu opens the transaction list (newest first, add/amend/delete);
+    // the /input holdings-entry screen stays reachable from a link on it.
+    defaultPath: () => '/transactions',
   },
   {
     // The Ideas page (#9852): Signals tab here, Screen tab at /screener,

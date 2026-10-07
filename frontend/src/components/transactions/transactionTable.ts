@@ -174,3 +174,25 @@ export function summariseTransactions(transactions: Transaction[]): Transactions
   });
   return summary;
 }
+
+export type TradeSideFilter = "" | "BUY" | "SELL";
+
+const SIDE_TYPES: Record<Exclude<TradeSideFilter, "">, ReadonlySet<string>> = {
+  BUY: new Set(["BUY", "PURCHASE"]),
+  SELL: new Set(["SELL", "SALE"]),
+};
+
+/**
+ * Rows matching the Buy/Sell filter (all rows when `side` is empty), newest
+ * first. Undated rows sink to the bottom; ties keep their original order.
+ */
+export function filterAndSortTransactions(
+  transactions: Transaction[],
+  side: TradeSideFilter,
+): Transaction[] {
+  const allowed = side ? SIDE_TYPES[side] : null;
+  const rows = allowed
+    ? transactions.filter((tx) => allowed.has((tx.type ?? "").toUpperCase()))
+    : [...transactions];
+  return rows.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+}

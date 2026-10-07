@@ -70,11 +70,11 @@ describe('Menu', () => {
     ).not.toBeInTheDocument();
     fireEvent.click(settingsToggle);
     expect(settingsToggle).toHaveAttribute('aria-expanded', 'true');
-    const inputLink = await screen.findByRole('menuitem', {
+    const transactionsLink = await screen.findByRole('menuitem', {
       name: i18n.t('app.modes.transactions'),
     });
-    expect(inputLink).toBeVisible();
-    expect(inputLink).toHaveAttribute('href', '/input');
+    expect(transactionsLink).toBeVisible();
+    expect(transactionsLink).toHaveAttribute('href', '/transactions');
     fireEvent.click(settingsToggle);
     expect(settingsToggle).toHaveAttribute('aria-expanded', 'false');
     await waitFor(() =>

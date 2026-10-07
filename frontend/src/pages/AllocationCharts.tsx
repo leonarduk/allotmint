@@ -1,13 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
-import { getGroupCurrencyContributions, getGroupLookThrough, getGroupPortfolio, getSleeves } from "../api";
+import {
+  getGroupCurrencyContributions,
+  getGroupLookThrough,
+  getGroupPortfolio,
+  getOwnerCurrencyContributions,
+  getOwnerLookThrough,
+  getSleeves,
+} from "../api";
 import type {
-  Account,
   CurrencyContribution,
   GroupPortfolio,
   LookThroughBucket,
   LookThroughExposure,
+  OwnerSummary,
   SleeveList,
 } from "../types";
 import { LookThroughCoverageNote, LookThroughHoldingsTable } from "../components/LookThrough";
@@ -16,6 +23,9 @@ import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { ReportingCurrencyNote } from "../components/ReportingCurrencyNote";
 import { useConfig } from "../ConfigContext";
 import { RelativeViewToggle } from "../components/RelativeViewToggle";
+import { OwnerAccountTabs } from "../components/OwnerAccountTabs";
+import { buildOwnerTabs } from "../lib/ownerTabs";
+import { createOwnerDisplayLookup } from "../utils/owners";
 import ChartSkeleton from "../components/skeletons/ChartSkeleton";
 import { useViewportWidth } from "../hooks/useViewportWidth";
 import {
@@ -96,24 +106,25 @@ const missingFxSummary = (rows: CurrencyContribution[]): string =>
     .join(", ");
 
 /**
- * Quote-currency exposure for ``slug`` from the backend (#9686), which folds
- * GBX into GBP and resolves each holding's currency from its listing. Fetched
- * only once ``enabled`` (the view is open), and refetched after an error.
- * Covers the whole group: the endpoint has no per-account filter.
+ * Quote-currency exposure from the backend (#9686), which folds GBX into GBP
+ * and resolves each holding's currency from its listing: for ``owner`` when
+ * one is selected, otherwise for the whole ``slug`` group. Fetched only once
+ * ``enabled`` (the view is open), and refetched after an error. The endpoints
+ * have no per-account filter, so an account selection still shows the owner.
  */
-function useGroupCurrencyExposure(slug: string, enabled: boolean) {
+function useCurrencyExposure(slug: string, owner: string | null, enabled: boolean) {
   const [rows, setRows] = useState<CurrencyContribution[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setRows(null);
     setError(null);
-  }, [slug]);
+  }, [slug, owner]);
 
   useEffect(() => {
     if (!enabled || rows !== null) return;
     let cancelled = false;
-    getGroupCurrencyContributions(slug)
+    (owner ? getOwnerCurrencyContributions(owner) : getGroupCurrencyContributions(slug))
       .then((result) => {
         if (cancelled) return;
         setRows(result);
@@ -125,7 +136,7 @@ function useGroupCurrencyExposure(slug: string, enabled: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [enabled, slug, rows]);
+  }, [enabled, slug, owner, rows]);
 
   return { rows, error };
 }
@@ -146,24 +157,24 @@ const toLookThroughSlices = (
 };
 
 /**
- * Look-through exposure for ``slug`` (#9974): funds split into their
- * underlying countries, sectors and holdings, combined with direct shares.
- * Fetched only once ``enabled`` (a look-through view is open); covers the
- * whole group, like the currency view.
+ * Look-through exposure (#9974): funds split into their underlying countries,
+ * sectors and holdings, combined with direct shares. Like the currency view it
+ * covers ``owner`` when one is selected, otherwise the whole ``slug`` group,
+ * and is fetched only once ``enabled`` (a look-through view is open).
  */
-function useGroupLookThrough(slug: string, enabled: boolean) {
+function useLookThrough(slug: string, owner: string | null, enabled: boolean) {
   const [data, setData] = useState<LookThroughExposure | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setData(null);
     setError(null);
-  }, [slug]);
+  }, [slug, owner]);
 
   useEffect(() => {
     if (!enabled || data !== null) return;
     let cancelled = false;
-    getGroupLookThrough(slug)
+    (owner ? getOwnerLookThrough(owner) : getGroupLookThrough(slug))
       .then((result) => {
         if (cancelled) return;
         setData(result);
@@ -175,7 +186,7 @@ function useGroupLookThrough(slug: string, enabled: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [enabled, slug, data]);
+  }, [enabled, slug, owner, data]);
 
   return { data, error };
 }
@@ -225,11 +236,13 @@ const sleeveName = (list: SleeveList | undefined, ticker: string, coreLabel: str
 export type AllocationChartsProps = {
   /** Portfolio group slug (defaults to "all"). */
   slug?: string;
+  /** Owner summaries, used for owner tab display names. */
+  owners?: OwnerSummary[];
 };
 
-export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
+export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps) {
   const { t } = useTranslation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const resolvedSlug = searchParams.get("group") || slug;
   const requestedView = searchParams.get("view");
   const initialView: AllocationView = isAllocationView(requestedView) ? requestedView : "asset";
@@ -245,77 +258,78 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const [assetData, setAssetData] = useState<{ name: string; value: number }[]>(
     [],
   );
-  const { rows: currencyRows, error: currencyError } = useGroupCurrencyExposure(
+  const activeOwner = searchParams.get("owner") || null;
+  const activeAccountType = activeOwner ? searchParams.get("account") || null : null;
+  const { rows: currencyRows, error: currencyError } = useCurrencyExposure(
     resolvedSlug,
+    activeOwner,
     view === "currency",
   );
   const isLookThroughView = LOOK_THROUGH_VIEWS.includes(view);
-  const { data: lookThrough, error: lookThroughError } = useGroupLookThrough(
+  const { data: lookThrough, error: lookThroughError } = useLookThrough(
     resolvedSlug,
+    activeOwner,
     isLookThroughView,
   );
   const [sleeveData, setSleeveData] = useState<{ name: string; value: number }[]>([]);
   const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
-  const owners = [
+  const groupOwners = [
     ...new Set(
       (portfolio?.accounts ?? []).map((acct) => acct.owner?.trim()).filter((o): o is string => !!o),
     ),
   ].sort();
-  const { sleeves: ownerSleeves, error: sleeveError } = useOwnerSleeves(owners, view === "sleeve");
-  const [selectedAccounts, setSelectedAccounts] = useState<string[] | null>(
-    null,
-  );
+  const { sleeves: ownerSleeves, error: sleeveError } = useOwnerSleeves(groupOwners, view === "sleeve");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const allToggleRef = useRef<HTMLInputElement>(null);
   const showInlinePieLabels = useViewportWidth() >= INLINE_PIE_LABEL_MIN_WIDTH;
   const supportsResizeObserver =
     typeof window !== "undefined" && typeof window.ResizeObserver === "function";
 
-  // helper to derive a stable key for each account
-  const accountKey = (acct: Account, idx: number) =>
-    `${acct.owner?.trim() || "unknown"}-${acct.account_type}-${idx}`;
+  const ownerLookup = useMemo(() => createOwnerDisplayLookup(owners ?? []), [owners]);
+  const ownerTabs = useMemo(
+    () => buildOwnerTabs(portfolio?.accounts, ownerLookup),
+    [portfolio, ownerLookup],
+  );
 
-  const toggleAccount = (key: string, allKeys: string[]) =>
-    setSelectedAccounts((prev) => {
-      if (prev === null) {
-        return allKeys.filter((k) => k !== key);
-      }
-      return prev.includes(key)
-        ? prev.filter((k) => k !== key)
-        : [...prev, key];
-    });
+  /** Same ``?owner=&account=`` scope as the portfolio overview; changing owner clears account. */
+  const setScope = useCallback(
+    (owner: string | null, account: string | null, options?: { replace?: boolean }) => {
+      setSearchParams((prev) => {
+        const params = new URLSearchParams(prev);
+        if (owner) params.set("owner", owner);
+        else params.delete("owner");
+        if (owner && account) params.set("account", account);
+        else params.delete("account");
+        return params;
+      }, options);
+    },
+    [setSearchParams],
+  );
 
   useEffect(() => {
     setLoading(true);
     setError(null);
     getGroupPortfolio(resolvedSlug)
-      .then((p: GroupPortfolio) => {
-        setPortfolio(p);
-        const owner = searchParams.get("owner");
-        const account = searchParams.get("account");
-        setSelectedAccounts(
-          p.accounts
-            .map((acct, idx) => ({ acct, key: accountKey(acct, idx) }))
-            .filter(({ acct }) =>
-              (!owner || acct.owner === owner) && (!account || acct.account_type === account),
-            )
-            .map(({ key }) => key),
-        );
-      })
+      .then((p: GroupPortfolio) => setPortfolio(p))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
-  }, [resolvedSlug, searchParams]);
+  }, [resolvedSlug]);
+
+  // Drop an owner/account the loaded group doesn't have, as the overview does.
+  useEffect(() => {
+    if (!portfolio || ownerTabs.length === 0 || !activeOwner) return;
+    const tab = ownerTabs.find((entry) => entry.value === activeOwner);
+    if (!tab) setScope(null, null, { replace: true });
+    else if (activeAccountType && !tab.accountTypes.includes(activeAccountType))
+      setScope(activeOwner, null, { replace: true });
+  }, [portfolio, ownerTabs, activeOwner, activeAccountType, setScope]);
 
   useEffect(() => {
     if (!portfolio) return;
-    const allKeys = portfolio.accounts.map(accountKey);
-    const activeKeys =
-      selectedAccounts === null
-        ? new Set(allKeys)
-        : new Set(selectedAccounts);
-    const activeAccounts = portfolio.accounts.filter((acct, idx) =>
-      activeKeys.has(accountKey(acct, idx)),
+    const activeAccounts = portfolio.accounts.filter(
+      (acct) =>
+        (!activeOwner || acct.owner === activeOwner) &&
+        (!activeAccountType || acct.account_type === activeAccountType),
     );
 
     const byType: Record<string, number> = {};
@@ -378,18 +392,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value),
     );
-  }, [portfolio, selectedAccounts, ownerSleeves, t]);
-
-  useEffect(() => {
-    if (!portfolio) return;
-    const total = portfolio.accounts.length;
-    const selectedCount =
-      selectedAccounts === null ? total : selectedAccounts.length;
-    if (allToggleRef.current) {
-      allToggleRef.current.indeterminate =
-        selectedCount > 0 && selectedCount < total;
-    }
-  }, [portfolio, selectedAccounts]);
+  }, [portfolio, activeOwner, activeAccountType, ownerSleeves, t]);
 
   if (loading && !portfolio) {
     return (
@@ -416,28 +419,15 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   };
   const chartData = chartDataByView[view];
   const isCurrencyView = view === "currency";
-  const isGroupWideView = isCurrencyView || isLookThroughView;
   const missingFx = missingFxSummary(currencyRows ?? []);
 
   const total = chartData.reduce((sum, d) => sum + d.value, 0);
   /** A slice's share of the chart total, e.g. "12.34%". */
   const sharePct = (value: unknown): string =>
     `${total ? ((toFiniteNumber(value) / total) * 100).toFixed(2) : "0.00"}%`;
-  const allKeys = portfolio?.accounts.map((acct, idx) => accountKey(acct, idx)) ?? [];
-  const selectedCount =
-    selectedAccounts === null ? allKeys.length : selectedAccounts.length;
-  const allSelected =
-    !!portfolio && selectedCount === allKeys.length && selectedCount > 0;
-
-  const handleToggleAll = () => {
-    if (!portfolio) return;
-    setSelectedAccounts((prev) => {
-      if (prev === null) {
-        return [];
-      }
-      return prev.length === allKeys.length ? [] : [...allKeys];
-    });
-  };
+  const contributionParams = new URLSearchParams({ group: resolvedSlug });
+  if (activeOwner) contributionParams.set("owner", activeOwner);
+  if (activeAccountType) contributionParams.set("account", activeAccountType);
 
   return (
     <div className="container mx-auto p-4">
@@ -451,7 +441,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
         {t("allocation.allocationDescription")}{" "}
         <Link
           className="text-blue-600 underline"
-          to={`/?${new URLSearchParams({ group: resolvedSlug }).toString()}`}
+          to={`/?${contributionParams.toString()}`}
         >
           {t("allocation.viewContribution")}
         </Link>
@@ -500,35 +490,14 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
           {t("allocation.sleeveNote")}
         </p>
       )}
-      {portfolio && !isGroupWideView && (
-        <div className="mb-4 flex flex-wrap gap-4">
-          <label className="flex items-center gap-1 font-semibold">
-            <input
-              ref={allToggleRef}
-              type="checkbox"
-              checked={allSelected}
-              onChange={handleToggleAll}
-            />
-            {t("common.all", { defaultValue: "All" })}
-          </label>
-          {portfolio.accounts.map((acct, idx) => {
-            const key = accountKey(acct, idx);
-            const isChecked =
-              selectedAccounts === null
-                ? true
-                : selectedAccounts.includes(key);
-            return (
-              <label key={key} className="flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  checked={isChecked}
-                  onChange={() => toggleAccount(key, allKeys)}
-                />
-                {`${acct.owner ?? "—"} - ${acct.account_type}`}
-              </label>
-            );
-          })}
-        </div>
+      {portfolio && (
+        <OwnerAccountTabs
+          ownerTabs={ownerTabs}
+          activeOwner={activeOwner}
+          activeAccountType={activeAccountType}
+          onOwnerChange={(owner) => setScope(owner, null)}
+          onAccountTypeChange={(type) => setScope(activeOwner, type)}
+        />
       )}
       {error && <p className="text-red-500">{error}</p>}
       {isCurrencyView && currencyError && <p className="text-red-500">{currencyError}</p>}

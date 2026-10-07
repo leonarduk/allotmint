@@ -56,6 +56,8 @@ import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { isCashInstrument } from "../lib/instruments";
 import { formatDateISO } from "../lib/date";
 import { createOwnerDisplayLookup, getOwnerDisplayName } from "../utils/owners";
+import { OwnerAccountTabs } from "./OwnerAccountTabs";
+import { buildOwnerTabs } from "../lib/ownerTabs";
 import {
   PieChart,
   Pie,
@@ -414,37 +416,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     [activeOwner, location.search, setSearchParams],
   );
 
-  const ownerTabs = useMemo<
-    { value: string; label: string; accountTypes: string[] }[]
-  >(
-    () => {
-      if (!portfolio?.accounts?.length) return [];
-      const entries: {
-        value: string;
-        label: string;
-        accountTypes: Set<string>;
-      }[] = [];
-      const index = new Map<string, (typeof entries)[number]>();
-      for (const acct of portfolio.accounts) {
-        if (!acct.owner) continue;
-        let entry = index.get(acct.owner);
-        if (!entry) {
-          entry = {
-            value: acct.owner,
-            label: getOwnerDisplayName(ownerLookup, acct.owner, acct.owner),
-            accountTypes: new Set<string>(),
-          };
-          index.set(acct.owner, entry);
-          entries.push(entry);
-        }
-        entry.accountTypes.add(acct.account_type);
-      }
-      return entries.map(({ value, label, accountTypes }) => ({
-        value,
-        label,
-        accountTypes: Array.from(accountTypes),
-      }));
-    },
+  const ownerTabs = useMemo(
+    () => buildOwnerTabs(portfolio?.accounts, ownerLookup),
     [portfolio, ownerLookup],
   );
 
@@ -1477,106 +1450,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       {portfolioLoading && holdingsTableSkeleton}
 
       {!portfolioLoading && (
-      <div
-        role="tablist"
-        aria-label={t("query.owners")}
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          marginBottom: "1rem",
-          flexWrap: "wrap",
-        }}
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeOwner === null}
-          onClick={() => handleOwnerChange(null)}
-          style={{
-            padding: "0.5rem 0.75rem",
-            borderRadius: "4px",
-            border: "1px solid var(--tab-border)",
-            backgroundColor: activeOwner === null ? "var(--tab-active-bg)" : "transparent",
-            color: activeOwner === null ? "var(--tab-active-text)" : "inherit",
-            cursor: "pointer",
-          }}
-        >
-          {t("group.allPositions")}
-        </button>
-        {ownerTabs.map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            role="tab"
-            aria-selected={activeOwner === tab.value}
-            onClick={() => handleOwnerChange(tab.value)}
-            style={{
-              padding: "0.5rem 0.75rem",
-              borderRadius: "4px",
-              border: "1px solid var(--tab-border)",
-              backgroundColor:
-                activeOwner === tab.value ? "var(--tab-active-bg)" : "transparent",
-              color: activeOwner === tab.value ? "var(--tab-active-text)" : "inherit",
-              cursor: "pointer",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      )}
-
-      {!portfolioLoading && activeOwner && portfolio && (
-        <div
-          role="tablist"
-          aria-label={`${activeOwner} accounts`}
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            marginBottom: "1rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeAccountType === null}
-            onClick={() => handleAccountTypeChange(null)}
-            style={{
-              padding: "0.5rem 0.75rem",
-              borderRadius: "4px",
-              border: "1px solid var(--tab-border)",
-              backgroundColor:
-                activeAccountType === null ? "var(--tab-active-bg)" : "transparent",
-              color: activeAccountType === null ? "var(--tab-active-text)" : "inherit",
-              cursor: "pointer",
-            }}
-          >
-            {t("group.allAccounts")}
-          </button>
-          {ownerTabs
-            .find((tab) => tab.value === activeOwner)
-            ?.accountTypes.map((type) => (
-              <button
-                key={type}
-                type="button"
-                role="tab"
-                aria-selected={activeAccountType === type}
-                onClick={() => handleAccountTypeChange(type)}
-                style={{
-                  padding: "0.5rem 0.75rem",
-                  borderRadius: "4px",
-                  border: "1px solid var(--tab-border)",
-                  backgroundColor:
-                    activeAccountType === type ? "var(--tab-active-bg)" : "transparent",
-                  color: activeAccountType === type ? "var(--tab-active-text)" : "inherit",
-                  cursor: "pointer",
-                }}
-              >
-                {type}
-              </button>
-            ))}
-        </div>
+        <OwnerAccountTabs
+          ownerTabs={ownerTabs}
+          activeOwner={activeOwner}
+          activeAccountType={activeAccountType}
+          onOwnerChange={(owner) => handleOwnerChange(owner)}
+          onAccountTypeChange={(type) => handleAccountTypeChange(type)}
+        />
       )}
 
       {!portfolioLoading && !familyMvpEnabled && (

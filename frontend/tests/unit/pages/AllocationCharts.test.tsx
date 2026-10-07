@@ -45,6 +45,8 @@ vi.mock("recharts", () => ({
 const mockGetGroupPortfolio = vi.mocked(api.getGroupPortfolio);
 const mockGetGroupCurrencies = vi.mocked(api.getGroupCurrencyContributions);
 const mockGetGroupLookThrough = vi.mocked(api.getGroupLookThrough);
+const mockGetOwnerCurrencies = vi.mocked(api.getOwnerCurrencyContributions);
+const mockGetOwnerLookThrough = vi.mocked(api.getOwnerLookThrough);
 
 const render = (ui: ReactNode, initialEntry = "/allocation") =>
   rtlRender(<MemoryRouter initialEntries={[initialEntry]}>{ui}</MemoryRouter>);
@@ -150,11 +152,79 @@ describe("AllocationCharts page", () => {
 
     await waitFor(() => expect(mockGetGroupPortfolio).toHaveBeenCalledWith("family"));
     expect(screen.getByRole("button", { name: "Industries" })).toBeDisabled();
-    expect(screen.getByRole("checkbox", { name: "alice - taxable" })).toBeChecked();
+    expect(screen.getByRole("tab", { name: "alice" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "taxable" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("link", { name: "View gain contribution" })).toHaveAttribute(
       "href",
-      "/?group=family",
+      "/?group=family&owner=alice&account=taxable",
     );
+  });
+
+  describe("owner/account filter (#10011)", () => {
+    const twoOwnerPortfolio: GroupPortfolio = {
+      ...samplePortfolio,
+      accounts: [
+        { ...samplePortfolio.accounts[0], account_type: "sipp", holdings: [baseHolding] },
+        {
+          ...samplePortfolio.accounts[0],
+          account_type: "isa",
+          holdings: [{ ...baseHolding, ticker: "BBB", market_value_gbp: 40, instrument_type: "bond" }],
+        },
+        {
+          ...samplePortfolio.accounts[0],
+          owner: "bob",
+          account_type: "isa",
+          holdings: [{ ...baseHolding, ticker: "CCC", market_value_gbp: 7, instrument_type: "cash" }],
+        },
+      ],
+    };
+    const sliceNames = () =>
+      within(screen.getByTestId("pie-slices"))
+        .getAllByTestId("slice-row")
+        .map((el) => el.textContent);
+
+    it("shows the same owner tabs as the overview, with display names", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(twoOwnerPortfolio);
+      render(
+        <AllocationCharts owners={[{ owner: "alice", full_name: "Alice Smith", accounts: [] }]} />,
+      );
+
+      expect(await screen.findByRole("tab", { name: "All positions" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(screen.getByRole("tab", { name: "Alice Smith" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "bob" })).toBeInTheDocument();
+      expect(screen.queryByRole("tab", { name: "All accounts" })).not.toBeInTheDocument();
+      await waitFor(() => expect(sliceNames()).toHaveLength(3));
+    });
+
+    it("narrows the charts by owner, then by account", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(twoOwnerPortfolio);
+      render(<AllocationCharts />);
+
+      fireEvent.click(await screen.findByRole("tab", { name: "alice" }));
+      await waitFor(() => expect(sliceNames()).toEqual(["Equity: 100", "Bond: 40"]));
+
+      fireEvent.click(screen.getByRole("tab", { name: "isa" }));
+      await waitFor(() => expect(sliceNames()).toEqual(["Bond: 40"]));
+
+      fireEvent.click(screen.getByRole("tab", { name: "All positions" }));
+      await waitFor(() => expect(sliceNames()).toHaveLength(3));
+    });
+
+    it("drops an owner the group does not have", async () => {
+      mockGetGroupPortfolio.mockResolvedValueOnce(twoOwnerPortfolio);
+      render(<AllocationCharts />, "/allocation?owner=nobody");
+
+      await waitFor(() =>
+        expect(screen.getByRole("tab", { name: "All positions" })).toHaveAttribute(
+          "aria-selected",
+          "true",
+        ),
+      );
+      await waitFor(() => expect(sliceNames()).toHaveLength(3));
+    });
   });
 
   it("keeps valid values across type/sector/region while excluding invalid entries", async () => {
@@ -480,7 +550,7 @@ describe("AllocationCharts page", () => {
       expect(screen.getByRole("button", { name: "Currencies" })).toBeDisabled();
     });
 
-    it("labels the view as quote-currency exposure and hides the per-account filter", async () => {
+    it("labels the view as quote-currency exposure", async () => {
       mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
       mockGetGroupCurrencies.mockResolvedValueOnce([currencyRow("GBP", 100)]);
 
@@ -490,7 +560,18 @@ describe("AllocationCharts page", () => {
       expect(await screen.findByTestId("currency-exposure-note")).toHaveTextContent(
         /quote currency.*GBP-listed global fund counts as GBP/,
       );
-      expect(screen.queryByRole("checkbox", { name: "alice - taxable" })).not.toBeInTheDocument();
+    });
+
+    it("uses the owner currency endpoint when an owner is selected", async () => {
+      mockGetGroupCurrencies.mockClear();
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetOwnerCurrencies.mockResolvedValueOnce([currencyRow("USD", 80)]);
+
+      render(<AllocationCharts />, "/allocation?view=currency&owner=alice");
+
+      await waitFor(() => expect(mockGetOwnerCurrencies).toHaveBeenCalledWith("alice"));
+      expect(await screen.findByText("USD: 80")).toBeInTheDocument();
+      expect(mockGetGroupCurrencies).not.toHaveBeenCalled();
     });
 
     it("warns when a quote currency has no stored FX rate", async () => {
@@ -535,7 +616,7 @@ describe("AllocationCharts page", () => {
       expect(await screen.findByText("currency boom")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: /Instrument Types/ }));
       expect(screen.queryByText("currency boom")).not.toBeInTheDocument();
-      expect(screen.getByRole("checkbox", { name: "alice - taxable" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "alice" })).toBeInTheDocument();
     });
   });
 
@@ -682,7 +763,22 @@ describe("AllocationCharts page", () => {
         ]),
       );
       expect(screen.getByTestId("look-through-note")).toBeInTheDocument();
-      expect(screen.queryByRole("checkbox", { name: "alice - taxable" })).not.toBeInTheDocument();
+    });
+
+    it("uses the owner look-through endpoint when an owner is selected", async () => {
+      mockGetGroupLookThrough.mockClear();
+      mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+      mockGetOwnerLookThrough.mockResolvedValueOnce(lookThrough([bucket("Japan", 400)]));
+
+      render(<AllocationCharts />, "/allocation?view=lt-country&owner=alice");
+
+      await waitFor(() => expect(mockGetOwnerLookThrough).toHaveBeenCalledWith("alice"));
+      await waitFor(() =>
+        expect(screen.getAllByTestId("slice-row").map((el) => el.textContent)).toEqual([
+          "Japan: 400",
+        ]),
+      );
+      expect(mockGetGroupLookThrough).not.toHaveBeenCalled();
     });
 
     it("reports coverage and funds that were not looked through", async () => {

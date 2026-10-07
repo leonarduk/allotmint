@@ -588,8 +588,9 @@ def test_gain_measures_from_start_price_or_cost_when_bought_in_range(holdings_en
     # Bought mid-range: from its cost of 7 to 2 x 4.
     assert rows["NEW.L"]["start_value_gbp"] == 7.0
     assert rows["NEW.L"]["gain_gbp"] == 1.0
-    # Sterling cash is flat.
-    assert rows["CASH.GBP"]["gain_gbp"] == 0.0
+    # Cash isn't replayed by the history, so its units at the end of a past
+    # range are unknown.
+    assert rows["CASH.GBP"]["gain_gbp"] is None
 
 
 def test_unpriced_holding_value_is_none_not_understated(holdings_env, monkeypatch):
@@ -599,9 +600,9 @@ def test_unpriced_holding_value_is_none_not_understated(holdings_env, monkeypatc
 
 
 def test_holding_metrics_merge_per_ticker_metrics(holdings_env):
-    q = _holding_query(owners=["bob"], metrics=[query.Metric.MARKET_VALUE_GBP, query.Metric.META])
+    q = _holding_query(owners=["alice"], tickers=["ABC.L"], metrics=[query.Metric.MARKET_VALUE_GBP, query.Metric.META])
     assert query.run_query(q)["results"] == [
-        {"owner": "bob", "ticker": "ABC.L", "units": 1.0, "market_value_gbp": 3.0, "name": "abc.l"}
+        {"owner": "alice", "ticker": "ABC.L", "units": 15.0, "market_value_gbp": 45.0, "name": "abc.l"}
     ]
 
 
@@ -611,7 +612,8 @@ def test_get_run_exports_csv_attachment(holdings_env):
         params={
             "start": "2020-01-01",
             "end": "2020-12-31",
-            "owners": "bob",
+            "owners": "alice",
+            "tickers": "ABC.L",
             "metrics": "market_value_gbp,gain_gbp",
             "format": "csv",
         },
@@ -620,7 +622,7 @@ def test_get_run_exports_csv_attachment(holdings_env):
     assert resp.headers["content-disposition"] == "attachment; filename=custom-query.csv"
     lines = resp.text.strip().splitlines()
     assert lines[0] == "owner,ticker,units,market_value_gbp,start_value_gbp,gain_gbp"
-    assert lines[1] == "bob,ABC.L,1.0,3.0,2.0,1.0"
+    assert lines[1] == "alice,ABC.L,15.0,45.0,30.0,15.0"
 
 
 def test_get_run_rejects_unknown_metric(holdings_env):
@@ -652,8 +654,8 @@ def test_price_steps_back_past_an_empty_close(holdings_env, monkeypatch):
     # the value comes from the latest usable close within the week.
     prices = {("ABC", date(2020, 12, 29)): 3.0}
     monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (prices.get((sym, d)), None))
-    rows = query.run_query(_holding_query(owners=["bob"]))["results"]
-    assert rows[0]["market_value_gbp"] == 3.0
+    rows = query.run_query(_holding_query(owners=["alice"], tickers=["ABC.L"]))["results"]
+    assert rows[0]["market_value_gbp"] == 45.0
 
 
 def test_top_up_inside_range_splits_start_price_and_cost(holdings_env, monkeypatch):
@@ -683,10 +685,12 @@ def test_top_up_inside_range_splits_start_price_and_cost(holdings_env, monkeypat
 
 def test_gain_falls_back_to_start_price_when_history_does_not_replay(holdings_env, monkeypatch):
     # The history only explains 10 of alice's 15 ABC units, so it isn't
-    # trusted: all 15 count at the start-date price.
+    # trusted: for a range ending today, all 15 count at the start-date price.
     partial = [{"date": "2019-01-01", "type": "BUY", "ticker": "ABC.L", "units": 10}]
     monkeypatch.setattr(query, "load_transactions", lambda owner: partial)
-    q = _holding_query(owners=["alice"], tickers=["ABC.L"], metrics=[query.Metric.GAIN_GBP])
+    start = date(2020, 1, 1)
+    monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (2.0 if d == start else 3.0, None))
+    q = _holding_query(owners=["alice"], tickers=["ABC.L"], end=date.today(), metrics=[query.Metric.GAIN_GBP])
     row = query.run_query(q)["results"][0]
     assert row["start_value_gbp"] == 30.0
     assert row["gain_gbp"] == 15.0
@@ -848,3 +852,27 @@ def test_position_sold_out_before_today_has_no_row(holdings_env, monkeypatch):
     )
     rows = query.run_query(_holding_query(owners=["alice"]))["results"]
     assert "GONE.L" not in {r["ticker"] for r in rows}
+
+
+def test_past_range_without_a_trusted_replay_is_unknown_not_todays_units(holdings_env):
+    # Bob has no transaction history: his units at the end of a past range
+    # can't be established, so they and their values are None rather than
+    # today's units at a historical price.
+    q = _holding_query(owners=["bob"], metrics=[query.Metric.MARKET_VALUE_GBP, query.Metric.GAIN_GBP])
+    assert query.run_query(q)["results"] == [
+        {
+            "owner": "bob",
+            "ticker": "ABC.L",
+            "units": None,
+            "market_value_gbp": None,
+            "start_value_gbp": None,
+            "gain_gbp": None,
+        }
+    ]
+
+
+def test_range_ending_today_without_a_replay_uses_current_units(holdings_env, monkeypatch):
+    today = date.today()
+    monkeypatch.setattr(query, "_get_price_for_date_scaled", lambda sym, exch, d: (3.0, None))
+    q = query.CustomQuery(start=date(2020, 1, 1), end=today, owners=["bob"], metrics=[query.Metric.MARKET_VALUE_GBP])
+    assert query.run_query(q)["results"][0]["market_value_gbp"] == 3.0

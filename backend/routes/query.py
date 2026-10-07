@@ -157,14 +157,15 @@ def _owner_transactions(owner: str, cache: dict[str, dict | None]) -> dict | Non
     return cache[owner]
 
 
-def _range_units(tx: dict | None, ticker: str, units_now: float, q: CustomQuery) -> tuple[float, float | None]:
+def _range_units(tx: dict | None, ticker: str, units_now: float, q: CustomQuery) -> tuple[float | None, float | None]:
     """``(units held at q.end, units held at q.start)`` for ``ticker``.
 
     Both come from replaying ``tx``, but only when that replay is trusted:
     replayed up to *today* it must reproduce the units held now (it is the
     current holdings it is checked against, so today -- not ``q.end`` -- is
-    the right anchor). Otherwise the current units stand in for the end of
-    the range and the start is unknown (``None``).
+    the right anchor). Otherwise the start is unknown (``None``), and the
+    current units stand in for the end only when the range ends today: for a
+    range ending in the past they would be a guess, so the end is unknown too.
     """
     if tx is not None:
         replayed_now = get_units_as_of(tx, ticker, date.today().isoformat())
@@ -172,7 +173,7 @@ def _range_units(tx: dict | None, ticker: str, units_now: float, q: CustomQuery)
             end_units = max(get_units_as_of(tx, ticker, q.end.isoformat()), 0.0)
             start_units = max(get_units_as_of(tx, ticker, q.start.isoformat()), 0.0)
             return end_units, start_units
-    return units_now, None
+    return (units_now if q.end >= date.today() else None), None
 
 
 _ACQUIRE_TYPES = {"BUY", "PURCHASE", "TRANSFER_IN"}
@@ -265,9 +266,22 @@ def _aggregate_holdings(q: CustomQuery) -> dict[tuple[str, str], dict]:
     return agg
 
 
+def _unknown_row(owner: str, ticker: str, q: CustomQuery) -> dict:
+    """A row whose units at ``q.end`` can't be established: every value unknown."""
+    row: dict = {"owner": owner, "ticker": ticker, "units": None}
+    if Metric.MARKET_VALUE_GBP in q.metrics:
+        row[Metric.MARKET_VALUE_GBP.value] = None
+    if Metric.GAIN_GBP in q.metrics:
+        row["start_value_gbp"] = None
+        row[Metric.GAIN_GBP.value] = None
+    return row
+
+
 def _holding_row(owner: str, ticker: str, acc: dict, q: CustomQuery, tx_cache: dict) -> dict:
     tx = _owner_transactions(owner, tx_cache)
     end_units, start_units = _range_units(tx, ticker, acc["units"], q)
+    if end_units is None:
+        return _unknown_row(owner, ticker, q)
     row: dict = {"owner": owner, "ticker": ticker, "units": round(end_units, 4)}
     end_price = _gbp_price(ticker, acc["holding"], q.end) if end_units > 0 else 0.0
     end_value = end_units * end_price if end_price is not None else None

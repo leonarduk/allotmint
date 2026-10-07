@@ -34,7 +34,12 @@ describe("paddedDomain", () => {
     expect(paddedDomain([null, 100, 200])).toEqual([50, 250]);
   });
 
-  it("gives an all-zero series a non-degenerate domain", () => {
-    expect(paddedDomain([0, 0])).toEqual([-1, 1]);
+  it("gives an all-zero series a non-degenerate, non-negative domain", () => {
+    expect(paddedDomain([0, 0])).toEqual([0, 1]);
+  });
+
+  it("snaps fractional bounds without floating-point noise", () => {
+    // Step 0.05: raw multiplication would give 0.15000000000000002.
+    expect(paddedDomain([0.2, 0.3])).toEqual([0.15, 0.35]);
   });
 });

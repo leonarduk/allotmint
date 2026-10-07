@@ -25,11 +25,18 @@ export function paddedDomain(
   const range = max - min;
   const magnitude = Math.max(Math.abs(min), Math.abs(max));
   const pad = Math.max(range * 0.1, (magnitude * minSpanFraction - range) / 2);
-  if (pad === 0) return [min - 1, max + 1];
+  // Only reachable for an all-zero series (any other value gives a non-zero
+  // min-span pad); it still keeps the non-negative floor.
+  if (pad === 0) return [0, 1];
   const lower = min >= 0 ? Math.max(0, min - pad) : min - pad;
   const upper = max + pad;
   const step = niceStep((upper - lower) / 4);
-  return [Math.floor(lower / step) * step, Math.ceil(upper / step) * step];
+  return [snap(Math.floor(lower / step) * step), snap(Math.ceil(upper / step) * step)];
+}
+
+/** Drop float noise such as 0.30000000000000004 from a snapped bound. */
+function snap(value: number): number {
+  return Number(value.toPrecision(12));
 }
 
 /** The smallest 1/2/2.5/5 x 10^n step at or above ``rough``. */

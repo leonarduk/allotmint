@@ -48,7 +48,9 @@ export const money = (
 
 /**
  * ``money`` rounded to whole units -- "£72,000" -- for chart axis ticks,
- * where pence only widen the label (#7815).
+ * where pence only widen the label (#7815). Same currency contract as
+ * ``money``: ``v`` is already in pounds, and a pence code (GBX/GBp) only
+ * selects the £ symbol -- it is never divided by 100.
  */
 export const wholeMoney = (
     v: number | null | undefined,

@@ -84,8 +84,8 @@ def _match_hint_key(ticker: str, hint_keys: List[str], held_bases: Dict[str, int
 
     An exact match always wins.  Otherwise a pool whose ticker differs only by
     an exchange suffix on one side (``VWRL`` vs ``VWRL.L``) is used, but only
-    when exactly one pool fits and no other holding in the account shares the
-    same base symbol, so an ambiguous listing is never guessed at.
+    when exactly one pool fits and no other holding counted in ``held_bases``
+    shares the same base symbol, so an ambiguous listing is never guessed at.
     """
     if ticker in hint_keys:
         return ticker
@@ -145,12 +145,22 @@ def fill_missing_costs(owner: str, account: str, holdings: List[Any], accounts_r
         return
     hints = transaction_cost_hints(transactions)
     hint_keys = [k for k in hints if not k.startswith(("name:", "ref:"))]
-    held_bases = _held_base_counts(holdings)
+    # A holding with a booked cost never takes a fill, so it must not make a
+    # zero-cost sibling's base symbol look ambiguous (#8480).  Its own pool is
+    # still off-limits to a suffix-only guess from that sibling.
+    held_bases = _held_base_counts(needy)
+    booked_keys = {
+        canonical_ticker(str(h.get("ticker") or ""))
+        for h in holdings
+        if isinstance(h, dict) and h.get("cost_basis_gbp")
+    }
     for h in needy:
         ticker = str(h.get("ticker") or "").strip().upper()
         if not ticker or _strip_suffix(ticker) == "CASH":  # cash has no transaction pool
             continue
         key = _match_hint_key(ticker, hint_keys, held_bases)
+        if key in booked_keys and key not in (ticker, canonical_ticker(ticker)):
+            key = None
         if key is None:
             _warn_unmatched(owner, account, ticker)
             continue

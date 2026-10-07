@@ -117,6 +117,32 @@ def test_ambiguous_base_symbol_is_not_matched(tmp_path, caplog):
     assert len(unmatched) == 3
 
 
+def test_booked_sibling_does_not_block_zero_cost_suffix_match(tmp_path):
+    """A booked holding sharing a base symbol no longer hides a valid fill (#8480)."""
+    txs = [{"date": "2022-01-10", "ticker": "VWRL.L", "type": "BUY", "units": 10.0, "price_gbp": 100.0}]
+    _write_transactions(tmp_path, "alex", "ISA", txs)
+    holdings = [
+        {"ticker": "VWRL.AS", "units": 5.0, "cost_basis_gbp": 450.0},
+        {"ticker": "VWRL", "units": 10.0, "cost_basis_gbp": 0.0},
+    ]
+    fill_missing_costs("alex", "isa", holdings, tmp_path)
+    assert holdings[0] == {"ticker": "VWRL.AS", "units": 5.0, "cost_basis_gbp": 450.0}
+    assert holdings[1]["cost_basis_gbp"] == 1000.0
+
+
+def test_zero_cost_holding_never_takes_a_booked_siblings_pool(tmp_path):
+    """The booked holding's own pool is not guessed for its zero-cost sibling (#8480)."""
+    txs = [{"date": "2022-01-10", "ticker": "VWRL", "type": "BUY", "units": 10.0, "price_gbp": 100.0}]
+    _write_transactions(tmp_path, "alex", "ISA", txs)
+    holdings = [
+        {"ticker": "VWRL", "units": 10.0, "cost_basis_gbp": 1000.0},
+        {"ticker": "VWRL.L", "units": 3.0, "cost_basis_gbp": 0.0},
+    ]
+    fill_missing_costs("alex", "isa", holdings, tmp_path)
+    assert holdings[0]["cost_basis_gbp"] == 1000.0
+    assert holdings[1] == {"ticker": "VWRL.L", "units": 3.0, "cost_basis_gbp": 0.0}
+
+
 def test_group_portfolio_gets_same_derived_cost_as_owner_portfolio(tmp_path, monkeypatch):
     """Group views fill zero-cost holdings from transactions exactly like owner views (#8473)."""
     owner_dir = _write_transactions(tmp_path, "steve", "SIPP", TXS)

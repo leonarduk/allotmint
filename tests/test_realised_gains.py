@@ -76,6 +76,34 @@ def test_falls_back_to_price_and_fees_and_groups_by_name_without_ticker():
     assert gains[1].realised_gain_gbp == pytest.approx(10.0)
 
 
+def test_amount_minor_is_settled_net_of_fees_so_fees_are_not_subtracted_again():
+    # Convention (#8568): amount_minor is the settled cash, already net of fees --
+    # a SELL's amount_minor is proceeds after fees, a BUY's is cost including fees.
+    # A stored ``fees`` value alongside it is informational and must not be applied again.
+    txs = [
+        {**_buy("2024-01-01", 10, 1005), "price_gbp": 100, "fees": 5},
+        {**_sell("2024-06-01", 10, 1195), "price_gbp": 120, "fees": 5},
+    ]
+    gains = compute_disposal_gains(txs)
+    assert gains[1].cost_basis_gbp == pytest.approx(1005.0)
+    assert gains[1].proceeds_gbp == pytest.approx(1195.0)
+    assert gains[1].realised_gain_gbp == pytest.approx(190.0)
+
+
+def test_amount_minor_and_price_fallback_agree_on_fees():
+    # The same trades recorded with and without amount_minor give the same gain:
+    # the fallback derives the settled value as price x units -/+ fees.
+    with_amount = [
+        {**_buy("2024-01-01", 10, 1005), "fees": 5},
+        {**_sell("2024-06-01", 10, 1195), "fees": 5},
+    ]
+    from_price = [
+        {"date": "2024-01-01", "type": "BUY", "ticker": "AAA.L", "units": 10, "price_gbp": 100, "fees": 5},
+        {"date": "2024-06-01", "type": "SELL", "ticker": "AAA.L", "units": 10, "price_gbp": 120, "fees": 5},
+    ]
+    assert compute_disposal_gains(with_amount)[1] == compute_disposal_gains(from_price)[1]
+
+
 def test_instruments_are_pooled_separately_and_scaled_shares_handled():
     txs = [
         _buy("2024-01-01", 10, 100, ticker="AAA.L"),

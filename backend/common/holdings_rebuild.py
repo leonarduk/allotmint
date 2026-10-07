@@ -110,6 +110,13 @@ def _quantity(tx: Mapping[str, Any]) -> float | None:
 def _settled_value(tx: Mapping[str, Any], qty: float, *, acquisition: bool) -> float | None:
     """Settled GBP value: ``amount_minor`` if non-zero, else price x units +/- fees.
 
+    ``amount_minor`` is the cash that actually settled, so it is already *net* of
+    ``fees``: proceeds after fees on a disposal, cost including fees on an
+    acquisition.  That is how Portfolio Performance exports a trade's ``amount``,
+    and the replay moves cash by exactly this value.  ``fees`` is therefore only
+    applied on the price x units fallback; subtracting it from ``amount_minor``
+    too would count it twice.  Both paths yield the same settled value.
+
     A zero ``amount_minor`` (common on transfers-in) records no value, so it is
     treated as unknown rather than as a known cost of nothing.
     """

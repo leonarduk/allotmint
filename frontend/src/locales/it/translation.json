@@ -3117,6 +3117,11 @@
     "reportDescription": "Hai trovato un bug o qualcosa di poco chiaro? Faccelo sapere su GitHub così può essere tracciato e risolto.",
     "reportLink": "Apri una issue su GitHub"
   },
+  "firstRunHelp": {
+    "title": "Nuovo su AllotMint?",
+    "openHelp": "Apri Guida e primi passi",
+    "dismiss": "Ho capito, non mostrare più"
+  },
   "reportingCurrency": {
     "converted": "Importi in {{currency}}, convertiti da GBP al tasso odierno (1 {{currency}} = £{{rate}}).",
     "unavailable": "Nessun tasso GBP memorizzato per {{currency}}, quindi gli importi sono mostrati in GBP."

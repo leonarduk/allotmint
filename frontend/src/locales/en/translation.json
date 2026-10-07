@@ -3110,6 +3110,11 @@
     "reportDescription": "Found a bug or something confusing? Let us know on GitHub so it can be tracked and fixed.",
     "reportLink": "Open a GitHub issue"
   },
+  "firstRunHelp": {
+    "title": "New to AllotMint?",
+    "openHelp": "Open Help & Getting Started",
+    "dismiss": "Got it, don't show again"
+  },
   "reportingCurrency": {
     "converted": "Amounts in {{currency}}, translated from GBP at today's rate (1 {{currency}} = £{{rate}}).",
     "unavailable": "No GBP rate for {{currency}} is stored, so amounts are shown in GBP."

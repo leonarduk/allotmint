@@ -217,6 +217,16 @@ def test_real_scaling_override_flags_only_unconverted_pence(real_scaling):
     assert '"AV": 0.01 under "L"' in by_ticker["AV"].suggested_fix
 
 
+def test_gbx_currency_metadata_alone_resolves_pence_with_none_requested(real_scaling):
+    """``get_scaling_override(t, "L", None)``: None is the *requested* factor, not
+    the exchange/currency, so GBX metadata with no override entry still yields 0.01."""
+    from backend.utils.timeseries_helpers import get_scaling_override
+
+    assert get_scaling_override("GAW", "L", None) == pytest.approx(0.01)
+    issues = _of_type(aggregate_series_issues(), IssueType.PRICE_SCALE_SUSPECT)
+    assert "GAW" not in {i.entity["ticker"] for i in issues}  # raw 17760p = £177.60, under the £300 ceiling
+
+
 # ── _split_dates against the real corporate-actions loader ──────────────────
 _real_split_dates = issues_module._split_dates  # captured before _isolate stubs it
 

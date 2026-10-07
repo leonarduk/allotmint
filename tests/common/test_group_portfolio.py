@@ -214,3 +214,36 @@ def test_build_group_portfolio_prices_holdings_from_cache_only():
     assert seen, "enrich_holding was never called"
     assert seen == [True, True, True]
     assert importlib.import_module("backend.timeseries.cache").is_cache_only() is False
+
+
+def test_build_group_portfolio_strips_account_stem_without_mutating_input():
+    """The loader-internal stem locates transactions but never reaches the response (#9094)."""
+    from backend.common.portfolio_loader import ACCOUNT_STEM_KEY
+
+    lucy_account = {
+        "account_type": "Stocks ISA",
+        "currency": "GBP",
+        HOLDINGS: [{"ticker": "AAA"}],
+        ACCOUNT_STEM_KEY: "isa",
+    }
+    mock_portfolios = [{"owner": "Lucy", ACCOUNTS: [lucy_account]}, {"owner": "Steve", ACCOUNTS: []}]
+
+    with (
+        patch("backend.common.portfolio_loader.list_portfolios", return_value=mock_portfolios),
+        patch(
+            "backend.common.group_portfolio.data_loader.list_plots",
+            return_value=[OwnerSummaryRecord(owner=row["owner"]) for row in mock_portfolios],
+        ),
+        patch("backend.common.group_portfolio.load_approvals", return_value={}),
+        patch("backend.common.group_portfolio.load_user_config", return_value={}),
+        patch("backend.common.group_portfolio.enrich_holding", side_effect=lambda h, *_a, **_k: h),
+        patch("backend.common.group_portfolio.owner_portfolio.fill_missing_costs") as fill_costs,
+        patch("backend.common.group_portfolio.owner_portfolio.add_total_returns"),
+    ):
+        result = group_portfolio.build_group_portfolio("adults")
+
+    (account,) = result[ACCOUNTS]
+    assert ACCOUNT_STEM_KEY not in account
+    # The stem, not account_type, still located the transactions file.
+    assert fill_costs.call_args.args[:2] == ("Lucy", "isa")
+    assert lucy_account[ACCOUNT_STEM_KEY] == "isa"

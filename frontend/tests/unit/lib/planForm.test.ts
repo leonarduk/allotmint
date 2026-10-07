@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { InvestmentPlan } from '@/types';
 import {
+  classLabel,
   emptyPlanForm,
   formErrors,
   fromPlan,
@@ -136,13 +137,18 @@ describe('planForm', () => {
     expect(out.evidence[0].value).toBe('true');
   });
 
+  it('labels other_commodities as the sub-class and a lone legacy commodities as the class', () => {
+    expect(classLabel('other_commodities')).toBe('Other commodities');
+    expect(classLabel('commodities')).toBe('Commodity');
+  });
+
   it('totals only numeric target weights', () => {
     expect(
       targetTotal([
         { class: 'equity', weight: '60' },
         { class: 'gold', weight: '' },
         { class: 'cash', weight: '12.5' },
-        { class: 'commodities', weight: '5abc' },
+        { class: 'other_commodities', weight: '5abc' },
       ])
     ).toBe(72.5);
   });

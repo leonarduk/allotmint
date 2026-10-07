@@ -1,5 +1,8 @@
+from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 from botocore.exceptions import ClientError
@@ -162,6 +165,57 @@ def test_get_cached_series_with_missing_values_serialises_as_null(tmp_path, monk
     assert rows[1]["Open"] is None
     assert rows[1]["Source"] is None
     assert rows[1]["Close"] == 1.6
+
+
+def test_get_cached_series_with_decimal_prices_serialises_as_numbers(tmp_path, monkeypatch):
+    """A parquet decimal128 price column loads as Decimal and must not 500 the GET (#8446)."""
+    client = _make_client(tmp_path, monkeypatch)
+    path = timeseries_edit.meta_timeseries_cache_path("DECM", "L")
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-01-01", "2024-01-02"]),
+            "Open": [Decimal("1.00"), Decimal("1.10")],
+            "High": [Decimal("2.00"), Decimal("2.10")],
+            "Low": [Decimal("0.50"), None],
+            "Close": [Decimal("1.50"), Decimal("1.60")],
+            "Volume": pd.array([100, None], dtype="Int64"),
+            "Ticker": ["DECM", "DECM"],
+            "Source": ["Yahoo", "Yahoo"],
+        }
+    ).to_parquet(path, index=False)
+
+    resp = client.get("/timeseries/edit?ticker=DECM&exchange=L")
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert rows[0]["Date"] == "2024-01-01"
+    assert rows[0]["Close"] == 1.5
+    assert rows[1]["Open"] == 1.1
+    assert rows[1]["Low"] is None
+    assert rows[0]["Volume"] == 100
+    assert rows[1]["Volume"] is None
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (pd.Timestamp("2024-01-03 10:30:00"), "2024-01-03T10:30:00"),
+        (datetime(2024, 1, 3, 10, 30), "2024-01-03T10:30:00"),
+        (date(2024, 1, 3), "2024-01-03"),
+        (Decimal("1.25"), 1.25),
+        (np.int64(7), 7),
+        (np.float32(0.5), 0.5),
+        (np.bool_(True), True),
+    ],
+)
+def test_json_default_encodes_non_native_scalars(value, expected):
+    assert timeseries_edit._json_default(value) == expected
+
+
+def test_json_default_rejects_unknown_types():
+    with pytest.raises(TypeError, match="object"):
+        timeseries_edit._json_default(object())
 
 
 def test_get_missing_file(tmp_path, monkeypatch):

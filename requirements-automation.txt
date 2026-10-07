@@ -3,4 +3,10 @@
 # This is separate from requirements-dev.txt so untrusted pull requests, whose
 # workflows cannot access repository secrets, can still install the complete
 # public development toolchain. See issue #6754 and scripts/README.md.
-cicaid-devtools[dotenv] @ git+https://github.com/leonarduk/cicaid-pro.git@v0.9.1
+#
+# cicaid-devtools is the public CLI shell; cicaid-devtools-pro (private
+# leonarduk/cicaid-pro) adds the LLM review modules into the same
+# cicaid_devtools namespace. Keep both in step with .github/cicaid-pins.env --
+# scripts/update_dependency_pins.py rewrites them together (#6597).
+cicaid-devtools[dotenv] @ git+https://github.com/leonarduk/cicaid.git@v0.5.10
+cicaid-devtools-pro @ git+https://github.com/leonarduk/cicaid-pro.git@v0.19.0

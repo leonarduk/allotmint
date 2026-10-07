@@ -32,7 +32,8 @@ const {
         type: 'BUY',
         amount_minor: 10000,
         currency: 'GBP',
-        shares: 5,
+        // Portfolio Performance fixed-point: 5 units x 10^8 (#10203).
+        shares: 500_000_000,
         date: '2024-01-01',
         reason: 'Initial',
       },
@@ -101,6 +102,21 @@ describe('TransactionsPage', () => {
     expect(
       (await screen.findAllByText('Alex Example')).at(-1)
     ).toBeInTheDocument();
+  });
+
+  it('shows a PP-imported row in real units, in the table and the editor (#10203)', async () => {
+    render(
+      <TransactionsPage
+        owners={[{ owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] }]}
+      />
+    );
+    await screen.findByText('PFE');
+    const row = screen.getByText('PFE').closest('tr') as HTMLElement;
+    expect(within(row).getByText('5')).toBeInTheDocument();
+    expect(within(row).queryByText('500000000')).not.toBeInTheDocument();
+
+    fireEvent.click(getEditButtonForTicker('PFE'));
+    expect(getEditorUnits()).toHaveValue(5);
   });
 
   it('lists the newest transaction first', async () => {

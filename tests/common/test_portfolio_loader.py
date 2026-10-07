@@ -66,6 +66,19 @@ def test_get_units_as_of_reflects_a_sell_before_cutoff() -> None:
     assert get_units_as_of(tx_data, "ABC", "2024-02-01") == pytest.approx(100.0)
 
 
+def test_get_units_as_of_scales_by_field_not_magnitude() -> None:
+    """#7920: ``units`` are real units at any size; ``shares`` are always PP x 10^8."""
+    tx_data = {
+        "transactions": [
+            {"type": "BUY", "ticker": "ABC", "units": 2_000_000, "date": "2024-01-01"},
+            {"type": "BUY", "ticker": "XYZ", "shares": 999_999, "date": "2024-01-01"},
+        ]
+    }
+
+    assert get_units_as_of(tx_data, "ABC", "2024-06-01") == pytest.approx(2_000_000.0)
+    assert get_units_as_of(tx_data, "XYZ", "2024-06-01") == pytest.approx(0.00999999)
+
+
 def test_get_units_as_of_ignores_other_tickers() -> None:
     tx_data = {
         "transactions": [
@@ -292,3 +305,13 @@ def test_load_portfolio_case_insensitive(patched_portfolio_loader: list[OwnerSum
 
     assert beth_portfolio == all_portfolios[1]
     assert portfolio_loader.load_portfolio("charlie") is None
+
+
+def test_strip_account_stem_drops_only_the_stem_without_mutating_input() -> None:
+    account = {"account_type": "Stocks ISA", "holdings": [], portfolio_loader.ACCOUNT_STEM_KEY: "isa"}
+
+    stripped = portfolio_loader.strip_account_stem(account)
+
+    assert stripped == {"account_type": "Stocks ISA", "holdings": []}
+    assert account[portfolio_loader.ACCOUNT_STEM_KEY] == "isa"  # input untouched (#9094)
+    assert portfolio_loader.strip_account_stem({"account_type": "SIPP"}) == {"account_type": "SIPP"}

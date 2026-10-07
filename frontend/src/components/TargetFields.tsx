@@ -33,16 +33,24 @@ function TargetInput({
 }) {
   const { t } = useTranslation();
   return (
-    <input
-      type="number"
-      step="any"
-      min="0"
-      max="100"
-      className="w-full border p-1"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={t('targetFields.inputFor', { inputLabel, label })}
-    />
+    <span className="flex items-center gap-1">
+      <input
+        type="number"
+        step="any"
+        min="0"
+        max="100"
+        className="w-full border p-1"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={t('targetFields.inputFor', { inputLabel, label })}
+      />
+      <span
+        aria-hidden="true"
+        className="text-sm text-slate-600 dark:text-slate-300"
+      >
+        %
+      </span>
+    </span>
   );
 }
 

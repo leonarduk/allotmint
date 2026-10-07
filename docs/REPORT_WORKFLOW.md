@@ -155,6 +155,10 @@ How the numbers are built:
   current-holdings history.
 - The benchmark is a price return (no dividends); if its prices are missing
   the benchmark columns are null rather than the report failing.
+- The `performance-summary` report's headline *Cumulative return* and *Max
+  drawdown* use the same ledger TWR over its `[start, end]` window (end
+  defaults to today), and are null without a ledger (#9637). Its history rows
+  still come from `compute_owner_performance` for the value-over-time chart.
 
 Insights are rule-based, not hand-written: each rule in
 `backend/report_periodic.py` is a pure function with a module-level threshold

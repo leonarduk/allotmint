@@ -504,3 +504,80 @@ def test_value_outside_holdings_is_carried_at_baseline(monkeypatch):
             "price_return_tickers": [],
         }
     }
+
+
+def _equity_and_gilt(asset_class_gilt="bond"):
+    """Two holdings with no prices of their own: an equity fund and a gilt ETF."""
+    return {
+        "total_value_estimate_gbp": 1000.0,
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "EQNEW.L", "market_value_gbp": 600.0, "asset_class": "equity"},
+                    {"ticker": "GBPG.L", "market_value_gbp": 400.0, "asset_class": asset_class_gilt},
+                ]
+            }
+        ],
+    }
+
+
+def _proxy_only_returns(monkeypatch, proxy_ret):
+    def fake_forward_returns(ticker, exchange, event_date, horizons=sc_tester._HORIZONS):
+        return {k: proxy_ret if ticker == "SPY" else None for k in horizons}, "total"
+
+    monkeypatch.setattr(sc_tester, "_forward_returns", fake_forward_returns)
+
+
+def test_uncovered_equity_and_gilt_get_different_returns(monkeypatch):
+    """A gilt ETF without history moves with its bond stand-in, not the equity proxy (#9492)."""
+    _proxy_only_returns(monkeypatch, -0.30)
+
+    def bond_stand_in(holding):
+        if holding.get("asset_class") != "bond":
+            return None
+        return "bond stand-in", ({"1m": 0.02}, "total")
+
+    event = {"date": "2020-02-19", "proxy_index": "SPY.N"}
+    result = sc_tester.apply_historical_event_portfolio(
+        _equity_and_gilt(), event, horizons={"1m": 30}, holding_fallback=bond_stand_in
+    )
+
+    # 600 * -0.30 (equity proxy) + 400 * 0.02 (gilt stand-in)
+    assert result["1m"]["delta_gbp"] == pytest.approx(-172.0)
+    assert result["1m"]["coverage_pct"] == 100.0
+
+
+def test_bond_without_a_stand_in_never_takes_the_equity_proxy(monkeypatch):
+    """No bond data at all: the gilt stays uncovered (flagged in coverage_pct) instead of tracking SPY."""
+    _proxy_only_returns(monkeypatch, -0.30)
+    event = {"date": "2020-02-19", "proxy_index": "SPY.N"}
+
+    result = sc_tester.apply_historical_event_portfolio(_equity_and_gilt(), event, horizons={"1m": 30})
+
+    assert result["1m"]["coverage_pct"] == 60.0
+
+
+def test_bond_too_large_to_extrapolate_is_none_not_an_equity_number(monkeypatch):
+    _proxy_only_returns(monkeypatch, -0.30)
+    portfolio = _equity_and_gilt()
+    portfolio["accounts"][0]["holdings"][0]["market_value_gbp"] = 300.0
+    portfolio["accounts"][0]["holdings"][1]["market_value_gbp"] = 700.0
+    event = {"date": "2020-02-19", "proxy_index": "SPY.N"}
+
+    result = sc_tester.apply_historical_event_portfolio(portfolio, event, horizons={"1m": 30})
+
+    assert result["1m"]["total_value_gbp"] is None
+    assert result["1m"]["coverage_pct"] == 30.0
+
+
+@pytest.mark.parametrize("asset_class", [None, "", "None", "Equity"])
+def test_unclassified_and_equity_holdings_still_use_the_proxy(monkeypatch, asset_class):
+    _proxy_only_returns(monkeypatch, -0.30)
+    event = {"date": "2020-02-19", "proxy_index": "SPY.N"}
+
+    result = sc_tester.apply_historical_event_portfolio(
+        _equity_and_gilt(asset_class_gilt=asset_class), event, horizons={"1m": 30}
+    )
+
+    assert result["1m"]["delta_gbp"] == pytest.approx(-300.0)
+    assert result["1m"]["coverage_pct"] == 100.0

@@ -2355,6 +2355,28 @@
     "split": "Diviser",
     "save": "Enregistrer"
   },
+  "recordTrade": {
+    "buy": "Acheter",
+    "sell": "Vendre",
+    "title": "Enregistrer une transaction sur {{ticker}}",
+    "account": "Titulaire / compte",
+    "accountHeld": "{{owner}} / {{account}} (détient {{units}})",
+    "pricePence": "Prix unitaire (pence)",
+    "pricePounds": "Prix unitaire (£)",
+    "priceUnit": "Prix en",
+    "unitGbp": "Livres (GBP)",
+    "unitGbx": "Pence (GBX)",
+    "feesGbp": "Frais (£)",
+    "total": "Total",
+    "priceInPounds": "= {{price}} par unité",
+    "oversell": "Vente de {{units}} unités alors que ce compte en détient {{held}}.",
+    "oversellConfirm": "Enregistrer quand même",
+    "save": "Enregistrer {{side}}",
+    "saved": "{{side}} de {{ticker}} enregistré.",
+    "saveFailed": "Échec de l'enregistrement de la transaction.",
+    "ownersFailed": "Échec du chargement des comptes.",
+    "noAccount": "Choisissez un titulaire et un compte."
+  },
   "varBreakdown": {
     "title": "Détail de la VaR",
     "quantileDate": "Date du quantile de VaR :",

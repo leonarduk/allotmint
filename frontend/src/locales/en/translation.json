@@ -2348,6 +2348,28 @@
     "split": "Split",
     "save": "Save"
   },
+  "recordTrade": {
+    "buy": "Buy",
+    "sell": "Sell",
+    "title": "Record trade in {{ticker}}",
+    "account": "Owner / account",
+    "accountHeld": "{{owner}} / {{account}} (holds {{units}})",
+    "pricePence": "Price per unit (pence)",
+    "pricePounds": "Price per unit (£)",
+    "priceUnit": "Price in",
+    "unitGbp": "Pounds (GBP)",
+    "unitGbx": "Pence (GBX)",
+    "feesGbp": "Fees (£)",
+    "total": "Total",
+    "priceInPounds": "= {{price}} per unit",
+    "oversell": "Selling {{units}} units but this account holds {{held}}.",
+    "oversellConfirm": "Record anyway",
+    "save": "Record {{side}}",
+    "saved": "{{side}} of {{ticker}} recorded.",
+    "saveFailed": "Failed to record trade.",
+    "ownersFailed": "Failed to load accounts.",
+    "noAccount": "Choose an owner and account."
+  },
   "varBreakdown": {
     "title": "VaR Breakdown",
     "quantileDate": "VaR quantile date:",

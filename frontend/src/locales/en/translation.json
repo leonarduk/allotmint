@@ -596,8 +596,11 @@
       "daysHeld": "Days held",
       "gain": "Gain {{symbol}}",
       "gainPct": "Gain %",
+      "income": "Income {{symbol}}",
       "market": "Mkt {{symbol}}",
       "price": "Price {{symbol}}",
+      "totalReturn": "Total return {{symbol}}",
+      "totalReturnPct": "Total return %",
       "units": "Units",
       "weightPct": "Weight %"
     },
@@ -799,6 +802,7 @@
         "currency_mismatch": "No split: this instrument's quote currency ({{currency}}) disagrees with the currency its GBP prices are converted from."
       }
     },
+    "incomeEstimated": "Estimated from dividend history: the broker records dividends without naming the holding, so this is the per-share dividend × units held on each ex-date.",
     "ongoingCharge": "Ongoing charge: {{value}}"
   },
   "instrumentTable": {

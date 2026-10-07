@@ -8,13 +8,18 @@ module adds, per position, from the account's transactions:
   that was reinvested shows up as a separate ``BUY`` and is part of the cost
   basis, so it is not double counted.  Interest with no instrument (cash
   interest) belongs to no position and is ignored here.
+  When no row names the instrument (Hargreaves Lansdown sweeps all income
+  into one untagged monthly row), income is estimated from the stored
+  dividend history instead and ``income_estimated`` is set (#10351, see
+  :mod:`backend.common.estimated_income`).
 * ``realised_gain_gbp`` -- the Section 104 gain on units of the instrument
   already sold, so a partly sold position's return includes what was banked.
 * ``total_return_gbp`` -- ``gain_gbp + realised_gain_gbp + income_gbp``.
 * ``total_return_pct`` -- ``total_return_gbp`` over all the cost ever put into
   the position (the cost still held plus the cost of the units sold).
 * ``yield_pct`` -- trailing income yield (#7019): income received in the
-  :data:`TRAILING_YIELD_DAYS` days up to today over the current market value.
+  :data:`TRAILING_YIELD_DAYS` days up to today (estimated as above when no
+  row names the instrument) over the current market value.
   ``None`` when nothing was received in that window -- an accumulating fund
   or a holding with no recorded payouts has no known yield, not a 0% one.
 
@@ -26,10 +31,11 @@ disposal's gain is unknown the total is ``None`` rather than a partial figure.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
+from backend.common.estimated_income import DividendLoader, UnitChanges, estimated_income_gbp, unit_changes
 from backend.common.holdings_rebuild import (
     CASH_TICKER,
     Disposal,
@@ -41,7 +47,14 @@ from backend.common.holdings_rebuild import (
 _INCOME_TYPES = {"DIVIDEND", "DIVIDENDS", "INTEREST"}
 _EPS = 1e-9
 
-TOTAL_RETURN_FIELDS = ("income_gbp", "realised_gain_gbp", "total_return_gbp", "total_return_pct", "yield_pct")
+TOTAL_RETURN_FIELDS = (
+    "income_gbp",
+    "income_estimated",
+    "realised_gain_gbp",
+    "total_return_gbp",
+    "total_return_pct",
+    "yield_pct",
+)
 TRAILING_YIELD_DAYS = 365
 
 
@@ -50,6 +63,8 @@ class PositionReturn:
     """Income and realised figures for one instrument pool."""
 
     income_gbp: float = 0.0
+    income_rows: int = 0
+    income_estimated: bool = False
     trailing_income_gbp: float = 0.0
     realised_gain_gbp: float = 0.0
     disposed_cost_gbp: float = 0.0
@@ -100,6 +115,7 @@ def position_returns(
             continue
         entry = results.setdefault(key, PositionReturn())
         entry.income_gbp += amount
+        entry.income_rows += 1
         paid = _tx_date(tx)
         if paid is not None and window_start < paid <= as_of:
             entry.trailing_income_gbp += amount
@@ -138,6 +154,7 @@ def apply_total_return(holding: Dict[str, Any], entry: Optional[PositionReturn])
     income = round(entry.income_gbp, 2)
     realised = round(entry.realised_gain_gbp, 2) if entry.realised_known else None
     holding["income_gbp"] = income
+    holding["income_estimated"] = entry.income_estimated
     holding["realised_gain_gbp"] = realised
 
     gain = _float_or_none(holding.get("gain_gbp"))
@@ -164,18 +181,51 @@ def clear_total_return(holding: Dict[str, Any]) -> None:
         holding[key] = None
 
 
+def _with_estimated_income(
+    entry: Optional[PositionReturn],
+    ticker: str,
+    changes: Optional[UnitChanges],
+    load_dividends: Optional[DividendLoader],
+    as_of: date,
+) -> Optional[PositionReturn]:
+    """``entry`` with estimated income when no transaction row names the instrument.
+
+    Uses the same ``as_of`` and trailing window as :func:`position_returns`.
+    """
+    if (entry is not None and entry.income_rows) or not changes:
+        return entry
+    since = as_of - timedelta(days=TRAILING_YIELD_DAYS)
+    estimate = estimated_income_gbp(ticker, changes, load_dividends=load_dividends, today=as_of, trailing_since=since)
+    if estimate is None or not estimate.total_gbp:
+        return entry
+    entry = replace(entry) if entry is not None else PositionReturn()
+    entry.income_gbp = estimate.total_gbp
+    # The trailing yield (#7019) comes from the same estimate, over its window.
+    entry.trailing_income_gbp = estimate.trailing_gbp
+    entry.income_estimated = True
+    return entry
+
+
 def attach_total_returns(
     holdings: List[Dict[str, Any]],
     transactions: Optional[Sequence[Mapping[str, Any]]],
     match_key: Callable[[str, List[str]], Optional[str]],
+    load_dividends: Optional[DividendLoader] = None,
+    as_of: Optional[date] = None,
 ) -> None:
     """Attach total-return fields to every non-cash enriched holding.
 
     ``match_key(ticker, pool_keys)`` maps a held ticker to its pool key (or
     ``None``); it is injected so callers can reuse their own matching rules.
+    ``load_dividends`` overrides the stored dividend history used to estimate
+    income for positions no income row names (tests).  ``as_of`` (default
+    today) dates both the recorded and the estimated income.
     """
-    returns = position_returns(transactions) if transactions is not None else None
-    pool_keys = [k for k in (returns or {}) if not k.startswith(("name:", "ref:"))]
+    as_of = as_of or date.today()
+    returns = position_returns(transactions, as_of=as_of) if transactions is not None else None
+    rows = [tx for tx in transactions or () if isinstance(tx, Mapping)]
+    changes = unit_changes(rows, name_aliases(rows))
+    pool_keys = [k for k in {*(returns or {}), *changes} if not k.startswith(("name:", "ref:"))]
     for h in holdings:
         if not isinstance(h, dict):
             continue
@@ -187,4 +237,6 @@ def attach_total_returns(
             clear_total_return(h)
             continue
         key = match_key(ticker, pool_keys)
-        apply_total_return(h, returns.get(key) if key else None)
+        entry = returns.get(key) if key else None
+        estimated = _with_estimated_income(entry, ticker, changes.get(key) if key else None, load_dividends, as_of)
+        apply_total_return(h, estimated)

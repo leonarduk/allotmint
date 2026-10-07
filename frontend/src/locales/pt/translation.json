@@ -602,8 +602,11 @@
       "daysHeld": "Dias mantidos",
       "gain": "Ganho {{symbol}}",
       "gainPct": "Ganho %",
+      "income": "Rendimentos {{symbol}}",
       "market": "Mercado {{symbol}}",
       "price": "Preço {{symbol}}",
+      "totalReturn": "Retorno total {{symbol}}",
+      "totalReturnPct": "Retorno total %",
       "units": "Unidades",
       "weightPct": "Peso %"
     },
@@ -805,6 +808,7 @@
         "currency_mismatch": "Sem divisão: a moeda de cotação ({{currency}}) difere da moeda a partir da qual os preços em GBP são convertidos."
       }
     },
+    "incomeEstimated": "Estimado a partir do histórico de dividendos: a corretora regista os dividendos sem indicar a posição, por isso é o dividendo por ação × unidades detidas em cada data ex.",
     "ongoingCharge": "Encargos correntes: {{value}}"
   },
   "instrumentTable": {

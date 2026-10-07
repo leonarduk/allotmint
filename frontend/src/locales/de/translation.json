@@ -602,8 +602,11 @@
       "daysHeld": "Haltetage",
       "gain": "Gewinn {{symbol}}",
       "gainPct": "Gewinn %",
+      "income": "Ertrag {{symbol}}",
       "market": "Markt {{symbol}}",
       "price": "Kurs {{symbol}}",
+      "totalReturn": "Gesamtrendite {{symbol}}",
+      "totalReturnPct": "Gesamtrendite %",
       "units": "Einheiten",
       "weightPct": "Gewicht %"
     },
@@ -805,6 +808,7 @@
         "currency_mismatch": "Keine Aufteilung: die Notierungswährung ({{currency}}) weicht von der Währung ab, aus der die GBP-Kurse umgerechnet werden."
       }
     },
+    "incomeEstimated": "Aus der Dividendenhistorie geschätzt: Der Broker verbucht Dividenden ohne Angabe der Position, daher Dividende je Anteil × am Ex-Tag gehaltene Einheiten.",
     "ongoingCharge": "Laufende Kosten: {{value}}"
   },
   "instrumentTable": {

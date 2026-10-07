@@ -602,8 +602,11 @@
       "daysHeld": "Días en cartera",
       "gain": "Ganancia {{symbol}}",
       "gainPct": "Ganancia %",
+      "income": "Rentas {{symbol}}",
       "market": "Mercado {{symbol}}",
       "price": "Precio {{symbol}}",
+      "totalReturn": "Rentabilidad total {{symbol}}",
+      "totalReturnPct": "Rentabilidad total %",
       "units": "Unidades",
       "weightPct": "Peso %"
     },
@@ -805,6 +808,7 @@
         "currency_mismatch": "Sin desglose: la divisa de cotización ({{currency}}) no coincide con la divisa desde la que se convierten sus precios en GBP."
       }
     },
+    "incomeEstimated": "Estimado a partir del historial de dividendos: el bróker registra los dividendos sin indicar la posición, así que es el dividendo por acción × unidades en cartera en cada fecha ex.",
     "ongoingCharge": "Gastos corrientes: {{value}}"
   },
   "instrumentTable": {

@@ -602,8 +602,11 @@
       "daysHeld": "Jours de détention",
       "gain": "Gain {{symbol}}",
       "gainPct": "Gain %",
+      "income": "Revenus {{symbol}}",
       "market": "Mkt {{symbol}}",
       "price": "Prix {{symbol}}",
+      "totalReturn": "Rendement total {{symbol}}",
+      "totalReturnPct": "Rendement total %",
       "units": "Unités",
       "weightPct": "Poids %"
     },
@@ -805,6 +808,7 @@
         "currency_mismatch": "Pas de répartition : la devise de cotation ({{currency}}) diffère de la devise à partir de laquelle ses cours en GBP sont convertis."
       }
     },
+    "incomeEstimated": "Estimé à partir de l'historique des dividendes : le courtier enregistre les dividendes sans indiquer la ligne, il s'agit donc du dividende par action × unités détenues à chaque date ex.",
     "ongoingCharge": "Frais courants : {{value}}"
   },
   "instrumentTable": {

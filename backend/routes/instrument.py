@@ -282,6 +282,13 @@ def _position_from_holding(owner: str, account: str, h: Dict[str, Any], owner_to
         "days_held": h.get("days_held"),
         "cost_basis_source": h.get("cost_basis_source"),
         "cost_basis_warning": h.get("cost_basis_warning"),
+        # Total return (#9038), with income estimated from dividend history
+        # when the broker's dividend rows don't name the holding (#10351).
+        "income_gbp": _finite(h.get("income_gbp")),
+        # None (unknown) when the holding has no transactions to derive income from.
+        "income_estimated": h.get("income_estimated"),
+        "total_return_gbp": None if cost_unreliable else _finite(h.get("total_return_gbp")),
+        "total_return_pct": None if cost_unreliable else _finite(h.get("total_return_pct")),
     }
 
 

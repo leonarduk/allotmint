@@ -320,6 +320,12 @@
                           "null"
                         ]
                       },
+                      "income_estimated": {
+                        "type": [
+                          "boolean",
+                          "null"
+                        ]
+                      },
                       "realised_gain_gbp": {
                         "type": [
                           "number",
@@ -715,6 +721,12 @@
                       "income_gbp": {
                         "type": [
                           "number",
+                          "null"
+                        ]
+                      },
+                      "income_estimated": {
+                        "type": [
+                          "boolean",
                           "null"
                         ]
                       },

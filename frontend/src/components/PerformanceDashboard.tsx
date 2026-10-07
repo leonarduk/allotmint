@@ -51,6 +51,9 @@ type Props = {
 // The benchmark alpha/tracking-error are measured against. Named on screen
 // (see #7230) because "Alpha vs Benchmark" is not interpretable without it.
 const BENCHMARK_TICKER = "VWRL.L";
+// Muted metric labels that still meet WCAG AA on both themes (#7824): the
+// old #aaa/#777 greys were ~2.3:1 / ~4.5:1 on the light background.
+const METRIC_LABEL_CLASS = "text-slate-600 dark:text-slate-400";
 
 // Metric units (fractions) and plausibility handling live in
 // lib/metricPlausibility.ts and FractionMetric, shared with the group view
@@ -272,12 +275,12 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         </label>
       </div>
       <div
+        className={METRIC_LABEL_CLASS}
         style={{
           display: "flex",
           gap: "1rem",
           flexWrap: "wrap",
           fontSize: "0.9rem",
-          color: "#aaa",
           marginBottom: "0.75rem",
         }}
       >
@@ -330,7 +333,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         }}
       >
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.9rem" }}>
             {t("dashboard.alphaVsBenchmark")}
             <InfoTip
               label={t("dashboard.alphaVsBenchmarkInfoLabel", "What does Alpha vs Benchmark mean?")}
@@ -346,12 +349,12 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
             <FractionMetric value={alpha} range={RETURN_RANGE} testId="metric-alpha" />
           </div>
-          <div style={{ fontSize: "0.75rem", color: "#777" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.75rem" }}>
             {t("dashboard.vsBenchmark", "vs {{ticker}}", { ticker: BENCHMARK_TICKER })}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.9rem" }}>
             {t("dashboard.trackingError")}
             <InfoTip
               label={t("dashboard.trackingErrorInfoLabel", "What does Tracking Error mean?")}
@@ -367,12 +370,12 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
             <FractionMetric value={trackingError} range={TRACKING_ERROR_RANGE} testId="metric-tracking-error" />
           </div>
-          <div style={{ fontSize: "0.75rem", color: "#777" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.75rem" }}>
             {t("dashboard.vsBenchmark", "vs {{ticker}}", { ticker: BENCHMARK_TICKER })}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.9rem" }}>
             {t("dashboard.maxDrawdown")}
             <InfoTip
               label={t("dashboard.maxDrawdownInfoLabel", "What does Max Drawdown mean?")}
@@ -411,7 +414,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.9rem" }}>
             {t("dashboard.timeWeightedReturn")}
             <InfoTip
               label={t("dashboard.timeWeightedReturnInfoLabel", "What does Time-Weighted Return mean?")}
@@ -428,7 +431,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+          <div className={METRIC_LABEL_CLASS} style={{ fontSize: "0.9rem" }}>
             {t("dashboard.xirr")}
             <InfoTip
               label={t("dashboard.xirrInfoLabel", "What does XIRR mean?")}

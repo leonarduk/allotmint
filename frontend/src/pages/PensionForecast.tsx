@@ -19,6 +19,7 @@ import {
 import type { OwnerSummary } from "../types";
 import { useTranslation } from "react-i18next";
 import { useRoute } from "../RouteContext";
+import { useConfig } from "../ConfigContext";
 import { sanitizeOwners } from "../utils/owners";
 import {
   accountTypeLabel,
@@ -89,6 +90,7 @@ export default function PensionForecast() {
   );
   const [err, setErr] = useState<string | null>(null);
   const { t } = useTranslation();
+  const { relativeViewEnabled } = useConfig();
 
   const currencyFormatter = useMemo(
     () =>
@@ -465,6 +467,21 @@ export default function PensionForecast() {
         info: "border-blue-300 bg-blue-50 text-blue-900",
       }[banner.variant]
     : "";
+
+  // Every input and result on this page is a £ amount, so relative view
+  // replaces the forecast with a notice rather than leaking it (#10022).
+  if (relativeViewEnabled) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl md:text-4xl">
+          {t("pensionForecast.title", "Pension Forecast")}
+        </h1>
+        <p role="status" data-testid="pension-relative-view-notice">
+          {t("pensionForecast.relativeViewNotice")}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">

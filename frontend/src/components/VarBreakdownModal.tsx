@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
+import { useConfig } from "../ConfigContext";
 
 import type { VarBreakdown } from "../types";
 import type { VarScenario } from "../types";
@@ -24,6 +25,8 @@ export function VarBreakdownModal({
 }: Props) {
   const { t } = useTranslation();
   const reporting = useReportingCurrency();
+  // Relative view drops the absolute Amount column; Change % stays (#10022).
+  const { relativeViewEnabled } = useConfig();
   const hasRows = contributions.length > 0;
   const hasScenarios = scenarios.length > 0;
 
@@ -128,7 +131,9 @@ export function VarBreakdownModal({
                 <th style={{ textAlign: "left", paddingRight: "1rem" }}>{t("common.ticker")}</th>
                 <th style={{ textAlign: "left", paddingRight: "1rem" }}>{t("varBreakdown.stock")}</th>
                 <th style={{ textAlign: "right", paddingRight: "1rem" }}>{t("varBreakdown.change")}</th>
-                <th style={{ textAlign: "right" }}>{t("varBreakdown.amount")}</th>
+                {!relativeViewEnabled && (
+                  <th style={{ textAlign: "right" }}>{t("varBreakdown.amount")}</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -145,13 +150,15 @@ export function VarBreakdownModal({
                           : null
                     )}
                   </td>
-                  <td style={{ textAlign: "right" }}>
-                    {formatSignedAmount(
-                      typeof c.scenario_amount_gbp === "number"
-                        ? c.scenario_amount_gbp
-                        : null
-                    )}
-                  </td>
+                  {!relativeViewEnabled && (
+                    <td style={{ textAlign: "right" }}>
+                      {formatSignedAmount(
+                        typeof c.scenario_amount_gbp === "number"
+                          ? c.scenario_amount_gbp
+                          : null
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

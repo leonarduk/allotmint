@@ -126,6 +126,25 @@ describe("PerformanceDashboard", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders metric labels in AA-contrast slate, not the old light greys (#7824)", async () => {
+    render(
+      <MemoryRouter>
+        <PerformanceDashboard owner="jane" />
+      </MemoryRouter>,
+    );
+
+    const subLabels = await screen.findAllByText("vs VWRL.L");
+    const alphaLabel = screen
+      .getByRole("button", { name: "What does Alpha vs Benchmark mean?" })
+      .closest("div") as HTMLElement;
+    for (const el of [alphaLabel, ...subLabels]) {
+      expect(el).toHaveClass("text-slate-600");
+      expect(el.style.color).toBe("");
+    }
+    // Labels keep normal weight so values still read as the emphasis.
+    expect(alphaLabel.style.fontWeight).toBe("");
+  });
+
   it("auto-expands a plausible severe drawdown (-0.95) and shows the >90% warning", async () => {
     // mockResolvedValue (not Once): if the component ever re-fetched, a Once
     // override would fall back to the -0.35 default on the second call.

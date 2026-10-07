@@ -193,6 +193,73 @@ def test_memoized_range_live_branch_guards_once(monkeypatch, caplog, fresh_range
     assert _spike_log_count(caplog) == 1
 
 
+def _count_guard_calls(monkeypatch) -> list:
+    calls = []
+    real_guard = cache.drop_zero_volume_spikes
+
+    def counting_guard(df, **kwargs):
+        calls.append(len(df))
+        return real_guard(df, **kwargs)
+
+    monkeypatch.setattr(cache, "drop_zero_volume_spikes", counting_guard)
+    return calls
+
+
+def test_cache_only_ranges_share_one_guard_pass_per_warm_frame(monkeypatch, fresh_range_cache):
+    # #8105: the guard scans the full history, so distinct (ticker, range)
+    # lookups against one warm frame must reuse a single guarded result.
+    raw = _frame(VWRL_CLOSES, VWRL_VOLUMES)
+    monkeypatch.setattr(cache, "_load_meta_parquet_cached", lambda path: raw)
+    monkeypatch.setattr(cache, "_queue_if_stale", lambda *a, **k: None)
+    calls = _count_guard_calls(monkeypatch)
+    token = cache._CACHE_ONLY.set(True)
+    try:
+        whole = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+        head = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-09-30")
+        tail = cache._memoized_range("VWRL", "L", "2025-10-02", "2025-10-06")
+    finally:
+        cache._CACHE_ONLY.reset(token)
+    assert calls == [len(VWRL_CLOSES)]
+    assert whole["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
+    assert head["Close"].tolist() == [119.25]
+    assert tail["Close"].tolist() == [120.90, 120.73]
+
+
+def test_guarded_frame_recomputed_when_warm_frame_is_replaced(monkeypatch, fresh_range_cache):
+    # A refreshed parquet (new warm-cache object) must never be served the
+    # previous file's guarded rows, whichever path cleared the warm cache.
+    frames = {"current": _frame(VWRL_CLOSES, VWRL_VOLUMES)}
+    monkeypatch.setattr(cache, "_load_meta_parquet_cached", lambda path: frames["current"])
+    monkeypatch.setattr(cache, "_queue_if_stale", lambda *a, **k: None)
+    calls = _count_guard_calls(monkeypatch)
+    token = cache._CACHE_ONLY.set(True)
+    try:
+        before = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+        frames["current"] = _frame([c + 1 for c in VWRL_CLOSES], VWRL_VOLUMES)
+        cache._memoized_range_cached.cache_clear()
+        after = cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+    finally:
+        cache._CACHE_ONLY.reset(token)
+    assert len(calls) == 2
+    assert before["Close"].tolist() == [119.25, 120.52, 120.90, 120.73]
+    assert after["Close"].tolist() == [120.25, 121.52, 121.90, 121.73]
+
+
+def test_clear_meta_lrus_drops_guarded_frames(monkeypatch, fresh_range_cache):
+    raw = _frame(VWRL_CLOSES, VWRL_VOLUMES)
+    monkeypatch.setattr(cache, "_load_meta_parquet_cached", lambda path: raw)
+    monkeypatch.setattr(cache, "_queue_if_stale", lambda *a, **k: None)
+    token = cache._CACHE_ONLY.set(True)
+    try:
+        cache._memoized_range("VWRL", "L", "2025-09-29", "2025-10-06")
+    finally:
+        cache._CACHE_ONLY.reset(token)
+    assert cache._GUARDED_META_FRAMES
+    monkeypatch.undo()  # restore the real lru_cache, whose cache_clear runs below
+    cache._clear_meta_lrus()
+    assert not cache._GUARDED_META_FRAMES
+
+
 def test_source_comparison_handles_pd_na_and_nan():
     sources = pd.array(["Stooq", pd.NA, "Stooq", "Stooq", "Yahoo", "Stooq"], dtype="string")
     df = _frame([120.0, 160.0, 121.0, 120.5, 161.0, 120.8], [10, 0, 10, 10, 0, 10], sources=sources)

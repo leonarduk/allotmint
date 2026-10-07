@@ -8,6 +8,11 @@ import type { OpportunityEntry } from "../types";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { SignalBadge } from "./SignalBadge";
+import {
+  ChecksSkippedBadge,
+  SignalStrength,
+} from "./SignalDetails";
+import { formatSignalAction } from "../utils/formatSignalAction";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
 import LoadingStatus from "./skeletons/LoadingStatus";
@@ -439,12 +444,22 @@ export function TopMoversPage() {
       ) : !data || data.signals.length === 0 ? (
         <p>{t("trading.noSignals")}</p>
       ) : (
-        <>
-          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+        <section aria-labelledby="movers-signals-title" style={{ marginTop: "1rem" }}>
+          <h2 id="movers-signals-title" style={{ fontSize: "1.125rem", fontWeight: 600 }}>
+            {t("movers.signalsTableTitle")}
+          </h2>
+          <p style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+            {t("movers.signalsTableNote", { period })}
+          </p>
+          <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
                 <th style={{ textAlign: "left", padding: "4px" }}>{t("common.ticker")}</th>
                 <th style={{ textAlign: "left", padding: "4px" }}>{t("common.action")}</th>
+                <th style={{ textAlign: "left", padding: "4px" }}>
+                  {t("trading.columns.strengthHeader")}
+                </th>
                 <th style={{ textAlign: "left", padding: "4px" }}>{t("common.reason")}</th>
               </tr>
             </thead>
@@ -462,12 +477,19 @@ export function TopMoversPage() {
                       {s.ticker}
                     </a>
                   </td>
-                  <td style={{ padding: "4px" }}>{s.action}</td>
+                  <td style={{ padding: "4px" }}>
+                    {formatSignalAction(s.action)}
+                    <ChecksSkippedBadge checksSkipped={s.checks_skipped} />
+                  </td>
+                  <td style={{ padding: "4px" }}>
+                    <SignalStrength confidence={s.confidence} />
+                  </td>
                   <td style={{ padding: "4px" }}>{s.reason}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
           {data.signals.length > MAX_TRADING_SIGNAL_ROWS && (
             <p style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "#64748b" }}>
               {t("topMoversPage.showingFirst", {
@@ -476,7 +498,7 @@ export function TopMoversPage() {
               })}
             </p>
           )}
-        </>
+        </section>
       )}
 
       {selected && (

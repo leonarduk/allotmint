@@ -366,6 +366,48 @@ describe("TopMoversPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("gives the signal table a heading, period note, strength and visible skipped checks (#7217)", async () => {
+    const detailedSignal: TradingSignal = {
+      ...signal,
+      confidence: 1,
+      checks_skipped: ["compliance", "fundamental_screen"],
+    };
+    mockGetOpportunities.mockImplementation(() =>
+      Promise.resolve({
+        entries: [{ ...groupEntries[0], signal: detailedSignal }],
+        signals: [detailedSignal],
+        context: { source: "group", group: "all", days: 1, anomalies: [] },
+      }),
+    );
+
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    const section = (
+      await screen.findByRole("heading", { name: enTranslation.movers.signalsTableTitle })
+    ).closest("section") as HTMLElement;
+    expect(
+      within(section).getByText(
+        enTranslation.movers.signalsTableNote.replace("{{period}}", "1d"),
+      ),
+    ).toBeInTheDocument();
+    expect(within(section).getByText("Buy")).toBeInTheDocument();
+    expect(
+      within(section).getByText(enTranslation.trading.strength.saturated),
+    ).toBeInTheDocument();
+    expect(within(section).queryByText(/100%/)).not.toBeInTheDocument();
+    expect(
+      within(section).getByText(enTranslation.trading.complianceSkippedBadge),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByText("Skipped checks: fundamental_screen"),
+    ).toBeInTheDocument();
+    expect(within(section).getByText("go long")).toBeInTheDocument();
+  });
+
   it("shows page-shaped skeletons instead of a bare loading message while the fetch is pending (#7229)", async () => {
     // getGroupInstruments still resolves normally (fast, default mock); it's
     // the slow /opportunities call that never settles here, which is enough

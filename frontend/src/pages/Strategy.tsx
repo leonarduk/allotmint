@@ -24,7 +24,11 @@ import SleevesPanel from '../components/SleevesPanel';
 import StrategyLibrary from '../components/StrategyLibrary';
 import StrategyStressPanel from '../components/StrategyStressPanel';
 import TargetFields from '../components/TargetFields';
-import { sanitizeOwners } from '../utils/owners';
+import {
+  createOwnerDisplayLookup,
+  getOwnerDisplayName,
+  sanitizeOwners,
+} from '../utils/owners';
 import { useRoute } from '../RouteContext';
 import {
   currentWeights,
@@ -628,6 +632,7 @@ export default function Strategy() {
   const hasPolicy = plan != null && Object.keys(plan.policy.targets).length > 0;
   const current = useMemo(() => (plan ? currentWeights(plan) : {}), [plan]);
   const coreTitle = plan?.sleeves?.length ? t('sleeves.core') : undefined;
+  const ownerLookup = useMemo(() => createOwnerDisplayLookup(owners), [owners]);
 
   // Targets and the active strategy's "modified" flag change together.
   // The investment plan panel (PlanPanel) is hidden for now: it did not stay
@@ -658,7 +663,7 @@ export default function Strategy() {
           )}
           {owners.map((owner) => (
             <option key={owner.owner} value={owner.owner}>
-              {owner.owner}
+              {getOwnerDisplayName(ownerLookup, owner.owner)}
             </option>
           ))}
         </select>

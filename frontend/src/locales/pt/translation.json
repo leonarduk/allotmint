@@ -1875,7 +1875,9 @@
     "refreshFrequency": "Atualização automática",
     "everyMinute": "A cada minuto",
     "manual": "Manual",
-    "marketsClosed": "Mercados fechados"
+    "marketsClosed": "Mercados fechados",
+    "addTicker": "Adicionar {{symbol}} à lista de observação",
+    "removeTicker": "Remover {{symbol}} da lista de observação"
   },
   "scenarioFx": {
     "title": "Choque cambial",
@@ -3364,11 +3366,13 @@
   "ideas": {
     "explain": {
       "screen": "Filtro: filtre qualquer lista de observação ou de tickers pelos fundamentais que escolher. Não dá recomendações de compra ou venda; os Sinais fazem isso para as suas posições.",
-      "signals": "Sinais: candidatos de compra e venda entre os instrumentos que já detém, segundo regras fixas de momento e risco definidas no servidor. Use Filtro para filtrar qualquer lista pelos fundamentais que escolher."
+      "signals": "Sinais: candidatos de compra e venda entre os instrumentos que já detém, segundo regras fixas de momento e risco definidas no servidor. Use Filtro para filtrar qualquer lista pelos fundamentais que escolher.",
+      "watchlist": "Lista de observação: preços em tempo real dos tickers que acompanha. Adicione ou remova tickers aqui, ou com a estrela em qualquer linha de Sinais ou Filtro."
     },
     "tabs": {
       "screen": "Filtro",
-      "signals": "Sinais"
+      "signals": "Sinais",
+      "watchlist": "Lista de observação"
     },
     "tabsLabel": "Vistas de ideias"
   }

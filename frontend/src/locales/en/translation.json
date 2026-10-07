@@ -1868,7 +1868,9 @@
     "refreshFrequency": "Auto-refresh",
     "everyMinute": "Every minute",
     "manual": "Manual",
-    "marketsClosed": "Markets closed"
+    "marketsClosed": "Markets closed",
+    "addTicker": "Add {{symbol}} to watchlist",
+    "removeTicker": "Remove {{symbol}} from watchlist"
   },
   "scenarioFx": {
     "title": "Currency shock",
@@ -3357,11 +3359,13 @@
   "ideas": {
     "explain": {
       "screen": "Screen: filter any watchlist or list of tickers by fundamentals you choose. It makes no buy or sell call; Signals does that for your holdings.",
-      "signals": "Signals: buy and sell candidates among the instruments you already hold, using fixed momentum and risk rules set on the server. Use Screen to filter any watchlist by fundamentals you choose."
+      "signals": "Signals: buy and sell candidates among the instruments you already hold, using fixed momentum and risk rules set on the server. Use Screen to filter any watchlist by fundamentals you choose.",
+      "watchlist": "Watchlist: live prices for the tickers you're tracking. Add or remove tickers here, or with the star on any Signals or Screen row."
     },
     "tabs": {
       "screen": "Screen",
-      "signals": "Signals"
+      "signals": "Signals",
+      "watchlist": "Watchlist"
     },
     "tabsLabel": "Ideas views"
   }

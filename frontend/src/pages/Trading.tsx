@@ -5,6 +5,7 @@ import type { TradingAgentSettings, TradingSignal } from '../types';
 import { InstrumentDetail } from '../components/InstrumentDetail';
 import BackendUnavailableCard from '../components/BackendUnavailableCard';
 import InfoTip from '../components/InfoTip';
+import WatchlistToggle from '../components/WatchlistToggle';
 import useFetchWithRetry from '../hooks/useFetchWithRetry';
 import TableRowsSkeleton from '../components/skeletons/TableRowsSkeleton';
 import TextSkeleton from '../components/skeletons/TextSkeleton';
@@ -396,7 +397,7 @@ export default function Trading() {
                   <tbody>
                     {visibleSignals.map((s, index) => (
                       <tr key={`${s.ticker}-${index}`}>
-                        <td className={tableStyles.cell}>
+                        <td className={`${tableStyles.cell} whitespace-nowrap`}>
                           <button
                             type="button"
                             className={tableStyles.clickable}
@@ -404,6 +405,7 @@ export default function Trading() {
                           >
                             {s.ticker}
                           </button>
+                          <WatchlistToggle ticker={s.ticker} />
                         </td>
                         <td className={tableStyles.cell}>
                           {formatAction(s.action)}

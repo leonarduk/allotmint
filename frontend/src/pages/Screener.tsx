@@ -5,6 +5,7 @@ import type { ScreenerResult } from "../types";
 import { useSortableTable } from "../hooks/useSortableTable";
 import { InstrumentDetail } from "../components/InstrumentDetail";
 import InfoTip from "../components/InfoTip";
+import WatchlistToggle from "../components/WatchlistToggle";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import i18n from "../i18n";
 
@@ -494,7 +495,10 @@ export function Screener() {
                 }}
               >
                 <td style={right}>{r.rank}</td>
-                <td style={cell}>{r.ticker}</td>
+                <td style={{ ...cell, whiteSpace: "nowrap" }}>
+                  {r.ticker}
+                  <WatchlistToggle ticker={r.ticker} />
+                </td>
                 <td style={right}>{r.peg_ratio ?? "—"}</td>
                 <td style={right}>{r.pe_ratio ?? "—"}</td>
                 <td style={right}>{r.pb_ratio ?? "—"}</td>

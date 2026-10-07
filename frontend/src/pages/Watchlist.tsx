@@ -4,9 +4,8 @@ import { Link } from "react-router-dom";
 import { getQuotes } from "../api";
 import type { QuoteRow } from "../types";
 import { priceDecimals } from "../utils/priceFormatting";
+import { WATCHLIST_STORAGE_KEY, readWatchlistRaw } from "../lib/watchlistStore";
 
-const DEFAULT_SYMBOLS =
-  "^FTSE,^NDX,^GSPC,^RUT,^NYA,^VIX,^GDAXI,^N225,USDGBP=X,EURGBP=X,BTC-USD,GC=F,SI=F,VUSA.L,IWDA.AS";
 
 function formatValue(symbol: string, val: number | null): string {
   if (val == null) return "—";
@@ -124,9 +123,7 @@ function isLinkableSymbol(symbol: string): boolean {
 
 export function Watchlist() {
   const { t } = useTranslation();
-  const [symbols, setSymbols] = useState(() =>
-    localStorage.getItem("watchlistSymbols") || DEFAULT_SYMBOLS,
-  );
+  const [symbols, setSymbols] = useState(readWatchlistRaw);
   const [newSymbol, setNewSymbol] = useState("");
   const [intervalMs, setIntervalMs] = useState(60000);
   const [rows, setRows] = useState<QuoteRow[]>([]);
@@ -202,7 +199,7 @@ export function Watchlist() {
 
   useEffect(() => {
     fetchData();
-    localStorage.setItem("watchlistSymbols", symbols);
+    localStorage.setItem(WATCHLIST_STORAGE_KEY, symbols);
   }, [fetchData, symbols]);
 
   useEffect(() => {

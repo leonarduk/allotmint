@@ -32,7 +32,6 @@ import CustomQuery from './pages/CustomQuery';
 import Ideas from './pages/Ideas';
 import useFetchWithRetry from './hooks/useFetchWithRetry';
 import { TimeseriesEdit } from './pages/TimeseriesEdit';
-import Watchlist from './pages/Watchlist';
 import TopMovers from './pages/TopMovers';
 import MarketOverview from './pages/MarketOverview';
 import { useConfig } from './ConfigContext';
@@ -764,7 +763,7 @@ export default function App({ onLogout }: AppProps) {
         )}
         {mode === 'instrumentadmin' && <InstrumentAdmin />}
         {mode === 'dataadmin' && <DataAdmin />}
-        {mode === 'watchlist' && <Watchlist />}
+        {mode === 'watchlist' && <Ideas tab="watchlist" />}
         {mode === 'allocation' && <AllocationCharts />}
         {mode === 'rebalance' && <Strategy />}
         {mode === 'market' && <MarketOverview />}

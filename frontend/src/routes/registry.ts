@@ -174,7 +174,8 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     defaultPath: () => '/input',
   },
   {
-    // The Ideas page (#9852): Signals tab here, Screen tab at /screener.
+    // The Ideas page (#9852): Signals tab here, Screen tab at /screener,
+    // Watchlist tab at /watchlist.
     mode: 'trading',
     routeSegment: 'trading',
     section: 'user',
@@ -205,6 +206,7 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     routeSegment: 'watchlist',
     section: 'user',
     menuCategory: 'insights',
+    menuMergedInto: 'trading',
     priority: 80,
     defaultPath: () => '/watchlist',
   },

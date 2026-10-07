@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
@@ -5,21 +6,30 @@ import { isModeEnabled } from "../pageManifest";
 import type { Mode } from "../modes";
 import Trading from "./Trading";
 import { Screener } from "./Screener";
+import Watchlist from "./Watchlist";
 
-export type IdeasTab = "signals" | "screen";
+export type IdeasTab = "signals" | "screen" | "watchlist";
 
-// One Ideas page over two existing modes (#9852). Each tab keeps its own
-// mode and URL (/trading, /screener) so deep links, tab gating and smoke
-// tests are unchanged; only the active tab is mounted, so opening Screen
-// never fires the slow /trading-agent/* requests.
+// One Ideas page over three existing modes (#9852). Each tab keeps its own
+// mode and URL (/trading, /screener, /watchlist) so deep links, tab gating
+// and smoke tests are unchanged; only the active tab is mounted, so opening
+// Screen never fires the slow /trading-agent/* requests.
 const IDEAS_TABS: { id: IdeasTab; mode: Mode; path: string }[] = [
   { id: "signals", mode: "trading", path: "/trading" },
   { id: "screen", mode: "screener", path: "/screener" },
+  { id: "watchlist", mode: "watchlist", path: "/watchlist" },
 ];
+
+const TAB_CONTENT: Record<IdeasTab, ComponentType> = {
+  signals: Trading,
+  screen: Screener,
+  watchlist: Watchlist,
+};
 
 export default function Ideas({ tab }: { tab: IdeasTab }) {
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
+  const TabContent = TAB_CONTENT[tab];
   const visibleTabs = IDEAS_TABS.filter(
     (item) => item.id === tab || isModeEnabled(item.mode, tabs, disabledTabs),
   );
@@ -50,7 +60,7 @@ export default function Ideas({ tab }: { tab: IdeasTab }) {
       <p className="container mx-auto px-4 text-sm opacity-80">
         {t(`ideas.explain.${tab}`)}
       </p>
-      {tab === "signals" ? <Trading /> : <Screener />}
+      <TabContent />
     </div>
   );
 }

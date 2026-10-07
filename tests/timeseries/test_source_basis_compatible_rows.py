@@ -32,7 +32,7 @@ def test_same_source_rows_without_shared_dates_are_kept_with_a_warning(caplog):
         kept = compatible_rows(existing, new, label="ABC.L")
 
     assert len(kept) == len(new)
-    assert "without shared-date evidence" in caplog.text
+    assert "Accepting 5 Yahoo row(s) for ABC.L without shared-date evidence" in caplog.text
 
 
 def test_same_source_rows_with_shared_dates_are_kept_silently(caplog):
@@ -61,4 +61,7 @@ def test_third_source_is_checked_against_a_multi_source_cache(caplog):
         kept = compatible_rows(existing, new)
 
     assert set(kept["Source"]) == {"FT"}
-    assert "Rejecting" in caplog.text
+    rejected = [r.getMessage() for r in caplog.records if r.getMessage().startswith("Rejecting")]
+    assert len(rejected) == 2
+    assert any(" Stooq row(s)" in m and "ratio 0.75" in m for m in rejected)
+    assert any(" Other row(s)" in m and "ratio None" in m for m in rejected)

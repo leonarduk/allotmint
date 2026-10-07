@@ -95,7 +95,11 @@ def _dividend_adjusted(df: pd.DataFrame) -> bool:
 
 
 def basis_ratio(reference: pd.DataFrame, candidate: pd.DataFrame) -> float | None:
-    """Median ``candidate / reference`` Close on shared dates, or ``None`` if none are shared."""
+    """Median ``candidate / reference`` Close on shared dates.
+
+    ``None`` exactly when no date has a positive Close on both sides, which
+    ``compatible_rows`` relies on as its "no shared-date evidence" test.
+    """
     ratios = _shared_ratios(reference, candidate)
     if ratios.empty:
         return None

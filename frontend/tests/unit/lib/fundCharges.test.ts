@@ -82,6 +82,32 @@ describe('computeFundCharges (#7834)', () => {
     expect(charges.unknownCount).toBe(0);
   });
 
+  it('treats negative or implausible charges as unknown, matching the backend', () => {
+    const charges = computeFundCharges([
+      account([
+        holding({
+          ticker: 'A.L',
+          market_value_gbp: 1000,
+          ongoing_charge_pct: 0.5,
+        }),
+        holding({
+          ticker: 'B.L',
+          market_value_gbp: 1000,
+          ongoing_charge_pct: -0.3,
+        }),
+        holding({
+          ticker: 'C.L',
+          market_value_gbp: 1000,
+          ongoing_charge_pct: 22,
+        }),
+      ]),
+    ]);
+    expect(charges.weightedChargePct).toBeCloseTo(0.5);
+    expect(charges.annualCostGbp).toBeCloseTo(5);
+    expect(charges.unknownCount).toBe(2);
+    expect(charges.holdingCount).toBe(3);
+  });
+
   it('ignores cash and unpriced holdings', () => {
     const charges = computeFundCharges([
       account([

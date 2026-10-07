@@ -467,6 +467,12 @@
                           "null"
                         ]
                       },
+                      "ongoing_charge_pct": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
                       "unrealised_gain_gbp": {
                         "type": [
                           "number",
@@ -844,6 +850,12 @@
                       "sub_asset_class": {
                         "type": [
                           "string",
+                          "null"
+                        ]
+                      },
+                      "ongoing_charge_pct": {
+                        "type": [
+                          "number",
                           "null"
                         ]
                       },

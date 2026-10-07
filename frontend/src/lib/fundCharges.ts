@@ -19,6 +19,19 @@ export type FundChargeTotals = {
   unknownCount: number;
 };
 
+// Mirrors backend/common/fund_charges.py: a larger value is a data-entry slip
+// (e.g. 22 typed for 0.22%) and is treated as unknown, as are negatives.
+const MAX_PLAUSIBLE_CHARGE_PCT = 10;
+
+function isKnownCharge(charge: number | null | undefined): charge is number {
+  return (
+    typeof charge === 'number' &&
+    Number.isFinite(charge) &&
+    charge >= 0 &&
+    charge <= MAX_PLAUSIBLE_CHARGE_PCT
+  );
+}
+
 export function computeFundCharges(accounts: Account[]): FundChargeTotals {
   let knownValue = 0;
   let annualCost = 0;
@@ -39,7 +52,7 @@ export function computeFundCharges(accounts: Account[]): FundChargeTotals {
         continue;
       holdingCount += 1;
       const charge = h.ongoing_charge_pct;
-      if (typeof charge !== 'number' || !Number.isFinite(charge)) {
+      if (!isKnownCharge(charge)) {
         unknownCount += 1;
         continue;
       }
@@ -48,10 +61,12 @@ export function computeFundCharges(accounts: Account[]): FundChargeTotals {
     }
   }
 
-  const anyKnown = holdingCount > unknownCount;
+  // Every known-charge holding has a positive market value (see the guard
+  // above), so knownValue > 0 exactly when any charge is known; both figures
+  // are therefore either both set or both unknown.
+  const anyKnown = knownValue > 0;
   return {
-    weightedChargePct:
-      anyKnown && knownValue > 0 ? (annualCost / knownValue) * 100 : null,
+    weightedChargePct: anyKnown ? (annualCost / knownValue) * 100 : null,
     annualCostGbp: anyKnown ? annualCost : null,
     holdingCount,
     unknownCount,

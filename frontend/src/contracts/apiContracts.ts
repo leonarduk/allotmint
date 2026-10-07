@@ -106,6 +106,8 @@ export const holdingContractSchema = z.object({
   cost_basis_source: nullableString.optional(),
   asset_class: nullableString.optional(),
   sub_asset_class: nullableString.optional(),
+  // Fund ongoing charge (OCF/TER) in percent; null means unknown, never 0 (#7834).
+  ongoing_charge_pct: nullableNumber.optional(),
   unrealised_gain_gbp: nullableNumber.optional(),
   unrealized_gain_gbp: nullableNumber.optional(),
 });

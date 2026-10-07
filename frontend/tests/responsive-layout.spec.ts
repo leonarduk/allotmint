@@ -400,11 +400,12 @@ test('issue 6675: dashboard, instrument and trading wide tables stay inside thei
       body: JSON.stringify(instruments),
     })
   );
-  await page.route('**/trading-agent/signals', (route) =>
+  // The Trading page reads /trading-agent/signals/report (#9453).
+  await page.route('**/trading-agent/signals/report', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(signals),
+      body: JSON.stringify({ signals, blocked: [] }),
     })
   );
   await page.route('**/trading-agent/settings', (route) =>

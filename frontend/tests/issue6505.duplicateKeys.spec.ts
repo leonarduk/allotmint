@@ -145,16 +145,20 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     const warnings = collectDuplicateKeyWarnings(page);
     await applyAuth(page);
     await setupCoreMocks(page);
-    await page.route('**/trading-agent/signals', async (route) => {
+    // The Trading page reads /trading-agent/signals/report (#9453).
+    await page.route('**/trading-agent/signals/report', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([
-          { ticker: 'CASH', name: 'Cash GBP', action: 'buy', reason: 'a' },
-          { ticker: 'CASH', name: 'Cash L', action: 'sell', reason: 'b' },
-          { ticker: 'PFE', name: 'Pfizer N', action: 'buy', reason: 'c' },
-          { ticker: 'PFE', name: 'Pfizer L', action: 'sell', reason: 'd' },
-        ]),
+        body: JSON.stringify({
+          signals: [
+            { ticker: 'CASH', name: 'Cash GBP', action: 'buy', reason: 'a' },
+            { ticker: 'CASH', name: 'Cash L', action: 'sell', reason: 'b' },
+            { ticker: 'PFE', name: 'Pfizer N', action: 'buy', reason: 'c' },
+            { ticker: 'PFE', name: 'Pfizer L', action: 'sell', reason: 'd' },
+          ],
+          blocked: [],
+        }),
       });
     });
     await page.route('**/trading-agent/settings', async (route) => {
@@ -200,7 +204,9 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
 
     await page.goto(`${baseUrl}/screener`);
     // The embedded Screener form (first "Run" button, before the custom-query
-    // form's Run) renders duplicate rows via getScreener.
+    // form's Run) renders duplicate rows via getScreener. The form defaults to
+    // a preset watchlist; the Tickers input only shows for "Custom".
+    await page.getByLabel('Watchlist', { exact: true }).selectOption('Custom');
     const tickersInput = page.getByLabel(/Tickers/i);
     await tickersInput.fill('CASH');
     await page.getByRole('button', { name: 'Run' }).nth(0).click();
@@ -350,9 +356,12 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     await headerToggle.click();
 
     // The header search input should now be visible and interactive. Scope to
-    // the header region so we don't match the embedded search bar's input.
+    // the panel the toggle controls (the app header has no <header> element)
+    // so we don't match the embedded search bar's input.
+    const panelId = await headerToggle.getAttribute('aria-controls');
+    expect(panelId).toBeTruthy();
     const headerInput = page
-      .locator('header')
+      .locator(`[id="${panelId}"]`)
       .getByLabel('Search instruments');
     await expect(headerInput).toBeVisible();
     await headerInput.fill('BBB');

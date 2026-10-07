@@ -269,9 +269,10 @@ def group_twr(slug: str, days: int = 365, as_of: str | None = None):
     """Return the combined time-weighted return for a group portfolio.
 
     ``partial`` is true, and ``missing_members`` lists who, when at least
-    one member's transaction ledger could not be found -- their holdings
-    still count toward the combined value series, so the returned figure
-    understates contributions and reads high (#7228).
+    one member's transaction ledger could not be found. The figure is
+    rebuilt from the other members' pooled ledgers, so it leaves those
+    members out (#9169); see ``compute_time_weighted_return`` for the
+    fallback when no member has a ledger (#7228).
     """
     slug = _validate_owner_slug(slug, "slug")
     try:
@@ -297,9 +298,10 @@ def group_xirr(slug: str, days: int = 365, as_of: str | None = None):
     """Return the combined XIRR for a group portfolio.
 
     ``partial`` is true, and ``missing_members`` lists who, when at least
-    one member's transaction ledger could not be found -- their holdings
-    still count toward the combined value series, so the returned figure
-    understates contributions and reads high (#7228).
+    one member's transaction ledger could not be found. The figure is
+    rebuilt from the other members' pooled ledgers, so it leaves those
+    members out (#9169); see ``compute_time_weighted_return`` for the
+    fallback when no member has a ledger (#7228).
     """
     slug = _validate_owner_slug(slug, "slug")
     try:

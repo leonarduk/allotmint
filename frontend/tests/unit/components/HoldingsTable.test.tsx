@@ -1040,10 +1040,32 @@ describe("HoldingsTable", () => {
     it("shows days to go if not eligible", async () => {
         render(<HoldingsTable holdings={holdings}/>);
         const row = (await screen.findByText("Test Holding")).closest("tr");
-        const cell = within(row!).getByText("✗ 10");
+        const cell = within(row!).getByText("✗ 10 days left");
         expect(cell).toBeInTheDocument();
         const expected = formatDateISO(new Date('2024-07-20'));
         expect(cell).toHaveAttribute('title', expected);
+    });
+
+    it("says a sale needs approval instead of a cryptic ✗ 0 (#7196)", async () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        const row = (await screen.findByText("CAD Holding")).closest("tr");
+        expect(within(row!).getByText("✗ Needs approval")).toBeInTheDocument();
+        expect(within(row!).queryByText("✗ 0")).toBeNull();
+    });
+
+    it("says a sale needs approval for the null-countdown payload the backend now sends (#7242)", async () => {
+        const blocked: Holding = { ...holdings[0], ticker: "APR", name: "Awaiting Approval", sell_eligible: false, days_until_eligible: null, next_eligible_sell_date: "2024-04-10" };
+        render(<HoldingsTable holdings={[blocked]}/>);
+        const row = (await screen.findByText("Awaiting Approval")).closest("tr");
+        expect(within(row!).getByText("✗ Needs approval")).toBeInTheDocument();
+    });
+
+    it("gives no verdict when days until eligible is unknown (#7196)", async () => {
+        const unknown: Holding = { ...holdings[0], ticker: "UNK", name: "Unknown Period", sell_eligible: false, days_until_eligible: null };
+        render(<HoldingsTable holdings={[unknown]}/>);
+        const row = (await screen.findByText("Unknown Period")).closest("tr");
+        expect(within(row!).queryByText(/Needs approval/)).toBeNull();
+        expect(within(row!).queryByText(/^✗/)).toBeNull();
     });
 
     it("marks stale prices with an asterisk", async () => {

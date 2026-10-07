@@ -360,6 +360,32 @@ def test_aggregate_by_ticker_prefers_cost_basis(monkeypatch):
     assert row["gain_pct"] == pytest.approx(10.0)
 
 
+def test_aggregate_by_ticker_emits_one_instrument_type_casing(monkeypatch):
+    """Yahoo's "EQUITY" and hand-edited "Equity" must not both reach the API (#7788)."""
+
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "UPP.L", "units": 1.0, "market_value_gbp": 10.0},
+                    {"ticker": "TTL.L", "units": 1.0, "market_value_gbp": 10.0},
+                ]
+            }
+        ]
+    }
+    stored = {"UPP.L": {"instrumentType": "EQUITY"}, "TTL.L": {"instrumentType": "Equity"}}
+
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
+    monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: stored.get(ticker, {}))
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: {})
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+
+    assert {row["ticker"]: row["instrument_type"] for row in rows} == {"UPP.L": "Equity", "TTL.L": "Equity"}
+
+
 def test_aggregate_by_ticker_uses_zero_snapshot_price(monkeypatch):
     portfolio = {
         "accounts": [
@@ -1146,12 +1172,16 @@ def test_get_security_meta_resolves_watchlist_only_symbol_from_canonical_metadat
     meta = portfolio_utils.get_security_meta("GOLD.L")
 
     assert meta is not None
-    # Legacy capitalised asset class resolves to the canonical value (#9196).
-    assert meta["instrument_type"] == "commodity"
+    # Legacy and new asset classes resolve alike (#9196), in instrument_type's
+    # one display casing (#7788 item 9).
+    assert meta["instrument_type"] == "Commodity"
 
 
-@pytest.mark.parametrize("stored,expected", [("Equity", "equity"), ("equity", "equity"), ("Bond", "bond")])
-def test_get_security_meta_canonicalises_legacy_asset_class(monkeypatch, stored, expected):
+@pytest.mark.parametrize(
+    "stored,expected,expected_type",
+    [("Equity", "equity", "Equity"), ("equity", "equity", "Equity"), ("Bond", "bond", "Bond")],
+)
+def test_get_security_meta_canonicalises_legacy_asset_class(monkeypatch, stored, expected, expected_type):
     """Metadata persisted before #9196 (e.g. a stale S3 copy) spells asset
     classes "Equity"/"Bond"; it must resolve exactly like a reclassified
     lowercase record, for both ``asset_class`` and the ``instrument_type``
@@ -1174,8 +1204,9 @@ def test_get_security_meta_canonicalises_legacy_asset_class(monkeypatch, stored,
     unheld = portfolio_utils.get_security_meta("LEGACY.L")
 
     assert held["asset_class"] == expected
-    assert held["instrument_type"] == expected
-    assert unheld["instrument_type"] == expected
+    # instrument_type's asset-class fallback uses its display casing (#7788 item 9).
+    assert held["instrument_type"] == expected_type
+    assert unheld["instrument_type"] == expected_type
 
 
 _LEGACY_ETF_META = {
@@ -1277,4 +1308,4 @@ def test_get_security_meta_resolves_bare_watchlist_symbol(monkeypatch):
     meta = portfolio_utils.get_security_meta("PFE")
 
     assert meta is not None
-    assert meta["instrument_type"] == "equity"
+    assert meta["instrument_type"] == "Equity"

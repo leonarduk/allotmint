@@ -22,6 +22,7 @@ from starlette.types import Receive, Scope, Send
 from backend.auth import _resolve_demo_request, decode_demo_token
 from backend.auth import demo_readonly as demo_readonly_var
 from backend.common.errors import AppError, log_app_error
+from backend.common.request_metrics import RequestMetricsMiddleware
 from backend.config import Config
 from backend.logging_setup import sanitise_log_value
 
@@ -212,6 +213,10 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
     async def validation_exception_handler(_: Request, exc: RequestValidationError):
         status = 422 if exc.body is not None else 400
         return JSONResponse(status_code=status, content={"detail": _sanitize_error_details(exc.errors())})
+
+    # Added last so it is the outermost middleware and times the whole stack,
+    # including rate limiting, CORS and the demo-scope gate (#10359).
+    app.add_middleware(RequestMetricsMiddleware)
 
 
 class _CORSPlainTextResponse(PlainTextResponse):

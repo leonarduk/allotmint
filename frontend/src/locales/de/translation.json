@@ -368,6 +368,7 @@
     "performancePartialMembers": "Zeitgewichtete Rendite und XIRR sind unvollständig: Für {{members}} wurde keine Transaktionshistorie gefunden, daher liegen diese Werte wahrscheinlich über der tatsächlichen Rendite des Haushalts.",
     "performanceMetricsUnavailable": "Einige Kennzahlen konnten nicht geladen werden und werden als nicht verfügbar angezeigt: {{metrics}}.",
     "performanceUnavailable": "Das Diagramm des Portfoliowerts für diesen Zeitraum konnte nicht geladen werden. Andere Kennzahlen auf dieser Seite sind möglicherweise weiterhin verfügbar.",
+    "performanceEmpty": "Für diesen Zeitraum gibt es noch keinen Verlauf des Portfoliowerts.",
     "openDiagnostics": "Diagnose öffnen",
     "viewMetricsExplanation": "Ausführliche Erklärung lesen",
     "portfolioValue": "Portfoliowert",
@@ -539,6 +540,9 @@
     "daysHeldNotAvailable": "Tage gehalten nicht verfügbar",
     "stageNotAvailable": "Wachstumsstufe nicht verfügbar",
     "eligibleNotAvailable": "Verkaufsberechtigung nicht verfügbar",
+    "eligibleInDays_one": "Noch {{count}} Tag",
+    "eligibleInDays_other": "Noch {{count}} Tage",
+    "eligibleNeedsApproval": "Freigabe erforderlich",
     "noHoldings": "Keine Bestände entsprechen den aktuellen Filtern.",
     "openScreener": "Screener öffnen",
     "quickFilters": "Schnellfilter:",
@@ -804,7 +808,8 @@
         "currency_mismatch": "Keine Aufteilung: die Notierungswährung ({{currency}}) weicht von der Währung ab, aus der die GBP-Kurse umgerechnet werden."
       }
     },
-    "incomeEstimated": "Aus der Dividendenhistorie geschätzt: Der Broker verbucht Dividenden ohne Angabe der Position, daher Dividende je Anteil × am Ex-Tag gehaltene Einheiten."
+    "incomeEstimated": "Aus der Dividendenhistorie geschätzt: Der Broker verbucht Dividenden ohne Angabe der Position, daher Dividende je Anteil × am Ex-Tag gehaltene Einheiten.",
+    "ongoingCharge": "Laufende Kosten: {{value}}"
   },
   "instrumentTable": {
     "columns": {
@@ -1251,7 +1256,9 @@
     "watchlist": "Beobachtungsliste:",
     "windowNote": "Die Spalten % und Wertänderung zeigen die Bewegung im gewählten Zeitraum. Jedes Signal verwendet sein eigenes Zeitfenster — wählen Sie ein Kauf- oder Verkaufssignal aus, um Grund und Konfidenz zu sehen.",
     "signalInfoLabel": "Was bedeutet die Spalte „Signal“?",
-    "signalInfo": "Zeigt, ob das jüngste Signal für dieses Instrument – mit denselben Strategieschwellen wie auf der Handelsseite – ein Kauf- oder Verkaufskandidat war."
+    "signalInfo": "Zeigt, ob das jüngste Signal für dieses Instrument – mit denselben Strategieschwellen wie auf der Handelsseite – ein Kauf- oder Verkaufskandidat war.",
+    "signalsTableTitle": "Signaldetails",
+    "signalsTableNote": "Jedes Signal wird über sein eigenes Zeitfenster gemessen (in der Spalte „Warum“ genannt), das von der oben angezeigten {{period}}-Kursänderung abweichen kann."
   },
   "owner": {
     "label": "Besitzer",
@@ -1851,7 +1858,8 @@
       "label": "{{label}} ({{percent}}%)",
       "moderate": "Mittel",
       "strong": "Stark",
-      "weak": "Schwach"
+      "weak": "Schwach",
+      "saturated": "Stark (deutlich über dem Schwellenwert)"
     },
     "thresholdDays": "{{value}} Tage",
     "thresholds": {
@@ -1880,7 +1888,8 @@
       "sharpeInfoLabel": "Was bedeutet Sharpe-Ratio?",
       "volatilityInfo": "Volatilität ist hier die tägliche (nicht annualisierte) Standardabweichung der Renditen – wie stark der Kurs von einem Tag zum nächsten geschwankt hat.",
       "volatilityInfoLabel": "Was bedeutet Volatilität?"
-    }
+    },
+    "complianceSkippedBadge": "Compliance nicht geprüft"
   },
   "trail": {
     "allDone": "Alle Trail-Aufgaben erledigt – großartig!",
@@ -3573,5 +3582,11 @@
     "refreshNotCovered": "Weder Morningstar noch justETF haben Durchschau-Daten für diesen Fonds.",
     "refreshFailed": "Aktualisierung fehlgeschlagen: {{message}}",
     "manualSource": "Manuell (Fondsberichte)"
+  },
+  "fundCharges": {
+    "unknown": "Unbekannt",
+    "weightedCharge": "Gewichtete laufende Kosten",
+    "annualCost": "Geschätzte jährliche Fondskosten",
+    "excludesUnknown": "Ohne {{unknown}} von {{total}} Positionen ohne Kostendaten"
   }
 }

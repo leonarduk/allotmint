@@ -389,6 +389,32 @@ def test_outliers_not_fixable(monkeypatch, tmp_path):
     assert resp.status_code == 409
 
 
+def test_issues_route_surfaces_price_scale_and_large_move_types(monkeypatch, tmp_path):
+    """GET /data-quality/issues returns the #7789 / #8602 types and filters on them."""
+    import backend.data_quality.issues as issues_module
+
+    monkeypatch.setattr(issues_module, "_split_dates", lambda t, e: frozenset())
+    dates = [f"2026-01-{d:02d}" for d in range(5, 15)]
+    # ADM: a 10x step between two consecutive closes (a bad scaling factor).
+    adm = pd.DataFrame({"Date": dates, "Close": [36.5] * 5 + [365.0] * 5})
+    # XYZ: a single +60% day that is not a power-of-ten step.
+    xyz = pd.DataFrame({"Date": dates, "Close": [100.0] * 5 + [160.0] * 5})
+    dq_client = _build_client(monkeypatch, tmp_path, series=[("ADM", "L", adm), ("XYZ", "L", xyz)])
+
+    scale = dq_client.get("/data-quality/issues", params={"type": "PRICE_SCALE_SUSPECT"}).json()
+    assert [i["entity"]["ticker"] for i in scale["issues"]] == ["ADM"]
+    assert scale["issues"][0]["severity"] == "high"
+    assert scale["issues"][0]["fixable"] is False
+
+    moves = dq_client.get("/data-quality/issues", params={"type": "LARGE_DAILY_MOVE"}).json()
+    assert [i["entity"]["ticker"] for i in moves["issues"]] == ["XYZ"]
+    assert moves["issues"][0]["severity"] == "low"
+
+    preview = dq_client.get(f"/data-quality/issues/{scale['issues'][0]['id']}/preview")
+    assert preview.status_code == 200
+    assert preview.json()["type"] == "PRICE_SCALE_SUSPECT"
+
+
 def test_dedupe_series_rejects_path_traversal(monkeypatch, client, tmp_path):
     """Cache keys from the URL must never escape the cache base (CodeQL)."""
     import backend.routes.data_quality_admin as admin_module

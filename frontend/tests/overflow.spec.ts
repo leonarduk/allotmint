@@ -21,6 +21,13 @@ const VIEWPORTS = [
   { name: '414x736', width: 414, height: 736 },
 ] as const;
 
+// No backend runs alongside the preview server. Abort API calls immediately so
+// `networkidle` below settles promptly instead of waiting on refused
+// connections, which timed out these tests on a loaded CI runner (#7357).
+test.beforeEach(async ({ page }) => {
+  await page.route('**://localhost:6468/**', (route) => route.abort());
+});
+
 /**
  * Wait for the page to be fully rendered before measuring layout.
  * We wait for network idle (data fetching settled) and for the root

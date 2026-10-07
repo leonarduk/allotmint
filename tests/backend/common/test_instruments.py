@@ -441,7 +441,7 @@ def test_fetch_metadata_from_yahoo_builds_normalized_payload(monkeypatch) -> Non
         "region": "United Kingdom",
         "asset_class": "equity",
         "industry": "Software",
-        "instrument_type": "EQUITY",
+        "instrument_type": "Equity",  # canonical casing (#7788)
     }
     # Equities never touch quoteSummary, the endpoint that 401s.
     assert ticker.info_calls == 0

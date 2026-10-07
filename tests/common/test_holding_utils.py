@@ -1,4 +1,5 @@
 import datetime as dt
+from types import SimpleNamespace
 from typing import Dict
 
 import pandas as pd
@@ -24,6 +25,72 @@ def test_close_column_selection():
     assert holding_utils._close_column(pd.DataFrame({"Adj Close": [1]})) == "Adj Close"
     assert holding_utils._close_column(pd.DataFrame({"adj_close": [1]})) == "adj_close"
     assert holding_utils._close_column(pd.DataFrame({"Other": [1]})) is None
+
+
+@pytest.mark.parametrize(
+    ("currency", "expected"), [("USD", None), ("GBP", "Close"), ("GBX", "Close"), ("GBp", "Close")]
+)
+def test_close_column_native_fallback_only_for_sterling(monkeypatch, currency, expected):
+    """A non-GBP close with no Close_gbp was never converted (#7722)."""
+    monkeypatch.setattr(holding_utils, "instrument_currency", lambda t, e: currency)
+    assert holding_utils._close_column(pd.DataFrame({"Close": [100.0]}), "AAPL", "N") == expected
+    converted = pd.DataFrame({"Close": [100.0], "Close_gbp": [79.0]})
+    assert holding_utils._close_column(converted, "AAPL", "N") == "Close_gbp"
+
+
+@pytest.mark.parametrize("column", ["Adj Close", "adj_close"])
+def test_close_column_adj_close_fallback_only_for_sterling(monkeypatch, column):
+    """The Adj Close fallbacks follow the same sterling-only rule as Close (#7722)."""
+    frame = pd.DataFrame({column: [100.0]})
+    monkeypatch.setattr(holding_utils, "instrument_currency", lambda t, e: "USD")
+    assert holding_utils._close_column(frame, "AAPL", "N") is None
+    monkeypatch.setattr(holding_utils, "instrument_currency", lambda t, e: "GBP")
+    assert holding_utils._close_column(frame, "VOD", "L") == column
+
+
+def test_close_column_unknown_currency_fails_closed(monkeypatch):
+    """An unresolvable currency never lets a native close through as GBP (#7722)."""
+
+    def unparseable(_ticker, _exchange):
+        raise ValueError("invalid ticker or exchange")
+
+    monkeypatch.setattr(holding_utils, "instrument_currency", unparseable)
+    assert holding_utils._close_column(pd.DataFrame({"Close": [100.0]}), "BRK.B", "N") is None
+    converted = pd.DataFrame({"Close": [100.0], "Close_gbp": [79.0]})
+    assert holding_utils._close_column(converted, "BRK.B", "N") == "Close_gbp"
+
+
+def test_unscaled_price_never_values_unconverted_usd_close_as_gbp(monkeypatch):
+    """No FX rate -> no Close_gbp -> unpriced, not the USD close at 1:1 (#7722)."""
+    day = dt.date(2024, 1, 8)
+    monkeypatch.setattr(holding_utils, "instrument_currency", lambda t, e: "USD")
+    monkeypatch.setattr(
+        holding_utils,
+        "load_meta_timeseries_range",
+        lambda ticker, exchange, start_date, end_date: pd.DataFrame({"Date": [day], "Close": [150.0]}),
+    )
+    assert holding_utils._load_unscaled_price_for_date_impl("AAPL", "N", day) == (None, None, False, None)
+
+    monkeypatch.setattr(
+        holding_utils,
+        "load_meta_timeseries_range",
+        lambda ticker, exchange, start_date, end_date: pd.DataFrame(
+            {"Date": [day], "Close": [150.0], "Close_gbp": [118.5]}
+        ),
+    )
+    price, _src, scalable, _row_date = holding_utils._load_unscaled_price_for_date_impl("AAPL", "N", day)
+    assert (price, scalable) == (118.5, False)
+
+
+def test_derived_cost_basis_skips_unconverted_usd_close(monkeypatch):
+    monkeypatch.setattr(holding_utils, "instrument_currency", lambda t, e: "USD")
+    monkeypatch.setattr(
+        holding_utils,
+        "load_meta_timeseries_range",
+        lambda ticker, exchange, start_date, end_date: pd.DataFrame({"Date": [start_date], "Close": [150.0]}),
+    )
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 1.0)
+    assert holding_utils._derived_cost_basis_close_px("AAPL", "N", dt.date(2024, 1, 8), {}) is None
 
 
 def test_derived_cost_basis_close_px_caches_and_window(monkeypatch):
@@ -481,3 +548,39 @@ def test_load_live_prices_gbx_with_scaling_override_not_double_converted(monkeyp
     prices = holding_utils.load_live_prices(["HFEL.L"])
 
     assert prices["HFEL.L"]["price"] == pytest.approx(100.0)
+
+
+@pytest.mark.parametrize(
+    ("snap_currency", "usable"),
+    [("USD", False), ("EUR", False), ("GBP", True), ("GBX", True), ("GBp", True), (None, True)],
+)
+def test_snapshot_usable_only_for_sterling_price_currency(snap_currency, usable):
+    """enrich_holding reads the snapshot price as GBP, so a USD-tagged one is not usable (#7722)."""
+    calc = SimpleNamespace(has_explicit_reporting_date=False)
+    snap = {"last_price": 150.0}
+    if snap_currency is not None:
+        snap["price_currency"] = snap_currency
+    assert holding_utils._snapshot_usable(snap, calc) is usable
+
+
+def test_enrich_holding_ignores_usd_tagged_snapshot_price(monkeypatch):
+    """A native USD close in the snapshot (#7788 tags it USD) is never valued 1:1 as GBP (#7722)."""
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "USD"})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_PRICE_SNAPSHOT",
+        {"AAPL.N": {"last_price": 150.0, "price_currency": "USD", "last_price_date": "2026-09-25"}},
+    )
+    monkeypatch.setattr(holding_utils, "_holding_fx_rate_source", lambda *_: "live")
+    monkeypatch.setattr(holding_utils, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
+    monkeypatch.setattr(
+        holding_utils, "_get_dated_price_for_date_scaled", lambda *a, **k: (118.5, "Yahoo", dt.date(2026, 9, 25))
+    )
+    monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *a, **k: (118.0, "Yahoo"))
+
+    holding = {"ticker": "AAPL.N", "units": 10, "cost_basis_gbp": 0.0, "acquired_date": "2025-01-01"}
+    result = holding_utils.enrich_holding(holding, dt.date(2026, 9, 26), price_cache={})
+
+    assert result["latest_source"] == "Yahoo"
+    assert result["current_price_gbp"] == pytest.approx(118.5)

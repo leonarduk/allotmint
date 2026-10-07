@@ -40,9 +40,15 @@ ALLOTMINT_REPO_PROFILE = RepoProfile(
         "- Secrets, permissions, or CI assumptions mishandled?"
     ),
     known_facts=(
-        "- **`actions/checkout@v6` and `actions/setup-node@v6` are correct.** "
-        "Dependabot bumped both from v4 to v6 in PRs #2954/#2953; they are "
-        "the repo-wide convention. Do not flag them as non-existent or wrong.\n"
+        "- **Official `actions/*` major versions are Dependabot-managed and "
+        "all valid.** `actions/checkout`, `actions/setup-node`, "
+        "`actions/setup-python`, `actions/upload-artifact`, and "
+        "`actions/download-artifact` at `@v6` or `@v7`, and "
+        "`actions/cache@v6`, are released majors. Dependabot keeps them "
+        "current, so the repo may temporarily mix majors across workflows. "
+        "Do not flag any of these versions (or a later Dependabot-bumped "
+        "major) as non-existent, wrong, or "
+        "violating repo convention.\n"
         "- **`api.getVarBreakdown()` returns camelCase keys** (`varDate`, "
         "`varLossPercent`, `scenarios`, `breakdown`). The function in "
         "`frontend/src/api.ts` transforms the snake_case backend response "

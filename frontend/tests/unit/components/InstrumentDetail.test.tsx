@@ -106,6 +106,27 @@ describe("InstrumentDetail", () => {
     expect(separator.parentElement).toHaveStyle({ zIndex: "1000", background: "#111" });
   });
 
+  it.each([
+    [0.22, "Ongoing charge: 0.22%"],
+    [null, "Ongoing charge: Unknown"],
+  ])("shows the ongoing charge %s, unknown never as 0%% (#7834)", async (charge, text) => {
+    mockGetInstrumentDetail.mockResolvedValue({
+      prices: [],
+      positions: [],
+      currency: null,
+      ongoing_charge_pct: charge,
+    });
+    mockGetInstrumentIntraday.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter>
+        <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId("instrument-ongoing-charge")).toHaveTextContent(text);
+  });
+
   it("links from the drawer to the full research page", async () => {
     mockGetInstrumentDetail.mockResolvedValue({ prices: [], positions: [], currency: null });
     mockGetInstrumentIntraday.mockResolvedValue([]);

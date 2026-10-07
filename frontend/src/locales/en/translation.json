@@ -362,6 +362,7 @@
     "performancePartialMembers": "Time-weighted return and XIRR are incomplete: no transaction history was found for {{members}}, so these figures likely read higher than the household's real return.",
     "performanceMetricsUnavailable": "Some metrics could not be loaded and are shown as unavailable: {{metrics}}.",
     "performanceUnavailable": "We couldn't load the portfolio value chart for this period. Other metrics on this page may still be available.",
+    "performanceEmpty": "There is no portfolio value history for this period yet.",
     "openDiagnostics": "Open diagnostics",
     "viewMetricsExplanation": "Read the full explanation",
     "portfolioValue": "Portfolio Value",
@@ -533,6 +534,9 @@
     "daysHeldNotAvailable": "Days held not available",
     "stageNotAvailable": "Growth stage unavailable",
     "eligibleNotAvailable": "Sell eligibility not available",
+    "eligibleInDays_one": "{{count}} day left",
+    "eligibleInDays_other": "{{count}} days left",
+    "eligibleNeedsApproval": "Needs approval",
     "noHoldings": "No holdings match the current filters.",
     "openScreener": "Open Screener",
     "quickFilters": "Quick Filters:",
@@ -798,7 +802,8 @@
         "currency_mismatch": "No split: this instrument's quote currency ({{currency}}) disagrees with the currency its GBP prices are converted from."
       }
     },
-    "incomeEstimated": "Estimated from dividend history: the broker records dividends without naming the holding, so this is the per-share dividend × units held on each ex-date."
+    "incomeEstimated": "Estimated from dividend history: the broker records dividends without naming the holding, so this is the per-share dividend × units held on each ex-date.",
+    "ongoingCharge": "Ongoing charge: {{value}}"
   },
   "instrumentTable": {
     "columns": {
@@ -1245,7 +1250,9 @@
     "watchlist": "Watchlist:",
     "windowNote": "The % and value columns show the move for the selected period. Each signal uses its own lookback window — select a Buy or Sell signal to see its reason and confidence.",
     "signalInfoLabel": "What does the Signal column mean?",
-    "signalInfo": "Shows whether the latest signal generated for that instrument, using the same strategy thresholds as the Trading page, was a buy or sell candidate."
+    "signalInfo": "Shows whether the latest signal generated for that instrument, using the same strategy thresholds as the Trading page, was a buy or sell candidate.",
+    "signalsTableTitle": "Signal details",
+    "signalsTableNote": "Each signal is measured over its own lookback window (named in the Why column), which may differ from the {{period}} price change shown above."
   },
   "owner": {
     "label": "Owner",
@@ -1845,7 +1852,8 @@
       "label": "{{label}} ({{percent}}%)",
       "moderate": "Moderate",
       "strong": "Strong",
-      "weak": "Weak"
+      "weak": "Weak",
+      "saturated": "Strong (well past threshold)"
     },
     "thresholdDays": "{{value}} days",
     "thresholds": {
@@ -1874,7 +1882,8 @@
       "sharpeInfoLabel": "What does Sharpe ratio mean?",
       "volatilityInfo": "Volatility here is the day-to-day (daily, not annualised) standard deviation of returns — how much the price has fluctuated from one day to the next.",
       "volatilityInfoLabel": "What does volatility mean?"
-    }
+    },
+    "complianceSkippedBadge": "Compliance not checked"
   },
   "trail": {
     "allDone": "All Trail tasks are complete — fantastic work!",
@@ -3566,5 +3575,11 @@
     "refreshNotCovered": "Neither Morningstar nor justETF has look-through data for this fund.",
     "refreshFailed": "Refresh failed: {{message}}",
     "manualSource": "Manual (fund reports)"
+  },
+  "fundCharges": {
+    "unknown": "Unknown",
+    "weightedCharge": "Weighted ongoing charge",
+    "annualCost": "Est. annual fund cost",
+    "excludesUnknown": "Excludes {{unknown}} of {{total}} holdings with no fee data"
   }
 }

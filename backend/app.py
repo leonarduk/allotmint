@@ -30,6 +30,7 @@ from backend.bootstrap import (
     register_routers,
 )
 from backend.common.core_optional import CoreFeatureUnavailableError
+from backend.common.request_metrics import health_summary, runtime_snapshot
 from backend.config import reload_config
 from backend.integrations.moneyhub_api import MoneyhubNotConfiguredError
 from backend.logging_setup import sanitise_log_value, setup_logging
@@ -245,9 +246,31 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health():
-        """Return a small payload used by tests and uptime monitors."""
+        """Return a small payload used by tests and uptime monitors.
 
-        return {"status": "ok", "env": cfg.app_env}
+        Async and lock-free, so it answers even when every worker thread is
+        busy -- and therefore reports that state instead of hiding it (#10359):
+        ``status`` is ``"degraded"`` (still HTTP 200) when the AnyIO worker
+        pool is exhausted, alongside ``in_flight`` and ``threadpool``
+        busy/total. Only coarse integer counters are exposed here; paths and
+        timings stay behind the admin-gated ``/health/runtime``.
+        """
+
+        summary = health_summary()
+        return {"status": summary.pop("status"), "env": cfg.app_env, **summary}
+
+    @app.get("/health/runtime")
+    async def health_runtime(_: str | None = Depends(require_admin)):
+        """Request and worker-thread-pool metrics for diagnosing a stalled backend (#10359).
+
+        ``/health`` gives only coarse counters (it is unauthenticated). This
+        adds the detail: the pool's busy/total/available threads, in-flight
+        requests and the oldest one's path and age, slow/abandoned counts and
+        recent slow requests. Async and lock-free so it answers while the pool is full.
+        Admin-gated like ``/whoami`` (open in local dev with auth disabled).
+        """
+
+        return {"status": health_summary()["status"], "env": cfg.app_env, **runtime_snapshot()}
 
     @app.get("/whoami")
     async def whoami(

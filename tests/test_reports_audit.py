@@ -87,9 +87,11 @@ def test_audit_report_sector_and_region_rows_include_expected_aggregates(
 ):
     rows_by_source = _audit_rows_by_source()
 
+    # The fixture uses Yahoo sector names; the sector view reports them under
+    # their canonical GICS labels (backend/common/sector_labels.py, #8530).
     expected_sector_values = {
-        "Technology": (700.0, 70.0),
-        "Healthcare": (300.0, 30.0),
+        "Information Technology": (700.0, 70.0),
+        "Health Care": (300.0, 30.0),
     }
     for row in rows_by_source["portfolio.sectors"]:
         expected_value, expected_weight = expected_sector_values[row["sector"]]

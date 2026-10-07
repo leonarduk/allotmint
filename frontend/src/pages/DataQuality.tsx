@@ -43,6 +43,8 @@ const ISSUE_TYPES = [
   "TICKER_MISMATCH",
   "IMPLAUSIBLE_BOOK_COST",
   "MISSING_ASSET_CLASS",
+  "PRICE_SCALE_SUSPECT",
+  "LARGE_DAILY_MOVE",
 ] as const;
 
 /** Holdings-related issue types surfaced by the Holdings tab (#6724). */

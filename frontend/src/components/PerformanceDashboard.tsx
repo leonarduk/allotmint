@@ -102,6 +102,10 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   // (DeepSeek review round 2, #7228).
   const [unavailableMetrics, setUnavailableMetrics] = useState<string[]>([]);
   const [perfUnavailable, setPerfUnavailable] = useState<boolean>(false);
+  // True once this load's fetches have settled. Gating "loading" on this,
+  // not on `data.length`, keeps a successful-but-empty history from showing
+  // "Loading..." forever (#7629).
+  const [loaded, setLoaded] = useState<boolean>(false);
   const { t, i18n } = useTranslation();
 
   const activeGroup = group || null;
@@ -127,6 +131,7 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
     setXirr(null);
     setUnavailableMetrics([]);
     setPerfUnavailable(false);
+    setLoaded(false);
     const reqDays = days === 0 ? 36500 : days;
     const opts = asOf ? { asOf } : undefined;
     // Group alpha/tracking error are computed by the backend from the
@@ -200,7 +205,15 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         unavailable.push(t("dashboard.portfolioValue"));
       }
 
+      // Without this a failed metric left no diagnostic beyond the generic
+      // banner (#7629).
+      [alphaResult, teResult, mdResult, perfResult].forEach((result) => {
+        if (result.status === "rejected") {
+          console.error("Performance metric failed to load", result.reason);
+        }
+      });
       setUnavailableMetrics(unavailable);
+      setLoaded(true);
     });
 
     return () => {
@@ -210,14 +223,9 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
 
   if (!activeGroup && !activeOwner) return <p>{t("dashboard.selectMember")}</p>;
   if (err) return <p style={{ color: "red" }}>{err}</p>;
-  if (!data.length) {
-    if (perfUnavailable) {
-      return (
-        <p data-testid="performance-chart-unavailable">
-          {t("dashboard.performanceUnavailable")}
-        </p>
-      );
-    }
+  // A failed or empty history only replaces the charts below; the metrics
+  // that did load must still render (#7629).
+  if (!loaded) {
     return (
       <LoadingStatus label={t("app.loading")}>
         <PortfolioDashboardSkeleton />
@@ -614,79 +622,91 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
         />
       )}
       <h2>{t("dashboard.portfolioValue")}</h2>
-      <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={data}>
-          <XAxis dataKey="date" />
-          <YAxis
-            domain={valueDomain ?? ["auto", "auto"]}
-            tickFormatter={formatValueTick}
-            width={80}
-          />
-          <Tooltip formatter={(v) => reporting.format(v as number | undefined)} />
-          <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
-
-      <h2 style={{ marginTop: "2rem" }}>{t("dashboard.cumulativeReturn")}</h2>
-      {comparison.length > 0 ? (
-        <>
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={comparison}>
-              <XAxis dataKey="date" />
-              <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
-              <Tooltip formatter={formatReturnTooltip} />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="portfolio"
-                name={t("dashboard.cumulativeReturnPortfolio")}
-                stroke={PORTFOLIO_LINE_COLOUR}
-                dot={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="benchmark"
-                name={t("dashboard.cumulativeReturnBenchmark", { ticker: BENCHMARK_TICKER })}
-                stroke={BENCHMARK_LINE_COLOUR}
-                strokeDasharray="6 3"
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-          <p
-            data-testid="cumulative-return-basis"
-            style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "0.25rem" }}
-          >
-            {t("dashboard.cumulativeReturnBasis", {
-              ticker: BENCHMARK_TICKER,
-              from: comparison[0].date,
-              to: comparison[comparison.length - 1].date,
-            })}
-          </p>
-        </>
+      {perfUnavailable ? (
+        <p data-testid="performance-chart-unavailable">
+          {t("dashboard.performanceUnavailable")}
+        </p>
+      ) : data.length === 0 ? (
+        <p data-testid="performance-chart-empty">
+          {t("dashboard.performanceEmpty")}
+        </p>
       ) : (
         <>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={data}>
               <XAxis dataKey="date" />
-              <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
-              <Tooltip formatter={formatReturnTooltip} />
-              <Line
-                type="monotone"
-                dataKey="cumulative_return"
-                stroke={PORTFOLIO_LINE_COLOUR}
-                dot={false}
+              <YAxis
+                domain={valueDomain ?? ["auto", "auto"]}
+                tickFormatter={formatValueTick}
+                width={80}
               />
+              <Tooltip formatter={(v) => reporting.format(v as number | undefined)} />
+              <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} />
             </LineChart>
           </ResponsiveContainer>
-          <p
-            data-testid="benchmark-series-unavailable"
-            style={{ fontSize: "0.8rem", color: "#facc15", marginTop: "0.25rem" }}
-          >
-            {benchmarkFailed
-              ? t("dashboard.benchmarkSeriesFailed", { ticker: BENCHMARK_TICKER })
-              : t("dashboard.benchmarkSeriesEmpty", { ticker: BENCHMARK_TICKER })}
-          </p>
+
+          <h2 style={{ marginTop: "2rem" }}>{t("dashboard.cumulativeReturn")}</h2>
+          {comparison.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={240}>
+                <LineChart data={comparison}>
+                  <XAxis dataKey="date" />
+                  <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
+                  <Tooltip formatter={formatReturnTooltip} />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="portfolio"
+                    name={t("dashboard.cumulativeReturnPortfolio")}
+                    stroke={PORTFOLIO_LINE_COLOUR}
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="benchmark"
+                    name={t("dashboard.cumulativeReturnBenchmark", { ticker: BENCHMARK_TICKER })}
+                    stroke={BENCHMARK_LINE_COLOUR}
+                    strokeDasharray="6 3"
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+              <p
+                data-testid="cumulative-return-basis"
+                style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "0.25rem" }}
+              >
+                {t("dashboard.cumulativeReturnBasis", {
+                  ticker: BENCHMARK_TICKER,
+                  from: comparison[0].date,
+                  to: comparison[comparison.length - 1].date,
+                })}
+              </p>
+            </>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={240}>
+                <LineChart data={data}>
+                  <XAxis dataKey="date" />
+                  <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
+                  <Tooltip formatter={formatReturnTooltip} />
+                  <Line
+                    type="monotone"
+                    dataKey="cumulative_return"
+                    stroke={PORTFOLIO_LINE_COLOUR}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+              <p
+                data-testid="benchmark-series-unavailable"
+                style={{ fontSize: "0.8rem", color: "#facc15", marginTop: "0.25rem" }}
+              >
+                {benchmarkFailed
+                  ? t("dashboard.benchmarkSeriesFailed", { ticker: BENCHMARK_TICKER })
+                  : t("dashboard.benchmarkSeriesEmpty", { ticker: BENCHMARK_TICKER })}
+              </p>
+            </>
+          )}
         </>
       )}
       {activeOwner && (

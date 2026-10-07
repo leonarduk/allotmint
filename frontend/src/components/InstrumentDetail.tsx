@@ -537,6 +537,7 @@ export function InstrumentDetail({
     prices: Price[];
     positions: Position[];
     currency?: string | null;
+    ongoing_charge_pct?: number | null;
   } | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -573,6 +574,7 @@ export function InstrumentDetail({
           prices: Price[];
           positions: Position[];
           currency?: string | null;
+          ongoing_charge_pct?: number | null;
         };
         setData(detail);
         setCurrencyFromData(detail.currency ?? null);
@@ -910,6 +912,19 @@ export function InstrumentDetail({
       </div>
       <div style={{ fontSize: "0.85rem", color: palette.muted }}>
         {ticker} • {displayCurrency} • {translateInstrumentType(t, instrument_type)} • {" "}
+        {data && (
+          <>
+            <span data-testid="instrument-ongoing-charge">
+              {t("instrumentDetail.ongoingCharge", {
+                value:
+                  typeof data.ongoing_charge_pct === "number"
+                    ? percent(data.ongoing_charge_pct)
+                    : t("fundCharges.unknown"),
+              })}
+            </span>
+            {" • "}
+          </>
+        )}
         <Link to={editLink} style={{ color: palette.link, textDecoration: "none" }}>
           {t("instrumentDetail.edit")}
         </Link>

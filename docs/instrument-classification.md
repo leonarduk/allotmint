@@ -60,11 +60,17 @@ Metadata written before #9196 spells asset classes `Equity`, `Bond`,
 served), both spellings are in circulation, so consumers compare
 case-insensitively:
 
-- Backend: `canonical_asset_class()` and `resolve_instrument_type()` in
-  `instrument_classification.py` map `Equity` and `equity` to `equity`. They
-  are used by `enrich_holding`, `portfolio_utils.get_security_meta`,
+- Backend: `canonical_asset_class()` in `instrument_classification.py` maps
+  `Equity` and `equity` to the `asset_class` value `equity`. They are used by
+  `enrich_holding`, `portfolio_utils.get_security_meta`,
   `prices._resolve_instrument_type` and the report asset-class breakdown
   (which shows `Equity`). An unrecognised label such as `Fund` is kept as is.
+- `instrument_type` has one display casing whatever its source (#7788 item 9):
+  `resolve_instrument_type()` returns an explicit type through
+  `normalise_instrument_type()` (`EQUITY` and `Equity` give `Equity`), and the
+  asset-class fallback in the same form (`equity` gives `Equity`,
+  `multi-asset` gives `Multi-asset`). Only `asset_class` uses the lowercase
+  vocabulary.
 - Frontend: `translateInstrumentType` (`src/lib/instrumentType.ts`) and
   `assetClassLabel` (`src/lib/assetClass.ts`) look values up lower-cased.
 
@@ -133,6 +139,19 @@ Nothing is rewritten on disk; the new key is written on the next save.
 A bond with no recognised sub-class stays in Bond. When Bond is targeted by
 sub-class, the Strategy page shows it in a "Bond — no sub-class" row and a
 note. It counts towards the total but is never traded.
+
+## Fund ongoing charges (OCF/TER)
+
+Set `ongoing_charge_pct` on the instrument file to the fund's annual ongoing
+charge as a percentage, copied from its own KIID or factsheet, for example
+`"ongoing_charge_pct": 0.22` for 0.22%. No third-party OCF feed is used, so
+there is no data-licensing dependency (#7834).
+
+The instrument detail panel shows the charge, and the portfolio view shows a
+value-weighted average charge and an estimated annual cost. A missing,
+non-numeric, negative or implausible (over 10%) value is shown as unknown,
+never as 0%. Holdings with no fee data are left out of the average and the
+cost estimate, and the portfolio view says how many were left out.
 
 ## Gaps
 

@@ -255,13 +255,43 @@ describe('Trading page', () => {
     ).toBeInTheDocument();
   });
 
+  it('names skipped checks visibly and flags a skipped compliance check as a warning (#7217)', async () => {
+    mockFetchState({
+      data: [{ ...sampleSignal, checks_skipped: ['compliance', 'fundamental_screen'] }],
+    });
+
+    render(<Trading />);
+    await screen.findByText('AAA');
+
+    // Visible text, not a hover-only `title` attribute.
+    expect(screen.getByText('Compliance not checked')).toBeInTheDocument();
+    expect(screen.getByText('Skipped checks: fundamental_screen')).toBeInTheDocument();
+    expect(screen.queryByText('Checks skipped')).not.toBeInTheDocument();
+  });
+
+  it('describes a capped confidence instead of a meaningless "100%" (#7217)', async () => {
+    mockFetchState({
+      data: [
+        { ...sampleSignal, ticker: 'AAA', confidence: 1 },
+        { ...sampleSignal, ticker: 'BBB', confidence: 0.6 },
+      ],
+    });
+
+    render(<Trading />);
+    await screen.findByText('AAA');
+
+    expect(screen.getByText('Strong (well past threshold)')).toBeInTheDocument();
+    expect(screen.queryByText('Strong (100%)')).not.toBeInTheDocument();
+    expect(screen.getByText('Moderate (60%)')).toBeInTheDocument();
+  });
+
   it('pins the "Checks skipped" copy to the backend\'s actual checks_skipped vocabulary (#7230)', () => {
     // Guards against the copy drifting from what the backend can actually
     // emit — this is exactly how a previous review round caught the
     // explanation describing checks (P/E, Sharpe ratio, volatility) the
     // backend never tags as skipped, and omitting 'compliance' (the
     // consequential one) entirely. Checks both places that carry the same
-    // claim (Trading.tsx's inline tooltip and MetricsExplanation.tsx's
+    // claim (SignalDetails.tsx's inline tooltip and MetricsExplanation.tsx's
     // glossary entry) since either can drift independently.
     const backendSource = readFileSync(
       resolve(__dirname, '../../../../backend/agent/trading_agent.py'),
@@ -275,7 +305,7 @@ describe('Trading page', () => {
     expect(emitted).toEqual(new Set(['compliance', 'fundamental_screen']));
 
     const copySources = [
-      resolve(__dirname, '../../../src/pages/Trading.tsx'),
+      resolve(__dirname, '../../../src/components/SignalDetails.tsx'),
       resolve(__dirname, '../../../src/pages/MetricsExplanation.tsx'),
     ].map((path) => readFileSync(path, 'utf-8'));
 

@@ -390,7 +390,13 @@ def test_health_returns_expected_body_without_auth_header(monkeypatch):
             assert "Authorization" not in client.headers
             resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "env": "test-env"}
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert body["env"] == "test-env"
+    # Coarse saturation counters only (#10359): no paths or timings on the
+    # unauthenticated probe.
+    assert set(body) == {"status", "env", "in_flight", "threadpool"}
+    assert set(body["threadpool"]) == {"busy", "total"}
 
 
 def test_config_get_returns_expected_body_without_auth_header(monkeypatch):

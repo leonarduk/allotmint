@@ -24,10 +24,11 @@ from markupsafe import Markup
 
 from backend.common import instrument_api, look_through, nav
 from backend.common.constants import ACQUIRED_DATE, COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP, UNITS
+from backend.common.fund_charges import ongoing_charge_pct
 from backend.common.fx_return_split import local_fx_return_split
 from backend.common.holding_utils import is_cost_basis_unreliable
 from backend.common.instrument_classification import exposure_sector
-from backend.common.instruments import list_instruments
+from backend.common.instruments import get_instrument_meta, list_instruments
 from backend.common.portfolio import build_owner_portfolio
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import get_security_meta
@@ -430,6 +431,9 @@ def instrument(
     name = meta.get("name")
     sector = meta.get("sector")
     currency = meta.get("currency")
+    # Portfolio-derived security meta lacks catalogue-only fields such as the
+    # fund charge, so read it from the instrument file directly (#7834).
+    charge_pct = ongoing_charge_pct(get_instrument_meta(ticker))
 
     is_gbp_ticker = ticker.upper().endswith(".L") or ticker.upper().endswith(".UK")
 
@@ -459,6 +463,7 @@ def instrument(
                 "currency": currency,
                 "name": name,
                 "sector": sector,
+                "ongoing_charge_pct": charge_pct,
                 "base_currency": base_currency,
             }
             if include_mini:
@@ -624,6 +629,7 @@ def instrument(
             "currency": currency,
             "name": name,
             "sector": sector,
+            "ongoing_charge_pct": charge_pct,
             "base_currency": base_currency,
         }
         if include_mini:

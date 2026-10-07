@@ -32,6 +32,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
 
 from backend import report_periodic
 from backend.common import ledger_performance, portfolio_utils
+from backend.common.accounts_store import WRITABLE_ACCOUNTS_PREFIX
+from backend.common.data_providers import PLOTS_PREFIX
 from backend.common.instrument_classification import ASSET_CLASS_LABELS, canonical_asset_class
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import cache_only
@@ -1798,7 +1800,12 @@ def _parse_date(value: Optional[str]) -> Optional[date]:
 
 def _transaction_roots() -> Iterable[str]:
     if config.app_env == "aws":
-        yield Path("transactions").as_posix()
+        # The prefixes the deployed read paths use: the read-only ``accounts/``
+        # dataset, then the ``writable-accounts/`` overlay (later roots win per
+        # account in ``_load_transactions_s3``). The legacy ``transactions/``
+        # prefix is not read (#8476).
+        yield PLOTS_PREFIX.rstrip("/")
+        yield WRITABLE_ACCOUNTS_PREFIX
         return
 
     # Only the canonical ledger (``<accounts_root>/<owner>/*_transactions.json``,
@@ -1811,41 +1818,53 @@ def _transaction_roots() -> Iterable[str]:
             yield path.as_posix()
 
 
-def _load_transactions(owner: str) -> List[dict]:
-    records: List[dict] = []
-    if config.app_env == "aws":
-        bucket = os.getenv("DATA_BUCKET")
-        if not bucket:
-            raise RuntimeError("DATA_BUCKET environment variable is required in AWS")
+def _load_transactions_s3(owner: str) -> List[dict]:
+    """Read ``owner``'s ledgers from S3, one per account.
+
+    A writable-overlay document replaces the ``accounts/`` one for the same
+    account (as ``routes.transactions.load_all_transactions`` does) rather than
+    adding to it, so an account in both prefixes is counted once.
+    """
+    bucket = os.getenv("DATA_BUCKET")
+    if not bucket:
+        raise RuntimeError("DATA_BUCKET environment variable is required in AWS")
+    try:
+        import boto3
+        from botocore.exceptions import BotoCoreError, ClientError
+    except ModuleNotFoundError as exc:  # pragma: no cover - depends on runtime
+        raise RuntimeError("boto3 is required for loading transactions from S3") from exc
+    s3 = boto3.client("s3")
+    by_account: Dict[str, List[dict]] = {}
+    for root in _transaction_roots():
+        prefix = f"{root.rstrip('/')}/{owner}/"
+        paginator = s3.get_paginator("list_objects_v2")
         try:
-            import boto3
-            from botocore.exceptions import BotoCoreError, ClientError
-        except ModuleNotFoundError as exc:  # pragma: no cover - depends on runtime
-            raise RuntimeError("boto3 is required for loading transactions from S3") from exc
-        s3 = boto3.client("s3")
-        for root in _transaction_roots():
-            prefix = f"{root.rstrip('/')}/{owner}/"
-            paginator = s3.get_paginator("list_objects_v2")
-            try:
-                pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
-            except (BotoCoreError, ClientError) as exc:
-                logger.warning("failed to paginate S3 objects for prefix %s: %s", prefix, sanitise_log_value(exc))
-                continue
-            for page in pages:
-                for obj in page.get("Contents", []):
-                    key = obj.get("Key", "")
-                    if not key.endswith("_transactions.json"):
-                        continue
-                    try:
-                        body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
-                        data = json.loads(body)
-                    except (BotoCoreError, ClientError, json.JSONDecodeError) as exc:
-                        logger.warning("failed to load %s from bucket %s: %s", key, bucket, sanitise_log_value(exc))
-                        continue
-                    txs = data.get("transactions") if isinstance(data, dict) else None
-                    if isinstance(txs, list):
-                        records.extend(txs)
-        return records
+            pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
+        except (BotoCoreError, ClientError) as exc:
+            logger.warning("failed to paginate S3 objects for prefix %s: %s", prefix, sanitise_log_value(exc))
+            continue
+        for page in pages:
+            for obj in page.get("Contents", []):
+                key = obj.get("Key", "")
+                name = key[len(prefix) :]
+                if "/" in name or not name.endswith("_transactions.json"):
+                    continue
+                try:
+                    body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+                    data = json.loads(body)
+                except (BotoCoreError, ClientError, json.JSONDecodeError) as exc:
+                    logger.warning("failed to load %s from bucket %s: %s", key, bucket, sanitise_log_value(exc))
+                    continue
+                txs = data.get("transactions") if isinstance(data, dict) else None
+                if isinstance(txs, list):
+                    by_account[name.removesuffix("_transactions.json").lower()] = txs
+    return [tx for txs in by_account.values() for tx in txs]
+
+
+def _load_transactions(owner: str) -> List[dict]:
+    if config.app_env == "aws":
+        return _load_transactions_s3(owner)
+    records: List[dict] = []
     for root in _transaction_roots():
         owner_dir = Path(root) / owner
         if not owner_dir.exists():

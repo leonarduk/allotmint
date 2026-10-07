@@ -151,6 +151,8 @@ interface GoalGroup {
    * line picked up a unit (#7194).
    */
   chipFormat?: (value: number) => string;
+  /** See `SeasonGroupProgress.personal`. */
+  personal?: boolean;
 }
 
 /**
@@ -227,6 +229,7 @@ function buildGoalGroups(
       title: (target) => i18n.t('plot.goals.streak.title', { target }),
       format: (value) => pluralize(value, 'day'),
       chipFormat: (value) => pluralize(value, 'day'),
+      personal: true,
     },
     {
       id: 'rank',
@@ -238,6 +241,7 @@ function buildGoalGroups(
       title: (target) => i18n.t('plot.goals.rank.title', { target }),
       format: (value) =>
         i18n.t('plot.model.level', { level: Math.round(value) }),
+      personal: true,
     },
   ];
   return allowancesUnavailable
@@ -347,6 +351,12 @@ export interface SeasonGroupProgress {
   } | null;
   /** True once every tier in the group has been earned. */
   complete: boolean;
+  /**
+   * True when the figure is the signed-in user's Trail progress (streak,
+   * level) rather than the selected grower's portfolio — `/trail` is not
+   * owner-scoped, so the UI must not present it as the grower's (#7191).
+   */
+  personal?: boolean;
 }
 
 /**
@@ -389,6 +399,7 @@ export function buildSeasonGroups(
       tiers,
       next,
       complete: next === null,
+      personal: group.personal,
     };
   });
 }

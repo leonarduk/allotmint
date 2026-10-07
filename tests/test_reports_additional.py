@@ -352,7 +352,7 @@ def test_build_report_document_requires_known_template(monkeypatch):
 
 def test_transaction_roots_aws(monkeypatch):
     monkeypatch.setattr(reports.config, "app_env", "aws", raising=False)
-    assert list(reports._transaction_roots()) == ["transactions"]
+    assert list(reports._transaction_roots()) == ["accounts", "writable-accounts"]
 
 
 def test_load_transactions_s3_pagination_errors(monkeypatch, caplog):

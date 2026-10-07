@@ -296,3 +296,115 @@ async def test_run_chat_turn_sends_system_prompt_only_when_given(monkeypatch):
 
     assert seen[0]["system"] == [{"text": "on /research/ARG.TO"}]
     assert "system" not in seen[1]
+
+
+def _client_error(code, status=400):
+    from botocore.exceptions import ClientError
+
+    return ClientError(
+        {"Error": {"Code": code, "Message": code}, "ResponseMetadata": {"HTTPStatusCode": status}},
+        "Converse",
+    )
+
+
+@pytest.fixture
+def no_retry_sleep(monkeypatch):
+    sleeps = []
+
+    async def _fake_sleep(delay):
+        sleeps.append(delay)
+
+    monkeypatch.setattr(bedrock_agent.asyncio, "sleep", _fake_sleep)
+    return sleeps
+
+
+def _flaky_bedrock(failures, final_response):
+    class FlakyBedrock:
+        def __init__(self):
+            self.seen_messages = []
+
+        def converse(self, **kwargs):
+            self.seen_messages.append(copy.deepcopy(kwargs["messages"]))
+            if failures:
+                raise failures.pop(0)
+            return final_response
+
+    return FlakyBedrock()
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        _client_error("ThrottlingException"),
+        _client_error("ServiceUnavailableException", 503),
+        _client_error("SomeNew5xx", 502),
+    ],
+)
+async def test_run_chat_turn_retries_transient_converse_failure(monkeypatch, no_retry_sleep, error):
+    session = FakeSession(tools=[FakeTool("list_owners")])
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    fake = _flaky_bedrock([error], _assistant_text("Hello!"))
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: fake)
+
+    reply = await bedrock_agent.run_chat_turn("hi", [], mcp_server_url="https://example.com/mcp", bedrock_model_id="m")
+
+    assert reply == "Hello!"
+    assert len(no_retry_sleep) == 1 and 1.0 <= no_retry_sleep[0] <= 1.5
+    # The retry resent exactly the same conversation -- nothing rebuilt or duplicated.
+    assert fake.seen_messages[0] == fake.seen_messages[1] == [{"role": "user", "content": [{"text": "hi"}]}]
+
+
+async def test_run_chat_turn_retries_connection_errors(monkeypatch, no_retry_sleep):
+    from botocore.exceptions import EndpointConnectionError
+
+    session = FakeSession(tools=[FakeTool("list_owners")])
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    fake = _flaky_bedrock([EndpointConnectionError(endpoint_url="https://bedrock")], _assistant_text("ok"))
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: fake)
+
+    assert await bedrock_agent.run_chat_turn("hi", [], mcp_server_url="u", bedrock_model_id="m") == "ok"
+
+
+@pytest.mark.parametrize("error", [_client_error("ValidationException"), _client_error("AccessDeniedException", 403)])
+async def test_run_chat_turn_does_not_retry_non_transient_converse_failure(monkeypatch, no_retry_sleep, error):
+    session = FakeSession(tools=[FakeTool("list_owners")])
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    fake = _flaky_bedrock([error], _assistant_text("unreachable"))
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: fake)
+
+    with pytest.raises(type(error)) as raised:
+        await bedrock_agent.run_chat_turn("hi", [], mcp_server_url="u", bedrock_model_id="m")
+
+    assert raised.value is error
+    assert len(fake.seen_messages) == 1
+    assert no_retry_sleep == []
+
+
+async def test_run_chat_turn_gives_up_after_max_converse_retries(monkeypatch, no_retry_sleep, caplog):
+    session = FakeSession(tools=[FakeTool("list_owners")])
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    failures = [_client_error("ThrottlingException") for _ in range(10)]
+    fake = _flaky_bedrock(failures, _assistant_text("unreachable"))
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: fake)
+
+    with caplog.at_level("WARNING", logger=bedrock_agent.__name__):
+        with pytest.raises(bedrock_agent.ClientError):
+            await bedrock_agent.run_chat_turn("hi", [], mcp_server_url="u", bedrock_model_id="m")
+
+    assert len(fake.seen_messages) == bedrock_agent.CONVERSE_MAX_RETRIES + 1
+    # Exponential backoff 1s, 2s, 4s, each with up to +50% jitter.
+    assert len(no_retry_sleep) == 3
+    for delay, base in zip(no_retry_sleep, [1, 2, 4]):
+        assert base <= delay <= base * 1.5
+    assert sum("failed transiently" in record.message for record in caplog.records) == 3
+
+
+def test_bedrock_client_disables_botocore_retries(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(bedrock_agent.boto3, "client", lambda name, config: captured.update(config=config))
+    bedrock_agent._bedrock_client.cache_clear()
+    try:
+        bedrock_agent._bedrock_client()
+    finally:
+        bedrock_agent._bedrock_client.cache_clear()
+    assert captured["config"].retries == {"max_attempts": 1}

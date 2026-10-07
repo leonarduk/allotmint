@@ -22,7 +22,8 @@ import {
   getGroupMaxDrawdown,
 } from "../api";
 import type { PerformancePoint } from "../types";
-import { percent } from "../lib/money";
+import { percent, wholeMoney } from "../lib/money";
+import { paddedDomain } from "../lib/chartDomain";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { formatDateISO } from "../lib/date";
 import type { DrawdownExtrema, DrawdownSeriesPoint } from "../types";
@@ -241,6 +242,12 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
   // Peak/trough are GBP portfolio values; shown in the reporting currency (#9805).
   const formatDrawdownNumber = (value: number | undefined | null) =>
     typeof value === "number" && Number.isFinite(value) ? reporting.format(value) : "—";
+
+  // Fit the value axis to the series rather than 0 so movement is visible,
+  // with currency ticks in the reporting currency (#7815).
+  const valueDomain = paddedDomain(data.map((p) => p.value));
+  const formatValueTick = (value: number) =>
+    wholeMoney(reporting.convertGbp(value), reporting.currency, i18n.language);
 
   // The tile, this details text and the warnings below all derive from the
   // same classification, so an implausible drawdown is N/A everywhere and
@@ -620,8 +627,12 @@ export function PerformanceDashboard({ owner, group, asOf }: Props) {
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={data}>
               <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
+              <YAxis
+                domain={valueDomain ?? ["auto", "auto"]}
+                tickFormatter={formatValueTick}
+                width={80}
+              />
+              <Tooltip formatter={(v) => reporting.format(v as number | undefined)} />
               <Line type="monotone" dataKey="value" stroke="#8884d8" dot={false} />
             </LineChart>
           </ResponsiveContainer>

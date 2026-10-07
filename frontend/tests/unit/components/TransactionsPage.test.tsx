@@ -398,6 +398,141 @@ describe('TransactionsPage', () => {
     expect(getTransactionsMock).not.toHaveBeenCalled();
   });
 
+  it('prefills the set-holding form from the cost-basis checklist link (#7825)', async () => {
+    const user = userEvent.setup();
+    rtlRender(
+      <MemoryRouter
+        initialEntries={['/input?owner=alex&account=isa&ticker=vusa.l&units=12']}
+      >
+        <TransactionsPage
+          owners={[
+            { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+          ]}
+          inputOnly
+        />
+      </MemoryRouter>
+    );
+
+    await screen.findByText('Account + Holdings Input');
+    expect(screen.getByTestId('cost-basis-hint')).toHaveTextContent('VUSA.L');
+    expect(screen.getByLabelText('Account')).toHaveValue('isa');
+    expect(screen.getByLabelText(/^Ticker$/i)).toHaveValue('VUSA.L');
+    expect(screen.getByLabelText('Units')).toHaveValue('12');
+
+    await user.type(screen.getByLabelText('Price (GBP)'), '55.5');
+    await user.click(screen.getByRole('button', { name: 'Save holding' }));
+
+    await waitFor(() => {
+      expect(createManualHoldingMock).toHaveBeenCalledWith({
+        owner: 'alex',
+        account: 'isa',
+        ticker: 'VUSA.L',
+        units: 12,
+        price_gbp: 55.5,
+      });
+    });
+  });
+
+  it('never books a value-only save as the checklist holding cost (#7825)', async () => {
+    const user = userEvent.setup();
+    rtlRender(
+      <MemoryRouter
+        initialEntries={[
+          '/input?owner=alex&account=isa&ticker=vusa.l&units=12',
+        ]}
+      >
+        <TransactionsPage
+          owners={[
+            { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+          ]}
+          inputOnly
+        />
+      </MemoryRouter>
+    );
+
+    await screen.findByText('Account + Holdings Input');
+    // Value would record today's price as a real cost, so it is off here.
+    expect(screen.getByLabelText('Value (GBP)')).toBeDisabled();
+
+    // Units alone (no price paid) must not save either.
+    await user.click(screen.getByRole('button', { name: 'Save holding' }));
+    expect(
+      await screen.findByText(/enter units and the price you paid per unit/i)
+    ).toBeInTheDocument();
+    expect(createManualHoldingMock).not.toHaveBeenCalled();
+
+    // Switching to another ticker leaves cost-basis mode: Value works again.
+    const ticker = screen.getByLabelText(/^Ticker$/i);
+    await user.clear(ticker);
+    await user.type(ticker, 'PFE');
+    expect(screen.getByLabelText('Value (GBP)')).toBeEnabled();
+    expect(screen.queryByTestId('cost-basis-hint')).not.toBeInTheDocument();
+  });
+
+  it('ignores a value typed away from the checklist ticker once back on it (#7825)', async () => {
+    const user = userEvent.setup();
+    rtlRender(
+      <MemoryRouter
+        initialEntries={[
+          '/input?owner=alex&account=isa&ticker=vusa.l&units=12.5',
+        ]}
+      >
+        <TransactionsPage
+          owners={[
+            { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+          ]}
+          inputOnly
+        />
+      </MemoryRouter>
+    );
+
+    await screen.findByText('Account + Holdings Input');
+    const ticker = screen.getByLabelText(/^Ticker$/i);
+    // Away: Value is enabled and gets a figure.
+    await user.clear(ticker);
+    await user.type(ticker, 'PFE');
+    await user.type(screen.getByLabelText('Value (GBP)'), '999');
+    // Back (typed lowercase; the field uppercases): cost-basis mode again.
+    await user.clear(ticker);
+    await user.type(ticker, 'vusa.l');
+    expect(screen.getByTestId('cost-basis-hint')).toBeInTheDocument();
+    expect(screen.getByLabelText('Value (GBP)')).toBeDisabled();
+    expect(screen.getByLabelText('Value (GBP)')).toHaveValue('');
+
+    // Value-only still refuses; with a price it books units + price, never value.
+    await user.click(screen.getByRole('button', { name: 'Save holding' }));
+    expect(
+      await screen.findByText(/enter units and the price you paid per unit/i)
+    ).toBeInTheDocument();
+    expect(createManualHoldingMock).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText('Price (GBP)'), '40');
+    await user.click(screen.getByRole('button', { name: 'Save holding' }));
+    await waitFor(() => {
+      expect(createManualHoldingMock).toHaveBeenCalledWith({
+        owner: 'alex',
+        account: 'isa',
+        ticker: 'VUSA.L',
+        units: 12.5,
+        price_gbp: 40,
+      });
+    });
+  });
+
+  it('shows no cost-basis hint without a ticker param', async () => {
+    render(
+      <TransactionsPage
+        owners={[
+          { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+        ]}
+        inputOnly
+      />
+    );
+
+    await screen.findByText('Account + Holdings Input');
+    expect(screen.queryByTestId('cost-basis-hint')).not.toBeInTheDocument();
+  });
+
   it('shows a targeted validation message when only one units field is provided', async () => {
     const user = userEvent.setup();
     render(

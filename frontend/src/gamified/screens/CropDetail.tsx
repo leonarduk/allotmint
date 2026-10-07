@@ -12,6 +12,7 @@ import {
   growthStageMeta,
   hasKnownHoldPeriodCountdown,
   isStillInPropagator,
+  yieldLevelFor,
   type Crop,
 } from '../plotModel';
 import Meter from '../components/Meter';
@@ -19,30 +20,46 @@ import StarRating from '../components/StarRating';
 import CropGlyph from '../components/CropGlyph';
 
 /**
+ * The first trait has two data paths (#7019), and the label always matches
+ * the figure behind it:
+ * - "Yield": the trailing 12-month income yield the backend derives from
+ *   dividends/interest actually received, when there is any on record.
+ * - "Growth": otherwise, the unrealised capital gain/loss. That is not an
+ *   income yield and is never labelled as one.
+ */
+function harvestTraitFor(crop: Crop, t: TFunction) {
+  if (crop.yieldPct !== null) {
+    return {
+      icon: '🧺',
+      name: t('plot.crop.yield'),
+      detail: t('plot.crop.yieldDetail', { pct: crop.yieldPct.toFixed(1) }),
+      level: yieldLevelFor(crop.yieldPct),
+      max: 5,
+    };
+  }
+  return {
+    icon: '🧺',
+    name: t('plot.crop.growth'),
+    // An unknown cost basis means an unknown gain, not £0 (#8471).
+    detail:
+      crop.gainGbp === null
+        ? t('plot.crop.gainUnknown')
+        : t('plot.crop.gainDetail', {
+            gain: formatGbp(crop.gainGbp),
+            pct: formatPct(crop.gainPct),
+          }),
+    level: growthLevelFor(crop.stage),
+    max: 5,
+  };
+}
+
+/**
  * The four "abilities" are just the holding's real stats given garden names,
  * with the underlying figure spelled out so nothing here is mystery-meat.
  */
 function abilitiesFor(crop: Crop, t: TFunction) {
   return [
-    {
-      // Named "Growth", not "Yield": this is unrealised capital gain/loss,
-      // not income/dividend yield, and the two are not interchangeable.
-      // AllotMint doesn't yet surface a real dividend/income yield figure
-      // per holding (see #7009), so this trait sticks to the number it can
-      // honestly show rather than inventing a yield figure.
-      icon: '🧺',
-      name: t('plot.crop.growth'),
-      // An unknown cost basis means an unknown gain, not £0 (#8471).
-      detail:
-        crop.gainGbp === null
-          ? t('plot.crop.gainUnknown')
-          : t('plot.crop.gainDetail', {
-              gain: formatGbp(crop.gainGbp),
-              pct: formatPct(crop.gainPct),
-            }),
-      level: growthLevelFor(crop.stage),
-      max: 5,
-    },
+    harvestTraitFor(crop, t),
     {
       icon: '💚',
       name: t('plot.crop.vigour'),

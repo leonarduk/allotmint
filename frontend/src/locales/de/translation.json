@@ -108,6 +108,7 @@
     "close": "Schließen",
     "last": "Zuletzt:",
     "loading": "Laden…",
+    "stillLoading": "Wird noch geladen — der erste Ladevorgang kann bis zu einer Minute dauern.",
     "logout": "Abmelden",
     "menu": "Menü",
     "menuCategories": {
@@ -2929,6 +2930,8 @@
       "growth": "Wachstum",
       "gainUnknown": "Gewinn unbekannt – keine Anschaffungskosten erfasst",
       "gainDetail": "{{gain}} nicht realisierter Gewinn ({{pct}})",
+      "yield": "Rendite",
+      "yieldDetail": "{{pct}} % Ertragsrendite der letzten 12 Monate",
       "vigour": "Vitalität",
       "noMoveToday": "Heute keine Bewegung erfasst",
       "pctToday": "{{pct}} heute",

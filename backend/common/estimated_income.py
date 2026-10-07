@@ -78,8 +78,12 @@ def estimated_income_gbp(
     load_dividends: Optional[DividendLoader] = None,
     currency_of: Optional[CurrencyResolver] = None,
     today: Optional[date] = None,
+    since: Optional[date] = None,
 ) -> Optional[float]:
     """Estimated GBP dividends received on ``ticker`` given its unit ``changes``.
+
+    Counts ex-dates up to ``today`` (default: today), and only those after
+    ``since`` when it is given (the trailing-yield window).
 
     ``None`` when it can't be estimated: the ticker has no exchange, no
     dividend history is stored, or the quote currency can't be converted.
@@ -94,10 +98,11 @@ def estimated_income_gbp(
     if dividends is None:
         return None
     cutoff = (today or date.today()).isoformat()
+    after = since.isoformat() if since is not None else ""
     total_native = 0.0
     for ex_date, per_share in zip(pd.to_datetime(dividends.index), dividends.to_numpy()):
         day = ex_date.date().isoformat()
-        if day > cutoff or not per_share or per_share != per_share:
+        if day > cutoff or day <= after or not per_share or per_share != per_share:
             continue
         total_native += float(per_share) * _units_before(changes, day)
     if not total_native:

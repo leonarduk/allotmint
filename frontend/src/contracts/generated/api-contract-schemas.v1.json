@@ -344,6 +344,12 @@
                           "null"
                         ]
                       },
+                      "yield_pct": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
                       "current_price_gbp": {
                         "type": [
                           "number",
@@ -731,6 +737,12 @@
                         ]
                       },
                       "total_return_pct": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "yield_pct": {
                         "type": [
                           "number",
                           "null"

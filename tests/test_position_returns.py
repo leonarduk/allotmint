@@ -1,6 +1,7 @@
 """Per-position total return: capital gain plus income and realised gains (#9038)."""
 
 import json
+from datetime import date
 from unittest.mock import patch
 
 import pandas as pd
@@ -8,6 +9,7 @@ import pytest
 
 from backend.common import estimated_income, group_portfolio
 from backend.common import portfolio as owner_portfolio
+from backend.common import position_returns as position_returns_module
 from backend.common.account_models import OwnerSummaryRecord
 from backend.common.constants import ACCOUNTS, HOLDINGS
 from backend.common.portfolio import add_total_returns
@@ -201,6 +203,12 @@ def _attach(holding, txs, series):
     return holding
 
 
+class _FixedDate(date):
+    @classmethod
+    def today(cls):
+        return cls(2026, 10, 7)
+
+
 @pytest.fixture
 def gbx(monkeypatch):
     monkeypatch.setattr(estimated_income, "_default_currency", lambda symbol, exchange: "GBX")
@@ -213,6 +221,14 @@ def test_untagged_dividends_are_estimated_from_history(gbx):
     assert holding["income_gbp"] == pytest.approx(125.0 + 129.0)
     assert holding["income_estimated"] is True
     assert holding["total_return_gbp"] == pytest.approx(-600.0 + 254.0)
+
+
+def test_estimated_income_feeds_the_trailing_yield(gbx, monkeypatch):
+    monkeypatch.setattr(position_returns_module, "date", _FixedDate)
+    series = _dividends(("2025-07-03", 2.5), ("2025-11-20", 2.15))
+    holding = _attach({"ticker": "REC.L", "market_value_gbp": 2400.0, "gain_gbp": -600.0}, HL_TXS, series)
+    # Only the November ex-date is in the year to 2026-10-07: 2.15p x 6000 = £129.
+    assert holding["yield_pct"] == pytest.approx(129.0 / 2400.0 * 100.0)
 
 
 def test_units_bought_on_the_ex_date_get_no_dividend(gbx):
@@ -271,3 +287,34 @@ def test_estimate_without_fx_rate_is_unknown(monkeypatch):
         currency_of=lambda s, e: "USD",
     )
     assert result is None
+
+
+def test_trailing_income_counts_only_the_last_twelve_months():
+    returns = position_returns(TXS, as_of=date(2023, 3, 1))
+    # 2022-06-01 (£12) and 2022-09-01 (£8) fall inside the year to 2023-03-01.
+    assert returns["KO.N"].trailing_income_gbp == pytest.approx(20.0)
+    later = position_returns(TXS, as_of=date(2023, 7, 1))
+    # The June payout has dropped out of the window by July 2023.
+    assert later["KO.N"].trailing_income_gbp == pytest.approx(8.0)
+    assert later["KO.N"].income_gbp == pytest.approx(20.0)
+
+
+def test_yield_pct_is_trailing_income_over_market_value():
+    holding = {"ticker": "KO.N", "market_value_gbp": 400.0, "gain_gbp": 100.0}
+    apply_total_return(holding, position_returns(TXS, as_of=date(2023, 3, 1))["KO.N"])
+    assert holding["yield_pct"] == pytest.approx(5.0)
+
+
+def test_yield_pct_unknown_without_recent_income():
+    holding = {"ticker": "KO.N", "market_value_gbp": 400.0, "gain_gbp": 100.0}
+    # Nothing paid in the year to 2025: no known yield, not a 0% one.
+    apply_total_return(holding, position_returns(TXS, as_of=date(2025, 1, 1))["KO.N"])
+    assert holding["yield_pct"] is None
+    apply_total_return(holding, None)
+    assert holding["yield_pct"] is None
+
+
+def test_yield_pct_unknown_without_market_value():
+    holding = {"ticker": "KO.N", "market_value_gbp": None, "gain_gbp": None}
+    apply_total_return(holding, position_returns(TXS, as_of=date(2023, 3, 1))["KO.N"])
+    assert holding["yield_pct"] is None

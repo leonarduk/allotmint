@@ -16,6 +16,7 @@ import os
 import re
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Iterator
 from concurrent.futures import Executor
 from contextlib import contextmanager
@@ -826,6 +827,8 @@ def _clear_meta_lrus() -> None:
     _load_meta_timeseries_cached.cache_clear()
     _memoized_range_cached.cache_clear()
     _load_meta_parquet_cached.cache_clear()
+    with _GUARDED_META_FRAMES_LOCK:
+        _GUARDED_META_FRAMES.clear()
     for clear_fn in _EXTRA_META_CACHE_CLEARERS:
         clear_fn()
 
@@ -950,16 +953,50 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
 _MIN_CACHE_WINDOW_DAYS = 60
 
 
+# Spike-guarded copy of each warm ``_load_meta_parquet_cached`` frame, keyed by
+# path and stored with the source frame it was computed from (#8105). Bounded
+# to the warm cache's own size (least recently used evicted first) so it never
+# keeps alive frames that ``_load_meta_parquet_cached`` has already evicted.
+_GUARDED_META_FRAMES_MAX = 512
+_GUARDED_META_FRAMES: OrderedDict[str, tuple[pd.DataFrame, pd.DataFrame]] = OrderedDict()
+_GUARDED_META_FRAMES_LOCK = threading.Lock()
+
+
+def _guarded_meta_frame(existing: pd.DataFrame, path: str, ticker: str, exchange: str) -> pd.DataFrame:
+    """``existing`` minus pre-epoch rows (#10024) and spikes (#7816), once per warm-cache frame (#8105).
+
+    The guard scans the ticker's full history (it needs each row's
+    neighbours, so it can't run on the requested slice instead); running it
+    on every distinct (ticker, range) lookup was half the remaining cost of
+    the sector/region pages. The entry is reused only while ``existing`` is
+    the very object it was computed from, so anything that refreshes
+    ``_load_meta_parquet_cached`` (the #7877 mtime invalidation included)
+    recomputes it -- no separate invalidation rule to keep in step.
+    """
+    with _GUARDED_META_FRAMES_LOCK:
+        hit = _GUARDED_META_FRAMES.get(path)
+        if hit is not None and hit[0] is existing:
+            _GUARDED_META_FRAMES.move_to_end(path)
+            return hit[1]
+    guarded = drop_zero_volume_spikes(_without_pre_epoch_rows(existing), ticker=ticker, exchange=exchange)
+    with _GUARDED_META_FRAMES_LOCK:
+        _GUARDED_META_FRAMES[path] = (existing, guarded)
+        _GUARDED_META_FRAMES.move_to_end(path)
+        while len(_GUARDED_META_FRAMES) > _GUARDED_META_FRAMES_MAX:
+            _GUARDED_META_FRAMES.popitem(last=False)
+    return guarded
+
+
 def _guarded_range(
-    existing: pd.DataFrame, ticker: str, exchange: str, start_date: date, end_date: date
+    existing: pd.DataFrame, path: str, ticker: str, exchange: str, start_date: date, end_date: date
 ) -> pd.DataFrame:
     """Range of a parquet read directly (cache-only/offline), with the #7816 spike guard.
 
     The live branch gets the guard via ``load_meta_timeseries``; applying it
-    here, inside the LRU cache, keeps every path guarded exactly once and logs
-    dropped rows once per cache fill rather than on every read.
+    here keeps every path guarded exactly once and logs dropped rows once per
+    warm-cache fill rather than on every read.
     """
-    guarded = drop_zero_volume_spikes(_without_pre_epoch_rows(existing), ticker=ticker, exchange=exchange)
+    guarded = _guarded_meta_frame(existing, path, ticker, exchange)
     return _ensure_schema(apply_date_range(guarded, start_date, end_date))
 
 
@@ -979,14 +1016,15 @@ def _memoized_range_cached(
     end_date = datetime.fromisoformat(end_iso).date()
     if cache_only:
         # Same read as the offline branch below, minus its live fallback.
-        existing = _load_meta_parquet_cached(str(meta_timeseries_cache_path(ticker, exchange)))
+        cache_path = str(meta_timeseries_cache_path(ticker, exchange))
+        existing = _load_meta_parquet_cached(cache_path)
         if end_date >= _last_close_target():
             # Only a read that wants the latest close queues a refresh; a
             # purely historical window is served whatever the cache's end.
             _queue_if_stale(ticker, exchange, existing)
         if existing.empty:
             return _empty_ts()
-        return _guarded_range(existing, ticker, exchange, start_date, end_date)
+        return _guarded_range(existing, cache_path, ticker, exchange, start_date, end_date)
     span_days = (end_date - start_date).days + 1
     lookback = (date.today() - end_date).days
     days_needed = max(span_days + lookback, _MIN_CACHE_WINDOW_DAYS)
@@ -1003,7 +1041,7 @@ def _memoized_range_cached(
             # (it normalises internally for comparison but doesn't mutate the column).
             # _ensure_schema always coerces Date to datetime64[ms] via pd.to_datetime,
             # so the dtype is safe regardless of what apply_date_range returns.
-            return _guarded_range(existing, ticker, exchange, start_date, end_date)
+            return _guarded_range(existing, cache_path, ticker, exchange, start_date, end_date)
         logger.warning("Offline mode: no cached data for %s.%s", _sanitize_for_log(ticker), _sanitize_for_log(exchange))
 
         # Temporarily disable offline mode so the live loader can fetch data.

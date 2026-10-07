@@ -108,6 +108,7 @@
     "close": "Close",
     "last": "Last:",
     "loading": "Loading…",
+    "stillLoading": "Still working — the first load can take up to a minute.",
     "logout": "Logout",
     "menu": "Menu",
     "menuCategories": {
@@ -2922,6 +2923,8 @@
       "growth": "Growth",
       "gainUnknown": "Gain unknown — no cost basis on record",
       "gainDetail": "{{gain}} unrealised gain ({{pct}})",
+      "yield": "Yield",
+      "yieldDetail": "{{pct}}% trailing 12-month income yield",
       "vigour": "Vigour",
       "noMoveToday": "No move recorded today",
       "pctToday": "{{pct}} today",

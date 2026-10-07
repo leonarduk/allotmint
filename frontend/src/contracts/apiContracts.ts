@@ -75,6 +75,8 @@ export const holdingContractSchema = z.object({
   realised_gain_gbp: nullableNumber.optional(),
   total_return_gbp: nullableNumber.optional(),
   total_return_pct: nullableNumber.optional(),
+  // Trailing 12-month income over market value, %; null when none (#7019).
+  yield_pct: nullableNumber.optional(),
   current_price_gbp: nullableNumber.optional(),
   current_price_currency: nullableString.optional(),
   last_price_date: nullableString.optional(),

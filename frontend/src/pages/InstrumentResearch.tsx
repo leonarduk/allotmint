@@ -1467,9 +1467,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         className="flex-wrap md:flex-nowrap"
         style={{
           display: "flex",
-          // From md up the row is nowrap; with eight tabs it is wider than a
-          // 768px viewport, so scroll the row itself instead of the page.
-          overflowX: "auto",
           gap: "0.5rem",
           // At md+ the row is nowrap; with eight tabs it can exceed a
           // tablet-width viewport, so scroll the row rather than the page.

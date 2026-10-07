@@ -66,8 +66,10 @@ import type { Holding } from "@/types";
 describe("HoldingsTable", () => {
     beforeEach(() => {
         localStorage.clear();
-        // Most tests check column contents, so start from the full column set;
-        // the "column presets" tests below cover the Simple default (#7832).
+        // Start from Detailed: every column on, which is exactly the layout
+        // these tests were written against (before #7832 the six toggleable
+        // columns defaulted on and the other ten were always rendered). The
+        // "column presets" tests below cover the Simple default.
         localStorage.setItem(
             COLUMN_VISIBILITY_STORAGE_KEY,
             JSON.stringify(DETAILED_COLUMNS),
@@ -1599,6 +1601,43 @@ describe("HoldingsTable", () => {
           await userEvent.click(screen.getByLabelText("Relative view"));
           expect(headerTitles(container)).toHaveLength(18);
       });
+
+      it.each([
+          ["Simple", null],
+          ["Detailed", DETAILED_COLUMNS],
+          ["a custom mix", { ...DETAILED_COLUMNS, sector: false, weight_pct: false, trend: false }],
+      ])(
+          "keeps every grouped row aligned with an account column under %s",
+          async (_label, saved) => {
+              if (saved) {
+                  localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(saved));
+              } else {
+                  localStorage.removeItem(COLUMN_VISIBILITY_STORAGE_KEY);
+              }
+              const accountHoldings = holdings.map((h, index) => ({
+                  ...h,
+                  source_account: "isa",
+                  grouping: index % 2 ? "Growth" : "Income",
+              }));
+              const { container } = renderWithConfig(
+                  <HoldingsTable holdings={accountHoldings} showAccount groupingMode="group" />,
+              );
+              for (const toggle of screen.getAllByRole("button", { name: /^Toggle / })) {
+                  await userEvent.click(toggle);
+              }
+
+              const widths = Array.from(container.querySelectorAll("table tr")).map((row) =>
+                  Array.from(row.children).reduce(
+                      (sum, cell) => sum + ((cell as HTMLTableCellElement).colSpan || 1),
+                      0,
+                  ),
+              );
+              const headerWidth = container.querySelectorAll("thead tr")[1].children.length;
+              // Header rows, two group headers, holding rows and the total row.
+              expect(widths.length).toBeGreaterThan(holdings.length + 4);
+              expect(new Set(widths)).toEqual(new Set([headerWidth]));
+          },
+      );
 
       it("falls back to Simple when the saved choice is unreadable", () => {
           localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, "{not json");

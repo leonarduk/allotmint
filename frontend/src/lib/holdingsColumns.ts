@@ -51,7 +51,9 @@ export const RELATIVE_VIEW_HIDDEN: ReadonlySet<ColumnKey> = new Set([
   'total_return',
   'cost',
 ]);
-// The columns after weight %; group and total rows render a filler cell for each.
+// The columns after weight %, in body-row order; group and total rows render
+// a filler cell for each one shown. Keep in step with HoldingsTable's body row:
+// a column inserted after weight % belongs here too.
 export const TRAILING_COLUMNS: ColumnKey[] = [
   'trend',
   'ccy',

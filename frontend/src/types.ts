@@ -687,6 +687,12 @@ export interface InstrumentMetadata {
   instrument_type?: string | null;
   instrumentType?: string | null;
   isin?: string | null;
+  asset_class?: string | null;
+  industry?: string | null;
+  /** Morningstar SecId of this listing, e.g. 0P0000AATZ. */
+  morningstar_id?: string | null;
+  /** Alternate listing used as the price source (#9657). */
+  price_source?: { ticker?: string | null; exchange?: string | null } | null;
 }
 
 export interface QuoteRow {

@@ -33,7 +33,13 @@ import { formatDateISO } from "../lib/date";
 import { money, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { completeTrackedChore } from "../choreCompletion";
-import { buildInvestingComUrl, buildMorningstarUrl } from "../utils/urlUtils";
+import {
+  buildInvestingComUrl,
+  buildJustEtfUrl,
+  buildMorningstarUrl,
+} from "../utils/urlUtils";
+import { InstrumentIdentifiers } from "../components/InstrumentIdentifiers";
+import { useMorningstarId } from "../hooks/useMorningstarId";
 
 function normaliseOptional(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -74,6 +80,10 @@ function extractInstrumentType(
   }
   return undefined;
 }
+
+// Exchange-traded products justETF profiles by ISIN (ETCs such as
+// physical gold share its etf-profile page).
+const JUSTETF_INSTRUMENT_TYPES = new Set(["ETF", "ETC", "ETN"]);
 
 const DEFAULT_INSTRUMENT_TYPES = [
   "Equity",
@@ -207,6 +217,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const [newsError, setNewsError] = useState<string | null>(null);
   const [instrumentExchange, setInstrumentExchange] = useState(initialExchange);
   const [instrumentIsin, setInstrumentIsin] = useState("");
+  const [catalogueEntry, setCatalogueEntry] = useState<InstrumentMetadata | null>(null);
   type MetadataState = {
     name: string;
     sector: string;
@@ -308,6 +319,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   useEffect(() => {
     setInstrumentExchange(initialExchange);
     setInstrumentIsin("");
+    setCatalogueEntry(null);
     setIsEditingMetadata(false);
     setMetadataSaving(false);
     setMetadataStatus(null);
@@ -443,6 +455,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         );
         if (matched) {
           setInstrumentIsin(normaliseUppercase(matched.isin) ?? "");
+          setCatalogueEntry(matched);
           const name = normaliseOptional(matched.name) ?? matched.name;
           const sector = normaliseOptional(matched.sector);
           const currency = normaliseUppercase(matched.currency);
@@ -903,7 +916,16 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     metadataSaving || refreshingMetadata || confirmingRefresh || !!refreshPreview;
   const exchangeForActions = deriveExchangeForActions();
   const investingComUrl = buildInvestingComUrl(instrumentIsin, tkr);
-  const morningstarUrl = buildMorningstarUrl(instrumentIsin);
+  const morningstarId = useMorningstarId(
+    baseTicker,
+    exchangeForActions,
+    instrumentIsin,
+    catalogueEntry?.morningstar_id,
+  );
+  const morningstarUrl = buildMorningstarUrl(instrumentIsin, morningstarId, instrumentType);
+  const justEtfUrl = JUSTETF_INSTRUMENT_TYPES.has(instrumentType?.toUpperCase() ?? "")
+    ? buildJustEtfUrl(instrumentIsin)
+    : null;
 
   // Price triggers are matched against price-snapshot keys, which are full
   // TICKER.EXCHANGE symbols -- prefer the resolved exchange over whatever
@@ -1022,6 +1044,16 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             style={{ marginLeft: "1rem" }}
           >
             {t("instrumentDetail.research.viewOnMorningstar")}
+          </a>
+        )}
+        {justEtfUrl && (
+          <a
+            href={justEtfUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginLeft: "1rem" }}
+          >
+            {t("instrumentDetail.research.viewOnJustEtf")}
           </a>
         )}
         {baseTicker && instrumentExchange && (
@@ -1191,6 +1223,13 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           </div>
         )}
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <InstrumentIdentifiers
+            ticker={alertTicker || tkr}
+            exchange={exchangeForActions}
+            isin={instrumentIsin}
+            morningstarId={morningstarId}
+            entry={catalogueEntry}
+          />
           <li style={{ marginBottom: "0.5rem" }}>
             {isEditingMetadata ? (
               <label htmlFor="instrument-name" style={{ display: "block" }}>

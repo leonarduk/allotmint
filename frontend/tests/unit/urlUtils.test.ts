@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildInvestingComUrl,
+  buildJustEtfUrl,
   buildMorningstarUrl,
   decodePathSegment,
   encodePathSegment,
@@ -186,9 +187,46 @@ describe("buildMorningstarUrl", () => {
     );
   });
 
+  it("links straight to the quote page in the section for the type", () => {
+    expect(buildMorningstarUrl("IE00BL25JN58", "0p00014gy5", "ETF")).toBe(
+      "https://global.morningstar.com/en-gb/investments/etfs/0P00014GY5/quote",
+    );
+    expect(buildMorningstarUrl(null, "0P0000AATZ", "etc")).toBe(
+      "https://global.morningstar.com/en-gb/investments/etfs/0P0000AATZ/quote",
+    );
+    expect(buildMorningstarUrl(null, "0P00007WPO", "Equity")).toBe(
+      "https://global.morningstar.com/en-gb/investments/stocks/0P00007WPO/quote",
+    );
+    expect(buildMorningstarUrl(null, "0P000091Q7", "MUTUALFUND")).toBe(
+      "https://global.morningstar.com/en-gb/investments/funds/0P000091Q7/quote",
+    );
+    expect(buildMorningstarUrl(null, "0P00008ZPP", "Investment Trust")).toBe(
+      "https://global.morningstar.com/en-gb/investments/trusts/0P00008ZPP/quote",
+    );
+  });
+
+  it("falls back to search when the id is malformed", () => {
+    expect(buildMorningstarUrl("GB00BH4HKS39", "nope", "Equity")).toBe(
+      "https://global.morningstar.com/en-gb/search?query=GB00BH4HKS39",
+    );
+  });
+
   it("returns null without a valid ISIN", () => {
     expect(buildMorningstarUrl(null)).toBeNull();
     expect(buildMorningstarUrl("")).toBeNull();
     expect(buildMorningstarUrl("VOD")).toBeNull();
+  });
+});
+
+describe("buildJustEtfUrl", () => {
+  it("links to the justETF profile by ISIN", () => {
+    expect(buildJustEtfUrl(" ie00bl25jn58 ")).toBe(
+      "https://www.justetf.com/en/etf-profile.html?isin=IE00BL25JN58",
+    );
+  });
+
+  it("returns null without a valid ISIN", () => {
+    expect(buildJustEtfUrl(undefined)).toBeNull();
+    expect(buildJustEtfUrl("XDEB")).toBeNull();
   });
 });

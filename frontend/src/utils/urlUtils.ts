@@ -83,17 +83,51 @@ export function buildInvestingComUrl(
   return `https://www.investing.com/search/?q=${encodeURIComponent(query)}`;
 }
 
+const SEC_ID_PATTERN = /^[0-9A-Z]{10}$/;
+
+/** Morningstar's quote-page section for an AllotMint instrument type. */
+function morningstarSection(instrumentType: string | null | undefined): string {
+  const type = (instrumentType ?? '').trim().toUpperCase();
+  if (type === 'ETF' || type === 'ETC' || type === 'ETN') return 'etfs';
+  if (type === 'FUND' || type === 'MUTUALFUND') return 'funds';
+  if (type === 'INVESTMENT TRUST') return 'trusts';
+  return 'stocks';
+}
+
 /**
- * Build a Morningstar link for an instrument from its ISIN.
+ * Build a Morningstar link for an instrument.
  *
- * Morningstar quote pages are keyed by its own SecId (e.g. 0P0001NHCA),
- * not the ISIN, so this links to its search, which resolves an ISIN to
- * the matching listings. Returns null without a valid ISIN.
+ * Morningstar quote pages are keyed by its own SecId (e.g. 0P0000AATZ),
+ * one per listing, under a section for the kind of security. With a known
+ * SecId this links straight to the quote page; otherwise it falls back to
+ * a search by ISIN, which lists the matching listings. Returns null with
+ * neither.
  */
 export function buildMorningstarUrl(
+  isin: string | null | undefined,
+  secId?: string | null,
+  instrumentType?: string | null
+): string | null {
+  const id = secId?.trim().toUpperCase();
+  if (id && SEC_ID_PATTERN.test(id)) {
+    return `https://global.morningstar.com/en-gb/investments/${morningstarSection(instrumentType)}/${id}/quote`;
+  }
+  const value = normaliseIsin(isin);
+  if (!value) return null;
+  return `https://global.morningstar.com/en-gb/search?query=${encodeURIComponent(value)}`;
+}
+
+/**
+ * Build a justETF profile link for an ETF from its ISIN.
+ *
+ * justETF profile pages are keyed directly by ISIN, so this links straight
+ * to the fund profile. Returns null without a valid ISIN; callers decide
+ * whether the instrument is an ETF.
+ */
+export function buildJustEtfUrl(
   isin: string | null | undefined
 ): string | null {
   const value = normaliseIsin(isin);
   if (!value) return null;
-  return `https://global.morningstar.com/en-gb/search?query=${encodeURIComponent(value)}`;
+  return `https://www.justetf.com/en/etf-profile.html?isin=${encodeURIComponent(value)}`;
 }

@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.common import instrument_groups
+from backend.common import instrument_groups, morningstar
 from backend.common.instruments import (
     _ORIGINAL_FETCH_METADATA,
     _fetch_metadata_from_yahoo,
@@ -231,6 +231,37 @@ def refresh_instrument(exchange: str, ticker: str, body: dict[str, Any] | None =
         status = "preview"
 
     return {"status": status, "metadata": merged, "changes": changes}
+
+
+@router.post("/admin/{exchange}/{ticker}/morningstar-id")
+def resolve_morningstar_id(exchange: str, ticker: str) -> dict[str, Any]:
+    """Return the instrument's Morningstar SecId, looking it up and saving it if unknown.
+
+    A saved ``morningstar_id`` (resolved earlier or entered by hand) is
+    returned as-is. Otherwise the ISIN is resolved to the listing on this
+    exchange; ``morningstar_id`` is ``None`` when that is not possible.
+    """
+
+    try:
+        instrument_meta_path(ticker, exchange)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    meta = get_instrument_meta(f"{ticker}.{exchange}")
+    if not meta:
+        raise HTTPException(status_code=404, detail="Instrument not found")
+    saved = meta.get("morningstar_id")
+    if isinstance(saved, str) and saved.strip():
+        return {"status": "saved", "morningstar_id": saved.strip()}
+    isin = meta.get("isin")
+    if config.offline_mode or not isinstance(isin, str) or not isin.strip():
+        return {"status": "unresolved", "morningstar_id": None}
+    sec_id = morningstar.resolve_sec_id(isin.strip().upper(), exchange, meta.get("currency"))
+    if not sec_id:
+        return {"status": "unresolved", "morningstar_id": None}
+    updated = _load_meta_for_update(exchange, ticker)
+    updated["morningstar_id"] = sec_id
+    save_instrument_meta(ticker, exchange, updated)
+    return {"status": "resolved", "morningstar_id": sec_id}
 
 
 @router.delete("/admin/{exchange}/{ticker}")

@@ -1714,6 +1714,13 @@ export const refreshInstrumentMetadata = (
     },
   );
 
+/** Saved Morningstar SecId, looked up by ISIN and saved when not yet known. */
+export const resolveMorningstarId = (ticker: string, exchange: string) =>
+  fetchJson<{ status: string; morningstar_id: string | null }>(
+    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}/morningstar-id`,
+    { method: "POST" },
+  );
+
 export const confirmInstrumentMetadata = (
   ticker: string,
   exchange: string,

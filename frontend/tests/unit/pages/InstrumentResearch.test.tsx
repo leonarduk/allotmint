@@ -11,6 +11,7 @@ vi.mock("@/api", () => ({
   updateInstrumentMetadata: vi.fn(),
   refreshInstrumentMetadata: vi.fn(),
   confirmInstrumentMetadata: vi.fn(),
+  resolveMorningstarId: vi.fn(() => Promise.resolve({ status: "unresolved", morningstar_id: null })),
   getScreener: vi.fn(),
   getInstrumentValuation: vi.fn(() => Promise.reject(Object.assign(new Error("gated"), { status: 402 }))),
   getInstrumentDetail: vi.fn(),
@@ -41,6 +42,7 @@ const mockListInstrumentMetadata = vi.mocked(api.listInstrumentMetadata);
 const mockUpdateInstrumentMetadata = vi.mocked(api.updateInstrumentMetadata);
 const mockRefreshInstrumentMetadata = vi.mocked(api.refreshInstrumentMetadata);
 const mockConfirmInstrumentMetadata = vi.mocked(api.confirmInstrumentMetadata);
+const mockResolveMorningstarId = vi.mocked(api.resolveMorningstarId);
 const mockGetScreener = vi.mocked(api.getScreener);
 const mockGetInstrumentDetail = vi.mocked(api.getInstrumentDetail);
 const mockGetInstrumentIntraday = vi.mocked(api.getInstrumentIntraday);
@@ -869,6 +871,147 @@ describe("InstrumentResearch page", () => {
     );
     expect(investing).toHaveAttribute("target", "_blank");
     expect(investing).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("links to the justETF profile for an ETF with an ISIN", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme ETF", isin: "IE00BL25JN58", instrument_type: "ETF" },
+    ] as any);
+    renderPage();
+
+    const justEtf = await screen.findByRole("link", { name: "View on justETF" });
+    expect(justEtf).toHaveAttribute(
+      "href",
+      "https://www.justetf.com/en/etf-profile.html?isin=IE00BL25JN58",
+    );
+    expect(justEtf).toHaveAttribute("target", "_blank");
+    expect(justEtf).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("shows catalogue identifiers in the instrument info", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme ETF",
+        isin: "IE00BL25JN58",
+        asset_class: "equity",
+        region: "Global",
+        industry: null,
+        price_source: { ticker: "AAA", exchange: "MI" },
+      },
+    ] as any);
+    renderPage();
+
+    expect(await screen.findByText("ISIN: IE00BL25JN58")).toBeInTheDocument();
+    expect(screen.getByText("Exchange: L")).toBeInTheDocument();
+    expect(screen.getByText("Asset class: equity")).toBeInTheDocument();
+    expect(screen.getByText("Region: Global")).toBeInTheDocument();
+    expect(screen.getByText("Price source: AAA.MI")).toBeInTheDocument();
+    expect(screen.queryByText(/^Industry:/)).toBeNull();
+  });
+
+  it("links Morningstar straight to the saved quote page", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      {
+        ticker: "AAA",
+        name: "Acme Gold",
+        isin: "JE00B1VS3770",
+        instrumentType: "ETC",
+        morningstar_id: "0P0000AATZ",
+      },
+    ] as any);
+    mockResolveMorningstarId.mockClear();
+    renderPage();
+
+    expect(await screen.findByText("Morningstar ID: 0P0000AATZ")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View on Morningstar" })).toHaveAttribute(
+      "href",
+      "https://global.morningstar.com/en-gb/investments/etfs/0P0000AATZ/quote",
+    );
+    expect(mockResolveMorningstarId).not.toHaveBeenCalled();
+  });
+
+  it("resolves the Morningstar id when none is saved", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA.L", exchange: "L", name: "Acme", isin: "GB00BH4HKS39", instrumentType: "Equity" },
+    ] as any);
+    mockResolveMorningstarId.mockResolvedValueOnce({
+      status: "resolved",
+      morningstar_id: "0P00007WPO",
+    });
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "View on Morningstar" })).toHaveAttribute(
+        "href",
+        "https://global.morningstar.com/en-gb/investments/stocks/0P00007WPO/quote",
+      ),
+    );
+    expect(mockResolveMorningstarId).toHaveBeenCalledWith("AAA", "L");
+  });
+
+  it("keeps the Morningstar search link when the id lookup fails", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA.L", exchange: "L", name: "Acme", isin: "GB00BH4HKS39", instrumentType: "Equity" },
+    ] as any);
+    mockResolveMorningstarId.mockRejectedValueOnce(new Error("offline"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    renderPage();
+
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(screen.getByRole("link", { name: "View on Morningstar" })).toHaveAttribute(
+      "href",
+      "https://global.morningstar.com/en-gb/search?query=GB00BH4HKS39",
+    );
+    warn.mockRestore();
+  });
+
+  it("links ETN instruments to their justETF profile", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme", isin: "JE00B1VS3770", instrumentType: "ETN" },
+    ] as any);
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "View on justETF" })).toHaveAttribute(
+      "href",
+      "https://www.justetf.com/en/etf-profile.html?isin=JE00B1VS3770",
+    );
+  });
+
+  it("links ETCs to their justETF profile", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme Gold", isin: "JE00B1VS3770", instrumentType: "ETC" },
+    ] as any);
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "View on justETF" })).toHaveAttribute(
+      "href",
+      "https://www.justetf.com/en/etf-profile.html?isin=JE00B1VS3770",
+    );
+  });
+
+  it("hides the justETF link for an ETF without an ISIN", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme ETF", instrumentType: "ETF" },
+    ] as any);
+    renderPage();
+
+    expect(await screen.findByText("ISIN: —")).toBeInTheDocument();
+    await screen.findByRole("link", { name: "View on Investing.com" });
+    expect(screen.queryByRole("link", { name: "View on justETF" })).toBeNull();
+  });
+
+  it("hides the justETF link for non-ETF instruments", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA", name: "Acme Corp", isin: "GB00BH4HKS39", instrument_type: "Equity" },
+    ] as any);
+    renderPage();
+
+    expect(
+      await screen.findByRole("link", { name: "View on Morningstar" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View on justETF" })).toBeNull();
   });
 
   it("falls back to a ticker search and hides Morningstar without an ISIN", async () => {

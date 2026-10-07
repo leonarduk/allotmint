@@ -225,6 +225,18 @@ def total_return_closes(
     return values * factor, TOTAL_RETURN_BASIS
 
 
+def stored_return_basis(ticker: str, exchange: str, *, load_dividends: DividendLoader | None = None) -> str:
+    """The basis :func:`total_return_closes` would report for a ticker, without its closes (#9606).
+
+    ``"total"`` when an actions file is stored, else ``"price"``. With no
+    closes there is no first close to test a file's ``confirmed_from``
+    against, so a no-dividend file reads as total here.
+    """
+    if _dividends_for(ticker, exchange, load_dividends) is None:
+        return PRICE_RETURN_BASIS
+    return TOTAL_RETURN_BASIS
+
+
 def total_return_closes_for(
     closes: pd.Series,
     full_ticker: str,

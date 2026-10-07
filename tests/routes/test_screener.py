@@ -205,7 +205,9 @@ def test_background_tasks_scheduled(monkeypatch):
         lambda symbols, **k: [Fundamentals(ticker=symbols[0], peg_ratio=1, roe=1)],
     )
 
-    result = asyncio.run(screener.screener(bt, tickers="ABC"))
+    # The route is a plain ``def`` (#7687) so FastAPI runs it in the threadpool;
+    # call it directly. Only ``BackgroundTasks.__call__`` below is async.
+    result = screener.screener(bt, tickers="ABC")
     assert result[0]["ticker"] == "ABC"
     assert len(bt.tasks) == 1
     task = bt.tasks[0]

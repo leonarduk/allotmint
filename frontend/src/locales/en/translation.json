@@ -161,6 +161,7 @@
     "refreshing": "Refreshing…",
     "refreshingProgress": "Refreshing… ({{completed}}/{{total}})",
     "refreshingTicker": "Fetching {{ticker}}…",
+    "refreshingDetailUnavailable": "Refresh running — detailed progress unavailable.",
     "refreshPrices": "Refresh Prices",
     "relativeView": "Relative view",
     "research": "Research",

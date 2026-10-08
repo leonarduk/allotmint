@@ -21,13 +21,14 @@ are separate invocations and can land on different warm instances; when
 they do, the poll sees the idle default (``running: False``) even though a
 refresh is genuinely in progress elsewhere. This degrades to the pre-this-
 feature behaviour (a static "Refreshing..." label) rather than to anything
-incorrect or worse, since the frontend already treats "no progress data"
-as its fallback case — but it does mean the progress bar isn't guaranteed
-to appear on every refresh in that deployment topology. Making it reliable
-there needs a shared store (e.g. a DynamoDB/S3-backed progress key) or
-sticky routing between the two calls; deliberately not built here, since
-this is a best-effort status signal for a Low Value UX issue (#8015), not
-a distributed job-tracking system. Tracked as a follow-up: #8055.
+incorrect or worse, but it does mean the progress bar isn't guaranteed to
+appear on every refresh in that deployment topology. Making it reliable
+there would need a shared store (e.g. a DynamoDB/S3-backed progress key) or
+sticky routing between the two calls; deliberately not built, since this
+is a best-effort status signal for a Low Value UX issue (#8015), not a
+distributed job-tracking system. Instead (#8055) the Support page counts
+polls that return no progress and, after a few, says explicitly that the
+refresh is running but detailed progress is unavailable.
 """
 
 from __future__ import annotations

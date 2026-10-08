@@ -39,6 +39,9 @@ const EMPTY_TABS = Object.fromEntries(TAB_KEYS.map((k) => [k, false])) as Record
 const UI_KEYS = new Set(["theme", "relative_view_enabled"]);
 // Rendered by the MCP tools section, not the generic parameter list.
 const MCP_TOOLS_KEY = "mcp_tools";
+const REFRESH_PROGRESS_POLL_MS = 400;
+// ~2s of polls with no progress before saying detail is unavailable (#8055).
+const REFRESH_PROGRESS_UNAVAILABLE_AFTER_POLLS = 5;
 
 // DOM id for an MCP tool's "not configured" note: derived from the tool name
 // (stable across reorders), with characters not safe in an id replaced.
@@ -125,6 +128,7 @@ export default function Support() {
     total: number;
     currentTicker: string | null;
   } | null>(null);
+  const [refreshProgressUnavailable, setRefreshProgressUnavailable] = useState(false);
   const refreshProgressTimer = useRef<number | null>(null);
   // Guards against a poll response landing after the refresh itself has
   // already finished (interval cleared, but the in-flight fetch it kicked
@@ -322,21 +326,32 @@ export default function Support() {
     }
   }
 
-  async function handleRefreshPrices() {
-    setRefreshing(true);
-    setRefreshError(null);
-    setRefreshProgress(null);
-    refreshActive.current = true;
-
-    // Poll for incremental progress while the refresh runs, so the user sees
-    // which ticker is being fetched rather than a static "Refreshing..."
-    // label for the whole (potentially long) job. A poll failure is not
-    // fatal to the refresh itself, so it's swallowed here — the button just
-    // falls back to the plain label for that tick.
+  // Poll for incremental progress while the refresh runs, so the user sees
+  // which ticker is being fetched rather than a static "Refreshing..."
+  // label for the whole (potentially long) job. A poll failure is not
+  // fatal to the refresh itself — it just counts as a poll with no data.
+  //
+  // On multi-instance Lambda the poll can land on a different container
+  // from the one running the refresh and see that container's idle state
+  // (#8055). If no progress has arrived after several polls, say so
+  // explicitly instead of looking identical to having no progress feature.
+  function startRefreshProgressPolling() {
+    let emptyPolls = 0;
+    const markEmptyPoll = () => {
+      emptyPolls += 1;
+      if (refreshActive.current && emptyPolls >= REFRESH_PROGRESS_UNAVAILABLE_AFTER_POLLS) {
+        setRefreshProgressUnavailable(true);
+      }
+    };
     refreshProgressTimer.current = window.setInterval(() => {
       getRefreshPricesProgress()
         .then((p) => {
-          if (refreshActive.current && p.running) {
+          if (!p.running) {
+            markEmptyPoll();
+            return;
+          }
+          if (refreshActive.current) {
+            setRefreshProgressUnavailable(false);
             setRefreshProgress({
               completed: p.completed,
               total: p.total,
@@ -344,10 +359,17 @@ export default function Support() {
             });
           }
         })
-        .catch(() => {
-          /* ignore — the refresh itself is still tracked below */
-        });
-    }, 400);
+        .catch(markEmptyPoll);
+    }, REFRESH_PROGRESS_POLL_MS);
+  }
+
+  async function handleRefreshPrices() {
+    setRefreshing(true);
+    setRefreshError(null);
+    setRefreshProgress(null);
+    setRefreshProgressUnavailable(false);
+    refreshActive.current = true;
+    startRefreshProgressPolling();
 
     try {
       const resp = await refreshPrices();
@@ -366,6 +388,7 @@ export default function Support() {
         refreshProgressTimer.current = null;
       }
       setRefreshProgress(null);
+      setRefreshProgressUnavailable(false);
       setRefreshing(false);
     }
   }
@@ -655,6 +678,11 @@ export default function Support() {
                 {t("app.refreshingTicker", { ticker: refreshProgress.currentTicker })}
               </div>
             )}
+          </div>
+        )}
+        {refreshing && !refreshProgress && refreshProgressUnavailable && (
+          <div className="mt-2 text-sm text-gray-600" role="status">
+            {t("app.refreshingDetailUnavailable")}
           </div>
         )}
         {lastRefresh && (

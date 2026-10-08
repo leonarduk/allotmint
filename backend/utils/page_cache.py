@@ -143,12 +143,23 @@ def schedule_refresh(
             if initial_delay is not None and initial_delay > 0:
                 await asyncio.sleep(initial_delay)
             failures = 0
+            # A built payload whose save failed, with when it was built. Only
+            # the save is retried, so a persist error doesn't re-run an
+            # expensive build on every attempt; once the payload is a ttl old
+            # it is dropped and rebuilt rather than persisted stale.
+            unsaved: tuple[float, Any] | None = None
             while True:
-                if can_refresh is not None and not can_refresh():
+                if unsaved is not None and time.monotonic() - unsaved[0] > ttl:
+                    unsaved = None
+                if unsaved is None and can_refresh is not None and not can_refresh():
                     await asyncio.sleep(ttl)
                     continue
+                stage = "refresh" if unsaved is None else "persist"
                 try:
-                    save_cache(page_name, await _call_builder())
+                    if unsaved is None:
+                        unsaved = (time.monotonic(), await _call_builder())
+                        stage = "persist"
+                    save_cache(page_name, unsaved[1])
                 except Exception:
                     # Retry sooner than the next scheduled refresh so a
                     # transient failure doesn't leave the cache cold for a
@@ -159,13 +170,15 @@ def schedule_refresh(
                     failures += 1
                     delay = _retry_delay(ttl, failures)
                     logger.exception(
-                        "Cache refresh failed for %s (attempt %d); retrying in %.2fs",
+                        "Cache %s failed for %s (attempt %s); retrying in %ss",
+                        sanitise_log_value(stage),
                         sanitise_log_value(page_name),
-                        failures,
-                        delay,
+                        sanitise_log_value(failures),
+                        sanitise_log_value(round(delay, 2)),
                     )
                     await asyncio.sleep(delay)
                     continue
+                unsaved = None
                 failures = 0
                 await asyncio.sleep(ttl)
         except asyncio.CancelledError:  # pragma: no cover - defensive

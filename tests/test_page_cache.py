@@ -197,14 +197,16 @@ def test_schedule_refresh_initial_delay(monkeypatch, tmp_path):
     asyncio.run(run())
 
 
-def test_builder_returns_awaitable_and_save_error_backs_off(monkeypatch, tmp_path, caplog):
-    """A build returning an awaitable is awaited; a failing save backs off instead of spinning."""
+def test_save_error_retries_only_the_save_with_backoff(monkeypatch, tmp_path, caplog):
+    """A failing save backs off and re-saves the same payload without rebuilding it."""
     monkeypatch.setattr(page_cache, "_RETRY_BASE_SECONDS", 0.05)
 
     async def run():
         monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+        builds = []
 
         async def builder_async():
+            builds.append(1)
             return {"ok": True}
 
         saved = []
@@ -214,18 +216,53 @@ def test_builder_returns_awaitable_and_save_error_backs_off(monkeypatch, tmp_pat
             raise OSError("disk full")
 
         monkeypatch.setattr(page_cache, "save_cache", failing_save)
+        # A builder returning an awaitable is awaited.
         page_cache.schedule_refresh("x", 10, lambda: builder_async())
         await asyncio.sleep(0.2)
         await page_cache.cancel_refresh_tasks()
-        return saved
+        return builds, saved
 
     with caplog.at_level(logging.ERROR):
-        saved = asyncio.run(run())
+        builds, saved = asyncio.run(run())
 
-    # Retries at ~0, 0.05, 0.15s within the 0.2s window -- not thousands.
+    # Save retries at ~0, 0.05, 0.15s within the 0.2s window -- not thousands.
+    assert builds == [1]
     assert 2 <= len(saved) <= 4
     assert all(data == {"ok": True} for data in saved)
-    assert "Cache refresh failed for x (attempt 2)" in caplog.text
+    assert "Cache persist failed for x (attempt 2)" in caplog.text
+
+
+def test_unsaved_payload_is_rebuilt_once_older_than_ttl(monkeypatch, tmp_path):
+    """A payload whose save keeps failing is not persisted stale: after ttl it is rebuilt."""
+    monkeypatch.setattr(page_cache, "_RETRY_BASE_SECONDS", 0.05)
+
+    async def run():
+        monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+        builds = []
+        saves = {"n": 0}
+        original_save = page_cache.save_cache
+
+        def builder():
+            builds.append(1)
+            return {"build": len(builds)}
+
+        def save_fails_for_a_while(page_name, data):
+            saves["n"] += 1
+            if saves["n"] <= 3:
+                raise OSError("disk full")
+            return original_save(page_name, data)
+
+        monkeypatch.setattr(page_cache, "save_cache", save_fails_for_a_while)
+        page_cache.schedule_refresh("stale", 0.1, builder)
+        await _wait_for_cache("stale")
+        await page_cache.cancel_refresh_tasks()
+        return builds
+
+    builds = asyncio.run(run())
+
+    # Save attempts at ~0, 0.05, 0.15s: the third retry finds the 0.1s-ttl payload expired.
+    assert len(builds) >= 2
+    assert page_cache.load_cache("stale")["build"] >= 2
 
 
 def test_always_failing_builder_backs_off(monkeypatch, tmp_path):
@@ -250,7 +287,8 @@ def test_always_failing_builder_backs_off(monkeypatch, tmp_path):
     # Delays 0.02, 0.04, 0.08, 0.16 -> about 5 calls in 0.5s; sleep(0) made thousands.
     assert 3 <= len(calls) <= 7
     gaps = [later - earlier for earlier, later in zip(calls, calls[1:], strict=False)]
-    assert gaps[-1] > gaps[0]
+    # The third retry waits 4x base (0.08s); timer slop only lengthens sleeps.
+    assert max(gaps) >= 3 * page_cache._RETRY_BASE_SECONDS
 
 
 def test_retry_delay_doubles_and_is_capped_by_ttl():

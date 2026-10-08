@@ -184,3 +184,88 @@ def test_portfolio_value_series_uses_requested_days(monkeypatch: pytest.MonkeyPa
     series = portfolio_utils._portfolio_value_series("alice", 30)
     assert not series.empty
     assert observed_days == [30]
+
+
+def test_fx_failed_holding_appears_in_unpriced_and_seeds_basis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A holding that prices but fails FX conversion must not be silently dropped.
+
+    Regression test: previously such a holding was skipped entirely, so it
+    contributed to neither ``portfolio_price_basis_share`` nor
+    ``portfolio_unpriced_holdings`` and did not push ``portfolio_return_basis``
+    toward its known basis. It must now appear under
+    ``portfolio_unpriced_holdings`` and seed ``bases`` in
+    ``_portfolio_return_basis``.
+    """
+    from datetime import date
+
+    dates = pd.date_range("2024-01-01", periods=3, freq="D")
+
+    # Two holdings: one price-only that prices and converts fine, one
+    # total-return holding that prices but has no FX rate on any date.
+    holdings = [("AAA", "L", 1.0), ("BBB", "L", 1.0)]
+
+    def fake_window_closes(ticker, exchange, effective_days, window, *, total_return):
+        closes = pd.Series([100.0, 101.0, 102.0], index=[d.date() for d in dates])
+        if ticker == "AAA":
+            return closes, portfolio_utils.PRICE_RETURN_BASIS
+        # BBB is a total-return holding.
+        return closes, "total"
+
+    monkeypatch.setattr(portfolio_utils, "_window_closes", fake_window_closes)
+
+    def fake_closes_in_gbp(closes, ticker, exchange):
+        if ticker == "AAA":
+            return closes, "GBP", pd.Index([])
+        # BBB prices but has no usable FX rate on any date.
+        return pd.Series(dtype=float), "USD", pd.Index(closes.index)
+
+    monkeypatch.setattr(portfolio_utils, "_closes_in_gbp", fake_closes_in_gbp)
+
+    def fake_stored_return_basis(ticker, exchange, *, first_close):
+        return "total"
+
+    monkeypatch.setattr(portfolio_utils, "stored_return_basis", fake_stored_return_basis)
+
+    window = (date(2024, 1, 1), date(2024, 1, 3))
+    per_holding, _unconverted, unpriced = portfolio_utils._gbp_holding_values(
+        holdings, 365, window, total_return=True
+    )
+
+    # BBB must be surfaced as unpriced with its intended (total) basis.
+    assert any(entry["ticker"] == "BBB.L" for entry in unpriced)
+    bbb = next(entry for entry in unpriced if entry["ticker"] == "BBB.L")
+    assert bbb["return_basis"] == "total"
+
+    # And it must seed ``bases`` in ``_portfolio_return_basis``: paired with a
+    # price-only holding the label becomes "mixed", not "price".
+    basis_fields = portfolio_utils._portfolio_return_basis(per_holding, unpriced)
+    assert basis_fields["portfolio_return_basis"] == portfolio_utils.MIXED_RETURN_BASIS
+    assert any(entry["ticker"] == "BBB.L" for entry in basis_fields["portfolio_unpriced_holdings"])
+
+
+def test_fx_failed_cash_is_not_listed_as_unpriced(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cash that fails FX conversion must remain excluded from ``unpriced``."""
+    from datetime import date
+
+    dates = pd.date_range("2024-01-01", periods=3, freq="D")
+    holdings = [("CASH", "USD", 1.0)]
+
+    def fake_window_closes(ticker, exchange, effective_days, window, *, total_return):
+        closes = pd.Series([1.0, 1.0, 1.0], index=[d.date() for d in dates])
+        return closes, None
+
+    monkeypatch.setattr(portfolio_utils, "_window_closes", fake_window_closes)
+
+    def fake_closes_in_gbp(closes, ticker, exchange):
+        return pd.Series(dtype=float), "USD", pd.Index(closes.index)
+
+    monkeypatch.setattr(portfolio_utils, "_closes_in_gbp", fake_closes_in_gbp)
+
+    window = (date(2024, 1, 1), date(2024, 1, 3))
+    _per_holding, _unconverted, unpriced = portfolio_utils._gbp_holding_values(
+        holdings, 365, window, total_return=False
+    )
+
+    assert unpriced == []

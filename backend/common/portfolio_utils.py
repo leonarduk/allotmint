@@ -1925,6 +1925,13 @@ def _gbp_holding_values(
         if not missing.empty:
             unconverted.append(_report_unconverted(ticker, exchange, currency, missing, excluded=gbp_closes.empty))
         if gbp_closes.empty:
+            # Priced successfully but no date could be converted to GBP: the
+            # holding has a *known* basis (it was priced), so surface it under
+            # ``unpriced`` rather than dropping it silently -- it must still
+            # seed ``bases`` in ``_portfolio_return_basis`` (#9606). Cash is
+            # excluded, matching the no-closes path above.
+            if not _is_cash_holding(ticker, exchange):
+                unpriced.append(_unpriced_holding(ticker, exchange, window[0], total_return=total_return))
             continue
         per_holding.append((gbp_closes * units, basis))
     return per_holding, unconverted, unpriced

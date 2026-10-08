@@ -33,7 +33,8 @@ import { useInstrumentAlertCount } from "../hooks/useInstrumentAlertCount";
 import { useInstrumentNoteCount } from "../hooks/useInstrumentNoteCount";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import surfaceStyles from "../styles/surface.module.css";
-import { formatDateISO, localDateISO } from "../lib/date";
+import { formatDateISO } from "../lib/date";
+import { closeAsOf, liveQuoteAsOf } from "../lib/priceAsOf";
 import { money, normalizeDisplayCurrency, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { completeTrackedChore } from "../choreCompletion";
@@ -1054,21 +1055,28 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   };
   const liveSummary = (() => {
     if (!liveQuote || !liveDisplayPrice) return null;
-    const quoted = new Date(liveQuote.timestamp);
-    const day = localDateISO(quoted);
-    const clock = quoted.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const time = day === localDateISO() ? clock : `${day} ${clock}`;
     const change =
       liveQuote.change_pct != null
         ? ` (${liveQuote.change_pct > 0 ? "+" : ""}${percent(liveQuote.change_pct, 2)})`
         : "";
-    const parts = [
-      `${formatDisplayPrice(liveDisplayPrice.close, liveDisplayPrice.currency)}${change}`,
-      t("instrumentDetail.research.label.liveAsOf", { time }),
-    ];
-    if (liveQuote.is_stale) parts.push(t("instrumentDetail.research.label.liveDelayed"));
-    return parts.join(" · ");
+    return {
+      text: `${formatDisplayPrice(liveDisplayPrice.close, liveDisplayPrice.currency)}${change}`,
+      asOf: liveQuoteAsOf(liveQuote, t),
+    };
   })();
+  // The price shown under the heading: the live quote when there is one,
+  // otherwise the stored close -- either way labelled with what it is as of
+  // (real-time, delayed, or a close of business).
+  const headlinePrice =
+    liveSummary ??
+    (() => {
+      const asOf = closeAsOf(resolvedLatestPrice?.date, t);
+      if (!resolvedLatestPrice || !asOf) return null;
+      return {
+        text: formatDisplayPrice(resolvedLatestPrice.close, resolvedLatestPrice.currency),
+        asOf,
+      };
+    })();
   // Notes don't need a priceable key, so fall back to the URL ticker when the
   // exchange is unknown rather than hiding the tab's content.
   const notesTicker = alertTicker || tkr.toUpperCase();
@@ -1142,13 +1150,20 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           </h1>
         );
       })()}
-      {liveSummary && (
+      {headlinePrice && (
         <div
-          data-testid="research-live-price"
-          title={liveQuote?.timestamp}
+          data-testid={liveSummary ? "research-live-price" : "research-close-price"}
           style={{ marginTop: "-0.5rem", marginBottom: "1rem" }}
         >
-          <strong>{t("instrumentDetail.research.label.livePrice")}:</strong> {liveSummary}
+          <strong>{t("instrumentDetail.research.label.price")}:</strong> {headlinePrice.text}{" "}
+          <span
+            data-testid="research-price-as-of"
+            data-as-of={headlinePrice.asOf.kind}
+            title={headlinePrice.asOf.title}
+            style={{ fontSize: "0.8rem", opacity: 0.8 }}
+          >
+            · {headlinePrice.asOf.label}
+          </span>
         </div>
       )}
 
@@ -1718,7 +1733,11 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                 ? [
                     {
                       label: t("instrumentDetail.research.label.livePrice"),
-                      value: <span title={liveQuote?.timestamp}>{liveSummary}</span>,
+                      value: (
+                        <span title={liveSummary.asOf.title}>
+                          {liveSummary.text} · {liveSummary.asOf.label}
+                        </span>
+                      ),
                     },
                   ]
                 : []),

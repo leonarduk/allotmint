@@ -1245,10 +1245,23 @@ describe("HoldingsTable", () => {
             expect(await screen.findByTestId("live-price-badge")).toHaveTextContent("Delayed");
         });
 
-        it("falls back to the stored close without a quote for the ticker", async () => {
+        it("falls back to the stored close, labelled with its date, without a quote", async () => {
             render(<HoldingsTable holdings={[holding]} liveQuotes={{ "OTHER.L": quote() }} />);
             await screen.findByText("Vodafone");
             expect(screen.queryByTestId("live-price-badge")).toBeNull();
+            expect(screen.getByTestId("close-price-badge")).toHaveTextContent("Close 2024-01-01");
+        });
+
+        it("labels a closed-market live quote as that day's close", async () => {
+            render(
+                <HoldingsTable
+                    holdings={[holding]}
+                    liveQuotes={{ "VOD.L": quote({ market_state: "CLOSED", is_stale: true }) }}
+                />,
+            );
+            const badge = await screen.findByTestId("live-price-badge");
+            expect(badge).toHaveAttribute("data-as-of", "close");
+            expect(badge).toHaveTextContent(/^Close 2024-01-0[23]$/);
         });
     });
 

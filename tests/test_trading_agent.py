@@ -953,6 +953,43 @@ def test_run_drawdown_sweep_only_when_notifying(monkeypatch, notify, expected_ca
     assert len(calls) == expected_calls
 
 
+@pytest.mark.parametrize("notify", [True, False])
+def test_run_records_trades_and_alerts_only_when_notifying(monkeypatch, tmp_path, notify):
+    """Page requests (notify=False) get signals with no trade-log or alert side effects (#10361)."""
+    import pandas as pd
+
+    # Price falling from 2 to 1 over the last 7 days -> SELL momentum signal.
+    prices_df = pd.DataFrame({"Ticker": ["AAA"] * 7, "close": [2, 2, 2, 2, 2, 2, 1]})
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", lambda *a, **k: prices_df)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+    monkeypatch.setattr(trading_agent, "compliance", None)
+    monkeypatch.setattr(trading_agent, "screen", None)
+    monkeypatch.setattr(trading_agent.config.trading_agent, "require_pro_checks", False)
+    trade_path = tmp_path / "trade_log.csv"
+    monkeypatch.setattr(trading_agent, "TRADE_LOG_PATH", trade_path)
+    alerts: list[str] = []
+    monkeypatch.setattr(trading_agent, "send_trade_alert", lambda msg: alerts.append(msg))
+    metric_loads: list[int] = []
+    monkeypatch.setattr(
+        trading_agent,
+        "load_and_compute_metrics",
+        lambda: metric_loads.append(1) or {"win_rate": 0.0, "average_profit": 0.0},
+    )
+    monkeypatch.setattr(trading_agent, "_alert_on_drawdown", lambda: None)
+
+    signals = trading_agent.run(["AAA"], notify=notify)
+
+    assert [s["action"] for s in signals] == ["SELL"]
+    if notify:
+        assert len(alerts) == 1
+        assert "AAA" in trade_path.read_text()
+        assert metric_loads == [1]
+    else:
+        assert alerts == []
+        assert not trade_path.exists()
+        assert metric_loads == []
+
+
 def test_alert_on_drawdown_handles_value_error(monkeypatch):
     """Ensure ValueError in performance computation doesn't leak."""
     monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])

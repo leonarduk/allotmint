@@ -85,6 +85,10 @@ class _MemoLoader:
             cached = (lo, hi, ledger_performance.load_gbp_closes(key, lo, hi))
             self._closes[key] = cached
         closes = cached[2]
+        if closes.empty:
+            # No price history comes back as a bare ``Series(dtype=float)``
+            # with a RangeIndex, which can't be compared with a date (#10454).
+            return closes
         window = closes[(closes.index >= pd.Timestamp(start)) & (closes.index <= pd.Timestamp(end))]
         window.attrs = dict(closes.attrs)
         return window

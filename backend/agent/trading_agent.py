@@ -522,7 +522,10 @@ def run(
     Args:
         tickers: optional iterable of ticker symbols. If omitted, all
             known instruments from the current portfolios are analysed.
-        notify: When ``True`` send notifications for any generated signals.
+        notify: ``True`` for the scheduled run: send notifications for the
+            generated signals, record them in the trade log, and run the
+            drawdown sweep. Page requests pass ``False`` and get the signals
+            with no side effects.
         blocked: Optional list that collects signals compliance blocked, as
             ``{"ticker", "action", "reasons"}`` dicts, so callers can tell
             "blocked by compliance" apart from "no threshold crossed".
@@ -687,23 +690,25 @@ def run(
             "reason": sig["reason"],
             "message": message,
         }
+        # Alerting, the trade log and the drawdown sweep belong to the
+        # scheduled run only. Page requests (/opportunities,
+        # /trading-agent/signals) pass notify=False: logging their signals as
+        # trades skewed the win-rate metrics on every Movers refresh (#10361),
+        # and the drawdown sweep rebuilds every owner's performance series,
+        # which cost seconds per call and timed out the Movers page.
         if notify:
             send_trade_alert(alert["message"])
-        logger.info("Published alert: %s", sanitise_log_value(alert))
-        _log_trade(ticker, sig["action"], price)
+            logger.info("Published alert: %s", sanitise_log_value(alert))
+            _log_trade(ticker, sig["action"], price)
         allowed_signals.append(sig)
 
-    if allowed_signals:
+    if notify and allowed_signals:
         metrics = load_and_compute_metrics()
         logger.info(
             "Trade metrics - win rate: %.2f%%, average P/L: %.2f",
             metrics["win_rate"] * 100,
             metrics["average_profit"],
         )
-    # The drawdown sweep rebuilds every owner's full performance series and
-    # sends alerts, so it belongs to the scheduled run only. Page requests
-    # (/opportunities, /trading-agent/signals) pass notify=False; running it
-    # there cost seconds per call and timed out the Movers page.
     if notify:
         _alert_on_drawdown()
     return allowed_signals

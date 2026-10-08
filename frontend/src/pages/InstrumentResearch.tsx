@@ -42,6 +42,7 @@ import {
   buildJustEtfUrl,
   buildMorningstarUrl,
 } from "../utils/urlUtils";
+import { buildExternalResearchLinks } from "../utils/researchLinks";
 import { InstrumentIdentifiers } from "../components/InstrumentIdentifiers";
 import { useMorningstarId } from "../hooks/useMorningstarId";
 
@@ -1003,6 +1004,13 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const justEtfUrl = JUSTETF_INSTRUMENT_TYPES.has(instrumentType?.toUpperCase() ?? "")
     ? buildJustEtfUrl(instrumentIsin)
     : null;
+  const externalResearchLinks = buildExternalResearchLinks({
+    ticker: tkr,
+    exchange: exchangeForActions,
+    isin: instrumentIsin,
+    name: displayName,
+    instrumentType,
+  });
 
   // Price triggers are matched against price-snapshot keys, which are full
   // TICKER.EXCHANGE symbols -- prefer the resolved exchange over whatever
@@ -1144,6 +1152,17 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             {t("instrumentDetail.research.viewOnJustEtf")}
           </a>
         )}
+        {externalResearchLinks.map((link) => (
+          <a
+            key={link.id}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginLeft: "1rem" }}
+          >
+            {t(`instrumentDetail.research.externalLinks.${link.id}`)}
+          </a>
+        ))}
         {baseTicker && instrumentExchange && (
           <RefreshPricesButton
             ticker={baseTicker}

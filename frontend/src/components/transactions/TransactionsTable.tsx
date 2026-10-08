@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { formatDateISO } from "@/lib/date";
 import { transactionUnits } from "@/lib/transactionQuantity";
 import tableStyles from "@/styles/table.module.css";
@@ -183,7 +184,15 @@ export function TransactionsTable({
                   </td>
                   <td className={tableStyles.cell}>{transaction.account}</td>
                   <td className={tableStyles.cell}>
-                    {transaction.ticker || transaction.security_ref || ""}
+                    {/* security_ref is an unresolved Portfolio Performance reference,
+                        not a ticker, so only a real ticker links to research. */}
+                    {transaction.ticker ? (
+                      <Link to={`/research/${encodeURIComponent(transaction.ticker)}`}>
+                        {transaction.ticker}
+                      </Link>
+                    ) : (
+                      transaction.security_ref || ""
+                    )}
                   </td>
                   <td className={tableStyles.cell}>{transaction.instrument_name || ""}</td>
                   <td className={tableStyles.cell}>{transaction.type || transaction.kind}</td>

@@ -53,7 +53,113 @@ export type RollupRow = {
   current_price_currency: string | null;
   currency: string | null;
   instrument_type: string | null;
+  // Income and total return summed over the ticker's lots (#9038). Absent when
+  // no lot carries them (cash); null when any lot's figure is unknown, so a
+  // partial sum is never shown as the whole position's.
+  income_gbp?: number | null;
+  income_estimated?: boolean | null;
+  realised_gain_gbp?: number | null;
+  total_return_gbp?: number | null;
+  total_return_pct?: number | null;
+  yield_pct?: number | null;
 };
+
+// Running income/total-return sums for one ticker's lots. A field becomes null
+// once any lot reports it unknown; `undefined` means no lot carried it.
+type ReturnSums = {
+  income: number | null | undefined;
+  incomeEstimated: boolean;
+  realised: number | null | undefined;
+  total: number | null | undefined;
+  // Cost ever put in, recovered per lot from total / pct; null when a lot's
+  // percentage is unknown, so the combined percentage is too.
+  invested: number | null;
+  // Null when a lot has a yield but no market value to weight it by.
+  trailingIncome: number | null;
+  hasYield: boolean;
+};
+
+const addKnown = (
+  sum: number | null | undefined,
+  value: number | null | undefined,
+): number | null | undefined => {
+  if (value === undefined) return sum;
+  if (value === null || sum === null) return null;
+  return (sum ?? 0) + value;
+};
+
+// The cost behind a lot's total_return_pct (total / pct). A zero total gives
+// no ratio, and the cost of any units already sold isn't on the row, so the
+// cost is unknown and the combined percentage is withheld.
+function lotInvested(holding: Holding): number | null {
+  const total = holding.total_return_gbp;
+  const pct = holding.total_return_pct;
+  if (total == null || pct == null || pct === 0) return null;
+  return total / (pct / 100);
+}
+
+function emptyReturnSums(): ReturnSums {
+  return {
+    income: undefined,
+    incomeEstimated: false,
+    realised: undefined,
+    total: undefined,
+    invested: 0,
+    trailingIncome: 0,
+    hasYield: false,
+  };
+}
+
+function addLotReturns(sums: ReturnSums, holding: Holding): void {
+  sums.income = addKnown(sums.income, holding.income_gbp);
+  sums.incomeEstimated = sums.incomeEstimated || holding.income_estimated === true;
+  sums.realised = addKnown(sums.realised, holding.realised_gain_gbp);
+  sums.total = addKnown(sums.total, holding.total_return_gbp);
+  if (holding.total_return_gbp !== undefined) {
+    const invested = lotInvested(holding);
+    sums.invested =
+      sums.invested === null || invested === null ? null : sums.invested + invested;
+  }
+  if (holding.yield_pct != null) {
+    const market = holding.market_value_gbp;
+    sums.trailingIncome =
+      sums.trailingIncome === null || market == null
+        ? null
+        : sums.trailingIncome + (holding.yield_pct / 100) * market;
+    sums.hasYield = true;
+  }
+}
+
+type RollupReturns = Pick<
+  RollupRow,
+  | "income_gbp"
+  | "income_estimated"
+  | "realised_gain_gbp"
+  | "total_return_gbp"
+  | "total_return_pct"
+  | "yield_pct"
+>;
+
+function finishReturns(sums: ReturnSums, marketValue: number): RollupReturns {
+  // No lot carried the fields (cash): leave them absent, as on the lots.
+  if (sums.total === undefined && sums.income === undefined) return {};
+  const total = sums.total ?? null;
+  return {
+    income_gbp: sums.income ?? null,
+    income_estimated: sums.incomeEstimated,
+    realised_gain_gbp: sums.realised ?? null,
+    total_return_gbp: total,
+    total_return_pct:
+      total !== null && sums.invested !== null && sums.invested > 0
+        ? (total / sums.invested) * 100
+        : null,
+    // Trailing income over the whole position's value, not an average of yields.
+    yield_pct:
+      sums.hasYield && sums.trailingIncome !== null && marketValue > 0
+        ? (sums.trailingIncome / marketValue) * 100
+        : null,
+  };
+}
 
 export function toScopedHoldingRows(accounts: Account[]): ScopedHoldingRow[] {
   let rowIndex = 0;
@@ -85,11 +191,13 @@ type MutableRollup = Omit<
   | "gain_gbp"
   | "gain_pct"
   | "cost_basis_source"
+  | keyof RollupReturns
 > & {
   // Gain and cost summed over lots with a known cost only (#8471).
   gain_gbp: number;
   gainCost: number;
   hasKnownGain: boolean;
+  returns: ReturnSums;
   ownerSet: Set<string>;
   accountSet: Set<string>;
   oldestLot: ScopedHoldingRow;
@@ -139,6 +247,7 @@ function addHolding(
     existing.gainCost += lotGainCost;
     existing.hasKnownGain = existing.hasKnownGain || gainKnown;
     existing.lot_count += 1;
+    addLotReturns(existing.returns, holding);
     existing.ownerSet.add(holding.owner);
     existing.accountSet.add(holding.source_account);
     if (isEarlierAcquisition(holding, existing.oldestLot)) {
@@ -147,6 +256,8 @@ function addHolding(
     return;
   }
 
+  const returns = emptyReturnSums();
+  addLotReturns(returns, holding);
   grouped.set(holding.ticker, {
     ticker: holding.ticker,
     name: holding.name,
@@ -157,6 +268,7 @@ function addHolding(
     gain_gbp: lotGain,
     gainCost: lotGainCost,
     hasKnownGain: gainKnown,
+    returns,
     lot_count: 1,
     owners: [],
     accounts: [],
@@ -212,6 +324,7 @@ export function toRollupRows(
       oldestLot,
       gainCost,
       hasKnownGain,
+      returns,
       ...rollup
     } = row;
 
@@ -235,6 +348,7 @@ export function toRollupRows(
       gain_pct:
         hasKnownGain && gainCost > 0 ? (row.gain_gbp / gainCost) * 100 : null,
       cost_basis_source: hasKnownGain ? null : COST_BASIS_UNKNOWN,
+      ...finishReturns(returns, row.market_value_gbp),
       weight_pct: scopedTotal
         ? (row.market_value_gbp / scopedTotal) * 100
         : 0,

@@ -77,6 +77,7 @@ type HoldingsSortKey =
   | "sector"
   | "gain"
   | "gain_pct"
+  | "income_gbp"
   | "cost"
   | "forward_7d_change_pct"
   | "forward_30d_change_pct"
@@ -93,6 +94,7 @@ const GROUP_SORT_KEYS: Record<HoldingsSortKey, keyof RowWithCost | null> = {
   sector: "sector",
   gain: "gain_gbp",
   gain_pct: "gain_pct",
+  income_gbp: null,
   cost: "cost",
   forward_7d_change_pct: "change_7d_pct",
   forward_30d_change_pct: "change_30d_pct",
@@ -259,6 +261,16 @@ export function HoldingsTable({
       ? t("holdingsTable.fxRateMissing")
       : t("holdingsTable.fxRateFallback");
 
+  // Says whether income is estimated and gives the trailing yield (#10395).
+  const incomeTitle = (h: Holding): string | undefined => {
+    if (h.income_gbp === undefined) return undefined;
+    if (h.income_gbp === null) return t("holdingsTable.totalReturnNoTransactions");
+    const parts = [];
+    if (h.income_estimated) parts.push(t("holdingsTable.incomeEstimated"));
+    if (h.yield_pct != null) parts.push(t("holdingsTable.incomeYield", { yield: percent(h.yield_pct, 1) }));
+    return parts.join(" · ") || undefined;
+  };
+
   // Breaks the total return into its parts (#9038); cash rows carry none.
   const totalReturnTitle = (h: Holding): string | undefined => {
     if (h.total_return_gbp === undefined) return undefined;
@@ -390,6 +402,13 @@ export function HoldingsTable({
     return positions.reduce((sum, h) => sum + (h.total_return_gbp ?? 0), 0);
   }, [sortedRows]);
 
+  // Same rule for income: an unknown position withholds the total (#10395).
+  const totalIncome = useMemo(() => {
+    const positions = sortedRows.filter((h) => h.income_gbp !== undefined);
+    if (!positions.length || positions.some((h) => h.income_gbp == null)) return null;
+    return positions.reduce((sum, h) => sum + (h.income_gbp ?? 0), 0);
+  }, [sortedRows]);
+
   const categoryLookup = useMemo(
     () => buildCategoryLookup(categoryDefinitions),
     [categoryDefinitions],
@@ -457,6 +476,7 @@ export function HoldingsTable({
     ["gain", t("holdingsTable.columns.gain", { symbol: reporting.symbol })],
     ["gain_pct", t("holdingsTable.columns.gainPct")],
     ["total_return", t("holdingsTable.columns.totalReturn", { symbol: reporting.symbol })],
+    ["income", t("holdingsTable.columns.income", { symbol: reporting.symbol })],
     ["price", t("holdingsTable.columns.price", { symbol: reporting.symbol })],
     ["cost", t("holdingsTable.columns.cost", { symbol: reporting.symbol })],
     ["weight_pct", t("holdingsTable.columns.weightPct")],
@@ -657,6 +677,9 @@ export function HoldingsTable({
           </td>
         )}
         {show("total_return") && (
+          <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>—</td>
+        )}
+        {show("income") && (
           <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>—</td>
         )}
         {show("price") && (
@@ -899,6 +922,15 @@ export function HoldingsTable({
                 {t("holdingsTable.columns.totalReturn", { symbol: reporting.symbol })}
               </th>
             )}
+            {show("income") && (
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                title={t("holdingsTable.incomeHeaderTitle")}
+                onClick={() => sortBy("income_gbp")}
+              >
+                {t("holdingsTable.columns.income", { symbol: reporting.symbol })}{sortKey === "income_gbp" ? (asc ? " ▲" : " ▼") : ""}
+              </th>
+            )}
             {show("price") && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.price", { symbol: reporting.symbol })}</th>
             )}
@@ -1077,6 +1109,17 @@ export function HoldingsTable({
                       h.total_return_pct == null
                         ? reporting.format(h.total_return_gbp)
                         : `${reporting.format(h.total_return_gbp)} (${percent(h.total_return_pct, 1)})`
+                    )}
+                  </td>
+                )}
+                {show("income") && (
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`} title={incomeTitle(h)}>
+                    {h.income_gbp === undefined ? (
+                      "—"
+                    ) : h.income_gbp === null ? (
+                      <span className={tableStyles.notApplicable}>{t("holdingsTable.notApplicable")}</span>
+                    ) : (
+                      `${h.income_estimated ? "≈" : ""}${reporting.format(h.income_gbp)}`
                     )}
                   </td>
                 )}
@@ -1316,6 +1359,11 @@ export function HoldingsTable({
                 className={`${tableStyles.cell} ${tableStyles.right} font-semibold ${totalReturn === null ? "" : getPerformanceClass(totalReturn)}`}
               >
                 {totalReturn === null ? "—" : reporting.format(totalReturn)}
+              </td>
+            )}
+            {show("income") && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                {totalIncome === null ? "—" : reporting.format(totalIncome)}
               </td>
             )}
             {show("price") && (

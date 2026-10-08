@@ -509,6 +509,7 @@
       "units": "Unités",
       "weightPct": "Poids %",
       "totalReturn": "Rendement total {{symbol}}",
+      "income": "Revenus {{symbol}}",
       "account": "Compte"
     },
     "columnsLabel": "Colonnes :",
@@ -562,6 +563,9 @@
     "noPriceHistoryNotice_one": "{{count}} instrument sans historique de prix",
     "noPriceHistoryNotice_other": "{{count}} instruments sans historique de prix",
     "totalReturnHeaderTitle": "Plus-value plus dividendes, intérêts et gains déjà réalisés sur cette position",
+    "incomeHeaderTitle": "Dividendes et intérêts perçus sur cette position",
+    "incomeEstimated": "Estimé à partir de l'historique des dividendes : les revenus du courtier ne nomment pas la position",
+    "incomeYield": "Rendement sur 12 mois glissants {{yield}}",
     "totalReturnBreakdown": "Revenus perçus {{income}} · réalisé sur ventes {{realised}}",
     "totalReturnNoTransactions": "Aucune transaction enregistrée pour ce compte — revenus inconnus"
   },

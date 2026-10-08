@@ -472,4 +472,126 @@ describe("toRollupRows", () => {
 
     expect(row.sector).toBe("Financials");
   });
+
+  describe("income and total return (#9038)", () => {
+    const lot = (owner: string, account_type: string, extra: Record<string, unknown>): Account => ({
+      owner,
+      account_type,
+      currency: "GBP",
+      value_estimate_gbp: 0,
+      holdings: [
+        {
+          ticker: "IT.L",
+          name: "Income Trust",
+          units: 10,
+          cost_basis_gbp: 100,
+          market_value_gbp: 110,
+          gain_gbp: 10,
+          ...extra,
+        },
+      ],
+    });
+
+    it("sums each lot's income and total return instead of dropping them", () => {
+      const [row] = toRollupRows(
+        toScopedHoldingRows([
+          // Invested 100, total 10 + 0 + 15 = 25 (25%); yield 4% on 110.
+          lot("alice", "ISA", {
+            income_gbp: 15,
+            income_estimated: false,
+            realised_gain_gbp: 0,
+            total_return_gbp: 25,
+            total_return_pct: 25,
+            yield_pct: 4,
+          }),
+          // Invested 100 + 50 sold, total 10 + 5 + 15 = 30 (20%); no yield.
+          lot("bob", "SIPP", {
+            income_gbp: 15,
+            income_estimated: true,
+            realised_gain_gbp: 5,
+            total_return_gbp: 30,
+            total_return_pct: 20,
+            yield_pct: null,
+          }),
+        ]),
+      );
+
+      expect(row.income_gbp).toBe(30);
+      expect(row.income_estimated).toBe(true);
+      expect(row.realised_gain_gbp).toBe(5);
+      expect(row.total_return_gbp).toBe(55);
+      expect(row.total_return_pct).toBeCloseTo((55 / 250) * 100);
+      // 4.40 of trailing income over the position's 220 market value.
+      expect(row.yield_pct).toBeCloseTo(2);
+    });
+
+    it("withholds the total when any lot's figure is unknown", () => {
+      const [row] = toRollupRows(
+        toScopedHoldingRows([
+          lot("alice", "ISA", { income_gbp: 15, realised_gain_gbp: 0, total_return_gbp: 25, total_return_pct: 25 }),
+          lot("bob", "SIPP", {
+            income_gbp: null,
+            realised_gain_gbp: null,
+            total_return_gbp: null,
+            total_return_pct: null,
+          }),
+        ]),
+      );
+
+      expect(row.income_gbp).toBeNull();
+      expect(row.realised_gain_gbp).toBeNull();
+      expect(row.total_return_gbp).toBeNull();
+      expect(row.total_return_pct).toBeNull();
+      expect(row.yield_pct).toBeNull();
+    });
+
+    it("withholds the % when a lot's total return is exactly zero", () => {
+      const [row] = toRollupRows(
+        toScopedHoldingRows([
+          lot("alice", "ISA", { income_gbp: 10, realised_gain_gbp: 0, total_return_gbp: 20, total_return_pct: 20 }),
+          // 0 / 0% gives no cost, and units sold earlier would be missing from market - gain.
+          lot("bob", "SIPP", {
+            gain_gbp: -20,
+            income_gbp: 10,
+            realised_gain_gbp: 10,
+            total_return_gbp: 0,
+            total_return_pct: 0,
+          }),
+        ]),
+      );
+
+      expect(row.total_return_gbp).toBe(20);
+      expect(row.total_return_pct).toBeNull();
+    });
+
+    it("withholds only the percentage when a lot's percentage is unknown", () => {
+      const [row] = toRollupRows(
+        toScopedHoldingRows([
+          lot("alice", "ISA", { income_gbp: 15, realised_gain_gbp: 0, total_return_gbp: 25, total_return_pct: 25 }),
+          lot("bob", "SIPP", { income_gbp: 5, realised_gain_gbp: 0, total_return_gbp: 15, total_return_pct: null }),
+        ]),
+      );
+
+      expect(row.total_return_gbp).toBe(40);
+      expect(row.total_return_pct).toBeNull();
+    });
+
+    it("withholds the yield rather than guess a missing market value", () => {
+      const [row] = toRollupRows(
+        toScopedHoldingRows([
+          lot("alice", "ISA", { income_gbp: 4, total_return_gbp: 14, total_return_pct: 14, yield_pct: 4 }),
+          lot("bob", "SIPP", { market_value_gbp: null, income_gbp: 3, total_return_gbp: 3, yield_pct: 3 }),
+        ]),
+      );
+
+      expect(row.yield_pct).toBeNull();
+    });
+
+    it("leaves the fields absent when no lot carries them", () => {
+      const [row] = toRollupRows(toScopedHoldingRows(accounts));
+
+      expect(row).not.toHaveProperty("total_return_gbp");
+      expect(row).not.toHaveProperty("income_gbp");
+    });
+  });
 });

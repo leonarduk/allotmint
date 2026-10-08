@@ -509,6 +509,7 @@
       "units": "Unità",
       "weightPct": "Peso %",
       "totalReturn": "Rendimento totale {{symbol}}",
+      "income": "Proventi {{symbol}}",
       "account": "Conto"
     },
     "columnsLabel": "Colonne:",
@@ -562,6 +563,9 @@
     "noPriceHistoryNotice_one": "{{count}} strumento senza storico dei prezzi",
     "noPriceHistoryNotice_other": "{{count}} strumenti senza storico dei prezzi",
     "totalReturnHeaderTitle": "Plusvalenza più dividendi, interessi e guadagni già realizzati su questa posizione",
+    "incomeHeaderTitle": "Dividendi e interessi ricevuti su questa posizione",
+    "incomeEstimated": "Stimato dallo storico dei dividendi: i proventi del broker non indicano la posizione",
+    "incomeYield": "Rendimento degli ultimi 12 mesi {{yield}}",
     "totalReturnBreakdown": "Proventi incassati {{income}} · realizzato da vendite {{realised}}",
     "totalReturnNoTransactions": "Nessuna transazione registrata per questo conto — proventi sconosciuti"
   },

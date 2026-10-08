@@ -205,3 +205,34 @@ def test_listed_ticker_is_read_cache_only(monkeypatch):
     rr.compute_benchmark_risk_return("VWRL.L", DAYS, pricing_date=END)
 
     assert seen == [("VWRL.L", True)]
+
+
+def test_memo_loader_passes_through_an_instrument_without_prices(monkeypatch):
+    # load_gbp_closes returns a bare Series(dtype=float) (RangeIndex) when an
+    # instrument has no history; slicing that by date raised TypeError.
+    empty = pd.Series(dtype=float)
+    empty.attrs[lp.UNCONVERTED_ATTR] = {"ticker": "NOPE.L"}
+    monkeypatch.setattr(lp, "load_gbp_closes", lambda key, start, end: empty)
+
+    window = rr._MemoLoader()("NOPE.L", date(2026, 1, 1), END)
+
+    assert window.empty
+    assert window.attrs[lp.UNCONVERTED_ATTR] == {"ticker": "NOPE.L"}
+
+
+def test_group_points_survive_an_unpriced_holding(fake_data):
+    ledger = lp.AccountLedger(
+        "gia",
+        [
+            {"date": "2026-01-05", "type": "DEPOSIT", "amount_minor": 100000},
+            {"date": "2026-01-05", "type": "BUY", "ticker": "NOPE.L", "units": 10, "amount_minor": 100000},
+        ],
+        True,
+    )
+    LEDGERS["alice"].append(ledger)
+    try:
+        result = rr.compute_group_risk_return("family", DAYS, pricing_date=END)
+    finally:
+        LEDGERS["alice"].remove(ledger)
+
+    assert ("account", "alice", "gia") in [(p["kind"], p["owner"], p["account"]) for p in result["points"]]

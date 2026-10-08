@@ -121,6 +121,7 @@ def test_rebuild_keeps_an_uneven_cost_and_an_unknown_one(tmp_path):
             "holdings": [
                 {"ticker": "AAA", "units": 3, "cost_basis_gbp": 100.0},
                 {"ticker": "BBB", "units": 7, "cost_basis_gbp": 0, "value_gbp": 70.0},
+                {"ticker": "CCC", "units": 2, "value_gbp": 20.0},
             ],
         },
     )
@@ -130,6 +131,7 @@ def test_rebuild_keeps_an_uneven_cost_and_an_unknown_one(tmp_path):
     holdings = {h["ticker"]: h for h in json.loads((tmp_path / "alice" / "isa.json").read_text())["holdings"]}
     assert (holdings["AAA"]["units"], holdings["AAA"]["cost_basis_gbp"]) == (3.0, 100.0)
     assert (holdings["BBB"]["units"], holdings["BBB"]["cost_basis_gbp"], holdings["BBB"]["value_gbp"]) == (7.0, 0, 70.0)
+    assert (holdings["CCC"]["units"], holdings["CCC"]["cost_basis_gbp"]) == (2.0, 0.0)
 
 
 def _seed_cash(tmp_path, balance, **tx_doc_extra):

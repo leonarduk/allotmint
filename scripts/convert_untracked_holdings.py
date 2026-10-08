@@ -124,6 +124,9 @@ def opening_transfers(
         }
         cost = _positive(holding.get("cost_basis_gbp"))
         if cost is not None:
+            # 8 dp leaves units * price within units * 5e-9 of the cost (99.99999999
+            # for 3 units costing 100). holdings_rebuild._cost_basis rounds pool cost to 2 dp, which
+            # absorbs that drift for any holding under a million units.
             transfer["price_gbp"] = round(cost / units, 8)
         transfers.append(transfer)
     return transfers, skipped

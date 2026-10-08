@@ -37,6 +37,47 @@ def test_nav_max_age_days_is_read_from_market_data():
     assert build_config({}, check_google_auth=False).nav_max_age_days is None
 
 
+def test_nav_refresh_settings_are_read_from_market_data():
+    data: dict = {}
+    _flatten_dict(
+        {
+            "market_data": {
+                "nav_refresh_enabled": True,
+                "nav_refresh_time": "7:05",
+                "nav_refresh_request_interval_seconds": 5,
+                "nav_refresh_cache_ttl_seconds": 60,
+            }
+        },
+        data,
+    )
+
+    cfg = build_config(data, check_google_auth=False)
+    assert cfg.nav_refresh_enabled is True
+    assert cfg.nav_refresh_time == "07:05"
+    assert cfg.nav_refresh_request_interval_seconds == 5.0
+    assert cfg.nav_refresh_cache_ttl_seconds == 60
+
+
+def test_nav_refresh_defaults_off_after_close():
+    cfg = build_config({}, check_google_auth=False)
+    assert cfg.nav_refresh_enabled is False
+    assert cfg.nav_refresh_time == "18:30"
+
+
+@pytest.mark.parametrize("raw", ["25:00", "18:3", "evening", 1110])
+def test_nav_refresh_time_rejects_non_hh_mm(raw):
+    # 1110 is what YAML makes of an unquoted 18:30 (base-60).
+    with pytest.raises(ConfigValidationError, match="nav_refresh_time"):
+        build_config({"nav_refresh_time": raw}, check_google_auth=False)
+
+
+def test_config_example_nav_refresh_time_parses_as_string():
+    from pathlib import Path
+
+    example = yaml.safe_load((Path(__file__).resolve().parents[1] / "config.example.yaml").read_text(encoding="utf-8"))
+    assert example["market_data"]["nav_refresh_time"] == "18:30"
+
+
 @pytest.mark.parametrize("raw", ["[object Object]", ["pytest"], 3])
 def test_error_summary_ignores_non_mapping_values(raw, caplog):
     """A stringified JS object must not leak out of /config (#7788)."""

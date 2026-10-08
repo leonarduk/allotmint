@@ -54,6 +54,31 @@ describe("TopMoversSummary", () => {
     expect(link).toHaveAttribute("href", moversPlugin.path({ group: "all" }));
   });
 
+  it("shows the full name and instrument type on ticker and name hover", async () => {
+    mockGetOpportunities.mockResolvedValueOnce({
+      entries: [
+        {
+          ticker: "REC.L",
+          name: "Recordati Industria Chimica",
+          instrument_type: "equity",
+          change_pct: 3,
+          side: "gainers",
+        },
+      ],
+      signals: [],
+      context: { source: "group", group: "all", days: 1, anomalies: [] },
+    });
+    render(
+      <MemoryRouter>
+        <TopMoversSummary slug="tooltip" />
+      </MemoryRouter>,
+    );
+
+    const tooltip = "Recordati Industria Chimica · Equity";
+    expect(await screen.findByRole("button", { name: "REC.L" })).toHaveAttribute("title", tooltip);
+    expect(screen.getByText("Recordati Industria Chimica")).toHaveAttribute("title", tooltip);
+  });
+
   it("shares one /opportunities request between concurrent mounts (#7788)", async () => {
     render(
       <MemoryRouter>

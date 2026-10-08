@@ -10,7 +10,7 @@ import {
 import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
 import { percent } from "../lib/money";
-import { translateInstrumentType } from "../lib/instrumentType";
+import { instrumentTooltip, translateInstrumentType } from "../lib/instrumentType";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
@@ -1021,6 +1021,7 @@ export function HoldingsTable({
             const handleSelect = () => {
               onSelectInstrument?.(h.ticker, h.name ?? h.ticker, h.instrument_type);
             };
+            const tooltip = instrumentTooltip(t, h.ticker, h.name, h.instrument_type);
             const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
               event.preventDefault();
               event.stopPropagation();
@@ -1048,12 +1049,13 @@ export function HoldingsTable({
                   <button
                     type="button"
                     onClick={handleClick}
+                    title={tooltip}
                     className="link-button focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
                   >
                     {h.ticker}
                   </button>
                 </td>
-                <td className={`${tableStyles.cell} ${tableStyles.name}`}>{h.name}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.name}`} title={tooltip}>{h.name}</td>
                 {show("sector") && (
                   <td className={tableStyles.cell}>{h.sector || "—"}</td>
                 )}

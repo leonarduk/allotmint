@@ -7,7 +7,7 @@ import re
 
 from fastapi import APIRouter, HTTPException
 
-from backend.common import portfolio_utils
+from backend.common import portfolio_utils, risk_return
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
 from backend.utils.pricing_dates import PricingDateCalculator
 
@@ -15,6 +15,9 @@ router = APIRouter(tags=["performance"])
 
 _OWNER_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _BENCHMARK_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
+# Benchmark tickers on the risk/return chart may be Yahoo index symbols (^FTSE).
+_RISK_BENCHMARK_RE = re.compile(r"^\^?[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
+_MAX_RISK_RETURN_DAYS = 365 * 10
 
 
 def _validate_owner_slug(value: str, field_name: str) -> str:
@@ -262,6 +265,41 @@ def group_performance(
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
     return {"group": slug, **result}
+
+
+def _validate_risk_window(days: int) -> int:
+    if days < 30 or days > _MAX_RISK_RETURN_DAYS:
+        raise HTTPException(status_code=400, detail="days must be between 30 and 3650")
+    return days
+
+
+@router.get("/performance-group/{slug}/risk-return")
+def group_risk_return(slug: str, days: int = 365, as_of: str | None = None):
+    """Return and volatility for the group, each member and each of their accounts.
+
+    Feeds the "Returns vs Volatility" dashboard chart. Figures are rebuilt
+    from the transaction ledgers (see ``backend.common.risk_return``);
+    members without a ledger are listed in ``missing_members``.
+    """
+    slug = _validate_owner_slug(slug, "slug")
+    days = _validate_risk_window(days)
+    try:
+        return risk_return.compute_group_risk_return(slug, days, pricing_date=_resolve_as_of(as_of))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Group not found") from exc
+
+
+@router.get("/risk-return/benchmark")
+def benchmark_risk_return(ticker: str, days: int = 365, as_of: str | None = None):
+    """Return and volatility of a benchmark index or ticker over ``days``."""
+    candidate = (ticker or "").strip().upper()
+    if ".." in candidate or not _RISK_BENCHMARK_RE.fullmatch(candidate):
+        raise HTTPException(status_code=400, detail="Invalid ticker")
+    days = _validate_risk_window(days)
+    result = risk_return.compute_benchmark_risk_return(candidate, days, pricing_date=_resolve_as_of(as_of))
+    if result is None:
+        raise HTTPException(status_code=404, detail="No price history for ticker")
+    return result
 
 
 @router.get("/performance-group/{slug}/twr")

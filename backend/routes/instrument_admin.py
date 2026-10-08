@@ -140,7 +140,17 @@ def update_instrument(
     body: dict[str, Any],
     allow_foreign_isin: bool = _ALLOW_FOREIGN_ISIN,
 ) -> dict[str, str]:
-    """Update metadata for an existing instrument."""
+    """Update metadata for an existing instrument.
+
+    This is a **merge** (partial update), not a replace: the stored record is
+    loaded first and only the keys present in ``body`` are overwritten, so a
+    caller sending ``{"asset_class": "equity"}`` keeps every other field
+    (``name``, ``sector``, ...) intact. The frontend's
+    ``setInstrumentAssetClass`` relies on this — see
+    ``tests/backend/test_instrument_admin.py::test_update_instrument_merges_partial_body``
+    and ``tests/backend/routes/test_instrument_admin.py::test_update_instrument_merges_asset_class_only``,
+    which fail if this handler is ever changed to replace semantics.
+    """
 
     try:
         path = instrument_meta_path(ticker, exchange)

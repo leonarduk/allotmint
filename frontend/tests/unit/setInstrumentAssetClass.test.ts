@@ -25,6 +25,9 @@ describe('setInstrumentAssetClass (#9495)', () => {
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(`${DEFAULT_API_BASE}/instrument/admin/N/QQQ`);
     expect(init.method).toBe('PUT');
+    // The body is intentionally partial: the backend PUT is a merge, so
+    // sending only `asset_class` preserves `name`, `sector`, etc. Widening
+    // this body would introduce a read-modify-write race (see api.ts).
     expect(JSON.parse(String(init.body))).toEqual({ asset_class: 'equity' });
   });
 
@@ -46,6 +49,10 @@ describe('setInstrumentAssetClass (#9495)', () => {
     const [url, init] = mockFetch.mock.calls[1] as [string, RequestInit];
     expect(url).toBe(`${DEFAULT_API_BASE}/instrument/admin/N/QQQ`);
     expect(init.method).toBe('POST');
+    // Matches the backend `create_instrument` contract: `ticker` must equal
+    // `${ticker}.${exchange}` or the handler answers 400 "Ticker mismatch";
+    // `exchange` is sent equal to the path segment so the stored record is
+    // consistent (the backend does not validate it on POST).
     expect(JSON.parse(String(init.body))).toEqual({
       ticker: 'QQQ.N',
       exchange: 'N',

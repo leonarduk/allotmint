@@ -129,6 +129,48 @@ async def test_create_instrument_validation_and_persistence(
     assert save_calls["saved"][-1] == ("CCC", "NYSE", payload)
 
 
+async def test_update_instrument_merges_asset_class_only(
+    monkeypatch: pytest.MonkeyPatch,
+    path_states: dict[tuple[str, str], Any],
+    save_calls: dict[str, Any],
+) -> None:
+    """PUT is a merge, not a replace: `{ asset_class }` keeps `name`/`sector`.
+
+    Round-trip regression for `setInstrumentAssetClass` (#9495), which sends
+    only `{ asset_class }`. If `update_instrument` is ever changed to replace
+    the stored record, the surviving-field assertions below fail.
+    """
+    path_states[("QQQ", "N")] = True
+
+    stored: dict[str, Any] = {
+        "ticker": "QQQ.N",
+        "exchange": "N",
+        "name": "Invesco QQQ Trust",
+        "sector": "Technology",
+        "asset_class": "Stocks",
+        "currency": "USD",
+    }
+
+    def load_meta(exchange: str, ticker: str) -> dict[str, Any]:
+        assert (exchange, ticker) == ("N", "QQQ")
+        return dict(stored)
+
+    monkeypatch.setattr(instrument_admin, "_load_meta_for_update", load_meta)
+
+    response = instrument_admin.update_instrument("N", "QQQ", {"asset_class": "equity"})
+    assert response == {"status": "updated"}
+
+    saved_entry = save_calls["saved"][-1]
+    assert saved_entry[0:2] == ("QQQ", "N")
+    merged = saved_entry[2]
+    assert merged["asset_class"] == "equity"
+    assert merged["name"] == "Invesco QQQ Trust"
+    assert merged["sector"] == "Technology"
+    assert merged["currency"] == "USD"
+    assert merged["ticker"] == "QQQ.N"
+    assert merged["exchange"] == "N"
+
+
 async def test_update_instrument_errors_and_merges(
     monkeypatch: pytest.MonkeyPatch,
     path_states: dict[tuple[str, str], Any],

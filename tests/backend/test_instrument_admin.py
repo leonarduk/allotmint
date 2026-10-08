@@ -62,6 +62,99 @@ def test_update_instrument_preserves_existing_fields(monkeypatch):
     assert payload["exchange"] == "NYSE"
 
 
+def test_update_instrument_merges_partial_body(monkeypatch):
+    """PUT /instrument/admin/{exchange}/{ticker} merges, it does not replace.
+
+    Round-trip regression for the `setInstrumentAssetClass` call site: the
+    frontend sends `{ asset_class }` only, so if this handler ever switched to
+    replace semantics every other field (`name`, `sector`, ...) would be
+    silently wiped on each classification. This test fails in that case.
+    """
+    app = FastAPI()
+    app.include_router(instrument_admin.router)
+
+    stored: dict[str, Any] = {
+        "ticker": "QQQ.N",
+        "exchange": "N",
+        "name": "Invesco QQQ Trust",
+        "sector": "Technology",
+        "asset_class": "Stocks",
+        "currency": "USD",
+    }
+    saved: dict[str, Any] = {}
+
+    def fake_instrument_meta_path(ticker: str, exchange: str) -> _DummyPath:
+        assert (ticker, exchange) == ("QQQ", "N")
+        return _DummyPath()
+
+    def fake_get_instrument_meta(full_ticker: str) -> dict[str, Any]:
+        assert full_ticker == "QQQ.N"
+        return dict(stored)
+
+    def fake_save_instrument_meta(ticker: str, exchange: str, payload: dict, **_kwargs: Any) -> None:
+        saved["args"] = (ticker, exchange)
+        saved["payload"] = dict(payload)
+        # Mirror the real persistence so a follow-up GET reads the merged record.
+        stored.clear()
+        stored.update(payload)
+
+    monkeypatch.setattr(instrument_admin, "instrument_meta_path", fake_instrument_meta_path)
+    monkeypatch.setattr(instrument_admin, "get_instrument_meta", fake_get_instrument_meta)
+    monkeypatch.setattr(instrument_admin, "save_instrument_meta", fake_save_instrument_meta)
+
+    with TestClient(app) as client:
+        # Exactly what setInstrumentAssetClass sends: asset_class only.
+        put_resp = client.put("/instrument/admin/N/QQQ", json={"asset_class": "equity"})
+        assert put_resp.status_code == 200
+        assert put_resp.json() == {"status": "updated"}
+
+        # Read the record back through the same endpoint the frontend uses.
+        get_resp = client.get("/instrument/admin/N/QQQ")
+
+    assert get_resp.status_code == 200
+    record = get_resp.json()
+    assert record["asset_class"] == "equity"
+    assert record["name"] == "Invesco QQQ Trust"
+    assert record["sector"] == "Technology"
+    assert record["currency"] == "USD"
+    assert record["ticker"] == "QQQ.N"
+    assert record["exchange"] == "N"
+
+    assert saved["args"] == ("QQQ", "N")
+    assert saved["payload"]["asset_class"] == "equity"
+    assert saved["payload"]["name"] == "Invesco QQQ Trust"
+    assert saved["payload"]["sector"] == "Technology"
+
+
+def test_create_instrument_accepts_set_asset_class_fallback_payload(monkeypatch):
+    """POST accepts exactly what ``setInstrumentAssetClass`` sends on a 404.
+
+    The frontend fallback posts ``{ticker: "<ticker>.<exchange>", exchange,
+    name, asset_class}``; any other ``ticker`` is rejected with 400.
+    """
+    app = FastAPI()
+    app.include_router(instrument_admin.router)
+    saved: list[tuple[str, str, dict[str, Any]]] = []
+
+    monkeypatch.setattr(instrument_admin, "instrument_meta_path", lambda *_args: _DummyPath(exists=False))
+    monkeypatch.setattr(
+        instrument_admin,
+        "save_instrument_meta",
+        lambda ticker, exchange, payload, **_kw: saved.append((ticker, exchange, dict(payload))),
+    )
+
+    payload = {"ticker": "QQQ.N", "exchange": "N", "name": "QQQ", "asset_class": "equity"}
+    with TestClient(app) as client:
+        ok = client.post("/instrument/admin/N/QQQ", json=payload)
+        bad = client.post("/instrument/admin/N/QQQ", json={**payload, "ticker": "QQQ"})
+
+    assert ok.status_code == 200
+    assert ok.json() == {"status": "created"}
+    assert saved == [("QQQ", "N", payload)]
+    assert bad.status_code == 400
+    assert bad.json()["detail"] == "Ticker mismatch"
+
+
 def test_refresh_instrument_preview(monkeypatch):
     app = FastAPI()
     app.include_router(instrument_admin.router)

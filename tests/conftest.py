@@ -142,6 +142,12 @@ def isolate_price_triggers(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolate_instrument_notes(tmp_path, monkeypatch):
+    """Keep instrument-note storage off ``data/`` and off any faked S3 bucket."""
+    monkeypatch.setenv("INSTRUMENT_NOTES_URI", f"file://{tmp_path / 'instrument_notes.json'}")
+
+
+@pytest.fixture(autouse=True)
 def mock_google_verify(monkeypatch, request):
     """Stub Google ID token verification for tests.
 

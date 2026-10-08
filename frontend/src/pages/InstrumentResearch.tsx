@@ -28,7 +28,9 @@ import { InstrumentSearchBar } from "../components/InstrumentSearchBar";
 import { DeleteSeriesButton } from "../components/DeleteSeriesButton";
 import { RefreshPricesButton } from "../components/RefreshPricesButton";
 import InstrumentAlertsSection from "../components/InstrumentAlertsSection";
+import InstrumentNotesSection from "../components/InstrumentNotesSection";
 import { useInstrumentAlertCount } from "../hooks/useInstrumentAlertCount";
+import { useInstrumentNoteCount } from "../hooks/useInstrumentNoteCount";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import surfaceStyles from "../styles/surface.module.css";
 import { formatDateISO } from "../lib/date";
@@ -299,6 +301,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     | "fundamentals"
     | "technicals"
     | "news"
+    | "notes"
     | "alerts"
   >("overview");
   const [fundamentals, setFundamentals] = useState<ScreenerResult | null>(null);
@@ -1016,6 +1019,10 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       ? latestRawPriceEntry.close_gbp
       : null;
   const { count: alertCount, setCount: setAlertCount } = useInstrumentAlertCount(alertTicker);
+  // Notes don't need a priceable key, so fall back to the URL ticker when the
+  // exchange is unknown rather than hiding the tab's content.
+  const notesTicker = alertTicker || tkr.toUpperCase();
+  const { count: noteCount, setCount: setNoteCount } = useInstrumentNoteCount(notesTicker);
   const tabOptions: { id: typeof activeTab; label: string }[] = [
     { id: "overview", label: t("instrumentDetail.research.tabs.overview") },
     { id: "timeseries", label: t("instrumentDetail.research.tabs.timeseries") },
@@ -1024,6 +1031,12 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     { id: "fundamentals", label: t("instrumentDetail.research.tabs.fundamentals") },
     { id: "technicals", label: t("instrumentDetail.research.tabs.technicals") },
     { id: "news", label: t("instrumentDetail.research.tabs.news") },
+    {
+      id: "notes",
+      label: noteCount
+        ? `${t("instrumentNotes.title")} (${noteCount})`
+        : t("instrumentNotes.title"),
+    },
     {
       id: "alerts",
       label: alertCount
@@ -2030,6 +2043,14 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             </div>
           )}
         </>
+      )}
+
+      {activeTab === "notes" && (
+        <InstrumentNotesSection
+          ticker={notesTicker}
+          latestPrice={latestGbpClose}
+          onCountChange={setNoteCount}
+        />
       )}
 
       {activeTab === "alerts" && (

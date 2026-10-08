@@ -222,6 +222,7 @@ price. `scripts/repair_dividend_basis_timeseries.py` reports (and with
 | `ALERT_THRESHOLDS_URI` | Optional | `s3://bucket/alert-thresholds.json` | Storage backend for alert thresholds. |
 | `PUSH_SUBSCRIPTIONS_URI` | Optional | `ssm://allotmint/push-subscriptions` | Storage backend for push subscriptions. |
 | `PRICE_TRIGGERS_URI` | Optional | `s3://bucket/alerts/price_triggers.json` | Storage backend for price triggers. Defaults to `s3://$DATA_BUCKET/alerts/price_triggers.json` when `DATA_BUCKET` is set, else `data/price_triggers.json`. |
+| `INSTRUMENT_NOTES_URI` | Optional | `s3://bucket/research/instrument_notes.json` | Storage backend for research-page notes. Defaults to `s3://$DATA_BUCKET/research/instrument_notes.json` when `DATA_BUCKET` is set, else `data/instrument_notes.json`. |
 | `S3_BUCKET` / `CLOUDFRONT_DISTRIBUTION_ID` | Required by frontend AWS deploy scripts | `S3_BUCKET=app-bucket` | Frontend deployment destination and cache invalidation target. |
 | `AWS_REGION` | Common for deploy scripts | `AWS_REGION=eu-west-2` | Region used by AWS CLI/CDK/frontend deploy helpers. |
 | `CDK_PYTHON` | Optional | `CDK_PYTHON=.venv/bin/python` | Forces a specific Python interpreter for CDK workflows. |

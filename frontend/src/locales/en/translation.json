@@ -810,6 +810,26 @@
     "incomeEstimated": "Estimated from dividend history: the broker records dividends without naming the holding, so this is the per-share dividend × units held on each ex-date.",
     "ongoingCharge": "Ongoing charge: {{value}}"
   },
+  "instrumentNotes": {
+    "add": "Add note",
+    "bearish": "Bearish",
+    "bullish": "Bullish",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this note? This can't be undone.",
+    "deleteError": "Couldn't delete the note.",
+    "description": "Timestamped notes on {{ticker}} so you can look back and check your thinking. The price when you wrote each note is saved with it. Notes can't be edited once saved, only deleted.",
+    "empty": "No notes for {{ticker}} yet.",
+    "loadError": "Couldn't load notes.",
+    "neutral": "Neutral",
+    "placeholder": "What are you thinking, and why?",
+    "priceAt": "at £{{price}}",
+    "saveError": "Couldn't save the note.",
+    "signInNotice": "Sign in to keep research notes.",
+    "sinceThen": "{{change}} since",
+    "stance": "Stance",
+    "text": "Note",
+    "title": "Research notes"
+  },
   "instrumentTable": {
     "columns": {
       "ccy": "CCY",

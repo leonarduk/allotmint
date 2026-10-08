@@ -816,6 +816,26 @@
     "incomeEstimated": "Stimato dallo storico dei dividendi: il broker registra i dividendi senza indicare la posizione, quindi è il dividendo per azione × unità detenute a ogni data ex.",
     "ongoingCharge": "Spese correnti: {{value}}"
   },
+  "instrumentNotes": {
+    "add": "Aggiungi nota",
+    "bearish": "Ribassista",
+    "bullish": "Rialzista",
+    "delete": "Elimina",
+    "deleteConfirm": "Eliminare questa nota? L'operazione non può essere annullata.",
+    "deleteError": "Impossibile eliminare la nota.",
+    "description": "Note con data e ora su {{ticker}} per poter rivedere il tuo ragionamento in seguito. Il prezzo al momento di ogni nota viene salvato con essa. Le note salvate non si possono modificare, solo eliminare.",
+    "empty": "Ancora nessuna nota su {{ticker}}.",
+    "loadError": "Impossibile caricare le note.",
+    "neutral": "Neutrale",
+    "placeholder": "Cosa ne pensi, e perché?",
+    "priceAt": "a £{{price}}",
+    "saveError": "Impossibile salvare la nota.",
+    "signInNotice": "Accedi per tenere note di ricerca.",
+    "sinceThen": "{{change}} da allora",
+    "stance": "Orientamento",
+    "text": "Nota",
+    "title": "Note di ricerca"
+  },
   "instrumentTable": {
     "columns": {
       "ccy": "CCY",

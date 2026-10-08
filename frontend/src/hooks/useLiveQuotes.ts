@@ -32,8 +32,13 @@ export function useLiveQuotes(
   const [quotes, setQuotes] = useState<Record<string, LiveQuote>>({});
 
   useEffect(() => {
-    setQuotes({});
-    if (!key) return;
+    // A changed ticker list (e.g. switching owner tab) keeps the quotes it
+    // has until the immediate re-poll lands, so live totals don't snap back
+    // to stored values in between; quotes for dropped tickers are unused.
+    if (!key) {
+      setQuotes({});
+      return;
+    }
     const symbols = key.split(',');
     let controller: AbortController | null = null;
 

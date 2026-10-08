@@ -41,6 +41,31 @@ describe('useLiveQuotes', () => {
     expect(mockGetLiveQuotes.mock.calls[0][0]).toEqual(['VOD.L']);
   });
 
+  it('keeps the previous quotes while a changed ticker list re-polls', async () => {
+    let release: (v: { quotes: Record<string, LiveQuote> }) => void = () => {};
+    mockGetLiveQuotes
+      .mockResolvedValueOnce({ quotes: { 'VOD.L': quote(0.72) } })
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (release = resolve))
+      );
+
+    const { result, rerender } = renderHook(
+      ({ tickers }) => useLiveQuotes(tickers),
+      {
+        initialProps: { tickers: ['VOD.L'] },
+      }
+    );
+    await waitFor(() => expect(result.current['VOD.L']?.price).toBe(0.72));
+
+    rerender({ tickers: ['VOD.L', 'BP.L'] });
+    expect(result.current['VOD.L']?.price).toBe(0.72);
+
+    await act(async () => {
+      release({ quotes: { 'VOD.L': quote(0.73), 'BP.L': quote(4.5) } });
+    });
+    expect(result.current['BP.L']?.price).toBe(4.5);
+  });
+
   it('does nothing without tickers', () => {
     const { result } = renderHook(() => useLiveQuotes([]));
     expect(result.current).toEqual({});

@@ -173,3 +173,18 @@ def test_fetch_failure_is_isolated(monkeypatch):
     monkeypatch.setattr(live_prices.yf, "Ticker", lambda sym: sym)
 
     assert live_prices._fetch_raw("ADBE") is None
+
+
+@pytest.mark.parametrize(
+    ("currency", "scale", "expected"),
+    [
+        ("GBX", 0.01, "GBP"),  # pence factor applied: pounds
+        ("GBX", 1.0, "GBX"),  # feed already in pounds per override, label stays the unit code
+        ("GBP", 0.01, "GBP"),  # #6845: GBP metadata, pence feed, override
+        ("USD", 1.0, "USD"),
+    ],
+)
+def test_native_currency_label(monkeypatch, currency, scale, expected):
+    monkeypatch.setattr(cache, "get_instrument_meta", lambda *_a, **_k: {"currency": currency})
+
+    assert live_prices._native_currency("ABC", "L", scale) == expected

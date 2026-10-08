@@ -102,9 +102,13 @@ def clear_quote_cache() -> None:
 
 
 def _native_currency(ticker: str, exchange: str, scale: float) -> str:
-    """The currency of ``raw * scale``: GBP once a pence factor has been applied."""
+    """The currency of ``raw * scale``: GBP once the pence factor has been applied.
+
+    Same test as :func:`holding_utils.gbp_close_from_frame`'s
+    ``pence_scaled_in_dataframe``, so the label agrees with the stored close.
+    """
     norm = CurrencyNormaliser.from_raw(instrument_currency(ticker, exchange))
-    if scale == 0.01 and norm.canonical in ("GBP", "GBX"):
+    if norm.is_pence and scale == norm.pence_factor:
         return "GBP"
     return norm.canonical
 

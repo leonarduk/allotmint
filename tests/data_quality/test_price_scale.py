@@ -163,9 +163,10 @@ def test_single_day_move_suspect_threshold_boundary(monkeypatch):
     assert _of_type(_run(monkeypatch, [100.0, 150.0], {}), IssueType.SINGLE_DAY_MOVE_SUSPECT) == []
     assert len(_of_type(_run(monkeypatch, [100.0, 150.1], {}), IssueType.SINGLE_DAY_MOVE_SUSPECT)) == 1
     # A per-instrument threshold loosens the check for a volatile name.
-    assert _of_type(
-        _run(monkeypatch, [100.0, 150.1], {"large_move_threshold": 0.8}), IssueType.SINGLE_DAY_MOVE_SUSPECT
-    ) == []
+    assert (
+        _of_type(_run(monkeypatch, [100.0, 150.1], {"large_move_threshold": 0.8}), IssueType.SINGLE_DAY_MOVE_SUSPECT)
+        == []
+    )
 
 
 def test_single_day_move_suspect_excludes_recorded_splits(monkeypatch):

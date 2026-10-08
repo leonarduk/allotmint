@@ -29,12 +29,15 @@ import { useFetch } from '../hooks/useFetch';
 import {
   PRESET_BENCHMARKS,
   addBenchmark,
+  averageLine,
   buildBenchmarkSeries,
   buildPortfolioSeries,
   normaliseTicker,
   parseStoredBenchmarks,
   plottable,
   removeBenchmark,
+  sideOfAverage,
+  type AverageLine,
   type Benchmark,
   type ChartSeries,
 } from '../lib/riskReturn';
@@ -49,6 +52,7 @@ const WINDOWS = [
 
 const BENCHMARKS_KEY = 'riskReturn.benchmarks';
 const HIDDEN_KEY = 'riskReturn.hidden';
+const SHOW_AVERAGE_KEY = 'riskReturn.showAverage';
 
 function readStorage(key: string): string | null {
   try {
@@ -122,7 +126,7 @@ function formatPct(value: number | null): string {
 }
 
 interface TooltipEntry {
-  payload?: { label: string; x: number; y: number };
+  payload?: { label: string; x: number; y: number; isAverage?: boolean };
 }
 
 function PointTooltip({
@@ -130,14 +134,22 @@ function PointTooltip({
   payload,
   returnLabel,
   volatilityLabel,
+  average,
+  sideLabels,
 }: {
   active?: boolean;
   payload?: TooltipEntry[];
   returnLabel: string;
   volatilityLabel: string;
+  average: AverageLine | null;
+  sideLabels: Record<'above' | 'below' | 'on', string>;
 }) {
   const point = active ? payload?.[0]?.payload : undefined;
   if (!point) return null;
+  const side =
+    average && !point.isAverage
+      ? sideOfAverage(average, point.x, point.y)
+      : null;
   return (
     <div
       style={{
@@ -157,6 +169,7 @@ function PointTooltip({
       <div>
         {volatilityLabel}: {formatPct(point.x)}
       </div>
+      {side && <div>{sideLabels[side]}</div>}
     </div>
   );
 }
@@ -219,6 +232,9 @@ export default function RiskReturn() {
     parseStoredBenchmarks(readStorage(BENCHMARKS_KEY))
   );
   const [hidden, setHidden] = useState<Set<string>>(readHidden);
+  const [showAverage, setShowAverage] = useState<boolean>(
+    () => readStorage(SHOW_AVERAGE_KEY) !== 'false'
+  );
   const [tickerInput, setTickerInput] = useState('');
   const [tickerError, setTickerError] = useState<string | null>(null);
 
@@ -234,6 +250,10 @@ export default function RiskReturn() {
   useEffect(
     () => writeStorage(BENCHMARKS_KEY, JSON.stringify(benchmarks)),
     [benchmarks]
+  );
+  useEffect(
+    () => writeStorage(SHOW_AVERAGE_KEY, String(showAverage)),
+    [showAverage]
   );
   useEffect(
     () => writeStorage(HIDDEN_KEY, JSON.stringify([...hidden])),
@@ -266,6 +286,13 @@ export default function RiskReturn() {
   );
   const visible = [...portfolioSeries, ...benchmarkSeries].filter(
     (s) => !hidden.has(s.id) && plottable(s)
+  );
+  // Averaged over what is on the chart, so ticking series in or out
+  // changes what "average" means (e.g. only accounts, or with indices).
+  const average = showAverage ? averageLine(visible) : null;
+  const averageEndX = Math.max(
+    0,
+    ...visible.map((s) => s.volatilityPct as number)
   );
 
   const toggle = (id: string) =>
@@ -348,6 +375,14 @@ export default function RiskReturn() {
             ))}
           </select>
         </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={showAverage}
+            onChange={(e) => setShowAverage(e.target.checked)}
+          />{' '}
+          {t('riskReturn.showAverage')}
+        </label>
       </div>
 
       {points.error && (
@@ -391,12 +426,29 @@ export default function RiskReturn() {
             />
             <ZAxis type="number" dataKey="z" range={[260, 260]} />
             <ReferenceLine y={0} stroke="currentColor" strokeDasharray="4 4" />
+            {average && (
+              <ReferenceLine
+                segment={[
+                  { x: 0, y: 0 },
+                  { x: averageEndX, y: average.slope * averageEndX },
+                ]}
+                stroke="var(--surface-muted-color)"
+                strokeWidth={1.5}
+                ifOverflow="extendDomain"
+              />
+            )}
             <Tooltip
               cursor={{ strokeDasharray: '3 3' }}
               content={
                 <PointTooltip
                   returnLabel={returnLabel}
                   volatilityLabel={volatilityLabel}
+                  average={average}
+                  sideLabels={{
+                    above: t('riskReturn.aboveAverage'),
+                    below: t('riskReturn.belowAverage'),
+                    on: t('riskReturn.onAverage'),
+                  }}
                 />
               }
             />
@@ -412,6 +464,23 @@ export default function RiskReturn() {
                 isAnimationActive={false}
               />
             ))}
+            {average && (
+              <Scatter
+                name={t('riskReturn.average')}
+                data={[
+                  {
+                    x: average.volatilityPct,
+                    y: average.returnPct,
+                    label: t('riskReturn.average'),
+                    z: 1,
+                    isAverage: true,
+                  },
+                ]}
+                fill="var(--surface-muted-color)"
+                shape="cross"
+                isAnimationActive={false}
+              />
+            )}
           </ScatterChart>
         </ResponsiveContainer>
       </div>

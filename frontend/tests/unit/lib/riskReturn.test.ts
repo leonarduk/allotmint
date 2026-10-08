@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_BENCHMARKS,
   addBenchmark,
+  averageLine,
   buildBenchmarkSeries,
   buildPortfolioSeries,
   normaliseTicker,
   parseStoredBenchmarks,
   plottable,
   removeBenchmark,
+  sideOfAverage,
+  type ChartSeries,
 } from '@/lib/riskReturn';
 import type { GroupRiskReturn } from '@/types';
 
@@ -128,5 +131,46 @@ describe('riskReturn series', () => {
       )
     ).toEqual([{ ticker: '^IXIC', label: 'NASDAQ' }]);
     expect(parseStoredBenchmarks('[]')).toEqual([]);
+  });
+});
+
+describe('average line', () => {
+  const point = (
+    id: string,
+    volatilityPct: number | null,
+    returnPct: number | null
+  ): ChartSeries => ({
+    id,
+    label: id,
+    kind: 'account',
+    color: '#000',
+    volatilityPct,
+    returnPct,
+  });
+
+  it('runs from the origin through the mean of the plottable points', () => {
+    const line = averageLine([
+      point('a', 10, 5),
+      point('b', 20, 15),
+      point('c', null, 99),
+    ]);
+
+    expect(line).not.toBeNull();
+    expect(line!.volatilityPct).toBeCloseTo(15);
+    expect(line!.returnPct).toBeCloseTo(10);
+    expect(line!.slope).toBeCloseTo(10 / 15);
+  });
+
+  it('needs two points and a positive mean volatility', () => {
+    expect(averageLine([point('a', 10, 5)])).toBeNull();
+    expect(averageLine([point('a', 0, 5), point('b', 0, 1)])).toBeNull();
+  });
+
+  it('classifies points above and below the line', () => {
+    const line = averageLine([point('a', 10, 5), point('b', 20, 15)])!;
+
+    expect(sideOfAverage(line, 10, 8)).toBe('above');
+    expect(sideOfAverage(line, 20, 5)).toBe('below');
+    expect(sideOfAverage(line, 15, 10)).toBe('on');
   });
 });

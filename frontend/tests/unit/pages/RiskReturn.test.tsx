@@ -192,3 +192,82 @@ describe('RiskReturn benchmark retry', () => {
     );
   });
 });
+
+describe('RiskReturn average line', () => {
+  it('is on by default and remembers being switched off', async () => {
+    window.localStorage.clear();
+    (getGroups as unknown as vi.Mock).mockResolvedValue([]);
+    (getOwners as unknown as vi.Mock).mockResolvedValue([]);
+    groupMock.mockResolvedValue({
+      group: 'all',
+      days: 365,
+      start: '',
+      end: '',
+      missing_members: [],
+      points: [],
+    });
+    benchmarkMock.mockReset();
+    benchmarkMock.mockRejectedValue(new Error('down'));
+    render(<RiskReturn />);
+
+    const toggle = await screen.findByRole('checkbox', {
+      name: /Show average line/,
+    });
+    expect(toggle).toBeChecked();
+
+    fireEvent.click(toggle);
+
+    expect(toggle).not.toBeChecked();
+    expect(window.localStorage.getItem('riskReturn.showAverage')).toBe('false');
+  });
+});
+
+describe('RiskReturn average line rendering', () => {
+  it('draws the line through the average of the plotted points, and removes it when switched off', async () => {
+    window.localStorage.clear();
+    (getGroups as unknown as vi.Mock).mockResolvedValue([]);
+    (getOwners as unknown as vi.Mock).mockResolvedValue([]);
+    groupMock.mockResolvedValue({
+      group: 'all',
+      days: 365,
+      start: '',
+      end: '',
+      missing_members: [],
+      points: [
+        {
+          kind: 'group',
+          owner: null,
+          account: null,
+          period_return: 0.05,
+          annualised_return: null,
+          volatility: 0.1,
+        },
+        {
+          kind: 'account',
+          owner: 'steve',
+          account: 'isa',
+          period_return: 0.15,
+          annualised_return: null,
+          volatility: 0.2,
+        },
+      ],
+    });
+    benchmarkMock.mockReset();
+    benchmarkMock.mockRejectedValue(new Error('down'));
+    const { container } = render(<RiskReturn />);
+
+    // No owner names are mocked here, so the label uses the slug.
+    await screen.findByRole('checkbox', { name: 'steve ISA' });
+    const averageLineEl = () =>
+      container.querySelector(
+        '.recharts-reference-line-line[stroke="var(--surface-muted-color)"]'
+      );
+    await waitFor(() => expect(averageLineEl()).not.toBeNull());
+
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /Show average line/ })
+    );
+
+    await waitFor(() => expect(averageLineEl()).toBeNull());
+  });
+});

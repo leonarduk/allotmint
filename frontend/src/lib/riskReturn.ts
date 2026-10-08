@@ -178,3 +178,37 @@ export function parseStoredBenchmarks(raw: string | null): Benchmark[] {
     return DEFAULT_BENCHMARKS;
   }
 }
+
+/**
+ * Line from the origin through the mean volatility and mean return of
+ * ``series`` (the plottable ones). A point above it earns more return per
+ * unit of volatility than that average; below, less. ``null`` with fewer
+ * than two points or a zero mean volatility.
+ */
+export interface AverageLine {
+  volatilityPct: number;
+  returnPct: number;
+  slope: number;
+}
+
+export function averageLine(series: ChartSeries[]): AverageLine | null {
+  const points = series.filter(plottable);
+  if (points.length < 2) return null;
+  const mean = (values: number[]) =>
+    values.reduce((sum, v) => sum + v, 0) / values.length;
+  const volatilityPct = mean(points.map((s) => s.volatilityPct as number));
+  const returnPct = mean(points.map((s) => s.returnPct as number));
+  if (!(volatilityPct > 0)) return null;
+  return { volatilityPct, returnPct, slope: returnPct / volatilityPct };
+}
+
+/** Where a (volatility, return) point sits relative to ``line``. */
+export function sideOfAverage(
+  line: AverageLine,
+  volatilityPct: number,
+  returnPct: number
+): 'above' | 'below' | 'on' {
+  const diff = returnPct - line.slope * volatilityPct;
+  if (Math.abs(diff) < 1e-9) return 'on';
+  return diff > 0 ? 'above' : 'below';
+}

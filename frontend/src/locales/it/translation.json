@@ -3657,6 +3657,11 @@
     "add": "Aggiungi",
     "addPreset": "Aggiungi un indice comune…",
     "invalidTicker": "Inserisci un ticker come ^FTSE o VWRL.L.",
-    "methodology": "I rendimenti del portafoglio sono ponderati nel tempo e ricostruiti dalle tue transazioni, quindi depositi e prelievi non contano come guadagni o perdite. La volatilità è la deviazione standard annualizzata dei rendimenti giornalieri. Gli indici (simboli ^) sono rendimenti di prezzo nella propria valuta; gli altri ticker usano prezzi in sterline. Gli altri ticker devono essere strumenti già monitorati da AllotMint."
+    "methodology": "I rendimenti del portafoglio sono ponderati nel tempo e ricostruiti dalle tue transazioni, quindi depositi e prelievi non contano come guadagni o perdite. La volatilità è la deviazione standard annualizzata dei rendimenti giornalieri. Gli indici (simboli ^) sono rendimenti di prezzo nella propria valuta; gli altri ticker usano prezzi in sterline. Gli altri ticker devono essere strumenti già monitorati da AllotMint.",
+    "average": "Media",
+    "showAverage": "Mostra linea media (per 0,0 e la media delle serie mostrate)",
+    "aboveAverage": "Sopra la linea media: più rendimento per unità di volatilità",
+    "belowAverage": "Sotto la linea media: meno rendimento per unità di volatilità",
+    "onAverage": "Sulla linea media"
   }
 }

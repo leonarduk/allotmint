@@ -192,3 +192,32 @@ describe('RiskReturn benchmark retry', () => {
     );
   });
 });
+
+describe('RiskReturn average line', () => {
+  it('is on by default and remembers being switched off', async () => {
+    window.localStorage.clear();
+    (getGroups as unknown as vi.Mock).mockResolvedValue([]);
+    (getOwners as unknown as vi.Mock).mockResolvedValue([]);
+    groupMock.mockResolvedValue({
+      group: 'all',
+      days: 365,
+      start: '',
+      end: '',
+      missing_members: [],
+      points: [],
+    });
+    benchmarkMock.mockReset();
+    benchmarkMock.mockRejectedValue(new Error('down'));
+    render(<RiskReturn />);
+
+    const toggle = await screen.findByRole('checkbox', {
+      name: /Show average line/,
+    });
+    expect(toggle).toBeChecked();
+
+    fireEvent.click(toggle);
+
+    expect(toggle).not.toBeChecked();
+    expect(window.localStorage.getItem('riskReturn.showAverage')).toBe('false');
+  });
+});

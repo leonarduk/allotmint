@@ -335,6 +335,32 @@ describe("HoldingsTable", () => {
         expect(cell.textContent).not.toMatch(/\(/);
     });
 
+    it("shows the footer total return % weighted by each position's invested cost", async () => {
+        // Invested: 10 / 1% = 1000 and 90 / 18% = 500, so 100 / 1500 = 6.7%
+        // (a plain average of the row %s would give 9.5%).
+        const rows = [
+            { ...holdings[0], total_return_gbp: 10, total_return_pct: 1 },
+            { ...holdings[1], total_return_gbp: 90, total_return_pct: 18 },
+        ];
+        renderWithConfig(<HoldingsTable holdings={rows} />);
+        await screen.findByText(rows[0].name);
+
+        const footer = screen.getByText("Total").closest("tr")!;
+        expect(within(footer).getByText("£100.00 (6.7%)")).toBeInTheDocument();
+    });
+
+    it("shows the footer total return without a % when a position's invested cost is unknown", async () => {
+        const rows = [
+            { ...holdings[0], total_return_gbp: 10, total_return_pct: 1 },
+            { ...holdings[1], total_return_gbp: 90, total_return_pct: null },
+        ];
+        renderWithConfig(<HoldingsTable holdings={rows} />);
+        await screen.findByText(rows[0].name);
+
+        const footer = screen.getByText("Total").closest("tr")!;
+        expect(within(footer).getByText("£100.00")).toBeInTheDocument();
+    });
+
     it("renders shared group totals and expands grouped holdings", async () => {
         const groupedHoldings = holdings.map((holding) => ({
             ...holding,

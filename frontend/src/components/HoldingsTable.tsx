@@ -38,7 +38,7 @@ import Sparkline from "./Sparkline";
 import { getGrowthStage } from "../utils/growthStage";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 import type { InstrumentGroupDefinition } from "../types";
-import type { RollupRow } from "../lib/rollupAdapter";
+import { lotInvested, type RollupRow } from "../lib/rollupAdapter";
 import {
   COLUMN_PRESETS,
   COLUMN_VISIBILITY_STORAGE_KEY,
@@ -403,6 +403,21 @@ export function HoldingsTable({
     if (!positions.length || positions.some((h) => h.total_return_gbp == null)) return null;
     return positions.reduce((sum, h) => sum + (h.total_return_gbp ?? 0), 0);
   }, [sortedRows]);
+
+  // Weighted like the per-row figure: total return over all the cost ever put
+  // in, recovered per row from its own total / pct. Withheld when any row's
+  // invested cost can't be recovered rather than shown over a partial base.
+  const totalReturnPct = useMemo(() => {
+    if (totalReturn === null) return null;
+    let invested = 0;
+    for (const h of sortedRows) {
+      if (h.total_return_gbp === undefined) continue;
+      const rowInvested = lotInvested(h);
+      if (rowInvested === null) return null;
+      invested += rowInvested;
+    }
+    return invested > 0 ? (totalReturn / invested) * 100 : null;
+  }, [sortedRows, totalReturn]);
 
   // Same rule for income: an unknown position withholds the total (#10395).
   const totalIncome = useMemo(() => {
@@ -1363,7 +1378,11 @@ export function HoldingsTable({
               <td
                 className={`${tableStyles.cell} ${tableStyles.right} font-semibold ${totalReturn === null ? "" : getPerformanceClass(totalReturn)}`}
               >
-                {totalReturn === null ? "—" : reporting.format(totalReturn)}
+                {totalReturn === null
+                  ? "—"
+                  : totalReturnPct === null
+                    ? reporting.format(totalReturn)
+                    : `${reporting.format(totalReturn)} (${percent(totalReturnPct, 1)})`}
               </td>
             )}
             {show("income") && (

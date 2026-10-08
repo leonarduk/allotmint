@@ -91,7 +91,7 @@ const addKnown = (
 // The cost behind a lot's total_return_pct (total / pct). A zero total gives
 // no ratio, and the cost of any units already sold isn't on the row, so the
 // cost is unknown and the combined percentage is withheld.
-function lotInvested(holding: Holding): number | null {
+export function lotInvested(holding: Pick<Holding, "total_return_gbp" | "total_return_pct">): number | null {
   const total = holding.total_return_gbp;
   const pct = holding.total_return_pct;
   if (total == null || pct == null || pct === 0) return null;

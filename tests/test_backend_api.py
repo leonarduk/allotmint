@@ -327,6 +327,34 @@ def test_prices_refresh_progress_reports_in_flight_state(client):
         refresh_progress.finish()
 
 
+def test_prices_refresh_progress_requires_auth(monkeypatch):
+    """``current_ticker`` reveals holdings, so unauthenticated polls must be rejected (#8057).
+
+    The route has no per-route auth; it relies on ``portfolio_router`` being
+    mounted with ``Depends(auth.get_current_user)`` in
+    ``backend/bootstrap/routers.py``. The shared test config disables auth, so
+    build an auth-enabled app explicitly.
+    """
+    from unittest.mock import patch
+
+    from backend.common import refresh_progress
+
+    monkeypatch.setattr(config_module.config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config_module.config, "disable_auth", False)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    refresh_progress.start(5)
+    refresh_progress.update("ABC.L", 2)
+    try:
+        with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
+            app = create_app()
+            with TestClient(app, raise_server_exceptions=False) as unauthenticated:
+                resp = unauthenticated.get("/prices/refresh/progress")
+        assert resp.status_code == 401
+        assert "ABC.L" not in resp.text
+    finally:
+        refresh_progress.finish()
+
+
 def test_prices_live_explicit_tickers(client, monkeypatch):
     import datetime as dt
 

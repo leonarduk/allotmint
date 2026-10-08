@@ -50,8 +50,9 @@ describe('setInstrumentAssetClass (#9495)', () => {
     expect(url).toBe(`${DEFAULT_API_BASE}/instrument/admin/N/QQQ`);
     expect(init.method).toBe('POST');
     // Matches the backend `create_instrument` contract: `ticker` must equal
-    // `${ticker}.${exchange}` and `exchange` must equal the path segment,
-    // otherwise the handler answers 400 "Ticker mismatch".
+    // `${ticker}.${exchange}` or the handler answers 400 "Ticker mismatch";
+    // `exchange` is sent equal to the path segment so the stored record is
+    // consistent (the backend does not validate it on POST).
     expect(JSON.parse(String(init.body))).toEqual({
       ticker: 'QQQ.N',
       exchange: 'N',

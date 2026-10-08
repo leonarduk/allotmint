@@ -16,37 +16,6 @@ import pytest
 LIB = Path(__file__).resolve().parents[2] / "scripts" / "lib" / "local-dev.ps1"
 
 
-def _resolve_pwsh() -> str | None:
-    """Return a launchable PowerShell, or None.
-
-    ``shutil.which("pwsh")`` can resolve to the Microsoft Store / AppX shim
-    under ``WindowsApps``, which ``CreateProcess`` refuses to launch from a
-    non-interactive context (``PermissionError: [WinError 5]``). Probe the
-    candidate before handing it to the tests so an unlaunchable shim degrades
-    to a skip rather than a hard failure.
-    """
-    for name in ("pwsh", "powershell"):
-        candidate = shutil.which(name)
-        if not candidate:
-            continue
-        try:
-            subprocess.run(
-                [candidate, "-NoProfile", "-NonInteractive", "-Command", "exit 0"],
-                capture_output=True,
-                timeout=30,
-                check=True,
-            )
-        except (OSError, subprocess.SubprocessError):
-            continue
-        return candidate
-    return None
-
-
-PWSH = _resolve_pwsh()
-
-pytestmark = pytest.mark.skipif(PWSH is None, reason="pwsh not installed or not launchable")
-
-
 def _find_shell() -> str | None:
     """Return a launchable PowerShell executable, or None.
 

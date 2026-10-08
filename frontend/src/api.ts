@@ -1840,8 +1840,11 @@ export const updateInstrumentMetadata = (
  *
  * The 404 fallback creates the metadata via POST; the payload's
  * `ticker: \`${ticker}.${exchange}\`` shape matches the backend's
- * `create_instrument` contract, which rejects a mismatched `ticker` with 400
- * and requires `exchange` to equal the path segment.
+ * `create_instrument` contract, which rejects any other `ticker` with 400
+ * "Ticker mismatch". `create_instrument` does not validate `exchange`, so it
+ * must be sent equal to the path segment (as here) to keep the stored record
+ * consistent. Pinned by
+ * `tests/backend/test_instrument_admin.py::test_create_instrument_accepts_set_asset_class_fallback_payload`.
  */
 export const setInstrumentAssetClass = async (
   ticker: string,

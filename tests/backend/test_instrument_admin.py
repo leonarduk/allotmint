@@ -126,6 +126,35 @@ def test_update_instrument_merges_partial_body(monkeypatch):
     assert saved["payload"]["sector"] == "Technology"
 
 
+def test_create_instrument_accepts_set_asset_class_fallback_payload(monkeypatch):
+    """POST accepts exactly what ``setInstrumentAssetClass`` sends on a 404.
+
+    The frontend fallback posts ``{ticker: "<ticker>.<exchange>", exchange,
+    name, asset_class}``; any other ``ticker`` is rejected with 400.
+    """
+    app = FastAPI()
+    app.include_router(instrument_admin.router)
+    saved: list[tuple[str, str, dict[str, Any]]] = []
+
+    monkeypatch.setattr(instrument_admin, "instrument_meta_path", lambda *_args: _DummyPath(exists=False))
+    monkeypatch.setattr(
+        instrument_admin,
+        "save_instrument_meta",
+        lambda ticker, exchange, payload, **_kw: saved.append((ticker, exchange, dict(payload))),
+    )
+
+    payload = {"ticker": "QQQ.N", "exchange": "N", "name": "QQQ", "asset_class": "equity"}
+    with TestClient(app) as client:
+        ok = client.post("/instrument/admin/N/QQQ", json=payload)
+        bad = client.post("/instrument/admin/N/QQQ", json={**payload, "ticker": "QQQ"})
+
+    assert ok.status_code == 200
+    assert ok.json() == {"status": "created"}
+    assert saved == [("QQQ", "N", payload)]
+    assert bad.status_code == 400
+    assert bad.json()["detail"] == "Ticker mismatch"
+
+
 def test_refresh_instrument_preview(monkeypatch):
     app = FastAPI()
     app.include_router(instrument_admin.router)

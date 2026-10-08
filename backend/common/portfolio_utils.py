@@ -1912,7 +1912,9 @@ def _gbp_holding_values(
     prices applies to them; the holding is listed (with those dates) in the
     second list, and left out entirely only when no date could be converted.
     The third list holds the non-cash holdings with no closes in the window
-    (see :func:`_unpriced_holding`).
+    (see :func:`_unpriced_holding`) and those that priced but could not be
+    converted on any date, the latter with the basis their closes were
+    priced on.
     """
     per_holding: list[tuple[pd.Series, str | None]] = []
     unconverted: list[dict[str, Any]] = []
@@ -1928,6 +1930,14 @@ def _gbp_holding_values(
         if not missing.empty:
             unconverted.append(_report_unconverted(ticker, exchange, currency, missing, excluded=gbp_closes.empty))
         if gbp_closes.empty:
+            # Priced successfully but no date could be converted to GBP: the
+            # holding has a *known* basis (``basis`` from the priced path), so
+            # surface it under ``unpriced`` rather than dropping it silently --
+            # it must still seed ``bases`` in ``_portfolio_return_basis``
+            # (#9606, #10338). Cash (basis ``None``) is excluded, matching the
+            # no-closes path above.
+            if basis is not None:
+                unpriced.append(_unpriced_entry(ticker, exchange, basis))
             continue
         per_holding.append((gbp_closes * units, basis))
     return per_holding, unconverted, unpriced
@@ -1943,6 +1953,11 @@ def _unpriced_holding(ticker: str, exchange: str, window_start: date, *, total_r
     ``"price"``.
     """
     basis = stored_return_basis(ticker, exchange, first_close=window_start) if total_return else PRICE_RETURN_BASIS
+    return _unpriced_entry(ticker, exchange, basis)
+
+
+def _unpriced_entry(ticker: str, exchange: str, basis: str) -> dict[str, Any]:
+    """The shape of an ``unpriced_holdings`` entry."""
     return {"ticker": f"{ticker}.{exchange}", "return_basis": basis}
 
 

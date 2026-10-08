@@ -1,7 +1,10 @@
+from datetime import date
+
 import pandas as pd
 import pytest
 
 from backend.common import instrument_api, portfolio_utils
+from backend.timeseries.total_return import MIXED_RETURN_BASIS, PRICE_RETURN_BASIS, TOTAL_RETURN_BASIS
 
 
 def _as_return_series(fake):
@@ -184,3 +187,95 @@ def test_portfolio_value_series_uses_requested_days(monkeypatch: pytest.MonkeyPa
     series = portfolio_utils._portfolio_value_series("alice", 30)
     assert not series.empty
     assert observed_days == [30]
+
+
+def _patch_fx_failure(monkeypatch: pytest.MonkeyPatch, bases: dict[str, str | None], failing: set[str]) -> None:
+    """Price each ticker on ``bases[ticker]``; tickers in ``failing`` have no FX rate on any date."""
+    index = list(pd.date_range("2024-01-01", periods=3, freq="D").date)
+
+    def fake_window_closes(ticker, exchange, effective_days, window, *, total_return):
+        return pd.Series([100.0, 101.0, 102.0], index=index), bases[ticker]
+
+    def fake_closes_in_gbp(closes, ticker, exchange):
+        if ticker in failing:
+            return pd.Series(dtype=float), "USD", pd.Index(closes.index)
+        return closes, "GBP", pd.Index([])
+
+    def fail_stored_return_basis(*_args, **_kwargs):
+        raise AssertionError("an FX-failed holding was priced; its basis must come from the priced path")
+
+    monkeypatch.setattr(portfolio_utils, "_window_closes", fake_window_closes)
+    monkeypatch.setattr(portfolio_utils, "_closes_in_gbp", fake_closes_in_gbp)
+    monkeypatch.setattr(portfolio_utils, "stored_return_basis", fail_stored_return_basis)
+
+
+_FX_WINDOW = (date(2024, 1, 1), date(2024, 1, 3))
+
+
+def test_fx_failed_holding_appears_in_unpriced_and_seeds_basis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A holding that prices but fails FX conversion must not be silently dropped (#10338).
+
+    Previously it was skipped entirely, so it contributed to neither
+    ``portfolio_price_basis_share`` nor ``portfolio_unpriced_holdings`` and did
+    not push ``portfolio_return_basis`` toward its known basis. It must now be
+    listed as unpriced with the basis its closes were priced on, and seed
+    ``bases`` in ``_portfolio_return_basis``.
+    """
+    _patch_fx_failure(monkeypatch, {"AAA": PRICE_RETURN_BASIS, "BBB": TOTAL_RETURN_BASIS}, failing={"BBB"})
+
+    per_holding, unconverted, unpriced = portfolio_utils._gbp_holding_values(
+        [("AAA", "L", 1.0), ("BBB", "L", 1.0)], 365, _FX_WINDOW, total_return=True
+    )
+
+    assert unpriced == [{"ticker": "BBB.L", "return_basis": TOTAL_RETURN_BASIS}]
+    assert [entry["ticker"] for entry in unconverted] == ["BBB.L"]
+    assert len(per_holding) == 1  # only AAA is valued; BBB is not double counted
+
+    # Paired with a price-only holding the label becomes "mixed", not "price";
+    # the share stays over the priced holdings only.
+    fields = portfolio_utils._portfolio_return_basis(per_holding, unpriced)
+    assert fields["portfolio_return_basis"] == MIXED_RETURN_BASIS
+    assert fields["portfolio_price_basis_share"] == pytest.approx(1.0)
+    assert fields["portfolio_unpriced_holdings"] == unpriced
+
+
+def test_lone_fx_failed_total_return_holding_makes_basis_total(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With no other non-cash holding, an FX-failed total-return holding labels the portfolio ``total``."""
+    _patch_fx_failure(monkeypatch, {"BBB": TOTAL_RETURN_BASIS}, failing={"BBB"})
+
+    per_holding, _unconverted, unpriced = portfolio_utils._gbp_holding_values(
+        [("BBB", "L", 1.0)], 365, _FX_WINDOW, total_return=True
+    )
+
+    fields = portfolio_utils._portfolio_return_basis(per_holding, unpriced)
+    assert per_holding == []
+    assert fields["portfolio_return_basis"] == TOTAL_RETURN_BASIS
+    assert fields["portfolio_price_basis_share"] is None
+
+
+def test_fx_failed_holding_keeps_its_priced_basis(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A price-basis FX-failed holding is listed as ``price`` even on the total-return path."""
+    _patch_fx_failure(monkeypatch, {"AAA": TOTAL_RETURN_BASIS, "BBB": PRICE_RETURN_BASIS}, failing={"BBB"})
+
+    per_holding, _unconverted, unpriced = portfolio_utils._gbp_holding_values(
+        [("AAA", "L", 1.0), ("BBB", "L", 1.0)], 365, _FX_WINDOW, total_return=True
+    )
+
+    assert unpriced == [{"ticker": "BBB.L", "return_basis": PRICE_RETURN_BASIS}]
+    fields = portfolio_utils._portfolio_return_basis(per_holding, unpriced)
+    assert fields["portfolio_return_basis"] == MIXED_RETURN_BASIS
+
+
+def test_fx_failed_cash_is_not_listed_as_unpriced(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cash that fails FX conversion is reported as unconverted but stays out of ``unpriced``."""
+    _patch_fx_failure(monkeypatch, {"CASH": None}, failing={"CASH"})
+
+    per_holding, unconverted, unpriced = portfolio_utils._gbp_holding_values(
+        [("CASH", "USD", 1.0)], 365, _FX_WINDOW, total_return=False
+    )
+
+    assert [entry["ticker"] for entry in unconverted] == ["CASH.USD"]  # the FX-failure path was taken
+    assert per_holding == []
+    assert unpriced == []

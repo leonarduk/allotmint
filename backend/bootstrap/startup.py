@@ -86,6 +86,13 @@ class AppLifecycleService:
         if isinstance(task, (asyncio.Task, asyncio.Future)):
             app.state.background_tasks.append(task)
 
+        # Daily held-trust NAV refresh (#9232); a no-op unless nav_refresh_enabled.
+        from backend.tasks.nav_refresh import start_nav_refresh_task
+
+        nav_task = start_nav_refresh_task(self.cfg)
+        if nav_task is not None:
+            app.state.background_tasks.append(nav_task)
+
     async def shutdown(self, app: FastAPI) -> None:
         tasks = list(getattr(app.state, "background_tasks", []))
         for task in tasks:

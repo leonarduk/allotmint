@@ -37,6 +37,64 @@ def test_nav_max_age_days_is_read_from_market_data():
     assert build_config({}, check_google_auth=False).nav_max_age_days is None
 
 
+def test_nav_refresh_settings_are_read_from_market_data():
+    data: dict = {}
+    _flatten_dict(
+        {
+            "market_data": {
+                "nav_refresh_enabled": True,
+                "nav_refresh_time": "7:05",
+                "nav_refresh_request_interval_seconds": 5,
+                "nav_refresh_cache_ttl_seconds": 60,
+            }
+        },
+        data,
+    )
+
+    cfg = build_config(data, check_google_auth=False)
+    assert cfg.nav_refresh_enabled is True
+    assert cfg.nav_refresh_time == "07:05"
+    assert cfg.nav_refresh_request_interval_seconds == 5.0
+    assert cfg.nav_refresh_cache_ttl_seconds == 60.0
+
+
+@pytest.mark.parametrize("raw, expected", [("00:00", "00:00"), ("23:59", "23:59"), (" 9:30 ", "09:30")])
+def test_nav_refresh_time_accepts_the_whole_day(raw, expected):
+    assert build_config({"nav_refresh_time": raw}, check_google_auth=False).nav_refresh_time == expected
+
+
+def test_nav_refresh_cache_ttl_keeps_fractions():
+    cfg = build_config({"nav_refresh_cache_ttl_seconds": 60.5}, check_google_auth=False)
+    assert cfg.nav_refresh_cache_ttl_seconds == 60.5
+
+
+def test_nav_refresh_defaults_off_after_close():
+    cfg = build_config({}, check_google_auth=False)
+    assert cfg.nav_refresh_enabled is False
+    assert cfg.nav_refresh_time == "18:30"
+
+
+@pytest.mark.parametrize("raw", ["25:00", "18:3", "evening", 1110])
+def test_nav_refresh_time_rejects_non_hh_mm(raw):
+    # 1110 is what YAML makes of an unquoted 18:30 (base-60).
+    with pytest.raises(ConfigValidationError, match="nav_refresh_time"):
+        build_config({"nav_refresh_time": raw}, check_google_auth=False)
+
+
+@pytest.mark.parametrize("key", ["nav_refresh_request_interval_seconds", "nav_refresh_cache_ttl_seconds"])
+@pytest.mark.parametrize("raw", ["abc", -1, True, float("inf"), float("nan")])
+def test_nav_refresh_numbers_must_be_non_negative(key, raw):
+    with pytest.raises(ConfigValidationError, match=key):
+        build_config({key: raw}, check_google_auth=False)
+
+
+def test_config_example_nav_refresh_time_parses_as_string():
+    from pathlib import Path
+
+    example = yaml.safe_load((Path(__file__).resolve().parents[1] / "config.example.yaml").read_text(encoding="utf-8"))
+    assert example["market_data"]["nav_refresh_time"] == "18:30"
+
+
 @pytest.mark.parametrize("raw", ["[object Object]", ["pytest"], 3])
 def test_error_summary_ignores_non_mapping_values(raw, caplog):
     """A stringified JS object must not leak out of /config (#7788)."""

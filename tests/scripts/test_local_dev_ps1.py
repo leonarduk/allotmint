@@ -45,6 +45,8 @@ def _resolve_pwsh() -> str | None:
 PWSH = _resolve_pwsh()
 
 pytestmark = pytest.mark.skipif(PWSH is None, reason="pwsh not installed or not launchable")
+
+
 def _find_shell() -> str | None:
     """Return a launchable PowerShell executable, or None.
 

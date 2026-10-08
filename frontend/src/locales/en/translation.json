@@ -729,6 +729,16 @@
       "viewOnInvesting": "View on Investing.com",
       "viewOnMorningstar": "View on Morningstar",
       "viewOnJustEtf": "View on justETF",
+      "externalLinks": {
+        "yahoo": "View on Yahoo Finance",
+        "ft": "View on FT Markets",
+        "lseShareChat": "View on LSE.co.uk share chat",
+        "investegate": "View on Investegate (RNS)",
+        "marketBeat": "View on MarketBeat",
+        "companiesHouse": "View on Companies House",
+        "finviz": "View on Finviz",
+        "edgar": "View on SEC EDGAR"
+      },
       "summary": "Summary",
       "transactions": "Transactions",
       "loadingFundamentals": "Loading fundamentals...",

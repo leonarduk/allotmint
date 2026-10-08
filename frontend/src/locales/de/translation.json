@@ -735,6 +735,16 @@
       "viewOnInvesting": "Auf Investing.com ansehen",
       "viewOnMorningstar": "Auf Morningstar ansehen",
       "viewOnJustEtf": "Auf justETF ansehen",
+      "externalLinks": {
+        "yahoo": "Auf Yahoo Finance ansehen",
+        "ft": "Auf FT Markets ansehen",
+        "lseShareChat": "Auf LSE.co.uk share chat ansehen",
+        "investegate": "Auf Investegate (RNS) ansehen",
+        "marketBeat": "Auf MarketBeat ansehen",
+        "companiesHouse": "Auf Companies House ansehen",
+        "finviz": "Auf Finviz ansehen",
+        "edgar": "Auf SEC EDGAR ansehen"
+      },
       "summary": "Zusammenfassung",
       "transactions": "Transaktionen",
       "loadingFundamentals": "Fundamentaldaten werden geladen...",

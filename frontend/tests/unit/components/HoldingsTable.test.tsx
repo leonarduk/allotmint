@@ -261,6 +261,18 @@ describe("HoldingsTable", () => {
         expect(within(footer).queryByText(/90\.00/)).toBeNull();
     });
 
+    it("shows the total return and its income breakdown on rollup rows (#10395)", async () => {
+        const rows: RollupRow[] = [
+            { ...rollupRows[0], income_gbp: 30, realised_gain_gbp: 5, total_return_gbp: 135, total_return_pct: 27 },
+        ];
+        renderWithConfig(<HoldingsTable holdings={rows} rollupMode />);
+
+        const row = (await screen.findByText(rows[0].name)).closest("tr")!;
+        const cell = within(row).getByText(/\(27\.0%\)/);
+        expect(cell.textContent).toMatch(/135\.00/);
+        expect(cell.getAttribute("title")).toMatch(/30\.00/);
+    });
+
     it("shows a total return without a % when the % is unknown (#9038)", async () => {
         const rows = [{ ...holdings[0], income_gbp: 0, realised_gain_gbp: 0, total_return_gbp: 12, total_return_pct: null }];
         renderWithConfig(<HoldingsTable holdings={rows} />);

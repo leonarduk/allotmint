@@ -74,7 +74,8 @@ type ReturnSums = {
   // Cost ever put in, recovered per lot from total / pct; null when a lot's
   // percentage is unknown, so the combined percentage is too.
   invested: number | null;
-  trailingIncome: number;
+  // Null when a lot has a yield but no market value to weight it by.
+  trailingIncome: number | null;
   hasYield: boolean;
 };
 
@@ -95,7 +96,8 @@ function lotInvested(holding: Holding): number | null {
   const pct = holding.total_return_pct;
   if (total == null || pct == null) return null;
   if (pct !== 0) return total / (pct / 100);
-  return (holding.market_value_gbp ?? 0) - (holding.gain_gbp ?? 0);
+  const { market_value_gbp: market, gain_gbp: gain } = holding;
+  return market == null || gain == null ? null : market - gain;
 }
 
 function emptyReturnSums(): ReturnSums {
@@ -121,7 +123,11 @@ function addLotReturns(sums: ReturnSums, holding: Holding): void {
       sums.invested === null || invested === null ? null : sums.invested + invested;
   }
   if (holding.yield_pct != null) {
-    sums.trailingIncome += (holding.yield_pct / 100) * (holding.market_value_gbp ?? 0);
+    const market = holding.market_value_gbp;
+    sums.trailingIncome =
+      sums.trailingIncome === null || market == null
+        ? null
+        : sums.trailingIncome + (holding.yield_pct / 100) * market;
     sums.hasYield = true;
   }
 }
@@ -151,7 +157,9 @@ function finishReturns(sums: ReturnSums, marketValue: number): RollupReturns {
         : null,
     // Trailing income over the whole position's value, not an average of yields.
     yield_pct:
-      sums.hasYield && marketValue > 0 ? (sums.trailingIncome / marketValue) * 100 : null,
+      sums.hasYield && sums.trailingIncome !== null && marketValue > 0
+        ? (sums.trailingIncome / marketValue) * 100
+        : null,
   };
 }
 

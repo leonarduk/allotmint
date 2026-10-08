@@ -576,6 +576,18 @@ describe("toRollupRows", () => {
       expect(row.total_return_pct).toBeNull();
     });
 
+    it("withholds the % and yield rather than guess a missing gain or market value", () => {
+      const [row] = toRollupRows(
+        toScopedHoldingRows([
+          lot("alice", "ISA", { gain_gbp: null, income_gbp: 0, realised_gain_gbp: 0, total_return_gbp: 0, total_return_pct: 0 }),
+          lot("bob", "SIPP", { market_value_gbp: null, total_return_gbp: 5, total_return_pct: 5, yield_pct: 3 }),
+        ]),
+      );
+
+      expect(row.total_return_pct).toBeNull();
+      expect(row.yield_pct).toBeNull();
+    });
+
     it("leaves the fields absent when no lot carries them", () => {
       const [row] = toRollupRows(toScopedHoldingRows(accounts));
 

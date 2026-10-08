@@ -471,6 +471,43 @@ def test_prices_live_defaults_to_portfolio_universe(client, monkeypatch):
     assert prices["STUB.L"]["is_stale"] is True
 
 
+def test_prices_live_quotes(client, monkeypatch):
+    import datetime as dt
+
+    seen: list[list[str]] = []
+
+    def _fake_quotes(full_tickers):
+        seen.append(full_tickers)
+        return {
+            "ADBE.N": {
+                "price": 410.0,
+                "price_gbp": 328.0,
+                "currency": "USD",
+                "previous_close": 400.0,
+                "change_pct": 2.5,
+                "timestamp": dt.datetime(2026, 10, 8, 14, 30, tzinfo=dt.UTC),
+                "market_state": "REGULAR",
+                "is_stale": False,
+            }
+        }
+
+    monkeypatch.setattr("backend.common.live_prices.load_live_quotes", _fake_quotes)
+
+    resp = client.get("/prices/live/quotes", params={"tickers": "adbe.n, NODATA.L,ADBE.N"})
+    assert resp.status_code == 200
+    assert seen == [["ADBE.N", "NODATA.L"]]
+    quotes = resp.json()["quotes"]
+    assert list(quotes) == ["ADBE.N"]
+    assert quotes["ADBE.N"]["price_gbp"] == 328.0
+    assert quotes["ADBE.N"]["timestamp"] == "2026-10-08T14:30:00Z"
+
+
+def test_prices_live_quotes_rejects_oversized_batch(client):
+    tickers = ",".join(f"T{i}.L" for i in range(101))
+    resp = client.get("/prices/live/quotes", params={"tickers": tickers})
+    assert resp.status_code == 400
+
+
 def test_group_instruments(client):
     groups = _get_groups(client)
     slug = groups[0]["slug"]

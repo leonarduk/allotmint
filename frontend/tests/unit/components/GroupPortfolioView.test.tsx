@@ -146,6 +146,7 @@ const mockAllFetches = (
     complianceFails?: boolean;
     sectorContributions?: any[];
     regionContributions?: any[];
+    liveQuotes?: Record<string, any>;
   } = {},
 ) => {
   const {
@@ -155,6 +156,7 @@ const mockAllFetches = (
     complianceFails = false,
     sectorContributions = [],
     regionContributions = [],
+    liveQuotes = {},
   } = options;
   const { alpha = 0, trackingError = 0, maxDrawdown = 0 } = metrics ?? {};
   const defaultInstrumentRows =
@@ -282,6 +284,9 @@ const mockAllFetches = (
         ok: true,
         json: async () => sectorContributions,
       } as Response);
+    }
+    if (url.includes("/prices/live/quotes")) {
+      return Promise.resolve({ ok: true, json: async () => ({ quotes: liveQuotes }) } as Response);
     }
     if (url.includes("/portfolio-group/") && url.includes("/regions")) {
       return Promise.resolve({
@@ -1608,6 +1613,44 @@ describe("GroupPortfolioView", () => {
     await user.click(screen.getByRole("button", { name: "Toggle Equity" }));
     const aaaRow = (await screen.findByRole("button", { name: "AAA" })).closest("tr")!;
     expect(within(aaaRow).getAllByText("£60.00").length).toBeGreaterThan(0);
+  });
+
+  it("revalues holdings, owner totals and the summary at live prices", async () => {
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "AAA.L", units: 10, current_price_gbp: 6, market_value_gbp: 60, gain_gbp: 0 },
+            { ticker: "BBB.L", units: 1, current_price_gbp: 40, market_value_gbp: 40, gain_gbp: 0 },
+          ],
+        },
+      ],
+    };
+    mockAllFetches(mockPortfolio, {
+      liveQuotes: {
+        "AAA.L": {
+          price: 7,
+          price_gbp: 7,
+          currency: "GBP",
+          previous_close: 6,
+          change_pct: (1 / 6) * 100,
+          timestamp: "2026-10-08T10:15:00Z",
+          market_state: "REGULAR",
+          is_stale: false,
+        },
+      },
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    // AAA.L: 10 x £7 = £70 (was £60); the total moves from £100 to £110.
+    await waitFor(() => expect(screen.getAllByText("£110.00").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("£70.00").length).toBeGreaterThan(0);
+    expect(screen.queryByText("£100.00")).not.toBeInTheDocument();
   });
 
   it("groups holdings by instrument sector in Sector mode (#8486)", async () => {

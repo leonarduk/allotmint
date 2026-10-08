@@ -475,6 +475,9 @@
     }
   },
   "holdingsTable": {
+    "live": "Live",
+    "liveDelayed": "Ritardato",
+    "livePriceTitle": "Prezzo live alle {{time}}",
     "actualPurchaseCost": "Costo di acquisto effettivo",
     "displayMode": {
       "category": "Categoria",
@@ -773,6 +776,9 @@
       "label": {
         "exchange": "Borsa",
         "lastClose": "Ultima chiusura",
+        "livePrice": "Prezzo live",
+        "liveAsOf": "alle {{time}}",
+        "liveDelayed": "ritardato",
         "asOf": "Al",
         "coverage": "Copertura",
         "dataPoints": "Punti dati",

@@ -9,7 +9,6 @@ from datetime import timedelta
 from typing import Any, Dict, Optional
 
 import pandas as pd
-import requests
 
 from backend.common import refresh_progress
 from backend.common.approvals import is_approval_valid
@@ -118,6 +117,78 @@ def load_latest_prices(full_tickers: list[str], *, report_progress: bool = False
     return {key: price for key, (price, _close_date) in closes.items()}
 
 
+def gbp_close_from_frame(
+    df: pd.DataFrame,
+    ticker: str,
+    exchange: str,
+    full: str,
+    fx_cache: Dict[str, Optional[float]],
+) -> Optional[tuple[float, Optional[dt.date]]]:
+    """``(GBP price, row date)`` of the last row of a loaded price frame.
+
+    ``df`` is what ``load_meta_timeseries_range`` returns (so ``Close_gbp`` is
+    present when the loader converted it). This is the single place a stored
+    or live price gets its scaling override, pence handling and FX, so a live
+    quote (:mod:`backend.common.live_prices`) is scaled exactly like the
+    historical closes beside it. ``None`` when the frame yields no usable
+    positive price.
+    """
+    scale = get_scaling_override(ticker, exchange, None)
+    df = apply_scaling(df, scale)
+
+    name_map = _lower_name_map(df)
+    close_gbp_col = name_map.get("close_gbp")
+    close_native_col = name_map.get("close") or name_map.get("adj close") or name_map.get("adj_close")
+
+    if not close_gbp_col and not close_native_col:
+        return None
+
+    # Sort by, and read the close date from, the named "Date" column. The
+    # timeseries cache guarantees it (EXPECTED_COLS in
+    # backend/timeseries/cache.py). An ad-hoc frame without one keeps its
+    # own row order -- sorting by some other column (e.g. the price)
+    # would pick the wrong row -- and has no close date, i.e. stale.
+    date_col = name_map.get("date")
+    if date_col is None:
+        logger.warning(
+            "no Date column for %s; using last row in feed order, close date unknown",
+            sanitise_log_value(full),
+        )
+    else:
+        df = df.sort_values(date_col)
+    last = df.iloc[-1]
+
+    selected_col = close_gbp_col or close_native_col
+    val = float(last[selected_col])
+
+    if not (val == val and val != float("inf") and val != float("-inf")):
+        return None
+
+    if close_gbp_col is None:
+        full_ticker = f"{ticker}.{exchange}"
+        meta = get_instrument_meta(full_ticker) or get_instrument_meta(full) or get_instrument_meta(ticker) or {}
+
+        raw_currency = str(meta.get("currency") or "").strip()
+        if not raw_currency:
+            return None
+        normaliser = CurrencyNormaliser.from_raw(raw_currency)
+
+        # Skip pence->GBP conversion only when apply_scaling already applied the
+        # pence factor (scale == 0.01). A non-zero, non-pence-factor scale (e.g.
+        # 0.5 for a data-provider quirk) does NOT imply pence conversion happened.
+        pence_scaled_in_dataframe = normaliser.is_pence and scale == normaliser.pence_factor
+        if not pence_scaled_in_dataframe:
+            try:
+                val = normaliser.to_gbp(val, fx_cache, _fx_to_base)
+            except ValueError:
+                return None
+
+    if not pd.notna(val) or val <= 0:
+        return None
+
+    return val, _parse_date(last[date_col]) if date_col is not None else None
+
+
 def load_latest_closes(
     full_tickers: list[str], *, report_progress: bool = False
 ) -> dict[str, tuple[float, Optional[dt.date]]]:
@@ -182,63 +253,9 @@ def load_latest_closes(
             if df is None or df.empty:
                 continue
 
-            scale = get_scaling_override(ticker, exchange, None)
-            df = apply_scaling(df, scale)
-
-            name_map = _lower_name_map(df)
-            close_gbp_col = name_map.get("close_gbp")
-            close_native_col = name_map.get("close") or name_map.get("adj close") or name_map.get("adj_close")
-
-            if not close_gbp_col and not close_native_col:
-                continue
-
-            # Sort by, and read the close date from, the named "Date" column. The
-            # timeseries cache guarantees it (EXPECTED_COLS in
-            # backend/timeseries/cache.py). An ad-hoc frame without one keeps its
-            # own row order -- sorting by some other column (e.g. the price)
-            # would pick the wrong row -- and has no close date, i.e. stale.
-            date_col = name_map.get("date")
-            if date_col is None:
-                logger.warning(
-                    "no Date column for %s; using last row in feed order, close date unknown",
-                    sanitise_log_value(full),
-                )
-            else:
-                df = df.sort_values(date_col)
-            last = df.iloc[-1]
-
-            selected_col = close_gbp_col or close_native_col
-            val = float(last[selected_col])
-
-            if not (val == val and val != float("inf") and val != float("-inf")):
-                continue
-
-            if close_gbp_col is None:
-                full_ticker = f"{ticker}.{exchange}"
-                meta = (
-                    get_instrument_meta(full_ticker) or get_instrument_meta(full) or get_instrument_meta(ticker) or {}
-                )
-
-                raw_currency = str(meta.get("currency") or "").strip()
-                if not raw_currency:
-                    continue
-                normaliser = CurrencyNormaliser.from_raw(raw_currency)
-
-                # Skip pence->GBP conversion only when apply_scaling already applied the
-                # pence factor (scale == 0.01). A non-zero, non-pence-factor scale (e.g.
-                # 0.5 for a data-provider quirk) does NOT imply pence conversion happened.
-                pence_scaled_in_dataframe = normaliser.is_pence and scale == normaliser.pence_factor
-                if not pence_scaled_in_dataframe:
-                    try:
-                        val = normaliser.to_gbp(val, fx_cache, _fx_to_base)
-                    except ValueError:
-                        continue
-
-            if not pd.notna(val) or val <= 0:
-                continue
-
-            key = f"{ticker}.{exchange}"
-            result[key] = (val, _parse_date(last[date_col]) if date_col is not None else None)
+            priced = gbp_close_from_frame(df, ticker, exchange, full, fx_cache)
+            if priced is not None:
+                result[f"{ticker}.{exchange}"] = priced
 
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning(
@@ -268,69 +285,17 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
     """Fetch real-time quotes for ``full_tickers``.
 
     Returns a mapping ``{'TICKER': {'price': float, 'timestamp': datetime}}``
-    where the timestamp is timezone-aware (UTC). Entries with missing data are
-    skipped. Any network or parsing errors result in an empty mapping.
+    keyed by the upper-cased input ticker, where ``price`` is GBP, scaled
+    exactly like the stored closes (see :mod:`backend.common.live_prices`) and
+    the timestamp is timezone-aware (UTC). Tickers without a usable quote are
+    skipped.
     """
+    from backend.common import live_prices  # local import: live_prices imports this module
 
-    out: dict[str, Dict[str, object]] = {}
-    if not full_tickers:
-        return out
-
-    symbols = ",".join(full_tickers)
-    url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
-
-    try:
-        fx_cache: Dict[str, Optional[float]] = {}
-        resp = requests.get(url, timeout=5)
-        raise_for_status = getattr(resp, "raise_for_status", None)
-        if callable(raise_for_status):
-            raise_for_status()
-        payload = resp.json().get("quoteResponse", {}).get("result", [])
-
-        for row in payload:
-            sym = row.get("symbol")
-            price = row.get("regularMarketPrice")
-            ts = row.get("regularMarketTime")
-            if not sym or price is None or ts is None:
-                continue
-
-            price = float(price)
-
-            # Apply scaling override first.
-            tkr, exch = (sym.split(".", 1) + [""])[:2]
-            scale = get_scaling_override(tkr, exch, None)
-            price *= scale
-
-            # Enforce GBP output contract without double-converting pence instruments.
-            meta = get_instrument_meta(sym) or get_instrument_meta(tkr) or {}
-            raw_currency = str(meta.get("currency") or "GBP").strip()
-            normaliser = CurrencyNormaliser.from_raw(raw_currency)
-
-            # Skip pence->GBP conversion only when apply_scaling already applied the
-            # pence factor (scale == 0.01). A non-zero, non-pence-factor scale (e.g.
-            # 0.5 for a data-provider quirk) does NOT imply pence conversion happened.
-            pence_scaled_in_quote = normaliser.is_pence and scale == normaliser.pence_factor
-            if not pence_scaled_in_quote:
-                try:
-                    price = normaliser.to_gbp(price, fx_cache, _fx_to_base)
-                except ValueError:
-                    continue
-
-            if not pd.notna(price) or price <= 0:
-                continue
-
-            out[sym.upper()] = {
-                "price": price,
-                "timestamp": dt.datetime.fromtimestamp(ts, tz=dt.timezone.utc),
-            }
-    except Exception as exc:
-        logger.warning(
-            "live price fetch failed for %s: %s",
-            sanitise_log_value(symbols),
-            sanitise_log_value(exc),
-        )
-
-    return out
+    return {
+        full: {"price": quote["price_gbp"], "timestamp": quote["timestamp"]}
+        for full, quote in live_prices.load_live_quotes(full_tickers).items()
+    }
 
 
 # In-memory map populated elsewhere; exported for consumers that rely on it.

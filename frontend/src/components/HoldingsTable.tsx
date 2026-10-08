@@ -9,13 +9,14 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
+import type { LiveQuote } from "../api";
 import { percent } from "../lib/money";
 import { instrumentTooltip, translateInstrumentType } from "../lib/instrumentType";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
-import { useReportingCurrency } from "../hooks/useReportingCurrency";
+import { useReportingCurrency, type MoneyFormatter } from "../hooks/useReportingCurrency";
 import { isSupportedFx } from "../lib/fx";
 import { formatDateISO } from "../lib/date";
 import {
@@ -130,8 +131,44 @@ type Props = {
   onAddPosition?: () => void;
   groupingMode?: GroupingMode;
   categoryDefinitions?: InstrumentGroupDefinition[];
+  /** Intraday quotes keyed by upper-cased ticker; overlays the price column. */
+  liveQuotes?: Record<string, LiveQuote>;
 };
 
+const NO_LIVE_QUOTES: Record<string, LiveQuote> = {};
+
+
+/**
+ * Price cell for a holding with an intraday quote. `price_gbp` is scaled by
+ * the same helper as the holding's stored `current_price_gbp`, so it is
+ * formatted the same way (GBP, translated to the reporting currency).
+ */
+function LivePriceCell({
+  quote,
+  format,
+}: {
+  quote: LiveQuote;
+  format: MoneyFormatter;
+}) {
+  const { t } = useTranslation();
+  const change =
+    quote.change_pct == null
+      ? ""
+      : ` ${quote.change_pct > 0 ? "+" : ""}${percent(quote.change_pct, 2)}`;
+  const time = new Date(quote.timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const title = `${t("holdingsTable.livePriceTitle", { time })}${change}`;
+  return (
+    <td className={`${tableStyles.cell} ${tableStyles.right}`} title={title}>
+      <span className={quote.is_stale ? "text-gray" : undefined}>{format(quote.price_gbp)}</span>
+      <span className={tableStyles.badge} data-testid="live-price-badge">
+        {quote.is_stale ? t("holdingsTable.liveDelayed") : t("holdingsTable.live")}
+      </span>
+    </td>
+  );
+}
 
 export function HoldingsTable({
   holdings,
@@ -144,6 +181,7 @@ export function HoldingsTable({
   onAddPosition,
   groupingMode = "flat",
   categoryDefinitions = [],
+  liveQuotes = NO_LIVE_QUOTES,
 }: Props) {
   // RollupRow is the adapter's deliberately presentation-neutral shape. Its
   // nullable lot-only fields are rendered the same way as absent Holding fields.
@@ -1143,7 +1181,12 @@ export function HoldingsTable({
                     )}
                   </td>
                 )}
-                {show("price") && (
+                {show("price") && liveQuotes[h.ticker?.toUpperCase() ?? ""] ? (
+                  <LivePriceCell
+                    quote={liveQuotes[h.ticker.toUpperCase()]}
+                    format={reporting.format}
+                  />
+                ) : show("price") && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     <span className={h.is_stale ? "text-gray" : undefined}>
                       {reporting.format(h.current_price_gbp, h.current_price_currency)}

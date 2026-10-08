@@ -77,6 +77,7 @@ type HoldingsSortKey =
   | "sector"
   | "gain"
   | "gain_pct"
+  | "total_return_gbp"
   | "income_gbp"
   | "cost"
   | "forward_7d_change_pct"
@@ -94,6 +95,7 @@ const GROUP_SORT_KEYS: Record<HoldingsSortKey, keyof RowWithCost | null> = {
   sector: "sector",
   gain: "gain_gbp",
   gain_pct: "gain_pct",
+  total_return_gbp: null,
   income_gbp: null,
   cost: "cost",
   forward_7d_change_pct: "change_7d_pct",
@@ -916,10 +918,11 @@ export function HoldingsTable({
             )}
             {show("total_return") && (
               <th
-                className={`${tableStyles.cell} ${tableStyles.right}`}
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 title={t("holdingsTable.totalReturnHeaderTitle")}
+                onClick={() => sortBy("total_return_gbp")}
               >
-                {t("holdingsTable.columns.totalReturn", { symbol: reporting.symbol })}
+                {t("holdingsTable.columns.totalReturn", { symbol: reporting.symbol })}{sortKey === "total_return_gbp" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
             {show("income") && (

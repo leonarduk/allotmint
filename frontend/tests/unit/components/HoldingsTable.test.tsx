@@ -262,6 +262,26 @@ describe("HoldingsTable", () => {
         expect(within(footer).queryByText(/90\.00/)).toBeNull();
     });
 
+    it("sorts by total return when its header is clicked", async () => {
+        const rows = [
+            { ...holdings[0], total_return_gbp: 10, total_return_pct: 2 },
+            { ...holdings[1], total_return_gbp: 90, total_return_pct: 18 },
+        ];
+        renderWithConfig(<HoldingsTable holdings={rows} />);
+        await screen.findByText(rows[0].name);
+
+        const header = screen.getByRole("columnheader", { name: /^Total return/ });
+        await userEvent.click(header);
+        let bodyRows = screen.getAllByRole("row");
+        expect(within(bodyRows[1]).getByText(rows[0].name)).toBeInTheDocument();
+        expect(header.textContent).toMatch(/▲$/);
+
+        await userEvent.click(header);
+        bodyRows = screen.getAllByRole("row");
+        expect(within(bodyRows[1]).getByText(rows[1].name)).toBeInTheDocument();
+        expect(header.textContent).toMatch(/▼$/);
+    });
+
     it("shows the total return and its income breakdown on rollup rows (#10395)", async () => {
         const rows: RollupRow[] = [
             { ...rollupRows[0], income_gbp: 30, realised_gain_gbp: 5, total_return_gbp: 135, total_return_pct: 27 },

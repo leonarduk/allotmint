@@ -104,6 +104,16 @@ describe('TransactionsPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('links the ticker to its instrument research page', async () => {
+    render(
+      <TransactionsPage
+        owners={[{ owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] }]}
+      />
+    );
+    const link = await screen.findByRole('link', { name: 'PFE' });
+    expect(link).toHaveAttribute('href', '/research/PFE');
+  });
+
   it('shows a PP-imported row in real units, in the table and the editor (#10203)', async () => {
     render(
       <TransactionsPage

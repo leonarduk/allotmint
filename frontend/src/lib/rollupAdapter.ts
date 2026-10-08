@@ -89,15 +89,13 @@ const addKnown = (
 };
 
 // The cost behind a lot's total_return_pct (total / pct). A zero total gives
-// no ratio, so fall back to the cost behind its capital gain (market - gain),
-// which misses only the cost of units already sold.
+// no ratio, and the cost of any units already sold isn't on the row, so the
+// cost is unknown and the combined percentage is withheld.
 function lotInvested(holding: Holding): number | null {
   const total = holding.total_return_gbp;
   const pct = holding.total_return_pct;
-  if (total == null || pct == null) return null;
-  if (pct !== 0) return total / (pct / 100);
-  const { market_value_gbp: market, gain_gbp: gain } = holding;
-  return market == null || gain == null ? null : market - gain;
+  if (total == null || pct == null || pct === 0) return null;
+  return total / (pct / 100);
 }
 
 function emptyReturnSums(): ReturnSums {

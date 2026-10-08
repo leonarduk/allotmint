@@ -545,15 +545,15 @@ describe("toRollupRows", () => {
       expect(row.yield_pct).toBeNull();
     });
 
-    it("uses the held cost for a lot whose total return is exactly zero", () => {
+    it("withholds the % when a lot's total return is exactly zero", () => {
       const [row] = toRollupRows(
         toScopedHoldingRows([
           lot("alice", "ISA", { income_gbp: 10, realised_gain_gbp: 0, total_return_gbp: 20, total_return_pct: 20 }),
-          // Capital loss of 10 offset by 10 income: total 0, cost 120 (market 110 - gain -10).
+          // 0 / 0% gives no cost, and units sold earlier would be missing from market - gain.
           lot("bob", "SIPP", {
-            gain_gbp: -10,
+            gain_gbp: -20,
             income_gbp: 10,
-            realised_gain_gbp: 0,
+            realised_gain_gbp: 10,
             total_return_gbp: 0,
             total_return_pct: 0,
           }),
@@ -561,7 +561,7 @@ describe("toRollupRows", () => {
       );
 
       expect(row.total_return_gbp).toBe(20);
-      expect(row.total_return_pct).toBeCloseTo((20 / 220) * 100);
+      expect(row.total_return_pct).toBeNull();
     });
 
     it("withholds only the percentage when a lot's percentage is unknown", () => {
@@ -576,15 +576,14 @@ describe("toRollupRows", () => {
       expect(row.total_return_pct).toBeNull();
     });
 
-    it("withholds the % and yield rather than guess a missing gain or market value", () => {
+    it("withholds the yield rather than guess a missing market value", () => {
       const [row] = toRollupRows(
         toScopedHoldingRows([
-          lot("alice", "ISA", { gain_gbp: null, income_gbp: 0, realised_gain_gbp: 0, total_return_gbp: 0, total_return_pct: 0 }),
-          lot("bob", "SIPP", { market_value_gbp: null, total_return_gbp: 5, total_return_pct: 5, yield_pct: 3 }),
+          lot("alice", "ISA", { income_gbp: 4, total_return_gbp: 14, total_return_pct: 14, yield_pct: 4 }),
+          lot("bob", "SIPP", { market_value_gbp: null, income_gbp: 3, total_return_gbp: 3, yield_pct: 3 }),
         ]),
       );
 
-      expect(row.total_return_pct).toBeNull();
       expect(row.yield_pct).toBeNull();
     });
 

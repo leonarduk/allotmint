@@ -360,10 +360,18 @@ jobs:
           fi
           [ "$failed" -eq 0 ] || exit 1
 
+      # Exclude scaling_overrides.json (at any depth) so the git-tracked
+      # data/scaling_overrides.json is the one baked into the Lambda image; a
+      # stale bucket copy must not replace it and silently undo override fixes
+      # in the price snapshot (#8923). The leading * makes the pattern match the
+      # file name at any depth, so the outcome doesn't depend on how the filter
+      # is anchored. The backend only reads data/scaling_overrides.json
+      # (timeseries_helpers._scaling_override_paths). Deliberate trade-off: a
+      # table hotfix must go through git, not the bucket.
       - name: Sync data from S3
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
-        run: aws s3 sync "s3://$DATA_BUCKET/" data/
+        run: aws s3 sync "s3://$DATA_BUCKET/" data/ --exclude "*scaling_overrides.json"
 
       - name: Verify DATA_BUCKET secret
         env:

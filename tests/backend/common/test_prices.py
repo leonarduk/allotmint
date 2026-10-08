@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import types
 from datetime import UTC, date, datetime, timedelta
@@ -270,6 +271,150 @@ def test_refresh_prices_uploads_to_s3_in_aws_env(tmp_path: Path, monkeypatch: py
     assert put_calls[0]["Bucket"] == "test-bucket"
     assert put_calls[0]["Key"] == PRICES_S3_KEY
     assert "Uploaded price snapshot" in caplog.text
+
+
+@pytest.mark.parametrize("source", ["last_close", "live_quote"])
+@pytest.mark.parametrize("ticker", ["AV", "CLIG", "HICL", "ADM"])
+def test_refresh_prices_persists_scaled_gbp_not_raw_pence(
+    ticker: str, source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#8923: ``latest_prices.json`` stores scaled GBP, not the raw pence value.
+
+    Uses the repo's real ``data/scaling_overrides.json`` for the four tickers
+    #8589 corrected, so dropping one from the table fails here. Covers both
+    sources :func:`get_price_snapshot` can take ``last_price`` from: the
+    cached close (``holding_utils.load_latest_closes``) and the live quote
+    (``holding_utils.load_live_prices``, preferred when present). Either way
+    the raw pence value (3588) gets the 0.01 override before persistence, so
+    the snapshot carries GBP 35.88. This is why an override-table change needs
+    a snapshot refresh (done on every deploy).
+    """
+    from types import SimpleNamespace
+
+    from backend.common import holding_utils
+    from backend.utils import timeseries_helpers as th
+
+    repo_root = Path(__file__).resolve().parents[3]
+    assert (repo_root / "data" / "scaling_overrides.json").exists()
+    # Repo table only: no DATA_ROOT overlay from the developer's machine.
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=repo_root, data_root=None))
+    full_ticker = f"{ticker}.L"
+
+    if source == "last_close":
+        cached = pd.DataFrame({"Date": [date.today() - timedelta(days=1)], "Close": [3588.0]})
+        monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: cached)
+        monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+    else:
+        monkeypatch.setattr(prices, "_load_latest_closes", lambda tickers, **k: {})
+        quote = {
+            "symbol": full_ticker,
+            "regularMarketPrice": 3588.0,
+            "regularMarketTime": int(datetime.now(UTC).timestamp()),
+        }
+        response = SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: {"quoteResponse": {"result": [quote]}},
+        )
+        monkeypatch.setattr(holding_utils.requests, "get", lambda *a, **k: response)
+    # Metadata wrongly says GBP (the AV/CLIG/HICL failure mode), so only the
+    # override can turn 3588 into 35.88.
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBP"})
+
+    prices_file = tmp_path / "latest_prices.json"
+    monkeypatch.setattr(prices.config, "prices_json", prices_file, raising=False)
+    monkeypatch.setattr(prices.config, "app_env", "local", raising=False)
+    monkeypatch.setattr(prices, "refresh_universe", lambda: [full_ticker])
+    monkeypatch.setattr(prices, "_close_on", lambda *a, **k: None)
+    monkeypatch.setattr(prices, "_refresh_reference_data", lambda tickers: None)
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", lambda s: None)
+    monkeypatch.setattr(prices, "check_price_alerts", lambda: None)
+
+    prices.refresh_prices()
+
+    persisted = json.loads(prices_file.read_text())
+    assert persisted[full_ticker]["last_price"] == pytest.approx(35.88)
+    assert persisted[full_ticker]["price_currency"] == "GBP"
+    # Only the live path stamps a quote time, so this pins which source ran.
+    assert (persisted[full_ticker]["last_price_time"] is not None) == (source == "live_quote")
+
+
+def test_snapshot_deploy_ordering_claims_hold() -> None:
+    """#8923: pin the deploy-ordering chain the ``prices`` docstring relies on.
+
+    The module docstring says an override-table change reaches the deployed
+    snapshot without an extra workflow step because (1) the table is tracked
+    in git and baked into the Lambda image, (2) ``PriceRefreshLambda`` is built
+    from that image and a REQUEST_RESPONSE ``PriceRefreshOnDeploy`` Trigger
+    runs it during the CDK deploy, and (3) the "Warm price snapshot" workflow
+    step invokes it again after the deploy, and (4) the pre-build "Sync data
+    from S3" step excludes the table so a bucket copy cannot replace the
+    git-tracked one in the image. If any link is removed, this fails
+    and the docstring must be revisited.
+    """
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[3]
+
+    # (1) Table is part of the image build context.
+    assert (repo_root / "data" / "scaling_overrides.json").exists()
+    dockerfile = (repo_root / "backend" / "Dockerfile.lambda").read_text(encoding="utf-8")
+    assert "COPY data/ /var/task/data/" in dockerfile
+    dockerignore = (repo_root / ".dockerignore").read_text(encoding="utf-8").splitlines()
+    assert not any(line.strip().rstrip("/") == "data" for line in dockerignore)
+
+    # (2) Refresh Lambda uses that image and is triggered synchronously on deploy.
+    stack = (repo_root / "cdk" / "stacks" / "backend_lambda_stack.py").read_text(encoding="utf-8")
+    refresh_block = stack[stack.index("refresh_code = ") : stack.index('"PriceRefreshLambda",')]
+    assert 'file="backend/Dockerfile.lambda"' in refresh_block
+    assert "backend.lambda_api.price_refresh.lambda_handler" in refresh_block
+    trigger_block = stack[stack.index('"PriceRefreshOnDeploy",') :][:300]
+    assert "handler=refresh_fn" in trigger_block
+    assert "InvocationType.REQUEST_RESPONSE" in trigger_block
+
+    # (3) Workflow warms the snapshot after the CDK deploy.
+    workflow_path = repo_root / ".github" / "workflows" / "deploy-lambda.yml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["deploy"]["steps"]
+    names = [step.get("name", "") for step in steps]
+    assert names.index("Warm price snapshot") > names.index("Deploy BackendLambdaStack")
+
+    # (4) The S3 data sync runs before the image is built (the CDK deploy
+    # builds it), so it could replace the git-tracked table in data/; it must
+    # exclude scaling_overrides.json, or (1) no longer holds.
+    sync_idx = names.index("Sync data from S3")
+    assert sync_idx < names.index("Deploy BackendLambdaStack")
+    sync_run = steps[sync_idx]["run"]
+    assert 'aws s3 sync "s3://$DATA_BUCKET/" data/' in sync_run
+    assert '--exclude "*scaling_overrides.json"' in sync_run
+    # No other step may sync or copy into data/ ahead of the deploy without
+    # the same exclude.
+    for step in steps[: names.index("Deploy BackendLambdaStack")]:
+        run = step.get("run", "")
+        if "aws s3 sync" in run or "aws s3 cp" in run:
+            assert '--exclude "*scaling_overrides.json"' in run, step.get("name")
+
+
+def test_data_root_override_table_wins_over_bundled_table(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """#8923 runtime caveat: a ``DATA_ROOT`` table beats the bundled git table.
+
+    The ``prices`` docstring warns that anything copying a stale
+    ``scaling_overrides.json`` into ``data_root`` (``/tmp/data`` on Lambda)
+    would keep the snapshot wrong after a git fix; this pins that precedence
+    so the warning can't silently go stale.
+    """
+    from types import SimpleNamespace
+
+    from backend.utils import timeseries_helpers as th
+
+    repo_root = tmp_path / "repo"
+    (repo_root / "data").mkdir(parents=True)
+    (repo_root / "data" / "scaling_overrides.json").write_text('{"L": {"ADM": 0.01}}')
+    data_root = tmp_path / "bucket"
+    data_root.mkdir()
+    (data_root / "scaling_overrides.json").write_text('{"L": {"ADM": 1.0}}')
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=repo_root, data_root=data_root))
+
+    assert th.get_scaling_override("ADM", "L", None) == 1.0
 
 
 def test_refresh_prices_s3_upload_failure_logs_warning_not_error(

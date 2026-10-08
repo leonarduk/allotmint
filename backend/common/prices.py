@@ -24,6 +24,48 @@ Note on price_currency semantics
 * ``_load_latest_closes`` also returns GBP-normalised prices, so fallback
   snapshots emit ``price_currency = "GBP"``.
 
+Note on scaling (#8923)
+-----------------------
+The persisted snapshot (``latest_prices.json``, local and S3) stores
+**scaled** GBP values. Write path: :func:`refresh_prices` ->
+:func:`get_price_snapshot` -> ``holding_utils.load_latest_closes`` /
+``holding_utils.load_live_prices``, which both multiply by
+``get_scaling_override`` (``data/scaling_overrides.json``) before the value
+becomes ``last_price``; :func:`refresh_prices` then writes it to
+``config.prices_json`` and, in AWS, :func:`_upload_snapshot_to_s3`. This
+differs from the cached meta timeseries, which stay raw and are scaled at
+read time.
+
+A change to the override table therefore only reaches the snapshot when
+:func:`refresh_prices` runs again with the new table. On deploy that is
+guaranteed in order: ``backend/Dockerfile.lambda`` copies ``data/`` (the
+table included) into the Lambda image, and the CDK image asset hash covers
+``data/``, so a table change gives ``PriceRefreshLambda`` a new ``ImageUri``
+and CDK publishes a new ``currentVersion``. Caveat: before the image build,
+the "Sync data from S3" step of ``.github/workflows/deploy-lambda.yml`` runs
+``aws s3 sync`` from ``DATA_BUCKET`` into ``data/``, which would overwrite
+any file the bucket also holds. That step passes
+``--exclude "*scaling_overrides.json"``, which skips that file at any depth,
+including the bucket-root copy that would land on ``data/scaling_overrides.json``
+(the only path the table is read from). The image therefore carries the git-tracked table; a
+post-deploy check of the snapshot's content is tracked in #10352. The CDK
+``PriceRefreshOnDeploy`` Trigger (``cdk/stacks/backend_lambda_stack.py``,
+REQUEST_RESPONSE) has that ``currentVersion`` as its ``HandlerArn``, as does
+the ``live`` alias (pinned by
+``cdk/tests/test_backend_lambda_stack.py::test_price_refresh_trigger_and_alias_bind_to_current_version``),
+so it re-runs on the new version during ``cdk deploy BackendLambdaStack``,
+and the "Warm price snapshot" step of ``.github/workflows/deploy-lambda.yml``
+invokes its ``live`` alias again after the deploy. The ``DailyPriceRefresh``
+schedule repeats it daily, so no extra regeneration step is needed.
+
+Runtime caveat: on Lambda ``data_root`` is ``/tmp/data``
+(``config.lambda.yaml``), and a ``scaling_overrides.json`` there is overlaid
+on the bundled table and wins on conflicts
+(``timeseries_helpers._scaling_override_paths``). Nothing in the backend
+writes that file into ``/tmp/data`` today, so the bundled git table applies;
+anything that starts copying a bucket table there must carry the same fixes,
+or it silently undoes them in the snapshot.
+
 Note on is_stale semantics (#8595)
 ----------------------------------
 * A live quote is fresh while its timestamp is under 15 minutes old.

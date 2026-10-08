@@ -327,30 +327,72 @@ def test_prices_refresh_progress_reports_in_flight_state(client):
         refresh_progress.finish()
 
 
-def test_prices_refresh_progress_requires_auth(monkeypatch):
-    """``current_ticker`` reveals holdings, so unauthenticated polls must be rejected (#8057).
+@pytest.fixture
+def auth_enabled_client(monkeypatch, mock_refresh_prices):
+    """TestClient for an app built with auth enforced and no credentials attached.
 
-    The route has no per-route auth; it relies on ``portfolio_router`` being
-    mounted with ``Depends(auth.get_current_user)`` in
-    ``backend/bootstrap/routers.py``. The shared test config disables auth, so
-    build an auth-enabled app explicitly.
+    The shared test ``config.yaml`` sets ``disable_auth: true``, so the
+    ``client`` fixture cannot observe router-level auth.
     """
     from unittest.mock import patch
-
-    from backend.common import refresh_progress
 
     monkeypatch.setattr(config_module.config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config_module.config, "disable_auth", False)
     monkeypatch.setenv("JWT_SECRET", "test-secret")
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
+        app = create_app()
+        with TestClient(app, raise_server_exceptions=False) as client:
+            yield client
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("GET", "/prices/refresh/progress"),
+        ("GET", "/prices/refresh"),
+        ("POST", "/prices/refresh"),
+    ],
+)
+def test_prices_refresh_routes_reject_unauthenticated(auth_enabled_client, method, path):
+    """``current_ticker`` reveals holdings, so unauthenticated polls must be rejected (#8057).
+
+    None of these routes declare per-route auth; all rely on ``portfolio_router``
+    being mounted with ``Depends(auth.get_current_user)`` in
+    ``backend/bootstrap/routers.py``. The progress poll must reject with the
+    same status as its ``/prices/refresh`` siblings.
+    """
+    from backend.common import refresh_progress
+
     refresh_progress.start(5)
     refresh_progress.update("ABC.L", 2)
     try:
-        with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
-            app = create_app()
-            with TestClient(app, raise_server_exceptions=False) as unauthenticated:
-                resp = unauthenticated.get("/prices/refresh/progress")
+        resp = auth_enabled_client.request(method, path)
         assert resp.status_code == 401
         assert "ABC.L" not in resp.text
+    finally:
+        refresh_progress.finish()
+
+
+def test_prices_refresh_progress_authenticated_returns_payload(auth_enabled_client):
+    """With a valid bearer token the auth-enabled app still serves the progress payload."""
+    from backend import auth
+    from backend.common import refresh_progress
+
+    token = auth.create_access_token("user@example.com")
+    refresh_progress.start(5)
+    refresh_progress.update("ABC.L", 2)
+    try:
+        resp = auth_enabled_client.get(
+            "/prices/refresh/progress",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "running": True,
+            "total": 5,
+            "completed": 2,
+            "current_ticker": "ABC.L",
+        }
     finally:
         refresh_progress.finish()
 

@@ -816,6 +816,26 @@
     "incomeEstimated": "Aus der Dividendenhistorie geschätzt: Der Broker verbucht Dividenden ohne Angabe der Position, daher Dividende je Anteil × am Ex-Tag gehaltene Einheiten.",
     "ongoingCharge": "Laufende Kosten: {{value}}"
   },
+  "instrumentNotes": {
+    "add": "Notiz hinzufügen",
+    "bearish": "Bärisch",
+    "bullish": "Bullisch",
+    "delete": "Löschen",
+    "deleteConfirm": "Diese Notiz löschen? Das kann nicht rückgängig gemacht werden.",
+    "deleteError": "Die Notiz konnte nicht gelöscht werden.",
+    "description": "Notizen mit Zeitstempel zu {{ticker}}, damit Sie Ihre Überlegungen später überprüfen können. Der Kurs zum Zeitpunkt jeder Notiz wird mitgespeichert. Gespeicherte Notizen können nicht bearbeitet, nur gelöscht werden.",
+    "empty": "Noch keine Notizen zu {{ticker}}.",
+    "loadError": "Notizen konnten nicht geladen werden.",
+    "neutral": "Neutral",
+    "placeholder": "Was denken Sie, und warum?",
+    "priceAt": "bei £{{price}}",
+    "saveError": "Die Notiz konnte nicht gespeichert werden.",
+    "signInNotice": "Melden Sie sich an, um Research-Notizen zu führen.",
+    "sinceThen": "{{change}} seitdem",
+    "stance": "Einschätzung",
+    "text": "Notiz",
+    "title": "Research-Notizen"
+  },
   "instrumentTable": {
     "columns": {
       "ccy": "Währung",

@@ -1455,6 +1455,49 @@ describe("InstrumentResearch page", () => {
     expect(screen.getByText(/ISIN:/)).toHaveTextContent("ISIN: GB0001738615");
   });
 
+  it("keeps the editor open with the foreign-ISIN override when a refresh ISIN is rejected", async () => {
+    const user = userEvent.setup();
+    const refreshed = { ticker: "AAA.L", exchange: "L", name: "Acme Corp PLC", currency: "GBP" };
+    mockRefreshInstrumentMetadata.mockResolvedValue({
+      status: "preview",
+      metadata: refreshed,
+      changes: {},
+    } as any);
+    mockConfirmInstrumentMetadata.mockResolvedValue({
+      status: "updated",
+      metadata: refreshed,
+      changes: {},
+    } as any);
+    mockUpdateInstrumentMetadata.mockRejectedValueOnce(
+      Object.assign(new Error("ISIN IE00BSPLC298 has country prefix IE"), { status: 422 }),
+    );
+
+    renderPage();
+
+    await screen.findByText("Instrument info");
+    await user.click(screen.getByRole("button", { name: /^refresh$/i }));
+    await screen.findByRole("button", { name: /confirm/i });
+    await user.type(screen.getByLabelText("ISIN"), "IE00BSPLC298");
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+
+    const override = await screen.findByRole("checkbox", {
+      name: /country differs from the exchange/i,
+    });
+    expect(screen.queryByRole("button", { name: /confirm/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("ISIN")).toHaveValue("IE00BSPLC298");
+
+    await user.click(override);
+    await user.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(await screen.findByText("Instrument details updated.")).toBeInTheDocument();
+    expect(mockUpdateInstrumentMetadata).toHaveBeenLastCalledWith(
+      "AAA",
+      "L",
+      expect.objectContaining({ isin: "IE00BSPLC298" }),
+      true,
+    );
+  });
+
   it("rejects a malformed ISIN before confirming a refresh", async () => {
     const user = userEvent.setup();
     mockRefreshInstrumentMetadata.mockResolvedValue({

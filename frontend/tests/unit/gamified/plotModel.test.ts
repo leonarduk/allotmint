@@ -20,6 +20,7 @@ import {
   isStillInPropagator,
   levelFromXp,
   neediestCrop,
+  portfolioAttentionReason,
   resourcesFromPlot,
   starsFor,
   vigourFor,
@@ -1009,6 +1010,36 @@ describe('neediestCrop', () => {
       crop({ ticker: 'DEEP', gainPct: -30 }),
     ]);
     expect(picked?.ticker).toBe('DEEP');
+  });
+});
+
+describe('portfolioAttentionReason (#8313)', () => {
+  it('flags a portfolio priced well before the last expected close', () => {
+    const reason = portfolioAttentionReason('2026-08-08', '2026-08-24');
+    expect(reason).toEqual({
+      kind: 'portfolio-stale',
+      ageDays: 16,
+      label: 'Prices are 16 days old',
+    });
+  });
+
+  it('is null when prices are as fresh as the market calendar allows', () => {
+    // Friday's close viewed on Monday is the newest close there can be.
+    expect(portfolioAttentionReason('2026-08-21', '2026-08-24')).toBeNull();
+    expect(portfolioAttentionReason('2026-08-24', '2026-08-24')).toBeNull();
+  });
+
+  it('is null when there is no pricing date to judge', () => {
+    expect(portfolioAttentionReason('', '2026-08-24')).toBeNull();
+    expect(portfolioAttentionReason('not-a-date', '2026-08-24')).toBeNull();
+  });
+
+  it('is reported even when no crop needs attention', () => {
+    const healthy = { gainPct: 5, freshness: 'fresh', sellEligible: true } as Crop;
+    expect(neediestCrop([healthy])).toBeUndefined();
+    expect(portfolioAttentionReason('2026-08-08', '2026-08-24')?.kind).toBe(
+      'portfolio-stale'
+    );
   });
 });
 

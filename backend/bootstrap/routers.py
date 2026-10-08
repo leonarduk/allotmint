@@ -26,6 +26,7 @@ from backend.routes.fx import router as fx_router
 from backend.routes.goals import router as goals_router
 from backend.routes.instrument import router as instrument_router
 from backend.routes.instrument_admin import router as instrument_admin_router
+from backend.routes.instrument_notes import router as instrument_notes_router
 from backend.routes.investment_plan import router as investment_plan_router
 from backend.routes.logs import router as logs_router
 from backend.routes.market import router as market_router
@@ -89,6 +90,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(alert_settings_router, dependencies=protected)
     app.include_router(alerts_router, dependencies=protected)
     app.include_router(price_triggers_router, dependencies=protected)
+    app.include_router(instrument_notes_router, dependencies=protected)
     app.include_router(nudges_router, dependencies=protected)
     app.include_router(quest_router, dependencies=protected)
     app.include_router(trail_router, dependencies=protected)

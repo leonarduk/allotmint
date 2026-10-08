@@ -822,6 +822,26 @@
     "incomeEstimated": "Estimé à partir de l'historique des dividendes : le courtier enregistre les dividendes sans indiquer la ligne, il s'agit donc du dividende par action × unités détenues à chaque date ex.",
     "ongoingCharge": "Frais courants : {{value}}"
   },
+  "instrumentNotes": {
+    "add": "Ajouter une note",
+    "bearish": "Baissier",
+    "bullish": "Haussier",
+    "delete": "Supprimer",
+    "deleteConfirm": "Supprimer cette note ? Cette action est irréversible.",
+    "deleteError": "Impossible de supprimer la note.",
+    "description": "Notes horodatées sur {{ticker}} pour revenir plus tard sur votre raisonnement. Le cours au moment de chaque note est enregistré avec elle. Une note enregistrée ne peut pas être modifiée, seulement supprimée.",
+    "empty": "Aucune note sur {{ticker}} pour l'instant.",
+    "loadError": "Impossible de charger les notes.",
+    "neutral": "Neutre",
+    "placeholder": "Que pensez-vous, et pourquoi ?",
+    "priceAt": "à £{{price}}",
+    "saveError": "Impossible d'enregistrer la note.",
+    "signInNotice": "Connectez-vous pour tenir des notes de recherche.",
+    "sinceThen": "{{change}} depuis",
+    "stance": "Opinion",
+    "text": "Note",
+    "title": "Notes de recherche"
+  },
   "instrumentTable": {
     "columns": {
       "ccy": "Devise",

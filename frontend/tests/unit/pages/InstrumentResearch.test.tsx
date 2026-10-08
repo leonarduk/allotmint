@@ -29,6 +29,9 @@ vi.mock("@/api", () => ({
   createPriceTrigger: vi.fn(),
   updatePriceTrigger: vi.fn(),
   deletePriceTrigger: vi.fn(),
+  getInstrumentNotes: vi.fn(() => Promise.resolve([])),
+  createInstrumentNote: vi.fn(),
+  deleteInstrumentNote: vi.fn(),
 }));
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -248,6 +251,7 @@ describe("InstrumentResearch page", () => {
     vi.mocked(api.getOwners).mockReset().mockResolvedValue([]);
     vi.mocked(api.getPriceTriggers).mockReset().mockResolvedValue([]);
     vi.mocked(api.getLiveQuotes).mockReset().mockResolvedValue({ quotes: {} });
+    vi.mocked(api.getInstrumentNotes).mockReset().mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -1457,6 +1461,49 @@ describe("InstrumentResearch page", () => {
     );
     // The panel reloads after saving; the label follows without a page refresh.
     expect(await screen.findByRole("button", { name: "Price alerts (2)" })).toBeInTheDocument();
+  });
+
+  it("adds a stance-tagged note with the current price from the notes tab", async () => {
+    const existing = {
+      id: "n1",
+      ticker: "AAA.L",
+      stance: "bearish" as const,
+      text: "Margins look stretched",
+      price: 80,
+      created_at: "2026-01-01T00:00:00Z",
+    };
+    const rows = [existing];
+    vi.mocked(api.getInstrumentNotes).mockImplementation(async () => [...rows]);
+    const mockCreate = vi.mocked(api.createInstrumentNote).mockImplementation(async (_user, input) => {
+      const created = { ...existing, ...input, id: "n2", price: input.price ?? null };
+      rows.unshift(created);
+      return created;
+    });
+
+    renderPage();
+    await screen.findByRole("heading", { level: 1, name: /AAA - Acme Corp/ });
+    const tab = await screen.findByRole("button", { name: "Research notes (1)" });
+    await userEvent.click(tab);
+
+    expect(await screen.findByText("Margins look stretched")).toBeInTheDocument();
+    expect(api.getInstrumentNotes).toHaveBeenCalledWith("demo", "AAA.L");
+    // Price then vs latest GBP close (101): +26.3%.
+    expect(screen.getByText(/at £80\.00 · \+26\.3% since/)).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Note"), "Results beat, upgrading");
+    await userEvent.selectOptions(screen.getByLabelText("Stance"), "bullish");
+    await userEvent.click(screen.getByRole("button", { name: "Add note" }));
+
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith("demo", {
+        ticker: "AAA.L",
+        stance: "bullish",
+        text: "Results beat, upgrading",
+        price: 101,
+      }),
+    );
+    expect(await screen.findByRole("button", { name: "Research notes (2)" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Note")).toHaveValue("");
   });
 
   it("refuses to create alerts on a bare ticker when the exchange is unknown", async () => {

@@ -2103,6 +2103,42 @@ export const deletePriceTrigger = (user: string, id: string) =>
     { method: "DELETE" },
   );
 
+export type InstrumentNoteStance = "bullish" | "bearish" | "neutral";
+
+export interface InstrumentNote {
+  id: string;
+  ticker: string;
+  stance: InstrumentNoteStance;
+  text: string;
+  /** GBP price when the note was written, if known. */
+  price: number | null;
+  created_at: string;
+}
+
+export type InstrumentNoteInput = Pick<InstrumentNote, "ticker" | "stance" | "text"> & {
+  price?: number | null;
+};
+
+/** List an identity's research notes for one ticker, newest first. */
+export const getInstrumentNotes = (user: string, ticker: string) =>
+  fetchJson<InstrumentNote[]>(
+    `${API_BASE}/instrument-notes/${encodeURIComponent(user)}?ticker=${encodeURIComponent(ticker)}`,
+  );
+
+/** Add a research note. Notes are not editable once saved. */
+export const createInstrumentNote = (user: string, note: InstrumentNoteInput) =>
+  fetchJson<InstrumentNote>(
+    `${API_BASE}/instrument-notes/${encodeURIComponent(user)}`,
+    jsonInit("POST", note),
+  );
+
+/** Delete a research note. */
+export const deleteInstrumentNote = (user: string, id: string) =>
+  fetchJson<{ status: string; note: InstrumentNote }>(
+    `${API_BASE}/instrument-notes/${encodeURIComponent(user)}/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+
 export interface PushSubscriptionJSON {
   endpoint?: string;
   keys: {

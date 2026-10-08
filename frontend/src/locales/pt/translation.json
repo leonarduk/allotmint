@@ -822,6 +822,26 @@
     "incomeEstimated": "Estimado a partir do histórico de dividendos: a corretora regista os dividendos sem indicar a posição, por isso é o dividendo por ação × unidades detidas em cada data ex.",
     "ongoingCharge": "Encargos correntes: {{value}}"
   },
+  "instrumentNotes": {
+    "add": "Adicionar nota",
+    "bearish": "Baixista",
+    "bullish": "Altista",
+    "delete": "Excluir",
+    "deleteConfirm": "Excluir esta nota? Isso não pode ser desfeito.",
+    "deleteError": "Não foi possível excluir a nota.",
+    "description": "Notas com data e hora sobre {{ticker}} para você rever seu raciocínio mais tarde. O preço no momento de cada nota é salvo com ela. As notas não podem ser editadas depois de salvas, apenas excluídas.",
+    "empty": "Ainda não há notas sobre {{ticker}}.",
+    "loadError": "Não foi possível carregar as notas.",
+    "neutral": "Neutro",
+    "placeholder": "O que você está pensando, e por quê?",
+    "priceAt": "a £{{price}}",
+    "saveError": "Não foi possível salvar a nota.",
+    "signInNotice": "Entre para manter notas de pesquisa.",
+    "sinceThen": "{{change}} desde então",
+    "stance": "Posição",
+    "text": "Nota",
+    "title": "Notas de pesquisa"
+  },
   "instrumentTable": {
     "columns": {
       "ccy": "Moeda",

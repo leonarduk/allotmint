@@ -141,8 +141,11 @@ function PointTooltip({
   return (
     <div
       style={{
-        background: 'var(--surface, #fff)',
-        border: '1px solid var(--border, #ccc)',
+        // Theme tokens from index.css, defined for light and dark, so the
+        // text never inherits a light colour onto a light background.
+        background: 'var(--surface-card-bg)',
+        color: 'var(--surface-card-color)',
+        border: '1px solid var(--surface-card-border)',
         padding: '0.5rem',
         borderRadius: 4,
       }}

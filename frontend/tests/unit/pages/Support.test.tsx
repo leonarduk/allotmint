@@ -830,7 +830,7 @@ describe("Support page", () => {
     expect(screen.queryByText(en.app.refreshingDetailUnavailable)).not.toBeInTheDocument();
   });
 
-  it("keeps showing last known progress when later polls hit an idle instance", async () => {
+  it("flags last known progress as stale when later polls hit an idle instance", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
 
     mockRefreshPrices.mockReturnValue(new Promise(() => {})); // never resolves
@@ -856,18 +856,31 @@ describe("Support page", () => {
       await userEvent.click(btn);
     });
 
-    // 4 empty polls, 1 good poll, then 5 more empty polls.
+    // 4 empty polls then 1 good poll: the good poll resets the empty count,
+    // so 4 further empty polls are not yet enough to flag it as stale.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(400 * 10);
+      await vi.advanceTimersByTimeAsync(400 * 9);
     });
     expect(screen.getByRole("button", { name: "Refreshing… (4/10)" })).toBeInTheDocument();
     expect(screen.queryByText(en.app.refreshingDetailUnavailable)).not.toBeInTheDocument();
+
+    // The 5th empty poll since the good one flags the frozen count.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(screen.getByRole("button", { name: "Refreshing… (4/10)" })).toBeInTheDocument();
+    expect(screen.getByText(en.app.refreshingDetailUnavailable)).toBeInTheDocument();
   });
 
-  it("treats repeated poll failures as progress detail unavailable", async () => {
+  it("treats repeated poll failures as progress detail unavailable, until the refresh ends", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
 
-    mockRefreshPrices.mockReturnValue(new Promise(() => {})); // never resolves
+    let resolveRefresh: (v: { status: string; tickers: number }) => void;
+    mockRefreshPrices.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
     mockGetRefreshPricesProgress.mockRejectedValue(new Error("network error"));
 
     render(<Support />, { wrapper: MemoryRouter });
@@ -882,6 +895,16 @@ describe("Support page", () => {
       await vi.advanceTimersByTimeAsync(400 * 5);
     });
     expect(screen.getByText(en.app.refreshingDetailUnavailable)).toBeInTheDocument();
+
+    await act(async () => {
+      resolveRefresh!({ status: "ok", tickers: 0 });
+      await Promise.resolve();
+    });
+
+    expect(
+      await screen.findByRole("button", { name: en.app.refreshPrices }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(en.app.refreshingDetailUnavailable)).not.toBeInTheDocument();
   });
 
   it("stops polling for progress once the component unmounts mid-refresh", async () => {

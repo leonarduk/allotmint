@@ -682,7 +682,8 @@ export default function Support() {
             )}
           </div>
         )}
-        {refreshing && !refreshProgress && refreshProgressUnavailable && (
+        {/* Also shown under a bar whose last-known count has gone stale. */}
+        {refreshing && refreshProgressUnavailable && (
           <div className="mt-2 text-sm text-gray-600" role="status">
             {t("app.refreshingDetailUnavailable")}
           </div>

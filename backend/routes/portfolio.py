@@ -28,6 +28,7 @@ from backend.common import (
     group_portfolio,
     holding_utils,
     instrument_api,
+    live_prices,
     look_through,
     portfolio_utils,
     prices,
@@ -1127,3 +1128,30 @@ async def prices_live(
         }
 
     return {"prices": result}
+
+
+# Bounds one poll to a dashboard's worth of tickers (one provider call each).
+MAX_LIVE_QUOTE_TICKERS = 100
+
+
+@router.get("/prices/live/quotes", operation_id="prices_live_quotes_get")
+async def prices_live_quotes(
+    tickers: Annotated[str, Query(description="Comma-separated tickers, e.g. ADBE.N,VOD.L.")],
+):
+    """Intraday quotes for ``tickers``, scaled exactly like the stored closes.
+
+    Each quote carries ``price`` in the units of the instrument's historical
+    ``close`` (scaling override applied, no FX) and ``price_gbp`` in the units
+    of its ``close_gbp`` / holding price, so a page can show it beside either.
+    Tickers with no quote are omitted; the map is empty in offline mode.
+    """
+    ticker_list = list(dict.fromkeys(t.strip().upper() for t in tickers.split(",") if t.strip()))
+    if len(ticker_list) > MAX_LIVE_QUOTE_TICKERS:
+        raise HTTPException(status_code=400, detail=f"At most {MAX_LIVE_QUOTE_TICKERS} tickers per request")
+    quotes = await asyncio.to_thread(live_prices.load_live_quotes, ticker_list)
+    return {
+        "quotes": {
+            full: {**quote, "timestamp": quote["timestamp"].isoformat().replace("+00:00", "Z")}
+            for full, quote in quotes.items()
+        }
+    }

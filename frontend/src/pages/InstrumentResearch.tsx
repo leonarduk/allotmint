@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -31,7 +31,7 @@ import InstrumentAlertsSection from "../components/InstrumentAlertsSection";
 import { useInstrumentAlertCount } from "../hooks/useInstrumentAlertCount";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import surfaceStyles from "../styles/surface.module.css";
-import { formatDateISO } from "../lib/date";
+import { formatDateISO, localDateISO } from "../lib/date";
 import { money, normalizeDisplayCurrency, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { completeTrackedChore } from "../choreCompletion";
@@ -42,6 +42,7 @@ import {
 } from "../utils/urlUtils";
 import { InstrumentIdentifiers } from "../components/InstrumentIdentifiers";
 import { useMorningstarId } from "../hooks/useMorningstarId";
+import { useLiveQuotes } from "../hooks/useLiveQuotes";
 
 function normaliseOptional(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -1016,6 +1017,47 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       ? latestRawPriceEntry.close_gbp
       : null;
   const { count: alertCount, setCount: setAlertCount } = useInstrumentAlertCount(alertTicker);
+  const liveTickers = useMemo(() => (tkr ? [tkr] : []), [tkr]);
+  const liveQuote = useLiveQuotes(liveTickers)[tkr.toUpperCase()] ?? null;
+  const reportingCurrency = normaliseUppercase(detail?.base_currency);
+  // Resolved exactly like the last close: `price` is in the units of the
+  // history's `close` and `price_gbp` in those of `close_gbp`, so
+  // resolveDisplayPrice picks the same figure and currency label for both.
+  // A GBP figure is only offered when GBP is the reporting currency, which
+  // is what resolveDisplayPrice labels it with.
+  const liveDisplayPrice = liveQuote
+    ? resolveDisplayPrice(
+        (reportingCurrency ?? "GBP") === "GBP"
+          ? { close: liveQuote.price, close_gbp: liveQuote.price_gbp }
+          : { close: liveQuote.price },
+        liveQuote.currency,
+        detail?.base_currency ?? undefined,
+      )
+    : null;
+  const formatDisplayPrice = (value: number | null, currency: string) => {
+    const normalizedCurrency = normaliseUppercase(currency);
+    if (normalizedCurrency && reportingCurrency && normalizedCurrency === reportingCurrency) {
+      return money(value, normalizedCurrency);
+    }
+    return quotedPrice(value, normalizedCurrency ?? currency);
+  };
+  const liveSummary = (() => {
+    if (!liveQuote || !liveDisplayPrice) return null;
+    const quoted = new Date(liveQuote.timestamp);
+    const day = localDateISO(quoted);
+    const clock = quoted.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const time = day === localDateISO() ? clock : `${day} ${clock}`;
+    const change =
+      liveQuote.change_pct != null
+        ? ` (${liveQuote.change_pct > 0 ? "+" : ""}${percent(liveQuote.change_pct, 2)})`
+        : "";
+    const parts = [
+      `${formatDisplayPrice(liveDisplayPrice.close, liveDisplayPrice.currency)}${change}`,
+      t("instrumentDetail.research.label.liveAsOf", { time }),
+    ];
+    if (liveQuote.is_stale) parts.push(t("instrumentDetail.research.label.liveDelayed"));
+    return parts.join(" · ");
+  })();
   const tabOptions: { id: typeof activeTab; label: string }[] = [
     { id: "overview", label: t("instrumentDetail.research.tabs.overview") },
     { id: "timeseries", label: t("instrumentDetail.research.tabs.timeseries") },
@@ -1079,6 +1121,15 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           </h1>
         );
       })()}
+      {liveSummary && (
+        <div
+          data-testid="research-live-price"
+          title={liveQuote?.timestamp}
+          style={{ marginTop: "-0.5rem", marginBottom: "1rem" }}
+        >
+          <strong>{t("instrumentDetail.research.label.livePrice")}:</strong> {liveSummary}
+        </div>
+      )}
 
       <div style={{ marginBottom: "1rem" }}>
         {tabs.screener && !(disabledTabs ?? []).includes("screener") && (
@@ -1592,18 +1643,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           parsedPrices.length > 0 ? parsedPrices[parsedPrices.length - 1] : null;
         const latestPrice = latestPriceEntry?.close ?? null;
         const latestPriceCurrency = latestPriceEntry?.currency ?? resolvedCurrentCurrency;
-        const normalizedReportingCurrency = normaliseUppercase(detail?.base_currency);
-        const formatDisplayPrice = (value: number | null, currency: string) => {
-          const normalizedCurrency = normaliseUppercase(currency);
-          if (
-            normalizedCurrency &&
-            normalizedReportingCurrency &&
-            normalizedCurrency === normalizedReportingCurrency
-          ) {
-            return money(value, normalizedCurrency);
-          }
-          return quotedPrice(value, normalizedCurrency ?? currency);
-        };
         const latestDate = (() => {
           if (!latestPriceEntry?.date) return null;
           const parsed = new Date(latestPriceEntry.date);
@@ -1643,6 +1682,14 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
               { label: t("instrumentDetail.research.label.exchange"), value: instrumentExchange || "—" },
               { label: t("instrumentDetail.sectorLabel"), value: displaySector || "—" },
               { label: t("instrumentDetail.currencyLabel"), value: resolvedCurrentCurrency || "—" },
+              ...(liveSummary
+                ? [
+                    {
+                      label: t("instrumentDetail.research.label.livePrice"),
+                      value: <span title={liveQuote?.timestamp}>{liveSummary}</span>,
+                    },
+                  ]
+                : []),
               {
                 label: t("instrumentDetail.research.label.lastClose"),
                 value: latestPrice != null

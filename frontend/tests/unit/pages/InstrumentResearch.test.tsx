@@ -17,6 +17,7 @@ vi.mock("@/api", () => ({
   getInstrumentValuation: vi.fn(() => Promise.reject(Object.assign(new Error("gated"), { status: 402 }))),
   getInstrumentDetail: vi.fn(),
   getInstrumentIntraday: vi.fn(),
+  getLiveQuotes: vi.fn(() => Promise.resolve({ quotes: {} })),
   getInstrumentFxSplit: vi.fn(() => Promise.resolve({ applicable: false })),
   searchInstruments: vi.fn(),
   getTransactions: vi.fn(),
@@ -246,6 +247,7 @@ describe("InstrumentResearch page", () => {
     } as any);
     vi.mocked(api.getOwners).mockReset().mockResolvedValue([]);
     vi.mocked(api.getPriceTriggers).mockReset().mockResolvedValue([]);
+    vi.mocked(api.getLiveQuotes).mockReset().mockResolvedValue({ quotes: {} });
   });
 
   afterEach(() => {
@@ -407,6 +409,82 @@ describe("InstrumentResearch page", () => {
     expect(
       within(netMarginRow.closest("tr") as HTMLElement).getByText("24.00%"),
     ).toBeInTheDocument();
+  });
+
+  it("shows a live quote beside the last close in the same units", async () => {
+    vi.mocked(api.getLiveQuotes).mockResolvedValue({
+      quotes: {
+        AAA: {
+          price: 102.5,
+          price_gbp: 102.5,
+          currency: "GBP",
+          previous_close: 101,
+          change_pct: 1.4851,
+          timestamp: new Date().toISOString(),
+          market_state: "REGULAR",
+          is_stale: false,
+        },
+      },
+    });
+
+    renderPage();
+
+    const live = await screen.findByTestId("research-live-price");
+    expect(live).toHaveTextContent("£102.50");
+    expect(live).toHaveTextContent("+1.49%");
+    expect(vi.mocked(api.getLiveQuotes)).toHaveBeenCalledWith(["AAA"], expect.anything());
+    const liveRow = await screen.findByText("Live Price");
+    expect(liveRow.closest("div")).toHaveTextContent("£102.50");
+  });
+
+  it("shows a USD live quote natively, like the USD history (#7219)", async () => {
+    mockListInstrumentMetadata.mockResolvedValueOnce([
+      { ticker: "AAA.L", exchange: "L", name: "Acme Corp", sector: "Tech", currency: "USD" } as InstrumentMetadata,
+    ]);
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        ticker: "AAA.L",
+        name: "Acme Corp",
+        currency: "GBP",
+        base_currency: "GBP",
+        prices: [{ date: "2024-01-02", close: 400, close_gbp: 300 }],
+        rows: 1,
+        from: "2024-01-02",
+        to: "2024-01-02",
+      },
+      loading: false,
+      error: null,
+    } as any);
+    vi.mocked(api.getLiveQuotes).mockResolvedValue({
+      quotes: {
+        AAA: {
+          price: 410,
+          price_gbp: 328,
+          currency: "USD",
+          previous_close: 400,
+          change_pct: 2.5,
+          timestamp: "2024-01-03T14:30:00Z",
+          market_state: "CLOSED",
+          is_stale: true,
+        },
+      },
+    });
+
+    renderPage();
+
+    const live = await screen.findByTestId("research-live-price");
+    expect(live).toHaveTextContent("410.00 USD");
+    expect(live).not.toHaveTextContent("£328");
+    expect(live).toHaveTextContent("delayed");
+  });
+
+  it("shows no live price when there is no quote", async () => {
+    renderPage();
+
+    await screen.findByText("Last Close");
+    expect(screen.queryByTestId("research-live-price")).not.toBeInTheDocument();
   });
 
   it("shows native GBX close values instead of GBP-normalized close_gbp", async () => {

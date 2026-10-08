@@ -1583,6 +1583,17 @@ def _converted_or_empty(
         return _empty_ts()
 
 
+def convert_to_base_currency(
+    df: pd.DataFrame, ticker: str, exchange: str, day: date, base_currency: str = "GBP"
+) -> pd.DataFrame:
+    """Add ``<col>_<base>`` columns to a frame of ``day`` prices, as the range loader does.
+
+    For prices that did not come through :func:`load_meta_timeseries_range`
+    (a live quote) but must be converted exactly like the stored closes.
+    """
+    return _converted_or_empty(df, ticker, exchange, day, day, base_currency)
+
+
 def load_meta_timeseries_range(
     ticker: str,
     exchange: str,

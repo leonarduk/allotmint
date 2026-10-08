@@ -475,6 +475,9 @@
     }
   },
   "holdingsTable": {
+    "live": "Direct",
+    "liveDelayed": "Différé",
+    "livePriceTitle": "Cours en direct à {{time}}",
     "actualPurchaseCost": "Coût d'achat réel",
     "displayMode": {
       "category": "Catégorie",
@@ -763,6 +766,9 @@
       "label": {
         "exchange": "Place de cotation",
         "lastClose": "Dernière clôture",
+        "livePrice": "Cours en direct",
+        "liveAsOf": "à {{time}}",
+        "liveDelayed": "différé",
         "asOf": "Au",
         "coverage": "Couverture",
         "dataPoints": "Points de données",

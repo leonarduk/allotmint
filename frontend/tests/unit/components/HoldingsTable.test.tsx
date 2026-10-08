@@ -61,6 +61,7 @@ const defaultConfig: AppConfig = {
         scenario: true,
       },
 };
+import type { LiveQuote } from "@/api";
 import type { Holding } from "@/types";
 
 describe("HoldingsTable", () => {
@@ -1158,6 +1159,63 @@ describe("HoldingsTable", () => {
         expect(star).toHaveTextContent("*");
         const price = star.parentElement?.querySelector(".text-gray");
         expect(price).toHaveClass("text-gray");
+    });
+
+    describe("live quotes", () => {
+        const holding: Holding = {
+            ticker: "VOD.L",
+            name: "Vodafone",
+            currency: "GBP",
+            instrument_type: "Equity",
+            units: 10,
+            price: 0.7,
+            cost_basis_gbp: 5,
+            market_value_gbp: 7,
+            gain_gbp: 2,
+            current_price_gbp: 0.7,
+            acquired_date: "2024-01-01",
+            days_held: 10,
+            sell_eligible: true,
+            days_until_eligible: 0,
+            last_price_date: "2024-01-01",
+            is_stale: true,
+        };
+        const quote = (overrides: Partial<LiveQuote> = {}): LiveQuote => ({
+            price: 0.7234,
+            price_gbp: 0.7234,
+            currency: "GBP",
+            previous_close: 0.7,
+            change_pct: 3.34,
+            timestamp: "2024-01-02T10:15:00Z",
+            market_state: "REGULAR",
+            is_stale: false,
+            ...overrides,
+        });
+
+        it("shows the live GBP price in place of the stored close", async () => {
+            render(<HoldingsTable holdings={[holding]} liveQuotes={{ "VOD.L": quote() }} />);
+            const badge = await screen.findByTestId("live-price-badge");
+            expect(badge).toHaveTextContent("Live");
+            const cell = badge.closest("td")!;
+            expect(cell).toHaveTextContent("£0.72");
+            expect(cell).not.toHaveTextContent("£0.70");
+            expect(cell.getAttribute("title")).toContain("+3.34%");
+            // The stored close's stale marker and date badge are not shown for a live price.
+            expect(within(cell).queryByText("*")).toBeNull();
+        });
+
+        it("labels a stale live quote as delayed", async () => {
+            render(
+                <HoldingsTable holdings={[holding]} liveQuotes={{ "VOD.L": quote({ is_stale: true }) }} />,
+            );
+            expect(await screen.findByTestId("live-price-badge")).toHaveTextContent("Delayed");
+        });
+
+        it("falls back to the stored close without a quote for the ticker", async () => {
+            render(<HoldingsTable holdings={[holding]} liveQuotes={{ "OTHER.L": quote() }} />);
+            await screen.findByText("Vodafone");
+            expect(screen.queryByTestId("live-price-badge")).toBeNull();
+        });
     });
 
     describe("FX rate source marker (#9730)", () => {

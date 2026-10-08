@@ -29,6 +29,7 @@ import {
 } from "../api";
 import * as api from "../api";
 import { HoldingsTable } from "./HoldingsTable";
+import { useLiveQuotes } from "../hooks/useLiveQuotes";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { TopMoversSummary } from "./TopMoversSummary";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
@@ -693,6 +694,17 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     () => toRollupRows(scopedRows, instrumentRows ?? [], portfolio?.as_of),
     [scopedRows, instrumentRows, portfolio?.as_of],
   );
+  const liveTickers = useMemo(
+    () =>
+      scopedRows
+        .filter(
+          (row) =>
+            !isCashInstrument({ instrument_type: row.instrument_type, ticker: row.ticker }),
+        )
+        .map((row) => row.ticker),
+    [scopedRows],
+  );
+  const liveQuotes = useLiveQuotes(liveTickers);
   const showAccount = useMemo(
     () => new Set(filteredAccounts.map((account) => account.account_type)).size > 1,
     [filteredAccounts],
@@ -1579,6 +1591,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               setSelectedInstrument({ ticker, name, instrumentType })
             }
             selectedTicker={selectedInstrument?.ticker}
+            liveQuotes={liveQuotes}
           />
           {displayMode !== "flat" && instrumentLoading && !instrumentRows && (
             <p style={{ marginTop: "0.5rem" }}>

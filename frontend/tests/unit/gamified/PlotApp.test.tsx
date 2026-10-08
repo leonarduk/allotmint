@@ -240,6 +240,60 @@ describe('Plot mode hub', () => {
     expect(stage).toHaveTextContent('Nothing needs attention');
   });
 
+  it('flags stale portfolio prices instead of the healthy-plot state when no crop is troubled (#8313)', async () => {
+    // Every crop is fine, but the whole plot was priced 16 days before the
+    // Trail's "today" — the gains on the stage can't be trusted.
+    const staleHealthy: Portfolio = {
+      owner: 'steve',
+      as_of: '2026-08-08',
+      trades_this_month: 2,
+      trades_remaining: 8,
+      total_value_estimate_gbp: 10_000,
+      accounts: [
+        {
+          account_type: 'stocks-isa',
+          currency: 'GBP',
+          owner: 'steve',
+          value_estimate_gbp: 10_000,
+          holdings: [
+            {
+              ticker: 'UP.L',
+              name: 'Up Plc',
+              units: 10,
+              market_value_gbp: 10_000,
+              gain_pct: 20,
+              sell_eligible: true,
+              is_stale: false,
+            },
+          ],
+        },
+      ],
+    };
+    mocks.getPortfolio.mockResolvedValue(staleHealthy);
+
+    renderPlot();
+
+    const stage = await screen.findByRole('region', { name: 'Featured crops' });
+    expect(
+      await within(stage).findByText('Prices are 16 days old')
+    ).toHaveAttribute('role', 'status');
+    expect(stage).not.toHaveTextContent('Nothing needs attention');
+    expect(stage).not.toHaveTextContent('Needs attention');
+  });
+
+  it('shows stale portfolio prices alongside a troubled crop, not instead of it (#8313)', async () => {
+    mocks.getPortfolio.mockResolvedValue({ ...portfolio, as_of: '2026-08-08' });
+
+    renderPlot();
+
+    const stage = await screen.findByRole('region', { name: 'Featured crops' });
+    expect(
+      await within(stage).findByText('Prices are 16 days old')
+    ).toBeInTheDocument();
+    expect(stage).toHaveTextContent('Needs attention');
+    expect(stage).toHaveTextContent('not sellable yet');
+  });
+
   it('states the loss amount when a sellable crop is genuinely down', async () => {
     const downOnly: Portfolio = {
       owner: 'steve',

@@ -11,8 +11,10 @@ import {
   germinatingCrops,
   growthStageMeta,
   neediestCrop,
+  portfolioAttentionReason,
   type Crop,
 } from '../plotModel';
+import { localDateISO } from '../../lib/date';
 import {
   buildSeasonGoals,
   buildStreakPath,
@@ -132,6 +134,13 @@ export default function PlotHub({ basePath }: { basePath: string }) {
   // every holding is up shows a healthy-plot state instead of a scapegoat.
   const worst = neediestCrop(crops);
   const worstReason = worst ? attentionReasonFor(worst) : null;
+  // A stale portfolio price feed (#8313) is a plot-wide problem, not a
+  // crop's: it gets its own line on the stage, shown alongside any crop
+  // reason, and suppresses the "all healthy" state on its own.
+  const portfolioReason = portfolioAttentionReason(
+    snapshot.asOf,
+    today || localDateISO()
+  );
   const openChores = chores.filter((chore) => !chore.completed).length;
   const featured = crops.slice(0, 6);
   const germinating = germinatingCrops(crops);
@@ -158,8 +167,18 @@ export default function PlotHub({ basePath }: { basePath: string }) {
                 basePath={basePath}
               />
             ) : (
-              <p className={styles.stageEmpty}>
-                {t('plot.hub.allHealthy')}
+              !portfolioReason && (
+                <p className={styles.stageEmpty}>
+                  {t('plot.hub.allHealthy')}
+                </p>
+              )
+            )}
+            {portfolioReason && (
+              <p
+                className={`${styles.stageEmpty} ${styles.stageAlert}`}
+                role="status"
+              >
+                {portfolioReason.label}
               </p>
             )}
           </>

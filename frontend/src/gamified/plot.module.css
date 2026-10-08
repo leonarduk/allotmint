@@ -499,6 +499,12 @@
   color: var(--plot-ink-dim);
 }
 
+/* Plot-wide stale pricing (#8313): a warning, not a neutral empty state. */
+.stageAlert {
+  color: var(--plot-gold);
+  font-weight: 600;
+}
+
 /* ── Resource pills row ─────────────────────────────────────────────── */
 
 .pills {

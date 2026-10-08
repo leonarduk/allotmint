@@ -10,6 +10,7 @@
 
 import type { Account, Holding, Portfolio } from '../types';
 import { isCostBasisUnreliable } from '../lib/costBasis';
+import { pricingFreshness } from '../lib/pricingFreshness';
 import i18n from '../i18n';
 
 export type GrowthStage =
@@ -688,6 +689,41 @@ export function attentionReasonFor(crop: Crop): AttentionReason | null {
     };
   }
   return null;
+}
+
+/**
+ * A plot-wide problem that is not any one crop's fault (#8313): the
+ * portfolio's own pricing date is older than the last expected market close,
+ * so every gain/loss figure on the hub is built on old prices.
+ */
+export interface PortfolioAttentionReason {
+  /** Short label for the stage panel, e.g. "Prices are 16 days old". */
+  label: string;
+  kind: 'portfolio-stale';
+  ageDays: number;
+}
+
+/**
+ * The portfolio-level attention reason, or null when the plot's `asOf` date
+ * is fresh (or missing/unparseable). Uses the same market-calendar rule as
+ * the classic dashboard (#7820), so the two skins agree on what "stale" means.
+ *
+ * Precedence: this is independent of `neediestCrop` and is never overridden
+ * by a crop-level reason — the hub shows it alongside whichever crop (if any)
+ * needs attention, and the healthy-plot state only when neither applies.
+ */
+export function portfolioAttentionReason(
+  asOf: string,
+  today: string
+): PortfolioAttentionReason | null {
+  if (!asOf) return null;
+  const freshness = pricingFreshness(asOf, today);
+  if (!freshness.stale) return null;
+  return {
+    label: i18n.t('group.pricingStale', { count: freshness.ageDays }),
+    kind: 'portfolio-stale',
+    ageDays: freshness.ageDays,
+  };
 }
 
 /**

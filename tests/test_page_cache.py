@@ -7,6 +7,13 @@ from pathlib import Path
 from backend.utils import page_cache
 
 
+async def _wait_for_cache(page_name, timeout=2.0):
+    """Poll until ``page_name`` is cached; retries now back off, so a fixed sleep is racy."""
+    deadline = time.monotonic() + timeout
+    while page_cache.load_cache(page_name) is None and time.monotonic() < deadline:
+        await asyncio.sleep(0.01)
+
+
 def test_async_builder(monkeypatch, tmp_path):
     async def run():
         monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
@@ -52,7 +59,7 @@ def test_builder_error_logged_and_continues(monkeypatch, tmp_path, caplog):
             return {"ok": True}
 
         page_cache.schedule_refresh("error_page", 0.01, builder)
-        await asyncio.sleep(0.03)
+        await _wait_for_cache("error_page")
         await page_cache.cancel_refresh_tasks()
         assert page_cache.load_cache("error_page") == {"ok": True}
 
@@ -100,13 +107,13 @@ def test_first_builder_exception_cache_persisted(monkeypatch, tmp_path):
         def flaky_save(page_name, data):
             calls["save"] += 1
             if calls["save"] == 1:
-                raise asyncio.CancelledError
+                raise OSError("disk full")
             return original_save(page_name, data)
 
         monkeypatch.setattr(page_cache, "save_cache", flaky_save)
 
         page_cache.schedule_refresh("error_page", 0.01, builder)
-        await asyncio.sleep(0.03)
+        await _wait_for_cache("error_page")
         await page_cache.cancel_refresh_tasks()
 
         assert page_cache.load_cache("error_page") == {"ok": True}
@@ -190,41 +197,107 @@ def test_schedule_refresh_initial_delay(monkeypatch, tmp_path):
     asyncio.run(run())
 
 
-def test_builder_returns_awaitable_and_save_error(monkeypatch, tmp_path, caplog):
+def test_save_error_retries_only_the_save_with_backoff(monkeypatch, tmp_path, caplog):
+    """A failing save backs off and re-saves the same payload without rebuilding it."""
+    monkeypatch.setattr(page_cache, "_RETRY_BASE_SECONDS", 0.05)
+
     async def run():
         monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+        builds = []
 
         async def builder_async():
+            builds.append(1)
             return {"ok": True}
 
+        saved = []
+
+        def failing_save(page_name, data):
+            saved.append(data)
+            raise OSError("disk full")
+
+        monkeypatch.setattr(page_cache, "save_cache", failing_save)
+        # A builder returning an awaitable is awaited.
+        page_cache.schedule_refresh("x", 10, lambda: builder_async())
+        await asyncio.sleep(0.2)
+        await page_cache.cancel_refresh_tasks()
+        return builds, saved
+
+    with caplog.at_level(logging.ERROR):
+        builds, saved = asyncio.run(run())
+
+    # Save retries at ~0, 0.05, 0.15s within the 0.2s window -- not thousands.
+    assert builds == [1]
+    assert 2 <= len(saved) <= 4
+    assert all(data == {"ok": True} for data in saved)
+    assert "Cache persist failed for x (attempt 2)" in caplog.text
+
+
+def test_unsaved_payload_is_rebuilt_once_older_than_ttl(monkeypatch, tmp_path):
+    """A payload whose save keeps failing is not persisted stale: after ttl it is rebuilt."""
+    monkeypatch.setattr(page_cache, "_RETRY_BASE_SECONDS", 0.05)
+
+    async def run():
+        monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+        builds = []
+        saves = {"n": 0}
+        original_save = page_cache.save_cache
+
         def builder():
-            return builder_async()
+            builds.append(1)
+            return {"build": len(builds)}
 
-        calls = iter([True, False, True])
+        def save_fails_for_a_while(page_name, data):
+            saves["n"] += 1
+            if saves["n"] <= 3:
+                raise OSError("disk full")
+            return original_save(page_name, data)
 
-        def can_refresh():
-            return next(calls)
+        monkeypatch.setattr(page_cache, "save_cache", save_fails_for_a_while)
+        page_cache.schedule_refresh("stale", 0.1, builder)
+        await _wait_for_cache("stale")
+        await page_cache.cancel_refresh_tasks()
+        return builds
 
-        async def fake_sleep(seconds):
-            if seconds == 0:
-                raise asyncio.CancelledError
-            return
+    builds = asyncio.run(run())
 
-        def flaky_save(*a, **k):
-            raise ValueError()
+    # Save attempts at ~0, 0.05, 0.15s: the third retry finds the 0.1s-ttl payload expired.
+    assert len(builds) >= 2
+    assert page_cache.load_cache("stale")["build"] >= 2
 
-        monkeypatch.setattr(page_cache, "save_cache", flaky_save)
-        monkeypatch.setattr(page_cache.asyncio, "sleep", fake_sleep)
 
-        page_cache.schedule_refresh("x", 0.1, builder, can_refresh=can_refresh)
-        with caplog.at_level(logging.ERROR):
-            await asyncio.sleep(0.2)
-        try:
-            await page_cache.cancel_refresh_tasks()
-        except asyncio.CancelledError:
-            pass
+def test_always_failing_builder_backs_off(monkeypatch, tmp_path):
+    """A builder that never succeeds is retried with exponential backoff (#10362)."""
+    monkeypatch.setattr(page_cache, "_RETRY_BASE_SECONDS", 0.02)
 
-    asyncio.run(run())
+    async def run():
+        monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+        calls = []
+
+        def builder():
+            calls.append(time.monotonic())
+            raise ValueError("always broken")
+
+        page_cache.schedule_refresh("broken", 60, builder)
+        await asyncio.sleep(0.5)
+        await page_cache.cancel_refresh_tasks()
+        return calls
+
+    calls = asyncio.run(run())
+
+    # Delays 0.02, 0.04, 0.08, 0.16 -> about 5 calls in 0.5s; sleep(0) made thousands.
+    assert 3 <= len(calls) <= 7
+    gaps = [later - earlier for earlier, later in zip(calls, calls[1:], strict=False)]
+    # The third retry waits 4x base (0.08s); timer slop only lengthens sleeps.
+    assert max(gaps) >= 3 * page_cache._RETRY_BASE_SECONDS
+
+
+def test_retry_delay_doubles_and_is_capped_by_ttl():
+    base = page_cache._RETRY_BASE_SECONDS
+    assert page_cache._retry_delay(3600, 1) == base
+    assert page_cache._retry_delay(3600, 3) == base * 4
+    assert page_cache._retry_delay(30, 10) == 30
+    assert page_cache._retry_delay(0, 1) == page_cache._RETRY_MIN_SECONDS
+    assert page_cache._retry_delay(3600, 10_000) == 3600
 
 
 def test_cancel_refresh_tasks_handles_error():

@@ -26,7 +26,19 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 _refresh_tasks: Dict[str, asyncio.Task] = {}
 
+# Backoff after a failed refresh: 1s, 2s, 4s ... capped at the page's ttl
+# (or _RETRY_MIN_SECONDS for a near-zero ttl, so a failure can never spin).
+_RETRY_BASE_SECONDS = 1.0
+_RETRY_MIN_SECONDS = 0.01
+
 logger = logging.getLogger(__name__)
+
+
+def _retry_delay(ttl: float, failures: int) -> float:
+    """Return the wait before retry number ``failures`` (1-based) of a failed refresh."""
+
+    cap = max(ttl, _RETRY_MIN_SECONDS)
+    return min(cap, _RETRY_BASE_SECONDS * 2 ** min(failures - 1, 30))
 
 
 def _cache_path(page_name: str) -> Path:
@@ -130,45 +142,44 @@ def schedule_refresh(
         try:
             if initial_delay is not None and initial_delay > 0:
                 await asyncio.sleep(initial_delay)
+            failures = 0
+            # A built payload whose save failed, with when it was built. Only
+            # the save is retried, so a persist error doesn't re-run an
+            # expensive build on every attempt; once the payload is a ttl old
+            # it is dropped and rebuilt rather than persisted stale.
+            unsaved: tuple[float, Any] | None = None
             while True:
-                if can_refresh is not None and not can_refresh():
+                if unsaved is not None and time.monotonic() - unsaved[0] > ttl:
+                    unsaved = None
+                if unsaved is None and can_refresh is not None and not can_refresh():
                     await asyncio.sleep(ttl)
                     continue
+                stage = "refresh" if unsaved is None else "persist"
                 try:
-                    data = await _call_builder()
-                except Exception as exc:
-                    if isinstance(exc, asyncio.CancelledError):  # pragma: no cover - defensive
-                        raise
-                    logger.exception("Cache refresh failed for %s", sanitise_log_value(page_name))
-                    # Immediately retry on failure so the cache can still be
-                    # populated without waiting for the next scheduled
-                    # interval.  This makes the refresh logic resilient to
-                    # short "ttl" values and slower platforms where the
-                    # first attempt may take longer than expected (for
-                    # example on Windows CI where thread start-up can be
-                    # noticeably slower).  By continuing here we skip the
-                    # sleep below and run the builder again right away.
-                    await asyncio.sleep(0)
+                    if unsaved is None:
+                        unsaved = (time.monotonic(), await _call_builder())
+                        stage = "persist"
+                    save_cache(page_name, unsaved[1])
+                except Exception:
+                    # Retry sooner than the next scheduled refresh so a
+                    # transient failure doesn't leave the cache cold for a
+                    # whole ttl, but back off: retrying immediately turned a
+                    # persistently failing build or save into a hot loop that
+                    # pinned a core and logged a traceback per iteration
+                    # (#10362).
+                    failures += 1
+                    delay = _retry_delay(ttl, failures)
+                    logger.exception(
+                        "Cache %s failed for %s (attempt %s); retrying in %ss",
+                        sanitise_log_value(stage),
+                        sanitise_log_value(page_name),
+                        sanitise_log_value(failures),
+                        sanitise_log_value(round(delay, 2)),
+                    )
+                    await asyncio.sleep(delay)
                     continue
-
-                cancelled = False
-                while True:
-                    try:
-                        save_cache(page_name, data)
-                        break
-                    except BaseException as exc:
-                        if isinstance(exc, asyncio.CancelledError):
-                            cancelled = True
-                        else:
-                            logger.exception("Cache persist failed for %s", sanitise_log_value(page_name))
-                        try:
-                            await asyncio.sleep(0)
-                        except asyncio.CancelledError:
-                            cancelled = True
-
-                if cancelled:
-                    raise asyncio.CancelledError
-
+                unsaved = None
+                failures = 0
                 await asyncio.sleep(ttl)
         except asyncio.CancelledError:  # pragma: no cover - defensive
             pass

@@ -229,9 +229,7 @@ def test_fx_failed_holding_appears_in_unpriced_and_seeds_basis(
     monkeypatch.setattr(portfolio_utils, "stored_return_basis", fake_stored_return_basis)
 
     window = (date(2024, 1, 1), date(2024, 1, 3))
-    per_holding, _unconverted, unpriced = portfolio_utils._gbp_holding_values(
-        holdings, 365, window, total_return=True
-    )
+    per_holding, _unconverted, unpriced = portfolio_utils._gbp_holding_values(holdings, 365, window, total_return=True)
 
     # BBB must be surfaced as unpriced with its intended (total) basis.
     assert any(entry["ticker"] == "BBB.L" for entry in unpriced)

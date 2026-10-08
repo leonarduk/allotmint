@@ -1,4 +1,9 @@
 {
+  "priceAsOf": {
+    "live": "Live {{time}}",
+    "delayed": "Delayed {{time}}",
+    "close": "Close {{date}}"
+  },
   "addPosition": {
     "title": "Add position",
     "account": "Account",
@@ -469,9 +474,6 @@
     }
   },
   "holdingsTable": {
-    "live": "Live",
-    "liveDelayed": "Delayed",
-    "livePriceTitle": "Live price at {{time}}",
     "actualPurchaseCost": "Actual purchase cost",
     "displayMode": {
       "category": "Category",
@@ -770,9 +772,8 @@
       "label": {
         "exchange": "Exchange",
         "lastClose": "Last Close",
+        "price": "Price",
         "livePrice": "Live Price",
-        "liveAsOf": "as of {{time}}",
-        "liveDelayed": "delayed",
         "asOf": "As of",
         "coverage": "Coverage",
         "dataPoints": "Data Points",

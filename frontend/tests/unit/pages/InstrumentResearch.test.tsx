@@ -481,14 +481,45 @@ describe("InstrumentResearch page", () => {
     const live = await screen.findByTestId("research-live-price");
     expect(live).toHaveTextContent("410.00 USD");
     expect(live).not.toHaveTextContent("£328");
-    expect(live).toHaveTextContent("delayed");
+    // market_state CLOSED: Yahoo's regular-market price is that session's close.
+    const asOf = screen.getByTestId("research-price-as-of");
+    expect(asOf).toHaveAttribute("data-as-of", "close");
+    expect(asOf).toHaveTextContent(/Close 2024-01-0[34]/);
   });
 
-  it("shows no live price when there is no quote", async () => {
+  it("shows the stored close, labelled as a close, when there is no quote", async () => {
     renderPage();
 
     await screen.findByText("Last Close");
     expect(screen.queryByTestId("research-live-price")).not.toBeInTheDocument();
+    const close = screen.getByTestId("research-close-price");
+    expect(close).toHaveTextContent("£101.00");
+    const asOf = screen.getByTestId("research-price-as-of");
+    expect(asOf).toHaveAttribute("data-as-of", "close");
+    expect(asOf).toHaveTextContent("Close 2024-01-02");
+  });
+
+  it("labels a fresh in-session quote as live", async () => {
+    vi.mocked(api.getLiveQuotes).mockResolvedValue({
+      quotes: {
+        AAA: {
+          price: 102.5,
+          price_gbp: 102.5,
+          currency: "GBP",
+          previous_close: 101,
+          change_pct: 1.4851,
+          timestamp: new Date().toISOString(),
+          market_state: "REGULAR",
+          is_stale: false,
+        },
+      },
+    });
+
+    renderPage();
+
+    const asOf = await screen.findByTestId("research-price-as-of");
+    expect(asOf).toHaveAttribute("data-as-of", "live");
+    expect(asOf.textContent).toMatch(/Live \d{2}:\d{2}/);
   });
 
   it("shows native GBX close values instead of GBP-normalized close_gbp", async () => {

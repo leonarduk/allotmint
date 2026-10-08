@@ -1,4 +1,9 @@
 {
+  "priceAsOf": {
+    "live": "Live {{time}}",
+    "delayed": "Ritardato {{time}}",
+    "close": "Chiusura {{date}}"
+  },
   "addPosition": {
     "title": "Aggiungi posizione",
     "account": "Conto",
@@ -475,9 +480,6 @@
     }
   },
   "holdingsTable": {
-    "live": "Live",
-    "liveDelayed": "Ritardato",
-    "livePriceTitle": "Prezzo live alle {{time}}",
     "actualPurchaseCost": "Costo di acquisto effettivo",
     "displayMode": {
       "category": "Categoria",
@@ -776,9 +778,8 @@
       "label": {
         "exchange": "Borsa",
         "lastClose": "Ultima chiusura",
+        "price": "Prezzo",
         "livePrice": "Prezzo live",
-        "liveAsOf": "alle {{time}}",
-        "liveDelayed": "ritardato",
         "asOf": "Al",
         "coverage": "Copertura",
         "dataPoints": "Punti dati",

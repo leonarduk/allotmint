@@ -685,6 +685,31 @@ describe("AllocationCharts page", () => {
     });
   });
 
+  it("renders contribution_pct as percentage points, not a fraction (#10030)", async () => {
+    // Backend `_aggregate_by_field` stores contribution_pct in percentage
+    // points (12.0 for 12%), so the relative-view tick must read "12.0%",
+    // not "0.1%". This pins the scale: a fraction-based formatter fails here.
+    mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+    mockGetGroupCurrencies.mockResolvedValueOnce([
+      {
+        quote_currency: "GBP",
+        market_value_gbp: 100,
+        gain_gbp: 12,
+        cost_gbp: 100,
+        contribution_pct: 12,
+        currency: "GBP",
+      },
+    ]);
+
+    render(<AllocationCharts />, "/allocation?view=currency");
+
+    await waitFor(() => expect(mockGetGroupCurrencies).toHaveBeenCalled());
+    const ticks = await screen.findAllByTestId("y-axis-tick");
+    const rendered = ticks.map((el) => el.textContent);
+    expect(rendered).toContain("12.0%");
+    expect(rendered.some((t) => t?.endsWith("%"))).toBe(true);
+  });
+
   it("shows each slice's percentage in the legend and tooltip", async () => {
     mockGetGroupPortfolio.mockResolvedValueOnce(
       buildPortfolio([

@@ -1275,6 +1275,9 @@ def _aggregate_by_field(
     for g in groups.values():
         cost = g["cost_gbp"]
         g["gain_pct"] = (g["gain_gbp"] / cost * 100.0) if cost else None
+        # Percentage points, not a fraction: the *100.0 above is the contract
+        # every consumer (frontend charts, /allocation, tests) relies on, so
+        # e.g. a 12% contribution is stored as 12.0, never 0.12 (#10030).
         g["contribution_pct"] = (g["gain_gbp"] / total_cost * 100.0) if total_cost else None
         g["weight_pct"] = (g["market_value_gbp"] / total_market_value * 100.0) if total_market_value else None
     return list(groups.values())

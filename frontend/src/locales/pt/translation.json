@@ -508,6 +508,7 @@
       "units": "Unidades",
       "weightPct": "Peso %",
       "totalReturn": "Retorno total {{symbol}}",
+      "income": "Rendimentos {{symbol}}",
       "account": "Conta"
     },
     "columnsLabel": "Colunas:",
@@ -561,6 +562,9 @@
     "noPriceHistoryNotice_one": "{{count}} instrumento sem histórico de preços",
     "noPriceHistoryNotice_other": "{{count}} instrumentos sem histórico de preços",
     "totalReturnHeaderTitle": "Ganho de capital mais dividendos, juros e ganhos já realizados nesta posição",
+    "incomeHeaderTitle": "Dividendos e juros recebidos nesta posição",
+    "incomeEstimated": "Estimado a partir do histórico de dividendos: os rendimentos da corretora não indicam a posição",
+    "incomeYield": "Rendimento dos últimos 12 meses {{yield}}",
     "totalReturnBreakdown": "Rendimentos recebidos {{income}} · realizado em vendas {{realised}}",
     "totalReturnNoTransactions": "Nenhuma transação registrada para esta conta — rendimentos desconhecidos"
   },

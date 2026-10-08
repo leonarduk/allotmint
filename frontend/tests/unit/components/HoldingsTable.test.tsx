@@ -227,7 +227,7 @@ describe("HoldingsTable", () => {
             .getAllByRole("columnheader")
             .map((header) => header.textContent);
 
-        expect(headers.slice(0, 10)).toEqual([
+        expect(headers.slice(0, 11)).toEqual([
             "Ticker ▲",
             "Name",
             "Sector",
@@ -236,6 +236,7 @@ describe("HoldingsTable", () => {
             "Gain £",
             "Gain %",
             "Total return £",
+            "Income £",
             "Px £",
             "Cost £",
         ]);
@@ -271,6 +272,38 @@ describe("HoldingsTable", () => {
         const cell = within(row).getByText(/\(27\.0%\)/);
         expect(cell.textContent).toMatch(/135\.00/);
         expect(cell.getAttribute("title")).toMatch(/30\.00/);
+    });
+
+    it("shows income per position with its yield, marks estimates, and totals it (#10395)", async () => {
+        const rows = [
+            { ...holdings[0], income_gbp: 20.5, income_estimated: false, yield_pct: 4.25, total_return_gbp: 90 },
+            { ...holdings[1], income_gbp: 5, income_estimated: true, yield_pct: null, total_return_gbp: 10 },
+        ];
+        renderWithConfig(<HoldingsTable holdings={rows} />);
+
+        const recorded = (await screen.findByText(rows[0].name)).closest("tr")!;
+        const recordedCell = within(recorded).getByTitle("Trailing 12-month yield 4.3%");
+        expect(recordedCell.textContent).toBe("£20.50");
+
+        const estimated = screen.getByText(rows[1].name).closest("tr")!;
+        const estimatedCell = within(estimated).getByText("≈£5.00");
+        expect(estimatedCell.getAttribute("title")).toMatch(/^Estimated from dividend history/);
+
+        const footer = screen.getByText("Total").closest("tr")!;
+        expect(within(footer).getByText("£25.50")).toBeInTheDocument();
+    });
+
+    it("withholds the income total when any position's income is unknown (#10395)", async () => {
+        const rows = [
+            { ...holdings[0], income_gbp: 20, total_return_gbp: 90 },
+            { ...holdings[1], income_gbp: null, total_return_gbp: null },
+        ];
+        renderWithConfig(<HoldingsTable holdings={rows} />);
+
+        const unknown = (await screen.findByText(rows[1].name)).closest("tr")!;
+        expect(within(unknown).getAllByText("N/A").length).toBeGreaterThan(0);
+        const footer = screen.getByText("Total").closest("tr")!;
+        expect(within(footer).queryByText("£20.00")).toBeNull();
     });
 
     it("shows a total return without a % when the % is unknown (#9038)", async () => {
@@ -1622,14 +1655,14 @@ describe("HoldingsTable", () => {
 
           await userEvent.click(presetButton("Detailed"));
 
-          expect(headerTitles(container)).toHaveLength(18);
+          expect(headerTitles(container)).toHaveLength(19);
           expect(presetButton("Detailed")).toHaveAttribute("aria-pressed", "true");
           // With sector shown, the total row label spans ticker + name + sector.
           expect(container.querySelector("tfoot td")).toHaveAttribute("colspan", "3");
           const columnCheckboxes = within(
               screen.getByRole("group", { name: "Columns:" }),
           ).getAllByRole("checkbox");
-          expect(columnCheckboxes).toHaveLength(16);
+          expect(columnCheckboxes).toHaveLength(17);
           for (const checkbox of columnCheckboxes) {
               expect(checkbox).toBeChecked();
           }
@@ -1639,7 +1672,7 @@ describe("HoldingsTable", () => {
 
           unmount();
           const { container: remounted } = render(<HoldingsTable holdings={holdings} />);
-          expect(headerTitles(remounted)).toHaveLength(18);
+          expect(headerTitles(remounted)).toHaveLength(19);
       });
 
       it("keeps per-column checkboxes working on top of a preset", async () => {
@@ -1667,14 +1700,14 @@ describe("HoldingsTable", () => {
           expect(presetButton("Detailed")).toHaveAttribute("aria-pressed", "true");
           expect(screen.getByRole("checkbox", { name: "Units" })).toBeChecked();
           const relativeHeaders = headerTitles(container);
-          for (const hidden of ["Units", "Mkt £", "Gain £", "Total return £", "Cost £"]) {
+          for (const hidden of ["Units", "Mkt £", "Gain £", "Total return £", "Income £", "Cost £"]) {
               expect(relativeHeaders).not.toContain(hidden);
           }
           expect(relativeHeaders).toContain("Gain %");
           expect(relativeHeaders).toHaveLength(13);
 
           await userEvent.click(screen.getByLabelText("Relative view"));
-          expect(headerTitles(container)).toHaveLength(18);
+          expect(headerTitles(container)).toHaveLength(19);
       });
 
       it.each([

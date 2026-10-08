@@ -508,6 +508,7 @@
       "units": "Einheiten",
       "weightPct": "Gewicht %",
       "totalReturn": "Gesamtrendite {{symbol}}",
+      "income": "Erträge {{symbol}}",
       "account": "Konto"
     },
     "columnsLabel": "Spalten:",
@@ -561,6 +562,9 @@
     "noPriceHistoryNotice_one": "{{count}} Instrument ohne Preishistorie",
     "noPriceHistoryNotice_other": "{{count}} Instrumente ohne Preishistorie",
     "totalReturnHeaderTitle": "Kursgewinn plus Dividenden, Zinsen und bereits realisierte Gewinne dieser Position",
+    "incomeHeaderTitle": "Auf diese Position erhaltene Dividenden und Zinsen",
+    "incomeEstimated": "Aus der Dividendenhistorie geschätzt: Die Ertragsbuchungen des Brokers nennen die Position nicht",
+    "incomeYield": "Rendite der letzten 12 Monate {{yield}}",
     "totalReturnBreakdown": "Erhaltene Erträge {{income}} · realisiert durch Verkäufe {{realised}}",
     "totalReturnNoTransactions": "Keine Transaktionen für dieses Konto erfasst — Erträge unbekannt"
   },

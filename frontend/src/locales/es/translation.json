@@ -508,6 +508,7 @@
       "units": "Unidades",
       "weightPct": "Peso %",
       "totalReturn": "Rentabilidad total {{symbol}}",
+      "income": "Ingresos {{symbol}}",
       "account": "Cuenta"
     },
     "columnsLabel": "Columnas:",
@@ -561,6 +562,9 @@
     "noPriceHistoryNotice_one": "{{count}} instrumento sin historial de precios",
     "noPriceHistoryNotice_other": "{{count}} instrumentos sin historial de precios",
     "totalReturnHeaderTitle": "Ganancia de capital más dividendos, intereses y ganancias ya realizadas en esta posición",
+    "incomeHeaderTitle": "Dividendos e intereses recibidos en esta posición",
+    "incomeEstimated": "Estimado a partir del historial de dividendos: los ingresos del bróker no indican la posición",
+    "incomeYield": "Rentabilidad de los últimos 12 meses {{yield}}",
     "totalReturnBreakdown": "Ingresos recibidos {{income}} · realizado en ventas {{realised}}",
     "totalReturnNoTransactions": "No hay transacciones registradas para esta cuenta — ingresos desconocidos"
   },

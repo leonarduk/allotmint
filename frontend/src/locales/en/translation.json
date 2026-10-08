@@ -502,6 +502,7 @@
       "units": "Units",
       "weightPct": "Weight %",
       "totalReturn": "Total return {{symbol}}",
+      "income": "Income {{symbol}}",
       "account": "Account"
     },
     "columnsLabel": "Columns:",
@@ -555,6 +556,9 @@
     "noPriceHistoryNotice_one": "{{count}} instrument has no price history",
     "noPriceHistoryNotice_other": "{{count}} instruments have no price history",
     "totalReturnHeaderTitle": "Capital gain plus dividends, interest and gains already realised on this position",
+    "incomeHeaderTitle": "Dividends and interest received on this position",
+    "incomeEstimated": "Estimated from dividend history: the broker's income rows don't name the holding",
+    "incomeYield": "Trailing 12-month yield {{yield}}",
     "totalReturnBreakdown": "Income received {{income}} · realised on sales {{realised}}",
     "totalReturnNoTransactions": "No transactions recorded for this account — income unknown"
   },

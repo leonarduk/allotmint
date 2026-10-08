@@ -12,6 +12,7 @@ export const DETAILED_COLUMNS = Object.freeze({
   gain: true,
   gain_pct: true,
   total_return: true,
+  income: true,
   price: true,
   cost: true,
   weight_pct: true,
@@ -49,6 +50,7 @@ export const RELATIVE_VIEW_HIDDEN: ReadonlySet<ColumnKey> = new Set([
   'market',
   'gain',
   'total_return',
+  'income',
   'cost',
 ]);
 // The columns after weight %, in body-row order; group and total rows render

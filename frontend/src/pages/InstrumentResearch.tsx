@@ -605,6 +605,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     try {
       const preview = await refreshInstrumentMetadata(baseTicker, exchange);
       const previewMetadata = metadataStateFromResponse(preview.metadata);
+      if (!isEditingMetadata) resetIsinEditor();
       setRefreshContext({ form: { ...formValues }, wasEditing: isEditingMetadata });
       setFormValues(previewMetadata);
       setRefreshPreview({ metadata: previewMetadata, changes: preview.changes || {} });
@@ -618,11 +619,46 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     }
   };
 
+  // Save an ISIN typed during a refresh preview (Yahoo's refresh never
+  // returns one). On failure the editor stays open so the ISIN can be fixed,
+  // or the foreign-prefix override ticked, and saved. Resolves true on success.
+  const persistRefreshIsin = async (exchange: string, name: string, isin: string) => {
+    if (isin === instrumentIsin) return true;
+    const allowForeign = foreignIsinRejected && allowForeignIsin;
+    const payload: InstrumentMetadata = {
+      ticker: `${baseTicker}.${exchange}`,
+      exchange,
+      name,
+      isin: isin || null,
+    };
+    try {
+      await updateInstrumentMetadata(baseTicker, exchange, payload, allowForeign);
+      setInstrumentIsin(isin);
+      setForeignIsinRejected(false);
+      setAllowForeignIsin(false);
+      return true;
+    } catch (err) {
+      if (errorStatus(err) === 422 && isin) setForeignIsinRejected(true);
+      setIsEditingMetadata(true);
+      const extra = err instanceof Error ? err.message : String(err);
+      setMetadataStatus({
+        kind: "error",
+        text: `${t("instrumentDetail.metadataSaveError")} ${extra}`,
+      });
+      return false;
+    }
+  };
+
   const handleConfirmRefresh = async () => {
     if (!refreshPreview || confirmingRefresh) return;
     const exchange = deriveExchangeForActions();
     if (!baseTicker || !exchange) {
       setRefreshError(t("instrumentDetail.metadataMissingExchange"));
+      return;
+    }
+    const isin = isinInput.trim().toUpperCase();
+    if (isin && !ISIN_PATTERN.test(isin)) {
+      setMetadataStatus({ kind: "error", text: t("instrumentDetail.metadataIsinError") });
       return;
     }
     setConfirmingRefresh(true);
@@ -661,6 +697,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       if (next.instrumentType) {
         setInstrumentTypeOptions((prev) => addInstrumentTypeOption(prev, next.instrumentType));
       }
+      if (!(await persistRefreshIsin(exchange, next.name, isin))) return;
       setMetadataStatus({
         kind: "success",
         text:
@@ -681,9 +718,11 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     if (previous) {
       setFormValues(previous.form);
       setIsEditingMetadata(previous.wasEditing);
+      if (!previous.wasEditing) resetIsinEditor();
     } else {
       setFormValues(metadata);
       setIsEditingMetadata(false);
+      resetIsinEditor();
     }
     setRefreshPreview(null);
     setRefreshContext(null);
@@ -992,8 +1031,8 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       a.localeCompare(b, undefined, { sensitivity: "base" }),
     );
   })();
-  const metadataInputsDisabled =
-    metadataSaving || refreshingMetadata || confirmingRefresh || !!refreshPreview;
+  const isinInputDisabled = metadataSaving || refreshingMetadata || confirmingRefresh;
+  const metadataInputsDisabled = isinInputDisabled || !!refreshPreview;
   const exchangeForActions = deriveExchangeForActions();
   const investingComUrl = buildInvestingComUrl(instrumentIsin, tkr);
   const morningstarId = useMorningstarId(
@@ -1336,9 +1375,10 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             style={{
               marginBottom: "0.75rem",
               padding: "0.75rem",
-              border: "1px solid #ddd",
+              border: "1px solid var(--surface-card-border)",
               borderRadius: "4px",
-              background: "#f7f9fc",
+              background: "var(--surface-card-bg)",
+              color: "var(--surface-card-color)",
             }}
           >
             <strong>{t("instrumentDetail.refreshPreviewTitle")}</strong>
@@ -1403,7 +1443,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             morningstarId={morningstarId}
             entry={catalogueEntry}
           />
-          {isEditingMetadata && !refreshPreview && (
+          {/* Yahoo's refresh never supplies an ISIN, so it stays editable
+              during the preview and is saved on Confirm. */}
+          {isEditingMetadata && (
             <li style={{ marginBottom: "0.5rem" }}>
               <label htmlFor="instrument-isin" style={{ display: "block" }}>
                 {t("instrumentDetail.identifiers.isin")}
@@ -1420,7 +1462,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                   autoComplete="off"
                   spellCheck={false}
                   style={{ display: "block", marginTop: "0.25rem", width: "100%" }}
-                  disabled={metadataInputsDisabled}
+                  disabled={isinInputDisabled}
                 />
               </label>
               {foreignIsinRejected && (
@@ -1433,7 +1475,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                     type="checkbox"
                     checked={allowForeignIsin}
                     onChange={(e) => setAllowForeignIsin(e.target.checked)}
-                    disabled={metadataInputsDisabled}
+                    disabled={isinInputDisabled}
                   />
                   {t("instrumentDetail.allowForeignIsin")}
                 </label>

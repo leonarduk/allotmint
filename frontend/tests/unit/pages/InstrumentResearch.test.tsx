@@ -1405,6 +1405,81 @@ describe("InstrumentResearch page", () => {
     expect(screen.queryByRole("button", { name: /confirm/i })).not.toBeInTheDocument();
   });
 
+  it("keeps the ISIN editable during a refresh preview and saves it on confirm", async () => {
+    const user = userEvent.setup();
+    const refreshed = {
+      ticker: "AAA.L",
+      exchange: "L",
+      name: "Acme Corp PLC",
+      sector: "Technology",
+      currency: "GBP",
+      instrument_type: "EQUITY",
+    };
+    mockRefreshInstrumentMetadata.mockResolvedValue({
+      status: "preview",
+      metadata: refreshed,
+      changes: {},
+    } as any);
+    mockConfirmInstrumentMetadata.mockResolvedValue({
+      status: "updated",
+      metadata: refreshed,
+      changes: {},
+    } as any);
+
+    renderPage();
+
+    await screen.findByText("Instrument info");
+    await user.click(screen.getByRole("button", { name: /^refresh$/i }));
+    await screen.findByRole("button", { name: /confirm/i });
+
+    const preview = screen.getByText("Proposed updates").parentElement as HTMLElement;
+    expect(preview.style.background).toBe("var(--surface-card-bg)");
+    expect(preview.style.color).toBe("var(--surface-card-color)");
+
+    const isinInput = screen.getByLabelText("ISIN");
+    expect(isinInput).toBeEnabled();
+    expect(screen.getByLabelText("Name")).toBeDisabled();
+    await user.type(isinInput, "gb0001738615");
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+
+    expect(
+      await screen.findByText("Instrument details refreshed from Yahoo Finance."),
+    ).toBeInTheDocument();
+    expect(mockConfirmInstrumentMetadata).toHaveBeenCalledWith("AAA", "L");
+    expect(mockUpdateInstrumentMetadata).toHaveBeenCalledWith(
+      "AAA",
+      "L",
+      expect.objectContaining({ isin: "GB0001738615" }),
+      false,
+    );
+    expect(screen.getByText(/ISIN:/)).toHaveTextContent("ISIN: GB0001738615");
+  });
+
+  it("rejects a malformed ISIN before confirming a refresh", async () => {
+    const user = userEvent.setup();
+    mockRefreshInstrumentMetadata.mockResolvedValue({
+      status: "preview",
+      metadata: { ticker: "AAA.L", exchange: "L", name: "Acme Corp PLC", currency: "GBP" },
+      changes: {},
+    } as any);
+
+    renderPage();
+
+    await screen.findByText("Instrument info");
+    await user.click(screen.getByRole("button", { name: /^refresh$/i }));
+    await screen.findByRole("button", { name: /confirm/i });
+    await user.type(screen.getByLabelText("ISIN"), "GB00BAD");
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+
+    expect(
+      await screen.findByText(
+        "Enter a 12-character ISIN (e.g. IE00BSPLC298) or leave it blank.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockConfirmInstrumentMetadata).not.toHaveBeenCalled();
+    expect(mockUpdateInstrumentMetadata).not.toHaveBeenCalled();
+  });
+
   it("cancel refresh leaves metadata unchanged", async () => {
     const user = userEvent.setup();
     mockRefreshInstrumentMetadata.mockResolvedValue({

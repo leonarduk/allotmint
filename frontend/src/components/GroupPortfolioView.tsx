@@ -30,6 +30,7 @@ import {
 import * as api from "../api";
 import { HoldingsTable } from "./HoldingsTable";
 import { useLiveQuotes } from "../hooks/useLiveQuotes";
+import { applyLiveQuotes } from "../lib/liveValuation";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { TopMoversSummary } from "./TopMoversSummary";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
@@ -665,7 +666,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     }
   }, [portfolio, onTradeInfo]);
 
-  const filteredAccounts = useMemo(() => {
+  const storedAccounts = useMemo(() => {
     const source = portfolio?.accounts ?? [];
     return source.filter((acct) => {
       if (activeOwner && acct.owner !== activeOwner) return false;
@@ -673,6 +674,22 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       return true;
     });
   }, [portfolio, activeOwner, activeAccountType]);
+  const liveTickers = useMemo(
+    () =>
+      storedAccounts.flatMap((acct) =>
+        (acct.holdings ?? [])
+          .filter((h) => !isCashInstrument({ instrument_type: h.instrument_type, ticker: h.ticker }))
+          .map((h) => h.ticker),
+      ),
+    [storedAccounts],
+  );
+  const liveQuotes = useLiveQuotes(liveTickers);
+  // Holdings with a live quote are revalued at it, so the rows, rollups,
+  // totals and allocations below all show live figures.
+  const filteredAccounts = useMemo(
+    () => applyLiveQuotes(storedAccounts, liveQuotes),
+    [storedAccounts, liveQuotes],
+  );
 
   // The owner's whole portfolio value (ignoring any account-type filter, as
   // VaR is computed over every account): relative view shows VaR as a % of
@@ -694,17 +711,6 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     () => toRollupRows(scopedRows, instrumentRows ?? [], portfolio?.as_of),
     [scopedRows, instrumentRows, portfolio?.as_of],
   );
-  const liveTickers = useMemo(
-    () =>
-      scopedRows
-        .filter(
-          (row) =>
-            !isCashInstrument({ instrument_type: row.instrument_type, ticker: row.ticker }),
-        )
-        .map((row) => row.ticker),
-    [scopedRows],
-  );
-  const liveQuotes = useLiveQuotes(liveTickers);
   const showAccount = useMemo(
     () => new Set(filteredAccounts.map((account) => account.account_type)).size > 1,
     [filteredAccounts],

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -34,6 +34,7 @@ import { useInstrumentNoteCount } from "../hooks/useInstrumentNoteCount";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import surfaceStyles from "../styles/surface.module.css";
 import { formatDateISO } from "../lib/date";
+import { closeAsOf, liveQuoteAsOf } from "../lib/priceAsOf";
 import { money, normalizeDisplayCurrency, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { completeTrackedChore } from "../choreCompletion";
@@ -45,6 +46,7 @@ import {
 import { buildExternalResearchLinks } from "../utils/researchLinks";
 import { InstrumentIdentifiers } from "../components/InstrumentIdentifiers";
 import { useMorningstarId } from "../hooks/useMorningstarId";
+import { useLiveQuotes } from "../hooks/useLiveQuotes";
 
 function normaliseOptional(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -1027,6 +1029,54 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       ? latestRawPriceEntry.close_gbp
       : null;
   const { count: alertCount, setCount: setAlertCount } = useInstrumentAlertCount(alertTicker);
+  const liveTickers = useMemo(() => (tkr ? [tkr] : []), [tkr]);
+  const liveQuote = useLiveQuotes(liveTickers)[tkr.toUpperCase()] ?? null;
+  const reportingCurrency = normaliseUppercase(detail?.base_currency);
+  // Resolved exactly like the last close: `price` is in the units of the
+  // history's `close` and `price_gbp` in those of `close_gbp`, so
+  // resolveDisplayPrice picks the same figure and currency label for both.
+  // A GBP figure is only offered when GBP is the reporting currency, which
+  // is what resolveDisplayPrice labels it with.
+  const liveDisplayPrice = liveQuote
+    ? resolveDisplayPrice(
+        (reportingCurrency ?? "GBP") === "GBP"
+          ? { close: liveQuote.price, close_gbp: liveQuote.price_gbp }
+          : { close: liveQuote.price },
+        liveQuote.currency,
+        detail?.base_currency ?? undefined,
+      )
+    : null;
+  const formatDisplayPrice = (value: number | null, currency: string) => {
+    const normalizedCurrency = normaliseUppercase(currency);
+    if (normalizedCurrency && reportingCurrency && normalizedCurrency === reportingCurrency) {
+      return money(value, normalizedCurrency);
+    }
+    return quotedPrice(value, normalizedCurrency ?? currency);
+  };
+  const liveSummary = (() => {
+    if (!liveQuote || !liveDisplayPrice) return null;
+    const change =
+      liveQuote.change_pct != null
+        ? ` (${liveQuote.change_pct > 0 ? "+" : ""}${percent(liveQuote.change_pct, 2)})`
+        : "";
+    return {
+      text: `${formatDisplayPrice(liveDisplayPrice.close, liveDisplayPrice.currency)}${change}`,
+      asOf: liveQuoteAsOf(liveQuote, t),
+    };
+  })();
+  // The price shown under the heading: the live quote when there is one,
+  // otherwise the stored close -- either way labelled with what it is as of
+  // (real-time, delayed, or a close of business).
+  const headlinePrice =
+    liveSummary ??
+    (() => {
+      const asOf = closeAsOf(resolvedLatestPrice?.date, t);
+      if (!resolvedLatestPrice || !asOf) return null;
+      return {
+        text: formatDisplayPrice(resolvedLatestPrice.close, resolvedLatestPrice.currency),
+        asOf,
+      };
+    })();
   // Notes don't need a priceable key, so fall back to the URL ticker when the
   // exchange is unknown rather than hiding the tab's content.
   const notesTicker = alertTicker || tkr.toUpperCase();
@@ -1100,6 +1150,22 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           </h1>
         );
       })()}
+      {headlinePrice && (
+        <div
+          data-testid={liveSummary ? "research-live-price" : "research-close-price"}
+          style={{ marginTop: "-0.5rem", marginBottom: "1rem" }}
+        >
+          <strong>{t("instrumentDetail.research.label.price")}:</strong> {headlinePrice.text}{" "}
+          <span
+            data-testid="research-price-as-of"
+            data-as-of={headlinePrice.asOf.kind}
+            title={headlinePrice.asOf.title}
+            style={{ fontSize: "0.8rem", opacity: 0.8 }}
+          >
+            · {headlinePrice.asOf.label}
+          </span>
+        </div>
+      )}
 
       <div style={{ marginBottom: "1rem" }}>
         {tabs.screener && !(disabledTabs ?? []).includes("screener") && (
@@ -1624,18 +1690,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           parsedPrices.length > 0 ? parsedPrices[parsedPrices.length - 1] : null;
         const latestPrice = latestPriceEntry?.close ?? null;
         const latestPriceCurrency = latestPriceEntry?.currency ?? resolvedCurrentCurrency;
-        const normalizedReportingCurrency = normaliseUppercase(detail?.base_currency);
-        const formatDisplayPrice = (value: number | null, currency: string) => {
-          const normalizedCurrency = normaliseUppercase(currency);
-          if (
-            normalizedCurrency &&
-            normalizedReportingCurrency &&
-            normalizedCurrency === normalizedReportingCurrency
-          ) {
-            return money(value, normalizedCurrency);
-          }
-          return quotedPrice(value, normalizedCurrency ?? currency);
-        };
         const latestDate = (() => {
           if (!latestPriceEntry?.date) return null;
           const parsed = new Date(latestPriceEntry.date);
@@ -1675,6 +1729,18 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
               { label: t("instrumentDetail.research.label.exchange"), value: instrumentExchange || "—" },
               { label: t("instrumentDetail.sectorLabel"), value: displaySector || "—" },
               { label: t("instrumentDetail.currencyLabel"), value: resolvedCurrentCurrency || "—" },
+              ...(liveSummary
+                ? [
+                    {
+                      label: t("instrumentDetail.research.label.livePrice"),
+                      value: (
+                        <span title={liveSummary.asOf.title}>
+                          {liveSummary.text} · {liveSummary.asOf.label}
+                        </span>
+                      ),
+                    },
+                  ]
+                : []),
               {
                 label: t("instrumentDetail.research.label.lastClose"),
                 value: latestPrice != null

@@ -611,6 +611,32 @@ export const getRefreshPricesProgress = () =>
     current_ticker: string | null;
   }>(`${API_BASE}/prices/refresh/progress`);
 
+/**
+ * An intraday quote scaled exactly like the stored closes (see
+ * backend/common/live_prices.py): `price` is in the units of the instrument's
+ * historical `close`, `price_gbp` in the units of its `close_gbp` / holding
+ * price.
+ */
+export type LiveQuote = {
+  price: number;
+  price_gbp: number;
+  currency: string;
+  previous_close: number | null;
+  change_pct: number | null;
+  timestamp: string;
+  market_state: string | null;
+  is_stale: boolean;
+};
+
+/** Live quotes keyed by upper-cased ticker; tickers without one are absent. */
+export const getLiveQuotes = (tickers: string[], signal?: AbortSignal) => {
+  const params = new URLSearchParams({ tickers: tickers.join(",") });
+  return fetchJson<{ quotes: Record<string, LiveQuote> }>(
+    `${API_BASE}/prices/live/quotes?${params.toString()}`,
+    { signal },
+  );
+};
+
 /** Fetch quote snapshots for a list of symbols. */
 export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
   const params = new URLSearchParams({ symbols: symbols.join(",") });

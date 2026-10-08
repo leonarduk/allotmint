@@ -71,6 +71,8 @@ class IssueType:
     PRICE_SCALE_SUSPECT = "PRICE_SCALE_SUSPECT"
     # Day-on-day move above a threshold that is not a scale step (#8602).
     LARGE_DAILY_MOVE = "LARGE_DAILY_MOVE"
+    # Single-day move suspect surfaced at refresh time (#7789, PR #8598).
+    SINGLE_DAY_MOVE_SUSPECT = "SINGLE_DAY_MOVE_SUSPECT"
 
 
 SEVERITY = {
@@ -88,6 +90,7 @@ SEVERITY = {
     IssueType.MISSING_ASSET_CLASS: "low",
     IssueType.PRICE_SCALE_SUSPECT: "high",
     IssueType.LARGE_DAILY_MOVE: "low",
+    IssueType.SINGLE_DAY_MOVE_SUSPECT: "low",
 }
 
 # Issue types whose fix is a fetch/refetch of the cached series.
@@ -643,6 +646,36 @@ def _large_move_issue(
     )
 
 
+def single_day_move_suspect(
+    ticker: str, exchange: str, closes: pd.Series, threshold: float, split_dates: frozenset[str]
+) -> DataQualityIssue | None:
+    """Flag the latest day-on-day move above ``threshold`` (#7789, PR #8598).
+
+    Unlike :func:`_large_move_issue` this looks only at the most recent step
+    and includes power-of-ten steps, so a fresh 10x discontinuity (the ADM.L
+    case) is surfaced at refresh time rather than discovered by hand.
+    """
+    step = price_scale.latest_move(closes, threshold)
+    if step is None or step["date"] in split_dates:
+        return None
+    return DataQualityIssue(
+        id=_issue_id(IssueType.SINGLE_DAY_MOVE_SUSPECT, ticker, exchange),
+        type=IssueType.SINGLE_DAY_MOVE_SUSPECT,
+        severity=SEVERITY[IssueType.SINGLE_DAY_MOVE_SUSPECT],
+        entity={"ticker": ticker, "exchange": exchange},
+        description=(
+            f"{ticker}.{exchange} moved {step['ratio']:.3g}x on {step['date']} "
+            f"({step['previous']:g} -> {step['value']:g}), over the {threshold:.0%} threshold."
+        ),
+        suggested_fix=(
+            "Check the flagged date against another source; a ~10x/100x step usually means a "
+            "pence/pounds mix-up or a bad scaling override."
+        ),
+        preview={"before": {"move": step}, "after": {"reviewed": True}},
+        fixable=False,
+    )
+
+
 def aggregate_series_issues(
     *,
     stale_max_age_days: int = DEFAULT_STALE_SERIES_MAX_AGE_DAYS,
@@ -709,6 +742,7 @@ def aggregate_series_issues(
         for detected in (
             _price_scale_issue(ticker, exchange, closes, meta, split_dates),
             _large_move_issue(ticker, exchange, closes, move_threshold, split_dates),
+            single_day_move_suspect(ticker, exchange, closes, move_threshold, split_dates),
         ):
             if detected is not None:
                 issues.append(detected)

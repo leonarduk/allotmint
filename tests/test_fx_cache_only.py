@@ -347,7 +347,7 @@ def test_enriched_holding_with_missing_fx_rate_is_unpriced(fx_cache, no_live_fx,
     assert ("JPY",) in refresh_queue.pending()
 
 
-def test_latest_and_live_prices_skip_a_currency_with_no_rate(fx_cache, no_live_fx, monkeypatch):
+def test_latest_and_live_prices_skip_a_currency_with_no_rate(fx_cache, no_live_fx, monkeypatch, stub_live_quotes):
     """_fx_to_base's None reaches CurrencyNormaliser.to_gbp as a ValueError, so a
     JPY close with no rate is skipped -- not a crash, not valued at 1.0 (#9664)."""
     from backend.common import holding_utils
@@ -356,18 +356,7 @@ def test_latest_and_live_prices_skip_a_currency_with_no_rate(fx_cache, no_live_f
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *_a, **_k: native)
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "JPY"})
 
-    class Resp:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {
-                "quoteResponse": {
-                    "result": [{"symbol": "7203.T", "regularMarketPrice": 1500.0, "regularMarketTime": 0}]
-                }
-            }
-
-    monkeypatch.setattr(holding_utils.requests, "get", lambda *_a, **_k: Resp())
+    stub_live_quotes({"7203.T": (1500.0, 0)})
 
     with cache.cache_only():
         assert holding_utils.load_latest_prices(["7203.T"]) == {}

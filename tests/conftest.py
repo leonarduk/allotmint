@@ -366,3 +366,26 @@ def pytest_runtest_teardown(item, nextitem):
         state = vars(config)
         state.clear()
         state.update(copy.deepcopy(_CONFIG_BASELINE))
+
+
+@pytest.fixture
+def stub_live_quotes(monkeypatch):
+    """Serve live quotes from a ``{yahoo_symbol: (price, epoch_seconds)}`` map.
+
+    Stubs the provider fetch in :mod:`backend.common.live_prices` (and its
+    last-close guard) so the scaling/FX path under test runs for real.
+    """
+    from backend.common import live_prices
+
+    def _install(quotes, last_closes=None):
+        monkeypatch.setattr(live_prices.config, "offline_mode", False)
+        monkeypatch.setattr(
+            live_prices,
+            "_fetch_raw",
+            lambda sym: (
+                {"regularMarketPrice": quotes[sym][0], "regularMarketTime": quotes[sym][1]} if sym in quotes else None
+            ),
+        )
+        monkeypatch.setattr(live_prices, "_last_closes", lambda _tickers: dict(last_closes or {}))
+
+    return _install

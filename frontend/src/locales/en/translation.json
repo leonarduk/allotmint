@@ -1,4 +1,9 @@
 {
+  "priceAsOf": {
+    "live": "Live {{time}}",
+    "delayed": "Delayed {{time}}",
+    "close": "Close {{date}}"
+  },
   "addPosition": {
     "title": "Add position",
     "account": "Account",
@@ -767,6 +772,8 @@
       "label": {
         "exchange": "Exchange",
         "lastClose": "Last Close",
+        "price": "Price",
+        "livePrice": "Live Price",
         "asOf": "As of",
         "coverage": "Coverage",
         "dataPoints": "Data Points",

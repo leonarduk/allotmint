@@ -322,23 +322,12 @@ def test_load_latest_prices_gbx_non_pence_factor_scale_still_converts(monkeypatc
     assert prices == {"HFEL.L": pytest.approx(1.0)}
 
 
-def test_load_live_prices_gbx_non_pence_factor_scale_still_converts(monkeypatch):
+def test_load_live_prices_gbx_non_pence_factor_scale_still_converts(monkeypatch, stub_live_quotes):
     """Same as above for load_live_prices: scale=0.5 (non-pence-factor) must NOT
     skip pence->GBP conversion for GBX instruments."""
     ts = int(dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc).timestamp())
 
-    class Resp:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {
-                "quoteResponse": {
-                    "result": [{"symbol": "HFEL.L", "regularMarketPrice": 200.0, "regularMarketTime": ts}]
-                }
-            }
-
-    monkeypatch.setattr(holding_utils.requests, "get", lambda url, timeout: Resp())
+    stub_live_quotes({"HFEL.L": (200.0, ts)})
     # scale=0.5: NOT the pence factor; pence->GBP must still happen
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.5)
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"})
@@ -424,24 +413,10 @@ def test_load_latest_prices_skips_when_currency_unknown(monkeypatch):
     assert prices == {}
 
 
-def test_load_live_prices_with_fx(monkeypatch):
+def test_load_live_prices_with_fx(monkeypatch, stub_live_quotes):
     ts = int(dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc).timestamp())
 
-    class Resp:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {
-                "quoteResponse": {
-                    "result": [
-                        {"symbol": "ABC.L", "regularMarketPrice": 2.0, "regularMarketTime": ts},
-                        {"symbol": "XYZ", "regularMarketPrice": 1.0, "regularMarketTime": ts},
-                    ]
-                }
-            }
-
-    monkeypatch.setattr(holding_utils.requests, "get", lambda url, timeout: Resp())
+    stub_live_quotes({"ABC.L": (2.0, ts), "XYZ": (1.0, ts)})
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda t, e, r: 0.5 if t == "ABC" else 1.0)
     monkeypatch.setattr(
         holding_utils,
@@ -450,9 +425,9 @@ def test_load_live_prices_with_fx(monkeypatch):
     )
     monkeypatch.setattr(holding_utils, "_fx_to_base", lambda f, t, cache: 0.8)
 
-    prices = holding_utils.load_live_prices(["ABC.L", "XYZ"])
+    prices = holding_utils.load_live_prices(["ABC.L", "XYZ.N"])
     assert prices["ABC.L"]["price"] == 1.0
-    assert prices["XYZ"]["price"] == pytest.approx(0.8)
+    assert prices["XYZ.N"]["price"] == pytest.approx(0.8)
     assert isinstance(prices["ABC.L"]["timestamp"], dt.datetime)
 
 
@@ -522,21 +497,10 @@ def test_enrich_holding_non_cash_standard_path(monkeypatch):
     assert out["cost_basis_source"] == "derived"
 
 
-def test_load_live_prices_gbx_with_scaling_override_not_double_converted(monkeypatch):
+def test_load_live_prices_gbx_with_scaling_override_not_double_converted(monkeypatch, stub_live_quotes):
     ts = int(dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc).timestamp())
 
-    class Resp:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {
-                "quoteResponse": {
-                    "result": [{"symbol": "HFEL.L", "regularMarketPrice": 10_000.0, "regularMarketTime": ts}]
-                }
-            }
-
-    monkeypatch.setattr(holding_utils.requests, "get", lambda url, timeout: Resp())
+    stub_live_quotes({"HFEL.L": (10_000.0, ts)})
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.01)
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"})
 

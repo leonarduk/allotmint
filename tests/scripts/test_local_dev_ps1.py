@@ -5,6 +5,8 @@ e.g. ALLOTMINT_MCP_BRAVE_API_KEY in the shared env file reaches ``search_web``
 (#9198). Skipped where PowerShell 7 (``pwsh``) is not installed, or where the
 installed ``pwsh`` cannot actually be launched (e.g. a Windows Store App
 Execution Alias blocked by ACLs in a sandboxed CI runner).
+(#9198). Skipped where no launchable PowerShell is available (``pwsh`` missing,
+or an AppX/Store install that a non-interactive subprocess cannot spawn).
 """
 
 import os
@@ -15,7 +17,6 @@ from pathlib import Path
 import pytest
 
 LIB = Path(__file__).resolve().parents[2] / "scripts" / "lib" / "local-dev.ps1"
-PWSH = shutil.which("pwsh")
 
 
 def _pwsh_usable() -> bool:
@@ -43,6 +44,52 @@ pytestmark = pytest.mark.skipif(
     not _pwsh_usable(),
     reason="pwsh not installed or not launchable in this environment",
 )
+def _find_shell() -> str | None:
+    """Return a launchable PowerShell executable, or None.
+
+    Prefers ``pwsh`` (PowerShell 7) but skips AppX/Store installs under
+    ``WindowsApps``: Windows blocks ``CreateProcess`` on those from a
+    non-interactive context (``WinError 5``), which would fail the whole file
+    on sandboxed CI hosts. Falls back to Windows PowerShell 5.1, which is
+    always present and launchable on Windows.
+    """
+    for name in ("pwsh", "powershell"):
+        exe = shutil.which(name)
+        if not exe or "WindowsApps" in exe:
+            continue
+        try:
+            subprocess.run(
+                [exe, "-NoProfile", "-NonInteractive", "-Command", "exit 0"],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        return exe
+    return None
+
+
+PWSH = _find_shell()
+
+pytestmark = pytest.mark.skipif(PWSH is None, reason="no launchable PowerShell available")
+
+
+def _run_powershell(script: str, *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    """Run ``script`` under the resolved shell, skipping if it cannot be spawned."""
+    try:
+        return subprocess.run(
+            [PWSH, "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=True,
+            timeout=60,
+        )
+    except PermissionError as exc:  # pragma: no cover - sandbox restriction
+        pytest.skip(f"PowerShell cannot be spawned in this environment: {exc}")
+    except OSError as exc:  # pragma: no cover - sandbox restriction
+        pytest.skip(f"PowerShell cannot be spawned in this environment: {exc}")
 
 
 def _child_sees(tmp_path: Path, env_lines: str, name: str) -> str:
@@ -57,14 +104,7 @@ def _child_sees(tmp_path: Path, env_lines: str, name: str) -> str:
     )
     env = {**os.environ, "ALLOTMINT_ENV_FILE": str(shared)}
     env.pop(name, None)
-    result = subprocess.run(
-        [PWSH, "-NoProfile", "-NonInteractive", "-Command", script],
-        capture_output=True,
-        text=True,
-        env=env,
-        check=True,
-        timeout=60,
-    )
+    result = _run_powershell(script, env=env)
     return result.stdout.strip()
 
 
@@ -89,14 +129,7 @@ def _backend_pro_dir(tmp_path: Path, use_pro: str | None, with_checkout: bool = 
     env = {k: v for k, v in os.environ.items() if k not in ("ALLOTMINT_PRO_DIR", "BACKEND_USE_PRO")}
     if use_pro is not None:
         env["BACKEND_USE_PRO"] = use_pro
-    result = subprocess.run(
-        [PWSH, "-NoProfile", "-NonInteractive", "-Command", f". '{LIB}'; Get-BackendProDir '{repo}'"],
-        capture_output=True,
-        text=True,
-        env=env,
-        check=True,
-        timeout=60,
-    )
+    result = _run_powershell(f". '{LIB}'; Get-BackendProDir '{repo}'", env=env)
     return result.stdout.strip()
 
 
@@ -116,12 +149,5 @@ def test_backend_pythonpath_keeps_an_existing_pythonpath():
     """run-backend.ps1 sets the backend's PYTHONPATH with Get-McpServerPythonPath: repo, pro, then the old value."""
     # Plain names: a drive letter's colon is the path separator on Linux runners.
     env = {**os.environ, "PYTHONPATH": "existing"}
-    result = subprocess.run(
-        [PWSH, "-NoProfile", "-NonInteractive", "-Command", f". '{LIB}'; Get-McpServerPythonPath 'repo' 'pro'"],
-        capture_output=True,
-        text=True,
-        env=env,
-        check=True,
-        timeout=60,
-    )
+    result = _run_powershell(f". '{LIB}'; Get-McpServerPythonPath 'repo' 'pro'", env=env)
     assert result.stdout.strip().split(os.pathsep) == ["repo", "pro", "existing"]

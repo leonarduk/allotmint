@@ -276,7 +276,7 @@ def test_refresh_prices_uploads_to_s3_in_aws_env(tmp_path: Path, monkeypatch: py
 @pytest.mark.parametrize("source", ["last_close", "live_quote"])
 @pytest.mark.parametrize("ticker", ["AV", "CLIG", "HICL", "ADM"])
 def test_refresh_prices_persists_scaled_gbp_not_raw_pence(
-    ticker: str, source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ticker: str, source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stub_live_quotes
 ) -> None:
     """#8923: ``latest_prices.json`` stores scaled GBP, not the raw pence value.
 
@@ -306,16 +306,7 @@ def test_refresh_prices_persists_scaled_gbp_not_raw_pence(
         monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
     else:
         monkeypatch.setattr(prices, "_load_latest_closes", lambda tickers, **k: {})
-        quote = {
-            "symbol": full_ticker,
-            "regularMarketPrice": 3588.0,
-            "regularMarketTime": int(datetime.now(UTC).timestamp()),
-        }
-        response = SimpleNamespace(
-            raise_for_status=lambda: None,
-            json=lambda: {"quoteResponse": {"result": [quote]}},
-        )
-        monkeypatch.setattr(holding_utils.requests, "get", lambda *a, **k: response)
+        stub_live_quotes({full_ticker: (3588.0, int(datetime.now(UTC).timestamp()))})
     # Metadata wrongly says GBP (the AV/CLIG/HICL failure mode), so only the
     # override can turn 3588 into 35.88.
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBP"})

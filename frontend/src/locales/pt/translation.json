@@ -1,4 +1,9 @@
 {
+  "priceAsOf": {
+    "live": "Ao vivo {{time}}",
+    "delayed": "Atrasado {{time}}",
+    "close": "Fecho {{date}}"
+  },
   "addPosition": {
     "title": "Adicionar posição",
     "account": "Conta",
@@ -773,6 +778,8 @@
       "label": {
         "exchange": "Bolsa",
         "lastClose": "Último fecho",
+        "price": "Preço",
+        "livePrice": "Preço em tempo real",
         "asOf": "Em",
         "coverage": "Cobertura",
         "dataPoints": "Pontos de dados",

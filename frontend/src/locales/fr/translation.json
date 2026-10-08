@@ -1,4 +1,9 @@
 {
+  "priceAsOf": {
+    "live": "Direct {{time}}",
+    "delayed": "Différé {{time}}",
+    "close": "Clôture {{date}}"
+  },
   "addPosition": {
     "title": "Ajouter une position",
     "account": "Compte",
@@ -773,6 +778,8 @@
       "label": {
         "exchange": "Place de cotation",
         "lastClose": "Dernière clôture",
+        "price": "Cours",
+        "livePrice": "Cours en direct",
         "asOf": "Au",
         "coverage": "Couverture",
         "dataPoints": "Points de données",

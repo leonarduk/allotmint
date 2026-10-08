@@ -170,3 +170,12 @@ def test_index_closes_are_cached_only_when_present(monkeypatch):
     rr._index_closes("^BAD", start, END)
 
     assert downloads == ["^FTSE", "^BAD", "^BAD"]
+
+
+def test_no_group_point_when_no_member_has_a_ledger(fake_data, monkeypatch):
+    monkeypatch.setattr(rr.group_portfolio, "group_members", lambda slug: ["bob", "carol"])
+
+    result = rr.compute_group_risk_return("family", DAYS, pricing_date=END)
+
+    assert result["points"] == []
+    assert result["missing_members"] == ["bob", "carol"]

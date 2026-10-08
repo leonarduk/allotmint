@@ -161,3 +161,34 @@ describe('RiskReturn page', () => {
     expect(screen.getAllByText('Annualised return').length).toBeGreaterThan(0);
   });
 });
+
+describe('RiskReturn benchmark retry', () => {
+  it('refetches a failed benchmark when it is removed and re-added', async () => {
+    window.localStorage.clear();
+    (getGroups as unknown as vi.Mock).mockResolvedValue([]);
+    (getOwners as unknown as vi.Mock).mockResolvedValue([]);
+    groupMock.mockResolvedValue({
+      group: 'all',
+      days: 365,
+      start: '',
+      end: '',
+      missing_members: [],
+      points: [],
+    });
+    benchmarkMock.mockReset();
+    benchmarkMock.mockRejectedValue(new Error('down'));
+    render(<RiskReturn />);
+
+    await screen.findByRole('checkbox', { name: /S&P 500.*no data/ });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove S&P 500' }));
+    fireEvent.change(screen.getByLabelText('Add a common index…'), {
+      target: { value: '^GSPC' },
+    });
+
+    await waitFor(() =>
+      expect(
+        benchmarkMock.mock.calls.filter(([t]) => t === '^GSPC')
+      ).toHaveLength(2)
+    );
+  });
+});

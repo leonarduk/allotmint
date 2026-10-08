@@ -85,7 +85,9 @@ type BenchmarkState = Record<string, BenchmarkRiskReturn | null>;
  * Per-ticker benchmark results for the window ``days``: a ticker is
  * ``undefined`` while loading, ``null`` when unavailable. Results are kept
  * per ``days:ticker`` so adding a ticker fetches only that one, and
- * switching window and back reuses what was already fetched.
+ * switching window and back reuses what was already fetched. A failed
+ * ticker is retried the next time the list or window changes (e.g. removing
+ * and re-adding it).
  */
 function useBenchmarkResults(benchmarks: Benchmark[], days: number) {
   const [results, setResults] = useState<BenchmarkState>({});
@@ -96,9 +98,13 @@ function useBenchmarkResults(benchmarks: Benchmark[], days: number) {
       const key = `${days}:${ticker}`;
       if (requested.current.has(key)) continue;
       requested.current.add(key);
+      setResults(({ [key]: _stale, ...rest }) => rest);
       getBenchmarkRiskReturn(ticker, days)
         .then((res) => setResults((prev) => ({ ...prev, [key]: res })))
-        .catch(() => setResults((prev) => ({ ...prev, [key]: null })));
+        .catch(() => {
+          requested.current.delete(key);
+          setResults((prev) => ({ ...prev, [key]: null }));
+        });
     }
   }, [benchmarks, days]);
 

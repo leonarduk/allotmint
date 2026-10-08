@@ -115,6 +115,7 @@ describe('riskReturn series', () => {
     expect(normaliseTicker(' ^ftse ')).toBe('^FTSE');
     expect(normaliseTicker('vwrl.l')).toBe('VWRL.L');
     expect(normaliseTicker('../etc')).toBeNull();
+    expect(normaliseTicker('A..B')).toBeNull();
     expect(normaliseTicker('')).toBeNull();
   });
 

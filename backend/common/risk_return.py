@@ -225,7 +225,9 @@ def compute_benchmark_risk_return(
     if closes.empty:
         return None
     # Rebase onto the last close on or before the window start, so the first
-    # in-window return is measured from there rather than dropped.
+    # in-window return is measured from there rather than dropped. A ticker
+    # with no close that early (listed mid-window) is measured from its first
+    # close instead, like an account opened mid-window.
     base = closes[closes.index <= pd.Timestamp(after)]
     in_window = closes[closes.index > pd.Timestamp(after)]
     series = pd.concat([base.iloc[-1:], in_window]) if not base.empty else in_window

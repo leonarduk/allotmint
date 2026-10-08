@@ -142,7 +142,9 @@ export function plottable(series: ChartSeries): boolean {
 /** Normalise a typed ticker; null when it can't be a ticker. */
 export function normaliseTicker(raw: string): string | null {
   const ticker = raw.trim().toUpperCase();
-  return /^\^?[A-Z0-9][A-Z0-9._-]{0,31}$/.test(ticker) ? ticker : null;
+  return /^\^?[A-Z0-9][A-Z0-9._-]{0,31}$/.test(ticker) && !ticker.includes('..')
+    ? ticker
+    : null;
 }
 
 /** Add ``ticker`` (labelled from the presets when known) unless already present. */

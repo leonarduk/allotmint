@@ -199,9 +199,23 @@ def test_ticker_less_trades_join_ticker_pool_by_instrument_name() -> None:
 
 def test_ticker_less_trades_resolve_through_existing_holding_name() -> None:
     tx = {"transactions": [{"type": "BUY", "instrument_name": "Some Fund Acc", "units": 5, "amount_minor": 5000}]}
-    existing = {"holdings": [{"ticker": "FUND.L", "name": "Some Fund Acc", "units": 0}]}
+    existing = {"holdings": [{"ticker": "FUND.L", "name": "Some Fund Acc", "units": 0, "value_gbp": 999.0}]}
 
-    assert _holdings(rebuild_holdings_document(tx, "a", "isa", existing))["FUND.L"]["units"] == pytest.approx(5)
+    fund = _holdings(rebuild_holdings_document(tx, "a", "isa", existing))["FUND.L"]
+
+    assert fund["units"] == pytest.approx(5)
+    assert fund["value_gbp"] == pytest.approx(50.0)
+
+
+def test_zero_unit_placeholder_value_is_replaced_by_cost_of_new_position() -> None:
+    tx = {"transactions": [_buy("VOD.L", 10, 120.0, "2024-01-01")]}
+    existing = {"holdings": [{"ticker": "VOD.L", "units": 0, "value_gbp": 5000.0}]}
+
+    vod = _holdings(rebuild_holdings_document(tx, "a", "isa", existing))["VOD.L"]
+
+    assert vod["units"] == pytest.approx(10)
+    assert vod["value_gbp"] == pytest.approx(120.0)
+    assert vod["value_gbp"] == vod["cost_basis_gbp"]
 
 
 def test_unresolvable_ticker_less_position_is_left_out(caplog: pytest.LogCaptureFixture) -> None:

@@ -161,6 +161,7 @@
     "refreshing": "Atualizando…",
     "refreshingProgress": "Atualizando… ({{completed}}/{{total}})",
     "refreshingTicker": "Buscando {{ticker}}…",
+    "refreshingDetailUnavailable": "Atualização em curso — detalhes do progresso indisponíveis.",
     "refreshPrices": "Atualizar preços",
     "relativeView": "Visão relativa",
     "research": "Pesquisa",

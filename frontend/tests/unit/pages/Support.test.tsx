@@ -724,6 +724,12 @@ describe("Support page", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Fetching AAPL.L…")).toBeInTheDocument();
 
+    // Live progress on every poll never trips the #8055 fallback message.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400 * 5);
+    });
+    expect(screen.queryByText(en.app.refreshingDetailUnavailable)).not.toBeInTheDocument();
+
     await act(async () => {
       resolveRefresh!({ status: "ok", tickers: 47 });
       await Promise.resolve();
@@ -769,6 +775,142 @@ describe("Support page", () => {
     expect(
       await screen.findByRole("button", { name: en.app.refreshPrices }),
     ).toBeInTheDocument();
+  });
+
+  it("says progress detail is unavailable when polls land on an idle instance (#8055)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    let resolveRefresh: (v: { status: string; tickers: number }) => void;
+    mockRefreshPrices.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
+    // The refresh runs on one Lambda instance; the polls hit another whose
+    // independent in-memory tracker is still at its idle default.
+    const idle = { running: false, total: 0, completed: 0, current_ticker: null };
+    mockGetRefreshPricesProgress.mockResolvedValue(idle);
+
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.priceRefresh);
+
+    const btn = await screen.findByRole("button", { name: en.app.refreshPrices });
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400 * 4);
+    });
+    expect(screen.queryByText(en.app.refreshingDetailUnavailable)).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(screen.getByText(en.app.refreshingDetailUnavailable)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: en.app.refreshing })).toBeInTheDocument();
+
+    // A later poll reaching the busy instance switches back to real progress.
+    mockGetRefreshPricesProgress.mockResolvedValue({
+      running: true,
+      total: 10,
+      completed: 3,
+      current_ticker: "VOD.L",
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(
+      await screen.findByRole("button", { name: "Refreshing… (3/10)" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(en.app.refreshingDetailUnavailable)).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveRefresh!({ status: "ok", tickers: 10 });
+      await Promise.resolve();
+    });
+
+    expect(
+      await screen.findByRole("button", { name: en.app.refreshPrices }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(en.app.refreshingDetailUnavailable)).not.toBeInTheDocument();
+  });
+
+  it("flags last known progress as stale when later polls hit an idle instance", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    mockRefreshPrices.mockReturnValue(new Promise(() => {})); // never resolves
+    const idle = { running: false, total: 0, completed: 0, current_ticker: null };
+    mockGetRefreshPricesProgress
+      .mockResolvedValueOnce(idle)
+      .mockResolvedValueOnce(idle)
+      .mockResolvedValueOnce(idle)
+      .mockResolvedValueOnce(idle)
+      .mockResolvedValueOnce({
+        running: true,
+        total: 10,
+        completed: 4,
+        current_ticker: "VOD.L",
+      })
+      .mockResolvedValue(idle);
+
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.priceRefresh);
+
+    const btn = await screen.findByRole("button", { name: en.app.refreshPrices });
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+
+    // 4 empty polls then 1 good poll: the good poll resets the empty count,
+    // so 4 further empty polls are not yet enough to flag it as stale.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400 * 9);
+    });
+    expect(screen.getByRole("button", { name: "Refreshing… (4/10)" })).toBeInTheDocument();
+    expect(screen.queryByText(en.app.refreshingDetailUnavailable)).not.toBeInTheDocument();
+
+    // The 5th empty poll since the good one flags the frozen count.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(screen.getByRole("button", { name: "Refreshing… (4/10)" })).toBeInTheDocument();
+    expect(screen.getByText(en.app.refreshingDetailUnavailable)).toBeInTheDocument();
+  });
+
+  it("treats repeated poll failures as progress detail unavailable, until the refresh ends", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    let resolveRefresh: (v: { status: string; tickers: number }) => void;
+    mockRefreshPrices.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
+    mockGetRefreshPricesProgress.mockRejectedValue(new Error("network error"));
+
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.priceRefresh);
+
+    const btn = await screen.findByRole("button", { name: en.app.refreshPrices });
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400 * 5);
+    });
+    expect(screen.getByText(en.app.refreshingDetailUnavailable)).toBeInTheDocument();
+
+    await act(async () => {
+      resolveRefresh!({ status: "ok", tickers: 0 });
+      await Promise.resolve();
+    });
+
+    expect(
+      await screen.findByRole("button", { name: en.app.refreshPrices }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(en.app.refreshingDetailUnavailable)).not.toBeInTheDocument();
   });
 
   it("stops polling for progress once the component unmounts mid-refresh", async () => {

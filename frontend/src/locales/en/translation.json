@@ -144,6 +144,7 @@
       "rebalance": "Strategy",
       "reports": "Reports",
       "research": "Instrument Detail",
+      "riskreturn": "Returns vs Volatility",
       "scenario": "Scenario Tester",
       "screener": "Screener",
       "settings": "Trading Rules",
@@ -3622,5 +3623,32 @@
     "weightedCharge": "Weighted ongoing charge",
     "annualCost": "Est. annual fund cost",
     "excludesUnknown": "Excludes {{unknown}} of {{total}} holdings with no fee data"
+  },
+  "riskReturn": {
+    "title": "Returns vs Volatility",
+    "description": "Each account, each owner and the whole portfolio plotted by return against volatility, with market indices for comparison. Tick or untick a series to show or hide it, and add any index or ticker.",
+    "group": "Portfolio",
+    "window": "Period",
+    "windows": {
+      "1y": "1 year",
+      "3y": "3 years",
+      "5y": "5 years"
+    },
+    "entirePortfolio": "Entire portfolio",
+    "ownerTotal": "{{owner}} (all accounts)",
+    "return": "Return",
+    "annualisedReturn": "Annualised return",
+    "volatility": "Volatility",
+    "missingMembers": "No transaction history for {{members}}, so they are left out.",
+    "noData": "no data",
+    "series": "Chart series",
+    "portfolioSeries": "Portfolio",
+    "benchmarks": "Benchmarks",
+    "remove": "Remove",
+    "addTicker": "Add index or ticker",
+    "add": "Add",
+    "addPreset": "Add a common index…",
+    "invalidTicker": "Enter a ticker such as ^FTSE or VWRL.L.",
+    "methodology": "Portfolio returns are time-weighted and rebuilt from your transactions, so deposits and withdrawals do not count as gains or losses. Volatility is the annualised standard deviation of daily returns. Indices (^ symbols) are price returns in their own currency; other tickers use sterling prices."
   }
 }

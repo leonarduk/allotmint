@@ -1628,3 +1628,32 @@ export interface ReportTemplateInput {
   filters: ReportTemplateFilter[];
   description?: string | null;
 }
+
+/** One portfolio point from /performance-group/{slug}/risk-return. */
+export interface RiskReturnPoint {
+  kind: 'group' | 'owner' | 'account';
+  owner: string | null;
+  account: string | null;
+  period_return: number | null;
+  annualised_return: number | null;
+  volatility: number | null;
+}
+
+export interface GroupRiskReturn {
+  group: string;
+  days: number;
+  start: string;
+  end: string;
+  points: RiskReturnPoint[];
+  missing_members: string[];
+}
+
+export interface BenchmarkRiskReturn {
+  ticker: string;
+  days: number;
+  start: string;
+  end: string;
+  period_return: number | null;
+  annualised_return: number | null;
+  volatility: number | null;
+}

@@ -906,6 +906,10 @@ def enrich_holding(
     Produces the same keys in both paths.
     """
     out = dict(h)  # do not mutate caller
+    # The stored ``value_gbp`` is the broker's value at the last import; left in,
+    # it sits beside the live ``market_value_gbp`` priced below and disagrees
+    # with it as soon as the price moves (#10388). The account file keeps it.
+    out.pop("value_gbp", None)
     # Canonical key so a padded LSE EPIC ("BP.") is priced and labelled as
     # "BP.L" -- the key the price snapshot and timeseries cache use (#8600).
     full = canonical_ticker(out.get(TICKER))

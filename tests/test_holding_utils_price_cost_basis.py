@@ -457,6 +457,19 @@ def test_enrich_holding_flags_implausible_book_cost(monkeypatch):
     assert holding[COST_BASIS_GBP] == 263, "the caller's holding must never be mutated"
 
 
+@pytest.mark.parametrize("ticker", ["AAA.L", "CASH.GBP"], ids=["security", "cash"])
+def test_enrich_holding_drops_stale_imported_value(monkeypatch, ticker):
+    """#10388: the stored import-time value_gbp must not sit beside the live market value."""
+    _patch_enrich_env(monkeypatch, current_price=165.6)
+    holding = {TICKER: ticker, UNITS: 12, COST_BASIS_GBP: 1900, "value_gbp": 2266.8}
+
+    out = holding_utils.enrich_holding(holding, dt.date(2026, 10, 6), price_cache={})
+
+    assert "value_gbp" not in out
+    assert out["market_value_gbp"] == pytest.approx(12 * out["current_price_gbp"])
+    assert holding["value_gbp"] == 2266.8, "the caller's holding must never be mutated"
+
+
 def test_enrich_holding_flags_book_cost_far_above_price(monkeypatch):
     _patch_enrich_env(monkeypatch, current_price=1.0)
     holding = {TICKER: "AAA.L", UNITS: 10, COST_BASIS_GBP: 500}  # £50/unit vs £1

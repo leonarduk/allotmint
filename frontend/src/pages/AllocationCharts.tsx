@@ -36,7 +36,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import type { PieLabelRenderProps } from "recharts";
+import { renderPieLabelLine, withSmallSliceLabelsHidden } from "../lib/pieLabels";
 
 const COLORS = [
   "#8884d8",
@@ -535,8 +535,9 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
                   cy="50%"
                   outerRadius="80%"
                   // "percent" may be undefined for empty datasets; default it to 0
-                  label={showInlinePieLabels && ((props) => {
-                    const { name, value, percent: slicePercent } = props as PieLabelRenderProps;
+                  labelLine={showInlinePieLabels && renderPieLabelLine}
+                  label={showInlinePieLabels && withSmallSliceLabelsHidden((props) => {
+                    const { name, value, percent: slicePercent } = props;
                     const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
                     const percentValue = (slicePercent ?? 0) * 100;
                     const rawValue =

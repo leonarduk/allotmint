@@ -73,7 +73,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { PieLabelRenderProps } from "recharts";
+import { renderPieLabelLine, withSmallSliceLabelsHidden } from "../lib/pieLabels";
 import { BadgeCheck, LineChart, Shield } from "lucide-react";
 import { toRollupRows, toScopedHoldingRows } from "../lib/rollupAdapter";
 import { OwnerPortfolioActions } from "./OwnerPortfolioActions";
@@ -1205,8 +1205,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               <Pie
                 dataKey="value"
                 data={typeRows}
-                label={showInlinePieLabels && ((props) => {
-                  const { name, percent: slicePercent } = props as PieLabelRenderProps;
+                labelLine={showInlinePieLabels && renderPieLabelLine}
+                label={showInlinePieLabels && withSmallSliceLabelsHidden((props) => {
+                  const { name, percent: slicePercent } = props;
                   const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
                   return `${labelName} ${percent((slicePercent ?? 0) * 100)}`;
                 })}

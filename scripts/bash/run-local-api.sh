@@ -89,6 +89,11 @@ fi
 CMD=(uvicorn backend.local_api.main:app --reload-dir backend --port "$UVICORN_PORT" --host "$UVICORN_HOST" --log-config "$LOG_CONFIG")
 if [[ "$RELOAD" == "true" ]]; then
   CMD+=(--reload)
+  # Without watchfiles uvicorn polls every watched file (StatReload), which
+  # costs a steady chunk of a core while idle (#10363).
+  if ! python -c 'import watchfiles' 2>/dev/null; then
+    echo "Warning: watchfiles is not installed; uvicorn --reload will poll files (StatReload) and use CPU while idle. Run: pip install -r requirements.txt" >&2
+  fi
   # Reload on pro changes too, not only backend/.
   [[ -n "$BACKEND_PRO_DIR" ]] && CMD+=(--reload-dir "$BACKEND_PRO_DIR/allotmint_pro")
 fi

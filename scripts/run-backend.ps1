@@ -510,6 +510,12 @@ $arguments = @(
 if ($resolvedLogConfig) { $arguments += @('--log-config', $resolvedLogConfig) }
 if ($reload) {
   $arguments += '--reload'
+  # Without watchfiles uvicorn polls every watched file (StatReload), which
+  # costs a steady chunk of a core while idle (#10363). Mirrors run-local-api.sh.
+  & $PYTHON -c "import watchfiles" 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host 'watchfiles is not installed; uvicorn --reload will poll files (StatReload) and use CPU while idle. Run: pip install -r requirements.txt' -ForegroundColor Yellow
+  }
   # Reload on pro changes too, not only backend/.
   if ($backendProDir) { $arguments += @('--reload-dir', (Join-Path $backendProDir 'allotmint_pro')) }
 }

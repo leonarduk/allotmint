@@ -59,6 +59,7 @@ typing_extensions>=4.14.1
 tzdata~=2026.3
 urllib3~=2.8.0
 uvicorn~=0.52.4
+watchfiles~=1.3.0  # local dev only: uvicorn --reload uses it instead of polling StatReload (#10363)
 websocket-client~=1.9.0
 websockets~=17.1.0
 win_inet_pton~=1.1.0; sys_platform == "win32"

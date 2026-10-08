@@ -153,7 +153,12 @@ def lambda_handler(_event: Any, _context: Any) -> Dict[str, Any]:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    """Manual trigger: run one refresh now and print the report; exit 1 if any trust failed."""
+    """Manual trigger: run one refresh now and print the report; exit 1 if any trust failed.
+
+    ``no_source`` and ``no_announcement`` exit 0: they describe the trust (no
+    permitted source, or nothing published yet), not a broken run, and are
+    already logged as warnings and kept in ``nav_attention``.
+    """
 
     parser = argparse.ArgumentParser(description="Refresh held investment trusts' NAVs from published NAVs.")
     parser.parse_args(argv)

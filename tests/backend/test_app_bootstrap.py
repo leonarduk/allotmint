@@ -99,6 +99,34 @@ async def test_lifecycle_service_warms_snapshot_and_registers_background_task(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_lifecycle_service_registers_nav_refresh_task_only_when_enabled(
+    monkeypatch: pytest.MonkeyPatch, enabled: bool
+):
+    """The daily held-trust NAV refresh (#9232) is started by startup() when enabled."""
+    snapshot_task = asyncio.Future()
+    nav_task = asyncio.Future()
+    seen = []
+
+    def fake_start(cfg):
+        seen.append(cfg)
+        return nav_task if cfg.nav_refresh_enabled else None
+
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: snapshot_task)
+    monkeypatch.setattr("backend.tasks.nav_refresh.start_nav_refresh_task", fake_start)
+    app = app_module.create_app()
+    # After create_app(), which reapplies the loaded config to this object.
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "nav_refresh_enabled", enabled)
+    service = AppLifecycleService(cfg=config)
+
+    await service.startup(app)
+
+    assert seen == [config]
+    assert (nav_task in app.state.background_tasks) is enabled
+
+
+@pytest.mark.asyncio
 async def test_lifecycle_service_warmup_logs_timed_phases(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,

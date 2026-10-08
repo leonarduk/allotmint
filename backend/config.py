@@ -204,7 +204,7 @@ class Config:
     # Minimum gap between requests to one manager's site, and how long a
     # fetched page is reused within a run.
     nav_refresh_request_interval_seconds: float = 2.0
-    nav_refresh_cache_ttl_seconds: int = 3600
+    nav_refresh_cache_ttl_seconds: float = 3600.0
     stooq_timeout: Optional[int] = None
     news_requests_per_day: int = 25
     yahoo_news_endpoint: Optional[str] = None
@@ -730,12 +730,10 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
             key="nav_refresh_request_interval_seconds",
             default=2.0,
         ),
-        nav_refresh_cache_ttl_seconds=int(
-            _parse_non_negative(
-                data.get("nav_refresh_cache_ttl_seconds"),
-                key="nav_refresh_cache_ttl_seconds",
-                default=3600,
-            )
+        nav_refresh_cache_ttl_seconds=_parse_non_negative(
+            data.get("nav_refresh_cache_ttl_seconds"),
+            key="nav_refresh_cache_ttl_seconds",
+            default=3600.0,
         ),
         stooq_timeout=data.get("stooq_timeout"),
         news_requests_per_day=data.get("news_requests_per_day", 25),

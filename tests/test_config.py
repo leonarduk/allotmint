@@ -55,7 +55,17 @@ def test_nav_refresh_settings_are_read_from_market_data():
     assert cfg.nav_refresh_enabled is True
     assert cfg.nav_refresh_time == "07:05"
     assert cfg.nav_refresh_request_interval_seconds == 5.0
-    assert cfg.nav_refresh_cache_ttl_seconds == 60
+    assert cfg.nav_refresh_cache_ttl_seconds == 60.0
+
+
+@pytest.mark.parametrize("raw, expected", [("00:00", "00:00"), ("23:59", "23:59"), (" 9:30 ", "09:30")])
+def test_nav_refresh_time_accepts_the_whole_day(raw, expected):
+    assert build_config({"nav_refresh_time": raw}, check_google_auth=False).nav_refresh_time == expected
+
+
+def test_nav_refresh_cache_ttl_keeps_fractions():
+    cfg = build_config({"nav_refresh_cache_ttl_seconds": 60.5}, check_google_auth=False)
+    assert cfg.nav_refresh_cache_ttl_seconds == 60.5
 
 
 def test_nav_refresh_defaults_off_after_close():

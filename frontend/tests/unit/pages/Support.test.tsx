@@ -724,6 +724,12 @@ describe("Support page", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Fetching AAPL.L…")).toBeInTheDocument();
 
+    // Live progress on every poll never trips the #8055 fallback message.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400 * 5);
+    });
+    expect(screen.queryByText(en.app.refreshingDetailUnavailable)).not.toBeInTheDocument();
+
     await act(async () => {
       resolveRefresh!({ status: "ok", tickers: 47 });
       await Promise.resolve();

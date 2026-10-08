@@ -27,6 +27,7 @@ export interface TabsConfig {
   performance: boolean;
   transactions: boolean;
   dividends: boolean;
+  riskreturn: boolean;
   screener: boolean;
   query: boolean;
   trading: boolean;
@@ -108,6 +109,7 @@ const defaultTabs: TabsConfig = {
   // entry point so it must remain on. Non-MVP deployments also show it.
   transactions: true,
   dividends: true,
+  riskreturn: true,
   screener: true,
   query: true,
   trading: true,

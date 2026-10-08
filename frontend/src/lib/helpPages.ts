@@ -84,6 +84,15 @@ export const HELP_PAGES: HelpPageEntry[] = [
       'Dividend income received, by tax year, year or month and by holding, with a trailing-12-month total.',
   },
   {
+    path: '/returns-volatility',
+    mode: 'riskreturn',
+    titleKey: 'app.modes.riskreturn',
+    titleDefault: 'Returns vs Volatility',
+    descriptionKey: 'help.pages.riskreturn',
+    descriptionDefault:
+      'Each account, owner and the whole portfolio plotted by return against volatility, alongside market indices you can add or remove.',
+  },
+  {
     path: '/trading',
     mode: 'trading',
     titleKey: 'help.pages.signalsTitle',

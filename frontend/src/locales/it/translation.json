@@ -149,6 +149,7 @@
       "rebalance": "Strategia",
       "reports": "Report",
       "research": "Dettaglio strumento",
+      "riskreturn": "Rendimento vs volatilità",
       "scenario": "Simulatore di scenari",
       "screener": "Filtro",
       "settings": "Regole di negoziazione",
@@ -3630,5 +3631,32 @@
     "weightedCharge": "Spese correnti ponderate",
     "annualCost": "Costo annuo stimato dei fondi",
     "excludesUnknown": "Esclude {{unknown}} di {{total}} posizioni senza dati sui costi"
+  },
+  "riskReturn": {
+    "title": "Rendimento vs volatilità",
+    "description": "Ogni conto, ogni titolare e l'intero portafoglio rappresentati per rendimento e volatilità, con indici di mercato per confronto. Seleziona o deseleziona una serie per mostrarla o nasconderla e aggiungi qualsiasi indice o ticker.",
+    "group": "Portafoglio",
+    "window": "Periodo",
+    "windows": {
+      "1y": "1 anno",
+      "3y": "3 anni",
+      "5y": "5 anni"
+    },
+    "entirePortfolio": "Intero portafoglio",
+    "ownerTotal": "{{owner}} (tutti i conti)",
+    "return": "Rendimento",
+    "annualisedReturn": "Rendimento annualizzato",
+    "volatility": "Volatilità",
+    "missingMembers": "Nessuno storico delle transazioni per {{members}}, quindi sono esclusi.",
+    "noData": "nessun dato",
+    "series": "Serie del grafico",
+    "portfolioSeries": "Portafoglio",
+    "benchmarks": "Benchmark",
+    "remove": "Rimuovi",
+    "addTicker": "Aggiungi indice o ticker",
+    "add": "Aggiungi",
+    "addPreset": "Aggiungi un indice comune…",
+    "invalidTicker": "Inserisci un ticker come ^FTSE o VWRL.L.",
+    "methodology": "I rendimenti del portafoglio sono ponderati nel tempo e ricostruiti dalle tue transazioni, quindi depositi e prelievi non contano come guadagni o perdite. La volatilità è la deviazione standard annualizzata dei rendimenti giornalieri. Gli indici (simboli ^) sono rendimenti di prezzo nella propria valuta; gli altri ticker usano prezzi in sterline. Gli altri ticker devono essere strumenti già monitorati da AllotMint."
   }
 }

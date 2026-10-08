@@ -80,6 +80,8 @@ class TabsConfig:
     logs: bool = True
     # Dividends page: received dividend income at /dividends (#7831).
     dividends: bool = True
+    # Returns vs Volatility scatter at /returns-volatility.
+    riskreturn: bool = True
     research: bool = True
     # Plot mode: the optional gamified skin served at /plot in the SPA.
     plot: bool = True

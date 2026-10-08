@@ -187,6 +187,18 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     lazyComponent: lazyPage(() => import('../pages/Dividends')),
   },
   {
+    // Return vs volatility scatter of the group, owners, accounts and
+    // benchmark indices.
+    mode: 'riskreturn',
+    routeSegment: 'returns-volatility',
+    section: 'user',
+    menuCategory: 'dashboard',
+    priority: 42,
+    defaultPath: () => '/returns-volatility',
+    routePath: '/returns-volatility',
+    lazyComponent: lazyPage(() => import('../pages/RiskReturn')),
+  },
+  {
     // The Ideas page (#9852): Signals tab here, Screen tab at /screener,
     // Watchlist tab at /watchlist.
     mode: 'trading',

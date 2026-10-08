@@ -218,6 +218,24 @@ def test_zero_unit_placeholder_value_is_replaced_by_cost_of_new_position() -> No
     assert vod["value_gbp"] == vod["cost_basis_gbp"]
 
 
+def test_zero_unit_placeholder_left_at_zero_keeps_its_value() -> None:
+    tx = {"transactions": [_buy("VOD.L", 10, 120.0, "2024-01-01")]}
+    existing = {"holdings": [{"ticker": "FUND.L", "units": 0, "value_gbp": 999.0}]}
+
+    fund = _holdings(rebuild_holdings_document(tx, "a", "isa", existing))["FUND.L"]
+
+    assert fund["units"] == 0
+    assert fund["value_gbp"] == 999.0
+
+
+def test_zero_unit_placeholder_without_value_gains_no_value() -> None:
+    # Like a brand-new holding, value_gbp is left for the pricing pipeline.
+    tx = {"transactions": [_buy("VOD.L", 10, 120.0, "2024-01-01")]}
+    existing = {"holdings": [{"ticker": "VOD.L", "units": 0}]}
+
+    assert "value_gbp" not in _holdings(rebuild_holdings_document(tx, "a", "isa", existing))["VOD.L"]
+
+
 def test_unresolvable_ticker_less_position_is_left_out(caplog: pytest.LogCaptureFixture) -> None:
     tx = {"transactions": [{"type": "BUY", "instrument_name": "Mystery Fund", "units": 5, "amount_minor": 5000}]}
     caplog.set_level(logging.WARNING, logger="backend.common.holdings_rebuild")

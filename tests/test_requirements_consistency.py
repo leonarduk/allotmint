@@ -22,12 +22,7 @@ BACKEND_ONLY_ALLOWLIST = {"setuptools"}
 # Keep exemptions explicit and narrowly limited to packages that are genuinely
 # needed only by local tooling. Runtime dependencies belong in both files so
 # local development and Lambda/Docker deployments install the same package set.
-#
-# watchfiles: only uvicorn's --reload file watcher uses it (run-local-api.sh /
-# run-backend.ps1). Without it uvicorn falls back to StatReload, which polls
-# every watched file and burned ~23% of a core while idle (#10363). Deployed
-# servers never run --reload, so it stays out of backend/requirements.txt.
-ROOT_ONLY_ALLOWLIST: set[str] = {"watchfiles"}
+ROOT_ONLY_ALLOWLIST: set[str] = set()
 
 _PACKAGE_NAME_RE = re.compile(r"^([A-Za-z0-9_.\-]+)")
 

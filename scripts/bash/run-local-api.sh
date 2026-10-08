@@ -86,13 +86,31 @@ if BACKEND_PRO_DIR=$(backend_pro_dir "$REPO_ROOT"); then
   echo "Backend imports allotmint-pro from $BACKEND_PRO_DIR (BACKEND_USE_PRO=0 to run free-only)" >&2
 fi
 
-CMD=(uvicorn backend.local_api.main:app --reload-dir backend --port "$UVICORN_PORT" --host "$UVICORN_HOST" --log-config "$LOG_CONFIG")
+# Run uvicorn as `<python> -m uvicorn` (as run-backend.ps1 does) so the
+# watchfiles check below inspects the interpreter that actually serves the
+# app. Falls back to the `uvicorn` entry point when no python on PATH can
+# import uvicorn. `python` first: every activated venv provides it, while
+# `python3` can resolve to a system interpreter outside the venv (Windows
+# venvs have no python3).
+UVICORN_PY=""
+for candidate in python python3; do
+  if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import uvicorn' 2>/dev/null; then
+    UVICORN_PY="$candidate"
+    break
+  fi
+done
+if [[ -n "$UVICORN_PY" ]]; then
+  CMD=("$UVICORN_PY" -m uvicorn)
+else
+  CMD=(uvicorn)
+fi
+CMD+=(backend.local_api.main:app --reload-dir backend --port "$UVICORN_PORT" --host "$UVICORN_HOST" --log-config "$LOG_CONFIG")
 if [[ "$RELOAD" == "true" ]]; then
   CMD+=(--reload)
   # Without watchfiles uvicorn polls every watched file (StatReload), which
   # costs a steady chunk of a core while idle (#10363).
-  if ! python -c 'import watchfiles' 2>/dev/null; then
-    echo "Warning: watchfiles is not installed; uvicorn --reload will poll files (StatReload) and use CPU while idle. Run: pip install -r requirements.txt" >&2
+  if [[ -n "$UVICORN_PY" ]] && ! "$UVICORN_PY" -c 'import watchfiles' 2>/dev/null; then
+    echo "Warning: watchfiles is not installed; uvicorn --reload will poll files (StatReload) and use CPU while idle. Run: pip install -r requirements-dev.txt" >&2
   fi
   # Reload on pro changes too, not only backend/.
   [[ -n "$BACKEND_PRO_DIR" ]] && CMD+=(--reload-dir "$BACKEND_PRO_DIR/allotmint_pro")

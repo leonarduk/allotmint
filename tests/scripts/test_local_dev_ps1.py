@@ -2,9 +2,6 @@
 
 The MCP server started by run-backend.ps1 inherits the variables this loads, so
 e.g. ALLOTMINT_MCP_BRAVE_API_KEY in the shared env file reaches ``search_web``
-(#9198). Skipped where PowerShell 7 (``pwsh``) is not installed, or where the
-installed ``pwsh`` cannot actually be launched (e.g. a Windows Store App
-Execution Alias blocked by ACLs in a sandboxed CI runner).
 (#9198). Skipped where no launchable PowerShell is available (``pwsh`` missing,
 or an AppX/Store install that a non-interactive subprocess cannot spawn).
 """
@@ -17,33 +14,6 @@ from pathlib import Path
 import pytest
 
 LIB = Path(__file__).resolve().parents[2] / "scripts" / "lib" / "local-dev.ps1"
-
-
-def _pwsh_usable() -> bool:
-    """True when ``pwsh`` exists *and* can actually be spawned.
-
-    ``shutil.which`` finds the Windows Store App Execution Alias, but spawning
-    it can raise ``PermissionError`` (WinError 5) in sandboxed runners. Probe
-    once so the module skips instead of hard-failing on an environment issue.
-    """
-    if PWSH is None:
-        return False
-    try:
-        subprocess.run(
-            [PWSH, "-NoProfile", "-NonInteractive", "-Command", "exit 0"],
-            capture_output=True,
-            timeout=30,
-            check=True,
-        )
-        return True
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-
-pytestmark = pytest.mark.skipif(
-    not _pwsh_usable(),
-    reason="pwsh not installed or not launchable in this environment",
-)
 
 
 def _find_shell() -> str | None:

@@ -188,3 +188,21 @@ def test_native_currency_label(monkeypatch, currency, scale, expected):
     monkeypatch.setattr(cache, "get_instrument_meta", lambda *_a, **_k: {"currency": currency})
 
     assert live_prices._native_currency("ABC", "L", scale) == expected
+
+
+def test_poll_converts_fx_from_the_cache_only(monkeypatch, stub_live_quotes):
+    """#8028: a page poll must never reach the FX provider, cold cache or not."""
+    _instrument(monkeypatch, currency="USD", scale=1.0, fx_rate=0.8)
+    seen_cache_only: list[bool] = []
+    load_fx = cache._load_fx_rates
+
+    def _spy(*args, **kwargs):
+        seen_cache_only.append(cache.is_cache_only())
+        return load_fx(*args, **kwargs)
+
+    monkeypatch.setattr(cache, "_load_fx_rates", _spy)
+    monkeypatch.setattr(cache, "fetch_fx_rate_range", lambda *_a, **_k: pytest.fail("provider FX fetch"))
+    stub_live_quotes({"ADBE": (410.0, NOW_TS)})
+
+    assert live_prices.load_live_quotes(["ADBE.N"])["ADBE.N"]["price_gbp"] == pytest.approx(328.0)
+    assert seen_cache_only == [True]

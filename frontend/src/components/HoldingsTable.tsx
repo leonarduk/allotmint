@@ -19,6 +19,7 @@ import { useConfig } from "../ConfigContext";
 import { useReportingCurrency, type MoneyFormatter } from "../hooks/useReportingCurrency";
 import { isSupportedFx } from "../lib/fx";
 import { formatDateISO } from "../lib/date";
+import { closeAsOf, liveQuoteAsOf } from "../lib/priceAsOf";
 import {
   COST_BASIS_BOOK_SUSPECT,
   isCostBasisUnreliable,
@@ -151,20 +152,18 @@ function LivePriceCell({
   format: MoneyFormatter;
 }) {
   const { t } = useTranslation();
+  const asOf = liveQuoteAsOf(quote, t);
   const change =
     quote.change_pct == null
       ? ""
       : ` ${quote.change_pct > 0 ? "+" : ""}${percent(quote.change_pct, 2)}`;
-  const time = new Date(quote.timestamp).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const title = `${t("holdingsTable.livePriceTitle", { time })}${change}`;
   return (
-    <td className={`${tableStyles.cell} ${tableStyles.right}`} title={title}>
-      <span className={quote.is_stale ? "text-gray" : undefined}>{format(quote.price_gbp)}</span>
-      <span className={tableStyles.badge} data-testid="live-price-badge">
-        {quote.is_stale ? t("holdingsTable.liveDelayed") : t("holdingsTable.live")}
+    <td className={`${tableStyles.cell} ${tableStyles.right}`} title={`${asOf.title}${change}`}>
+      <span className={asOf.kind === "delayed" ? "text-gray" : undefined}>
+        {format(quote.price_gbp)}
+      </span>
+      <span className={tableStyles.badge} data-testid="live-price-badge" data-as-of={asOf.kind}>
+        {asOf.label}
       </span>
     </td>
   );
@@ -1209,14 +1208,18 @@ export function HoldingsTable({
                         {h.fx_rate_source === FX_RATE_SOURCE_MISSING ? "FX" : "≈"}
                       </span>
                     )}
-                    {h.last_price_date && (
-                      <span
-                        className={tableStyles.badge}
-                        title={h.last_price_date}
-                      >
-                        {formatDateISO(new Date(h.last_price_date))}
-                      </span>
-                    )}
+                    {(() => {
+                      const asOf = closeAsOf(h.last_price_date, t);
+                      return asOf ? (
+                        <span
+                          className={tableStyles.badge}
+                          title={asOf.title}
+                          data-testid="close-price-badge"
+                        >
+                          {asOf.label}
+                        </span>
+                      ) : null;
+                    })()}
                   </td>
                 )}
                 {show("cost") && (

@@ -141,6 +141,42 @@ def test_large_daily_move_threshold_boundary_and_configurability(monkeypatch):
     assert _of_type(looser, IssueType.LARGE_DAILY_MOVE) == []
 
 
+def test_single_day_move_suspect_flags_ten_x_step(monkeypatch):
+    """The ADM.L discontinuity from #8597 / PR #8598 is flagged at refresh time."""
+    closes = [35.88, 35.9, 36.1, 358.8]
+    issues = _run(monkeypatch, closes, {}, ticker="ADM")
+
+    [issue] = _of_type(issues, IssueType.SINGLE_DAY_MOVE_SUSPECT)
+    assert issue.severity == "low"
+    assert issue.fixable is False
+    assert issue.preview["before"]["move"]["previous"] == 36.1
+    assert issue.preview["before"]["move"]["value"] == 358.8
+
+
+def test_single_day_move_suspect_ignores_normal_moves(monkeypatch):
+    issues = _run(monkeypatch, [100.0, 101.0, 99.5, 100.2], {})
+    assert _of_type(issues, IssueType.SINGLE_DAY_MOVE_SUSPECT) == []
+
+
+def test_single_day_move_suspect_threshold_boundary(monkeypatch):
+    # Exactly the threshold is not flagged; just over it is.
+    assert _of_type(_run(monkeypatch, [100.0, 150.0], {}), IssueType.SINGLE_DAY_MOVE_SUSPECT) == []
+    assert len(_of_type(_run(monkeypatch, [100.0, 150.1], {}), IssueType.SINGLE_DAY_MOVE_SUSPECT)) == 1
+    # A per-instrument threshold loosens the check for a volatile name.
+    assert (
+        _of_type(_run(monkeypatch, [100.0, 150.1], {"large_move_threshold": 0.8}), IssueType.SINGLE_DAY_MOVE_SUSPECT)
+        == []
+    )
+
+
+def test_single_day_move_suspect_excludes_recorded_splits(monkeypatch):
+    closes = [100.0, 100.0, 10.0]
+    split_day = _closes(closes).index[2]
+    monkeypatch.setattr(issues_module, "_split_dates", lambda t, e: frozenset({split_day}))
+    issues = _run(monkeypatch, closes, {})
+    assert _of_type(issues, IssueType.SINGLE_DAY_MOVE_SUSPECT) == []
+
+
 def test_recorded_split_dates_are_excluded(monkeypatch):
     closes = [100.0, 100.0, 10.0, 10.0]
     split_day = _closes(closes).index[2]

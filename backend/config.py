@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 from copy import deepcopy
@@ -194,6 +195,17 @@ class Config:
     # Max age (days) of an investment trust NAV before its premium/discount is
     # marked stale; None uses allotmint-pro's default (31).
     nav_max_age_days: Optional[int] = None
+    # Daily refresh of held investment trusts' NAVs from their managers'
+    # published NAVs (#9232; backend/tasks/nav_refresh.py). Off by default:
+    # it fetches from each trust manager's website. ``nav_refresh_time`` is
+    # HH:MM, Europe/London -- after the 16:35 close, when managers have
+    # posted the previous day's NAV.
+    nav_refresh_enabled: bool = False
+    nav_refresh_time: str = "18:30"
+    # Minimum gap between requests to one manager's site, and how long a
+    # fetched page is reused within a run.
+    nav_refresh_request_interval_seconds: float = 2.0
+    nav_refresh_cache_ttl_seconds: float = 3600.0
     stooq_timeout: Optional[int] = None
     news_requests_per_day: int = 25
     yahoo_news_endpoint: Optional[str] = None
@@ -333,6 +345,33 @@ def _parse_mcp_tools(val: Any) -> Dict[str, bool]:
             raise ConfigValidationError("'mcp_tools' must be a mapping of tool name to true/false")
         switches[name.strip()] = enabled
     return switches
+
+
+def _parse_hh_mm(value: Any, *, key: str, default: str) -> str:
+    """Return ``value`` as a validated 24-hour ``HH:MM`` string (``default`` when unset)."""
+    if value is None or value == "":
+        return default
+    text = str(value).strip()
+    hours, sep, minutes = text.partition(":")
+    if sep and hours.isdigit() and minutes.isdigit() and len(minutes) == 2:
+        if 0 <= int(hours) <= 23 and 0 <= int(minutes) <= 59:
+            return f"{int(hours):02d}:{minutes}"
+    raise ConfigValidationError(f"'{key}' must be a 24-hour HH:MM time, got {text!r}")
+
+
+def _parse_non_negative(value: Any, *, key: str, default: float) -> float:
+    """Return ``value`` as a non-negative number (``default`` when unset)."""
+    if value is None or value == "":
+        return float(default)
+    if isinstance(value, bool):
+        raise ConfigValidationError(f"'{key}' must be a non-negative number, got {value!r}")
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ConfigValidationError(f"'{key}' must be a non-negative number, got {value!r}") from exc
+    if not (math.isfinite(number) and number >= 0):
+        raise ConfigValidationError(f"'{key}' must be a non-negative number, got {value!r}")
+    return number
 
 
 def _parse_str_list(val: Any) -> Optional[List[str]]:
@@ -681,6 +720,22 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         alpha_vantage_key=data.get("alpha_vantage_key"),
         fundamentals_cache_ttl_seconds=data.get("fundamentals_cache_ttl_seconds"),
         nav_max_age_days=data.get("nav_max_age_days"),
+        nav_refresh_enabled=_coerce_bool_with_default(
+            data.get("nav_refresh_enabled"),
+            key="nav_refresh_enabled",
+            default=False,
+        ),
+        nav_refresh_time=_parse_hh_mm(data.get("nav_refresh_time"), key="nav_refresh_time", default="18:30"),
+        nav_refresh_request_interval_seconds=_parse_non_negative(
+            data.get("nav_refresh_request_interval_seconds"),
+            key="nav_refresh_request_interval_seconds",
+            default=2.0,
+        ),
+        nav_refresh_cache_ttl_seconds=_parse_non_negative(
+            data.get("nav_refresh_cache_ttl_seconds"),
+            key="nav_refresh_cache_ttl_seconds",
+            default=3600.0,
+        ),
         stooq_timeout=data.get("stooq_timeout"),
         news_requests_per_day=data.get("news_requests_per_day", 25),
         yahoo_news_requests_per_day=data.get("yahoo_news_requests_per_day", 500),

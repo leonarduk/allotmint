@@ -3656,6 +3656,6 @@
     "add": "Ajouter",
     "addPreset": "Ajouter un indice courant…",
     "invalidTicker": "Saisissez un ticker comme ^FTSE ou VWRL.L.",
-    "methodology": "Les rendements du portefeuille sont pondérés dans le temps et reconstruits à partir de vos transactions : les dépôts et retraits ne comptent pas comme gains ou pertes. La volatilité est l'écart type annualisé des rendements quotidiens. Les indices (symboles ^) sont des rendements de prix dans leur propre devise ; les autres tickers utilisent des prix en livres sterling."
+    "methodology": "Les rendements du portefeuille sont pondérés dans le temps et reconstruits à partir de vos transactions : les dépôts et retraits ne comptent pas comme gains ou pertes. La volatilité est l'écart type annualisé des rendements quotidiens. Les indices (symboles ^) sont des rendements de prix dans leur propre devise ; les autres tickers utilisent des prix en livres sterling. Les autres tickers doivent être des instruments déjà suivis par AllotMint."
   }
 }

@@ -3656,6 +3656,6 @@
     "add": "Adicionar",
     "addPreset": "Adicionar um índice comum…",
     "invalidTicker": "Introduza um ticker como ^FTSE ou VWRL.L.",
-    "methodology": "Os retornos da carteira são ponderados no tempo e reconstruídos a partir das suas transações, pelo que depósitos e levantamentos não contam como ganhos ou perdas. A volatilidade é o desvio-padrão anualizado dos retornos diários. Os índices (símbolos ^) são retornos de preço na sua própria moeda; os restantes tickers usam preços em libras."
+    "methodology": "Os retornos da carteira são ponderados no tempo e reconstruídos a partir das suas transações, pelo que depósitos e levantamentos não contam como ganhos ou perdas. A volatilidade é o desvio-padrão anualizado dos retornos diários. Os índices (símbolos ^) são retornos de preço na sua própria moeda; os restantes tickers usam preços em libras. Os restantes tickers têm de ser instrumentos que o AllotMint já acompanha."
   }
 }

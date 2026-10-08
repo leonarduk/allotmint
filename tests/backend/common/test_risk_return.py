@@ -134,6 +134,7 @@ def test_benchmark_rebases_on_close_before_window(monkeypatch):
 
 
 def test_benchmark_without_closes_is_none(monkeypatch):
+    monkeypatch.setattr(rr.instruments, "list_instruments", lambda: [{"ticker": "XYZ.L"}])
     monkeypatch.setattr(lp, "load_gbp_closes", lambda key, start, end: pd.Series(dtype=float))
 
     assert rr.compute_benchmark_risk_return("XYZ.L", DAYS, pricing_date=END) is None
@@ -147,6 +148,7 @@ def test_non_index_benchmark_uses_cached_gbp_closes(monkeypatch):
         return _CLOSES
 
     monkeypatch.setattr(lp, "load_gbp_closes", load)
+    monkeypatch.setattr(rr.instruments, "list_instruments", lambda: [{"ticker": "VWRL.L"}])
     monkeypatch.setattr(rr, "_index_closes", lambda *a: pytest.fail("index path used for a listed ticker"))
 
     assert rr.compute_benchmark_risk_return("VWRL.L", DAYS, pricing_date=END) is not None
@@ -179,3 +181,27 @@ def test_no_group_point_when_no_member_has_a_ledger(fake_data, monkeypatch):
 
     assert result["points"] == []
     assert result["missing_members"] == ["bob", "carol"]
+
+
+def test_unknown_listed_ticker_is_never_loaded(monkeypatch):
+    monkeypatch.setattr(rr.instruments, "list_instruments", lambda: [{"ticker": "VWRL.L"}])
+    monkeypatch.setattr(lp, "load_gbp_closes", lambda *a: pytest.fail("loaded a ticker outside the catalogue"))
+
+    assert rr.compute_benchmark_risk_return("NOPE.L", DAYS, pricing_date=END) is None
+
+
+def test_listed_ticker_is_read_cache_only(monkeypatch):
+    from backend.timeseries.cache import is_cache_only
+
+    seen = []
+
+    def load(key, start, end):
+        seen.append((key, is_cache_only()))
+        return _CLOSES
+
+    monkeypatch.setattr(rr.instruments, "list_instruments", lambda: [{"ticker": "vwrl.l"}])
+    monkeypatch.setattr(lp, "load_gbp_closes", load)
+
+    rr.compute_benchmark_risk_return("VWRL.L", DAYS, pricing_date=END)
+
+    assert seen == [("VWRL.L", True)]

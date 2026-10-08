@@ -23,7 +23,8 @@ export const PRESET_BENCHMARKS: Benchmark[] = [
   ...DEFAULT_BENCHMARKS,
   { ticker: '^FTMC', label: 'FTSE 250' },
   { ticker: '^DJI', label: 'Dow Jones' },
-  { ticker: 'VWRL.L', label: 'FTSE All-World (VWRL)' },
+  { ticker: '^STOXX50E', label: 'Euro Stoxx 50' },
+  { ticker: '^N225', label: 'Nikkei 225' },
 ];
 
 export type SeriesKind = RiskReturnPoint['kind'] | 'benchmark';

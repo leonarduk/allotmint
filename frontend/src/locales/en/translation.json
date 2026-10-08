@@ -3649,6 +3649,6 @@
     "add": "Add",
     "addPreset": "Add a common index…",
     "invalidTicker": "Enter a ticker such as ^FTSE or VWRL.L.",
-    "methodology": "Portfolio returns are time-weighted and rebuilt from your transactions, so deposits and withdrawals do not count as gains or losses. Volatility is the annualised standard deviation of daily returns. Indices (^ symbols) are price returns in their own currency; other tickers use sterling prices."
+    "methodology": "Portfolio returns are time-weighted and rebuilt from your transactions, so deposits and withdrawals do not count as gains or losses. Volatility is the annualised standard deviation of daily returns. Indices (^ symbols) are price returns in their own currency; other tickers use sterling prices. Other tickers must be instruments AllotMint already tracks."
   }
 }

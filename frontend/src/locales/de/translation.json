@@ -3656,6 +3656,6 @@
     "add": "Hinzufügen",
     "addPreset": "Gängigen Index hinzufügen…",
     "invalidTicker": "Geben Sie einen Ticker wie ^FTSE oder VWRL.L ein.",
-    "methodology": "Portfoliorenditen sind zeitgewichtet und aus Ihren Transaktionen rekonstruiert, sodass Ein- und Auszahlungen nicht als Gewinne oder Verluste zählen. Volatilität ist die annualisierte Standardabweichung der täglichen Renditen. Indizes (^-Symbole) sind Kursrenditen in ihrer eigenen Währung; andere Ticker verwenden Preise in Pfund Sterling."
+    "methodology": "Portfoliorenditen sind zeitgewichtet und aus Ihren Transaktionen rekonstruiert, sodass Ein- und Auszahlungen nicht als Gewinne oder Verluste zählen. Volatilität ist die annualisierte Standardabweichung der täglichen Renditen. Indizes (^-Symbole) sind Kursrenditen in ihrer eigenen Währung; andere Ticker verwenden Preise in Pfund Sterling. Andere Ticker müssen Instrumente sein, die AllotMint bereits verfolgt."
   }
 }

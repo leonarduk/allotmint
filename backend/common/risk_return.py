@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Mapping, Sequence
 
 import pandas as pd
 
-from backend.common import group_portfolio, ledger_performance
+from backend.common import group_portfolio, instruments, ledger_performance
 from backend.common import portfolio as portfolio_mod
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import cache_only
@@ -202,10 +202,32 @@ def _download_index_closes(symbol: str, start: date, end: date) -> pd.Series:
 
 
 def benchmark_closes(ticker: str, start: date, end: date) -> pd.Series:
-    """Index closes from Yahoo for ``^`` symbols, otherwise cached GBP closes."""
+    """Index closes from Yahoo for ``^`` symbols, otherwise cached GBP closes.
+
+    A listed ticker must be a known instrument (``data/instruments``) and is
+    read cache-only: a request must not make the server fetch, and write to
+    the timeseries and corporate-actions caches for, any ticker it names.
+    The ticker passed on is the catalogue's own string rather than the
+    request's, which also keeps path-injection analysis from tracing request
+    data into those cache paths.
+    """
     if ticker.startswith("^"):
         return _index_closes(ticker, start, end)
-    return ledger_performance.load_gbp_closes(ticker, start, end)
+    known = _catalogue_ticker(ticker)
+    if known is None:
+        return pd.Series(dtype=float)
+    with cache_only():
+        return ledger_performance.load_gbp_closes(known, start, end)
+
+
+def _catalogue_ticker(ticker: str) -> str | None:
+    """The instrument catalogue's spelling of ``ticker``, or ``None`` if unknown."""
+    wanted = ticker.upper()
+    for instrument in instruments.list_instruments():
+        known = str(instrument.get("ticker") or "").upper()
+        if known and known == wanted:
+            return known
+    return None
 
 
 def compute_benchmark_risk_return(

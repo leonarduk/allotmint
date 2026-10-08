@@ -3656,6 +3656,6 @@
     "add": "Añadir",
     "addPreset": "Añadir un índice común…",
     "invalidTicker": "Introduzca un ticker como ^FTSE o VWRL.L.",
-    "methodology": "Las rentabilidades de la cartera son ponderadas en el tiempo y se reconstruyen a partir de sus transacciones, por lo que los depósitos y retiradas no cuentan como ganancias o pérdidas. La volatilidad es la desviación típica anualizada de las rentabilidades diarias. Los índices (símbolos ^) son rentabilidades de precio en su propia divisa; los demás tickers usan precios en libras."
+    "methodology": "Las rentabilidades de la cartera son ponderadas en el tiempo y se reconstruyen a partir de sus transacciones, por lo que los depósitos y retiradas no cuentan como ganancias o pérdidas. La volatilidad es la desviación típica anualizada de las rentabilidades diarias. Los índices (símbolos ^) son rentabilidades de precio en su propia divisa; los demás tickers usan precios en libras. Los demás tickers deben ser instrumentos que AllotMint ya sigue."
   }
 }

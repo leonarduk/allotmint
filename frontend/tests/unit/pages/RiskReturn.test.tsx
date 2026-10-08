@@ -120,7 +120,7 @@ describe('RiskReturn page', () => {
       expect(benchmarkMock).toHaveBeenCalledWith('VWRL.L', 365)
     );
     expect(
-      screen.getByRole('checkbox', { name: /^FTSE All-World/ })
+      screen.getByRole('checkbox', { name: /^VWRL\.L/ })
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove NASDAQ' }));

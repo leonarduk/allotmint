@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 from copy import deepcopy
@@ -368,7 +369,7 @@ def _parse_non_negative(value: Any, *, key: str, default: float) -> float:
         number = float(value)
     except (TypeError, ValueError) as exc:
         raise ConfigValidationError(f"'{key}' must be a non-negative number, got {value!r}") from exc
-    if not number >= 0:
+    if not (math.isfinite(number) and number >= 0):
         raise ConfigValidationError(f"'{key}' must be a non-negative number, got {value!r}")
     return number
 

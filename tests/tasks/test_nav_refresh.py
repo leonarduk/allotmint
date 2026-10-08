@@ -55,6 +55,11 @@ def test_seconds_until_next_run_counts_real_time_across_clock_changes(now, expec
     assert nav_task.seconds_until_next_run(now, "18:30") == expected_hours * 3600
 
 
+def test_seconds_until_next_run_at_the_slot_waits_a_day():
+    # 18:30 BST exactly.
+    assert nav_task.seconds_until_next_run(datetime(2026, 10, 8, 17, 30, tzinfo=timezone.utc), "18:30") == 24 * 3600
+
+
 def test_not_scheduled_unless_enabled():
     assert nav_task.start_nav_refresh_task(_cfg()) is None
 
@@ -173,6 +178,21 @@ def test_main_prints_report_and_fails_on_failed_trusts(monkeypatch, capsys):
     monkeypatch.setattr(nav_task, "run_nav_refresh", lambda: REPORT)
     assert nav_task.main([]) == 1
     assert '"HFEL.L"' in capsys.readouterr().out
+
+
+def test_main_exits_zero_when_trusts_only_lack_a_source(monkeypatch, capsys):
+    counts = dict(REPORT["counts"], failed=0, no_source=1, no_announcement=1)
+    monkeypatch.setattr(nav_task, "run_nav_refresh", lambda: {"run_at": "t", "counts": counts, "results": []})
+    assert nav_task.main([]) == 0
+
+
+def test_lambda_handler_propagates_missing_allotmint_pro(monkeypatch):
+    def missing():
+        raise CoreFeatureUnavailableError(nav_task.FEATURE)
+
+    monkeypatch.setattr(nav_task, "run_nav_refresh", missing)
+    with pytest.raises(CoreFeatureUnavailableError):
+        nav_task.lambda_handler({}, None)
 
 
 def test_lambda_handler_returns_counts(monkeypatch):

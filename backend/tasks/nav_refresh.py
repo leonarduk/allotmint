@@ -96,8 +96,10 @@ def log_report(report: Dict[str, Any]) -> None:
 def seconds_until_next_run(now: datetime, at: str) -> float:
     """Seconds from ``now`` (timezone-aware) until the next ``at`` (HH:MM) in Europe/London.
 
-    The difference is taken in UTC: subtracting two datetimes that share one
-    ``ZoneInfo`` gives the wall-clock gap, an hour out on clock-change days.
+    At exactly ``at`` the next run is tomorrow's: the loop has just run (or,
+    on startup, the slot is treated as passed). The difference is taken in
+    UTC: subtracting two datetimes that share one ``ZoneInfo`` gives the
+    wall-clock gap, an hour out on clock-change days.
     """
 
     hours, minutes = (int(part) for part in at.split(":"))
@@ -117,7 +119,10 @@ async def nav_refresh_loop(
 ) -> None:
     """Run the refresh daily at ``cfg.nav_refresh_time`` until cancelled; a failed run is logged, not fatal.
 
-    A day on which ``offline_mode`` has been switched on since startup is skipped.
+    The loop waits for the next slot before its first run, so an app started
+    after the day's slot first refreshes the next day; run
+    ``python -m backend.tasks.nav_refresh`` to refresh straight away. A day on
+    which ``offline_mode`` has been switched on since startup is skipped.
     """
 
     while True:

@@ -545,6 +545,37 @@ describe("toRollupRows", () => {
       expect(row.yield_pct).toBeNull();
     });
 
+    it("uses the held cost for a lot whose total return is exactly zero", () => {
+      const [row] = toRollupRows(
+        toScopedHoldingRows([
+          lot("alice", "ISA", { income_gbp: 10, realised_gain_gbp: 0, total_return_gbp: 20, total_return_pct: 20 }),
+          // Capital loss of 10 offset by 10 income: total 0, cost 120 (market 110 - gain -10).
+          lot("bob", "SIPP", {
+            gain_gbp: -10,
+            income_gbp: 10,
+            realised_gain_gbp: 0,
+            total_return_gbp: 0,
+            total_return_pct: 0,
+          }),
+        ]),
+      );
+
+      expect(row.total_return_gbp).toBe(20);
+      expect(row.total_return_pct).toBeCloseTo((20 / 220) * 100);
+    });
+
+    it("withholds only the percentage when a lot's percentage is unknown", () => {
+      const [row] = toRollupRows(
+        toScopedHoldingRows([
+          lot("alice", "ISA", { income_gbp: 15, realised_gain_gbp: 0, total_return_gbp: 25, total_return_pct: 25 }),
+          lot("bob", "SIPP", { income_gbp: 5, realised_gain_gbp: 0, total_return_gbp: 15, total_return_pct: null }),
+        ]),
+      );
+
+      expect(row.total_return_gbp).toBe(40);
+      expect(row.total_return_pct).toBeNull();
+    });
+
     it("leaves the fields absent when no lot carries them", () => {
       const [row] = toRollupRows(toScopedHoldingRows(accounts));
 

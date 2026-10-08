@@ -1860,6 +1860,12 @@ describe("GroupPortfolioView", () => {
       expect(ticks.some((value) => hidden.test(value))).toBe(false);
       // Relative view plots gain/cost %, so the £ gain's scale never appears.
       expect(ticks.some((value) => /12,?000/.test(value))).toBe(!relative);
+      // Pin the scale, not just the suffix (#10048): the backend's
+      // `_aggregate_by_field` stores contribution_pct in percentage points
+      // (gain / total cost * 100), so 12 must render as "12.0%". A formatter
+      // that treated it as a fraction would render "1,200.0%" (×100) and one
+      // that divided it down would top out at "0.1%"; both fail here.
+      expect(ticks.includes("12.0%")).toBe(relative);
     },
   );
 

@@ -350,6 +350,8 @@ export default function Support() {
             markEmptyPoll();
             return;
           }
+          // Progress reached us, so the run of empty polls is over.
+          emptyPolls = 0;
           if (refreshActive.current) {
             setRefreshProgressUnavailable(false);
             setRefreshProgress({

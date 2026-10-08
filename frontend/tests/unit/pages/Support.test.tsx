@@ -830,6 +830,40 @@ describe("Support page", () => {
     expect(screen.queryByText(en.app.refreshingDetailUnavailable)).not.toBeInTheDocument();
   });
 
+  it("keeps showing last known progress when later polls hit an idle instance", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    mockRefreshPrices.mockReturnValue(new Promise(() => {})); // never resolves
+    const idle = { running: false, total: 0, completed: 0, current_ticker: null };
+    mockGetRefreshPricesProgress
+      .mockResolvedValueOnce(idle)
+      .mockResolvedValueOnce(idle)
+      .mockResolvedValueOnce(idle)
+      .mockResolvedValueOnce(idle)
+      .mockResolvedValueOnce({
+        running: true,
+        total: 10,
+        completed: 4,
+        current_ticker: "VOD.L",
+      })
+      .mockResolvedValue(idle);
+
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.priceRefresh);
+
+    const btn = await screen.findByRole("button", { name: en.app.refreshPrices });
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+
+    // 4 empty polls, 1 good poll, then 5 more empty polls.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400 * 10);
+    });
+    expect(screen.getByRole("button", { name: "Refreshing… (4/10)" })).toBeInTheDocument();
+    expect(screen.queryByText(en.app.refreshingDetailUnavailable)).not.toBeInTheDocument();
+  });
+
   it("treats repeated poll failures as progress detail unavailable", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
 

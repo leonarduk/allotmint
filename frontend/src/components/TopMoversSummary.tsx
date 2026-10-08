@@ -9,6 +9,7 @@ import moversPlugin from "../plugins/movers";
 import { SignalBadge } from "./SignalBadge";
 import { InstrumentDetail } from "./InstrumentDetail";
 import EmptyState from "./EmptyState";
+import { instrumentTooltip } from "../lib/instrumentType";
 import TableSkeleton from "./skeletons/TableSkeleton";
 
 interface Props {
@@ -81,12 +82,15 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
                     font: "inherit",
                     cursor: "pointer",
                   }}
+                  title={instrumentTooltip(t, r.ticker, r.name, r.instrument_type)}
                   className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
                 >
                   {r.ticker}
                 </button>
               </td>
-              <td className={tableStyles.cell}>{r.name}</td>
+              <td className={tableStyles.cell} title={instrumentTooltip(t, r.ticker, r.name, r.instrument_type)}>
+                {r.name}
+              </td>
               <td className={tableStyles.cell}>
                 {r.signal ? (
                   <SignalBadge

@@ -24,3 +24,18 @@ export function translateInstrumentType(t: TFunction, type?: string | null) {
   const key = TYPE_KEYS[type.trim().toLowerCase()];
   return key ? t(key, { defaultValue: type }) : type;
 }
+
+/**
+ * Hover text for an instrument's ticker/name cell: the full (untruncated)
+ * name plus its translated instrument type, e.g. "Rentokil Initial · Equity".
+ * The type is omitted when unknown rather than shown as a misleading "Other".
+ */
+export function instrumentTooltip(
+  t: TFunction,
+  ticker: string,
+  name?: string | null,
+  type?: string | null,
+) {
+  const label = name?.trim() || ticker;
+  return type?.trim() ? `${label} · ${translateInstrumentType(t, type)}` : label;
+}

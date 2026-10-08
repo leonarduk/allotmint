@@ -374,6 +374,14 @@ describe("HoldingsTable", () => {
         expect(within(technologyToggle).getByText("(1)")).toHaveClass(tableStyles.groupCount);
     });
 
+    it("shows the full name and instrument type on ticker and name hover", async () => {
+        renderWithConfig(<HoldingsTable holdings={holdings} />);
+
+        const tickerButton = await screen.findByRole("button", { name: "AAA" });
+        expect(tickerButton).toHaveAttribute("title", "Alpha · Equity");
+        expect(screen.getByText("Alpha")).toHaveAttribute("title", "Alpha · Equity");
+    });
+
     it("keeps the existing flat rendering when groupingMode is omitted", async () => {
         renderWithConfig(<HoldingsTable holdings={holdings} />);
 

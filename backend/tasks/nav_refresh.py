@@ -25,13 +25,14 @@ import argparse
 import asyncio
 import json
 import logging
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from typing import Any, Callable, Dict, Optional
 from zoneinfo import ZoneInfo
 
 from backend import config as config_module
 from backend.common.core_optional import CoreFeatureUnavailableError, missing_package
 from backend.config import Config
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,8 @@ def run_nav_refresh(cfg: Optional[Config] = None) -> Dict[str, Any]:
     Raises :class:`CoreFeatureUnavailableError` when allotmint-pro is not installed.
     """
 
-    cfg = cfg or getattr(config_module, "settings", config_module.config)
+    if cfg is None:
+        cfg = _current_config()
     try:
         from allotmint_pro.screener.nav_refresh import refresh_held_trust_navs
         from allotmint_pro.screener.nav_sources import CachedFetcher
@@ -66,6 +68,13 @@ def run_nav_refresh(cfg: Optional[Config] = None) -> Dict[str, Any]:
     return report
 
 
+def _current_config() -> Config:
+    current = getattr(config_module, "settings", None) or config_module.config
+    if not isinstance(current, Config):
+        raise RuntimeError("backend configuration is not loaded")
+    return current
+
+
 def log_report(report: Dict[str, Any]) -> None:
     """Log one line per trust (a warning when it was not refreshed) and the run's counts."""
 
@@ -75,24 +84,28 @@ def log_report(report: Dict[str, Any]) -> None:
         logger.log(
             level,
             "NAV refresh %s: %s (nav_as_of %s -> %s) %s",
-            row.get("ticker"),
-            outcome,
-            row.get("previous_nav_as_of"),
-            row.get("nav_as_of"),
-            row.get("detail", ""),
+            sanitise_log_value(row.get("ticker")),
+            sanitise_log_value(outcome),
+            sanitise_log_value(row.get("previous_nav_as_of")),
+            sanitise_log_value(row.get("nav_as_of")),
+            sanitise_log_value(row.get("detail", "")),
         )
-    logger.info("NAV refresh counts: %s", report.get("counts"))
+    logger.info("NAV refresh counts: %s", sanitise_log_value(report.get("counts")))
 
 
 def seconds_until_next_run(now: datetime, at: str) -> float:
-    """Seconds from ``now`` (timezone-aware) until the next ``at`` (HH:MM) in Europe/London."""
+    """Seconds from ``now`` (timezone-aware) until the next ``at`` (HH:MM) in Europe/London.
+
+    The difference is taken in UTC: subtracting two datetimes that share one
+    ``ZoneInfo`` gives the wall-clock gap, an hour out on clock-change days.
+    """
 
     hours, minutes = (int(part) for part in at.split(":"))
     local_now = now.astimezone(LONDON)
     target = datetime.combine(local_now.date(), time(hours, minutes), tzinfo=LONDON)
     if target <= local_now:
         target = datetime.combine(local_now.date() + timedelta(days=1), time(hours, minutes), tzinfo=LONDON)
-    return (target - local_now).total_seconds()
+    return (target.astimezone(timezone.utc) - local_now.astimezone(timezone.utc)).total_seconds()
 
 
 async def nav_refresh_loop(
@@ -102,10 +115,16 @@ async def nav_refresh_loop(
     now: Callable[[], datetime] = lambda: datetime.now(LONDON),
     sleep: Callable[[float], Any] = asyncio.sleep,
 ) -> None:
-    """Run the refresh daily at ``cfg.nav_refresh_time`` until cancelled; a failed run is logged, not fatal."""
+    """Run the refresh daily at ``cfg.nav_refresh_time`` until cancelled; a failed run is logged, not fatal.
+
+    A day on which ``offline_mode`` has been switched on since startup is skipped.
+    """
 
     while True:
         await sleep(seconds_until_next_run(now(), cfg.nav_refresh_time))
+        if cfg.offline_mode:
+            logger.info("NAV refresh skipped: offline_mode is on")
+            continue
         try:
             await asyncio.to_thread(run, cfg)
         except CoreFeatureUnavailableError:
@@ -123,7 +142,7 @@ def start_nav_refresh_task(cfg: Config) -> Optional[asyncio.Task]:
     if cfg.offline_mode:
         logger.info("NAV refresh not scheduled: offline_mode is on")
         return None
-    logger.info("NAV refresh scheduled daily at %s Europe/London", cfg.nav_refresh_time)
+    logger.info("NAV refresh scheduled daily at %s Europe/London", sanitise_log_value(cfg.nav_refresh_time))
     return asyncio.create_task(nav_refresh_loop(cfg))
 
 

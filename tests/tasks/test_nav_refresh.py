@@ -42,6 +42,19 @@ def test_seconds_until_next_run_uses_london_time(now, expected_hours):
     assert nav_task.seconds_until_next_run(now, "18:30") == expected_hours * 3600
 
 
+@pytest.mark.parametrize(
+    "now, expected_hours",
+    [
+        # 25 Oct 2026, clocks go back at 02:00 BST: midnight BST -> 18:30 GMT is 19.5 real hours.
+        (datetime(2026, 10, 24, 23, 0, tzinfo=timezone.utc), 19.5),
+        # 29 Mar 2026, clocks go forward at 01:00 GMT: midnight GMT -> 18:30 BST is 17.5 real hours.
+        (datetime(2026, 3, 29, 0, 0, tzinfo=timezone.utc), 17.5),
+    ],
+)
+def test_seconds_until_next_run_counts_real_time_across_clock_changes(now, expected_hours):
+    assert nav_task.seconds_until_next_run(now, "18:30") == expected_hours * 3600
+
+
 def test_not_scheduled_unless_enabled():
     assert nav_task.start_nav_refresh_task(_cfg()) is None
 
@@ -86,6 +99,21 @@ def test_loop_survives_a_failed_run_and_keeps_running(caplog):
     assert len(runs) == 2
     assert sleeps[0] == 1.5 * 3600
     assert "Scheduled NAV refresh failed" in caplog.text
+
+
+def test_loop_skips_runs_while_offline():
+    runs = []
+    sleeps = []
+
+    async def sleep(seconds):
+        sleeps.append(seconds)
+        if len(sleeps) > 2:
+            raise asyncio.CancelledError
+
+    now = lambda: datetime(2026, 10, 8, 16, 0, tzinfo=timezone.utc)  # noqa: E731
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(nav_task.nav_refresh_loop(_cfg(offline_mode=True), run=runs.append, now=now, sleep=sleep))
+    assert runs == []
 
 
 def test_loop_stops_when_allotmint_pro_is_missing(caplog):

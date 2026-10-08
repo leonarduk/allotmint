@@ -358,6 +358,21 @@ def _parse_hh_mm(value: Any, *, key: str, default: str) -> str:
     raise ConfigValidationError(f"'{key}' must be a 24-hour HH:MM time, got {text!r}")
 
 
+def _parse_non_negative(value: Any, *, key: str, default: float) -> float:
+    """Return ``value`` as a non-negative number (``default`` when unset)."""
+    if value is None or value == "":
+        return float(default)
+    if isinstance(value, bool):
+        raise ConfigValidationError(f"'{key}' must be a non-negative number, got {value!r}")
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ConfigValidationError(f"'{key}' must be a non-negative number, got {value!r}") from exc
+    if not number >= 0:
+        raise ConfigValidationError(f"'{key}' must be a non-negative number, got {value!r}")
+    return number
+
+
 def _parse_str_list(val: Any) -> Optional[List[str]]:
     """Convert comma-separated strings or lists into list of strings."""
     if isinstance(val, list):
@@ -710,8 +725,18 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
             default=False,
         ),
         nav_refresh_time=_parse_hh_mm(data.get("nav_refresh_time"), key="nav_refresh_time", default="18:30"),
-        nav_refresh_request_interval_seconds=float(data.get("nav_refresh_request_interval_seconds", 2.0)),
-        nav_refresh_cache_ttl_seconds=int(data.get("nav_refresh_cache_ttl_seconds", 3600)),
+        nav_refresh_request_interval_seconds=_parse_non_negative(
+            data.get("nav_refresh_request_interval_seconds"),
+            key="nav_refresh_request_interval_seconds",
+            default=2.0,
+        ),
+        nav_refresh_cache_ttl_seconds=int(
+            _parse_non_negative(
+                data.get("nav_refresh_cache_ttl_seconds"),
+                key="nav_refresh_cache_ttl_seconds",
+                default=3600,
+            )
+        ),
         stooq_timeout=data.get("stooq_timeout"),
         news_requests_per_day=data.get("news_requests_per_day", 25),
         yahoo_news_requests_per_day=data.get("yahoo_news_requests_per_day", 500),

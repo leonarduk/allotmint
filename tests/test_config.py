@@ -71,6 +71,13 @@ def test_nav_refresh_time_rejects_non_hh_mm(raw):
         build_config({"nav_refresh_time": raw}, check_google_auth=False)
 
 
+@pytest.mark.parametrize("key", ["nav_refresh_request_interval_seconds", "nav_refresh_cache_ttl_seconds"])
+@pytest.mark.parametrize("raw", ["abc", -1, True])
+def test_nav_refresh_numbers_must_be_non_negative(key, raw):
+    with pytest.raises(ConfigValidationError, match=key):
+        build_config({key: raw}, check_google_auth=False)
+
+
 def test_config_example_nav_refresh_time_parses_as_string():
     from pathlib import Path
 

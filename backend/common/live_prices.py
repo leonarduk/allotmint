@@ -67,13 +67,22 @@ class LiveQuote(TypedDict):
     is_stale: bool
 
 
-def _resolve(full: str) -> tuple[str, str]:
+def _resolve(full: str) -> Optional[tuple[str, str]]:
+    """``(ticker, exchange)`` for ``full``, as ``load_latest_closes`` resolves it.
+
+    A dotted ticker carries its own exchange (``ADBE.N`` -> ``("ADBE", "N")``);
+    one that still can't be split is skipped, never re-homed to another
+    exchange. Only a bare, unmapped ticker takes the ``L`` default, the same
+    default ``load_latest_closes`` applies, so live and stored prices agree.
+    """
     from backend.common import instrument_api
 
     resolved = instrument_api._resolve_full_ticker(full, {})
     if resolved:
         return resolved
-    return full.split(".", 1)[0].upper(), "L"
+    if "." in full:
+        return None
+    return full.upper(), "L"
 
 
 def _fetch_raw(yahoo_symbol: str) -> Optional[Dict[str, Any]]:
@@ -184,7 +193,11 @@ def load_live_quotes(full_tickers: list[str]) -> Dict[str, LiveQuote]:
 
     targets: Dict[str, tuple[str, str, str]] = {}
     for full in dict.fromkeys(t.strip().upper() for t in full_tickers if t and t.strip()):
-        ticker, exchange = _resolve(full)
+        resolved = _resolve(full)
+        if resolved is None:
+            logger.debug("Cannot resolve %s; skipping live quote", sanitise_log_value(full))
+            continue
+        ticker, exchange = resolved
         try:
             targets[full] = (ticker, exchange, _build_full_ticker(ticker, exchange))
         except ValueError:

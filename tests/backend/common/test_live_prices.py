@@ -206,3 +206,15 @@ def test_poll_converts_fx_from_the_cache_only(monkeypatch, stub_live_quotes):
 
     assert live_prices.load_live_quotes(["ADBE.N"])["ADBE.N"]["price_gbp"] == pytest.approx(328.0)
     assert seen_cache_only == [True]
+
+
+def test_resolve_keeps_the_ticker_s_own_exchange(monkeypatch):
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(instrument_api, "_ticker_exchange_map", lambda: {})
+
+    assert live_prices._resolve("ADBE.N") == ("ADBE", "N")
+    # Bare and unmapped: the same L default load_latest_closes applies.
+    assert live_prices._resolve("XYZ") == ("XYZ", "L")
+    # Dotted but unsplittable: skipped, never re-homed to L.
+    assert live_prices._resolve(".N") is None

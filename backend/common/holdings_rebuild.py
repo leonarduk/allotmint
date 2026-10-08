@@ -368,6 +368,10 @@ def _merge_holding(
     elif old_value is not None and old_units and not _units_match(old_units, units):
         # Revalue at the last known price until the pricing pipeline refreshes it.
         holding["value_gbp"] = round(old_value / old_units * units, 2)
+    elif old_value is not None and not old_units and units:
+        # A zero-unit placeholder has no last known price, and its value_gbp
+        # describes no real position (#8110): value the new units at cost.
+        holding["value_gbp"] = cost
     return holding
 
 

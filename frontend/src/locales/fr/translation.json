@@ -149,6 +149,7 @@
       "rebalance": "Stratégie",
       "reports": "Rapports",
       "research": "Détail de l'instrument",
+      "riskreturn": "Rendement vs volatilité",
       "scenario": "Testeur de Scénario",
       "screener": "Filtre",
       "settings": "Règles de négociation",
@@ -3630,5 +3631,32 @@
     "weightedCharge": "Frais courants pondérés",
     "annualCost": "Coût annuel estimé des fonds",
     "excludesUnknown": "Exclut {{unknown}} positions sur {{total}} sans données de frais"
+  },
+  "riskReturn": {
+    "title": "Rendement vs volatilité",
+    "description": "Chaque compte, chaque titulaire et le portefeuille entier représentés par rendement et volatilité, avec des indices de marché pour comparaison. Cochez ou décochez une série pour l'afficher ou la masquer, et ajoutez n'importe quel indice ou ticker.",
+    "group": "Portefeuille",
+    "window": "Période",
+    "windows": {
+      "1y": "1 an",
+      "3y": "3 ans",
+      "5y": "5 ans"
+    },
+    "entirePortfolio": "Portefeuille entier",
+    "ownerTotal": "{{owner}} (tous les comptes)",
+    "return": "Rendement",
+    "annualisedReturn": "Rendement annualisé",
+    "volatility": "Volatilité",
+    "missingMembers": "Aucun historique de transactions pour {{members}}, ils sont donc exclus.",
+    "noData": "aucune donnée",
+    "series": "Séries du graphique",
+    "portfolioSeries": "Portefeuille",
+    "benchmarks": "Indices de référence",
+    "remove": "Retirer",
+    "addTicker": "Ajouter un indice ou un ticker",
+    "add": "Ajouter",
+    "addPreset": "Ajouter un indice courant…",
+    "invalidTicker": "Saisissez un ticker comme ^FTSE ou VWRL.L.",
+    "methodology": "Les rendements du portefeuille sont pondérés dans le temps et reconstruits à partir de vos transactions : les dépôts et retraits ne comptent pas comme gains ou pertes. La volatilité est l'écart type annualisé des rendements quotidiens. Les indices (symboles ^) sont des rendements de prix dans leur propre devise ; les autres tickers utilisent des prix en livres sterling. Les autres tickers doivent être des instruments déjà suivis par AllotMint."
   }
 }

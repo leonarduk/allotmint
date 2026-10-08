@@ -149,6 +149,7 @@
       "rebalance": "Estrategia",
       "reports": "Informes",
       "research": "Detalle del instrumento",
+      "riskreturn": "Rentabilidad vs. volatilidad",
       "scenario": "Probador de Escenarios",
       "screener": "Filtro",
       "settings": "Reglas de negociación",
@@ -3630,5 +3631,32 @@
     "weightedCharge": "Gastos corrientes ponderados",
     "annualCost": "Coste anual estimado de los fondos",
     "excludesUnknown": "Excluye {{unknown}} de {{total}} posiciones sin datos de comisiones"
+  },
+  "riskReturn": {
+    "title": "Rentabilidad vs. volatilidad",
+    "description": "Cada cuenta, cada titular y la cartera completa representados por rentabilidad frente a volatilidad, con índices de mercado para comparar. Marque o desmarque una serie para mostrarla u ocultarla, y añada cualquier índice o ticker.",
+    "group": "Cartera",
+    "window": "Periodo",
+    "windows": {
+      "1y": "1 año",
+      "3y": "3 años",
+      "5y": "5 años"
+    },
+    "entirePortfolio": "Cartera completa",
+    "ownerTotal": "{{owner}} (todas las cuentas)",
+    "return": "Rentabilidad",
+    "annualisedReturn": "Rentabilidad anualizada",
+    "volatility": "Volatilidad",
+    "missingMembers": "No hay historial de transacciones para {{members}}, por lo que se excluyen.",
+    "noData": "sin datos",
+    "series": "Series del gráfico",
+    "portfolioSeries": "Cartera",
+    "benchmarks": "Índices de referencia",
+    "remove": "Quitar",
+    "addTicker": "Añadir índice o ticker",
+    "add": "Añadir",
+    "addPreset": "Añadir un índice común…",
+    "invalidTicker": "Introduzca un ticker como ^FTSE o VWRL.L.",
+    "methodology": "Las rentabilidades de la cartera son ponderadas en el tiempo y se reconstruyen a partir de sus transacciones, por lo que los depósitos y retiradas no cuentan como ganancias o pérdidas. La volatilidad es la desviación típica anualizada de las rentabilidades diarias. Los índices (símbolos ^) son rentabilidades de precio en su propia divisa; los demás tickers usan precios en libras. Los demás tickers deben ser instrumentos que AllotMint ya sigue."
   }
 }

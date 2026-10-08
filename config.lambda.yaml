@@ -115,6 +115,7 @@ ui:
     performance: true
     transactions: true
     dividends: true
+    riskreturn: true
     screener: true
     trading: true
     timeseries: true

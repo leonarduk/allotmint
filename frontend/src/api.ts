@@ -24,6 +24,8 @@ import type {
   Transaction,
   TransactionWithCompliance,
   Alert,
+  BenchmarkRiskReturn,
+  GroupRiskReturn,
   PriceEntry,
   ScreenerResult,
   InstrumentValuation,
@@ -2042,6 +2044,18 @@ export const getDividends = (params?: {
   const qs = query.toString();
   return fetchJson<Transaction[]>(`${API_BASE}/dividends${qs ? `?${qs}` : ""}`);
 };
+
+/** Return/volatility of the group, each member and each of their accounts. */
+export const getGroupRiskReturn = (slug: string, days = 365) =>
+  fetchJson<GroupRiskReturn>(
+    `${API_BASE}/performance-group/${encodeURIComponent(slug)}/risk-return?days=${days}`,
+  );
+
+/** Return/volatility of a benchmark index (e.g. ^FTSE) or ticker over ``days``. */
+export const getBenchmarkRiskReturn = (ticker: string, days = 365) =>
+  fetchJson<BenchmarkRiskReturn>(
+    `${API_BASE}/risk-return/benchmark?${new URLSearchParams({ ticker, days: String(days) })}`,
+  );
 
 /** Retrieve recent alert messages from backend. */
 export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts/`);

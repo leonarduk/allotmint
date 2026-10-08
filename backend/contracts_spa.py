@@ -50,6 +50,7 @@ class ConfigTabsContract(SpaContractBase):
     scenario: bool
     logs: bool
     dividends: bool
+    riskreturn: bool
     research: bool
     plot: bool
     help: bool

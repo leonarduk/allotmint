@@ -149,6 +149,7 @@
       "rebalance": "Estratégia",
       "reports": "Relatórios",
       "research": "Detalhe do instrumento",
+      "riskreturn": "Retorno vs volatilidade",
       "scenario": "Testador de Cenários",
       "screener": "Filtro",
       "settings": "Regras de negociação",
@@ -3630,5 +3631,32 @@
     "weightedCharge": "Encargos correntes ponderados",
     "annualCost": "Custo anual estimado dos fundos",
     "excludesUnknown": "Exclui {{unknown}} de {{total}} posições sem dados de custos"
+  },
+  "riskReturn": {
+    "title": "Retorno vs volatilidade",
+    "description": "Cada conta, cada titular e a carteira inteira representados por retorno e volatilidade, com índices de mercado para comparação. Marque ou desmarque uma série para mostrá-la ou ocultá-la, e adicione qualquer índice ou ticker.",
+    "group": "Carteira",
+    "window": "Período",
+    "windows": {
+      "1y": "1 ano",
+      "3y": "3 anos",
+      "5y": "5 anos"
+    },
+    "entirePortfolio": "Carteira inteira",
+    "ownerTotal": "{{owner}} (todas as contas)",
+    "return": "Retorno",
+    "annualisedReturn": "Retorno anualizado",
+    "volatility": "Volatilidade",
+    "missingMembers": "Sem histórico de transações para {{members}}, por isso ficam de fora.",
+    "noData": "sem dados",
+    "series": "Séries do gráfico",
+    "portfolioSeries": "Carteira",
+    "benchmarks": "Referências",
+    "remove": "Remover",
+    "addTicker": "Adicionar índice ou ticker",
+    "add": "Adicionar",
+    "addPreset": "Adicionar um índice comum…",
+    "invalidTicker": "Introduza um ticker como ^FTSE ou VWRL.L.",
+    "methodology": "Os retornos da carteira são ponderados no tempo e reconstruídos a partir das suas transações, pelo que depósitos e levantamentos não contam como ganhos ou perdas. A volatilidade é o desvio-padrão anualizado dos retornos diários. Os índices (símbolos ^) são retornos de preço na sua própria moeda; os restantes tickers usam preços em libras. Os restantes tickers têm de ser instrumentos que o AllotMint já acompanha."
   }
 }

@@ -1824,6 +1824,22 @@ export const updateInstrumentMetadata = (
 /**
  * Save an instrument's asset class (#9495): merges into its existing metadata,
  * or creates the metadata when the instrument has none yet.
+ *
+ * The PUT body is deliberately `{ asset_class }` only. The backend handler
+ * (`PUT /instrument/admin/{exchange}/{ticker}` in
+ * `backend/routes/instrument_admin.py`) is a **merge**, not a replace: it
+ * loads the stored record and overwrites only the keys present in the body,
+ * so `name`, `sector` and every other field survive. Sending the full record
+ * from here instead would introduce a read-modify-write race. The merge
+ * contract is pinned by
+ * `tests/backend/test_instrument_admin.py::test_update_instrument_merges_partial_body`
+ * and
+ * `tests/backend/routes/test_instrument_admin.py::test_update_instrument_merges_asset_class_only`.
+ *
+ * The 404 fallback creates the metadata via POST; the payload's
+ * `ticker: \`${ticker}.${exchange}\`` shape matches the backend's
+ * `create_instrument` contract, which rejects a mismatched `ticker` with 400
+ * and requires `exchange` to equal the path segment.
  */
 export const setInstrumentAssetClass = async (
   ticker: string,

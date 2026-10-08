@@ -872,6 +872,10 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
     """
     Aggregate holdings in *group_slug* into per-ticker summary for InstrumentTable.
     Adds last price + 7d/30d % changes (as-of yesterday) via the same pipeline.
+
+    Metadata is read via ``get_security_meta`` (a read-only lookup); the
+    ``PUT /instrument/admin/{exchange}/{ticker}`` handler that writes it is a
+    merge, not a replace — see ``backend/routes/instrument_admin.py``.
     """
     gp = build_group_portfolio(group_slug)
     by_ticker: Dict[str, Dict[str, Any]] = {}

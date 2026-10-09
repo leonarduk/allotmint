@@ -15,6 +15,13 @@ no snapshot exists yet, so a good one is never replaced with ``{}``, #8805) so
 the "price snapshot not yet seeded" CloudWatch warning is suppressed on
 subsequent cold starts, and returns normally.
 
+Bot run records
+---------------
+The handler runs through the bot runner (``backend.bots``, #10477), which
+records every run on the Bots page and skips a scheduled firing when the bot
+is disabled there. Direct invocations (the deploy Trigger, the CI warm-up)
+always run. The return value is still ``refresh_prices()``'s result.
+
 System-job context
 ------------------
 The handler runs inside :func:`backend.auth.system_job_context`: it has no
@@ -30,6 +37,7 @@ import os
 from datetime import UTC, datetime
 
 from backend.auth import system_job_context
+from backend.bots.runner import handle_lambda_event
 from backend.common.portfolio_utils import DATA_BUCKET_ENV, PRICES_S3_KEY
 from backend.common.prices import put_empty_snapshot_if_absent, refresh_prices
 from backend.config import config
@@ -87,7 +95,7 @@ def lambda_handler(event, context):
     # The scheduled refresh has no request user; run it as a trusted system job
     # so owner discovery returns every owner even with auth enabled (#8805).
     with system_job_context():
-        return _run_refresh()
+        return handle_lambda_event("price-refresh", event)
 
 
 def _run_refresh():

@@ -129,6 +129,7 @@
       "alertsettings": "Configurações de alerta",
       "allocation": "Alocação",
       "awscosts": "Custos da AWS",
+      "bots": "Bots",
       "compliance": "Alertas de conformidade",
       "dataadmin": "Administração de dados",
       "dataexplorer": "Explorador de arquivos",
@@ -3663,5 +3664,54 @@
     "aboveAverage": "Acima da linha média: mais retorno por unidade de volatilidade",
     "belowAverage": "Abaixo da linha média: menos retorno por unidade de volatilidade",
     "onAverage": "Na linha média"
+  },
+  "bots": {
+    "title": "Bots",
+    "intro": "Todas as tarefas automáticas e agentes de IA da aplicação: quando foram executados pela última vez, o que aconteceu e as suas definições.",
+    "loadError": "Não foi possível carregar os bots.",
+    "disabled": "desativado",
+    "columns": {
+      "bot": "Bot",
+      "kind": "Tipo",
+      "lastRun": "Última execução",
+      "result": "Resultado",
+      "nextRun": "Próxima execução"
+    },
+    "kind": {
+      "ai": "Agente de IA",
+      "rules": "Regras",
+      "job": "Tarefa"
+    },
+    "status": {
+      "ok": "OK",
+      "partial": "Parcial",
+      "failed": "Falhou",
+      "skipped": "Ignorado",
+      "running": "Em execução",
+      "never": "Nunca executado"
+    },
+    "trigger": {
+      "schedule": "Agendado",
+      "manual": "Executar agora",
+      "invoke": "Direto",
+      "event": "Por evento"
+    },
+    "scope": {
+      "system": "todo o sistema",
+      "owner": "por titular"
+    },
+    "scheduleLine": "Agendamento: {{schedule}} · Âmbito: {{scope}}",
+    "onEvent": "executado num evento",
+    "runNow": "Executar agora",
+    "running": "Em execução…",
+    "settings": "Definições",
+    "saveSettings": "Guardar definições",
+    "saved": "Definições guardadas.",
+    "adminOnly": "Apenas um administrador pode alterar as definições ou iniciar uma execução.",
+    "history": "Histórico de execuções",
+    "noRuns": "Ainda não há execuções registadas.",
+    "report": "Relatório",
+    "duration": "{{seconds}} s",
+    "usage": "Modelo {{model}} · {{tokensIn}} de entrada / {{tokensOut}} de saída · ${{cost}}"
   }
 }

@@ -18,6 +18,12 @@ The handler runs inside :func:`backend.auth.system_job_context`: it has no
 request user, and with auth enabled (``config.lambda.yaml``) owner discovery
 would otherwise return no owners, so no report would ever be sent (#8805).
 
+Bot run records
+----------------
+The handler runs through the bot runner (``backend.bots``, #10477), which
+records every run on the Bots page and skips a scheduled firing when the bot
+is disabled there or not due for its cadence.
+
 Failure handling
 -----------------
 Per-owner failures are caught and logged so one broken portfolio does not stop
@@ -34,6 +40,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from backend.auth import system_job_context
+from backend.bots.runner import handle_lambda_event
 from backend.common.alerts import publish_sns_alert
 from backend.common.pension import (
     _age_from_dob,
@@ -205,7 +212,7 @@ def lambda_handler(event, context):
     # A scheduled job has no request user; run it as a trusted system job so
     # list_portfolios() sees every owner even with auth enabled (#8805).
     with system_job_context():
-        return _run_report()
+        return handle_lambda_event("pension-report", event)
 
 
 def _run_report() -> Dict[str, Any]:

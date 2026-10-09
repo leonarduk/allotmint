@@ -129,6 +129,7 @@
       "alertsettings": "Configuración de alertas",
       "allocation": "Asignación",
       "awscosts": "Costes de AWS",
+      "bots": "Bots",
       "compliance": "Alertas de cumplimiento",
       "dataadmin": "Administración de datos",
       "dataexplorer": "Explorador de archivos",
@@ -3663,5 +3664,54 @@
     "aboveAverage": "Por encima de la línea promedio: más rentabilidad por unidad de volatilidad",
     "belowAverage": "Por debajo de la línea promedio: menos rentabilidad por unidad de volatilidad",
     "onAverage": "Sobre la línea promedio"
+  },
+  "bots": {
+    "title": "Bots",
+    "intro": "Todos los trabajos automáticos y agentes de IA de la aplicación: cuándo se ejecutaron por última vez, qué pasó y su configuración.",
+    "loadError": "No se pudieron cargar los bots.",
+    "disabled": "desactivado",
+    "columns": {
+      "bot": "Bot",
+      "kind": "Tipo",
+      "lastRun": "Última ejecución",
+      "result": "Resultado",
+      "nextRun": "Próxima ejecución"
+    },
+    "kind": {
+      "ai": "Agente de IA",
+      "rules": "Reglas",
+      "job": "Trabajo"
+    },
+    "status": {
+      "ok": "OK",
+      "partial": "Parcial",
+      "failed": "Fallido",
+      "skipped": "Omitido",
+      "running": "En curso",
+      "never": "Nunca ejecutado"
+    },
+    "trigger": {
+      "schedule": "Programado",
+      "manual": "Ejecutar ahora",
+      "invoke": "Directo",
+      "event": "Por evento"
+    },
+    "scope": {
+      "system": "todo el sistema",
+      "owner": "por titular"
+    },
+    "scheduleLine": "Programación: {{schedule}} · Ámbito: {{scope}}",
+    "onEvent": "se ejecuta con un evento",
+    "runNow": "Ejecutar ahora",
+    "running": "En curso…",
+    "settings": "Configuración",
+    "saveSettings": "Guardar configuración",
+    "saved": "Configuración guardada.",
+    "adminOnly": "Solo un administrador puede cambiar la configuración o iniciar una ejecución.",
+    "history": "Historial de ejecuciones",
+    "noRuns": "Aún no hay ejecuciones registradas.",
+    "report": "Informe",
+    "duration": "{{seconds}} s",
+    "usage": "Modelo {{model}} · {{tokensIn}} de entrada / {{tokensOut}} de salida · ${{cost}}"
   }
 }

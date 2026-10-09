@@ -45,4 +45,4 @@ def allowed_tools_only(tools: Iterable[T], allowed: Optional[AbstractSet[str]]) 
 def refused_message(name: str, allowed: Optional[AbstractSet[str]]) -> str:
     if not tool_enabled(name):
         return switched_off_message(name)
-    return f"{name} is not in this conversation's allowed tools ({', '.join(sorted(allowed or ()))})."
+    return f"{name} is not in this conversation's allowed tools."

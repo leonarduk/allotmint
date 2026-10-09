@@ -159,3 +159,23 @@ def test_unsupported_numbers_accepts_whole_unit_rounding():
     facts = "Income £8,700.25 a year in 95% of windows."
     assert agent.unsupported_numbers("About £8,700 a year in 95% of windows.", facts) == []
     assert agent.unsupported_numbers("About £9,000 a year.", facts) == [9000.0]
+
+
+def test_default_llm_is_none_without_an_mcp_server(monkeypatch):
+    from backend.config import config
+
+    monkeypatch.setattr(config, "mcp_server_url", None, raising=False)
+    assert agent._default_llm() is None
+
+
+def test_default_llm_refuses_inside_a_running_loop(monkeypatch):
+    from backend.config import config
+
+    monkeypatch.setattr(config, "mcp_server_url", "http://mcp", raising=False)
+    llm = agent._default_llm()
+
+    async def inside_loop():
+        return agent.write_narrative({**_report()}, llm=llm)  # the template is used instead of failing the run
+
+    narrative = asyncio.run(inside_loop())
+    assert narrative["source"] == "template" and "failed" in narrative["note"]

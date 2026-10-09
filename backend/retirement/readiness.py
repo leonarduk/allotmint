@@ -125,6 +125,9 @@ def build_inputs(forecast: Mapping[str, Any], settings: ReadinessSettings, weigh
 
 def project_real_pot(inputs: Mapping[str, Any], dob: str, run_date: dt.date) -> dict:
     """Projected pot at retirement (the forecast's own projection) and its value in today's money."""
+    age = _age_from_dob(dob, run_date)
+    if age is None:
+        raise ReadinessError("the owner's date of birth is missing or invalid")
     projected = forecast_pension(
         dob=dob,
         retirement_age=inputs["retirement_age"],
@@ -136,7 +139,7 @@ def project_real_pot(inputs: Mapping[str, Any], dob: str, run_date: dt.date) -> 
         state_pension_age=inputs["state_pension_age"],
     )
     # The forecast compounds from int(current age) to retirement; deflate over the same years.
-    current_age = int(_age_from_dob(dob, run_date) or 0)
+    current_age = int(age)
     years_to_retirement = max(inputs["retirement_age"] - current_age, 0)
     deflator = (1.0 + inputs["assumed_inflation_pct"] / 100.0) ** years_to_retirement
     nominal = float(projected["projected_pot_gbp"])

@@ -120,6 +120,14 @@ def render_facts(report: Mapping[str, Any]) -> str:
     return "\n".join(_headline_lines(report) + _change_lines(report) + list(report["caveats"]))
 
 
+def _loop_running() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
 def _default_llm() -> Optional[NarrativeLLM]:
     """The configured chat provider with the read-only allowlist, or None when no MCP server is set."""
     from backend.chat.providers import run_configured_chat_turn
@@ -130,6 +138,10 @@ def _default_llm() -> Optional[NarrativeLLM]:
         return None
 
     def call(system_prompt: str, facts: str) -> str:
+        # run() is synchronous (FastAPI runs the route in a worker thread). From inside a running
+        # event loop asyncio.run would fail, so say so plainly; write_narrative then uses the template.
+        if _loop_running():
+            raise RuntimeError("narrative model needs a synchronous caller; an event loop is running")
         return asyncio.run(
             run_configured_chat_turn(
                 facts, [], cfg=config, mcp_server_url=url, system_prompt=system_prompt, allowed_tools=READ_ONLY_TOOLS

@@ -18,6 +18,11 @@ order, so the parts always add up to the total:
    mix, inflation and growth assumptions, survival level and the passing of
    time).
 
+``compute`` is the caller's: :mod:`backend.retirement.readiness` evaluates the
+counterfactuals (and the data-revision rebase) at the *previous* run's date,
+so only the final step moves to today's date and the passing of time lands in
+``assumptions``.
+
 ``data_revision`` is the difference between the previous run's stored figure
 and the same inputs recomputed on today's long-history data (normally zero).
 """
@@ -28,6 +33,8 @@ import os
 import re
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from backend.common.storage import FileJSONStorage, JSONStorage, get_storage
 from backend.config import config
@@ -52,8 +59,15 @@ def _storage(owner: str) -> JSONStorage:
     base = _base()
     if base.startswith("s3://"):
         return get_storage(f"{base}/{owner}.json")
-    # A local directory, given plainly or as file://; built as a Path so Windows drive letters survive.
-    return FileJSONStorage(path=Path(base.removeprefix("file://")) / f"{owner}.json")
+    return FileJSONStorage(path=_local_dir(base) / f"{owner}.json")
+
+
+def _local_dir(base: str) -> Path:
+    """A plain directory, or a ``file://`` URI (``file:///C:/x`` is the Windows path ``C:/x``)."""
+    if not base.startswith("file://"):
+        return Path(base)
+    parsed = urlparse(base)
+    return Path(url2pathname(parsed.netloc + parsed.path) if parsed.netloc else url2pathname(parsed.path))
 
 
 def load_runs(owner: str) -> list[dict]:

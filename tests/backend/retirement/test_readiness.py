@@ -206,3 +206,16 @@ def test_missing_state_pension_is_stated(env):
     assert readiness.NO_STATE_PENSION_NOTE in report["results"]["data_notes"]
     with_pension = env.run(dt.date(2030, 1, 15))
     assert readiness.NO_STATE_PENSION_NOTE not in with_pension["results"]["data_notes"]
+
+
+def test_file_uri_store_base_is_a_local_directory(tmp_path):
+    uri = tmp_path.as_uri()
+    assert history._local_dir(uri) == tmp_path
+    assert history._local_dir(str(tmp_path)) == tmp_path
+
+
+def test_unreadable_dob_is_readiness_error():
+    inputs = {"retirement_age": 60, "death_age": 90, "contribution_annual": 0.0, "investment_growth_pct": 5.0}
+    inputs |= {"pot_gbp": 1000.0, "state_pension_age": 67, "assumed_inflation_pct": 2.0}
+    with pytest.raises(readiness.ReadinessError, match="date of birth"):
+        readiness.project_real_pot(inputs, "not-a-date", dt.date(2030, 1, 15))

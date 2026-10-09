@@ -19,13 +19,15 @@ import type {
 } from "../types";
 import { LookThroughCoverageNote, LookThroughHoldingsTable } from "../components/LookThrough";
 import { translateInstrumentType } from "../lib/instrumentType";
+import { isCashInstrument } from "../lib/instruments";
+import { accountTypeLabel } from "../utils/accountTypes";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { ReportingCurrencyNote } from "../components/ReportingCurrencyNote";
 import { useConfig } from "../ConfigContext";
 import { RelativeViewToggle } from "../components/RelativeViewToggle";
 import { OwnerAccountTabs } from "../components/OwnerAccountTabs";
 import { buildOwnerTabs } from "../lib/ownerTabs";
-import { createOwnerDisplayLookup } from "../utils/owners";
+import { createOwnerDisplayLookup, getOwnerDisplayName } from "../utils/owners";
 import ChartSkeleton from "../components/skeletons/ChartSkeleton";
 import { useViewportWidth } from "../hooks/useViewportWidth";
 import {
@@ -36,6 +38,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import type { PieLabelRenderProps } from "recharts";
 import { renderPieLabelLine, withSmallSliceLabelsHidden } from "../lib/pieLabels";
 
 const COLORS = [
@@ -78,6 +81,71 @@ const ALLOCATION_VIEWS: readonly AllocationView[] = [
 
 /** Look-through pie slices beyond this many are folded into one "Other" slice. */
 const MAX_LOOK_THROUGH_SLICES = 12;
+
+/** Views built from the portfolio's own holdings, which can show those holdings in an outer ring. */
+type HoldingView = "asset" | "sector" | "region" | "sleeve";
+const HOLDING_VIEWS: readonly HoldingView[] = ["asset", "sector", "region", "sleeve"];
+
+const isHoldingView = (value: AllocationView): value is HoldingView =>
+  (HOLDING_VIEWS as readonly string[]).includes(value);
+
+type Slice = { name: string; value: number };
+/** Holding ticker -> display name and value, within one allocation group. */
+type GroupHoldings = Record<string, Slice>;
+/** Allocation group (e.g. "ETF") -> the holdings making it up. */
+type Breakdown = Record<string, GroupHoldings>;
+
+const emptyBreakdowns = (): Record<HoldingView, Breakdown> => ({
+  asset: {},
+  sector: {},
+  region: {},
+  sleeve: {},
+});
+
+const addToBreakdown = (
+  breakdown: Breakdown,
+  group: string,
+  ticker: string,
+  name: string,
+  mv: number,
+) => {
+  const holdings = (breakdown[group] ??= {});
+  const entry = (holdings[ticker] ??= { name, value: 0 });
+  entry.value += mv;
+};
+
+const byValueDesc = (a: Slice, b: Slice) => b.value - a.value;
+
+/** One slice per group, largest first. */
+const groupSlices = (breakdown: Breakdown): Slice[] =>
+  Object.entries(breakdown)
+    .map(([name, holdings]) => ({
+      name,
+      value: Object.values(holdings).reduce((sum, h) => sum + h.value, 0),
+    }))
+    .sort(byValueDesc);
+
+/** A holding slice in the outer ring, coloured by the group it belongs to. */
+type HoldingSlice = Slice & { group: string; groupIndex: number; indexInGroup: number };
+
+/**
+ * Outer-ring slices: each group's holdings, largest first, in the same order
+ * as ``groups`` so every holding sits directly outside its group's slice.
+ */
+const holdingSlices = (breakdown: Breakdown, groups: Slice[]): HoldingSlice[] =>
+  groups.flatMap((group, groupIndex) =>
+    Object.values(breakdown[group.name] ?? {})
+      .sort(byValueDesc)
+      .map((h, indexInGroup) => ({ ...h, group: group.name, groupIndex, indexInGroup })),
+  );
+
+/** Outer-ring labels longer than this are cut short; the tooltip shows the full name. */
+const MAX_HOLDING_LABEL_LENGTH = 24;
+
+const shortLabel = (name: string): string =>
+  name.length > MAX_HOLDING_LABEL_LENGTH
+    ? `${name.slice(0, MAX_HOLDING_LABEL_LENGTH - 1)}…`
+    : name;
 
 const isAllocationView = (value: string | null): value is AllocationView =>
   value !== null && (ALLOCATION_VIEWS as readonly string[]).includes(value);
@@ -249,15 +317,8 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
   const { relativeViewEnabled } = useConfig();
   const reporting = useReportingCurrency();
   const [view, setView] = useState<AllocationView>(initialView);
-  const [sectorData, setSectorData] = useState<{ name: string; value: number }[]>(
-    [],
-  );
-  const [regionData, setRegionData] = useState<{ name: string; value: number }[]>(
-    [],
-  );
-  const [assetData, setAssetData] = useState<{ name: string; value: number }[]>(
-    [],
-  );
+  const [breakdowns, setBreakdowns] = useState<Record<HoldingView, Breakdown>>(emptyBreakdowns);
+  const [showHoldings, setShowHoldings] = useState(false);
   const activeOwner = searchParams.get("owner") || null;
   const activeAccountType = activeOwner ? searchParams.get("account") || null : null;
   const { rows: currencyRows, error: currencyError } = useCurrencyExposure(
@@ -271,7 +332,6 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
     activeOwner,
     isLookThroughView,
   );
-  const [sleeveData, setSleeveData] = useState<{ name: string; value: number }[]>([]);
   const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
   const groupOwners = [
     ...new Set(
@@ -332,10 +392,7 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
         (!activeAccountType || acct.account_type === activeAccountType),
     );
 
-    const byType: Record<string, number> = {};
-    const bySector: Record<string, number> = {};
-    const byRegion: Record<string, number> = {};
-    const bySleeve: Record<string, number> = {};
+    const next = emptyBreakdowns();
     const coreLabel = t("sleeves.core");
 
     for (const acct of activeAccounts) {
@@ -363,36 +420,33 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
           }
           continue;
         }
-        const typeName = translateInstrumentType(t, h.instrument_type);
-        byType[typeName] = (byType[typeName] || 0) + mv;
-        const sector = h.sector || t("common.other");
-        bySector[sector] = (bySector[sector] || 0) + mv;
-        const region = h.region || t("common.other");
-        byRegion[region] = (byRegion[region] || 0) + mv;
-        const sleeve = sleeveName(ownerSleeves?.[acct.owner?.trim() ?? ""], h.ticker, coreLabel);
-        bySleeve[sleeve] = (bySleeve[sleeve] || 0) + mv;
+        const owner = acct.owner?.trim() ?? "";
+        const groups: Record<HoldingView, string> = {
+          asset: translateInstrumentType(t, h.instrument_type),
+          sector: h.sector || t("common.other"),
+          region: h.region || t("common.other"),
+          sleeve: sleeveName(ownerSleeves?.[owner], h.ticker, coreLabel),
+        };
+        const name = h.name || h.ticker;
+        // Every account's cash shares a ticker (e.g. CASH.GBP), so keep each
+        // owner's account apart rather than folding all cash into one slice.
+        const isCash = isCashInstrument(h);
+        const key = isCash ? `${owner}|${acct.account_type}|${h.ticker}` : h.ticker;
+        const label = isCash
+          ? t("allocation.accountCash", {
+              owner: getOwnerDisplayName(ownerLookup, owner, owner),
+              account: accountTypeLabel(acct.account_type),
+              name,
+            })
+          : name;
+        for (const dimension of HOLDING_VIEWS) {
+          addToBreakdown(next[dimension], groups[dimension], key, label, mv);
+        }
       }
     }
 
-    const asset = Object.entries(byType)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-    const sector = Object.entries(bySector)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-    const region = Object.entries(byRegion)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-
-    setAssetData(asset);
-    setSectorData(sector);
-    setRegionData(region);
-    setSleeveData(
-      Object.entries(bySleeve)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value),
-    );
-  }, [portfolio, activeOwner, activeAccountType, ownerSleeves, t]);
+    setBreakdowns(next);
+  }, [portfolio, activeOwner, activeAccountType, ownerSleeves, ownerLookup, t]);
 
   if (loading && !portfolio) {
     return (
@@ -407,17 +461,23 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
     t("allocation.unknownCurrency", { defaultValue: "Unknown currency" }),
   );
   const chartDataByView: Record<AllocationView, { name: string; value: number }[]> = {
-    asset: assetData,
-    sector: sectorData,
-    region: regionData,
+    asset: groupSlices(breakdowns.asset),
+    sector: groupSlices(breakdowns.sector),
+    region: groupSlices(breakdowns.region),
     currency: currencyData,
     // Until every owner's tags have loaded, a sleeve chart would show everything as core.
-    sleeve: ownerSleeves ? sleeveData : [],
+    sleeve: ownerSleeves ? groupSlices(breakdowns.sleeve) : [],
     "lt-country": toLookThroughSlices(lookThrough?.countries ?? [], t("common.other")),
     "lt-sector": toLookThroughSlices(lookThrough?.sectors ?? [], t("common.other")),
     "lt-holdings": [],
   };
   const chartData = chartDataByView[view];
+  const canShowHoldings = isHoldingView(view);
+  // No holdings ring (and no shrunken inner pie) when there is nothing to break down.
+  const outerRing =
+    isHoldingView(view) && showHoldings && chartData.length > 0
+      ? holdingSlices(breakdowns[view], chartData)
+      : null;
   const isCurrencyView = view === "currency";
   const missingFx = missingFxSummary(currencyRows ?? []);
 
@@ -425,6 +485,19 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
   /** A slice's share of the chart total, e.g. "12.34%". */
   const sharePct = (value: unknown): string =>
     `${total ? ((toFiniteNumber(value) / total) * 100).toFixed(2) : "0.00"}%`;
+  /** Inline slice label: name, value (unless relative view) and share of the whole chart. */
+  const formatSliceLabel = (props: PieLabelRenderProps): string => {
+    const { name, value, percent: slicePercent } = props;
+    const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
+    // "percent" may be undefined for empty datasets; default it to 0
+    const percentValue = (slicePercent ?? 0) * 100;
+    const rawValue =
+      typeof value === "number" ? value : typeof value === "string" ? Number(value) : 0;
+    const numericValue = Number.isFinite(rawValue) ? rawValue : 0;
+    return relativeViewEnabled
+      ? `${labelName}: ${percentValue.toFixed(2)}%`
+      : `${labelName}: ${reporting.format(numericValue)} (${percentValue.toFixed(2)}%)`;
+  };
   const contributionParams = new URLSearchParams({ group: resolvedSlug });
   if (activeOwner) contributionParams.set("owner", activeOwner);
   if (activeAccountType) contributionParams.set("account", activeAccountType);
@@ -472,6 +545,17 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
           {t("lookThrough.holdingsView")}
         </button>
       </div>
+      {canShowHoldings && (
+        <label className="mb-4 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={showHoldings}
+            onChange={(e) => setShowHoldings(e.target.checked)}
+            data-testid="show-holdings-toggle"
+          />
+          {t("allocation.showHoldings")}
+        </label>
+      )}
       {isLookThroughView && (
         <p className="mb-2 text-sm text-gray-600" data-testid="look-through-note">
           {t("lookThrough.note")}
@@ -533,24 +617,12 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
                   nameKey="name"
                   cx="50%"
                   cy="50%"
-                  outerRadius="80%"
-                  // "percent" may be undefined for empty datasets; default it to 0
-                  labelLine={showInlinePieLabels && renderPieLabelLine}
-                  label={showInlinePieLabels && withSmallSliceLabelsHidden((props) => {
-                    const { name, value, percent: slicePercent } = props;
-                    const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
-                    const percentValue = (slicePercent ?? 0) * 100;
-                    const rawValue =
-                      typeof value === "number"
-                        ? value
-                        : typeof value === "string"
-                          ? Number(value)
-                          : 0;
-                    const numericValue = Number.isFinite(rawValue) ? rawValue : 0;
-                    return relativeViewEnabled
-                      ? `${labelName}: ${percentValue.toFixed(2)}%`
-                      : `${labelName}: ${reporting.format(numericValue)} (${percentValue.toFixed(2)}%)`;
-                  })}
+                  // With the holdings ring on, the groups sit inside it and the legend names them.
+                  outerRadius={outerRing ? "52%" : "80%"}
+                  labelLine={showInlinePieLabels && !outerRing && renderPieLabelLine}
+                  label={
+                    showInlinePieLabels && !outerRing && withSmallSliceLabelsHidden(formatSliceLabel)
+                  }
                 >
                   {chartData.map((_, index) => (
                     <Cell
@@ -559,6 +631,35 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
                     />
                   ))}
                 </Pie>
+                {outerRing && (
+                  <Pie
+                    data={outerRing}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius="54%"
+                    outerRadius="80%"
+                    legendType="none"
+                    labelLine={showInlinePieLabels && renderPieLabelLine}
+                    label={
+                      showInlinePieLabels &&
+                      withSmallSliceLabelsHidden((props) =>
+                        formatSliceLabel({ ...props, name: shortLabel(String(props.name ?? "")) }),
+                      )
+                    }
+                  >
+                    {outerRing.map((slice, index) => (
+                      <Cell
+                        key={`holding-${index}`}
+                        fill={COLORS[slice.groupIndex % COLORS.length]}
+                        // Alternate shades so neighbouring holdings in one group stay
+                        // distinguishable; every group starts on the darker shade.
+                        fillOpacity={slice.indexInGroup % 2 === 0 ? 0.85 : 0.6}
+                      />
+                    ))}
+                  </Pie>
+                )}
                 <Tooltip
                   formatter={(v, _n, item) => {
                     const share = sharePct((item as any)?.payload?.value);

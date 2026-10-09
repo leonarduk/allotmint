@@ -94,6 +94,8 @@
     "viewAlertsLink": "Voir les alertes récentes"
   },
   "allocation": {
+    "accountCash": "{{owner}} {{account}}: {{name}}",
+    "showHoldings": "Afficher les positions",
     "allocationDescription": "La répartition montre comment la valeur actuelle du portefeuille est distribuée.",
     "contributionDescription": "La contribution montre quelles parties du portefeuille ont généré les gains et les pertes.",
     "currency": "Devises",
@@ -3241,7 +3243,9 @@
     "addAccount": "Ajouter un compte",
     "cancelImport": "Annuler l'importation",
     "viewCompliance": "Voir les alertes de conformité",
-    "complianceError": "Impossible de charger les alertes de conformité."
+    "complianceError": "Impossible de charger les alertes de conformité.",
+    "reconcileStatement": "Rapprocher un relevé",
+    "closeReconcile": "Fermer le rapprochement de relevé"
   },
   "topMoversSummary": {
     "noGroup": "Aucun groupe sélectionné.",
@@ -3742,5 +3746,47 @@
     "duration": "{{seconds}} s",
     "usage": "Modèle {{model}} · {{tokensIn}} en entrée / {{tokensOut}} en sortie · ${{cost}}",
     "pollTimeout": "Attente de cette exécution arrêtée : elle est toujours marquée en cours. Consultez l’historique plus tard."
+  },
+  "statementReconcile": {
+    "title": "Rapprocher un relevé",
+    "intro": "Téléversez un relevé ou un avis d'opéré de votre courtier (PDF ou CSV) pour le comparer à vos transactions enregistrées. Rien n'est modifié tant que vous n'acceptez pas une suggestion.",
+    "cloudNotice": "Le texte du document sera envoyé au fournisseur d'IA configuré ({{provider}}) pour être lu. Le fichier lui-même n'est pas conservé.",
+    "localNotice": "Le document est lu par le modèle d'IA local ({{provider}}) et ne quitte pas cette machine. Le fichier lui-même n'est pas conservé.",
+    "account": "Compte",
+    "file": "Relevé (PDF ou CSV)",
+    "explainUnmatched": "Demander à l'assistant d'expliquer les lignes non rapprochées",
+    "reconcile": "Rapprocher le relevé",
+    "reconciling": "Lecture du relevé…",
+    "failed": "Impossible de rapprocher le relevé.",
+    "resultTitle": "Rapprochement du relevé",
+    "summary": "{{rows}} lignes lues · {{matched}} rapprochées · {{diffs}} écarts",
+    "warnings": "Avertissements",
+    "noDiffs": "Le relevé correspond au journal.",
+    "explanation": "Explication de l'assistant",
+    "accept": "Accepter",
+    "confirm": "Confirmer la modification",
+    "cancel": "Annuler",
+    "applying": "Application…",
+    "applied": "Appliqué",
+    "applyFailed": "Impossible d'appliquer cette modification.",
+    "dismiss": "Ignorer",
+    "dismissReason": "Motif",
+    "dismissedWith": "Ignoré : {{reason}}",
+    "columns": {
+      "kind": "Écart",
+      "date": "Date",
+      "detail": "Détail",
+      "statement": "Relevé",
+      "ledger": "Journal",
+      "action": "Action"
+    },
+    "kinds": {
+      "missing_from_ledger": "Absent du journal",
+      "missing_from_statement": "Absent du relevé",
+      "amount_mismatch": "Montant différent",
+      "fee_mismatch": "Frais différents",
+      "cash_mismatch": "Solde de liquidités différent",
+      "units_mismatch": "Quantité finale différente"
+    }
   }
 }

@@ -51,6 +51,8 @@ class DrawdownInputs:
 
 @dataclass(frozen=True)
 class WindowRun:
+    """``min_pot`` is the lowest pot seen: after any withdrawal (before growth) or at any year end."""
+
     survived: bool
     years_paid: int
     final_pot: float
@@ -73,7 +75,10 @@ def run_window(inputs: DrawdownInputs, returns: Sequence[float], income: float) 
         need = pot_need(inputs, income, t)
         if pot + _EPSILON < need:
             return WindowRun(survived=False, years_paid=t, final_pot=0.0, min_pot=0.0)
-        pot = max(pot - need, 0.0) * (1.0 + real_return)
+        pot = max(pot - need, 0.0)
+        # The low point of a year is just after its withdrawal, before that year's return.
+        min_pot = min(min_pot, pot)
+        pot *= 1.0 + real_return
         min_pot = min(min_pot, pot)
     return WindowRun(survived=True, years_paid=inputs.years, final_pot=pot, min_pot=min_pot)
 

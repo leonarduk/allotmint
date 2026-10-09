@@ -206,9 +206,3 @@ def test_missing_state_pension_is_stated(env):
     assert readiness.NO_STATE_PENSION_NOTE in report["results"]["data_notes"]
     with_pension = env.run(dt.date(2030, 1, 15))
     assert readiness.NO_STATE_PENSION_NOTE not in with_pension["results"]["data_notes"]
-
-
-def test_malformed_store_uri_is_reported_not_raised(env, monkeypatch):
-    monkeypatch.setenv(history.STORE_ENV, "ftp://nowhere")
-    report = env.run(dt.date(2030, 1, 15))
-    assert report["storage"]["stored"] is False

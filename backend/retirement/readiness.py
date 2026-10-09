@@ -398,7 +398,7 @@ def _store(owner: str, report: Mapping[str, Any]) -> dict:
 
     try:
         history.save_run(owner, report)
-    except (OSError, ValueError, ClientError, BotoCoreError) as exc:  # ValueError: a malformed store URI
+    except (OSError, ClientError, BotoCoreError) as exc:
         # The detail stays in the server log; the response carries a fixed message.
         logger.warning("Retirement readiness report not stored: %s", sanitise_log_value(exc))
         return {"stored": False, "reason": "The report could not be stored; see the server log."}

@@ -148,3 +148,16 @@ def test_deterministic():
     a = simulate(SMALL, DrawdownInputs(1000, 2), (90, 100), floor_gbp=100)
     b = simulate(SMALL, DrawdownInputs(1000, 2), (90, 100), floor_gbp=100)
     assert a == b
+
+
+def test_min_pot_counts_the_dip_after_a_withdrawal_before_growth():
+    # Withdraw 900 of 1,000, then +1,000% growth: the year-end pot is 1,100, but it fell to 100 first.
+    run = run_window(DrawdownInputs(1000, 1), [10.0], 900)
+    assert run.survived and run.final_pot == pytest.approx(1100)
+    assert run.min_pot == pytest.approx(100)
+
+
+def test_floor_breach_after_withdrawal_is_counted_even_if_growth_recovers():
+    result = simulate({1: 10.0}, DrawdownInputs(1000, 1), survival_levels=(100,), floor_gbp=500)
+    # The single window sustains the whole pot (income 1,000), dipping to 0 before growth.
+    assert result["floor"]["windows_below_floor"] == 1

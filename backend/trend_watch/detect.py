@@ -351,8 +351,11 @@ def _readings(
     rs_before = _num(previous.get("rs"), 6) if previous else None
     if rs_before is None and rs_now is not None:
         rs_before = _num(frame["rs"].iloc[max(last - cfg.new_lookback_days, 0)], 6)
-    # rs_before is a ratio of positive prices, so a zero there can only be missing data.
-    rs_change = _num(rs_now / rs_before - 1) if rs_now is not None and rs_before else None
+    # Missing (None) and zero are separate cases: a ratio of positive prices is
+    # never truly zero, so a zero only means it could not be measured.
+    rs_change = (
+        _num(rs_now / rs_before - 1) if rs_now is not None and rs_before is not None and rs_before != 0 else None
+    )
     return {
         "price": _num(row["close"]),
         "sma50": _num(row.get("sma50")),

@@ -147,3 +147,16 @@ def test_moves_are_compared_to_a_common_end_date_when_the_benchmark_is_stale():
     assert values["move_end"] == stale_bench.index[-1].date().isoformat()
     own_to_end = closes[closes.index <= stale_bench.index[-1]]
     assert values["own_move"] == round(own_to_end.iloc[-1] / own_to_end.iloc[-1 - d.MOVE_DAYS] - 1, 4)
+
+
+def test_rs_change_is_measured_for_a_tiny_ratio_and_skipped_for_none_or_zero():
+    first = _fresh_turn()
+
+    tiny = _fresh_turn(previous={**first.state(), "rs": 1e-6}).values["rs_change_since_last"]
+    missing = _fresh_turn(previous={**first.state(), "rs": None}).values
+    zero = _fresh_turn(previous={**first.state(), "rs": 0}).values["rs_change_since_last"]
+
+    assert tiny is not None and tiny > 0
+    # None falls back to the series' own reading a run earlier; zero cannot be measured.
+    assert missing["rs_change_since_last"] is not None
+    assert zero is None

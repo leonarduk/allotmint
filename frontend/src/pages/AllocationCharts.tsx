@@ -420,20 +420,21 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
           }
           continue;
         }
+        const owner = acct.owner?.trim() ?? "";
         const groups: Record<HoldingView, string> = {
           asset: translateInstrumentType(t, h.instrument_type),
           sector: h.sector || t("common.other"),
           region: h.region || t("common.other"),
-          sleeve: sleeveName(ownerSleeves?.[acct.owner?.trim() ?? ""], h.ticker, coreLabel),
+          sleeve: sleeveName(ownerSleeves?.[owner], h.ticker, coreLabel),
         };
         const name = h.name || h.ticker;
         // Every account's cash shares a ticker (e.g. CASH.GBP), so keep each
         // owner's account apart rather than folding all cash into one slice.
         const isCash = isCashInstrument(h);
-        const key = isCash ? `${acct.owner}|${acct.account_type}|${h.ticker}` : h.ticker;
+        const key = isCash ? `${owner}|${acct.account_type}|${h.ticker}` : h.ticker;
         const label = isCash
           ? t("allocation.accountCash", {
-              owner: getOwnerDisplayName(ownerLookup, acct.owner, acct.owner),
+              owner: getOwnerDisplayName(ownerLookup, owner, owner),
               account: accountTypeLabel(acct.account_type),
               name,
             })

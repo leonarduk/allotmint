@@ -547,6 +547,8 @@ describe("AllocationCharts page", () => {
         accounts: [
           { ...alice, account_type: "sipp", holdings: [{ ...cash, market_value_gbp: 60 }] },
           { ...alice, account_type: "isa", holdings: [{ ...cash, market_value_gbp: 10 }] },
+          // Stray whitespace on the owner still lands in alice's ISA cash.
+          { ...alice, owner: " alice ", account_type: "isa", holdings: [{ ...cash, market_value_gbp: 5 }] },
           { ...alice, owner: "bob", account_type: "isa", holdings: [{ ...cash, market_value_gbp: 30 }] },
         ],
       });
@@ -559,7 +561,7 @@ describe("AllocationCharts page", () => {
       expect(sliceRows(holdings)).toEqual([
         "Alice A SIPP: Cash (GBP): 60",
         "bob ISA: Cash (GBP): 30",
-        "Alice A ISA: Cash (GBP): 10",
+        "Alice A ISA: Cash (GBP): 15",
       ]);
     });
   });

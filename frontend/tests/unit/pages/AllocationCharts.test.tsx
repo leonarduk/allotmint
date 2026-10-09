@@ -32,7 +32,7 @@ vi.mock("recharts", () => ({
       {children}
     </div>
   ),
-  Cell: () => null,
+  Cell: ({ fill }: { fill?: string }) => <span data-testid="slice-cell" data-fill={fill} />,
   Tooltip: ({ formatter }: { formatter: typeof chartFormatters.tooltip }) => {
     chartFormatters.tooltip = formatter;
     return null;
@@ -496,6 +496,82 @@ describe("AllocationCharts page", () => {
     expect(within(slices).getByText("Health: 50")).toBeInTheDocument();
   });
 
+  describe("holdings ring toggle", () => {
+    const sliceRows = (pie: HTMLElement) =>
+      within(pie).getAllByTestId("slice-row").map((el) => el.textContent);
+
+    it("adds an outer ring of each group's holdings, in group order, when toggled on", async () => {
+      const alice = samplePortfolio.accounts[0];
+      mockGetGroupPortfolio.mockResolvedValueOnce({
+        ...samplePortfolio,
+        accounts: [
+          {
+            ...alice,
+            holdings: [
+              { ...baseHolding, ticker: "AAA", name: "Alpha", market_value_gbp: 30, sector: "Tech" },
+              { ...baseHolding, ticker: "BBB", name: "Beta", market_value_gbp: 70, sector: "Tech" },
+              { ...baseHolding, ticker: "CCC", name: "", market_value_gbp: 50, sector: "Health" },
+            ],
+          },
+          // The same ticker in another account folds into one holding slice.
+          {
+            ...alice,
+            account_type: "isa",
+            holdings: [{ ...baseHolding, ticker: "AAA", name: "Alpha", market_value_gbp: 50, sector: "Tech" }],
+          },
+        ],
+      });
+
+      render(<AllocationCharts />);
+      await screen.findByText(/Instrument Types/);
+      fireEvent.click(screen.getByRole("button", { name: /^(industries|sectors?)$/i }));
+      expect(screen.getAllByTestId("pie-slices")).toHaveLength(1);
+
+      fireEvent.click(screen.getByTestId("show-holdings-toggle"));
+
+      const [groups, holdings] = screen.getAllByTestId("pie-slices");
+      expect(sliceRows(groups)).toEqual(["Tech: 150", "Health: 50"]);
+      // Unnamed holdings fall back to their ticker.
+      expect(sliceRows(holdings)).toEqual(["Alpha: 80", "Beta: 70", "CCC: 50"]);
+      expect(groups).toHaveAttribute("data-inline-labels", "false");
+      // Each holding takes its group's colour: Alpha and Beta are Tech, CCC is Health.
+      const fills = (pie: HTMLElement) =>
+        within(pie).getAllByTestId("slice-cell").map((el) => el.getAttribute("data-fill"));
+      const [tech, health] = fills(groups);
+      expect(tech).not.toBe(health);
+      expect(fills(holdings)).toEqual([tech, tech, health]);
+
+      fireEvent.click(screen.getByTestId("show-holdings-toggle"));
+      expect(screen.getAllByTestId("pie-slices")).toHaveLength(1);
+    });
+
+    it("keeps each owner's account cash as its own holding", async () => {
+      const alice = samplePortfolio.accounts[0];
+      const cash = { ...baseHolding, ticker: "CASH.GBP", name: "Cash (GBP)", instrument_type: "Cash" };
+      mockGetGroupPortfolio.mockResolvedValueOnce({
+        ...samplePortfolio,
+        accounts: [
+          { ...alice, account_type: "sipp", holdings: [{ ...cash, market_value_gbp: 60 }] },
+          { ...alice, account_type: "isa", holdings: [{ ...cash, market_value_gbp: 10 }] },
+          // Stray whitespace on the owner still lands in alice's ISA cash.
+          { ...alice, owner: " alice ", account_type: "isa", holdings: [{ ...cash, market_value_gbp: 5 }] },
+          { ...alice, owner: "bob", account_type: "isa", holdings: [{ ...cash, market_value_gbp: 30 }] },
+        ],
+      });
+
+      render(<AllocationCharts owners={[{ owner: "alice", full_name: "Alice A", accounts: [] }]} />);
+      await screen.findByText(/Instrument Types/);
+      fireEvent.click(screen.getByTestId("show-holdings-toggle"));
+
+      const [, holdings] = screen.getAllByTestId("pie-slices");
+      expect(sliceRows(holdings)).toEqual([
+        "Alice A SIPP: Cash (GBP): 60",
+        "bob ISA: Cash (GBP): 30",
+        "Alice A ISA: Cash (GBP): 15",
+      ]);
+    });
+  });
+
   it("suppresses all dropped-value warnings in production", async () => {
     vi.stubEnv("MODE", "production");
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -619,6 +695,14 @@ describe("AllocationCharts page", () => {
       expect(screen.queryByText("currency boom")).not.toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "alice" })).toBeInTheDocument();
     });
+  });
+
+  it("offers no holdings ring for views not built from the portfolio's holdings", async () => {
+    mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+    mockGetGroupCurrencies.mockResolvedValueOnce([]);
+    render(<AllocationCharts />, "/allocation?view=currency");
+    await screen.findByTestId("currency-exposure-note");
+    expect(screen.queryByTestId("show-holdings-toggle")).not.toBeInTheDocument();
   });
 
   describe("sleeve view (#9813)", () => {
@@ -863,5 +947,18 @@ describe("AllocationCharts page", () => {
 
       expect(await screen.findByText("look-through boom")).toBeInTheDocument();
     });
+
+    it.each(["lt-country", "lt-sector", "lt-holdings"])(
+      "offers no holdings ring on the %s view",
+      async (view) => {
+        mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+        mockGetGroupLookThrough.mockResolvedValueOnce(lookThrough([bucket("United States", 1000)]));
+
+        render(<AllocationCharts />, `/allocation?view=${view}`);
+
+        await screen.findByTestId("look-through-note");
+        expect(screen.queryByTestId("show-holdings-toggle")).not.toBeInTheDocument();
+      },
+    );
   });
 });

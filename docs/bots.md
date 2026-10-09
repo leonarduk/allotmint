@@ -34,6 +34,10 @@ backend lives in `backend/bots/`; the API in `backend/routes/bots.py`.
   Trigger, CI warm-up) always run.
 - **Event-driven** (e.g. on upload): set `default_schedule = None` and call
   `backend.bots.runner.execute("<bot-id>", "event", owner=..., payload=...)`.
+  `statement-reconciliation` (`backend/reconciliation/bot.py`) is the worked
+  example: the upload route does the work and records one run with a closed,
+  counts-only payload, and the bot's `run` catches every exception itself so a
+  message that could quote the statement never reaches the run record.
 - **Run now** (`POST /bots/{id}/run`, admin only): refused with 409 while a
   run is in progress. Locally it runs as a FastAPI background task; on AWS the
   backend invokes the bot's Lambda asynchronously (`BOT_LAMBDA_FUNCTIONS` in

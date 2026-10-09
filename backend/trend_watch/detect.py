@@ -350,7 +350,7 @@ def _readings(
     rs_now = _num(row.get("rs"), 6)
     rs_before = _num(previous.get("rs"), 6) if previous else None
     if rs_before is None and rs_now is not None:
-        rs_before = _num(frame["rs"].iloc[max(last - cfg.new_lookback_days, 0)], 6)
+        rs_before = _series_rs_before(frame, previous, last, cfg)
     # Missing (None) and zero are separate cases: a ratio of positive prices is
     # never truly zero, so a zero only means it could not be measured.
     rs_change = (
@@ -371,6 +371,23 @@ def _readings(
         "excess_move": _num(own_move - bench_move) if own_move is not None and bench_move is not None else None,
         "move_end": own.index[-1].date().isoformat() if not own.empty else None,
     }
+
+
+def _series_rs_before(
+    frame: pd.DataFrame, previous: Optional[Mapping[str, Any]], last: int, cfg: TrendWatchConfig
+) -> Optional[float]:
+    """The series' own relative strength at the last run, when the saved state has none.
+
+    Read on the last run's date when one was saved (a missed week or a manual
+    re-run makes that more than one step back), else one run step earlier.
+    """
+
+    saved = previous.get("as_of") if previous else None
+    as_of = pd.to_datetime(saved, errors="coerce") if isinstance(saved, str) else None
+    if isinstance(as_of, pd.Timestamp):
+        before = frame["rs"].loc[: as_of.normalize()]
+        return _num(before.iloc[-1], 6) if not before.empty else None
+    return _num(frame["rs"].iloc[max(last - run_step(cfg), 0)], 6)
 
 
 def _common_end(own: pd.Series, bench: pd.Series, last_close: pd.Timestamp) -> tuple[pd.Series, pd.Series]:

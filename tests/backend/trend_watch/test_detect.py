@@ -160,3 +160,20 @@ def test_rs_change_is_measured_for_a_tiny_ratio_and_skipped_for_none_or_zero():
     # None falls back to the series' own reading a run earlier; zero cannot be measured.
     assert missing["rs_change_since_last"] is not None
     assert zero is None
+
+
+def test_missing_rs_in_saved_state_is_read_on_the_last_run_date():
+    # The last run was three weeks ago (missed runs) and saved no RS reading.
+    end = FRESH_TURN_END - 15
+    earlier = d.detect(
+        "TURN.L",
+        double_top().iloc[:end],
+        benchmark_levels=rising_benchmark().iloc[:end],
+        benchmark_ticker="FTAL.L",
+    )
+    expected = _fresh_turn(previous=earlier.state()).values["rs_change_since_last"]
+
+    measured = _fresh_turn(previous={**earlier.state(), "rs": None}).values["rs_change_since_last"]
+
+    assert expected is not None
+    assert measured == expected

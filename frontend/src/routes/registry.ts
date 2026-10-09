@@ -447,6 +447,18 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     defaultPath: () => '/research',
   },
   {
+    // Every scheduled job and AI agent: last run, history, Run now and
+    // settings (#10477). Run now / settings are admin-only server-side.
+    mode: 'bots',
+    routeSegment: 'bots',
+    section: 'user',
+    menuCategory: 'insights',
+    priority: 141,
+    defaultPath: () => '/bots',
+    routePath: '/bots',
+    lazyComponent: lazyPage(() => import('../pages/Bots')),
+  },
+  {
     // Also 'standalone': reachable pre-login from the sign-in screen, so it
     // must not depend on anything in the authenticated user/support menus.
     mode: 'createaccount',

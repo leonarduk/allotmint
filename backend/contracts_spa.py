@@ -54,6 +54,7 @@ class ConfigTabsContract(SpaContractBase):
     research: bool
     plot: bool
     help: bool
+    bots: bool
 
 
 class ConfigContract(SpaContractBase):

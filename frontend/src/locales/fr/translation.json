@@ -129,6 +129,7 @@
       "alertsettings": "Paramètres d'alerte",
       "allocation": "Allocation",
       "awscosts": "Coûts AWS",
+      "bots": "Bots",
       "compliance": "Alertes de conformité",
       "dataadmin": "Administration des données",
       "dataexplorer": "Explorateur de fichiers",
@@ -3688,5 +3689,55 @@
       "low": "Faible",
       "info": "Info"
     }
+  },
+  "bots": {
+    "title": "Bots",
+    "intro": "Toutes les tâches automatiques et tous les agents IA de l’application : dernière exécution, résultat et paramètres.",
+    "loadError": "Impossible de charger les bots.",
+    "disabled": "désactivé",
+    "columns": {
+      "bot": "Bot",
+      "kind": "Type",
+      "lastRun": "Dernière exécution",
+      "result": "Résultat",
+      "nextRun": "Prochaine exécution"
+    },
+    "kind": {
+      "ai": "Agent IA",
+      "rules": "Règles",
+      "job": "Tâche"
+    },
+    "status": {
+      "ok": "OK",
+      "partial": "Partiel",
+      "failed": "Échec",
+      "skipped": "Ignoré",
+      "running": "En cours",
+      "never": "Jamais exécuté"
+    },
+    "trigger": {
+      "schedule": "Planifié",
+      "manual": "Exécuter maintenant",
+      "invoke": "Direct",
+      "event": "Sur événement"
+    },
+    "scope": {
+      "system": "tout le système",
+      "owner": "par titulaire"
+    },
+    "scheduleLine": "Planification : {{schedule}} · Portée : {{scope}}",
+    "onEvent": "s’exécute sur un événement",
+    "runNow": "Exécuter maintenant",
+    "running": "En cours…",
+    "settings": "Paramètres",
+    "saveSettings": "Enregistrer les paramètres",
+    "saved": "Paramètres enregistrés.",
+    "adminOnly": "Seul un administrateur peut modifier les paramètres ou lancer une exécution.",
+    "history": "Historique des exécutions",
+    "noRuns": "Aucune exécution enregistrée.",
+    "report": "Rapport",
+    "duration": "{{seconds}} s",
+    "usage": "Modèle {{model}} · {{tokensIn}} en entrée / {{tokensOut}} en sortie · ${{cost}}",
+    "pollTimeout": "Attente de cette exécution arrêtée : elle est toujours marquée en cours. Consultez l’historique plus tard."
   }
 }

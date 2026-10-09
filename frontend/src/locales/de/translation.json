@@ -129,6 +129,7 @@
       "alertsettings": "Alarm-Einstellungen",
       "allocation": "Allokation",
       "awscosts": "AWS-Kosten",
+      "bots": "Bots",
       "compliance": "Compliance-Warnungen",
       "dataadmin": "Datenverwaltung",
       "dataexplorer": "Datei-Explorer",
@@ -3688,5 +3689,55 @@
       "low": "Niedrig",
       "info": "Info"
     }
+  },
+  "bots": {
+    "title": "Bots",
+    "intro": "Alle automatischen Jobs und KI-Agenten der App: wann sie zuletzt liefen, was passiert ist und ihre Einstellungen.",
+    "loadError": "Bots konnten nicht geladen werden.",
+    "disabled": "deaktiviert",
+    "columns": {
+      "bot": "Bot",
+      "kind": "Art",
+      "lastRun": "Letzter Lauf",
+      "result": "Ergebnis",
+      "nextRun": "Nächster Lauf"
+    },
+    "kind": {
+      "ai": "KI-Agent",
+      "rules": "Regeln",
+      "job": "Job"
+    },
+    "status": {
+      "ok": "OK",
+      "partial": "Teilweise",
+      "failed": "Fehlgeschlagen",
+      "skipped": "Übersprungen",
+      "running": "Läuft",
+      "never": "Nie gelaufen"
+    },
+    "trigger": {
+      "schedule": "Geplant",
+      "manual": "Jetzt ausführen",
+      "invoke": "Direkt",
+      "event": "Bei Ereignis"
+    },
+    "scope": {
+      "system": "gesamtes System",
+      "owner": "pro Eigentümer"
+    },
+    "scheduleLine": "Zeitplan: {{schedule}} · Bereich: {{scope}}",
+    "onEvent": "läuft bei einem Ereignis",
+    "runNow": "Jetzt ausführen",
+    "running": "Läuft…",
+    "settings": "Einstellungen",
+    "saveSettings": "Einstellungen speichern",
+    "saved": "Einstellungen gespeichert.",
+    "adminOnly": "Nur ein Administrator kann Einstellungen ändern oder einen Lauf starten.",
+    "history": "Laufverlauf",
+    "noRuns": "Noch keine Läufe aufgezeichnet.",
+    "report": "Bericht",
+    "duration": "{{seconds}} s",
+    "usage": "Modell {{model}} · {{tokensIn}} ein / {{tokensOut}} aus Tokens · ${{cost}}",
+    "pollTimeout": "Warten auf diesen Lauf beendet: Er ist noch als laufend markiert. Prüfen Sie den Laufverlauf später."
   }
 }

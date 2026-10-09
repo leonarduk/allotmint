@@ -129,6 +129,7 @@
       "alertsettings": "Impostazioni di avviso",
       "allocation": "Allocazione",
       "awscosts": "Costi AWS",
+      "bots": "Bot",
       "compliance": "Avvisi di conformità",
       "dataadmin": "Amministrazione dati",
       "dataexplorer": "Esplora file",
@@ -3688,5 +3689,55 @@
       "low": "Bassa",
       "info": "Info"
     }
+  },
+  "bots": {
+    "title": "Bot",
+    "intro": "Tutti i processi automatici e gli agenti IA dell’app: quando sono stati eseguiti l’ultima volta, cosa è successo e le loro impostazioni.",
+    "loadError": "Impossibile caricare i bot.",
+    "disabled": "disattivato",
+    "columns": {
+      "bot": "Bot",
+      "kind": "Tipo",
+      "lastRun": "Ultima esecuzione",
+      "result": "Risultato",
+      "nextRun": "Prossima esecuzione"
+    },
+    "kind": {
+      "ai": "Agente IA",
+      "rules": "Regole",
+      "job": "Processo"
+    },
+    "status": {
+      "ok": "OK",
+      "partial": "Parziale",
+      "failed": "Non riuscito",
+      "skipped": "Saltato",
+      "running": "In corso",
+      "never": "Mai eseguito"
+    },
+    "trigger": {
+      "schedule": "Pianificato",
+      "manual": "Esegui ora",
+      "invoke": "Diretto",
+      "event": "Su evento"
+    },
+    "scope": {
+      "system": "intero sistema",
+      "owner": "per titolare"
+    },
+    "scheduleLine": "Pianificazione: {{schedule}} · Ambito: {{scope}}",
+    "onEvent": "eseguito su un evento",
+    "runNow": "Esegui ora",
+    "running": "In corso…",
+    "settings": "Impostazioni",
+    "saveSettings": "Salva impostazioni",
+    "saved": "Impostazioni salvate.",
+    "adminOnly": "Solo un amministratore può modificare le impostazioni o avviare un’esecuzione.",
+    "history": "Cronologia esecuzioni",
+    "noRuns": "Nessuna esecuzione registrata.",
+    "report": "Rapporto",
+    "duration": "{{seconds}} s",
+    "usage": "Modello {{model}} · {{tokensIn}} in ingresso / {{tokensOut}} in uscita · ${{cost}}",
+    "pollTimeout": "Attesa dell’esecuzione interrotta: risulta ancora in corso. Controlla la cronologia più tardi."
   }
 }

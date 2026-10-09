@@ -9,6 +9,7 @@ from backend.config import Config
 from backend.routes.agent import router as agent_router
 from backend.routes.alert_settings import router as alert_settings_router
 from backend.routes.alerts import router as alerts_router
+from backend.routes.allowance_guardian import router as allowance_guardian_router
 from backend.routes.analytics import router as analytics_router
 from backend.routes.app_update import router as app_update_router
 from backend.routes.approvals import router as approvals_router
@@ -132,5 +133,6 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(logs_router)
     app.include_router(goals_router, dependencies=protected)
     app.include_router(tax_router)
+    app.include_router(allowance_guardian_router, dependencies=protected)
     app.include_router(pension_router)
     app.include_router(reports_router, dependencies=protected)

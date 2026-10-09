@@ -50,6 +50,10 @@ def switched_off_message(name: str) -> str:
     return f"{name} is switched off in the admin config."
 
 
+# How much of each tool result a ToolPolicy keeps (a timeseries can be megabytes).
+MAX_RECORDED_RESULT_CHARS = 4000
+
+
 @dataclass
 class ToolPolicy:
     """Which tools one turn may use, how many calls it gets, and what it called."""
@@ -73,7 +77,9 @@ class ToolPolicy:
         return None
 
     def record(self, name: str, arguments: Mapping[str, Any], result: str, is_error: bool) -> None:
-        self.calls.append({"tool": name, "arguments": dict(arguments), "result": result, "is_error": is_error})
+        # Kept for evidence, not replayed to the model, so a bounded prefix is enough.
+        kept = result[:MAX_RECORDED_RESULT_CHARS]
+        self.calls.append({"tool": name, "arguments": dict(arguments), "result": kept, "is_error": is_error})
 
 
 def call_refusal(name: str, policy: Optional[ToolPolicy]) -> Optional[str]:

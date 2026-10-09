@@ -33,6 +33,7 @@ from backend.trend_watch.detect import (
     is_flagged,
     iso_dated,
     new_signals,
+    run_step,
     signal_frame,
 )
 
@@ -42,7 +43,7 @@ HORIZONS = {"1m": 21, "3m": 63, "6m": 126}
 def _step(cfg: TrendWatchConfig) -> int:
     """Trading days between replayed runs: the same "one run" the live detector reads earlier runs at."""
 
-    return max(cfg.new_lookback_days, 1)
+    return run_step(cfg)
 
 
 @dataclass

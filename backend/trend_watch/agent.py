@@ -189,6 +189,10 @@ def _settle_verdict(
         notes.append("The model reported a stock-specific cause without citing a tool result; marked inconclusive.")
         return prompt.VERDICT_INCONCLUSIVE
     comparison = market_wide(detection, cfg)
+    if verdict == prompt.VERDICT_IDIOSYNCRATIC and comparison is True:
+        # A stock can fall with its market and still have its own cause, so the
+        # cited evidence stands; the report says the benchmark moved alike.
+        notes.append("The holding moved about as much as its benchmark; weigh the stock-specific cause against that.")
     if verdict == prompt.VERDICT_MARKET and comparison is False:
         notes.append("The model reported a market-wide move, but the holding fell well beyond its benchmark.")
         return prompt.VERDICT_INCONCLUSIVE

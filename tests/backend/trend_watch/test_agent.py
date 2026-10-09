@@ -360,3 +360,25 @@ def test_benchmark_comparison_always_states_each_basis(own, bench, words, basis)
     assert words in comparison["finding"]
     assert comparison["return_basis"] == basis
     assert "None" not in comparison["finding"] and "unstated" not in comparison["finding"]
+
+
+async def test_stock_specific_verdict_notes_a_matching_benchmark_move():
+    reply = {
+        "verdict": "idiosyncratic_deterioration",
+        "summary": "Profit warning.",
+        "evidence": [{"tool": "search_web", "finding": "Profit warning", "value": "", "source": "rns"}],
+    }
+
+    result = await _investigate(_market_wide(), _runner(reply, [("search_web", "profit warning", False)]))
+
+    assert result["verdict"] == prompt.VERDICT_IDIOSYNCRATIC
+    assert any("about as much as its benchmark" in note for note in result["notes"])
+
+
+def test_policy_keeps_a_bounded_prefix_of_each_result():
+    from backend.chat.tool_switches import MAX_RECORDED_RESULT_CHARS
+
+    policy = ToolPolicy()
+    policy.record("get_instrument_timeseries", {}, "x" * (MAX_RECORDED_RESULT_CHARS * 3), False)
+
+    assert len(policy.calls[0]["result"]) == MAX_RECORDED_RESULT_CHARS

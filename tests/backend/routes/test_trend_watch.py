@@ -17,9 +17,11 @@ from ..trend_watch import test_service as fixtures
 @pytest.fixture
 def client(monkeypatch):
     checked = []
+    calls = []
     monkeypatch.setattr(routes, "ensure_owner_access", lambda identity, owner, root: checked.append((identity, owner)))
 
     async def fake_run(owner, *, notify, load_portfolio):
+        calls.append(notify)
         return await run_for_owner(
             owner,
             notify=notify,
@@ -37,6 +39,7 @@ def client(monkeypatch):
     app.dependency_overrides[get_active_user] = lambda: "alex@example.com"
     test_client = TestClient(app)
     test_client.checked = checked
+    test_client.notify_calls = calls
     return test_client
 
 
@@ -87,3 +90,18 @@ def test_settings_expose_the_detector_thresholds(client):
     assert body["min_signals"] >= 2
     assert body["memory_runs"] >= 1
     assert body["max_tool_calls"] > 0
+
+
+def test_notify_query_reaches_the_run_and_sends_the_alert(client, monkeypatch):
+    from backend.agent import trading_agent
+
+    sent = []
+    monkeypatch.setattr(trading_agent, "send_trade_alert", lambda text: sent.append(text))
+
+    client.post("/trend-watch/alex/run?notify=true")
+    alerted = list(sent)
+    client.post("/trend-watch/alex/run")
+
+    assert client.notify_calls == [True, False]
+    assert len(alerted) == 1 and "holding(s) to review" in alerted[0]
+    assert sent == alerted

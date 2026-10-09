@@ -195,6 +195,12 @@ def is_flagged(active: Sequence[str], new: Sequence[str], cfg: TrendWatchConfig)
     )
 
 
+def run_step(cfg: TrendWatchConfig) -> int:
+    """Trading days per run: how far apart the remembered earlier runs are read (and the backtest steps)."""
+
+    return max(cfg.new_lookback_days, 1)
+
+
 def new_signals(active: Sequence[str], earlier: set[str]) -> List[str]:
     """The trigger signals on now that were off in every remembered earlier run."""
 
@@ -204,7 +210,7 @@ def new_signals(active: Sequence[str], earlier: set[str]) -> List[str]:
 def earlier_runs(frame: pd.DataFrame, position: int, cfg: TrendWatchConfig) -> List[List[str]]:
     """The active signals at each of the ``memory_runs`` weekly runs before ``position``, newest first."""
 
-    step = max(cfg.new_lookback_days, 1)
+    step = run_step(cfg)
     return [active_signals(frame, position - step * k) for k in range(1, max(cfg.memory_runs, 1) + 1)]
 
 
@@ -324,7 +330,7 @@ def _earlier(
         return [[str(n) for n in run] for run in previous["recent"] if isinstance(run, list)], previous.get("as_of")
     if previous and isinstance(previous.get("active"), list):
         return [[str(n) for n in previous["active"]]], previous.get("as_of")
-    return earlier_runs(frame, last, cfg), frame.index[max(last - cfg.new_lookback_days, 0)].date().isoformat()
+    return earlier_runs(frame, last, cfg), frame.index[max(last - run_step(cfg), 0)].date().isoformat()
 
 
 def _readings(

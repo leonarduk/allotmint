@@ -20,6 +20,13 @@ def test_is_local_url(url, expected):
     assert mcp_tools_client._is_local_url(url) is expected
 
 
+def test_mcp_http_timeout_allows_slow_tools():
+    # httpx2's 5s default read timeout cut get_data_quality_report (~100s) off
+    # mid-stream with "SSE stream ended without a response" (#10471).
+    assert mcp_tools_client.MCP_HTTP_TIMEOUT.read == 300.0
+    assert mcp_tools_client.MCP_HTTP_TIMEOUT.connect == 30.0
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("url", "expect_auth"),
@@ -69,6 +76,9 @@ async def test_mcp_session_wires_auth_into_httpx2_client(url, expect_auth):
         async with mcp_tools_client.mcp_session(url) as session:
             assert session is fake_session
 
-    mock_async_client_cls.assert_called_once_with(auth=fake_auth_instance if expect_auth else None)
+    mock_async_client_cls.assert_called_once_with(
+        auth=fake_auth_instance if expect_auth else None,
+        timeout=mcp_tools_client.MCP_HTTP_TIMEOUT,
+    )
     assert mock_auth_cls.called is expect_auth
     fake_session.initialize.assert_awaited_once()

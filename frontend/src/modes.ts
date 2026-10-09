@@ -20,6 +20,7 @@ export type Mode =
   | "virtual"
   | "settings"
   | "research"
+  | "bots"
   | "reports"
   | "query"
   | "alerts"
@@ -57,6 +58,7 @@ export const MODES: Mode[] = [
   "dataexplorer",
   "virtual",
   "research",
+  "bots",
   "reports",
   "query",
   "alerts",

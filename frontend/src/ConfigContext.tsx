@@ -141,6 +141,9 @@ const defaultTabs: TabsConfig = {
   // signature) so existing config fixtures that omit it don't need updating;
   // it just needs to default to enabled like every other user-facing tab.
   help: true,
+  // Same as help: an index-signature key, enabled by default, so config
+  // fixtures without it keep working. The Bots page (#10477).
+  bots: true,
 };
 
 export interface ConfigContextValue extends AppConfig {

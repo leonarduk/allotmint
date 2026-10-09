@@ -129,6 +129,7 @@
       "alertsettings": "Alert Settings",
       "allocation": "Allocation",
       "awscosts": "AWS Costs",
+      "bots": "Bots",
       "compliance": "Compliance Warnings",
       "dataadmin": "Data Admin",
       "dataexplorer": "Data Explorer",
@@ -3685,5 +3686,55 @@
     "aboveAverage": "Above the average line: more return per unit of volatility",
     "belowAverage": "Below the average line: less return per unit of volatility",
     "onAverage": "On the average line"
+  },
+  "bots": {
+    "title": "Bots",
+    "intro": "Every automated job and AI agent the app runs: when it last ran, what happened, and its settings.",
+    "loadError": "Could not load bots.",
+    "disabled": "disabled",
+    "columns": {
+      "bot": "Bot",
+      "kind": "Kind",
+      "lastRun": "Last run",
+      "result": "Result",
+      "nextRun": "Next run"
+    },
+    "kind": {
+      "ai": "AI agent",
+      "rules": "Rules",
+      "job": "Job"
+    },
+    "status": {
+      "ok": "OK",
+      "partial": "Partial",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "running": "Running",
+      "never": "Never run"
+    },
+    "trigger": {
+      "schedule": "Scheduled",
+      "manual": "Run now",
+      "invoke": "Direct",
+      "event": "On event"
+    },
+    "scope": {
+      "system": "whole system",
+      "owner": "per owner"
+    },
+    "scheduleLine": "Schedule: {{schedule}} · Scope: {{scope}}",
+    "onEvent": "runs on an event",
+    "runNow": "Run now",
+    "running": "Running…",
+    "settings": "Settings",
+    "saveSettings": "Save settings",
+    "saved": "Settings saved.",
+    "adminOnly": "Only an admin can change settings or start a run.",
+    "history": "Run history",
+    "noRuns": "No runs recorded yet.",
+    "report": "Report",
+    "duration": "{{seconds}}s",
+    "usage": "Model {{model}} · {{tokensIn}} in / {{tokensOut}} out tokens · ${{cost}}",
+    "pollTimeout": "Stopped waiting for this run: it is still marked as running. Check the run history later."
   }
 }

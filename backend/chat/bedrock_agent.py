@@ -6,7 +6,7 @@ import asyncio
 import logging
 import random
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import AbstractSet, Any, Dict, List, Optional
 
 import boto3
 from botocore.config import Config
@@ -16,7 +16,7 @@ from mcp.types import CallToolResult, Tool
 
 from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import mcp_session
-from backend.chat.tool_switches import switched_off_message, tool_enabled
+from backend.chat.tool_switches import allowed_tools_only, refused_message, tool_allowed
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -153,6 +153,7 @@ async def run_chat_turn(
     bedrock_model_id: str,
     local_tools: Optional[LocalTools] = None,
     system_prompt: Optional[str] = None,
+    allowed_tools: Optional[AbstractSet[str]] = None,
 ) -> str:
     """Run one user turn through the Bedrock tool-calling loop and return the reply.
 
@@ -160,6 +161,8 @@ async def run_chat_turn(
     the caller resends the full prior conversation each turn; nothing is
     persisted server-side in this first pass. ``local_tools`` are offered
     alongside the MCP tools and run in-process (see ``backend.chat.local_tools``).
+    ``allowed_tools``, when given, is the only set of tool names the model may
+    see or call (e.g. a bot's read-only allowlist).
     """
 
     messages: List[Dict[str, Any]] = [
@@ -172,7 +175,7 @@ async def run_chat_turn(
 
     async with mcp_session(mcp_server_url) as session:
         tools_result = await session.list_tools()
-        tools = merge_tool_lists(tools_result.tools, local_tools)
+        tools = allowed_tools_only(merge_tool_lists(tools_result.tools, local_tools), allowed_tools)
         tool_config = {"tools": [_tool_to_bedrock_spec(tool) for tool in tools]}
 
         for _ in range(MAX_TOOL_ITERATIONS):
@@ -193,12 +196,12 @@ async def run_chat_turn(
 
             tool_result_content = []
             for tool_use in tool_uses:
-                if not tool_enabled(tool_use["name"]):
+                if not tool_allowed(tool_use["name"], allowed_tools):
                     tool_result_content.append(
                         {
                             "toolResult": {
                                 "toolUseId": tool_use["toolUseId"],
-                                "content": [{"text": switched_off_message(tool_use["name"])}],
+                                "content": [{"text": refused_message(tool_use["name"], allowed_tools)}],
                                 "status": "error",
                             }
                         }

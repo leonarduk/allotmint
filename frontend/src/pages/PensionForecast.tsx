@@ -26,6 +26,7 @@ import {
   countsTowardPensionForecast,
 } from "../utils/accountTypes";
 import { humanizeForecastError } from "../utils/forecastErrors";
+import RetirementReadinessCard from "../components/RetirementReadinessCard";
 import { ageInWholeYears } from "../utils/age";
 import {
   FULL_NEW_STATE_PENSION_ANNUAL_GBP,
@@ -1005,6 +1006,7 @@ export default function PensionForecast() {
           )}
         </section>
       </div>
+      {owner && <RetirementReadinessCard owner={owner} />}
     </form>
   );
 }

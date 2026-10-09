@@ -47,6 +47,7 @@ from backend.routes.quest_routes import router as quest_router
 from backend.routes.quotes import router as quotes_router
 from backend.routes.rebalance import router as rebalance_router
 from backend.routes.reports import router as reports_router
+from backend.routes.retirement_readiness import router as retirement_readiness_router
 from backend.routes.scenario import router as scenario_router
 from backend.routes.screener import router as screener_router
 from backend.routes.signup import create_router as create_signup_router
@@ -133,4 +134,5 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(goals_router, dependencies=protected)
     app.include_router(tax_router)
     app.include_router(pension_router)
+    app.include_router(retirement_readiness_router)
     app.include_router(reports_router, dependencies=protected)

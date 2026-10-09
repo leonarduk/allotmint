@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import AbstractSet, Any, Dict, List, Optional
 
 import httpx
 from mcp.types import Tool
@@ -24,7 +24,7 @@ from backend.chat.bedrock_agent import (
 )
 from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import mcp_session
-from backend.chat.tool_switches import switched_off_message, tool_enabled
+from backend.chat.tool_switches import allowed_tools_only, refused_message, tool_allowed
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -86,10 +86,12 @@ async def run_chat_turn(
     api_key: Optional[str] = None,
     local_tools: Optional[LocalTools] = None,
     system_prompt: Optional[str] = None,
+    allowed_tools: Optional[AbstractSet[str]] = None,
 ) -> str:
     """Run one user turn through an OpenAI-compatible tool-calling loop and return the reply.
 
-    ``history`` has the same shape as ``bedrock_agent.run_chat_turn``'s.
+    ``history`` has the same shape as ``bedrock_agent.run_chat_turn``'s, and
+    ``allowed_tools`` restricts the tools the same way.
     """
 
     messages: List[Dict[str, Any]] = [{"role": item["role"], "content": item["content"]} for item in history]
@@ -105,7 +107,8 @@ async def run_chat_turn(
         httpx.AsyncClient(headers=headers, timeout=REQUEST_TIMEOUT_SECONDS) as client,
     ):
         tools_result = await session.list_tools()
-        tools = [_tool_to_openai_spec(tool) for tool in merge_tool_lists(tools_result.tools, local_tools)]
+        offered = allowed_tools_only(merge_tool_lists(tools_result.tools, local_tools), allowed_tools)
+        tools = [_tool_to_openai_spec(tool) for tool in offered]
 
         for _ in range(MAX_TOOL_ITERATIONS):
             output_message = await _complete(client, base_url=base_url, model=model, messages=messages, tools=tools)
@@ -121,8 +124,8 @@ async def run_chat_turn(
             for tool_call in tool_calls:
                 name = tool_call["function"]["name"]
                 try:
-                    if not tool_enabled(name):
-                        raise ValueError(switched_off_message(name))
+                    if not tool_allowed(name, allowed_tools):
+                        raise ValueError(refused_message(name, allowed_tools))
                     arguments = _parse_tool_arguments(tool_call["function"].get("arguments"))
                     if local_tools is not None and local_tools.handles(name):
                         content, is_error = local_tools.call(name, arguments)

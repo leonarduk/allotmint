@@ -3041,6 +3041,80 @@ export const getPensionForecast = ({
   );
 };
 
+// ───────────── Retirement readiness (#10484) ─────────────
+export interface RetirementWindow {
+  start_year: number;
+  end_year: number;
+  sustainable_income_gbp: number;
+}
+
+export interface RetirementReadinessReport {
+  owner: string;
+  run_date: string;
+  headline: { survival_pct: number; income_gbp: number | null };
+  inputs: { pot_gbp: number; retirement_age: number; death_age: number };
+  results: {
+    projection: {
+      projected_pot_nominal_gbp: number;
+      start_pot_real_gbp: number;
+      years_to_retirement: number;
+    };
+    simulation: {
+      horizon_years: number;
+      windows: { count: number };
+      sustainable_income: { survival_pct: number; income_gbp: number }[];
+      worst: RetirementWindow | null;
+      median: RetirementWindow | null;
+      best: RetirementWindow | null;
+      floor: {
+        floor_gbp: number;
+        at_income_gbp: number;
+        windows_below_floor: number;
+        windows_total: number;
+      } | null;
+    };
+    mapping: { proxy_share_pct: number };
+    data_notes: string[];
+  };
+  attribution: {
+    previous_run_date: string;
+    change_gbp: number;
+    parts_gbp: {
+      contributions: number;
+      markets: number;
+      assumptions: number;
+      data_revision: number;
+    };
+  } | null;
+  assumption_changes: { label: string }[];
+  market: { flags: string[] };
+  caveats: string[];
+  narrative: { text: string; source: "llm" | "template"; note: string | null };
+}
+
+export interface RetirementReadinessTrendPoint {
+  run_date: string;
+  survival_pct: number | null;
+  sustainable_income_gbp: number | null;
+  pot_gbp: number | null;
+}
+
+export const getRetirementReadinessLatest = (owner: string) =>
+  fetchJson<RetirementReadinessReport>(
+    `${API_BASE}/retirement-readiness/${encodeURIComponent(owner)}/latest`,
+  );
+
+export const getRetirementReadinessHistory = (owner: string) =>
+  fetchJson<{ owner: string; trend: RetirementReadinessTrendPoint[] }>(
+    `${API_BASE}/retirement-readiness/${encodeURIComponent(owner)}/history`,
+  );
+
+export const runRetirementReadiness = (owner: string) =>
+  fetchJson<RetirementReadinessReport>(
+    `${API_BASE}/retirement-readiness/${encodeURIComponent(owner)}/run`,
+    { method: "POST" },
+  );
+
 // ───────────── Quests API ─────────────
 export const getQuests = () =>
   fetchJson<QuestResponse>(`${API_BASE}/quests/today`);

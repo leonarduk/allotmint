@@ -94,10 +94,19 @@ def test_create_sell_transaction_reduces_holdings(tmp_path, monkeypatch):
     assert _holding_units(tmp_path, "PFE") == pytest.approx(3)
 
 
-def test_create_transaction_rejects_non_trade_type(tmp_path, monkeypatch):
+def test_create_transaction_rejects_unknown_type(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    resp = client.post("/transactions", json=_valid_payload(type="SPLIT"))
+    assert resp.status_code == 422
+    assert not list((tmp_path / "alice").glob("*_transactions.json"))
+
+
+def test_create_cash_transaction_without_amount_is_rejected(tmp_path, monkeypatch):
+    # Cash rows (#10474) move cash by ``amount_minor``; price/units alone would
+    # store a row that affects nothing.
     client = _make_client(tmp_path, monkeypatch)
     resp = client.post("/transactions", json=_valid_payload(type="DIVIDEND"))
-    assert resp.status_code == 422
+    assert resp.status_code == 400
     assert not list((tmp_path / "alice").glob("*_transactions.json"))
 
 

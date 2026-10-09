@@ -282,16 +282,23 @@ def _global_accounts_root() -> Optional[Path]:
 # (backend.common.holdings_rebuild) ignores rows without a recognised type, so
 # every manual entry must be typed for it to affect positions.
 ManualTradeType = Literal["BUY", "SELL"]
+# Cash rows a manual entry may add (e.g. an INTEREST row accepted from a
+# statement reconciliation, #10474). They carry a positive ``amount_minor``
+# in pence instead of price/units; the type gives the direction.
+ManualCashType = Literal["DEPOSIT", "WITHDRAWAL", "DIVIDEND", "INTEREST", "FEES"]
 
 
 class TransactionCreate(BaseModel):
     owner: str
     account: str
-    ticker: str
+    # Required for BUY/SELL (checked in ``create_transaction``); optional on a
+    # cash row, where it links e.g. a DIVIDEND to its instrument.
+    ticker: Optional[str] = None
     date: date
-    type: ManualTradeType = "BUY"
-    price_gbp: float = Field(gt=0)
-    units: float = Field(gt=0)
+    type: ManualTradeType | ManualCashType = "BUY"
+    price_gbp: Optional[float] = Field(default=None, gt=0)
+    units: Optional[float] = Field(default=None, gt=0)
+    amount_minor: Optional[int] = Field(default=None, gt=0)
     fees: Optional[float] = None
     comments: Optional[str] = None
     reason: Optional[str] = None
@@ -761,6 +768,31 @@ def _rollback_import(store: "AccountsStore", persisted: List[Dict[str, Any]]) ->
         _rebuild_portfolio(owner, account, store)
 
 
+_TRADE_ONLY_FIELDS = ("price_gbp", "units", "fees")
+
+
+def _validate_create_shape(tx_data: Dict[str, Any]) -> None:
+    """Check ``tx_data`` has the fields its type needs, and drop the ones it cannot use.
+
+    A trade needs ticker, price and units; a cash row needs ``amount_minor``
+    and stores no price/units/fees.
+    """
+    if str(tx_data.get("type") or "BUY") in get_args(ManualTradeType):
+        if tx_data.get("price_gbp") is None or tx_data.get("units") is None:
+            raise HTTPException(status_code=400, detail="price_gbp and units are required")
+        if not tx_data.get("ticker"):
+            raise HTTPException(status_code=400, detail="ticker is required")
+        if tx_data.get("amount_minor") is None:
+            tx_data.pop("amount_minor", None)
+        return
+    if not tx_data.get("amount_minor"):
+        raise HTTPException(status_code=400, detail="amount_minor is required for a cash transaction")
+    for field in _TRADE_ONLY_FIELDS:
+        tx_data.pop(field, None)
+    if not tx_data.get("ticker"):
+        tx_data.pop("ticker", None)
+
+
 @router.post("/transactions", status_code=201)
 def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     """Store a new transaction and return it.
@@ -780,10 +812,7 @@ def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     if not tx_data.get("reason"):
         raise HTTPException(status_code=400, detail="reason is required")
 
-    price = tx_data.get("price_gbp")
-    units_val = tx_data.get("units")
-    if price is None or units_val is None:
-        raise HTTPException(status_code=400, detail="price_gbp and units are required")
+    _validate_create_shape(tx_data)
 
     return _persist_transaction(store, owner, _transactions_account_name(owner, account, store), tx_data)
 

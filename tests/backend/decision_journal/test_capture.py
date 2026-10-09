@@ -83,7 +83,8 @@ def test_qualifying_trades_filters_size_type_and_window():
     }
 
 
-def test_trade_amount_uses_shares_only_when_units_is_missing():
+def test_trade_amount_treats_zero_units_as_zero_and_falls_back_to_shares_only_when_units_is_absent():
+    # units=0 is a recorded value (a zero-size trade), not "unset": it never qualifies.
     assert trade_amount_gbp({"units": 0, "shares": 50, "price_gbp": 10.0}) == 0.0
     assert trade_amount_gbp({"shares": 50, "price_gbp": 10.0}) == 500.0
     assert trade_amount_gbp({"units": 5}) is None
@@ -135,11 +136,24 @@ def test_sell_draft_is_prefilled_with_facts_and_leaves_reasoning_blank():
     assert draft["id"].startswith("dj-")
 
 
+def _tools_holding(values):
+    return ContextTools({"get_allocation": lambda: {"total_value_gbp": 100_000.0, "values_gbp": values}})
+
+
 def test_buy_draft_legs_compare_with_keeping_cash():
-    draft = trade_draft(trade_change({**TXS[1], "units": 50}), _tools())
+    # Already held £5,000 of BBB and bought £2,500 more: £7,500 now, so £5,000 (5%) before.
+    draft = trade_draft(trade_change({**TXS[1], "units": 50}), _tools_holding({"BBB.L": 7_500.0}))
     assert draft["decision"] == "Bought £2,500 of BBB.L"
     assert [leg["ticker"] for leg in draft["legs"]] == ["BBB.L", None]
-    assert draft["snapshot"]["weights"]["before_pct"] == 0.0
+    assert draft["snapshot"]["weights"]["before_pct"] == 5.0
+    assert draft["snapshot"]["weights"]["after_pct"] == 7.5
+
+
+def test_buy_larger_than_current_holding_leaves_before_weight_unknown():
+    # £2,500 bought but only £1,000 held now (sold since, or fell): the earlier weight can't be derived.
+    draft = trade_draft(trade_change({**TXS[1], "units": 50}), _tools_holding({"BBB.L": 1_000.0}))
+    assert draft["snapshot"]["weights"]["before_pct"] is None
+    assert draft["snapshot"]["weights"]["after_pct"] == 1.0
 
 
 def test_plan_change_draft_describes_target_diff():

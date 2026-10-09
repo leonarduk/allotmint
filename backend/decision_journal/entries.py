@@ -22,7 +22,7 @@ from backend.common.investment_plan import (
     save_plan,
 )
 from backend.decision_journal.review import review_due_dates
-from backend.decision_journal.store import Expectation, JournalEntry, Leg, load_journal, save_journal
+from backend.decision_journal.store import Expectation, JournalEntry, JournalSettings, Leg, load_journal, save_journal
 
 
 class DuplicateDecisionError(ValueError):
@@ -115,5 +115,6 @@ def set_lesson(owner: str, entry_id: str, horizon_months: int, lesson: str, data
 
 def set_threshold(owner: str, threshold_gbp: float, data_root: Optional[Path] = None) -> None:
     journal = load_journal(owner, data_root)
-    journal.settings.threshold_gbp = threshold_gbp
-    save_journal(journal.model_validate(journal.model_dump()), data_root)
+    # A new settings object validates the value (attribute assignment would not).
+    journal.settings = JournalSettings(threshold_gbp=threshold_gbp)
+    save_journal(journal, data_root)

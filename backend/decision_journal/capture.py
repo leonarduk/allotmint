@@ -126,16 +126,19 @@ def _weights(change: Mapping[str, Any], allocation: Optional[Mapping[str, Any]])
 
     A trade moves money between the holding and the account's cash, so the
     total is unchanged and the earlier value is the current one plus (SELL)
-    or minus (BUY) the trade amount.
+    or minus (BUY) the trade amount. When that comes out negative (a BUY
+    larger than what is held now, e.g. after a later sale or a price fall),
+    the current holdings can't give the earlier weight, so ``before_pct`` is
+    ``None`` rather than a clamped 0%.
     """
     total = float((allocation or {}).get("total_value_gbp") or 0.0)
     if total <= 0:
         return {"before_pct": None, "after_pct": None, "basis": "no holdings valuation available"}
     held = float((allocation or {}).get("values_gbp", {}).get(change["ticker"], 0.0))
     sign = 1 if change["type"] == "SELL" else -1
-    before = max(held + sign * float(change["amount_gbp"]), 0.0)
+    before = held + sign * float(change["amount_gbp"])
     return {
-        "before_pct": round(before / total * 100, 2),
+        "before_pct": round(before / total * 100, 2) if before >= 0 else None,
         "after_pct": round(held / total * 100, 2),
         "basis": "current holdings; before = current value adjusted by the trade amount",
     }

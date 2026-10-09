@@ -246,6 +246,18 @@ describe('page manifest', () => {
     expect(buildPathForMode('help')).toBe('/help');
   });
 
+  it('lists the Bots page in the Insights menu next to Research (#10477)', () => {
+    expect(pageManifestByMode.bots.section).toBe('user');
+    expect(pageManifestByMode.bots.menuCategory).toBe('insights');
+    const insights = getMenuEntries('user')
+      .filter((entry) => entry.menuCategory === 'insights')
+      .map((entry) => entry.mode);
+    expect(insights).toContain('bots');
+    expect(insights.indexOf('bots')).toBe(insights.indexOf('research') + 1);
+    expect(buildPathForMode('bots')).toBe('/bots');
+    expect(deriveModeFromPathname('/bots')).toBe('bots');
+  });
+
   it('serves the Strategy page at /strategy and keeps /rebalance working (#9653)', () => {
     expect(buildPathForMode('rebalance')).toBe('/strategy');
     expect(deriveModeFromPathname('/strategy')).toBe('rebalance');

@@ -47,7 +47,9 @@ type RawPrice = {
 const toPoints = (prices: RawPrice[] | undefined): CompareSeries["points"] =>
   (prices ?? [])
     .map((p) => ({ date: p.date, close: Number(p.close ?? p.close_gbp) }))
-    .filter((p) => Number.isFinite(p.close));
+    // Number(null) is 0, so a missing close would otherwise count as a price
+    // and an all-missing series would look loaded rather than failed.
+    .filter((p) => Number.isFinite(p.close) && p.close > 0);
 
 const formatPct = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value)

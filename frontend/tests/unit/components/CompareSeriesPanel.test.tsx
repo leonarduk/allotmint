@@ -161,4 +161,39 @@ describe("InstrumentDetail series comparison", () => {
     );
     expect(screen.queryByLabelText(/Compare with/)).not.toBeInTheDocument();
   });
+  it("flags a ticker whose prices are all missing", async () => {
+    mockDetail.mockImplementation((ticker: string) =>
+      Promise.resolve(
+        ticker === "ABC.L"
+          ? series(100)
+          : {
+              prices: [{ date: "2024-01-01", close: null, close_gbp: null }],
+              positions: [],
+              currency: "GBP",
+            },
+      ),
+    );
+    renderDetail();
+
+    await userEvent.type(
+      await screen.findByLabelText(/Compare with/),
+      "NUL.L{Enter}",
+    );
+
+    expect(
+      await screen.findByTitle("Could not load this series"),
+    ).toHaveTextContent("NUL.L");
+  });
+
+  it("stops accepting tickers at the series cap", async () => {
+    renderDetail();
+    const input = await screen.findByLabelText(/Compare with/);
+
+    for (const tk of ["B.L", "C.L", "D.L", "E.L", "F.L"]) {
+      await userEvent.type(input, `${tk}{Enter}`);
+    }
+
+    expect(input).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+  });
 });

@@ -125,11 +125,28 @@ def test_unreadable_settings_are_not_overwritten(client, tmp_path):
     assert settings.read_text() == "{not json"
 
 
-def test_malformed_stored_schedule_is_a_conflict_not_a_crash(client, tmp_path):
+def _bad_field(section: dict) -> None:
+    section["schedules"][0]["tranches"] = "twelve"
+
+
+def _non_dict_entry(section: dict) -> None:
+    section["schedules"].append("not a schedule")
+
+
+def _schedules_not_a_list(section: dict) -> None:
+    section["schedules"] = {"0": section["schedules"][0]}
+
+
+def _schedules_a_string(section: dict) -> None:
+    section["schedules"] = "oops"
+
+
+@pytest.mark.parametrize("corrupt", [_bad_field, _non_dict_entry, _schedules_not_a_list, _schedules_a_string])
+def test_malformed_stored_schedule_is_a_conflict_not_a_crash(client, tmp_path, corrupt):
     created = _create(client)
     settings = tmp_path / "accounts" / "alex" / "settings.json"
     data = json.loads(settings.read_text())
-    data["cash_deployment"]["schedules"][0]["tranches"] = "twelve"
+    corrupt(data["cash_deployment"])
     before = json.dumps(data)
     settings.write_text(before)
     url = f"/cash-deployment/alex/schedules/{created['id']}"
@@ -139,6 +156,22 @@ def test_malformed_stored_schedule_is_a_conflict_not_a_crash(client, tmp_path):
     assert client.put(url, json=SCHEDULE).status_code == 409
     assert client.delete(url).status_code == 409
     assert settings.read_text() == before
+
+
+def test_section_that_is_not_an_object_is_not_overwritten(client, tmp_path):
+    settings = tmp_path / "accounts" / "alex" / "settings.json"
+    settings.write_text(json.dumps({"cash_deployment": ["x"]}))
+    assert client.get("/cash-deployment/alex").status_code == 409
+    assert client.post("/cash-deployment/alex/schedules", json=SCHEDULE).status_code == 409
+    assert json.loads(settings.read_text()) == {"cash_deployment": ["x"]}
+
+
+def test_absent_or_null_schedules_read_as_empty(client, tmp_path):
+    settings = tmp_path / "accounts" / "alex" / "settings.json"
+    settings.write_text(json.dumps({"cash_deployment": {"schedules": None}}))
+    assert client.get("/cash-deployment/alex").json()["schedules"] == []
+    settings.write_text(json.dumps({"cash_deployment": None}))
+    assert client.get("/cash-deployment/alex").json()["schedules"] == []
 
 
 def test_run_is_callable_without_http(tmp_path, monkeypatch):

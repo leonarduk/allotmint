@@ -110,9 +110,14 @@ def _read(owner: str, accounts_root: Optional[Path]) -> tuple[Path, dict[str, An
     path = settings_path(owner, accounts_root)
     data = read_settings(path)
     section = data.get(SETTINGS_KEY)
-    raw = section.get(SCHEDULES_KEY) if isinstance(section, dict) else None
+    if section is not None and not isinstance(section, dict):
+        raise SettingsUnreadableError(f"Cash deployment settings in {path.name} are not an object")
+    raw = section.get(SCHEDULES_KEY) if section else None
+    if raw is not None and not isinstance(raw, list):
+        raise SettingsUnreadableError(f"Cash deployment schedules in {path.name} are not a list")
     try:
-        schedules = [DeploymentSchedule.model_validate(item) for item in raw if isinstance(item, dict)] if raw else []
+        # A non-dict entry fails validation too, so nothing is silently dropped on the next write.
+        schedules = [DeploymentSchedule.model_validate(item) for item in raw or []]
     except ValidationError as exc:
         raise SettingsUnreadableError(f"Invalid cash deployment schedule in {path.name}: {exc}") from exc
     return path, data, schedules

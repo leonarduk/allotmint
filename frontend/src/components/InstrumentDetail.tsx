@@ -1050,7 +1050,9 @@ export function InstrumentDetail({
           {t("instrumentDetail.intraday")}
         </label>
       </div>
-      {priceMode === "close" && !loading && (
+      {/* Comparisons are rebased against this instrument, so without its
+          prices there is nothing to compare to. */}
+      {priceMode === "close" && !loading && rawPrices.length > 0 && (
         <CompareSeriesPanel
           ticker={ticker}
           days={days}

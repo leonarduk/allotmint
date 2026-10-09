@@ -110,4 +110,55 @@ describe("InstrumentDetail series comparison", () => {
 
     expect(screen.queryByLabelText("Remove ABC.L")).not.toBeInTheDocument();
   });
+  it("flags a ticker that fails to load and keeps drawing the rest", async () => {
+    mockDetail.mockImplementation((ticker: string) =>
+      ticker === "BAD.L"
+        ? Promise.reject(new Error("boom"))
+        : Promise.resolve(series(ticker === "ABC.L" ? 100 : 20)),
+    );
+    const { container } = renderDetail();
+    const input = await screen.findByLabelText(/Compare with/);
+
+    await userEvent.type(input, "BAD.L{Enter}");
+    await userEvent.type(input, "XYZ.L{Enter}");
+
+    expect(
+      await screen.findByTitle("Could not load this series"),
+    ).toHaveTextContent("BAD.L");
+    await vi.waitFor(() => expect(lineCount(container)).toBe(2));
+  });
+
+  it("refetches compared tickers when the range changes", async () => {
+    renderDetail();
+    await userEvent.type(
+      await screen.findByLabelText(/Compare with/),
+      "XYZ.L{Enter}",
+    );
+    await screen.findByText("ABC.L");
+
+    await userEvent.selectOptions(screen.getByLabelText(/Range/), "30");
+
+    await vi.waitFor(() =>
+      expect(mockDetail).toHaveBeenCalledWith(
+        "XYZ.L",
+        30,
+        expect.any(AbortSignal),
+      ),
+    );
+  });
+
+  it("offers no comparison when the instrument itself has no prices", async () => {
+    mockDetail.mockResolvedValue({
+      prices: [],
+      positions: [],
+      currency: "GBP",
+    });
+    renderDetail();
+
+    // Wait for loading to finish, or the panel is absent for the wrong reason.
+    await vi.waitFor(() =>
+      expect(screen.queryAllByRole("status")).toHaveLength(0),
+    );
+    expect(screen.queryByLabelText(/Compare with/)).not.toBeInTheDocument();
+  });
 });

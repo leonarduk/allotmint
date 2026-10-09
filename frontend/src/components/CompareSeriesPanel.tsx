@@ -82,6 +82,12 @@ function useTickerSuggestions(query: string) {
   return suggestions;
 }
 
+/** Drop cached histories for other ranges so switching range never piles up. */
+const forRange = (cache: Record<string, Loaded>, days: number) =>
+  Object.fromEntries(
+    Object.entries(cache).filter(([key]) => key.startsWith(`${days}:`)),
+  );
+
 /**
  * Fetch each compared ticker's history for the selected range.  Results are
  * keyed by range too, so changing the range refetches rather than reusing.
@@ -97,18 +103,22 @@ function useCompareHistories(tickers: string[], days: number) {
         .then((d) => {
           const points = toPoints((d as { prices?: RawPrice[] }).prices);
           setCache((prev) => ({
-            ...prev,
+            ...forRange(prev, days),
             [key]: points.length ? { points } : { error: "no data" },
           }));
         })
         .catch((e: Error) => {
           if (controller.signal.aborted) return;
-          setCache((prev) => ({ ...prev, [key]: { error: e.message } }));
+          setCache((prev) => ({
+            ...forRange(prev, days),
+            [key]: { error: e.message },
+          }));
         });
     }
     return () => controller.abort();
-    // `cache` is deliberately omitted: it only skips tickers already in hand,
-    // and re-running on every arrival would abort the requests still in flight.
+    // `cache` is deliberately omitted: it only skips tickers already in hand.
+    // As a dependency, every arrival would re-run the effect, whose cleanup
+    // aborts the other tickers' requests that are still in flight.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tickers, days]);
   return useMemo(
@@ -152,13 +162,14 @@ export function CompareSeriesPanel({
   const series = useMemo(
     () =>
       [
-        { ticker, points: basePoints, color: COMPARE_COLORS[0] },
+        { ticker, points: basePoints, color: COMPARE_COLORS[0], isBase: true },
         ...tickers.map((tk, i) => {
           const hit = loaded[tk];
           return {
             ticker: tk,
             points: hit && "points" in hit ? hit.points : [],
             color: COMPARE_COLORS[(i + 1) % COMPARE_COLORS.length],
+            isBase: false,
           };
         }),
       ].filter((s) => s.points.length > 0),
@@ -271,7 +282,7 @@ export function CompareSeriesPanel({
                     dataKey={compareKey(i)}
                     name={s.ticker}
                     stroke={s.color}
-                    strokeWidth={i === 0 ? 2 : 1.5}
+                    strokeWidth={s.isBase ? 2 : 1.5}
                     dot={false}
                     connectNulls
                   />

@@ -6,7 +6,7 @@ import pytest
 
 from backend.common.investment_plan import PLAN_CLASSES
 from backend.retirement.long_history import RETURN_BLOCKS
-from backend.retirement.mapping import CLASS_BLOCKS, blocks_used, data_notes, plan_real_returns
+from backend.retirement.mapping import CLASS_BLOCKS, _year_ranges, blocks_used, data_notes, plan_real_returns
 
 #: The documented table, pinned so any change to it is deliberate.
 EXPECTED_TABLE = {
@@ -79,3 +79,9 @@ def test_weights_normalised(synthetic_history):
     a = plan_real_returns({"cash": 60, "intermediate_gilts": 40}, synthetic_history)
     b = plan_real_returns({"cash": 3, "intermediate_gilts": 2}, synthetic_history)
     assert a.real_returns == b.real_returns
+
+
+def test_year_ranges():
+    assert _year_ranges([]) == ""
+    assert _year_ranges([1990]) == "1990"
+    assert _year_ranges([1993, 1990, 1991]) == "1990-1991, 1993"

@@ -154,16 +154,14 @@ def plan_real_returns(weights_pct: Mapping[str, float], history: LongHistory) ->
 
 
 def _year_ranges(years: list[int]) -> str:
-    ranges: list[str] = []
-    start = prev = years[0]
-    for year in years[1:] + [None]:  # type: ignore[list-item]
-        if year is not None and year == prev + 1:
-            prev = year
-            continue
-        ranges.append(str(start) if start == prev else f"{start}-{prev}")
-        if year is not None:
-            start = prev = year
-    return ", ".join(ranges)
+    """``[1990, 1991, 1993]`` -> ``"1990-1991, 1993"``; empty for no years."""
+    runs: list[list[int]] = []
+    for year in sorted(years):
+        if runs and year == runs[-1][1] + 1:
+            runs[-1][1] = year
+        else:
+            runs.append([year, year])
+    return ", ".join(str(a) if a == b else f"{a}-{b}" for a, b in runs)
 
 
 def data_notes(returns: PlanReturns) -> list[str]:

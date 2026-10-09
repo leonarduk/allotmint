@@ -89,8 +89,9 @@ def test_floor_counts_windows_dipping_below():
     result = simulate(SMALL, DrawdownInputs(1000, 2), survival_levels=(100,), floor_gbp=500)
     floor = result["floor"]
     assert floor["at_income_gbp"] == 473.68
-    # End of year 1 pots: start 1: (1000-473.68)*1.1 = 578.95; start 2: 526.32*0.9 = 473.69 (< 500);
-    # start 3: 526.32; then each window pays its last year.
+    # min_pot is the lowest end-of-year pot over the whole window. After year 1: start 1 has
+    # (1000-473.68)*1.1 = 578.95, start 2 has 526.32*0.9 = 473.69, start 3 has 526.32; year 2 then
+    # pays 473.68 out of each, leaving every window below 500 at some point.
     assert floor["windows_below_floor"] == 3
     assert floor["windows_total"] == 3
 
@@ -101,6 +102,10 @@ def test_income_at_survival_rules():
     assert income_at_survival(incomes, 75) == 500.0
     assert income_at_survival(incomes, 50) == 600.0
     assert income_at_survival(incomes, 1) == 700.0
+    # Non-divisor: 90% of 3 windows rounds up to all 3 (at least 90% must survive).
+    assert income_at_survival([400.0, 500.0, 600.0], 90) == 400.0
+    # 0.95 * 20 is 18.999... in floats; it must still need 19 windows, not 20.
+    assert income_at_survival([float(i) for i in range(1, 21)], 95) == 2.0
     with pytest.raises(ValueError):
         income_at_survival(incomes, 0)
     with pytest.raises(ValueError):

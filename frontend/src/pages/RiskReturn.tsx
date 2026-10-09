@@ -36,6 +36,7 @@ import {
   parseStoredBenchmarks,
   plottable,
   removeBenchmark,
+  seriesDetails,
   sideOfAverage,
   type AverageLine,
   type Benchmark,
@@ -126,7 +127,14 @@ function formatPct(value: number | null): string {
 }
 
 interface TooltipEntry {
-  payload?: { label: string; x: number; y: number; isAverage?: boolean };
+  payload?: {
+    label: string;
+    x: number;
+    y: number;
+    name?: string | null;
+    sector?: string | null;
+    isAverage?: boolean;
+  };
 }
 
 function PointTooltip({
@@ -163,6 +171,8 @@ function PointTooltip({
       }}
     >
       <strong>{point.label}</strong>
+      {point.name && <div>{point.name}</div>}
+      {point.sector && <div>{point.sector}</div>}
       <div>
         {returnLabel}: {formatPct(point.y)}
       </div>
@@ -181,6 +191,7 @@ function SeriesToggle({
   onRemove,
   unavailableLabel,
   removeLabel,
+  indexLabel,
 }: {
   series: ChartSeries;
   hidden: boolean;
@@ -188,10 +199,16 @@ function SeriesToggle({
   onRemove?: () => void;
   unavailableLabel: string | null;
   removeLabel: string;
+  indexLabel: string;
 }) {
+  const { name, sector } = seriesDetails(series, indexLabel);
+  const hoverText = [series.label, name, sector].filter(Boolean).join('\n');
   return (
     <li style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+      <label
+        title={hoverText}
+        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+      >
         <input type="checkbox" checked={!hidden} onChange={onToggle} />
         <span
           aria-hidden="true"
@@ -318,6 +335,7 @@ export default function RiskReturn() {
   const returnLabel =
     days > 365 ? t('riskReturn.annualisedReturn') : t('riskReturn.return');
   const volatilityLabel = t('riskReturn.volatility');
+  const indexLabel = t('riskReturn.marketIndex');
   const availablePresets = PRESET_BENCHMARKS.filter(
     (p) => !benchmarks.some((b) => b.ticker === p.ticker)
   );
@@ -457,7 +475,13 @@ export default function RiskReturn() {
                 key={s.id}
                 name={s.label}
                 data={[
-                  { x: s.volatilityPct, y: s.returnPct, label: s.label, z: 1 },
+                  {
+                    x: s.volatilityPct,
+                    y: s.returnPct,
+                    label: s.label,
+                    ...seriesDetails(s, indexLabel),
+                    z: 1,
+                  },
                 ]}
                 fill={s.color}
                 shape={s.kind === 'benchmark' ? 'diamond' : 'circle'}
@@ -504,6 +528,7 @@ export default function RiskReturn() {
               onToggle={() => toggle(s.id)}
               unavailableLabel={unavailable(s)}
               removeLabel={t('riskReturn.remove')}
+              indexLabel={indexLabel}
             />
           ))}
         </ul>
@@ -531,6 +556,7 @@ export default function RiskReturn() {
               }
               unavailableLabel={unavailable(s)}
               removeLabel={t('riskReturn.remove')}
+              indexLabel={indexLabel}
             />
           ))}
         </ul>

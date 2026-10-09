@@ -155,6 +155,32 @@ def test_non_index_benchmark_uses_cached_gbp_closes(monkeypatch):
     assert seen == ["VWRL.L"]
 
 
+def test_listed_benchmark_carries_name_and_sector(monkeypatch):
+    monkeypatch.setattr(lp, "load_gbp_closes", lambda key, start, end: _CLOSES)
+    monkeypatch.setattr(
+        rr.instruments,
+        "list_instruments",
+        lambda: [{"ticker": "FCIT.L", "name": "F&C Investment Trust", "sector": "Global"}],
+    )
+
+    result = rr.compute_benchmark_risk_return("FCIT.L", DAYS, pricing_date=END)
+
+    assert result is not None
+    assert result["name"] == "F&C Investment Trust"
+    assert result["sector"] == "Global"
+
+
+def test_index_benchmark_has_no_name_or_sector(monkeypatch):
+    monkeypatch.setattr(rr, "_index_closes", lambda symbol, start, end: _CLOSES)
+    monkeypatch.setattr(rr.instruments, "list_instruments", lambda: pytest.fail("catalogue read for an index"))
+
+    result = rr.compute_benchmark_risk_return("^FTSE", DAYS, pricing_date=END)
+
+    assert result is not None
+    assert result["name"] is None
+    assert result["sector"] is None
+
+
 def test_index_closes_are_cached_only_when_present(monkeypatch):
     downloads = []
 

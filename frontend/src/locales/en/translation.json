@@ -3824,6 +3824,7 @@
     "portfolioSeries": "Portfolio",
     "benchmarks": "Benchmarks",
     "remove": "Remove",
+    "marketIndex": "Market index",
     "addTicker": "Add index or ticker",
     "add": "Add",
     "addPreset": "Add a common index…",

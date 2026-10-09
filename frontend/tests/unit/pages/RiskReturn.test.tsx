@@ -95,6 +95,41 @@ describe('RiskReturn page', () => {
     );
   });
 
+  it('shows name and sector when hovering a legend entry', async () => {
+    window.localStorage.setItem(
+      'riskReturn.benchmarks',
+      JSON.stringify([
+        { ticker: '^FTSE', label: 'FTSE 100' },
+        { ticker: 'FCIT.L', label: 'FCIT.L' },
+      ])
+    );
+    benchmarkMock.mockImplementation((ticker: string, days: number) =>
+      Promise.resolve({
+        ticker,
+        days,
+        start: '',
+        end: '',
+        name: ticker === 'FCIT.L' ? 'F&C Investment Trust' : null,
+        sector: ticker === 'FCIT.L' ? 'Global' : null,
+        period_return: 0.08,
+        annualised_return: null,
+        volatility: 0.13,
+      })
+    );
+    render(<RiskReturn />);
+
+    const fcit = await screen.findByRole('checkbox', { name: 'FCIT.L' });
+    await waitFor(() =>
+      expect(fcit.closest('label')).toHaveAttribute(
+        'title',
+        'FCIT.L\nF&C Investment Trust\nGlobal'
+      )
+    );
+    expect(
+      screen.getByRole('checkbox', { name: 'FTSE 100' }).closest('label')
+    ).toHaveAttribute('title', 'FTSE 100\nMarket index');
+  });
+
   it('hides a series when unticked and remembers it', async () => {
     render(<RiskReturn />);
 

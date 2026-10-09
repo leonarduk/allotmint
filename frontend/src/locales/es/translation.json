@@ -3831,6 +3831,7 @@
     "portfolioSeries": "Cartera",
     "benchmarks": "Índices de referencia",
     "remove": "Quitar",
+    "marketIndex": "Índice de mercado",
     "addTicker": "Añadir índice o ticker",
     "add": "Añadir",
     "addPreset": "Añadir un índice común…",

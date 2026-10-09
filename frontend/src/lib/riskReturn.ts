@@ -37,6 +37,9 @@ export interface ChartSeries {
   /** Return in percent: annualised for windows over a year, else the period total. */
   returnPct: number | null;
   volatilityPct: number | null;
+  /** Instrument name and sector, known for listed benchmark tickers. */
+  name?: string | null;
+  sector?: string | null;
 }
 
 // Categorical palette: distinct hues readable on light and dark backgrounds.
@@ -131,8 +134,25 @@ export function buildBenchmarkSeries(
       color: seriesColor(colorOffset + index),
       returnPct: result ? returnPct(result, days) : null,
       volatilityPct: result ? pct(result.volatility) : null,
+      name: result?.name ?? null,
+      sector: result?.sector ?? null,
     };
   });
+}
+
+/**
+ * Name and sector shown when hovering a series' point or legend entry. The
+ * name is left out when it only repeats the label; an index symbol (``^``)
+ * has no sector, so it is described as ``indexLabel``.
+ */
+export function seriesDetails(
+  series: ChartSeries,
+  indexLabel: string
+): { name: string | null; sector: string | null } {
+  const name = series.name && series.name !== series.label ? series.name : null;
+  const isIndex =
+    series.kind === 'benchmark' && series.id.startsWith(benchmarkSeriesId('^'));
+  return { name, sector: series.sector || (isIndex ? indexLabel : null) };
 }
 
 /** Series that can be drawn: both coordinates known. */

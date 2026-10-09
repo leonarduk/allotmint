@@ -14,7 +14,11 @@ Two parts, per account and in total:
   value is counted in ``trades_without_fee_data``: its cost is unknown, not 0.
 
 ``FEES``/``FEES_REFUND`` rows carry ``amount_minor`` (pence); trade ``fees``
-are GBP, as :mod:`backend.common.holdings_rebuild` reads them.
+are GBP, as :mod:`backend.common.holdings_rebuild` reads them. The row *type*
+sets the direction and the magnitude is used, as ``holdings_rebuild`` does
+with its ``_CHARGES`` signs, so imports that store a fee as negative and ones
+that store it as positive count the same. The percentage is of the whole
+account value, cash included, because fees are paid on the whole account.
 """
 
 from __future__ import annotations

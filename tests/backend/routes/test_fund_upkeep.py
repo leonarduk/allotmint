@@ -14,7 +14,7 @@ from backend.common import instruments
 from backend.common.fund_charges import ongoing_charge_pct
 from backend.config import config
 from backend.data_quality.audit import read_audit
-from backend.fund_upkeep import bot, proposals
+from backend.fund_upkeep import bot, look_through_upkeep, proposals
 from tests.backend.fund_upkeep.fixtures import make_catalogue, stored_meta
 
 DOC_URL = "https://issuer.example.com/docs/fundx-kiid.pdf"
@@ -158,3 +158,22 @@ def test_settings_resolve_the_owner_like_the_bot_run(client, monkeypatch, tmp_pa
     # bot.run is called with the canonical directory name.
     assert bot.get_settings("Alex")["thresholds"]["single_stock_pct"] == 7.5
     assert http.get("/fund-upkeep/ALEX/settings").json()["thresholds"]["single_stock_pct"] == 7.5
+
+
+def test_concentration_page_read_never_fetches_or_stores(client, monkeypatch):
+    http, _root = client
+    monkeypatch.setattr(routes, "resolve_owner_directory", lambda _root, _owner: None)
+    monkeypatch.setattr(routes.portfolio_mod, "build_owner_portfolio", lambda owner, root: {"accounts": []})
+    # A stub exposure: the real one builds portfolio_utils' process-wide cache.
+    monkeypatch.setattr(bot, "compute_look_through", lambda _p: {"total_value_gbp": 0.0, "holdings": []})
+
+    def must_not_run(*_args, **_kwargs):
+        raise AssertionError("a page read refreshed look-through data")
+
+    monkeypatch.setattr(look_through_upkeep, "refresh_stale", must_not_run)
+
+    response = http.get("/fund-upkeep/alex/concentration")
+
+    assert response.status_code == 200
+    assert response.json()["compared_with_previous_run"] is False
+    assert bot.previous_snapshot("alex") is None  # only a bot run stores one

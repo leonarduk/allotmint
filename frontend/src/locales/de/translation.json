@@ -94,6 +94,8 @@
     "viewAlertsLink": "Letzte Alarme anzeigen"
   },
   "allocation": {
+    "accountCash": "{{owner}} {{account}}: {{name}}",
+    "showHoldings": "Positionen anzeigen",
     "allocationDescription": "Die Allokation zeigt, wie sich der aktuelle Portfoliowert verteilt.",
     "contributionDescription": "Der Beitrag zeigt, welche Teile des Portfolios Gewinne und Verluste verursacht haben.",
     "currency": "Währungen",
@@ -129,6 +131,7 @@
       "alertsettings": "Alarm-Einstellungen",
       "allocation": "Allokation",
       "awscosts": "AWS-Kosten",
+      "bots": "Bots",
       "compliance": "Compliance-Warnungen",
       "dataadmin": "Datenverwaltung",
       "dataexplorer": "Datei-Explorer",
@@ -3251,7 +3254,9 @@
     "addAccount": "Konto hinzufügen",
     "cancelImport": "Import abbrechen",
     "viewCompliance": "Compliance-Warnungen anzeigen",
-    "complianceError": "Compliance-Warnungen konnten nicht geladen werden."
+    "complianceError": "Compliance-Warnungen konnten nicht geladen werden.",
+    "reconcileStatement": "Kontoauszug abgleichen",
+    "closeReconcile": "Kontoauszugsabgleich schließen"
   },
   "topMoversSummary": {
     "noGroup": "Keine Gruppe ausgewählt.",
@@ -3702,5 +3707,97 @@
     "aboveAverage": "Über der Durchschnittslinie: mehr Rendite je Einheit Volatilität",
     "belowAverage": "Unter der Durchschnittslinie: weniger Rendite je Einheit Volatilität",
     "onAverage": "Auf der Durchschnittslinie"
+  },
+  "bots": {
+    "title": "Bots",
+    "intro": "Alle automatischen Jobs und KI-Agenten der App: wann sie zuletzt liefen, was passiert ist und ihre Einstellungen.",
+    "loadError": "Bots konnten nicht geladen werden.",
+    "disabled": "deaktiviert",
+    "columns": {
+      "bot": "Bot",
+      "kind": "Art",
+      "lastRun": "Letzter Lauf",
+      "result": "Ergebnis",
+      "nextRun": "Nächster Lauf"
+    },
+    "kind": {
+      "ai": "KI-Agent",
+      "rules": "Regeln",
+      "job": "Job"
+    },
+    "status": {
+      "ok": "OK",
+      "partial": "Teilweise",
+      "failed": "Fehlgeschlagen",
+      "skipped": "Übersprungen",
+      "running": "Läuft",
+      "never": "Nie gelaufen"
+    },
+    "trigger": {
+      "schedule": "Geplant",
+      "manual": "Jetzt ausführen",
+      "invoke": "Direkt",
+      "event": "Bei Ereignis"
+    },
+    "scope": {
+      "system": "gesamtes System",
+      "owner": "pro Eigentümer"
+    },
+    "scheduleLine": "Zeitplan: {{schedule}} · Bereich: {{scope}}",
+    "onEvent": "läuft bei einem Ereignis",
+    "runNow": "Jetzt ausführen",
+    "running": "Läuft…",
+    "settings": "Einstellungen",
+    "saveSettings": "Einstellungen speichern",
+    "saved": "Einstellungen gespeichert.",
+    "adminOnly": "Nur ein Administrator kann Einstellungen ändern oder einen Lauf starten.",
+    "history": "Laufverlauf",
+    "noRuns": "Noch keine Läufe aufgezeichnet.",
+    "report": "Bericht",
+    "duration": "{{seconds}} s",
+    "usage": "Modell {{model}} · {{tokensIn}} ein / {{tokensOut}} aus Tokens · ${{cost}}",
+    "pollTimeout": "Warten auf diesen Lauf beendet: Er ist noch als laufend markiert. Prüfen Sie den Laufverlauf später."
+  },
+  "statementReconcile": {
+    "title": "Kontoauszug abgleichen",
+    "intro": "Laden Sie einen Kontoauszug oder eine Abrechnung Ihres Brokers (PDF oder CSV) hoch, um sie mit Ihren erfassten Transaktionen zu vergleichen. Erst wenn Sie einen Vorschlag annehmen, wird etwas geändert.",
+    "cloudNotice": "Der Text des Dokuments wird zum Lesen an den konfigurierten KI-Anbieter ({{provider}}) gesendet. Die Datei selbst wird nicht gespeichert.",
+    "localNotice": "Das Dokument wird vom lokalen KI-Modell ({{provider}}) gelesen und verlässt diesen Rechner nicht. Die Datei selbst wird nicht gespeichert.",
+    "account": "Konto",
+    "file": "Auszug (PDF oder CSV)",
+    "explainUnmatched": "Den Assistenten nicht zugeordnete Zeilen erklären lassen",
+    "reconcile": "Kontoauszug abgleichen",
+    "reconciling": "Auszug wird gelesen…",
+    "failed": "Der Auszug konnte nicht abgeglichen werden.",
+    "resultTitle": "Kontoauszugsabgleich",
+    "summary": "{{rows}} Zeilen gelesen · {{matched}} zugeordnet · {{diffs}} Abweichungen",
+    "warnings": "Warnungen",
+    "noDiffs": "Der Auszug stimmt mit dem Journal überein.",
+    "explanation": "Erklärung des Assistenten",
+    "accept": "Annehmen",
+    "confirm": "Änderung bestätigen",
+    "cancel": "Abbrechen",
+    "applying": "Wird übernommen…",
+    "applied": "Übernommen",
+    "applyFailed": "Diese Änderung konnte nicht übernommen werden.",
+    "dismiss": "Verwerfen",
+    "dismissReason": "Grund für das Verwerfen",
+    "dismissedWith": "Verworfen: {{reason}}",
+    "columns": {
+      "kind": "Abweichung",
+      "date": "Datum",
+      "detail": "Details",
+      "statement": "Auszug",
+      "ledger": "Journal",
+      "action": "Aktion"
+    },
+    "kinds": {
+      "missing_from_ledger": "Fehlt im Journal",
+      "missing_from_statement": "Nicht im Auszug",
+      "amount_mismatch": "Betrag weicht ab",
+      "fee_mismatch": "Gebühr weicht ab",
+      "cash_mismatch": "Schlussbestand Bargeld weicht ab",
+      "units_mismatch": "Schlussbestand Stück weicht ab"
+    }
   }
 }

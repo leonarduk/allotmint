@@ -46,7 +46,7 @@ def _digest():
 
 @pytest.mark.parametrize(
     "text",
-    ["£12,345.67", "£ 5k", "$300", "€1.5m", "1,200 GBP", "-£40"],
+    ["£12,345.67", "£ 5k", "$300", "€1.5m", "1,200 GBP", "-£40", "GBP 5,000", "usd 12.50", "EUR1.2m"],
 )
 def test_amounts_are_redacted(text):
     assert digest_delivery.redact_amounts(f"x {text} y").count(digest_delivery.HIDDEN_AMOUNT) == 1

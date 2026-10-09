@@ -28,8 +28,11 @@ HIDDEN_AMOUNT = "[amount hidden]"
 
 Sender = Callable[[str], None]
 
+_NUM = r"-?\d[\d,]*(?:\.\d+)?(?:\s?(?:k|m|bn)\b)?"
+_CODE = r"(?:GBP|GBX|USD|EUR)"
+# Symbol first (£5,000), code after (5,000 GBP) or code first (GBP 5,000).
 _AMOUNT = re.compile(
-    r"(?:[£$€]\s?-?\d[\d,]*(?:\.\d+)?(?:\s?(?:k|m|bn)\b)?)" r"|(?:\b-?\d[\d,]*(?:\.\d+)?\s?(?:GBP|GBX|USD|EUR)\b)",
+    rf"(?:[£$€]\s?{_NUM})|(?:\b{_CODE}\s?{_NUM})|(?:\b{_NUM}\s?{_CODE}\b)",
     re.IGNORECASE,
 )
 
@@ -84,6 +87,9 @@ def send_immediate_alerts(
 ) -> List[str]:
     """Alert now for items whose bot is set to ``alert_immediately_for`` their severity.
 
+    ``items`` must be every open item (``digest.current_items``), not the capped
+    digest list: keys missing from it are treated as closed and forgotten.
+
     Each ``dedupe_key`` alerts once while it stays open; the items still appear
     in the digest so there is one record. Returns the keys alerted this call.
     """
@@ -107,7 +113,9 @@ def send_immediate_alerts(
         sent.append(item.dedupe_key)
     open_keys = {item.dedupe_key for item in items}
     # Forget keys that closed, so a finding that reopens alerts again.
-    _save_alerted_keys(owner, (already | set(sent)) & open_keys)
+    keep = (already | set(sent)) & open_keys
+    if keep != already:
+        _save_alerted_keys(owner, keep)
     return sent
 
 

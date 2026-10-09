@@ -115,10 +115,15 @@ def test_other_owner_cannot_read_digest(data_root, auth_on):
 
 
 def test_system_items_hidden_from_non_admins(data_root, auth_on):
-    _save(items=[_entry("alex:own"), _entry("steward:system", owner=None)])
+    digest = _save(items=[_entry("alex:own"), _entry("steward:system", owner=None)])
+    digest.resolved = [_entry("alex:gone", status="resolved"), _entry("steward:gone", owner=None, status="resolved")]
+    digest_store.save_digest(digest)
     client = _as(_client(data_root), "alex")
-    keys = [i["dedupe_key"] for i in client.get("/bots/digest/alex/latest").json()["items"]]
-    assert keys == ["alex:own"]
+    body = client.get("/bots/digest/alex/latest").json()
+    assert [i["dedupe_key"] for i in body["items"]] == ["alex:own"]
+    assert [i["dedupe_key"] for i in body["resolved"]] == ["alex:gone"]
+    history = client.get("/bots/digest/alex/history").json()["digests"][0]
+    assert [i["dedupe_key"] for i in history["resolved"]] == ["alex:gone"]
     assert route.is_admin("admin@example.com") is True
     assert route.is_admin("alex") is False
 

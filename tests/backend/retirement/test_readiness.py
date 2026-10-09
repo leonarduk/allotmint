@@ -195,5 +195,14 @@ def test_storage_failure_is_reported_not_raised(env, monkeypatch):
     monkeypatch.setattr(history, "save_run", fail)
     report = env.run(dt.date(2030, 1, 15))
     assert report["storage"]["stored"] is False
-    assert "read-only" in report["storage"]["reason"]
+    assert report["storage"]["reason"] == "The report could not be stored; see the server log."
+    assert "read-only" not in report["storage"]["reason"]
     assert report["headline"]["income_gbp"] > 0
+
+
+def test_missing_state_pension_is_stated(env):
+    # SETTINGS supplies a state pension (resolve() ignores None overrides), so clear it with 0.
+    report = env.run(dt.date(2030, 1, 15), state_pension_annual=0.0)
+    assert readiness.NO_STATE_PENSION_NOTE in report["results"]["data_notes"]
+    with_pension = env.run(dt.date(2030, 1, 15))
+    assert readiness.NO_STATE_PENSION_NOTE not in with_pension["results"]["data_notes"]

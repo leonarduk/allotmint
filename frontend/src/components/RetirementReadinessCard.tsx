@@ -205,7 +205,14 @@ export default function RetirementReadinessCard({ owner }: { owner: string }) {
               {t('retirementReadiness.markets', 'markets')}{' '}
               {money.format(report.attribution.parts_gbp.markets)},{' '}
               {t('retirementReadiness.assumptions', 'assumptions')}{' '}
-              {money.format(report.attribution.parts_gbp.assumptions)})
+              {money.format(report.attribution.parts_gbp.assumptions)}
+              {report.attribution.parts_gbp.data_revision !== 0 && (
+                <>
+                  , {t('retirementReadiness.dataRevision', 'data revisions')}{' '}
+                  {money.format(report.attribution.parts_gbp.data_revision)}
+                </>
+              )}
+              )
             </p>
           )}
           {chartData.length > 1 && (

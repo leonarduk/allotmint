@@ -12,7 +12,7 @@ unavailable and any window touching them is dropped.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Optional
+from typing import Any, Mapping, Optional
 
 from backend.retirement.long_history import LongHistory
 
@@ -86,9 +86,10 @@ def _normalise(weights_pct: Mapping[str, float]) -> dict[str, float]:
 def _class_return(mapping: ClassMapping, history: LongHistory, year: int) -> tuple[Optional[float], bool, str]:
     """(nominal return, used fallback, missing block name) for one class in ``year``."""
     values = {block: history.value(block, year) for block in mapping.blocks}
-    missing = [block for block, value in values.items() if value is None]
+    present = {block: value for block, value in values.items() if value is not None}
+    missing = [block for block in values if block not in present]
     if not missing:
-        return sum(mapping.blocks[b] * values[b] for b in mapping.blocks), False, ""  # type: ignore[operator]
+        return sum(share * present[block] for block, share in mapping.blocks.items()), False, ""
     if mapping.fallback is not None:
         fallback_value = history.value(mapping.fallback, year)
         if fallback_value is not None:
@@ -137,7 +138,7 @@ def plan_real_returns(weights_pct: Mapping[str, float], history: LongHistory) ->
         real[year] = value
         if reasons:
             unavailable[year] = reasons
-    proxies = [
+    proxies: list[dict[str, Any]] = [
         {"class": key, "weight_pct": round(weight * 100, 4), "proxy": CLASS_BLOCKS[key].note}
         for key, weight in weights.items()
         if not CLASS_BLOCKS[key].exact
@@ -145,7 +146,7 @@ def plan_real_returns(weights_pct: Mapping[str, float], history: LongHistory) ->
     return PlanReturns(
         real_returns=real,
         blocks_used=blocks_used(weights),
-        proxy_share_pct=round(sum(p["weight_pct"] for p in proxies), 2),
+        proxy_share_pct=round(sum(float(p["weight_pct"]) for p in proxies), 2),
         proxies=proxies,
         fallback_years=fallback_years,
         unavailable_reasons=unavailable,

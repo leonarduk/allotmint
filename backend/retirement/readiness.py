@@ -41,6 +41,10 @@ ADVISER_NOTE = (
     "Information only, not advice: this shows historical outcomes and arithmetic. Decisions about "
     "drawdown, withdrawal levels and pension tax should be taken with a regulated financial adviser."
 )
+NO_STATE_PENSION_NOTE = (
+    "No state pension is included: state_pension_annual was not set, so the pot pays the whole income "
+    "for life. Set it (e.g. from your gov.uk forecast) to include it from state pension age."
+)
 CPI_FLAG_THRESHOLD_PP = 1.0
 GILT_SERIES = "IUDMNPY"
 
@@ -352,13 +356,16 @@ def run(
         raise ReadinessError(str(exc)) from exc
     forecast = run_forecast(owner, settings, request)
     inputs = build_inputs(forecast, settings, _plan_weights(owner, request))
+    dob = str(forecast["dob"])
     context = {
-        "dob": str(forecast["dob"]),
+        "dob": dob,
         "run_date": run_date,
         "long_history": long_history,
         "load_transactions": load_transactions or _load_transactions,
     }
-    results = evaluate(inputs, context["dob"], run_date, long_history)
+    results = evaluate(inputs, dob, run_date, long_history)
+    if not inputs["state_pension_annual"]:
+        results["data_notes"].append(NO_STATE_PENSION_NOTE)
     if abs(results["projection"]["projected_pot_nominal_gbp"] - float(forecast["projected_pot_gbp"])) > 1.0:
         results["data_notes"].append("The forecast's projected pot differs from the one simulated; check the run date.")
     report: dict[str, Any] = {
@@ -392,8 +399,9 @@ def _store(owner: str, report: Mapping[str, Any]) -> dict:
     try:
         history.save_run(owner, report)
     except (OSError, ClientError, BotoCoreError) as exc:
+        # The detail stays in the server log; the response carries a fixed message.
         logger.warning("Retirement readiness report not stored: %s", sanitise_log_value(exc))
-        return {"stored": False, "reason": f"could not store the report: {exc}"}
+        return {"stored": False, "reason": "The report could not be stored; see the server log."}
     return {"stored": True, "reason": None}
 
 

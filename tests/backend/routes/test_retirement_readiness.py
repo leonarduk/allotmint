@@ -107,10 +107,9 @@ def test_bad_survival_levels_is_400(data_root):
 
 
 def test_unknown_owner_is_rejected(data_root):
-    client = _client(data_root, raise_server_exceptions=False)
+    # The bare test app has no exception handlers, so the domain error itself is asserted.
     with pytest.raises(OwnerNotFoundError):
         _client(data_root).get("/retirement-readiness/nobody/latest")
-    assert client.get("/retirement-readiness/nobody/latest").status_code >= 400
 
 
 def test_owner_access_is_enforced(data_root, monkeypatch):

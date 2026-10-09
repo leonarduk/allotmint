@@ -153,6 +153,33 @@ non-numeric, negative or implausible (over 10%) value is shown as unknown,
 never as 0%. Holdings with no fee data are left out of the average and the
 cost estimate, and the portfolio view says how many were left out.
 
+### Fund data upkeep bot (#10482)
+
+`POST /fund-upkeep/{owner}/run` (or `backend.fund_upkeep.bot.run`) runs the
+upkeep bot for one owner. It refreshes look-through blocks for held funds
+older than `max_age_days` (the same rule as `scripts/refresh_look_through.py`).
+It reports concentration against the owner's thresholds
+(`PUT /fund-upkeep/{owner}/settings`). For held funds with a missing
+`ongoing_charge_pct`, or one whose source document is over a year old, an LLM
+agent with read-only tools looks for the fund's public KIID or factsheet. It
+proposes the charge with that document's URL and date. The agent reads one
+public document per fund; it uses no feed and no logins. A hand-entered
+charge with no recorded source is left alone. Offline mode skips every
+network step.
+
+Proposals wait on the Instrument Admin page. Approving one writes
+`ongoing_charge_pct` and `ongoing_charge_source` (`url`, `document_date`)
+through the instrument admin update. It also adds an audit entry, and you can
+undo the change. A value over the 10% plausibility cap, or one without a
+fetched source and date, is never queued.
+
+The portfolio view also shows the **all-in annual cost**: fund charges plus
+the trade `fees` and `FEES`/`FEES_REFUND` account charges of the last 12
+months. Stamp duty and FX charges count only where the import puts them in
+`fees`, because no separate field records them. Holdings with no charge data
+and trades with no recorded fee are listed as not included, never counted as
+£0.
+
 ## Gaps
 
 The data-quality page (`/data-quality`, Issues and Holdings tabs) reports a

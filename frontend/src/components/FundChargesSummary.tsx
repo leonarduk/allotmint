@@ -17,6 +17,31 @@ const labelStyle = { fontSize: '0.9rem', color: 'var(--summary-card-label)' };
 const valueStyle = { fontSize: '1.2rem', fontWeight: 'bold' } as const;
 const noteStyle = { fontSize: '0.8rem', color: 'var(--summary-card-label)' };
 
+/**
+ * True when no part of the cost is known: every holding lacks a charge and no
+ * fees were paid. ``known_cost_gbp`` is then 0 only because nothing was
+ * counted, so it is shown as unknown rather than as GBP 0 (#10482).
+ */
+function nothingKnown(part: AllInCostPart): boolean {
+  return (
+    part.fund_charges_gbp === null &&
+    part.dealing_fees_gbp + part.account_charges_gbp === 0
+  );
+}
+
+function CostFigure({ part }: { part: AllInCostPart }) {
+  const { t } = useTranslation();
+  const reporting = useReportingCurrency();
+  if (nothingKnown(part)) return <>{t('fundCharges.unknown')}</>;
+  return (
+    <>
+      {reporting.format(part.known_cost_gbp)}
+      {part.known_cost_pct !== null && ` (${percent(part.known_cost_pct)})`}
+      {!part.complete && ` - ${t('fundCharges.partial')}`}
+    </>
+  );
+}
+
 function AllInCostBlock({
   part,
   accounts,
@@ -46,8 +71,7 @@ function AllInCostBlock({
     <div data-testid="fund-charges-all-in">
       <div style={labelStyle}>{t('fundCharges.allInCost')}</div>
       <div style={valueStyle} data-testid="fund-charges-all-in-value">
-        {reporting.format(part.known_cost_gbp)}
-        {part.known_cost_pct !== null && ` (${percent(part.known_cost_pct)})`}
+        <CostFigure part={part} />
       </div>
       <div style={noteStyle}>
         {t('fundCharges.allInBreakdown', {
@@ -70,10 +94,7 @@ function AllInCostBlock({
             {accounts.map((row) => (
               <li key={`${row.owner ?? ''}:${row.account ?? ''}`}>
                 {[row.owner, row.account].filter(Boolean).join(' ')}:{' '}
-                {reporting.format(row.known_cost_gbp)}
-                {row.known_cost_pct !== null &&
-                  ` (${percent(row.known_cost_pct)})`}
-                {!row.complete && ` - ${t('fundCharges.partial')}`}
+                <CostFigure part={row} />
               </li>
             ))}
           </ul>

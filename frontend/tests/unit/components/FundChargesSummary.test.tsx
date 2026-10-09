@@ -122,7 +122,7 @@ describe('FundChargesSummary (#7834)', () => {
       />
     );
     expect(screen.getByTestId('fund-charges-all-in-value')).toHaveTextContent(
-      /94\.95.*\(0\.47%\)/
+      /94\.95.*\(0\.47%\) - incomplete/
     );
     const unknown = screen.getByTestId('fund-charges-all-in-unknown');
     expect(unknown).toHaveTextContent(/4,000.*in 1 holdings with no fee data/);
@@ -161,7 +161,13 @@ describe('FundChargesSummary (#7834)', () => {
     expect(screen.getByTestId('fund-charges-all-in')).toHaveTextContent(
       /Unknown fund charges/
     );
-    expect(screen.getByTestId('fund-charges-all-in-unknown')).toBeInTheDocument();
+    // Nothing was counted, so the headline is unknown, not GBP 0 (#10482).
+    expect(screen.getByTestId('fund-charges-all-in-value')).toHaveTextContent(
+      /^Unknown$/
+    );
+    expect(
+      screen.getByTestId('fund-charges-all-in-unknown')
+    ).toBeInTheDocument();
   });
 
   it('renders nothing without any priced non-cash holdings', () => {

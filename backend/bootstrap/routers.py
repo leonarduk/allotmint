@@ -24,6 +24,7 @@ from backend.routes.data_explorer import router as data_explorer_router
 from backend.routes.data_quality import router as data_quality_router
 from backend.routes.data_quality_admin import router as data_quality_admin_router
 from backend.routes.data_quality_admin import write_router as data_quality_admin_write_router
+from backend.routes.decision_journal import router as decision_journal_router
 from backend.routes.events import router as events_router
 from backend.routes.fund_upkeep import router as fund_upkeep_router
 from backend.routes.fx import router as fx_router
@@ -129,6 +130,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(strategies_router)
     app.include_router(sleeves_router)
     app.include_router(investment_plan_router)
+    app.include_router(decision_journal_router)
     app.include_router(plan_brief_router)
     app.include_router(config_router)
     app.include_router(quotes_router)

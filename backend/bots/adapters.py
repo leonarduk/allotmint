@@ -231,4 +231,5 @@ from backend.trend_watch.bot import TrendWatchBot  # noqa: E402
 register_bot(TrendWatchBot(), replace=True)
 
 # Agents that register themselves from their own module (see the module docstring).
+from backend.decision_journal import bot as _decision_journal_bot  # noqa: E402,F401
 from backend.reconciliation import bot as _statement_reconciliation_bot  # noqa: E402,F401

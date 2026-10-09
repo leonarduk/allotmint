@@ -107,9 +107,16 @@ class PlanAssumption(BaseModel):
     note: Optional[str] = None
 
 
+#: Shape of a decision id: the key a decision-journal entry (#10481) links by.
+DECISION_ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
+
+
 class PlanDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    #: Set when the decision was logged through the decision journal (#10481);
+    #: its snapshot, expectation and reviews live in the journal's sidecar store.
+    id: Optional[str] = Field(default=None, pattern=DECISION_ID_PATTERN)
     date: date
     decision: str = Field(min_length=1)
     alternatives: list[str] = Field(default_factory=list)

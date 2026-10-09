@@ -58,6 +58,11 @@ import type {
   SleeveList,
   InvestmentPlan,
   InvestmentPlanResponse,
+  DecisionDraft,
+  DecisionExpectation,
+  DecisionJournalEntry,
+  DecisionJournalResponse,
+  UnloggedChange,
   PlanBrief,
   PlanBriefSummary,
   RebalancePlan,
@@ -2755,6 +2760,50 @@ export const saveInvestmentPlan = (owner: string, plan: Partial<InvestmentPlan>)
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(plan),
   });
+
+const journalUrl = (owner: string, path = "") =>
+  `${API_BASE}/decision-journal/${encodeURIComponent(owner)}${path}`;
+
+/** The owner's decision journal (#10481): entries with reviews, and unlogged qualifying trades. */
+export const getDecisionJournal = (owner: string) =>
+  fetchJson<DecisionJournalResponse>(journalUrl(owner));
+
+/** A pre-filled draft for a trade (`source_ref`) or a plan target change. Nothing is saved. */
+export const createDecisionDraft = (
+  owner: string,
+  body: { source_ref: string } | { previous_target: Record<string, number>; target: Record<string, number> }
+) => fetchJson<DecisionDraft>(journalUrl(owner, "/drafts"), jsonInit("POST", body));
+
+/** Log a decision the owner has completed and confirmed; appends it to the plan. */
+export const confirmDecision = (
+  owner: string,
+  draft: DecisionDraft & { expectation?: DecisionExpectation }
+) =>
+  fetchJson<DecisionJournalEntry>(
+    journalUrl(owner, "/entries"),
+    jsonInit("POST", { ...draft, confirmed: true })
+  );
+
+/** Stop listing a trade as unlogged. */
+export const dismissDecisionChange = (owner: string, sourceRef: string) =>
+  fetchJson<{ dismissed: string }>(
+    journalUrl(owner, "/dismissed"),
+    jsonInit("POST", { source_ref: sourceRef })
+  );
+
+/** Save the owner's lesson on a review. */
+export const saveDecisionLesson = (owner: string, entryId: string, horizonMonths: number, lesson: string) =>
+  fetchJson<{ lesson: string | null }>(
+    journalUrl(owner, `/entries/${encodeURIComponent(entryId)}/reviews/${horizonMonths}/lesson`),
+    jsonInit("PUT", { lesson })
+  );
+
+/** Run the daily journal pass now for one owner: list unlogged trades and run due reviews. */
+export const runDecisionJournal = (owner: string) =>
+  fetchJson<{ unlogged: UnloggedChange[]; reviews_run: { entry_id: string; horizon_months: number }[] }>(
+    journalUrl(owner, "/run"),
+    { method: "POST" }
+  );
 
 const planBriefUrl = (owner: string, ...parts: string[]) =>
   [`${API_BASE}/plan-brief/${encodeURIComponent(owner)}`, ...parts.map(encodeURIComponent)].join("/");

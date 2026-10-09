@@ -113,11 +113,35 @@ def _clean_text(value: Any) -> str:
     return "(removed: wording read as advice)" if advice_violations(text) else text
 
 
-def _evidence(raw: Any, called: set[str]) -> list[dict[str, Any]]:
-    """Evidence items naming a tool that was actually called this run."""
+_NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
+
+
+def _value_in(value: Any, text: str) -> bool:
+    """``value`` appears in a tool result: numbers by value (2.75 == 2.750), text by substring."""
+    if isinstance(value, bool) or value is None:
+        return str(value).lower() in text.lower() if value is not None else False
+    if isinstance(value, (int, float)):
+        return any(abs(float(n) - float(value)) <= 1e-9 * max(1.0, abs(float(value))) for n in _NUMBER_RE.findall(text))
+    needle = str(value).strip().lower()
+    return bool(needle) and needle in text.lower()
+
+
+def _evidence(raw: Any, tool_log: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Evidence items whose value appears in a successful call to the tool they name.
+
+    A model citing a tool it never called, or a value that tool did not
+    return in this run (within the logged, possibly truncated, result), is
+    not evidence.
+    """
+    results: dict[str, list[str]] = {}
+    for call in tool_log:
+        if not call["is_error"]:
+            results.setdefault(call["tool"], []).append(call["result"])
     items = []
     for item in raw if isinstance(raw, list) else []:
-        if isinstance(item, Mapping) and item.get("tool") in called:
+        if not isinstance(item, Mapping) or item.get("tool") not in results:
+            continue
+        if any(_value_in(item.get("value"), text) for text in results[item["tool"]]):
             items.append({key: item.get(key) for key in ("tool", "field", "value", "source", "as_of")})
     return items
 
@@ -131,8 +155,7 @@ def _calls_for(evidence: list[dict[str, Any]], tool_log: list[dict[str, Any]]) -
 def _verdict(text: str, raw: Optional[Mapping[str, Any]], limits: TurnLimits) -> dict[str, Any]:
     if raw is None:
         return {"trigger": text, "verdict": "cant_evaluate", "reason": "The agent gave no verdict.", "evidence": []}
-    called = {call["tool"] for call in limits.tool_log if not call["is_error"]}
-    evidence = _evidence(raw.get("evidence"), called)
+    evidence = _evidence(raw.get("evidence"), limits.tool_log)
     verdict = raw.get("verdict") if raw.get("verdict") in VERDICTS else "cant_evaluate"
     reason = _clean_text(raw.get("reason"))
     if verdict != "cant_evaluate" and not evidence:
@@ -149,8 +172,7 @@ def _verdict(text: str, raw: Optional[Mapping[str, Any]], limits: TurnLimits) ->
 def _assumption(key: str, raw: Optional[Mapping[str, Any]], limits: TurnLimits) -> dict[str, Any]:
     if raw is None:
         return {"key": key, "status": "cant_check", "reason": "The agent gave no check.", "evidence": []}
-    called = {call["tool"] for call in limits.tool_log if not call["is_error"]}
-    evidence = _evidence(raw.get("evidence"), called)
+    evidence = _evidence(raw.get("evidence"), limits.tool_log)
     status = raw.get("status") if raw.get("status") in ASSUMPTION_STATUSES else "cant_check"
     if status != "cant_check" and not evidence:
         status = "cant_check"

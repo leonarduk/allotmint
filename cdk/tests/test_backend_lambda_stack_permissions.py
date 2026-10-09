@@ -1377,3 +1377,15 @@ def test_plan_brief_lambda_can_read_only_its_recipient_parameter() -> None:
     resources = _resources_for_s3_action(template, role, "ssm:GetParameter")
     assert len(resources) == 1
     assert "parameter/plan-brief-recipients" in resources[0]
+
+
+def test_backend_lambda_can_read_and_write_plan_briefs() -> None:
+    """POST /plan-brief/{owner}/run saves via S3 get/put under plan_briefs/ (no listing needed)."""
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "BackendLambda")
+    for action in ("s3:GetObject", "s3:PutObject"):
+        resources = _resources_for_s3_action(template, role, action)
+        # Bucket-wide "<bucket>/*" (an Fn::Join ending in '/*') or an explicit plan_briefs/* grant.
+        assert any(
+            "'/*'" in r or "/plan_briefs/*" in r for r in resources
+        ), f"{action} does not cover plan_briefs/: {resources}"

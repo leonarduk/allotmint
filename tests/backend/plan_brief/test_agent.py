@@ -199,6 +199,23 @@ def test_evidence_from_a_tool_never_called_is_ignored(plan, facts):
     assert verdict["verdict"] == "cant_evaluate"
 
 
+def test_evidence_value_must_match_what_the_tool_returned(plan, facts):
+    limits = TurnLimits(allowed_tools=agent.READ_ONLY_TOOLS)
+    limits.record_call("get_market_rates", {}, json.dumps({"latest": {"bank_rate": {"value": 4.0}}}), False)
+    [verdict] = agent.interpret_reply(plan, facts, _reply(), limits)["triggers"]
+    # The reply cites 2.75 but the call returned 4.0.
+    assert verdict["verdict"] == "cant_evaluate"
+    assert verdict["evidence"] == []
+
+
+def test_advice_in_a_verdict_reason_is_removed(plan, facts):
+    reply = json.loads(_reply())
+    reply["triggers"][0]["reason"] = "Bank Rate is 2.75%, so you should buy gilts."
+    [verdict] = agent.interpret_reply(plan, facts, json.dumps(reply), _limits_with_rates_call())["triggers"]
+    assert verdict["verdict"] == "fired"
+    assert verdict["reason"] == "(removed: wording read as advice)"
+
+
 def test_errored_calls_are_never_cited_as_evidence(plan, facts):
     limits = _limits_with_rates_call()
     limits.record_call("get_market_rates", {"series": ["gilt_10y"]}, "Tool call failed: boom", True)

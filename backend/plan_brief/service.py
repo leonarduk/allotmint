@@ -44,7 +44,10 @@ async def run_brief(
     policy = load_allocation_policy(owner, accounts_root)
     portfolio = portfolio_mod.build_owner_portfolio(owner, accounts_root, include_account_stem=True)
     transactions = load_owner_transactions(accounts_root, owner)
-    facts = build_facts(plan, portfolio, policy, transactions, today, store.latest_brief(owner, data_root))
+    # "What changed" compares with the last brief from an earlier day, so a
+    # second run on the same day doesn't report an empty window.
+    previous = next((b for b in store.list_briefs(owner, data_root) if str(b.get("as_of")) < today.isoformat()), None)
+    facts = build_facts(plan, portfolio, policy, transactions, today, previous)
 
     narrative = await run_agent(
         plan, facts, today=today.isoformat(), cfg=cfg, mcp_server_url=mcp_server_url, chat_turn=chat_turn

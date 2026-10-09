@@ -13,11 +13,14 @@ so it can
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import AbstractSet, Any, Dict, List, Optional
 
 #: Characters of each tool result kept in :attr:`TurnLimits.tool_log`.
 TOOL_LOG_RESULT_CHARS = 4000
+#: Characters of JSON-encoded arguments kept before they are truncated.
+TOOL_LOG_ARGUMENT_CHARS = 1000
 
 
 @dataclass
@@ -32,6 +35,10 @@ class TurnLimits:
         return self.allowed_tools is None or name in self.allowed_tools
 
     def record_call(self, name: str, arguments: Any, result: str, is_error: bool) -> None:
+        # Arguments are normally small; a huge one is kept as a truncated JSON string.
+        encoded = json.dumps(arguments, default=str)
+        if len(encoded) > TOOL_LOG_ARGUMENT_CHARS:
+            arguments = encoded[:TOOL_LOG_ARGUMENT_CHARS] + "…"
         self.tool_log.append(
             {
                 "tool": name,

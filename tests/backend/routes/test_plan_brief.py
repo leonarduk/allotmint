@@ -138,12 +138,26 @@ def test_run_does_not_modify_the_plan(data_root, mocked_llm):
     assert plan_path.read_bytes() == before
 
 
-def test_second_run_lists_newest_first_and_compares_with_previous(data_root, mocked_llm):
+def test_second_run_lists_newest_first(data_root, mocked_llm):
     client = _client(data_root)
     first = client.post("/plan-brief/alex/run").json()
     second = client.post("/plan-brief/alex/run").json()
-    assert second["changes"]["previous_brief"] == "2026-10-09"
     assert [b["id"] for b in client.get("/plan-brief/alex").json()["briefs"]] == [second["id"], first["id"]]
+
+
+def test_changes_compare_with_the_last_brief_from_an_earlier_day(data_root, mocked_llm):
+    from backend.plan_brief import store
+
+    store.save_brief("alex", {"id": "old", "as_of": "2026-09-09", "drift": {"total_value_gbp": 90000.0}}, data_root)
+    client = _client(data_root)
+    first = client.post("/plan-brief/alex/run").json()
+    # A same-day re-run still compares with 2026-09-09, not with the run minutes ago.
+    second = client.post("/plan-brief/alex/run").json()
+    for brief in (first, second):
+        assert brief["changes"]["previous_brief"] == "2026-09-09"
+        assert brief["changes"]["since"] == "2026-09-09"
+        # The 2026-09-18 deposit of £4,000 falls inside the window.
+        assert brief["changes"]["contributions_gbp"] == 4000.0
 
 
 def test_latest_is_404_before_any_brief(data_root):

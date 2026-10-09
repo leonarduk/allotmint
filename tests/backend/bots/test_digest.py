@@ -298,3 +298,11 @@ def test_storage_rejects_unsafe_path_segments(segment):
 
     with pytest.raises(ValueError):
         safe_segment(segment)
+
+
+def test_registry_source_uses_the_newest_finished_run(fake_bot):
+    # Saved oldest-last on purpose: the registry keeps runs newest first.
+    _registry_run("fake-bot", "ok", minutes_ago=10)
+    _registry_run("fake-bot", "failed", minutes_ago=300)
+    record = RegistryRunRecordSource().latest_run("fake-bot")
+    assert (record.status, record.started_at) == ("ok", NOW - timedelta(minutes=10))

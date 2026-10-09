@@ -81,7 +81,8 @@ def test_email_renders_drift_triggers_and_disclaimer(plan):
     [
         ('{"owners": ["alex", "bob"]}', ["alex", "bob"]),
         ('["alex"]', ["alex"]),
-        ('{"owners": []}', None),
+        # An explicit empty list pauses the job; it does not mean everyone.
+        ('{"owners": []}', []),
         ('{"owners": "alex"}', None),
     ],
 )
@@ -112,3 +113,9 @@ def test_missing_recipient_parameter_means_every_owner(monkeypatch):
 
     assert lam._load_recipient_owners() is None
     assert calls == ["plan-brief-recipients"]
+
+
+def test_empty_recipient_list_briefs_nobody(wiring, monkeypatch):
+    monkeypatch.setattr(lam, "_load_recipient_owners", lambda: [])
+    assert lam.lambda_handler({}, None) == {"briefs": 0, "errors": []}
+    assert wiring["briefed"] == []

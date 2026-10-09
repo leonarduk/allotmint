@@ -1391,7 +1391,7 @@ def test_backend_lambda_can_read_and_write_plan_briefs() -> None:
         ), f"{action} does not cover plan_briefs/: {resources}"
 
 
-@pytest.mark.parametrize(("context", "expected"), [({}, "true"), ({"plan_brief_send_email": "false"}, "false")])
+@pytest.mark.parametrize(("context", "expected"), [({}, "false"), ({"plan_brief_send_email": "true"}, "true")])
 def test_plan_brief_email_is_a_context_switch(monkeypatch, context, expected) -> None:
     monkeypatch.delenv("PLAN_BRIEF_SEND_EMAIL", raising=False)
     os.environ.setdefault("JWT_SECRET", "test-secret")

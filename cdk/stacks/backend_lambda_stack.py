@@ -1304,11 +1304,12 @@ class BackendLambdaStack(Stack):
             "DATA_BRANCH": data_branch,
             "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
             "PLAN_BRIEFS_URI": f"s3://{bucket_name}/{PLAN_BRIEFS_PREFIX}",
-            # Email each owner their brief; `-c plan_brief_send_email=false` turns it off.
+            # New outbound email is opt-in: `-c plan_brief_send_email=true`
+            # emails each owner their brief; briefs are saved either way.
             "PLAN_BRIEF_SEND_EMAIL": str(
                 self.node.try_get_context("plan_brief_send_email")
                 if self.node.try_get_context("plan_brief_send_email") is not None
-                else os.getenv("PLAN_BRIEF_SEND_EMAIL", "true")
+                else os.getenv("PLAN_BRIEF_SEND_EMAIL", "false")
             ).lower(),
             # Same backend.auth import-time SECRET_KEY check as pension_report.
             "JWT_SECRET": jwt_secret,

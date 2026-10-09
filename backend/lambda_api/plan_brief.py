@@ -40,14 +40,15 @@ def _load_recipient_owners() -> Optional[List[str]]:
     """Owners to brief, or ``None`` for every owner (owner keys only; no secrets).
 
     A missing parameter is not an error: ``ParameterStoreJSONStorage.load``
-    logs and returns ``{}``, which means every owner.
+    logs and returns ``{}``, which means every owner. An explicit empty list
+    (``{"owners": []}``) means nobody, so a list can pause the job.
     """
     uri = os.getenv("PLAN_BRIEF_RECIPIENTS_URI", _DEFAULT_RECIPIENTS_URI)
     # load() parses the parameter value as JSON ({} when missing); accept
     # {"owners": [...]} as the pension report does, or a bare JSON list.
     data: Any = get_storage(uri, param_type="String").load()
     owners = data.get("owners") if isinstance(data, dict) else data
-    if not isinstance(owners, list) or not owners:
+    if not isinstance(owners, list):
         if os.getenv("PLAN_BRIEF_RECIPIENTS_URI"):
             logger.warning(
                 "PLAN_BRIEF_RECIPIENTS_URI %s gave no owner list; briefing every owner", sanitise_log_value(uri)

@@ -202,7 +202,7 @@ def _verdict(text: str, raw: Optional[Mapping[str, Any]], limits: TurnLimits) ->
     reason = _clean_text(raw.get("reason"))
     verdict = raw.get("verdict")
     if verdict not in VERDICTS:
-        verdict, reason = "cant_evaluate", f"Unrecognised verdict {str(verdict)[:40]!r} ({reason or 'no reason'})."
+        verdict, reason = "cant_evaluate", f"Unrecognised verdict ({reason or 'no reason'})."
     if verdict != "cant_evaluate" and not evidence:
         verdict, reason = "cant_evaluate", f"No tool evidence for the reported verdict ({reason or 'none given'})."
     return {

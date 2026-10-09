@@ -53,5 +53,10 @@ READ_TOOL_PREFIXES = ("get_", "list_", "summarise_", "search_", "screen_")
 
 
 def is_read_only_tool_name(name: str) -> bool:
-    """True for a tool named as a read (``get_...``) and not as a write."""
+    """True for a tool named as a read (``get_...``) and not as a write.
+
+    A naming backstop only: the authoritative control is an explicit
+    allowlist (e.g. ``backend.plan_brief.agent.READ_ONLY_TOOLS``), which this
+    check guards against an obviously wrong entry.
+    """
     return name.startswith(READ_TOOL_PREFIXES) and not name.startswith(WRITE_TOOL_PREFIXES)

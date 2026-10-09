@@ -230,10 +230,11 @@ def test_value_check_uses_the_cited_field(result, field, value, ok):
 
 def test_unrecognised_verdict_says_so(plan, facts):
     reply = json.loads(_reply())
-    reply["triggers"][0]["verdict"] = "probably"
+    reply["triggers"][0]["verdict"] = "sell"
     [verdict] = agent.interpret_reply(plan, facts, json.dumps(reply), _limits_with_rates_call())["triggers"]
     assert verdict["verdict"] == "cant_evaluate"
-    assert verdict["reason"].startswith("Unrecognised verdict 'probably'")
+    assert verdict["reason"].startswith("Unrecognised verdict (")
+    assert "sell" not in verdict["reason"]
 
 
 def test_advice_in_a_verdict_reason_is_removed(plan, facts):

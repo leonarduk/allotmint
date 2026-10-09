@@ -11,6 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from backend.common.currency import CurrencyNormaliser
 from backend.common.instrument_classification import (
     cached_classification_overrides,
     classify_instrument,
@@ -580,7 +581,10 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
         or found.get("longname")
         or full_ticker,
     )
-    currency = _clean_str(chart.get("currency"), upper=True)
+    # Yahoo reports pence-quoted listings as exact "GBp"; upper-casing would
+    # turn pence into GBP (a 100x price error), so normalise "GBp" -> "GBX".
+    raw_currency = _clean_str(chart.get("currency"))
+    currency = CurrencyNormaliser.from_raw(raw_currency).canonical if raw_currency else None
     quote_type = _clean_str(chart.get("quoteType") or found.get("quoteType"), upper=True)
     # Only funds need ``category``, and only ``quoteSummary`` has it.
     category = _fund_category(stock, full_ticker) if quote_type in _FUND_QUOTE_TYPES else None

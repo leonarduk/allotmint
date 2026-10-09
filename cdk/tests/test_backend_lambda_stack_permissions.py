@@ -219,14 +219,15 @@ def _expected_prefix_condition(prefixes: tuple[str, ...]) -> dict:
 #                        Also calls _rolling_cache() → _save_parquet() writing parquet to S3
 #                        and may need to list the timeseries/ prefix via pyarrow.
 #   TradingAgentLambda — calls load_prices_for_tickers() → load_meta_timeseries_range() which
-#                        reads parquet from S3 by known key. No writes anywhere in this path.
+#                        reads parquet from S3 by known key. Its only write is its own
+#                        run record under bots/ (backend/bots/runs.py, #10477).
 #                        Lists accounts/ via list_all_unique_tickers()/list_portfolios() (#8914).
 #                        Pyarrow may list the timeseries/ prefix before reading cached files.
 #   BackendLambda also deletes saved chat history, on chat/* only (#8870; see
 #   test_backend_lambda_can_delete_only_chat_history).
 BACKEND_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:PutObject", "s3:ListBucket", "s3:DeleteObject"}
 REFRESH_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:PutObject", "s3:ListBucket"}
-TRADING_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:ListBucket"}
+TRADING_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:ListBucket", "s3:PutObject"}
 
 
 def test_s3_permissions_are_scoped_per_lambda() -> None:
@@ -264,9 +265,10 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
     ), f"TradingAgentLambda has unexpected S3 actions: {trading_actions - TRADING_MAX_S3}"
 
     # Explicit absence checks (belt-and-suspenders on top of upper-bound)
-    assert (
-        "s3:PutObject" not in trading_actions
-    ), "TradingAgentLambda must not have s3:PutObject — read-only S3 access"
+    trading_put = _resources_for_s3_action(template, trading_role, "s3:PutObject")
+    assert trading_put and all(
+        "/bots/*" in str(resource) for resource in trading_put
+    ), f"TradingAgentLambda s3:PutObject must be limited to its bots/ run records, got {trading_put}"
     assert "s3:ListBucket" not in refresh_actions or all(
         _conditions_for_s3_action(template, refresh_role, "s3:ListBucket")
     ), "PriceRefreshLambda s3:ListBucket must always be conditioned (no unrestricted list)"
@@ -591,9 +593,9 @@ def test_pension_report_lambda_put_object_scoped_to_pension_reports_prefix() -> 
 
     assert put_resources, "Expected PensionReportLambda to have an s3:PutObject grant"
     for resource in put_resources:
-        assert (
-            "pension-reports/*" in resource
-        ), f"Expected s3:PutObject resource scoped to pension-reports/*, got {resource!r}"
+        assert "pension-reports/*" in str(resource) or "bots/*" in str(
+            resource
+        ), f"Expected s3:PutObject resource scoped to pension-reports/* or bots/*, got {resource!r}"
 
 
 def test_trend_watch_lambda_writes_only_its_own_prefix() -> None:
@@ -1170,8 +1172,11 @@ def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
 # CHAT_HISTORY_PREFIX is not duplicated: the backend has no S3 fallback for it
 # and only learns the location from CHAT_HISTORY_STORAGE_URI (#8870), which
 # test_backend_lambda_chat_history_env_points_at_the_chat_prefix checks.
+# BOTS_PREFIX is not duplicated either: the backend's only fallback is a local
+# file:// path and it learns the S3 location from BOTS_STORAGE_URI (#10477),
+# which test_bot_lambdas_share_the_bots_storage_prefix checks.
 _COVERED_STACK_PREFIX_CONSTANTS = frozenset(
-    {"WRITABLE_ACCOUNTS_PREFIX", "METADATA_PREFIX", "CHAT_HISTORY_PREFIX"}
+    {"WRITABLE_ACCOUNTS_PREFIX", "METADATA_PREFIX", "CHAT_HISTORY_PREFIX", "BOTS_PREFIX"}
 )
 
 
@@ -1252,6 +1257,65 @@ def test_backend_lambda_chat_history_env_points_at_the_chat_prefix() -> None:
     uri = backend_fn["Properties"]["Environment"]["Variables"]["CHAT_HISTORY_STORAGE_URI"]
     parts = uri["Fn::Join"][1]
     assert parts[0] == "s3://" and parts[-1] == "/chat"
+
+
+def _lambda_env(template: dict, name_fragment: str) -> dict:
+    fn = next(
+        resource
+        for logical_id, resource in template["Resources"].items()
+        if resource.get("Type") == "AWS::Lambda::Function" and name_fragment in logical_id
+    )
+    return fn["Properties"]["Environment"]["Variables"]
+
+
+def test_bot_lambdas_share_the_bots_storage_prefix() -> None:
+    """Scheduled jobs write run records where the backend reads them (#10477)."""
+    template = _stack_template()
+    for fragment in (
+        "BackendLambda",
+        "PriceRefreshLambda",
+        "TradingAgentLambda",
+        "DividendRefreshLambda",
+        "PensionReportLambda",
+    ):
+        parts = _lambda_env(template, fragment)["BOTS_STORAGE_URI"]["Fn::Join"][1]
+        assert parts[0] == "s3://" and parts[-1] == "/bots", fragment
+
+
+def test_bot_lambdas_can_read_and_write_their_run_records() -> None:
+    """The runner reads run records (busy/cadence checks) and writes them (#10477)."""
+    template = _stack_template()
+    for fragment in (
+        "PriceRefreshLambda",
+        "TradingAgentLambda",
+        "DividendRefreshLambda",
+        "PensionReportLambda",
+    ):
+        role = _role_logical_id_for_lambda(template, fragment)
+        reads = [str(r) for r in _resources_for_s3_action(template, role, "s3:GetObject")]
+        writes = [str(r) for r in _resources_for_s3_action(template, role, "s3:PutObject")]
+        assert any(r.endswith("'/*']]}") or "/bots/*" in r for r in reads), (fragment, reads)
+        assert any(r.endswith("'/*']]}") or "/bots/*" in r for r in writes), (fragment, writes)
+
+
+def test_backend_lambda_can_start_each_bot_lambda() -> None:
+    """Run now invokes the bot's own Lambda; the backend must know and may invoke each (#10477)."""
+    template = _stack_template()
+    # tests/backend/bots/test_runs.py checks the backend reads this same name.
+    mapping = str(_lambda_env(template, "BackendLambda")["BOT_LAMBDA_FUNCTIONS"])
+    for bot_id in ("price-refresh", "trading-agent", "dividend-refresh", "pension-report"):
+        assert bot_id in mapping
+    backend_role = _role_logical_id_for_lambda(template, "BackendLambda")
+    invoke_statements = [
+        statement
+        for resource in template["Resources"].values()
+        if resource.get("Type") == "AWS::IAM::Policy"
+        and {"Ref": backend_role} in resource["Properties"].get("Roles", [])
+        for statement in resource["Properties"]["PolicyDocument"]["Statement"]
+        if "lambda:InvokeFunction" in statement.get("Action", [])
+        or statement.get("Action") == "lambda:InvokeFunction"
+    ]
+    assert invoke_statements, "BackendLambda needs lambda:InvokeFunction on the bot Lambdas"
 
 
 def test_chat_history_expires_after_the_agreed_retention() -> None:

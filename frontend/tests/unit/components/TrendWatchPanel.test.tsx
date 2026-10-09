@@ -50,6 +50,7 @@ function item(overrides: Partial<TrendWatchItem>): TrendWatchItem {
           tool: 'search_web',
           finding: 'Profit warning',
           value: '-30% vs consensus',
+          return_basis: 'not stated',
           source: 'https://example.com/rns',
         },
       ],
@@ -164,6 +165,9 @@ describe('TrendWatchPanel', () => {
     );
     expect(
       within(card).getByText(/search_web\(\{"query":"Turn plc"\}\)/)
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByText(/return basis: not stated/)
     ).toBeInTheDocument();
     const jegi = screen.getByTestId('trend-item-JEGI.L');
     expect(within(jegi).getByText('PRICE_SCALE_SUSPECT')).toBeInTheDocument();

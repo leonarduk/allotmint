@@ -101,7 +101,7 @@ def _clean_evidence(raw: Any, called: set[str], notes: List[str]) -> List[Dict[s
         # Keep falsy values such as 0: the evidence is the audit trail.
         entry = {
             key: ("" if item.get(key) is None else str(item.get(key)))[:MAX_RESULT_CHARS]
-            for key in ("tool", "finding", "value", "source")
+            for key in ("tool", "finding", "value", "return_basis", "source")
         }
         if tool not in called:
             notes.append(f"Dropped evidence citing {tool or 'no tool'}, which was not called successfully.")
@@ -110,6 +110,11 @@ def _clean_evidence(raw: Any, called: set[str], notes: List[str]) -> List[Dict[s
         if phrases:
             notes.append(f"Dropped evidence from {tool} that read as trade advice.")
             continue
+        entry["return_basis"] = prompt.relative_basis(entry)
+        if entry["return_basis"] == prompt.BASIS_NOT_STATED:
+            notes.append(
+                f"Evidence from {tool} gives a relative figure without saying whether it is total or price return."
+            )
         evidence.append(entry)
     return evidence
 

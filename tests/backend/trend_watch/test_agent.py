@@ -284,3 +284,30 @@ async def test_market_verdict_without_a_benchmark_says_so():
 
     assert result["verdict"] == prompt.VERDICT_MARKET
     assert any("no benchmark" in note for note in result["notes"])
+
+
+@pytest.mark.parametrize(
+    ("entry", "basis"),
+    [
+        ({"finding": "Fell 20% vs the FTSE All-Share", "value": "-20%"}, prompt.BASIS_NOT_STATED),
+        ({"finding": "Fell 20% vs the FTSE", "value": "-20%", "return_basis": "Total"}, "total"),
+        ({"finding": "Underperformed peers on a total-return basis", "value": "-8%"}, "total"),
+        ({"finding": "Price return vs sector", "value": "-8%"}, "price"),
+        ({"finding": "Profit warning issued", "value": ""}, "n/a"),
+    ],
+)
+def test_relative_figures_carry_a_return_basis(entry, basis):
+    assert prompt.relative_basis(entry) == basis
+
+
+async def test_model_relative_figure_without_a_basis_is_marked():
+    reply = {
+        "verdict": "idiosyncratic_deterioration",
+        "summary": "Profit warning.",
+        "evidence": [{"tool": "get_peer_comparison", "finding": "Fell 25% vs peers", "value": "-25%", "source": "x"}],
+    }
+
+    result = await _investigate(_stock_specific(), _runner(reply, [("get_peer_comparison", "{}", False)]))
+
+    assert result["evidence"][-1]["return_basis"] == prompt.BASIS_NOT_STATED
+    assert any("total or price return" in note for note in result["notes"])

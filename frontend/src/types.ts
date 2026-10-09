@@ -1198,6 +1198,8 @@ export interface TrendWatchEvidence {
   tool: string;
   finding: string;
   value: string;
+  /** "total", "price", "n/a", or "not stated" for a relative figure with no basis given. */
+  return_basis?: string;
   source: string;
 }
 

@@ -151,6 +151,9 @@ function Evidence({ item }: { item: TrendWatchItem }) {
           <li key={`${e.tool}-${i}`}>
             <code>{e.tool}</code>: {e.finding}
             {e.value ? ` — ${e.value}` : ''}
+            {e.return_basis && e.return_basis !== 'n/a'
+              ? ` (${t('trendWatch.evidence.basis', 'return basis: {{basis}}', { basis: e.return_basis })})`
+              : ''}
             {e.source ? (
               /^https?:\/\//.test(e.source) ? (
                 <>

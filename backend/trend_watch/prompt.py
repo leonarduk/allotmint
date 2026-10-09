@@ -34,6 +34,8 @@ SYSTEM_PROMPT = (
     "2. Fundamentals: earnings or estimate downgrades, a dividend cut, rising debt, falling margins.\n"
     "3. Investment trusts: whether the discount to NAV widened or the NAV itself fell.\n"
     "4. News: profit warnings, management changes, guidance cuts, regulatory events. Cite each source.\n"
+    "For every relative or percentage-change figure you cite, say whether it is a total return (dividends "
+    "reinvested) or a price-only return, as the tool result reports it (return_basis).\n"
     "Use only the tools you are given, and only as many calls as you need.\n"
     "Report facts and evidence only. Never tell the owner to buy, sell, hold, trim or exit, and never give "
     "a price target or a stop level: the decision is theirs.\n"
@@ -41,7 +43,8 @@ SYSTEM_PROMPT = (
     '{"verdict": "idiosyncratic_deterioration" | "market_wide_move" | "inconclusive", '
     '"summary": "two or three factual sentences", '
     '"evidence": [{"tool": "<tool you called>", "finding": "<what it showed>", '
-    '"value": "<the figure, with units>", "source": "<url or data source, if any>"}]}\n'
+    '"value": "<the figure, with units>", "return_basis": "total | price | n/a", '
+    '"source": "<url or data source, if any>"}]}\n'
     "Use idiosyncratic_deterioration only when a tool result shows a stock-specific cause, and cite it."
 )
 
@@ -64,6 +67,34 @@ _ADVICE_PATTERNS = [
     re.compile(r"\bstop[- ]loss\b|\bstop\s+(?:at|level)\b", re.I),
     re.compile(r"\b(?:strong\s+)?(?:buy|sell)\s+(?:signal|rating|recommendation)\b", re.I),
 ]
+
+
+# A figure that measures or compares a move: "-20%", "vs the FTSE", "underperformed".
+_RELATIVE_FIGURE = re.compile(
+    r"%|\b(?:vs\.?|versus|relative|outperform\w*|underperform\w*|benchmark|sector|index|peers?)\b", re.I
+)
+_TOTAL_BASIS = re.compile(r"\b(?:total[- ]return|dividends? reinvested)\b", re.I)
+_PRICE_BASIS = re.compile(r"\b(?:price[- ]only|price return)\b", re.I)
+BASIS_NOT_STATED = "not stated"
+
+
+def relative_basis(entry: Mapping[str, str]) -> str:
+    """The ``return_basis`` of a model-cited evidence entry: as given, ``"n/a"``, or ``"not stated"``.
+
+    A relative or percentage figure whose basis the model gave neither in the
+    ``return_basis`` field nor in its text is marked ``"not stated"``, so the
+    report never mixes total-return and price-only figures silently (#9370).
+    """
+
+    given = (entry.get("return_basis") or "").strip().lower()
+    if given in ("total", "price"):
+        return given
+    text = f"{entry.get('finding', '')} {entry.get('value', '')}"
+    if _TOTAL_BASIS.search(text):
+        return "total"
+    if _PRICE_BASIS.search(text):
+        return "price"
+    return BASIS_NOT_STATED if _RELATIVE_FIGURE.search(text) else "n/a"
 
 
 def redact_advice(text: str) -> str:

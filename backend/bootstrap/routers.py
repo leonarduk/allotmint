@@ -13,6 +13,7 @@ from backend.routes.analytics import router as analytics_router
 from backend.routes.app_update import router as app_update_router
 from backend.routes.approvals import router as approvals_router
 from backend.routes.aws_costs_admin import router as aws_costs_admin_router
+from backend.routes.bots_digest import router as bots_digest_router
 from backend.routes.chat import create_router as create_chat_router
 from backend.routes.chat_history import router as chat_history_router
 from backend.routes.compliance import router as compliance_router
@@ -134,3 +135,4 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(tax_router)
     app.include_router(pension_router)
     app.include_router(reports_router, dependencies=protected)
+    app.include_router(bots_digest_router, dependencies=protected)

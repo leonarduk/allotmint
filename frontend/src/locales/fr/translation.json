@@ -3663,5 +3663,30 @@
     "aboveAverage": "Au-dessus de la ligne moyenne : plus de rendement par unité de volatilité",
     "belowAverage": "En dessous de la ligne moyenne : moins de rendement par unité de volatilité",
     "onAverage": "Sur la ligne moyenne"
+  },
+  "botsDigest": {
+    "title": "Synthèse des bots",
+    "loading": "Chargement de la synthèse…",
+    "empty": "Aucune synthèse n'a encore été composée.",
+    "preview": "Aperçu",
+    "previewNote": "Aperçu à partir des dernières exécutions. Ni enregistré ni envoyé.",
+    "error": "Impossible de charger la synthèse.",
+    "resolvedTitle": "Résolu depuis la dernière synthèse",
+    "notRunYet": "Pas encore exécuté : {{bots}}",
+    "truncated": "{{count}} élément(s) supplémentaire(s) non affiché(s).",
+    "actionRequired": "Action requise",
+    "history": "Historique",
+    "historyEntry": "{{date}} : {{count}} élément(s)",
+    "status": {
+      "new": "Nouveau",
+      "still_open": "Toujours ouvert",
+      "resolved": "Résolu"
+    },
+    "severity": {
+      "high": "Élevée",
+      "medium": "Moyenne",
+      "low": "Faible",
+      "info": "Info"
+    }
   }
 }

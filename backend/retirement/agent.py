@@ -131,6 +131,7 @@ def _loop_running() -> bool:
 def _default_llm() -> Optional[NarrativeLLM]:
     """The configured chat provider with the read-only allowlist, or None when no MCP server is set."""
     from backend.chat.providers import run_configured_chat_turn
+    from backend.chat.turn_limits import TurnLimits
     from backend.config import config
 
     url = config.mcp_server_url
@@ -144,7 +145,12 @@ def _default_llm() -> Optional[NarrativeLLM]:
             raise RuntimeError("narrative model needs a synchronous caller; an event loop is running")
         return asyncio.run(
             run_configured_chat_turn(
-                facts, [], cfg=config, mcp_server_url=url, system_prompt=system_prompt, allowed_tools=READ_ONLY_TOOLS
+                facts,
+                [],
+                cfg=config,
+                mcp_server_url=url,
+                system_prompt=system_prompt,
+                limits=TurnLimits(allowed_tools=READ_ONLY_TOOLS),
             )
         )
 

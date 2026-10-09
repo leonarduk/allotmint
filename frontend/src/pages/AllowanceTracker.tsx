@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getAllowances } from "../api";
+import AllowanceGuardianCard from "../components/AllowanceGuardianCard";
 import EmptyState from "../components/EmptyState";
 import TableSkeleton from "../components/skeletons/TableSkeleton";
 
@@ -13,6 +14,7 @@ interface AllowanceInfo {
 export default function AllowanceTracker() {
   const { t } = useTranslation();
   const [data, setData] = useState<Record<string, AllowanceInfo> | null>(null);
+  const [owner, setOwner] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -20,6 +22,7 @@ export default function AllowanceTracker() {
     getAllowances()
       .then((res) => {
         setData(res.allowances);
+        setOwner(res.owner ?? null);
         setError(false);
       })
       .catch(() => setError(true))
@@ -51,6 +54,7 @@ export default function AllowanceTracker() {
           ))}
         </tbody>
       </table>
+      {owner && <AllowanceGuardianCard owner={owner} />}
     </div>
   );
 }

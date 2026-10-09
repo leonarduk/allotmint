@@ -6,6 +6,7 @@ import pytest
 from backend import config_module
 from backend.chat import bedrock_agent, openai_compat_agent, tool_switches
 from backend.chat.local_tools import NAVIGATE_TOOL_NAME, ChatPage, LocalTools, merge_tool_lists
+from backend.chat.turn_limits import TurnLimits
 from tests.chat.test_bedrock_agent import (
     FakeCallToolResult,
     FakeSession,
@@ -116,7 +117,11 @@ async def test_bedrock_allowlist_hides_and_refuses_other_tools(monkeypatch, swit
     monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: FakeBedrock())
 
     reply = await bedrock_agent.run_chat_turn(
-        "go", [], mcp_server_url="https://x/mcp", bedrock_model_id="m", allowed_tools=frozenset({"get_market_rates"})
+        "go",
+        [],
+        mcp_server_url="https://x/mcp",
+        bedrock_model_id="m",
+        limits=TurnLimits(allowed_tools=frozenset({"get_market_rates"})),
     )
 
     assert reply == "done"
@@ -124,7 +129,7 @@ async def test_bedrock_allowlist_hides_and_refuses_other_tools(monkeypatch, swit
     assert [t["toolSpec"]["name"] for t in sent[0]["toolConfig"]["tools"]] == ["get_market_rates"]
     result = sent[1]["messages"][-1]["content"][0]["toolResult"]
     assert result["status"] == "error"
-    assert "not in this conversation's allowed tools" in result["content"][0]["text"]
+    assert "is not available to this agent" in result["content"][0]["text"]
 
 
 async def test_openai_compat_allowlist_hides_and_refuses_other_tools(monkeypatch, switches):
@@ -148,10 +153,10 @@ async def test_openai_compat_allowlist_hides_and_refuses_other_tools(monkeypatch
         mcp_server_url="http://localhost:8001/mcp",
         base_url="http://localhost:11434/v1",
         model="m",
-        allowed_tools=frozenset({"get_market_rates"}),
+        limits=TurnLimits(allowed_tools=frozenset({"get_market_rates"})),
     )
 
     assert reply == "done"
     assert session.calls == []
     assert [t["function"]["name"] for t in json.loads(requests[0].content)["tools"]] == ["get_market_rates"]
-    assert "not in this conversation's allowed tools" in json.loads(requests[1].content)["messages"][-1]["content"]
+    assert "is not available to this agent" in json.loads(requests[1].content)["messages"][-1]["content"]

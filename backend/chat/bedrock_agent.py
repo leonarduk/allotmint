@@ -6,7 +6,7 @@ import asyncio
 import logging
 import random
 from functools import lru_cache
-from typing import AbstractSet, Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import boto3
 from botocore.config import Config
@@ -16,7 +16,8 @@ from mcp.types import CallToolResult, Tool
 
 from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import mcp_session
-from backend.chat.tool_switches import allowed_tools_only, refused_message, tool_allowed
+from backend.chat.tool_switches import switched_off_message, tool_enabled
+from backend.chat.turn_limits import TurnLimits, not_allowed_message
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -153,7 +154,7 @@ async def run_chat_turn(
     bedrock_model_id: str,
     local_tools: Optional[LocalTools] = None,
     system_prompt: Optional[str] = None,
-    allowed_tools: Optional[AbstractSet[str]] = None,
+    limits: Optional[TurnLimits] = None,
 ) -> str:
     """Run one user turn through the Bedrock tool-calling loop and return the reply.
 
@@ -161,8 +162,8 @@ async def run_chat_turn(
     the caller resends the full prior conversation each turn; nothing is
     persisted server-side in this first pass. ``local_tools`` are offered
     alongside the MCP tools and run in-process (see ``backend.chat.local_tools``).
-    ``allowed_tools``, when given, is the only set of tool names the model may
-    see or call (e.g. a bot's read-only allowlist).
+    ``limits`` optionally restricts the tools and records each call (see
+    :mod:`backend.chat.turn_limits`).
     """
 
     messages: List[Dict[str, Any]] = [
@@ -175,17 +176,26 @@ async def run_chat_turn(
 
     async with mcp_session(mcp_server_url) as session:
         tools_result = await session.list_tools()
-        tools = allowed_tools_only(merge_tool_lists(tools_result.tools, local_tools), allowed_tools)
+        tools = merge_tool_lists(tools_result.tools, local_tools)
+        if limits is not None:
+            tools = [tool for tool in tools if limits.allows(tool.name)]
         tool_config = {"tools": [_tool_to_bedrock_spec(tool) for tool in tools]}
+        max_iterations = (limits.max_iterations if limits else None) or MAX_TOOL_ITERATIONS
+        extra: Dict[str, Any] = {"system": [{"text": system_prompt}]} if system_prompt else {}
+        if limits is not None and limits.max_tokens:
+            extra["inferenceConfig"] = {"maxTokens": limits.max_tokens}
 
-        for _ in range(MAX_TOOL_ITERATIONS):
+        for _ in range(max_iterations):
             response = await _converse_with_retry(
                 bedrock,
                 modelId=bedrock_model_id,
                 messages=messages,
                 toolConfig=tool_config,
-                **({"system": [{"text": system_prompt}]} if system_prompt else {}),
+                **extra,
             )
+            if limits is not None:
+                usage = response.get("usage") or {}
+                limits.add_usage(usage.get("inputTokens"), usage.get("outputTokens"))
             output_message = response["output"]["message"]
             messages.append(output_message)
 
@@ -196,12 +206,19 @@ async def run_chat_turn(
 
             tool_result_content = []
             for tool_use in tool_uses:
-                if not tool_allowed(tool_use["name"], allowed_tools):
+                refusal = None
+                if not tool_enabled(tool_use["name"]):
+                    refusal = switched_off_message(tool_use["name"])
+                elif limits is not None and not limits.allows(tool_use["name"]):
+                    refusal = not_allowed_message(tool_use["name"])
+                if refusal is not None:
+                    if limits is not None:
+                        limits.record_call(tool_use["name"], tool_use.get("input") or {}, refusal, True)
                     tool_result_content.append(
                         {
                             "toolResult": {
                                 "toolUseId": tool_use["toolUseId"],
-                                "content": [{"text": refused_message(tool_use["name"], allowed_tools)}],
+                                "content": [{"text": refusal}],
                                 "status": "error",
                             }
                         }
@@ -209,6 +226,8 @@ async def run_chat_turn(
                     continue
                 if local_tools is not None and local_tools.handles(tool_use["name"]):
                     text, is_error = local_tools.call(tool_use["name"], tool_use.get("input") or {})
+                    if limits is not None:
+                        limits.record_call(tool_use["name"], tool_use.get("input") or {}, text, is_error)
                     tool_result_content.append(
                         {
                             "toolResult": {
@@ -231,6 +250,9 @@ async def run_chat_turn(
                     )
                     content = [{"text": f"Tool call failed: {exc}"}]
                     status = "error"
+                if limits is not None:
+                    text = "\n".join(block.get("text", "") for block in content)
+                    limits.record_call(tool_use["name"], tool_use.get("input") or {}, text, status == "error")
                 tool_result_content.append(
                     {
                         "toolResult": {
@@ -242,4 +264,4 @@ async def run_chat_turn(
                 )
             messages.append({"role": "user", "content": tool_result_content})
 
-    raise RuntimeError(f"Tool-calling loop did not converge after {MAX_TOOL_ITERATIONS} iterations")
+    raise RuntimeError(f"Tool-calling loop did not converge after {max_iterations} iterations")

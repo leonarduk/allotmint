@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from backend.chat import providers, tool_switches
+from backend.chat.turn_limits import TurnLimits
 from backend.retirement import agent
 from backend.retirement.readiness import ADVISER_NOTE
 
@@ -52,19 +53,17 @@ def test_allowlist_is_exactly_the_read_only_tools():
         assert not any(verb in name.split("_") for verb in WRITE_VERBS), name
 
 
-def test_allowlist_filters_and_refuses_other_tools():
-    tools = [SimpleNamespace(name=n) for n in ("get_market_rates", "save_plan", "get_investment_plan")]
-    offered = tool_switches.allowed_tools_only(tools, agent.READ_ONLY_TOOLS)
-    assert [t.name for t in offered] == ["get_market_rates", "get_investment_plan"]
-    assert tool_switches.allowed_tools_only(tools, None) == tools
-    assert tool_switches.tool_allowed("get_market_rates", agent.READ_ONLY_TOOLS)
-    assert not tool_switches.tool_allowed("save_plan", agent.READ_ONLY_TOOLS)
-    assert "not in this conversation's allowed tools" in tool_switches.refused_message(
-        "save_plan", agent.READ_ONLY_TOOLS
-    )
+def test_allowlist_is_read_only_by_name():
+    assert all(tool_switches.is_read_only_tool_name(name) for name in agent.READ_ONLY_TOOLS)
 
 
-def test_provider_passes_allowlist_to_the_agent(monkeypatch):
+def test_allowlist_allows_only_the_read_only_tools():
+    limits = TurnLimits(allowed_tools=agent.READ_ONLY_TOOLS)
+    assert limits.allows("get_market_rates")
+    assert not limits.allows("save_plan")
+
+
+def test_provider_passes_limits_to_the_agent(monkeypatch):
     seen = {}
 
     async def fake_turn(message, history, **kwargs):
@@ -73,13 +72,12 @@ def test_provider_passes_allowlist_to_the_agent(monkeypatch):
 
     monkeypatch.setattr(providers.bedrock_agent, "run_chat_turn", fake_turn)
     cfg = SimpleNamespace(chat_provider="bedrock", app_env="aws", bedrock_model_id="m")
+    limits = TurnLimits(allowed_tools=agent.READ_ONLY_TOOLS)
     reply = asyncio.run(
-        providers.run_configured_chat_turn(
-            "facts", [], cfg=cfg, mcp_server_url="http://mcp", allowed_tools=agent.READ_ONLY_TOOLS
-        )
+        providers.run_configured_chat_turn("facts", [], cfg=cfg, mcp_server_url="http://mcp", limits=limits)
     )
     assert reply == "ok"
-    assert seen["allowed_tools"] == agent.READ_ONLY_TOOLS
+    assert seen["limits"] is limits
 
 
 def test_default_llm_uses_the_allowlist(monkeypatch):
@@ -95,7 +93,7 @@ def test_default_llm_uses_the_allowlist(monkeypatch):
     monkeypatch.setattr(providers, "run_configured_chat_turn", fake_turn)
     llm = agent._default_llm()
     assert llm is not None and llm("system", "facts") == "summary"
-    assert seen["allowed_tools"] == agent.READ_ONLY_TOOLS
+    assert seen["limits"].allowed_tools == agent.READ_ONLY_TOOLS
 
 
 def test_template_used_without_a_model(monkeypatch):

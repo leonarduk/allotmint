@@ -11,6 +11,13 @@ vi.mock('@/api', () => ({
   getInvestmentPlan: mockGetInvestmentPlan,
   saveInvestmentPlan: mockSaveInvestmentPlan,
   saveAllocationPolicy: mockSaveAllocationPolicy,
+  // PlanBriefCard (#10475) renders inside the plan; no brief saved yet.
+  getLatestPlanBrief: vi
+    .fn()
+    .mockRejectedValue(Object.assign(new Error('none'), { status: 404 })),
+  getPlanBrief: vi.fn(),
+  listPlanBriefs: vi.fn(),
+  runPlanBrief: vi.fn(),
 }));
 
 function makeResponse(
@@ -79,6 +86,16 @@ describe('PlanPanel', () => {
     expect(screen.getByText('2027-10-06')).toBeInTheDocument();
     expect(screen.getByText(/not regulated advice/)).toBeInTheDocument();
     expect(screen.getByText(/Your own decisions/)).toBeInTheDocument();
+  });
+
+  it('renders the latest plan brief card with the plan (#10475)', async () => {
+    mockGetInvestmentPlan.mockResolvedValue(makeResponse());
+    render(<PlanPanel owner="alex" />);
+
+    expect(
+      await screen.findByRole('region', { name: 'Latest plan brief' })
+    ).toBeInTheDocument();
+    expect(await screen.findByText(/No brief yet/)).toBeInTheDocument();
   });
 
   it('shows an empty state when no plan is saved', async () => {

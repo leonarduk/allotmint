@@ -55,6 +55,8 @@ METADATA_PREFIX = "instruments"
 # and a separate "Delete history" control. Change them only with the same
 # sign-off.
 CHAT_HISTORY_PREFIX = "chat"
+# Saved plan-drift briefs (#10475): the plan brief Lambda's only write prefix.
+PLAN_BRIEFS_PREFIX = "plan_briefs"
 CHAT_HISTORY_RETENTION_DAYS = 90
 CHAT_HISTORY_NONCURRENT_DAYS = 1
 
@@ -431,6 +433,8 @@ class BackendLambdaStack(Stack):
             # ListBucket on accounts/ for the same reason as price_refresh above
             # (issue #2758).
             "pension_report": ("accounts",),
+            # plan_brief discovers owners the same way (#10475).
+            "plan_brief": ("accounts",),
         }
 
         image_code = _lambda.DockerImageCode.from_image_asset(
@@ -519,6 +523,9 @@ class BackendLambdaStack(Stack):
             "METADATA_BUCKET": bucket_name,
             "METADATA_PREFIX": METADATA_PREFIX,
             "CHAT_HISTORY_STORAGE_URI": f"s3://{bucket_name}/{CHAT_HISTORY_PREFIX}",
+            # GET/POST /plan-brief/* read and save briefs where the monthly
+            # PlanBriefLambda writes them (#10475).
+            "PLAN_BRIEFS_URI": f"s3://{bucket_name}/{PLAN_BRIEFS_PREFIX}",
             "BOTS_STORAGE_URI": f"s3://{bucket_name}/{BOTS_PREFIX}",
             # GET /bots shows the pension report's schedule (#10477).
             "PENSION_REPORT_CADENCE": pension_report_cadence,
@@ -1283,6 +1290,96 @@ class BackendLambdaStack(Stack):
             "PensionReportRun",
             schedule=pension_report_schedule,
             targets=[targets.LambdaFunction(pension_report_fn)],
+        )
+
+        # Scheduled function for the monthly plan-drift brief (issue #10475).
+        plan_brief_code = _lambda.DockerImageCode.from_image_asset(
+            str(project_root),
+            file="backend/Dockerfile.lambda",
+            cmd=["backend.lambda_api.plan_brief.lambda_handler"],
+        )
+        plan_brief_env = {
+            "APP_ENV": env,
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            "PLAN_BRIEFS_URI": f"s3://{bucket_name}/{PLAN_BRIEFS_PREFIX}",
+            # New outbound email is opt-in: `-c plan_brief_send_email=true`
+            # emails each owner their brief; briefs are saved either way.
+            "PLAN_BRIEF_SEND_EMAIL": str(
+                self.node.try_get_context("plan_brief_send_email")
+                if self.node.try_get_context("plan_brief_send_email") is not None
+                else os.getenv("PLAN_BRIEF_SEND_EMAIL", "false")
+            ).lower(),
+            # Same backend.auth import-time SECRET_KEY check as pension_report.
+            "JWT_SECRET": jwt_secret,
+        }
+        if data_repo:
+            plan_brief_env["DATA_REPO"] = data_repo
+        # Optional: without an MCP server the brief is deterministic only and
+        # every review trigger is reported as "can't evaluate".
+        plan_brief_mcp_url = self.node.try_get_context("plan_brief_mcp_server_url") or os.getenv(
+            "PLAN_BRIEF_MCP_SERVER_URL"
+        )
+        if plan_brief_mcp_url:
+            plan_brief_env["MCP_SERVER_URL"] = plan_brief_mcp_url
+
+        plan_brief_log_group = self._lambda_log_group(self, "PlanBriefLambdaLogGroup")
+        plan_brief_fn = _lambda.DockerImageFunction(
+            self,
+            "PlanBriefLambda",
+            code=plan_brief_code,
+            environment=plan_brief_env,
+            log_group=plan_brief_log_group,
+            timeout=Duration.minutes(10),
+            memory_size=512,
+        )
+
+        # PlanBriefLambda: read-only on account data (GetObject, plus ListBucket
+        # on accounts/ only), and s3:PutObject only under plan_briefs/ -- the
+        # brief history it saves (backend/plan_brief/store.py). It never writes
+        # plans, allocation policy or accounts.
+        self._grant_bucket_access(
+            plan_brief_fn,
+            bucket=data_bucket,
+            allow_read=True,
+            allow_put=True,
+            allow_list=True,
+            list_prefix=lambda_list_prefixes["plan_brief"],
+            put_prefix=PLAN_BRIEFS_PREFIX,
+        )
+        plan_brief_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ses:SendEmail"],
+                resources=ses_send_email_resources,
+            )
+        )
+        # Optional recipient list (backend/lambda_api/plan_brief.py
+        # _DEFAULT_RECIPIENTS_URI). Without this read the parameter could never
+        # be honoured and every owner would be briefed; a missing parameter
+        # still means "every owner".
+        plan_brief_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ssm:GetParameter"],
+                resources=[
+                    f"arn:{self.partition}:ssm:{self.region}:{self.account}:parameter/plan-brief-recipients"
+                ],
+            )
+        )
+        if plan_brief_mcp_url:
+            # The agent's LLM step goes through Bedrock (resolve_chat_provider's AWS default).
+            plan_brief_fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["bedrock:InvokeModel"],
+                    resources=[f"arn:{self.partition}:bedrock:{self.region}::foundation-model/*"],
+                )
+            )
+        events.Rule(
+            self,
+            "PlanBriefRun",
+            # 08:00 UTC on the 1st, an hour after the pension report.
+            schedule=events.Schedule.cron(minute="0", hour="8", day="1"),
+            targets=[targets.LambdaFunction(plan_brief_fn)],
         )
 
         # Run now on the Bots page (#10477): the backend Lambda invokes the

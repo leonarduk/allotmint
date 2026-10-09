@@ -257,6 +257,7 @@
     "admin": {
       "tabs": {
         "issues": "Probleme",
+        "steward": "Steward-Bericht",
         "series": "Zeitreihen",
         "holdings": "Bestände",
         "metadata": "Metadaten",
@@ -350,7 +351,34 @@
           "notReversible": "Nicht umkehrbar"
         }
       },
-      "tabsLabel": "Datenqualität verwalten"
+      "tabsLabel": "Datenqualität verwalten",
+      "steward": {
+        "title": "Datenpflege-Bericht",
+        "subtitle": "Ein KI-Agent prüft jedes Datenqualitätsproblem bei gehaltenen Instrumenten, findet die wahrscheinliche Ursache und ordnet es ein. Er liest nur Daten: Sie entscheiden, ob eine Korrektur angewendet wird.",
+        "runNow": "Jetzt ausführen",
+        "running": "Läuft…",
+        "botsLink": "Zeitplan, Einstellungen und Laufverlauf auf der Bots-Seite",
+        "empty": "Noch kein Bericht. Führen Sie ihn aus oder warten Sie auf den nächtlichen Lauf.",
+        "noItems": "Keine Probleme bei gehaltenen Instrumenten zu untersuchen.",
+        "runSummary": "Lauf {{when}} · {{status}} · {{model}} · {{investigated}} von {{held}} gehaltenen Problemen untersucht ({{found}} gefunden) · {{tokens}} Tokens · Kosten {{cost}}",
+        "groups": {
+          "fix_available": "Korrektur verfügbar",
+          "needs_human": "Braucht einen Menschen",
+          "not_a_problem": "Kein echtes Problem",
+          "error": "Untersuchung fehlgeschlagen"
+        },
+        "exposure": "Betrifft {{value}} ({{pct}} des Portfolios)",
+        "rootCause": "Wahrscheinliche Ursache",
+        "confidence": "Konfidenz {{pct}} %",
+        "allowlistReason": "Vorgeschlagener Grund für die Ausnahmeliste",
+        "unclear": "Noch unklar",
+        "proposedFix": "Vorgeschlagene Korrektur",
+        "applyFor": "Korrektur für {{entity}} anwenden",
+        "evidence": "Belege ({{count}} Tool-Aufrufe)",
+        "toolError": "Fehler",
+        "applied": "Angewendet",
+        "runErrors": "Fehler im Lauf"
+      }
     }
   },
   "dashboard": {

@@ -257,6 +257,7 @@
     "admin": {
       "tabs": {
         "issues": "Problemas",
+        "steward": "Relatório do agente",
         "series": "Séries",
         "holdings": "Posições",
         "metadata": "Metadados",
@@ -350,7 +351,34 @@
           "notReversible": "Não reversível"
         }
       },
-      "tabsLabel": "Administração da qualidade dos dados"
+      "tabsLabel": "Administração da qualidade dos dados",
+      "steward": {
+        "title": "Relatório do agente de dados",
+        "subtitle": "Um agente de IA verifica cada problema de qualidade de dados em instrumentos detidos, encontra a causa provável e classifica-o. Apenas lê dados: você decide se aplica uma correção.",
+        "runNow": "Executar agora",
+        "running": "A executar…",
+        "botsLink": "Agendamento, definições e histórico de execuções na página Bots",
+        "empty": "Ainda não há relatório. Execute-o ou aguarde a execução noturna.",
+        "noItems": "Nenhum problema em instrumentos detidos precisou de investigação.",
+        "runSummary": "Execução {{when}} · {{status}} · {{model}} · {{investigated}} de {{held}} problemas detidos investigados ({{found}} encontrados) · {{tokens}} tokens · custo {{cost}}",
+        "groups": {
+          "fix_available": "Correção disponível",
+          "needs_human": "Precisa de uma pessoa",
+          "not_a_problem": "Não é um problema real",
+          "error": "A investigação falhou"
+        },
+        "exposure": "Afeta {{value}} ({{pct}} da carteira)",
+        "rootCause": "Causa provável",
+        "confidence": "confiança {{pct}}%",
+        "allowlistReason": "Motivo proposto para a lista de exceções",
+        "unclear": "Ainda por esclarecer",
+        "proposedFix": "Correção proposta",
+        "applyFor": "Aplicar correção para {{entity}}",
+        "evidence": "Provas ({{count}} chamadas de ferramentas)",
+        "toolError": "erro",
+        "applied": "Aplicada",
+        "runErrors": "Erros da execução"
+      }
     }
   },
   "dashboard": {

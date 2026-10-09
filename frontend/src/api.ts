@@ -3016,6 +3016,66 @@ export const dedupeDataQualitySeries = async (
   );
 };
 
+export type DataStewardVerdict = "fix_available" | "needs_human" | "not_a_problem" | "error";
+
+export interface DataStewardEvidence {
+  tool: string;
+  arguments: Record<string, unknown>;
+  result: string;
+  truncated: boolean;
+  is_error: boolean;
+}
+
+export interface DataStewardItem {
+  issue_id: string;
+  issue_type: string;
+  severity: string;
+  entity: Record<string, unknown>;
+  description: string;
+  fixable: boolean;
+  verdict: DataStewardVerdict;
+  root_cause?: string;
+  summary?: string;
+  checked?: string[];
+  unclear?: string[];
+  confidence?: number | null;
+  exposure_gbp: number | null;
+  exposure_pct: number | null;
+  evidence: DataStewardEvidence[];
+  proposed_fix?: { method: string; path: string; issue_id: string; description?: string | null };
+  allowlist_reason?: string;
+  error?: string;
+}
+
+/** One data steward run (#10471): triaged data-quality issues with their evidence. */
+export interface DataStewardReport {
+  run_id: string;
+  started_at: string;
+  finished_at: string | null;
+  status: "ok" | "partial" | "error" | "running";
+  provider: string;
+  model: string;
+  totals: { input_tokens: number; output_tokens: number; tool_calls: number; cost_usd: number | null };
+  portfolio_value_gbp: number | null;
+  issues_found: number;
+  issues_held: number;
+  issues_investigated: number;
+  skipped_unheld: number;
+  skipped_over_limit: number;
+  errors: Array<{ stage: string; error: string }>;
+  items: DataStewardItem[];
+}
+
+/** The latest saved steward report, or null when there has been no run yet. */
+export const getDataStewardLatest = async (): Promise<DataStewardReport | null> => {
+  try {
+    return await fetchJson<DataStewardReport>(`${API_BASE}/data-steward/latest`);
+  } catch (e) {
+    if ((e as { status?: number }).status === 404) return null;
+    throw e;
+  }
+};
+
 export const getDataQualityAudit = async (
   limit?: number,
 ): Promise<DataQualityAuditResponse> => {

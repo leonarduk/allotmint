@@ -65,6 +65,10 @@ CHAT_HISTORY_NONCURRENT_DAYS = 1
 # here; the backend Lambda reads them and writes settings.
 BOTS_PREFIX = "bots"
 
+# Where DataStewardLambda saves its run reports (backend/data_steward/store.py,
+# via DATA_STEWARD_REPORTS_URI) and the only prefix it may write to (#10471).
+DATA_STEWARD_REPORTS_PREFIX = "data_steward/reports"
+
 # API Gateway access-log format for the backend HTTP API's default stage.
 # Deliberately logs claims/status/source IP only — never the raw bearer
 # token or Authorization header — so no credentials land in the logs.
@@ -283,6 +287,105 @@ class BackendLambdaStack(Stack):
                 },
             )
         )
+
+    def _add_data_steward_lambda(
+        self,
+        *,
+        project_root,
+        data_bucket: s3.Bucket,
+        env: str,
+        data_branch: str,
+        data_repo: str | None,
+        jwt_secret: str,
+    ) -> _lambda.DockerImageFunction:
+        """Nightly data steward run (#10471), after the 00:00 price refresh.
+
+        The steward reads everything through the allotmint-pro MCP server
+        (read-only tool allowlist, backend/chat/tool_switches.py) and only
+        writes its own report and bot run record, so this role reads the data
+        bucket and may put objects under data_steward/reports/ and bots/ only:
+        no ListBucket, no other writes, no deletes. Audited:
+        lambda_api/data_steward.lambda_handler → bots.runner.handle_lambda_event
+        (run record under BOTS_STORAGE_URI) → data_steward/bot.py →
+        service.run_and_save → store.save_report (S3JSONStorage.put_object to
+        DATA_STEWARD_REPORTS_URI/<date>.json and latest.json).
+
+        The MCP server URL comes from the ``mcp_server_url`` context / env var
+        (unset: each run saves an error report saying so). Its Function URL uses
+        AWS_IAM auth, so ``mcp_server_function_arn`` grants
+        lambda:InvokeFunctionUrl on it. Bedrock access is scoped to the
+        configured BEDROCK_MODEL_ID.
+        """
+
+        bucket_name = data_bucket.bucket_name
+        mcp_server_url = self.node.try_get_context("mcp_server_url") or os.getenv("MCP_SERVER_URL", "")
+        mcp_function_arn = self.node.try_get_context("mcp_server_function_arn") or os.getenv(
+            "MCP_SERVER_FUNCTION_ARN", ""
+        )
+        bedrock_model_id = (
+            self.node.try_get_context("bedrock_model_id")
+            or os.getenv("BEDROCK_MODEL_ID")
+            or "amazon.nova-lite-v1:0"
+        )
+        steward_env = {
+            "APP_ENV": env,
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            "DATA_STEWARD_REPORTS_URI": f"s3://{bucket_name}/{DATA_STEWARD_REPORTS_PREFIX}",
+            # Bot run records (backend/bots/runs.py, #10477): the bots runner
+            # reads them for its busy/cadence checks and writes this run's.
+            "BOTS_STORAGE_URI": f"s3://{bucket_name}/{BOTS_PREFIX}",
+            "BEDROCK_MODEL_ID": bedrock_model_id,
+            # Same reason as the other scheduled Lambdas: the import chain reaches
+            # backend.auth's module-level SECRET_KEY check.
+            "JWT_SECRET": jwt_secret,
+        }
+        if mcp_server_url:
+            steward_env["MCP_SERVER_URL"] = mcp_server_url
+        if data_repo:
+            steward_env["DATA_REPO"] = data_repo
+
+        steward_fn = _lambda.DockerImageFunction(
+            self,
+            "DataStewardLambda",
+            code=_lambda.DockerImageCode.from_image_asset(
+                str(project_root),
+                file="backend/Dockerfile.lambda",
+                cmd=["backend.lambda_api.data_steward.lambda_handler"],
+            ),
+            environment=steward_env,
+            log_group=self._lambda_log_group(self, "DataStewardLambdaLogGroup"),
+            # Up to DATA_STEWARD_MAX_ISSUES investigations of several LLM and tool
+            # calls each; the per-run limits bound cost, this bounds wall time.
+            timeout=Duration.minutes(15),
+            memory_size=512,
+        )
+        self._grant_bucket_access(
+            steward_fn,
+            bucket=data_bucket,
+            allow_read=True,
+            allow_put=True,
+            allow_list=False,
+            put_prefix=(DATA_STEWARD_REPORTS_PREFIX, BOTS_PREFIX),
+        )
+        steward_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["bedrock:InvokeModel"],
+                resources=[f"arn:aws:bedrock:{self.region}::foundation-model/{bedrock_model_id}"],
+            )
+        )
+        if mcp_function_arn:
+            steward_fn.add_to_role_policy(
+                iam.PolicyStatement(actions=["lambda:InvokeFunctionUrl"], resources=[mcp_function_arn])
+            )
+        events.Rule(
+            self,
+            "DailyDataStewardRun",
+            schedule=events.Schedule.cron(minute="0", hour="2"),
+            targets=[targets.LambdaFunction(steward_fn, retry_attempts=0)],
+        )
+        return steward_fn
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -1288,6 +1391,15 @@ class BackendLambdaStack(Stack):
             targets=[targets.LambdaFunction(dividend_fn)],
         )
 
+        steward_fn = self._add_data_steward_lambda(
+            project_root=project_root,
+            data_bucket=data_bucket,
+            env=env,
+            data_branch=data_branch,
+            data_repo=data_repo,
+            jwt_secret=jwt_secret,
+        )
+
         # Scheduled function to email a pension performance report (issue #2758)
         pension_report_code = _lambda.DockerImageCode.from_image_asset(
             str(project_root),
@@ -1462,6 +1574,7 @@ class BackendLambdaStack(Stack):
             "trading-agent": agent_fn,
             "dividend-refresh": dividend_fn,
             "pension-report": pension_report_fn,
+            "data-steward": steward_fn,
             "trend-watch": trend_watch_fn,
         }
         for bot_fn in bot_lambdas.values():

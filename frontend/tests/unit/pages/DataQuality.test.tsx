@@ -15,6 +15,9 @@ const mockFixDataQualityBatch = vi.hoisted(() => vi.fn());
 const mockDedupeDataQualitySeries = vi.hoisted(() => vi.fn());
 const mockGetDataQualityAudit = vi.hoisted(() => vi.fn());
 const mockUndoDataQualityAudit = vi.hoisted(() => vi.fn());
+const mockGetDataStewardLatest = vi.hoisted(() => vi.fn());
+const mockRunBotNow = vi.hoisted(() => vi.fn());
+const mockGetBotRun = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -27,6 +30,9 @@ vi.mock("@/api", async () => {
     dedupeDataQualitySeries: mockDedupeDataQualitySeries,
     getDataQualityAudit: mockGetDataQualityAudit,
     undoDataQualityAudit: mockUndoDataQualityAudit,
+    getDataStewardLatest: mockGetDataStewardLatest,
+    runBotNow: mockRunBotNow,
+    getBotRun: mockGetBotRun,
   };
 });
 
@@ -489,11 +495,13 @@ describe("DataQuality admin UI", () => {
   it("moves between tabs with arrow keys and wires up ARIA tab/tabpanel relationships", async () => {
     mockGetDataQualityIssues.mockResolvedValue({ count: 0, issues: [] });
     mockGetDataQualityTimeseries.mockResolvedValue({ count: 0, positions: [] });
+    mockGetDataStewardLatest.mockResolvedValue(null);
 
     renderWithConfig(true);
 
     const issuesTab = await screen.findByRole("tab", { name: en.dataQuality.admin.tabs.issues });
-    const seriesTab = screen.getByRole("tab", { name: en.dataQuality.admin.tabs.series });
+    // The steward report tab sits right after Issues (#10471).
+    const stewardTab = screen.getByRole("tab", { name: en.dataQuality.admin.tabs.steward });
 
     expect(issuesTab).toHaveAttribute("aria-controls");
     const panel = document.getElementById(issuesTab.getAttribute("aria-controls")!);
@@ -506,8 +514,8 @@ describe("DataQuality admin UI", () => {
     await act(async () => {
       await userEvent.keyboard("{ArrowRight}");
     });
-    expect(seriesTab).toHaveFocus();
-    expect(seriesTab).toHaveAttribute("aria-selected", "true");
+    expect(stewardTab).toHaveFocus();
+    expect(stewardTab).toHaveAttribute("aria-selected", "true");
     expect(issuesTab).toHaveAttribute("aria-selected", "false");
 
     await act(async () => {
@@ -515,5 +523,182 @@ describe("DataQuality admin UI", () => {
     });
     expect(issuesTab).toHaveFocus();
     expect(issuesTab).toHaveAttribute("aria-selected", "true");
+  });
+});
+
+const stewardReport = (overrides: Record<string, unknown> = {}) => ({
+  run_id: "run-1",
+  started_at: "2026-10-09T02:00:00Z",
+  finished_at: "2026-10-09T02:03:00Z",
+  status: "ok",
+  provider: "ollama",
+  model: "qwen3.5:9b",
+  totals: { input_tokens: 1200, output_tokens: 300, tool_calls: 3, cost_usd: 0 },
+  portfolio_value_gbp: 10000,
+  issues_found: 4,
+  issues_held: 2,
+  issues_investigated: 2,
+  skipped_unheld: 2,
+  skipped_over_limit: 0,
+  errors: [],
+  items: [
+    {
+      issue_id: "STALE_SERIES:VWRL:L",
+      issue_type: "STALE_SERIES",
+      severity: "medium",
+      entity: { ticker: "VWRL", exchange: "L" },
+      description: "VWRL.L is 20 days stale.",
+      fixable: true,
+      verdict: "fix_available",
+      root_cause: "source_outage",
+      summary: "No prices since 19 Sep.",
+      confidence: 0.9,
+      exposure_gbp: 7000,
+      exposure_pct: 70,
+      evidence: [
+        {
+          tool: "get_data_freshness",
+          arguments: { ticker: "VWRL.L" },
+          result: '{"last_date": "2026-09-19"}',
+          truncated: false,
+          is_error: false,
+        },
+      ],
+      proposed_fix: {
+        method: "POST",
+        path: "/data-quality/issues/STALE_SERIES%3AVWRL%3AL/fix",
+        issue_id: "STALE_SERIES:VWRL:L",
+        description: "Refetch the series.",
+      },
+    },
+    {
+      issue_id: "OUTLIERS:JEGI:L",
+      issue_type: "OUTLIERS",
+      severity: "low",
+      entity: { ticker: "JEGI", exchange: "L" },
+      description: "JEGI.L outliers.",
+      fixable: false,
+      verdict: "needs_human",
+      root_cause: "epoch_zero_row+unadjusted_split",
+      summary: "A 1969-12-31 row and an unrecorded split.",
+      unclear: ["split ratio"],
+      confidence: 0.8,
+      exposure_gbp: 2500,
+      exposure_pct: 25,
+      evidence: [],
+    },
+  ],
+  ...overrides,
+});
+
+async function openStewardTab() {
+  mockGetDataQualityIssues.mockResolvedValue({ count: 0, issues: [] });
+  renderWithConfig(true);
+  const tab = await screen.findByRole("tab", { name: en.dataQuality.admin.tabs.steward });
+  await act(async () => {
+    await userEvent.click(tab);
+  });
+}
+
+describe("DataQuality steward report (#10471)", () => {
+  it("groups the latest report by verdict with exposure, cause and evidence", async () => {
+    mockGetDataStewardLatest.mockResolvedValue(stewardReport());
+    await openStewardTab();
+
+    const fixGroup = await screen.findByRole("region", { name: en.dataQuality.admin.steward.groups.fix_available });
+    expect(fixGroup).toHaveTextContent("VWRL.L");
+    expect(fixGroup).toHaveTextContent("£7,000");
+    expect(fixGroup).toHaveTextContent("source_outage");
+    expect(fixGroup).toHaveTextContent("get_data_freshness");
+
+    const humanGroup = screen.getByRole("region", { name: en.dataQuality.admin.steward.groups.needs_human });
+    expect(humanGroup).toHaveTextContent("epoch_zero_row+unadjusted_split");
+    expect(humanGroup).toHaveTextContent("split ratio");
+    // Only fix-available items offer Apply.
+    expect(screen.getAllByRole("button", { name: /Apply fix for/ })).toHaveLength(1);
+  });
+
+  it("applies a proposed fix through the existing fix endpoint after confirmation", async () => {
+    mockGetDataStewardLatest.mockResolvedValue(stewardReport());
+    mockFixDataQualityIssue.mockResolvedValue({ status: "fixed", audit_id: "a1" });
+    await openStewardTab();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Apply fix for VWRL.L" }));
+    expect(mockFixDataQualityIssue).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Refetch the series.");
+    await act(async () => {
+      await userEvent.click(screen.getByRole("button", { name: en.dataQuality.admin.issues.actions.apply }));
+    });
+
+    expect(mockFixDataQualityIssue).toHaveBeenCalledWith("STALE_SERIES:VWRL:L");
+    expect(await screen.findByRole("status")).toHaveTextContent(en.dataQuality.admin.issues.actions.applied);
+    // The applied item is marked, not offered again.
+    expect(screen.getByText(en.dataQuality.admin.steward.applied)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Apply fix for VWRL.L" })).not.toBeInTheDocument();
+  });
+
+  it("shows an empty state before the first run and runs the bot on demand", async () => {
+    mockGetDataStewardLatest
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(stewardReport({ items: [], issues_investigated: 0 }));
+    mockRunBotNow.mockResolvedValue({ id: "run-9", bot_id: "data-steward", status: "ok" });
+    await openStewardTab();
+
+    expect(await screen.findByText(en.dataQuality.admin.steward.empty)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.dataQuality.admin.steward.botsLink })).toHaveAttribute("href", "/bots");
+    await act(async () => {
+      await userEvent.click(screen.getByRole("button", { name: en.dataQuality.admin.steward.runNow }));
+    });
+    expect(mockRunBotNow).toHaveBeenCalledWith("data-steward");
+    expect(await screen.findByText(en.dataQuality.admin.steward.noItems)).toBeInTheDocument();
+  });
+
+  it("polls a background bot run until it finishes, then shows its report", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mockGetDataStewardLatest.mockResolvedValueOnce(null).mockResolvedValueOnce(stewardReport());
+      mockRunBotNow.mockResolvedValue({ id: "run-9", bot_id: "data-steward", status: "running" });
+      mockGetBotRun.mockResolvedValue({ id: "run-9", bot_id: "data-steward", status: "ok" });
+      await openStewardTab();
+
+      await act(async () => {
+        await userEvent.click(await screen.findByRole("button", { name: en.dataQuality.admin.steward.runNow }));
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+      expect(mockGetBotRun).toHaveBeenCalledWith("data-steward", "run-9");
+      expect(
+        await screen.findByRole("region", { name: en.dataQuality.admin.steward.groups.fix_available }),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows why a bot run failed", async () => {
+    mockGetDataStewardLatest.mockResolvedValue(null);
+    mockRunBotNow.mockResolvedValue({
+      id: "run-9",
+      bot_id: "data-steward",
+      status: "failed",
+      error: "setup: MCP_SERVER_URL is not set",
+    });
+    await openStewardTab();
+
+    await act(async () => {
+      await userEvent.click(await screen.findByRole("button", { name: en.dataQuality.admin.steward.runNow }));
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("MCP_SERVER_URL is not set");
+  });
+
+  it("shows run errors from the report", async () => {
+    mockGetDataStewardLatest.mockResolvedValue(
+      stewardReport({ status: "error", items: [], errors: [{ stage: "setup", error: "MCP_SERVER_URL is not set" }] }),
+    );
+    await openStewardTab();
+
+    expect(await screen.findByRole("list", { name: en.dataQuality.admin.steward.runErrors })).toHaveTextContent(
+      "setup: MCP_SERVER_URL is not set",
+    );
   });
 });

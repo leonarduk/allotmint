@@ -125,6 +125,23 @@ def test_transfers_and_other_accounts_are_not_matched():
     assert _statuses(result) == [("2026-09-28", "missing")]
 
 
+@pytest.mark.parametrize(
+    "comment", ["Refund of employer contribution", "Employer contribution reversal", "Employer scheme transfer"]
+)
+def test_refunds_reversals_and_transfers_are_never_matched(comment):
+    rows = [_tx("2026-09-28", 50_000, comments=comment)]
+    result = match_contributions([_item(start_date="2026-09-28")], rows, TAX_YEAR_START, date(2026, 10, 20))
+    assert _statuses(result) == [("2026-09-28", "missing")]
+    assert result["unmatched_deposits"] == []
+
+
+def test_employer_tag_must_be_a_whole_word():
+    personal = _item(source="personal_gross", start_date="2026-09-28")
+    rows = [_tx("2026-09-28", 50_000, comments="Unemployerish contribution")]
+    result = match_contributions([personal], rows, TAX_YEAR_START, date(2026, 10, 20))
+    assert _statuses(result) == [("2026-09-28", "on_time")]
+
+
 def test_isa_subscription_matches_isa_deposits():
     item = _item(account="isa", source="isa_subscription", expected_day=5, start_date="2026-09-05")
     rows = [_tx("2026-09-05", 50_000, comments="Regular subscription", account="isa")]

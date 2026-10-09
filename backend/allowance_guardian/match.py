@@ -12,13 +12,14 @@ account's DEPOSIT rows within a window around the expected date:
 - ``awaiting``: nothing matching yet, but the window is still open.
 
 A split payment (several rows in the window that add up to the amount) counts as a
-match. Relief-at-source top-ups and transfers-in are never matched: the schedule
+match. Relief-at-source top-ups, transfers, refunds and reversals are never matched: the schedule
 records the amount the owner pays, and the relief arrives separately weeks later.
 Each row is used at most once. Amounts are pence (``amount_minor``).
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
@@ -30,11 +31,14 @@ ON_TIME_GRACE_DAYS = 2
 LATE_WINDOW_DAYS = 14
 AMOUNT_TOLERANCE_MINOR = 100
 
-# Comment tags marking an employer or salary-sacrifice DEPOSIT. Mirrors
+# Whole-word comment tags marking an employer or salary-sacrifice DEPOSIT. Mirrors
 # allotmint_pro.mcp_server.transaction_summary.EMPLOYER_COMMENT_TAGS, which decides
 # what counts towards the annual allowance; kept here so matching works without it.
 EMPLOYER_COMMENT_TAGS = ("employer", "salary sacrifice", "salary exchange")
-_NEVER_MATCHED_TAGS = ("tax relief", "transfer")
+_EMPLOYER_TAG_RE = re.compile(r"\b(?:" + "|".join(EMPLOYER_COMMENT_TAGS) + r")\b")
+# Relief top-ups, transfers, refunds, reversals, repayments and corrections are not
+# contributions the owner scheduled, so they are never matched.
+_NEVER_MATCHED_RE = re.compile(r"tax relief|\b(?:transfer|refund|revers|repay|correction)")
 
 STATUSES = ("on_time", "late", "wrong_amount", "missing", "awaiting")
 
@@ -56,14 +60,14 @@ def _as_deposit(tx: Any) -> Optional[Deposit]:
     if (tx.currency or "GBP").strip().upper() != "GBP":
         return None
     comment = (tx.comments or "").lower()
-    if any(tag in comment for tag in _NEVER_MATCHED_TAGS):
+    if _NEVER_MATCHED_RE.search(comment):
         return None
     return Deposit(
         id=str(tx.id or f"{tx.account}:{tx.date}:{tx.amount_minor}"),
         account=(tx.account or "").lower(),
         date=date.fromisoformat(str(tx.date)[:10]),
         amount_minor=abs(int(round(tx.amount_minor))),
-        employer=any(tag in comment for tag in EMPLOYER_COMMENT_TAGS),
+        employer=bool(_EMPLOYER_TAG_RE.search(comment)),
     )
 
 

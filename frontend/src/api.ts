@@ -2981,6 +2981,71 @@ export const getAllowances = (owner?: string) => {
   }>(`${API_BASE}/tax/allowances${suffix}`);
 };
 
+// ───────────── Allowance Guardian (#10479) ─────────────
+// Money is pence (`*_minor`) throughout.
+export type GuardianStatus = "on_time" | "late" | "wrong_amount" | "missing" | "awaiting";
+
+export interface GuardianContributionResult {
+  account: string;
+  source: string;
+  label: string | null;
+  expected_date: string;
+  expected_amount_minor: number;
+  status: GuardianStatus;
+  received_amount_minor: number | null;
+  difference_minor: number | null;
+  days_late: number | null;
+}
+
+export interface GuardianWhen {
+  date: string;
+  month: string;
+}
+
+export type GuardianUnavailable = { available: false; reason: string };
+
+export interface GuardianPensionAllowance {
+  available: true;
+  tax_year: string;
+  annual_allowance_minor: number;
+  used_to_date_minor: number;
+  current_year_remaining_minor: number;
+  carry_forward_available_minor: number;
+  carry_forward_by_year: { tax_year: string; unused_minor: number; projected_unused_minor: number }[];
+  scheduled_remaining_minor: number;
+  projected_total_minor: number;
+  carry_forward_first_needed: GuardianWhen | null;
+  projected_breach: GuardianWhen | null;
+  projected_excess_minor: number;
+}
+
+export interface GuardianIsaAllowance {
+  available: true;
+  limit_minor: number;
+  subscribed_minor: number;
+  scheduled_remaining_minor: number;
+  projected_total_minor: number;
+  deadline: string;
+  days_to_deadline: number;
+}
+
+export interface AllowanceGuardianReport {
+  owner: string;
+  as_of: string;
+  tax_year: string;
+  schedule_count: number;
+  contributions: { results: GuardianContributionResult[]; counts: Record<GuardianStatus, number> };
+  pension_allowance: GuardianPensionAllowance | GuardianUnavailable;
+  isa_allowance: GuardianIsaAllowance | GuardianUnavailable;
+  alerts: { level: "info" | "warning" | "critical"; code: string; message: string }[];
+  not_modelled: string[];
+  assumptions: string[];
+  adviser_note: string;
+}
+
+export const getAllowanceGuardian = (owner: string) =>
+  fetchJson<AllowanceGuardianReport>(`${API_BASE}/allowance-guardian/${encodeURIComponent(owner)}`);
+
 // ───────────── Pension Forecast ─────────────
 export interface PensionIncomeBreakdown {
   state_pension_annual?: number | null;

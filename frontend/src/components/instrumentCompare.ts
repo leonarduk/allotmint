@@ -20,6 +20,23 @@ export const COMPARE_COLORS = [
 ];
 
 /**
+ * Read the `compare` URL parameter (comma-separated tickers) into a clean
+ * list: upper-cased, de-duplicated, without the page's own ticker, and capped
+ * so a hand-edited link can't exceed what the chart accepts.
+ */
+export function parseCompareParam(
+  value: string | null,
+  baseTicker: string,
+): string[] {
+  const base = baseTicker.toUpperCase();
+  const tickers = (value ?? "")
+    .split(",")
+    .map((t) => t.trim().toUpperCase())
+    .filter((t) => /^[A-Z0-9.-]{1,16}$/.test(t) && t !== base);
+  return [...new Set(tickers)].slice(0, MAX_COMPARE_SERIES - 1);
+}
+
+/**
  * Recharts reads dots in a dataKey as a nested path, and tickers such as
  * `VWRL.L` contain dots, so series are keyed by position instead.
  */

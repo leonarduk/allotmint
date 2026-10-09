@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   invalidateInstrumentHistory,
@@ -8,6 +8,7 @@ import {
   updateCachedInstrumentHistory,
 } from "../hooks/useInstrumentHistory";
 import { InstrumentDetail, InstrumentPositionsTable } from "../components/InstrumentDetail";
+import { parseCompareParam } from "../components/instrumentCompare";
 import { InstrumentTradeSection } from "../components/InstrumentTradeSection";
 import { InstrumentValuationPanel } from "../components/InstrumentValuationPanel";
 import { InstrumentTechnicalsPanel } from "../components/InstrumentTechnicalsPanel";
@@ -296,6 +297,24 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       .filter(Boolean);
     return !!tkr && list.includes(tkr);
   });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const compareTickers = useMemo(
+    () => parseCompareParam(searchParams.get("compare"), tkr),
+    [searchParams, tkr],
+  );
+  const setCompareTickers = useCallback(
+    (tickers: string[]) =>
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (tickers.length) next.set("compare", tickers.join(","));
+          else next.delete("compare");
+          return next;
+        },
+        { replace: true },
+      ),
+    [setSearchParams],
+  );
   const [activeTab, setActiveTab] = useState<
     | "overview"
     | "timeseries"
@@ -306,7 +325,8 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     | "news"
     | "notes"
     | "alerts"
-  >("overview");
+    // A shared comparison link opens where the comparison is drawn.
+  >(() => (compareTickers.length ? "timeseries" : "overview"));
   const [fundamentals, setFundamentals] = useState<ScreenerResult | null>(null);
   const [fundamentalsLoading, setFundamentalsLoading] = useState(false);
   const [fundamentalsError, setFundamentalsError] = useState<string | null>(null);
@@ -1888,6 +1908,8 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             hidePositions
             initialHistoryDays={overviewHistoryDays}
             onHistoryRangeChange={setOverviewHistoryDays}
+            compareTickers={compareTickers}
+            onCompareTickersChange={setCompareTickers}
           />
         </div>
       )}

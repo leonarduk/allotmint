@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { buildCompareRows } from "@/components/instrumentCompare";
+import {
+  MAX_COMPARE_SERIES,
+  buildCompareRows,
+  parseCompareParam,
+} from "@/components/instrumentCompare";
 
 describe("buildCompareRows", () => {
   it("rebases every series to 0% on the first date they all share", () => {
@@ -49,5 +53,20 @@ describe("buildCompareRows", () => {
         { ticker: "BBB.L", points: [{ date: "2024-01-01", close: 0 }] },
       ]),
     ).toEqual([]);
+  });
+});
+
+describe("parseCompareParam", () => {
+  it("cleans the list and drops the page's own ticker", () => {
+    expect(
+      parseCompareParam(" vwrl.l, ,IGLT.L,vwrl.l,phgp.l", "PHGP.L"),
+    ).toEqual(["VWRL.L", "IGLT.L"]);
+  });
+
+  it("ignores junk and caps the count", () => {
+    expect(parseCompareParam(null, "A")).toEqual([]);
+    expect(parseCompareParam("<script>,B", "A")).toEqual(["B"]);
+    const many = Array.from({ length: 20 }, (_, i) => `T${i}`).join(",");
+    expect(parseCompareParam(many, "A")).toHaveLength(MAX_COMPARE_SERIES - 1);
   });
 });

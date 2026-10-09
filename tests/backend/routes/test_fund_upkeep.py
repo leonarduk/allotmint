@@ -14,7 +14,7 @@ from backend.common import instruments
 from backend.common.fund_charges import ongoing_charge_pct
 from backend.config import config
 from backend.data_quality.audit import read_audit
-from backend.fund_upkeep import proposals
+from backend.fund_upkeep import bot, proposals
 from tests.backend.fund_upkeep.fixtures import make_catalogue, stored_meta
 
 DOC_URL = "https://issuer.example.com/docs/fundx-kiid.pdf"
@@ -140,3 +140,21 @@ def test_all_in_cost_route_reads_holdings_and_owner_transactions(client, monkeyp
     assert body["total"]["fund_charges_gbp"] == 5.0
     assert body["total"]["dealing_fees_gbp"] == 5.0
     assert body["total"]["known_cost_gbp"] == 10.0
+
+
+def test_settings_resolve_the_owner_like_the_bot_run(client, monkeypatch, tmp_path):
+    http, _root = client
+    (tmp_path / "accounts" / "Alex").mkdir(parents=True)
+    monkeypatch.setattr(routes, "resolve_accounts_root", lambda _request: tmp_path / "accounts")
+    monkeypatch.setattr(
+        routes,
+        "resolve_owner_directory",
+        lambda root, owner: next(p for p in root.iterdir() if p.name.lower() == owner.lower()),
+    )
+
+    saved = http.put("/fund-upkeep/alex/settings", json={"thresholds": {"single_stock_pct": 7.5}})
+
+    assert saved.status_code == 200
+    # bot.run is called with the canonical directory name.
+    assert bot.get_settings("Alex")["thresholds"]["single_stock_pct"] == 7.5
+    assert http.get("/fund-upkeep/ALEX/settings").json()["thresholds"]["single_stock_pct"] == 7.5

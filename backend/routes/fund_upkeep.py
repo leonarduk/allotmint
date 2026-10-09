@@ -40,12 +40,23 @@ class RunBody(BaseModel):
     use_agent: bool = True
 
 
-def _owner_portfolio(owner: str, request: Request, user: Optional[str]) -> tuple[str, Dict[str, Any]]:
+def _authorised_owner(owner: str, request: Request, user: Optional[str]) -> str:
+    """The owner's canonical (on-disk) name, after checking ``user`` may access it.
+
+    Every owner route goes through this, so settings, snapshots and bot runs
+    all key the same owner the same way whatever the URL's casing.
+    """
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
     ensure_owner_access(user, owner, accounts_root)
+    return owner
+
+
+def _owner_portfolio(owner: str, request: Request, user: Optional[str]) -> tuple[str, Dict[str, Any]]:
+    owner = _authorised_owner(owner, request, user)
+    accounts_root = resolve_accounts_root(request)
     try:
         return owner, portfolio_mod.build_owner_portfolio(owner, accounts_root)
     except FileNotFoundError as exc:
@@ -93,14 +104,12 @@ def owner_concentration(owner: str, request: Request, user: Optional[str] = Depe
 
 @router.get("/{owner}/settings")
 def get_settings(owner: str, request: Request, user: Optional[str] = Depends(get_active_user)):
-    ensure_owner_access(user, owner, resolve_accounts_root(request))
-    return bot.get_settings(owner)
+    return bot.get_settings(_authorised_owner(owner, request, user))
 
 
 @router.put("/{owner}/settings")
 def put_settings(owner: str, body: ThresholdsBody, request: Request, user: Optional[str] = Depends(get_active_user)):
-    ensure_owner_access(user, owner, resolve_accounts_root(request))
-    return bot.save_settings(owner, body.thresholds)
+    return bot.save_settings(_authorised_owner(owner, request, user), body.thresholds)
 
 
 @router.post("/{owner}/run")

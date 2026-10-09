@@ -11,6 +11,13 @@ vi.mock('@/api', () => ({
   getInvestmentPlan: mockGetInvestmentPlan,
   saveInvestmentPlan: mockSaveInvestmentPlan,
   saveAllocationPolicy: mockSaveAllocationPolicy,
+  // PlanBriefCard (#10475) renders inside the plan; no brief saved yet.
+  getLatestPlanBrief: vi
+    .fn()
+    .mockRejectedValue(Object.assign(new Error('none'), { status: 404 })),
+  getPlanBrief: vi.fn(),
+  listPlanBriefs: vi.fn(),
+  runPlanBrief: vi.fn(),
 }));
 
 function makeResponse(

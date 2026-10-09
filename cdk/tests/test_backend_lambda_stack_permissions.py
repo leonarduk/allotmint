@@ -1146,8 +1146,11 @@ def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
 # CHAT_HISTORY_PREFIX is not duplicated: the backend has no S3 fallback for it
 # and only learns the location from CHAT_HISTORY_STORAGE_URI (#8870), which
 # test_backend_lambda_chat_history_env_points_at_the_chat_prefix checks.
+# PLAN_BRIEFS_PREFIX reaches the backend only via PLAN_BRIEFS_URI (#10475); its
+# name matches backend.plan_brief.store.PLAN_BRIEFS_DIRNAME, checked by
+# test_plan_brief_prefix_matches_backend_and_env.
 _COVERED_STACK_PREFIX_CONSTANTS = frozenset(
-    {"WRITABLE_ACCOUNTS_PREFIX", "METADATA_PREFIX", "CHAT_HISTORY_PREFIX"}
+    {"WRITABLE_ACCOUNTS_PREFIX", "METADATA_PREFIX", "CHAT_HISTORY_PREFIX", "PLAN_BRIEFS_PREFIX"}
 )
 
 
@@ -1251,3 +1254,53 @@ def test_chat_history_expires_after_the_agreed_retention() -> None:
             "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
         }
     ]
+
+
+# ---------------------------------------------------------------------------
+# PlanBriefLambda (issue #10475)
+# ---------------------------------------------------------------------------
+
+
+def test_plan_brief_lambda_writes_only_under_plan_briefs() -> None:
+    """Read-only on account data; s3:PutObject only on plan_briefs/*, and no delete."""
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "PlanBriefLambda")
+
+    put_resources = _resources_for_s3_action(template, role, "s3:PutObject")
+    assert put_resources, "Expected PlanBriefLambda to have an s3:PutObject grant"
+    for resource in put_resources:
+        assert "plan_briefs/*" in resource, f"PutObject must be scoped to plan_briefs/*, got {resource!r}"
+
+    assert _s3_actions_for_role(template, role) == {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
+    assert _conditions_for_s3_action(template, role, "s3:ListBucket") == [
+        {"StringLike": {"s3:prefix": ["accounts", "accounts/*"]}}
+    ]
+
+
+def test_plan_brief_monthly_rule_targets_the_lambda() -> None:
+    template = _stack_template()
+    rules = [
+        resource["Properties"]
+        for resource in template["Resources"].values()
+        if resource.get("Type") == "AWS::Events::Rule"
+        and any("PlanBriefLambda" in str(target.get("Arn")) for target in resource["Properties"].get("Targets", []))
+    ]
+    assert [rule["ScheduleExpression"] for rule in rules] == ["cron(0 8 1 * ? *)"]
+
+
+def test_plan_brief_prefix_matches_backend_and_env() -> None:
+    """Both the API and the scheduled Lambda point PLAN_BRIEFS_URI at the granted prefix."""
+    from backend.plan_brief.store import PLAN_BRIEFS_DIRNAME
+    from stacks.backend_lambda_stack import PLAN_BRIEFS_PREFIX
+
+    assert PLAN_BRIEFS_PREFIX == PLAN_BRIEFS_DIRNAME
+    template = _stack_template()
+    uris = [
+        resource["Properties"]["Environment"]["Variables"].get("PLAN_BRIEFS_URI")
+        for logical_id, resource in template["Resources"].items()
+        if resource.get("Type") == "AWS::Lambda::Function"
+        and ("PlanBriefLambda" in logical_id or logical_id.startswith("BackendLambda"))
+    ]
+    assert len(uris) == 2 and all(uris), uris
+    for uri in uris:
+        assert f"/{PLAN_BRIEFS_PREFIX}" in str(uri)

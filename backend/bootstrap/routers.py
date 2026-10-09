@@ -39,6 +39,7 @@ from backend.routes.nudges import router as nudges_router
 from backend.routes.opportunities import router as opportunities_router
 from backend.routes.pension import router as pension_router
 from backend.routes.performance import router as performance_router
+from backend.routes.plan_brief import router as plan_brief_router
 from backend.routes.portfolio import public_router as public_portfolio_router
 from backend.routes.portfolio import router as portfolio_router
 from backend.routes.price_triggers import router as price_triggers_router
@@ -117,6 +118,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(strategies_router)
     app.include_router(sleeves_router)
     app.include_router(investment_plan_router)
+    app.include_router(plan_brief_router)
     app.include_router(config_router)
     app.include_router(quotes_router)
     app.include_router(news_router)

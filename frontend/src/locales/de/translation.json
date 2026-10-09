@@ -3279,6 +3279,35 @@
     "total": "Summe: {{value}}%",
     "mustEqual100": "(muss 100% ergeben)"
   },
+  "planBrief": {
+    "title": "Neuester Planbericht",
+    "runNow": "Bericht jetzt erstellen",
+    "running": "Wird erstellt…",
+    "loading": "Bericht wird geladen…",
+    "none": "Noch kein Bericht. Berichte werden monatlich erstellt, oder jetzt einen erstellen.",
+    "loadError": "Bericht konnte nicht geladen werden: {{message}}",
+    "runError": "Bericht konnte nicht erstellt werden: {{message}}",
+    "asOf": "Stand {{date}}",
+    "total": "Portfolio {{value}}",
+    "reviewDue": "Überprüfung fällig: Das Prüfdatum des Plans ({{date}}) ist überschritten.",
+    "driftCaption": "Ist vs. Planziel; hervorgehobene Zeilen liegen außerhalb des ±{{band}}pp-Bands.",
+    "class": "Klasse",
+    "actual": "Ist",
+    "target": "Ziel",
+    "drift": "Abweichung",
+    "driftGbp": "Abweichung £",
+    "targetsDiffer": "Die gespeicherten Rebalancing-Ziele weichen vom Planziel ab.",
+    "triggers": "Prüfauslöser",
+    "verdict": {
+      "fired": "Ausgelöst",
+      "not_fired": "Nicht ausgelöst",
+      "cant_evaluate": "Nicht auswertbar"
+    },
+    "idleCash": "{{account}}: {{amount}} Bargeld, seit Eingang {{days}} Tage ohne Kauf",
+    "staleEvidence": "Belege älter als sechs Monate: {{items}}",
+    "earlier": "Frühere Berichte",
+    "summaryLine": "{{outside}} außerhalb des Bands, {{fired}} Auslöser ausgelöst"
+  },
   "planPanel": {
     "planTarget": "Planziel",
     "class": "Klasse",

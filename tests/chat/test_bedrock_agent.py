@@ -408,3 +408,50 @@ def test_bedrock_client_disables_botocore_retries(monkeypatch):
     finally:
         bedrock_agent._bedrock_client.cache_clear()
     assert captured["config"].retries == {"max_attempts": 1}
+
+
+async def test_run_chat_turn_limits_restrict_tools_cap_tokens_and_log_calls(monkeypatch):
+    """TurnLimits (#10475): only allowed tools offered or run, maxTokens sent, calls and usage recorded."""
+    from backend.chat.turn_limits import TurnLimits
+
+    session = FakeSession(
+        tools=[FakeTool("get_market_rates"), FakeTool("create_issue")],
+        tool_results={"get_market_rates": FakeCallToolResult('{"bank_rate": 2.75}')},
+    )
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    first = {
+        "output": {
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {"toolUse": {"toolUseId": "t1", "name": "get_market_rates", "input": {}}},
+                    {"toolUse": {"toolUseId": "t2", "name": "create_issue", "input": {"title": "x"}}},
+                ],
+            }
+        },
+        "usage": {"inputTokens": 100, "outputTokens": 20},
+    }
+    responses = [first, {**_assistant_text("done"), "usage": {"inputTokens": 50, "outputTokens": 5}}]
+    seen = []
+
+    class FakeBedrock:
+        def converse(self, **kwargs):
+            seen.append(copy.deepcopy(kwargs))
+            return responses[len(seen) - 1]
+
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: FakeBedrock())
+    limits = TurnLimits(allowed_tools={"get_market_rates"}, max_tokens=500)
+
+    reply = await bedrock_agent.run_chat_turn(
+        "rates?", [], mcp_server_url="https://example.com/mcp", bedrock_model_id="m", limits=limits
+    )
+
+    assert reply == "done"
+    assert [t["toolSpec"]["name"] for t in seen[0]["toolConfig"]["tools"]] == ["get_market_rates"]
+    assert seen[0]["inferenceConfig"] == {"maxTokens": 500}
+    assert session.calls == [("get_market_rates", {})]
+    assert [(c["tool"], c["is_error"]) for c in limits.tool_log] == [
+        ("get_market_rates", False),
+        ("create_issue", True),
+    ]
+    assert limits.usage == {"input_tokens": 150, "output_tokens": 25}

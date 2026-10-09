@@ -3272,6 +3272,35 @@
     "total": "Total: {{value}}%",
     "mustEqual100": "(must equal 100%)"
   },
+  "planBrief": {
+    "title": "Latest plan brief",
+    "runNow": "Run brief now",
+    "running": "Running…",
+    "loading": "Loading brief…",
+    "none": "No brief yet. Briefs run monthly, or run one now.",
+    "loadError": "Could not load the brief: {{message}}",
+    "runError": "Could not run the brief: {{message}}",
+    "asOf": "As of {{date}}",
+    "total": "Portfolio {{value}}",
+    "reviewDue": "Review due: the plan's review date ({{date}}) has passed.",
+    "driftCaption": "Actual vs plan target; highlighted rows are outside the ±{{band}}pp band.",
+    "class": "Class",
+    "actual": "Actual",
+    "target": "Target",
+    "drift": "Drift",
+    "driftGbp": "Drift £",
+    "targetsDiffer": "The saved rebalance targets differ from the plan target.",
+    "triggers": "Review triggers",
+    "verdict": {
+      "fired": "Fired",
+      "not_fired": "Not fired",
+      "cant_evaluate": "Can't evaluate"
+    },
+    "idleCash": "{{account}}: {{amount}} cash, {{days}} days with no purchase since it arrived",
+    "staleEvidence": "Evidence over six months old: {{items}}",
+    "earlier": "Earlier briefs",
+    "summaryLine": "{{outside}} outside band, {{fired}} trigger(s) fired"
+  },
   "planPanel": {
     "planTarget": "Plan target",
     "class": "Class",

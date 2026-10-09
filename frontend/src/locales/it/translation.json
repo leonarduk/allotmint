@@ -3279,6 +3279,35 @@
     "total": "Totale: {{value}}%",
     "mustEqual100": "(deve essere 100%)"
   },
+  "planBrief": {
+    "title": "Ultimo resoconto del piano",
+    "runNow": "Genera resoconto ora",
+    "running": "Generazione…",
+    "loading": "Caricamento resoconto…",
+    "none": "Nessun resoconto. I resoconti sono mensili, oppure generane uno ora.",
+    "loadError": "Impossibile caricare il resoconto: {{message}}",
+    "runError": "Impossibile generare il resoconto: {{message}}",
+    "asOf": "Al {{date}}",
+    "total": "Portafoglio {{value}}",
+    "reviewDue": "Revisione dovuta: la data di revisione del piano ({{date}}) è passata.",
+    "driftCaption": "Effettivo vs obiettivo del piano; le righe evidenziate sono fuori dalla banda di ±{{band}}pp.",
+    "class": "Classe",
+    "actual": "Effettivo",
+    "target": "Obiettivo",
+    "drift": "Scostamento",
+    "driftGbp": "Scostamento £",
+    "targetsDiffer": "Gli obiettivi di ribilanciamento salvati differiscono dall'obiettivo del piano.",
+    "triggers": "Trigger di revisione",
+    "verdict": {
+      "fired": "Attivato",
+      "not_fired": "Non attivato",
+      "cant_evaluate": "Non valutabile"
+    },
+    "idleCash": "{{account}}: {{amount}} in liquidità, {{days}} giorni senza acquisti dall'arrivo",
+    "staleEvidence": "Evidenze più vecchie di sei mesi: {{items}}",
+    "earlier": "Resoconti precedenti",
+    "summaryLine": "{{outside}} fuori banda, {{fired}} trigger attivati"
+  },
   "planPanel": {
     "planTarget": "Obiettivo del piano",
     "class": "Classe",

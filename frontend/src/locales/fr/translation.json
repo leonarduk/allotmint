@@ -3279,6 +3279,35 @@
     "total": "Total : {{value}}%",
     "mustEqual100": "(doit égaler 100%)"
   },
+  "planBrief": {
+    "title": "Dernier bilan du plan",
+    "runNow": "Générer le bilan",
+    "running": "Génération…",
+    "loading": "Chargement du bilan…",
+    "none": "Aucun bilan pour l'instant. Les bilans sont mensuels, ou générez-en un maintenant.",
+    "loadError": "Impossible de charger le bilan : {{message}}",
+    "runError": "Impossible de générer le bilan : {{message}}",
+    "asOf": "Au {{date}}",
+    "total": "Portefeuille {{value}}",
+    "reviewDue": "Révision due : la date de révision du plan ({{date}}) est passée.",
+    "driftCaption": "Réel vs cible du plan ; les lignes surlignées sont hors de la bande de ±{{band}}pp.",
+    "class": "Classe",
+    "actual": "Réel",
+    "target": "Cible",
+    "drift": "Écart",
+    "driftGbp": "Écart £",
+    "targetsDiffer": "Les cibles de rééquilibrage enregistrées diffèrent de la cible du plan.",
+    "triggers": "Déclencheurs de révision",
+    "verdict": {
+      "fired": "Déclenché",
+      "not_fired": "Non déclenché",
+      "cant_evaluate": "Non évaluable"
+    },
+    "idleCash": "{{account}} : {{amount}} en liquidités, {{days}} jours sans achat depuis leur arrivée",
+    "staleEvidence": "Éléments de plus de six mois : {{items}}",
+    "earlier": "Bilans précédents",
+    "summaryLine": "{{outside}} hors bande, {{fired}} déclencheur(s) déclenché(s)"
+  },
   "planPanel": {
     "planTarget": "Cible du plan",
     "class": "Classe",

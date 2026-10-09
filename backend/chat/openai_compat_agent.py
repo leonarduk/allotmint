@@ -25,6 +25,7 @@ from backend.chat.bedrock_agent import (
 from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import mcp_session
 from backend.chat.tool_switches import switched_off_message, tool_enabled
+from backend.chat.turn_limits import TurnLimits, not_allowed_message
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -67,13 +68,18 @@ async def _complete(
     model: str,
     messages: List[Dict[str, Any]],
     tools: List[Dict[str, Any]],
+    limits: Optional[TurnLimits] = None,
 ) -> Dict[str, Any]:
-    response = await client.post(
-        f"{base_url.rstrip('/')}/chat/completions",
-        json={"model": model, "messages": messages, "tools": tools},
-    )
+    payload: Dict[str, Any] = {"model": model, "messages": messages, "tools": tools}
+    if limits is not None and limits.max_tokens:
+        payload["max_tokens"] = limits.max_tokens
+    response = await client.post(f"{base_url.rstrip('/')}/chat/completions", json=payload)
     response.raise_for_status()
-    return response.json()["choices"][0]["message"]
+    body = response.json()
+    if limits is not None:
+        usage = body.get("usage") or {}
+        limits.add_usage(usage.get("prompt_tokens"), usage.get("completion_tokens"))
+    return body["choices"][0]["message"]
 
 
 async def run_chat_turn(
@@ -86,10 +92,13 @@ async def run_chat_turn(
     api_key: Optional[str] = None,
     local_tools: Optional[LocalTools] = None,
     system_prompt: Optional[str] = None,
+    limits: Optional[TurnLimits] = None,
 ) -> str:
     """Run one user turn through an OpenAI-compatible tool-calling loop and return the reply.
 
     ``history`` has the same shape as ``bedrock_agent.run_chat_turn``'s.
+    ``limits`` optionally restricts the tools and records each call (see
+    :mod:`backend.chat.turn_limits`).
     """
 
     messages: List[Dict[str, Any]] = [{"role": item["role"], "content": item["content"]} for item in history]
@@ -105,10 +114,16 @@ async def run_chat_turn(
         httpx.AsyncClient(headers=headers, timeout=REQUEST_TIMEOUT_SECONDS) as client,
     ):
         tools_result = await session.list_tools()
-        tools = [_tool_to_openai_spec(tool) for tool in merge_tool_lists(tools_result.tools, local_tools)]
+        offered = merge_tool_lists(tools_result.tools, local_tools)
+        if limits is not None:
+            offered = [tool for tool in offered if limits.allows(tool.name)]
+        tools = [_tool_to_openai_spec(tool) for tool in offered]
+        max_iterations = (limits.max_iterations if limits else None) or MAX_TOOL_ITERATIONS
 
-        for _ in range(MAX_TOOL_ITERATIONS):
-            output_message = await _complete(client, base_url=base_url, model=model, messages=messages, tools=tools)
+        for _ in range(max_iterations):
+            output_message = await _complete(
+                client, base_url=base_url, model=model, messages=messages, tools=tools, limits=limits
+            )
             tool_calls = output_message.get("tool_calls") or []
             messages.append(
                 {"role": "assistant", "content": output_message.get("content") or "", "tool_calls": tool_calls}
@@ -120,19 +135,25 @@ async def run_chat_turn(
 
             for tool_call in tool_calls:
                 name = tool_call["function"]["name"]
+                arguments: Any = tool_call["function"].get("arguments")
+                failed = True
                 try:
                     if not tool_enabled(name):
                         raise ValueError(switched_off_message(name))
-                    arguments = _parse_tool_arguments(tool_call["function"].get("arguments"))
+                    if limits is not None and not limits.allows(name):
+                        raise ValueError(not_allowed_message(name))
+                    arguments = _parse_tool_arguments(arguments)
                     if local_tools is not None and local_tools.handles(name):
                         content, is_error = local_tools.call(name, arguments)
                         # OpenAI tool messages have no status field, so flag a
                         # rejected call the same way as a failed MCP call below.
                         if is_error:
                             content = f"Tool call failed: {content}"
+                        failed = is_error
                     else:
                         result = await session.call_tool(name, arguments)
                         content = _tool_result_to_bedrock_content(result)[0]["text"]
+                        failed = bool(getattr(result, "is_error", False))
                 except Exception as exc:  # noqa: BLE001 - surfaced to the model, not swallowed
                     logger.warning(
                         "MCP tool call %s failed: %s",
@@ -140,6 +161,8 @@ async def run_chat_turn(
                         sanitise_log_value(exc),
                     )
                     content = f"Tool call failed: {exc}"
+                if limits is not None:
+                    limits.record_call(name, arguments, content, failed)
                 messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": content})
 
-    raise RuntimeError(f"Tool-calling loop did not converge after {MAX_TOOL_ITERATIONS} iterations")
+    raise RuntimeError(f"Tool-calling loop did not converge after {max_iterations} iterations")

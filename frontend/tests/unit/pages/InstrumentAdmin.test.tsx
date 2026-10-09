@@ -23,6 +23,8 @@ vi.mock("@/api", () => ({
   ]),
   createInstrumentMetadata: vi.fn().mockResolvedValue({}),
   updateInstrumentMetadata: vi.fn().mockResolvedValue({}),
+  getFundUpkeepProposals: vi.fn().mockResolvedValue([]),
+  decideFundUpkeepProposal: vi.fn().mockResolvedValue({}),
 }));
 
 import InstrumentAdmin from "@/pages/InstrumentAdmin";

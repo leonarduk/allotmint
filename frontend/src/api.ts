@@ -60,6 +60,8 @@ import type {
   CashDeploymentSchedule,
   CashDeploymentScheduleInput,
   InvestmentPlanResponse,
+  PlanBrief,
+  PlanBriefSummary,
   RebalancePlan,
   QuestResponse,
   TrailResponse,
@@ -67,6 +69,8 @@ import type {
   RegionContribution,
   CurrencyContribution,
   LookThroughExposure,
+  AllInCost,
+  FundUpkeepProposal,
   InstrumentAllocation,
   InstrumentAllocationRefresh,
   UserConfig,
@@ -1035,6 +1039,28 @@ export const getOwnerLookThrough = (owner: string, opts: { asOf?: string | null 
     : `${API_BASE}/portfolio/${owner}/look-through`;
   return fetchJson<LookThroughExposure>(url);
 };
+
+/** Fund charges plus 12 months of fees paid, per account and in total (#10482). */
+export const getOwnerAllInCost = (owner: string) =>
+  fetchJson<AllInCost>(`${API_BASE}/fund-upkeep/${encodeURIComponent(owner)}/all-in-cost`);
+
+export const getGroupAllInCost = (slug: string) =>
+  fetchJson<AllInCost>(`${API_BASE}/fund-upkeep/group/${encodeURIComponent(slug)}/all-in-cost`);
+
+/** Fund data proposals from the upkeep bot (#10482); nothing is saved until approved. */
+export const getFundUpkeepProposals = (status?: FundUpkeepProposal["status"]) =>
+  fetchJson<FundUpkeepProposal[]>(
+    status
+      ? `${API_BASE}/fund-upkeep/proposals?${new URLSearchParams({ status }).toString()}`
+      : `${API_BASE}/fund-upkeep/proposals`,
+  );
+
+/** Approve (write with an audit entry), reject, or undo an approved proposal (#10482). */
+export const decideFundUpkeepProposal = (id: string, action: "approve" | "reject" | "undo") =>
+  fetchJson<FundUpkeepProposal>(
+    `${API_BASE}/fund-upkeep/proposals/${encodeURIComponent(id)}/${action}`,
+    { method: "POST" },
+  );
 
 /** One instrument's country/sector/top-holding breakdown (#9974). */
 export const getInstrumentAllocation = (ticker: string, signal?: AbortSignal) =>
@@ -2724,6 +2750,25 @@ export const saveInvestmentPlan = (owner: string, plan: Partial<InvestmentPlan>)
     body: JSON.stringify(plan),
   });
 
+const planBriefUrl = (owner: string, ...parts: string[]) =>
+  [`${API_BASE}/plan-brief/${encodeURIComponent(owner)}`, ...parts.map(encodeURIComponent)].join("/");
+
+/** The owner's latest plan-drift brief (#10475); rejects with `status` 404 when none is saved. */
+export const getLatestPlanBrief = (owner: string) =>
+  fetchJson<PlanBrief>(planBriefUrl(owner, "latest"));
+
+/** Saved plan-drift briefs, newest first, as summaries. */
+export const listPlanBriefs = (owner: string) =>
+  fetchJson<{ owner: string; briefs: PlanBriefSummary[] }>(planBriefUrl(owner));
+
+/** One saved plan-drift brief in full. */
+export const getPlanBrief = (owner: string, id: string) =>
+  fetchJson<PlanBrief>(planBriefUrl(owner, id));
+
+/** Generate, save and return a new plan-drift brief now. */
+export const runPlanBrief = (owner: string) =>
+  fetchJson<PlanBrief>(planBriefUrl(owner, "run"), { method: "POST" });
+
 /** Fetch per-ticker VaR contribution breakdown for an owner. */
 export const getVarBreakdown = (
   owner: string,
@@ -2987,6 +3032,71 @@ export const getAllowances = (owner?: string) => {
     allowances: Record<string, { used: number; limit: number; remaining: number }>;
   }>(`${API_BASE}/tax/allowances${suffix}`);
 };
+
+// ───────────── Allowance Guardian (#10479) ─────────────
+// Money is pence (`*_minor`) throughout.
+export type GuardianStatus = "on_time" | "late" | "wrong_amount" | "missing" | "awaiting";
+
+export interface GuardianContributionResult {
+  account: string;
+  source: string;
+  label: string | null;
+  expected_date: string;
+  expected_amount_minor: number;
+  status: GuardianStatus;
+  received_amount_minor: number | null;
+  difference_minor: number | null;
+  days_late: number | null;
+}
+
+export interface GuardianWhen {
+  date: string;
+  month: string;
+}
+
+export type GuardianUnavailable = { available: false; reason: string };
+
+export interface GuardianPensionAllowance {
+  available: true;
+  tax_year: string;
+  annual_allowance_minor: number;
+  used_to_date_minor: number;
+  current_year_remaining_minor: number;
+  carry_forward_available_minor: number;
+  carry_forward_by_year: { tax_year: string; unused_minor: number; projected_unused_minor: number }[];
+  scheduled_remaining_minor: number;
+  projected_total_minor: number;
+  carry_forward_first_needed: GuardianWhen | null;
+  projected_breach: GuardianWhen | null;
+  projected_excess_minor: number;
+}
+
+export interface GuardianIsaAllowance {
+  available: true;
+  limit_minor: number;
+  subscribed_minor: number;
+  scheduled_remaining_minor: number;
+  projected_total_minor: number;
+  deadline: string;
+  days_to_deadline: number;
+}
+
+export interface AllowanceGuardianReport {
+  owner: string;
+  as_of: string;
+  tax_year: string;
+  schedule_count: number;
+  contributions: { results: GuardianContributionResult[]; counts: Record<GuardianStatus, number> };
+  pension_allowance: GuardianPensionAllowance | GuardianUnavailable;
+  isa_allowance: GuardianIsaAllowance | GuardianUnavailable;
+  alerts: { level: "info" | "warning" | "critical"; code: string; message: string }[];
+  not_modelled: string[];
+  assumptions: string[];
+  adviser_note: string;
+}
+
+export const getAllowanceGuardian = (owner: string) =>
+  fetchJson<AllowanceGuardianReport>(`${API_BASE}/allowance-guardian/${encodeURIComponent(owner)}`);
 
 // ───────────── Pension Forecast ─────────────
 export interface PensionIncomeBreakdown {
@@ -3598,6 +3708,60 @@ export const openSavedChat = (
   fetchJson<{ revision: number; conversation: SavedChatTree; title: string | null }>(`${savedChatUrl(id)}/open`, {
     method: "POST",
   });
+
+/* ------------------------------------------------------------------ */
+/* Bots digest (#10485)                                                */
+/* ------------------------------------------------------------------ */
+
+export type BotsDigestSeverity = "high" | "medium" | "low" | "info";
+export type BotsDigestItemStatus = "new" | "still_open" | "resolved";
+
+export interface BotsDigestEntry {
+  id: string;
+  bot: string;
+  owner: string | null;
+  severity: BotsDigestSeverity;
+  title: string;
+  summary: string;
+  link: string | null;
+  action_required: boolean;
+  created: string;
+  dedupe_key: string;
+  status: BotsDigestItemStatus;
+}
+
+export interface BotsDigestBotStatus {
+  bot: string;
+  name: string;
+  state: "ok" | "failed" | "partial" | "skipped" | "not_run_yet";
+  last_run_at: string | null;
+  summary: string;
+}
+
+export interface BotsDigest {
+  owner: string;
+  period: "weekly" | "monthly";
+  generated_at: string;
+  opener: string;
+  items: BotsDigestEntry[];
+  resolved: BotsDigestEntry[];
+  bots: BotsDigestBotStatus[];
+  truncated: Record<string, number>;
+  needs_owner: boolean;
+}
+
+const botsDigestUrl = (owner: string, view: "latest" | "history" | "preview") =>
+  `${API_BASE}/bots/digest/${encodeURIComponent(owner)}/${view}`;
+
+/** The owner's latest stored bots digest; rejects with `status` 404 when none exists yet. */
+export const getBotsDigestLatest = (owner: string) => fetchJson<BotsDigest>(botsDigestUrl(owner, "latest"));
+
+/** Stored bots digests for the owner, newest first. */
+export const getBotsDigestHistory = (owner: string, limit = 8) =>
+  fetchJson<{ digests: BotsDigest[] }>(`${botsDigestUrl(owner, "history")}?limit=${limit}`);
+
+/** The digest as it would be composed now from the latest bot runs (not saved or sent). */
+export const getBotsDigestPreview = (owner: string) => fetchJson<BotsDigest>(botsDigestUrl(owner, "preview"));
 
 // ───────────── Bots API (#10477) ─────────────
 export type BotKind = "ai" | "rules" | "job";

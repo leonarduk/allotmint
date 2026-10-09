@@ -2856,6 +2856,45 @@
     "offline": "Vous semblez être hors ligne.",
     "timedOut": "La requête a expiré. Veuillez réessayer."
   },
+  "allowanceGuardian": {
+    "title": "Gardien des cotisations et plafonds",
+    "asOf": "Au {{date}} (année fiscale {{year}})",
+    "loadFailed": "Impossible de charger le rapport du gardien des plafonds",
+    "unavailable": "Les plafonds ne sont pas disponibles dans ce déploiement.",
+    "alerts": "Alertes",
+    "pensionHeading": "Plafond annuel retraite",
+    "isaHeading": "Plafond ISA",
+    "contributionsHeading": "Cotisations attendues cette année fiscale",
+    "annualAllowance": "Plafond annuel standard",
+    "usedToDate": "Utilisé à ce jour",
+    "carryForward": "Non utilisé sur les trois années précédentes",
+    "availableTotal": "Disponible au total",
+    "scheduledRemaining": "Prévu jusqu'au 5 avril",
+    "projectedTotal": "Total projeté au 5 avril",
+    "carryForwardFirstNeeded": "Plafond de l'année épuisé en",
+    "projectedBreach": "Dépassement projeté du disponible en",
+    "none": "Pas selon le calendrier actuel",
+    "isaSubscribed": "Souscrit à ce jour",
+    "isaLimit": "Plafond",
+    "isaDeadline": "Réinitialisation du plafond",
+    "daysTo": "dans {{days}} jours ({{date}})",
+    "noSchedule": "Aucun calendrier de cotisations enregistré.",
+    "noneExpected": "Aucune cotisation attendue pour l'instant cette année fiscale.",
+    "expectedDate": "Attendu",
+    "expected": "Montant attendu",
+    "received": "Reçu",
+    "statusHeading": "Statut",
+    "notModelledHeading": "Non modélisé",
+    "notModelledFallback": "Le plafond annuel réduit (taper), le money purchase annual allowance et les retraites non enregistrées dans AllotMint ne sont pas modélisés.",
+    "adviserNoteFallback": "Chiffres, dates et plafonds uniquement ; information, pas un conseil. Les décisions sur les cotisations, le carry-forward et la fiscalité des retraites doivent être prises avec un conseiller financier réglementé.",
+    "status": {
+      "on_time": "À l'heure",
+      "late": "En retard",
+      "wrong_amount": "Montant incorrect",
+      "missing": "Manquant",
+      "awaiting": "En attente"
+    }
+  },
   "allowanceTracker": {
     "title": "Suivi des plafonds",
     "account": "Compte",
@@ -3284,6 +3323,35 @@
     "total": "Total : {{value}}%",
     "mustEqual100": "(doit égaler 100%)"
   },
+  "planBrief": {
+    "title": "Dernier bilan du plan",
+    "runNow": "Générer le bilan",
+    "running": "Génération…",
+    "loading": "Chargement du bilan…",
+    "none": "Aucun bilan pour l'instant. Les bilans sont mensuels, ou générez-en un maintenant.",
+    "loadError": "Impossible de charger le bilan : {{message}}",
+    "runError": "Impossible de générer le bilan : {{message}}",
+    "asOf": "Au {{date}}",
+    "total": "Portefeuille {{value}}",
+    "reviewDue": "Révision due : la date de révision du plan ({{date}}) est passée.",
+    "driftCaption": "Réel vs cible du plan ; les lignes surlignées sont hors de la bande de ±{{band}}pp.",
+    "class": "Classe",
+    "actual": "Réel",
+    "target": "Cible",
+    "drift": "Écart",
+    "driftGbp": "Écart £",
+    "targetsDiffer": "Les cibles de rééquilibrage enregistrées diffèrent de la cible du plan.",
+    "triggers": "Déclencheurs de révision",
+    "verdict": {
+      "fired": "Déclenché",
+      "not_fired": "Non déclenché",
+      "cant_evaluate": "Non évaluable"
+    },
+    "idleCash": "{{account}} : {{amount}} en liquidités, {{days}} jours sans achat depuis leur arrivée",
+    "staleEvidence": "Éléments de plus de six mois : {{items}}",
+    "earlier": "Bilans précédents",
+    "summaryLine": "{{outside}} hors bande, {{fired}} déclencheur(s) déclenché(s)"
+  },
   "planPanel": {
     "planTarget": "Cible du plan",
     "class": "Classe",
@@ -3635,7 +3703,34 @@
     "unknown": "Inconnu",
     "weightedCharge": "Frais courants pondérés",
     "annualCost": "Coût annuel estimé des fonds",
-    "excludesUnknown": "Exclut {{unknown}} positions sur {{total}} sans données de frais"
+    "excludesUnknown": "Exclut {{unknown}} positions sur {{total}} sans données de frais",
+    "allInCost": "Coût annuel total",
+    "allInBreakdown": "{{funds}} de frais de fonds + {{fees}} de frais payés (12 derniers mois)",
+    "allInNotIncluded": "Non inclus : {{items}}",
+    "allInUnknownValue": "{{value}} dans {{holdings}} positions sans données de frais",
+    "allInUnknownTrades": "{{trades}} opérations sans frais enregistrés",
+    "perAccount": "Par compte",
+    "partial": "incomplet"
+  },
+  "fundUpkeep": {
+    "title": "Propositions de données de fonds",
+    "description": "Valeurs trouvées dans les documents publics des fonds (DICI et fiches). Rien n’est enregistré avant votre approbation, et une approbation peut être annulée.",
+    "empty": "Aucune proposition en attente.",
+    "ongoingCharge": "Frais courants",
+    "lookThrough": "Répartition par transparence",
+    "source": "Document source",
+    "documentDate": "daté du {{date}}",
+    "approve": "Approuver",
+    "reject": "Rejeter",
+    "undo": "Annuler",
+    "loadFailed": "Impossible de charger les propositions : {{message}}",
+    "actionFailed": "Échec de l’action : {{message}}",
+    "status": {
+      "pending": "En attente",
+      "approved": "Approuvée",
+      "rejected": "Rejetée",
+      "undone": "Annulée"
+    }
   },
   "riskReturn": {
     "title": "Rendement vs volatilité",
@@ -3717,6 +3812,31 @@
     "keepAsCash": "Garder en liquidités : {{amount}}",
     "copy": "Copier la liste d'ordres",
     "copied": "Copié"
+  },
+  "botsDigest": {
+    "title": "Synthèse des bots",
+    "loading": "Chargement de la synthèse…",
+    "empty": "Aucune synthèse n'a encore été composée.",
+    "preview": "Aperçu",
+    "previewNote": "Aperçu à partir des dernières exécutions. Ni enregistré ni envoyé.",
+    "error": "Impossible de charger la synthèse.",
+    "resolvedTitle": "Résolu depuis la dernière synthèse",
+    "notRunYet": "Pas encore exécuté : {{bots}}",
+    "truncated": "{{count}} élément(s) supplémentaire(s) non affiché(s).",
+    "actionRequired": "Action requise",
+    "history": "Historique",
+    "historyEntry": "{{date}} : {{count}} élément(s)",
+    "status": {
+      "new": "Nouveau",
+      "still_open": "Toujours ouvert",
+      "resolved": "Résolu"
+    },
+    "severity": {
+      "high": "Élevée",
+      "medium": "Moyenne",
+      "low": "Faible",
+      "info": "Info"
+    }
   },
   "bots": {
     "title": "Bots",

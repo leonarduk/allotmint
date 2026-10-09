@@ -20,6 +20,7 @@ This only reads stored metadata; it never fetches from a data source.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 
 from backend.common.country_codes import country_from_isin, country_name
@@ -40,6 +41,19 @@ COMMODITIES_COUNTRY = "Commodities"
 OTHER_FUND_HOLDINGS_KEY = "OTHER-IN-FUNDS"
 OTHER_FUND_HOLDINGS_NAME = "Other holdings in funds"
 DEFAULT_HOLDINGS_LIMIT = 50
+# Look-through blocks fetched within this many days are not refetched: neither
+# source is an official API, so refreshes are kept to roughly monthly.
+DEFAULT_MAX_AGE_DAYS = 25
+
+
+def look_through_is_fresh(meta: Dict[str, Any], today: date, max_age_days: int = DEFAULT_MAX_AGE_DAYS) -> bool:
+    """True when ``meta``'s ``look_through`` block was fetched within ``max_age_days`` of ``today``."""
+    block = meta.get("look_through")
+    fetched = block.get("fetched") if isinstance(block, dict) else None
+    try:
+        return bool(fetched) and date.fromisoformat(str(fetched)) >= today - timedelta(days=max_age_days)
+    except ValueError:
+        return False
 
 
 @dataclass

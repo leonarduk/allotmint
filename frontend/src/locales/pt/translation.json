@@ -2856,6 +2856,45 @@
     "offline": "Parece que está offline.",
     "timedOut": "O pedido excedeu o tempo limite. Tente novamente."
   },
+  "allowanceGuardian": {
+    "title": "Guardião de contribuições e limites",
+    "asOf": "Em {{date}} (ano fiscal {{year}})",
+    "loadFailed": "Não foi possível carregar o relatório do guardião de limites",
+    "unavailable": "Os limites não estão disponíveis nesta instalação.",
+    "alerts": "Alertas",
+    "pensionHeading": "Limite anual de pensões",
+    "isaHeading": "Limite ISA",
+    "contributionsHeading": "Contribuições previstas neste ano fiscal",
+    "annualAllowance": "Limite anual padrão",
+    "usedToDate": "Usado até agora",
+    "carryForward": "Não usado nos três anos anteriores",
+    "availableTotal": "Disponível no total",
+    "scheduledRemaining": "Programado até 5 de abril",
+    "projectedTotal": "Total previsto até 5 de abril",
+    "carryForwardFirstNeeded": "Limite deste ano esgotado em",
+    "projectedBreach": "Previsto exceder o disponível em",
+    "none": "Não com o plano atual",
+    "isaSubscribed": "Subscrito até agora",
+    "isaLimit": "Limite",
+    "isaDeadline": "O limite reinicia",
+    "daysTo": "em {{days}} dias ({{date}})",
+    "noSchedule": "Ainda não há plano de contribuições registado.",
+    "noneExpected": "Ainda não eram esperadas contribuições neste ano fiscal.",
+    "expectedDate": "Previsto",
+    "expected": "Montante previsto",
+    "received": "Recebido",
+    "statusHeading": "Estado",
+    "notModelledHeading": "Não modelado",
+    "notModelledFallback": "O limite anual reduzido (taper), o money purchase annual allowance e as pensões não registadas no AllotMint não são modelados.",
+    "adviserNoteFallback": "Apenas valores, datas e limites; informação, não aconselhamento. As decisões sobre contribuições, carry-forward e impostos de pensões devem ser tomadas com um consultor financeiro regulado.",
+    "status": {
+      "on_time": "Em dia",
+      "late": "Atrasado",
+      "wrong_amount": "Montante errado",
+      "missing": "Em falta",
+      "awaiting": "A aguardar"
+    }
+  },
   "allowanceTracker": {
     "title": "Acompanhamento de limites",
     "account": "Conta",
@@ -3284,6 +3323,35 @@
     "total": "Total: {{value}}%",
     "mustEqual100": "(deve ser igual a 100%)"
   },
+  "planBrief": {
+    "title": "Último relatório do plano",
+    "runNow": "Gerar relatório agora",
+    "running": "A gerar…",
+    "loading": "A carregar relatório…",
+    "none": "Ainda não há relatórios. São gerados mensalmente, ou gere um agora.",
+    "loadError": "Não foi possível carregar o relatório: {{message}}",
+    "runError": "Não foi possível gerar o relatório: {{message}}",
+    "asOf": "Em {{date}}",
+    "total": "Carteira {{value}}",
+    "reviewDue": "Revisão pendente: a data de revisão do plano ({{date}}) já passou.",
+    "driftCaption": "Real vs objetivo do plano; as linhas destacadas estão fora da banda de ±{{band}}pp.",
+    "class": "Classe",
+    "actual": "Real",
+    "target": "Objetivo",
+    "drift": "Desvio",
+    "driftGbp": "Desvio £",
+    "targetsDiffer": "Os objetivos de rebalanceamento guardados diferem do objetivo do plano.",
+    "triggers": "Gatilhos de revisão",
+    "verdict": {
+      "fired": "Acionado",
+      "not_fired": "Não acionado",
+      "cant_evaluate": "Não avaliável"
+    },
+    "idleCash": "{{account}}: {{amount}} em dinheiro, {{days}} dias sem compras desde a chegada",
+    "staleEvidence": "Evidências com mais de seis meses: {{items}}",
+    "earlier": "Relatórios anteriores",
+    "summaryLine": "{{outside}} fora da banda, {{fired}} gatilho(s) acionado(s)"
+  },
   "planPanel": {
     "planTarget": "Meta do plano",
     "class": "Classe",
@@ -3635,7 +3703,34 @@
     "unknown": "Desconhecido",
     "weightedCharge": "Encargos correntes ponderados",
     "annualCost": "Custo anual estimado dos fundos",
-    "excludesUnknown": "Exclui {{unknown}} de {{total}} posições sem dados de custos"
+    "excludesUnknown": "Exclui {{unknown}} de {{total}} posições sem dados de custos",
+    "allInCost": "Custo anual total",
+    "allInBreakdown": "{{funds}} em encargos de fundos + {{fees}} em taxas pagas (últimos 12 meses)",
+    "allInNotIncluded": "Não incluído: {{items}}",
+    "allInUnknownValue": "{{value}} em {{holdings}} posições sem dados de encargos",
+    "allInUnknownTrades": "{{trades}} negociações sem taxa registada",
+    "perAccount": "Por conta",
+    "partial": "incompleto"
+  },
+  "fundUpkeep": {
+    "title": "Propostas de dados de fundos",
+    "description": "Valores encontrados em documentos públicos de fundos (KIID e fichas). Nada é guardado até que aprove, e uma aprovação pode ser anulada.",
+    "empty": "Não há propostas a aguardar revisão.",
+    "ongoingCharge": "Encargos correntes",
+    "lookThrough": "Repartição look-through",
+    "source": "Documento de origem",
+    "documentDate": "datado de {{date}}",
+    "approve": "Aprovar",
+    "reject": "Rejeitar",
+    "undo": "Anular",
+    "loadFailed": "Não foi possível carregar as propostas: {{message}}",
+    "actionFailed": "A ação falhou: {{message}}",
+    "status": {
+      "pending": "A aguardar revisão",
+      "approved": "Aprovada",
+      "rejected": "Rejeitada",
+      "undone": "Anulada"
+    }
   },
   "riskReturn": {
     "title": "Retorno vs volatilidade",
@@ -3717,6 +3812,31 @@
     "keepAsCash": "Manter em caixa: {{amount}}",
     "copy": "Copiar lista de ordens",
     "copied": "Copiado"
+  },
+  "botsDigest": {
+    "title": "Resumo dos bots",
+    "loading": "Carregando resumo…",
+    "empty": "Nenhum resumo foi gerado ainda.",
+    "preview": "Pré-visualizar",
+    "previewNote": "Pré-visualização das últimas execuções. Não é salva nem enviada.",
+    "error": "Não foi possível carregar o resumo.",
+    "resolvedTitle": "Resolvido desde o último resumo",
+    "notRunYet": "Ainda não executado: {{bots}}",
+    "truncated": "Mais {{count}} item(ns) não exibido(s).",
+    "actionRequired": "Ação necessária",
+    "history": "Histórico",
+    "historyEntry": "{{date}}: {{count}} item(ns)",
+    "status": {
+      "new": "Novo",
+      "still_open": "Ainda aberto",
+      "resolved": "Resolvido"
+    },
+    "severity": {
+      "high": "Alta",
+      "medium": "Média",
+      "low": "Baixa",
+      "info": "Info"
+    }
   },
   "bots": {
     "title": "Bots",

@@ -32,6 +32,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
+from backend.common.cash_tickers import is_cash_ticker
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -277,9 +278,9 @@ def _sector_asset_class(sector: str) -> Optional[str]:
 
 def derive_asset_class(meta: Mapping[str, Any]) -> Optional[str]:
     """Derive the asset class from type, name and provider category/sector."""
-    ticker = _text(meta, "ticker").upper()
     instrument_type = _instrument_type(meta)
-    if ticker.startswith("CASH.") or instrument_type in _CASH_TYPES:
+    # Not ``startswith("CASH.")``: that also matched Pathward Financial (CASH.N).
+    if is_cash_ticker(_text(meta, "ticker")) or instrument_type in _CASH_TYPES:
         return CASH
 
     name_class = _keyword_asset_class(_text(meta, "name"))

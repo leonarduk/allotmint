@@ -177,3 +177,19 @@ def test_concentration_page_read_never_fetches_or_stores(client, monkeypatch):
     assert response.status_code == 200
     assert response.json()["compared_with_previous_run"] is False
     assert bot.previous_snapshot("alex") is None  # only a bot run stores one
+
+
+def test_audit_failure_rolls_the_write_back_and_leaves_the_proposal_pending(client, monkeypatch):
+    http, root = client
+    proposal = _queue()
+
+    def broken_audit(**_kwargs):
+        raise OSError("audit disk full")
+
+    monkeypatch.setattr(proposals, "append_audit", broken_audit)
+
+    with pytest.raises(OSError):
+        http.post(f"/fund-upkeep/proposals/{proposal['id']}/approve")
+
+    assert stored_meta(root).get("ongoing_charge_pct") is None
+    assert proposals.list_proposals("pending")[0]["id"] == proposal["id"]

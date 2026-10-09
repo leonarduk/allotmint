@@ -126,3 +126,15 @@ def test_zero_fee_is_known_and_missing_fee_is_unknown():
     assert total["trade_count"] == 2
     assert total["dealing_fees_gbp"] == 0.0
     assert total["trades_without_fee_data"] == 1
+
+
+def test_refund_larger_than_fees_never_makes_a_negative_cost():
+    txs = [
+        {"account": "isa", "type": "FEES", "date": "2026-02-01", "amount_minor": 500},
+        {"account": "isa", "type": "FEES_REFUND", "date": "2026-02-02", "amount_minor": 2000},
+    ]
+
+    result = compute_all_in_cost({"accounts": []}, txs, today=TODAY)
+
+    assert _row(result, "isa")["account_charges_gbp"] == 0.0
+    assert result["total"]["known_cost_gbp"] == 0.0

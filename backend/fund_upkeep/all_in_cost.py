@@ -146,6 +146,9 @@ def compute_all_in_cost(
         _add_transaction(parts.setdefault(key, _empty_part()), tx)
     total = _empty_part()
     for part in parts.values():
+        # A refund of fees charged before the window can exceed this window's
+        # fees; account charges are a cost, so the net is floored at zero.
+        part["account_charges_gbp"] = max(part["account_charges_gbp"], 0.0)
         for name, value in part.items():
             total[name] += value
     accounts: List[Dict[str, Any]] = [{**labels[key], **_finish(part)} for key, part in parts.items()]

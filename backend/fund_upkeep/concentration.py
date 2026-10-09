@@ -70,10 +70,16 @@ def _bucket_rows(buckets: Optional[List[Mapping[str, Any]]]) -> Dict[str, Dict[s
     }
 
 
-def snapshot(result: Mapping[str, Any]) -> Dict[str, Dict[str, float]]:
-    """The percentages a later run compares against (``{kind: {key: pct}}``)."""
+def snapshot(result: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """What a later run compares against: ``{kind: {key: pct}}``, plus stock names.
+
+    Stocks are keyed by ISIN, so ``stock_labels`` keeps their names for an
+    alert about a stock that is no longer held by the next run.
+    """
+    stocks = _stock_rows(result)
     return {
-        "stock": {k: round(v["pct"], 4) for k, v in _stock_rows(result).items()},
+        "stock": {k: round(v["pct"], 4) for k, v in stocks.items()},
+        "stock_labels": {k: str(v["label"]) for k, v in stocks.items()},
         "country": {k: round(v["pct"], 4) for k, v in _bucket_rows(result.get("countries")).items()},
         "sector": {k: round(v["pct"], 4) for k, v in _bucket_rows(result.get("sectors")).items()},
     }
@@ -101,12 +107,28 @@ def _message(kind: str, row: Mapping[str, Any], previous: Optional[float]) -> st
     return text
 
 
+def _gone_message(kind: str, label: str, previous: float) -> str:
+    """An exposure present at the last run and absent now."""
+    if kind == "stock":
+        text = f"{label} is no longer in the portfolio."
+    else:
+        text = f"{kind.capitalize()} exposure to {label} is now 0.0% of the portfolio."
+    return f"{text} It was {previous:.1f}% at the last run."
+
+
 def _alerts_for(
-    kind: str, rows: Dict[str, Dict[str, Any]], threshold: float, material: float, previous: Mapping[str, float]
+    kind: str,
+    rows: Dict[str, Dict[str, Any]],
+    threshold: float,
+    material: float,
+    previous: Mapping[str, float],
+    previous_labels: Optional[Mapping[str, str]] = None,
 ) -> List[Dict[str, Any]]:
     alerts = []
     for key in sorted(set(rows) | set(previous)):
-        row = rows.get(key) or {"label": key, "pct": 0.0, "direct_pct": 0.0, "via_funds_pct": 0.0, "fund_count": 0}
+        gone = key not in rows
+        label = (previous_labels or {}).get(key, key) if gone else rows[key]["label"]
+        row = rows.get(key) or {"label": label, "pct": 0.0}
         before = previous.get(key)
         above = row["pct"] >= threshold
         moved = before is not None and abs(row["pct"] - before) >= material
@@ -122,7 +144,11 @@ def _alerts_for(
                 "previous_pct": None if before is None else round(before, 2),
                 "threshold_pct": threshold,
                 "reason": "changed" if moved else "above_threshold",
-                "message": _message(kind, row, before if moved else None),
+                "message": (
+                    _gone_message(kind, label, before)
+                    if gone and before is not None
+                    else _message(kind, row, before if moved else None)
+                ),
             }
         )
     return alerts
@@ -131,14 +157,21 @@ def _alerts_for(
 def concentration_alerts(
     result: Mapping[str, Any],
     thresholds: Optional[Mapping[str, Any]] = None,
-    previous: Optional[Mapping[str, Mapping[str, float]]] = None,
+    previous: Optional[Mapping[str, Mapping[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Alerts for ``result`` (look-through output) against ``thresholds`` and the ``previous`` snapshot."""
     limits = normalise_thresholds(thresholds)
     prev = previous or {}
     material = limits["material_change_pct"]
     alerts = (
-        _alerts_for("stock", _stock_rows(result), limits["single_stock_pct"], material, prev.get("stock") or {})
+        _alerts_for(
+            "stock",
+            _stock_rows(result),
+            limits["single_stock_pct"],
+            material,
+            prev.get("stock") or {},
+            prev.get("stock_labels") or {},
+        )
         + _alerts_for(
             "country", _bucket_rows(result.get("countries")), limits["country_pct"], material, prev.get("country") or {}
         )

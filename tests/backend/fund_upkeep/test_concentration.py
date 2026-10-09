@@ -100,3 +100,16 @@ def test_fund_count_comes_from_the_looked_through_funds(exposure):
 
     alert = next(a for a in report["alerts"] if a["kind"] == "stock")
     assert "via 2 funds" in alert["message"]
+
+
+def test_stock_gone_since_last_run_keeps_its_name(exposure):
+    previous = snapshot(exposure)
+    previous["stock"]["US0000000099"] = 6.0
+    previous["stock_labels"]["US0000000099"] = "Sold Example Plc"
+
+    report = concentration_alerts(exposure, {"single_stock_pct": 5.0}, previous)
+
+    gone = next(a for a in report["alerts"] if a["key"] == "US0000000099")
+    assert gone["label"] == "Sold Example Plc"
+    assert gone["pct"] == 0.0
+    assert gone["message"] == "Sold Example Plc is no longer in the portfolio. It was 6.0% at the last run."

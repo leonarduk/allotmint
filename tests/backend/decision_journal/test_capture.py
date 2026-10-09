@@ -14,6 +14,7 @@ from backend.decision_journal.capture import (
     default_context_tools,
     plan_change_draft,
     qualifying_trades,
+    trade_amount_gbp,
     trade_change,
     trade_draft,
 )
@@ -80,6 +81,12 @@ def test_qualifying_trades_filters_size_type_and_window():
         "amount_gbp": 10_000.0,
         "price_gbp": 100.0,
     }
+
+
+def test_trade_amount_uses_shares_only_when_units_is_missing():
+    assert trade_amount_gbp({"units": 0, "shares": 50, "price_gbp": 10.0}) == 0.0
+    assert trade_amount_gbp({"shares": 50, "price_gbp": 10.0}) == 500.0
+    assert trade_amount_gbp({"units": 5}) is None
 
 
 def test_qualifying_trades_threshold_is_configurable_and_skips_handled():

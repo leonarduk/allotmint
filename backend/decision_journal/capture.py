@@ -57,7 +57,8 @@ def new_decision_id() -> str:
 
 def trade_amount_gbp(tx: Mapping[str, Any]) -> Optional[float]:
     """``|units * price_gbp|`` for a trade, or ``None`` when either is missing."""
-    units, price = tx.get("units") or tx.get("shares"), tx.get("price_gbp")
+    units = tx.get("units") if tx.get("units") is not None else tx.get("shares")
+    price = tx.get("price_gbp")
     if units is None or price is None:
         return None
     return round(abs(float(units) * float(price)), 2)

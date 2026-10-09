@@ -64,6 +64,8 @@ import type {
   RegionContribution,
   CurrencyContribution,
   LookThroughExposure,
+  AllInCost,
+  FundUpkeepProposal,
   InstrumentAllocation,
   InstrumentAllocationRefresh,
   UserConfig,
@@ -1032,6 +1034,28 @@ export const getOwnerLookThrough = (owner: string, opts: { asOf?: string | null 
     : `${API_BASE}/portfolio/${owner}/look-through`;
   return fetchJson<LookThroughExposure>(url);
 };
+
+/** Fund charges plus 12 months of fees paid, per account and in total (#10482). */
+export const getOwnerAllInCost = (owner: string) =>
+  fetchJson<AllInCost>(`${API_BASE}/fund-upkeep/${encodeURIComponent(owner)}/all-in-cost`);
+
+export const getGroupAllInCost = (slug: string) =>
+  fetchJson<AllInCost>(`${API_BASE}/fund-upkeep/group/${encodeURIComponent(slug)}/all-in-cost`);
+
+/** Fund data proposals from the upkeep bot (#10482); nothing is saved until approved. */
+export const getFundUpkeepProposals = (status?: FundUpkeepProposal["status"]) =>
+  fetchJson<FundUpkeepProposal[]>(
+    status
+      ? `${API_BASE}/fund-upkeep/proposals?${new URLSearchParams({ status }).toString()}`
+      : `${API_BASE}/fund-upkeep/proposals`,
+  );
+
+/** Approve (write with an audit entry), reject, or undo an approved proposal (#10482). */
+export const decideFundUpkeepProposal = (id: string, action: "approve" | "reject" | "undo") =>
+  fetchJson<FundUpkeepProposal>(
+    `${API_BASE}/fund-upkeep/proposals/${encodeURIComponent(id)}/${action}`,
+    { method: "POST" },
+  );
 
 /** One instrument's country/sector/top-holding breakdown (#9974). */
 export const getInstrumentAllocation = (ticker: string, signal?: AbortSignal) =>

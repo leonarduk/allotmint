@@ -16,6 +16,7 @@ import type {
   InstrumentSummary,
   InstrumentGroupDefinition,
   OwnerSummary,
+  AllInCost,
 } from "../types";
 import {
   getGroupPortfolio,
@@ -45,7 +46,7 @@ import {
 } from "../lib/metricPlausibility";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
 import FundChargesSummary from "./FundChargesSummary";
-import { computeFundCharges } from "../lib/fundCharges";
+import { computeFundCharges, selectAllInCost } from "../lib/fundCharges";
 import { CostBasisChecklist } from "./CostBasisChecklist";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
@@ -360,6 +361,19 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     [slug, asOfOverride, enableAdvancedAnalytics],
     !!slug && !activeOwner && enableAdvancedAnalytics,
     { cacheKey: `group-regions:${slug}:${asOfOverride ?? ""}` },
+  );
+  // All-in annual cost (#10482): fund charges plus fees actually paid. Priced
+  // from cached data server-side, so it never triggers a fetch from sources.
+  const fetchAllInCost = useCallback(
+    () =>
+      activeOwner ? api.getOwnerAllInCost(activeOwner) : api.getGroupAllInCost(slug),
+    [activeOwner, slug],
+  );
+  const { data: allInCostData } = useFetch<AllInCost>(
+    fetchAllInCost,
+    [activeOwner, slug],
+    !!slug,
+    { cacheKey: activeOwner ? `all-in-cost:owner:${activeOwner}` : `all-in-cost:group:${slug}` },
   );
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
@@ -723,6 +737,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const fundCharges = useMemo(
     () => computeFundCharges(filteredAccounts),
     [filteredAccounts],
+  );
+  const allInCost = useMemo(
+    () => selectAllInCost(allInCostData, activeOwner, activeAccountType),
+    [allInCostData, activeOwner, activeAccountType],
   );
 
   const { ownerRows, typeRows } = useMemo(() => {
@@ -1109,7 +1127,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       )}
 
       {!portfolioLoading && !relativeViewEnabled && hasFilteredAccounts && (
-        <FundChargesSummary charges={fundCharges} />
+        <FundChargesSummary
+          charges={fundCharges}
+          allInCost={allInCost.part}
+          allInAccounts={allInCost.accounts}
+        />
       )}
 
       {!portfolioLoading && isAllPositions && enableAdvancedAnalytics && (

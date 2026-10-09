@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { computeFundCharges } from '@/lib/fundCharges';
-import type { Account, Holding } from '@/types';
+import { computeFundCharges, selectAllInCost } from '@/lib/fundCharges';
+import type { Account, AllInCost, AllInCostPart, Holding } from '@/types';
 
 function holding(overrides: Partial<Holding>): Holding {
   return {
@@ -125,5 +125,49 @@ describe('computeFundCharges (#7834)', () => {
     ]);
     expect(charges.holdingCount).toBe(0);
     expect(charges.weightedChargePct).toBeNull();
+  });
+});
+
+describe('selectAllInCost (#10482)', () => {
+  const part = (overrides: Partial<AllInCostPart>): AllInCostPart => ({
+    value_gbp: 100,
+    fund_charges_gbp: 1,
+    known_value_gbp: 100,
+    unknown_value_gbp: 0,
+    holding_count: 1,
+    unknown_count: 0,
+    dealing_fees_gbp: 0,
+    account_charges_gbp: 0,
+    trade_count: 0,
+    trades_without_fee_data: 0,
+    known_cost_gbp: 1,
+    known_cost_pct: 1,
+    complete: true,
+    ...overrides,
+  });
+  const data: AllInCost = {
+    window: { start: '2025-10-09', end: '2026-10-09' },
+    accounts: [
+      part({ owner: 'alex', account: 'ISA', known_cost_gbp: 2 }),
+      part({ owner: 'sam', account: 'ISA', known_cost_gbp: 3 }),
+    ],
+    total: part({ known_cost_gbp: 5 }),
+  };
+
+  it('uses the total and lists accounts without an account filter', () => {
+    const { part: shown, accounts } = selectAllInCost(data, null, null);
+    expect(shown?.known_cost_gbp).toBe(5);
+    expect(accounts).toHaveLength(2);
+  });
+
+  it("picks the filtered owner's account", () => {
+    expect(selectAllInCost(data, 'sam', 'isa').part?.known_cost_gbp).toBe(3);
+  });
+
+  it('ignores a response that is not an all-in cost payload', () => {
+    expect(
+      selectAllInCost({ accounts: [] } as unknown as AllInCost, null, null)
+    ).toEqual({ part: null, accounts: [] });
+    expect(selectAllInCost(null, null, null).part).toBeNull();
   });
 });

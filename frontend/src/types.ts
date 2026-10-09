@@ -236,6 +236,52 @@ export type LookThroughExposure = {
   };
 };
 
+/**
+ * One account's (or the total's) all-in annual cost from `GET /fund-upkeep/.../all-in-cost` (#10482).
+ * `fund_charges_gbp` is null when no holding's charge is known; unknown value and
+ * trades without fee data are reported separately and never counted as zero cost.
+ */
+export type AllInCostPart = {
+  owner?: string | null;
+  account?: string | null;
+  value_gbp: number;
+  fund_charges_gbp: number | null;
+  known_value_gbp: number;
+  unknown_value_gbp: number;
+  holding_count: number;
+  unknown_count: number;
+  dealing_fees_gbp: number;
+  account_charges_gbp: number;
+  trade_count: number;
+  trades_without_fee_data: number;
+  known_cost_gbp: number;
+  known_cost_pct: number | null;
+  complete: boolean;
+};
+
+export type AllInCost = {
+  window: { start: string; end: string };
+  accounts: AllInCostPart[];
+  total: AllInCostPart;
+};
+
+/** A fund data value proposed by the upkeep bot, awaiting the owner's approval (#10482). */
+export type FundUpkeepProposal = {
+  id: string;
+  kind: "ongoing_charge" | "look_through";
+  ticker: string;
+  isin?: string | null;
+  value: unknown;
+  source_url: string;
+  document_date: string;
+  confidence?: string | number | null;
+  status: "pending" | "approved" | "rejected" | "undone";
+  created_at: string;
+  decided_at?: string;
+  decided_by?: string | null;
+  audit_id?: string;
+};
+
 /** A fund's top holding in `GET /instrument/allocation` (#9974). */
 export type InstrumentTopHolding = {
   name: string;

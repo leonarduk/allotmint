@@ -3630,7 +3630,34 @@
     "unknown": "Inconnu",
     "weightedCharge": "Frais courants pondérés",
     "annualCost": "Coût annuel estimé des fonds",
-    "excludesUnknown": "Exclut {{unknown}} positions sur {{total}} sans données de frais"
+    "excludesUnknown": "Exclut {{unknown}} positions sur {{total}} sans données de frais",
+    "allInCost": "Coût annuel total",
+    "allInBreakdown": "{{funds}} de frais de fonds + {{fees}} de frais payés (12 derniers mois)",
+    "allInNotIncluded": "Non inclus : {{items}}",
+    "allInUnknownValue": "{{value}} dans {{holdings}} positions sans données de frais",
+    "allInUnknownTrades": "{{trades}} opérations sans frais enregistrés",
+    "perAccount": "Par compte",
+    "partial": "incomplet"
+  },
+  "fundUpkeep": {
+    "title": "Propositions de données de fonds",
+    "description": "Valeurs trouvées dans les documents publics des fonds (DICI et fiches). Rien n’est enregistré avant votre approbation, et une approbation peut être annulée.",
+    "empty": "Aucune proposition en attente.",
+    "ongoingCharge": "Frais courants",
+    "lookThrough": "Répartition par transparence",
+    "source": "Document source",
+    "documentDate": "daté du {{date}}",
+    "approve": "Approuver",
+    "reject": "Rejeter",
+    "undo": "Annuler",
+    "loadFailed": "Impossible de charger les propositions : {{message}}",
+    "actionFailed": "Échec de l’action : {{message}}",
+    "status": {
+      "pending": "En attente",
+      "approved": "Approuvée",
+      "rejected": "Rejetée",
+      "undone": "Annulée"
+    }
   },
   "riskReturn": {
     "title": "Rendement vs volatilité",

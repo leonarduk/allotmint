@@ -219,3 +219,20 @@ def test_unreadable_dob_is_readiness_error():
     inputs |= {"pot_gbp": 1000.0, "state_pension_age": 67, "assumed_inflation_pct": 2.0}
     with pytest.raises(readiness.ReadinessError, match="date of birth"):
         readiness.project_real_pot(inputs, "not-a-date", dt.date(2030, 1, 15))
+
+
+def test_malformed_gilt_series_degrades_to_none(monkeypatch):
+    import pandas as pd
+
+    from backend.timeseries import boe_rates
+
+    monkeypatch.setattr(boe_rates, "load_boe_series", lambda code: pd.DataFrame({"Other": [1.0]}))
+    assert readiness._latest_gilt_yield() is None
+
+
+def test_undated_pension_rows_are_logged(caplog):
+    rows = [_tx("2030-02-01", 10000), _tx("", 5000), _tx("bad", 5000)]
+    with caplog.at_level("WARNING"):
+        total = readiness.pension_flows_between(rows, "alex", dt.date(2030, 1, 31), dt.date(2030, 2, 28))
+    assert total == 100.0
+    assert "Skipped 2 pension cash-flow rows" in caplog.text

@@ -191,6 +191,7 @@ _FLOW_SIGNS = {"DEPOSIT": 1.0, "TRANSFER_IN": 1.0, "WITHDRAWAL": -1.0, "TRANSFER
 def pension_flows_between(transactions: list[Any], owner: str, after: dt.date, until: dt.date) -> float:
     """Net GBP paid into the owner's DC pension accounts in ``(after, until]``."""
     total_pence = 0.0
+    undated = 0
     for tx in transactions:
         sign = _FLOW_SIGNS.get((tx.type or "").strip().upper())
         account = (tx.account or "").lower()
@@ -199,8 +200,14 @@ def pension_flows_between(transactions: list[Any], owner: str, after: dt.date, u
         if not any(marker in account for marker in DEFINED_CONTRIBUTION_ACCOUNT_MARKERS):
             continue
         day = _row_date(tx)
-        if day is not None and after < day <= until:
+        if day is None:
+            undated += 1
+        elif after < day <= until:
             total_pence += sign * abs(float(tx.amount_minor))
+    if undated:
+        logger.warning(
+            "Skipped %s pension cash-flow rows with no usable date in the attribution", sanitise_log_value(undated)
+        )
     return total_pence / 100.0
 
 
@@ -253,8 +260,12 @@ def _latest_gilt_yield() -> Optional[dict]:
         return None
     if series.empty:
         return None
-    last = series.iloc[-1]
-    return {"date": last["Date"].date().isoformat(), "pct": round(float(last["Value"]), 2)}
+    try:
+        last = series.iloc[-1]
+        return {"date": last["Date"].date().isoformat(), "pct": round(float(last["Value"]), 2)}
+    except (KeyError, AttributeError, TypeError, ValueError) as exc:
+        logger.warning("10-year gilt yield series is malformed: %s", sanitise_log_value(exc))
+        return None
 
 
 def market_facts(long_history: LongHistory, inputs: Mapping[str, Any]) -> dict:

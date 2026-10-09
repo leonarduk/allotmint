@@ -245,3 +245,23 @@ def test_load_owner_ledgers_reads_the_accounts_root(tmp_path, monkeypatch):
     ]
     assert lp.load_owner_ledgers("nobody") == []
     assert lp.load_owner_ledgers("../alice") == []
+
+
+def test_many_instruments_do_not_fragment_the_price_frames():
+    # One inserted column per instrument fragmented the frames and flooded the
+    # log with pandas PerformanceWarnings on real portfolios.
+    import warnings
+
+    many = [{"date": "2026-01-29", "type": "DEPOSIT", "amount_minor": 10**9}] + [
+        {"date": "2026-01-29", "type": "BUY", "ticker": f"T{i}.L", "units": 1, "amount_minor": 10000}
+        for i in range(150)
+    ]
+    closes = {f"T{i}.L": {"2026-01-29": 100.0} for i in range(150)}
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", pd.errors.PerformanceWarning)
+        perf = build(many, closes=closes)
+
+    assert perf.prices.shape[1] == 150
+    assert perf.prices.dtypes.eq(float).all()
+    assert perf.market_priced.dtypes.eq(bool).all()

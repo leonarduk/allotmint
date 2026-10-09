@@ -453,19 +453,23 @@ def _value_instruments(
     """
     index = pd.DatetimeIndex(units.index)
     implied = _keyed_frame(events.implied_prices, index).replace(0.0, float("nan"))
-    prices = pd.DataFrame(index=index, dtype=float)
-    market = pd.DataFrame(index=index, dtype=bool)
+    # Collect the columns and build each frame once: inserting one column per
+    # instrument fragments the frame (pandas PerformanceWarning) and is slow.
+    price_columns: dict[str, pd.Series] = {}
+    market_columns: dict[str, pd.Series] = {}
     unpriced: list[str] = []
     unconverted: list[Mapping[str, Any]] = []
     for key in units.columns:
         implied_key = implied[key] if key in implied.columns else pd.Series(dtype=float)
-        prices[key], market[key], has_market, fx_gap = _price_column(key, index, implied_key, loader)
+        price_columns[key], market_columns[key], has_market, fx_gap = _price_column(key, index, implied_key, loader)
         held = units[key].abs().sum() > 0
         if not has_market and held:
             unpriced.append(key)
         if fx_gap is not None and held:
             unconverted.append(fx_gap)
     unconverted.sort(key=lambda entry: str(entry.get("ticker")))
+    prices = pd.DataFrame(price_columns, index=index, dtype=float)
+    market = pd.DataFrame(market_columns, index=index, dtype=bool)
     return prices, market, units * prices, tuple(sorted(unpriced)), tuple(unconverted)
 
 

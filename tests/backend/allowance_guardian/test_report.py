@@ -13,7 +13,7 @@ import pytest
 
 import backend.allowance_guardian as guardian
 from backend.allowance_guardian import report
-from backend.allowance_guardian.schedule import ScheduledContribution
+from backend.allowance_guardian.schedule import ContributionSchedule, ScheduledContribution, save_schedule
 from backend.routes.transactions import Transaction
 
 TODAY = date(2026, 10, 9)
@@ -149,8 +149,14 @@ def test_tax_year_and_as_of_use_the_london_date(monkeypatch):
     assert result["tax_year"] == "2027-2028"
 
 
-def test_run_is_read_only(monkeypatch):
-    """The guardian never saves the schedule (only the owner's PUT does)."""
+def _snapshot(root: Path) -> dict[str, bytes]:
+    return {str(p.relative_to(root)): p.read_bytes() for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+def test_run_is_read_only(monkeypatch, tmp_path):
+    """The guardian loads the stored schedule and writes nothing (only the owner's PUT saves)."""
+    save_schedule(ContributionSchedule(owner="alex", contributions=_schedule()), tmp_path)
+    before = _snapshot(tmp_path)
 
     def _forbidden(*args, **kwargs):
         raise AssertionError("guardian must not write")
@@ -158,5 +164,7 @@ def test_run_is_read_only(monkeypatch):
     monkeypatch.setattr("backend.allowance_guardian.schedule.save_schedule", _forbidden)
     rows = [Transaction(owner="alex", account="sipp", type="DEPOSIT", date="2026-09-28", amount_minor=1_000_000,
                         comments="Employer contribution")]  # fmt: skip
-    result = _report(transactions=rows)
+    result = _report(transactions=rows, schedule=None, data_root=tmp_path)
+    assert result["schedule_count"] == 2
     assert result["contributions"]["counts"]["on_time"] == 1
+    assert _snapshot(tmp_path) == before

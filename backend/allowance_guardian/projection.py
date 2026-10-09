@@ -57,7 +57,8 @@ class _Pots:
 
     def __init__(self, current_minor: int, carry: List[Tuple[str, int]]):
         self.current = current_minor
-        self.carry = [[label, unused] for label, unused in carry]
+        # Tax-year label -> unused pence; insertion order is oldest first.
+        self.carry: Dict[str, int] = dict(carry)
         self.excess = 0
 
     def use(self, amount: int) -> Tuple[bool, bool]:
@@ -66,16 +67,16 @@ class _Pots:
         self.current -= take
         amount -= take
         dipped = amount > 0
-        for pot in self.carry:
-            take = min(pot[1], amount)
-            pot[1] -= take
+        for label, unused in self.carry.items():
+            take = min(unused, amount)
+            self.carry[label] = unused - take
             amount -= take
         self.excess += amount
         return dipped, amount > 0
 
     @property
     def carry_total(self) -> int:
-        return sum(unused for _, unused in self.carry)
+        return sum(self.carry.values())
 
 
 def _month_row(month: str, rows: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
@@ -121,7 +122,7 @@ def project_pension_allowance(
     used_to_date = _minor(current_row["gross_contributions_gbp"])
     events = _future_events(schedule, today, tax_year_bounds(today)[1], pension=True)
     walked = _walk(events, pots, used_to_date)
-    remaining_after = {label: unused for label, unused in pots.carry}
+    remaining_after = dict(pots.carry)
     scheduled = sum(amount for _, amount in events)
     return {
         "tax_year": current_row["tax_year"],

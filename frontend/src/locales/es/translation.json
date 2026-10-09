@@ -94,6 +94,8 @@
     "viewAlertsLink": "Ver alertas recientes"
   },
   "allocation": {
+    "accountCash": "{{owner}} {{account}}: {{name}}",
+    "showHoldings": "Mostrar posiciones",
     "allocationDescription": "La asignación muestra cómo se distribuye el valor actual de la cartera.",
     "contributionDescription": "La contribución muestra qué partes de la cartera generaron las ganancias y pérdidas.",
     "currency": "Divisas",
@@ -3213,7 +3215,9 @@
     "addAccount": "Añadir cuenta",
     "cancelImport": "Cancelar importación",
     "viewCompliance": "Ver avisos de cumplimiento",
-    "complianceError": "No se pudieron cargar los avisos de cumplimiento."
+    "complianceError": "No se pudieron cargar los avisos de cumplimiento.",
+    "reconcileStatement": "Conciliar extracto",
+    "closeReconcile": "Cerrar la conciliación del extracto"
   },
   "topMoversSummary": {
     "noGroup": "Ningún grupo seleccionado.",
@@ -3763,5 +3767,47 @@
     "duration": "{{seconds}} s",
     "usage": "Modelo {{model}} · {{tokensIn}} de entrada / {{tokensOut}} de salida · ${{cost}}",
     "pollTimeout": "Se dejó de esperar esta ejecución: sigue marcada como en curso. Revise el historial más tarde."
+  },
+  "statementReconcile": {
+    "title": "Conciliar extracto",
+    "intro": "Sube un extracto o una nota de contrato del bróker (PDF o CSV) para compararlo con tus transacciones registradas. No se cambia nada hasta que aceptes una sugerencia.",
+    "cloudNotice": "El texto del documento se enviará al proveedor de IA configurado ({{provider}}) para leerlo. El archivo no se guarda.",
+    "localNotice": "El documento lo lee el modelo de IA local ({{provider}}) y no sale de este equipo. El archivo no se guarda.",
+    "account": "Cuenta",
+    "file": "Extracto (PDF o CSV)",
+    "explainUnmatched": "Pedir al asistente que explique las filas sin conciliar",
+    "reconcile": "Conciliar extracto",
+    "reconciling": "Leyendo el extracto…",
+    "failed": "No se pudo conciliar el extracto.",
+    "resultTitle": "Conciliación del extracto",
+    "summary": "{{rows}} filas leídas · {{matched}} conciliadas · {{diffs}} diferencias",
+    "warnings": "Advertencias",
+    "noDiffs": "El extracto coincide con el registro.",
+    "explanation": "Explicación del asistente",
+    "accept": "Aceptar",
+    "confirm": "Confirmar cambio",
+    "cancel": "Cancelar",
+    "applying": "Aplicando…",
+    "applied": "Aplicado",
+    "applyFailed": "No se pudo aplicar este cambio.",
+    "dismiss": "Descartar",
+    "dismissReason": "Motivo del descarte",
+    "dismissedWith": "Descartado: {{reason}}",
+    "columns": {
+      "kind": "Diferencia",
+      "date": "Fecha",
+      "detail": "Detalle",
+      "statement": "Extracto",
+      "ledger": "Registro",
+      "action": "Acción"
+    },
+    "kinds": {
+      "missing_from_ledger": "Falta en el registro",
+      "missing_from_statement": "No está en el extracto",
+      "amount_mismatch": "El importe difiere",
+      "fee_mismatch": "La comisión difiere",
+      "cash_mismatch": "El efectivo final difiere",
+      "units_mismatch": "Las unidades finales difieren"
+    }
   }
 }

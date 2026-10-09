@@ -94,6 +94,8 @@
     "viewAlertsLink": "Vedi gli avvisi recenti"
   },
   "allocation": {
+    "accountCash": "{{owner}} {{account}}: {{name}}",
+    "showHoldings": "Mostra posizioni",
     "allocationDescription": "L'allocazione mostra come è distribuito il valore attuale del portafoglio.",
     "contributionDescription": "Il contributo mostra quali parti del portafoglio hanno generato guadagni e perdite.",
     "currency": "Valute",
@@ -3213,7 +3215,9 @@
     "addAccount": "Aggiungi conto",
     "cancelImport": "Annulla importazione",
     "viewCompliance": "Visualizza avvisi di conformità",
-    "complianceError": "Impossibile caricare gli avvisi di conformità."
+    "complianceError": "Impossibile caricare gli avvisi di conformità.",
+    "reconcileStatement": "Riconcilia estratto conto",
+    "closeReconcile": "Chiudi la riconciliazione dell'estratto"
   },
   "topMoversSummary": {
     "noGroup": "Nessun gruppo selezionato.",
@@ -3763,5 +3767,47 @@
     "duration": "{{seconds}} s",
     "usage": "Modello {{model}} · {{tokensIn}} in ingresso / {{tokensOut}} in uscita · ${{cost}}",
     "pollTimeout": "Attesa dell’esecuzione interrotta: risulta ancora in corso. Controlla la cronologia più tardi."
+  },
+  "statementReconcile": {
+    "title": "Riconcilia estratto conto",
+    "intro": "Carica un estratto conto o un fissato bollato del broker (PDF o CSV) per confrontarlo con le transazioni registrate. Nulla viene modificato finché non accetti un suggerimento.",
+    "cloudNotice": "Il testo del documento verrà inviato al fornitore di IA configurato ({{provider}}) per la lettura. Il file non viene conservato.",
+    "localNotice": "Il documento viene letto dal modello di IA locale ({{provider}}) e non lascia questo computer. Il file non viene conservato.",
+    "account": "Conto",
+    "file": "Estratto (PDF o CSV)",
+    "explainUnmatched": "Chiedi all'assistente di spiegare le righe non abbinate",
+    "reconcile": "Riconcilia estratto",
+    "reconciling": "Lettura dell'estratto…",
+    "failed": "Impossibile riconciliare l'estratto.",
+    "resultTitle": "Riconciliazione dell'estratto",
+    "summary": "{{rows}} righe lette · {{matched}} abbinate · {{diffs}} differenze",
+    "warnings": "Avvisi",
+    "noDiffs": "L'estratto corrisponde al registro.",
+    "explanation": "Spiegazione dell'assistente",
+    "accept": "Accetta",
+    "confirm": "Conferma modifica",
+    "cancel": "Annulla",
+    "applying": "Applicazione…",
+    "applied": "Applicato",
+    "applyFailed": "Impossibile applicare questa modifica.",
+    "dismiss": "Ignora",
+    "dismissReason": "Motivo",
+    "dismissedWith": "Ignorato: {{reason}}",
+    "columns": {
+      "kind": "Differenza",
+      "date": "Data",
+      "detail": "Dettaglio",
+      "statement": "Estratto",
+      "ledger": "Registro",
+      "action": "Azione"
+    },
+    "kinds": {
+      "missing_from_ledger": "Manca nel registro",
+      "missing_from_statement": "Non presente nell'estratto",
+      "amount_mismatch": "Importo diverso",
+      "fee_mismatch": "Commissione diversa",
+      "cash_mismatch": "Liquidità finale diversa",
+      "units_mismatch": "Quote finali diverse"
+    }
   }
 }

@@ -113,3 +113,16 @@ def test_group_portfolio_matches_transactions_by_owner():
 
     by_owner = {r["owner"]: r["account_charges_gbp"] for r in result["accounts"]}
     assert by_owner == {"alex": 10.0, "sam": 3.0}
+
+
+def test_zero_fee_is_known_and_missing_fee_is_unknown():
+    txs = [
+        {"account": "isa", "type": "BUY", "date": "2026-03-01", "fees": 0},
+        {"account": "isa", "type": "BUY", "date": "2026-03-02", "fees": None},
+    ]
+
+    total = compute_all_in_cost({"accounts": []}, txs, today=TODAY)["total"]
+
+    assert total["trade_count"] == 2
+    assert total["dealing_fees_gbp"] == 0.0
+    assert total["trades_without_fee_data"] == 1

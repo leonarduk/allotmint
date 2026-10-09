@@ -45,6 +45,26 @@ describe('FundUpkeepProposals (#10482)', () => {
     expect(screen.queryByTestId('fund-upkeep-proposal-p2')).not.toBeInTheDocument();
   });
 
+  it('shows the proposed look-through breakdown before approval', async () => {
+    vi.mocked(getFundUpkeepProposals).mockResolvedValue([
+      {
+        ...pending,
+        id: 'lt1',
+        kind: 'look_through',
+        value: {
+          countries: { Japan: 40, 'United States': 60 },
+          sectors: { Technology: 100 },
+        },
+      },
+    ]);
+
+    render(<FundUpkeepProposals />);
+
+    expect(await screen.findByTestId('fund-upkeep-proposal-lt1')).toHaveTextContent(
+      'Look-through breakdown: United States 60.00%, Japan 40.00%; Technology 100.00%'
+    );
+  });
+
   it('approves a proposal and reloads the list, offering undo', async () => {
     vi.mocked(getFundUpkeepProposals)
       .mockResolvedValueOnce([pending])

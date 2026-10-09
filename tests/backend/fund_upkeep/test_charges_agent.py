@@ -177,6 +177,8 @@ def test_search_without_key_is_reported_not_attempted(catalogue):
         ({"ongoing_charge_pct": 0.3}, False),  # hand-entered, undated: left alone
         ({"ongoing_charge_pct": 0.3, proposals.CHARGE_SOURCE_KEY: {"document_date": "2026-01-01"}}, False),
         ({"ongoing_charge_pct": 0.3, proposals.CHARGE_SOURCE_KEY: {"document_date": "2025-01-01"}}, True),
+        # A malformed source date is treated like an undated value: left alone.
+        ({"ongoing_charge_pct": 0.3, proposals.CHARGE_SOURCE_KEY: {"document_date": "not-a-date"}}, False),
     ],
 )
 def test_needs_charge(meta, expected):

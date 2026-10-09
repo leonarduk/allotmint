@@ -6,9 +6,27 @@ import type { FundUpkeepProposal } from '../types';
 
 type Action = 'approve' | 'reject' | 'undo';
 
+/** The largest weights of a `{label: weight}` map, e.g. "United States 60.00%, Japan 40.00%". */
+function topWeights(weights: unknown, limit = 3): string | null {
+  if (typeof weights !== 'object' || weights === null) return null;
+  const rows = Object.entries(weights as Record<string, unknown>)
+    .filter((entry): entry is [string, number] => typeof entry[1] === 'number')
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([name, weight]) => `${name} ${percent(weight)}`);
+  return rows.length ? rows.join(', ') : null;
+}
+
+/** What approving would write, so the owner can inspect it first. */
 function describeValue(p: FundUpkeepProposal, label: string): string {
   if (p.kind === 'ongoing_charge' && typeof p.value === 'number') {
     return `${label}: ${percent(p.value)}`;
+  }
+  if (p.kind === 'look_through' && typeof p.value === 'object' && p.value) {
+    const block = p.value as { countries?: unknown; sectors?: unknown };
+    const parts = [topWeights(block.countries), topWeights(block.sectors)];
+    const shown = parts.filter((part): part is string => part !== null);
+    if (shown.length) return `${label}: ${shown.join('; ')}`;
   }
   return label;
 }

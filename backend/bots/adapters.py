@@ -229,3 +229,6 @@ for _bot in (TradingAgentBot(), PriceRefreshBot(), DividendRefreshBot(), Pension
 from backend.trend_watch.bot import TrendWatchBot  # noqa: E402
 
 register_bot(TrendWatchBot(), replace=True)
+
+# Agents that register themselves from their own module (see the module docstring).
+from backend.reconciliation import bot as _statement_reconciliation_bot  # noqa: E402,F401

@@ -1954,3 +1954,80 @@ export interface BenchmarkRiskReturn {
   annualised_return: number | null;
   volatility: number | null;
 }
+
+/** An owner-chosen cash phasing schedule (#10480). Amounts are pence. */
+export interface CashDeploymentScheduleInput {
+  account: string;
+  total_amount_minor: number;
+  tranches: number;
+  cadence: 'weekly' | 'monthly' | 'quarterly';
+  start_date: string;
+  target_source: 'plan' | 'policy';
+  status: 'active' | 'paused' | 'completed' | 'cancelled';
+}
+
+export interface CashDeploymentSchedule extends CashDeploymentScheduleInput {
+  id: string;
+  created: string;
+}
+
+export interface CashDeploymentTrancheRow {
+  index: number;
+  due_date: string;
+  window_end: string;
+  amount_minor: number;
+  invested_minor: number;
+  status: 'upcoming' | 'due' | 'done' | 'partly_done' | 'skipped';
+  overdue: boolean;
+}
+
+export interface CashDeploymentProgress {
+  as_of: string;
+  tranches: CashDeploymentTrancheRow[];
+  total_amount_minor: number;
+  deployed_minor: number;
+  remaining_minor: number;
+  planned_to_date_minor: number;
+  planned_remaining_minor: number;
+  overdue_count: number;
+  interest_minor: number;
+  current: CashDeploymentTrancheRow | null;
+  summary: string;
+}
+
+/** One line of a tranche's draft order list; the vehicle comes only from the owner's plan. */
+export interface CashDeploymentOrder {
+  asset_class: string;
+  ticker: string | null;
+  vehicle_note: string | null;
+  amount_minor: number;
+  price_gbp: number | null;
+  indicative_units: number | null;
+}
+
+export interface CashDeploymentTranche {
+  index: number;
+  due_date: string;
+  amount_minor: number;
+  label: string;
+  orders: CashDeploymentOrder[];
+  keep_as_cash_minor: number;
+}
+
+export interface CashDeploymentEntry {
+  schedule: CashDeploymentSchedule;
+  progress: CashDeploymentProgress | null;
+  tranche: CashDeploymentTranche | null;
+  error: string | null;
+}
+
+/** A read-only cash deployment bot run for one owner. */
+export interface CashDeploymentRun {
+  bot: string;
+  owner: string;
+  as_of: string;
+  status: 'ok' | 'partial' | 'skipped';
+  summary: string;
+  schedules: CashDeploymentEntry[];
+  warnings: string[];
+}

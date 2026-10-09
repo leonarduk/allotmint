@@ -19,6 +19,7 @@ import type {
   RebalanceTrade,
   StrategyList,
 } from '../types';
+import CashDeploymentCard from '../components/CashDeploymentCard';
 import DecisionJournal from '../components/DecisionJournal';
 import EmptyState from '../components/EmptyState';
 import PlanBriefCard from '../components/PlanBriefCard';
@@ -769,6 +770,11 @@ export default function Strategy() {
             <EmptyState message={t('strategy.emptyPolicy')} />
           )}
           <OtherSleevePlans sleeves={plan.sleeves} owner={selectedOwner} />
+          <CashDeploymentCard
+            key={selectedOwner}
+            owner={selectedOwner}
+            accounts={plan.accounts}
+          />
         </>
       )}
       {selectedOwner && (

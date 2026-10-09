@@ -17,7 +17,7 @@ from typing import Any, Dict, Literal, Optional
 
 from pydantic import Field, model_validator
 
-from backend.bots.registry import BotRunContext, BotSettings, RunResult, Schedule, register_bot
+from backend.bots.registry import BotKind, BotRunContext, BotScope, BotSettings, RunResult, Schedule, register_bot
 
 PENSION_REPORT_CADENCE_ENV = "PENSION_REPORT_CADENCE"
 
@@ -33,9 +33,9 @@ class PriceRefreshBot:
     id = "price-refresh"
     name = "Price refresh"
     description = "Fetches the latest prices for every held and watched ticker and writes the price snapshot."
-    kind = "job"
-    scope = "system"
-    settings_model = BotSettings
+    kind: BotKind = "job"
+    scope: BotScope = "system"
+    settings_model: type[BotSettings] = BotSettings
     default_schedule: Optional[Schedule] = Schedule(hour=0)  # cdk DailyPriceRefresh
     timeout_minutes = 15
 
@@ -43,7 +43,8 @@ class PriceRefreshBot:
         return _base_settings()
 
     def run(self, context: BotRunContext, settings: BotSettings) -> RunResult:
-        # Resolved via sys.modules so a reloaded handler module is the one run.
+        # Looked up at call time (sys.modules), not bound at import, so tests
+        # that re-import the handler module patch the function actually run.
         price_refresh = importlib.import_module("backend.lambda_api.price_refresh")
         raw = price_refresh._run_refresh()
         if not isinstance(raw, dict):
@@ -72,9 +73,9 @@ class DividendRefreshBot:
     id = "dividend-refresh"
     name = "Dividend refresh"
     description = "Records new dividend transactions for every held ticker, skipping ones already recorded."
-    kind = "job"
-    scope = "system"
-    settings_model = BotSettings
+    kind: BotKind = "job"
+    scope: BotScope = "system"
+    settings_model: type[BotSettings] = BotSettings
     default_schedule: Optional[Schedule] = Schedule(hour=6)  # cdk DailyDividendRefresh
     timeout_minutes = 15
 
@@ -120,9 +121,9 @@ class PensionReportBot:
     id = "pension-report"
     name = "Pension report"
     description = "Emails each owner a pension forecast, year-to-date return and shortfall alerts."
-    kind = "job"
-    scope = "system"
-    settings_model = PensionReportSettings
+    kind: BotKind = "job"
+    scope: BotScope = "system"
+    settings_model: type[BotSettings] = PensionReportSettings
     timeout_minutes = 10
 
     @property
@@ -197,9 +198,9 @@ class TradingAgentBot:
     id = "trading-agent"
     name = "Trading agent signals"
     description = "Checks RSI and moving-average thresholds on every held ticker and sends BUY/SELL alerts."
-    kind = "rules"
-    scope = "system"
-    settings_model = TradingAgentBotSettings
+    kind: BotKind = "rules"
+    scope: BotScope = "system"
+    settings_model: type[BotSettings] = TradingAgentBotSettings
     default_schedule: Optional[Schedule] = Schedule(hour=1)  # cdk DailyTradingAgentRun
     timeout_minutes = 10
 

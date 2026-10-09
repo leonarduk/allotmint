@@ -191,3 +191,28 @@ def test_dispatch_on_aws_without_lambda_records_failure(fake_bot, monkeypatch):
     record = runner.dispatch_run(runner.start_run(fake_bot.id), background_tasks=None)
     assert record.status == "failed"
     assert runs.latest_run(fake_bot.id).status == "failed"
+
+
+def test_manual_run_executes_as_system_job(fake_bot):
+    """Run now has no request user, so the bot must see every owner (#8805)."""
+    from backend.auth import is_system_job
+
+    seen = []
+
+    def check(ctx):
+        seen.append(is_system_job())
+        return RunResult(status="ok")
+
+    fake_bot.behaviour = check
+    started = runner.start_run(fake_bot.id, actor="admin")
+    runner.execute(fake_bot.id, "manual", run_id=started.id)
+    assert seen == [True]
+    assert is_system_job() is False
+
+
+def test_cdk_sets_the_env_var_the_runner_reads():
+    """Run now on AWS finds the bot Lambdas through this env var (#10477)."""
+    from pathlib import Path
+
+    stack = Path(__file__).resolve().parents[3] / "cdk" / "stacks" / "backend_lambda_stack.py"
+    assert f'"{runner.BOT_LAMBDAS_ENV}"' in stack.read_text(encoding="utf-8")

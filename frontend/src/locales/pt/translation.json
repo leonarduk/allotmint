@@ -3712,6 +3712,7 @@
     "noRuns": "Ainda não há execuções registadas.",
     "report": "Relatório",
     "duration": "{{seconds}} s",
-    "usage": "Modelo {{model}} · {{tokensIn}} de entrada / {{tokensOut}} de saída · ${{cost}}"
+    "usage": "Modelo {{model}} · {{tokensIn}} de entrada / {{tokensOut}} de saída · ${{cost}}",
+    "pollTimeout": "Deixou de aguardar esta execução: ainda está marcada como em execução. Verifique o histórico mais tarde."
   }
 }

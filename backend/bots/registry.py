@@ -133,8 +133,11 @@ class Bot(Protocol):
     kind: BotKind
     scope: BotScope
     settings_model: type[BotSettings]
-    #: ``None`` for event-driven bots (e.g. run on statement upload).
-    default_schedule: Optional[Schedule]
+
+    @property
+    def default_schedule(self) -> Optional[Schedule]:
+        """The EventBridge rule's schedule; ``None`` for event-driven bots."""
+
     #: A ``running`` record older than this is treated as stale (crashed run).
     timeout_minutes: int
 

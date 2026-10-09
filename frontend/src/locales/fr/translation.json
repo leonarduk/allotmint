@@ -3712,6 +3712,7 @@
     "noRuns": "Aucune exécution enregistrée.",
     "report": "Rapport",
     "duration": "{{seconds}} s",
-    "usage": "Modèle {{model}} · {{tokensIn}} en entrée / {{tokensOut}} en sortie · ${{cost}}"
+    "usage": "Modèle {{model}} · {{tokensIn}} en entrée / {{tokensOut}} en sortie · ${{cost}}",
+    "pollTimeout": "Attente de cette exécution arrêtée : elle est toujours marquée en cours. Consultez l’historique plus tard."
   }
 }

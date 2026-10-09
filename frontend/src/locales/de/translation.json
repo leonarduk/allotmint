@@ -3712,6 +3712,7 @@
     "noRuns": "Noch keine Läufe aufgezeichnet.",
     "report": "Bericht",
     "duration": "{{seconds}} s",
-    "usage": "Modell {{model}} · {{tokensIn}} ein / {{tokensOut}} aus Tokens · ${{cost}}"
+    "usage": "Modell {{model}} · {{tokensIn}} ein / {{tokensOut}} aus Tokens · ${{cost}}",
+    "pollTimeout": "Warten auf diesen Lauf beendet: Er ist noch als laufend markiert. Prüfen Sie den Laufverlauf später."
   }
 }

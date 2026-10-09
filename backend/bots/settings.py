@@ -70,7 +70,8 @@ def save_settings(bot: Bot, values: Dict[str, Any], *, actor: Optional[str] = No
         data = storage.load()
         if not isinstance(data, dict):
             data = {}
-        bots = data.get("bots") if isinstance(data.get("bots"), dict) else {}
+        stored = data.get("bots")
+        bots: Dict[str, Any] = stored if isinstance(stored, dict) else {}
         bots[bot.id] = after
         data["bots"] = bots
         storage.save(data)

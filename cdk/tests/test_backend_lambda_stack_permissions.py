@@ -1261,6 +1261,7 @@ def test_bot_lambdas_share_the_bots_storage_prefix() -> None:
 def test_backend_lambda_can_start_each_bot_lambda() -> None:
     """Run now invokes the bot's own Lambda; the backend must know and may invoke each (#10477)."""
     template = _stack_template()
+    # tests/backend/bots/test_runs.py checks the backend reads this same name.
     mapping = str(_lambda_env(template, "BackendLambda")["BOT_LAMBDA_FUNCTIONS"])
     for bot_id in ("price-refresh", "trading-agent", "dividend-refresh", "pension-report"):
         assert bot_id in mapping

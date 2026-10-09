@@ -3712,6 +3712,7 @@
     "noRuns": "Nessuna esecuzione registrata.",
     "report": "Rapporto",
     "duration": "{{seconds}} s",
-    "usage": "Modello {{model}} · {{tokensIn}} in ingresso / {{tokensOut}} in uscita · ${{cost}}"
+    "usage": "Modello {{model}} · {{tokensIn}} in ingresso / {{tokensOut}} in uscita · ${{cost}}",
+    "pollTimeout": "Attesa dell’esecuzione interrotta: risulta ancora in corso. Controlla la cronologia più tardi."
   }
 }

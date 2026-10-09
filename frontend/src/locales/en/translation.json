@@ -3705,6 +3705,7 @@
     "noRuns": "No runs recorded yet.",
     "report": "Report",
     "duration": "{{seconds}}s",
-    "usage": "Model {{model}} · {{tokensIn}} in / {{tokensOut}} out tokens · ${{cost}}"
+    "usage": "Model {{model}} · {{tokensIn}} in / {{tokensOut}} out tokens · ${{cost}}",
+    "pollTimeout": "Stopped waiting for this run: it is still marked as running. Check the run history later."
   }
 }

@@ -20,7 +20,8 @@ Bot run records
 The handler runs through the bot runner (``backend.bots``, #10477), which
 records every run on the Bots page and skips a scheduled firing when the bot
 is disabled there. Direct invocations (the deploy Trigger, the CI warm-up)
-always run. The return value is still ``refresh_prices()``'s result.
+always run. The return value is still ``refresh_prices()``'s result, except
+for a skipped scheduled firing, which returns ``{"skipped": True, ...}``.
 
 System-job context
 ------------------

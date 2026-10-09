@@ -16,6 +16,9 @@ import {
 import tableStyles from '../styles/table.module.css';
 
 const POLL_INTERVAL_MS = 2000;
+// Stop polling after this long; the longest bot timeout is 15 minutes, so a
+// run still "running" by then crashed without updating its record.
+const POLL_MAX_MS = 20 * 60 * 1000;
 
 const STATUS_CLASSES: Record<BotRunStatus | 'never', string> = {
   ok: 'bg-green-100 text-green-800',
@@ -331,6 +334,7 @@ function SettingsForm({
 
 /** Polls a Run now run until it leaves "running", then calls onDone. */
 function useRunPoller(onDone: () => void) {
+  const { t } = useTranslation();
   const [active, setActive] = useState<{ botId: string; runId: string } | null>(
     null
   );
@@ -339,7 +343,13 @@ function useRunPoller(onDone: () => void) {
   useEffect(() => {
     if (!active) return undefined;
     let cancelled = false;
+    const startedAt = Date.now();
     const timer = setInterval(async () => {
+      if (Date.now() - startedAt > POLL_MAX_MS) {
+        setError(t('bots.pollTimeout'));
+        setActive(null);
+        return;
+      }
       try {
         const run = await getBotRun(active.botId, active.runId);
         if (cancelled || run.status === 'running') return;
@@ -355,7 +365,7 @@ function useRunPoller(onDone: () => void) {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [active, onDone]);
+  }, [active, onDone, t]);
 
   return { polling: active !== null, start: setActive, error };
 }

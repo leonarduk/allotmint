@@ -3712,6 +3712,7 @@
     "noRuns": "Aún no hay ejecuciones registradas.",
     "report": "Informe",
     "duration": "{{seconds}} s",
-    "usage": "Modelo {{model}} · {{tokensIn}} de entrada / {{tokensOut}} de salida · ${{cost}}"
+    "usage": "Modelo {{model}} · {{tokensIn}} de entrada / {{tokensOut}} de salida · ${{cost}}",
+    "pollTimeout": "Se dejó de esperar esta ejecución: sigue marcada como en curso. Revise el historial más tarde."
   }
 }

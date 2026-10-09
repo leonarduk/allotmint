@@ -125,3 +125,52 @@ def test_routes_do_not_touch_the_plan(data_root):
     before = (data_root / "plans" / "alex.json").read_bytes()
     _client(data_root).post("/retirement-readiness/alex/run", params={"death_age": 80, "retirement_age": 60})
     assert (data_root / "plans" / "alex.json").read_bytes() == before
+
+
+def test_two_runs_with_one_contribution_attribute_the_whole_change_to_contributions(data_root, monkeypatch):
+    import datetime as dt
+    from types import SimpleNamespace
+
+    today = dt.date.today()
+    # Birthday about six months away, so no birthday falls between the runs (that would be an assumption change).
+    dob = (today - dt.timedelta(days=51 * 365 + 180)).isoformat()
+    (data_root / "accounts" / "alex" / "person.json").write_text(json.dumps({"owner": "alex", "dob": dob}))
+    earlier = today - dt.timedelta(days=30)
+    pot = {"gbp": 80000.0}
+    monkeypatch.setattr(
+        pension_route,
+        "build_owner_portfolio",
+        lambda owner, **_: {"accounts": [{"account_type": "sipp", "value_estimate_gbp": pot["gbp"]}]},
+    )
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(accounts_root=data_root / "accounts")))
+    settings = {"death_age": 80, "retirement_age": 60, "state_pension_annual": 5000.0}
+    # The first run is stored as of 30 days ago (the route can only run "today").
+    first = readiness.run("alex", overrides=settings, request=request, today=earlier)
+
+    pot["gbp"] = 85000.0
+    deposit = SimpleNamespace(
+        owner="alex",
+        account="SIPP",
+        type="DEPOSIT",
+        date=(earlier + dt.timedelta(days=1)).isoformat(),
+        amount_minor=500_000,
+    )
+    monkeypatch.setattr(readiness, "_load_transactions", lambda: [deposit])
+    resp = _client(data_root).post("/retirement-readiness/alex/run")
+    assert resp.status_code == 200, resp.text
+    change = resp.json()["attribution"]
+
+    assert change["previous_run_date"] == earlier.isoformat()
+    assert change["flows_since_previous_gbp"] == 5000.0
+    assert change["change_gbp"] > 0
+    assert change["change_gbp"] == pytest.approx(
+        resp.json()["headline"]["income_gbp"] - first["headline"]["income_gbp"]
+    )
+    assert change["parts_gbp"] == {
+        "data_revision": 0.0,
+        "contributions": change["change_gbp"],
+        "markets": 0.0,
+        "assumptions": 0.0,
+    }
+    trend = _client(data_root).get("/retirement-readiness/alex/history").json()["trend"]
+    assert [p["pot_gbp"] for p in trend] == [80000.0, 85000.0]

@@ -94,15 +94,23 @@ def _comparisons(outcomes: list[LegOutcome]) -> list[Comparison]:
 
 
 def expectation_outcome(entry: JournalEntry, outcomes: list[LegOutcome]) -> ExpectationOutcome:
-    """``met``/``not_met`` from the recorded check; ``unclear`` without one or without prices."""
+    """``met``/``not_met`` from the recorded check.
+
+    ``unclear`` without a check, without prices for both legs, or when the two
+    investment legs are on different return bases (total vs price): those
+    returns are not comparable, so no verdict is drawn from them. A cash leg
+    (0%) compares with either basis.
+    """
     check = entry.expectation.check if entry.expectation else None
     if check is None:
         return "unclear"
-    by_label = {o.label: o.return_pct for o in outcomes}
+    by_label = {o.label: o for o in outcomes}
     first, second = by_label.get(check.leg), by_label.get(check.outperforms)
-    if first is None or second is None:
+    if first is None or second is None or first.return_pct is None or second.return_pct is None:
         return "unclear"
-    return "met" if first > second else "not_met"
+    if combined_basis([first, second]) == MIXED_BASIS:
+        return "unclear"
+    return "met" if first.return_pct > second.return_pct else "not_met"
 
 
 def _gbp(value: float) -> str:
@@ -115,7 +123,7 @@ def _leg_line(outcome: LegOutcome, amount: Optional[float]) -> str:
     if outcome.basis == CASH_BASIS:
         where, basis = "cash, 0% interest assumed", "cash"
     else:
-        where, basis = outcome.ticker, f"{outcome.basis} return"
+        where, basis = str(outcome.ticker), f"{outcome.basis} return"
     period = f"{outcome.start_date} to {outcome.end_date}"
     line = f"{outcome.label} ({where}): {outcome.return_pct:+.2f}% ({basis}, {period})"
     if amount is not None and outcome.value_gbp is not None:

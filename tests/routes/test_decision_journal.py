@@ -126,6 +126,29 @@ def test_confirmed_entry_lands_in_plan_and_journal(data_root):
     assert client.post("/decision-journal/alex/entries", json=_confirm_body(draft)).status_code == 409
 
 
+def test_confirm_completes_a_partial_write_after_a_failed_journal_save(data_root, monkeypatch):
+    client = _client(data_root)
+    draft = client.post("/decision-journal/alex/drafts", json={"source_ref": "alex:isa:7"}).json()
+
+    real_save, calls = entries_mod.save_journal, []
+
+    def fail_once(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise OSError("disk full")
+        return real_save(*args, **kwargs)
+
+    monkeypatch.setattr(entries_mod, "save_journal", fail_once)
+    with pytest.raises(OSError):
+        client.post("/decision-journal/alex/entries", json=_confirm_body(draft))
+    assert [d.get("id") for d in _plan_file(data_root)["decisions"]] == [None, draft["id"]]
+
+    # Confirming the same draft again writes the journal entry without a second plan decision.
+    assert client.post("/decision-journal/alex/entries", json=_confirm_body(draft)).status_code == 201
+    assert [d.get("id") for d in _plan_file(data_root)["decisions"]] == [None, draft["id"]]
+    assert load_journal("alex", data_root).entry(draft["id"]) is not None
+
+
 def test_plan_with_decision_ids_round_trips_through_plans_route(data_root):
     client = _client(data_root)
     draft = client.post("/decision-journal/alex/drafts", json={"source_ref": "alex:isa:7"}).json()

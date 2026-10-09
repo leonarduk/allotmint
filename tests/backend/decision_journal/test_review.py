@@ -74,6 +74,19 @@ def test_mixed_bases_are_labelled_not_silently_combined():
     assert "(price return," in text and "(total return," in text
 
 
+def test_expectation_is_unclear_when_its_legs_are_on_different_bases():
+    """CCC is price-only and AAA total return; their returns are not compared for a verdict."""
+    entry = sell_entry(
+        legs=[
+            Leg(role="chosen", label="Proceeds to CCC", ticker="CCC.L"),
+            Leg(role="alternative", label="Keep holding AAA", ticker="AAA.L"),
+        ],
+        expectation={"text": "CCC beats AAA", "check": {"leg": "Proceeds to CCC", "outperforms": "Keep holding AAA"}},
+    )
+    review = build_review(entry, 6, date(2026, 7, 2), date(2026, 7, 2), fake_series)
+    assert review.expectation_outcome == "unclear"
+
+
 def test_cash_does_not_make_a_review_mixed():
     outcomes = [
         LegOutcome(role="chosen", label="a", basis="cash", return_pct=0.0),

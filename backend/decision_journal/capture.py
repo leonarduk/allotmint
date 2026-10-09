@@ -200,7 +200,7 @@ def plan_change_draft(
 ) -> Optional[dict[str, Any]]:
     """A draft for a change of plan target weights, or ``None`` when the targets are unchanged."""
     classes = sorted(set(previous) | set(current))
-    changes = [
+    changes: list[dict[str, Any]] = [
         {"class": key, "before_pct": previous.get(key, 0.0), "after_pct": current.get(key, 0.0)}
         for key in classes
         if abs(previous.get(key, 0.0) - current.get(key, 0.0)) > 1e-9

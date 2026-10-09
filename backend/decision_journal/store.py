@@ -9,6 +9,7 @@ legs the review compares, the owner's expectation and the reviews themselves.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 import os
@@ -111,7 +112,7 @@ class JournalEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(pattern=DECISION_ID_PATTERN)
-    date: date
+    date: dt.date
     kind: Literal["trade", "plan_change", "other"] = "other"
     #: What triggered the entry, e.g. a transaction id; used to stop re-listing it.
     source_ref: Optional[str] = None
@@ -119,7 +120,7 @@ class JournalEntry(BaseModel):
     legs: list[Leg] = Field(default_factory=list)
     expectation: Optional[Expectation] = None
     snapshot: dict[str, Any] = Field(default_factory=dict)
-    review_due: list[date] = Field(default_factory=list)
+    review_due: list[dt.date] = Field(default_factory=list)
     reviews: list[Review] = Field(default_factory=list)
 
     @model_validator(mode="after")

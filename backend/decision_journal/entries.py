@@ -51,8 +51,6 @@ class ConfirmDecision(BaseModel):
 
 
 def _plan_with_decision(plan: InvestmentPlan, body: ConfirmDecision) -> InvestmentPlan:
-    if any(d.id == body.id for d in plan.decisions):
-        raise DuplicateDecisionError(f"Decision {body.id} is already in the plan")
     decision = PlanDecision(
         id=body.id, date=body.date, decision=body.decision, alternatives=body.alternatives, reason=body.reason
     )
@@ -65,13 +63,19 @@ def confirm_decision(owner: str, body: ConfirmDecision, data_root: Optional[Path
     """Append the decision to the plan and its context to the journal.
 
     Raises :class:`~backend.common.investment_plan.PlanNotFoundError` when the
-    owner has no plan, and :class:`DuplicateDecisionError` for a reused id.
-    Both documents are validated before either is written.
+    owner has no plan, and :class:`DuplicateDecisionError` when the journal
+    already has the id. Both documents are validated before either is written.
+
+    The plan is written first. If the journal write then fails, confirming the
+    same draft again finds the id already in the plan, leaves the plan as it
+    is and writes only the journal entry, so a partial write can be completed.
     """
     journal = load_journal(owner, data_root)
     if journal.entry(body.id) is not None:
         raise DuplicateDecisionError(f"Decision {body.id} is already in the journal")
-    plan = _plan_with_decision(load_plan(owner, data_root), body)
+    current = load_plan(owner, data_root)
+    in_plan = any(d.id == body.id for d in current.decisions)
+    plan = None if in_plan else _plan_with_decision(current, body)
     entry = JournalEntry(
         id=body.id,
         date=body.date,
@@ -84,7 +88,8 @@ def confirm_decision(owner: str, body: ConfirmDecision, data_root: Optional[Path
         review_due=review_due_dates(body.date),
     )
     journal.entries.append(entry)
-    save_plan(plan, data_root)
+    if plan is not None:
+        save_plan(plan, data_root)
     save_journal(journal, data_root)
     return entry
 

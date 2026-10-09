@@ -101,13 +101,18 @@ ui:
     settings: true
     profile: true
     pension: true
-    reports: false
+    reports: true
     scenario: true
     alertsettings: true
-    taxtools: false
-    trail: false
-    trade-compliance: false
+    taxtools: true
+    trail: true
+    trade-compliance: true
     logs: true
+    plot: true
+    dataquality: true
+    awscosts: true
+    help: true
+    research: true
 base_currency: GBP
 trading_agent:
   rsi_buy: 30

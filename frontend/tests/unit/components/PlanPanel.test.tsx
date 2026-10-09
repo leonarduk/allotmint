@@ -88,6 +88,16 @@ describe('PlanPanel', () => {
     expect(screen.getByText(/Your own decisions/)).toBeInTheDocument();
   });
 
+  it('renders the latest plan brief card with the plan (#10475)', async () => {
+    mockGetInvestmentPlan.mockResolvedValue(makeResponse());
+    render(<PlanPanel owner="alex" />);
+
+    expect(
+      await screen.findByRole('region', { name: 'Latest plan brief' })
+    ).toBeInTheDocument();
+    expect(await screen.findByText(/No brief yet/)).toBeInTheDocument();
+  });
+
   it('shows an empty state when no plan is saved', async () => {
     mockGetInvestmentPlan.mockRejectedValue(
       Object.assign(new Error('No investment plan saved for alex'), {

@@ -123,8 +123,9 @@ def _evidence(raw: Any, called: set[str]) -> list[dict[str, Any]]:
 
 
 def _calls_for(evidence: list[dict[str, Any]], tool_log: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The successful logged calls behind ``evidence`` (errored calls are never evidence)."""
     tools = {item["tool"] for item in evidence}
-    return [call for call in tool_log if call["tool"] in tools]
+    return [call for call in tool_log if call["tool"] in tools and not call["is_error"]]
 
 
 def _verdict(text: str, raw: Optional[Mapping[str, Any]], limits: TurnLimits) -> dict[str, Any]:

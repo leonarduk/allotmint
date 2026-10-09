@@ -199,6 +199,14 @@ def test_evidence_from_a_tool_never_called_is_ignored(plan, facts):
     assert verdict["verdict"] == "cant_evaluate"
 
 
+def test_errored_calls_are_never_cited_as_evidence(plan, facts):
+    limits = _limits_with_rates_call()
+    limits.record_call("get_market_rates", {"series": ["gilt_10y"]}, "Tool call failed: boom", True)
+    [verdict] = agent.interpret_reply(plan, facts, _reply(), limits)["triggers"]
+    assert verdict["verdict"] == "fired"
+    assert [call["is_error"] for call in verdict["tool_calls"]] == [False]
+
+
 def test_missing_trigger_or_unparseable_reply_is_cant_evaluate_not_not_fired(plan, facts):
     for reply in ("not json at all", json.dumps({"triggers": [], "prose": GOOD_PROSE})):
         [verdict] = agent.interpret_reply(plan, facts, reply, _limits_with_rates_call())["triggers"]

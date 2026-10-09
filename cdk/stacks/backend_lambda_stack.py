@@ -1321,6 +1321,18 @@ class BackendLambdaStack(Stack):
                 resources=ses_send_email_resources,
             )
         )
+        # Optional recipient list (backend/lambda_api/plan_brief.py
+        # _DEFAULT_RECIPIENTS_URI). Without this read the parameter could never
+        # be honoured and every owner would be briefed; a missing parameter
+        # still means "every owner".
+        plan_brief_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ssm:GetParameter"],
+                resources=[
+                    f"arn:{self.partition}:ssm:{self.region}:{self.account}:parameter/plan-brief-recipients"
+                ],
+            )
+        )
         if plan_brief_mcp_url:
             # The agent's LLM step goes through Bedrock (resolve_chat_provider's AWS default).
             plan_brief_fn.add_to_role_policy(

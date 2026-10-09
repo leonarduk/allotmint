@@ -37,7 +37,11 @@ _DEFAULT_RECIPIENTS_URI = "ssm://plan-brief-recipients"
 
 
 def _load_recipient_owners() -> Optional[List[str]]:
-    """Owners to brief, or ``None`` for every owner (owner keys only; no secrets)."""
+    """Owners to brief, or ``None`` for every owner (owner keys only; no secrets).
+
+    A missing parameter is not an error: ``ParameterStoreJSONStorage.load``
+    logs and returns ``{}``, which means every owner.
+    """
     uri = os.getenv("PLAN_BRIEF_RECIPIENTS_URI", _DEFAULT_RECIPIENTS_URI)
     owners = get_storage(uri, param_type="String").load().get("owners")
     return [str(owner) for owner in owners] if owners else None

@@ -1290,10 +1290,11 @@ def test_plan_brief_monthly_rule_targets_the_lambda() -> None:
 
 def test_plan_brief_prefix_matches_backend_and_env() -> None:
     """Both the API and the scheduled Lambda point PLAN_BRIEFS_URI at the granted prefix."""
-    from backend.plan_brief.store import PLAN_BRIEFS_DIRNAME
     from stacks.backend_lambda_stack import PLAN_BRIEFS_PREFIX
 
-    assert PLAN_BRIEFS_PREFIX == PLAN_BRIEFS_DIRNAME
+    # Parsed, not imported: the CDK test env has no backend runtime deps.
+    store_path = _backend_common_dir().parent / "plan_brief" / "store.py"
+    assert PLAN_BRIEFS_PREFIX == _fallback_string_literal(store_path, "PLAN_BRIEFS_DIRNAME")
     template = _stack_template()
     uris = [
         resource["Properties"]["Environment"]["Variables"].get("PLAN_BRIEFS_URI")
@@ -1304,3 +1305,11 @@ def test_plan_brief_prefix_matches_backend_and_env() -> None:
     assert len(uris) == 2 and all(uris), uris
     for uri in uris:
         assert f"/{PLAN_BRIEFS_PREFIX}" in str(uri)
+
+
+def test_plan_brief_lambda_can_read_only_its_recipient_parameter() -> None:
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "PlanBriefLambda")
+    resources = _resources_for_s3_action(template, role, "ssm:GetParameter")
+    assert len(resources) == 1
+    assert "parameter/plan-brief-recipients" in resources[0]

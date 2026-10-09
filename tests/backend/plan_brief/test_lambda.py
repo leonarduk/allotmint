@@ -74,3 +74,21 @@ def test_email_renders_drift_triggers_and_disclaimer(plan):
     assert "Review due" in html
     assert "differ from the plan target" in html
     assert "not regulated advice" in html
+
+
+def test_missing_recipient_parameter_means_every_owner(monkeypatch):
+    """A missing ssm://plan-brief-recipients is swallowed by ParameterStoreJSONStorage.load()."""
+    from botocore.exceptions import ClientError
+
+    monkeypatch.delenv("PLAN_BRIEF_RECIPIENTS_URI", raising=False)
+    calls = []
+
+    class MissingParameterSsm:
+        def get_parameter(self, Name, WithDecryption):  # noqa: N803
+            calls.append(Name)
+            raise ClientError({"Error": {"Code": "ParameterNotFound", "Message": "nope"}}, "GetParameter")
+
+    monkeypatch.setattr("boto3.client", lambda service, *args, **kwargs: MissingParameterSsm())
+
+    assert lam._load_recipient_owners() is None
+    assert calls == ["plan-brief-recipients"]

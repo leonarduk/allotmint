@@ -159,6 +159,24 @@ def test_isa_projection_and_deadline():
     assert result["days_to_deadline"] == 178
 
 
+def test_salary_sacrifice_rows_count_through_real_carry_forward_view():
+    """End to end with allotmint-pro: salary-sacrifice rows use the allowance (allotmint-pro#666)."""
+    pension_tools = pytest.importorskip("allotmint_pro.mcp_server.pension_tools")
+    rows = [
+        Transaction(owner="alex", account="sipp", type="DEPOSIT", currency="GBP", date=f"2026-{m:02d}-28",
+                    amount_minor=500_000, comments="Salary sacrifice contribution")
+        for m in (4, 5, 6)
+    ]  # fmt: skip
+    view = pension_tools.carry_forward_view(rows, today=TODAY)
+    current = next(row for row in view["tax_years"] if row["is_current_tax_year"])
+    if "employer_contributions_gbp" not in current:
+        pytest.skip("installed allotmint-pro predates the employer contribution category")
+    result = project_pension_allowance(view, [], TODAY)
+    assert result["used_to_date_minor"] == 1_500_000
+    assert result["employer_contributions_to_date_minor"] == 1_500_000
+    assert result["current_year_remaining_minor"] == 4_500_000
+
+
 def test_projection_against_real_carry_forward_view():
     """The same arithmetic on allotmint-pro's carry_forward_view, when allotmint-pro is installed."""
     pension_tools = pytest.importorskip("allotmint_pro.mcp_server.pension_tools")

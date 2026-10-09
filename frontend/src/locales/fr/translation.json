@@ -3822,6 +3822,7 @@
     "portfolioSeries": "Portefeuille",
     "benchmarks": "Indices de référence",
     "remove": "Retirer",
+    "marketIndex": "Indice de marché",
     "addTicker": "Ajouter un indice ou un ticker",
     "add": "Ajouter",
     "addPreset": "Ajouter un indice courant…",

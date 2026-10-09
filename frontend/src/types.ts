@@ -1950,6 +1950,9 @@ export interface BenchmarkRiskReturn {
   days: number;
   start: string;
   end: string;
+  /** Instrument name and sector from the catalogue; null for an index. */
+  name?: string | null;
+  sector?: string | null;
   period_return: number | null;
   annualised_return: number | null;
   volatility: number | null;

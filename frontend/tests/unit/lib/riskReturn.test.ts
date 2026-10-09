@@ -9,6 +9,7 @@ import {
   parseStoredBenchmarks,
   plottable,
   removeBenchmark,
+  seriesDetails,
   sideOfAverage,
   type ChartSeries,
 } from '@/lib/riskReturn';
@@ -172,5 +173,63 @@ describe('average line', () => {
     expect(sideOfAverage(line, 10, 8)).toBe('above');
     expect(sideOfAverage(line, 20, 5)).toBe('below');
     expect(sideOfAverage(line, 15, 10)).toBe('on');
+  });
+});
+
+describe('series details', () => {
+  const benchmark = (ticker: string, extra: Partial<ChartSeries> = {}) =>
+    ({
+      id: `benchmark:${ticker}`,
+      label: ticker,
+      kind: 'benchmark',
+      color: '#000',
+      returnPct: 5,
+      volatilityPct: 10,
+      ...extra,
+    }) as ChartSeries;
+
+  it('carries the instrument name and sector of a listed ticker', () => {
+    const [series] = buildBenchmarkSeries(
+      [{ ticker: 'FCIT.L', label: 'FCIT.L' }],
+      {
+        'FCIT.L': {
+          ticker: 'FCIT.L',
+          days: 365,
+          start: '',
+          end: '',
+          name: 'F&C Investment Trust',
+          sector: 'Global',
+          period_return: 0.1,
+          annualised_return: null,
+          volatility: 0.15,
+        },
+      },
+      365,
+      0
+    );
+
+    expect(seriesDetails(series, 'Market index')).toEqual({
+      name: 'F&C Investment Trust',
+      sector: 'Global',
+    });
+  });
+
+  it('describes an index symbol as a market index', () => {
+    expect(seriesDetails(benchmark('^FTSE'), 'Market index')).toEqual({
+      name: null,
+      sector: 'Market index',
+    });
+  });
+
+  it('omits a name that repeats the label and has no sector for accounts', () => {
+    expect(
+      seriesDetails(benchmark('VWRL.L', { name: 'VWRL.L' }), 'Market index')
+    ).toEqual({ name: null, sector: null });
+    expect(
+      seriesDetails(
+        { ...benchmark('x'), id: 'group', kind: 'group' },
+        'Market index'
+      )
+    ).toEqual({ name: null, sector: null });
   });
 });

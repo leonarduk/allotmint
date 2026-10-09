@@ -224,14 +224,28 @@ def benchmark_closes(ticker: str, start: date, end: date) -> pd.Series:
         return ledger_performance.load_gbp_closes(known, start, end)
 
 
-def _catalogue_ticker(ticker: str) -> str | None:
-    """The instrument catalogue's spelling of ``ticker``, or ``None`` if unknown."""
+def _catalogue_entry(ticker: str) -> Dict[str, Any] | None:
+    """The instrument catalogue's metadata for ``ticker``, or ``None`` if unknown."""
     wanted = ticker.upper()
     for instrument in instruments.list_instruments():
         known = str(instrument.get("ticker") or "").upper()
         if known and known == wanted:
-            return known
+            return instrument
     return None
+
+
+def _catalogue_ticker(ticker: str) -> str | None:
+    """The instrument catalogue's spelling of ``ticker``, or ``None`` if unknown."""
+    entry = _catalogue_entry(ticker)
+    return str(entry["ticker"]).upper() if entry else None
+
+
+def _benchmark_description(ticker: str) -> Dict[str, str | None]:
+    """Display ``name`` and ``sector`` for a listed ticker; both ``None`` for an index."""
+    entry = None if ticker.startswith("^") else _catalogue_entry(ticker)
+    if not entry:
+        return {"name": None, "sector": None}
+    return {"name": entry.get("name") or None, "sector": entry.get("sector") or None}
 
 
 def compute_benchmark_risk_return(
@@ -266,5 +280,6 @@ def compute_benchmark_risk_return(
         "days": days,
         "start": after.isoformat(),
         "end": end.isoformat(),
+        **_benchmark_description(ticker),
         **stats.as_dict(),
     }

@@ -3696,7 +3696,34 @@
     "unknown": "Unknown",
     "weightedCharge": "Weighted ongoing charge",
     "annualCost": "Est. annual fund cost",
-    "excludesUnknown": "Excludes {{unknown}} of {{total}} holdings with no fee data"
+    "excludesUnknown": "Excludes {{unknown}} of {{total}} holdings with no fee data",
+    "allInCost": "All-in annual cost",
+    "allInBreakdown": "{{funds}} fund charges + {{fees}} fees paid (last 12 months)",
+    "allInNotIncluded": "Not included: {{items}}",
+    "allInUnknownValue": "{{value}} in {{holdings}} holdings with no fee data",
+    "allInUnknownTrades": "{{trades}} trades with no fee recorded",
+    "perAccount": "Per account",
+    "partial": "incomplete"
+  },
+  "fundUpkeep": {
+    "title": "Fund data proposals",
+    "description": "Values found in public fund documents (KIIDs and factsheets). Nothing is saved until you approve it, and an approval can be undone.",
+    "empty": "No proposals waiting for review.",
+    "ongoingCharge": "Ongoing charge",
+    "lookThrough": "Look-through breakdown",
+    "source": "Source document",
+    "documentDate": "dated {{date}}",
+    "approve": "Approve",
+    "reject": "Reject",
+    "undo": "Undo",
+    "loadFailed": "Could not load proposals: {{message}}",
+    "actionFailed": "Action failed: {{message}}",
+    "status": {
+      "pending": "Awaiting review",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "undone": "Undone"
+    }
   },
   "riskReturn": {
     "title": "Returns vs Volatility",

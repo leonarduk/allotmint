@@ -3703,7 +3703,34 @@
     "unknown": "Desconhecido",
     "weightedCharge": "Encargos correntes ponderados",
     "annualCost": "Custo anual estimado dos fundos",
-    "excludesUnknown": "Exclui {{unknown}} de {{total}} posições sem dados de custos"
+    "excludesUnknown": "Exclui {{unknown}} de {{total}} posições sem dados de custos",
+    "allInCost": "Custo anual total",
+    "allInBreakdown": "{{funds}} em encargos de fundos + {{fees}} em taxas pagas (últimos 12 meses)",
+    "allInNotIncluded": "Não incluído: {{items}}",
+    "allInUnknownValue": "{{value}} em {{holdings}} posições sem dados de encargos",
+    "allInUnknownTrades": "{{trades}} negociações sem taxa registada",
+    "perAccount": "Por conta",
+    "partial": "incompleto"
+  },
+  "fundUpkeep": {
+    "title": "Propostas de dados de fundos",
+    "description": "Valores encontrados em documentos públicos de fundos (KIID e fichas). Nada é guardado até que aprove, e uma aprovação pode ser anulada.",
+    "empty": "Não há propostas a aguardar revisão.",
+    "ongoingCharge": "Encargos correntes",
+    "lookThrough": "Repartição look-through",
+    "source": "Documento de origem",
+    "documentDate": "datado de {{date}}",
+    "approve": "Aprovar",
+    "reject": "Rejeitar",
+    "undo": "Anular",
+    "loadFailed": "Não foi possível carregar as propostas: {{message}}",
+    "actionFailed": "A ação falhou: {{message}}",
+    "status": {
+      "pending": "A aguardar revisão",
+      "approved": "Aprovada",
+      "rejected": "Rejeitada",
+      "undone": "Anulada"
+    }
   },
   "riskReturn": {
     "title": "Retorno vs volatilidade",

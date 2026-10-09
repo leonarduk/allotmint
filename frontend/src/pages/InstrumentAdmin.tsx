@@ -6,6 +6,7 @@ import {
   updateInstrumentMetadata,
 } from "../api";
 import { useFilterableTable, type Filter } from "../hooks/useFilterableTable";
+import { FundUpkeepProposals } from "../components/FundUpkeepProposals";
 
 interface Row {
   ticker: string;
@@ -264,6 +265,7 @@ export default function InstrumentAdmin() {
         </tbody>
       </table>
       </div>
+      <FundUpkeepProposals />
     </div>
   );
 }

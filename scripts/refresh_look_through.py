@@ -14,19 +14,19 @@ import argparse
 import json
 import logging
 import time
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
 import requests
 
 from backend.common.instrument_classification import COMMODITY, derive_asset_class, is_fund, overrides_path
+from backend.common.look_through import DEFAULT_MAX_AGE_DAYS, look_through_is_fresh
 from backend.common.look_through_sources import LookThroughFetchError, fetch_look_through, new_session
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_DELAY_S = 1.5
-DEFAULT_MAX_AGE_DAYS = 25
 
 
 def _ticker_for(path: Path, meta: dict[str, Any]) -> str:
@@ -37,12 +37,8 @@ def _ticker_for(path: Path, meta: dict[str, Any]) -> str:
 
 
 def _is_fresh(meta: dict[str, Any], today: date, max_age_days: int) -> bool:
-    block = meta.get("look_through")
-    fetched = block.get("fetched") if isinstance(block, dict) else None
-    try:
-        return bool(fetched) and date.fromisoformat(str(fetched)) >= today - timedelta(days=max_age_days)
-    except ValueError:
-        return False
+    # Shared with the fund upkeep bot (#10482) so both honour the same rule.
+    return look_through_is_fresh(meta, today, max_age_days)
 
 
 def candidate_funds(instruments_dir: Path, tickers: Optional[set[str]] = None) -> Iterator[tuple[Path, dict[str, Any]]]:

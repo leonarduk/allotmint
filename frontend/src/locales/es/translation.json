@@ -3703,7 +3703,34 @@
     "unknown": "Desconocido",
     "weightedCharge": "Gastos corrientes ponderados",
     "annualCost": "Coste anual estimado de los fondos",
-    "excludesUnknown": "Excluye {{unknown}} de {{total}} posiciones sin datos de comisiones"
+    "excludesUnknown": "Excluye {{unknown}} de {{total}} posiciones sin datos de comisiones",
+    "allInCost": "Coste anual total",
+    "allInBreakdown": "{{funds}} en gastos de fondos + {{fees}} en comisiones pagadas (últimos 12 meses)",
+    "allInNotIncluded": "No incluido: {{items}}",
+    "allInUnknownValue": "{{value}} en {{holdings}} posiciones sin datos de gastos",
+    "allInUnknownTrades": "{{trades}} operaciones sin comisión registrada",
+    "perAccount": "Por cuenta",
+    "partial": "incompleto"
+  },
+  "fundUpkeep": {
+    "title": "Propuestas de datos de fondos",
+    "description": "Valores encontrados en documentos públicos de fondos (KIID y fichas). No se guarda nada hasta que lo apruebe, y una aprobación se puede deshacer.",
+    "empty": "No hay propuestas pendientes de revisión.",
+    "ongoingCharge": "Gastos corrientes",
+    "lookThrough": "Desglose por transparencia",
+    "source": "Documento de origen",
+    "documentDate": "con fecha {{date}}",
+    "approve": "Aprobar",
+    "reject": "Rechazar",
+    "undo": "Deshacer",
+    "loadFailed": "No se pudieron cargar las propuestas: {{message}}",
+    "actionFailed": "La acción falló: {{message}}",
+    "status": {
+      "pending": "Pendiente de revisión",
+      "approved": "Aprobada",
+      "rejected": "Rechazada",
+      "undone": "Deshecha"
+    }
   },
   "riskReturn": {
     "title": "Rentabilidad vs. volatilidad",

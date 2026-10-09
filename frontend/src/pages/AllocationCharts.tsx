@@ -473,8 +473,11 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
   };
   const chartData = chartDataByView[view];
   const canShowHoldings = isHoldingView(view);
+  // No holdings ring (and no shrunken inner pie) when there is nothing to break down.
   const outerRing =
-    isHoldingView(view) && showHoldings ? holdingSlices(breakdowns[view], chartData) : null;
+    isHoldingView(view) && showHoldings && chartData.length > 0
+      ? holdingSlices(breakdowns[view], chartData)
+      : null;
   const isCurrencyView = view === "currency";
   const missingFx = missingFxSummary(currencyRows ?? []);
 

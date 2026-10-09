@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import {
   fixDataQualityIssue,
+  getBotRun,
   getDataStewardLatest,
-  runDataSteward,
+  runBotNow,
   type DataStewardItem,
   type DataStewardReport,
   type DataStewardVerdict,
@@ -14,6 +16,8 @@ import { Modal } from "./Modal";
 import { ResearchLink } from "./ResearchLink";
 
 const VERDICT_GROUPS: readonly DataStewardVerdict[] = ["fix_available", "needs_human", "not_a_problem", "error"];
+const STEWARD_BOT_ID = "data-steward";
+const RUN_POLL_MS = 3000;
 
 function formatGbp(value: number | null): string {
   if (value == null) return "—";
@@ -80,10 +84,12 @@ function ItemCard({
   item,
   onApply,
   applying,
+  applied,
 }: {
   item: DataStewardItem;
   onApply: (item: DataStewardItem) => void;
   applying: boolean;
+  applied: boolean;
 }) {
   const { t } = useTranslation();
   const label = entityLabel(item.entity);
@@ -109,14 +115,18 @@ function ItemCard({
           <span>
             {t("dataQuality.admin.steward.proposedFix")}: {item.proposed_fix.description ?? item.proposed_fix.path}
           </span>
-          <button
-            type="button"
-            onClick={() => onApply(item)}
-            disabled={applying}
-            aria-label={t("dataQuality.admin.steward.applyFor", { entity: label })}
-          >
-            {applying ? t("dataQuality.admin.issues.actions.fixing") : t("dataQuality.admin.issues.actions.apply")}
-          </button>
+          {applied ? (
+            <span className="text-green-700">{t("dataQuality.admin.steward.applied")}</span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onApply(item)}
+              disabled={applying}
+              aria-label={t("dataQuality.admin.steward.applyFor", { entity: label })}
+            >
+              {applying ? t("dataQuality.admin.issues.actions.fixing") : t("dataQuality.admin.issues.actions.apply")}
+            </button>
+          )}
         </div>
       )}
       <Evidence item={item} />
@@ -142,7 +152,7 @@ function RunSummary({ report }: { report: DataStewardReport }) {
         })}
       </p>
       {report.errors.length > 0 && (
-        <ul role="alert" className="mb-2 text-sm text-red-700">
+        <ul aria-label={t("dataQuality.admin.steward.runErrors")} className="mb-2 text-sm text-red-700">
           {report.errors.map((err, index) => (
             <li key={index}>
               {err.stage}: {err.error}
@@ -158,10 +168,12 @@ function VerdictGroups({
   report,
   onApply,
   applyingId,
+  appliedIds,
 }: {
   report: DataStewardReport;
   onApply: (item: DataStewardItem) => void;
   applyingId: string | null;
+  appliedIds: ReadonlySet<string>;
 }) {
   const { t } = useTranslation();
   if (report.items.length === 0) return <p className="text-sm">{t("dataQuality.admin.steward.noItems")}</p>;
@@ -178,7 +190,13 @@ function VerdictGroups({
             </h3>
             <ul>
               {items.map((item) => (
-                <ItemCard key={item.issue_id} item={item} onApply={onApply} applying={applyingId === item.issue_id} />
+                <ItemCard
+                  key={item.issue_id}
+                  item={item}
+                  onApply={onApply}
+                  applying={applyingId === item.issue_id}
+                  applied={appliedIds.has(item.issue_id)}
+                />
               ))}
             </ul>
           </section>
@@ -242,26 +260,44 @@ export function DataStewardPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<DataStewardItem | null>(null);
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  // Fixes applied since this report was produced: shown as applied, not offered again.
+  const [appliedIds, setAppliedIds] = useState<ReadonlySet<string>>(new Set());
+
+  const mounted = useRef(true);
 
   useEffect(() => {
+    mounted.current = true;
     getDataStewardLatest()
       .then(setReport)
       .catch((e: unknown) => setError(errorMessage(e)))
       .finally(() => setLoading(false));
+    return () => {
+      mounted.current = false;
+    };
   }, []);
 
+  // Run now goes through the Bots framework (#10477), which records the run and
+  // runs it in the background (its own Lambda on AWS); poll until it finishes.
   const runNow = async () => {
     setRunning(true);
     setError(null);
     setMessage(null);
     try {
-      setReport(await runDataSteward());
+      let run = await runBotNow(STEWARD_BOT_ID);
+      while (run.status === "running" && mounted.current) {
+        await new Promise((resolve) => setTimeout(resolve, RUN_POLL_MS));
+        run = await getBotRun(STEWARD_BOT_ID, run.id);
+      }
+      if (!mounted.current) return;
+      if (run.status === "failed" || run.status === "skipped") {
+        setError(run.error || run.summary || run.status);
+      }
+      setReport(await getDataStewardLatest());
+      setAppliedIds(new Set());
     } catch (e) {
-      // 404: the manual run route only exists locally; AWS runs the steward nightly.
-      const notHere = (e as { status?: number }).status === 404;
-      setError(notHere ? t("dataQuality.admin.steward.runNotAvailable") : errorMessage(e));
+      if (mounted.current) setError(errorMessage(e));
     } finally {
-      setRunning(false);
+      if (mounted.current) setRunning(false);
     }
   };
 
@@ -272,6 +308,7 @@ export function DataStewardPanel() {
     try {
       // The existing endpoint re-checks the issue, backs up the file and audits the change.
       await fixDataQualityIssue(item.issue_id);
+      setAppliedIds((prev) => new Set(prev).add(item.issue_id));
       setMessage(t("dataQuality.admin.issues.actions.applied"));
     } catch (e) {
       setError(errorMessage(e));
@@ -287,15 +324,20 @@ export function DataStewardPanel() {
     <div>
       <h2 className="mb-2 text-xl">{t("dataQuality.admin.steward.title")}</h2>
       <p className="mb-2 text-sm opacity-70">{t("dataQuality.admin.steward.subtitle")}</p>
-      <button type="button" className="mb-3" onClick={runNow} disabled={running}>
-        {running ? t("dataQuality.admin.steward.running") : t("dataQuality.admin.steward.runNow")}
-      </button>
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <button type="button" onClick={runNow} disabled={running}>
+          {running ? t("dataQuality.admin.steward.running") : t("dataQuality.admin.steward.runNow")}
+        </button>
+        <Link to="/bots" className="text-sm underline">
+          {t("dataQuality.admin.steward.botsLink")}
+        </Link>
+      </div>
       {message && <p role="status" className="mb-2 text-green-700">{message}</p>}
       {error && <p role="alert" className="mb-2 text-red-700">{error}</p>}
       {report ? (
         <>
           <RunSummary report={report} />
-          <VerdictGroups report={report} onApply={setConfirming} applyingId={applyingId} />
+          <VerdictGroups report={report} onApply={setConfirming} applyingId={applyingId} appliedIds={appliedIds} />
         </>
       ) : (
         <EmptyState message={t("dataQuality.admin.steward.empty")} actions={[]} />

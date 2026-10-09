@@ -26,13 +26,15 @@
   verdict. It never writes data: *Apply* calls the same fix endpoint as the
   Issues tab, after confirmation. It uses the chat assistant's provider
   (`CHAT_PROVIDER`/`CHAT_MODEL`, Ollama by default locally, so free) and needs
-  `MCP_SERVER_URL`. Locally, *Run now* calls `POST /data-steward/run`; on AWS
-  `DataStewardLambda` runs nightly at 02:00 UTC (set the `mcp_server_url` and
-  `mcp_server_function_arn` CDK context). Reports are saved as
+  `MCP_SERVER_URL`. It is the `data-steward` bot on the Bots page (#10477):
+  *Run now* (there or on this tab) starts a recorded background run, and on
+  AWS `DataStewardLambda` runs nightly at 02:00 UTC (set the `mcp_server_url`
+  and `mcp_server_function_arn` CDK context). Reports are saved as
   `{data_root}/data_steward/reports/<date>.json` plus `latest.json` (or under
-  `DATA_STEWARD_REPORTS_URI`). Cost is capped by `DATA_STEWARD_MAX_ISSUES`
-  (default 10) and `DATA_STEWARD_MAX_TOOL_CALLS` per issue (default 6); a
-  failed run still saves a report listing its errors.
+  `DATA_STEWARD_REPORTS_URI`) and served by `GET /data-steward/latest`. Cost is
+  capped per run by the bot's settings (`max_issues`, default 10;
+  `max_tool_calls` per issue, default 6); a failed run still saves a report
+  listing its errors and is recorded as failed on the Bots page.
 - **Holding writes** go through the same accounts-store write path as manual
   holdings; the shared demo dataset under `data/accounts/` is read-only and
   must be copied to a writable root before fixes can be applied.

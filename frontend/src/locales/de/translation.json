@@ -355,7 +355,7 @@
         "subtitle": "Ein KI-Agent prüft jedes Datenqualitätsproblem bei gehaltenen Instrumenten, findet die wahrscheinliche Ursache und ordnet es ein. Er liest nur Daten: Sie entscheiden, ob eine Korrektur angewendet wird.",
         "runNow": "Jetzt ausführen",
         "running": "Läuft…",
-        "runNotAvailable": "Manuelle Läufe gibt es nur lokal; diese Installation führt den Agenten jede Nacht aus.",
+        "botsLink": "Zeitplan, Einstellungen und Laufverlauf auf der Bots-Seite",
         "empty": "Noch kein Bericht. Führen Sie ihn aus oder warten Sie auf den nächtlichen Lauf.",
         "noItems": "Keine Probleme bei gehaltenen Instrumenten zu untersuchen.",
         "runSummary": "Lauf {{when}} · {{status}} · {{model}} · {{investigated}} von {{held}} gehaltenen Problemen untersucht ({{found}} gefunden) · {{tokens}} Tokens · Kosten {{cost}}",
@@ -373,7 +373,9 @@
         "proposedFix": "Vorgeschlagene Korrektur",
         "applyFor": "Korrektur für {{entity}} anwenden",
         "evidence": "Belege ({{count}} Tool-Aufrufe)",
-        "toolError": "Fehler"
+        "toolError": "Fehler",
+        "applied": "Angewendet",
+        "runErrors": "Fehler im Lauf"
       }
     }
   },

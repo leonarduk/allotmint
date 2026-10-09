@@ -1263,6 +1263,7 @@ def test_bot_lambdas_share_the_bots_storage_prefix() -> None:
         "TradingAgentLambda",
         "DividendRefreshLambda",
         "PensionReportLambda",
+        "DataStewardLambda",
     ):
         parts = _lambda_env(template, fragment)["BOTS_STORAGE_URI"]["Fn::Join"][1]
         assert parts[0] == "s3://" and parts[-1] == "/bots", fragment
@@ -1276,6 +1277,7 @@ def test_bot_lambdas_can_read_and_write_their_run_records() -> None:
         "TradingAgentLambda",
         "DividendRefreshLambda",
         "PensionReportLambda",
+        "DataStewardLambda",
     ):
         role = _role_logical_id_for_lambda(template, fragment)
         reads = [str(r) for r in _resources_for_s3_action(template, role, "s3:GetObject")]
@@ -1289,7 +1291,7 @@ def test_backend_lambda_can_start_each_bot_lambda() -> None:
     template = _stack_template()
     # tests/backend/bots/test_runs.py checks the backend reads this same name.
     mapping = str(_lambda_env(template, "BackendLambda")["BOT_LAMBDA_FUNCTIONS"])
-    for bot_id in ("price-refresh", "trading-agent", "dividend-refresh", "pension-report"):
+    for bot_id in ("price-refresh", "trading-agent", "dividend-refresh", "pension-report", "data-steward"):
         assert bot_id in mapping
     backend_role = _role_logical_id_for_lambda(template, "BackendLambda")
     invoke_statements = [
@@ -1352,7 +1354,7 @@ def test_data_steward_lambda_runs_nightly_after_price_refresh() -> None:
 
 
 def test_data_steward_lambda_is_read_only_except_its_reports() -> None:
-    """DataStewardLambda reads data and writes only under data_steward/reports/ (#10471)."""
+    """DataStewardLambda reads data and writes only its reports and bot run records (#10471)."""
     template = _stack_template()
     role = _role_logical_id_for_lambda(template, "DataStewardLambda")
 
@@ -1360,7 +1362,9 @@ def test_data_steward_lambda_is_read_only_except_its_reports() -> None:
     put_resources = _resources_for_s3_action(template, role, "s3:PutObject")
     assert put_resources, "Expected DataStewardLambda to have an s3:PutObject grant"
     for resource in put_resources:
-        assert "data_steward/reports/*" in resource, f"PutObject not scoped to data_steward/reports/*: {resource!r}"
+        assert "data_steward/reports/*" in resource or "bots/*" in resource, (
+            f"PutObject not scoped to data_steward/reports/* or bots/*: {resource!r}"
+        )
 
     bedrock = _resources_for_s3_action(template, role, "bedrock:InvokeModel")
     assert bedrock and all("foundation-model/amazon.nova-lite-v1:0" in r for r in bedrock)

@@ -17,6 +17,7 @@ Messages use one neutral shape, converted per provider:
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Protocol, Tuple
@@ -27,6 +28,9 @@ from backend.chat.bedrock_agent import _bedrock_client, _converse_with_retry
 from backend.chat.openai_compat_agent import REQUEST_TIMEOUT_SECONDS, _parse_tool_arguments
 from backend.chat.providers import OPENAI_COMPAT_DEFAULTS, resolve_chat_provider
 from backend.config import Config
+from backend.logging_setup import sanitise_log_value
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -235,14 +239,32 @@ _PRICES_PER_MTOK: Dict[str, Tuple[float, float]] = {
 }
 
 
-def estimate_cost_usd(provider: str, model: str, input_tokens: int, output_tokens: int) -> Optional[float]:
+def _override_rates() -> Optional[Tuple[float, float]]:
+    """``DATA_STEWARD_COST_PER_MTOK`` as (input, output) rates; None when unset or malformed.
+
+    A malformed value is logged and ignored rather than raised: it runs after the
+    investigations, so raising would throw away a finished run's items and totals.
+    """
+
     override = os.getenv("DATA_STEWARD_COST_PER_MTOK", "").strip()
-    if override:
-        rate_in, _, rate_out = override.partition(",")
-        rates: Optional[Tuple[float, float]] = (float(rate_in), float(rate_out or rate_in))
-    elif provider == "ollama":
+    if not override:
+        return None
+    rate_in, _, rate_out = override.partition(",")
+    try:
+        return float(rate_in), float(rate_out or rate_in)
+    except ValueError:
+        logger.warning(
+            "Ignoring malformed DATA_STEWARD_COST_PER_MTOK %s (expected '<input>,<output>' USD per million tokens)",
+            sanitise_log_value(override),
+        )
+        return None
+
+
+def estimate_cost_usd(provider: str, model: str, input_tokens: int, output_tokens: int) -> Optional[float]:
+    rates = _override_rates()
+    if rates is None and provider == "ollama":
         return 0.0
-    else:
+    if rates is None:
         rates = _PRICES_PER_MTOK.get(model)
     if rates is None:
         return None

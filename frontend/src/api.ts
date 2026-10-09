@@ -2920,10 +2920,6 @@ export const getDataStewardLatest = async (): Promise<DataStewardReport | null> 
   }
 };
 
-/** Run the steward now (local deployments only; AWS runs it nightly). */
-export const runDataSteward = async (): Promise<DataStewardReport> =>
-  fetchJson<DataStewardReport>(`${API_BASE}/data-steward/run`, { method: "POST" });
-
 export const getDataQualityAudit = async (
   limit?: number,
 ): Promise<DataQualityAuditResponse> => {

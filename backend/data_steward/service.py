@@ -55,8 +55,8 @@ def _save(report: Dict[str, Any]) -> Dict[str, Any]:
     save_report(report)
     logger.info(
         "Data steward run %s finished: status=%s investigated=%s",
-        report["run_id"],
-        report["status"],
-        report["issues_investigated"],
+        sanitise_log_value(report["run_id"]),
+        sanitise_log_value(report["status"]),
+        sanitise_log_value(report["issues_investigated"]),
     )
     return report

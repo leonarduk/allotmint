@@ -16,7 +16,8 @@ const mockDedupeDataQualitySeries = vi.hoisted(() => vi.fn());
 const mockGetDataQualityAudit = vi.hoisted(() => vi.fn());
 const mockUndoDataQualityAudit = vi.hoisted(() => vi.fn());
 const mockGetDataStewardLatest = vi.hoisted(() => vi.fn());
-const mockRunDataSteward = vi.hoisted(() => vi.fn());
+const mockRunBotNow = vi.hoisted(() => vi.fn());
+const mockGetBotRun = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -30,7 +31,8 @@ vi.mock("@/api", async () => {
     getDataQualityAudit: mockGetDataQualityAudit,
     undoDataQualityAudit: mockUndoDataQualityAudit,
     getDataStewardLatest: mockGetDataStewardLatest,
-    runDataSteward: mockRunDataSteward,
+    runBotNow: mockRunBotNow,
+    getBotRun: mockGetBotRun,
   };
 });
 
@@ -631,30 +633,62 @@ describe("DataQuality steward report (#10471)", () => {
 
     expect(mockFixDataQualityIssue).toHaveBeenCalledWith("STALE_SERIES:VWRL:L");
     expect(await screen.findByRole("status")).toHaveTextContent(en.dataQuality.admin.issues.actions.applied);
+    // The applied item is marked, not offered again.
+    expect(screen.getByText(en.dataQuality.admin.steward.applied)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Apply fix for VWRL.L" })).not.toBeInTheDocument();
   });
 
-  it("shows an empty state before the first run and runs on demand", async () => {
-    mockGetDataStewardLatest.mockResolvedValue(null);
-    mockRunDataSteward.mockResolvedValue(stewardReport({ items: [], issues_investigated: 0 }));
+  it("shows an empty state before the first run and runs the bot on demand", async () => {
+    mockGetDataStewardLatest
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(stewardReport({ items: [], issues_investigated: 0 }));
+    mockRunBotNow.mockResolvedValue({ id: "run-9", bot_id: "data-steward", status: "ok" });
     await openStewardTab();
 
     expect(await screen.findByText(en.dataQuality.admin.steward.empty)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.dataQuality.admin.steward.botsLink })).toHaveAttribute("href", "/bots");
     await act(async () => {
       await userEvent.click(screen.getByRole("button", { name: en.dataQuality.admin.steward.runNow }));
     });
-    expect(mockRunDataSteward).toHaveBeenCalledTimes(1);
+    expect(mockRunBotNow).toHaveBeenCalledWith("data-steward");
     expect(await screen.findByText(en.dataQuality.admin.steward.noItems)).toBeInTheDocument();
   });
 
-  it("explains that manual runs are local-only when the run route 404s", async () => {
+  it("polls a background bot run until it finishes, then shows its report", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mockGetDataStewardLatest.mockResolvedValueOnce(null).mockResolvedValueOnce(stewardReport());
+      mockRunBotNow.mockResolvedValue({ id: "run-9", bot_id: "data-steward", status: "running" });
+      mockGetBotRun.mockResolvedValue({ id: "run-9", bot_id: "data-steward", status: "ok" });
+      await openStewardTab();
+
+      await act(async () => {
+        await userEvent.click(await screen.findByRole("button", { name: en.dataQuality.admin.steward.runNow }));
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+      expect(mockGetBotRun).toHaveBeenCalledWith("data-steward", "run-9");
+      expect(
+        await screen.findByRole("region", { name: en.dataQuality.admin.steward.groups.fix_available }),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows why a bot run failed", async () => {
     mockGetDataStewardLatest.mockResolvedValue(null);
-    mockRunDataSteward.mockRejectedValue(Object.assign(new Error("Not Found"), { status: 404 }));
+    mockRunBotNow.mockResolvedValue({
+      id: "run-9",
+      bot_id: "data-steward",
+      status: "failed",
+      error: "setup: MCP_SERVER_URL is not set",
+    });
     await openStewardTab();
 
     await act(async () => {
       await userEvent.click(await screen.findByRole("button", { name: en.dataQuality.admin.steward.runNow }));
     });
-    expect(await screen.findByRole("alert")).toHaveTextContent(en.dataQuality.admin.steward.runNotAvailable);
+    expect(await screen.findByRole("alert")).toHaveTextContent("MCP_SERVER_URL is not set");
   });
 
   it("shows run errors from the report", async () => {
@@ -663,6 +697,8 @@ describe("DataQuality steward report (#10471)", () => {
     );
     await openStewardTab();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("setup: MCP_SERVER_URL is not set");
+    expect(await screen.findByRole("list", { name: en.dataQuality.admin.steward.runErrors })).toHaveTextContent(
+      "setup: MCP_SERVER_URL is not set",
+    );
   });
 });

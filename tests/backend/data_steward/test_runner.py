@@ -386,6 +386,26 @@ def test_cost_override(monkeypatch: pytest.MonkeyPatch) -> None:
     assert estimate_cost_usd("bedrock", "anything", 1_000_000, 1_000_000) == 18.0
 
 
+@pytest.mark.parametrize("bad", ["abc", "3,x", ","])
+def test_malformed_cost_override_is_ignored_not_raised(monkeypatch: pytest.MonkeyPatch, bad: str) -> None:
+    monkeypatch.setenv("DATA_STEWARD_COST_PER_MTOK", bad)
+    assert estimate_cost_usd("bedrock", "anything", 10, 10) is None
+    assert estimate_cost_usd("ollama", "qwen", 10, 10) == 0.0
+
+
+def test_malformed_cost_override_keeps_the_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A bad env var must not throw away a finished run's items and token totals."""
+    monkeypatch.setenv("DATA_STEWARD_COST_PER_MTOK", "not-a-number")
+    llm = ScriptedLLM({"VWRL": [_verdict(verdict="needs_human")]})
+    report = asyncio.run(
+        run_steward(llm, FakeTools([STALE_ISSUE]), provider="bedrock", model="m", limits=StewardLimits())
+    )
+    assert report["status"] == "ok"
+    assert len(report["items"]) == 1
+    assert report["totals"]["input_tokens"] == 100
+    assert report["totals"]["cost_usd"] is None
+
+
 def test_bedrock_messages_alternate_and_merge_tool_results_with_final_prompt() -> None:
     system, messages = to_bedrock_messages(
         [

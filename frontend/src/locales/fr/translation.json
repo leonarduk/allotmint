@@ -355,7 +355,7 @@
         "subtitle": "Un agent d'IA examine chaque problème de qualité des données sur les instruments détenus, cherche la cause probable et le classe. Il ne fait que lire les données : vous décidez d'appliquer ou non une correction.",
         "runNow": "Lancer maintenant",
         "running": "En cours…",
-        "runNotAvailable": "Les lancements manuels ne sont disponibles qu'en local ; ce déploiement lance l'agent chaque nuit.",
+        "botsLink": "Planification, réglages et historique des exécutions sur la page Bots",
         "empty": "Pas encore de rapport. Lancez-le ou attendez l'exécution nocturne.",
         "noItems": "Aucun problème sur les instruments détenus à examiner.",
         "runSummary": "Exécution {{when}} · {{status}} · {{model}} · {{investigated}} sur {{held}} problèmes détenus examinés ({{found}} trouvés) · {{tokens}} jetons · coût {{cost}}",
@@ -373,7 +373,9 @@
         "proposedFix": "Correction proposée",
         "applyFor": "Appliquer la correction pour {{entity}}",
         "evidence": "Éléments ({{count}} appels d'outils)",
-        "toolError": "erreur"
+        "toolError": "erreur",
+        "applied": "Appliquée",
+        "runErrors": "Erreurs de l'exécution"
       }
     }
   },

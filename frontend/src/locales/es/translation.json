@@ -355,7 +355,7 @@
         "subtitle": "Un agente de IA revisa cada problema de calidad de datos en instrumentos en cartera, busca la causa probable y lo clasifica. Solo lee datos: usted decide si aplicar una corrección.",
         "runNow": "Ejecutar ahora",
         "running": "Ejecutando…",
-        "runNotAvailable": "Las ejecuciones manuales solo están disponibles en local; esta instalación ejecuta el agente cada noche.",
+        "botsLink": "Programación, ajustes e historial de ejecuciones en la página Bots",
         "empty": "Aún no hay informe. Ejecútelo o espere a la ejecución nocturna.",
         "noItems": "Ningún problema en instrumentos en cartera necesitaba investigarse.",
         "runSummary": "Ejecución {{when}} · {{status}} · {{model}} · {{investigated}} de {{held}} problemas en cartera investigados ({{found}} encontrados) · {{tokens}} tokens · coste {{cost}}",
@@ -373,7 +373,9 @@
         "proposedFix": "Corrección propuesta",
         "applyFor": "Aplicar corrección a {{entity}}",
         "evidence": "Pruebas ({{count}} llamadas a herramientas)",
-        "toolError": "error"
+        "toolError": "error",
+        "applied": "Aplicada",
+        "runErrors": "Errores de la ejecución"
       }
     }
   },

@@ -300,9 +300,11 @@ class BackendLambdaStack(Stack):
 
         The steward reads everything through the allotmint-pro MCP server
         (read-only tool allowlist, backend/chat/tool_switches.py) and only
-        writes its own report, so this role reads the data bucket and may put
-        objects under data_steward/reports/ only: no ListBucket, no other
-        writes, no deletes. Audited: lambda_api/data_steward.lambda_handler →
+        writes its own report and bot run record, so this role reads the data
+        bucket and may put objects under data_steward/reports/ and bots/ only:
+        no ListBucket, no other writes, no deletes. Audited:
+        lambda_api/data_steward.lambda_handler → bots.runner.handle_lambda_event
+        (run record under BOTS_STORAGE_URI) → data_steward/bot.py →
         service.run_and_save → store.save_report (S3JSONStorage.put_object to
         DATA_STEWARD_REPORTS_URI/<date>.json and latest.json).
 
@@ -329,6 +331,9 @@ class BackendLambdaStack(Stack):
             "DATA_BRANCH": data_branch,
             "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
             "DATA_STEWARD_REPORTS_URI": f"s3://{bucket_name}/{DATA_STEWARD_REPORTS_PREFIX}",
+            # Bot run records (backend/bots/runs.py, #10477): the bots runner
+            # reads them for its busy/cadence checks and writes this run's.
+            "BOTS_STORAGE_URI": f"s3://{bucket_name}/{BOTS_PREFIX}",
             "BEDROCK_MODEL_ID": bedrock_model_id,
             # Same reason as the other scheduled Lambdas: the import chain reaches
             # backend.auth's module-level SECRET_KEY check.
@@ -360,7 +365,7 @@ class BackendLambdaStack(Stack):
             allow_read=True,
             allow_put=True,
             allow_list=False,
-            put_prefix=DATA_STEWARD_REPORTS_PREFIX,
+            put_prefix=(DATA_STEWARD_REPORTS_PREFIX, BOTS_PREFIX),
         )
         steward_fn.add_to_role_policy(
             iam.PolicyStatement(
@@ -1308,7 +1313,7 @@ class BackendLambdaStack(Stack):
             targets=[targets.LambdaFunction(dividend_fn)],
         )
 
-        self._add_data_steward_lambda(
+        steward_fn = self._add_data_steward_lambda(
             project_root=project_root,
             data_bucket=data_bucket,
             env=env,
@@ -1401,6 +1406,7 @@ class BackendLambdaStack(Stack):
             "trading-agent": agent_fn,
             "dividend-refresh": dividend_fn,
             "pension-report": pension_report_fn,
+            "data-steward": steward_fn,
         }
         for bot_fn in bot_lambdas.values():
             bot_fn.grant_invoke(backend_fn)

@@ -139,7 +139,7 @@ def select_issues(
     """
 
     total = sum(h.value_gbp for h in holdings or [])
-    ranked = []
+    ranked: List[Tuple[Dict[str, Any], Optional[float], Optional[float]]] = []
     unheld = 0
     for issue in issues:
         entity = issue.get("entity") or {}

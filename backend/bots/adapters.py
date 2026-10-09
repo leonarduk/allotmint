@@ -224,3 +224,6 @@ class TradingAgentBot:
 
 for _bot in (TradingAgentBot(), PriceRefreshBot(), DividendRefreshBot(), PensionReportBot()):
     register_bot(_bot, replace=True)
+
+# Agents that register themselves (see docs/bots.md).
+import backend.data_steward.bot  # noqa: E402,F401  (registers the data steward, #10471)

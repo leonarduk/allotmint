@@ -23,7 +23,6 @@ from backend.routes.data_quality import router as data_quality_router
 from backend.routes.data_quality_admin import router as data_quality_admin_router
 from backend.routes.data_quality_admin import write_router as data_quality_admin_write_router
 from backend.routes.data_steward import router as data_steward_router
-from backend.routes.data_steward import run_router as data_steward_run_router
 from backend.routes.events import router as events_router
 from backend.routes.fx import router as fx_router
 from backend.routes.goals import router as goals_router
@@ -111,8 +110,6 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
         # Same for the MCP server's status/restart: locally it is a process
         # this machine runs; on AWS it is a Lambda (#9654).
         app.include_router(mcp_server_admin_router, dependencies=protected)
-        # Manual data steward run; on AWS the nightly DataStewardLambda runs it (#10471).
-        app.include_router(data_steward_run_router, dependencies=protected)
     app.include_router(query_router, dependencies=protected)
     app.include_router(virtual_portfolio_router, dependencies=protected)
     app.include_router(metrics_router)

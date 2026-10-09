@@ -92,8 +92,9 @@ function TriggerList({ triggers }: { triggers: PlanBriefTrigger[] }) {
     <div className="mb-3">
       <h4 className="font-medium">{t('planBrief.triggers')}</h4>
       <ul className="list-disc pl-5 text-sm">
-        {triggers.map((trigger) => (
-          <li key={trigger.trigger}>
+        {triggers.map((trigger, index) => (
+          // Index too: a plan may list the same trigger text twice.
+          <li key={`${index}:${trigger.trigger}`}>
             <span
               className={
                 trigger.verdict === 'fired'

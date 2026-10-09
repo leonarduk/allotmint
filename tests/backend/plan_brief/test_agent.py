@@ -207,6 +207,12 @@ def test_errored_calls_are_never_cited_as_evidence(plan, facts):
     assert [call["is_error"] for call in verdict["tool_calls"]] == [False]
 
 
+def test_reply_wrapped_in_a_fenced_array_is_still_read(plan, facts):
+    reply = "Here you go:\n```json\n[" + _reply() + "]\n```"
+    [verdict] = agent.interpret_reply(plan, facts, reply, _limits_with_rates_call())["triggers"]
+    assert verdict["verdict"] == "fired"
+
+
 def test_missing_trigger_or_unparseable_reply_is_cant_evaluate_not_not_fired(plan, facts):
     for reply in ("not json at all", json.dumps({"triggers": [], "prose": GOOD_PROSE})):
         [verdict] = agent.interpret_reply(plan, facts, reply, _limits_with_rates_call())["triggers"]

@@ -51,6 +51,12 @@ def latest_brief(owner: str, data_root: Path) -> Optional[dict[str, Any]]:
 
 
 def save_brief(owner: str, brief: Mapping[str, Any], data_root: Path) -> None:
+    """Append ``brief`` to the owner's history (read-modify-write).
+
+    Not locked: two runs finishing at the same moment for one owner (an
+    on-demand run overlapping the monthly Lambda) can drop one of the two
+    briefs. Both are regenerable on demand, so this is accepted.
+    """
     storage = _storage(owner, data_root)
     briefs = [b for b in storage.load().get("briefs") or [] if isinstance(b, dict)]
     briefs.append(dict(brief))

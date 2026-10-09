@@ -121,6 +121,18 @@ def test_changes_since_last_brief_in_gbp_and_big_movers():
     assert changes["big_movers"] == [{"ticker": "VWRL.L", "change_pct": 20.0, "value_gbp": 66_000.0}]
 
 
+def test_foreign_currency_trade_is_valued_from_price_gbp_not_its_minor_amount():
+    """amount_minor on a USD row is cents, so it is ignored; price_gbp is already pounds per unit."""
+    txs = [
+        {"date": "2026-10-01", "type": "BUY", "currency": "USD", "amount_minor": 50000, "units": 10, "price_gbp": 30.0},
+        {"date": "2026-10-02", "type": "BUY", "currency": "USD", "amount_minor": 50000},
+    ]
+    changes = drift.changes_since(txs, date(2026, 9, 9), TODAY, {}, None)
+    assert changes["purchases_gbp"] == 300.0
+    assert changes["counts"]["purchases"] == 1
+    assert changes["skipped_no_gbp_amount"] == 1
+
+
 def test_build_facts_uses_previous_brief_date_for_changes(plan):
     facts = drift.build_facts(plan, portfolio(), AllocationPolicy(), [], TODAY, {"as_of": "2026-09-09"})
     assert facts["changes"]["since"] == "2026-09-09"

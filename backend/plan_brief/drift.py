@@ -62,7 +62,12 @@ def _plan_policy(plan: InvestmentPlan, tolerance_pct: float) -> tuple[Allocation
     """
     try:
         return parse_policy({"targets": rebalance_weights(plan), "tolerance_pct": tolerance_pct}), "plan"
-    except ValueError:
+    except ValueError as exc:
+        logger.info(
+            "Plan brief for %s compares rolled up to asset classes: %s",
+            sanitise_log_value(plan.owner),
+            sanitise_log_value(exc),
+        )
         return parse_policy({"targets": plan.parent_weights(), "tolerance_pct": tolerance_pct}), "plan_rolled_up"
 
 

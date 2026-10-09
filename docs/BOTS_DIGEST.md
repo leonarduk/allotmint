@@ -53,7 +53,7 @@ Per-owner settings (`backend/bots/digest_settings.py`) and their defaults:
 - `period`: `weekly` (sent Mondays). Can be `monthly` (sent on the 1st).
 - `email_enabled`: `true`.
 - `telegram_enabled`: `false`.
-- `include_balances`: `false`. £/$/€ amounts are hidden in email and Telegram unless this is `true`.
+- `include_balances`: `false`. Amounts with a currency marker (`£5,000`, `5,000 GBP`, `GBP 5,000`, and the same for $/€/USD/EUR/GBX) are hidden in email and Telegram unless this is `true`. Bare numbers are kept, because counts, dates and percentages are what most items say ("3 holdings flagged"). So bots must write money with a currency marker.
 - `send_when_empty`: `false`.
 - `per_bot_cap`: `5`.
 - `alert_immediately_for`: `{}`, e.g. `{"allowance-guardian": ["high"]}`. Matching items alert straight away through the trading-agent transports (`send_trade_alert`), once per open `dedupe_key`, and still appear in the digest.

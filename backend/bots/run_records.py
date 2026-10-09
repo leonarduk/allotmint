@@ -62,6 +62,7 @@ class RegistryRunRecordSource:
     def latest_run(self, bot_id: str) -> Optional[BotRunRecord]:
         # A run still in progress has nothing to report yet: use the last finished one.
         record = next((r for r in runs.list_runs(bot_id) if r.status != "running"), None)
+        # The second test narrows the status type for mypy (the filter already excludes running).
         if record is None or record.status == "running":
             return None
         return BotRunRecord(

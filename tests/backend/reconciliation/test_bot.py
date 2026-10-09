@@ -141,7 +141,8 @@ def test_unexpected_error_inside_run_is_recorded_as_type_only(monkeypatch):
 
     assert record.status == "failed"
     assert record.error == "RuntimeError"
-    assert "3990" not in record.model_dump_json()
+    # Match the message text, not bare digits: timestamps in the record can contain "3990" (#10549).
+    assert "3990.55" not in record.model_dump_json()
     assert runs.latest_run(bot.BOT_ID).id == record.id
 
 

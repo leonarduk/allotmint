@@ -131,3 +131,14 @@ def test_pension_adapter_maps_errors(monkeypatch):
     result = bot.run(ctx, bot.settings_model())
     assert result.status == "failed"
     assert "steve: boom" in result.error
+
+
+@pytest.mark.parametrize(
+    "cadence,schedule",
+    [("weekly", Schedule(hour=7, weekday=0)), ("monthly", Schedule(hour=7, day=1)), ("bogus", Schedule(hour=7, day=1))],
+)
+def test_pension_schedule_follows_deployed_cadence(monkeypatch, cadence, schedule):
+    monkeypatch.setenv(adapters.PENSION_REPORT_CADENCE_ENV, cadence)
+    bot = registry.get_bot("pension-report")
+    assert bot.default_schedule == schedule
+    assert bot.default_settings()["cadence"] == ("weekly" if cadence == "weekly" else "monthly")

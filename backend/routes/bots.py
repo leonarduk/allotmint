@@ -1,22 +1,27 @@
 """Bots page API: list automated jobs/agents, their runs, Run now and settings (#10477).
 
 Viewing follows owner access: system-scoped runs are visible to any signed-in
-user, owner-scoped runs only to callers who can access that owner. Run now
-and settings changes need admin -- the same configured-owner-email gate as
-the MCP server and app-update routes -- and are never available to a demo
-token (on AWS ``disable_auth`` is true, so the demo check matters there).
+user, owner-scoped runs only to callers who can access that owner.
+
+Run now and settings changes need admin (:func:`_is_admin`). Unlike the
+local-only MCP-server/app-update gates this route is also served on AWS,
+where ``disable_auth`` is true because API Gateway does the Cognito check --
+so ``disable_auth`` alone never grants admin. The identity comes from
+:func:`backend.auth.get_active_user`, which resolves the Cognito email even
+with ``disable_auth`` set.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, ValidationError
 
-from backend.auth import is_demo_request
+from backend.auth import get_active_user, is_demo_request
 from backend.bots import runner
 from backend.bots.registry import Bot, BotKind, BotScope, get_bot, list_bots
 from backend.bots.runs import MAX_RUNS, RunRecord, get_run, list_runs
@@ -25,8 +30,6 @@ from backend.common.authz import ensure_owner_access
 from backend.common.errors import PermissionDeniedError
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
-from backend.routes import get_active_user
-from backend.routes.mcp_server_admin import _ensure_admin_access
 
 logger = logging.getLogger(__name__)
 
@@ -55,14 +58,30 @@ class BotDetail(BotSummary):
     can_manage: bool = False
 
 
+def _admin_emails() -> set[str]:
+    """``ADMIN_EMAILS`` when set (as ``backend.common.admin``), else ``allowed_emails``."""
+
+    raw = os.getenv("ADMIN_EMAILS", "")
+    admins = {e.strip().lower() for e in raw.split(",") if e.strip()}
+    if admins:
+        return admins
+    return {e.strip().lower() for e in (config.allowed_emails or []) if isinstance(e, str) and e.strip()}
+
+
 def _is_admin(identity: Optional[str]) -> bool:
+    """Whether ``identity`` may start runs and change settings.
+
+    Demo tokens never. Local dev with auth off (the usual single-user setup)
+    always. Anywhere else -- including the AWS Lambda, which runs with
+    ``disable_auth`` -- only a caller on the admin allowlist; with no
+    allowlist configured, nobody.
+    """
+
     if is_demo_request():
         return False
-    try:
-        _ensure_admin_access(identity)
-    except HTTPException:
-        return False
-    return True
+    if config.disable_auth and config.app_env == "local":
+        return True
+    return isinstance(identity, str) and identity.strip().lower() in _admin_emails()
 
 
 def _require_admin(identity: Optional[str] = Depends(get_active_user)) -> Optional[str]:

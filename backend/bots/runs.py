@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 
 from backend.bots.registry import RunStatus, RunTrigger, is_valid_bot_id
 from backend.bots.store import storage_for
@@ -47,6 +47,15 @@ class RunRecord(BaseModel):
     tokens_in: Optional[int] = None
     tokens_out: Optional[int] = None
     cost_usd: Optional[float] = None
+
+    @field_validator("started_at", "finished_at")
+    @classmethod
+    def _aware_utc(cls, value: Optional[datetime]) -> Optional[datetime]:
+        """Treat naive times as UTC so records always sort and compare."""
+
+        if value is not None and value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
 
 
 def new_run_id() -> str:

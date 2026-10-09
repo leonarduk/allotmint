@@ -216,3 +216,16 @@ def test_cdk_sets_the_env_var_the_runner_reads():
 
     stack = Path(__file__).resolve().parents[3] / "cdk" / "stacks" / "backend_lambda_stack.py"
     assert f'"{runner.BOT_LAMBDAS_ENV}"' in stack.read_text(encoding="utf-8")
+
+
+def test_naive_times_are_stored_as_utc(fake_bot):
+    naive = datetime(2026, 10, 9, 1, 0)
+    runs.save_run(runs.RunRecord(id="n", bot_id=fake_bot.id, trigger="manual", status="ok", started_at=naive))
+    runner.execute(fake_bot.id, "manual")
+    stored = runs.get_run(fake_bot.id, "n")
+    assert stored.started_at.tzinfo is not None
+    assert len(runs.list_runs(fake_bot.id)) == 2
+
+
+def test_event_driven_bot_has_no_next_run():
+    assert runner.next_due(None, BotSettings(), []) is None

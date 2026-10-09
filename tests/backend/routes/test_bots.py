@@ -10,10 +10,10 @@ from fastapi.testclient import TestClient
 
 import backend.routes.bots as bots_route
 from backend.agent import trading_agent
+from backend.auth import get_active_user
 from backend.bots import registry, runs
 from backend.bots.registry import BotRunContext, BotSettings, RunResult, Schedule
 from backend.common.errors import PermissionDeniedError
-from backend.routes import get_active_user
 
 ADMIN = "admin@example.com"
 USER = "viewer@example.com"
@@ -52,11 +52,11 @@ def fake_trading_bot():
     registry.register_bot(real, replace=True)
 
 
-def _client(monkeypatch, *, identity=None, disable_auth=True) -> TestClient:
+def _client(monkeypatch, *, identity=None, disable_auth=True, app_env="local") -> TestClient:
     monkeypatch.setattr(bots_route.config, "disable_auth", disable_auth)
     monkeypatch.setattr(bots_route.config, "allowed_emails", [ADMIN])
-    monkeypatch.setattr("backend.routes.mcp_server_admin.config.disable_auth", disable_auth)
-    monkeypatch.setattr(bots_route.config, "app_env", "local")
+    monkeypatch.setattr(bots_route.config, "app_env", app_env)
+    monkeypatch.delenv("ADMIN_EMAILS", raising=False)
     app = FastAPI()
     app.include_router(bots_route.router)
     app.dependency_overrides[get_active_user] = lambda: identity
@@ -142,6 +142,32 @@ def test_non_admin_gets_403_on_run_and_settings(monkeypatch):
 def test_admin_allowed_when_auth_enabled(monkeypatch, fake_trading_bot):
     client = _client(monkeypatch, identity=ADMIN, disable_auth=False)
     assert client.post("/bots/trading-agent/run").status_code == 202
+
+
+def test_aws_with_auth_disabled_still_requires_admin(monkeypatch):
+    """The Lambda runs with disable_auth (API Gateway authenticates); that must not open the gate."""
+    client = _client(monkeypatch, identity=USER, disable_auth=True, app_env="aws")
+    assert client.post("/bots/trading-agent/run").status_code == 403
+    assert client.put("/bots/trading-agent/settings", json={"enabled": False}).status_code == 403
+    assert client.get("/bots/trading-agent").json()["can_manage"] is False
+
+
+def test_aws_admin_on_allowlist_can_manage(monkeypatch, fake_trading_bot):
+    monkeypatch.setattr(bots_route.runner, "dispatch_run", lambda record, tasks: record)
+    client = _client(monkeypatch, identity=ADMIN, disable_auth=True, app_env="aws")
+    assert client.post("/bots/trading-agent/run").status_code == 202
+
+
+def test_admin_emails_takes_precedence_over_allowed_emails(monkeypatch):
+    client = _client(monkeypatch, identity=ADMIN, disable_auth=True, app_env="aws")
+    monkeypatch.setenv("ADMIN_EMAILS", "someone-else@example.com")
+    assert client.post("/bots/trading-agent/run").status_code == 403
+
+
+def test_no_allowlist_denies_everyone_off_local(monkeypatch):
+    client = _client(monkeypatch, identity=ADMIN, disable_auth=True, app_env="aws")
+    monkeypatch.setattr(bots_route.config, "allowed_emails", [])
+    assert client.post("/bots/trading-agent/run").status_code == 403
 
 
 def test_demo_request_cannot_manage(monkeypatch):

@@ -94,6 +94,8 @@
     "viewAlertsLink": "View recent alerts"
   },
   "allocation": {
+    "accountCash": "{{owner}} {{account}}: {{name}}",
+    "showHoldings": "Show holdings",
     "allocationDescription": "Allocation shows how current portfolio value is distributed.",
     "contributionDescription": "Contribution shows which parts of the portfolio drove gains and losses.",
     "currency": "Currencies",
@@ -3206,7 +3208,9 @@
     "addAccount": "Add account",
     "cancelImport": "Cancel import",
     "viewCompliance": "View compliance warnings",
-    "complianceError": "Unable to load compliance warnings."
+    "complianceError": "Unable to load compliance warnings.",
+    "reconcileStatement": "Reconcile statement",
+    "closeReconcile": "Close statement reconciliation"
   },
   "topMoversSummary": {
     "noGroup": "No group selected.",
@@ -3748,5 +3752,47 @@
     "duration": "{{seconds}}s",
     "usage": "Model {{model}} · {{tokensIn}} in / {{tokensOut}} out tokens · ${{cost}}",
     "pollTimeout": "Stopped waiting for this run: it is still marked as running. Check the run history later."
+  },
+  "statementReconcile": {
+    "title": "Reconcile statement",
+    "intro": "Upload a broker statement or contract note (PDF or CSV) to compare it with your recorded transactions. Nothing is changed until you accept a suggestion.",
+    "cloudNotice": "The document's text will be sent to the configured AI provider ({{provider}}) to read it. The file itself is not stored.",
+    "localNotice": "The document is read by the local AI model ({{provider}}) and does not leave this machine. The file itself is not stored.",
+    "account": "Account",
+    "file": "Statement (PDF or CSV)",
+    "explainUnmatched": "Ask the assistant to explain unmatched rows",
+    "reconcile": "Reconcile statement",
+    "reconciling": "Reading statement…",
+    "failed": "Could not reconcile the statement.",
+    "resultTitle": "Statement reconciliation",
+    "summary": "{{rows}} rows read · {{matched}} matched · {{diffs}} differences",
+    "warnings": "Warnings",
+    "noDiffs": "The statement matches the ledger.",
+    "explanation": "Assistant's explanation",
+    "accept": "Accept",
+    "confirm": "Confirm change",
+    "cancel": "Cancel",
+    "applying": "Applying…",
+    "applied": "Applied",
+    "applyFailed": "Could not apply this change.",
+    "dismiss": "Dismiss",
+    "dismissReason": "Reason for dismissing",
+    "dismissedWith": "Dismissed: {{reason}}",
+    "columns": {
+      "kind": "Difference",
+      "date": "Date",
+      "detail": "Detail",
+      "statement": "Statement",
+      "ledger": "Ledger",
+      "action": "Action"
+    },
+    "kinds": {
+      "missing_from_ledger": "Missing from ledger",
+      "missing_from_statement": "Not on statement",
+      "amount_mismatch": "Amount differs",
+      "fee_mismatch": "Fee differs",
+      "cash_mismatch": "Closing cash differs",
+      "units_mismatch": "Closing units differ"
+    }
   }
 }

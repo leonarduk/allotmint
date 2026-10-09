@@ -15,6 +15,7 @@ import type {
   InvestmentPlanVehicle,
 } from '../types';
 import EmptyState from './EmptyState';
+import PlanBriefCard from './PlanBriefCard';
 import PlanEditor from './PlanEditor';
 
 const pct = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
@@ -619,6 +620,7 @@ function PlanBody({
           ))}
         </ul>
       )}
+      <PlanBriefCard owner={owner} />
       <PlanDetails plan={plan} />
       <p className="mt-3 text-xs italic text-slate-500 dark:text-slate-400">
         {plan.disclaimer}

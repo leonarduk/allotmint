@@ -236,6 +236,52 @@ export type LookThroughExposure = {
   };
 };
 
+/**
+ * One account's (or the total's) all-in annual cost from `GET /fund-upkeep/.../all-in-cost` (#10482).
+ * `fund_charges_gbp` is null when no holding's charge is known; unknown value and
+ * trades without fee data are reported separately and never counted as zero cost.
+ */
+export type AllInCostPart = {
+  owner?: string | null;
+  account?: string | null;
+  value_gbp: number;
+  fund_charges_gbp: number | null;
+  known_value_gbp: number;
+  unknown_value_gbp: number;
+  holding_count: number;
+  unknown_count: number;
+  dealing_fees_gbp: number;
+  account_charges_gbp: number;
+  trade_count: number;
+  trades_without_fee_data: number;
+  known_cost_gbp: number;
+  known_cost_pct: number | null;
+  complete: boolean;
+};
+
+export type AllInCost = {
+  window: { start: string; end: string };
+  accounts: AllInCostPart[];
+  total: AllInCostPart;
+};
+
+/** A fund data value proposed by the upkeep bot, awaiting the owner's approval (#10482). */
+export type FundUpkeepProposal = {
+  id: string;
+  kind: "ongoing_charge" | "look_through";
+  ticker: string;
+  isin?: string | null;
+  value: unknown;
+  source_url: string;
+  document_date: string;
+  confidence?: string | number | null;
+  status: "pending" | "approved" | "rejected" | "undone";
+  created_at: string;
+  decided_at?: string;
+  decided_by?: string | null;
+  audit_id?: string;
+};
+
 /** A fund's top holding in `GET /instrument/allocation` (#9974). */
 export type InstrumentTopHolding = {
   name: string;
@@ -1633,6 +1679,85 @@ export interface InvestmentPlanResponse {
     age: number | null;
     goals: { index: number; name: string; years_to_goal: number }[];
   };
+}
+
+/** One row of a plan brief's deterministic drift table (#10475). */
+export interface PlanBriefDriftRow {
+  class: string;
+  label: string;
+  current_value_gbp: number;
+  current_pct: number;
+  target_pct: number | null;
+  drift_pp: number | null;
+  drift_gbp: number | null;
+  status: 'over' | 'under' | 'in_band' | 'untargeted';
+}
+
+export interface PlanBriefEvidence {
+  tool: string;
+  field?: string | null;
+  value?: unknown;
+  source?: string | null;
+  as_of?: string | null;
+}
+
+export interface PlanBriefTrigger {
+  trigger: string;
+  verdict: 'fired' | 'not_fired' | 'cant_evaluate';
+  reason: string;
+  evidence: PlanBriefEvidence[];
+}
+
+/** A saved plan-drift brief (#10475): facts and arithmetic only, never advice. */
+export interface PlanBrief {
+  id: string;
+  owner: string;
+  as_of: string;
+  generated_at: string;
+  drift: {
+    basis: string;
+    tolerance_pct: number;
+    total_value_gbp: number;
+    rows: PlanBriefDriftRow[];
+    out_of_band: string[];
+    rebalance_targets_match: boolean | null;
+  };
+  cash: {
+    account_id: string;
+    account: string;
+    cash_gbp: number;
+    uninvested_since: string | null;
+    days_uninvested: number | null;
+  }[];
+  stale_evidence: { metric: string; as_of: string; age_days: number }[];
+  review: {
+    next_review: string | null;
+    due: boolean;
+    days_overdue: number | null;
+    open_questions: string[];
+  };
+  changes: {
+    since: string;
+    contributions_gbp: number;
+    withdrawals_gbp: number;
+    purchases_gbp: number;
+    sales_gbp: number;
+    big_movers: { ticker: string; change_pct: number }[];
+  };
+  triggers: PlanBriefTrigger[];
+  prose: string;
+  prose_source: 'agent' | 'deterministic';
+  disclaimer: string;
+}
+
+export interface PlanBriefSummary {
+  id: string;
+  as_of: string;
+  generated_at: string;
+  total_value_gbp: number | null;
+  out_of_band: string[];
+  triggers_fired: number;
+  review_due: boolean;
 }
 
 export interface Quest {

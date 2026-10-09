@@ -1,4 +1,4 @@
-import type { Account } from '../types';
+import type { Account, AllInCost, AllInCostPart } from '../types';
 import { isCashInstrument } from './instruments';
 
 /**
@@ -71,4 +71,37 @@ export function computeFundCharges(accounts: Account[]): FundChargeTotals {
     holdingCount,
     unknownCount,
   };
+}
+
+
+function isAllInPart(value: unknown): value is AllInCostPart {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as AllInCostPart).known_cost_gbp === 'number'
+  );
+}
+
+/**
+ * The all-in cost row for the current scope (#10482): one account when an
+ * account filter is active, else the total with its per-account rows.
+ * Anything not shaped like the endpoint's response yields nothing to show.
+ */
+export function selectAllInCost(
+  data: AllInCost | null | undefined,
+  owner: string | null,
+  accountType: string | null,
+): { part: AllInCostPart | null; accounts: AllInCostPart[] } {
+  if (!data || !isAllInPart(data.total) || !Array.isArray(data.accounts)) {
+    return { part: null, accounts: [] };
+  }
+  const accounts = data.accounts.filter(isAllInPart);
+  if (!accountType) return { part: data.total, accounts };
+  const wanted = accountType.toLowerCase();
+  const match = accounts.find(
+    (row) =>
+      (row.account ?? '').toLowerCase() === wanted &&
+      (!owner || !row.owner || row.owner.toLowerCase() === owner.toLowerCase()),
+  );
+  return { part: match ?? null, accounts: [] };
 }

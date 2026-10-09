@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from backend.chat import bedrock_agent, openai_compat_agent
 from backend.chat.local_tools import LocalTools
 from backend.chat.tool_switches import ToolPolicy
+from backend.chat.turn_limits import TurnLimits
 from backend.config import Config
 
 # (base_url, model) used when chat_base_url / chat_model are unset.
@@ -38,8 +39,13 @@ async def run_configured_chat_turn(
     local_tools: Optional[LocalTools] = None,
     system_prompt: Optional[str] = None,
     tool_policy: Optional[ToolPolicy] = None,
+    limits: Optional[TurnLimits] = None,
 ) -> str:
     provider = resolve_chat_provider(cfg)
+    # Only passed when set, so the interactive chat's call is unchanged.
+    extra: Dict[str, Any] = {"limits": limits} if limits is not None else {}
+    if tool_policy is not None:
+        extra["tool_policy"] = tool_policy
     if provider == "bedrock":
         return await bedrock_agent.run_chat_turn(
             message,
@@ -48,7 +54,7 @@ async def run_configured_chat_turn(
             bedrock_model_id=cfg.bedrock_model_id,
             local_tools=local_tools,
             system_prompt=system_prompt,
-            tool_policy=tool_policy,
+            **extra,
         )
 
     default_base_url, default_model = OPENAI_COMPAT_DEFAULTS[provider]
@@ -64,5 +70,5 @@ async def run_configured_chat_turn(
         api_key=api_key,
         local_tools=local_tools,
         system_prompt=system_prompt,
-        tool_policy=tool_policy,
+        **extra,
     )

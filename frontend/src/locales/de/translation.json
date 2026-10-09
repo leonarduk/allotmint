@@ -2856,6 +2856,45 @@
     "offline": "Sie scheinen offline zu sein.",
     "timedOut": "Zeitüberschreitung der Anfrage. Bitte versuchen Sie es erneut."
   },
+  "allowanceGuardian": {
+    "title": "Beitrags- und Freibetragswächter",
+    "asOf": "Stand {{date}} (Steuerjahr {{year}})",
+    "loadFailed": "Bericht des Freibetragswächters konnte nicht geladen werden",
+    "unavailable": "Freibetragszahlen sind in dieser Installation nicht verfügbar.",
+    "alerts": "Hinweise",
+    "pensionHeading": "Jährlicher Rentenfreibetrag",
+    "isaHeading": "ISA-Freibetrag",
+    "contributionsHeading": "Erwartete Beiträge in diesem Steuerjahr",
+    "annualAllowance": "Standard-Jahresfreibetrag",
+    "usedToDate": "Bisher genutzt",
+    "carryForward": "Ungenutzt aus den drei Vorjahren",
+    "availableTotal": "Insgesamt verfügbar",
+    "scheduledRemaining": "Geplant bis 5. April",
+    "projectedTotal": "Voraussichtliche Summe bis 5. April",
+    "carryForwardFirstNeeded": "Freibetrag dieses Jahres ausgeschöpft im",
+    "projectedBreach": "Voraussichtlich über dem Verfügbaren im",
+    "none": "Nicht nach aktuellem Plan",
+    "isaSubscribed": "Bisher eingezahlt",
+    "isaLimit": "Limit",
+    "isaDeadline": "Freibetrag wird zurückgesetzt",
+    "daysTo": "in {{days}} Tagen ({{date}})",
+    "noSchedule": "Noch kein Beitragsplan erfasst.",
+    "noneExpected": "In diesem Steuerjahr wurden noch keine Beiträge erwartet.",
+    "expectedDate": "Erwartet",
+    "expected": "Erwarteter Betrag",
+    "received": "Eingegangen",
+    "statusHeading": "Status",
+    "notModelledHeading": "Nicht modelliert",
+    "notModelledFallback": "Gekürzter Jahresfreibetrag, Money Purchase Annual Allowance und nicht in AllotMint erfasste Renten werden nicht modelliert.",
+    "adviserNoteFallback": "Nur Zahlen, Daten und Grenzen; Information, keine Beratung. Entscheidungen über Rentenbeiträge, Carry-forward und Rentensteuer sollten mit einem regulierten Finanzberater getroffen werden.",
+    "status": {
+      "on_time": "Pünktlich",
+      "late": "Verspätet",
+      "wrong_amount": "Falscher Betrag",
+      "missing": "Fehlt",
+      "awaiting": "Ausstehend"
+    }
+  },
   "allowanceTracker": {
     "title": "Freibetrags-Tracker",
     "account": "Konto",
@@ -3284,6 +3323,35 @@
     "total": "Summe: {{value}}%",
     "mustEqual100": "(muss 100% ergeben)"
   },
+  "planBrief": {
+    "title": "Neuester Planbericht",
+    "runNow": "Bericht jetzt erstellen",
+    "running": "Wird erstellt…",
+    "loading": "Bericht wird geladen…",
+    "none": "Noch kein Bericht. Berichte werden monatlich erstellt, oder jetzt einen erstellen.",
+    "loadError": "Bericht konnte nicht geladen werden: {{message}}",
+    "runError": "Bericht konnte nicht erstellt werden: {{message}}",
+    "asOf": "Stand {{date}}",
+    "total": "Portfolio {{value}}",
+    "reviewDue": "Überprüfung fällig: Das Prüfdatum des Plans ({{date}}) ist überschritten.",
+    "driftCaption": "Ist vs. Planziel; hervorgehobene Zeilen liegen außerhalb des ±{{band}}pp-Bands.",
+    "class": "Klasse",
+    "actual": "Ist",
+    "target": "Ziel",
+    "drift": "Abweichung",
+    "driftGbp": "Abweichung £",
+    "targetsDiffer": "Die gespeicherten Rebalancing-Ziele weichen vom Planziel ab.",
+    "triggers": "Prüfauslöser",
+    "verdict": {
+      "fired": "Ausgelöst",
+      "not_fired": "Nicht ausgelöst",
+      "cant_evaluate": "Nicht auswertbar"
+    },
+    "idleCash": "{{account}}: {{amount}} Bargeld, seit Eingang {{days}} Tage ohne Kauf",
+    "staleEvidence": "Belege älter als sechs Monate: {{items}}",
+    "earlier": "Frühere Berichte",
+    "summaryLine": "{{outside}} außerhalb des Bands, {{fired}} Auslöser ausgelöst"
+  },
   "planPanel": {
     "planTarget": "Planziel",
     "class": "Klasse",
@@ -3635,7 +3703,34 @@
     "unknown": "Unbekannt",
     "weightedCharge": "Gewichtete laufende Kosten",
     "annualCost": "Geschätzte jährliche Fondskosten",
-    "excludesUnknown": "Ohne {{unknown}} von {{total}} Positionen ohne Kostendaten"
+    "excludesUnknown": "Ohne {{unknown}} von {{total}} Positionen ohne Kostendaten",
+    "allInCost": "Jährliche Gesamtkosten",
+    "allInBreakdown": "{{funds}} Fondskosten + {{fees}} gezahlte Gebühren (letzte 12 Monate)",
+    "allInNotIncluded": "Nicht enthalten: {{items}}",
+    "allInUnknownValue": "{{value}} in {{holdings}} Positionen ohne Kostendaten",
+    "allInUnknownTrades": "{{trades}} Trades ohne erfasste Gebühr",
+    "perAccount": "Pro Konto",
+    "partial": "unvollständig"
+  },
+  "fundUpkeep": {
+    "title": "Vorschläge für Fondsdaten",
+    "description": "Werte aus öffentlichen Fondsdokumenten (KIIDs und Factsheets). Nichts wird gespeichert, bevor Sie zustimmen, und eine Zustimmung kann rückgängig gemacht werden.",
+    "empty": "Keine Vorschläge zur Prüfung.",
+    "ongoingCharge": "Laufende Kosten",
+    "lookThrough": "Durchschau-Aufschlüsselung",
+    "source": "Quelldokument",
+    "documentDate": "vom {{date}}",
+    "approve": "Übernehmen",
+    "reject": "Ablehnen",
+    "undo": "Rückgängig",
+    "loadFailed": "Vorschläge konnten nicht geladen werden: {{message}}",
+    "actionFailed": "Aktion fehlgeschlagen: {{message}}",
+    "status": {
+      "pending": "Wartet auf Prüfung",
+      "approved": "Übernommen",
+      "rejected": "Abgelehnt",
+      "undone": "Rückgängig gemacht"
+    }
   },
   "riskReturn": {
     "title": "Rendite vs. Volatilität",
@@ -3668,6 +3763,31 @@
     "aboveAverage": "Über der Durchschnittslinie: mehr Rendite je Einheit Volatilität",
     "belowAverage": "Unter der Durchschnittslinie: weniger Rendite je Einheit Volatilität",
     "onAverage": "Auf der Durchschnittslinie"
+  },
+  "botsDigest": {
+    "title": "Bot-Zusammenfassung",
+    "loading": "Zusammenfassung wird geladen…",
+    "empty": "Es wurde noch keine Zusammenfassung erstellt.",
+    "preview": "Jetzt Vorschau",
+    "previewNote": "Vorschau aus den letzten Bot-Läufen. Nicht gespeichert oder versendet.",
+    "error": "Die Zusammenfassung konnte nicht geladen werden.",
+    "resolvedTitle": "Seit der letzten Zusammenfassung erledigt",
+    "notRunYet": "Noch nicht gelaufen: {{bots}}",
+    "truncated": "{{count}} weitere Einträge nicht angezeigt.",
+    "actionRequired": "Handlung erforderlich",
+    "history": "Verlauf",
+    "historyEntry": "{{date}}: {{count}} Einträge",
+    "status": {
+      "new": "Neu",
+      "still_open": "Noch offen",
+      "resolved": "Erledigt"
+    },
+    "severity": {
+      "high": "Hoch",
+      "medium": "Mittel",
+      "low": "Niedrig",
+      "info": "Info"
+    }
   },
   "bots": {
     "title": "Bots",

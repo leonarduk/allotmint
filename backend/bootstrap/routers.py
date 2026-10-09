@@ -9,11 +9,13 @@ from backend.config import Config
 from backend.routes.agent import router as agent_router
 from backend.routes.alert_settings import router as alert_settings_router
 from backend.routes.alerts import router as alerts_router
+from backend.routes.allowance_guardian import router as allowance_guardian_router
 from backend.routes.analytics import router as analytics_router
 from backend.routes.app_update import router as app_update_router
 from backend.routes.approvals import router as approvals_router
 from backend.routes.aws_costs_admin import router as aws_costs_admin_router
 from backend.routes.bots import router as bots_router
+from backend.routes.bots_digest import router as bots_digest_router
 from backend.routes.chat import create_router as create_chat_router
 from backend.routes.chat_history import router as chat_history_router
 from backend.routes.compliance import router as compliance_router
@@ -23,6 +25,7 @@ from backend.routes.data_quality import router as data_quality_router
 from backend.routes.data_quality_admin import router as data_quality_admin_router
 from backend.routes.data_quality_admin import write_router as data_quality_admin_write_router
 from backend.routes.events import router as events_router
+from backend.routes.fund_upkeep import router as fund_upkeep_router
 from backend.routes.fx import router as fx_router
 from backend.routes.goals import router as goals_router
 from backend.routes.instrument import router as instrument_router
@@ -40,6 +43,7 @@ from backend.routes.nudges import router as nudges_router
 from backend.routes.opportunities import router as opportunities_router
 from backend.routes.pension import router as pension_router
 from backend.routes.performance import router as performance_router
+from backend.routes.plan_brief import router as plan_brief_router
 from backend.routes.portfolio import public_router as public_portfolio_router
 from backend.routes.portfolio import router as portfolio_router
 from backend.routes.price_triggers import router as price_triggers_router
@@ -78,6 +82,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(opportunities_router)
     app.include_router(instrument_router)
     app.include_router(instrument_admin_router, dependencies=protected)
+    app.include_router(fund_upkeep_router, dependencies=protected)
     app.include_router(timeseries_router)
     app.include_router(data_quality_router)
     app.include_router(data_quality_admin_router, dependencies=protected)
@@ -123,6 +128,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(strategies_router)
     app.include_router(sleeves_router)
     app.include_router(investment_plan_router)
+    app.include_router(plan_brief_router)
     app.include_router(config_router)
     app.include_router(quotes_router)
     app.include_router(news_router)
@@ -138,5 +144,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(logs_router)
     app.include_router(goals_router, dependencies=protected)
     app.include_router(tax_router)
+    app.include_router(allowance_guardian_router, dependencies=protected)
     app.include_router(pension_router)
     app.include_router(reports_router, dependencies=protected)
+    app.include_router(bots_digest_router, dependencies=protected)

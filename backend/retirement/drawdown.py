@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Mapping, Optional, Sequence
 
 #: Slack when comparing the pot with a withdrawal, so float noise never fails an exactly-funded year.
@@ -123,7 +124,8 @@ def income_at_survival(incomes: Sequence[float], survival_pct: float) -> float:
         raise ValueError("no windows")
     if not 0 < survival_pct <= 100:
         raise ValueError("survival_pct must be in (0, 100]")
-    needed = max(1, math.ceil(round(survival_pct / 100.0 * len(incomes), 9)))
+    # Exact rational arithmetic (the percentage as written, e.g. "97.5"), so 95% of 20 is exactly 19.
+    needed = max(1, math.ceil(Fraction(str(survival_pct)) * len(incomes) / 100))
     return sorted(incomes, reverse=True)[needed - 1]
 
 

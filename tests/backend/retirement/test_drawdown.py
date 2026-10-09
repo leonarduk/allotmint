@@ -106,6 +106,8 @@ def test_income_at_survival_rules():
     assert income_at_survival([400.0, 500.0, 600.0], 90) == 400.0
     # 0.95 * 20 is 18.999... in floats; it must still need 19 windows, not 20.
     assert income_at_survival([float(i) for i in range(1, 21)], 95) == 2.0
+    # A fractional level: 97.5% of 40 is exactly 39.
+    assert income_at_survival([float(i) for i in range(1, 41)], 97.5) == 2.0
     with pytest.raises(ValueError):
         income_at_survival(incomes, 0)
     with pytest.raises(ValueError):

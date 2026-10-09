@@ -67,12 +67,12 @@ def digest_text(digest: Digest, settings: DigestSettings) -> str:
 
 
 def _alerted_keys(owner: str) -> Set[str]:
-    keys = json_storage(location(DIGESTS_URI_ENV, "bots/digests"), owner, ALERTED_NAME).load().get("keys")
+    keys = json_storage(location(DIGESTS_URI_ENV, "digests"), owner, ALERTED_NAME).load().get("keys")
     return {str(k) for k in keys} if isinstance(keys, list) else set()
 
 
 def _save_alerted_keys(owner: str, keys: Iterable[str]) -> None:
-    storage = json_storage(location(DIGESTS_URI_ENV, "bots/digests"), owner, ALERTED_NAME)
+    storage = json_storage(location(DIGESTS_URI_ENV, "digests"), owner, ALERTED_NAME)
     storage.save({"keys": sorted(keys)})
 
 

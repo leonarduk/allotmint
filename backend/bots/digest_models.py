@@ -12,9 +12,9 @@ previously open item has been **resolved** (its key no longer appears).
 ``owner`` is the owner the item is about, or ``None`` for a system-wide item
 (e.g. a failed scheduled job), which only admins see.
 
-Until the bot registry (#10477) lands, run records are read through the small
-:class:`RunRecordSource` interface in ``backend.bots.run_records``; the
-registry can implement that interface and nothing here needs to change.
+A bot returns its items in its run report (``RunResult.report["digest_items"]``,
+#10477); ``backend.bots.run_records`` reads them back from the registry's run
+store.
 """
 
 from __future__ import annotations

@@ -1,7 +1,8 @@
 """Per-owner digest settings (#10485).
 
 Read from ``BOTS_DIGEST_SETTINGS_URI`` (``file://``, ``s3://`` or ``ssm://``,
-via :func:`backend.common.storage.get_storage`), a JSON object keyed by owner.
+via :func:`backend.common.storage.get_storage`), default
+``<BOTS_STORAGE_URI>/digest_settings.json``: a JSON object keyed by owner.
 Missing or invalid settings fall back to the defaults: a weekly digest by
 email only, no Telegram, no £ amounts, and no immediate alerts (every bot's
 items go only into the digest). Editing these belongs to the bot registry's
@@ -12,14 +13,13 @@ from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
 from typing import Dict, List
 
 from pydantic import BaseModel, Field, ValidationError
 
 from backend.bots.digest_models import DigestPeriod, Severity
+from backend.bots.store import storage_base
 from backend.common.storage import get_storage
-from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -41,9 +41,7 @@ class DigestSettings(BaseModel):
 
 
 def _default_uri() -> str:
-    data_root = getattr(config, "data_root", None)
-    base = Path(data_root) if data_root else Path(__file__).resolve().parents[2] / "data"
-    return f"file://{base / 'bots' / 'digest_settings.json'}"
+    return f"{storage_base()}/digest_settings.json"
 
 
 def load_settings(owner: str) -> DigestSettings:

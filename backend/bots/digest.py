@@ -122,16 +122,23 @@ def rank_and_cap(items: List[DigestEntry], per_bot_cap: int) -> Tuple[List[Diges
     return kept, truncated
 
 
+def _entry(item: DigestItem, previous: Optional[DigestEntry], seen_before: bool) -> DigestEntry:
+    """Label ``item``; a still-open item keeps the age it had when first shown."""
+
+    data = item.model_dump()
+    if previous is not None:
+        # Bots (and failed runs) re-report the same finding with a fresh timestamp.
+        data["created"] = min(item.created, previous.created)
+    return DigestEntry(**data, status="still_open" if seen_before else "new")
+
+
 def label_items(current: List[DigestItem], previous: Optional[Digest]) -> Tuple[List[DigestEntry], List[DigestEntry]]:
     """Return (open entries labelled new/still_open, entries resolved since ``previous``)."""
 
     previous_open = {entry.dedupe_key: entry for entry in (previous.items if previous else [])}
     previous_keys = set(previous_open) | set(previous.open_keys if previous else [])
     current_keys = {item.dedupe_key for item in current}
-    entries = [
-        DigestEntry(**item.model_dump(), status="still_open" if item.dedupe_key in previous_keys else "new")
-        for item in current
-    ]
+    entries = [_entry(item, previous_open.get(item.dedupe_key), item.dedupe_key in previous_keys) for item in current]
     resolved = [
         entry.model_copy(update={"status": "resolved"})
         for key, entry in previous_open.items()
@@ -210,6 +217,14 @@ def write_opener(items: List[DigestEntry], resolved: List[DigestEntry], opener_f
     return text
 
 
+def current_items(owner: str, source: RunRecordSource, include_system: bool = False) -> List[DigestItem]:
+    """Every open item for ``owner`` right now, uncapped (for immediate alerts)."""
+
+    bots = source.bots()
+    records = {bot.id: source.latest_run(bot.id) for bot in bots}
+    return dedupe(collect_items(bots, records, owner, include_system))
+
+
 def compose_digest(
     owner: str,
     source: RunRecordSource,
@@ -248,6 +263,7 @@ __all__ = [
     "bot_statuses",
     "collect_items",
     "compose_digest",
+    "current_items",
     "dedupe",
     "deterministic_opener",
     "label_items",

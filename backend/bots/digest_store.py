@@ -1,7 +1,7 @@
 """Stored digests: ``<location>/<owner>/<YYYY-MM-DD>.json`` plus ``latest.json`` (#10485).
 
-The location is ``BOTS_DIGESTS_URI`` when set (deployed: ``s3://<bucket>/bots/digests``),
-otherwise ``{data_root}/bots/digests``. ``index.json`` lists the stored dates,
+The location is ``BOTS_DIGESTS_URI`` when set, otherwise ``<BOTS_STORAGE_URI>/digests``
+(beside the bot registry's documents; deployed: ``s3://<bucket>/bots/digests``). ``index.json`` lists the stored dates,
 newest first, so history needs no bucket listing. A later digest on the same
 day replaces that day's file. These are the only records the digest writes.
 """
@@ -20,7 +20,7 @@ MAX_HISTORY = 104  # two years of weekly digests
 
 
 def _base() -> str:
-    return location(DIGESTS_URI_ENV, "bots/digests")
+    return location(DIGESTS_URI_ENV, "digests")
 
 
 def _load_index(owner: str) -> List[str]:

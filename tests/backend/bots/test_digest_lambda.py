@@ -123,3 +123,23 @@ def test_owner_filter(env, monkeypatch):
     monkeypatch.setenv("BOTS_DIGEST_OWNERS", "alex")
     monkeypatch.setattr(lam, "list_portfolios", lambda: [{"owner": "alex"}, {"owner": "bob"}])
     assert lam.run_digest({"force": True}, source=FakeSource([]))["owners"] == 1
+
+
+def test_capped_items_still_alert_once(env):
+    """Items beyond per_bot_cap still alert, and only once (alerted keys are not pruned)."""
+
+    env["settings"]({"alex": {"per_bot_cap": 1, "alert_immediately_for": {"guardian": ["high"]}}})
+    items = [_item().model_copy(update={"dedupe_key": f"guardian:{n}", "id": str(n)}) for n in range(3)]
+    source = FakeSource(items)
+
+    assert lam.run_owner("alex", {}, source, TUESDAY)["alerted"] == 3
+    assert lam.run_owner("alex", {}, source, MONDAY)["alerted"] == 0
+    assert len(env["alerts"]) == 3
+    assert digest_store.load_latest("alex").truncated == {"guardian": 2}
+
+
+def test_missing_settings_file_gives_defaults(monkeypatch, tmp_path):
+    from backend.bots.digest_settings import DigestSettings, load_settings
+
+    monkeypatch.setenv("BOTS_DIGEST_SETTINGS_URI", f"file://{tmp_path / 'nope.json'}")
+    assert load_settings("alex") == DigestSettings()

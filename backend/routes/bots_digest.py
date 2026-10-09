@@ -23,7 +23,7 @@ from backend.bots import digest_store
 from backend.bots.digest import compose_digest
 from backend.bots.digest_models import Digest
 from backend.bots.digest_settings import load_settings
-from backend.bots.run_records import FileRunRecordSource
+from backend.bots.run_records import RegistryRunRecordSource
 from backend.common.authz import ensure_owner_access
 from backend.common.errors import raise_owner_not_found
 from backend.config import config
@@ -36,7 +36,7 @@ def is_admin(identity: Optional[str]) -> bool:
     if config.disable_auth:
         return True
     allowed = {e.strip().lower() for e in (config.allowed_emails or []) if isinstance(e, str) and e.strip()}
-    return bool(identity) and identity.strip().lower() in allowed
+    return identity is not None and identity.strip().lower() in allowed
 
 
 def _resolve_owner(request: Request, owner: str, identity: Optional[str]) -> str:
@@ -92,7 +92,7 @@ def preview_digest(owner: str, request: Request, identity: Optional[str] = Depen
     settings = load_settings(canonical)
     digest = compose_digest(
         canonical,
-        FileRunRecordSource(),
+        RegistryRunRecordSource(),
         previous=digest_store.load_latest(canonical),
         now=datetime.now(timezone.utc),
         include_system=admin,

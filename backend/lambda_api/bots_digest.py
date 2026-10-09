@@ -14,8 +14,7 @@ Runs inside :func:`backend.auth.system_job_context`, like the pension report:
 a scheduled job has no request user (#8805). Per-owner failures are logged and
 reported through ``publish_sns_alert``; they do not stop other owners.
 
-The EventBridge rule and IAM for this handler are not wired in CDK yet: no bot
-writes run records until the registry (#10477) lands.
+The EventBridge rule and IAM for this handler are not wired in CDK yet (#10501).
 """
 
 from __future__ import annotations
@@ -27,10 +26,10 @@ from typing import Any, Dict, List, Optional
 
 from backend.auth import system_job_context
 from backend.bots import digest_store
-from backend.bots.digest import compose_digest
+from backend.bots.digest import compose_digest, current_items
 from backend.bots.digest_delivery import send_digest_telegram, send_immediate_alerts
 from backend.bots.digest_settings import DigestSettings, load_settings
-from backend.bots.run_records import FileRunRecordSource, RunRecordSource
+from backend.bots.run_records import RegistryRunRecordSource, RunRecordSource
 from backend.common.alerts import publish_sns_alert
 from backend.common.portfolio_loader import list_portfolios
 from backend.config import config
@@ -49,8 +48,15 @@ def is_due(settings: DigestSettings, today: dt.date) -> bool:
 
 
 def _is_admin_email(email: Optional[str]) -> bool:
+    """Owner email is one of the deployment's admins.
+
+    Unlike the API's ``is_admin`` this ignores ``disable_auth``: with auth off
+    every API caller is trusted, but a scheduled job must still not email
+    system-wide items to every owner.
+    """
+
     allowed = {e.strip().lower() for e in (config.allowed_emails or []) if isinstance(e, str) and e.strip()}
-    return bool(email) and str(email).strip().lower() in allowed
+    return email is not None and str(email).strip().lower() in allowed
 
 
 def _target_owners() -> Optional[List[str]]:
@@ -70,16 +76,20 @@ def run_owner(
 
     settings = load_settings(owner)
     email = person.get("email")
+    admin = _is_admin_email(email)
+    # Alert on every open item, not just the capped digest list, so a capped
+    # item neither misses its alert nor loses its "already alerted" record.
+    alerted = send_immediate_alerts(owner, current_items(owner, source, admin), settings)
+    result: Dict[str, Any] = {"alerted": len(alerted)}
     digest = compose_digest(
         owner,
         source,
         previous=digest_store.load_latest(owner),
         now=now,
-        include_system=_is_admin_email(email),
+        include_system=admin,
         per_bot_cap=settings.per_bot_cap,
         period=settings.period,
     )
-    result: Dict[str, Any] = {"alerted": len(send_immediate_alerts(owner, list(digest.items), settings))}
     if not (force or is_due(settings, now.date())):
         return {**result, "saved": False, "emailed": False}
     digest_store.save_digest(digest)
@@ -114,7 +124,7 @@ def run_digest(event: Dict[str, Any], source: Optional[RunRecordSource] = None) 
         return {"owners": 0, "errors": [type(exc).__name__]}
 
     wanted = _target_owners()
-    records = source or FileRunRecordSource()
+    records = source or RegistryRunRecordSource()
     done = 0
     errors: List[str] = []
     for portfolio in portfolios:

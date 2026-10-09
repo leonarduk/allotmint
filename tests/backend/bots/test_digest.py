@@ -10,7 +10,7 @@ import pytest
 from backend.bots import digest as digest_mod
 from backend.bots.digest import compose_digest, opener_is_grounded
 from backend.bots.digest_models import BotDescriptor, BotRunRecord, DigestItem, Severity
-from backend.bots.run_records import FileRunRecordSource
+from backend.bots.run_records import RegistryRunRecordSource
 
 NOW = datetime(2026, 10, 12, 7, 0, tzinfo=timezone.utc)
 
@@ -118,6 +118,17 @@ def test_new_still_open_and_resolved_across_digests():
     third = _compose(records, previous=second)
     assert third.resolved == []
     assert {i.status for i in third.items} == {"still_open"}
+
+
+def test_still_open_item_keeps_its_first_seen_age():
+    """A re-reported finding (e.g. a job failing every run) keeps the age it was first shown with."""
+
+    records = {"guardian": _run("guardian", [], status="failed")}
+    first = _compose(records)
+    records["guardian"] = BotRunRecord(bot_id="guardian", status="failed", started_at=NOW + timedelta(days=3))
+    second = _compose(records, previous=first)
+    assert second.items[0].status == "still_open"
+    assert second.items[0].created == first.items[0].created
 
 
 def test_bot_without_runs_is_not_run_yet_not_an_error():
@@ -233,22 +244,57 @@ def test_deterministic_opener_is_grounded():
     assert opener_is_grounded(digest.opener, digest.items, digest.resolved)
 
 
-# --- file-backed run record source -----------------------------------------
+# --- registry-backed run record source --------------------------------------
 
 
-def test_file_source_reads_latest_records_and_flags_unreadable(tmp_path):
-    good = _run("cash", [_item("cash", "t1")])
-    (tmp_path / "cash").mkdir()
-    (tmp_path / "cash" / "latest.json").write_text(good.model_dump_json())
-    (tmp_path / "guardian").mkdir()
-    (tmp_path / "guardian" / "latest.json").write_text('{"bot_id": "guardian"}')
+def _registry_run(bot_id, status, *, report=None, minutes_ago=60):
+    from backend.bots import runs
 
-    source = FileRunRecordSource(base=str(tmp_path), bots=BOTS)
-    assert source.latest_run("cash") == good
-    assert source.latest_run("journal") is None
-    assert source.latest_run("guardian").status == "failed"
+    return runs.save_run(
+        runs.RunRecord(
+            id=f"{bot_id}-{status}-{minutes_ago}",
+            bot_id=bot_id,
+            trigger="schedule",
+            status=status,
+            started_at=NOW - timedelta(minutes=minutes_ago),
+            summary=f"{status} run",
+            report=report,
+        )
+    )
 
 
-def test_file_source_rejects_path_traversal(tmp_path):
+def test_registry_source_lists_registered_bots(fake_bot):
+    bots = {b.id: b for b in RegistryRunRecordSource().bots()}
+    assert bots["fake-bot"] == BotDescriptor(id="fake-bot", name="Fake bot", kind="job", scope="system")
+    assert "price-refresh" in bots
+
+
+def test_registry_source_reads_digest_items_from_report(fake_bot):
+    good = _item("fake-bot", "t1").model_dump(mode="json")
+    _registry_run("fake-bot", "ok", report={"digest_items": [good, {"title": "no key or created"}]})
+
+    record = RegistryRunRecordSource().latest_run("fake-bot")
+    assert record.status == "ok"
+    assert record.summary == "ok run"
+    # The malformed item is skipped; the valid one is kept.
+    assert [i.dedupe_key for i in record.digest_items] == ["fake-bot:t1"]
+
+
+def test_registry_source_skips_a_run_in_progress(fake_bot):
+    assert RegistryRunRecordSource().latest_run("fake-bot") is None
+    _registry_run("fake-bot", "failed", minutes_ago=120)
+    _registry_run("fake-bot", "running", minutes_ago=1)
+    assert RegistryRunRecordSource().latest_run("fake-bot").status == "failed"
+
+
+def test_registry_source_without_report_has_no_items(fake_bot):
+    _registry_run("fake-bot", "ok", report=None)
+    assert RegistryRunRecordSource().latest_run("fake-bot").digest_items == []
+
+
+@pytest.mark.parametrize("segment", ["../secrets", "..", "a/b", "", ".hidden"])
+def test_storage_rejects_unsafe_path_segments(segment):
+    from backend.bots.storage import safe_segment
+
     with pytest.raises(ValueError):
-        FileRunRecordSource(base=str(tmp_path)).latest_run("../secrets")
+        safe_segment(segment)

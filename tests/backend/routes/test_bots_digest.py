@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.bots import digest_store
-from backend.bots.digest_models import BotRunRecord, Digest, DigestEntry, DigestItem, Severity
+from backend.bots.digest_models import Digest, DigestEntry, DigestItem, Severity
 from backend.common.errors import OwnerNotFoundError, PermissionDeniedError
 from backend.config import config
 from backend.routes import bots_digest as route
@@ -38,7 +38,6 @@ def data_root(monkeypatch, tmp_path):
         (accounts / owner).mkdir(parents=True)
         (accounts / owner / "person.json").write_text(json.dumps({"owner": owner}))
     monkeypatch.setenv("BOTS_DIGESTS_URI", str(tmp_path / "digests"))
-    monkeypatch.setenv("BOTS_RUNS_URI", str(tmp_path / "runs"))
     monkeypatch.setenv("BOTS_DIGEST_SETTINGS_URI", f"file://{tmp_path / 'settings.json'}")
     return tmp_path
 
@@ -124,33 +123,35 @@ def test_system_items_hidden_from_non_admins(data_root, auth_on):
     assert route.is_admin("alex") is False
 
 
-def test_preview_composes_without_writing(data_root):
-    runs = data_root / "runs" / "cash-deployment"
-    runs.mkdir(parents=True)
-    record = BotRunRecord(
-        bot_id="cash-deployment",
-        status="ok",
-        started_at=NOW,
-        digest_items=[
-            DigestItem(
-                id="t3",
-                bot="cash-deployment",
-                owner="alex",
-                severity=Severity.MEDIUM,
-                title="Tranche 3 due Monday",
-                created=NOW,
-                dedupe_key="cash:t3",
-            ),
-            DigestItem(
-                id="b1", bot="cash-deployment", owner="bob", title="Bob's item", created=NOW, dedupe_key="cash:b1"
-            ),
-        ],
+def test_preview_composes_from_registry_runs_without_writing(data_root):
+    from backend.bots import runs
+
+    items = [
+        DigestItem(
+            id="t3",
+            bot="pension-report",
+            owner="alex",
+            severity=Severity.MEDIUM,
+            title="Tranche 3 due Monday",
+            created=NOW,
+            dedupe_key="cash:t3",
+        ),
+        DigestItem(id="b1", bot="pension-report", owner="bob", title="Bob's item", created=NOW, dedupe_key="cash:b1"),
+    ]
+    runs.save_run(
+        runs.RunRecord(
+            id="r1",
+            bot_id="pension-report",
+            trigger="schedule",
+            status="ok",
+            started_at=NOW,
+            report={"digest_items": [i.model_dump(mode="json") for i in items]},
+        )
     )
-    (runs / "latest.json").write_text(record.model_dump_json())
 
     body = _client(data_root).get("/bots/digest/alex/preview").json()
     assert [i["dedupe_key"] for i in body["items"]] == ["cash:t3"]
     states = {b["bot"]: b["state"] for b in body["bots"]}
-    assert states["cash-deployment"] == "ok"
-    assert states["data-steward"] == "not_run_yet"
+    assert states["pension-report"] == "ok"
+    assert states["price-refresh"] == "not_run_yet"
     assert not (data_root / "digests").exists()

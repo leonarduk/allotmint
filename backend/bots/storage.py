@@ -1,8 +1,8 @@
-"""Where bot records live: a local directory, or an S3 prefix in deployment.
+"""Where digest records live: beside the bot registry's documents (#10485).
 
-Follows ``backend/data_steward/store.py`` (#10471): a location is taken from
-an env var when set (e.g. ``s3://<bucket>/bots/digests``), otherwise a
-directory under ``{data_root}``. Each record is one JSON object.
+The base is ``BOTS_DIGESTS_URI`` when set, otherwise ``<BOTS_STORAGE_URI>/digests``
+(the registry's base, :func:`backend.bots.store.storage_base`; deployed that is
+``s3://<bucket>/bots``). Each record is one JSON object under it.
 """
 
 from __future__ import annotations
@@ -12,12 +12,13 @@ import re
 from pathlib import Path
 from urllib.parse import urlparse
 
+from backend.bots.store import storage_base
 from backend.common.storage import FileJSONStorage, JSONStorage, S3JSONStorage
-from backend.config import config
 
-# Path segments (owner ids, bot ids, dates) are restricted so a caller-supplied
-# value can never escape the configured location.
+# Path segments (owner ids, dates) are restricted so a caller-supplied value
+# can never escape the configured location.
 _SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_FILE_SCHEME = "file://"
 
 
 def safe_segment(value: str) -> str:
@@ -28,15 +29,13 @@ def safe_segment(value: str) -> str:
     return value
 
 
-def location(env_var: str, default_subdir: str) -> str:
-    """Return the configured base location for ``env_var``, or ``{data_root}/<default_subdir>``."""
+def location(env_var: str, subdir: str) -> str:
+    """``env_var`` when set, else ``<registry storage base>/<subdir>``; ``file://`` is dropped."""
 
-    configured = os.getenv(env_var, "").strip()
-    if configured:
-        return configured.rstrip("/")
-    data_root = getattr(config, "data_root", None)
-    base = Path(data_root) if data_root else Path(__file__).resolve().parents[2] / "data"
-    return str(base / default_subdir)
+    base = os.getenv(env_var, "").strip() or f"{storage_base()}/{subdir}"
+    if base.startswith(_FILE_SCHEME):
+        base = base[len(_FILE_SCHEME) :]
+    return base.rstrip("/\\")
 
 
 def json_storage(base: str, *segments: str) -> JSONStorage:

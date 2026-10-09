@@ -5,9 +5,10 @@ owner. It replaces one alert per bot.
 
 ## Contract for bots: `digest_items`
 
-Each bot's stored run record carries a `digest_items` list. The digest only
-ever restates these items. The model lives in `backend/bots/digest_models.py`
-(`DigestItem`, `BotRunRecord`):
+A registered bot (`backend/bots/registry.py`, #10477) reports digest items in
+its run report: `RunResult(report={"digest_items": [...], ...})`. The runner
+stores the report with the run record, and the digest only ever restates these
+items. The model lives in `backend/bots/digest_models.py` (`DigestItem`):
 
 | Field | Meaning |
 |---|---|
@@ -21,11 +22,10 @@ ever restates these items. The model lives in `backend/bots/digest_models.py`
 | `created` | ISO timestamp (naive timestamps are treated as UTC) |
 | `dedupe_key` | Stable id for "the same finding" across runs: drives new / still open / resolved |
 
-Run records are read from `<BOTS_RUNS_URI>/<bot_id>/latest.json` (default
-`{data_root}/bots/runs`) through `RunRecordSource` in
-`backend/bots/run_records.py`. When the bot registry (#10477) lands, it can
-implement that interface (and replace `KNOWN_BOTS`) without changes to the
-composer. A run with `status: "failed"` becomes a high-severity item on its own.
+`RegistryRunRecordSource` (`backend/bots/run_records.py`) lists the registry's
+bots and reads each bot's latest *finished* run (a run still `running` is
+skipped) from the registry's run store. A malformed item is skipped with a
+warning. A run with `status: "failed"` becomes a high-severity item on its own.
 
 ## Composer
 
@@ -42,9 +42,9 @@ plain opener is used.
 
 | Env var | Default | Holds |
 |---|---|---|
-| `BOTS_RUNS_URI` | `{data_root}/bots/runs` | Bot run records (read only) |
-| `BOTS_DIGESTS_URI` | `{data_root}/bots/digests` | `<owner>/<date>.json`, `latest.json`, `index.json`, `alerted.json` |
-| `BOTS_DIGEST_SETTINGS_URI` | `file://{data_root}/bots/digest_settings.json` | Per-owner settings, keyed by owner |
+| `BOTS_STORAGE_URI` | `file://<repo>/data/bots` | The registry's base; run records are read from it, and the defaults below sit under it |
+| `BOTS_DIGESTS_URI` | `<BOTS_STORAGE_URI>/digests` | `<owner>/<date>.json`, `latest.json`, `index.json`, `alerted.json` |
+| `BOTS_DIGEST_SETTINGS_URI` | `<BOTS_STORAGE_URI>/digest_settings.json` | Per-owner settings, keyed by owner |
 | `BOTS_DIGEST_OWNERS` | all owners | Comma-separated owners for the Lambda |
 | `BOTS_DIGEST_FROM` | `no-reply@allotmint.com` | SES sender |
 

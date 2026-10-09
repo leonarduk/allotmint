@@ -53,3 +53,36 @@ DATA_STEWARD_READ_ONLY_TOOLS = frozenset(
 def data_steward_tool_allowed(name: str) -> bool:
     """True when the data steward may call ``name``: allowlisted and not switched off."""
     return name in DATA_STEWARD_READ_ONLY_TOOLS and tool_enabled(name)
+
+
+#: Name prefixes of tools that change data (allotmint-pro MCP: add_instrument,
+#: create_issue, create/update/delete_price_trigger, ...). A background agent
+#: that must stay read-only checks its allowlist against these (#10475).
+WRITE_TOOL_PREFIXES = (
+    "add_",
+    "apply_",
+    "backfill_",
+    "create_",
+    "delete_",
+    "put_",
+    "record_",
+    "refresh_",
+    "remove_",
+    "restart_",
+    "save_",
+    "set_",
+    "update_",
+    "write_",
+)
+#: Read-only tools are named for what they return.
+READ_TOOL_PREFIXES = ("get_", "list_", "summarise_", "search_", "screen_")
+
+
+def is_read_only_tool_name(name: str) -> bool:
+    """True for a tool named as a read (``get_...``) and not as a write.
+
+    A naming backstop only: the authoritative control is an explicit
+    allowlist (e.g. ``backend.plan_brief.agent.READ_ONLY_TOOLS``), which this
+    check guards against an obviously wrong entry.
+    """
+    return name.startswith(READ_TOOL_PREFIXES) and not name.startswith(WRITE_TOOL_PREFIXES)

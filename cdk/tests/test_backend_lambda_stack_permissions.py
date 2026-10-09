@@ -1149,6 +1149,9 @@ def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
 # CHAT_HISTORY_PREFIX is not duplicated: the backend has no S3 fallback for it
 # and only learns the location from CHAT_HISTORY_STORAGE_URI (#8870), which
 # test_backend_lambda_chat_history_env_points_at_the_chat_prefix checks.
+# PLAN_BRIEFS_PREFIX reaches the backend only via PLAN_BRIEFS_URI (#10475); its
+# name matches backend.plan_brief.store.PLAN_BRIEFS_DIRNAME, checked by
+# test_plan_brief_prefix_matches_backend_and_env.
 # BOTS_PREFIX is not duplicated either: the backend's only fallback is a local
 # file:// path and it learns the S3 location from BOTS_STORAGE_URI (#10477),
 # which test_bot_lambdas_share_the_bots_storage_prefix checks.
@@ -1160,6 +1163,7 @@ _COVERED_STACK_PREFIX_CONSTANTS = frozenset(
         "WRITABLE_ACCOUNTS_PREFIX",
         "METADATA_PREFIX",
         "CHAT_HISTORY_PREFIX",
+        "PLAN_BRIEFS_PREFIX",
         "BOTS_PREFIX",
         "DATA_STEWARD_REPORTS_PREFIX",
     }
@@ -1375,3 +1379,89 @@ def test_data_steward_lambda_is_read_only_except_its_reports() -> None:
         if resource.get("Type") == "AWS::Lambda::Function" and "DataStewardLambda" in logical_id
     )
     assert "data_steward/reports" in str(env["DATA_STEWARD_REPORTS_URI"])
+
+
+# ---------------------------------------------------------------------------
+# PlanBriefLambda (issue #10475)
+# ---------------------------------------------------------------------------
+
+
+def test_plan_brief_lambda_writes_only_under_plan_briefs() -> None:
+    """Read-only on account data; s3:PutObject only on plan_briefs/*, and no delete."""
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "PlanBriefLambda")
+
+    put_resources = _resources_for_s3_action(template, role, "s3:PutObject")
+    assert put_resources, "Expected PlanBriefLambda to have an s3:PutObject grant"
+    for resource in put_resources:
+        assert "plan_briefs/*" in resource, f"PutObject must be scoped to plan_briefs/*, got {resource!r}"
+
+    assert _s3_actions_for_role(template, role) == {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
+    assert _conditions_for_s3_action(template, role, "s3:ListBucket") == [
+        {"StringLike": {"s3:prefix": ["accounts", "accounts/*"]}}
+    ]
+
+
+def test_plan_brief_monthly_rule_targets_the_lambda() -> None:
+    template = _stack_template()
+    rules = [
+        resource["Properties"]
+        for resource in template["Resources"].values()
+        if resource.get("Type") == "AWS::Events::Rule"
+        and any("PlanBriefLambda" in str(target.get("Arn")) for target in resource["Properties"].get("Targets", []))
+    ]
+    assert [rule["ScheduleExpression"] for rule in rules] == ["cron(0 8 1 * ? *)"]
+
+
+def test_plan_brief_prefix_matches_backend_and_env() -> None:
+    """Both the API and the scheduled Lambda point PLAN_BRIEFS_URI at the granted prefix."""
+    from stacks.backend_lambda_stack import PLAN_BRIEFS_PREFIX
+
+    # Parsed, not imported: the CDK test env has no backend runtime deps.
+    store_path = _backend_common_dir().parent / "plan_brief" / "store.py"
+    assert PLAN_BRIEFS_PREFIX == _fallback_string_literal(store_path, "PLAN_BRIEFS_DIRNAME")
+    template = _stack_template()
+    uris = [
+        resource["Properties"]["Environment"]["Variables"].get("PLAN_BRIEFS_URI")
+        for logical_id, resource in template["Resources"].items()
+        if resource.get("Type") == "AWS::Lambda::Function"
+        and ("PlanBriefLambda" in logical_id or logical_id.startswith("BackendLambda"))
+    ]
+    assert len(uris) == 2 and all(uris), uris
+    for uri in uris:
+        assert f"/{PLAN_BRIEFS_PREFIX}" in str(uri)
+
+
+def test_plan_brief_lambda_can_read_only_its_recipient_parameter() -> None:
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "PlanBriefLambda")
+    resources = _resources_for_s3_action(template, role, "ssm:GetParameter")
+    assert len(resources) == 1
+    assert "parameter/plan-brief-recipients" in resources[0]
+
+
+def test_backend_lambda_can_read_and_write_plan_briefs() -> None:
+    """POST /plan-brief/{owner}/run saves via S3 get/put under plan_briefs/ (no listing needed)."""
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "BackendLambda")
+    for action in ("s3:GetObject", "s3:PutObject"):
+        resources = _resources_for_s3_action(template, role, action)
+        # Bucket-wide "<bucket>/*" (an Fn::Join ending in '/*') or an explicit plan_briefs/* grant.
+        assert any(
+            "'/*'" in r or "/plan_briefs/*" in r for r in resources
+        ), f"{action} does not cover plan_briefs/: {resources}"
+
+
+@pytest.mark.parametrize(("context", "expected"), [({}, "false"), ({"plan_brief_send_email": "true"}, "true")])
+def test_plan_brief_email_is_a_context_switch(monkeypatch, context, expected) -> None:
+    monkeypatch.delenv("PLAN_BRIEF_SEND_EMAIL", raising=False)
+    os.environ.setdefault("JWT_SECRET", "test-secret")
+    os.environ.setdefault("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App(context={"data_bucket": "unit-test-data-bucket", "app_env": "aws", **context})
+    template = Template.from_stack(BackendLambdaStack(app, "PlanBriefEmailStack")).to_json()
+    [env] = [
+        resource["Properties"]["Environment"]["Variables"]
+        for logical_id, resource in template["Resources"].items()
+        if resource.get("Type") == "AWS::Lambda::Function" and "PlanBriefLambda" in logical_id
+    ]
+    assert env["PLAN_BRIEF_SEND_EMAIL"] == expected

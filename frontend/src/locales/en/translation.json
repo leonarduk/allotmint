@@ -2877,6 +2877,45 @@
     "offline": "You appear to be offline.",
     "timedOut": "Request timed out. Please try again."
   },
+  "allowanceGuardian": {
+    "title": "Contribution & allowance guardian",
+    "asOf": "As of {{date}} (tax year {{year}})",
+    "loadFailed": "Failed to load the allowance guardian report",
+    "unavailable": "Allowance figures are not available in this deployment.",
+    "alerts": "Alerts",
+    "pensionHeading": "Pension annual allowance",
+    "isaHeading": "ISA allowance",
+    "contributionsHeading": "Expected contributions this tax year",
+    "annualAllowance": "Standard annual allowance",
+    "usedToDate": "Used so far",
+    "carryForward": "Unused from the previous three years",
+    "availableTotal": "Available in total",
+    "scheduledRemaining": "Scheduled to 5 April",
+    "projectedTotal": "Projected total by 5 April",
+    "carryForwardFirstNeeded": "This year's allowance fully used in",
+    "projectedBreach": "Projected to exceed what is available in",
+    "none": "Not on the current schedule",
+    "isaSubscribed": "Subscribed so far",
+    "isaLimit": "Limit",
+    "isaDeadline": "Allowance resets",
+    "daysTo": "in {{days}} days ({{date}})",
+    "noSchedule": "No contribution schedule recorded yet.",
+    "noneExpected": "No contributions were expected yet this tax year.",
+    "expectedDate": "Expected",
+    "expected": "Amount expected",
+    "received": "Received",
+    "statusHeading": "Status",
+    "notModelledHeading": "Not modelled",
+    "notModelledFallback": "Tapered annual allowance, money purchase annual allowance, and pensions not recorded in AllotMint are not modelled.",
+    "adviserNoteFallback": "Figures, dates and limits only; information, not advice. Decisions about pension contributions, carry-forward and pension tax should be taken with a regulated financial adviser.",
+    "status": {
+      "on_time": "On time",
+      "late": "Late",
+      "wrong_amount": "Wrong amount",
+      "missing": "Missing",
+      "awaiting": "Awaiting"
+    }
+  },
   "allowanceTracker": {
     "title": "Allowance Tracker",
     "account": "Account",
@@ -3305,6 +3344,35 @@
     "total": "Total: {{value}}%",
     "mustEqual100": "(must equal 100%)"
   },
+  "planBrief": {
+    "title": "Latest plan brief",
+    "runNow": "Run brief now",
+    "running": "Running…",
+    "loading": "Loading brief…",
+    "none": "No brief yet. Briefs run monthly, or run one now.",
+    "loadError": "Could not load the brief: {{message}}",
+    "runError": "Could not run the brief: {{message}}",
+    "asOf": "As of {{date}}",
+    "total": "Portfolio {{value}}",
+    "reviewDue": "Review due: the plan's review date ({{date}}) has passed.",
+    "driftCaption": "Actual vs plan target; highlighted rows are outside the ±{{band}}pp band.",
+    "class": "Class",
+    "actual": "Actual",
+    "target": "Target",
+    "drift": "Drift",
+    "driftGbp": "Drift £",
+    "targetsDiffer": "The saved rebalance targets differ from the plan target.",
+    "triggers": "Review triggers",
+    "verdict": {
+      "fired": "Fired",
+      "not_fired": "Not fired",
+      "cant_evaluate": "Can't evaluate"
+    },
+    "idleCash": "{{account}}: {{amount}} cash, {{days}} days with no purchase since it arrived",
+    "staleEvidence": "Evidence over six months old: {{items}}",
+    "earlier": "Earlier briefs",
+    "summaryLine": "{{outside}} outside band, {{fired}} trigger(s) fired"
+  },
   "planPanel": {
     "planTarget": "Plan target",
     "class": "Class",
@@ -3656,7 +3724,34 @@
     "unknown": "Unknown",
     "weightedCharge": "Weighted ongoing charge",
     "annualCost": "Est. annual fund cost",
-    "excludesUnknown": "Excludes {{unknown}} of {{total}} holdings with no fee data"
+    "excludesUnknown": "Excludes {{unknown}} of {{total}} holdings with no fee data",
+    "allInCost": "All-in annual cost",
+    "allInBreakdown": "{{funds}} fund charges + {{fees}} fees paid (last 12 months)",
+    "allInNotIncluded": "Not included: {{items}}",
+    "allInUnknownValue": "{{value}} in {{holdings}} holdings with no fee data",
+    "allInUnknownTrades": "{{trades}} trades with no fee recorded",
+    "perAccount": "Per account",
+    "partial": "incomplete"
+  },
+  "fundUpkeep": {
+    "title": "Fund data proposals",
+    "description": "Values found in public fund documents (KIIDs and factsheets). Nothing is saved until you approve it, and an approval can be undone.",
+    "empty": "No proposals waiting for review.",
+    "ongoingCharge": "Ongoing charge",
+    "lookThrough": "Look-through breakdown",
+    "source": "Source document",
+    "documentDate": "dated {{date}}",
+    "approve": "Approve",
+    "reject": "Reject",
+    "undo": "Undo",
+    "loadFailed": "Could not load proposals: {{message}}",
+    "actionFailed": "Action failed: {{message}}",
+    "status": {
+      "pending": "Awaiting review",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "undone": "Undone"
+    }
   },
   "riskReturn": {
     "title": "Returns vs Volatility",
@@ -3689,6 +3784,31 @@
     "aboveAverage": "Above the average line: more return per unit of volatility",
     "belowAverage": "Below the average line: less return per unit of volatility",
     "onAverage": "On the average line"
+  },
+  "botsDigest": {
+    "title": "Bots digest",
+    "loading": "Loading digest…",
+    "empty": "No digest has been composed yet.",
+    "preview": "Preview now",
+    "previewNote": "Preview from the latest bot runs. Not saved or sent.",
+    "error": "Could not load the digest.",
+    "resolvedTitle": "Resolved since the last digest",
+    "notRunYet": "Not run yet: {{bots}}",
+    "truncated": "{{count}} more item(s) not shown.",
+    "actionRequired": "Action needed",
+    "history": "History",
+    "historyEntry": "{{date}}: {{count}} item(s)",
+    "status": {
+      "new": "New",
+      "still_open": "Still open",
+      "resolved": "Resolved"
+    },
+    "severity": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "info": "Info"
+    }
   },
   "bots": {
     "title": "Bots",

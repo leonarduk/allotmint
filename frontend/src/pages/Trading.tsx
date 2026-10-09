@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useContext, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTradingPageData } from '../api';
 import type { TradingAgentSettings, TradingSignal } from '../types';
@@ -6,6 +6,8 @@ import { InstrumentDetail } from '../components/InstrumentDetail';
 import BackendUnavailableCard from '../components/BackendUnavailableCard';
 import InfoTip from '../components/InfoTip';
 import WatchlistToggle from '../components/WatchlistToggle';
+import TrendWatchPanel from '../components/TrendWatchPanel';
+import { RouteContext } from '../contexts/route';
 import {
   ChecksSkippedBadge,
   SignalFactors,
@@ -48,6 +50,8 @@ export default function Trading() {
   const { t } = useTranslation();
   const [selected, setSelected] = useState<TradingSignal | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // Read directly rather than via useRoute(), which throws outside a provider.
+  const selectedOwner = useContext(RouteContext)?.selectedOwner || undefined;
   const handleRetry = useCallback(() => setRetryNonce((n) => n + 1), []);
 
   // `getTradingPageData` bundles both the strategy-threshold settings and the
@@ -413,6 +417,8 @@ export default function Trading() {
           </section>
         </>
       )}
+      {/* Loads on its own: it does not wait for, or fail with, the signals call above. */}
+      <TrendWatchPanel owner={selectedOwner} />
     </main>
   );
 }

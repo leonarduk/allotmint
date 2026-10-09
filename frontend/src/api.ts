@@ -38,6 +38,7 @@ import type {
   TradingAgentSettings,
   TradingPageData,
   TradingSignalsReport,
+  TrendWatchReport,
   OpportunityEntry,
   ComplianceResult,
   MoverRow,
@@ -2254,6 +2255,39 @@ export const getTradingPageData = async (): Promise<TradingPageData> => {
   ]);
   return { signals: report.signals, blocked: report.blocked, settings };
 };
+
+// A run reads five years of closes per holding and, when a model is configured,
+// investigates the flagged ones -- far slower than an ordinary request.
+const TREND_WATCH_RUN_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** The latest trend-watch report for an owner, or null before the first run (#10476). */
+export const getTrendWatchLatest = async (
+  owner: string,
+): Promise<TrendWatchReport | null> => {
+  try {
+    return await fetchJson<TrendWatchReport>(
+      `${API_BASE}/trend-watch/${encodeURIComponent(owner)}/latest`,
+    );
+  } catch (err) {
+    if ((err as { status?: number } | undefined)?.status === 404) return null;
+    throw err;
+  }
+};
+
+/** Run trend watch for an owner now; returns the stored report. */
+export const runTrendWatch = (owner: string) =>
+  fetchJson<TrendWatchReport>(
+    `${API_BASE}/trend-watch/${encodeURIComponent(owner)}/run`,
+    { method: "POST" },
+    TREND_WATCH_RUN_TIMEOUT_MS,
+  );
+
+/** Mark a holding as a deliberate long-term or residual position (or undo it). */
+export const setTrendWatchMute = (owner: string, ticker: string, muted: boolean) =>
+  fetchJson<{ mutes: string[] }>(
+    `${API_BASE}/trend-watch/${encodeURIComponent(owner)}/mutes/${encodeURIComponent(ticker)}`,
+    jsonInit("PUT", { muted }),
+  );
 
 /** Retrieve compliance warnings for an owner */
 export const getCompliance = (owner: string) =>

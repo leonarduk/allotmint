@@ -41,6 +41,13 @@ vi.mock('@/components/InstrumentDetail', () => ({
   ),
 }));
 
+// The panel loads its own data (#10476); its behaviour is covered in TrendWatchPanel.test.tsx.
+vi.mock('@/components/TrendWatchPanel', () => ({
+  default: ({ owner }: { owner?: string }) => (
+    <div data-testid="trend-watch-panel">Trend watch for {owner ?? 'default owner'}</div>
+  ),
+}));
+
 const sampleSignal: TradingSignal = {
   ticker: 'AAA',
   name: 'AAA',
@@ -98,6 +105,14 @@ describe('Trading page', () => {
     const detail = await screen.findByTestId('detail');
     expect(detail).toHaveTextContent(/buy/i);
     expect(detail).toHaveTextContent('cheap');
+  });
+
+  it('shows the trend-watch panel even when the signals call fails', async () => {
+    mockFetchState({ error: new Error('down') });
+
+    render(<Trading />);
+
+    expect(await screen.findByTestId('trend-watch-panel')).toHaveTextContent('default owner');
   });
 
   it('has no accessibility violations', async () => {

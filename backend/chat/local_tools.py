@@ -26,7 +26,7 @@ from typing import Any, List, Mapping, Optional, Sequence, Tuple
 from mcp.types import Tool
 
 from backend.chat import export_file_tool, nav_discount_tool
-from backend.chat.tool_switches import enabled_tools
+from backend.chat.tool_switches import ToolPolicy, enabled_tools
 
 NAVIGATE_TOOL_NAME = "navigate_to_page"
 
@@ -113,15 +113,19 @@ class LocalTools:
         return text, is_error
 
 
-def merge_tool_lists(mcp_tools: Sequence[Tool], local: Optional[LocalTools]) -> List[Tool]:
+def merge_tool_lists(
+    mcp_tools: Sequence[Tool], local: Optional[LocalTools], policy: Optional[ToolPolicy] = None
+) -> List[Tool]:
     """MCP tools plus local ones; a local tool replaces an MCP tool of the same name.
 
-    Tools switched off in the admin config are left out (see ``tool_switches``).
+    Tools switched off in the admin config are left out (see ``tool_switches``),
+    as are tools outside ``policy``'s allowlist when one is given.
     """
 
     local_tools = local.tools() if local else []
     local_names = {tool.name for tool in local_tools}
-    return enabled_tools([tool for tool in mcp_tools if tool.name not in local_names] + local_tools)
+    merged = enabled_tools([tool for tool in mcp_tools if tool.name not in local_names] + local_tools)
+    return [tool for tool in merged if policy is None or policy.offers(tool.name)]
 
 
 # Sent on every chat turn. Without it a model that is not offered a tool for

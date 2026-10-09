@@ -60,6 +60,7 @@ from backend.routes.timeseries_meta import router as timeseries_router
 from backend.routes.trading_agent import router as trading_agent_router
 from backend.routes.trail import router as trail_router
 from backend.routes.transactions import router as transactions_router
+from backend.routes.trend_watch import router as trend_watch_router
 from backend.routes.user_config import router as user_config_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
 
@@ -113,6 +114,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(analytics_router, dependencies=protected)
     app.include_router(agent_router)
     app.include_router(trading_agent_router, dependencies=protected)
+    app.include_router(trend_watch_router, dependencies=protected)
     app.include_router(rebalance_router)
     app.include_router(strategies_router)
     app.include_router(sleeves_router)

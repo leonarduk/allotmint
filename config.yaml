@@ -119,5 +119,11 @@ trading_agent:
   de_max: null
   min_sharpe: null
   max_volatility: null
+# Holding trend-watch detector (#10476); see backend/config.py TrendWatchConfig.
+trend_watch:
+  min_signals: 2
+  min_new_signals: 1
+  max_investigated: 5
+  max_tool_calls: 8
 cors_origins: http://localhost:3000,http://localhost:2568
 mcp_github_repo: leonarduk/allotmint

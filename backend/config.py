@@ -108,6 +108,35 @@ class TradingAgentConfig:
 
 
 @dataclass
+class TrendWatchConfig:
+    """Thresholds for the holding trend-watch detector (#10476); see backend/trend_watch/detect.py."""
+
+    # A holding is flagged only when at least this many signals agree...
+    min_signals: int = 2
+    # ...and at least this many of them are new since the last run.
+    min_new_signals: int = 1
+    # One "run" in trading days (a week): event signals (a new RS low, a 52-week
+    # low break) stay on this long, and without stored state the earlier runs
+    # are read from the series this far apart.
+    new_lookback_days: int = 5
+    # A signal is new only if it was off in each of this many earlier runs, so
+    # an indicator flickering on and off around its threshold does not re-flag
+    # the same holding week after week.
+    memory_runs: int = 4
+    # The 200-day average is "falling" when it is lower than this many trading days ago.
+    sma_slope_days: int = 20
+    # Relative strength is at a "new low" when it is the lowest for this many trading days (~6 months).
+    rs_low_days: int = 126
+    # Swing windows (trading days) for the lower-high / lower-low test.
+    swing_days: int = 20
+    # A holding whose move is within this fraction of its benchmark's move is a market-wide move.
+    market_move_tolerance: float = 0.05
+    # Caps on the LLM investigation: holdings per run, and tool calls per holding.
+    max_investigated: int = 5
+    max_tool_calls: int = 8
+
+
+@dataclass
 class AwsUiAuthConfig:
     enabled: bool = False
     domain: Optional[str] = None
@@ -237,6 +266,7 @@ class Config:
     allowed_emails: Optional[List[str]] = None
     tabs: TabsConfig = field(default_factory=TabsConfig)
     trading_agent: TradingAgentConfig = field(default_factory=TradingAgentConfig)
+    trend_watch: TrendWatchConfig = field(default_factory=TrendWatchConfig)
     cors_origins: Optional[List[str]] = None
     # Regex counterpart to the explicit ``cors_origins`` allowlist, handed to
     # CORSMiddleware's ``allow_origin_regex``. CORS has no notion of a port
@@ -542,6 +572,12 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         ta_data.update(ta_raw)
     trading_agent = TradingAgentConfig(**ta_data)
 
+    tw_raw = data.get("trend_watch")
+    tw_data = asdict(TrendWatchConfig())
+    if isinstance(tw_raw, dict):
+        tw_data.update({k: v for k, v in tw_raw.items() if k in tw_data and v is not None})
+    trend_watch = TrendWatchConfig(**tw_data)
+
     cors_origins = _load_cors_origins(data)
     cors_origin_regex = _load_cors_origin_regex(data)
 
@@ -756,6 +792,7 @@ def build_config(data: Dict[str, Any], *, check_google_auth: bool = True) -> Con
         approval_exempt_tickers=approval_exempt_tickers,
         tabs=tabs,
         trading_agent=trading_agent,
+        trend_watch=trend_watch,
         cors_origins=cors_origins,
         cors_origin_regex=cors_origin_regex,
         aws_ui_auth=aws_ui_auth,

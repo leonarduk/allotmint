@@ -148,6 +148,12 @@ def isolate_instrument_notes(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolate_trend_watch(tmp_path, monkeypatch):
+    """Keep trend-watch reports, state and mutes off ``data/`` and off any faked S3 bucket."""
+    monkeypatch.setenv("TREND_WATCH_URI", f"file://{tmp_path / 'trend_watch'}")
+
+
+@pytest.fixture(autouse=True)
 def mock_google_verify(monkeypatch, request):
     """Stub Google ID token verification for tests.
 

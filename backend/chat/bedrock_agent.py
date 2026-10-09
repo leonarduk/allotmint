@@ -16,7 +16,7 @@ from mcp.types import CallToolResult, Tool
 
 from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import mcp_session
-from backend.chat.tool_switches import switched_off_message, tool_enabled
+from backend.chat.tool_switches import ToolPolicy, call_refusal
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -153,6 +153,7 @@ async def run_chat_turn(
     bedrock_model_id: str,
     local_tools: Optional[LocalTools] = None,
     system_prompt: Optional[str] = None,
+    tool_policy: Optional[ToolPolicy] = None,
 ) -> str:
     """Run one user turn through the Bedrock tool-calling loop and return the reply.
 
@@ -160,6 +161,8 @@ async def run_chat_turn(
     the caller resends the full prior conversation each turn; nothing is
     persisted server-side in this first pass. ``local_tools`` are offered
     alongside the MCP tools and run in-process (see ``backend.chat.local_tools``).
+    ``tool_policy`` narrows the tools offered, caps the calls and records them
+    (see ``backend.chat.tool_switches.ToolPolicy``).
     """
 
     messages: List[Dict[str, Any]] = [
@@ -172,7 +175,7 @@ async def run_chat_turn(
 
     async with mcp_session(mcp_server_url) as session:
         tools_result = await session.list_tools()
-        tools = merge_tool_lists(tools_result.tools, local_tools)
+        tools = merge_tool_lists(tools_result.tools, local_tools, tool_policy)
         tool_config = {"tools": [_tool_to_bedrock_spec(tool) for tool in tools]}
 
         for _ in range(MAX_TOOL_ITERATIONS):
@@ -193,12 +196,13 @@ async def run_chat_turn(
 
             tool_result_content = []
             for tool_use in tool_uses:
-                if not tool_enabled(tool_use["name"]):
+                refusal = call_refusal(tool_use["name"], tool_policy)
+                if refusal is not None:
                     tool_result_content.append(
                         {
                             "toolResult": {
                                 "toolUseId": tool_use["toolUseId"],
-                                "content": [{"text": switched_off_message(tool_use["name"])}],
+                                "content": [{"text": refusal}],
                                 "status": "error",
                             }
                         }
@@ -206,6 +210,8 @@ async def run_chat_turn(
                     continue
                 if local_tools is not None and local_tools.handles(tool_use["name"]):
                     text, is_error = local_tools.call(tool_use["name"], tool_use.get("input") or {})
+                    if tool_policy is not None:
+                        tool_policy.record(tool_use["name"], tool_use.get("input") or {}, text, is_error)
                     tool_result_content.append(
                         {
                             "toolResult": {
@@ -228,6 +234,10 @@ async def run_chat_turn(
                     )
                     content = [{"text": f"Tool call failed: {exc}"}]
                     status = "error"
+                if tool_policy is not None:
+                    tool_policy.record(
+                        tool_use["name"], tool_use.get("input") or {}, content[0]["text"], status == "error"
+                    )
                 tool_result_content.append(
                     {
                         "toolResult": {

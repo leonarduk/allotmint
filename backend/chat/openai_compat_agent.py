@@ -24,7 +24,7 @@ from backend.chat.bedrock_agent import (
 )
 from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import mcp_session
-from backend.chat.tool_switches import switched_off_message, tool_enabled
+from backend.chat.tool_switches import ToolPolicy, call_refusal
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -86,10 +86,11 @@ async def run_chat_turn(
     api_key: Optional[str] = None,
     local_tools: Optional[LocalTools] = None,
     system_prompt: Optional[str] = None,
+    tool_policy: Optional[ToolPolicy] = None,
 ) -> str:
     """Run one user turn through an OpenAI-compatible tool-calling loop and return the reply.
 
-    ``history`` has the same shape as ``bedrock_agent.run_chat_turn``'s.
+    ``history`` and ``tool_policy`` work as in ``bedrock_agent.run_chat_turn``.
     """
 
     messages: List[Dict[str, Any]] = [{"role": item["role"], "content": item["content"]} for item in history]
@@ -105,7 +106,7 @@ async def run_chat_turn(
         httpx.AsyncClient(headers=headers, timeout=REQUEST_TIMEOUT_SECONDS) as client,
     ):
         tools_result = await session.list_tools()
-        tools = [_tool_to_openai_spec(tool) for tool in merge_tool_lists(tools_result.tools, local_tools)]
+        tools = [_tool_to_openai_spec(tool) for tool in merge_tool_lists(tools_result.tools, local_tools, tool_policy)]
 
         for _ in range(MAX_TOOL_ITERATIONS):
             output_message = await _complete(client, base_url=base_url, model=model, messages=messages, tools=tools)
@@ -120,9 +121,16 @@ async def run_chat_turn(
 
             for tool_call in tool_calls:
                 name = tool_call["function"]["name"]
+                refusal = call_refusal(name, tool_policy)
+                if refusal is not None:
+                    # A refused call is not recorded, so it does not use up the cap.
+                    messages.append(
+                        {"role": "tool", "tool_call_id": tool_call["id"], "content": f"Tool call failed: {refusal}"}
+                    )
+                    continue
+                arguments: Dict[str, Any] = {}
+                is_error = False
                 try:
-                    if not tool_enabled(name):
-                        raise ValueError(switched_off_message(name))
                     arguments = _parse_tool_arguments(tool_call["function"].get("arguments"))
                     if local_tools is not None and local_tools.handles(name):
                         content, is_error = local_tools.call(name, arguments)
@@ -140,6 +148,9 @@ async def run_chat_turn(
                         sanitise_log_value(exc),
                     )
                     content = f"Tool call failed: {exc}"
+                    is_error = True
+                if tool_policy is not None:
+                    tool_policy.record(name, arguments, content, is_error)
                 messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": content})
 
     raise RuntimeError(f"Tool-calling loop did not converge after {MAX_TOOL_ITERATIONS} iterations")

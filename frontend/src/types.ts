@@ -1454,6 +1454,8 @@ export interface InvestmentPlanAssumption {
 }
 
 export interface InvestmentPlanDecision {
+  /** Set for decisions logged through the decision journal (#10481). */
+  id?: string;
   date: string;
   decision: string;
   alternatives: string[];
@@ -1515,6 +1517,82 @@ export interface InvestmentPlan {
   review: { next_review?: string; triggers: string[] };
   profile?: InvestmentPlanProfile;
   disclaimer: string;
+}
+
+/** A decision-journal leg (#10481): the option taken or an alternative; no ticker means cash at 0%. */
+export interface DecisionLeg {
+  role: "chosen" | "alternative";
+  label: string;
+  ticker?: string | null;
+}
+
+export interface DecisionExpectation {
+  text: string;
+  check?: { leg: string; outperforms: string };
+}
+
+export interface DecisionLegOutcome extends DecisionLeg {
+  basis?: string;
+  start_date?: string;
+  end_date?: string;
+  return_pct?: number;
+  value_gbp?: number;
+}
+
+export interface DecisionReview {
+  horizon_months: number;
+  due: string;
+  run_on: string;
+  legs: DecisionLegOutcome[];
+  comparisons: { alternative: string; difference_gbp?: number }[];
+  return_basis?: string;
+  expectation_outcome: "met" | "not_met" | "unclear";
+  summary: string[];
+  lesson?: string;
+}
+
+export interface DecisionJournalEntry {
+  id: string;
+  date: string;
+  kind: "trade" | "plan_change" | "other";
+  source_ref?: string;
+  amount_gbp?: number;
+  legs: DecisionLeg[];
+  expectation?: DecisionExpectation;
+  snapshot: Record<string, unknown>;
+  review_due: string[];
+  reviews: DecisionReview[];
+}
+
+/** A qualifying trade not yet logged or dismissed. */
+export interface UnloggedChange {
+  source_ref: string;
+  date: string;
+  type: "BUY" | "SELL";
+  ticker: string;
+  account?: string;
+  amount_gbp: number;
+  price_gbp?: number;
+}
+
+export interface DecisionJournalResponse {
+  settings: { threshold_gbp: number };
+  entries: DecisionJournalEntry[];
+  unlogged: UnloggedChange[];
+}
+
+/** A pre-filled, unsaved draft; `reason` is always blank for the owner to write. */
+export interface DecisionDraft {
+  id: string;
+  kind: DecisionJournalEntry["kind"];
+  source_ref?: string | null;
+  date: string;
+  decision: string;
+  alternatives: string[];
+  reason: string;
+  amount_gbp?: number | null;
+  legs: DecisionLeg[];
+  snapshot: Record<string, unknown>;
 }
 
 /** GET/PUT /plans/{owner}: the plan plus its comparison with the rebalance targets. */

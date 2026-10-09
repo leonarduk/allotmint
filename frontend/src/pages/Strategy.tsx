@@ -19,6 +19,7 @@ import type {
   RebalanceTrade,
   StrategyList,
 } from '../types';
+import DecisionJournal from '../components/DecisionJournal';
 import EmptyState from '../components/EmptyState';
 import SleevesPanel from '../components/SleevesPanel';
 import StrategyLibrary from '../components/StrategyLibrary';
@@ -660,7 +661,8 @@ export default function Strategy() {
 
   // Targets and the active strategy's "modified" flag change together.
   // The investment plan panel (PlanPanel) is hidden for now: it did not stay
-  // in sync with the applied strategy. The /plans API and MCP tools remain.
+  // in sync with the applied strategy. The /plans API and MCP tools remain,
+  // and the decision journal (#10481) below writes to the plan's decisions.
   const reloadAll = useCallback(async () => {
     await Promise.all([reload(), reloadStrategies()]);
   }, [reload, reloadStrategies]);
@@ -765,6 +767,9 @@ export default function Strategy() {
           )}
           <OtherSleevePlans sleeves={plan.sleeves} owner={selectedOwner} />
         </>
+      )}
+      {selectedOwner && (
+        <DecisionJournal key={selectedOwner} owner={selectedOwner} />
       )}
     </div>
   );

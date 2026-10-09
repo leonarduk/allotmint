@@ -45,6 +45,15 @@ vi.mock('@/api', () => ({
   assignSleeve: mockAssignSleeve,
   applyStrategyToSleeve: mockApplyStrategyToSleeve,
   getEvents: () => Promise.resolve([]),
+  // The decision journal section (#10481): nothing logged, no plan saved.
+  getDecisionJournal: () =>
+    Promise.resolve({
+      settings: { threshold_gbp: 1000 },
+      entries: [],
+      unlogged: [],
+    }),
+  getInvestmentPlan: () =>
+    Promise.reject(Object.assign(new Error(), { status: 404 })),
   runStrategyStress: vi.fn(),
   updateSleeve: vi.fn(),
   deleteSleeve: vi.fn(),

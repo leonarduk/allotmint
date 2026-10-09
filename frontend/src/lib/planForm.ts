@@ -101,6 +101,8 @@ export interface AssumptionRow {
   note: string;
 }
 export interface DecisionRow {
+  /** Decision-journal link (#10481); not edited in the form, carried through unchanged. */
+  id: string;
   date: string;
   decision: string;
   reason: string;
@@ -242,6 +244,7 @@ export function fromPlan(plan: Partial<InvestmentPlan>): PlanForm {
       note: a.note ?? '',
     })),
     decisions: (plan.decisions ?? []).map((d) => ({
+      id: d.id ?? '',
       date: d.date,
       decision: d.decision,
       reason: d.reason ?? '',
@@ -279,6 +282,9 @@ function vehiclesOf(rows: VehicleRow[]): InvestmentPlan['vehicles'] {
   }
   return out;
 }
+
+/** A decision row with nothing typed in it (a carried-over id alone doesn't count). */
+const isBlankDecision = ({ id: _id, ...rest }: DecisionRow) => isBlank(rest);
 
 /** A goal row with nothing typed in it (purpose always has a value, so it doesn't count). */
 const isBlankGoal = ({ purpose: _purpose, ...rest }: GoalRow) => isBlank(rest);
@@ -346,8 +352,9 @@ export function toPlan(
         note: optional(a.note),
       })),
     decisions: form.decisions
-      .filter((d) => !isBlank(d))
+      .filter((d) => !isBlankDecision(d))
       .map((d) => ({
+        id: optional(d.id),
         date: d.date,
         decision: d.decision.trim(),
         reason: optional(d.reason),

@@ -65,7 +65,13 @@ class Holding:
     owner: str
     account: str
     ticker: str
-    value_gbp: float
+    # None when the holding has no price: still held, value unknown.
+    value_gbp: Optional[float]
+
+    @property
+    def held(self) -> bool:
+        """Unpriced or worth something (``get_portfolio`` gives a zero-unit position 0.0)."""
+        return self.value_gbp is None or self.value_gbp > 0
 
 
 def _now() -> str:
@@ -82,7 +88,11 @@ def _json_or_raise(text: str, is_error: bool, tool: str) -> Any:
 
 
 async def load_holdings(tools: StewardTools) -> List[Holding]:
-    """Every priced holding across owners, from ``list_owners`` + ``get_portfolio``."""
+    """Every holding across owners, from ``list_owners`` + ``get_portfolio``.
+
+    Unpriced holdings are kept with ``value_gbp=None``: an issue on one is still
+    about a held instrument, and a missing price is often the issue itself.
+    """
 
     owners = _json_or_raise(*await tools.call("list_owners", {}), "list_owners")
     holdings: List[Holding] = []
@@ -96,24 +106,37 @@ async def load_holdings(tools: StewardTools) -> List[Holding]:
             for holding in account.get("holdings") or []:
                 ticker = str(holding.get("ticker") or "").upper()
                 value = holding.get("market_value_gbp")
-                if ticker and isinstance(value, (int, float)):
-                    holdings.append(Holding(owner, account_name, ticker, float(value)))
+                if ticker:
+                    priced = isinstance(value, (int, float))
+                    holdings.append(Holding(owner, account_name, ticker, float(value) if priced else None))
     return holdings
 
 
 def issue_tickers(entity: Dict[str, Any]) -> set[str]:
-    """The upper-cased tickers an issue is about, with and without exchange suffix."""
+    """The upper-cased tickers an issue is about: ``SYM.EX`` when the exchange is known."""
 
-    names = {str(entity.get(key) or "").upper() for key in ("holding", "ticker")}
-    if entity.get("ticker") and entity.get("exchange"):
-        names.add(f"{entity['ticker']}.{entity['exchange']}".upper())
+    names = {str(entity.get("holding") or "").upper()}
+    ticker, exchange = entity.get("ticker"), entity.get("exchange")
+    names.add(f"{ticker}.{exchange}".upper() if ticker and exchange else str(ticker or "").upper())
     names.update(str(t).upper() for t in entity.get("tickers") or [])
     names.discard("")
-    return names | {name.rpartition(".")[0] for name in names if "." in name}
+    return names
+
+
+def ticker_matches(holding_ticker: str, names: set[str]) -> bool:
+    """Exact ``SYM.EX`` match; the bare symbol only counts when one side has no exchange.
+
+    So an issue on ``VOD.L`` never takes in a ``VOD.N`` holding.
+    """
+
+    if holding_ticker in names:
+        return True
+    symbol, dot, _ = holding_ticker.partition(".")
+    return any(name.partition(".")[0] == symbol and not (dot and "." in name) for name in names)
 
 
 def _holding_matches(holding: Holding, entity: Dict[str, Any], tickers: set[str]) -> bool:
-    if holding.ticker not in tickers and holding.ticker.rpartition(".")[0] not in tickers:
+    if not ticker_matches(holding.ticker, tickers):
         return False
     owner, account = entity.get("owner"), entity.get("account")
     if owner and str(owner).lower() != holding.owner.lower():
@@ -121,12 +144,30 @@ def _holding_matches(holding: Holding, entity: Dict[str, Any], tickers: set[str]
     return not account or str(account).lower() == holding.account.lower()
 
 
-def exposure(entity: Dict[str, Any], holdings: Iterable[Holding], total: float) -> Tuple[float, Optional[float]]:
-    """(£ value of the holdings the issue affects, % of the total portfolio)."""
+def affected_holdings(entity: Dict[str, Any], holdings: Iterable[Holding]) -> List[Holding]:
+    """The held positions (priced or not) that an issue is about."""
 
     tickers = issue_tickers(entity)
-    value = round(sum(h.value_gbp for h in holdings if _holding_matches(h, entity, tickers)), 2)
+    return [h for h in holdings if h.held and _holding_matches(h, entity, tickers)]
+
+
+def exposure(
+    entity: Dict[str, Any], holdings: Iterable[Holding], total: float
+) -> Tuple[Optional[float], Optional[float]]:
+    """(£ value of the priced holdings the issue affects, % of the total portfolio).
+
+    (None, None) when every affected holding is unpriced: the value is unknown, not 0.
+    """
+
+    affected = affected_holdings(entity, holdings)
+    if affected and all(h.value_gbp is None for h in affected):
+        return None, None
+    value = round(_priced_total(affected), 2)
     return value, (round(100 * value / total, 2) if total > 0 else None)
+
+
+def _priced_total(holdings: Iterable[Holding]) -> float:
+    return sum(h.value_gbp for h in holdings if h.value_gbp is not None)
 
 
 def select_issues(
@@ -138,7 +179,7 @@ def select_issues(
     issue stays in and is ranked by severity alone.
     """
 
-    total = sum(h.value_gbp for h in holdings or [])
+    total = _priced_total(holdings or [])
     ranked: List[Tuple[Dict[str, Any], Optional[float], Optional[float]]] = []
     unheld = 0
     for issue in issues:
@@ -146,11 +187,12 @@ def select_issues(
         if holdings is None:
             ranked.append((issue, None, None))
             continue
-        value, pct = exposure(entity, holdings, total)
-        if value <= 0 and not entity.get("owner"):
+        # Held means present in the holdings, priced or not: an unpriced holding
+        # is exactly what several issue types are about.
+        if not affected_holdings(entity, holdings) and not entity.get("owner"):
             unheld += 1
             continue
-        ranked.append((issue, value, pct))
+        ranked.append((issue, *exposure(entity, holdings, total)))
     ranked.sort(key=lambda item: (_SEVERITY_RANK.get(str(item[0].get("severity")), 3), -(item[1] or 0)))
     counts = {
         "issues_held": len(ranked),
@@ -355,7 +397,7 @@ async def _load_inputs(
     except Exception as exc:  # noqa: BLE001 - recorded in the report
         report["errors"].append({"stage": "holdings", "error": f"{type(exc).__name__}: {exc}"})
         holdings = None
-    report["portfolio_value_gbp"] = None if holdings is None else round(sum(h.value_gbp for h in holdings), 2)
+    report["portfolio_value_gbp"] = None if holdings is None else round(_priced_total(holdings), 2)
     return list(dq.get("issues") or []), holdings
 
 

@@ -375,6 +375,36 @@ def test_exposure_scopes_holding_issues_to_their_account() -> None:
     assert runner.exposure({"ticker": "ABC", "exchange": "N"}, holdings, 1000.0) == (1000.0, 100.0)
 
 
+def test_exposure_never_crosses_exchanges() -> None:
+    holdings = [
+        runner.Holding("alex", "isa", "VOD.L", 500.0),
+        runner.Holding("alex", "isa", "VOD.N", 300.0),
+        runner.Holding("alex", "sipp", "VOD", 200.0),
+    ]
+    # VOD.N is a different instrument; the suffixless holding can't contradict.
+    assert runner.exposure({"ticker": "VOD", "exchange": "L"}, holdings, 1000.0) == (700.0, 70.0)
+    assert runner.exposure({"ticker": "VOD", "exchange": "N"}, holdings, 1000.0) == (500.0, 50.0)
+    # An issue with no exchange covers every listing of the symbol.
+    assert runner.exposure({"ticker": "VOD"}, holdings, 1000.0) == (1000.0, 100.0)
+
+
+def test_unpriced_holding_counts_as_held_with_unknown_exposure() -> None:
+    class UnpricedTools(FakeTools):
+        async def call(self, name: str, arguments: Dict[str, Any]) -> Tuple[str, bool]:
+            if name == "get_portfolio":
+                accounts = [{"account_type": "isa", "holdings": [{"ticker": "ZZZ.L", "market_value_gbp": None}]}]
+                return json.dumps({"owner": "alex", "accounts": accounts}), False
+            return await super().call(name, arguments)
+
+    holdings = asyncio.run(runner.load_holdings(UnpricedTools([])))
+    assert holdings == [runner.Holding("alex", "isa", "ZZZ.L", None)]
+
+    sold = runner.Holding("alex", "isa", "VWRL.L", 0.0)  # zero units: not held
+    selected, counts = runner.select_issues([UNHELD_ISSUE, STALE_ISSUE], [*holdings, sold], 10)
+    assert [(issue["id"], value, pct) for issue, value, pct in selected] == [(UNHELD_ISSUE["id"], None, None)]
+    assert counts["skipped_unheld"] == 1
+
+
 def test_cost_estimate() -> None:
     assert estimate_cost_usd("ollama", "qwen", 10_000, 1_000) == 0.0
     assert estimate_cost_usd("deepseek", "deepseek-chat", 1_000_000, 1_000_000) == pytest.approx(1.37)

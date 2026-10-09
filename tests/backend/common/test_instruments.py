@@ -449,6 +449,29 @@ def test_fetch_metadata_from_yahoo_builds_normalized_payload(monkeypatch) -> Non
     assert searches[0][1]["news_count"] == 0
 
 
+@pytest.mark.parametrize(
+    "chart_currency,expected",
+    [("GBp", "GBX"), ("gbp", "GBP"), ("GBP", "GBP"), ("usd", "USD")],
+)
+def test_fetch_metadata_from_yahoo_normalises_pence_currency(monkeypatch, chart_currency, expected) -> None:
+    """Yahoo's exact "GBp" means pence; upper-casing it to GBP is a 100x error (#10470)."""
+    ticker = _MetaTicker({"shortName": "3i Group", "currency": chart_currency, "instrumentType": "EQUITY"})
+    _fake_yfinance(monkeypatch, "III.L", ticker, [{"symbol": "III.L", "quoteType": "EQUITY"}])
+
+    result = instruments._fetch_metadata_from_yahoo("iii", "L")
+
+    assert result["currency"] == expected
+
+
+def test_fetch_metadata_from_yahoo_omits_missing_currency(monkeypatch) -> None:
+    ticker = _MetaTicker({"shortName": "No Currency plc", "currency": "  ", "instrumentType": "EQUITY"})
+    _fake_yfinance(monkeypatch, "NOC.L", ticker, [])
+
+    result = instruments._fetch_metadata_from_yahoo("noc", "L")
+
+    assert "currency" not in result
+
+
 def test_fetch_metadata_from_yahoo_fetches_category_only_for_funds(monkeypatch) -> None:
     ticker = _MetaTicker(
         {"longName": "Royal London Short Term Money Mkt Y Acc", "currency": "GBP", "instrumentType": "MUTUALFUND"},

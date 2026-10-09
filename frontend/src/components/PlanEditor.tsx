@@ -348,6 +348,7 @@ function DecisionSection({
       rows={rows}
       onChange={onChange}
       blank={() => ({
+        id: '',
         date: today(),
         decision: '',
         reason: '',

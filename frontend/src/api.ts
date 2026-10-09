@@ -58,6 +58,11 @@ import type {
   SleeveList,
   InvestmentPlan,
   InvestmentPlanResponse,
+  DecisionDraft,
+  DecisionExpectation,
+  DecisionJournalEntry,
+  DecisionJournalResponse,
+  UnloggedChange,
   PlanBrief,
   PlanBriefSummary,
   RebalancePlan,
@@ -2756,6 +2761,50 @@ export const saveInvestmentPlan = (owner: string, plan: Partial<InvestmentPlan>)
     body: JSON.stringify(plan),
   });
 
+const journalUrl = (owner: string, path = "") =>
+  `${API_BASE}/decision-journal/${encodeURIComponent(owner)}${path}`;
+
+/** The owner's decision journal (#10481): entries with reviews, and unlogged qualifying trades. */
+export const getDecisionJournal = (owner: string) =>
+  fetchJson<DecisionJournalResponse>(journalUrl(owner));
+
+/** A pre-filled draft for a trade (`source_ref`) or a plan target change. Nothing is saved. */
+export const createDecisionDraft = (
+  owner: string,
+  body: { source_ref: string } | { previous_target: Record<string, number>; target: Record<string, number> }
+) => fetchJson<DecisionDraft>(journalUrl(owner, "/drafts"), jsonInit("POST", body));
+
+/** Log a decision the owner has completed and confirmed; appends it to the plan. */
+export const confirmDecision = (
+  owner: string,
+  draft: DecisionDraft & { expectation?: DecisionExpectation }
+) =>
+  fetchJson<DecisionJournalEntry>(
+    journalUrl(owner, "/entries"),
+    jsonInit("POST", { ...draft, confirmed: true })
+  );
+
+/** Stop listing a trade as unlogged. */
+export const dismissDecisionChange = (owner: string, sourceRef: string) =>
+  fetchJson<{ dismissed: string }>(
+    journalUrl(owner, "/dismissed"),
+    jsonInit("POST", { source_ref: sourceRef })
+  );
+
+/** Save the owner's lesson on a review. */
+export const saveDecisionLesson = (owner: string, entryId: string, horizonMonths: number, lesson: string) =>
+  fetchJson<{ lesson: string | null }>(
+    journalUrl(owner, `/entries/${encodeURIComponent(entryId)}/reviews/${horizonMonths}/lesson`),
+    jsonInit("PUT", { lesson })
+  );
+
+/** Run the daily journal pass now for one owner: list unlogged trades and run due reviews. */
+export const runDecisionJournal = (owner: string) =>
+  fetchJson<{ unlogged: UnloggedChange[]; reviews_run: { entry_id: string; horizon_months: number }[] }>(
+    journalUrl(owner, "/run"),
+    { method: "POST" }
+  );
+
 const planBriefUrl = (owner: string, ...parts: string[]) =>
   [`${API_BASE}/plan-brief/${encodeURIComponent(owner)}`, ...parts.map(encodeURIComponent)].join("/");
 
@@ -3244,6 +3293,80 @@ export const getPensionForecast = ({
     `${API_BASE}/pension/forecast?${params.toString()}`,
   );
 };
+
+// ───────────── Retirement readiness (#10484) ─────────────
+export interface RetirementWindow {
+  start_year: number;
+  end_year: number;
+  sustainable_income_gbp: number;
+}
+
+export interface RetirementReadinessReport {
+  owner: string;
+  run_date: string;
+  headline: { survival_pct: number; income_gbp: number | null };
+  inputs: { pot_gbp: number; retirement_age: number; death_age: number };
+  results: {
+    projection: {
+      projected_pot_nominal_gbp: number;
+      start_pot_real_gbp: number;
+      years_to_retirement: number;
+    };
+    simulation: {
+      horizon_years: number;
+      windows: { count: number };
+      sustainable_income: { survival_pct: number; income_gbp: number }[];
+      worst: RetirementWindow | null;
+      median: RetirementWindow | null;
+      best: RetirementWindow | null;
+      floor: {
+        floor_gbp: number;
+        at_income_gbp: number;
+        windows_below_floor: number;
+        windows_total: number;
+      } | null;
+    };
+    mapping: { proxy_share_pct: number };
+    data_notes: string[];
+  };
+  attribution: {
+    previous_run_date: string;
+    change_gbp: number;
+    parts_gbp: {
+      contributions: number;
+      markets: number;
+      assumptions: number;
+      data_revision: number;
+    };
+  } | null;
+  assumption_changes: { label: string }[];
+  market: { flags: string[] };
+  caveats: string[];
+  narrative: { text: string; source: "llm" | "template"; note: string | null };
+}
+
+export interface RetirementReadinessTrendPoint {
+  run_date: string;
+  survival_pct: number | null;
+  sustainable_income_gbp: number | null;
+  pot_gbp: number | null;
+}
+
+export const getRetirementReadinessLatest = (owner: string) =>
+  fetchJson<RetirementReadinessReport>(
+    `${API_BASE}/retirement-readiness/${encodeURIComponent(owner)}/latest`,
+  );
+
+export const getRetirementReadinessHistory = (owner: string) =>
+  fetchJson<{ owner: string; trend: RetirementReadinessTrendPoint[] }>(
+    `${API_BASE}/retirement-readiness/${encodeURIComponent(owner)}/history`,
+  );
+
+export const runRetirementReadiness = (owner: string) =>
+  fetchJson<RetirementReadinessReport>(
+    `${API_BASE}/retirement-readiness/${encodeURIComponent(owner)}/run`,
+    { method: "POST" },
+  );
 
 // ───────────── Quests API ─────────────
 export const getQuests = () =>

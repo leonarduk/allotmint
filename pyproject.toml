@@ -29,7 +29,7 @@ test = [
 # backend/common/core_optional.py). Pinned to an allotmint-pro release tag;
 # bump it after cutting a new one (allotmint-pro's Release workflow).
 pro = [
-    "allotmint-pro @ git+ssh://git@github.com/leonarduk/allotmint-pro.git@v0.9.0",
+    "allotmint-pro @ git+ssh://git@github.com/leonarduk/allotmint-pro.git@v0.12.0",
 ]
 
 [tool.setuptools]

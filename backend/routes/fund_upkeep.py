@@ -114,13 +114,20 @@ def list_proposals(status: Optional[str] = Query(None, pattern="^(pending|approv
     return proposals.list_proposals(status)
 
 
+# Fixed texts: responses never carry exception text (CodeQL py/stack-trace-exposure).
+_STATE_DETAIL = "The proposal is not in a state that allows this action"
+_CONFLICT_DETAIL: Dict[type, str] = {
+    proposals.ProposalConflict: "The metadata has changed since this approval; edit it directly instead",
+}
+
+
 def _decide(action, proposal_id: str, user: Optional[str]) -> Dict[str, Any]:
     try:
         return action(proposal_id, actor=user)
     except proposals.ProposalNotFound as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail="Proposal not found") from exc
     except (proposals.ProposalStateError, proposals.ProposalConflict) as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(status_code=409, detail=_CONFLICT_DETAIL.get(type(exc), _STATE_DETAIL)) from exc
 
 
 @router.post("/proposals/{proposal_id}/approve")

@@ -181,3 +181,37 @@ def test_search_without_key_is_reported_not_attempted(catalogue):
 )
 def test_needs_charge(meta, expected):
     assert charges_agent.needs_charge(meta, TODAY) is expected
+
+
+def test_fetch_refuses_a_hostname_that_resolves_to_a_private_address(catalogue, monkeypatch):
+    monkeypatch.setattr(charges_agent, "_resolve_host", lambda _host: ["10.1.2.3"])
+    session = FakeSession()
+    box = charges_agent.ReadOnlyToolbox(session=session, brave_api_key="k")
+
+    with pytest.raises(ValueError, match="public"):
+        box.fetch_document("https://intranet.example.com/kiid.pdf")
+    assert session.calls == []
+
+
+def test_fetch_refuses_a_hostname_that_does_not_resolve(toolbox, monkeypatch):
+    monkeypatch.setattr(charges_agent, "_resolve_host", lambda _host: [])
+
+    with pytest.raises(ValueError):
+        toolbox.fetch_document("https://no-such-host.example.com/kiid.pdf")
+
+
+def test_look_through_proposal_is_validated_by_the_shared_reader():
+    raw = {
+        "ticker": "FUNDX.L",
+        "source_url": DOC_URL,
+        "document_date": "2026-08-31",
+        "look_through": {"countries": {"United States": 60.0, "Japan": 40.0}, "sectors": {"Technology": 100.0}},
+    }
+
+    proposal = proposals.validate_look_through(raw, today=TODAY)
+
+    assert proposal["value"]["as_of"] == "2026-08-31"
+    assert proposal["value"]["source_url"] == DOC_URL
+    assert proposal["value"]["fetched"] == "2026-10-09"
+    with pytest.raises(proposals.ProposalRejected):
+        proposals.validate_look_through({**raw, "look_through": {"countries": {"US": 100.0}}}, today=TODAY)

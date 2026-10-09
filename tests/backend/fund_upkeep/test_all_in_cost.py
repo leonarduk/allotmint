@@ -91,6 +91,9 @@ def test_costs_of_an_account_no_longer_held_still_count():
     )
 
     assert _row(result, "old")["account_charges_gbp"] == 10.0
+    # No funds held: nothing is unknown, so the fund charge is a real 0.
+    assert _row(result, "old")["fund_charges_gbp"] == 0.0
+    assert result["total"]["complete"] is True
     assert result["total"]["known_cost_pct"] is None
 
 

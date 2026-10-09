@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
 import requests
 
 from backend.fund_upkeep import bot, look_through_upkeep, proposals
@@ -55,7 +56,7 @@ def test_source_failure_is_reported_and_the_run_continues():
         [_fund("BAD.L"), _fund("OK.L")], today=TODAY, refresh=refresh, sleep=lambda _s: None
     )
 
-    assert out["failed"] == [{"ticker": "BAD.L", "reason": "down"}]
+    assert out["failed"] == [{"ticker": "BAD.L", "reason": "source request failed"}]
     assert out["refreshed"] == [{"ticker": "OK.L"}]
 
 
@@ -67,6 +68,22 @@ PORTFOLIO = {
         }
     ]
 }
+
+EXPOSURE = {
+    "total_value_gbp": 1000.0,
+    "holdings": [],
+    "countries": [{"label": "Not looked through", "value_gbp": 1000.0, "weight_pct": 100.0}],
+    "sectors": [],
+    "coverage": {"not_covered_value_gbp": 1000.0},
+}
+
+
+@pytest.fixture(autouse=True)
+def stub_exposure(monkeypatch):
+    # The real compute_look_through builds portfolio_utils' process-wide
+    # securities cache; built against the temporary catalogue it would leak
+    # into later tests. Concentration has its own tests (test_concentration.py).
+    monkeypatch.setattr(bot, "compute_look_through", lambda _portfolio: EXPOSURE)
 
 
 def test_run_queues_a_proposal_and_writes_nothing(catalogue):

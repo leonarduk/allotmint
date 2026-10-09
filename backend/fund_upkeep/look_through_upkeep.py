@@ -79,7 +79,8 @@ def refresh_stale(
             logger.warning(
                 "Look-through refresh failed for %s: %s", sanitise_log_value(ticker), sanitise_log_value(exc)
             )
-            out["failed"].append({"ticker": ticker, "reason": str(exc)})
+            # The detail is logged above; the response only says which kind of failure.
+            out["failed"].append({"ticker": ticker, "reason": "source request failed"})
             continue
         bucket = "refreshed" if result.get("updated") else "unresolved"
         out[bucket].append({"ticker": ticker} if result.get("updated") else {"ticker": ticker, "reason": "no source"})

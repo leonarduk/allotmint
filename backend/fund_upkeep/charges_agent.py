@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import re
+import socket
 from datetime import date, timedelta
 from typing import Any, Callable, Dict, List, Mapping, Optional
 from urllib.parse import urlparse
@@ -91,7 +92,20 @@ def _public_url(url: str) -> bool:
     try:
         return ipaddress.ip_address(host).is_global
     except ValueError:
-        return True
+        pass  # a hostname, not an IP literal: check what it resolves to
+    # A public-looking name can still resolve to a private address (an
+    # intranet name, or DNS pointing inwards), so every address must be global.
+    addresses = _resolve_host(host)
+    return bool(addresses) and all(ipaddress.ip_address(a).is_global for a in addresses)
+
+
+def _resolve_host(host: str) -> List[str]:
+    """IP addresses ``host`` resolves to; empty when it does not resolve."""
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except (socket.gaierror, UnicodeError):
+        return []
+    return sorted({str(info[4][0]).split("%", 1)[0] for info in infos})
 
 
 def _html_text(content: bytes) -> str:
@@ -141,7 +155,7 @@ class ReadOnlyToolbox:
             raise ValueError(f"web search is not configured ({BRAVE_KEY_ENV} is unset)")
         response = self._session.get(
             BRAVE_SEARCH_URL,
-            params={"q": query, "count": 8},
+            params={"q": query, "count": "8"},
             headers={"X-Subscription-Token": self._brave_key, "Accept": "application/json"},
             timeout=REQUEST_TIMEOUT_S,
         )
@@ -201,13 +215,13 @@ def _run_tool(toolbox: ReadOnlyToolbox, call: Mapping[str, Any]) -> str:
 def _final_json(content: str) -> Dict[str, Any]:
     match = re.search(r"\{.*\}", content or "", re.DOTALL)
     if not match:
-        raise proposals.ProposalRejected("the agent's answer was not JSON")
+        raise proposals.ProposalRejected("not_json")
     try:
         data = json.loads(match.group(0))
     except ValueError as exc:
-        raise proposals.ProposalRejected("the agent's answer was not valid JSON") from exc
+        raise proposals.ProposalRejected("not_json") from exc
     if not isinstance(data, dict):
-        raise proposals.ProposalRejected("the agent's answer was not a JSON object")
+        raise proposals.ProposalRejected("not_json")
     return data
 
 
@@ -229,7 +243,7 @@ def _conversation(llm: LlmStep, toolbox: ReadOnlyToolbox, fund: Mapping[str, Any
             return str(reply.get("content") or "")
         for call in calls:
             messages.append({"role": "tool", "tool_call_id": call.get("id"), "content": _run_tool(toolbox, call)})
-    raise proposals.ProposalRejected(f"no answer after {max_steps} steps")
+    raise proposals.ProposalRejected("no_answer")
 
 
 def propose_charge(
@@ -246,12 +260,12 @@ def propose_charge(
         if "not_found" in answer:
             return {"status": "not_found", "reason": str(answer["not_found"])}
         if str(answer.get("source_url") or "") not in toolbox.fetched_urls:
-            raise proposals.ProposalRejected("the cited source was not fetched during this run")
+            raise proposals.ProposalRejected("unfetched_source")
         proposal = proposals.validate_charge(
             {**answer, "ticker": fund["ticker"], "isin": fund.get("isin")}, today=today
         )
     except proposals.ProposalRejected as exc:
-        return {"status": "rejected", "reason": str(exc)}
+        return {"status": "rejected", "reason": proposals.rejection_reason(exc.code)}
     return {"status": "proposed", "proposal": proposal}
 
 

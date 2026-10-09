@@ -34,8 +34,31 @@ STATUSES = ("pending", "approved", "rejected", "undone")
 _FILE = "proposals.json"
 
 
+# Fixed texts, so what an API response says about a rejection never comes
+# from exception text (CodeQL py/stack-trace-exposure).
+REJECTION_REASONS = {
+    "source_url": "a proposal needs the http(s) URL of its source document",
+    "document_date": "a proposal needs its source document's date (YYYY-MM-DD)",
+    "future_date": "the source document's date is in the future",
+    "ticker": "a proposal needs a full ticker such as VWRL.L",
+    "implausible_charge": "the ongoing charge is not a plausible annual percentage (0-10)",
+    "look_through_weights": "a look-through proposal needs country and sector weights",
+    "not_json": "the agent's answer was not a JSON object",
+    "no_answer": "the agent gave no answer within its step limit",
+    "unfetched_source": "the cited source was not fetched during this run",
+}
+
+
 class ProposalRejected(ValueError):
-    """A proposed value failed validation and was not queued."""
+    """A proposed value failed validation and was not queued; ``code`` is a ``REJECTION_REASONS`` key."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(REJECTION_REASONS[code])
+        self.code = code
+
+
+def rejection_reason(code: str) -> str:
+    return REJECTION_REASONS.get(code, "the proposal was rejected")
 
 
 class ProposalStateError(ValueError):
@@ -54,20 +77,20 @@ def _source(raw: Mapping[str, Any], today: date) -> Dict[str, str]:
     url = str(raw.get("source_url") or "").strip()
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise ProposalRejected("a proposal needs the http(s) URL of its source document")
+        raise ProposalRejected("source_url")
     try:
         doc_date = date.fromisoformat(str(raw.get("document_date") or "")[:10])
     except ValueError as exc:
-        raise ProposalRejected("a proposal needs its source document's date (YYYY-MM-DD)") from exc
+        raise ProposalRejected("document_date") from exc
     if doc_date > today:
-        raise ProposalRejected(f"document date {doc_date} is in the future")
+        raise ProposalRejected("future_date")
     return {"source_url": url, "document_date": doc_date.isoformat()}
 
 
 def _ticker(raw: Mapping[str, Any]) -> str:
     ticker = str(raw.get("ticker") or "").strip().upper()
     if "." not in ticker:
-        raise ProposalRejected("a proposal needs a full ticker such as VWRL.L")
+        raise ProposalRejected("ticker")
     return ticker
 
 
@@ -76,9 +99,7 @@ def validate_charge(raw: Mapping[str, Any], *, today: Optional[date] = None) -> 
     day = today or date.today()
     value = ongoing_charge_pct({ONGOING_CHARGE_KEY: raw.get(ONGOING_CHARGE_KEY)})
     if value is None:
-        raise ProposalRejected(
-            f"ongoing charge {raw.get(ONGOING_CHARGE_KEY)!r} is not a plausible annual percentage (0-10)"
-        )
+        raise ProposalRejected("implausible_charge")
     return {
         "kind": KIND_ONGOING_CHARGE,
         "ticker": _ticker(raw),
@@ -95,7 +116,7 @@ def validate_look_through(raw: Mapping[str, Any], *, today: Optional[date] = Non
     source = _source(raw, day)
     block = raw.get("look_through")
     if not isinstance(block, dict) or usable_look_through({"look_through": block}) is None:
-        raise ProposalRejected("a look-through proposal needs country and sector weights")
+        raise ProposalRejected("look_through_weights")
     value = {
         **block,
         "source": block.get("source") or "issuer factsheet",

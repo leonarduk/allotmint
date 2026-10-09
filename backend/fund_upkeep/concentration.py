@@ -61,7 +61,7 @@ def _stock_rows(result: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
     return rows
 
 
-def _bucket_rows(buckets: List[Mapping[str, Any]]) -> Dict[str, Dict[str, Any]]:
+def _bucket_rows(buckets: Optional[List[Mapping[str, Any]]]) -> Dict[str, Dict[str, Any]]:
     return {
         str(b["label"]): {"label": str(b["label"]), "pct": float(b.get("weight_pct") or 0.0)}
         for b in buckets or []

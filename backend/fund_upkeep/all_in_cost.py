@@ -102,8 +102,10 @@ def _finish(part: Dict[str, Any]) -> Dict[str, Any]:
     known_cost = part["fund_charges_gbp"] + part["dealing_fees_gbp"] + part["account_charges_gbp"]
     value = part["value_gbp"]
     out = {key: (round(v, 2) if isinstance(v, float) else v) for key, v in part.items()}
-    # No known charge at all is "unknown", not GBP 0 (#7834).
-    out["fund_charges_gbp"] = round(part["fund_charges_gbp"], 2) if part["known_value_gbp"] > 0 else None
+    # Holdings but no known charge at all is "unknown", not GBP 0 (#7834); no
+    # non-cash holdings at all is a genuine 0 -- there is nothing to charge.
+    unknown = part["holding_count"] > 0 and part["known_value_gbp"] == 0
+    out["fund_charges_gbp"] = None if unknown else round(part["fund_charges_gbp"], 2)
     out["known_cost_gbp"] = round(known_cost, 2)
     out["known_cost_pct"] = round(known_cost / value * 100.0, 4) if value > 0 else None
     out["complete"] = part["unknown_count"] == 0 and part["trades_without_fee_data"] == 0

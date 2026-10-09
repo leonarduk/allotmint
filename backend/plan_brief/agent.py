@@ -33,6 +33,8 @@ from backend.plan_brief.prompt import (
     advice_violations,
     build_user_message,
     drift_figure_mismatches,
+    known_numbers,
+    percent_figure_mismatches,
 )
 
 logger = logging.getLogger(__name__)
@@ -243,6 +245,9 @@ def interpret_reply(plan: InvestmentPlan, facts: Mapping[str, Any], reply: str, 
     prose = str(parsed.get("prose") or "").strip()
     advice = advice_violations(prose)
     figures = drift_figure_mismatches(prose, facts["drift"])
+    # A % figure must come from the facts, the plan or a tool result from this run.
+    sources = [facts, plan.to_dict()] + [call["result"] for call in limits.tool_log if not call["is_error"]]
+    figures += percent_figure_mismatches(prose, known_numbers(*sources))
     problems = []
     if not prose:
         problems.append("no prose returned")

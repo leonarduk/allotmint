@@ -96,6 +96,36 @@ def advice_violations(text: str) -> list[str]:
 
 
 _PP_RE = re.compile(r"([+-]?\d+(?:\.\d+)?)\s*(?:pp|percentage\s+points?)\b", re.I)
+_PCT_RE = re.compile(r"([+-]?\d+(?:\.\d+)?)\s*(?:%|per\s*cent\b|percent\b)", re.I)
+_NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
+
+
+def known_numbers(*sources: Any) -> set[float]:
+    """Every number in ``sources`` (dicts, lists, scalars or JSON/text), as absolute values."""
+    found: set[float] = set()
+    stack = list(sources)
+    while stack:
+        item = stack.pop()
+        if isinstance(item, bool) or item is None:
+            continue
+        if isinstance(item, (int, float)):
+            found.add(abs(float(item)))
+        elif isinstance(item, str):
+            found.update(abs(float(n)) for n in _NUM_RE.findall(item))
+        elif isinstance(item, Mapping):
+            stack.extend(item.values())
+        elif isinstance(item, (list, tuple, set)):
+            stack.extend(item)
+    return found
+
+
+def percent_figure_mismatches(text: str, known: set[float]) -> list[str]:
+    """``%`` figures in ``text`` found in none of ``known`` (facts, plan, tool results), to 0.05."""
+    return [
+        m.group(0)
+        for m in _PCT_RE.finditer(text or "")
+        if not any(abs(abs(float(m.group(1))) - k) < 0.05 for k in known)
+    ]
 
 
 def drift_figure_mismatches(text: str, drift: Mapping[str, Any]) -> list[str]:

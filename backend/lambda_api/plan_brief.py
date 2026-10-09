@@ -39,9 +39,11 @@ _DEFAULT_RECIPIENTS_URI = "ssm://plan-brief-recipients"
 def _load_recipient_owners() -> Optional[List[str]]:
     """Owners to brief, or ``None`` for every owner (owner keys only; no secrets).
 
-    A missing parameter is not an error: ``ParameterStoreJSONStorage.load``
-    logs and returns ``{}``, which means every owner. An explicit empty list
-    (``{"owners": []}``) means nobody, so a list can pause the job.
+    With the default URI a missing parameter is not an error:
+    ``ParameterStoreJSONStorage.load`` logs and returns ``{}``, which means
+    every owner. An explicitly set ``PLAN_BRIEF_RECIPIENTS_URI`` that yields no
+    list raises instead. An explicit empty list (``{"owners": []}``) means
+    nobody, so a list can pause the job.
     """
     uri = os.getenv("PLAN_BRIEF_RECIPIENTS_URI", _DEFAULT_RECIPIENTS_URI)
     # load() parses the parameter value as JSON ({} when missing); accept
@@ -50,9 +52,9 @@ def _load_recipient_owners() -> Optional[List[str]]:
     owners = data.get("owners") if isinstance(data, dict) else data
     if not isinstance(owners, list):
         if os.getenv("PLAN_BRIEF_RECIPIENTS_URI"):
-            logger.warning(
-                "PLAN_BRIEF_RECIPIENTS_URI %s gave no owner list; briefing every owner", sanitise_log_value(uri)
-            )
+            # Explicitly configured but unreadable: fail closed (no briefs, SNS
+            # alert from _run) rather than briefing and emailing every owner.
+            raise RuntimeError(f"PLAN_BRIEF_RECIPIENTS_URI {uri} gave no owner list")
         return None
     return [str(owner) for owner in owners]
 
@@ -96,14 +98,15 @@ async def _run() -> Dict[str, Any]:
         publish_sns_alert({"message": f"Plan brief Lambda failed to start: {exc}", "ticker": "plan-brief"})
         return {"briefs": 0, "errors": [str(exc)]}
 
-    done = 0
+    briefed = 0
     errors: List[str] = []
     for portfolio in portfolios:
         owner = portfolio["owner"]
         if target_owners is not None and owner not in target_owners:
             continue
         try:
-            done += await _brief_owner(owner, portfolio.get("person") or {}, today)
+            if await _brief_owner(owner, portfolio.get("person") or {}, today):
+                briefed += 1
         except Exception as exc:
             logger.error(
                 "Plan brief failed for owner %s: %s; traceback: %s",
@@ -117,4 +120,4 @@ async def _run() -> Dict[str, Any]:
         publish_sns_alert(
             {"message": f"Plan brief failed for {len(errors)} owner(s): {'; '.join(errors)}", "ticker": "plan-brief"}
         )
-    return {"briefs": done, "errors": errors}
+    return {"briefs": briefed, "errors": errors}

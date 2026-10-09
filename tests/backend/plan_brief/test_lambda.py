@@ -119,3 +119,35 @@ def test_empty_recipient_list_briefs_nobody(wiring, monkeypatch):
     monkeypatch.setattr(lam, "_load_recipient_owners", lambda: [])
     assert lam.lambda_handler({}, None) == {"briefs": 0, "errors": []}
     assert wiring["briefed"] == []
+
+
+def test_explicit_but_unreadable_recipient_list_fails_closed(monkeypatch):
+    """A configured URI that gives no list must not brief (and email) every owner."""
+    from botocore.exceptions import ClientError
+
+    monkeypatch.setenv("PLAN_BRIEF_RECIPIENTS_URI", "ssm://typo-recipients")
+
+    class Denied:
+        def get_parameter(self, Name, WithDecryption):  # noqa: N803
+            raise ClientError({"Error": {"Code": "AccessDeniedException", "Message": "no"}}, "GetParameter")
+
+    monkeypatch.setattr("boto3.client", lambda service, *args, **kwargs: Denied())
+    with pytest.raises(RuntimeError, match="gave no owner list"):
+        lam._load_recipient_owners()
+
+
+def test_unreadable_recipient_list_stops_the_run_with_an_alert(monkeypatch):
+    alerts, briefed = [], []
+
+    def boom():
+        raise RuntimeError("PLAN_BRIEF_RECIPIENTS_URI ssm://typo gave no owner list")
+
+    monkeypatch.setattr(lam, "_load_recipient_owners", boom)
+    monkeypatch.setattr(lam, "list_portfolios", lambda: [{"owner": "alex"}])
+    monkeypatch.setattr(lam, "run_brief", lambda *a, **k: briefed.append(a))
+    monkeypatch.setattr(lam, "publish_sns_alert", alerts.append)
+
+    result = lam.lambda_handler({}, None)
+
+    assert result["briefs"] == 0 and briefed == []
+    assert "failed to start" in alerts[0]["message"]

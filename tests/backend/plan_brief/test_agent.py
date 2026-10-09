@@ -330,3 +330,21 @@ async def test_bank_rate_trigger_fires_from_mocked_market_rates_via_provider_loo
     assert refused and refused[0]["is_error"] is True
     assert result["agent"]["usage"] == {"input_tokens": 900, "output_tokens": 300}
     assert result["agent"]["model"] == "qwen3.5:9b"
+
+
+def test_percent_figures_must_be_traceable(plan, facts):
+    limits = _limits_with_rates_call()
+    good = "Equity is 66% against a 60% target (6.0pp, £6,000). Bank Rate is 2.75%."
+    assert agent.interpret_reply(plan, facts, _reply(prose=good), limits)["prose_source"] == "agent"
+
+    bad = "Equity is 71% against a 60% target. Bank Rate is 2.75%."
+    result = agent.interpret_reply(plan, facts, _reply(prose=bad), limits)
+    assert result["prose_source"] == "deterministic"
+    assert any("71%" in p for p in result["output_check"]["problems"])
+
+
+def test_percent_from_a_failed_tool_call_is_not_trusted(plan, facts):
+    limits = TurnLimits(allowed_tools=agent.READ_ONLY_TOOLS)
+    limits.record_call("get_market_rates", {}, "Tool call failed: 7.77", True)
+    result = agent.interpret_reply(plan, facts, _reply(prose="Bank Rate is 7.77%."), limits)
+    assert result["prose_source"] == "deterministic"

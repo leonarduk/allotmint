@@ -3284,6 +3284,35 @@
     "total": "Total: {{value}}%",
     "mustEqual100": "(debe sumar 100%)"
   },
+  "planBrief": {
+    "title": "Último informe del plan",
+    "runNow": "Generar informe ahora",
+    "running": "Generando…",
+    "loading": "Cargando informe…",
+    "none": "Aún no hay informes. Se generan cada mes, o genera uno ahora.",
+    "loadError": "No se pudo cargar el informe: {{message}}",
+    "runError": "No se pudo generar el informe: {{message}}",
+    "asOf": "A fecha de {{date}}",
+    "total": "Cartera {{value}}",
+    "reviewDue": "Revisión pendiente: la fecha de revisión del plan ({{date}}) ya ha pasado.",
+    "driftCaption": "Real frente al objetivo del plan; las filas resaltadas están fuera de la banda de ±{{band}}pp.",
+    "class": "Clase",
+    "actual": "Real",
+    "target": "Objetivo",
+    "drift": "Desviación",
+    "driftGbp": "Desviación £",
+    "targetsDiffer": "Los objetivos de reequilibrio guardados difieren del objetivo del plan.",
+    "triggers": "Disparadores de revisión",
+    "verdict": {
+      "fired": "Activado",
+      "not_fired": "No activado",
+      "cant_evaluate": "No evaluable"
+    },
+    "idleCash": "{{account}}: {{amount}} en efectivo, {{days}} días sin compras desde su llegada",
+    "staleEvidence": "Evidencias con más de seis meses: {{items}}",
+    "earlier": "Informes anteriores",
+    "summaryLine": "{{outside}} fuera de banda, {{fired}} disparador(es) activado(s)"
+  },
   "planPanel": {
     "planTarget": "Objetivo del plan",
     "class": "Clase",

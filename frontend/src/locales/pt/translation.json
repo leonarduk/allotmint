@@ -3284,6 +3284,35 @@
     "total": "Total: {{value}}%",
     "mustEqual100": "(deve ser igual a 100%)"
   },
+  "planBrief": {
+    "title": "Último relatório do plano",
+    "runNow": "Gerar relatório agora",
+    "running": "A gerar…",
+    "loading": "A carregar relatório…",
+    "none": "Ainda não há relatórios. São gerados mensalmente, ou gere um agora.",
+    "loadError": "Não foi possível carregar o relatório: {{message}}",
+    "runError": "Não foi possível gerar o relatório: {{message}}",
+    "asOf": "Em {{date}}",
+    "total": "Carteira {{value}}",
+    "reviewDue": "Revisão pendente: a data de revisão do plano ({{date}}) já passou.",
+    "driftCaption": "Real vs objetivo do plano; as linhas destacadas estão fora da banda de ±{{band}}pp.",
+    "class": "Classe",
+    "actual": "Real",
+    "target": "Objetivo",
+    "drift": "Desvio",
+    "driftGbp": "Desvio £",
+    "targetsDiffer": "Os objetivos de rebalanceamento guardados diferem do objetivo do plano.",
+    "triggers": "Gatilhos de revisão",
+    "verdict": {
+      "fired": "Acionado",
+      "not_fired": "Não acionado",
+      "cant_evaluate": "Não avaliável"
+    },
+    "idleCash": "{{account}}: {{amount}} em dinheiro, {{days}} dias sem compras desde a chegada",
+    "staleEvidence": "Evidências com mais de seis meses: {{items}}",
+    "earlier": "Relatórios anteriores",
+    "summaryLine": "{{outside}} fora da banda, {{fired}} gatilho(s) acionado(s)"
+  },
   "planPanel": {
     "planTarget": "Meta do plano",
     "class": "Classe",

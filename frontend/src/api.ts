@@ -57,6 +57,8 @@ import type {
   SleeveList,
   InvestmentPlan,
   InvestmentPlanResponse,
+  PlanBrief,
+  PlanBriefSummary,
   RebalancePlan,
   QuestResponse,
   TrailResponse,
@@ -2695,6 +2697,25 @@ export const saveInvestmentPlan = (owner: string, plan: Partial<InvestmentPlan>)
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(plan),
   });
+
+const planBriefUrl = (owner: string, ...parts: string[]) =>
+  [`${API_BASE}/plan-brief/${encodeURIComponent(owner)}`, ...parts.map(encodeURIComponent)].join("/");
+
+/** The owner's latest plan-drift brief (#10475); rejects with `status` 404 when none is saved. */
+export const getLatestPlanBrief = (owner: string) =>
+  fetchJson<PlanBrief>(planBriefUrl(owner, "latest"));
+
+/** Saved plan-drift briefs, newest first, as summaries. */
+export const listPlanBriefs = (owner: string) =>
+  fetchJson<{ owner: string; briefs: PlanBriefSummary[] }>(planBriefUrl(owner));
+
+/** One saved plan-drift brief in full. */
+export const getPlanBrief = (owner: string, id: string) =>
+  fetchJson<PlanBrief>(planBriefUrl(owner, id));
+
+/** Generate, save and return a new plan-drift brief now. */
+export const runPlanBrief = (owner: string) =>
+  fetchJson<PlanBrief>(planBriefUrl(owner, "run"), { method: "POST" });
 
 /** Fetch per-ticker VaR contribution breakdown for an owner. */
 export const getVarBreakdown = (

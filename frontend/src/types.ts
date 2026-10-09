@@ -1541,6 +1541,85 @@ export interface InvestmentPlanResponse {
   };
 }
 
+/** One row of a plan brief's deterministic drift table (#10475). */
+export interface PlanBriefDriftRow {
+  class: string;
+  label: string;
+  current_value_gbp: number;
+  current_pct: number;
+  target_pct: number | null;
+  drift_pp: number | null;
+  drift_gbp: number | null;
+  status: 'over' | 'under' | 'in_band' | 'untargeted';
+}
+
+export interface PlanBriefEvidence {
+  tool: string;
+  field?: string | null;
+  value?: unknown;
+  source?: string | null;
+  as_of?: string | null;
+}
+
+export interface PlanBriefTrigger {
+  trigger: string;
+  verdict: 'fired' | 'not_fired' | 'cant_evaluate';
+  reason: string;
+  evidence: PlanBriefEvidence[];
+}
+
+/** A saved plan-drift brief (#10475): facts and arithmetic only, never advice. */
+export interface PlanBrief {
+  id: string;
+  owner: string;
+  as_of: string;
+  generated_at: string;
+  drift: {
+    basis: string;
+    tolerance_pct: number;
+    total_value_gbp: number;
+    rows: PlanBriefDriftRow[];
+    out_of_band: string[];
+    rebalance_targets_match: boolean | null;
+  };
+  cash: {
+    account_id: string;
+    account: string;
+    cash_gbp: number;
+    uninvested_since: string | null;
+    days_uninvested: number | null;
+  }[];
+  stale_evidence: { metric: string; as_of: string; age_days: number }[];
+  review: {
+    next_review: string | null;
+    due: boolean;
+    days_overdue: number | null;
+    open_questions: string[];
+  };
+  changes: {
+    since: string;
+    contributions_gbp: number;
+    withdrawals_gbp: number;
+    purchases_gbp: number;
+    sales_gbp: number;
+    big_movers: { ticker: string; change_pct: number }[];
+  };
+  triggers: PlanBriefTrigger[];
+  prose: string;
+  prose_source: 'agent' | 'deterministic';
+  disclaimer: string;
+}
+
+export interface PlanBriefSummary {
+  id: string;
+  as_of: string;
+  generated_at: string;
+  total_value_gbp: number | null;
+  out_of_band: string[];
+  triggers_fired: number;
+  review_due: boolean;
+}
+
 export interface Quest {
   id: string;
   title: string;

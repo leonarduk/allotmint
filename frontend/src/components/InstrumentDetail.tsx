@@ -12,6 +12,7 @@ import { useConfig } from "../ConfigContext";
 import { useReportingCurrency, type ReportingCurrency } from "../hooks/useReportingCurrency";
 import type { InstrumentPosition, TradingSignal, Transaction } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
+import { CompareSeriesPanel } from "./CompareSeriesPanel";
 import { FxReturnSplitPanel } from "./FxReturnSplitPanel";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import ChartSkeleton from "./skeletons/ChartSkeleton";
@@ -557,6 +558,7 @@ export function InstrumentDetail({
   const [intradayLoading, setIntradayLoading] = useState(false);
   const [intradayError, setIntradayError] = useState<string | null>(null);
   const [intradaySupported, setIntradaySupported] = useState(true);
+  const [compareTickers, setCompareTickers] = useState<string[]>([]);
 
   // Only the response for the current [ticker, days] may land: switching range
   // while an earlier request is in flight (e.g. Max then 10Y) must not let the
@@ -660,6 +662,7 @@ export function InstrumentDetail({
   useEffect(() => {
     setShowTrades(false);
     setTrades([]);
+    setCompareTickers([]);
   }, [ticker]);
 
   const displayCurrency = currencyProp ?? currencyFromData ?? "?";
@@ -983,7 +986,7 @@ export function InstrumentDetail({
             <option value={0}>{t("instrumentDetail.rangeOptions.max")}</option>
           </select>
         </label>
-        {priceMode === "close" && (
+        {priceMode === "close" && compareTickers.length === 0 && (
           <>
             <label style={{ fontSize: "0.85rem" }}>
               <input
@@ -1042,11 +1045,21 @@ export function InstrumentDetail({
             onChange={(e) =>
               setPriceMode(e.target.checked ? "intraday" : "close")
             }
-            disabled={!intradaySupported}
+            disabled={!intradaySupported || compareTickers.length > 0}
           />{" "}
           {t("instrumentDetail.intraday")}
         </label>
       </div>
+      {priceMode === "close" && !loading && (
+        <CompareSeriesPanel
+          ticker={ticker}
+          days={days}
+          basePoints={rawPrices}
+          tickers={compareTickers}
+          onTickersChange={setCompareTickers}
+          errorColor={palette.negative}
+        />
+      )}
       {intradayError && (
         <div style={{ color: palette.negative, marginBottom: "0.5rem" }}>
           {t("instrumentDetail.intradayUnavailable")}
@@ -1070,7 +1083,7 @@ export function InstrumentDetail({
         )
       ) : loading ? (
         <ChartSkeleton height={220} label={t("app.loading")} />
-      ) : (
+      ) : compareTickers.length > 0 ? null : (
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={prices}>
             <XAxis dataKey="date" hide />

@@ -672,6 +672,15 @@
     },
     "infoHeading": "Instrumenteninfo",
     "intraday": "Intraday",
+    "compare": {
+      "label": "Vergleichen mit",
+      "placeholder": "Ticker, z. B. VWRL.L",
+      "add": "Hinzufügen",
+      "remove": "{{ticker}} entfernen",
+      "clear": "Leeren",
+      "loadFailed": "Diese Reihe konnte nicht geladen werden",
+      "rebasedNote": "Veränderung in % seit dem ersten gemeinsamen Datum aller Reihen"
+    },
     "intradayUnavailable": "Keine Intraday-Daten",
     "ma20": "20d MA",
     "ma200": "200d MA",

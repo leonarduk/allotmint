@@ -122,12 +122,14 @@ def extract_document_text(data: bytes, filename: str) -> str:
 
 def _pdf_text(data: bytes) -> str:
     from pypdf import PdfReader
-    from pypdf.errors import PdfReadError
 
     try:
         reader = PdfReader(io.BytesIO(data))
         return "\n".join(page.extract_text() or "" for page in reader.pages)
-    except (PdfReadError, ValueError) as exc:
+    except Exception as exc:
+        # pypdf raises many error types (PdfReadError, KeyError, TypeError,
+        # ...) on malformed files; all mean "unreadable upload", not an
+        # upstream failure, so none should surface as a 502.
         raise UnsupportedDocument("The PDF could not be read") from exc
 
 

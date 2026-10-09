@@ -774,16 +774,17 @@ _TRADE_ONLY_FIELDS = ("price_gbp", "units", "fees")
 def _validate_create_shape(tx_data: Dict[str, Any]) -> None:
     """Check ``tx_data`` has the fields its type needs, and drop the ones it cannot use.
 
-    A trade needs ticker, price and units; a cash row needs ``amount_minor``
-    and stores no price/units/fees.
+    A trade needs ticker, price and units and never stores ``amount_minor``
+    (it was not part of a manual trade before #10474, and the holdings
+    rebuild would read it as the settled cash); a cash row needs
+    ``amount_minor`` and stores no price/units/fees.
     """
     if str(tx_data.get("type") or "BUY") in get_args(ManualTradeType):
         if tx_data.get("price_gbp") is None or tx_data.get("units") is None:
             raise HTTPException(status_code=400, detail="price_gbp and units are required")
         if not tx_data.get("ticker"):
             raise HTTPException(status_code=400, detail="ticker is required")
-        if tx_data.get("amount_minor") is None:
-            tx_data.pop("amount_minor", None)
+        tx_data.pop("amount_minor", None)
         return
     if not tx_data.get("amount_minor"):
         raise HTTPException(status_code=400, detail="amount_minor is required for a cash transaction")

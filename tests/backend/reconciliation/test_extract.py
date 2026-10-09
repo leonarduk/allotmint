@@ -285,3 +285,23 @@ async def test_bedrock_completion_uses_converse_without_tools(monkeypatch):
     assert reply == '{"rows": []}'
     assert captured["modelId"] == "model-x"
     assert "toolConfig" not in captured
+
+
+def test_pdf_parser_errors_of_any_type_are_unsupported(monkeypatch):
+    import pypdf
+
+    def explode(_stream):
+        raise KeyError("/Root")
+
+    monkeypatch.setattr(pypdf, "PdfReader", explode)
+
+    with pytest.raises(extract.UnsupportedDocument):
+        extract.extract_document_text(b"%PDF-1.7 broken", "broken.pdf")
+
+
+def test_every_statement_type_has_a_cash_direction():
+    from typing import get_args
+
+    from backend.reconciliation.models import StatementRowType
+
+    assert set(extract._CASH_DIRECTION) == set(get_args(StatementRowType))

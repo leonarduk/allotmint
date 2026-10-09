@@ -287,3 +287,24 @@ def test_created_cash_row_stores_no_trade_fields(client, tmp_path):
         "reason": "x",
         "external_id": None,
     }
+
+
+def test_created_trade_does_not_store_amount_minor(client, tmp_path):
+    resp = client.post(
+        "/transactions",
+        json={
+            "owner": "alice",
+            "account": "isa",
+            "ticker": "BP.L",
+            "date": "2026-02-01",
+            "type": "BUY",
+            "price_gbp": 5,
+            "units": 10,
+            "amount_minor": 99999,
+            "reason": "x",
+        },
+    )
+
+    assert resp.status_code == 201
+    stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())["transactions"][-1]
+    assert "amount_minor" not in stored

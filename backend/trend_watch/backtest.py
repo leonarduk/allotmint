@@ -37,7 +37,12 @@ from backend.trend_watch.detect import (
 )
 
 HORIZONS = {"1m": 21, "3m": 63, "6m": 126}
-STEP_DAYS = 5
+
+
+def _step(cfg: TrendWatchConfig) -> int:
+    """Trading days between replayed runs: the same "one run" the live detector reads earlier runs at."""
+
+    return max(cfg.new_lookback_days, 1)
 
 
 @dataclass
@@ -66,7 +71,8 @@ def backtest_series(series: Series, cfg: TrendWatchConfig, counts: Dict[str, Dic
     levels = clean_series(series.levels) if series.levels is not None else closes
     levels = levels.reindex(closes.index.union(levels.index)).ffill().reindex(closes.index)
     flags = 0
-    for position in range(SMA_SLOW + STEP_DAYS * max(cfg.memory_runs, 1), len(frame), STEP_DAYS):
+    step = _step(cfg)
+    for position in range(SMA_SLOW + step * max(cfg.memory_runs, 1), len(frame), step):
         active = active_signals(frame, position)
         earlier = {name for run in earlier_runs(frame, position, cfg) for name in run}
         flagged = is_flagged(active, new_signals(active, earlier), cfg)
@@ -95,7 +101,7 @@ def backtest(series_by_ticker: Mapping[str, Series], cfg: Optional[TrendWatchCon
     tested = 0
     for ticker, series in series_by_ticker.items():
         closes = clean_series(series.closes)
-        if len(closes) < SMA_SLOW + STEP_DAYS + min(HORIZONS.values()):
+        if len(closes) < SMA_SLOW + _step(cfg) + min(HORIZONS.values()):
             excluded[ticker] = "not enough history"
             continue
         steps = price_scale.find_scale_steps(iso_dated(closes))
@@ -120,7 +126,7 @@ def backtest(series_by_ticker: Mapping[str, Series], cfg: Optional[TrendWatchCon
     return {
         "tickers_tested": tested,
         "excluded": excluded,
-        "step_days": STEP_DAYS,
+        "step_days": _step(cfg),
         "return_basis": dict(bases),
         "horizons": horizons,
     }

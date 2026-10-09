@@ -85,7 +85,7 @@ async def _run(**kwargs):
         load_prices=lambda ticker, days: PRICES.get(ticker, pd.Series(dtype=float)),
         load_levels=lambda closes, ticker: (closes, "total"),
         load_meta=lambda ticker: META.get(ticker, {}),
-        load_issues=lambda: ([NOISY_ISSUE], []),
+        load_issues=kwargs.pop("load_issues", lambda: ([NOISY_ISSUE], [])),
         **kwargs,
     )
 
@@ -174,3 +174,14 @@ async def test_investigation_is_capped_per_run():
     beta = next(item for item in report["items"] if item["ticker"] == "BETA.L")
     assert "only the top 1" in beta["investigation"]["notes"][0]
     assert beta["verdict"] == prompt.VERDICT_MARKET
+
+
+async def test_pence_cliff_with_no_open_issue_is_a_data_problem_end_to_end():
+    # load_issues reports nothing for JEGI.L: the verdict comes from the detector's own artefact check.
+    report = await _run(load_issues=lambda: ([], []))
+
+    jegi = next(item for item in report["items"] if item["ticker"] == "JEGI.L")
+    assert jegi["verdict"] == prompt.VERDICT_DATA
+    assert jegi["detection"]["artefacts"][0]["kind"] == "price_scale_step"
+    assert [issue["type"] for issue in jegi["data_issues"]] == ["PRICE_SCALE_SUSPECT"]
+    assert jegi["investigation"]["status"] == "skipped"

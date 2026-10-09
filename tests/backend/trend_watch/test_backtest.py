@@ -25,6 +25,20 @@ def test_reports_flag_fall_rate_against_base_rate_per_horizon():
     # ...while across all weeks (including the climbs) falls were less common.
     assert one_month["base_rate"] < one_month["flag_fall_rate"]
     assert one_month["base_rate"] == round(one_month["base_falls"] / one_month["weeks"], 4)
+    six_months = result["horizons"]["6m"]
+    assert six_months["days"] == 126
+    assert six_months["flags"] >= 1 and six_months["flag_fall_rate"] == 1.0
+    assert six_months["weeks"] < one_month["weeks"]
+
+
+def test_backtest_steps_by_the_configured_run_length():
+    from backend.config import TrendWatchConfig
+
+    weekly = backtest({"TURN.L": Series(closes=double_top())})
+    fortnightly = backtest({"TURN.L": Series(closes=double_top())}, TrendWatchConfig(new_lookback_days=10))
+
+    assert (weekly["step_days"], fortnightly["step_days"]) == (5, 10)
+    assert fortnightly["horizons"]["1m"]["weeks"] < weekly["horizons"]["1m"]["weeks"]
 
 
 def test_steady_uptrend_raises_no_flags():

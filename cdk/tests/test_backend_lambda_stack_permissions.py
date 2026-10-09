@@ -623,6 +623,7 @@ def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
         "PriceRefreshLambda",
         "TradingAgentLambda",
         "DividendRefreshLambda",
+        "DataStewardLambda",
     ]
     forbidden = {"s3:DeleteObject", "s3:DeleteObjectVersion"}
 
@@ -1151,8 +1152,17 @@ def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
 # BOTS_PREFIX is not duplicated either: the backend's only fallback is a local
 # file:// path and it learns the S3 location from BOTS_STORAGE_URI (#10477),
 # which test_bot_lambdas_share_the_bots_storage_prefix checks.
+# DATA_STEWARD_REPORTS_PREFIX likewise: backend/data_steward/store.py has no S3
+# fallback and learns the location from DATA_STEWARD_REPORTS_URI (#10471), which
+# test_data_steward_lambda_is_read_only_except_its_reports checks.
 _COVERED_STACK_PREFIX_CONSTANTS = frozenset(
-    {"WRITABLE_ACCOUNTS_PREFIX", "METADATA_PREFIX", "CHAT_HISTORY_PREFIX", "BOTS_PREFIX"}
+    {
+        "WRITABLE_ACCOUNTS_PREFIX",
+        "METADATA_PREFIX",
+        "CHAT_HISTORY_PREFIX",
+        "BOTS_PREFIX",
+        "DATA_STEWARD_REPORTS_PREFIX",
+    }
 )
 
 
@@ -1315,3 +1325,49 @@ def test_chat_history_expires_after_the_agreed_retention() -> None:
             "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
         }
     ]
+
+
+def _rule_targeting(template: dict, lambda_fragment: str) -> dict:
+    lambda_ids = [
+        logical_id
+        for logical_id, resource in template["Resources"].items()
+        if resource.get("Type") == "AWS::Lambda::Function" and lambda_fragment in logical_id
+    ]
+    for resource in template["Resources"].values():
+        if resource.get("Type") != "AWS::Events::Rule":
+            continue
+        for target in resource["Properties"].get("Targets", []):
+            arn = target.get("Arn", {})
+            if isinstance(arn, dict) and arn.get("Fn::GetAtt", [None])[0] in lambda_ids:
+                return resource["Properties"]
+    raise AssertionError(f"No EventBridge rule targets {lambda_fragment}")
+
+
+def test_data_steward_lambda_runs_nightly_after_price_refresh() -> None:
+    """DataStewardLambda (#10471) runs at 02:00 UTC, after the 00:00 price refresh, with no retries."""
+    template = _stack_template()
+    rule = _rule_targeting(template, "DataStewardLambda")
+    assert rule["ScheduleExpression"] == "cron(0 2 * * ? *)"
+    assert rule["Targets"][0]["RetryPolicy"]["MaximumRetryAttempts"] == 0
+
+
+def test_data_steward_lambda_is_read_only_except_its_reports() -> None:
+    """DataStewardLambda reads data and writes only under data_steward/reports/ (#10471)."""
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "DataStewardLambda")
+
+    assert _s3_actions_for_role(template, role) == {"s3:GetObject", "s3:PutObject"}
+    put_resources = _resources_for_s3_action(template, role, "s3:PutObject")
+    assert put_resources, "Expected DataStewardLambda to have an s3:PutObject grant"
+    for resource in put_resources:
+        assert "data_steward/reports/*" in resource, f"PutObject not scoped to data_steward/reports/*: {resource!r}"
+
+    bedrock = _resources_for_s3_action(template, role, "bedrock:InvokeModel")
+    assert bedrock and all("foundation-model/amazon.nova-lite-v1:0" in r for r in bedrock)
+
+    env = next(
+        resource["Properties"]["Environment"]["Variables"]
+        for logical_id, resource in template["Resources"].items()
+        if resource.get("Type") == "AWS::Lambda::Function" and "DataStewardLambda" in logical_id
+    )
+    assert "data_steward/reports" in str(env["DATA_STEWARD_REPORTS_URI"])

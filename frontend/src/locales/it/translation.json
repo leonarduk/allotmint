@@ -255,6 +255,7 @@
     "admin": {
       "tabs": {
         "issues": "Problemi",
+        "steward": "Report dell'agente",
         "series": "Serie",
         "holdings": "Posizioni",
         "metadata": "Metadati",
@@ -348,7 +349,32 @@
           "notReversible": "Non reversibile"
         }
       },
-      "tabsLabel": "Amministrazione qualità dei dati"
+      "tabsLabel": "Amministrazione qualità dei dati",
+      "steward": {
+        "title": "Report dell'agente dati",
+        "subtitle": "Un agente IA esamina ogni problema di qualità dei dati sugli strumenti detenuti, trova la causa probabile e lo classifica. Legge solo i dati: sei tu a decidere se applicare una correzione.",
+        "runNow": "Esegui ora",
+        "running": "In esecuzione…",
+        "runNotAvailable": "Le esecuzioni manuali sono disponibili solo in locale; questa installazione esegue l'agente ogni notte.",
+        "empty": "Nessun report ancora. Eseguilo o attendi l'esecuzione notturna.",
+        "noItems": "Nessun problema sugli strumenti detenuti da esaminare.",
+        "runSummary": "Esecuzione {{when}} · {{status}} · {{model}} · esaminati {{investigated}} di {{held}} problemi detenuti ({{found}} trovati) · {{tokens}} token · costo {{cost}}",
+        "groups": {
+          "fix_available": "Correzione disponibile",
+          "needs_human": "Serve una persona",
+          "not_a_problem": "Non è un vero problema",
+          "error": "Esame non riuscito"
+        },
+        "exposure": "Riguarda {{value}} ({{pct}} del portafoglio)",
+        "rootCause": "Causa probabile",
+        "confidence": "affidabilità {{pct}}%",
+        "allowlistReason": "Motivo proposto per l'elenco eccezioni",
+        "unclear": "Ancora da chiarire",
+        "proposedFix": "Correzione proposta",
+        "applyFor": "Applica correzione per {{entity}}",
+        "evidence": "Prove ({{count}} chiamate a strumenti)",
+        "toolError": "errore"
+      }
     }
   },
   "dashboard": {

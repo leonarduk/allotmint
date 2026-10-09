@@ -7,8 +7,8 @@
   to `.env` for local or AWS environments. Provide secrets via environment variables.
 
 ## Data Quality Admin
-- **Screen**: `/data-quality` shows a tabbed admin surface (Issues / Series /
-  Holdings / Metadata / Audit) when the `enable_data_quality_admin` config flag
+- **Screen**: `/data-quality` shows a tabbed admin surface (Issues / Steward
+  report / Series / Holdings / Metadata / Audit) when the `enable_data_quality_admin` config flag
   is enabled (default: on). When disabled, the page falls back to the original
   read-only series table.
 - **Issues tab**: lists unified issues across holdings (wrong exchange,
@@ -19,6 +19,20 @@
 - **Audit tab**: shows the JSONL audit trail (`{data_root}/audit/`); reversible
   actions (wrong-exchange corrections, dedupe, ticker normalization) can be
   undone from there.
+- **Steward report tab** (#10471): an AI agent triages the open issues on held
+  instruments (high severity and largest £ exposure first), investigates each
+  with read-only MCP tools only, and groups them as *Fix available*, *Needs
+  human* or *Not a real problem*, with the tool calls and results behind each
+  verdict. It never writes data: *Apply* calls the same fix endpoint as the
+  Issues tab, after confirmation. It uses the chat assistant's provider
+  (`CHAT_PROVIDER`/`CHAT_MODEL`, Ollama by default locally, so free) and needs
+  `MCP_SERVER_URL`. Locally, *Run now* calls `POST /data-steward/run`; on AWS
+  `DataStewardLambda` runs nightly at 02:00 UTC (set the `mcp_server_url` and
+  `mcp_server_function_arn` CDK context). Reports are saved as
+  `{data_root}/data_steward/reports/<date>.json` plus `latest.json` (or under
+  `DATA_STEWARD_REPORTS_URI`). Cost is capped by `DATA_STEWARD_MAX_ISSUES`
+  (default 10) and `DATA_STEWARD_MAX_TOOL_CALLS` per issue (default 6); a
+  failed run still saves a report listing its errors.
 - **Holding writes** go through the same accounts-store write path as manual
   holdings; the shared demo dataset under `data/accounts/` is read-only and
   must be copied to a writable root before fixes can be applied.

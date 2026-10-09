@@ -249,6 +249,7 @@
     "admin": {
       "tabs": {
         "issues": "Issues",
+        "steward": "Steward report",
         "series": "Series",
         "holdings": "Holdings",
         "metadata": "Metadata",
@@ -342,7 +343,32 @@
           "notReversible": "Not reversible"
         }
       },
-      "tabsLabel": "Data quality admin"
+      "tabsLabel": "Data quality admin",
+      "steward": {
+        "title": "Data steward report",
+        "subtitle": "An AI agent checks each data-quality issue on a held instrument, finds the likely cause and groups it. It only reads data: you decide whether to apply a fix.",
+        "runNow": "Run now",
+        "running": "Running…",
+        "runNotAvailable": "Manual runs are only available locally; this deployment runs the steward nightly.",
+        "empty": "No steward report yet. Run it, or wait for the nightly run.",
+        "noItems": "No issues on held instruments needed investigating.",
+        "runSummary": "Run {{when}} · {{status}} · {{model}} · investigated {{investigated}} of {{held}} held issues ({{found}} found) · {{tokens}} tokens · cost {{cost}}",
+        "groups": {
+          "fix_available": "Fix available",
+          "needs_human": "Needs human",
+          "not_a_problem": "Not a real problem",
+          "error": "Investigation failed"
+        },
+        "exposure": "Affects {{value}} ({{pct}} of portfolio)",
+        "rootCause": "Likely cause",
+        "confidence": "confidence {{pct}}%",
+        "allowlistReason": "Proposed allowlist reason",
+        "unclear": "Still unclear",
+        "proposedFix": "Proposed fix",
+        "applyFor": "Apply fix for {{entity}}",
+        "evidence": "Evidence ({{count}} tool calls)",
+        "toolError": "error"
+      }
     }
   },
   "dashboard": {

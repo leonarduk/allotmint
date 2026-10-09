@@ -255,6 +255,7 @@
     "admin": {
       "tabs": {
         "issues": "Problemas",
+        "steward": "Informe del agente",
         "series": "Series",
         "holdings": "Posiciones",
         "metadata": "Metadatos",
@@ -348,7 +349,32 @@
           "notReversible": "No reversible"
         }
       },
-      "tabsLabel": "Administración de calidad de datos"
+      "tabsLabel": "Administración de calidad de datos",
+      "steward": {
+        "title": "Informe del agente de datos",
+        "subtitle": "Un agente de IA revisa cada problema de calidad de datos en instrumentos en cartera, busca la causa probable y lo clasifica. Solo lee datos: usted decide si aplicar una corrección.",
+        "runNow": "Ejecutar ahora",
+        "running": "Ejecutando…",
+        "runNotAvailable": "Las ejecuciones manuales solo están disponibles en local; esta instalación ejecuta el agente cada noche.",
+        "empty": "Aún no hay informe. Ejecútelo o espere a la ejecución nocturna.",
+        "noItems": "Ningún problema en instrumentos en cartera necesitaba investigarse.",
+        "runSummary": "Ejecución {{when}} · {{status}} · {{model}} · {{investigated}} de {{held}} problemas en cartera investigados ({{found}} encontrados) · {{tokens}} tokens · coste {{cost}}",
+        "groups": {
+          "fix_available": "Corrección disponible",
+          "needs_human": "Requiere revisión humana",
+          "not_a_problem": "No es un problema real",
+          "error": "La investigación falló"
+        },
+        "exposure": "Afecta a {{value}} ({{pct}} de la cartera)",
+        "rootCause": "Causa probable",
+        "confidence": "confianza {{pct}} %",
+        "allowlistReason": "Motivo propuesto para la lista de excepciones",
+        "unclear": "Aún sin aclarar",
+        "proposedFix": "Corrección propuesta",
+        "applyFor": "Aplicar corrección a {{entity}}",
+        "evidence": "Pruebas ({{count}} llamadas a herramientas)",
+        "toolError": "error"
+      }
     }
   },
   "dashboard": {

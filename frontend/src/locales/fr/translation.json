@@ -255,6 +255,7 @@
     "admin": {
       "tabs": {
         "issues": "Problèmes",
+        "steward": "Rapport de l'agent",
         "series": "Séries",
         "holdings": "Positions",
         "metadata": "Métadonnées",
@@ -348,7 +349,32 @@
           "notReversible": "Non réversible"
         }
       },
-      "tabsLabel": "Administration de la qualité des données"
+      "tabsLabel": "Administration de la qualité des données",
+      "steward": {
+        "title": "Rapport de l'agent de données",
+        "subtitle": "Un agent d'IA examine chaque problème de qualité des données sur les instruments détenus, cherche la cause probable et le classe. Il ne fait que lire les données : vous décidez d'appliquer ou non une correction.",
+        "runNow": "Lancer maintenant",
+        "running": "En cours…",
+        "runNotAvailable": "Les lancements manuels ne sont disponibles qu'en local ; ce déploiement lance l'agent chaque nuit.",
+        "empty": "Pas encore de rapport. Lancez-le ou attendez l'exécution nocturne.",
+        "noItems": "Aucun problème sur les instruments détenus à examiner.",
+        "runSummary": "Exécution {{when}} · {{status}} · {{model}} · {{investigated}} sur {{held}} problèmes détenus examinés ({{found}} trouvés) · {{tokens}} jetons · coût {{cost}}",
+        "groups": {
+          "fix_available": "Correction disponible",
+          "needs_human": "Nécessite un humain",
+          "not_a_problem": "Pas un vrai problème",
+          "error": "Échec de l'examen"
+        },
+        "exposure": "Concerne {{value}} ({{pct}} du portefeuille)",
+        "rootCause": "Cause probable",
+        "confidence": "confiance {{pct}} %",
+        "allowlistReason": "Motif proposé pour la liste d'exceptions",
+        "unclear": "Encore incertain",
+        "proposedFix": "Correction proposée",
+        "applyFor": "Appliquer la correction pour {{entity}}",
+        "evidence": "Éléments ({{count}} appels d'outils)",
+        "toolError": "erreur"
+      }
     }
   },
   "dashboard": {

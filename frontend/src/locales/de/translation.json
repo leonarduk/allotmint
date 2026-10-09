@@ -94,6 +94,7 @@
     "viewAlertsLink": "Letzte Alarme anzeigen"
   },
   "allocation": {
+    "showHoldings": "Positionen anzeigen",
     "allocationDescription": "Die Allokation zeigt, wie sich der aktuelle Portfoliowert verteilt.",
     "contributionDescription": "Der Beitrag zeigt, welche Teile des Portfolios Gewinne und Verluste verursacht haben.",
     "currency": "Währungen",

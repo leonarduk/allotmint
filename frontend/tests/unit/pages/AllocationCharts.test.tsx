@@ -496,6 +496,50 @@ describe("AllocationCharts page", () => {
     expect(within(slices).getByText("Health: 50")).toBeInTheDocument();
   });
 
+  describe("holdings ring toggle", () => {
+    const sliceRows = (pie: HTMLElement) =>
+      within(pie).getAllByTestId("slice-row").map((el) => el.textContent);
+
+    it("adds an outer ring of each group's holdings, in group order, when toggled on", async () => {
+      const alice = samplePortfolio.accounts[0];
+      mockGetGroupPortfolio.mockResolvedValueOnce({
+        ...samplePortfolio,
+        accounts: [
+          {
+            ...alice,
+            holdings: [
+              { ...baseHolding, ticker: "AAA", name: "Alpha", market_value_gbp: 30, sector: "Tech" },
+              { ...baseHolding, ticker: "BBB", name: "Beta", market_value_gbp: 70, sector: "Tech" },
+              { ...baseHolding, ticker: "CCC", name: "", market_value_gbp: 50, sector: "Health" },
+            ],
+          },
+          // The same ticker in another account folds into one holding slice.
+          {
+            ...alice,
+            account_type: "isa",
+            holdings: [{ ...baseHolding, ticker: "AAA", name: "Alpha", market_value_gbp: 50, sector: "Tech" }],
+          },
+        ],
+      });
+
+      render(<AllocationCharts />);
+      await screen.findByText(/Instrument Types/);
+      fireEvent.click(screen.getByRole("button", { name: /^(industries|sectors?)$/i }));
+      expect(screen.getAllByTestId("pie-slices")).toHaveLength(1);
+
+      fireEvent.click(screen.getByTestId("show-holdings-toggle"));
+
+      const [groups, holdings] = screen.getAllByTestId("pie-slices");
+      expect(sliceRows(groups)).toEqual(["Tech: 150", "Health: 50"]);
+      // Unnamed holdings fall back to their ticker.
+      expect(sliceRows(holdings)).toEqual(["Alpha: 80", "Beta: 70", "CCC: 50"]);
+      expect(groups).toHaveAttribute("data-inline-labels", "false");
+
+      fireEvent.click(screen.getByTestId("show-holdings-toggle"));
+      expect(screen.getAllByTestId("pie-slices")).toHaveLength(1);
+    });
+  });
+
   it("suppresses all dropped-value warnings in production", async () => {
     vi.stubEnv("MODE", "production");
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -619,6 +663,14 @@ describe("AllocationCharts page", () => {
       expect(screen.queryByText("currency boom")).not.toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "alice" })).toBeInTheDocument();
     });
+  });
+
+  it("offers no holdings ring for views not built from the portfolio's holdings", async () => {
+    mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+    mockGetGroupCurrencies.mockResolvedValueOnce([]);
+    render(<AllocationCharts />, "/allocation?view=currency");
+    await screen.findByTestId("currency-exposure-note");
+    expect(screen.queryByTestId("show-holdings-toggle")).not.toBeInTheDocument();
   });
 
   describe("sleeve view (#9813)", () => {

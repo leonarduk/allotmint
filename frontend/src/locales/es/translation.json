@@ -94,6 +94,7 @@
     "viewAlertsLink": "Ver alertas recientes"
   },
   "allocation": {
+    "showHoldings": "Mostrar posiciones",
     "allocationDescription": "La asignación muestra cómo se distribuye el valor actual de la cartera.",
     "contributionDescription": "La contribución muestra qué partes de la cartera generaron las ganancias y pérdidas.",
     "currency": "Divisas",

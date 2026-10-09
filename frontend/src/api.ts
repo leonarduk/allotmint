@@ -56,6 +56,9 @@ import type {
   SleeveInput,
   SleeveList,
   InvestmentPlan,
+  CashDeploymentRun,
+  CashDeploymentSchedule,
+  CashDeploymentScheduleInput,
   InvestmentPlanResponse,
   RebalancePlan,
   QuestResponse,
@@ -2687,6 +2690,31 @@ export const assignSleeve = (owner: string, ticker: string, sleeveId: string | n
 /** The owner's investment plan record; rejects with `status` 404 when none is saved. */
 export const getInvestmentPlan = (owner: string) =>
   fetchJson<InvestmentPlanResponse>(`${API_BASE}/plans/${encodeURIComponent(owner)}`);
+
+/** The read-only cash deployment bot run: each schedule's progress and any tranche due now (#10480). */
+export const getCashDeployment = (owner: string) =>
+  fetchJson<CashDeploymentRun>(`${API_BASE}/cash-deployment/${encodeURIComponent(owner)}`);
+
+const cashScheduleUrl = (owner: string, id?: string) =>
+  `${API_BASE}/cash-deployment/${encodeURIComponent(owner)}/schedules${id ? `/${encodeURIComponent(id)}` : ""}`;
+
+/** Save the owner's own phasing schedule; the app never proposes one. */
+export const createCashDeploymentSchedule = (owner: string, body: CashDeploymentScheduleInput) =>
+  fetchJson<CashDeploymentSchedule>(cashScheduleUrl(owner), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+export const updateCashDeploymentSchedule = (owner: string, id: string, body: CashDeploymentScheduleInput) =>
+  fetchJson<CashDeploymentSchedule>(cashScheduleUrl(owner, id), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+export const deleteCashDeploymentSchedule = (owner: string, id: string) =>
+  fetchJson<{ deleted: string }>(cashScheduleUrl(owner, id), { method: "DELETE" });
 
 /** Validate and save the owner's investment plan record. */
 export const saveInvestmentPlan = (owner: string, plan: Partial<InvestmentPlan>) =>

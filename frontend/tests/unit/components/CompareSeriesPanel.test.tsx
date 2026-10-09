@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, type Mock, beforeEach } from "vitest";
 import { cloneElement, isValidElement } from "react";
+import { COMPARE_COLORS } from "@/components/instrumentCompare";
 import i18n from "@/i18n";
 
 vi.mock("@/api", () => ({
@@ -49,6 +50,11 @@ const series = (start: number) => ({
   positions: [],
   currency: "GBP",
 });
+
+const hexToRgb = (hex: string) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `rgb(${r}, ${g}, ${b})`;
+};
 
 const lineCount = (container: HTMLElement) =>
   container.querySelectorAll(".recharts-line").length;
@@ -195,5 +201,42 @@ describe("InstrumentDetail series comparison", () => {
 
     expect(input).toBeDisabled();
     expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+  });
+  it("keeps a line's colour matching its chip when an earlier ticker fails", async () => {
+    mockDetail.mockImplementation((ticker: string) =>
+      ticker === "BAD.L"
+        ? Promise.reject(new Error("boom"))
+        : Promise.resolve(series(ticker === "ABC.L" ? 100 : 20)),
+    );
+    const { container } = renderDetail();
+    const input = await screen.findByLabelText(/Compare with/);
+    await userEvent.type(input, "BAD.L{Enter}");
+    await userEvent.type(input, "XYZ.L{Enter}");
+
+    // XYZ.L sits in the second compare slot, so it keeps that slot's colour
+    // even though BAD.L, in the first slot, draws no line.
+    await vi.waitFor(() =>
+      expect(
+        Array.from(
+          container.querySelectorAll(".recharts-line path.recharts-curve"),
+        ).map((el) => el.getAttribute("stroke")),
+      ).toEqual([COMPARE_COLORS[0], COMPARE_COLORS[2]]),
+    );
+    expect(
+      screen.getByLabelText("Remove XYZ.L").parentElement!.style.borderColor,
+    ).toBe(hexToRgb(COMPARE_COLORS[2]));
+  });
+
+  it("disables intraday while comparing", async () => {
+    renderDetail();
+    const intraday = await screen.findByLabelText("Intraday");
+    expect(intraday).toBeEnabled();
+
+    await userEvent.type(
+      await screen.findByLabelText(/Compare with/),
+      "XYZ.L{Enter}",
+    );
+
+    expect(intraday).toBeDisabled();
   });
 });

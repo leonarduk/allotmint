@@ -260,3 +260,27 @@ async def test_chat_loop_enforces_the_policy(monkeypatch):
     assert offered == ["get_instrument_technicals"]
     assert session.calls == [("get_instrument_technicals", {"ticker": "TURN.L"})]
     assert [call["tool"] for call in policy.calls] == ["get_instrument_technicals"]
+
+
+async def test_zero_values_are_kept_in_evidence():
+    reply = {
+        "verdict": "idiosyncratic_deterioration",
+        "summary": "Dividend suspended.",
+        "evidence": [{"tool": "get_instrument_fundamentals", "finding": "Dividend", "value": 0, "source": "x"}],
+    }
+
+    result = await _investigate(
+        _stock_specific(), _runner(reply, [("get_instrument_fundamentals", '{"dividend": 0}', False)])
+    )
+
+    assert result["evidence"][-1]["value"] == "0"
+
+
+async def test_market_verdict_without_a_benchmark_says_so():
+    closes = double_top().iloc[:FRESH_TURN_END]
+    no_benchmark = detect("SOLO.L", closes)
+
+    result = await _investigate(no_benchmark, _runner({"verdict": "market_wide_move", "summary": "", "evidence": []}))
+
+    assert result["verdict"] == prompt.VERDICT_MARKET
+    assert any("no benchmark" in note for note in result["notes"])

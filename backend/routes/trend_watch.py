@@ -10,10 +10,10 @@ from pydantic import BaseModel
 from backend.auth import get_active_user
 from backend.common.authz import ensure_owner_access
 from backend.common.portfolio import build_owner_portfolio
-from backend.config import config
 from backend.routes._accounts import resolve_accounts_root
 from backend.trend_watch import storage
 from backend.trend_watch.service import run_for_owner
+from backend.trend_watch.settings import load_trend_watch_config
 
 router = APIRouter(prefix="/trend-watch", tags=["trend-watch"])
 
@@ -47,7 +47,7 @@ def _authorise(owner: str, request: Request, identity: str | None) -> None:
 
 @router.get("/settings", response_model=TrendWatchSettings)
 def settings() -> TrendWatchSettings:
-    return TrendWatchSettings.model_validate(config.trend_watch, from_attributes=True)
+    return TrendWatchSettings.model_validate(load_trend_watch_config(), from_attributes=True)
 
 
 @router.get("/{owner}/latest")

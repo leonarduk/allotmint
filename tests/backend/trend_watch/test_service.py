@@ -79,7 +79,7 @@ async def _run(**kwargs):
     return await run_for_owner(
         "alex",
         today=date(2025, 3, 7),
-        cfg=TrendWatchConfig(),
+        cfg=kwargs.pop("cfg", TrendWatchConfig()),
         runner=_runner,
         load_portfolio=lambda owner: PORTFOLIO,
         load_prices=lambda ticker, days: PRICES.get(ticker, pd.Series(dtype=float)),
@@ -163,3 +163,14 @@ def test_holdings_skip_cash_and_combine_accounts():
     assert "CASH.GBP" not in holdings
     assert [a["tax_free"] for a in holdings["TURN.L"]["accounts"]] == [True, False]
     assert holdings["UP.L"]["gain_pct"] == 1.0
+
+
+async def test_investigation_is_capped_per_run():
+    report = await _run(cfg=TrendWatchConfig(max_investigated=1))
+
+    statuses = {item["ticker"]: item["investigation"]["status"] for item in report["items"]}
+    assert statuses["TURN.L"] == "ok"
+    assert statuses["BETA.L"] == "not_run"
+    beta = next(item for item in report["items"] if item["ticker"] == "BETA.L")
+    assert "only the top 1" in beta["investigation"]["notes"][0]
+    assert beta["verdict"] == prompt.VERDICT_MARKET

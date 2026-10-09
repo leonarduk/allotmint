@@ -213,6 +213,26 @@ describe('TrendWatchPanel', () => {
     );
   });
 
+  it('reflects a mute when the server returns the ticker upper-cased', async () => {
+    api.getTrendWatchLatest.mockResolvedValue({
+      ...REPORT,
+      items: [item({ ticker: 'turn.l' })],
+    });
+    api.setTrendWatchMute.mockResolvedValue({ mutes: ['TURN.L'] });
+    render(<TrendWatchPanel owner="alex" />);
+    const card = await screen.findByTestId('trend-item-turn.l');
+
+    fireEvent.click(
+      within(card).getByRole('button', { name: 'Mute (long-term holding)' })
+    );
+
+    await waitFor(() =>
+      expect(
+        within(card).getByRole('button', { name: 'Unmute' })
+      ).toBeInTheDocument()
+    );
+  });
+
   it('offers a run when there is no report yet, and shows the new report', async () => {
     api.getTrendWatchLatest.mockResolvedValue(null);
     api.runTrendWatch.mockResolvedValue({ ...REPORT, items: [] });

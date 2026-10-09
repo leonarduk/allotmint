@@ -28,12 +28,13 @@ import pandas as pd
 from backend.common.core_optional import missing_package
 from backend.common.instruments import get_instrument_meta
 from backend.common.ticker_utils import split_ticker
-from backend.config import TrendWatchConfig, config
+from backend.config import TrendWatchConfig
 from backend.data_quality import price_scale
 from backend.logging_setup import sanitise_log_value
 from backend.trend_watch import agent, data_gate, prompt, storage
 from backend.trend_watch.backtest import Series, backtest
 from backend.trend_watch.detect import Detection, detect
+from backend.trend_watch.settings import load_trend_watch_config
 
 logger = logging.getLogger(__name__)
 
@@ -344,7 +345,7 @@ async def run_for_owner(
 ) -> Dict[str, Any]:
     """Run trend watch for ``owner``, store the report and return it. The loaders are injectable for tests."""
 
-    cfg = cfg or config.trend_watch
+    cfg = cfg or load_trend_watch_config()
     today = today or date.today()
     if load_portfolio is None:
         from backend.common.portfolio import build_owner_portfolio

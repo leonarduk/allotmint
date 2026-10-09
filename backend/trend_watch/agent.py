@@ -31,6 +31,7 @@ from backend.config import TrendWatchConfig, config
 from backend.logging_setup import sanitise_log_value
 from backend.trend_watch import prompt
 from backend.trend_watch.detect import Detection, market_wide
+from backend.trend_watch.settings import load_trend_watch_config
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,11 @@ def _clean_evidence(raw: Any, called: set[str], notes: List[str]) -> List[Dict[s
         if not isinstance(item, dict):
             continue
         tool = str(item.get("tool") or "")
-        entry = {key: str(item.get(key) or "")[:MAX_RESULT_CHARS] for key in ("tool", "finding", "value", "source")}
+        # Keep falsy values such as 0: the evidence is the audit trail.
+        entry = {
+            key: ("" if item.get(key) is None else str(item.get(key)))[:MAX_RESULT_CHARS]
+            for key in ("tool", "finding", "value", "source")
+        }
         if tool not in called:
             notes.append(f"Dropped evidence citing {tool or 'no tool'}, which was not called successfully.")
             continue
@@ -162,9 +167,12 @@ def _settle_verdict(
     if verdict == prompt.VERDICT_IDIOSYNCRATIC and not evidence:
         notes.append("The model reported a stock-specific cause without citing a tool result; marked inconclusive.")
         return prompt.VERDICT_INCONCLUSIVE
-    if verdict == prompt.VERDICT_MARKET and market_wide(detection, cfg) is False:
+    comparison = market_wide(detection, cfg)
+    if verdict == prompt.VERDICT_MARKET and comparison is False:
         notes.append("The model reported a market-wide move, but the holding fell well beyond its benchmark.")
         return prompt.VERDICT_INCONCLUSIVE
+    if verdict == prompt.VERDICT_MARKET and comparison is None:
+        notes.append("Market-wide move as reported by the model; there was no benchmark series to check it against.")
     return verdict
 
 
@@ -177,7 +185,7 @@ async def investigate(
 ) -> Dict[str, Any]:
     """Investigate one flagged holding; return its verdict, evidence and the tool calls behind it."""
 
-    cfg = cfg or config.trend_watch
+    cfg = cfg or load_trend_watch_config()
     policy = ToolPolicy(allowed=TREND_WATCH_TOOLS, max_calls=cfg.max_tool_calls)
     notes: List[str] = []
     base_evidence = detector_evidence(detection)

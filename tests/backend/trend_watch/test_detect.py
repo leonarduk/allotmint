@@ -119,3 +119,20 @@ def test_signal_frame_without_benchmark_never_reports_rs_low():
 
     assert not frame[d.RS_NEW_LOW].any()
     assert d.signal_frame(pd.Series(dtype=float)).empty
+
+
+def test_return_basis_is_never_left_blank():
+    closes = double_top().iloc[:FRESH_TURN_END]
+    bench = rising_benchmark().iloc[:FRESH_TURN_END]
+
+    unstated = d.detect("X.L", closes, own_levels=closes, benchmark_levels=bench, benchmark_ticker="B.L").values
+    traded = d.detect("X.L", closes, benchmark=bench, benchmark_ticker="B.L").values
+
+    assert (unstated["return_basis"], unstated["benchmark_return_basis"]) == ("unstated", "unstated")
+    assert (traded["return_basis"], traded["benchmark_return_basis"]) == ("price", "price")
+
+
+def test_artefact_dates_are_iso_strings():
+    step = d.find_artefacts(pence_cliff())[0]
+
+    assert step["date"] == pence_cliff().index[-3].date().isoformat()

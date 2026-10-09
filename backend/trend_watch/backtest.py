@@ -31,6 +31,7 @@ from backend.trend_watch.detect import (
     clean_series,
     earlier_runs,
     is_flagged,
+    iso_dated,
     new_signals,
     signal_frame,
 )
@@ -97,7 +98,7 @@ def backtest(series_by_ticker: Mapping[str, Series], cfg: Optional[TrendWatchCon
         if len(closes) < SMA_SLOW + STEP_DAYS + min(HORIZONS.values()):
             excluded[ticker] = "not enough history"
             continue
-        steps = price_scale.find_scale_steps(pd.Series(closes.to_numpy(), index=closes.index.date.astype(str)))
+        steps = price_scale.find_scale_steps(iso_dated(closes))
         if steps:
             excluded[ticker] = f"price-scale step on {steps[0]['date']} (data problem)"
             continue

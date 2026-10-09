@@ -1176,6 +1176,8 @@ class BackendLambdaStack(Stack):
             # See the matching comment on refresh_env above.
             "JWT_SECRET": jwt_secret,
         }
+        # Run records for the Bots page (#10477, backend/bots/runner.py).
+        trend_watch_env["BOTS_STORAGE_URI"] = f"s3://{bucket_name}/{BOTS_PREFIX}"
         if data_repo:
             trend_watch_env["DATA_REPO"] = data_repo
 
@@ -1197,7 +1199,8 @@ class BackendLambdaStack(Stack):
         # cache like TradingAgentLambda (service.py:run_for_owner →
         # build_owner_portfolio / load_meta_timeseries / get_instrument_meta),
         # and writes only under trend_watch/ (storage.py:save_report,
-        # save_state). No Bedrock or MCP grant: without mcp_server_url the
+        # save_state) plus its own run records under bots/ (backend/bots/runs.py,
+        # #10477). No Bedrock or MCP grant: without mcp_server_url the
         # investigation step is recorded as not run (agent.py:default_runner).
         self._grant_bucket_access(
             trend_watch_fn,
@@ -1206,7 +1209,7 @@ class BackendLambdaStack(Stack):
             allow_put=True,
             allow_list=True,
             list_prefix=lambda_list_prefixes["trend_watch"],
-            put_prefix="trend_watch",
+            put_prefix=("trend_watch", BOTS_PREFIX),
         )
         self._grant_timeseries_cache_access(trend_watch_fn, bucket=data_bucket, allow_put=False)
 
@@ -1362,6 +1365,7 @@ class BackendLambdaStack(Stack):
             "trading-agent": agent_fn,
             "dividend-refresh": dividend_fn,
             "pension-report": pension_report_fn,
+            "trend-watch": trend_watch_fn,
         }
         for bot_fn in bot_lambdas.values():
             bot_fn.grant_invoke(backend_fn)

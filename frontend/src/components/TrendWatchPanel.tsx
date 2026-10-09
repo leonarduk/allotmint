@@ -369,7 +369,8 @@ export default function TrendWatchPanel({ owner: initialOwner }: Props) {
               mutes,
               items: current.items.map((it) => ({
                 ...it,
-                muted: mutes.includes(it.ticker),
+                // The server stores mutes upper-cased.
+                muted: mutes.includes(it.ticker.toUpperCase()),
               })),
             }
         );

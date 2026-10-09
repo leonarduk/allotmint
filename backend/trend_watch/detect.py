@@ -221,6 +221,12 @@ def _period_return(levels: pd.Series, days: int) -> Optional[float]:
     return _num(levels.iloc[-1] / levels.iloc[-1 - days] - 1)
 
 
+def iso_dated(series: pd.Series) -> pd.Series:
+    """``series`` indexed by ISO date strings, the form the price-scale helpers report dates in."""
+
+    return pd.Series(series.to_numpy(), index=[pd.Timestamp(d).date().isoformat() for d in series.index])
+
+
 def find_artefacts(closes: pd.Series, *, move_threshold: float = price_scale.DEFAULT_LARGE_MOVE_THRESHOLD):
     """Recent price steps and gaps that look like data artefacts rather than trading.
 
@@ -233,8 +239,7 @@ def find_artefacts(closes: pd.Series, *, move_threshold: float = price_scale.DEF
     clean = clean_series(closes)
     if clean.empty:
         return []
-    recent = clean.iloc[-(ARTEFACT_LOOKBACK_DAYS + 1) :]
-    recent.index = [d.date().isoformat() for d in recent.index]
+    recent = iso_dated(clean.iloc[-(ARTEFACT_LOOKBACK_DAYS + 1) :])
     steps = [dict(step, kind="price_scale_step") for step in price_scale.find_scale_steps(recent)]
     steps += [dict(step, kind="large_one_day_move") for step in price_scale.find_large_moves(recent, move_threshold)]
     frame = pd.DataFrame({"Date": list(recent.index), "Close": recent.to_numpy()})
@@ -289,9 +294,15 @@ def detect(
     result.values.update(
         {
             # Without total-return levels the comparison runs on traded prices.
-            "return_basis": return_basis or ("price" if own_levels is None else None),
+            # Traded prices when no levels were given; "unstated" rather than a
+            # guess when levels were given without their basis.
+            "return_basis": return_basis or ("price" if own_levels is None else "unstated"),
             "benchmark": benchmark_ticker,
-            "benchmark_return_basis": (benchmark_return_basis or "price") if benchmark_ticker else None,
+            "benchmark_return_basis": (
+                (benchmark_return_basis or ("price" if benchmark_levels is None else "unstated"))
+                if benchmark_ticker
+                else None
+            ),
         }
     )
     # Rank by what changed, not by the level: new signals first, then how far
@@ -333,7 +344,8 @@ def _readings(
     rs_before = _num(previous.get("rs"), 6) if previous else None
     if rs_before is None and rs_now is not None:
         rs_before = _num(frame["rs"].iloc[max(last - cfg.new_lookback_days, 0)], 6)
-    rs_change = _num(rs_now / rs_before - 1) if rs_now and rs_before else None
+    # rs_before is a ratio of positive prices, so a zero there can only be missing data.
+    rs_change = _num(rs_now / rs_before - 1) if rs_now is not None and rs_before else None
     return {
         "price": _num(row["close"]),
         "sma50": _num(row.get("sma50")),

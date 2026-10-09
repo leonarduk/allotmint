@@ -1,33 +1,24 @@
-"""Lambda entry point for the weekly trend-watch run (#10476)."""
+"""Lambda entry point for the weekly trend-watch run (#10476).
+
+Runs through the bot runner (``backend.bots``, #10477) like the trading-agent
+Lambda: every run is recorded on the Bots page, a scheduled firing is skipped
+when the bot is disabled or not yet due (weekly cadence), and Run now invokes
+this Lambda with the run id. The bot itself (``backend.trend_watch.bot``) runs
+each owner in turn and records any owner that failed without stopping the rest.
+"""
 
 from __future__ import annotations
 
-import asyncio
-import logging
-
 from backend.auth import system_job_context
-from backend.common.data_loader import list_plots
-from backend.logging_setup import sanitise_log_value
-from backend.trend_watch.service import run_for_owner
-
-logger = logging.getLogger(__name__)
+from backend.bots.runner import handle_lambda_event
+from backend.trend_watch.settings import BOT_ID
 
 
 def lambda_handler(event, context):
-    """Run trend watch for every owner and send the alerts.
+    """Lambda handler invoked by the weekly schedule or by Run now."""
 
-    Runs as a trusted system job so owner discovery returns every owner with
-    auth enabled, as the trading-agent Lambda does (#8805, #8914). One owner's
-    failure is logged and counted; it does not stop the others.
-    """
-
-    failed = []
     with system_job_context():
-        owners = [plot.owner for plot in list_plots() if plot.owner]
-        for owner in owners:
-            try:
-                asyncio.run(run_for_owner(owner, notify=True))
-            except Exception as exc:  # noqa: BLE001 - reported in the result and the log
-                logger.exception("Trend watch failed for %s", sanitise_log_value(owner))
-                failed.append({"owner": owner, "error": f"{type(exc).__name__}: {exc}"})
-    return {"status": "partial" if failed else "ok", "owners": len(owners), "failed": failed}
+        result = handle_lambda_event(BOT_ID, event, reraise=True)
+    if isinstance(result, dict) and result.get("skipped"):
+        return {"status": "skipped", "reason": result.get("reason")}
+    return {"status": "ok"}

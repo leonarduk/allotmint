@@ -3,6 +3,7 @@ from dataclasses import replace
 import pytest
 
 from backend.chat import providers
+from backend.chat.tool_switches import ToolPolicy
 from backend.config import config
 
 
@@ -28,8 +29,11 @@ def test_resolve_chat_provider(chat_provider, app_env, expected):
 async def test_bedrock_provider_uses_bedrock_agent(monkeypatch):
     captured = {}
 
-    async def fake_bedrock(message, history, *, mcp_server_url, bedrock_model_id, local_tools=None, system_prompt=None):
+    async def fake_bedrock(
+        message, history, *, mcp_server_url, bedrock_model_id, local_tools=None, system_prompt=None, tool_policy=None
+    ):
         captured.update(message=message, mcp_server_url=mcp_server_url, bedrock_model_id=bedrock_model_id)
+        captured.update({"tool_policy": tool_policy} if tool_policy is not None else {})
         return "from bedrock"
 
     monkeypatch.setattr(providers.bedrock_agent, "run_chat_turn", fake_bedrock)
@@ -67,7 +71,16 @@ async def test_openai_compat_providers_resolve_base_url_model_and_key(
     captured = {}
 
     async def fake_openai(
-        message, history, *, mcp_server_url, base_url, model, api_key=None, local_tools=None, system_prompt=None
+        message,
+        history,
+        *,
+        mcp_server_url,
+        base_url,
+        model,
+        api_key=None,
+        local_tools=None,
+        system_prompt=None,
+        tool_policy=None,
     ):
         captured["args"] = (base_url, model, api_key)
         return "from openai-compat"
@@ -91,3 +104,20 @@ async def test_deepseek_without_api_key_raises(monkeypatch):
         await providers.run_configured_chat_turn(
             "hi", [], cfg=_cfg(chat_provider="deepseek"), mcp_server_url="http://localhost:8001/mcp"
         )
+
+
+async def test_tool_policy_is_forwarded_to_the_agent(monkeypatch):
+    captured = {}
+
+    async def fake_bedrock(message, history, **kwargs):
+        captured.update(kwargs)
+        return "ok"
+
+    monkeypatch.setattr(providers.bedrock_agent, "run_chat_turn", fake_bedrock)
+    policy = ToolPolicy(allowed=frozenset({"get_instrument_technicals"}), max_calls=3)
+
+    await providers.run_configured_chat_turn(
+        "hi", [], cfg=_cfg(chat_provider="bedrock"), mcp_server_url="https://example.com/mcp", tool_policy=policy
+    )
+
+    assert captured["tool_policy"] is policy

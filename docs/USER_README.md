@@ -100,6 +100,12 @@ If the variable is unset the UI defaults to `http://localhost:6468` (or
     `data/accounts/alice/savings.json`) allows tests to run without extra
     setup.
 - **Get trading agent signals**: `curl http://localhost:6468/trading-agent/signals` or invoke the `price_refresh` Lambda
+- **Run trend watch for an owner** (weekly review list of held positions whose trend has newly turned down,
+  shown in the "Trend watch" panel on the Trading page): `curl -X POST http://localhost:6468/trend-watch/<owner>/run`,
+  then `curl http://localhost:6468/trend-watch/<owner>/latest`. On AWS the `TrendWatchLambda` runs it every Saturday.
+  Thresholds live under `trend_watch:` in `config.yaml`. With `mcp_server_url` set, flagged holdings are investigated
+  by the configured chat model (Ollama locally) using read-only tools; without it, verdicts come from the benchmark
+  comparison alone. It is a review list, not trade instructions.
 - **Deploy to AWS**:
   1. `cd frontend && npm run build`
   2. `npm ci`

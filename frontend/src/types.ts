@@ -1233,6 +1233,100 @@ export interface TradingSignalsReport {
   blocked: BlockedTradingSignal[];
 }
 
+/** Trend watch (#10476): a weekly review list of held positions whose trend turned. */
+export type TrendWatchVerdict =
+  | 'idiosyncratic_deterioration'
+  | 'market_wide_move'
+  | 'data_problem'
+  | 'inconclusive';
+
+export interface TrendWatchEvidence {
+  tool: string;
+  finding: string;
+  value: string;
+  /** "total", "price", "n/a", or "not stated" for a relative figure with no basis given. */
+  return_basis?: string;
+  source: string;
+}
+
+export interface TrendWatchToolCall {
+  tool: string;
+  arguments: Record<string, unknown>;
+  is_error: boolean;
+  result: string;
+}
+
+export interface TrendWatchDataIssue {
+  id?: string | null;
+  type?: string | null;
+  severity?: string | null;
+  description?: string | null;
+  suggested_fix?: string | null;
+}
+
+export interface TrendWatchItem {
+  rank: number;
+  ticker: string;
+  name?: string | null;
+  instrument_type?: string | null;
+  muted: boolean;
+  change_score: number;
+  verdict: TrendWatchVerdict;
+  verdict_label: string;
+  detection: {
+    as_of?: string | null;
+    active: string[];
+    new: string[];
+    values: Record<string, number | string | null>;
+  };
+  context: {
+    market_value_gbp?: number | null;
+    portfolio_share?: number | null;
+    cost_basis_gbp?: number | null;
+    gain_gbp?: number | null;
+    gain_pct?: number | null;
+    cgt_note?: string | null;
+  };
+  data_issues?: TrendWatchDataIssue[];
+  investigation: {
+    status: string;
+    summary?: string | null;
+    evidence: TrendWatchEvidence[];
+    tool_calls: TrendWatchToolCall[];
+    notes: string[];
+  };
+}
+
+export interface TrendWatchHorizon {
+  days: number;
+  flags: number;
+  flag_falls: number;
+  flag_fall_rate: number | null;
+  weeks: number;
+  base_falls: number;
+  base_rate: number | null;
+}
+
+export interface TrendWatchBacktest {
+  tickers_tested: number;
+  excluded: Record<string, string>;
+  return_basis: Record<string, number>;
+  horizons: Record<string, TrendWatchHorizon>;
+}
+
+export interface TrendWatchReport {
+  owner: string;
+  run_date: string;
+  generated_at: string;
+  disclaimer: string;
+  holdings_checked: number;
+  not_flagged?: number;
+  items: TrendWatchItem[];
+  skipped: { ticker: string; reason: string }[];
+  mutes: string[];
+  backtest: TrendWatchBacktest | null;
+}
+
 export interface TradingPageData {
   signals: TradingSignal[];
   /** Signals compliance blocked; absent when the backend didn't report them. */

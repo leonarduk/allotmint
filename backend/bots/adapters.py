@@ -225,6 +225,11 @@ class TradingAgentBot:
 for _bot in (TradingAgentBot(), PriceRefreshBot(), DividendRefreshBot(), PensionReportBot()):
     register_bot(_bot, replace=True)
 
+# Agents that live in their own packages.
+from backend.trend_watch.bot import TrendWatchBot  # noqa: E402
+
+register_bot(TrendWatchBot(), replace=True)
+
 # Agents that register themselves from their own module (see the module docstring).
 import backend.data_steward.bot  # noqa: E402,F401  (registers the data steward, #10471)
 from backend.reconciliation import bot as _statement_reconciliation_bot  # noqa: E402,F401

@@ -89,3 +89,14 @@ def test_invalid_thresholds_fall_back_to_defaults():
     assert limits["country_pct"] == 60.0
     assert limits["sector_pct"] == 30.0
     assert "other" not in limits
+
+
+def test_fund_count_comes_from_the_looked_through_funds(exposure):
+    # Two listings of the same share held directly are not counted as funds.
+    stock = next(h for h in exposure["holdings"] if h["isin"] == "US0000000001")
+    stock["sources"].append({"ticker": "EXSW.L", "value_gbp": 0.0})
+
+    report = concentration_alerts(exposure, {"single_stock_pct": 5.0})
+
+    alert = next(a for a in report["alerts"] if a["kind"] == "stock")
+    assert "via 2 funds" in alert["message"]

@@ -44,19 +44,20 @@ def normalise_thresholds(raw: Optional[Mapping[str, Any]]) -> Dict[str, float]:
 
 def _stock_rows(result: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
     total = float(result.get("total_value_gbp") or 0.0)
+    # Tickers of the funds that were looked through: a holding's sources that
+    # are in this set are funds; any other source is the share held directly.
+    fund_tickers = {f.get("ticker") for f in (result.get("coverage") or {}).get("funds") or []}
     rows: Dict[str, Dict[str, Any]] = {}
     for h in result.get("holdings") or []:
         if h.get("kind") != "security" or total <= 0:
             continue
         direct = float(h.get("direct_value_gbp") or 0.0)
-        sources = h.get("sources") or []
         rows[str(h["key"])] = {
             "label": h.get("name") or h["key"],
             "pct": float(h.get("weight_pct") or 0.0),
             "direct_pct": direct / total * 100.0,
             "via_funds_pct": float(h.get("via_funds_value_gbp") or 0.0) / total * 100.0,
-            # The holding's own ticker is one of its sources when it is held directly.
-            "fund_count": max(len(sources) - (1 if direct > 0 else 0), 0),
+            "fund_count": sum(1 for s in h.get("sources") or [] if s.get("ticker") in fund_tickers),
         }
     return rows
 

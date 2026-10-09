@@ -1389,3 +1389,18 @@ def test_backend_lambda_can_read_and_write_plan_briefs() -> None:
         assert any(
             "'/*'" in r or "/plan_briefs/*" in r for r in resources
         ), f"{action} does not cover plan_briefs/: {resources}"
+
+
+@pytest.mark.parametrize(("context", "expected"), [({}, "true"), ({"plan_brief_send_email": "false"}, "false")])
+def test_plan_brief_email_is_a_context_switch(monkeypatch, context, expected) -> None:
+    monkeypatch.delenv("PLAN_BRIEF_SEND_EMAIL", raising=False)
+    os.environ.setdefault("JWT_SECRET", "test-secret")
+    os.environ.setdefault("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App(context={"data_bucket": "unit-test-data-bucket", "app_env": "aws", **context})
+    template = Template.from_stack(BackendLambdaStack(app, "PlanBriefEmailStack")).to_json()
+    [env] = [
+        resource["Properties"]["Environment"]["Variables"]
+        for logical_id, resource in template["Resources"].items()
+        if resource.get("Type") == "AWS::Lambda::Function" and "PlanBriefLambda" in logical_id
+    ]
+    assert env["PLAN_BRIEF_SEND_EMAIL"] == expected

@@ -219,6 +219,9 @@ def test_evidence_value_must_match_what_the_tool_returned(plan, facts):
         ({"is_error": True}, "missing.field", True, False),
         # Field not resolvable: a number may still be confirmed from the text.
         ({"rows": [{"bank_rate": 2.75}]}, "bank_rate", 2.75, True),
+        # Strings must match a whole token, not part of a date or ticker.
+        ({"as_of": "2026-10-03", "ticker": "GILT3"}, "nope", "3", False),
+        ({"source": "Bank of England IADB"}, "nope", "Bank of England", True),
     ],
 )
 def test_value_check_uses_the_cited_field(result, field, value, ok):

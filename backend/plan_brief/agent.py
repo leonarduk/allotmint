@@ -95,7 +95,11 @@ def fallback_prose(facts: Mapping[str, Any]) -> str:
 
 
 def _extract_json(reply: str) -> Optional[dict]:
-    """The first JSON object in ``reply`` (models sometimes wrap it in a code fence or prose)."""
+    """The first JSON object in ``reply`` (models sometimes wrap it in a code fence or prose).
+
+    Decoding starts at each ``{`` in turn, so an object wrapped in an array
+    (``[{...}]``) is found too: the first attempt starts inside the array.
+    """
     text = re.sub(r"```(?:json)?", "", reply or "")
     start = text.find("{")
     while start != -1:
@@ -160,8 +164,9 @@ def _value_in(value: Any, field: Any, text: str) -> bool:
         return False
     if isinstance(value, (int, float)):
         return any(_same(float(n), value) for n in _NUMBER_RE.findall(text))
-    needle = str(value).strip().lower()
-    return bool(needle) and needle in text.lower()
+    needle = str(value).strip()
+    # Whole token, so "3" doesn't match inside "2026-10-03" or "GILT3".
+    return bool(needle) and re.search(rf"(?<![\w.]){re.escape(needle)}(?![\w])", text, re.I) is not None
 
 
 def _evidence(raw: Any, tool_log: list[dict[str, Any]]) -> list[dict[str, Any]]:

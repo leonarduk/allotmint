@@ -48,6 +48,10 @@ def _load_recipient_owners() -> Optional[List[str]]:
     data: Any = get_storage(uri, param_type="String").load()
     owners = data.get("owners") if isinstance(data, dict) else data
     if not isinstance(owners, list) or not owners:
+        if os.getenv("PLAN_BRIEF_RECIPIENTS_URI"):
+            logger.warning(
+                "PLAN_BRIEF_RECIPIENTS_URI %s gave no owner list; briefing every owner", sanitise_log_value(uri)
+            )
         return None
     return [str(owner) for owner in owners]
 

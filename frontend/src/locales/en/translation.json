@@ -666,6 +666,15 @@
     },
     "infoHeading": "Instrument info",
     "intraday": "Intraday",
+    "compare": {
+      "label": "Compare with",
+      "placeholder": "Ticker, e.g. VWRL.L",
+      "add": "Add",
+      "remove": "Remove {{ticker}}",
+      "clear": "Clear",
+      "loadFailed": "Could not load this series",
+      "rebasedNote": "% change since the first date all series share"
+    },
     "intradayUnavailable": "Intraday data unavailable",
     "ma20": "20d MA",
     "ma200": "200d MA",

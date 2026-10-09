@@ -12,6 +12,7 @@ import { useConfig } from "../ConfigContext";
 import { useReportingCurrency, type ReportingCurrency } from "../hooks/useReportingCurrency";
 import type { InstrumentPosition, TradingSignal, Transaction } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
+import { CompareSeriesPanel } from "./CompareSeriesPanel";
 import { FxReturnSplitPanel } from "./FxReturnSplitPanel";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import ChartSkeleton from "./skeletons/ChartSkeleton";
@@ -55,6 +56,12 @@ type Props = {
   initialHistoryDays?: number;
   onHistoryRangeChange?: (days: number) => void;
   resolveOwnerName?: (owner: string) => string;
+  /**
+   * Tickers overlaid on the chart.  Pass both to own the list (e.g. keep it in
+   * the URL); omit them and the chart keeps its own, cleared per ticker.
+   */
+  compareTickers?: string[];
+  onCompareTickersChange?: (tickers: string[]) => void;
 };
 
 type Price = {
@@ -483,6 +490,8 @@ export function InstrumentDetail({
   initialHistoryDays,
   onHistoryRangeChange,
   resolveOwnerName,
+  compareTickers: compareTickersProp,
+  onCompareTickersChange,
 }: Props) {
   const { t } = useTranslation();
   const {
@@ -557,6 +566,9 @@ export function InstrumentDetail({
   const [intradayLoading, setIntradayLoading] = useState(false);
   const [intradayError, setIntradayError] = useState<string | null>(null);
   const [intradaySupported, setIntradaySupported] = useState(true);
+  const [ownCompareTickers, setOwnCompareTickers] = useState<string[]>([]);
+  const compareTickers = compareTickersProp ?? ownCompareTickers;
+  const setCompareTickers = onCompareTickersChange ?? setOwnCompareTickers;
 
   // Only the response for the current [ticker, days] may land: switching range
   // while an earlier request is in flight (e.g. Max then 10Y) must not let the
@@ -660,6 +672,7 @@ export function InstrumentDetail({
   useEffect(() => {
     setShowTrades(false);
     setTrades([]);
+    setOwnCompareTickers([]);
   }, [ticker]);
 
   const displayCurrency = currencyProp ?? currencyFromData ?? "?";
@@ -983,7 +996,7 @@ export function InstrumentDetail({
             <option value={0}>{t("instrumentDetail.rangeOptions.max")}</option>
           </select>
         </label>
-        {priceMode === "close" && (
+        {priceMode === "close" && compareTickers.length === 0 && (
           <>
             <label style={{ fontSize: "0.85rem" }}>
               <input
@@ -1042,11 +1055,23 @@ export function InstrumentDetail({
             onChange={(e) =>
               setPriceMode(e.target.checked ? "intraday" : "close")
             }
-            disabled={!intradaySupported}
+            disabled={!intradaySupported || compareTickers.length > 0}
           />{" "}
           {t("instrumentDetail.intraday")}
         </label>
       </div>
+      {/* Comparisons are rebased against this instrument, so without its
+          prices there is nothing to compare to. */}
+      {priceMode === "close" && !loading && rawPrices.length > 0 && (
+        <CompareSeriesPanel
+          ticker={ticker}
+          days={days}
+          basePoints={rawPrices}
+          tickers={compareTickers}
+          onTickersChange={setCompareTickers}
+          errorColor={palette.negative}
+        />
+      )}
       {intradayError && (
         <div style={{ color: palette.negative, marginBottom: "0.5rem" }}>
           {t("instrumentDetail.intradayUnavailable")}
@@ -1070,7 +1095,7 @@ export function InstrumentDetail({
         )
       ) : loading ? (
         <ChartSkeleton height={220} label={t("app.loading")} />
-      ) : (
+      ) : compareTickers.length > 0 ? null : (
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={prices}>
             <XAxis dataKey="date" hide />

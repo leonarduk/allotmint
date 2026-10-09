@@ -35,7 +35,7 @@ vi.mock("@/api", () => ({
 }));
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import InstrumentResearch from "@/pages/InstrumentResearch";
 import type { NewsItem, InstrumentMetadata } from "@/types";
 import { useInstrumentHistory } from "@/hooks/useInstrumentHistory";
@@ -1697,5 +1697,61 @@ describe("InstrumentResearch page", () => {
       expect.stringContaining("Can't perform a React state update on an unmounted component"),
     );
     errSpy.mockRestore();
+  });
+  describe("compare tickers in the URL", () => {
+    function LocationSearch() {
+      return <div data-testid="location-search">{useLocation().search}</div>;
+    }
+
+    const renderAt = (entry: string) =>
+      render(
+        <configContext.Provider value={defaultConfig}>
+          <MemoryRouter initialEntries={[entry]}>
+            <Routes>
+              <Route
+                path="/research/:ticker"
+                element={
+                  <>
+                    <InstrumentResearch />
+                    <LocationSearch />
+                  </>
+                }
+              />
+            </Routes>
+          </MemoryRouter>
+        </configContext.Provider>,
+      );
+
+    it("opens a shared comparison link on the timeseries tab", async () => {
+      renderAt("/research/AAA?compare=bbb.l,AAA,bbb.l");
+
+      expect(await screen.findByLabelText("Remove BBB.L")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Remove AAA")).not.toBeInTheDocument();
+      expect(mockGetInstrumentDetail).toHaveBeenCalledWith(
+        "BBB.L",
+        expect.any(Number),
+        expect.any(AbortSignal),
+      );
+    });
+
+    it("writes added and removed tickers back to the URL", async () => {
+      renderAt("/research/AAA");
+      await userEvent.click(screen.getByRole("button", { name: /Timeseries/i }));
+
+      await userEvent.type(
+        await screen.findByLabelText(/Compare with/),
+        "BBB.L{Enter}",
+      );
+      await waitFor(() =>
+        expect(screen.getByTestId("location-search")).toHaveTextContent(
+          "?compare=BBB.L",
+        ),
+      );
+
+      await userEvent.click(await screen.findByLabelText("Remove BBB.L"));
+      await waitFor(() =>
+        expect(screen.getByTestId("location-search")).toBeEmptyDOMElement(),
+      );
+    });
   });
 });

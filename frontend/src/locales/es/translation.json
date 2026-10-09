@@ -672,6 +672,15 @@
     },
     "infoHeading": "Información del instrumento",
     "intraday": "Intradía",
+    "compare": {
+      "label": "Comparar con",
+      "placeholder": "Ticker, p. ej. VWRL.L",
+      "add": "Añadir",
+      "remove": "Quitar {{ticker}}",
+      "clear": "Borrar",
+      "loadFailed": "No se pudo cargar esta serie",
+      "rebasedNote": "% de cambio desde la primera fecha común a todas las series"
+    },
     "intradayUnavailable": "Datos intradía no disponibles",
     "ma20": "20d MA",
     "ma200": "200d MA",

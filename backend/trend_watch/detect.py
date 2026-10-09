@@ -338,6 +338,8 @@ def _readings(
 
     last = len(frame) - 1
     row = frame.iloc[last]
+    # Measure both moves to the same end date: the last traded close.
+    own = own[own.index <= frame.index[-1]]
     own_move = _period_return(own, MOVE_DAYS)
     bench_move = None
     if not bench_levels.empty:

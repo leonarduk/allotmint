@@ -193,7 +193,13 @@ def _settle_verdict(
         notes.append("The model reported a market-wide move, but the holding fell well beyond its benchmark.")
         return prompt.VERDICT_INCONCLUSIVE
     if verdict == prompt.VERDICT_MARKET and comparison is None:
-        notes.append("Market-wide move as reported by the model; there was no benchmark series to check it against.")
+        if not evidence:
+            notes.append(
+                "The model reported a market-wide move, but there was no benchmark series and it cited no tool "
+                "result showing one; marked inconclusive."
+            )
+            return prompt.VERDICT_INCONCLUSIVE
+        notes.append("Market-wide move per the cited evidence; there was no benchmark series to check it against.")
     return verdict
 
 

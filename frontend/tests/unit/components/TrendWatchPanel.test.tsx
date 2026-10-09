@@ -186,6 +186,28 @@ describe('TrendWatchPanel', () => {
     );
   });
 
+  it('labels the hit rates with their return basis', async () => {
+    render(<TrendWatchPanel owner="alex" />);
+
+    expect(
+      await screen.findByText(
+        /total return \(dividends reinvested\) for 9 holdings and on price only for 1/
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('says when there is not enough history to measure the track record', async () => {
+    api.getTrendWatchLatest.mockResolvedValue({
+      ...REPORT,
+      backtest: { ...REPORT.backtest!, tickers_tested: 0 },
+    });
+    render(<TrendWatchPanel owner="alex" />);
+
+    expect(
+      await screen.findByText(/Not enough price history/)
+    ).toBeInTheDocument();
+  });
+
   it('mutes and unmutes a holding', async () => {
     api.setTrendWatchMute
       .mockResolvedValueOnce({ mutes: ['TURN.L'] })

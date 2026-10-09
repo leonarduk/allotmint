@@ -61,8 +61,28 @@ function errorText(err: unknown, fallback: string): string {
 
 function HitRate({ backtest }: { backtest: TrendWatchBacktest | null }) {
   const { t } = useTranslation();
-  if (!backtest || !backtest.tickers_tested) return null;
+  if (!backtest) return null;
+  if (!backtest.tickers_tested) {
+    return (
+      <section
+        className={styles.hitRate}
+        aria-labelledby="trend-watch-hit-rate"
+      >
+        <h3 id="trend-watch-hit-rate">
+          {t('trendWatch.hitRate.title', 'Track record of this detector')}
+        </h3>
+        <p>
+          {t(
+            'trendWatch.hitRate.noHistory',
+            'Not enough price history in these holdings to measure it yet.'
+          )}
+        </p>
+      </section>
+    );
+  }
   const entries = Object.entries(backtest.horizons);
+  const totalBasis = backtest.return_basis.total ?? 0;
+  const priceBasis = backtest.return_basis.price ?? 0;
   // Horizons where a flag has done no better than an ordinary week.
   const noEdge = entries
     .filter(
@@ -115,6 +135,13 @@ function HitRate({ backtest }: { backtest: TrendWatchBacktest | null }) {
           ))}
         </tbody>
       </table>
+      <p className={styles.muted}>
+        {t(
+          'trendWatch.hitRate.basis',
+          'Falls measured on total return (dividends reinvested) for {{total}} holdings and on price only for {{price}}, which have no stored dividend history.',
+          { total: totalBasis, price: priceBasis }
+        )}
+      </p>
       {noEdge.length > 0 && (
         <p className={styles.caution} role="note">
           {t(

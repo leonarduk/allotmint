@@ -279,14 +279,34 @@ async def test_zero_values_are_kept_in_evidence():
     assert result["evidence"][-1]["value"] == "0"
 
 
-async def test_market_verdict_without_a_benchmark_says_so():
-    closes = double_top().iloc[:FRESH_TURN_END]
-    no_benchmark = detect("SOLO.L", closes)
+async def test_unbacked_market_claim_without_a_benchmark_is_inconclusive():
+    no_benchmark = detect("SOLO.L", double_top().iloc[:FRESH_TURN_END])
 
     result = await _investigate(no_benchmark, _runner({"verdict": "market_wide_move", "summary": "", "evidence": []}))
 
+    assert result["verdict"] == prompt.VERDICT_INCONCLUSIVE
+    assert any("no benchmark series" in note for note in result["notes"])
+
+
+async def test_market_claim_without_a_benchmark_stands_on_cited_evidence():
+    no_benchmark = detect("SOLO.L", double_top().iloc[:FRESH_TURN_END])
+    reply = {
+        "verdict": "market_wide_move",
+        "summary": "Its peers fell as much.",
+        "evidence": [
+            {
+                "tool": "get_peer_comparison",
+                "finding": "Peers fell 18% on a total-return basis",
+                "value": "-18%",
+                "source": "peers",
+            }
+        ],
+    }
+
+    result = await _investigate(no_benchmark, _runner(reply, [("get_peer_comparison", "{}", False)]))
+
     assert result["verdict"] == prompt.VERDICT_MARKET
-    assert any("no benchmark" in note for note in result["notes"])
+    assert any("no benchmark series to check" in note for note in result["notes"])
 
 
 @pytest.mark.parametrize(

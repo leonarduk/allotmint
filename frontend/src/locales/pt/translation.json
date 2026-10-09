@@ -94,6 +94,8 @@
     "viewAlertsLink": "Ver alertas recentes"
   },
   "allocation": {
+    "accountCash": "{{owner}} {{account}}: {{name}}",
+    "showHoldings": "Mostrar posições",
     "allocationDescription": "A alocação mostra como o valor atual da carteira está distribuído.",
     "contributionDescription": "A contribuição mostra quais partes da carteira geraram os ganhos e as perdas.",
     "currency": "Moedas",

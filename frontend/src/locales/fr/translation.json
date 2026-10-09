@@ -94,6 +94,8 @@
     "viewAlertsLink": "Voir les alertes récentes"
   },
   "allocation": {
+    "accountCash": "{{owner}} {{account}}: {{name}}",
+    "showHoldings": "Afficher les positions",
     "allocationDescription": "La répartition montre comment la valeur actuelle du portefeuille est distribuée.",
     "contributionDescription": "La contribution montre quelles parties du portefeuille ont généré les gains et les pertes.",
     "currency": "Devises",
@@ -129,6 +131,7 @@
       "alertsettings": "Paramètres d'alerte",
       "allocation": "Allocation",
       "awscosts": "Coûts AWS",
+      "bots": "Bots",
       "compliance": "Alertes de conformité",
       "dataadmin": "Administration des données",
       "dataexplorer": "Explorateur de fichiers",
@@ -3212,7 +3215,9 @@
     "addAccount": "Ajouter un compte",
     "cancelImport": "Annuler l'importation",
     "viewCompliance": "Voir les alertes de conformité",
-    "complianceError": "Impossible de charger les alertes de conformité."
+    "complianceError": "Impossible de charger les alertes de conformité.",
+    "reconcileStatement": "Rapprocher un relevé",
+    "closeReconcile": "Fermer le rapprochement de relevé"
   },
   "topMoversSummary": {
     "noGroup": "Aucun groupe sélectionné.",
@@ -3663,5 +3668,97 @@
     "aboveAverage": "Au-dessus de la ligne moyenne : plus de rendement par unité de volatilité",
     "belowAverage": "En dessous de la ligne moyenne : moins de rendement par unité de volatilité",
     "onAverage": "Sur la ligne moyenne"
+  },
+  "bots": {
+    "title": "Bots",
+    "intro": "Toutes les tâches automatiques et tous les agents IA de l’application : dernière exécution, résultat et paramètres.",
+    "loadError": "Impossible de charger les bots.",
+    "disabled": "désactivé",
+    "columns": {
+      "bot": "Bot",
+      "kind": "Type",
+      "lastRun": "Dernière exécution",
+      "result": "Résultat",
+      "nextRun": "Prochaine exécution"
+    },
+    "kind": {
+      "ai": "Agent IA",
+      "rules": "Règles",
+      "job": "Tâche"
+    },
+    "status": {
+      "ok": "OK",
+      "partial": "Partiel",
+      "failed": "Échec",
+      "skipped": "Ignoré",
+      "running": "En cours",
+      "never": "Jamais exécuté"
+    },
+    "trigger": {
+      "schedule": "Planifié",
+      "manual": "Exécuter maintenant",
+      "invoke": "Direct",
+      "event": "Sur événement"
+    },
+    "scope": {
+      "system": "tout le système",
+      "owner": "par titulaire"
+    },
+    "scheduleLine": "Planification : {{schedule}} · Portée : {{scope}}",
+    "onEvent": "s’exécute sur un événement",
+    "runNow": "Exécuter maintenant",
+    "running": "En cours…",
+    "settings": "Paramètres",
+    "saveSettings": "Enregistrer les paramètres",
+    "saved": "Paramètres enregistrés.",
+    "adminOnly": "Seul un administrateur peut modifier les paramètres ou lancer une exécution.",
+    "history": "Historique des exécutions",
+    "noRuns": "Aucune exécution enregistrée.",
+    "report": "Rapport",
+    "duration": "{{seconds}} s",
+    "usage": "Modèle {{model}} · {{tokensIn}} en entrée / {{tokensOut}} en sortie · ${{cost}}",
+    "pollTimeout": "Attente de cette exécution arrêtée : elle est toujours marquée en cours. Consultez l’historique plus tard."
+  },
+  "statementReconcile": {
+    "title": "Rapprocher un relevé",
+    "intro": "Téléversez un relevé ou un avis d'opéré de votre courtier (PDF ou CSV) pour le comparer à vos transactions enregistrées. Rien n'est modifié tant que vous n'acceptez pas une suggestion.",
+    "cloudNotice": "Le texte du document sera envoyé au fournisseur d'IA configuré ({{provider}}) pour être lu. Le fichier lui-même n'est pas conservé.",
+    "localNotice": "Le document est lu par le modèle d'IA local ({{provider}}) et ne quitte pas cette machine. Le fichier lui-même n'est pas conservé.",
+    "account": "Compte",
+    "file": "Relevé (PDF ou CSV)",
+    "explainUnmatched": "Demander à l'assistant d'expliquer les lignes non rapprochées",
+    "reconcile": "Rapprocher le relevé",
+    "reconciling": "Lecture du relevé…",
+    "failed": "Impossible de rapprocher le relevé.",
+    "resultTitle": "Rapprochement du relevé",
+    "summary": "{{rows}} lignes lues · {{matched}} rapprochées · {{diffs}} écarts",
+    "warnings": "Avertissements",
+    "noDiffs": "Le relevé correspond au journal.",
+    "explanation": "Explication de l'assistant",
+    "accept": "Accepter",
+    "confirm": "Confirmer la modification",
+    "cancel": "Annuler",
+    "applying": "Application…",
+    "applied": "Appliqué",
+    "applyFailed": "Impossible d'appliquer cette modification.",
+    "dismiss": "Ignorer",
+    "dismissReason": "Motif",
+    "dismissedWith": "Ignoré : {{reason}}",
+    "columns": {
+      "kind": "Écart",
+      "date": "Date",
+      "detail": "Détail",
+      "statement": "Relevé",
+      "ledger": "Journal",
+      "action": "Action"
+    },
+    "kinds": {
+      "missing_from_ledger": "Absent du journal",
+      "missing_from_statement": "Absent du relevé",
+      "amount_mismatch": "Montant différent",
+      "fee_mismatch": "Frais différents",
+      "cash_mismatch": "Solde de liquidités différent",
+      "units_mismatch": "Quantité finale différente"
+    }
   }
 }

@@ -94,6 +94,8 @@
     "viewAlertsLink": "Vedi gli avvisi recenti"
   },
   "allocation": {
+    "accountCash": "{{owner}} {{account}}: {{name}}",
+    "showHoldings": "Mostra posizioni",
     "allocationDescription": "L'allocazione mostra come è distribuito il valore attuale del portafoglio.",
     "contributionDescription": "Il contributo mostra quali parti del portafoglio hanno generato guadagni e perdite.",
     "currency": "Valute",
@@ -129,6 +131,7 @@
       "alertsettings": "Impostazioni di avviso",
       "allocation": "Allocazione",
       "awscosts": "Costi AWS",
+      "bots": "Bot",
       "compliance": "Avvisi di conformità",
       "dataadmin": "Amministrazione dati",
       "dataexplorer": "Esplora file",
@@ -3212,7 +3215,9 @@
     "addAccount": "Aggiungi conto",
     "cancelImport": "Annulla importazione",
     "viewCompliance": "Visualizza avvisi di conformità",
-    "complianceError": "Impossibile caricare gli avvisi di conformità."
+    "complianceError": "Impossibile caricare gli avvisi di conformità.",
+    "reconcileStatement": "Riconcilia estratto conto",
+    "closeReconcile": "Chiudi la riconciliazione dell'estratto"
   },
   "topMoversSummary": {
     "noGroup": "Nessun gruppo selezionato.",
@@ -3663,5 +3668,97 @@
     "aboveAverage": "Sopra la linea media: più rendimento per unità di volatilità",
     "belowAverage": "Sotto la linea media: meno rendimento per unità di volatilità",
     "onAverage": "Sulla linea media"
+  },
+  "bots": {
+    "title": "Bot",
+    "intro": "Tutti i processi automatici e gli agenti IA dell’app: quando sono stati eseguiti l’ultima volta, cosa è successo e le loro impostazioni.",
+    "loadError": "Impossibile caricare i bot.",
+    "disabled": "disattivato",
+    "columns": {
+      "bot": "Bot",
+      "kind": "Tipo",
+      "lastRun": "Ultima esecuzione",
+      "result": "Risultato",
+      "nextRun": "Prossima esecuzione"
+    },
+    "kind": {
+      "ai": "Agente IA",
+      "rules": "Regole",
+      "job": "Processo"
+    },
+    "status": {
+      "ok": "OK",
+      "partial": "Parziale",
+      "failed": "Non riuscito",
+      "skipped": "Saltato",
+      "running": "In corso",
+      "never": "Mai eseguito"
+    },
+    "trigger": {
+      "schedule": "Pianificato",
+      "manual": "Esegui ora",
+      "invoke": "Diretto",
+      "event": "Su evento"
+    },
+    "scope": {
+      "system": "intero sistema",
+      "owner": "per titolare"
+    },
+    "scheduleLine": "Pianificazione: {{schedule}} · Ambito: {{scope}}",
+    "onEvent": "eseguito su un evento",
+    "runNow": "Esegui ora",
+    "running": "In corso…",
+    "settings": "Impostazioni",
+    "saveSettings": "Salva impostazioni",
+    "saved": "Impostazioni salvate.",
+    "adminOnly": "Solo un amministratore può modificare le impostazioni o avviare un’esecuzione.",
+    "history": "Cronologia esecuzioni",
+    "noRuns": "Nessuna esecuzione registrata.",
+    "report": "Rapporto",
+    "duration": "{{seconds}} s",
+    "usage": "Modello {{model}} · {{tokensIn}} in ingresso / {{tokensOut}} in uscita · ${{cost}}",
+    "pollTimeout": "Attesa dell’esecuzione interrotta: risulta ancora in corso. Controlla la cronologia più tardi."
+  },
+  "statementReconcile": {
+    "title": "Riconcilia estratto conto",
+    "intro": "Carica un estratto conto o un fissato bollato del broker (PDF o CSV) per confrontarlo con le transazioni registrate. Nulla viene modificato finché non accetti un suggerimento.",
+    "cloudNotice": "Il testo del documento verrà inviato al fornitore di IA configurato ({{provider}}) per la lettura. Il file non viene conservato.",
+    "localNotice": "Il documento viene letto dal modello di IA locale ({{provider}}) e non lascia questo computer. Il file non viene conservato.",
+    "account": "Conto",
+    "file": "Estratto (PDF o CSV)",
+    "explainUnmatched": "Chiedi all'assistente di spiegare le righe non abbinate",
+    "reconcile": "Riconcilia estratto",
+    "reconciling": "Lettura dell'estratto…",
+    "failed": "Impossibile riconciliare l'estratto.",
+    "resultTitle": "Riconciliazione dell'estratto",
+    "summary": "{{rows}} righe lette · {{matched}} abbinate · {{diffs}} differenze",
+    "warnings": "Avvisi",
+    "noDiffs": "L'estratto corrisponde al registro.",
+    "explanation": "Spiegazione dell'assistente",
+    "accept": "Accetta",
+    "confirm": "Conferma modifica",
+    "cancel": "Annulla",
+    "applying": "Applicazione…",
+    "applied": "Applicato",
+    "applyFailed": "Impossibile applicare questa modifica.",
+    "dismiss": "Ignora",
+    "dismissReason": "Motivo",
+    "dismissedWith": "Ignorato: {{reason}}",
+    "columns": {
+      "kind": "Differenza",
+      "date": "Data",
+      "detail": "Dettaglio",
+      "statement": "Estratto",
+      "ledger": "Registro",
+      "action": "Azione"
+    },
+    "kinds": {
+      "missing_from_ledger": "Manca nel registro",
+      "missing_from_statement": "Non presente nell'estratto",
+      "amount_mismatch": "Importo diverso",
+      "fee_mismatch": "Commissione diversa",
+      "cash_mismatch": "Liquidità finale diversa",
+      "units_mismatch": "Quote finali diverse"
+    }
   }
 }

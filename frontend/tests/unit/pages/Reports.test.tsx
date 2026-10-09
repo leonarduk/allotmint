@@ -152,6 +152,23 @@ describe("Reports page", () => {
     ).toBeInTheDocument();
   });
 
+  it("styles template cards with theme variables instead of fixed greys", async () => {
+    const { container } = await renderReports();
+
+    const radio = await screen.findByRole("radio", {
+      name: "Select Performance summary template",
+    });
+    const card = radio.closest("label");
+    expect(card).toHaveClass(
+      "bg-[var(--surface-card-bg)]",
+      "text-[var(--surface-card-color)]",
+    );
+    expect(screen.getByText("3 fields: Metric, Value, Units")).toHaveClass(
+      "text-[var(--surface-muted-color)]",
+    );
+    expect(container.innerHTML).not.toMatch(/\b(?:text|border)-gray-\d+/);
+  });
+
   it("switches selection when choosing a different template", async () => {
     await renderReports();
 

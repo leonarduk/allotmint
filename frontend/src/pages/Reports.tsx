@@ -63,7 +63,7 @@ function TemplateGroup({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--surface-muted-color)]">
         {title}
       </h3>
       <ul className="space-y-4">
@@ -81,10 +81,10 @@ function TemplateGroup({
           return (
             <li key={template.template_id}>
               <label
-                className={`flex gap-4 rounded-lg border p-4 shadow-sm transition focus-within:ring-2 focus-within:ring-indigo-200 ${
+                className={`flex gap-4 rounded-lg border bg-[var(--surface-card-bg)] p-4 text-[var(--surface-card-color)] shadow-sm transition focus-within:ring-2 focus-within:ring-indigo-400/40 ${
                   checked
-                    ? "border-indigo-500 ring-2 ring-indigo-200"
-                    : "border-gray-200 hover:border-indigo-300"
+                    ? "border-indigo-500 ring-2 ring-indigo-400/40"
+                    : "border-[var(--surface-card-border)] hover:border-indigo-400"
                 }`}
               >
                 <input
@@ -100,7 +100,7 @@ function TemplateGroup({
                 />
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-lg font-medium text-gray-900">
+                    <span className="text-lg font-medium">
                       {template.name}
                     </span>
                     <span
@@ -117,22 +117,22 @@ function TemplateGroup({
                       )}
                     </span>
                     {checked ? (
-                      <span className="text-xs font-medium text-indigo-600">
+                      <span className="text-xs font-medium text-indigo-500">
                         {t("reports.catalog.selected")}
                       </span>
                     ) : null}
                   </div>
                   {template.description ? (
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-[var(--surface-muted-color)]">
                       {template.description}
                     </p>
                   ) : null}
                   {sectionsLabel ? (
-                    <p className="text-xs uppercase tracking-wide text-gray-500">
+                    <p className="text-xs uppercase tracking-wide text-[var(--surface-muted-color)]">
                       {sectionsLabel}
                     </p>
                   ) : null}
-                  <p className="text-sm text-gray-600">{fieldsLabel}</p>
+                  <p className="text-sm text-[var(--surface-muted-color)]">{fieldsLabel}</p>
                 </div>
               </label>
             </li>
@@ -196,27 +196,27 @@ export default function Reports() {
     <div className="container mx-auto max-w-5xl p-4">
       <h1 className="mb-6 text-2xl md:text-4xl">{t("reports.title")}</h1>
       {ownersLoaded && owners.length === 0 ? (
-        <p className="text-sm text-gray-600">{t("reports.noOwners")}</p>
+        <p className="text-sm text-[var(--surface-muted-color)]">{t("reports.noOwners")}</p>
       ) : (
         <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
       )}
       <div className="my-6 flex flex-col gap-3 md:flex-row md:items-center">
-        <label className="mr-2 text-sm font-medium text-gray-700">
+        <label className="mr-2 text-sm font-medium">
           {t("query.start")}: {" "}
           <input
             type="date"
             value={start}
             onChange={(event) => setStart(event.target.value)}
-            className="rounded border border-gray-300 px-2 py-1"
+            className="rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-2 py-1 text-[var(--input-text)]"
           />
         </label>
-        <label className="text-sm font-medium text-gray-700">
+        <label className="text-sm font-medium">
           {t("query.end")}: {" "}
           <input
             type="date"
             value={end}
             onChange={(event) => setEnd(event.target.value)}
-            className="rounded border border-gray-300 px-2 py-1"
+            className="rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-2 py-1 text-[var(--input-text)]"
           />
         </label>
       </div>
@@ -227,22 +227,22 @@ export default function Reports() {
             <h2 className="text-xl font-semibold">
               {t("reports.templatesTitle")}
             </h2>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-[var(--surface-muted-color)]">
               {t("reports.templatesDescription")}
             </p>
           </div>
         </div>
         <div className="space-y-8">
           {loading ? (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-[var(--surface-muted-color)]">
               {t("reports.templatesLoading")}
             </p>
           ) : error ? (
-            <p className="text-sm text-red-600">
+            <p className="text-sm text-[var(--gain-negative)]">
               {t("reports.templatesError")}
             </p>
           ) : templates.length === 0 ? (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-[var(--surface-muted-color)]">
               {t("reports.templatesEmpty")}
             </p>
           ) : (
@@ -270,7 +270,7 @@ export default function Reports() {
         <h2 className="text-xl font-semibold">
           {t("reports.downloadsTitle")}
         </h2>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-[var(--surface-muted-color)]">
           {t("reports.downloadsDescription")}
         </p>
         {owner && selectedTemplate ? (
@@ -285,18 +285,18 @@ export default function Reports() {
             <a
               href={pdfLink ?? undefined}
               onClick={() => completeTrackedChore("run_a_report")}
-              className="inline-flex items-center rounded border border-indigo-600 px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50"
+              className="inline-flex items-center rounded border border-indigo-500 px-4 py-2 text-sm font-semibold text-indigo-500 transition hover:bg-indigo-500/10"
             >
               {t("reports.pdf")}
             </a>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-[var(--surface-muted-color)]">
               {t("reports.catalog.selectedTemplate", {
                 name: selectedTemplate.name,
               })}
             </span>
           </div>
         ) : (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-[var(--surface-muted-color)]">
             {t("reports.downloadsDisabled")}
           </p>
         )}

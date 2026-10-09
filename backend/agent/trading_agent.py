@@ -46,8 +46,8 @@ except ModuleNotFoundError:
 logger = logging.getLogger(__name__)
 
 
-def load_strategy_config() -> TradingAgentConfig:
-    """Return the active trading strategy configuration.
+def load_base_strategy_config() -> TradingAgentConfig:
+    """Return the strategy configuration from server config files only.
 
     User preferences can be supplied via a ``strategy_prefs.json`` file in the
     repository root. Values in this file override those from ``config.yaml``.
@@ -65,11 +65,35 @@ def load_strategy_config() -> TradingAgentConfig:
                 filtered = {k: v for k, v in data.items() if v is not None and k in allowed_keys}
                 unknown = set(data) - allowed_keys
                 if unknown:
-                    logger.info("Ignoring unknown strategy preference keys: %s", ", ".join(sorted(unknown)))
+                    logger.info(
+                        "Ignoring unknown strategy preference keys: %s", sanitise_log_value(", ".join(sorted(unknown)))
+                    )
                 base.update(filtered)
         except Exception as exc:  # pragma: no cover - file errors are rare
             logger.warning("Failed to load strategy preferences: %s", sanitise_log_value(exc))
 
+    return TradingAgentConfig(**base)
+
+
+def load_strategy_config() -> TradingAgentConfig:
+    """Return the active trading strategy configuration.
+
+    The base config (:func:`load_base_strategy_config`) overlaid with the
+    thresholds saved on the Bots page (#10477). Only the public threshold
+    fields can be overridden; ``require_pro_checks`` stays server policy.
+    """
+
+    base = asdict(load_base_strategy_config())
+    try:
+        from backend.bots.settings import load_stored_settings
+
+        stored = load_stored_settings("trading-agent")
+    except Exception as exc:
+        logger.error("Failed to load saved trading-agent bot settings: %s", sanitise_log_value(exc))
+        stored = {}
+    overrides = {k: v for k, v in stored.items() if k in base and k != "require_pro_checks"}
+    if overrides:
+        base.update(overrides)
     return TradingAgentConfig(**base)
 
 

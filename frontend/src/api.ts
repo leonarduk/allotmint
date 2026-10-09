@@ -3454,3 +3454,93 @@ export const openSavedChat = (
   fetchJson<{ revision: number; conversation: SavedChatTree; title: string | null }>(`${savedChatUrl(id)}/open`, {
     method: "POST",
   });
+
+// ───────────── Bots API (#10477) ─────────────
+export type BotKind = "ai" | "rules" | "job";
+export type BotRunStatus = "running" | "ok" | "failed" | "partial" | "skipped";
+
+export interface BotRun {
+  id: string;
+  bot_id: string;
+  trigger: "schedule" | "manual" | "invoke" | "event";
+  status: BotRunStatus;
+  started_at: string;
+  finished_at?: string | null;
+  duration_seconds?: number | null;
+  summary?: string | null;
+  report?: Record<string, unknown> | null;
+  error?: string | null;
+  actor?: string | null;
+  owner?: string | null;
+  model?: string | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+  cost_usd?: number | null;
+}
+
+export interface BotSummary {
+  id: string;
+  name: string;
+  description: string;
+  kind: BotKind;
+  scope: "system" | "owner";
+  enabled: boolean;
+  cadence: string;
+  schedule?: string | null;
+  next_run?: string | null;
+  running: boolean;
+  last_run?: BotRun | null;
+}
+
+/** JSON schema of a bot's settings, as produced by Pydantic. */
+export interface BotSettingsSchema {
+  properties?: Record<string, BotSettingsSchemaProperty>;
+  required?: string[];
+}
+
+export interface BotSettingsSchemaProperty {
+  type?: string;
+  anyOf?: Array<{ type?: string }>;
+  enum?: string[];
+  title?: string;
+  description?: string;
+  minimum?: number;
+  maximum?: number;
+  exclusiveMinimum?: number;
+  exclusiveMaximum?: number;
+  default?: unknown;
+}
+
+export interface BotDetail extends BotSummary {
+  settings: Record<string, unknown>;
+  settings_schema: BotSettingsSchema;
+  can_manage: boolean;
+}
+
+const botUrl = (id: string) => `${API_BASE}/bots/${encodeURIComponent(id)}`;
+
+/** GET /bots: every bot with its last run and next due time. */
+export const getBots = (): Promise<BotSummary[]> => fetchJson<BotSummary[]>(`${API_BASE}/bots`);
+
+/** GET /bots/{id}: one bot with its settings and their JSON schema. */
+export const getBot = (id: string): Promise<BotDetail> => fetchJson<BotDetail>(botUrl(id));
+
+/** GET /bots/{id}/runs: run history, newest first. */
+export const getBotRuns = (id: string, limit = 20): Promise<BotRun[]> =>
+  fetchJson<BotRun[]>(`${botUrl(id)}/runs?limit=${limit}`);
+
+/** GET /bots/{id}/runs/{runId}: one run, for polling Run now. */
+export const getBotRun = (id: string, runId: string): Promise<BotRun> =>
+  fetchJson<BotRun>(`${botUrl(id)}/runs/${encodeURIComponent(runId)}`);
+
+/** POST /bots/{id}/run (admin): starts a background run; 409 while one is running. */
+export const runBotNow = (id: string): Promise<BotRun> =>
+  fetchJson<BotRun>(`${botUrl(id)}/run`, { method: "POST" });
+
+/** PUT /bots/{id}/settings (admin): validated (422 on bad values) and audited. */
+export const updateBotSettings = (id: string, settings: Record<string, unknown>): Promise<BotDetail> =>
+  fetchJson<BotDetail>(`${botUrl(id)}/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });

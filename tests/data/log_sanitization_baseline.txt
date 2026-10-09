@@ -20,7 +20,6 @@
 #
 #     python scripts/build_tools/_scan_log_sanitisation.py
 
-backend/agent/trading_agent.py::load_strategy_config::logger.info('Ignoring unknown strategy preference keys: %s', ', '.join(sorted(unknown)))
 # win_rate/average_profit are floats computed internally by
 # load_and_compute_metrics() from the agent's own trade log -- not
 # attacker/user-controlled input.

@@ -3698,6 +3698,31 @@
     "belowAverage": "Unter der Durchschnittslinie: weniger Rendite je Einheit Volatilität",
     "onAverage": "Auf der Durchschnittslinie"
   },
+  "botsDigest": {
+    "title": "Bot-Zusammenfassung",
+    "loading": "Zusammenfassung wird geladen…",
+    "empty": "Es wurde noch keine Zusammenfassung erstellt.",
+    "preview": "Jetzt Vorschau",
+    "previewNote": "Vorschau aus den letzten Bot-Läufen. Nicht gespeichert oder versendet.",
+    "error": "Die Zusammenfassung konnte nicht geladen werden.",
+    "resolvedTitle": "Seit der letzten Zusammenfassung erledigt",
+    "notRunYet": "Noch nicht gelaufen: {{bots}}",
+    "truncated": "{{count}} weitere Einträge nicht angezeigt.",
+    "actionRequired": "Handlung erforderlich",
+    "history": "Verlauf",
+    "historyEntry": "{{date}}: {{count}} Einträge",
+    "status": {
+      "new": "Neu",
+      "still_open": "Noch offen",
+      "resolved": "Erledigt"
+    },
+    "severity": {
+      "high": "Hoch",
+      "medium": "Mittel",
+      "low": "Niedrig",
+      "info": "Info"
+    }
+  },
   "bots": {
     "title": "Bots",
     "intro": "Alle automatischen Jobs und KI-Agenten der App: wann sie zuletzt liefen, was passiert ist und ihre Einstellungen.",

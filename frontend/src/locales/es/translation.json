@@ -3698,6 +3698,31 @@
     "belowAverage": "Por debajo de la línea promedio: menos rentabilidad por unidad de volatilidad",
     "onAverage": "Sobre la línea promedio"
   },
+  "botsDigest": {
+    "title": "Resumen de bots",
+    "loading": "Cargando resumen…",
+    "empty": "Todavía no se ha generado ningún resumen.",
+    "preview": "Vista previa",
+    "previewNote": "Vista previa de las últimas ejecuciones. No se guarda ni se envía.",
+    "error": "No se pudo cargar el resumen.",
+    "resolvedTitle": "Resuelto desde el último resumen",
+    "notRunYet": "Aún sin ejecutar: {{bots}}",
+    "truncated": "{{count}} elemento(s) más no mostrados.",
+    "actionRequired": "Requiere acción",
+    "history": "Historial",
+    "historyEntry": "{{date}}: {{count}} elemento(s)",
+    "status": {
+      "new": "Nuevo",
+      "still_open": "Sigue abierto",
+      "resolved": "Resuelto"
+    },
+    "severity": {
+      "high": "Alta",
+      "medium": "Media",
+      "low": "Baja",
+      "info": "Info"
+    }
+  },
   "bots": {
     "title": "Bots",
     "intro": "Todos los trabajos automáticos y agentes de IA de la aplicación: cuándo se ejecutaron por última vez, qué pasó y su configuración.",

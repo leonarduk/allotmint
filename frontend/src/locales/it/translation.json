@@ -3698,6 +3698,31 @@
     "belowAverage": "Sotto la linea media: meno rendimento per unità di volatilità",
     "onAverage": "Sulla linea media"
   },
+  "botsDigest": {
+    "title": "Riepilogo dei bot",
+    "loading": "Caricamento del riepilogo…",
+    "empty": "Nessun riepilogo è stato ancora composto.",
+    "preview": "Anteprima",
+    "previewNote": "Anteprima dalle ultime esecuzioni. Non salvata né inviata.",
+    "error": "Impossibile caricare il riepilogo.",
+    "resolvedTitle": "Risolto dall'ultimo riepilogo",
+    "notRunYet": "Non ancora eseguito: {{bots}}",
+    "truncated": "{{count}} elemento/i in più non mostrati.",
+    "actionRequired": "Azione richiesta",
+    "history": "Cronologia",
+    "historyEntry": "{{date}}: {{count}} elemento/i",
+    "status": {
+      "new": "Nuovo",
+      "still_open": "Ancora aperto",
+      "resolved": "Risolto"
+    },
+    "severity": {
+      "high": "Alta",
+      "medium": "Media",
+      "low": "Bassa",
+      "info": "Info"
+    }
+  },
   "bots": {
     "title": "Bot",
     "intro": "Tutti i processi automatici e gli agenti IA dell’app: quando sono stati eseguiti l’ultima volta, cosa è successo e le loro impostazioni.",

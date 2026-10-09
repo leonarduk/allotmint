@@ -3691,6 +3691,31 @@
     "belowAverage": "Below the average line: less return per unit of volatility",
     "onAverage": "On the average line"
   },
+  "botsDigest": {
+    "title": "Bots digest",
+    "loading": "Loading digest…",
+    "empty": "No digest has been composed yet.",
+    "preview": "Preview now",
+    "previewNote": "Preview from the latest bot runs. Not saved or sent.",
+    "error": "Could not load the digest.",
+    "resolvedTitle": "Resolved since the last digest",
+    "notRunYet": "Not run yet: {{bots}}",
+    "truncated": "{{count}} more item(s) not shown.",
+    "actionRequired": "Action needed",
+    "history": "History",
+    "historyEntry": "{{date}}: {{count}} item(s)",
+    "status": {
+      "new": "New",
+      "still_open": "Still open",
+      "resolved": "Resolved"
+    },
+    "severity": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "info": "Info"
+    }
+  },
   "bots": {
     "title": "Bots",
     "intro": "Every automated job and AI agent the app runs: when it last ran, what happened, and its settings.",

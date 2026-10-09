@@ -3592,6 +3592,60 @@ export const openSavedChat = (
     method: "POST",
   });
 
+/* ------------------------------------------------------------------ */
+/* Bots digest (#10485)                                                */
+/* ------------------------------------------------------------------ */
+
+export type BotsDigestSeverity = "high" | "medium" | "low" | "info";
+export type BotsDigestItemStatus = "new" | "still_open" | "resolved";
+
+export interface BotsDigestEntry {
+  id: string;
+  bot: string;
+  owner: string | null;
+  severity: BotsDigestSeverity;
+  title: string;
+  summary: string;
+  link: string | null;
+  action_required: boolean;
+  created: string;
+  dedupe_key: string;
+  status: BotsDigestItemStatus;
+}
+
+export interface BotsDigestBotStatus {
+  bot: string;
+  name: string;
+  state: "ok" | "failed" | "partial" | "skipped" | "not_run_yet";
+  last_run_at: string | null;
+  summary: string;
+}
+
+export interface BotsDigest {
+  owner: string;
+  period: "weekly" | "monthly";
+  generated_at: string;
+  opener: string;
+  items: BotsDigestEntry[];
+  resolved: BotsDigestEntry[];
+  bots: BotsDigestBotStatus[];
+  truncated: Record<string, number>;
+  needs_owner: boolean;
+}
+
+const botsDigestUrl = (owner: string, view: "latest" | "history" | "preview") =>
+  `${API_BASE}/bots/digest/${encodeURIComponent(owner)}/${view}`;
+
+/** The owner's latest stored bots digest; rejects with `status` 404 when none exists yet. */
+export const getBotsDigestLatest = (owner: string) => fetchJson<BotsDigest>(botsDigestUrl(owner, "latest"));
+
+/** Stored bots digests for the owner, newest first. */
+export const getBotsDigestHistory = (owner: string, limit = 8) =>
+  fetchJson<{ digests: BotsDigest[] }>(`${botsDigestUrl(owner, "history")}?limit=${limit}`);
+
+/** The digest as it would be composed now from the latest bot runs (not saved or sent). */
+export const getBotsDigestPreview = (owner: string) => fetchJson<BotsDigest>(botsDigestUrl(owner, "preview"));
+
 // ───────────── Bots API (#10477) ─────────────
 export type BotKind = "ai" | "rules" | "job";
 export type BotRunStatus = "running" | "ok" | "failed" | "partial" | "skipped";

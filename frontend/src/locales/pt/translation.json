@@ -94,6 +94,8 @@
     "viewAlertsLink": "Ver alertas recentes"
   },
   "allocation": {
+    "accountCash": "{{owner}} {{account}}: {{name}}",
+    "showHoldings": "Mostrar posições",
     "allocationDescription": "A alocação mostra como o valor atual da carteira está distribuído.",
     "contributionDescription": "A contribuição mostra quais partes da carteira geraram os ganhos e as perdas.",
     "currency": "Moedas",
@@ -129,6 +131,7 @@
       "alertsettings": "Configurações de alerta",
       "allocation": "Alocação",
       "awscosts": "Custos da AWS",
+      "bots": "Bots",
       "compliance": "Alertas de conformidade",
       "dataadmin": "Administração de dados",
       "dataexplorer": "Explorador de arquivos",
@@ -3212,7 +3215,9 @@
     "addAccount": "Adicionar conta",
     "cancelImport": "Cancelar importação",
     "viewCompliance": "Ver avisos de conformidade",
-    "complianceError": "Não foi possível carregar os avisos de conformidade."
+    "complianceError": "Não foi possível carregar os avisos de conformidade.",
+    "reconcileStatement": "Reconciliar extrato",
+    "closeReconcile": "Fechar a reconciliação do extrato"
   },
   "topMoversSummary": {
     "noGroup": "Nenhum grupo selecionado.",
@@ -3690,5 +3695,97 @@
     "aboveAverage": "Acima da linha média: mais retorno por unidade de volatilidade",
     "belowAverage": "Abaixo da linha média: menos retorno por unidade de volatilidade",
     "onAverage": "Na linha média"
+  },
+  "bots": {
+    "title": "Bots",
+    "intro": "Todas as tarefas automáticas e agentes de IA da aplicação: quando foram executados pela última vez, o que aconteceu e as suas definições.",
+    "loadError": "Não foi possível carregar os bots.",
+    "disabled": "desativado",
+    "columns": {
+      "bot": "Bot",
+      "kind": "Tipo",
+      "lastRun": "Última execução",
+      "result": "Resultado",
+      "nextRun": "Próxima execução"
+    },
+    "kind": {
+      "ai": "Agente de IA",
+      "rules": "Regras",
+      "job": "Tarefa"
+    },
+    "status": {
+      "ok": "OK",
+      "partial": "Parcial",
+      "failed": "Falhou",
+      "skipped": "Ignorado",
+      "running": "Em execução",
+      "never": "Nunca executado"
+    },
+    "trigger": {
+      "schedule": "Agendado",
+      "manual": "Executar agora",
+      "invoke": "Direto",
+      "event": "Por evento"
+    },
+    "scope": {
+      "system": "todo o sistema",
+      "owner": "por titular"
+    },
+    "scheduleLine": "Agendamento: {{schedule}} · Âmbito: {{scope}}",
+    "onEvent": "executado num evento",
+    "runNow": "Executar agora",
+    "running": "Em execução…",
+    "settings": "Definições",
+    "saveSettings": "Guardar definições",
+    "saved": "Definições guardadas.",
+    "adminOnly": "Apenas um administrador pode alterar as definições ou iniciar uma execução.",
+    "history": "Histórico de execuções",
+    "noRuns": "Ainda não há execuções registadas.",
+    "report": "Relatório",
+    "duration": "{{seconds}} s",
+    "usage": "Modelo {{model}} · {{tokensIn}} de entrada / {{tokensOut}} de saída · ${{cost}}",
+    "pollTimeout": "Deixou de aguardar esta execução: ainda está marcada como em execução. Verifique o histórico mais tarde."
+  },
+  "statementReconcile": {
+    "title": "Reconciliar extrato",
+    "intro": "Envie um extrato ou nota de corretagem (PDF ou CSV) para compará-lo com as suas transações registadas. Nada é alterado até aceitar uma sugestão.",
+    "cloudNotice": "O texto do documento será enviado ao fornecedor de IA configurado ({{provider}}) para ser lido. O ficheiro não é guardado.",
+    "localNotice": "O documento é lido pelo modelo de IA local ({{provider}}) e não sai deste computador. O ficheiro não é guardado.",
+    "account": "Conta",
+    "file": "Extrato (PDF ou CSV)",
+    "explainUnmatched": "Pedir ao assistente que explique as linhas não reconciliadas",
+    "reconcile": "Reconciliar extrato",
+    "reconciling": "A ler o extrato…",
+    "failed": "Não foi possível reconciliar o extrato.",
+    "resultTitle": "Reconciliação do extrato",
+    "summary": "{{rows}} linhas lidas · {{matched}} reconciliadas · {{diffs}} diferenças",
+    "warnings": "Avisos",
+    "noDiffs": "O extrato coincide com o registo.",
+    "explanation": "Explicação do assistente",
+    "accept": "Aceitar",
+    "confirm": "Confirmar alteração",
+    "cancel": "Cancelar",
+    "applying": "A aplicar…",
+    "applied": "Aplicado",
+    "applyFailed": "Não foi possível aplicar esta alteração.",
+    "dismiss": "Descartar",
+    "dismissReason": "Motivo",
+    "dismissedWith": "Descartado: {{reason}}",
+    "columns": {
+      "kind": "Diferença",
+      "date": "Data",
+      "detail": "Detalhe",
+      "statement": "Extrato",
+      "ledger": "Registo",
+      "action": "Ação"
+    },
+    "kinds": {
+      "missing_from_ledger": "Em falta no registo",
+      "missing_from_statement": "Não consta do extrato",
+      "amount_mismatch": "Montante diferente",
+      "fee_mismatch": "Comissão diferente",
+      "cash_mismatch": "Saldo final diferente",
+      "units_mismatch": "Unidades finais diferentes"
+    }
   }
 }

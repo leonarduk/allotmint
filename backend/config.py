@@ -87,6 +87,8 @@ class TabsConfig:
     plot: bool = True
     # Help page: static end-user help at /help (#7226).
     help: bool = True
+    # Bots page: scheduled jobs and AI agents at /bots (#10477).
+    bots: bool = True
 
 
 @dataclass

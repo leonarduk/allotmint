@@ -58,6 +58,11 @@ CHAT_HISTORY_PREFIX = "chat"
 CHAT_HISTORY_RETENTION_DAYS = 90
 CHAT_HISTORY_NONCURRENT_DAYS = 1
 
+# Bot run records and per-bot settings for the Bots page (#10477,
+# backend/bots/store.py). Every scheduled job Lambda writes its own run record
+# here; the backend Lambda reads them and writes settings.
+BOTS_PREFIX = "bots"
+
 # API Gateway access-log format for the backend HTTP API's default stage.
 # Deliberately logs claims/status/source IP only — never the raw bearer
 # token or Authorization header — so no credentials land in the logs.
@@ -514,6 +519,9 @@ class BackendLambdaStack(Stack):
             "METADATA_BUCKET": bucket_name,
             "METADATA_PREFIX": METADATA_PREFIX,
             "CHAT_HISTORY_STORAGE_URI": f"s3://{bucket_name}/{CHAT_HISTORY_PREFIX}",
+            "BOTS_STORAGE_URI": f"s3://{bucket_name}/{BOTS_PREFIX}",
+            # GET /bots shows the pension report's schedule (#10477).
+            "PENSION_REPORT_CADENCE": pension_report_cadence,
         }
         if data_repo:
             backend_env["DATA_REPO"] = data_repo
@@ -941,6 +949,8 @@ class BackendLambdaStack(Stack):
             # Lambda cold start (issue: PriceRefreshLambda missing JWT_SECRET).
             "JWT_SECRET": jwt_secret,
         }
+        # Run records for the Bots page (#10477, backend/bots/runner.py).
+        refresh_env["BOTS_STORAGE_URI"] = f"s3://{bucket_name}/{BOTS_PREFIX}"
         if data_repo:
             refresh_env["DATA_REPO"] = data_repo
 
@@ -1084,6 +1094,8 @@ class BackendLambdaStack(Stack):
             # via backend.common.authz too.
             "JWT_SECRET": jwt_secret,
         }
+        # Run records for the Bots page (#10477, backend/bots/runner.py).
+        agent_env["BOTS_STORAGE_URI"] = f"s3://{bucket_name}/{BOTS_PREFIX}"
         if data_repo:
             agent_env["DATA_REPO"] = data_repo
 
@@ -1122,6 +1134,14 @@ class BackendLambdaStack(Stack):
             list_prefix=lambda_list_prefixes["trading_agent"],
         )
         self._grant_timeseries_cache_access(agent_fn, bucket=data_bucket, allow_put=False)
+        # The one write this Lambda makes: its own run record under bots/
+        # (backend/bots/runs.py::save_run, #10477). Data stays read-only.
+        agent_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["s3:PutObject"],
+                resources=[data_bucket.arn_for_objects(f"{BOTS_PREFIX}/*")],
+            )
+        )
 
         events.Rule(
             self,
@@ -1149,6 +1169,8 @@ class BackendLambdaStack(Stack):
             # via backend.common.authz too.
             "JWT_SECRET": jwt_secret,
         }
+        # Run records for the Bots page (#10477, backend/bots/runner.py).
+        dividend_env["BOTS_STORAGE_URI"] = f"s3://{bucket_name}/{BOTS_PREFIX}"
         if data_repo:
             dividend_env["DATA_REPO"] = data_repo
 
@@ -1208,6 +1230,10 @@ class BackendLambdaStack(Stack):
             # via backend.common.authz too.
             "JWT_SECRET": jwt_secret,
         }
+        # Run records for the Bots page (#10477, backend/bots/runner.py).
+        pension_report_env["BOTS_STORAGE_URI"] = f"s3://{bucket_name}/{BOTS_PREFIX}"
+        # Lets the bot runner describe and honour the deployed rule's cadence.
+        pension_report_env["PENSION_REPORT_CADENCE"] = pension_report_cadence
         if data_repo:
             pension_report_env["DATA_REPO"] = data_repo
 
@@ -1235,7 +1261,8 @@ class BackendLambdaStack(Stack):
             allow_put=True,
             allow_list=True,
             list_prefix=lambda_list_prefixes["pension_report"],
-            put_prefix="pension-reports",
+            # bots/: its own run record for the Bots page (#10477).
+            put_prefix=("pension-reports", BOTS_PREFIX),
         )
 
         # SES send permission for the pension report email (#5367).
@@ -1256,6 +1283,25 @@ class BackendLambdaStack(Stack):
             "PensionReportRun",
             schedule=pension_report_schedule,
             targets=[targets.LambdaFunction(pension_report_fn)],
+        )
+
+        # Run now on the Bots page (#10477): the backend Lambda invokes the
+        # bot's own Lambda asynchronously (backend/bots/runner.py::dispatch_run)
+        # with the run id, rather than running a 10-minute job inside a
+        # 90-second API request.
+        bot_lambdas = {
+            "price-refresh": refresh_alias,
+            "trading-agent": agent_fn,
+            "dividend-refresh": dividend_fn,
+            "pension-report": pension_report_fn,
+        }
+        for bot_fn in bot_lambdas.values():
+            bot_fn.grant_invoke(backend_fn)
+        backend_fn.add_environment(
+            "BOT_LAMBDA_FUNCTIONS",
+            Stack.of(self).to_json_string(
+                {bot_id: bot_fn.function_arn for bot_id, bot_fn in bot_lambdas.items()}
+            ),
         )
 
         # IAM implicit deny covers all other principals; no explicit DENY

@@ -3331,6 +3331,122 @@ export const importHoldingsCsv = (
     body: createHoldingsCsvFormData(owner, account, provider, file),
   });
 
+// Statement reconciliation (#10474). Amounts are integer pence (`*_minor`).
+
+export type StatementDiffKind =
+  | "missing_from_ledger"
+  | "missing_from_statement"
+  | "amount_mismatch"
+  | "fee_mismatch"
+  | "cash_mismatch"
+  | "units_mismatch";
+
+/** An existing transactions-endpoint call that would apply a suggestion. */
+export interface SuggestedTransactionRequest {
+  method: "POST" | "PUT";
+  path: string;
+  body: Record<string, unknown>;
+}
+
+export interface StatementDiff {
+  kind: StatementDiffKind;
+  message: string;
+  statement_index: number | null;
+  ledger_id: string | null;
+  ticker: string | null;
+  date: string | null;
+  statement_minor: number | null;
+  ledger_minor: number | null;
+  difference_minor: number | null;
+  statement_units: number | null;
+  ledger_units: number | null;
+  suggestion: { description: string; request: SuggestedTransactionRequest | null };
+}
+
+export interface StatementRow {
+  index: number;
+  date: string;
+  type: string;
+  description: string | null;
+  ticker: string | null;
+  isin: string | null;
+  units: number | null;
+  price_gbp: number | null;
+  consideration_minor: number | null;
+  fees_minor: number;
+  amount_minor: number | null;
+  flags: string[];
+}
+
+export interface StatementReconciliation {
+  extracted: {
+    document_type: string | null;
+    period_start: string | null;
+    period_end: string | null;
+    opening_cash_minor: number | null;
+    closing_cash_minor: number | null;
+    rows: StatementRow[];
+    warnings: string[];
+  };
+  matched: Array<{ statement_index: number; ledger_id: string }>;
+  diffs: StatementDiff[];
+  warnings: string[];
+  llm_provider: string;
+  sent_to_cloud: boolean;
+  explanation: string | null;
+}
+
+export interface ReconciliationProvider {
+  llm_provider: string;
+  sent_to_cloud: boolean;
+}
+
+/** Which LLM would read an uploaded statement, so the UI can warn before upload. */
+export const getReconciliationProvider = () =>
+  fetchJson<ReconciliationProvider>(`${API_BASE}/reconciliation/provider`);
+
+/** Extract a statement and compare it with the ledger. Read-only on the backend. */
+export const reconcileStatement = (
+  owner: string,
+  account: string,
+  file: File,
+  explainUnmatched = false,
+): Promise<StatementReconciliation> => {
+  const formData = new FormData();
+  formData.append("owner", owner);
+  formData.append("account", account);
+  formData.append("file", file);
+  formData.append("explain_unmatched", explainUnmatched ? "true" : "false");
+  // Extraction runs an LLM over the whole document; a local model can take
+  // minutes, well past the client-wide default timeout.
+  return fetchJson<StatementReconciliation>(
+    `${API_BASE}/reconciliation/statement`,
+    { method: "POST", body: formData },
+    300_000,
+  );
+};
+
+const SUGGESTION_PATH = /^\/transactions(\/[A-Za-z0-9_-]+:[A-Za-z0-9_-]+:\d+)?$/;
+
+/**
+ * Apply one user-accepted suggestion through the existing transactions
+ * endpoints: POST /transactions to add a row, PUT /transactions/{id} to edit.
+ * Anything else is refused so a suggestion can never reach another endpoint.
+ */
+export const applyStatementSuggestion = (request: SuggestedTransactionRequest) => {
+  const match = SUGGESTION_PATH.exec(request.path);
+  const isCreate = request.method === "POST" && match && !match[1];
+  const isUpdate = request.method === "PUT" && match && match[1];
+  if (!isCreate && !isUpdate) {
+    return Promise.reject(new Error(`Unsupported suggestion: ${request.method} ${request.path}`));
+  }
+  return fetchJson<Transaction>(`${API_BASE}${request.path}`, {
+    method: request.method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request.body),
+  });
+};
+
 // Chat (tool-calling agent over the MCP data-query server)
 
 export type ChatMessage = {
@@ -3477,4 +3593,94 @@ export const openSavedChat = (
 ): Promise<{ revision: number; conversation: SavedChatTree; title: string | null }> =>
   fetchJson<{ revision: number; conversation: SavedChatTree; title: string | null }>(`${savedChatUrl(id)}/open`, {
     method: "POST",
+  });
+
+// ───────────── Bots API (#10477) ─────────────
+export type BotKind = "ai" | "rules" | "job";
+export type BotRunStatus = "running" | "ok" | "failed" | "partial" | "skipped";
+
+export interface BotRun {
+  id: string;
+  bot_id: string;
+  trigger: "schedule" | "manual" | "invoke" | "event";
+  status: BotRunStatus;
+  started_at: string;
+  finished_at?: string | null;
+  duration_seconds?: number | null;
+  summary?: string | null;
+  report?: Record<string, unknown> | null;
+  error?: string | null;
+  actor?: string | null;
+  owner?: string | null;
+  model?: string | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+  cost_usd?: number | null;
+}
+
+export interface BotSummary {
+  id: string;
+  name: string;
+  description: string;
+  kind: BotKind;
+  scope: "system" | "owner";
+  enabled: boolean;
+  cadence: string;
+  schedule?: string | null;
+  next_run?: string | null;
+  running: boolean;
+  last_run?: BotRun | null;
+}
+
+/** JSON schema of a bot's settings, as produced by Pydantic. */
+export interface BotSettingsSchema {
+  properties?: Record<string, BotSettingsSchemaProperty>;
+  required?: string[];
+}
+
+export interface BotSettingsSchemaProperty {
+  type?: string;
+  anyOf?: Array<{ type?: string }>;
+  enum?: string[];
+  title?: string;
+  description?: string;
+  minimum?: number;
+  maximum?: number;
+  exclusiveMinimum?: number;
+  exclusiveMaximum?: number;
+  default?: unknown;
+}
+
+export interface BotDetail extends BotSummary {
+  settings: Record<string, unknown>;
+  settings_schema: BotSettingsSchema;
+  can_manage: boolean;
+}
+
+const botUrl = (id: string) => `${API_BASE}/bots/${encodeURIComponent(id)}`;
+
+/** GET /bots: every bot with its last run and next due time. */
+export const getBots = (): Promise<BotSummary[]> => fetchJson<BotSummary[]>(`${API_BASE}/bots`);
+
+/** GET /bots/{id}: one bot with its settings and their JSON schema. */
+export const getBot = (id: string): Promise<BotDetail> => fetchJson<BotDetail>(botUrl(id));
+
+/** GET /bots/{id}/runs: run history, newest first. */
+export const getBotRuns = (id: string, limit = 20): Promise<BotRun[]> =>
+  fetchJson<BotRun[]>(`${botUrl(id)}/runs?limit=${limit}`);
+
+/** GET /bots/{id}/runs/{runId}: one run, for polling Run now. */
+export const getBotRun = (id: string, runId: string): Promise<BotRun> =>
+  fetchJson<BotRun>(`${botUrl(id)}/runs/${encodeURIComponent(runId)}`);
+
+/** POST /bots/{id}/run (admin): starts a background run; 409 while one is running. */
+export const runBotNow = (id: string): Promise<BotRun> =>
+  fetchJson<BotRun>(`${botUrl(id)}/run`, { method: "POST" });
+
+/** PUT /bots/{id}/settings (admin): validated (422 on bad values) and audited. */
+export const updateBotSettings = (id: string, settings: Record<string, unknown>): Promise<BotDetail> =>
+  fetchJson<BotDetail>(`${botUrl(id)}/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
   });

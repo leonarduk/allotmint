@@ -111,7 +111,8 @@ def _read(owner: str, accounts_root: Optional[Path]) -> tuple[Path, dict[str, An
 
 
 def _write(path: Path, data: dict[str, Any], schedules: list[DeploymentSchedule]) -> None:
-    section = data.get(SETTINGS_KEY) if isinstance(data.get(SETTINGS_KEY), dict) else {}
+    existing = data.get(SETTINGS_KEY)
+    section: dict[str, Any] = existing if isinstance(existing, dict) else {}
     data[SETTINGS_KEY] = {**section, SCHEDULES_KEY: [s.to_dict() for s in schedules]}
     path.write_text(json.dumps(data, indent=2, sort_keys=True))
 

@@ -27,6 +27,8 @@ from backend.routes._accounts import resolve_accounts_root, resolve_owner_direct
 router = APIRouter(tags=["cash-deployment"])
 
 _UNREADABLE = "Owner settings file is unreadable; fix or remove it before saving a schedule"
+_UNREADABLE_READ = "Owner settings file is unreadable; fix or remove it to see cash deployment schedules"
+_NOT_FOUND = "No cash deployment schedule with that id"
 
 
 def _resolve_owner(request: Request, owner: str, identity: Optional[str]) -> Tuple[str, Path]:
@@ -34,6 +36,7 @@ def _resolve_owner(request: Request, owner: str, identity: Optional[str]) -> Tup
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir is None:
         raise_owner_not_found(owner)
+    assert owner_dir is not None  # raise_owner_not_found always raises; narrows the type for mypy
     ensure_owner_access(identity, owner_dir.name, accounts_root)
     return owner_dir.name, accounts_root
 
@@ -51,7 +54,7 @@ def get_cash_deployment(
     try:
         return run(owner, as_of, accounts_root=accounts_root)
     except SettingsUnreadableError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(status_code=409, detail=_UNREADABLE_READ) from exc
 
 
 @router.get("/cash-deployment/{owner}/schedules/{schedule_id}")
@@ -66,7 +69,7 @@ def get_schedule(
     try:
         schedule = schedule_store.get_schedule(owner, schedule_id, accounts_root)
     except ScheduleNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=_NOT_FOUND) from exc
     return evaluate_schedule(schedule, OwnerContext(owner, accounts_root), as_of or date.today())
 
 
@@ -95,7 +98,7 @@ def update_schedule(
     try:
         return schedule_store.update_schedule(owner, schedule_id, body, accounts_root).to_dict()
     except ScheduleNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=_NOT_FOUND) from exc
     except SettingsUnreadableError as exc:
         raise HTTPException(status_code=409, detail=_UNREADABLE) from exc
 
@@ -108,7 +111,7 @@ def delete_schedule(
     try:
         schedule_store.delete_schedule(owner, schedule_id, accounts_root)
     except ScheduleNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=_NOT_FOUND) from exc
     except SettingsUnreadableError as exc:
         raise HTTPException(status_code=409, detail=_UNREADABLE) from exc
     return {"deleted": schedule_id}

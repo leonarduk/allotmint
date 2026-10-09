@@ -24,7 +24,7 @@ from backend.chat.bedrock_agent import (
 )
 from backend.chat.local_tools import LocalTools, merge_tool_lists
 from backend.chat.mcp_tools_client import mcp_session
-from backend.chat.tool_switches import switched_off_message, tool_enabled
+from backend.chat.tool_switches import ToolPolicy, call_refusal
 from backend.chat.turn_limits import TurnLimits, not_allowed_message
 from backend.logging_setup import sanitise_log_value
 
@@ -92,11 +92,12 @@ async def run_chat_turn(
     api_key: Optional[str] = None,
     local_tools: Optional[LocalTools] = None,
     system_prompt: Optional[str] = None,
+    tool_policy: Optional[ToolPolicy] = None,
     limits: Optional[TurnLimits] = None,
 ) -> str:
     """Run one user turn through an OpenAI-compatible tool-calling loop and return the reply.
 
-    ``history`` has the same shape as ``bedrock_agent.run_chat_turn``'s.
+    ``history`` and ``tool_policy`` work as in ``bedrock_agent.run_chat_turn``.
     ``limits`` optionally restricts the tools and records each call (see
     :mod:`backend.chat.turn_limits`).
     """
@@ -114,7 +115,7 @@ async def run_chat_turn(
         httpx.AsyncClient(headers=headers, timeout=REQUEST_TIMEOUT_SECONDS) as client,
     ):
         tools_result = await session.list_tools()
-        offered = merge_tool_lists(tools_result.tools, local_tools)
+        offered = merge_tool_lists(tools_result.tools, local_tools, tool_policy)
         if limits is not None:
             offered = [tool for tool in offered if limits.allows(tool.name)]
         tools = [_tool_to_openai_spec(tool) for tool in offered]
@@ -135,14 +136,22 @@ async def run_chat_turn(
 
             for tool_call in tool_calls:
                 name = tool_call["function"]["name"]
-                arguments: Any = tool_call["function"].get("arguments")
+                raw_arguments: Any = tool_call["function"].get("arguments")
+                refusal = call_refusal(name, tool_policy)
+                if refusal is None and limits is not None and not limits.allows(name):
+                    refusal = not_allowed_message(name)
+                if refusal is not None:
+                    # Logged in the turn limits; not recorded in the policy, so it does not use up its cap.
+                    content = f"Tool call failed: {refusal}"
+                    if limits is not None:
+                        limits.record_call(name, raw_arguments, content, True)
+                    messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": content})
+                    continue
+                arguments: Any = raw_arguments
+                parsed: Dict[str, Any] = {}
                 failed = True
                 try:
-                    if not tool_enabled(name):
-                        raise ValueError(switched_off_message(name))
-                    if limits is not None and not limits.allows(name):
-                        raise ValueError(not_allowed_message(name))
-                    arguments = _parse_tool_arguments(arguments)
+                    arguments = parsed = _parse_tool_arguments(raw_arguments)
                     if local_tools is not None and local_tools.handles(name):
                         content, is_error = local_tools.call(name, arguments)
                         # OpenAI tool messages have no status field, so flag a
@@ -161,6 +170,8 @@ async def run_chat_turn(
                         sanitise_log_value(exc),
                     )
                     content = f"Tool call failed: {exc}"
+                if tool_policy is not None:
+                    tool_policy.record(name, parsed, content, failed)
                 if limits is not None:
                     limits.record_call(name, arguments, content, failed)
                 messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": content})

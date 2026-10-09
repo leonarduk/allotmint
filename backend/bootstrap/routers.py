@@ -25,6 +25,7 @@ from backend.routes.data_explorer import router as data_explorer_router
 from backend.routes.data_quality import router as data_quality_router
 from backend.routes.data_quality_admin import router as data_quality_admin_router
 from backend.routes.data_quality_admin import write_router as data_quality_admin_write_router
+from backend.routes.decision_journal import router as decision_journal_router
 from backend.routes.events import router as events_router
 from backend.routes.fund_upkeep import router as fund_upkeep_router
 from backend.routes.fx import router as fx_router
@@ -54,6 +55,7 @@ from backend.routes.quotes import router as quotes_router
 from backend.routes.rebalance import router as rebalance_router
 from backend.routes.reconciliation import router as reconciliation_router
 from backend.routes.reports import router as reports_router
+from backend.routes.retirement_readiness import router as retirement_readiness_router
 from backend.routes.scenario import router as scenario_router
 from backend.routes.screener import router as screener_router
 from backend.routes.signup import create_router as create_signup_router
@@ -67,6 +69,7 @@ from backend.routes.timeseries_meta import router as timeseries_router
 from backend.routes.trading_agent import router as trading_agent_router
 from backend.routes.trail import router as trail_router
 from backend.routes.transactions import router as transactions_router
+from backend.routes.trend_watch import router as trend_watch_router
 from backend.routes.user_config import router as user_config_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
 
@@ -122,12 +125,14 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(analytics_router, dependencies=protected)
     app.include_router(agent_router)
     app.include_router(trading_agent_router, dependencies=protected)
+    app.include_router(trend_watch_router, dependencies=protected)
     app.include_router(bots_router, dependencies=protected)
     app.include_router(rebalance_router)
     app.include_router(strategies_router)
     app.include_router(sleeves_router)
     app.include_router(investment_plan_router)
     app.include_router(cash_deployment_router)
+    app.include_router(decision_journal_router)
     app.include_router(plan_brief_router)
     app.include_router(config_router)
     app.include_router(quotes_router)
@@ -146,5 +151,6 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(tax_router)
     app.include_router(allowance_guardian_router, dependencies=protected)
     app.include_router(pension_router)
+    app.include_router(retirement_readiness_router)
     app.include_router(reports_router, dependencies=protected)
     app.include_router(bots_digest_router, dependencies=protected)

@@ -20,6 +20,7 @@ import type {
   StrategyList,
 } from '../types';
 import CashDeploymentCard from '../components/CashDeploymentCard';
+import DecisionJournal from '../components/DecisionJournal';
 import EmptyState from '../components/EmptyState';
 import PlanBriefCard from '../components/PlanBriefCard';
 import SleevesPanel from '../components/SleevesPanel';
@@ -663,7 +664,8 @@ export default function Strategy() {
   // Targets and the active strategy's "modified" flag change together.
   // The investment plan panel (PlanPanel) is hidden for now: it did not stay
   // in sync with the applied strategy. The /plans API and MCP tools remain.
-  // The plan-drift brief (#10475) is a dated snapshot, so it is shown here.
+  // The plan-drift brief (#10475) is a dated snapshot, so it is shown here,
+  // and the decision journal (#10481) below writes to the plan's decisions.
   const reloadAll = useCallback(async () => {
     await Promise.all([reload(), reloadStrategies()]);
   }, [reload, reloadStrategies]);
@@ -774,6 +776,9 @@ export default function Strategy() {
             accounts={plan.accounts}
           />
         </>
+      )}
+      {selectedOwner && (
+        <DecisionJournal key={selectedOwner} owner={selectedOwner} />
       )}
     </div>
   );

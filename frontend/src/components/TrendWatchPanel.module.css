@@ -1,0 +1,135 @@
+.panel {
+  /* The app's theme tokens (src/index.css), so the card follows light and dark mode. */
+  background: var(--surface-card-bg, #f5f5f5);
+  border: 1px solid var(--surface-card-border, #e0e0e0);
+  color: var(--surface-card-color, #213547);
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1.25rem;
+}
+.heading {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+}
+.heading h2,
+.hitRate h3 {
+  margin: 0;
+}
+.controls {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.disclaimer,
+.muted,
+.context,
+.hitRate p {
+  color: var(--surface-muted-color, #555555);
+  line-height: 1.5;
+  margin: 0.4rem 0 0;
+}
+.error {
+  color: var(--color-danger, #b42318);
+  margin: 0;
+}
+.list {
+  display: grid;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.item {
+  border: 1px solid var(--surface-card-border, #e0e0e0);
+  border-radius: 0.5rem;
+  min-width: 0;
+  padding: 0.75rem 1rem;
+}
+.mutedItem {
+  opacity: 0.65;
+}
+.itemHeader {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.rank {
+  color: var(--surface-muted-color, #555555);
+  font-variant-numeric: tabular-nums;
+}
+.badge {
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+}
+.idiosyncratic {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+.market {
+  background: #e8f0ff;
+  color: #174ea6;
+}
+.data {
+  background: #fff4d6;
+  color: #7a4d00;
+}
+.inconclusive {
+  background: #eef0f3;
+  color: #3c4656;
+}
+.muteButton {
+  margin-left: auto;
+}
+.signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0;
+}
+.signal,
+.newSignal {
+  border: 1px solid var(--surface-card-border, #e0e0e0);
+  border-radius: 0.35rem;
+  font-size: 0.8rem;
+  padding: 0.1rem 0.45rem;
+}
+.newSignal {
+  border-color: currentColor;
+  font-weight: 700;
+}
+.evidence {
+  margin-top: 0.5rem;
+  overflow-wrap: anywhere;
+}
+.evidence ul {
+  margin: 0.4rem 0;
+  padding-left: 1.25rem;
+}
+.notes {
+  color: var(--surface-muted-color, #555555);
+}
+.hitRate {
+  border-top: 1px solid var(--surface-card-border, #e0e0e0);
+  padding-top: 1rem;
+}
+.hitTable {
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+.hitTable th,
+.hitTable td {
+  padding: 0.25rem 1rem 0.25rem 0;
+  text-align: left;
+}
+.caution {
+  font-weight: 600;
+}

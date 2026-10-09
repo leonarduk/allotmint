@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { I18nextProvider, initReactI18next } from "react-i18next";
@@ -562,7 +562,10 @@ describe("Custom Query page", () => {
       "My query",
       expect.objectContaining({ metrics: ["gain_gbp"] }),
     );
-    expect(listSavedQueries.mock.calls.length).toBeGreaterThan(listCalls);
+    // The list refresh can land just after the confirmation renders.
+    await waitFor(() =>
+      expect(listSavedQueries.mock.calls.length).toBeGreaterThan(listCalls),
+    );
     prompt.mockRestore();
   });
 

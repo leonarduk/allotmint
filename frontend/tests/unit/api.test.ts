@@ -16,6 +16,7 @@ import {
   getPensionForecast,
   getConfig,
   getTradingPageData,
+  getTrendWatchLatest,
   UNAUTHORIZED_EVENT,
   reconcileHoldingsCsv,
   importHoldingsCsv,
@@ -1269,6 +1270,40 @@ describe("trading page data", () => {
     global.fetch = mockFetch;
 
     await expect(getTradingPageData()).rejects.toThrow();
+  });
+});
+
+describe("getTrendWatchLatest", () => {
+  it("returns null before the first run (404)", async () => {
+    const mockFetch = vi.fn(() =>
+      Promise.resolve({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        json: () => Promise.resolve({ detail: "No trend-watch report yet" }),
+      }),
+    );
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(getTrendWatchLatest("alex")).resolves.toBeNull();
+    expect(mockFetch.mock.calls[0][0]).toBe(
+      `${API_BASE}/trend-watch/alex/latest`,
+    );
+  });
+
+  it("rethrows any other failure", async () => {
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        json: () => Promise.resolve({}),
+      }),
+    );
+
+    await expect(getTrendWatchLatest("alex")).rejects.toThrow();
   });
 });
 

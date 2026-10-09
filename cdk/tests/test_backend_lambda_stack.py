@@ -1410,6 +1410,25 @@ def test_daily_price_refresh_lambda_permission_scoped_to_alias(template):
     )
 
 
+def test_weekly_trend_watch_rule_targets_trend_watch_lambda(template):
+    """Trend watch runs weekly on Saturday morning, after Friday's closes (#10476)."""
+    template.has_resource_properties(
+        "AWS::Events::Rule",
+        {
+            "ScheduleExpression": "cron(0 6 ? * SAT *)",
+            "Targets": assertions.Match.array_with([
+                assertions.Match.object_like({
+                    "Arn": assertions.Match.object_like(
+                        {"Fn::GetAtt": assertions.Match.array_with([
+                            assertions.Match.string_like_regexp("TrendWatchLambda")
+                        ])}
+                    )
+                })
+            ]),
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # PensionReportLambda / PensionReportRun (issue #2758)
 # ---------------------------------------------------------------------------

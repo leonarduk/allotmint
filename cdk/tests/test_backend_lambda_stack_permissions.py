@@ -41,6 +41,8 @@ BACKEND_LIST_PREFIXES = (
     "queries",
     "timeseries/meta",
     "transactions",
+    # Trend-watch reports, state and mutes (#10476).
+    "trend_watch",
     # Writable per-owner account documents (manual holdings / transactions);
     # separate from the read-only accounts/ demo prefix (issue #4275).
     WRITABLE_ACCOUNTS_PREFIX,
@@ -57,6 +59,9 @@ PRICE_REFRESH_LIST_PREFIXES = ("accounts", "alerts", "prices")
 # trading_agent discovers owners/tickers via list_all_unique_tickers() and
 # list_portfolios() → S3DataProvider.list_plots() on accounts/ (#8914).
 TRADING_AGENT_LIST_PREFIXES = ("accounts", "prices")
+# trend_watch: owner discovery (accounts/), benchmark metadata (instruments/),
+# prices, and its own documents (backend/trend_watch/storage.py, #10476).
+TREND_WATCH_LIST_PREFIXES = ("accounts", "instruments", "prices", "trend_watch")
 # dividend_refresh only touches AccountsStore (writable-accounts/); unlike
 # price_refresh it never calls list_portfolios(), so it needs no accounts/
 # list grant. See backend/common/dividends.py::refresh_dividends() (#2750).
@@ -593,6 +598,26 @@ def test_pension_report_lambda_put_object_scoped_to_pension_reports_prefix() -> 
         ), f"Expected s3:PutObject resource scoped to pension-reports/* or bots/*, got {resource!r}"
 
 
+def test_trend_watch_lambda_writes_only_its_own_prefix() -> None:
+    """TrendWatchLambda writes reports, state and mutes under trend_watch/, and its run records under bots/.
+
+    backend/trend_watch/storage.py and backend/bots/runs.py are its only
+    writers; it never writes holdings, prices or the timeseries cache (#10476).
+    """
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "TrendWatchLambda")
+
+    put_resources = _resources_for_s3_action(template, role, "s3:PutObject")
+    assert put_resources, "Expected TrendWatchLambda to have an s3:PutObject grant"
+    for resource in put_resources:
+        assert "trend_watch/*" in str(resource) or "bots/*" in str(
+            resource
+        ), f"Expected s3:PutObject scoped to trend_watch/* or bots/*, got {resource!r}"
+    assert _expected_prefix_condition(TREND_WATCH_LIST_PREFIXES) in _conditions_for_s3_action(
+        template, role, "s3:ListBucket"
+    ), "TrendWatchLambda s3:ListBucket must be conditioned to its audited prefixes"
+
+
 def test_ses_send_email_scoped_to_sender_identity_not_wildcard() -> None:
     """BackendLambda and PensionReportLambda's ses:SendEmail must not be `"*"`.
 
@@ -623,6 +648,7 @@ def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
         "PriceRefreshLambda",
         "TradingAgentLambda",
         "DividendRefreshLambda",
+        "TrendWatchLambda",
     ]
     forbidden = {"s3:DeleteObject", "s3:DeleteObjectVersion"}
 
@@ -1256,6 +1282,7 @@ def test_bot_lambdas_share_the_bots_storage_prefix() -> None:
         "TradingAgentLambda",
         "DividendRefreshLambda",
         "PensionReportLambda",
+        "TrendWatchLambda",
     ):
         parts = _lambda_env(template, fragment)["BOTS_STORAGE_URI"]["Fn::Join"][1]
         assert parts[0] == "s3://" and parts[-1] == "/bots", fragment
@@ -1269,6 +1296,7 @@ def test_bot_lambdas_can_read_and_write_their_run_records() -> None:
         "TradingAgentLambda",
         "DividendRefreshLambda",
         "PensionReportLambda",
+        "TrendWatchLambda",
     ):
         role = _role_logical_id_for_lambda(template, fragment)
         reads = [str(r) for r in _resources_for_s3_action(template, role, "s3:GetObject")]
@@ -1282,7 +1310,7 @@ def test_backend_lambda_can_start_each_bot_lambda() -> None:
     template = _stack_template()
     # tests/backend/bots/test_runs.py checks the backend reads this same name.
     mapping = str(_lambda_env(template, "BackendLambda")["BOT_LAMBDA_FUNCTIONS"])
-    for bot_id in ("price-refresh", "trading-agent", "dividend-refresh", "pension-report"):
+    for bot_id in ("price-refresh", "trading-agent", "dividend-refresh", "pension-report", "trend-watch"):
         assert bot_id in mapping
     backend_role = _role_logical_id_for_lambda(template, "BackendLambda")
     invoke_statements = [

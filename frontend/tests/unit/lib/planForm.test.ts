@@ -78,8 +78,11 @@ describe('planForm', () => {
       ...emptyPlanForm(),
       assumptions: [{ key: '', value: '', note: ' ' }],
       decisions: [
-        { date: '', decision: '', reason: '', alternatives: '' },
+        { id: '', date: '', decision: '', reason: '', alternatives: '' },
+        // A carried-over journal id alone doesn't keep a row.
+        { id: 'dj-1', date: '', decision: '', reason: '', alternatives: '' },
         {
+          id: '',
           date: '2026-10-06',
           decision: 'Hold',
           reason: '',
@@ -103,6 +106,25 @@ describe('planForm', () => {
     expect(out.open_questions).toEqual(['Why?']);
     expect(out.review.next_review).toBeUndefined();
     expect(out).not.toHaveProperty('disclaimer');
+  });
+
+  it('round-trips decision-journal ids unchanged (#10481)', () => {
+    const logged: InvestmentPlan = {
+      ...plan,
+      decisions: [
+        ...plan.decisions,
+        {
+          id: 'dj-0123456789ab',
+          date: '2026-10-01',
+          decision: 'Sold £10,000 of AAA.L',
+          alternatives: ['Keep holding AAA.L'],
+          reason: 'Owner reasoning',
+        },
+      ],
+    };
+    const out = toPlan(fromPlan(logged), 'alex', '2026-10-06');
+    expect(JSON.parse(JSON.stringify(out.decisions))).toEqual(logged.decisions);
+    expect(out.decisions[0].id).toBeUndefined();
   });
 
   it('parses scalars into their JSON types', () => {

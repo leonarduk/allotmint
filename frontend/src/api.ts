@@ -38,6 +38,7 @@ import type {
   TradingAgentSettings,
   TradingPageData,
   TradingSignalsReport,
+  TrendWatchReport,
   OpportunityEntry,
   ComplianceResult,
   MoverRow,
@@ -60,6 +61,11 @@ import type {
   CashDeploymentSchedule,
   CashDeploymentScheduleInput,
   InvestmentPlanResponse,
+  DecisionDraft,
+  DecisionExpectation,
+  DecisionJournalEntry,
+  DecisionJournalResponse,
+  UnloggedChange,
   PlanBrief,
   PlanBriefSummary,
   RebalancePlan,
@@ -2284,6 +2290,39 @@ export const getTradingPageData = async (): Promise<TradingPageData> => {
   return { signals: report.signals, blocked: report.blocked, settings };
 };
 
+// A run reads five years of closes per holding and, when a model is configured,
+// investigates the flagged ones -- far slower than an ordinary request.
+const TREND_WATCH_RUN_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** The latest trend-watch report for an owner, or null before the first run (#10476). */
+export const getTrendWatchLatest = async (
+  owner: string,
+): Promise<TrendWatchReport | null> => {
+  try {
+    return await fetchJson<TrendWatchReport>(
+      `${API_BASE}/trend-watch/${encodeURIComponent(owner)}/latest`,
+    );
+  } catch (err) {
+    if ((err as { status?: number } | undefined)?.status === 404) return null;
+    throw err;
+  }
+};
+
+/** Run trend watch for an owner now; returns the stored report. */
+export const runTrendWatch = (owner: string) =>
+  fetchJson<TrendWatchReport>(
+    `${API_BASE}/trend-watch/${encodeURIComponent(owner)}/run`,
+    { method: "POST" },
+    TREND_WATCH_RUN_TIMEOUT_MS,
+  );
+
+/** Mark a holding as a deliberate long-term or residual position (or undo it). */
+export const setTrendWatchMute = (owner: string, ticker: string, muted: boolean) =>
+  fetchJson<{ mutes: string[] }>(
+    `${API_BASE}/trend-watch/${encodeURIComponent(owner)}/mutes/${encodeURIComponent(ticker)}`,
+    jsonInit("PUT", { muted }),
+  );
+
 /** Retrieve compliance warnings for an owner */
 export const getCompliance = (owner: string) =>
   fetchJson<ComplianceResult>(`${API_BASE}/compliance/${owner}`);
@@ -2750,6 +2789,50 @@ export const saveInvestmentPlan = (owner: string, plan: Partial<InvestmentPlan>)
     body: JSON.stringify(plan),
   });
 
+const journalUrl = (owner: string, path = "") =>
+  `${API_BASE}/decision-journal/${encodeURIComponent(owner)}${path}`;
+
+/** The owner's decision journal (#10481): entries with reviews, and unlogged qualifying trades. */
+export const getDecisionJournal = (owner: string) =>
+  fetchJson<DecisionJournalResponse>(journalUrl(owner));
+
+/** A pre-filled draft for a trade (`source_ref`) or a plan target change. Nothing is saved. */
+export const createDecisionDraft = (
+  owner: string,
+  body: { source_ref: string } | { previous_target: Record<string, number>; target: Record<string, number> }
+) => fetchJson<DecisionDraft>(journalUrl(owner, "/drafts"), jsonInit("POST", body));
+
+/** Log a decision the owner has completed and confirmed; appends it to the plan. */
+export const confirmDecision = (
+  owner: string,
+  draft: DecisionDraft & { expectation?: DecisionExpectation }
+) =>
+  fetchJson<DecisionJournalEntry>(
+    journalUrl(owner, "/entries"),
+    jsonInit("POST", { ...draft, confirmed: true })
+  );
+
+/** Stop listing a trade as unlogged. */
+export const dismissDecisionChange = (owner: string, sourceRef: string) =>
+  fetchJson<{ dismissed: string }>(
+    journalUrl(owner, "/dismissed"),
+    jsonInit("POST", { source_ref: sourceRef })
+  );
+
+/** Save the owner's lesson on a review. */
+export const saveDecisionLesson = (owner: string, entryId: string, horizonMonths: number, lesson: string) =>
+  fetchJson<{ lesson: string | null }>(
+    journalUrl(owner, `/entries/${encodeURIComponent(entryId)}/reviews/${horizonMonths}/lesson`),
+    jsonInit("PUT", { lesson })
+  );
+
+/** Run the daily journal pass now for one owner: list unlogged trades and run due reviews. */
+export const runDecisionJournal = (owner: string) =>
+  fetchJson<{ unlogged: UnloggedChange[]; reviews_run: { entry_id: string; horizon_months: number }[] }>(
+    journalUrl(owner, "/run"),
+    { method: "POST" }
+  );
+
 const planBriefUrl = (owner: string, ...parts: string[]) =>
   [`${API_BASE}/plan-brief/${encodeURIComponent(owner)}`, ...parts.map(encodeURIComponent)].join("/");
 
@@ -3178,6 +3261,80 @@ export const getPensionForecast = ({
     `${API_BASE}/pension/forecast?${params.toString()}`,
   );
 };
+
+// ───────────── Retirement readiness (#10484) ─────────────
+export interface RetirementWindow {
+  start_year: number;
+  end_year: number;
+  sustainable_income_gbp: number;
+}
+
+export interface RetirementReadinessReport {
+  owner: string;
+  run_date: string;
+  headline: { survival_pct: number; income_gbp: number | null };
+  inputs: { pot_gbp: number; retirement_age: number; death_age: number };
+  results: {
+    projection: {
+      projected_pot_nominal_gbp: number;
+      start_pot_real_gbp: number;
+      years_to_retirement: number;
+    };
+    simulation: {
+      horizon_years: number;
+      windows: { count: number };
+      sustainable_income: { survival_pct: number; income_gbp: number }[];
+      worst: RetirementWindow | null;
+      median: RetirementWindow | null;
+      best: RetirementWindow | null;
+      floor: {
+        floor_gbp: number;
+        at_income_gbp: number;
+        windows_below_floor: number;
+        windows_total: number;
+      } | null;
+    };
+    mapping: { proxy_share_pct: number };
+    data_notes: string[];
+  };
+  attribution: {
+    previous_run_date: string;
+    change_gbp: number;
+    parts_gbp: {
+      contributions: number;
+      markets: number;
+      assumptions: number;
+      data_revision: number;
+    };
+  } | null;
+  assumption_changes: { label: string }[];
+  market: { flags: string[] };
+  caveats: string[];
+  narrative: { text: string; source: "llm" | "template"; note: string | null };
+}
+
+export interface RetirementReadinessTrendPoint {
+  run_date: string;
+  survival_pct: number | null;
+  sustainable_income_gbp: number | null;
+  pot_gbp: number | null;
+}
+
+export const getRetirementReadinessLatest = (owner: string) =>
+  fetchJson<RetirementReadinessReport>(
+    `${API_BASE}/retirement-readiness/${encodeURIComponent(owner)}/latest`,
+  );
+
+export const getRetirementReadinessHistory = (owner: string) =>
+  fetchJson<{ owner: string; trend: RetirementReadinessTrendPoint[] }>(
+    `${API_BASE}/retirement-readiness/${encodeURIComponent(owner)}/history`,
+  );
+
+export const runRetirementReadiness = (owner: string) =>
+  fetchJson<RetirementReadinessReport>(
+    `${API_BASE}/retirement-readiness/${encodeURIComponent(owner)}/run`,
+    { method: "POST" },
+  );
 
 // ───────────── Quests API ─────────────
 export const getQuests = () =>

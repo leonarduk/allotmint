@@ -1233,6 +1233,100 @@ export interface TradingSignalsReport {
   blocked: BlockedTradingSignal[];
 }
 
+/** Trend watch (#10476): a weekly review list of held positions whose trend turned. */
+export type TrendWatchVerdict =
+  | 'idiosyncratic_deterioration'
+  | 'market_wide_move'
+  | 'data_problem'
+  | 'inconclusive';
+
+export interface TrendWatchEvidence {
+  tool: string;
+  finding: string;
+  value: string;
+  /** "total", "price", "n/a", or "not stated" for a relative figure with no basis given. */
+  return_basis?: string;
+  source: string;
+}
+
+export interface TrendWatchToolCall {
+  tool: string;
+  arguments: Record<string, unknown>;
+  is_error: boolean;
+  result: string;
+}
+
+export interface TrendWatchDataIssue {
+  id?: string | null;
+  type?: string | null;
+  severity?: string | null;
+  description?: string | null;
+  suggested_fix?: string | null;
+}
+
+export interface TrendWatchItem {
+  rank: number;
+  ticker: string;
+  name?: string | null;
+  instrument_type?: string | null;
+  muted: boolean;
+  change_score: number;
+  verdict: TrendWatchVerdict;
+  verdict_label: string;
+  detection: {
+    as_of?: string | null;
+    active: string[];
+    new: string[];
+    values: Record<string, number | string | null>;
+  };
+  context: {
+    market_value_gbp?: number | null;
+    portfolio_share?: number | null;
+    cost_basis_gbp?: number | null;
+    gain_gbp?: number | null;
+    gain_pct?: number | null;
+    cgt_note?: string | null;
+  };
+  data_issues?: TrendWatchDataIssue[];
+  investigation: {
+    status: string;
+    summary?: string | null;
+    evidence: TrendWatchEvidence[];
+    tool_calls: TrendWatchToolCall[];
+    notes: string[];
+  };
+}
+
+export interface TrendWatchHorizon {
+  days: number;
+  flags: number;
+  flag_falls: number;
+  flag_fall_rate: number | null;
+  weeks: number;
+  base_falls: number;
+  base_rate: number | null;
+}
+
+export interface TrendWatchBacktest {
+  tickers_tested: number;
+  excluded: Record<string, string>;
+  return_basis: Record<string, number>;
+  horizons: Record<string, TrendWatchHorizon>;
+}
+
+export interface TrendWatchReport {
+  owner: string;
+  run_date: string;
+  generated_at: string;
+  disclaimer: string;
+  holdings_checked: number;
+  not_flagged?: number;
+  items: TrendWatchItem[];
+  skipped: { ticker: string; reason: string }[];
+  mutes: string[];
+  backtest: TrendWatchBacktest | null;
+}
+
 export interface TradingPageData {
   signals: TradingSignal[];
   /** Signals compliance blocked; absent when the backend didn't report them. */
@@ -1500,6 +1594,8 @@ export interface InvestmentPlanAssumption {
 }
 
 export interface InvestmentPlanDecision {
+  /** Set for decisions logged through the decision journal (#10481). */
+  id?: string;
   date: string;
   decision: string;
   alternatives: string[];
@@ -1561,6 +1657,82 @@ export interface InvestmentPlan {
   review: { next_review?: string; triggers: string[] };
   profile?: InvestmentPlanProfile;
   disclaimer: string;
+}
+
+/** A decision-journal leg (#10481): the option taken or an alternative; no ticker means cash at 0%. */
+export interface DecisionLeg {
+  role: "chosen" | "alternative";
+  label: string;
+  ticker?: string | null;
+}
+
+export interface DecisionExpectation {
+  text: string;
+  check?: { leg: string; outperforms: string };
+}
+
+export interface DecisionLegOutcome extends DecisionLeg {
+  basis?: string;
+  start_date?: string;
+  end_date?: string;
+  return_pct?: number;
+  value_gbp?: number;
+}
+
+export interface DecisionReview {
+  horizon_months: number;
+  due: string;
+  run_on: string;
+  legs: DecisionLegOutcome[];
+  comparisons: { alternative: string; difference_gbp?: number }[];
+  return_basis?: string;
+  expectation_outcome: "met" | "not_met" | "unclear";
+  summary: string[];
+  lesson?: string;
+}
+
+export interface DecisionJournalEntry {
+  id: string;
+  date: string;
+  kind: "trade" | "plan_change" | "other";
+  source_ref?: string;
+  amount_gbp?: number;
+  legs: DecisionLeg[];
+  expectation?: DecisionExpectation;
+  snapshot: Record<string, unknown>;
+  review_due: string[];
+  reviews: DecisionReview[];
+}
+
+/** A qualifying trade not yet logged or dismissed. */
+export interface UnloggedChange {
+  source_ref: string;
+  date: string;
+  type: "BUY" | "SELL";
+  ticker: string;
+  account?: string;
+  amount_gbp: number;
+  price_gbp?: number;
+}
+
+export interface DecisionJournalResponse {
+  settings: { threshold_gbp: number };
+  entries: DecisionJournalEntry[];
+  unlogged: UnloggedChange[];
+}
+
+/** A pre-filled, unsaved draft; `reason` is always blank for the owner to write. */
+export interface DecisionDraft {
+  id: string;
+  kind: DecisionJournalEntry["kind"];
+  source_ref?: string | null;
+  date: string;
+  decision: string;
+  alternatives: string[];
+  reason: string;
+  amount_gbp?: number | null;
+  legs: DecisionLeg[];
+  snapshot: Record<string, unknown>;
 }
 
 /** GET/PUT /plans/{owner}: the plan plus its comparison with the rebalance targets. */

@@ -20,9 +20,9 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from backend.common.settings_file import read_settings, settings_path
+from backend.common.settings_file import SettingsUnreadableError, read_settings, settings_path
 
 SETTINGS_KEY = "cash_deployment"
 SCHEDULES_KEY = "schedules"
@@ -101,12 +101,20 @@ def tranche_amounts(schedule: ScheduleInput) -> list[int]:
 
 
 def _read(owner: str, accounts_root: Optional[Path]) -> tuple[Path, dict[str, Any], list[DeploymentSchedule]]:
-    """Settings path, whole settings object and parsed schedules; an unreadable file raises."""
+    """Settings path, whole settings object and parsed schedules.
+
+    An unreadable file, or a stored schedule that no longer validates (e.g. a
+    hand edit), raises :class:`SettingsUnreadableError` so callers report it
+    and writers never overwrite the owner's data.
+    """
     path = settings_path(owner, accounts_root)
     data = read_settings(path)
     section = data.get(SETTINGS_KEY)
     raw = section.get(SCHEDULES_KEY) if isinstance(section, dict) else None
-    schedules = [DeploymentSchedule.model_validate(item) for item in raw if isinstance(item, dict)] if raw else []
+    try:
+        schedules = [DeploymentSchedule.model_validate(item) for item in raw if isinstance(item, dict)] if raw else []
+    except ValidationError as exc:
+        raise SettingsUnreadableError(f"Invalid cash deployment schedule in {path.name}: {exc}") from exc
     return path, data, schedules
 
 

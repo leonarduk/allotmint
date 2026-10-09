@@ -125,6 +125,22 @@ def test_unreadable_settings_are_not_overwritten(client, tmp_path):
     assert settings.read_text() == "{not json"
 
 
+def test_malformed_stored_schedule_is_a_conflict_not_a_crash(client, tmp_path):
+    created = _create(client)
+    settings = tmp_path / "accounts" / "alex" / "settings.json"
+    data = json.loads(settings.read_text())
+    data["cash_deployment"]["schedules"][0]["tranches"] = "twelve"
+    before = json.dumps(data)
+    settings.write_text(before)
+    url = f"/cash-deployment/alex/schedules/{created['id']}"
+    assert client.get("/cash-deployment/alex").status_code == 409
+    assert client.get(url).status_code == 409
+    assert client.post("/cash-deployment/alex/schedules", json=SCHEDULE).status_code == 409
+    assert client.put(url, json=SCHEDULE).status_code == 409
+    assert client.delete(url).status_code == 409
+    assert settings.read_text() == before
+
+
 def test_run_is_callable_without_http(tmp_path, monkeypatch):
     """The standalone entry point the #10477 registry will wrap."""
     owner_dir = tmp_path / "alex"

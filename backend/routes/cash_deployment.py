@@ -70,6 +70,8 @@ def get_schedule(
         schedule = schedule_store.get_schedule(owner, schedule_id, accounts_root)
     except ScheduleNotFoundError as exc:
         raise HTTPException(status_code=404, detail=_NOT_FOUND) from exc
+    except SettingsUnreadableError as exc:
+        raise HTTPException(status_code=409, detail=_UNREADABLE_READ) from exc
     return evaluate_schedule(schedule, OwnerContext(owner, accounts_root), as_of or date.today())
 
 

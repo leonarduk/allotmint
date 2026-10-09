@@ -30,7 +30,7 @@ from backend.chat.tool_switches import TREND_WATCH_TOOLS, ToolPolicy
 from backend.config import TrendWatchConfig, config
 from backend.logging_setup import sanitise_log_value
 from backend.trend_watch import prompt
-from backend.trend_watch.detect import Detection, market_wide
+from backend.trend_watch.detect import BASIS_NOT_STATED, Detection, market_wide
 from backend.trend_watch.settings import load_trend_watch_config
 
 logger = logging.getLogger(__name__)
@@ -119,6 +119,21 @@ def _clean_evidence(raw: Any, called: set[str], notes: List[str]) -> List[Dict[s
     return evidence
 
 
+_BASIS_WORDS = {"total": "total return, dividends reinvested", "price": "price-only return"}
+
+
+def _basis_words(basis: Any) -> str:
+    return _BASIS_WORDS.get(str(basis), "return basis not stated")
+
+
+def _combined_basis(own: Any, bench: Any) -> str:
+    """One ``return_basis`` for a comparison: the shared basis, "mixed", or "not stated"."""
+
+    if own not in _BASIS_WORDS or bench not in _BASIS_WORDS:
+        return BASIS_NOT_STATED
+    return str(own) if own == bench else "mixed"
+
+
 def detector_evidence(detection: Detection) -> List[Dict[str, Any]]:
     """The deterministic readings behind the flag, as evidence entries."""
 
@@ -142,10 +157,11 @@ def detector_evidence(detection: Detection) -> List[Dict[str, Any]]:
                 "tool": "trend_watch.benchmark_comparison",
                 "finding": (
                     f"Over {values.get('move_days')} trading days the holding moved {values.get('own_move'):.1%} "
-                    f"({values.get('return_basis')} return) and {values.get('benchmark')} moved "
-                    f"{values.get('benchmark_move'):.1%} ({values.get('benchmark_return_basis')} return)."
+                    f"({_basis_words(values.get('return_basis'))}) and {values.get('benchmark')} moved "
+                    f"{values.get('benchmark_move'):.1%} ({_basis_words(values.get('benchmark_return_basis'))})."
                 ),
                 "value": f"excess {values.get('excess_move'):+.1%}",
+                "return_basis": _combined_basis(values.get("return_basis"), values.get("benchmark_return_basis")),
                 "source": "cached daily closes",
             }
         )

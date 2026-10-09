@@ -13,6 +13,7 @@ import re
 from typing import Any, Dict, List, Mapping
 
 from backend.chat.tool_switches import TREND_WATCH_TOOLS
+from backend.trend_watch.detect import BASIS_NOT_STATED
 
 VERDICT_IDIOSYNCRATIC = "idiosyncratic_deterioration"
 VERDICT_MARKET = "market_wide_move"
@@ -75,7 +76,6 @@ _RELATIVE_FIGURE = re.compile(
 )
 _TOTAL_BASIS = re.compile(r"\b(?:total[- ]return|dividends? reinvested)\b", re.I)
 _PRICE_BASIS = re.compile(r"\b(?:price[- ]only|price return)\b", re.I)
-BASIS_NOT_STATED = "not stated"
 
 
 def relative_basis(entry: Mapping[str, str]) -> str:

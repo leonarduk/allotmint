@@ -125,10 +125,10 @@ def test_return_basis_is_never_left_blank():
     closes = double_top().iloc[:FRESH_TURN_END]
     bench = rising_benchmark().iloc[:FRESH_TURN_END]
 
-    unstated = d.detect("X.L", closes, own_levels=closes, benchmark_levels=bench, benchmark_ticker="B.L").values
+    not_stated = d.detect("X.L", closes, own_levels=closes, benchmark_levels=bench, benchmark_ticker="B.L").values
     traded = d.detect("X.L", closes, benchmark=bench, benchmark_ticker="B.L").values
 
-    assert (unstated["return_basis"], unstated["benchmark_return_basis"]) == ("unstated", "unstated")
+    assert (not_stated["return_basis"], not_stated["benchmark_return_basis"]) == ("not stated", "not stated")
     assert (traded["return_basis"], traded["benchmark_return_basis"]) == ("price", "price")
 
 

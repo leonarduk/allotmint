@@ -52,7 +52,9 @@ def _stock_specific():
 
 def _market_wide():
     closes = double_top().iloc[:FRESH_TURN_END]
-    return detect("BETA.L", closes, benchmark_levels=closes.copy(), benchmark_ticker="FTAL.L")
+    return detect(
+        "BETA.L", closes, benchmark_levels=closes.copy(), benchmark_ticker="FTAL.L", benchmark_return_basis="price"
+    )
 
 
 def _runner(reply: dict, calls=()):
@@ -84,7 +86,8 @@ async def test_holding_that_fell_with_its_benchmark_is_a_market_wide_move():
     assert result["verdict"] == prompt.VERDICT_MARKET
     assert result["evidence"][0]["tool"] == "trend_watch.detect"
     assert result["evidence"][1]["tool"] == "trend_watch.benchmark_comparison"
-    assert "price return" in result["evidence"][1]["finding"]
+    assert "price-only return" in result["evidence"][1]["finding"]
+    assert result["evidence"][1]["return_basis"] == "price"
 
 
 async def test_profit_warning_with_cited_evidence_is_idiosyncratic():
@@ -311,3 +314,29 @@ async def test_model_relative_figure_without_a_basis_is_marked():
 
     assert result["evidence"][-1]["return_basis"] == prompt.BASIS_NOT_STATED
     assert any("total or price return" in note for note in result["notes"])
+
+
+@pytest.mark.parametrize(
+    ("own", "bench", "words", "basis"),
+    [
+        ("total", "total", "total return, dividends reinvested", "total"),
+        ("total", "price", "price-only return", "mixed"),
+        ("not stated", "price", "return basis not stated", "not stated"),
+    ],
+)
+def test_benchmark_comparison_always_states_each_basis(own, bench, words, basis):
+    end = FRESH_TURN_END
+    detection = detect(
+        "TURN.L",
+        double_top().iloc[:end],
+        benchmark_levels=rising_benchmark().iloc[:end],
+        benchmark_ticker="FTAL.L",
+        return_basis=own,
+        benchmark_return_basis=bench,
+    )
+
+    comparison = agent.detector_evidence(detection)[1]
+
+    assert words in comparison["finding"]
+    assert comparison["return_basis"] == basis
+    assert "None" not in comparison["finding"] and "unstated" not in comparison["finding"]

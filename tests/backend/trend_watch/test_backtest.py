@@ -58,3 +58,15 @@ def test_series_with_price_scale_step_or_short_history_is_excluded():
     assert "price-scale step" in result["excluded"]["JEGI.L"]
     assert result["excluded"]["NEW.L"] == "not enough history"
     assert result["horizons"]["1m"]["base_rate"] is None
+
+
+def test_return_basis_counts_series_that_fell_back_to_price_returns():
+    result = backtest(
+        {
+            "INC.L": Series(closes=double_top(), return_basis="total"),
+            "NODIV.L": Series(closes=double_top(), return_basis="price"),
+            "UNKNOWN.L": Series(closes=double_top()),
+        }
+    )
+
+    assert result["return_basis"] == {"total": 1, "price": 2}

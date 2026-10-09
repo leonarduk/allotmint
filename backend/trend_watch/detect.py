@@ -54,6 +54,8 @@ RS_NEW_LOW = "rs_new_low"
 LOWER_HIGHS_LOWS = "lower_highs_lows"
 BREAK_52W_LOW = "break_52w_low"
 MACD_NEGATIVE = "macd_negative"
+# A relative figure whose levels were given without saying which return they are.
+BASIS_NOT_STATED = "not stated"
 SIGNALS = (DEATH_CROSS, BELOW_FALLING_SMA200, RS_NEW_LOW, LOWER_HIGHS_LOWS, BREAK_52W_LOW, MACD_NEGATIVE)
 # Signals whose switching on can make a flag new.
 TRIGGER_SIGNALS = frozenset({DEATH_CROSS, BELOW_FALLING_SMA200, RS_NEW_LOW, BREAK_52W_LOW})
@@ -294,12 +296,12 @@ def detect(
     result.values.update(
         {
             # Without total-return levels the comparison runs on traded prices.
-            # Traded prices when no levels were given; "unstated" rather than a
+            # Traded prices when no levels were given; "not stated" rather than a
             # guess when levels were given without their basis.
-            "return_basis": return_basis or ("price" if own_levels is None else "unstated"),
+            "return_basis": return_basis or ("price" if own_levels is None else BASIS_NOT_STATED),
             "benchmark": benchmark_ticker,
             "benchmark_return_basis": (
-                (benchmark_return_basis or ("price" if benchmark_levels is None else "unstated"))
+                (benchmark_return_basis or ("price" if benchmark_levels is None else BASIS_NOT_STATED))
                 if benchmark_ticker
                 else None
             ),

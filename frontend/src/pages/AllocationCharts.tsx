@@ -19,13 +19,15 @@ import type {
 } from "../types";
 import { LookThroughCoverageNote, LookThroughHoldingsTable } from "../components/LookThrough";
 import { translateInstrumentType } from "../lib/instrumentType";
+import { isCashInstrument } from "../lib/instruments";
+import { accountTypeLabel } from "../utils/accountTypes";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { ReportingCurrencyNote } from "../components/ReportingCurrencyNote";
 import { useConfig } from "../ConfigContext";
 import { RelativeViewToggle } from "../components/RelativeViewToggle";
 import { OwnerAccountTabs } from "../components/OwnerAccountTabs";
 import { buildOwnerTabs } from "../lib/ownerTabs";
-import { createOwnerDisplayLookup } from "../utils/owners";
+import { createOwnerDisplayLookup, getOwnerDisplayName } from "../utils/owners";
 import ChartSkeleton from "../components/skeletons/ChartSkeleton";
 import { useViewportWidth } from "../hooks/useViewportWidth";
 import {
@@ -424,14 +426,26 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
           region: h.region || t("common.other"),
           sleeve: sleeveName(ownerSleeves?.[acct.owner?.trim() ?? ""], h.ticker, coreLabel),
         };
+        const name = h.name || h.ticker;
+        // Every account's cash shares a ticker (e.g. CASH.GBP), so keep each
+        // owner's account apart rather than folding all cash into one slice.
+        const isCash = isCashInstrument(h);
+        const key = isCash ? `${acct.owner}|${acct.account_type}|${h.ticker}` : h.ticker;
+        const label = isCash
+          ? t("allocation.accountCash", {
+              owner: getOwnerDisplayName(ownerLookup, acct.owner, acct.owner),
+              account: accountTypeLabel(acct.account_type),
+              name,
+            })
+          : name;
         for (const dimension of HOLDING_VIEWS) {
-          addToBreakdown(next[dimension], groups[dimension], h.ticker, h.name || h.ticker, mv);
+          addToBreakdown(next[dimension], groups[dimension], key, label, mv);
         }
       }
     }
 
     setBreakdowns(next);
-  }, [portfolio, activeOwner, activeAccountType, ownerSleeves, t]);
+  }, [portfolio, activeOwner, activeAccountType, ownerSleeves, ownerLookup, t]);
 
   if (loading && !portfolio) {
     return (

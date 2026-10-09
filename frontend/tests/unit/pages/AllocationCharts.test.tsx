@@ -538,6 +538,30 @@ describe("AllocationCharts page", () => {
       fireEvent.click(screen.getByTestId("show-holdings-toggle"));
       expect(screen.getAllByTestId("pie-slices")).toHaveLength(1);
     });
+
+    it("keeps each owner's account cash as its own holding", async () => {
+      const alice = samplePortfolio.accounts[0];
+      const cash = { ...baseHolding, ticker: "CASH.GBP", name: "Cash (GBP)", instrument_type: "Cash" };
+      mockGetGroupPortfolio.mockResolvedValueOnce({
+        ...samplePortfolio,
+        accounts: [
+          { ...alice, account_type: "sipp", holdings: [{ ...cash, market_value_gbp: 60 }] },
+          { ...alice, account_type: "isa", holdings: [{ ...cash, market_value_gbp: 10 }] },
+          { ...alice, owner: "bob", account_type: "isa", holdings: [{ ...cash, market_value_gbp: 30 }] },
+        ],
+      });
+
+      render(<AllocationCharts owners={[{ owner: "alice", full_name: "Alice A", accounts: [] }]} />);
+      await screen.findByText(/Instrument Types/);
+      fireEvent.click(screen.getByTestId("show-holdings-toggle"));
+
+      const [, holdings] = screen.getAllByTestId("pie-slices");
+      expect(sliceRows(holdings)).toEqual([
+        "Alice A SIPP: Cash (GBP): 60",
+        "bob ISA: Cash (GBP): 30",
+        "Alice A ISA: Cash (GBP): 10",
+      ]);
+    });
   });
 
   it("suppresses all dropped-value warnings in production", async () => {

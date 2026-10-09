@@ -94,6 +94,7 @@
     "viewAlertsLink": "Vedi gli avvisi recenti"
   },
   "allocation": {
+    "accountCash": "{{owner}} {{account}}: {{name}}",
     "showHoldings": "Mostra posizioni",
     "allocationDescription": "L'allocazione mostra come è distribuito il valore attuale del portafoglio.",
     "contributionDescription": "Il contributo mostra quali parti del portafoglio hanno generato guadagni e perdite.",

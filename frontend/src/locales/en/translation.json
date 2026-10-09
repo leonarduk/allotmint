@@ -94,6 +94,7 @@
     "viewAlertsLink": "View recent alerts"
   },
   "allocation": {
+    "accountCash": "{{owner}} {{account}}: {{name}}",
     "showHoldings": "Show holdings",
     "allocationDescription": "Allocation shows how current portfolio value is distributed.",
     "contributionDescription": "Contribution shows which parts of the portfolio drove gains and losses.",

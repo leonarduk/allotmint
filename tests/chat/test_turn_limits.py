@@ -7,7 +7,8 @@ def test_record_call_truncates_large_arguments_and_results():
     limits = TurnLimits()
     limits.record_call("get_live_prices", {"tickers": ["X.L"] * 1000}, "r" * (TOOL_LOG_RESULT_CHARS + 5), False)
     [call] = limits.tool_log
-    assert isinstance(call["arguments"], str) and len(call["arguments"]) == TOOL_LOG_ARGUMENT_CHARS + 1
+    assert set(call["arguments"]) == {"truncated_json"}
+    assert len(call["arguments"]["truncated_json"]) == TOOL_LOG_ARGUMENT_CHARS
     assert len(call["result"]) == TOOL_LOG_RESULT_CHARS and call["truncated"] is True
 
 

@@ -35,10 +35,10 @@ class TurnLimits:
         return self.allowed_tools is None or name in self.allowed_tools
 
     def record_call(self, name: str, arguments: Any, result: str, is_error: bool) -> None:
-        # Arguments are normally small; a huge one is kept as a truncated JSON string.
+        # Arguments are normally small; a huge one is kept as truncated JSON text.
         encoded = json.dumps(arguments, default=str)
         if len(encoded) > TOOL_LOG_ARGUMENT_CHARS:
-            arguments = encoded[:TOOL_LOG_ARGUMENT_CHARS] + "…"
+            arguments = {"truncated_json": encoded[:TOOL_LOG_ARGUMENT_CHARS]}
         self.tool_log.append(
             {
                 "tool": name,

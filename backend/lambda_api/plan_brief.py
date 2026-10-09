@@ -43,8 +43,13 @@ def _load_recipient_owners() -> Optional[List[str]]:
     logs and returns ``{}``, which means every owner.
     """
     uri = os.getenv("PLAN_BRIEF_RECIPIENTS_URI", _DEFAULT_RECIPIENTS_URI)
-    owners = get_storage(uri, param_type="String").load().get("owners")
-    return [str(owner) for owner in owners] if owners else None
+    # load() parses the parameter value as JSON ({} when missing); accept
+    # {"owners": [...]} as the pension report does, or a bare JSON list.
+    data: Any = get_storage(uri, param_type="String").load()
+    owners = data.get("owners") if isinstance(data, dict) else data
+    if not isinstance(owners, list) or not owners:
+        return None
+    return [str(owner) for owner in owners]
 
 
 def _send_email() -> bool:

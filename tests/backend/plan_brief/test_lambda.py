@@ -76,6 +76,26 @@ def test_email_renders_drift_triggers_and_disclaimer(plan):
     assert "not regulated advice" in html
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ('{"owners": ["alex", "bob"]}', ["alex", "bob"]),
+        ('["alex"]', ["alex"]),
+        ('{"owners": []}', None),
+        ('{"owners": "alex"}', None),
+    ],
+)
+def test_recipient_parameter_shapes(monkeypatch, value, expected):
+    monkeypatch.delenv("PLAN_BRIEF_RECIPIENTS_URI", raising=False)
+
+    class Ssm:
+        def get_parameter(self, Name, WithDecryption):  # noqa: N803
+            return {"Parameter": {"Value": value}}
+
+    monkeypatch.setattr("boto3.client", lambda service, *args, **kwargs: Ssm())
+    assert lam._load_recipient_owners() == expected
+
+
 def test_missing_recipient_parameter_means_every_owner(monkeypatch):
     """A missing ssm://plan-brief-recipients is swallowed by ParameterStoreJSONStorage.load()."""
     from botocore.exceptions import ClientError

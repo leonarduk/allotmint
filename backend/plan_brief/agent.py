@@ -116,12 +116,50 @@ def _clean_text(value: Any) -> str:
 _NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
 
 
-def _value_in(value: Any, text: str) -> bool:
-    """``value`` appears in a tool result: numbers by value (2.75 == 2.750), text by substring."""
-    if isinstance(value, bool) or value is None:
-        return str(value).lower() in text.lower() if value is not None else False
+_MISSING = object()
+
+
+def _same(a: Any, b: Any) -> bool:
+    """Equal values; numbers compared by value (2.75 == 2.750), never bool vs number."""
+    if isinstance(a, bool) or isinstance(b, bool):
+        return a is b
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return abs(float(a) - float(b)) <= 1e-9 * max(1.0, abs(float(b)))
+    return a == b
+
+
+def _lookup(text: str, field: Any) -> Any:
+    """The value at dotted ``field`` (``latest.bank_rate.value``) in a JSON result, else ``_MISSING``."""
+    if not isinstance(field, str) or not field.strip():
+        return _MISSING
+    try:
+        node: Any = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return _MISSING
+    for part in field.strip().split("."):
+        if isinstance(node, dict) and part in node:
+            node = node[part]
+        elif isinstance(node, list) and part.isdigit() and int(part) < len(node):
+            node = node[int(part)]
+        else:
+            return _MISSING
+    return node
+
+
+def _value_in(value: Any, field: Any, text: str) -> bool:
+    """``value`` is what the tool returned.
+
+    When the result is JSON and ``field`` resolves in it, the value there must
+    match. Otherwise a number must appear in the text (by value) or a string as
+    a substring; a boolean or null can't be confirmed from free text.
+    """
+    found = _lookup(text, field)
+    if found is not _MISSING:
+        return _same(found, value)
+    if value is None or isinstance(value, bool):
+        return False
     if isinstance(value, (int, float)):
-        return any(abs(float(n) - float(value)) <= 1e-9 * max(1.0, abs(float(value))) for n in _NUMBER_RE.findall(text))
+        return any(_same(float(n), value) for n in _NUMBER_RE.findall(text))
     needle = str(value).strip().lower()
     return bool(needle) and needle in text.lower()
 
@@ -141,7 +179,7 @@ def _evidence(raw: Any, tool_log: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for item in raw if isinstance(raw, list) else []:
         if not isinstance(item, Mapping) or item.get("tool") not in results:
             continue
-        if any(_value_in(item.get("value"), text) for text in results[item["tool"]]):
+        if any(_value_in(item.get("value"), item.get("field"), text) for text in results[item["tool"]]):
             items.append({key: item.get(key) for key in ("tool", "field", "value", "source", "as_of")})
     return items
 
@@ -156,8 +194,10 @@ def _verdict(text: str, raw: Optional[Mapping[str, Any]], limits: TurnLimits) ->
     if raw is None:
         return {"trigger": text, "verdict": "cant_evaluate", "reason": "The agent gave no verdict.", "evidence": []}
     evidence = _evidence(raw.get("evidence"), limits.tool_log)
-    verdict = raw.get("verdict") if raw.get("verdict") in VERDICTS else "cant_evaluate"
     reason = _clean_text(raw.get("reason"))
+    verdict = raw.get("verdict")
+    if verdict not in VERDICTS:
+        verdict, reason = "cant_evaluate", f"Unrecognised verdict {str(verdict)[:40]!r} ({reason or 'no reason'})."
     if verdict != "cant_evaluate" and not evidence:
         verdict, reason = "cant_evaluate", f"No tool evidence for the reported verdict ({reason or 'none given'})."
     return {

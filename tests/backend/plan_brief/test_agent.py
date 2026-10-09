@@ -208,6 +208,31 @@ def test_evidence_value_must_match_what_the_tool_returned(plan, facts):
     assert verdict["evidence"] == []
 
 
+@pytest.mark.parametrize(
+    ("result", "field", "value", "ok"),
+    [
+        ({"latest": {"bank_rate": {"value": 2.75}}}, "latest.bank_rate.value", 2.75, True),
+        ({"latest": {"bank_rate": {"value": 2.75}}}, "latest.bank_rate.value", 3.0, False),
+        # A boolean must match the cited field; "true" elsewhere in the result is not enough.
+        ({"is_error": True, "flag": False}, "flag", True, False),
+        ({"is_error": True, "flag": True}, "flag", True, True),
+        ({"is_error": True}, "missing.field", True, False),
+        # Field not resolvable: a number may still be confirmed from the text.
+        ({"rows": [{"bank_rate": 2.75}]}, "bank_rate", 2.75, True),
+    ],
+)
+def test_value_check_uses_the_cited_field(result, field, value, ok):
+    assert agent._value_in(value, field, json.dumps(result)) is ok
+
+
+def test_unrecognised_verdict_says_so(plan, facts):
+    reply = json.loads(_reply())
+    reply["triggers"][0]["verdict"] = "probably"
+    [verdict] = agent.interpret_reply(plan, facts, json.dumps(reply), _limits_with_rates_call())["triggers"]
+    assert verdict["verdict"] == "cant_evaluate"
+    assert verdict["reason"].startswith("Unrecognised verdict 'probably'")
+
+
 def test_advice_in_a_verdict_reason_is_removed(plan, facts):
     reply = json.loads(_reply())
     reply["triggers"][0]["reason"] = "Bank Rate is 2.75%, so you should buy gilts."

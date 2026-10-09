@@ -48,6 +48,7 @@ _CASH_IN_TYPES = _INFLOW_TYPES | {"SELL"}
 
 
 def _round(value: float, places: int = 2) -> float:
+    # "+ 0.0" turns -0.0 into 0.0 so a zero drift never renders as "-0".
     return round(value + 0.0, places)
 
 
@@ -334,8 +335,13 @@ def changes_since(
     totals = {"contributions": 0.0, "withdrawals": 0.0, "purchases": 0.0, "sales": 0.0}
     counts = {key: 0 for key in totals}
     skipped = 0
-    kinds = {"DEPOSIT": "contributions", "TRANSFER_IN": "contributions", "WITHDRAWAL": "withdrawals"}
-    kinds.update({"BUY": "purchases", "SELL": "sales"})
+    kinds = {
+        "DEPOSIT": "contributions",
+        "TRANSFER_IN": "contributions",
+        "WITHDRAWAL": "withdrawals",
+        "BUY": "purchases",
+        "SELL": "sales",
+    }
     for tx in transactions:
         d = _tx_date(tx)
         key = kinds.get(_tx_type(tx))

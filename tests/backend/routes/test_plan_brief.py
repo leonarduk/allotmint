@@ -148,6 +148,7 @@ def test_second_run_lists_newest_first(data_root, mocked_llm):
 def test_changes_compare_with_the_last_brief_from_an_earlier_day(data_root, mocked_llm):
     from backend.plan_brief import store
 
+    store.save_brief("alex", {"id": "older", "as_of": "2026-08-01"}, data_root)
     store.save_brief("alex", {"id": "old", "as_of": "2026-09-09", "drift": {"total_value_gbp": 90000.0}}, data_root)
     client = _client(data_root)
     first = client.post("/plan-brief/alex/run").json()

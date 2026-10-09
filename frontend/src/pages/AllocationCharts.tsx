@@ -126,7 +126,7 @@ const groupSlices = (breakdown: Breakdown): Slice[] =>
     .sort(byValueDesc);
 
 /** A holding slice in the outer ring, coloured by the group it belongs to. */
-type HoldingSlice = Slice & { group: string; groupIndex: number };
+type HoldingSlice = Slice & { group: string; groupIndex: number; indexInGroup: number };
 
 /**
  * Outer-ring slices: each group's holdings, largest first, in the same order
@@ -136,7 +136,7 @@ const holdingSlices = (breakdown: Breakdown, groups: Slice[]): HoldingSlice[] =>
   groups.flatMap((group, groupIndex) =>
     Object.values(breakdown[group.name] ?? {})
       .sort(byValueDesc)
-      .map((h) => ({ ...h, group: group.name, groupIndex })),
+      .map((h, indexInGroup) => ({ ...h, group: group.name, groupIndex, indexInGroup })),
   );
 
 /** Outer-ring labels longer than this are cut short; the tooltip shows the full name. */
@@ -649,8 +649,9 @@ export function AllocationCharts({ slug = "all", owners }: AllocationChartsProps
                       <Cell
                         key={`holding-${index}`}
                         fill={COLORS[slice.groupIndex % COLORS.length]}
-                        // Alternate shades so neighbouring holdings in one group stay distinguishable.
-                        fillOpacity={index % 2 === 0 ? 0.85 : 0.6}
+                        // Alternate shades so neighbouring holdings in one group stay
+                        // distinguishable; every group starts on the darker shade.
+                        fillOpacity={slice.indexInGroup % 2 === 0 ? 0.85 : 0.6}
                       />
                     ))}
                   </Pie>

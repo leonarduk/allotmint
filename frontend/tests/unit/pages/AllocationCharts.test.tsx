@@ -939,5 +939,18 @@ describe("AllocationCharts page", () => {
 
       expect(await screen.findByText("look-through boom")).toBeInTheDocument();
     });
+
+    it.each(["lt-country", "lt-sector", "lt-holdings"])(
+      "offers no holdings ring on the %s view",
+      async (view) => {
+        mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+        mockGetGroupLookThrough.mockResolvedValueOnce(lookThrough([bucket("United States", 1000)]));
+
+        render(<AllocationCharts />, `/allocation?view=${view}`);
+
+        await screen.findByTestId("look-through-note");
+        expect(screen.queryByTestId("show-holdings-toggle")).not.toBeInTheDocument();
+      },
+    );
   });
 });

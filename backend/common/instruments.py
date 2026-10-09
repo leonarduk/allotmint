@@ -11,7 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from backend.common.cash_tickers import is_cash_ticker
+from backend.common.cash_tickers import CASH_SYMBOL, is_cash_ticker
 from backend.common.currency import CurrencyNormaliser
 from backend.common.instrument_classification import (
     cached_classification_overrides,
@@ -232,8 +232,10 @@ def _instrument_path(ticker: str) -> Path:
     if exch is not None:
         exch = _validate_part(exch)
     # Only a currency suffix makes CASH a cash balance; CASH.N is Pathward
-    # Financial and lives at N/CASH.json like any other stock (#10516).
-    if is_cash_ticker(f"{sym}.{exch}" if exch else sym):
+    # Financial and lives at N/CASH.json like any other stock (#10516). The
+    # ``sym`` check keeps legacy ``<ccy>.CASH`` out of this branch, where ``exch``
+    # would be "CASH" and yield a bogus Cash/CASH.json.
+    if sym == CASH_SYMBOL and is_cash_ticker(f"{sym}.{exch}" if exch else sym):
         ccy = exch or "GBP"
         return instruments_dir / "Cash" / f"{ccy}.json"
     folder = exch if exch else "Unknown"

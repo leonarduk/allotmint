@@ -44,6 +44,11 @@ def test_cash_balance_path_stays_in_cash_folder(instruments_dir, ticker, folder,
     assert instruments._instrument_path(ticker) == instruments_dir / folder / f"{name}.json"
 
 
+def test_legacy_ccy_cash_path_is_not_cash_slash_cash(instruments_dir):
+    # GBP.CASH must not land in the cash branch with exch "CASH" (Cash/CASH.json).
+    assert instruments._instrument_path("GBP.CASH") == instruments_dir / "CASH" / "GBP.json"
+
+
 @pytest.mark.parametrize("exchange", ["N", "US", "L"])
 def test_cash_stock_path_uses_exchange_folder(instruments_dir, exchange):
     assert instruments._instrument_path(f"CASH.{exchange}") == instruments_dir / exchange / "CASH.json"

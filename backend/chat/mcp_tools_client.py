@@ -21,6 +21,10 @@ from backend.chat.sigv4_auth import LambdaFunctionUrlSigV4Auth
 
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
+# The MCP SDK's own defaults (mcp.shared._httpx_utils): 30s connect/write/pool,
+# 300s read so a response stream may stay open while a slow tool runs.
+MCP_HTTP_TIMEOUT = httpx2.Timeout(30.0, read=300.0)
+
 
 def _is_local_url(url: str) -> bool:
     return urlparse(url).hostname in _LOCAL_HOSTS
@@ -40,8 +44,11 @@ async def mcp_session(mcp_server_url: str) -> AsyncIterator[ClientSession]:
     auth = None if _is_local_url(mcp_server_url) else LambdaFunctionUrlSigV4Auth()
     # mcp 2.x's streamable_http_client dropped the `auth` kwarg in favour of
     # accepting a pre-configured httpx2.AsyncClient (it builds its own default
-    # client, without auth, when none is given) -- see #8131.
-    async with httpx2.AsyncClient(auth=auth) as http_client:
+    # client, without auth, when none is given) -- see #8131. That default
+    # client carries the SDK's long read timeout; a bare httpx2.AsyncClient
+    # would time out after 5s, cutting off slow tools (get_data_quality_report
+    # takes ~100s) with "SSE stream ended without a response".
+    async with httpx2.AsyncClient(auth=auth, timeout=MCP_HTTP_TIMEOUT) as http_client:
         async with streamable_http_client(mcp_server_url, http_client=http_client) as (
             read_stream,
             write_stream,

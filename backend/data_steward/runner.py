@@ -188,8 +188,10 @@ def select_issues(
             ranked.append((issue, None, None))
             continue
         # Held means present in the holdings, priced or not: an unpriced holding
-        # is exactly what several issue types are about.
-        if not affected_holdings(entity, holdings) and not entity.get("owner"):
+        # is exactly what several issue types are about. Owner-scoped issues are
+        # matched the same way, so one on a zero-unit row left in a holdings file
+        # is skipped too.
+        if not affected_holdings(entity, holdings):
             unheld += 1
             continue
         ranked.append((issue, *exposure(entity, holdings, total)))

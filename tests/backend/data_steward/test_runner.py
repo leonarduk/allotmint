@@ -405,6 +405,14 @@ def test_unpriced_holding_counts_as_held_with_unknown_exposure() -> None:
     assert counts["skipped_unheld"] == 1
 
 
+def test_owner_scoped_issue_on_a_zero_unit_row_is_unheld() -> None:
+    # The holdings-file checks have no units filter, so a sold row still in the
+    # file can raise WRONG_EXCHANGE; get_portfolio values that row at 0.0.
+    sold = runner.Holding("alex", "isa", "ABC.N", 0.0)
+    selected, counts = runner.select_issues([WRONG_EXCHANGE_ISSUE], [sold], 10)
+    assert selected == [] and counts["skipped_unheld"] == 1
+
+
 def test_cost_estimate() -> None:
     assert estimate_cost_usd("ollama", "qwen", 10_000, 1_000) == 0.0
     assert estimate_cost_usd("deepseek", "deepseek-chat", 1_000_000, 1_000_000) == pytest.approx(1.37)

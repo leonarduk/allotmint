@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from backend.auth import get_active_user
 from backend.common import accounts_store
-from backend.reconciliation import extract
+from backend.reconciliation import bot, extract
 from backend.routes import reconciliation, transactions
 
 # A synthetic quarter (not a real statement): a deposit, a BUY with an £11.95
@@ -65,8 +65,16 @@ STATEMENT_CSV = b"Synthetic statement fixture\nDate,Description,Amount\n"
 
 
 @pytest.fixture
-def client(monkeypatch, tmp_path):
-    owner_dir = tmp_path / "alice"
+def accounts(tmp_path):
+    # A subdirectory: bot run records go to tmp_path / "bots" (tests/conftest.py).
+    root = tmp_path / "accounts"
+    root.mkdir()
+    return root
+
+
+@pytest.fixture
+def client(monkeypatch, accounts):
+    owner_dir = accounts / "alice"
     owner_dir.mkdir()
     (owner_dir / "isa_transactions.json").write_text(json.dumps(LEDGER), encoding="utf-8")
 
@@ -74,12 +82,12 @@ def client(monkeypatch, tmp_path):
     app.include_router(transactions.router)
     app.include_router(reconciliation.router)
     app.dependency_overrides[get_active_user] = lambda: None
-    app.state.accounts_root = tmp_path
+    app.state.accounts_root = accounts
     app.state.accounts_root_is_global = False
     monkeypatch.setattr(
         transactions,
         "config",
-        SimpleNamespace(accounts_root=tmp_path, repo_root=None, offline_mode=False, app_env="local"),
+        SimpleNamespace(accounts_root=accounts, repo_root=None, offline_mode=False, app_env="local"),
     )
     monkeypatch.setattr(
         reconciliation,
@@ -131,12 +139,12 @@ def test_reports_missing_interest_fee_and_cash(client):
     assert [m["statement_index"] for m in body["matched"]] == [0]
 
 
-def test_reconcile_does_not_write_to_the_store(client, tmp_path):
-    before = _snapshot(tmp_path)
+def test_reconcile_does_not_write_to_the_store(client, accounts):
+    before = _snapshot(accounts)
 
     assert _post_statement(client).status_code == 200
 
-    assert _snapshot(tmp_path) == before
+    assert _snapshot(accounts) == before
     assert transactions._POSTED_TRANSACTIONS == []
 
 
@@ -264,7 +272,7 @@ def test_create_trade_still_requires_ticker(client):
     assert resp.json()["detail"] == "ticker is required"
 
 
-def test_created_cash_row_stores_no_trade_fields(client, tmp_path):
+def test_created_cash_row_stores_no_trade_fields(client, accounts):
     resp = client.post(
         "/transactions",
         json={
@@ -278,7 +286,7 @@ def test_created_cash_row_stores_no_trade_fields(client, tmp_path):
     )
 
     assert resp.status_code == 201
-    stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())["transactions"][-1]
+    stored = json.loads((accounts / "alice" / "isa_transactions.json").read_text())["transactions"][-1]
     assert stored == {
         "date": "2026-02-01",
         "type": "INTEREST",
@@ -289,7 +297,7 @@ def test_created_cash_row_stores_no_trade_fields(client, tmp_path):
     }
 
 
-def test_created_trade_does_not_store_amount_minor(client, tmp_path):
+def test_created_trade_does_not_store_amount_minor(client, accounts):
     resp = client.post(
         "/transactions",
         json={
@@ -306,5 +314,104 @@ def test_created_trade_does_not_store_amount_minor(client, tmp_path):
     )
 
     assert resp.status_code == 201
-    stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())["transactions"][-1]
+    stored = json.loads((accounts / "alice" / "isa_transactions.json").read_text())["transactions"][-1]
     assert "amount_minor" not in stored
+
+
+# ───────────── Bots page run history (#10477): one run per upload, counts only ─────────────
+
+# Values from EXTRACTION/LEDGER that must never reach a run record.
+_STATEMENT_VALUES = ("3990", "1011", "11.95", "Debit card", "BP PLC", "Interest", "500000")
+
+
+def _runs():
+    from backend.bots import runs
+
+    return runs.list_runs(bot.BOT_ID)
+
+
+def _assert_no_statement_values(record):
+    text = record.model_dump_json()
+    for value in _STATEMENT_VALUES:
+        assert value not in text, value
+
+
+def test_successful_upload_records_one_run_with_counts_only(client):
+    assert _post_statement(client).status_code == 200
+
+    [record] = _runs()
+    assert record.trigger == "event"
+    assert record.status == "ok"
+    assert record.owner == "alice"
+    assert record.summary == "1 matched, 3 differences, 0 warnings"
+    assert record.report["by_kind"] == {"fee_mismatch": 1, "missing_from_ledger": 1, "cash_mismatch": 1}
+    assert record.report["llm_provider"] == "ollama" and record.report["sent_to_cloud"] is False
+    _assert_no_statement_values(record)
+
+
+def test_failed_extraction_records_error_type_only(client, monkeypatch):
+    def unreadable(data, name):
+        raise extract.UnsupportedDocument("Statement for Debit card 3990 is unreadable")
+
+    monkeypatch.setattr(extract, "extract_document_text", unreadable)
+
+    assert _post_statement(client).status_code == 415
+
+    [record] = _runs()
+    assert record.status == "failed"
+    assert record.error == "UnsupportedDocument"
+    assert record.summary == "Statement could not be reconciled (HTTP 415)"
+    _assert_no_statement_values(record)
+    assert "unreadable" not in record.model_dump_json()
+
+
+def test_llm_failure_records_cause_type_not_message(client, monkeypatch):
+    async def failing(text, cfg):
+        raise ConnectionError("model echoed: BP PLC 1011.95")
+
+    monkeypatch.setattr(extract, "complete_extraction", failing)
+
+    assert _post_statement(client).status_code == 502
+
+    [record] = _runs()
+    assert record.error == "ConnectionError"
+    _assert_no_statement_values(record)
+
+
+def test_switched_off_bot_refuses_upload_and_records_nothing(client):
+    from backend.bots import registry, settings
+
+    settings.save_settings(registry.get_bot(bot.BOT_ID), {"enabled": False})
+
+    resp = _post_statement(client)
+
+    assert resp.status_code == 403
+    assert "switched off" in resp.json()["detail"]
+    assert _runs() == []
+
+
+def test_run_store_failure_does_not_fail_the_upload(client, monkeypatch, caplog):
+    def broken(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(reconciliation.runner, "execute", broken)
+
+    with caplog.at_level("ERROR"):
+        resp = _post_statement(client)
+
+    assert resp.status_code == 200
+    assert "Could not record the statement reconciliation run" in caplog.text
+
+
+def test_access_denied_records_no_run(client, monkeypatch):
+    from backend.common.errors import PermissionDeniedError
+
+    def deny(*args, **kwargs):
+        raise PermissionDeniedError("nope")
+
+    monkeypatch.setattr(reconciliation, "ensure_owner_access", deny)
+
+    with pytest.raises(PermissionDeniedError):
+        _post_statement(client)
+
+    assert _runs() == []

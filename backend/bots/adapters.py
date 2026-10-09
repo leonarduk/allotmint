@@ -224,3 +224,6 @@ class TradingAgentBot:
 
 for _bot in (TradingAgentBot(), PriceRefreshBot(), DividendRefreshBot(), PensionReportBot()):
     register_bot(_bot, replace=True)
+
+# Agents that register themselves from their own module (see the module docstring).
+from backend.reconciliation import bot as _statement_reconciliation_bot  # noqa: E402,F401

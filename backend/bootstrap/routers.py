@@ -47,6 +47,7 @@ from backend.routes.query import router as query_router
 from backend.routes.quest_routes import router as quest_router
 from backend.routes.quotes import router as quotes_router
 from backend.routes.rebalance import router as rebalance_router
+from backend.routes.reconciliation import router as reconciliation_router
 from backend.routes.reports import router as reports_router
 from backend.routes.scenario import router as scenario_router
 from backend.routes.screener import router as screener_router
@@ -109,6 +110,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
         # this machine runs; on AWS it is a Lambda (#9654).
         app.include_router(mcp_server_admin_router, dependencies=protected)
     app.include_router(query_router, dependencies=protected)
+    app.include_router(reconciliation_router, dependencies=protected)
     app.include_router(virtual_portfolio_router, dependencies=protected)
     app.include_router(metrics_router)
     app.include_router(analytics_router, dependencies=protected)

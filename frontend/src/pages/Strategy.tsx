@@ -21,6 +21,7 @@ import type {
 } from '../types';
 import DecisionJournal from '../components/DecisionJournal';
 import EmptyState from '../components/EmptyState';
+import PlanBriefCard from '../components/PlanBriefCard';
 import SleevesPanel from '../components/SleevesPanel';
 import StrategyLibrary from '../components/StrategyLibrary';
 import StrategyStressPanel from '../components/StrategyStressPanel';
@@ -661,7 +662,8 @@ export default function Strategy() {
 
   // Targets and the active strategy's "modified" flag change together.
   // The investment plan panel (PlanPanel) is hidden for now: it did not stay
-  // in sync with the applied strategy. The /plans API and MCP tools remain,
+  // in sync with the applied strategy. The /plans API and MCP tools remain.
+  // The plan-drift brief (#10475) is a dated snapshot, so it is shown here,
   // and the decision journal (#10481) below writes to the plan's decisions.
   const reloadAll = useCallback(async () => {
     await Promise.all([reload(), reloadStrategies()]);
@@ -738,6 +740,7 @@ export default function Strategy() {
           onChanged={reloadAll}
         />
       )}
+      {selectedOwner && <PlanBriefCard owner={selectedOwner} />}
       {plan && (
         <>
           <DriftTable plan={plan} owner={selectedOwner} title={coreTitle} />

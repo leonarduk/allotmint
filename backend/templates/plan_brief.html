@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+  <body style="font-family: Arial, sans-serif; color: #1e293b">
+    <h2>Plan brief for {{ owner_name }} &mdash; {{ brief.as_of }}</h2>
+    <p>{{ brief.prose }}</p>
+    <h3>Allocation vs plan (band &plusmn;{{ brief.drift.tolerance_pct }}pp)</h3>
+    <table cellpadding="4" style="border-collapse: collapse">
+      <tr><th align="left">Class</th><th>Actual</th><th>Target</th><th>Drift</th><th>Drift &pound;</th></tr>
+      {% for row in brief.drift.rows %}
+      <tr{% if row.status in ("over", "under") %} style="background: #fef3c7"{% endif %}>
+        <td>{{ row.label }}</td>
+        <td align="right">{{ "%.1f"|format(row.current_pct) }}%</td>
+        <td align="right">{% if row.target_pct is not none %}{{ "%.1f"|format(row.target_pct) }}%{% else %}&mdash;{% endif %}</td>
+        <td align="right">{% if row.drift_pp is not none %}{{ "%+.1f"|format(row.drift_pp) }}pp{% else %}&mdash;{% endif %}</td>
+        <td align="right">{% if row.drift_gbp is not none %}{{ "{:+,.0f}".format(row.drift_gbp) }}{% else %}&mdash;{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% if brief.drift.rebalance_targets_match == false %}<p>The saved rebalance targets differ from the plan target.</p>{% endif %}
+    {% if brief.triggers %}
+    <h3>Review triggers</h3>
+    <ul>
+      {% for t in brief.triggers %}
+      <li><strong>{{ {"fired": "Fired", "not_fired": "Not fired"}.get(t.verdict, "Can't evaluate") }}</strong>: {{ t.trigger }} &mdash; {{ t.reason }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if brief.review.due %}<p><strong>Review due:</strong> the plan review date {{ brief.review.next_review }} has passed.</p>{% endif %}
+    <p style="font-size: 12px; font-style: italic; color: #64748b">{{ brief.disclaimer }}</p>
+  </body>
+</html>

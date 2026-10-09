@@ -57,6 +57,12 @@ vi.mock('@/api', () => ({
   runStrategyStress: vi.fn(),
   updateSleeve: vi.fn(),
   deleteSleeve: vi.fn(),
+  // PlanBriefCard (#10475): no brief saved yet.
+  getLatestPlanBrief: () =>
+    Promise.reject(Object.assign(new Error('none'), { status: 404 })),
+  getPlanBrief: vi.fn(),
+  listPlanBriefs: vi.fn(),
+  runPlanBrief: vi.fn(),
 }));
 
 vi.mock('@/RouteContext', () => ({

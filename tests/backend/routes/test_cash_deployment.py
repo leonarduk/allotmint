@@ -91,7 +91,7 @@ def test_get_one_and_delete(client):
     created = _create(client)
     url = f"/cash-deployment/alex/schedules/{created['id']}"
     assert client.get(url, params={"as_of": "2026-01-15"}).json()["schedule"]["id"] == created["id"]
-    assert client.delete(url).status_code == 204
+    assert client.delete(url).json() == {"deleted": created["id"]}
     assert client.get(url).status_code == 404
     assert client.delete(url).status_code == 404
     assert client.get("/cash-deployment/alex").json()["schedules"] == []

@@ -13,7 +13,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from backend.auth import get_active_user
 from backend.cash_deployment import schedule as schedule_store
@@ -100,10 +100,10 @@ def update_schedule(
         raise HTTPException(status_code=409, detail=_UNREADABLE) from exc
 
 
-@router.delete("/cash-deployment/{owner}/schedules/{schedule_id}", status_code=204)
+@router.delete("/cash-deployment/{owner}/schedules/{schedule_id}")
 def delete_schedule(
     owner: str, schedule_id: str, request: Request, identity: Optional[str] = Depends(get_active_user)
-) -> Response:
+) -> Dict[str, str]:
     owner, accounts_root = _resolve_owner(request, owner, identity)
     try:
         schedule_store.delete_schedule(owner, schedule_id, accounts_root)
@@ -111,4 +111,4 @@ def delete_schedule(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except SettingsUnreadableError as exc:
         raise HTTPException(status_code=409, detail=_UNREADABLE) from exc
-    return Response(status_code=204)
+    return {"deleted": schedule_id}

@@ -1258,6 +1258,22 @@ def test_bot_lambdas_share_the_bots_storage_prefix() -> None:
         assert parts[0] == "s3://" and parts[-1] == "/bots", fragment
 
 
+def test_bot_lambdas_can_read_and_write_their_run_records() -> None:
+    """The runner reads run records (busy/cadence checks) and writes them (#10477)."""
+    template = _stack_template()
+    for fragment in (
+        "PriceRefreshLambda",
+        "TradingAgentLambda",
+        "DividendRefreshLambda",
+        "PensionReportLambda",
+    ):
+        role = _role_logical_id_for_lambda(template, fragment)
+        reads = [str(r) for r in _resources_for_s3_action(template, role, "s3:GetObject")]
+        writes = [str(r) for r in _resources_for_s3_action(template, role, "s3:PutObject")]
+        assert any(r.endswith("'/*']]}") or "/bots/*" in r for r in reads), (fragment, reads)
+        assert any(r.endswith("'/*']]}") or "/bots/*" in r for r in writes), (fragment, writes)
+
+
 def test_backend_lambda_can_start_each_bot_lambda() -> None:
     """Run now invokes the bot's own Lambda; the backend must know and may invoke each (#10477)."""
     template = _stack_template()

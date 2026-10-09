@@ -277,7 +277,12 @@ function SettingsForm({
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  useEffect(() => setValues(bot.settings), [bot.settings]);
+  // Unsaved edits survive the panel re-fetching (e.g. after a run finishes);
+  // the form only follows the server's values while it has none.
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    if (!dirty) setValues(bot.settings);
+  }, [bot.settings, dirty]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -286,6 +291,7 @@ function SettingsForm({
     setSaved(false);
     try {
       onSaved(await updateBotSettings(bot.id, values));
+      setDirty(false);
       setSaved(true);
     } catch (err) {
       setErrors(validationMessages(err));
@@ -308,9 +314,10 @@ function SettingsForm({
           prop={prop}
           value={values[name]}
           disabled={!bot.can_manage || saving}
-          onChange={(value) =>
-            setValues((prev) => ({ ...prev, [name]: value }))
-          }
+          onChange={(value) => {
+            setDirty(true);
+            setValues((prev) => ({ ...prev, [name]: value }));
+          }}
         />
       ))}
       {errors.map((message) => (

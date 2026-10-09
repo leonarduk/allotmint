@@ -176,6 +176,25 @@ describe('Bots page', () => {
     );
   });
 
+  it('keeps unsaved edits when the panel re-fetches after a run', async () => {
+    api.runBotNow.mockResolvedValue({
+      ...lastRun,
+      id: 'r4',
+      bot_id: 'trading-agent',
+      status: 'running',
+    });
+    const panel = await openTradingAgent();
+    const rsi = within(panel).getByLabelText('RSI at or below which to BUY');
+    fireEvent.change(rsi, { target: { value: '27' } });
+
+    fireEvent.click(within(panel).getByRole('button', { name: 'Run now' }));
+    await waitFor(() => expect(api.getBot).toHaveBeenCalledTimes(2));
+
+    expect(
+      within(panel).getByLabelText('RSI at or below which to BUY')
+    ).toHaveValue(27);
+  });
+
   it('shows validation errors from a 422', async () => {
     const err = Object.assign(new Error('HTTP 422'), {
       status: 422,

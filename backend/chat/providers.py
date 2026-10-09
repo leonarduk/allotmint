@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from backend.chat import bedrock_agent, openai_compat_agent
 from backend.chat.local_tools import LocalTools
+from backend.chat.tool_switches import ToolPolicy
 from backend.chat.turn_limits import TurnLimits
 from backend.config import Config
 
@@ -37,11 +38,14 @@ async def run_configured_chat_turn(
     mcp_server_url: str,
     local_tools: Optional[LocalTools] = None,
     system_prompt: Optional[str] = None,
+    tool_policy: Optional[ToolPolicy] = None,
     limits: Optional[TurnLimits] = None,
 ) -> str:
     provider = resolve_chat_provider(cfg)
     # Only passed when set, so the interactive chat's call is unchanged.
-    extra = {"limits": limits} if limits is not None else {}
+    extra: Dict[str, Any] = {"limits": limits} if limits is not None else {}
+    if tool_policy is not None:
+        extra["tool_policy"] = tool_policy
     if provider == "bedrock":
         return await bedrock_agent.run_chat_turn(
             message,

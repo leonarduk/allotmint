@@ -389,6 +389,10 @@ class BackendLambdaStack(Stack):
                 "queries",
                 "timeseries/meta",
                 "transactions",
+                # Trend-watch reports, detector state and mute lists (#10476):
+                # ListBucket lets backend/common/storage.py tell a not-yet-written
+                # trend_watch/<owner>/latest.json (404) from denied access (403).
+                "trend_watch",
                 # Writable, per-owner account documents (manual holdings and
                 # transaction writes) live under a dedicated prefix that is
                 # separate from the read-only ``accounts/`` demo dataset so
@@ -424,6 +428,12 @@ class BackendLambdaStack(Stack):
             # above; without it the Lambda fails at init with AccessDenied
             # (issue #8914).
             "trading_agent": ("accounts", "prices"),
+            # trend_watch discovers owners via list_plots() (accounts/, as for
+            # trading_agent), reads instrument metadata for benchmarks
+            # (instruments/, see the backend entry above for why ListBucket
+            # matters there) and reads/writes its own documents under
+            # trend_watch/ (backend/trend_watch/storage.py, #10476).
+            "trend_watch": ("accounts", "instruments", "prices", "trend_watch"),
             # dividend_refresh reads holdings/transactions via AccountsStore
             # (iter_transaction_documents() → ListBucket on writable-accounts/)
             # and writes new DIVIDEND transactions back to the same prefix.
@@ -1157,6 +1167,67 @@ class BackendLambdaStack(Stack):
             targets=[targets.LambdaFunction(agent_fn)],
         )
 
+        # Weekly holding trend watch (#10476): detector, data check, backtest and
+        # report per owner, alerting through the trading-agent transports.
+        trend_watch_code = _lambda.DockerImageCode.from_image_asset(
+            str(project_root),
+            file="backend/Dockerfile.lambda",
+            cmd=["backend.lambda_api.trend_watch.lambda_handler"],
+        )
+        trend_watch_env = {
+            "APP_ENV": env,
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            "TREND_WATCH_URI": f"s3://{bucket_name}/trend_watch",
+            # See the matching comment on refresh_env above.
+            "JWT_SECRET": jwt_secret,
+        }
+        # Run records for the Bots page (#10477, backend/bots/runner.py).
+        trend_watch_env["BOTS_STORAGE_URI"] = f"s3://{bucket_name}/{BOTS_PREFIX}"
+        if data_repo:
+            trend_watch_env["DATA_REPO"] = data_repo
+
+        trend_watch_log_group = self._lambda_log_group(self, "TrendWatchLambdaLogGroup")
+        trend_watch_fn = _lambda.DockerImageFunction(
+            self,
+            "TrendWatchLambda",
+            code=trend_watch_code,
+            environment=trend_watch_env,
+            log_group=trend_watch_log_group,
+            # Five years of closes per holding plus a backtest per owner; the
+            # LLM investigation, when an MCP server is configured, adds up to
+            # max_investigated turns per owner.
+            timeout=Duration.minutes(15),
+            memory_size=1024,
+        )
+
+        # TrendWatchLambda: reads accounts, metadata, prices and the timeseries
+        # cache like TradingAgentLambda (service.py:run_for_owner →
+        # build_owner_portfolio / load_meta_timeseries / get_instrument_meta),
+        # and writes only under trend_watch/ (storage.py:save_report,
+        # save_state) plus its own run records under bots/ (backend/bots/runs.py,
+        # #10477). No Bedrock or MCP grant: without mcp_server_url the
+        # investigation step is recorded as not run (agent.py:default_runner).
+        self._grant_bucket_access(
+            trend_watch_fn,
+            bucket=data_bucket,
+            allow_read=True,
+            allow_put=True,
+            allow_list=True,
+            list_prefix=lambda_list_prefixes["trend_watch"],
+            put_prefix=("trend_watch", BOTS_PREFIX),
+        )
+        self._grant_timeseries_cache_access(trend_watch_fn, bucket=data_bucket, allow_put=False)
+
+        events.Rule(
+            self,
+            "WeeklyTrendWatchRun",
+            # Saturday 06:00 UTC, after Friday's closes are in.
+            schedule=events.Schedule.cron(minute="0", hour="6", week_day="SAT"),
+            targets=[targets.LambdaFunction(trend_watch_fn)],
+        )
+
         # Scheduled function to fetch and record dividend transactions (issue #2750)
         dividend_code = _lambda.DockerImageCode.from_image_asset(
             str(project_root),
@@ -1391,6 +1462,7 @@ class BackendLambdaStack(Stack):
             "trading-agent": agent_fn,
             "dividend-refresh": dividend_fn,
             "pension-report": pension_report_fn,
+            "trend-watch": trend_watch_fn,
         }
         for bot_fn in bot_lambdas.values():
             bot_fn.grant_invoke(backend_fn)

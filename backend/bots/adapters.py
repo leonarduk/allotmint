@@ -224,3 +224,6 @@ class TradingAgentBot:
 
 for _bot in (TradingAgentBot(), PriceRefreshBot(), DividendRefreshBot(), PensionReportBot()):
     register_bot(_bot, replace=True)
+
+# Agents that register themselves from their own module.
+from backend.decision_journal import bot as _decision_journal_bot  # noqa: E402,F401

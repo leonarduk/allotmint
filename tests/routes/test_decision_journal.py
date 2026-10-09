@@ -210,7 +210,7 @@ def test_daily_run_lists_unlogged_and_runs_due_reviews_without_touching_the_plan
     sell = {**SELL, "date": "2026-07-01", "id": "alex:isa:9"}
     result = bot.run(as_of=date(2026, 7, 2), data_root=data_root, transactions=[sell], load_series=fake_series)
 
-    assert result["bot"] == "decision_journal" and result["schedule"] == "daily"
+    assert result["bot"] == "decision-journal" and result["schedule"] == "daily"
     owner = result["owners"]["alex"]
     assert [c["source_ref"] for c in owner["unlogged"]] == ["alex:isa:9"]
     assert owner["reviews_run"] == [{"entry_id": "dj-sell-aaa", "horizon_months": 6}]

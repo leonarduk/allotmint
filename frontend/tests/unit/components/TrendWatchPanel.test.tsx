@@ -186,6 +186,29 @@ describe('TrendWatchPanel', () => {
     );
   });
 
+  it('marks detection-only verdicts as not investigated', async () => {
+    api.getTrendWatchLatest.mockResolvedValue({
+      ...REPORT,
+      items: [
+        item({
+          verdict: 'inconclusive',
+          verdict_label: 'Inconclusive',
+          investigation: { ...item({}).investigation, status: 'not_run' },
+        }),
+        item({ rank: 2, ticker: 'OK.L' }),
+      ],
+    });
+    render(<TrendWatchPanel owner="alex" />);
+
+    const notRun = await screen.findByTestId('trend-item-TURN.L');
+    expect(within(notRun).getByText('Not investigated')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('trend-item-OK.L')).queryByText(
+        'Not investigated'
+      )
+    ).not.toBeInTheDocument();
+  });
+
   it('labels the hit rates with their return basis', async () => {
     render(<TrendWatchPanel owner="alex" />);
 

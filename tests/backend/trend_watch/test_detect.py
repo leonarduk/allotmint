@@ -136,3 +136,14 @@ def test_artefact_dates_are_iso_strings():
     step = d.find_artefacts(pence_cliff())[0]
 
     assert step["date"] == pence_cliff().index[-3].date().isoformat()
+
+
+def test_moves_are_compared_to_a_common_end_date_when_the_benchmark_is_stale():
+    closes = double_top().iloc[:FRESH_TURN_END]
+    stale_bench = rising_benchmark().iloc[: FRESH_TURN_END - 10]
+
+    values = d.detect("X.L", closes, benchmark_levels=stale_bench, benchmark_ticker="B.L").values
+
+    assert values["move_end"] == stale_bench.index[-1].date().isoformat()
+    own_to_end = closes[closes.index <= stale_bench.index[-1]]
+    assert values["own_move"] == round(own_to_end.iloc[-1] / own_to_end.iloc[-1 - d.MOVE_DAYS] - 1, 4)

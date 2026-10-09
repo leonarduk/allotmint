@@ -37,12 +37,15 @@ class TrendWatchSettings(BaseModel):
     max_tool_calls: int
 
 
-def _authorise(owner: str, request: Request, identity: str | None) -> None:
+def _authorise(owner: str, request: Request, identity: str | None) -> str:
+    """Validate ``owner`` and check access; return the cleaned owner every later call uses."""
+
     try:
-        storage.clean_owner(owner)
+        cleaned = storage.clean_owner(owner)
     except storage.InvalidOwner as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    ensure_owner_access(identity, owner, resolve_accounts_root(request, allow_missing=True))
+    ensure_owner_access(identity, cleaned, resolve_accounts_root(request, allow_missing=True))
+    return cleaned
 
 
 @router.get("/settings", response_model=TrendWatchSettings)
@@ -54,7 +57,7 @@ def settings() -> TrendWatchSettings:
 def latest(owner: str, request: Request, identity: str | None = Depends(get_active_user)) -> Dict[str, Any]:
     """The most recent stored report for ``owner``; 404 before the first run."""
 
-    _authorise(owner, request, identity)
+    owner = _authorise(owner, request, identity)
     report = storage.load_latest(owner)
     if report is None:
         raise HTTPException(status_code=404, detail="No trend-watch report yet; run one first.")
@@ -68,7 +71,7 @@ async def run(
 ) -> Dict[str, Any]:
     """Run trend watch for ``owner`` now, store the report and return it."""
 
-    _authorise(owner, request, identity)
+    owner = _authorise(owner, request, identity)
     accounts_root = resolve_accounts_root(request, allow_missing=True)
     try:
         return await run_for_owner(
@@ -84,7 +87,7 @@ def set_mute(
 ) -> Dict[str, List[str]]:
     """Mark ``ticker`` as a deliberate long-term or residual holding (shown with less emphasis), or undo it."""
 
-    _authorise(owner, request, identity)
+    owner = _authorise(owner, request, identity)
     try:
         return {"mutes": storage.set_muted(owner, ticker, body.muted)}
     except ValueError as exc:

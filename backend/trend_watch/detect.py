@@ -338,12 +338,9 @@ def _readings(
 
     last = len(frame) - 1
     row = frame.iloc[last]
-    # Measure both moves to the same end date: the last traded close.
-    own = own[own.index <= frame.index[-1]]
+    own, bench = _common_end(own, bench_levels, frame.index[-1])
     own_move = _period_return(own, MOVE_DAYS)
-    bench_move = None
-    if not bench_levels.empty:
-        bench_move = _period_return(bench_levels[bench_levels.index <= own.index[-1]], MOVE_DAYS)
+    bench_move = _period_return(bench, MOVE_DAYS) if not bench.empty else None
     rs_now = _num(row.get("rs"), 6)
     rs_before = _num(previous.get("rs"), 6) if previous else None
     if rs_before is None and rs_now is not None:
@@ -363,7 +360,22 @@ def _readings(
         "own_move": own_move,
         "benchmark_move": bench_move,
         "excess_move": _num(own_move - bench_move) if own_move is not None and bench_move is not None else None,
+        "move_end": own.index[-1].date().isoformat() if not own.empty else None,
     }
+
+
+def _common_end(own: pd.Series, bench: pd.Series, last_close: pd.Timestamp) -> tuple[pd.Series, pd.Series]:
+    """Both level series cut to one end date: the last traded close, or the earlier last date of the two.
+
+    A stale benchmark (or holding) series would otherwise compare moves over
+    different calendar windows, and the market-wide test would not be like for like.
+    """
+
+    own = own[own.index <= last_close]
+    if bench.empty or own.empty:
+        return own, bench
+    end = min(own.index[-1], bench.index[-1])
+    return own[own.index <= end], bench[bench.index <= end]
 
 
 def market_wide(detection: Detection, cfg: Optional[TrendWatchConfig] = None) -> Optional[bool]:

@@ -255,6 +255,14 @@ function ItemCard({
         <span className={`${styles.badge} ${VERDICT_CLASS[item.verdict]}`}>
           {t(`trendWatch.verdict.${item.verdict}`, item.verdict_label)}
         </span>
+        {/* Detection-only verdicts (no model, a failed call or over the cap) are
+            labelled, so they are not mistaken for an investigated explanation. */}
+        {item.verdict !== 'data_problem' &&
+          item.investigation.status !== 'ok' && (
+            <span className={`${styles.badge} ${styles.inconclusive}`}>
+              {t('trendWatch.notInvestigated', 'Not investigated')}
+            </span>
+          )}
         {item.muted && (
           <span className={styles.muted}>
             {t('trendWatch.mutedLabel', 'Long-term holding')}

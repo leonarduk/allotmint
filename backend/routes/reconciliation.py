@@ -9,12 +9,14 @@ to the existing ``POST /transactions`` or ``PUT /transactions/{id}``.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Dict, List, Mapping, Sequence
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 
 from backend.auth import get_active_user
+from backend.bots import runner
 from backend.chat.providers import resolve_chat_provider
 from backend.common import holdings_rebuild
 from backend.common.authz import ensure_owner_access
@@ -22,7 +24,7 @@ from backend.common.instruments import get_instrument_meta
 from backend.common.isin import normalise_isin
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
-from backend.reconciliation import explain, extract, match
+from backend.reconciliation import bot, explain, extract, match
 from backend.reconciliation.models import ReconciliationResult
 from backend.routes._accounts import resolve_accounts_root
 from backend.routes.transactions import (
@@ -105,20 +107,9 @@ async def _maybe_explain(owner: str, account: str, result: ReconciliationResult)
         result.warnings.append("The unmatched rows could not be explained by the assistant")
 
 
-@router.post("/statement", response_model=ReconciliationResult)
-async def reconcile_statement(
-    request: Request,
-    owner: str = Form(...),
-    account: str = Form(...),
-    file: UploadFile = File(...),
-    explain_unmatched: bool = Form(default=False),
-    identity: str | None = Depends(get_active_user),
+async def _reconcile(
+    request: Request, owner: str, account: str, file: UploadFile, explain_unmatched: bool
 ) -> ReconciliationResult:
-    """Extract a broker statement and report how it differs from the ledger. Never writes."""
-    owner = _validate_component(owner, "owner")
-    account = _validate_component(account, "account")
-    ensure_owner_access(identity, owner, resolve_accounts_root(request))
-
     data = await _read_upload(file)
     extraction = await _extract(data, file.filename or "")
 
@@ -143,6 +134,46 @@ async def reconcile_statement(
     )
     if explain_unmatched:
         await _maybe_explain(owner, account, result)
+    return result
+
+
+def _record_run(owner: str, actor: str | None, payload: Dict[str, Any]) -> None:
+    """Record one run on the Bots page; bookkeeping never fails the upload."""
+    try:
+        runner.execute(bot.BOT_ID, "event", owner=owner, actor=actor, payload=payload)
+    except Exception as exc:
+        logger.error("Could not record the statement reconciliation run: %s", sanitise_log_value(type(exc).__name__))
+
+
+@router.post("/statement", response_model=ReconciliationResult)
+async def reconcile_statement(
+    request: Request,
+    owner: str = Form(...),
+    account: str = Form(...),
+    file: UploadFile = File(...),
+    explain_unmatched: bool = Form(default=False),
+    identity: str | None = Depends(get_active_user),
+) -> ReconciliationResult:
+    """Extract a broker statement and report how it differs from the ledger. Never writes the ledger.
+
+    Each upload past the access checks records one ``statement-reconciliation``
+    run (counts only) on the Bots page, whether it succeeds or fails.
+    """
+    owner = _validate_component(owner, "owner")
+    account = _validate_component(account, "account")
+    ensure_owner_access(identity, owner, resolve_accounts_root(request))
+    if not await asyncio.to_thread(bot.reconciliation_enabled):
+        raise HTTPException(status_code=403, detail="Statement reconciliation is switched off on the Bots page")
+
+    try:
+        result = await _reconcile(request, owner, account, file, explain_unmatched)
+    except Exception as exc:
+        status_code = exc.status_code if isinstance(exc, HTTPException) else 500
+        payload = bot.failed_payload(status_code, exc, resolve_chat_provider(config))
+        await asyncio.to_thread(_record_run, owner, identity, payload)
+        raise
+
+    await asyncio.to_thread(_record_run, owner, identity, bot.reconciled_payload(result))
     logger.info(
         "Statement reconciliation: %s matched, %s differences, %s warnings",
         sanitise_log_value(len(result.matched)),

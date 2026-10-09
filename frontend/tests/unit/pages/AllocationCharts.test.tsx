@@ -32,7 +32,7 @@ vi.mock("recharts", () => ({
       {children}
     </div>
   ),
-  Cell: () => null,
+  Cell: ({ fill }: { fill?: string }) => <span data-testid="slice-cell" data-fill={fill} />,
   Tooltip: ({ formatter }: { formatter: typeof chartFormatters.tooltip }) => {
     chartFormatters.tooltip = formatter;
     return null;
@@ -534,6 +534,12 @@ describe("AllocationCharts page", () => {
       // Unnamed holdings fall back to their ticker.
       expect(sliceRows(holdings)).toEqual(["Alpha: 80", "Beta: 70", "CCC: 50"]);
       expect(groups).toHaveAttribute("data-inline-labels", "false");
+      // Each holding takes its group's colour: Alpha and Beta are Tech, CCC is Health.
+      const fills = (pie: HTMLElement) =>
+        within(pie).getAllByTestId("slice-cell").map((el) => el.getAttribute("data-fill"));
+      const [tech, health] = fills(groups);
+      expect(tech).not.toBe(health);
+      expect(fills(holdings)).toEqual([tech, tech, health]);
 
       fireEvent.click(screen.getByTestId("show-holdings-toggle"));
       expect(screen.getAllByTestId("pie-slices")).toHaveLength(1);

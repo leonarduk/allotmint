@@ -11,6 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from backend.common.cash_tickers import is_cash_ticker
 from backend.common.currency import CurrencyNormaliser
 from backend.common.instrument_classification import (
     cached_classification_overrides,
@@ -230,7 +231,9 @@ def _instrument_path(ticker: str) -> Path:
     exch = exch or None
     if exch is not None:
         exch = _validate_part(exch)
-    if sym == "CASH":
+    # Only a currency suffix makes CASH a cash balance; CASH.N is Pathward
+    # Financial and lives at N/CASH.json like any other stock (#10516).
+    if is_cash_ticker(f"{sym}.{exch}" if exch else sym):
         ccy = exch or "GBP"
         return instruments_dir / "Cash" / f"{ccy}.json"
     folder = exch if exch else "Unknown"
@@ -619,7 +622,7 @@ def _auto_create_instrument_meta(ticker: str) -> Optional[Dict[str, Any]]:
         return None
 
     sym, exch = (canonical.split(".", 1) + [None])[:2]
-    if not exch or not sym or sym == "CASH":
+    if not exch or not sym or is_cash_ticker(canonical):
         return None
 
     # Avoid triggering live lookups when the application is running in offline
@@ -712,7 +715,8 @@ def resolve_instrument_ticker(
     """
     raw = (ticker or "").strip().upper()
     symbol, _, suffix = raw.partition(".")
-    if not symbol or symbol == "CASH":
+    # A bare "CASH" is the GBP cash balance; "CASH.N" is a stock (#10516).
+    if not symbol or is_cash_ticker(raw):
         return None
 
     if suffix:

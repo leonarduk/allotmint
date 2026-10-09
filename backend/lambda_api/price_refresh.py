@@ -96,7 +96,10 @@ def lambda_handler(event, context):
     # The scheduled refresh has no request user; run it as a trusted system job
     # so owner discovery returns every owner even with auth enabled (#8805).
     with system_job_context():
-        return handle_lambda_event("price-refresh", event)
+        # reraise: _run_refresh() catches refresh failures itself; anything it
+        # doesn't (e.g. the optional trading agent) still fails the
+        # invocation, as before the runner (recorded first).
+        return handle_lambda_event("price-refresh", event, reraise=True)
 
 
 def _run_refresh():

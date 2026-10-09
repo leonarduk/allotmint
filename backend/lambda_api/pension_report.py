@@ -212,7 +212,9 @@ def lambda_handler(event, context):
     # A scheduled job has no request user; run it as a trusted system job so
     # list_portfolios() sees every owner even with auth enabled (#8805).
     with system_job_context():
-        return handle_lambda_event("pension-report", event)
+        # reraise: anything _run_report() doesn't catch still fails the
+        # invocation, as it did before the runner (recorded first).
+        return handle_lambda_event("pension-report", event, reraise=True)
 
 
 def _run_report() -> Dict[str, Any]:

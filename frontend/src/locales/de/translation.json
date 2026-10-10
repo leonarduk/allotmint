@@ -2454,6 +2454,33 @@
     "assetClassBasis": "{{assetClass}}-Fonds: {{basis}}",
     "dataQuality": "Datenqualität"
   },
+  "instrumentCreditRisk": {
+    "loadError": "Kreditrisiko konnte nicht geladen werden: {{message}}",
+    "loading": "Kreditrisiko wird geladen...",
+    "title": "Kreditrisiko",
+    "signals": "Kreditrisiko-Signale",
+    "altmanZ": "Altman-Z-Score",
+    "interestCover": "Zinsdeckung",
+    "netDebtToEbitda": "Nettoverschuldung / EBITDA",
+    "currentRatio": "Liquidität 3. Grades",
+    "fcf": "Freier Cashflow",
+    "below52wHigh": "Unter dem 52-Wochen-Hoch",
+    "marketContext": "Kreditspreads am Markt:",
+    "spreadReading": "{{label}} {{value}} Pp. ({{percentile}}. Perzentil)",
+    "usHighYield": "US-Hochzins",
+    "euroHighYield": "Euro-Hochzins",
+    "baa10y": "Baa – 10-jährige Treasury",
+    "accountsAsOf": "Abschluss zum {{date}}",
+    "noAccountsDate": "Kein Datum des Jahresabschlusses",
+    "dataGaps": "Fehlend: {{fields}}",
+    "disclaimer": "Signale gegenüber festen Schwellenwerten, kein Kreditrating und keine Empfehlung.",
+    "band": {
+      "high": "Hoch",
+      "watch": "Beobachten",
+      "low": "Niedrig",
+      "unknown": "Unbekannt"
+    }
+  },
   "instrumentTechnicals": {
     "whatDoesMean": "Was bedeutet {{title}}?",
     "crossGolden": "Golden Cross (50 über 200)",

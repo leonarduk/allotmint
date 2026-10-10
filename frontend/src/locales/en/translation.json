@@ -2447,6 +2447,33 @@
     "assetClassBasis": "{{assetClass}} fund: {{basis}}",
     "dataQuality": "Data quality"
   },
+  "instrumentCreditRisk": {
+    "loadError": "Could not load credit risk: {{message}}",
+    "loading": "Loading credit risk...",
+    "title": "Credit risk",
+    "signals": "Credit risk signals",
+    "altmanZ": "Altman Z-score",
+    "interestCover": "Interest cover",
+    "netDebtToEbitda": "Net debt / EBITDA",
+    "currentRatio": "Current ratio",
+    "fcf": "Free cash flow",
+    "below52wHigh": "Below 52-week high",
+    "marketContext": "Market credit spreads:",
+    "spreadReading": "{{label}} {{value}}pp ({{percentile}}th percentile)",
+    "usHighYield": "US high yield",
+    "euroHighYield": "Euro high yield",
+    "baa10y": "Baa – 10y Treasury",
+    "accountsAsOf": "Accounts to {{date}}",
+    "noAccountsDate": "No annual accounts date",
+    "dataGaps": "Missing: {{fields}}",
+    "disclaimer": "Signals against fixed thresholds, not a credit rating or a recommendation.",
+    "band": {
+      "high": "High",
+      "watch": "Watch",
+      "low": "Low",
+      "unknown": "Unknown"
+    }
+  },
   "instrumentTechnicals": {
     "whatDoesMean": "What does {{title}} mean?",
     "crossGolden": "Golden cross (50 above 200)",

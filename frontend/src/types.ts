@@ -203,7 +203,7 @@ export type LookThroughHolding = {
   key: string;
   name: string;
   isin: string | null;
-  kind: 'security' | 'fund' | 'cash' | 'other';
+  kind: "security" | "fund" | "cash" | "other";
   value_gbp: number;
   weight_pct: number;
   direct_value_gbp: number;
@@ -268,14 +268,14 @@ export type AllInCost = {
 /** A fund data value proposed by the upkeep bot, awaiting the owner's approval (#10482). */
 export type FundUpkeepProposal = {
   id: string;
-  kind: 'ongoing_charge' | 'look_through';
+  kind: "ongoing_charge" | "look_through";
   ticker: string;
   isin?: string | null;
   value: unknown;
   source_url: string;
   document_date: string;
   confidence?: string | number | null;
-  status: 'pending' | 'approved' | 'rejected' | 'undone';
+  status: "pending" | "approved" | "rejected" | "undone";
   created_at: string;
   decided_at?: string;
   decided_by?: string | null;
@@ -301,7 +301,7 @@ export type InstrumentAllocationRefresh = {
 export type InstrumentAllocation = {
   ticker: string;
   name: string;
-  kind: 'fund' | 'security' | 'fund_uncovered' | 'cash';
+  kind: "fund" | "security" | "fund_uncovered" | "cash";
   source: string | null;
   /** A public page for the fund on its data source, looked up by ISIN. */
   source_url: string | null;
@@ -705,11 +705,11 @@ export interface InstrumentDetail {
 
 /** Why ``GET /instrument/fx-split`` returned no split (``reason``). */
 export type FxReturnSplitReason =
-  | 'sterling_instrument'
-  | 'unknown_currency'
-  | 'currency_mismatch'
-  | 'insufficient_price_history'
-  | 'missing_fx_rate';
+  | "sterling_instrument"
+  | "unknown_currency"
+  | "currency_mismatch"
+  | "insufficient_price_history"
+  | "missing_fx_rate";
 
 /**
  * Local vs FX split of a non-sterling instrument's GBP price return (#9776).
@@ -720,7 +720,7 @@ export interface FxReturnSplit {
   ticker: string;
   currency: string;
   applicable: boolean;
-  basis: 'price';
+  basis: "price";
   reason: FxReturnSplitReason | null;
   start: string | null;
   end: string | null;
@@ -814,7 +814,7 @@ export interface TimeseriesSummary {
 export interface DataExplorerEntry {
   name: string;
   path: string;
-  type: 'dir' | 'file';
+  type: "dir" | "file";
   size: number | null;
   modified: string;
 }
@@ -1008,7 +1008,7 @@ export interface RiskReturnWindow {
  * "total": dividends reinvested throughout; "partial": dividends only
  * recorded from part-way through the longest window; "price": price only.
  */
-export type RiskReturnBasis = 'total' | 'partial' | 'price';
+export type RiskReturnBasis = "total" | "partial" | "price";
 
 export interface RiskReturnRow {
   /** Normalised ticker (a bare US symbol comes back with ".N"). */
@@ -1017,7 +1017,7 @@ export interface RiskReturnRow {
   requested?: string | null;
   name?: string | null;
   currency: string | null;
-  currency_source?: 'metadata' | 'exchange_default' | string | null;
+  currency_source?: "metadata" | "exchange_default" | string | null;
   return_basis: RiskReturnBasis;
   first_date: string | null;
   last_date: string | null;
@@ -1119,10 +1119,7 @@ export interface InstrumentValuation {
     price_stale: boolean | null;
     suspect_moves: { date: string; change: number }[];
     warnings: string[];
-    price_snapshot?: {
-      is_stale: boolean | null;
-      last_price_date: string | null;
-    };
+    price_snapshot?: { is_stale: boolean | null; last_price_date: string | null };
   };
 }
 
@@ -1211,13 +1208,18 @@ export interface VirtualPortfolio {
   holdings: SyntheticHolding[];
 }
 
-export type TrailAnalyticsEvent = 'view' | 'task_started' | 'task_completed';
+export type TrailAnalyticsEvent = "view" | "task_started" | "task_completed";
 export type VirtualPortfolioAnalyticsEvent =
-  'view' | 'create' | 'update' | 'delete' | 'select';
+  | "view"
+  | "create"
+  | "update"
+  | "delete"
+  | "select";
 
-export type AnalyticsSource = 'trail' | 'virtual_portfolio';
+export type AnalyticsSource = "trail" | "virtual_portfolio";
 export type AnalyticsEventName =
-  TrailAnalyticsEvent | VirtualPortfolioAnalyticsEvent;
+  | TrailAnalyticsEvent
+  | VirtualPortfolioAnalyticsEvent;
 
 export interface AnalyticsEventPayload {
   source: AnalyticsSource;
@@ -1513,7 +1515,7 @@ export interface RebalanceTrade {
   account_id: string;
   account: string;
   asset_class: string;
-  action: 'buy' | 'sell';
+  action: "buy" | "sell";
   amount: number;
   ticker: string | null;
   /** Display name of the suggested instrument, when the holding has one. */
@@ -1698,7 +1700,7 @@ export interface InvestmentPlan {
   owner: string;
   version: number;
   updated: string;
-  status: 'draft' | 'active' | 'superseded';
+  status: "draft" | "active" | "superseded";
   summary: string;
   target: InvestmentPlanTarget[];
   vehicles: Record<string, InvestmentPlanVehicle[]>;
@@ -1713,7 +1715,7 @@ export interface InvestmentPlan {
 
 /** A decision-journal leg (#10481): the option taken or an alternative; no ticker means cash at 0%. */
 export interface DecisionLeg {
-  role: 'chosen' | 'alternative';
+  role: "chosen" | "alternative";
   label: string;
   ticker?: string | null;
 }
@@ -1738,7 +1740,7 @@ export interface DecisionReview {
   legs: DecisionLegOutcome[];
   comparisons: { alternative: string; difference_gbp?: number }[];
   return_basis?: string;
-  expectation_outcome: 'met' | 'not_met' | 'unclear';
+  expectation_outcome: "met" | "not_met" | "unclear";
   summary: string[];
   lesson?: string;
 }
@@ -1746,7 +1748,7 @@ export interface DecisionReview {
 export interface DecisionJournalEntry {
   id: string;
   date: string;
-  kind: 'trade' | 'plan_change' | 'other';
+  kind: "trade" | "plan_change" | "other";
   source_ref?: string;
   amount_gbp?: number;
   legs: DecisionLeg[];
@@ -1760,7 +1762,7 @@ export interface DecisionJournalEntry {
 export interface UnloggedChange {
   source_ref: string;
   date: string;
-  type: 'BUY' | 'SELL';
+  type: "BUY" | "SELL";
   ticker: string;
   account?: string;
   amount_gbp: number;
@@ -1776,7 +1778,7 @@ export interface DecisionJournalResponse {
 /** A pre-filled, unsaved draft; `reason` is always blank for the owner to write. */
 export interface DecisionDraft {
   id: string;
-  kind: DecisionJournalEntry['kind'];
+  kind: DecisionJournalEntry["kind"];
   source_ref?: string | null;
   date: string;
   decision: string;
@@ -1906,7 +1908,7 @@ export interface QuestResponse {
 export interface TrailTask {
   id: string;
   title: string;
-  type: 'daily' | 'once';
+  type: "daily" | "once";
   commentary: string;
   completed: boolean;
 }
@@ -1925,7 +1927,11 @@ export interface TrailResponse {
 }
 
 export type ReportTemplateFilterOperator =
-  'equals' | 'not_equals' | 'contains' | 'gt' | 'lt';
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "gt"
+  | "lt";
 
 export interface ReportTemplateFilter {
   field: string;

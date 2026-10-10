@@ -956,6 +956,7 @@ def _stub_refresh(monkeypatch: pytest.MonkeyPatch, tmp_path, snapshot: Dict) -> 
     monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: list(snapshot))
     monkeypatch.setattr(prices, "get_price_snapshot", lambda _ts: snapshot)
     monkeypatch.setattr(prices, "refresh_fx_cache_for_tickers", lambda _ts: None)
+    monkeypatch.setattr(prices, "refresh_fred_series", lambda: {})
     monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
     monkeypatch.setattr(prices, "check_price_alerts", Mock())
     monkeypatch.setattr(prices.config, "prices_json", tmp_path / "prices.json")
@@ -994,4 +995,43 @@ def test_refresh_prices_persists_snapshot_when_boe_refresh_fails(tmp_path, monke
 
     prices.refresh_prices()
 
+    assert json.loads((tmp_path / "prices.json").read_text()) == snapshot
+
+
+def test_refresh_prices_refreshes_fred_series_after_boe_when_online(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The scheduled refresh keeps the stored FRED credit spreads current (#10602)."""
+    calls = []
+    _stub_refresh(monkeypatch, tmp_path, {})
+    monkeypatch.setattr(prices, "refresh_boe_series", lambda: calls.append("boe") or {})
+    monkeypatch.setattr(prices, "refresh_fred_series", lambda: calls.append("fred") or {})
+    monkeypatch.setattr(prices.config, "offline_mode", False)
+
+    prices.refresh_prices()
+
+    assert calls == ["boe", "fred"]
+
+
+def test_refresh_prices_skips_fred_series_offline(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _stub_refresh(monkeypatch, tmp_path, {})
+    monkeypatch.setattr(prices, "refresh_fred_series", lambda: pytest.fail("FRED fetched offline"))
+    monkeypatch.setattr(prices.config, "offline_mode", True)
+
+    prices.refresh_prices()
+
+
+def test_refresh_prices_persists_snapshot_when_fred_refresh_fails(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    snapshot = {"XYZ.L": {"last_price": 145.0, "last_price_date": "2024-04-01"}}
+    calls = []
+
+    def failing_fred():
+        raise ConnectionError("fred unreachable")
+
+    _stub_refresh(monkeypatch, tmp_path, snapshot)
+    monkeypatch.setattr(prices, "refresh_boe_series", lambda: calls.append("boe") or {})
+    monkeypatch.setattr(prices, "refresh_fred_series", failing_fred)
+    monkeypatch.setattr(prices.config, "offline_mode", False)
+
+    prices.refresh_prices()
+
+    assert calls == ["boe"]
     assert json.loads((tmp_path / "prices.json").read_text()) == snapshot

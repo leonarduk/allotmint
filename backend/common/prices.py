@@ -124,6 +124,7 @@ from backend.timeseries.cache import (
     map_in_caller_context,
     refresh_fx_cache_for_tickers,
 )
+from backend.timeseries.fred_series import refresh_fred_series
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import _nearest_weekday
 
@@ -470,10 +471,11 @@ def _upload_snapshot_to_s3(merged: Dict) -> None:
 
 
 def _refresh_reference_data(tickers: List[str]) -> None:
-    """Refresh the FX cache and the stored Bank of England series alongside the prices.
+    """Refresh the FX cache and the stored Bank of England and FRED series alongside the prices.
 
     Page requests convert non-GBP closes from the FX cache only (#7917), and
-    MCP tools read FX history and BoE rates from the data root only (#9322).
+    MCP tools read FX history, BoE rates (#9322) and FRED credit spreads
+    (#10602) from the data root only.
     A failure here must not stop the price snapshot being persisted.
     """
     try:
@@ -486,6 +488,10 @@ def _refresh_reference_data(tickers: List[str]) -> None:
         refresh_boe_series()
     except Exception as exc:
         logger.warning("Bank of England rates refresh failed: %s", sanitise_log_value(exc))
+    try:
+        refresh_fred_series()
+    except Exception as exc:
+        logger.warning("FRED credit-spread refresh failed: %s", sanitise_log_value(exc))
 
 
 # Calendar days of cached closes read per ticker for the refresh-time move check.

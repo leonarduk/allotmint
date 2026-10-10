@@ -1071,6 +1071,52 @@ export interface InstrumentValuation {
   };
 }
 
+export type CreditRiskBand = 'high' | 'watch' | 'low' | 'unknown';
+
+/** One credit-risk input: its value, the threshold it is judged against, and its provenance. */
+export interface CreditRiskSignal {
+  value: number | null;
+  threshold: number | null;
+  as_of: string | null;
+  source: string | null;
+}
+
+export interface CreditSpreadReading {
+  value: number | null;
+  date: string | null;
+  percentile: number | null;
+  change_13w_pp?: number | null;
+}
+
+/**
+ * Per-company credit/distress verdict from GET /screener/credit-risk
+ * (allotmint-pro get_credit_risk). ``reasons`` and ``mitigations`` are
+ * English sentences from the backend; signal fractions are 0.05 = 5%.
+ */
+export interface InstrumentCreditRisk {
+  result: {
+    ticker: string;
+    name: string | null;
+    sector: string | null;
+    band: CreditRiskBand;
+    reasons: string[];
+    mitigations: string[];
+    signals: Record<string, CreditRiskSignal>;
+    not_applicable: boolean;
+    data_gaps: string[];
+    statements_as_of: string | null;
+    financial_currency: string | null;
+  };
+  market_context: {
+    available: boolean;
+    reason?: string;
+    units?: string;
+    series?: Record<string, CreditSpreadReading>;
+  } | null;
+  thresholds: Record<string, number> | null;
+  note: string | null;
+}
+
 /**
  * Technical indicators from GET /screener/technicals, computed from daily closes.
  * Percentages are fractions (0.05 = 5%); price levels are in the quote's units.

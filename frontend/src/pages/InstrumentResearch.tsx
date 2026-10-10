@@ -10,6 +10,7 @@ import {
 import { InstrumentDetail, InstrumentPositionsTable } from "../components/InstrumentDetail";
 import { parseCompareParam } from "../components/instrumentCompare";
 import { InstrumentTradeSection } from "../components/InstrumentTradeSection";
+import { InstrumentCreditRiskPanel } from "../components/InstrumentCreditRiskPanel";
 import { InstrumentValuationPanel } from "../components/InstrumentValuationPanel";
 import { InstrumentTechnicalsPanel } from "../components/InstrumentTechnicalsPanel";
 import { InstrumentAllocationPanel } from "../components/LookThrough";
@@ -1941,6 +1942,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         <div style={{ marginBottom: "2rem" }}>
           <h2 style={{ marginBottom: "0.75rem" }}>{t("instrumentDetail.research.tabs.fundamentals")}</h2>
           <InstrumentValuationPanel ticker={tkr} positions={positions} />
+          <InstrumentCreditRiskPanel ticker={tkr} />
           {fundamentalsLoading ? (
             <div>{t("instrumentDetail.research.loadingFundamentals")}</div>
           ) : fundamentalsError ? (

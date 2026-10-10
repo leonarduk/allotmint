@@ -2454,6 +2454,33 @@
     "assetClassBasis": "fonds {{assetClass}} : {{basis}}",
     "dataQuality": "Qualité des données"
   },
+  "instrumentCreditRisk": {
+    "loadError": "Impossible de charger le risque de crédit : {{message}}",
+    "loading": "Chargement du risque de crédit...",
+    "title": "Risque de crédit",
+    "signals": "Signaux de risque de crédit",
+    "altmanZ": "Score Z d'Altman",
+    "interestCover": "Couverture des intérêts",
+    "netDebtToEbitda": "Dette nette / EBITDA",
+    "currentRatio": "Ratio de liquidité générale",
+    "fcf": "Flux de trésorerie disponible",
+    "from52wHigh": "Depuis le plus haut sur 52 semaines",
+    "marketContext": "Écarts de crédit du marché :",
+    "spreadReading": "{{label}} {{value}} pp ({{percentile}}e centile)",
+    "usHighYield": "Haut rendement US",
+    "euroHighYield": "Haut rendement euro",
+    "baa10y": "Baa – Trésor 10 ans",
+    "accountsAsOf": "Comptes au {{date}}",
+    "noAccountsDate": "Pas de date de comptes annuels",
+    "dataGaps": "Manquant : {{fields}}",
+    "disclaimer": "Signaux par rapport à des seuils fixes, ni une notation de crédit ni une recommandation.",
+    "band": {
+      "high": "Élevé",
+      "watch": "À surveiller",
+      "low": "Faible",
+      "unknown": "Inconnu"
+    }
+  },
   "instrumentTechnicals": {
     "whatDoesMean": "Que signifie {{title}} ?",
     "crossGolden": "Croix d'or (50 au-dessus de 200)",

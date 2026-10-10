@@ -85,3 +85,18 @@ def test_credit_risk_maps_value_errors_to_400(monkeypatch):
     monkeypatch.setattr(screener, "get_credit_risk", boom)
 
     assert _client().get("/screener/credit-risk", params={"ticker": "X.L"}).status_code == 400
+
+
+def test_credit_risk_rejects_a_bare_exchange_suffix(monkeypatch):
+    monkeypatch.setattr(screener, "get_credit_risk", lambda ticker=None: {})
+
+    assert _client().get("/screener/credit-risk", params={"ticker": ".L"}).status_code == 400
+
+
+def test_credit_risk_with_no_result_and_no_failure_is_502(monkeypatch):
+    monkeypatch.setattr(screener, "get_credit_risk", lambda ticker=None: {"results": [], "failed": []})
+
+    resp = _client().get("/screener/credit-risk", params={"ticker": "X.L"})
+
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "No fundamentals for this ticker"

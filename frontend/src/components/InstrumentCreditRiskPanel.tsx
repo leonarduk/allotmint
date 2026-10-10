@@ -125,7 +125,10 @@ export function InstrumentCreditRiskPanel({ ticker }: { ticker: string }) {
   if (!data) return null;
 
   const { result } = data;
-  const color = BAND_COLOR[result.band] ?? BAND_COLOR.unknown;
+  // The row is passed through from pro unvalidated: treat an unexpected band as unknown.
+  const band: CreditRiskBand =
+    result.band in BAND_COLOR ? result.band : 'unknown';
+  const color = BAND_COLOR[band];
   // The route passes the pro row through as-is, so do not trust every list to be present.
   const notes = [...(result.reasons ?? []), ...(result.mitigations ?? [])];
   const dataGaps = result.data_gaps ?? [];
@@ -152,7 +155,7 @@ export function InstrumentCreditRiskPanel({ ticker }: { ticker: string }) {
             verticalAlign: 'middle',
           }}
         >
-          {t(`instrumentCreditRisk.band.${result.band}`)}
+          {t(`instrumentCreditRisk.band.${band}`)}
         </span>
       </h3>
       {notes.length > 0 && (

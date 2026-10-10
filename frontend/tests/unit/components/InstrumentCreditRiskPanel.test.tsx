@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { InstrumentCreditRiskPanel } from '@/components/InstrumentCreditRiskPanel';
 import * as api from '@/api';
-import type { CreditRiskSignal, InstrumentCreditRisk } from '@/types';
+import type {
+  CreditRiskBand,
+  CreditRiskSignal,
+  InstrumentCreditRisk,
+} from '@/types';
 
 vi.mock('@/api', () => ({ getInstrumentCreditRisk: vi.fn() }));
 const mockGetCreditRisk = vi.mocked(api.getInstrumentCreditRisk);
@@ -184,6 +188,18 @@ describe('InstrumentCreditRiskPanel', () => {
 
     await screen.findByTestId('credit-risk-band');
     expect(screen.queryByText(/Market credit spreads/)).not.toBeInTheDocument();
+  });
+
+  it('shows an unexpected band as unknown', async () => {
+    mockGetCreditRisk.mockResolvedValue(
+      verdict({ band: 'severe' as unknown as CreditRiskBand })
+    );
+
+    render(<InstrumentCreditRiskPanel ticker="BP.L" />);
+
+    expect(await screen.findByTestId('credit-risk-band')).toHaveTextContent(
+      'Unknown'
+    );
   });
 
   it('hides market spreads when none are stored', async () => {

@@ -369,9 +369,13 @@ export default function RiskReturn() {
   // rather than plot at a rate the box doesn't show. A cleared box just means
   // "use the configured rate", which the placeholder shows.
   const riskFreeFallback = !!riskFreeInput?.trim() && typedRiskFreePct == null;
+  // Benchmarks often load before the group's configured rate, so wait for
+  // the rate rather than draw the line at 0% and then move it.
+  const riskFreeKnown = typedRiskFreePct != null || points.data != null;
   // Averaged over what is on the chart, so ticking series in or out
   // changes what "average" means (e.g. only accounts, or with indices).
-  const average = showAverage ? averageLine(visible, riskFreePct) : null;
+  const average =
+    showAverage && riskFreeKnown ? averageLine(visible, riskFreePct) : null;
   const averageEndX = Math.max(
     0,
     ...visible.map((s) => s.volatilityPct as number)

@@ -362,3 +362,52 @@ describe('RiskReturn average line rendering', () => {
     await waitFor(() => expect(averageLineEl()).toBeNull());
   });
 });
+
+describe('RiskReturn average line before the rate loads', () => {
+  it('waits for the configured rate instead of drawing the line at 0%', async () => {
+    window.localStorage.clear();
+    (getGroups as unknown as vi.Mock).mockResolvedValue([]);
+    (getOwners as unknown as vi.Mock).mockResolvedValue([]);
+    let resolveGroup: (value: unknown) => void = () => {};
+    groupMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveGroup = resolve;
+      })
+    );
+    benchmarkMock.mockReset();
+    benchmarkMock.mockImplementation((ticker: string, days: number) =>
+      Promise.resolve({
+        ticker,
+        days,
+        start: '',
+        end: '',
+        period_return: ticker === '^FTSE' ? 0.08 : 0.12,
+        annualised_return: null,
+        volatility: ticker === '^FTSE' ? 0.13 : 0.2,
+      })
+    );
+    const { container } = render(<RiskReturn />);
+    const averageLineEl = () =>
+      container.querySelector(
+        '.recharts-reference-line-line[stroke="var(--surface-muted-color)"]'
+      );
+
+    // Benchmarks are plotted, but the group (and its rate) is still loading.
+    await waitFor(() =>
+      expect(benchmarkMock).toHaveBeenCalledWith('^IXIC', 365)
+    );
+    expect(averageLineEl()).toBeNull();
+
+    resolveGroup({
+      group: 'all',
+      days: 365,
+      start: '',
+      end: '',
+      missing_members: [],
+      points: [],
+      risk_free_rate: 0.04,
+    });
+
+    await waitFor(() => expect(averageLineEl()).not.toBeNull());
+  });
+});

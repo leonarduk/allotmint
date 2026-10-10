@@ -78,7 +78,7 @@ market_data:
 trading:
   max_trades_per_month: 20            # Max trades allowed per month
   hold_days_min: 30                   # Minimum holding period in days
-  risk_free_rate: 0.01                # Risk-free rate used for analytics
+  risk_free_rate: 0.04                # Risk-free rate used for analytics
   skip_snapshot_warm: false           # Skip warming trading snapshots on startup
   snapshot_warm_days: 30              # Number of days to warm snapshots when enabled
   approval_valid_days: 2              # Approval validity period in days

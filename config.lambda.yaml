@@ -77,7 +77,7 @@ market_data:
 trading:
   max_trades_per_month: 20
   hold_days_min: 30
-  risk_free_rate: 0.01
+  risk_free_rate: 0.04
   skip_snapshot_warm: false
   snapshot_warm_days: 30
   approval_valid_days: 2

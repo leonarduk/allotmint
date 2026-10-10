@@ -324,7 +324,10 @@ def aggregate_holding_issues(
         symbol, exchange = parsed
         meta = get_instrument_meta(f"{symbol}.{exchange}")
         has_meta = bool(meta and meta.get("name"))
-        resolved = resolve_instrument_ticker(symbol, create_missing=False)
+        # Pass the holding's own exchange so it is tried first: a bare symbol
+        # resolves in exchange-priority order (L first), which turned IONQ.N
+        # into an unrelated IONQ.L ETN once that metadata existed.
+        resolved = resolve_instrument_ticker(ticker, create_missing=False)
 
         entity = _holding_entity(owner, account, holding)
 

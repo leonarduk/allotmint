@@ -2690,7 +2690,8 @@
     "holdingPeriods": "Periodos de tenencia",
     "daysRemaining_one": "{{ticker}}: queda {{count}} día",
     "daysRemaining_other": "{{ticker}}: quedan {{count}} días",
-    "tradesThisMonth": "Operaciones este mes: {{used}} / {{max}} ({{remaining}} restantes)"
+    "tradesThisMonth": "Operaciones este mes: {{used}} / {{max}} ({{remaining}} restantes)",
+    "dismiss": "Descartar"
   },
   "alertsPanel": {
     "cannotReachServer": "No se puede conectar con el servidor",

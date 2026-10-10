@@ -2690,7 +2690,8 @@
     "holdingPeriods": "Périodes de détention",
     "daysRemaining_one": "{{ticker}} : {{count}} jour restant",
     "daysRemaining_other": "{{ticker}} : {{count}} jours restants",
-    "tradesThisMonth": "Opérations ce mois-ci : {{used}} / {{max}} ({{remaining}} restantes)"
+    "tradesThisMonth": "Opérations ce mois-ci : {{used}} / {{max}} ({{remaining}} restantes)",
+    "dismiss": "Ignorer"
   },
   "alertsPanel": {
     "cannotReachServer": "Serveur inaccessible",

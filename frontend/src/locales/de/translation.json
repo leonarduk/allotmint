@@ -2690,7 +2690,8 @@
     "holdingPeriods": "Haltefristen",
     "daysRemaining_one": "{{ticker}}: noch {{count}} Tag",
     "daysRemaining_other": "{{ticker}}: noch {{count}} Tage",
-    "tradesThisMonth": "Handel in diesem Monat: {{used}} / {{max}} ({{remaining}} verbleibend)"
+    "tradesThisMonth": "Handel in diesem Monat: {{used}} / {{max}} ({{remaining}} verbleibend)",
+    "dismiss": "Ausblenden"
   },
   "alertsPanel": {
     "cannotReachServer": "Server nicht erreichbar",

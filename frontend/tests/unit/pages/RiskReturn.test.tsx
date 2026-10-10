@@ -452,3 +452,34 @@ describe('RiskReturn point tooltip', () => {
     expect(screen.queryByText(/\/ vol/)).not.toBeInTheDocument();
   });
 });
+
+describe('RiskReturn average line when the group request fails', () => {
+  it('still draws the line from the benchmarks', async () => {
+    window.localStorage.clear();
+    (getGroups as unknown as vi.Mock).mockResolvedValue([]);
+    (getOwners as unknown as vi.Mock).mockResolvedValue([]);
+    groupMock.mockRejectedValue(new Error('Group not found'));
+    benchmarkMock.mockReset();
+    benchmarkMock.mockImplementation((ticker: string, days: number) =>
+      Promise.resolve({
+        ticker,
+        days,
+        start: '',
+        end: '',
+        period_return: ticker === '^FTSE' ? 0.08 : 0.12,
+        annualised_return: null,
+        volatility: ticker === '^FTSE' ? 0.13 : 0.2,
+      })
+    );
+    const { container } = render(<RiskReturn />);
+
+    expect(await screen.findByText('Group not found')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        container.querySelector(
+          '.recharts-reference-line-line[stroke="var(--surface-muted-color)"]'
+        )
+      ).not.toBeNull()
+    );
+  });
+});

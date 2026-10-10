@@ -377,7 +377,10 @@ export default function RiskReturn() {
   const riskFreeFallback = !!riskFreeInput?.trim() && typedRiskFreePct == null;
   // Benchmarks often load before the group's configured rate, so wait for
   // the rate rather than draw the line at 0% and then move it.
-  const riskFreeKnown = typedRiskFreePct != null || points.data != null;
+  // If the group request fails there is no configured rate to wait for, so
+  // draw from the typed rate or 0% rather than hide the line for good.
+  const riskFreeKnown =
+    typedRiskFreePct != null || points.data != null || !points.loading;
   // Averaged over what is on the chart, so ticking series in or out
   // changes what "average" means (e.g. only accounts, or with indices).
   const average =
@@ -498,12 +501,13 @@ export default function RiskReturn() {
             style={{ width: '5em' }}
           />
           %
-          {riskFreeFallback && (
-            <em role="status" style={{ marginLeft: '0.5rem' }}>
-              {t('riskReturn.riskFreeFallback', { rate: riskFreePct })}
-            </em>
-          )}
         </label>
+        {/* Outside the label, so it isn't read out as part of the input's name. */}
+        {riskFreeFallback && (
+          <em role="status">
+            {t('riskReturn.riskFreeFallback', { rate: riskFreePct })}
+          </em>
+        )}
       </div>
 
       {days < RELIABLE_WINDOW_DAYS && (

@@ -2690,7 +2690,8 @@
     "holdingPeriods": "Períodos de detenção",
     "daysRemaining_one": "{{ticker}}: resta {{count}} dia",
     "daysRemaining_other": "{{ticker}}: restam {{count}} dias",
-    "tradesThisMonth": "Operações este mês: {{used}} / {{max}} ({{remaining}} restantes)"
+    "tradesThisMonth": "Operações este mês: {{used}} / {{max}} ({{remaining}} restantes)",
+    "dismiss": "Dispensar"
   },
   "alertsPanel": {
     "cannotReachServer": "Não foi possível contactar o servidor",

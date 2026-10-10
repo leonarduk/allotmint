@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { ComplianceWarnings } from "@/components/ComplianceWarnings";
+import { ComplianceWarnings, DISMISSED_STORAGE_KEY } from "@/components/ComplianceWarnings";
 import { getCompliance } from "@/api";
 import { useConfig } from "@/ConfigContext";
 
@@ -14,6 +14,7 @@ vi.mock("@/ConfigContext", () => ({
 
 beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.removeItem(DISMISSED_STORAGE_KEY);
 });
 
 function mockComplianceTab(enabled: boolean) {
@@ -88,5 +89,40 @@ describe("ComplianceWarnings", () => {
 
         expect(screen.queryByText("Failed to load warnings")).not.toBeInTheDocument();
         expect(screen.queryByText("alice")).not.toBeInTheDocument();
+    });
+
+    it("hides the banner when dismissed and keeps it hidden on remount", async () => {
+        mockComplianceTab(true);
+        const mock = getCompliance as unknown as Mock;
+        mock.mockResolvedValue({ owner: "alice", warnings: ["Issue"], trade_counts: {} });
+
+        const { unmount } = render(<ComplianceWarnings owners={["alice"]} />);
+        fireEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
+        expect(screen.queryByText("Issue")).not.toBeInTheDocument();
+        unmount();
+
+        expect(window.localStorage.getItem(DISMISSED_STORAGE_KEY)).toContain("Issue");
+
+        render(<ComplianceWarnings owners={["alice"]} />);
+        await act(async () => {});
+        expect(screen.queryByText("Issue")).not.toBeInTheDocument();
+    });
+
+    it("shows the banner again when the warnings change after a dismissal", async () => {
+        mockComplianceTab(true);
+        const mock = getCompliance as unknown as Mock;
+        mock.mockResolvedValue({ owner: "alice", warnings: ["Issue"], trade_counts: {} });
+
+        const { unmount } = render(<ComplianceWarnings owners={["alice"]} />);
+        fireEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
+        unmount();
+
+        mock.mockResolvedValue({
+            owner: "alice",
+            warnings: ["Issue", "New issue"],
+            trade_counts: {},
+        });
+        render(<ComplianceWarnings owners={["bob", "alice"]} />);
+        expect(await screen.findAllByText("New issue")).not.toHaveLength(0);
     });
 });

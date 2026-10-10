@@ -2683,7 +2683,8 @@
     "holdingPeriods": "Holding periods",
     "daysRemaining_one": "{{ticker}}: {{count}} day remaining",
     "daysRemaining_other": "{{ticker}}: {{count}} days remaining",
-    "tradesThisMonth": "Trades this month: {{used}} / {{max}} ({{remaining}} remaining)"
+    "tradesThisMonth": "Trades this month: {{used}} / {{max}} ({{remaining}} remaining)",
+    "dismiss": "Dismiss"
   },
   "alertsPanel": {
     "cannotReachServer": "Cannot reach server",

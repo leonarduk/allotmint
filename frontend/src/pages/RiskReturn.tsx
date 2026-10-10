@@ -32,11 +32,14 @@ import {
   averageLine,
   buildBenchmarkSeries,
   buildPortfolioSeries,
+  isIndexSeries,
   normaliseTicker,
+  parseRiskFreePct,
   parseStoredBenchmarks,
   plottable,
   removeBenchmark,
   seriesDetails,
+  sharpeRatio,
   sideOfAverage,
   type AverageLine,
   type Benchmark,
@@ -54,6 +57,10 @@ const WINDOWS = [
 const BENCHMARKS_KEY = 'riskReturn.benchmarks';
 const HIDDEN_KEY = 'riskReturn.hidden';
 const SHOW_AVERAGE_KEY = 'riskReturn.showAverage';
+const RISK_FREE_KEY = 'riskReturn.riskFreePct';
+// Below three years a Sharpe ratio's standard error is large (about +/-1 at
+// one year), so differences between points are mostly noise.
+const RELIABLE_WINDOW_DAYS = 365 * 3;
 
 function readStorage(key: string): string | null {
   try {
@@ -68,6 +75,14 @@ function writeStorage(key: string, value: string): void {
     window.localStorage.setItem(key, value);
   } catch {
     // Storage blocked (private window, quota): the choice lasts this visit only.
+  }
+}
+
+function removeStorage(key: string): void {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Storage blocked: nothing was stored to remove.
   }
 }
 
@@ -126,6 +141,10 @@ function formatPct(value: number | null): string {
   return value == null ? '—' : `${value.toFixed(1)}%`;
 }
 
+function formatRatio(value: number | null): string {
+  return value == null ? '—' : value.toFixed(2);
+}
+
 interface TooltipEntry {
   payload?: {
     label: string;
@@ -133,15 +152,20 @@ interface TooltipEntry {
     y: number;
     name?: string | null;
     sector?: string | null;
+    basis?: string | null;
+    sharpeReturn?: number | null;
     isAverage?: boolean;
   };
 }
 
-function PointTooltip({
+export function PointTooltip({
   active,
   payload,
   returnLabel,
   volatilityLabel,
+  sharpeLabel,
+  sharpeBasis,
+  riskFreePct,
   average,
   sideLabels,
 }: {
@@ -149,11 +173,19 @@ function PointTooltip({
   payload?: TooltipEntry[];
   returnLabel: string;
   volatilityLabel: string;
+  sharpeLabel: string;
+  /** How the Sharpe ratio was worked out, from its return and the rate. */
+  sharpeBasis: (returnText: string, rateText: string) => string;
+  riskFreePct: number;
   average: AverageLine | null;
   sideLabels: Record<'above' | 'below' | 'on', string>;
 }) {
   const point = active ? payload?.[0]?.payload : undefined;
   if (!point) return null;
+  // Series use the reports' trading-day basis and show "—" without it rather
+  // than a figure on another basis; the average marker's Sharpe is the line's
+  // slope, from its plotted return.
+  const sharpeReturn = point.isAverage ? point.y : point.sharpeReturn;
   const side =
     average && !point.isAverage
       ? sideOfAverage(average, point.x, point.y)
@@ -179,6 +211,19 @@ function PointTooltip({
       <div>
         {volatilityLabel}: {formatPct(point.x)}
       </div>
+      <div>
+        {sharpeLabel}:{' '}
+        {formatRatio(sharpeRatio(point.x, sharpeReturn, riskFreePct))}
+      </div>
+      {!point.isAverage && sharpeReturn != null && (
+        // The Sharpe return differs from the plotted one (trading-day
+        // annualised, as in the reports), so show it: the figure then
+        // reconciles with what the tooltip shows.
+        <div style={{ fontSize: '0.85em', opacity: 0.8 }}>
+          {sharpeBasis(formatPct(sharpeReturn), formatPct(riskFreePct))}
+        </div>
+      )}
+      {point.basis && <div>{point.basis}</div>}
       {side && <div>{sideLabels[side]}</div>}
     </div>
   );
@@ -192,6 +237,7 @@ function SeriesToggle({
   unavailableLabel,
   removeLabel,
   indexLabel,
+  basisLabel,
 }: {
   series: ChartSeries;
   hidden: boolean;
@@ -200,9 +246,13 @@ function SeriesToggle({
   unavailableLabel: string | null;
   removeLabel: string;
   indexLabel: string;
+  basisLabel: string;
 }) {
   const { name, sector } = seriesDetails(series, indexLabel);
-  const hoverText = [series.label, name, sector].filter(Boolean).join('\n');
+  const basis = isIndexSeries(series) ? basisLabel : null;
+  const hoverText = [series.label, name, sector, basis]
+    .filter(Boolean)
+    .join('\n');
   return (
     <li style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
       <label
@@ -227,6 +277,11 @@ function SeriesToggle({
           <em style={{ opacity: 0.7 }}> ({unavailableLabel})</em>
         )}
       </label>
+      {basis && (
+        <small style={{ opacity: 0.7 }} aria-hidden="true">
+          {basis}
+        </small>
+      )}
       {onRemove && (
         <button
           type="button"
@@ -251,6 +306,10 @@ export default function RiskReturn() {
   const [hidden, setHidden] = useState<Set<string>>(readHidden);
   const [showAverage, setShowAverage] = useState<boolean>(
     () => readStorage(SHOW_AVERAGE_KEY) !== 'false'
+  );
+  // The user's own risk-free rate (percent); null follows the configured one.
+  const [riskFreeInput, setRiskFreeInput] = useState<string | null>(() =>
+    readStorage(RISK_FREE_KEY)
   );
   const [tickerInput, setTickerInput] = useState('');
   const [tickerError, setTickerError] = useState<string | null>(null);
@@ -304,9 +363,28 @@ export default function RiskReturn() {
   const visible = [...portfolioSeries, ...benchmarkSeries].filter(
     (s) => !hidden.has(s.id) && plottable(s)
   );
+  const configuredRiskFreePct = Number(
+    ((points.data?.risk_free_rate ?? 0) * 100).toFixed(2)
+  );
+  // Blank until the configured rate has loaded, rather than showing 0.
+  const riskFreeText =
+    riskFreeInput ?? (points.data ? String(configuredRiskFreePct) : '');
+  const typedRiskFreePct = parseRiskFreePct(riskFreeInput);
+  const riskFreePct = typedRiskFreePct ?? configuredRiskFreePct;
+  // A typed rate that can't be used falls back to the configured one; say so
+  // rather than plot at a rate the box doesn't show. A cleared box just means
+  // "use the configured rate", which the placeholder shows.
+  const riskFreeFallback = !!riskFreeInput?.trim() && typedRiskFreePct == null;
+  // Benchmarks often load before the group's configured rate, so wait for
+  // the rate rather than draw the line at 0% and then move it.
+  // If the group request fails there is no configured rate to wait for, so
+  // draw from the typed rate or 0% rather than hide the line for good.
+  const riskFreeKnown =
+    typedRiskFreePct != null || points.data != null || !points.loading;
   // Averaged over what is on the chart, so ticking series in or out
   // changes what "average" means (e.g. only accounts, or with indices).
-  const average = showAverage ? averageLine(visible) : null;
+  const average =
+    showAverage && riskFreeKnown ? averageLine(visible, riskFreePct) : null;
   const averageEndX = Math.max(
     0,
     ...visible.map((s) => s.volatilityPct as number)
@@ -319,6 +397,13 @@ export default function RiskReturn() {
       else next.add(id);
       return next;
     });
+
+  const changeRiskFree = (value: string) => {
+    setRiskFreeInput(value);
+    // A cleared box follows the configured rate again on the next visit.
+    if (value.trim()) writeStorage(RISK_FREE_KEY, value);
+    else removeStorage(RISK_FREE_KEY);
+  };
 
   const submitTicker = (event: FormEvent) => {
     event.preventDefault();
@@ -336,6 +421,7 @@ export default function RiskReturn() {
     days > 365 ? t('riskReturn.annualisedReturn') : t('riskReturn.return');
   const volatilityLabel = t('riskReturn.volatility');
   const indexLabel = t('riskReturn.marketIndex');
+  const basisLabel = t('riskReturn.priceReturnLocal');
   const availablePresets = PRESET_BENCHMARKS.filter(
     (p) => !benchmarks.some((b) => b.ticker === p.ticker)
   );
@@ -401,7 +487,32 @@ export default function RiskReturn() {
           />{' '}
           {t('riskReturn.showAverage')}
         </label>
+        <label>
+          {t('riskReturn.riskFreeRate')}{' '}
+          <input
+            type="number"
+            step="0.25"
+            min={-5}
+            max={25}
+            value={riskFreeText}
+            placeholder={points.data ? String(configuredRiskFreePct) : ''}
+            onChange={(e) => changeRiskFree(e.target.value)}
+            aria-invalid={riskFreeFallback ? true : undefined}
+            style={{ width: '5em' }}
+          />
+          %
+        </label>
+        {/* Outside the label, so it isn't read out as part of the input's name. */}
+        {riskFreeFallback && (
+          <em role="status">
+            {t('riskReturn.riskFreeFallback', { rate: riskFreePct })}
+          </em>
+        )}
       </div>
+
+      {days < RELIABLE_WINDOW_DAYS && (
+        <p role="note">{t('riskReturn.shortWindowNote')}</p>
+      )}
 
       {points.error && (
         <p role="alert" style={{ color: 'red' }}>
@@ -439,7 +550,9 @@ export default function RiskReturn() {
               dataKey="y"
               name={returnLabel}
               unit="%"
-              domain={['auto', 'auto']}
+              // Keep 0% and the risk-free rate in view, so the line is seen to
+              // start above (or, for a negative rate, below) the origin.
+              domain={[(min: number) => Math.min(0, min, riskFreePct), 'auto']}
               label={{ value: returnLabel, angle: -90, position: 'insideLeft' }}
             />
             <ZAxis type="number" dataKey="z" range={[260, 260]} />
@@ -447,8 +560,11 @@ export default function RiskReturn() {
             {average && (
               <ReferenceLine
                 segment={[
-                  { x: 0, y: 0 },
-                  { x: averageEndX, y: average.slope * averageEndX },
+                  { x: 0, y: average.interceptPct },
+                  {
+                    x: averageEndX,
+                    y: average.interceptPct + average.slope * averageEndX,
+                  },
                 ]}
                 stroke="var(--surface-muted-color)"
                 strokeWidth={1.5}
@@ -461,6 +577,14 @@ export default function RiskReturn() {
                 <PointTooltip
                   returnLabel={returnLabel}
                   volatilityLabel={volatilityLabel}
+                  sharpeLabel={t('riskReturn.sharpe')}
+                  sharpeBasis={(returnText, rateText) =>
+                    t('riskReturn.sharpeBasis', {
+                      return: returnText,
+                      rate: rateText,
+                    })
+                  }
+                  riskFreePct={riskFreePct}
                   average={average}
                   sideLabels={{
                     above: t('riskReturn.aboveAverage'),
@@ -480,6 +604,8 @@ export default function RiskReturn() {
                     y: s.returnPct,
                     label: s.label,
                     ...seriesDetails(s, indexLabel),
+                    basis: isIndexSeries(s) ? basisLabel : null,
+                    sharpeReturn: s.sharpeReturnPct,
                     z: 1,
                   },
                 ]}
@@ -529,6 +655,7 @@ export default function RiskReturn() {
               unavailableLabel={unavailable(s)}
               removeLabel={t('riskReturn.remove')}
               indexLabel={indexLabel}
+              basisLabel={basisLabel}
             />
           ))}
         </ul>
@@ -557,6 +684,7 @@ export default function RiskReturn() {
               unavailableLabel={unavailable(s)}
               removeLabel={t('riskReturn.remove')}
               indexLabel={indexLabel}
+              basisLabel={basisLabel}
             />
           ))}
         </ul>

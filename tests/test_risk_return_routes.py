@@ -61,3 +61,19 @@ def test_benchmark_without_history_is_404(client, monkeypatch):
     monkeypatch.setattr(risk_return, "compute_benchmark_risk_return", lambda *a, **k: None)
 
     assert client.get("/risk-return/benchmark?ticker=VWRL.L").status_code == 404
+
+
+def test_group_risk_return_includes_configured_risk_free_rate(client, monkeypatch):
+    from backend.config import config
+
+    def fake(slug, days, *, pricing_date=None):
+        return {"group": slug, "points": [], "missing_members": []}
+
+    monkeypatch.setattr(risk_return, "compute_group_risk_return", fake)
+    monkeypatch.setattr(config, "risk_free_rate", 0.04)
+
+    assert client.get("/performance-group/family/risk-return").json()["risk_free_rate"] == 0.04
+
+    monkeypatch.setattr(config, "risk_free_rate", None)
+
+    assert client.get("/performance-group/family/risk-return").json()["risk_free_rate"] == 0.0

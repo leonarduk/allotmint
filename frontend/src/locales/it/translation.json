@@ -3859,10 +3859,16 @@
     "invalidTicker": "Inserisci un ticker come ^FTSE o VWRL.L.",
     "methodology": "I rendimenti del portafoglio sono ponderati nel tempo e ricostruiti dalle tue transazioni, quindi depositi e prelievi non contano come guadagni o perdite. La volatilità è la deviazione standard annualizzata dei rendimenti giornalieri. Gli indici (simboli ^) sono rendimenti di prezzo nella propria valuta; gli altri ticker usano prezzi in sterline. Gli altri ticker devono essere strumenti già monitorati da AllotMint.",
     "average": "Media",
-    "showAverage": "Mostra linea media (per 0,0 e la media delle serie mostrate)",
-    "aboveAverage": "Sopra la linea media: più rendimento per unità di volatilità",
-    "belowAverage": "Sotto la linea media: meno rendimento per unità di volatilità",
-    "onAverage": "Sulla linea media"
+    "showAverage": "Mostra linea media (dal tasso privo di rischio attraverso la media delle serie mostrate)",
+    "aboveAverage": "Sopra la linea media: indice di Sharpe superiore alla media",
+    "belowAverage": "Sotto la linea media: indice di Sharpe inferiore alla media",
+    "onAverage": "Sulla linea media",
+    "riskFreeRate": "Tasso privo di rischio",
+    "sharpe": "Indice di Sharpe",
+    "priceReturnLocal": "rendimento di prezzo, valuta locale",
+    "shortWindowNote": "Su periodi inferiori a 3 anni, rendimento, volatilità e indice di Sharpe sono dominati dal rumore: le differenze tra i punti sono solo indicative.",
+    "riskFreeFallback": "In uso {{rate}}% (inserire da -5 a 25)",
+    "sharpeBasis": "({{return}} annuo su giorni di borsa − {{rate}}) ÷ volatilità"
   },
   "cashDeployment": {
     "title": "Impiego della liquidità",

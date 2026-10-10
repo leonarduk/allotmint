@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import RiskReturn from '@/pages/RiskReturn';
+import RiskReturn, { PointTooltip } from '@/pages/RiskReturn';
 import {
   getBenchmarkRiskReturn,
   getGroupRiskReturn,
@@ -127,7 +127,63 @@ describe('RiskReturn page', () => {
     );
     expect(
       screen.getByRole('checkbox', { name: 'FTSE 100' }).closest('label')
-    ).toHaveAttribute('title', 'FTSE 100\nMarket index');
+    ).toHaveAttribute(
+      'title',
+      'FTSE 100\nMarket index\nprice return, local currency'
+    );
+    expect(
+      screen.getByRole('checkbox', { name: 'FCIT.L' }).closest('label')
+    ).not.toHaveAttribute('title', expect.stringContaining('price return'));
+  });
+
+  it('starts the risk-free rate at the configured one and remembers an override', async () => {
+    groupMock.mockResolvedValue({
+      group: 'all',
+      days: 365,
+      start: '',
+      end: '',
+      missing_members: [],
+      points: [],
+      risk_free_rate: 0.04,
+    });
+    render(<RiskReturn />);
+
+    const input = screen.getByLabelText(/Risk-free rate/);
+    await waitFor(() => expect(input).toHaveValue(4));
+
+    fireEvent.change(input, { target: { value: '3.5' } });
+
+    expect(input).toHaveValue(3.5);
+    expect(window.localStorage.getItem('riskReturn.riskFreePct')).toBe('3.5');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: '30' } });
+
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('status')).toHaveTextContent('Using 4%');
+
+    // Clearing the box means "use the configured rate": not an error.
+    fireEvent.change(input, { target: { value: '' } });
+
+    expect(input).not.toHaveAttribute('aria-invalid');
+    expect(input).toHaveAttribute('placeholder', '4');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument(); // ...and is not remembered, so the next visit follows the configured rate.
+    expect(window.localStorage.getItem('riskReturn.riskFreePct')).toBeNull();
+  });
+
+  it('warns that short periods are noisy, but not from 3 years', async () => {
+    render(<RiskReturn />);
+    await screen.findByRole('checkbox', { name: 'Entire portfolio' });
+
+    expect(screen.getByText(/shorter than 3 years/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Period'), {
+      target: { value: String(365 * 3) },
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByText(/shorter than 3 years/)).not.toBeInTheDocument()
+    );
   });
 
   it('hides a series when unticked and remembers it', async () => {
@@ -304,5 +360,126 @@ describe('RiskReturn average line rendering', () => {
     );
 
     await waitFor(() => expect(averageLineEl()).toBeNull());
+  });
+});
+
+describe('RiskReturn average line before the rate loads', () => {
+  it('waits for the configured rate instead of drawing the line at 0%', async () => {
+    window.localStorage.clear();
+    (getGroups as unknown as vi.Mock).mockResolvedValue([]);
+    (getOwners as unknown as vi.Mock).mockResolvedValue([]);
+    let resolveGroup: (value: unknown) => void = () => {};
+    groupMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveGroup = resolve;
+      })
+    );
+    benchmarkMock.mockReset();
+    benchmarkMock.mockImplementation((ticker: string, days: number) =>
+      Promise.resolve({
+        ticker,
+        days,
+        start: '',
+        end: '',
+        period_return: ticker === '^FTSE' ? 0.08 : 0.12,
+        annualised_return: null,
+        volatility: ticker === '^FTSE' ? 0.13 : 0.2,
+      })
+    );
+    const { container } = render(<RiskReturn />);
+    const averageLineEl = () =>
+      container.querySelector(
+        '.recharts-reference-line-line[stroke="var(--surface-muted-color)"]'
+      );
+
+    // Benchmarks are plotted, but the group (and its rate) is still loading.
+    await waitFor(() =>
+      expect(benchmarkMock).toHaveBeenCalledWith('^IXIC', 365)
+    );
+    expect(averageLineEl()).toBeNull();
+
+    resolveGroup({
+      group: 'all',
+      days: 365,
+      start: '',
+      end: '',
+      missing_members: [],
+      points: [],
+      risk_free_rate: 0.04,
+    });
+
+    await waitFor(() => expect(averageLineEl()).not.toBeNull());
+  });
+});
+
+describe('RiskReturn point tooltip', () => {
+  const basis = (r: string, rf: string) => `(${r} - ${rf}) / vol`;
+  const tooltip = (payload: Record<string, unknown>) =>
+    render(
+      <PointTooltip
+        active
+        payload={[{ payload: { label: 'Steve ISA', ...payload } as never }]}
+        returnLabel="Return"
+        volatilityLabel="Volatility"
+        sharpeLabel="Sharpe ratio"
+        sharpeBasis={basis}
+        riskFreePct={4}
+        average={null}
+        sideLabels={{ above: 'above', below: 'below', on: 'on' }}
+      />
+    );
+
+  it('shows the Sharpe ratio with the return it is measured from', () => {
+    // Plotted 3y return 9% (calendar-annualised), Sharpe basis 10% (trading
+    // days): the shown Sharpe reconciles with the basis line, (10 - 4) / 20.
+    tooltip({ x: 20, y: 9, sharpeReturn: 10 });
+
+    expect(screen.getByText('Sharpe ratio: 0.30')).toBeInTheDocument();
+    expect(screen.getByText('(10.0% - 4.0%) / vol')).toBeInTheDocument();
+  });
+
+  it('shows a dash and no basis without the trading-day return', () => {
+    tooltip({ x: 20, y: 9, sharpeReturn: null });
+
+    expect(screen.getByText('Sharpe ratio: —')).toBeInTheDocument();
+    expect(screen.queryByText(/\/ vol/)).not.toBeInTheDocument();
+  });
+
+  it('uses the plotted return for the average marker', () => {
+    tooltip({ x: 20, y: 9, isAverage: true });
+
+    expect(screen.getByText('Sharpe ratio: 0.25')).toBeInTheDocument();
+    expect(screen.queryByText(/\/ vol/)).not.toBeInTheDocument();
+  });
+});
+
+describe('RiskReturn average line when the group request fails', () => {
+  it('still draws the line from the benchmarks', async () => {
+    window.localStorage.clear();
+    (getGroups as unknown as vi.Mock).mockResolvedValue([]);
+    (getOwners as unknown as vi.Mock).mockResolvedValue([]);
+    groupMock.mockRejectedValue(new Error('Group not found'));
+    benchmarkMock.mockReset();
+    benchmarkMock.mockImplementation((ticker: string, days: number) =>
+      Promise.resolve({
+        ticker,
+        days,
+        start: '',
+        end: '',
+        period_return: ticker === '^FTSE' ? 0.08 : 0.12,
+        annualised_return: null,
+        volatility: ticker === '^FTSE' ? 0.13 : 0.2,
+      })
+    );
+    const { container } = render(<RiskReturn />);
+
+    expect(await screen.findByText('Group not found')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        container.querySelector(
+          '.recharts-reference-line-line[stroke="var(--surface-muted-color)"]'
+        )
+      ).not.toBeNull()
+    );
   });
 });

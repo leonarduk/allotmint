@@ -200,6 +200,19 @@ def test_volatility_and_sharpe_need_enough_observations():
     assert lp.annualised_volatility(returns.head(5), None, date(2026, 3, 1)) is None
 
 
+def test_trading_day_annual_return():
+    days = pd.bdate_range("2026-01-01", periods=126)
+    returns = pd.Series(0.001, index=days)
+    end = date(2026, 12, 31)
+
+    # Half a year of trading days at 0.1% a day, annualised over 252 days.
+    assert lp.trading_day_annual_return(returns, None, end) == pytest.approx(1.001**252 - 1)
+    # No days in the window, or a total loss: nothing to annualise.
+    assert lp.trading_day_annual_return(returns, date(2026, 12, 1), end) is None
+    wiped = pd.Series([0.1, -1.0], index=days[:2])
+    assert lp.trading_day_annual_return(wiped, None, end) is None
+
+
 def test_annualise_only_after_a_year():
     assert lp.annualise(0.21, 730) == pytest.approx(1.21 ** (365.25 / 730) - 1)
     assert lp.annualise(0.05, 200) is None

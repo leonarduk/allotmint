@@ -3859,10 +3859,16 @@
     "invalidTicker": "Saisissez un ticker comme ^FTSE ou VWRL.L.",
     "methodology": "Les rendements du portefeuille sont pondérés dans le temps et reconstruits à partir de vos transactions : les dépôts et retraits ne comptent pas comme gains ou pertes. La volatilité est l'écart type annualisé des rendements quotidiens. Les indices (symboles ^) sont des rendements de prix dans leur propre devise ; les autres tickers utilisent des prix en livres sterling. Les autres tickers doivent être des instruments déjà suivis par AllotMint.",
     "average": "Moyenne",
-    "showAverage": "Afficher la ligne moyenne (par 0,0 et la moyenne des séries affichées)",
-    "aboveAverage": "Au-dessus de la ligne moyenne : plus de rendement par unité de volatilité",
-    "belowAverage": "En dessous de la ligne moyenne : moins de rendement par unité de volatilité",
-    "onAverage": "Sur la ligne moyenne"
+    "showAverage": "Afficher la ligne moyenne (du taux sans risque à la moyenne des séries affichées)",
+    "aboveAverage": "Au-dessus de la ligne moyenne : ratio de Sharpe supérieur à la moyenne",
+    "belowAverage": "En dessous de la ligne moyenne : ratio de Sharpe inférieur à la moyenne",
+    "onAverage": "Sur la ligne moyenne",
+    "riskFreeRate": "Taux sans risque",
+    "sharpe": "Ratio de Sharpe",
+    "priceReturnLocal": "rendement du prix, devise locale",
+    "shortWindowNote": "Sur des périodes de moins de 3 ans, le rendement, la volatilité et le ratio de Sharpe sont dominés par le bruit : les écarts entre points ne sont qu’indicatifs.",
+    "riskFreeFallback": "Utilise {{rate}} % (saisir de -5 à 25)",
+    "sharpeBasis": "({{return}} par an sur jours de bourse − {{rate}}) ÷ volatilité"
   },
   "cashDeployment": {
     "title": "Déploiement de liquidités",

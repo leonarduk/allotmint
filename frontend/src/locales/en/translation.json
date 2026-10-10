@@ -3852,10 +3852,16 @@
     "invalidTicker": "Enter a ticker such as ^FTSE or VWRL.L.",
     "methodology": "Portfolio returns are time-weighted and rebuilt from your transactions, so deposits and withdrawals do not count as gains or losses. Volatility is the annualised standard deviation of daily returns. Indices (^ symbols) are price returns in their own currency; other tickers use sterling prices. Other tickers must be instruments AllotMint already tracks.",
     "average": "Average",
-    "showAverage": "Show average line (through 0,0 and the average of the series shown)",
-    "aboveAverage": "Above the average line: more return per unit of volatility",
-    "belowAverage": "Below the average line: less return per unit of volatility",
-    "onAverage": "On the average line"
+    "showAverage": "Show average line (from the risk-free rate through the average of the series shown)",
+    "aboveAverage": "Above the average line: higher Sharpe ratio than the average",
+    "belowAverage": "Below the average line: lower Sharpe ratio than the average",
+    "onAverage": "On the average line",
+    "riskFreeRate": "Risk-free rate",
+    "sharpe": "Sharpe ratio",
+    "priceReturnLocal": "price return, local currency",
+    "shortWindowNote": "Over periods shorter than 3 years, return, volatility and Sharpe ratio are dominated by noise: treat differences between points as indicative only.",
+    "riskFreeFallback": "Using {{rate}}% (enter -5 to 25)",
+    "sharpeBasis": "({{return}} a year over trading days − {{rate}}) ÷ volatility"
   },
   "cashDeployment": {
     "title": "Cash deployment",

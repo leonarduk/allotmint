@@ -5,11 +5,14 @@ import {
   averageLine,
   buildBenchmarkSeries,
   buildPortfolioSeries,
+  isIndexSeries,
   normaliseTicker,
+  parseRiskFreePct,
   parseStoredBenchmarks,
   plottable,
   removeBenchmark,
   seriesDetails,
+  sharpeRatio,
   sideOfAverage,
   type ChartSeries,
 } from '@/lib/riskReturn';
@@ -67,6 +70,16 @@ describe('riskReturn series', () => {
     ]);
     expect(series[1].returnPct).toBeCloseTo(10);
     expect(series[1].volatilityPct).toBeCloseTo(20);
+    expect(series[1].sharpeReturnPct).toBeNull();
+    expect(
+      buildPortfolioSeries(
+        {
+          ...data,
+          points: [{ ...data.points[1], sharpe_annual_return: 0.101 }],
+        },
+        options
+      )[0].sharpeReturnPct
+    ).toBeCloseTo(10.1);
     expect(plottable(series[2])).toBe(false);
   });
 
@@ -160,6 +173,23 @@ describe('average line', () => {
     expect(line!.volatilityPct).toBeCloseTo(15);
     expect(line!.returnPct).toBeCloseTo(10);
     expect(line!.slope).toBeCloseTo(10 / 15);
+    expect(line!.interceptPct).toBe(0);
+  });
+
+  it('starts from the risk-free rate, so its slope is the average Sharpe ratio', () => {
+    const line = averageLine([point('a', 10, 5), point('b', 20, 15)], 4)!;
+
+    expect(line.interceptPct).toBe(4);
+    expect(line.slope).toBeCloseTo((10 - 4) / 15);
+    expect(line.slope).toBeCloseTo(sharpeRatio(15, 10, 4)!);
+    // On the line at 10% volatility the return is 4 + 0.4 * 10 = 8%.
+    expect(sideOfAverage(line, 10, 8)).toBe('on');
+    expect(sideOfAverage(line, 10, 8.5)).toBe('above');
+    expect(sideOfAverage(line, 10, 7)).toBe('below');
+    // A low-volatility point that beats the 0% line can fall below this one.
+    const fromOrigin = averageLine([point('a', 10, 5), point('b', 20, 15)])!;
+    expect(sideOfAverage(fromOrigin, 5, 4)).toBe('above');
+    expect(sideOfAverage(line, 5, 4)).toBe('below');
   });
 
   it('needs two points and a positive mean volatility', () => {
@@ -231,5 +261,38 @@ describe('series details', () => {
         'Market index'
       )
     ).toEqual({ name: null, sector: null });
+  });
+});
+
+describe('sharpe ratio and risk-free rate', () => {
+  it('is excess return per unit of volatility', () => {
+    expect(sharpeRatio(10, 8, 4)).toBeCloseTo(0.4);
+    expect(sharpeRatio(10, 2, 4)).toBeCloseTo(-0.2);
+    expect(sharpeRatio(0, 8, 4)).toBeNull();
+    expect(sharpeRatio(10, null, 4)).toBeNull();
+    expect(sharpeRatio(10, undefined, 4)).toBeNull();
+  });
+
+  it('parses a typed risk-free rate within bounds', () => {
+    expect(parseRiskFreePct(' 4.25 ')).toBe(4.25);
+    expect(parseRiskFreePct('0')).toBe(0);
+    expect(parseRiskFreePct('')).toBeNull();
+    expect(parseRiskFreePct(null)).toBeNull();
+    expect(parseRiskFreePct('abc')).toBeNull();
+    expect(parseRiskFreePct('30')).toBeNull();
+  });
+
+  it('tells index symbols from listed tickers and portfolio points', () => {
+    const series = (id: string, kind: ChartSeries['kind']): ChartSeries => ({
+      id,
+      label: id,
+      kind,
+      color: '#000',
+      returnPct: 1,
+      volatilityPct: 1,
+    });
+    expect(isIndexSeries(series('benchmark:^FTSE', 'benchmark'))).toBe(true);
+    expect(isIndexSeries(series('benchmark:VWRL.L', 'benchmark'))).toBe(false);
+    expect(isIndexSeries(series('group', 'group'))).toBe(false);
   });
 });

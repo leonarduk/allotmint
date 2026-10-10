@@ -3859,10 +3859,16 @@
     "invalidTicker": "Introduza um ticker como ^FTSE ou VWRL.L.",
     "methodology": "Os retornos da carteira são ponderados no tempo e reconstruídos a partir das suas transações, pelo que depósitos e levantamentos não contam como ganhos ou perdas. A volatilidade é o desvio-padrão anualizado dos retornos diários. Os índices (símbolos ^) são retornos de preço na sua própria moeda; os restantes tickers usam preços em libras. Os restantes tickers têm de ser instrumentos que o AllotMint já acompanha.",
     "average": "Média",
-    "showAverage": "Mostrar linha média (por 0,0 e a média das séries mostradas)",
-    "aboveAverage": "Acima da linha média: mais retorno por unidade de volatilidade",
-    "belowAverage": "Abaixo da linha média: menos retorno por unidade de volatilidade",
-    "onAverage": "Na linha média"
+    "showAverage": "Mostrar linha média (da taxa livre de risco pela média das séries mostradas)",
+    "aboveAverage": "Acima da linha média: índice de Sharpe superior à média",
+    "belowAverage": "Abaixo da linha média: índice de Sharpe inferior à média",
+    "onAverage": "Na linha média",
+    "riskFreeRate": "Taxa livre de risco",
+    "sharpe": "Índice de Sharpe",
+    "priceReturnLocal": "retorno de preço, moeda local",
+    "shortWindowNote": "Em períodos inferiores a 3 anos, o retorno, a volatilidade e o índice de Sharpe são dominados pelo ruído: as diferenças entre pontos são apenas indicativas.",
+    "riskFreeFallback": "A usar {{rate}}% (introduza de -5 a 25)",
+    "sharpeBasis": "({{return}} ao ano em dias úteis − {{rate}}) ÷ volatilidade"
   },
   "cashDeployment": {
     "title": "Aplicação de caixa",

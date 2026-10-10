@@ -255,14 +255,16 @@ export function sideOfAverage(
 
 /**
  * Sharpe ratio, ``(return - risk-free rate) / volatility``, from percent
- * inputs. ``null`` when volatility is not positive.
+ * inputs. ``null`` when the return is unknown or volatility is not positive.
  */
 export function sharpeRatio(
   volatilityPct: number,
-  returnPct: number,
+  returnPct: number | null | undefined,
   riskFreePct: number
 ): number | null {
-  return volatilityPct > 0 ? (returnPct - riskFreePct) / volatilityPct : null;
+  return returnPct != null && volatilityPct > 0
+    ? (returnPct - riskFreePct) / volatilityPct
+    : null;
 }
 
 /** Bounds accepted for a typed risk-free rate, in percent a year. */

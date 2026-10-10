@@ -269,6 +269,8 @@ describe('sharpe ratio and risk-free rate', () => {
     expect(sharpeRatio(10, 8, 4)).toBeCloseTo(0.4);
     expect(sharpeRatio(10, 2, 4)).toBeCloseTo(-0.2);
     expect(sharpeRatio(0, 8, 4)).toBeNull();
+    expect(sharpeRatio(10, null, 4)).toBeNull();
+    expect(sharpeRatio(10, undefined, 4)).toBeNull();
   });
 
   it('parses a typed risk-free rate within bounds', () => {

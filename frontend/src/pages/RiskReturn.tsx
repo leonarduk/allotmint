@@ -199,7 +199,14 @@ function PointTooltip({
       <div>
         {sharpeLabel}:{' '}
         {formatRatio(
-          sharpeRatio(point.x, point.sharpeReturn ?? point.y, riskFreePct)
+          // Series use the reports' trading-day basis and show "—" without
+          // it rather than a figure on another basis; the average marker's
+          // Sharpe is the line's slope, from its plotted return.
+          sharpeRatio(
+            point.x,
+            point.isAverage ? point.y : point.sharpeReturn,
+            riskFreePct
+          )
         )}
       </div>
       {point.basis && <div>{point.basis}</div>}

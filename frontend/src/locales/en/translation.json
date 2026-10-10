@@ -3839,7 +3839,8 @@
     "sharpe": "Sharpe ratio",
     "priceReturnLocal": "price return, local currency",
     "shortWindowNote": "Over periods shorter than 3 years, return, volatility and Sharpe ratio are dominated by noise: treat differences between points as indicative only.",
-    "riskFreeFallback": "Using {{rate}}% (enter -5 to 25)"
+    "riskFreeFallback": "Using {{rate}}% (enter -5 to 25)",
+    "sharpeBasis": "({{return}} a year over trading days − {{rate}}) ÷ volatility"
   },
   "cashDeployment": {
     "title": "Cash deployment",

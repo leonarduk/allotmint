@@ -3846,7 +3846,8 @@
     "sharpe": "Indice di Sharpe",
     "priceReturnLocal": "rendimento di prezzo, valuta locale",
     "shortWindowNote": "Su periodi inferiori a 3 anni, rendimento, volatilità e indice di Sharpe sono dominati dal rumore: le differenze tra i punti sono solo indicative.",
-    "riskFreeFallback": "In uso {{rate}}% (inserire da -5 a 25)"
+    "riskFreeFallback": "In uso {{rate}}% (inserire da -5 a 25)",
+    "sharpeBasis": "({{return}} annuo su giorni di borsa − {{rate}}) ÷ volatilità"
   },
   "cashDeployment": {
     "title": "Impiego della liquidità",

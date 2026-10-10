@@ -158,12 +158,13 @@ interface TooltipEntry {
   };
 }
 
-function PointTooltip({
+export function PointTooltip({
   active,
   payload,
   returnLabel,
   volatilityLabel,
   sharpeLabel,
+  sharpeBasis,
   riskFreePct,
   average,
   sideLabels,
@@ -173,12 +174,18 @@ function PointTooltip({
   returnLabel: string;
   volatilityLabel: string;
   sharpeLabel: string;
+  /** How the Sharpe ratio was worked out, from its return and the rate. */
+  sharpeBasis: (returnText: string, rateText: string) => string;
   riskFreePct: number;
   average: AverageLine | null;
   sideLabels: Record<'above' | 'below' | 'on', string>;
 }) {
   const point = active ? payload?.[0]?.payload : undefined;
   if (!point) return null;
+  // Series use the reports' trading-day basis and show "—" without it rather
+  // than a figure on another basis; the average marker's Sharpe is the line's
+  // slope, from its plotted return.
+  const sharpeReturn = point.isAverage ? point.y : point.sharpeReturn;
   const side =
     average && !point.isAverage
       ? sideOfAverage(average, point.x, point.y)
@@ -206,17 +213,16 @@ function PointTooltip({
       </div>
       <div>
         {sharpeLabel}:{' '}
-        {formatRatio(
-          // Series use the reports' trading-day basis and show "—" without
-          // it rather than a figure on another basis; the average marker's
-          // Sharpe is the line's slope, from its plotted return.
-          sharpeRatio(
-            point.x,
-            point.isAverage ? point.y : point.sharpeReturn,
-            riskFreePct
-          )
-        )}
+        {formatRatio(sharpeRatio(point.x, sharpeReturn, riskFreePct))}
       </div>
+      {!point.isAverage && sharpeReturn != null && (
+        // The Sharpe return differs from the plotted one (trading-day
+        // annualised, as in the reports), so show it: the figure then
+        // reconciles with what the tooltip shows.
+        <div style={{ fontSize: '0.85em', opacity: 0.8 }}>
+          {sharpeBasis(formatPct(sharpeReturn), formatPct(riskFreePct))}
+        </div>
+      )}
       {point.basis && <div>{point.basis}</div>}
       {side && <div>{sideLabels[side]}</div>}
     </div>
@@ -568,6 +574,12 @@ export default function RiskReturn() {
                   returnLabel={returnLabel}
                   volatilityLabel={volatilityLabel}
                   sharpeLabel={t('riskReturn.sharpe')}
+                  sharpeBasis={(returnText, rateText) =>
+                    t('riskReturn.sharpeBasis', {
+                      return: returnText,
+                      rate: rateText,
+                    })
+                  }
                   riskFreePct={riskFreePct}
                   average={average}
                   sideLabels={{

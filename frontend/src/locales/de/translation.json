@@ -3846,7 +3846,8 @@
     "sharpe": "Sharpe-Ratio",
     "priceReturnLocal": "Kursrendite, Landeswährung",
     "shortWindowNote": "Bei Zeiträumen unter 3 Jahren überwiegt das Rauschen bei Rendite, Volatilität und Sharpe-Ratio: Unterschiede zwischen Punkten sind nur ein Anhaltspunkt.",
-    "riskFreeFallback": "Verwendet {{rate}} % (-5 bis 25 eingeben)"
+    "riskFreeFallback": "Verwendet {{rate}} % (-5 bis 25 eingeben)",
+    "sharpeBasis": "({{return}} p. a. über Handelstage − {{rate}}) ÷ Volatilität"
   },
   "cashDeployment": {
     "title": "Cash-Einsatz",

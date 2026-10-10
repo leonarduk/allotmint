@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import RiskReturn from '@/pages/RiskReturn';
+import RiskReturn, { PointTooltip } from '@/pages/RiskReturn';
 import {
   getBenchmarkRiskReturn,
   getGroupRiskReturn,
@@ -409,5 +409,46 @@ describe('RiskReturn average line before the rate loads', () => {
     });
 
     await waitFor(() => expect(averageLineEl()).not.toBeNull());
+  });
+});
+
+describe('RiskReturn point tooltip', () => {
+  const basis = (r: string, rf: string) => `(${r} - ${rf}) / vol`;
+  const tooltip = (payload: Record<string, unknown>) =>
+    render(
+      <PointTooltip
+        active
+        payload={[{ payload: { label: 'Steve ISA', ...payload } as never }]}
+        returnLabel="Return"
+        volatilityLabel="Volatility"
+        sharpeLabel="Sharpe ratio"
+        sharpeBasis={basis}
+        riskFreePct={4}
+        average={null}
+        sideLabels={{ above: 'above', below: 'below', on: 'on' }}
+      />
+    );
+
+  it('shows the Sharpe ratio with the return it is measured from', () => {
+    // Plotted 3y return 9% (calendar-annualised), Sharpe basis 10% (trading
+    // days): the shown Sharpe reconciles with the basis line, (10 - 4) / 20.
+    tooltip({ x: 20, y: 9, sharpeReturn: 10 });
+
+    expect(screen.getByText('Sharpe ratio: 0.30')).toBeInTheDocument();
+    expect(screen.getByText('(10.0% - 4.0%) / vol')).toBeInTheDocument();
+  });
+
+  it('shows a dash and no basis without the trading-day return', () => {
+    tooltip({ x: 20, y: 9, sharpeReturn: null });
+
+    expect(screen.getByText('Sharpe ratio: —')).toBeInTheDocument();
+    expect(screen.queryByText(/\/ vol/)).not.toBeInTheDocument();
+  });
+
+  it('uses the plotted return for the average marker', () => {
+    tooltip({ x: 20, y: 9, isAverage: true });
+
+    expect(screen.getByText('Sharpe ratio: 0.25')).toBeInTheDocument();
+    expect(screen.queryByText(/\/ vol/)).not.toBeInTheDocument();
   });
 });

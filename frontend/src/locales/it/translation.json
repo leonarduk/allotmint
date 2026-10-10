@@ -3845,7 +3845,8 @@
     "riskFreeRate": "Tasso privo di rischio",
     "sharpe": "Indice di Sharpe",
     "priceReturnLocal": "rendimento di prezzo, valuta locale",
-    "shortWindowNote": "Su periodi inferiori a 3 anni, rendimento, volatilità e indice di Sharpe sono dominati dal rumore: le differenze tra i punti sono solo indicative."
+    "shortWindowNote": "Su periodi inferiori a 3 anni, rendimento, volatilità e indice di Sharpe sono dominati dal rumore: le differenze tra i punti sono solo indicative.",
+    "riskFreeFallback": "In uso {{rate}}% (inserire da -5 a 25)"
   },
   "cashDeployment": {
     "title": "Impiego della liquidità",

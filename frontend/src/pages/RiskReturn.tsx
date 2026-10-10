@@ -145,6 +145,7 @@ interface TooltipEntry {
     name?: string | null;
     sector?: string | null;
     basis?: string | null;
+    sharpeReturn?: number | null;
     isAverage?: boolean;
   };
 }
@@ -196,7 +197,10 @@ function PointTooltip({
         {volatilityLabel}: {formatPct(point.x)}
       </div>
       <div>
-        {sharpeLabel}: {formatRatio(sharpeRatio(point.x, point.y, riskFreePct))}
+        {sharpeLabel}:{' '}
+        {formatRatio(
+          sharpeRatio(point.x, point.sharpeReturn ?? point.y, riskFreePct)
+        )}
       </div>
       {point.basis && <div>{point.basis}</div>}
       {side && <div>{sideLabels[side]}</div>}
@@ -341,9 +345,14 @@ export default function RiskReturn() {
   const configuredRiskFreePct = Number(
     ((points.data?.risk_free_rate ?? 0) * 100).toFixed(2)
   );
-  const riskFreeText = riskFreeInput ?? String(configuredRiskFreePct);
-  const typedRiskFreePct = parseRiskFreePct(riskFreeText);
+  // Blank until the configured rate has loaded, rather than showing 0.
+  const riskFreeText =
+    riskFreeInput ?? (points.data ? String(configuredRiskFreePct) : '');
+  const typedRiskFreePct = parseRiskFreePct(riskFreeInput);
   const riskFreePct = typedRiskFreePct ?? configuredRiskFreePct;
+  // A typed rate that can't be used falls back to the configured one; say so
+  // rather than plot at a rate the box doesn't show.
+  const riskFreeFallback = riskFreeInput != null && typedRiskFreePct == null;
   // Averaged over what is on the chart, so ticking series in or out
   // changes what "average" means (e.g. only accounts, or with indices).
   const average = showAverage ? averageLine(visible, riskFreePct) : null;
@@ -456,10 +465,15 @@ export default function RiskReturn() {
             max={25}
             value={riskFreeText}
             onChange={(e) => changeRiskFree(e.target.value)}
-            aria-invalid={typedRiskFreePct == null ? true : undefined}
+            aria-invalid={riskFreeFallback ? true : undefined}
             style={{ width: '5em' }}
           />
           %
+          {riskFreeFallback && (
+            <em role="status" style={{ marginLeft: '0.5rem' }}>
+              {t('riskReturn.riskFreeFallback', { rate: riskFreePct })}
+            </em>
+          )}
         </label>
       </div>
 
@@ -552,6 +566,7 @@ export default function RiskReturn() {
                     label: s.label,
                     ...seriesDetails(s, indexLabel),
                     basis: isIndexSeries(s) ? basisLabel : null,
+                    sharpeReturn: s.sharpeReturnPct,
                     z: 1,
                   },
                 ]}

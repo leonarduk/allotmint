@@ -70,6 +70,16 @@ describe('riskReturn series', () => {
     ]);
     expect(series[1].returnPct).toBeCloseTo(10);
     expect(series[1].volatilityPct).toBeCloseTo(20);
+    expect(series[1].sharpeReturnPct).toBeNull();
+    expect(
+      buildPortfolioSeries(
+        {
+          ...data,
+          points: [{ ...data.points[1], sharpe_annual_return: 0.101 }],
+        },
+        options
+      )[0].sharpeReturnPct
+    ).toBeCloseTo(10.1);
     expect(plottable(series[2])).toBe(false);
   });
 

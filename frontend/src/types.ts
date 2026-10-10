@@ -1934,6 +1934,8 @@ export interface RiskReturnPoint {
   period_return: number | null;
   annualised_return: number | null;
   volatility: number | null;
+  /** Return annualised over trading days: the reports' Sharpe ratio basis. */
+  sharpe_annual_return?: number | null;
 }
 
 export interface GroupRiskReturn {
@@ -1958,6 +1960,8 @@ export interface BenchmarkRiskReturn {
   period_return: number | null;
   annualised_return: number | null;
   volatility: number | null;
+  /** Return annualised over trading days: the reports' Sharpe ratio basis. */
+  sharpe_annual_return?: number | null;
 }
 
 /** An owner-chosen cash phasing schedule (#10480). Amounts are pence. */

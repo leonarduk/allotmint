@@ -262,3 +262,16 @@ def test_group_points_survive_an_unpriced_holding(fake_data):
         LEDGERS["alice"].remove(ledger)
 
     assert ("account", "alice", "gia") in [(p["kind"], p["owner"], p["account"]) for p in result["points"]]
+
+
+@pytest.mark.parametrize("risk_free_rate", [0.0, 0.04])
+def test_sharpe_basis_matches_the_reports_sharpe_ratio(risk_free_rate):
+    isa = [LEDGERS["alice"][0]]
+    perf = lp.build_ledger_performance(isa, END, price_loader=lambda k, s, e: _CLOSES)
+    after = END - timedelta(days=DAYS)
+    stats = rr.stats_from_returns(perf.returns, after, END)
+
+    chart_sharpe = (stats.sharpe_annual_return - risk_free_rate) / stats.volatility
+
+    assert chart_sharpe == pytest.approx(lp.sharpe_ratio(perf.returns, after, END, risk_free_rate))
+    assert stats.as_dict()["sharpe_annual_return"] == stats.sharpe_annual_return

@@ -37,6 +37,11 @@ export interface ChartSeries {
   /** Return in percent: annualised for windows over a year, else the period total. */
   returnPct: number | null;
   volatilityPct: number | null;
+  /**
+   * Return in percent annualised over trading days, which the Sharpe ratio
+   * is measured from so it matches the reports' figure.
+   */
+  sharpeReturnPct?: number | null;
   /** Instrument name and sector, known for listed benchmark tickers. */
   name?: string | null;
   sector?: string | null;
@@ -115,6 +120,7 @@ export function buildPortfolioSeries(
       color: point.kind === 'group' ? GROUP_COLOR : seriesColor(index),
       returnPct: returnPct(point, days),
       volatilityPct: pct(point.volatility),
+      sharpeReturnPct: pct(point.sharpe_annual_return),
     };
   });
 }
@@ -134,6 +140,7 @@ export function buildBenchmarkSeries(
       color: seriesColor(colorOffset + index),
       returnPct: result ? returnPct(result, days) : null,
       volatilityPct: result ? pct(result.volatility) : null,
+      sharpeReturnPct: result ? pct(result.sharpe_annual_return) : null,
       name: result?.name ?? null,
       sector: result?.sector ?? null,
     };

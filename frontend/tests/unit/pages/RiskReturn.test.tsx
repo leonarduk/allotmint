@@ -155,6 +155,12 @@ describe('RiskReturn page', () => {
 
     expect(input).toHaveValue(3.5);
     expect(window.localStorage.getItem('riskReturn.riskFreePct')).toBe('3.5');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: '30' } });
+
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('status')).toHaveTextContent('Using 4%');
   });
 
   it('warns that short periods are noisy, but not from 3 years', async () => {

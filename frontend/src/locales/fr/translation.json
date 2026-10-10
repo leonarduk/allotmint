@@ -3845,7 +3845,8 @@
     "riskFreeRate": "Taux sans risque",
     "sharpe": "Ratio de Sharpe",
     "priceReturnLocal": "rendement du prix, devise locale",
-    "shortWindowNote": "Sur des périodes de moins de 3 ans, le rendement, la volatilité et le ratio de Sharpe sont dominés par le bruit : les écarts entre points ne sont qu’indicatifs."
+    "shortWindowNote": "Sur des périodes de moins de 3 ans, le rendement, la volatilité et le ratio de Sharpe sont dominés par le bruit : les écarts entre points ne sont qu’indicatifs.",
+    "riskFreeFallback": "Utilise {{rate}} % (saisir de -5 à 25)"
   },
   "cashDeployment": {
     "title": "Déploiement de liquidités",

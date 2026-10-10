@@ -43,17 +43,24 @@ _INDEX_CACHE_MAX = 64
 
 @dataclass(frozen=True)
 class RiskReturn:
-    """Return over a window and the annualised volatility of its daily returns."""
+    """Return over a window and the annualised volatility of its daily returns.
+
+    ``sharpe_annual_return`` is the return annualised over trading days that
+    ``ledger_performance.sharpe_ratio`` uses, so the chart's Sharpe ratio at a
+    given risk-free rate matches the reports'.
+    """
 
     period_return: float | None
     annualised_return: float | None
     volatility: float | None
+    sharpe_annual_return: float | None = None
 
     def as_dict(self) -> Dict[str, float | None]:
         return {
             "period_return": self.period_return,
             "annualised_return": self.annualised_return,
             "volatility": self.volatility,
+            "sharpe_annual_return": self.sharpe_annual_return,
         }
 
 
@@ -64,6 +71,7 @@ def stats_from_returns(returns: pd.Series, after: date, through: date) -> RiskRe
         period_return=total,
         annualised_return=ledger_performance.annualise(total, (through - after).days),
         volatility=ledger_performance.annualised_volatility(returns, after, through),
+        sharpe_annual_return=ledger_performance.trading_day_annual_return(returns, after, through),
     )
 
 

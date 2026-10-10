@@ -606,16 +606,29 @@ def annualised_volatility(returns: pd.Series, after: date | None, through: date)
     return std * math.sqrt(TRADING_DAYS_PER_YEAR) if math.isfinite(std) else None
 
 
-def sharpe_ratio(returns: pd.Series, after: date | None, through: date, risk_free_rate: float) -> float | None:
-    """Annualised excess return over annualised volatility for days in ``(after, through]``."""
+def trading_day_annual_return(returns: pd.Series, after: date | None, through: date) -> float | None:
+    """Chained return for days in ``(after, through]`` annualised over trading days.
+
+    The return :func:`sharpe_ratio` measures excess return from, so a caller
+    applying its own risk-free rate gets the same Sharpe ratio.
+    """
     window = _floats(_window(returns, after, through))
-    volatility = annualised_volatility(returns, after, through)
-    if not volatility:
+    if window.size == 0:
         return None
     growth = float(np.prod(1.0 + window))
     if growth <= 0:
         return None
-    annual = growth ** (TRADING_DAYS_PER_YEAR / window.size) - 1.0
+    return growth ** (TRADING_DAYS_PER_YEAR / window.size) - 1.0
+
+
+def sharpe_ratio(returns: pd.Series, after: date | None, through: date, risk_free_rate: float) -> float | None:
+    """Annualised excess return over annualised volatility for days in ``(after, through]``."""
+    volatility = annualised_volatility(returns, after, through)
+    if not volatility:
+        return None
+    annual = trading_day_annual_return(returns, after, through)
+    if annual is None:
+        return None
     return (annual - risk_free_rate) / volatility
 
 

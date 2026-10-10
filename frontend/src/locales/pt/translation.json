@@ -3845,7 +3845,8 @@
     "riskFreeRate": "Taxa livre de risco",
     "sharpe": "Índice de Sharpe",
     "priceReturnLocal": "retorno de preço, moeda local",
-    "shortWindowNote": "Em períodos inferiores a 3 anos, o retorno, a volatilidade e o índice de Sharpe são dominados pelo ruído: as diferenças entre pontos são apenas indicativas."
+    "shortWindowNote": "Em períodos inferiores a 3 anos, o retorno, a volatilidade e o índice de Sharpe são dominados pelo ruído: as diferenças entre pontos são apenas indicativas.",
+    "riskFreeFallback": "A usar {{rate}}% (introduza de -5 a 25)"
   },
   "cashDeployment": {
     "title": "Aplicação de caixa",

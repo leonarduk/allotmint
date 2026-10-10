@@ -62,6 +62,14 @@ def test_generate_json_holdings(monkeypatch, tmp_path):
                 "quantity": 5.0,
                 "acquired_date": acq_date,
             },
+            {
+                "account": "Alex ISA Cash",
+                "name": "Commodity ETC",
+                "ticker": "COMETC",
+                "isin": "ISIN5",
+                "quantity": 6.0,
+                "acquired_date": acq_date,
+            },
         ]
     )
 
@@ -75,11 +83,13 @@ def test_generate_json_holdings(monkeypatch, tmp_path):
         "EXEMPTT": {"instrumentType": "STOCK"},
         "0PFUND": {"instrumentType": "ETF"},
         "COMETF": {"instrumentType": "ETF", "asset_class": "Commodity"},
+        # #10560: an exempt ETC type and only a "Commodities" sector.
+        "COMETC": {"instrumentType": "ETC", "sector": "Commodities"},
     }
     monkeypatch.setattr(conv, "get_instrument_meta", lambda t: meta.get(t, {}))
 
     monkeypatch.setattr(conv.config, "approval_exempt_tickers", ["EXEMPTT"])
-    monkeypatch.setattr(conv.config, "approval_exempt_types", ["ETF"])
+    monkeypatch.setattr(conv.config, "approval_exempt_types", ["ETF", "ETC"])
     monkeypatch.setattr(conv.config, "hold_days_min", 5)
 
     conv.generate_json_holdings("dummy.xml", tmp_path)
@@ -90,7 +100,7 @@ def test_generate_json_holdings(monkeypatch, tmp_path):
 
     assert data["owner"] == "alex"
     assert data["account_type"] == "ISA"
-    assert len(data["holdings"]) == 5
+    assert len(data["holdings"]) == 6
 
     hold = {h["name"]: h for h in data["holdings"]}
 
@@ -105,3 +115,4 @@ def test_generate_json_holdings(monkeypatch, tmp_path):
     assert hold["Type Exempt 0P"]["sell_eligible"] is True
 
     assert hold["Commodity ETF"]["sell_eligible"] is False
+    assert hold["Commodity ETC"]["sell_eligible"] is False

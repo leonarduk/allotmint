@@ -303,6 +303,23 @@ def derive_asset_class(meta: Mapping[str, Any]) -> Optional[str]:
     return normalise_asset_class(meta.get("asset_class"))
 
 
+def is_commodity(meta: Mapping[str, Any]) -> bool:
+    """True when any of ``meta``'s signals says the instrument is a commodity.
+
+    The stored ``asset_class``, the derived asset class and a commodity sector
+    label ("Commodities", "Commodities - Energy") each count on their own, so a
+    record missing one field is still caught. Used to keep commodity products
+    inside the sell-approval gate (#10560), where a false positive only asks
+    for an approval but a false negative silently exempts gold or silver.
+    """
+    stored = normalise_asset_class(meta.get("assetClass") or meta.get("asset_class"))
+    return (
+        stored == COMMODITY
+        or derive_asset_class(meta) == COMMODITY
+        or _sector_asset_class(_text(meta, "sector")) == COMMODITY
+    )
+
+
 def _fund_sector(sector: str, asset_class: str) -> Optional[str]:
     """Return a replacement sector for a fund, or ``None`` to keep ``sector``."""
     label = FUND_SECTOR_BY_ASSET_CLASS[asset_class]

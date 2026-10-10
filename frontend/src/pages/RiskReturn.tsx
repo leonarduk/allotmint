@@ -351,8 +351,9 @@ export default function RiskReturn() {
   const typedRiskFreePct = parseRiskFreePct(riskFreeInput);
   const riskFreePct = typedRiskFreePct ?? configuredRiskFreePct;
   // A typed rate that can't be used falls back to the configured one; say so
-  // rather than plot at a rate the box doesn't show.
-  const riskFreeFallback = riskFreeInput != null && typedRiskFreePct == null;
+  // rather than plot at a rate the box doesn't show. A cleared box just means
+  // "use the configured rate", which the placeholder shows.
+  const riskFreeFallback = !!riskFreeInput?.trim() && typedRiskFreePct == null;
   // Averaged over what is on the chart, so ticking series in or out
   // changes what "average" means (e.g. only accounts, or with indices).
   const average = showAverage ? averageLine(visible, riskFreePct) : null;
@@ -464,6 +465,7 @@ export default function RiskReturn() {
             min={-5}
             max={25}
             value={riskFreeText}
+            placeholder={points.data ? String(configuredRiskFreePct) : ''}
             onChange={(e) => changeRiskFree(e.target.value)}
             aria-invalid={riskFreeFallback ? true : undefined}
             style={{ width: '5em' }}

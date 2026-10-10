@@ -161,6 +161,13 @@ describe('RiskReturn page', () => {
 
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByRole('status')).toHaveTextContent('Using 4%');
+
+    // Clearing the box means "use the configured rate": not an error.
+    fireEvent.change(input, { target: { value: '' } });
+
+    expect(input).not.toHaveAttribute('aria-invalid');
+    expect(input).toHaveAttribute('placeholder', '4');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('warns that short periods are noisy, but not from 3 years', async () => {

@@ -1229,6 +1229,10 @@
         "avgVolume": {
           "title": "Volume médio",
           "detail": "O número médio de ações negociadas por dia durante um período recente."
+        },
+        "riskReturn": {
+          "title": "Risco e retorno (Screener)",
+          "detail": "As colunas de Sharpe, retorno, volatilidade e pior queda do Screener cobrem os últimos 3, 5 e 10 anos até à data de referência. O retorno é anualizado; a volatilidade é o desvio-padrão anualizado dos retornos semanais (semanais, para que o desfasamento diário de câmbio não a inflacione); o Sharpe é o retorno menos a taxa sem risco — a taxa diretora média do Banco de Inglaterra no mesmo período — dividido pela volatilidade. Os valores estão em GBP ou na moeda de cotação e incluem dividendos quando registados (total), só em parte do histórico (parcial) ou de todo (só preço). O Sharpe mín. é o mais baixo dos três períodos, pelo que um valor alto indica retornos ajustados ao risco consistentemente bons. Valores passados não são uma previsão."
         }
       },
       "movers": {
@@ -1647,6 +1651,40 @@
     },
     "tips": {
       "infoLabel": "O que significa {{column}}?"
+    },
+    "risk": {
+      "controlsLabel": "Risco/retorno",
+      "currency": "Moeda",
+      "currencyGbp": "GBP",
+      "currencyLocal": "Moeda local",
+      "period": "Período",
+      "periodOption": "{{years}} a",
+      "minSharpe": "Sharpe mín.",
+      "sharpeScope": "Período do Sharpe",
+      "scopeAll": "Os três",
+      "maxDrawdown": "Pior queda máx.",
+      "col": {
+        "sharpe": "Sharpe {{years}} a",
+        "minSharpe": "Sharpe mín.",
+        "return": "Retorno/ano {{years}} a",
+        "volatility": "Volatilidade {{years}} a",
+        "worstFall": "Pior queda {{years}} a",
+        "basis": "Moeda · base"
+      },
+      "basis": {
+        "total": "total",
+        "partial": "dividendos parciais",
+        "price": "só preço"
+      },
+      "pending": "A carregar valores de risco/retorno",
+      "loading": "A carregar valores de risco/retorno…",
+      "error": "Não foi possível carregar os valores de risco/retorno: {{error}}",
+      "summary": "Risco/retorno a {{date}}, em {{currency}}. Taxa sem risco (taxa diretora média): {{rates}}. Valores passados não são uma previsão.",
+      "missing": "{{count}} ticker(s) não têm histórico de preços guardado, pelo que as suas células de risco/retorno estão vazias.",
+      "filteredOut": "{{count}} linha(s) ocultadas pelos filtros de risco/retorno.",
+      "noHistory": "Sem histórico de preços guardado para este ticker",
+      "shortHistory": "O histórico de preços é inferior a {{years}} anos",
+      "notReturned": "Sem valores de risco/retorno para este ticker"
     },
     "saved": {
       "label": "Filtros salvos",

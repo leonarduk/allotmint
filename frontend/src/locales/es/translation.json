@@ -1229,6 +1229,10 @@
         "avgVolume": {
           "title": "Volumen medio",
           "detail": "El número medio de acciones negociadas por día durante un periodo reciente."
+        },
+        "riskReturn": {
+          "title": "Riesgo y rentabilidad (Screener)",
+          "detail": "Las columnas de Sharpe, rentabilidad, volatilidad y peor caída del Screener cubren los últimos 3, 5 y 10 años hasta la fecha de referencia. La rentabilidad está anualizada; la volatilidad es la desviación típica anualizada de las rentabilidades semanales (semanales, para que el desfase diario de divisas no la infle); Sharpe es la rentabilidad menos el tipo libre de riesgo —el tipo oficial medio del Banco de Inglaterra en ese periodo— dividida por la volatilidad. Las cifras están en GBP o en la divisa de cotización e incluyen dividendos cuando constan (total), solo en parte del historial (parcial) o no (solo precio). Sharpe mín. es el menor de los tres periodos, así que un valor alto indica rentabilidades ajustadas al riesgo consistentemente buenas. Las cifras pasadas no son una previsión."
         }
       },
       "movers": {
@@ -1647,6 +1651,40 @@
     },
     "tips": {
       "infoLabel": "¿Qué significa {{column}}?"
+    },
+    "risk": {
+      "controlsLabel": "Riesgo/rentabilidad",
+      "currency": "Divisa",
+      "currencyGbp": "GBP",
+      "currencyLocal": "Divisa local",
+      "period": "Periodo",
+      "periodOption": "{{years}} a",
+      "minSharpe": "Sharpe mín.",
+      "sharpeScope": "Periodo de Sharpe",
+      "scopeAll": "Los tres",
+      "maxDrawdown": "Peor caída máx.",
+      "col": {
+        "sharpe": "Sharpe {{years}} a",
+        "minSharpe": "Sharpe mín.",
+        "return": "Rent./año {{years}} a",
+        "volatility": "Volatilidad {{years}} a",
+        "worstFall": "Peor caída {{years}} a",
+        "basis": "Divisa · base"
+      },
+      "basis": {
+        "total": "total",
+        "partial": "dividendos parciales",
+        "price": "solo precio"
+      },
+      "pending": "Cargando cifras de riesgo/rentabilidad",
+      "loading": "Cargando cifras de riesgo/rentabilidad…",
+      "error": "No se pudieron cargar las cifras de riesgo/rentabilidad: {{error}}",
+      "summary": "Riesgo/rentabilidad a {{date}}, en {{currency}}. Tipo libre de riesgo (tipo oficial medio): {{rates}}. Las cifras pasadas no son una previsión.",
+      "missing": "{{count}} ticker(s) no tienen historial de precios guardado, así que sus celdas de riesgo/rentabilidad están vacías.",
+      "filteredOut": "{{count}} fila(s) ocultas por los filtros de riesgo/rentabilidad.",
+      "noHistory": "No hay historial de precios guardado para este ticker",
+      "shortHistory": "El historial de precios es inferior a {{years}} años",
+      "notReturned": "No hay cifras de riesgo/rentabilidad para este ticker"
     },
     "saved": {
       "label": "Filtros guardados",

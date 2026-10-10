@@ -38,6 +38,16 @@ except ModuleNotFoundError as exc:
         raise
     instrument_technicals = None
 
+# Likewise for the risk/return engine (allotmint-pro#724): Sharpe, volatility
+# and worst fall over 3/5/10-year windows. Gated on its own so an older
+# allotmint-pro without it still serves the fundamentals screen.
+try:
+    from allotmint_pro.screener.risk_return import risk_return_for_tickers
+except ModuleNotFoundError as exc:
+    if not missing_package(exc):
+        raise
+    risk_return_for_tickers = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -429,5 +439,68 @@ def technicals(ticker: str = Query(..., description="Full ticker, e.g. ADBE.N"))
         raise HTTPException(status_code=400, detail="No ticker supplied")
     try:
         return instrument_technicals(symbol).model_dump()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+RISK_RETURN_DEFAULT_YEARS = "3,5,10"
+RISK_RETURN_MAX_YEARS = 30
+RISK_RETURN_MAX_FETCH = 25
+
+
+def _parse_symbols(tickers: str) -> List[str]:
+    """Upper-cased, de-duplicated tickers in request order; 400 when none."""
+
+    symbols = list(dict.fromkeys(t.strip().upper() for t in tickers.split(",") if t.strip()))
+    if not symbols:
+        raise HTTPException(status_code=400, detail="No tickers supplied")
+    return symbols
+
+
+def _parse_years(years: str) -> List[int]:
+    """Window lengths in whole years, e.g. ``"3,5,10"`` -> ``[3, 5, 10]``; 400 when invalid."""
+
+    try:
+        windows = sorted({int(y) for y in years.split(",") if y.strip()})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="years must be comma-separated whole numbers") from e
+    if not windows or windows[0] < 1 or windows[-1] > RISK_RETURN_MAX_YEARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"years must be between 1 and {RISK_RETURN_MAX_YEARS}",
+        )
+    return windows
+
+
+@router.get("/risk-return")
+def risk_return(
+    tickers: str = Query(..., description="Comma-separated list of tickers"),
+    years: str = Query(RISK_RETURN_DEFAULT_YEARS, description="Comma-separated window lengths in years"),
+    fetch_missing: bool = Query(
+        False,
+        description="Fetch and store prices for uncached tickers (slow; capped by max_fetch)",
+    ),
+    max_fetch: int = Query(RISK_RETURN_MAX_FETCH, ge=0, le=RISK_RETURN_MAX_FETCH),
+) -> Dict[str, Any]:
+    """Annualised return, volatility, Sharpe and worst fall per window (allotmint-pro#724).
+
+    Figures are fractions, in GBP and in the listing's local currency, from
+    weekly returns with the mean Bank Rate over each window as the risk-free
+    rate. A window the stored history doesn't cover is ``null``; tickers with
+    no stored prices are listed under ``missing``. By default only stored
+    prices are used, so a large watchlist never triggers a mass fetch.
+    """
+
+    require_core(risk_return_for_tickers, "Risk/return screen")
+
+    symbols = _parse_symbols(tickers)
+    windows = _parse_years(years)
+    try:
+        return risk_return_for_tickers(
+            symbols,
+            years=windows,
+            fetch_missing=fetch_missing,
+            max_fetch=max_fetch,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

@@ -1229,6 +1229,10 @@
         "avgVolume": {
           "title": "Volume medio",
           "detail": "Il numero medio di azioni scambiate al giorno in un periodo recente."
+        },
+        "riskReturn": {
+          "title": "Rischio e rendimento (Screener)",
+          "detail": "Le colonne Sharpe, rendimento, volatilità e peggior calo dello Screener coprono gli ultimi 3, 5 e 10 anni fino alla data di riferimento. Il rendimento è annualizzato; la volatilità è la deviazione standard annualizzata dei rendimenti settimanali (settimanali, così lo sfasamento giornaliero dei cambi non la gonfia); lo Sharpe è il rendimento meno il tasso privo di rischio — il tasso ufficiale medio della Banca d'Inghilterra nello stesso periodo — diviso per la volatilità. I valori sono in GBP o nella valuta di quotazione e includono i dividendi quando registrati (totale), solo per parte dello storico (parziale) o per niente (solo prezzo). Lo Sharpe min. è il più basso dei tre periodi: un valore alto indica rendimenti corretti per il rischio costantemente buoni. I valori passati non sono una previsione."
         }
       },
       "movers": {
@@ -1647,6 +1651,40 @@
     },
     "tips": {
       "infoLabel": "Cosa significa {{column}}?"
+    },
+    "risk": {
+      "controlsLabel": "Rischio/rendimento",
+      "currency": "Valuta",
+      "currencyGbp": "GBP",
+      "currencyLocal": "Valuta locale",
+      "period": "Periodo",
+      "periodOption": "{{years}} a",
+      "minSharpe": "Sharpe min.",
+      "sharpeScope": "Periodo dello Sharpe",
+      "scopeAll": "Tutti e tre",
+      "maxDrawdown": "Peggior calo max",
+      "col": {
+        "sharpe": "Sharpe {{years}} a",
+        "minSharpe": "Sharpe min.",
+        "return": "Rend./anno {{years}} a",
+        "volatility": "Volatilità {{years}} a",
+        "worstFall": "Peggior calo {{years}} a",
+        "basis": "Valuta · base"
+      },
+      "basis": {
+        "total": "totale",
+        "partial": "dividendi parziali",
+        "price": "solo prezzo"
+      },
+      "pending": "Caricamento dei valori rischio/rendimento",
+      "loading": "Caricamento dei valori rischio/rendimento…",
+      "error": "Impossibile caricare i valori rischio/rendimento: {{error}}",
+      "summary": "Rischio/rendimento al {{date}}, in {{currency}}. Tasso privo di rischio (tasso ufficiale medio): {{rates}}. I valori passati non sono una previsione.",
+      "missing": "{{count}} ticker non hanno uno storico prezzi salvato, quindi le loro celle rischio/rendimento sono vuote.",
+      "filteredOut": "{{count}} riga/e nascosta/e dai filtri rischio/rendimento.",
+      "noHistory": "Nessuno storico prezzi salvato per questo ticker",
+      "shortHistory": "Lo storico prezzi copre meno di {{years}} anni",
+      "notReturned": "Nessun valore rischio/rendimento per questo ticker"
     },
     "saved": {
       "label": "Filtri salvati",

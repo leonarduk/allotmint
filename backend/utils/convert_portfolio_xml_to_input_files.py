@@ -5,7 +5,7 @@ from pathlib import Path
 
 from positions import extract_holdings_from_transactions
 
-from backend.common.approvals import is_approval_valid, load_approvals
+from backend.common.approvals import is_approval_valid, load_approvals, needs_sell_approval
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
 
@@ -50,18 +50,9 @@ def generate_json_holdings(xml_path: str, output_base_dir: str | Path = config.a
 
             meta_tkr = str(row.get("ticker", "")).strip().upper()
             meta = get_instrument_meta(meta_tkr)
-            instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
-            asset_class = (meta.get("assetClass") or meta.get("asset_class") or "").upper()
-            sector = (meta.get("sector") or "").upper()
-            is_commodity = asset_class == "COMMODITY" or sector == "COMMODITY"
-            is_etf = instr_type == "ETF"
-            exempt_tickers = {t.upper() for t in (config.approval_exempt_tickers or [])}
-            exempt_types = {t.upper() for t in (config.approval_exempt_types or [])}
-            exempt_type = instr_type in exempt_types
-            if is_etf and is_commodity:
-                exempt_type = False
-
-            needs_approval = not (meta_tkr in exempt_tickers or exempt_type)
+            needs_approval = needs_sell_approval(
+                meta, (meta_tkr,), config.approval_exempt_types, config.approval_exempt_tickers
+            )
 
             approved = False
             if needs_approval:

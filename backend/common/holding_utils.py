@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from backend.common import refresh_progress
-from backend.common.approvals import is_approval_valid
+from backend.common.approvals import is_approval_valid, needs_sell_approval
 from backend.common.constants import (
     ACQUIRED_DATE,
     COST_BASIS_GBP,
@@ -1042,17 +1042,7 @@ def enrich_holding(
         out["days_until_eligible"] = None
         out["next_eligible_sell_date"] = None
 
-    instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
-    asset_class = (meta.get("assetClass") or meta.get("asset_class") or "").upper()
-    sector = (meta.get("sector") or "").upper()
-    is_commodity = asset_class == "COMMODITY" or sector == "COMMODITY"
-    is_etf = instr_type == "ETF"
-    exempt_tickers = {t.upper() for t in (ucfg.approval_exempt_tickers or [])}
-    exempt_types = {t.upper() for t in (ucfg.approval_exempt_types or [])}
-    exempt_type = instr_type in exempt_types
-    if is_etf and is_commodity:
-        exempt_type = False
-    needs_approval = not (ticker.upper() in exempt_tickers or full.upper() in exempt_tickers or exempt_type)
+    needs_approval = needs_sell_approval(meta, (ticker, full), ucfg.approval_exempt_types, ucfg.approval_exempt_tickers)
 
     approved = False
     if approvals and needs_approval:

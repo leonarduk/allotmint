@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 from datetime import date
 
+import pytest
+
 from backend.common.approvals import (
     add_trading_days,
     delete_approval,
     is_approval_valid,
     load_approvals,
+    needs_sell_approval,
     save_approvals,
     upsert_approval,
 )
@@ -103,3 +106,28 @@ def test_save_and_mutate_approvals(tmp_path):
         {"ticker": "AAPL", "approved_on": "2024-04-04"},
         {"ticker": "MSFT", "approved_on": "2024-04-01"},
     ]
+
+
+_GOLD_ETC = {"instrumentType": "ETC", "asset_class": "commodity", "sector": "Commodities"}
+_GOLD_ETF_BY_SECTOR = {"instrumentType": "ETF", "sector": "Commodities"}
+_EQUITY_ETF = {"instrumentType": "ETF", "asset_class": "equity", "sector": "Multi-sector"}
+
+
+@pytest.mark.parametrize(
+    "meta,exempt_types,exempt_tickers,expected",
+    [
+        # #10560: exempting ETC must not exempt a commodity ETC.
+        (_GOLD_ETC, ["ETF", "ETC"], [], True),
+        # #10560: a "Commodities" sector counts even without asset_class.
+        (_GOLD_ETF_BY_SECTOR, ["ETF"], [], True),
+        (_EQUITY_ETF, ["ETF"], [], False),
+        (_EQUITY_ETF, ["etf"], [], False),  # case-insensitive type match
+        (_EQUITY_ETF, [], [], True),
+        ({"instrumentType": "Equity"}, ["ETF"], [], True),
+        # An explicit per-ticker exemption still wins, commodity or not.
+        (_GOLD_ETC, ["ETF"], ["phgp.l"], False),
+        (_GOLD_ETC, None, None, True),
+    ],
+)
+def test_needs_sell_approval(meta, exempt_types, exempt_tickers, expected):
+    assert needs_sell_approval(meta, ("PHGP", "PHGP.L"), exempt_types, exempt_tickers) is expected

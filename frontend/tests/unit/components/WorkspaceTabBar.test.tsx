@@ -10,6 +10,7 @@ vi.mock('react-router-dom', async () =>
 
 import WorkspaceTabBar from '../../../src/components/WorkspaceTabBar';
 import WorkspaceTabsToggle from '../../../src/components/WorkspaceTabsToggle';
+import { CHAT_WINDOW_PATH } from '../../../src/utils/chatWindow';
 import {
   RemountOnTabRefresh,
   WorkspaceTabsProvider,
@@ -109,6 +110,26 @@ describe('WorkspaceTabBar', () => {
     fireEvent.click(screen.getByRole('button', { name: /refresh/i }));
     expect(readFetchCache('portfolio-group/family')).toBeUndefined();
     expect(mounts.count).toBe(2);
+  });
+
+  it('never records the detached chat window as a tab location', () => {
+    window.localStorage.setItem('allotmint.workspaceTabs.enabled', 'true');
+    window.sessionStorage.setItem(
+      'allotmint.workspaceTabs',
+      JSON.stringify({
+        tabs: [{ id: 't1', path: '/research/VWRL.L' }],
+        activeId: 't1',
+      })
+    );
+    renderShell(CHAT_WINDOW_PATH);
+
+    expect(screen.queryByRole('navigation')).toBeNull();
+    expect(
+      JSON.parse(window.sessionStorage.getItem('allotmint.workspaceTabs')!)
+    ).toEqual({
+      tabs: [{ id: 't1', path: '/research/VWRL.L' }],
+      activeId: 't1',
+    });
   });
 
   it('restores tabs from the session', () => {

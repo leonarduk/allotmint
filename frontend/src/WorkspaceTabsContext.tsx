@@ -24,6 +24,7 @@ import {
   selectTab as selectTabState,
   syncActivePath,
 } from './lib/workspaceTabs';
+import { CHAT_WINDOW_PATH } from './utils/chatWindow';
 import { clearFetchCache } from './utils/fetchCache';
 
 /**
@@ -38,16 +39,21 @@ export function WorkspaceTabsProvider({ children }: { children: ReactNode }) {
   const [enabled, setEnabledState] = useState(loadTabsEnabled);
   const [state, setState] = useState(() => loadTabsState(currentPath));
   const [refreshNonce, setRefreshNonce] = useState(0);
+  // The detached chat window is its own browser window, not a workspace
+  // view, so it never records or persists a tab location.
+  const tracking = enabled && location.pathname !== CHAT_WINDOW_PATH;
 
-  // Keyed on the location only: selectTab updates `state` and navigates in
-  // the same batch, so this never sees the new active tab with the old URL.
+  // Keyed on the location only. selectTab/closeTab call setState before
+  // navigate(), so the new active tab is committed no later than the new
+  // URL (same batch, or before it when the router navigates in a
+  // transition) -- this never writes a tab's path into its neighbour.
   useEffect(() => {
-    if (enabled) setState((s) => syncActivePath(s, currentPath));
-  }, [currentPath, enabled]);
+    if (tracking) setState((s) => syncActivePath(s, currentPath));
+  }, [currentPath, tracking]);
 
   useEffect(() => {
-    if (enabled) saveTabsState(state);
-  }, [enabled, state]);
+    if (tracking) saveTabsState(state);
+  }, [tracking, state]);
 
   const setEnabled = useCallback((next: boolean) => {
     setEnabledState(next);

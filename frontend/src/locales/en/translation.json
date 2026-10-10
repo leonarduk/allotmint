@@ -2457,7 +2457,7 @@
     "netDebtToEbitda": "Net debt / EBITDA",
     "currentRatio": "Current ratio",
     "fcf": "Free cash flow",
-    "from52wHigh": "From 52-week high",
+    "below52wHigh": "Below 52-week high",
     "marketContext": "Market credit spreads:",
     "spreadReading": "{{label}} {{value}}pp ({{percentile}}th percentile)",
     "usHighYield": "US high yield",

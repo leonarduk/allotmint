@@ -53,7 +53,10 @@ try:
 except ModuleNotFoundError as exc:
     if not missing_package(exc, "mcp"):
         raise
-    ToolError = ValueError  # without mcp the pro tool cannot be installed either
+
+    class ToolError(Exception):  # type: ignore[no-redef]
+        """Never raised: without mcp the pro tool cannot be installed either."""
+
 
 logger = logging.getLogger(__name__)
 

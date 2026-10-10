@@ -158,6 +158,34 @@ describe('InstrumentCreditRiskPanel', () => {
     expect(screen.queryByText('Altman Z-score')).not.toBeInTheDocument();
   });
 
+  it('shows the fall from the 52-week high as a distance below it', async () => {
+    mockGetCreditRisk.mockResolvedValue(verdict());
+
+    render(<InstrumentCreditRiskPanel ticker="BP.L" />);
+
+    await screen.findByTestId('credit-risk-band');
+    expect(rowValue('Below 52-week high')).toBe('4%');
+  });
+
+  it('hides market spreads when every stored reading is empty', async () => {
+    mockGetCreditRisk.mockResolvedValue(
+      verdict(
+        {},
+        {
+          available: true,
+          series: {
+            us_high_yield: { value: null, date: null, percentile: null },
+          },
+        }
+      )
+    );
+
+    render(<InstrumentCreditRiskPanel ticker="BP.L" />);
+
+    await screen.findByTestId('credit-risk-band');
+    expect(screen.queryByText(/Market credit spreads/)).not.toBeInTheDocument();
+  });
+
   it('hides market spreads when none are stored', async () => {
     mockGetCreditRisk.mockResolvedValue(
       verdict(

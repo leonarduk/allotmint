@@ -19,7 +19,7 @@ const SIGNAL_LABELS: [string, string][] = [
   ['net_debt_to_ebitda', 'instrumentCreditRisk.netDebtToEbitda'],
   ['current_ratio', 'instrumentCreditRisk.currentRatio'],
   ['fcf', 'instrumentCreditRisk.fcf'],
-  ['from_52w_high', 'instrumentCreditRisk.from52wHigh'],
+  ['from_52w_high', 'instrumentCreditRisk.below52wHigh'],
 ];
 
 // Market spread series -> i18n label key.
@@ -39,7 +39,8 @@ function signalValue(
 ): string {
   if (value == null || !Number.isFinite(value)) return '—';
   if (name === 'fcf') return `${largeNumber(value)} ${currency ?? ''}`.trim();
-  if (name === 'from_52w_high') return percent(value * 100, 0);
+  // A fall from the high (-0.038), shown as the distance below it: "4%".
+  if (name === 'from_52w_high') return percent(Math.abs(value) * 100, 0);
   if (name === 'interest_coverage' || name === 'net_debt_to_ebitda')
     return `${ratio(value)}x`;
   return ratio(value);

@@ -2464,7 +2464,7 @@
     "netDebtToEbitda": "Dette nette / EBITDA",
     "currentRatio": "Ratio de liquidité générale",
     "fcf": "Flux de trésorerie disponible",
-    "from52wHigh": "Depuis le plus haut sur 52 semaines",
+    "below52wHigh": "Sous le plus haut sur 52 semaines",
     "marketContext": "Écarts de crédit du marché :",
     "spreadReading": "{{label}} {{value}} pp ({{percentile}}e centile)",
     "usHighYield": "Haut rendement US",

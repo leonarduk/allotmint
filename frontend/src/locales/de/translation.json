@@ -2464,7 +2464,7 @@
     "netDebtToEbitda": "Nettoverschuldung / EBITDA",
     "currentRatio": "Liquidität 3. Grades",
     "fcf": "Freier Cashflow",
-    "from52wHigh": "Abstand zum 52-Wochen-Hoch",
+    "below52wHigh": "Unter dem 52-Wochen-Hoch",
     "marketContext": "Kreditspreads am Markt:",
     "spreadReading": "{{label}} {{value}} Pp. ({{percentile}}. Perzentil)",
     "usHighYield": "US-Hochzins",

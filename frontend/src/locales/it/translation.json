@@ -2464,7 +2464,7 @@
     "netDebtToEbitda": "Debito netto / EBITDA",
     "currentRatio": "Indice di liquidità corrente",
     "fcf": "Flusso di cassa libero",
-    "from52wHigh": "Dal massimo a 52 settimane",
+    "below52wHigh": "Sotto il massimo a 52 settimane",
     "marketContext": "Spread creditizi di mercato:",
     "spreadReading": "{{label}} {{value}} pp ({{percentile}}° percentile)",
     "usHighYield": "High yield USA",

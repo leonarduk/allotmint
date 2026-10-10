@@ -87,6 +87,17 @@ describe('workspace tab storage', () => {
     expect(loadTabsState('/x')).toEqual(createInitialState('/x'));
     window.sessionStorage.setItem('allotmint.workspaceTabs', '{"tabs":[]}');
     expect(loadTabsState('/x')).toEqual(createInitialState('/x'));
+    window.sessionStorage.setItem(
+      'allotmint.workspaceTabs',
+      JSON.stringify({
+        tabs: [
+          { id: 't1', path: '/a' },
+          { id: 't1', path: '/b' },
+        ],
+        activeId: 't1',
+      })
+    );
+    expect(loadTabsState('/x')).toEqual(createInitialState('/x'));
     window.sessionStorage.setItem('allotmint.workspaceTabs', 'not json');
     expect(loadTabsState('/x')).toEqual(createInitialState('/x'));
   });

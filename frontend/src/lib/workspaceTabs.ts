@@ -106,6 +106,7 @@ function isValidState(value: unknown): value is WorkspaceTabsState {
         typeof tab.path === 'string' &&
         tab.path.startsWith('/')
     ) &&
+    new Set(tabs.map((tab) => tab.id)).size === tabs.length &&
     typeof activeId === 'string' &&
     tabs.some((tab) => tab.id === activeId)
   );

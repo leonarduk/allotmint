@@ -4035,5 +4035,13 @@
       "cash_mismatch": "El efectivo final difiere",
       "units_mismatch": "Las unidades finales difieren"
     }
+  },
+  "workspaceTabs": {
+    "label": "Pestañas de trabajo",
+    "new": "Abrir la vista actual en una pestaña nueva",
+    "refresh": "Actualizar {{label}}",
+    "close": "Cerrar {{label}}",
+    "toggle": "Mostrar pestañas de trabajo",
+    "toggleHelp": "Mantén varias vistas abiertas, p. ej. el resumen del grupo y algunos instrumentos, y cambia entre ellas sin salir de esta pestaña del navegador. Usa + para abrir la vista actual en una pestaña nueva y ↻ para recargar sus datos."
   }
 }

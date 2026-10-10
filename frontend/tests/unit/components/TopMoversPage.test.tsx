@@ -274,6 +274,19 @@ describe("TopMoversPage", () => {
     expect(detail).toHaveTextContent("go long");
   });
 
+  it("links each signal ticker to its research page (#10576)", async () => {
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+    // A real link, so Ctrl/middle-click can open it in a new browser tab.
+    expect(await screen.findByRole("link", { name: "AAA" })).toHaveAttribute(
+      "href",
+      "/research/AAA",
+    );
+  });
+
   it("shows HTTP status when fetch fails", async () => {
     mockGetOpportunities.mockImplementationOnce(() => {
       throw new Error("HTTP 401 – Unauthorized");

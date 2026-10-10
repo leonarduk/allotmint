@@ -4035,5 +4035,13 @@
       "cash_mismatch": "Schlussbestand Bargeld weicht ab",
       "units_mismatch": "Schlussbestand Stück weicht ab"
     }
+  },
+  "workspaceTabs": {
+    "label": "Arbeitsbereich-Tabs",
+    "new": "Aktuelle Ansicht in neuem Tab öffnen",
+    "refresh": "{{label}} aktualisieren",
+    "close": "{{label}} schließen",
+    "toggle": "Arbeitsbereich-Tabs anzeigen",
+    "toggleHelp": "Mehrere Ansichten offen halten, z. B. die Gruppenübersicht und einige Instrumente, und zwischen ihnen wechseln, ohne diesen Browser-Tab zu verlassen. Mit + die aktuelle Ansicht in einem neuen Tab öffnen, mit ↻ ihre Daten neu laden."
   }
 }

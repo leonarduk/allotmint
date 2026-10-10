@@ -4035,5 +4035,13 @@
       "cash_mismatch": "Saldo final diferente",
       "units_mismatch": "Unidades finais diferentes"
     }
+  },
+  "workspaceTabs": {
+    "label": "Separadores de trabalho",
+    "new": "Abrir a vista atual num novo separador",
+    "refresh": "Atualizar {{label}}",
+    "close": "Fechar {{label}}",
+    "toggle": "Mostrar separadores de trabalho",
+    "toggleHelp": "Mantenha várias vistas abertas, p. ex. o resumo do grupo e alguns instrumentos, e alterne entre elas sem sair deste separador do navegador. Use + para abrir a vista atual num novo separador e ↻ para recarregar os seus dados."
   }
 }

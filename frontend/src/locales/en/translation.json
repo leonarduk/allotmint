@@ -4028,5 +4028,13 @@
       "cash_mismatch": "Closing cash differs",
       "units_mismatch": "Closing units differ"
     }
+  },
+  "workspaceTabs": {
+    "label": "Workspace tabs",
+    "new": "Open the current view in a new tab",
+    "refresh": "Refresh {{label}}",
+    "close": "Close {{label}}",
+    "toggle": "Show workspace tabs",
+    "toggleHelp": "Keep several views open, e.g. the group overview and a few instruments, and switch between them without leaving this browser tab. Use + to open the current view in a new tab and ↻ to reload its data."
   }
 }

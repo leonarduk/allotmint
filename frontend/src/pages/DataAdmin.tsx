@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   listTimeseries,
   refetchTimeseries,
@@ -10,7 +10,6 @@ import type { TimeseriesSummary } from "../types";
 
 export default function DataAdmin() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [rows, setRows] = useState<TimeseriesSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -129,13 +128,12 @@ export default function DataAdmin() {
                 >
                   {t("dataadmin.rebuildCache")}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/research/${r.ticker}`)}
+                <Link
+                  to={`/research/${encodeURIComponent(r.ticker)}`}
                   style={{ marginLeft: "0.25rem" }}
                 >
                   {t("dataadmin.openInstrument")}
-                </button>
+                </Link>
               </td>
             </tr>
             );

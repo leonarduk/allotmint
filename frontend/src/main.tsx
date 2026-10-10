@@ -44,6 +44,11 @@ import AppHeader from './components/AppHeader';
 import DetachedChat from './components/DetachedChat';
 import { CHAT_WINDOW_PATH } from './utils/chatWindow';
 import DemoReadOnlyBanner from './components/DemoReadOnlyBanner';
+import WorkspaceTabBar from './components/WorkspaceTabBar';
+import {
+  RemountOnTabRefresh,
+  WorkspaceTabsProvider,
+} from './WorkspaceTabsContext';
 import {
   applyDemoTokenFromUrl,
   clearDemoSession,
@@ -507,101 +512,107 @@ export function Root({
   }
 
   return (
-    <>
+    <WorkspaceTabsProvider>
       {demoReadOnly && <DemoReadOnlyBanner />}
-      <ErrorBoundary key={location.pathname}>
-        <Suspense fallback={<div>{t('mainApp.loading')}</div>}>
-          <Routes>
-            {complianceRoutesEnabled ? (
-              <>
-                <Route path="/compliance" element={<ComplianceWarnings />} />
-                <Route
-                  path="/compliance/:owner"
-                  element={<ComplianceWarnings />}
-                />
-              </>
-            ) : null}
-            {standalonePageRoutes.flatMap((route) => {
-              if (route.routePath === '/virtual' || !route.lazyComponent) {
-                return [];
-              }
-              if (!isModeEnabled(route.mode, tabs, disabledTabs)) {
-                return [];
-              }
-
-              const Component = route.lazyComponent;
-              // Standalone pages mount outside App.tsx's mode dispatch, so they
-              // render with zero nav chrome unless the wrapper is added here
-              // (or the page self-renders AppHeader like AlertSettings does).
-              // /alert-settings, /support and /create-account are excluded by
-              // standaloneRouteNeedsChrome (#6725).
-              const needsChrome = standaloneRouteNeedsChrome(route.routePath);
-              return [
-                <Route
-                  key={route.routePath}
-                  path={route.routePath}
-                  element={
-                    needsChrome ? (
-                      <>
-                        <AppHeader />
-                        <Component />
-                      </>
-                    ) : (
-                      <Component />
-                    )
-                  }
-                />,
-              ];
-            })}
-            {FAMILY_MVP_ROUTE_GATES.flatMap(({ mode, path }) =>
-              isModeEnabled(mode, tabs, disabledTabs)
-                ? []
-                : [
-                    <Route
-                      key={`disabled-${path}`}
-                      path={path}
-                      element={<DisabledFeature />}
-                    />,
-                  ]
-            )}
-            <Route path={CHAT_WINDOW_PATH} element={<DetachedChat />} />
-            {/* /goals mounts outside App.tsx, so it needs the header added
-                explicitly like the standalone routes above (#7813). */}
-            <Route
-              path="/goals"
-              element={
+      <WorkspaceTabBar />
+      <RemountOnTabRefresh>
+        <ErrorBoundary key={location.pathname}>
+          <Suspense fallback={<div>{t('mainApp.loading')}</div>}>
+            <Routes>
+              {complianceRoutesEnabled ? (
                 <>
-                  <AppHeader />
-                  <Goals />
+                  <Route path="/compliance" element={<ComplianceWarnings />} />
+                  <Route
+                    path="/compliance/:owner"
+                    element={<ComplianceWarnings />}
+                  />
                 </>
-              }
-            />
-            <Route path="/smoke-test" element={<SmokeTest />} />
-            {advancedAnalyticsEnabled ? (
-              <>
-                <Route
-                  path="/performance/:owner/diagnostics"
-                  element={<PerformanceDiagnostics />}
-                />
-                <Route path="/returns/compare" element={<ReturnComparison />} />
-                <Route
-                  path="/metrics-explained"
-                  element={<MetricsExplanation />}
-                />
-              </>
-            ) : null}
-            <Route
-              path="/*"
-              element={
-                <RouteProvider>
-                  <App onLogout={logout} />
-                </RouteProvider>
-              }
-            />
-          </Routes>
-        </Suspense>
-      </ErrorBoundary>
-    </>
+              ) : null}
+              {standalonePageRoutes.flatMap((route) => {
+                if (route.routePath === '/virtual' || !route.lazyComponent) {
+                  return [];
+                }
+                if (!isModeEnabled(route.mode, tabs, disabledTabs)) {
+                  return [];
+                }
+
+                const Component = route.lazyComponent;
+                // Standalone pages mount outside App.tsx's mode dispatch, so they
+                // render with zero nav chrome unless the wrapper is added here
+                // (or the page self-renders AppHeader like AlertSettings does).
+                // /alert-settings, /support and /create-account are excluded by
+                // standaloneRouteNeedsChrome (#6725).
+                const needsChrome = standaloneRouteNeedsChrome(route.routePath);
+                return [
+                  <Route
+                    key={route.routePath}
+                    path={route.routePath}
+                    element={
+                      needsChrome ? (
+                        <>
+                          <AppHeader />
+                          <Component />
+                        </>
+                      ) : (
+                        <Component />
+                      )
+                    }
+                  />,
+                ];
+              })}
+              {FAMILY_MVP_ROUTE_GATES.flatMap(({ mode, path }) =>
+                isModeEnabled(mode, tabs, disabledTabs)
+                  ? []
+                  : [
+                      <Route
+                        key={`disabled-${path}`}
+                        path={path}
+                        element={<DisabledFeature />}
+                      />,
+                    ]
+              )}
+              <Route path={CHAT_WINDOW_PATH} element={<DetachedChat />} />
+              {/* /goals mounts outside App.tsx, so it needs the header added
+                explicitly like the standalone routes above (#7813). */}
+              <Route
+                path="/goals"
+                element={
+                  <>
+                    <AppHeader />
+                    <Goals />
+                  </>
+                }
+              />
+              <Route path="/smoke-test" element={<SmokeTest />} />
+              {advancedAnalyticsEnabled ? (
+                <>
+                  <Route
+                    path="/performance/:owner/diagnostics"
+                    element={<PerformanceDiagnostics />}
+                  />
+                  <Route
+                    path="/returns/compare"
+                    element={<ReturnComparison />}
+                  />
+                  <Route
+                    path="/metrics-explained"
+                    element={<MetricsExplanation />}
+                  />
+                </>
+              ) : null}
+              <Route
+                path="/*"
+                element={
+                  <RouteProvider>
+                    <App onLogout={logout} />
+                  </RouteProvider>
+                }
+              />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
+      </RemountOnTabRefresh>
+    </WorkspaceTabsProvider>
   );
 }
 
@@ -769,9 +780,7 @@ void bootstrapRuntimeConfig()
       const reason = extractTokenExchangeErrorReason(error);
       createRoot(rootEl).render(
         <div role="alert" className="app-offline">
-          <p>
-            {i18n.t('mainApp.authUnavailable')}
-          </p>
+          <p>{i18n.t('mainApp.authUnavailable')}</p>
           {reason && <p>{i18n.t('mainApp.signInFailed', { reason })}</p>}
           <button type="button" onClick={() => window.location.reload()}>
             {i18n.t('mainApp.signIn')}

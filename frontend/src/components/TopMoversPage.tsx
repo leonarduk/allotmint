@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { getOpportunities, getGroupInstruments } from "../api";
@@ -66,7 +66,6 @@ export function TopMoversPage() {
   const [selected, setSelected] = useState<
     { row: OpportunityEntry } | null
   >(null);
-  const navigate = useNavigate();
   const { t } = useTranslation();
   const [needsLogin, setNeedsLogin] = useState(false);
   const [portfolioTotal, setPortfolioTotal] = useState<number | null>(null);
@@ -428,15 +427,9 @@ export function TopMoversPage() {
               {visibleSignals.map((s, index) => (
                 <tr key={`${s.ticker}-${index}`}>
                   <td style={{ padding: "4px" }}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        navigate(`/research/${s.ticker}`);
-                      }}
-                    >
+                    <Link to={`/research/${encodeURIComponent(s.ticker)}`}>
                       {s.ticker}
-                    </a>
+                    </Link>
                   </td>
                   <td style={{ padding: "4px" }}>
                     {formatSignalAction(s.action)}

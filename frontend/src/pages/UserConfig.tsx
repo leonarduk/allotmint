@@ -13,6 +13,7 @@ import type { Approval, OwnerSummary, UserConfig } from '../types';
 import { useAuth } from '../AuthContext';
 import { useDemoReadOnly } from '../hooks/useDemoReadOnly';
 import { findOwnerForUser, sanitizeOwners } from '../utils/owners';
+import WorkspaceTabsToggle from '../components/WorkspaceTabsToggle';
 
 /**
  * Link to the compliance documentation that governs the trading rules shown
@@ -238,6 +239,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
           )}
         </section>
       )}
+      <WorkspaceTabsToggle />
       {ownersLoading ? (
         <p className="text-gray-800 dark:text-gray-200">
           {t('userConfig.loadingOwners', 'Loading owners...')}

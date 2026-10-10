@@ -17,7 +17,7 @@ import {
   listInstrumentGroups,
   listInstrumentGroupingDefinitions,
 } from '../api';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import Sparkline from './Sparkline';
 import { COST_BASIS_BOOK_SUSPECT, isCostBasisUnreliable } from '../lib/costBasis';
 import { useInstrumentTableState } from './instrumentTable/useInstrumentTableState';
@@ -71,7 +71,6 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
   const { relativeViewEnabled } = useConfig();
   const reporting = useReportingCurrency();
   const [groupDefinitions, setGroupDefinitions] = useState<InstrumentGroupDefinition[]>([]);
-  const navigate = useNavigate();
   const {
     categoryLookup,
     exchanges,
@@ -514,21 +513,12 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                   return (
                     <tr key={`${group.key}-${r.ticker}`}>
                       <td className={tableStyles.cell}>
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/research/${encodeURIComponent(r.ticker)}`)}
-                          style={{
-                            color: 'dodgerblue',
-                            textDecoration: 'underline',
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            font: 'inherit',
-                            cursor: 'pointer',
-                          }}
+                        <Link
+                          to={`/research/${encodeURIComponent(r.ticker)}`}
+                          style={{ color: 'dodgerblue', textDecoration: 'underline' }}
                         >
                           {r.ticker}
-                        </button>
+                        </Link>
                       </td>
                       <td className={tableStyles.cell}>{r.name}</td>
                       {showTrend && (
@@ -545,25 +535,12 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
                       )}
                       <td className={tableStyles.cell}>
                         {isSupportedFx(r.currency) ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              navigate(
-                                `/research/${encodeURIComponent(`${r.currency}GBP.FX`)}`,
-                              )
-                            }
-                            style={{
-                              color: 'dodgerblue',
-                              textDecoration: 'underline',
-                              background: 'none',
-                              border: 'none',
-                              padding: 0,
-                              font: 'inherit',
-                              cursor: 'pointer',
-                            }}
+                          <Link
+                            to={`/research/${encodeURIComponent(`${r.currency}GBP.FX`)}`}
+                            style={{ color: 'dodgerblue', textDecoration: 'underline' }}
                           >
                             {r.currency}
-                          </button>
+                          </Link>
                         ) : (
                           r.currency ?? '—'
                         )}

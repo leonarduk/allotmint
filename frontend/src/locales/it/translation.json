@@ -4008,5 +4008,13 @@
       "cash_mismatch": "Liquidità finale diversa",
       "units_mismatch": "Quote finali diverse"
     }
+  },
+  "workspaceTabs": {
+    "label": "Schede di lavoro",
+    "new": "Apri la vista corrente in una nuova scheda",
+    "refresh": "Aggiorna {{label}}",
+    "close": "Chiudi {{label}}",
+    "toggle": "Mostra schede di lavoro",
+    "toggleHelp": "Tieni aperte più viste, ad es. la panoramica del gruppo e alcuni strumenti, e passa dall'una all'altra senza lasciare questa scheda del browser. Usa + per aprire la vista corrente in una nuova scheda e ↻ per ricaricarne i dati."
   }
 }

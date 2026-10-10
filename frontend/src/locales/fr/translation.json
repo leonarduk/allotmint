@@ -4008,5 +4008,13 @@
       "cash_mismatch": "Solde de liquidités différent",
       "units_mismatch": "Quantité finale différente"
     }
+  },
+  "workspaceTabs": {
+    "label": "Onglets de travail",
+    "new": "Ouvrir la vue actuelle dans un nouvel onglet",
+    "refresh": "Actualiser {{label}}",
+    "close": "Fermer {{label}}",
+    "toggle": "Afficher les onglets de travail",
+    "toggleHelp": "Gardez plusieurs vues ouvertes, par ex. l'aperçu du groupe et quelques instruments, et passez de l'une à l'autre sans quitter cet onglet du navigateur. Utilisez + pour ouvrir la vue actuelle dans un nouvel onglet et ↻ pour recharger ses données."
   }
 }

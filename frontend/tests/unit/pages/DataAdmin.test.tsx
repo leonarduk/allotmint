@@ -42,7 +42,10 @@ describe("DataAdmin page", () => {
     );
     expect(await screen.findByRole("button", { name: "Refetch" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rebuild cache" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open instrument" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open instrument" })).toHaveAttribute(
+      "href",
+      "/research/ABC",
+    );
   });
 
   it("links a missing local login error to the relevant support control", async () => {

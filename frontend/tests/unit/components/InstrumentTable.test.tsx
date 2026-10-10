@@ -88,16 +88,6 @@ vi.mock("@/api", () => ({
     listInstrumentGroupingDefinitions: listInstrumentGroupingDefinitionsMock,
 }));
 
-const navigateMock = vi.hoisted(() => vi.fn());
-
-vi.mock("react-router-dom", async () => {
-    const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
-    return {
-        ...actual,
-        useNavigate: () => navigateMock,
-    };
-});
-
 vi.mock("@/components/InstrumentDetail", () => ({
     InstrumentDetail: vi.fn(() => <div data-testid="instrument-detail" />),
 }));
@@ -199,11 +189,11 @@ describe("InstrumentTable", () => {
             if (!cell) {
                 break;
             }
-            const tickerButton = cell.querySelector("button");
-            if (!tickerButton) {
+            const tickerLink = cell.querySelector("a");
+            if (!tickerLink) {
                 break;
             }
-            tickers.push(tickerButton.textContent ?? "");
+            tickers.push(tickerLink.textContent ?? "");
             current = current.nextElementSibling as HTMLTableRowElement | null;
         }
         return tickers;
@@ -385,27 +375,31 @@ describe("InstrumentTable", () => {
         await waitFor(() => expect(screen.getByText("ABC")).toBeInTheDocument());
     });
 
-    it("navigates to research for a ticker when clicked", async () => {
+    it("links each ticker to its research page (#10576)", async () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
         await screen.findByRole("button", { name: /Toggle Group A/i });
         openGroup("Group A");
         expect(screen.getByText("GBP")).toBeInTheDocument();
-        fireEvent.click(screen.getByText("ABC"));
 
-        expect(navigateMock).toHaveBeenCalledWith("/research/ABC");
+        // A real link, so Ctrl/middle-click can open it in a new browser tab.
+        expect(screen.getByRole("link", { name: "ABC" })).toHaveAttribute(
+            "href",
+            "/research/ABC",
+        );
     });
 
-    it("creates FX pair ticker buttons and skips GBX", async () => {
-        navigateMock.mockClear();
+    it("creates FX pair ticker links and skips GBX", async () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
         await screen.findByRole("button", { name: /Toggle Group A/i });
         openGroup("Group A");
         openGroup("Group B");
         openGroup("Ungrouped");
-        fireEvent.click(screen.getByRole('button', { name: 'USD' }));
-        expect(navigateMock).toHaveBeenCalledWith("/research/USDGBP.FX");
-        expect(screen.queryByRole('button', { name: 'GBX' })).toBeNull();
-        expect(screen.getByRole('button', { name: 'CAD' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'USD' })).toHaveAttribute(
+            'href',
+            '/research/USDGBP.FX',
+        );
+        expect(screen.queryByRole('link', { name: 'GBX' })).toBeNull();
+        expect(screen.getByRole('link', { name: 'CAD' })).toBeInTheDocument();
     });
 
     it("sorts by ticker when header clicked", async () => {

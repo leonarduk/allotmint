@@ -7,6 +7,7 @@ import json
 import pandas as pd
 import pytest
 
+from backend.common import instruments as instruments_module
 from backend.data_quality import issues as issues_module
 from backend.data_quality.issues import (
     IssueType,
@@ -55,8 +56,8 @@ def test_aggregate_holding_issues_wrong_exchange(monkeypatch, tmp_path, accounts
     def fake_meta(ticker: str) -> dict:
         return {"name": "MercadoLibre", "ticker": ticker} if ticker == "MICC.N" else {}
 
-    def fake_resolve(symbol, create_missing=False):
-        return "MICC.N" if symbol == "MICC" else None
+    def fake_resolve(ticker, create_missing=False):
+        return "MICC.N" if ticker.partition(".")[0] == "MICC" else None
 
     monkeypatch.setattr(issues_module, "get_instrument_meta", fake_meta)
     monkeypatch.setattr(issues_module, "resolve_instrument_ticker", fake_resolve)
@@ -86,13 +87,32 @@ def test_aggregate_holding_issues_missing_series(monkeypatch, tmp_path, accounts
     monkeypatch.setattr(
         issues_module,
         "resolve_instrument_ticker",
-        lambda symbol, create_missing=False: f"{symbol}.L",
+        lambda ticker, create_missing=False: ticker,
     )
     monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
 
     issues = aggregate_holding_issues(accounts_root)
     missing = [i for i in issues if i.type == IssueType.MISSING_SERIES]
-    assert len(missing) == 3  # VWRL.L, MICC.L -> MICC.L, PFE.N -> PFE.L
+    assert len(missing) == 3  # VWRL.L, MICC.L, PFE.N
+
+
+def test_missing_series_uses_holding_exchange_not_symbol_namesake(monkeypatch, tmp_path):
+    """IONQ.N must be checked against its own series, not an unrelated IONQ.L
+    instrument that resolves first for the bare symbol (L is tried first)."""
+    owner = tmp_path / "demo"
+    owner.mkdir()
+    (owner / "person.json").write_text(json.dumps({"owner": "demo", "holdings": []}), encoding="utf-8")
+    sipp = {"owner": "demo", "account_type": "sipp", "currency": "GBP", "holdings": [{"ticker": "IONQ.N"}]}
+    (owner / "sipp.json").write_text(json.dumps(sipp), encoding="utf-8")
+
+    metadata = {"IONQ.N": {"name": "IonQ, Inc."}, "IONQ.L": {"name": "LEVERAGE SHARES PUBLIC LIMITED"}}
+    monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: metadata.get(t, {}))
+    monkeypatch.setattr(instruments_module, "get_instrument_meta", lambda t: metadata.get(t, {}))
+    monkeypatch.setattr(instruments_module, "_persisted_metadata_exchanges", lambda symbol: ["L", "N"])
+    monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: (t, e) == ("IONQ", "N"))
+
+    issues = aggregate_holding_issues(tmp_path)
+    assert [i for i in issues if i.type == IssueType.MISSING_SERIES] == []
 
 
 def test_aggregate_holding_issues_missing_series_unresolvable(monkeypatch, tmp_path, accounts_root):
@@ -316,7 +336,9 @@ def _patch_book_cost_env(monkeypatch, current_price):
     from backend.common import portfolio_utils as pu
 
     monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: {"name": "x"})
-    monkeypatch.setattr(issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: f"{symbol}.L")
+    monkeypatch.setattr(
+        issues_module, "resolve_instrument_ticker", lambda ticker, create_missing=False: f"{ticker.partition('.')[0]}.L"
+    )
     monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: True)
     monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda full, cache: (full.split(".")[0], "L"))
     monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
@@ -418,7 +440,7 @@ def test_missing_metadata_reports_only_the_metadata_issue(monkeypatch, tmp_path)
     monkeypatch.setattr(
         issues_module,
         "resolve_instrument_ticker",
-        lambda symbol, create_missing=False: "MOVED.N" if symbol == "MOVED" else None,
+        lambda ticker, create_missing=False: "MOVED.N" if ticker.partition(".")[0] == "MOVED" else None,
     )
     monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: True)
 

@@ -51,7 +51,7 @@ def _build_client(monkeypatch, tmp_path, *, series: list[tuple[str, str, pd.Data
     monkeypatch.setattr(
         issues_module,
         "resolve_instrument_ticker",
-        lambda symbol, create_missing=False: "MICC.N" if symbol == "MICC" else None,
+        lambda ticker, create_missing=False: "MICC.N" if ticker.partition(".")[0] == "MICC" else None,
     )
     monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
     monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [(t, e) for t, e, _ in series])
@@ -112,7 +112,7 @@ def _build_auth_enabled_client(monkeypatch, tmp_path, *, authorized_owner="demo"
     monkeypatch.setattr(
         issues_module,
         "resolve_instrument_ticker",
-        lambda symbol, create_missing=False: "MICC.N" if symbol == "MICC" else None,
+        lambda ticker, create_missing=False: "MICC.N" if ticker.partition(".")[0] == "MICC" else None,
     )
     monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
     monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [])
@@ -201,7 +201,7 @@ def test_fix_missing_series_dispatches_to_refetch(monkeypatch, client, tmp_path)
     monkeypatch.setattr(
         issues_module,
         "resolve_instrument_ticker",
-        lambda symbol, create_missing=False: f"{symbol}.L",
+        lambda ticker, create_missing=False: f"{ticker.partition('.')[0]}.L",
     )
     monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
 
@@ -1009,7 +1009,7 @@ def test_issues_use_request_scoped_accounts_root_not_config_accounts_root(monkey
     monkeypatch.setattr(
         issues_module,
         "resolve_instrument_ticker",
-        lambda symbol, create_missing=False: "MICC.N" if symbol == "MICC" else None,
+        lambda ticker, create_missing=False: "MICC.N" if ticker.partition(".")[0] == "MICC" else None,
     )
     monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
     monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [])
@@ -1060,7 +1060,7 @@ def test_issues_use_request_scoped_accounts_root_not_config_accounts_root(monkey
     monkeypatch.setattr(
         issues_module,
         "resolve_instrument_ticker",
-        lambda symbol, create_missing=False: "ABCD.N" if symbol == "ABCD" else None,
+        lambda ticker, create_missing=False: "ABCD.N" if ticker.partition(".")[0] == "ABCD" else None,
     )
     monkeypatch.setattr(
         issues_module,

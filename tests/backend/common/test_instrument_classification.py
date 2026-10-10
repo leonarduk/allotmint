@@ -310,3 +310,25 @@ def test_cached_overrides_reread_only_when_file_changes(monkeypatch, tmp_path) -
     ic.clear_overrides_cache()
     ic.cached_classification_overrides()
     assert len(calls) == 3
+
+
+@pytest.mark.parametrize(
+    "meta,expected",
+    [
+        # Each signal counts on its own (#10560).
+        (_meta("WisdomTree Physical Silver (GBP)", "ETC", "Commodities", asset_class="commodity"), True),
+        (_meta("Some Fund", "ETF", "Commodities"), True),  # sector only
+        (_meta("Some Fund", "ETF", "Materials", asset_class="Commodity"), True),  # stored only
+        (_meta("WisdomTree Physical Gold", "ETC", "Materials"), True),  # name only
+        (_meta("WisdomTree Energy", "ETF", "Commodities - Energy"), True),
+        ({"sector": "Commodities"}, True),  # untyped record
+        # Gold-miner equity ETFs hold shares, not metal.
+        (_meta("VanEck Gold Miners ETF", "ETF", "Materials", asset_class="equity"), False),
+        (_meta("iShares V plc Gold Producers UCITS ETF Acc (GBP)", "ETF", "Materials"), False),
+        (_meta("Vanguard FTSE All-World UCITS ETF (GBP)", "ETF", "Multi-sector"), False),
+        (_meta("Rio Tinto plc", "Equity", "Materials"), False),
+        ({}, False),
+    ],
+)
+def test_is_commodity(meta, expected) -> None:
+    assert ic.is_commodity(meta) is expected

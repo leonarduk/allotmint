@@ -45,7 +45,8 @@ def test_credit_risk_returns_the_single_row_with_context(monkeypatch):
 
     assert resp.status_code == 200
     assert seen == ["BP.L"]
-    assert resp.json() == {"result": ROW, "market_context": CONTEXT, "thresholds": {"x": 1}, "note": "n"}
+    # pro's thresholds and English note are not passed on (the card has its own caveat).
+    assert resp.json() == {"result": ROW, "market_context": CONTEXT}
 
 
 def test_credit_risk_rejects_a_blank_ticker(monkeypatch):

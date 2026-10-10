@@ -126,8 +126,9 @@ export function InstrumentCreditRiskPanel({ ticker }: { ticker: string }) {
 
   const { result } = data;
   // The row is passed through from pro unvalidated: treat an unexpected band as unknown.
-  const band: CreditRiskBand =
-    result.band in BAND_COLOR ? result.band : 'unknown';
+  const band: CreditRiskBand = Object.hasOwn(BAND_COLOR, result.band)
+    ? result.band
+    : 'unknown';
   const color = BAND_COLOR[band];
   // The route passes the pro row through as-is, so do not trust every list to be present.
   const notes = [...(result.reasons ?? []), ...(result.mitigations ?? [])];

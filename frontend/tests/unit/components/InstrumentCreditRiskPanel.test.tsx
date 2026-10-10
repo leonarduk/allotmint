@@ -53,8 +53,6 @@ const verdict = (
     ...overrides,
   },
   market_context: context,
-  thresholds: { altman_z_distress_below: 1.8 },
-  note: 'Signals against fixed thresholds.',
 });
 
 const rowValue = (label: string) =>
@@ -188,6 +186,18 @@ describe('InstrumentCreditRiskPanel', () => {
 
     await screen.findByTestId('credit-risk-band');
     expect(screen.queryByText(/Market credit spreads/)).not.toBeInTheDocument();
+  });
+
+  it('does not mistake a built-in object key for a band', async () => {
+    mockGetCreditRisk.mockResolvedValue(
+      verdict({ band: 'constructor' as unknown as CreditRiskBand })
+    );
+
+    render(<InstrumentCreditRiskPanel ticker="BP.L" />);
+
+    expect(await screen.findByTestId('credit-risk-band')).toHaveTextContent(
+      'Unknown'
+    );
   });
 
   it('shows an unexpected band as unknown', async () => {

@@ -460,8 +460,10 @@ def credit_risk(ticker: str = Query(..., description="Full ticker, e.g. BP.L")) 
     ``result`` is the pro tool's row: ``band`` (high/watch/low/unknown),
     ``reasons``, ``mitigations``, ``signals`` (Altman Z, interest cover, net
     debt / EBITDA, current ratio, FCF, 52-week fall) and ``data_gaps``.
-    ``market_context`` holds the latest stored credit spreads, ``thresholds``
-    the cut-offs and ``note`` the caveat to show with it. The same verdict
+    ``market_context`` holds the latest stored credit spreads. The reasons
+    already quote each threshold crossed, and the card carries its own
+    translated caveat, so pro's ``thresholds`` and English ``note`` are not
+    passed on. The same verdict
     backs the assistant's ``get_credit_risk`` MCP tool.
     """
 
@@ -480,6 +482,4 @@ def credit_risk(ticker: str = Query(..., description="Full ticker, e.g. BP.L")) 
     return {
         "result": verdict["results"][0],
         "market_context": verdict.get("market_context"),
-        "thresholds": verdict.get("thresholds"),
-        "note": verdict.get("note"),
     }

@@ -1114,8 +1114,6 @@ export interface InstrumentCreditRisk {
     units?: string;
     series?: Record<string, CreditSpreadReading>;
   } | null;
-  thresholds: Record<string, number> | null;
-  note: string | null;
 }
 
 /**

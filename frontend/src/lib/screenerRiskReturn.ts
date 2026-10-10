@@ -109,8 +109,19 @@ export function mergeRiskReturn(
   period: RiskPeriod
 ): ScreenerRow[] {
   if (!data) return rows;
-  const byTicker = new Map(data.rows.map((r) => [r.ticker.toUpperCase(), r]));
-  const missing = new Set(data.missing.map((t) => t.toUpperCase()));
+  // The engine normalises a bare US symbol ("SPY") to "SPY.N", so index each
+  // row under both forms; the S&P 500 watchlist sends bare symbols.
+  const byTicker = new Map<string, RiskReturnRow>();
+  for (const r of data.rows) {
+    byTicker.set(r.ticker.toUpperCase(), r);
+    if (r.requested) byTicker.set(r.requested.toUpperCase(), r);
+  }
+  const missing = new Set(
+    data.missing.flatMap((t) => {
+      const upper = t.toUpperCase();
+      return upper.endsWith('.N') ? [upper, upper.slice(0, -2)] : [upper];
+    })
+  );
   return rows.map((r) => {
     const key = r.ticker.toUpperCase();
     return {

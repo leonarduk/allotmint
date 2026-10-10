@@ -80,6 +80,21 @@ describe('mergeRiskReturn', () => {
     expect(merged[0].sharpe_3y).toBe(1.0);
   });
 
+  it('matches a bare US symbol to the normalised .N ticker', () => {
+    const spy = { ...row, ticker: 'SPY.N', requested: 'SPY' };
+    const merged = mergeRiskReturn(
+      [
+        { rank: 1, ticker: 'SPY' },
+        { rank: 2, ticker: 'QQQ' },
+      ],
+      { ...data, rows: [spy], missing: ['QQQ.N'] },
+      'local',
+      '3'
+    );
+    expect(merged[0].sharpe_3y).toBe(1.0);
+    expect(merged[1].risk_status).toBe('missing');
+  });
+
   it('returns the rows untouched when there is no payload', () => {
     const rows = [{ rank: 1, ticker: 'VUSA.L' }];
     expect(mergeRiskReturn(rows, null, 'gbp', '10')).toBe(rows);

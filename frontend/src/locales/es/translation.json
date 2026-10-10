@@ -3632,10 +3632,31 @@
     "footnote": "† solo rentabilidad de precio. Haz clic en un horizonte para ordenar de mejor a peor.",
     "col": {
       "strategy": "Estrategia",
-      "actions": "Acciones"
+      "actions": "Acciones",
+      "event": "Evento"
     },
     "rowMissing": "Sin historial de precios para: {{missing}}",
-    "nothingCovered": "Ninguna estrategia ni tus posiciones tienen precios guardados en torno al {{date}}. Elige un evento posterior."
+    "nothingCovered": "Ninguna estrategia ni tus posiciones tienen precios guardados en torno al {{date}}. Elige un evento posterior.",
+    "factors": "Factores de riesgo",
+    "factorsHelp": "Mostrar solo los eventos etiquetados con todos los factores seleccionados.",
+    "clearFactors": "Borrar",
+    "factor": {
+      "equity": "Renta variable",
+      "rates": "Tipos",
+      "inflation": "Inflación",
+      "fx": "Divisas",
+      "credit": "Crédito",
+      "liquidity": "Liquidez",
+      "commodities": "Materias primas",
+      "volatility": "Volatilidad"
+    },
+    "runAll": "Ejecutar todos los coincidentes ({{n}})",
+    "runningAll": "Ejecutando {{done}} de {{total}}…",
+    "noMatches": "Ningún evento tiene todos los factores seleccionados.",
+    "batchTitle": "Tu cartera en los eventos coincidentes",
+    "batchFootnote": "Rentabilidad de la cartera desde cada fecha. Detalles abre la comparación completa de estrategias para ese evento.",
+    "details": "Detalles",
+    "detailsAria": "Mostrar estrategias para {{name}}"
   },
   "assetClasses": {
     "equity": "Renta variable",

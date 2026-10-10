@@ -248,3 +248,111 @@ describe('StrategyStressPanel', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('StrategyStressPanel risk-factor filter (#10575)', () => {
+  const EVENTS = [
+    {
+      id: '1992-09-16',
+      name: 'Black Wednesday',
+      risk_factors: ['fx', 'rates'],
+    },
+    {
+      id: '1994-02-04',
+      name: 'Bond rout',
+      risk_factors: ['rates', 'inflation'],
+    },
+    { id: '2000-03-10', name: 'Dot-com', risk_factors: ['equity'] },
+    { id: '2022-09-23', name: 'Mini-budget', risk_factors: ['rates', 'fx'] },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetEvents.mockResolvedValue(EVENTS);
+    mockRunStrategyStress.mockResolvedValue(RESULT);
+  });
+
+  const optionNames = () =>
+    screen
+      .getAllByRole('option')
+      .slice(1) // "Custom date…"
+      .map((o) => o.textContent);
+
+  it('narrows the event list to events carrying every selected factor', async () => {
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Rates' }));
+    expect(optionNames()).toEqual([
+      'Black Wednesday [FX, Rates]',
+      'Bond rout [Rates, Inflation]',
+      'Mini-budget [Rates, FX]',
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'FX' }));
+    expect(optionNames()).toEqual([
+      'Black Wednesday [FX, Rates]',
+      'Mini-budget [Rates, FX]',
+    ]);
+    expect(
+      screen.getByRole('button', { name: 'Run all matching (2)' })
+    ).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(optionNames()).toHaveLength(4);
+  });
+
+  it('only offers chips for factors some event carries', async () => {
+    renderPanel();
+    await screen.findByRole('button', { name: 'Rates' });
+    expect(screen.queryByRole('button', { name: 'Credit' })).toBeNull();
+  });
+
+  it('clears a selected event that the filter hides', async () => {
+    renderPanel();
+    const select = await screen.findByRole('combobox', { name: 'Event' });
+    await screen.findByRole('option', { name: 'Dot-com [Equity]' });
+    fireEvent.change(select, { target: { value: '2000-03-10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Rates' }));
+    expect(select).toHaveValue('');
+  });
+
+  it('runs every matching event in turn and tabulates the portfolio return', async () => {
+    mockRunStrategyStress
+      .mockResolvedValueOnce(RESULT)
+      .mockRejectedValueOnce(new Error('HTTP 500 – boom'));
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'FX' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Run all matching (2)' })
+    );
+
+    const table = (
+      await screen.findByText('Your portfolio across matching events')
+    ).parentElement!;
+    await within(table).findByText('HTTP 500 – boom');
+    expect(mockRunStrategyStress.mock.calls).toEqual([
+      ['alex', { event_id: '1992-09-16', horizons: ['1m', '3m', '1y'] }],
+      ['alex', { event_id: '2022-09-23', horizons: ['1m', '3m', '1y'] }],
+    ]);
+    const first = within(table).getByText('Black Wednesday').closest('tr')!;
+    expect(within(first).getByText('-15.00%')).toBeInTheDocument();
+    expect(within(first).getByText('FX, Rates')).toBeInTheDocument();
+  });
+
+  it('opens the full strategy table for a batch row', async () => {
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Equity' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Run all matching (1)' })
+    );
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Show strategies for Dot-com',
+      })
+    );
+    await screen.findByText('Permanent Portfolio');
+    expect(mockRunStrategyStress).toHaveBeenLastCalledWith('alex', {
+      event_id: '2000-03-10',
+      horizons: ['1m', '3m', '1y'],
+    });
+    expect(screen.getByRole('combobox', { name: 'Event' })).toHaveValue(
+      '2000-03-10'
+    );
+  });
+});

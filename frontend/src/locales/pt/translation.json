@@ -3632,10 +3632,31 @@
     "footnote": "† apenas retorno de preço. Clique num horizonte para ordenar do melhor para o pior.",
     "col": {
       "strategy": "Estratégia",
-      "actions": "Ações"
+      "actions": "Ações",
+      "event": "Evento"
     },
     "rowMissing": "Sem histórico de preços para: {{missing}}",
-    "nothingCovered": "Nenhuma estratégia nem as suas posições têm preços guardados por volta de {{date}}. Escolha um evento posterior."
+    "nothingCovered": "Nenhuma estratégia nem as suas posições têm preços guardados por volta de {{date}}. Escolha um evento posterior.",
+    "factors": "Fatores de risco",
+    "factorsHelp": "Mostrar apenas eventos marcados com todos os fatores selecionados.",
+    "clearFactors": "Limpar",
+    "factor": {
+      "equity": "Ações",
+      "rates": "Juros",
+      "inflation": "Inflação",
+      "fx": "Câmbio",
+      "credit": "Crédito",
+      "liquidity": "Liquidez",
+      "commodities": "Matérias-primas",
+      "volatility": "Volatilidade"
+    },
+    "runAll": "Executar todos os correspondentes ({{n}})",
+    "runningAll": "Executando {{done}} de {{total}}…",
+    "noMatches": "Nenhum evento tem todos os fatores selecionados.",
+    "batchTitle": "Sua carteira nos eventos correspondentes",
+    "batchFootnote": "Retorno da carteira desde cada data. Detalhes abre a comparação completa de estratégias para esse evento.",
+    "details": "Detalhes",
+    "detailsAria": "Mostrar estratégias para {{name}}"
   },
   "assetClasses": {
     "equity": "Ações",

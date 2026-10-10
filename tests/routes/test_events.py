@@ -32,7 +32,7 @@ def test_list_events_filters_extra_fields(monkeypatch, tmp_path):
         response = client.get("/events")
 
     assert response.status_code == 200
-    assert response.json() == [{"id": "custom", "name": "Custom"}]
+    assert response.json() == [{"id": "custom", "name": "Custom", "risk_factors": []}]
 
     reload_events_module()
 
@@ -95,7 +95,41 @@ def test_list_events_reads_market_events_layout(monkeypatch, tmp_path):
         response = client.get("/events")
 
     assert response.status_code == 200
-    assert response.json() == [{"id": "2020-03-16", "name": "2020-03-16: COVID-19 volatility"}]
+    assert response.json() == [{"id": "2020-03-16", "name": "2020-03-16: COVID-19 volatility", "risk_factors": []}]
+
+    reload_events_module()
+
+
+def test_list_events_returns_known_risk_factors(monkeypatch, tmp_path):
+    events_dir = tmp_path / "events"
+    events_dir.mkdir()
+    (events_dir / "market_events.json").write_text(
+        json.dumps(
+            {
+                "events": [
+                    {
+                        "date": "2022-09-23",
+                        "description": "UK mini-budget",
+                        "risk_factors": ["Rates", "fx", "astrology", "fx"],
+                    },
+                    {"date": "2016-06-24", "description": "Brexit", "risk_factors": "fx"},
+                ],
+            }
+        )
+    )
+
+    with monkeypatch.context() as patcher:
+        patcher.delattr(events_module, "_events_path", raising=False)
+        patcher.setattr(events_module.config, "data_root", tmp_path)
+        reload_events_module()
+        client = create_client()
+
+        response = client.get("/events")
+
+    assert response.status_code == 200
+    factors = {e["id"]: e["risk_factors"] for e in response.json()}
+    # Case-normalised, unknown tags and duplicates dropped; a non-list is ignored.
+    assert factors == {"2022-09-23": ["rates", "fx"], "2016-06-24": []}
 
     reload_events_module()
 

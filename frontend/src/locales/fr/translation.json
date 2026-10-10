@@ -3632,10 +3632,31 @@
     "footnote": "† rendement de prix uniquement. Cliquez sur un horizon pour trier du meilleur au moins bon.",
     "col": {
       "strategy": "Stratégie",
-      "actions": "Actions"
+      "actions": "Actions",
+      "event": "Événement"
     },
     "rowMissing": "Aucun historique de prix pour : {{missing}}",
-    "nothingCovered": "Aucune stratégie ni aucune de vos positions n'a de prix enregistrés autour du {{date}}. Choisissez un événement plus récent."
+    "nothingCovered": "Aucune stratégie ni aucune de vos positions n'a de prix enregistrés autour du {{date}}. Choisissez un événement plus récent.",
+    "factors": "Facteurs de risque",
+    "factorsHelp": "N’afficher que les événements portant tous les facteurs sélectionnés.",
+    "clearFactors": "Effacer",
+    "factor": {
+      "equity": "Actions",
+      "rates": "Taux",
+      "inflation": "Inflation",
+      "fx": "Change",
+      "credit": "Crédit",
+      "liquidity": "Liquidité",
+      "commodities": "Matières premières",
+      "volatility": "Volatilité"
+    },
+    "runAll": "Lancer tous les correspondants ({{n}})",
+    "runningAll": "Exécution {{done}} sur {{total}}…",
+    "noMatches": "Aucun événement ne porte tous les facteurs sélectionnés.",
+    "batchTitle": "Votre portefeuille sur les événements correspondants",
+    "batchFootnote": "Rendement du portefeuille depuis chaque date. Détails ouvre la comparaison complète des stratégies pour cet événement.",
+    "details": "Détails",
+    "detailsAria": "Afficher les stratégies pour {{name}}"
   },
   "assetClasses": {
     "equity": "Actions",

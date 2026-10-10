@@ -88,6 +88,15 @@ describe('WorkspaceTabBar', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'VWRL.L' }));
     expect(path()).toBe('/research/VWRL.L');
+
+    // Switching never writes one tab's location into the tab it left.
+    const stored = JSON.parse(
+      window.sessionStorage.getItem('allotmint.workspaceTabs')!
+    );
+    expect(stored.tabs.map((t: { path: string }) => t.path)).toEqual([
+      '/?group=family',
+      '/research/VWRL.L',
+    ]);
   });
 
   it('closing the active tab navigates to its neighbour', () => {

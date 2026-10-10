@@ -343,6 +343,27 @@ def test_enrich_holding_days_until_eligible_never_zero_when_not_sellable(
     assert out["days_until_eligible"] == expected_days
 
 
+@pytest.mark.parametrize(
+    "meta, expected_sellable",
+    [
+        # #10560: a commodity ETC stays gated even when ETC is an exempt type.
+        ({"instrumentType": "ETC", "asset_class": "commodity", "sector": "Commodities"}, False),
+        # #10560: the "Commodities" sector alone marks a commodity ETF.
+        ({"instrumentType": "ETF", "sector": "Commodities"}, False),
+        ({"instrumentType": "ETF", "asset_class": "equity", "sector": "Multi-sector"}, True),
+    ],
+)
+def test_enrich_holding_commodity_needs_approval_whatever_its_type(monkeypatch, meta, expected_sellable):
+    _stub_days_held_deps(monkeypatch)
+    monkeypatch.setattr(hu, "get_instrument_meta", lambda *_: meta)
+    ucfg = hu.UserConfig(hold_days_min=30, approval_exempt_types=["ETF", "ETC"], approval_exempt_tickers=[])
+    holding = {TICKER: "FOO.L", UNITS: 1, ACQUIRED_DATE: "2026-01-01"}
+
+    out = hu.enrich_holding(holding, dt.date(2026, 10, 7), price_cache={}, approvals={}, user_config=ucfg)
+
+    assert out["sell_eligible"] is expected_sellable
+
+
 def test_get_effective_cost_basis_gbp_falls_back_to_price_hint_when_unknown(monkeypatch):
     """Direct unit test for the price_hint fallback added alongside #7220.
 

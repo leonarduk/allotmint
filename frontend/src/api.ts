@@ -28,6 +28,7 @@ import type {
   GroupRiskReturn,
   PriceEntry,
   ScreenerResult,
+  ScreenerRiskReturn,
   InstrumentValuation,
   InstrumentTechnicals,
   VirtualPortfolio,
@@ -1494,6 +1495,26 @@ export const getInstrumentTechnicals = (ticker: string, signal?: AbortSignal) =>
     `${API_BASE}/screener/technicals?${new URLSearchParams({ ticker }).toString()}`,
     { signal },
   );
+
+/**
+ * Sharpe, volatility, annualised return and worst fall over 3/5/10-year
+ * windows for each ticker (allotmint#10607, engine in allotmint-pro#724).
+ * Rejects with status 402 when the deployment lacks the engine. Uses stored
+ * prices only unless `fetchMissing` is set.
+ */
+export const getScreenerRiskReturn = (
+  tickers: string[],
+  options: { years?: number[]; fetchMissing?: boolean } = {},
+  signal?: AbortSignal,
+) => {
+  const params = new URLSearchParams({ tickers: tickers.join(",") });
+  if (options.years?.length) params.set("years", options.years.join(","));
+  if (options.fetchMissing) params.set("fetch_missing", "true");
+  return fetchJson<ScreenerRiskReturn>(
+    `${API_BASE}/screener/risk-return?${params.toString()}`,
+    { signal },
+  );
+};
 
 /**
  * Cheap up-front probe for whether the screener is available in this

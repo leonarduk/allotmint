@@ -1223,6 +1223,10 @@
         "avgVolume": {
           "title": "Average volume",
           "detail": "The average number of shares traded per day over a recent period."
+        },
+        "riskReturn": {
+          "title": "Risk and return (Screener)",
+          "detail": "The Screener's Sharpe, return, volatility and worst-fall columns cover the last 3, 5 and 10 years to the as-of date. Return is annualised; volatility is the annualised standard deviation of weekly returns (weekly, so day-to-day currency timing doesn't inflate it); Sharpe is return minus the risk-free rate — the mean Bank of England Bank Rate over the same window — divided by volatility. Figures are in GBP or in the listing's own currency, and include dividends where they are recorded (total), only for part of the history (partial), or not at all (price). Min Sharpe is the lowest of the three periods, so a high value means consistently good risk-adjusted returns. Past figures are not a forecast."
         }
       },
       "movers": {
@@ -1641,6 +1645,40 @@
     },
     "tips": {
       "infoLabel": "What does {{column}} mean?"
+    },
+    "risk": {
+      "controlsLabel": "Risk/return",
+      "currency": "Currency",
+      "currencyGbp": "GBP",
+      "currencyLocal": "Local currency",
+      "period": "Period",
+      "periodOption": "{{years}}y",
+      "minSharpe": "Min Sharpe",
+      "sharpeScope": "Sharpe period",
+      "scopeAll": "All three",
+      "maxDrawdown": "Max worst fall",
+      "col": {
+        "sharpe": "Sharpe {{years}}y",
+        "minSharpe": "Min Sharpe",
+        "return": "Return/yr {{years}}y",
+        "volatility": "Volatility {{years}}y",
+        "worstFall": "Worst fall {{years}}y",
+        "basis": "Ccy · basis"
+      },
+      "basis": {
+        "total": "total",
+        "partial": "partial dividends",
+        "price": "price only"
+      },
+      "pending": "Loading risk/return figures",
+      "loading": "Loading risk/return figures…",
+      "error": "Risk/return figures couldn't be loaded: {{error}}",
+      "summary": "Risk/return as of {{date}}, in {{currency}}. Risk-free rate (mean Bank Rate): {{rates}}. Past figures are not a forecast.",
+      "missing": "{{count}} ticker(s) have no stored price history, so their risk/return cells are blank.",
+      "filteredOut": "{{count}} row(s) hidden by the risk/return filters.",
+      "noHistory": "No stored price history for this ticker",
+      "shortHistory": "Price history is shorter than {{years}} years",
+      "notReturned": "No risk/return figures for this ticker"
     },
     "saved": {
       "label": "Saved screens",

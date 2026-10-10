@@ -986,6 +986,58 @@ export interface ScreenerResult {
   instrument_type?: string | null;
 }
 
+/**
+ * Annualised figures for one window and currency from GET
+ * /screener/risk-return (allotmint-pro#724). Fractions (0.18 = 18%);
+ * volatility is from weekly returns, max_drawdown is negative.
+ */
+export interface RiskReturnStats {
+  return: number | null;
+  volatility: number | null;
+  sharpe: number | null;
+  max_drawdown: number | null;
+}
+
+/** One window's figures in GBP and in the listing's own currency. */
+export interface RiskReturnWindow {
+  gbp: RiskReturnStats | null;
+  local: RiskReturnStats | null;
+}
+
+/**
+ * "total": dividends reinvested throughout; "partial": dividends only
+ * recorded from part-way through the longest window; "price": price only.
+ */
+export type RiskReturnBasis = "total" | "partial" | "price";
+
+export interface RiskReturnRow {
+  /** Normalised ticker (a bare US symbol comes back with ".N"). */
+  ticker: string;
+  /** The ticker exactly as requested, e.g. "SPY" for "SPY.N". */
+  requested?: string | null;
+  name?: string | null;
+  currency: string | null;
+  currency_source?: "metadata" | "exchange_default" | string | null;
+  return_basis: RiskReturnBasis;
+  first_date: string | null;
+  last_date: string | null;
+  /** Keyed by window length in years ("3", "5", "10"); null when history is too short. */
+  windows: Record<string, RiskReturnWindow | null>;
+  notes: string[];
+}
+
+export interface ScreenerRiskReturn {
+  as_of: string | null;
+  /** Mean Bank Rate over each window, as a fraction, keyed by years. */
+  risk_free: Record<string, number | null>;
+  method: string;
+  rows: RiskReturnRow[];
+  /** Tickers with no stored prices (and not fetched). */
+  missing: string[];
+  /** Tickers fetched by this call (fetch_missing only). */
+  fetched: string[];
+}
+
 /** NAV freshness from the valuation profile (allotmint#9197). */
 export type NavStatus = 'current' | 'stale' | 'undated';
 

@@ -13,6 +13,7 @@ vi.mock("@/components/InstrumentDetail", () => ({
 
 const mockGetScreener = vi.mocked(api.getScreener);
 const mockCheckScreenerAvailable = vi.mocked(api.checkScreenerAvailable);
+const mockGetScreenerRiskReturn = vi.mocked(api.getScreenerRiskReturn);
 
 function ResearchStub() {
   const { ticker } = useParams();
@@ -45,6 +46,10 @@ describe("Screener", () => {
     // this -- the gate probe (#7221) must not affect existing form-render
     // and submit tests.
     mockCheckScreenerAvailable.mockResolvedValue(true);
+    // Risk/return columns stay hidden unless a test opts in (#10607).
+    mockGetScreenerRiskReturn.mockRejectedValue(
+      Object.assign(new Error("Risk/return screen is not available"), { status: 402 }),
+    );
   });
 
   it("renders a page heading and description before the form", () => {
@@ -616,3 +621,228 @@ describe("Screener", () => {
   });
 });
 
+// --- Risk/return columns (#10607) -----------------------------------------
+
+type Stats = { return: number; volatility: number; sharpe: number; max_drawdown: number };
+
+const stats = (sharpe: number, max_drawdown = -0.2): Stats => ({
+  return: 0.1,
+  volatility: 0.15,
+  sharpe,
+  max_drawdown,
+});
+
+function riskRow(ticker: string, sharpes: [number, number, number | null], fall = -0.2) {
+  const window = (s: number | null) =>
+    s == null ? null : { gbp: stats(s, fall), local: stats(s + 0.5, fall) };
+  return {
+    ticker,
+    name: null,
+    currency: "USD",
+    currency_source: "metadata",
+    return_basis: "total" as const,
+    first_date: "2015-01-02",
+    last_date: "2026-10-08",
+    windows: { "3": window(sharpes[0]), "5": window(sharpes[1]), "10": window(sharpes[2]) },
+    notes: [],
+  };
+}
+
+const RISK_PAYLOAD = {
+  as_of: "2026-10-08",
+  risk_free: { "3": 0.0449, "5": 0.0369, "10": 0.0204 },
+  method: "Weekly returns",
+  rows: [
+    riskRow("AAA", [1.2, 1.1, 0.9], -0.3),
+    riskRow("BBB", [0.4, 0.6, 0.7], -0.1),
+    riskRow("CCC", [1.5, 1.4, null]),
+  ],
+  missing: ["DDD"],
+  fetched: [],
+};
+
+const fundamentals = (ticker: string, rank: number) =>
+  ({ rank, ticker, name: `${ticker} plc` }) as never;
+
+async function runRiskScreen() {
+  mockGetScreener.mockResolvedValueOnce([
+    fundamentals("AAA", 1),
+    fundamentals("BBB", 2),
+    fundamentals("CCC", 3),
+    fundamentals("DDD", 4),
+  ]);
+  mockGetScreenerRiskReturn.mockResolvedValueOnce(RISK_PAYLOAD);
+  const view = renderScreener();
+  await enterCustomTickers("AAA,BBB,CCC,DDD");
+  fireEvent.submit(screen.getByText("Run").closest("form")!);
+  await screen.findByText(/Risk\/return as of 2026-10-08/);
+  return view;
+}
+
+const tickerOrder = (container: HTMLElement) =>
+  Array.from(container.querySelectorAll("tbody tr td:nth-child(2) a")).map(
+    (a) => a.textContent,
+  );
+
+const headerLabels = () =>
+  screen.getAllByRole("columnheader").map((th) => th.childNodes[0]?.textContent?.trim());
+
+const rowCells = (container: HTMLElement, n: number) =>
+  Array.from(container.querySelectorAll(`tbody tr:nth-child(${n}) td`));
+
+describe("Screener risk/return columns (#10607)", () => {
+  beforeEach(() => {
+    mockCheckScreenerAvailable.mockResolvedValue(true);
+    mockGetScreener.mockReset();
+    mockGetScreenerRiskReturn.mockReset();
+  });
+
+  it("requests risk/return for the same tickers alongside the fundamentals", async () => {
+    await runRiskScreen();
+
+    expect(mockGetScreenerRiskReturn).toHaveBeenCalledWith(
+      ["AAA", "BBB", "CCC", "DDD"],
+      {},
+      expect.anything(),
+    );
+    expect(mockGetScreener.mock.calls[0][0]).toEqual(["AAA", "BBB", "CCC", "DDD"]);
+  });
+
+  it("does not hold the fundamentals table back while risk/return loads", async () => {
+    mockGetScreener.mockResolvedValueOnce([fundamentals("AAA", 1)]);
+    mockGetScreenerRiskReturn.mockReturnValueOnce(new Promise(() => {}));
+
+    const { container } = renderScreener();
+    await enterCustomTickers("AAA");
+    fireEvent.submit(screen.getByText("Run").closest("form")!);
+
+    expect(await screen.findByText("AAA")).toBeInTheDocument();
+    expect(screen.getByText("Loading risk/return figures…")).toBeInTheDocument();
+    expect(screen.getByText("Sharpe 10y")).toBeInTheDocument();
+    const cells = Array.from(container.querySelectorAll("tbody td")).map((td) => td.textContent);
+    expect(cells.filter((c) => c === "…")).toHaveLength(8);
+  });
+
+  it("merges Sharpe, min Sharpe and selected-period figures by ticker", async () => {
+    const { container } = await runRiskScreen();
+
+    const headers = headerLabels();
+    const row = rowCells(container, 1).map((td) => td.textContent?.trim());
+    expect(row).toHaveLength(headers.length);
+    expect(row[headers.indexOf("Sharpe 3y")]).toBe("1.20");
+    expect(row[headers.indexOf("Sharpe 10y")]).toBe("0.90");
+    expect(row[headers.indexOf("Min Sharpe")]).toBe("0.90");
+    expect(row[headers.indexOf("Return/yr 10y")]).toBe("10.0%");
+    expect(row[headers.indexOf("Volatility 10y")]).toBe("15.0%");
+    expect(row[headers.indexOf("Worst fall 10y")]).toBe("-30.0%");
+    expect(row[headers.indexOf("Ccy · basis")]).toBe("GBP · total");
+    expect(screen.getByText(/1 ticker\(s\) have no stored price history/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Past figures are not a forecast/, { selector: "p" }),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves min Sharpe blank unless all three periods exist, and says why", async () => {
+    const { container } = await runRiskScreen();
+
+    const headers = headerLabels();
+    const minCell = rowCells(container, 3)[headers.indexOf("Min Sharpe")];
+    expect(minCell.textContent).toBe("—");
+    expect(minCell).toHaveAttribute("title", "Price history is shorter than 10 years");
+    expect(rowCells(container, 4)[headers.indexOf("Sharpe 3y")]).toHaveAttribute(
+      "title",
+      "No stored price history for this ticker",
+    );
+  });
+
+  it("sorts by min Sharpe", async () => {
+    const { container } = await runRiskScreen();
+
+    fireEvent.click(screen.getByText("Min Sharpe", { selector: "th" }));
+    // Ascending; a blank min Sharpe sorts as 0, like other blank columns.
+    expect(tickerOrder(container)).toEqual(["CCC", "DDD", "BBB", "AAA"]);
+    fireEvent.click(screen.getByText("Min Sharpe", { selector: "th" }));
+    expect(tickerOrder(container)).toEqual(["AAA", "BBB", "CCC", "DDD"]);
+  });
+
+  it("filters by min Sharpe across all three periods or one period", async () => {
+    const { container } = await runRiskScreen();
+
+    fireEvent.change(screen.getByLabelText("Min Sharpe"), { target: { value: "0.8" } });
+    expect(tickerOrder(container)).toEqual(["AAA"]);
+    expect(screen.getByText("3 row(s) hidden by the risk/return filters.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Sharpe period"), { target: { value: "3" } });
+    expect(tickerOrder(container)).toEqual(["AAA", "CCC"]);
+  });
+
+  it("filters by the worst fall over the selected period", async () => {
+    const { container } = await runRiskScreen();
+
+    fireEvent.change(screen.getByLabelText("Max worst fall"), { target: { value: "0.25" } });
+    expect(tickerOrder(container)).toEqual(["BBB"]);
+
+    // CCC has no 10-year window, but its 5-year fall qualifies.
+    fireEvent.change(screen.getByLabelText("Period"), { target: { value: "5" } });
+    expect(tickerOrder(container)).toEqual(["BBB", "CCC"]);
+    expect(screen.getByText("Worst fall 5y")).toBeInTheDocument();
+  });
+
+  it("switches to local-currency figures", async () => {
+    const { container } = await runRiskScreen();
+
+    fireEvent.change(screen.getByLabelText("Currency"), { target: { value: "local" } });
+
+    const headers = headerLabels();
+    const row = rowCells(container, 1).map((td) => td.textContent?.trim());
+    expect(row[headers.indexOf("Sharpe 3y")]).toBe("1.70");
+    expect(row[headers.indexOf("Ccy · basis")]).toBe("USD · total");
+  });
+
+  it("hides the risk columns and controls quietly when the engine is unavailable", async () => {
+    const errorSpy = vi.spyOn(console, "error");
+    mockGetScreener.mockResolvedValueOnce([fundamentals("AAA", 1)]);
+    mockGetScreenerRiskReturn.mockRejectedValueOnce(
+      Object.assign(new Error("not available"), { status: 402 }),
+    );
+
+    renderScreener();
+    await enterCustomTickers("AAA");
+    fireEvent.submit(screen.getByText("Run").closest("form")!);
+
+    expect(await screen.findByText("AAA")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Sharpe 10y")).not.toBeInTheDocument());
+    expect(screen.queryByLabelText("Min Sharpe")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Risk\/return/)).not.toBeInTheDocument();
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("explains a failed risk/return request without hiding the fundamentals", async () => {
+    mockGetScreener.mockResolvedValueOnce([fundamentals("AAA", 1)]);
+    mockGetScreenerRiskReturn.mockRejectedValueOnce(new Error("HTTP 500"));
+
+    renderScreener();
+    await enterCustomTickers("AAA");
+    fireEvent.submit(screen.getByText("Run").closest("form")!);
+
+    expect(
+      await screen.findByText("Risk/return figures couldn't be loaded: HTTP 500"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("AAA")).toBeInTheDocument();
+    expect(screen.queryByText("Sharpe 10y")).not.toBeInTheDocument();
+  });
+
+  it("links the risk headers to the glossary", async () => {
+    await runRiskScreen();
+
+    const tip = screen.getByRole("button", { name: "What does Min Sharpe mean?" });
+    fireEvent.click(tip);
+    expect(
+      within(tip.parentElement as HTMLElement).getByRole("link", { name: "Learn more" }),
+    ).toHaveAttribute(
+      "href",
+      "/metrics-explained#screener-risk-return",
+    );
+  });
+});

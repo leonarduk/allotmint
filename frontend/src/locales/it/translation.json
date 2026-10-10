@@ -495,6 +495,7 @@
     "allPositions": "Tutte le posizioni",
     "contribRegion": "Regione",
     "contribSector": "Settore",
+    "contribTooltipLabel": "Contributo",
     "insightCashDrag": "{{percent}} del tuo portafoglio è in liquidità",
     "insightConcentration": "La posizione principale {{ticker}} pesa il {{percent}} del tuo portafoglio",
     "insightDuplication": "Detieni {{ticker}} in {{accountCount}} conti",

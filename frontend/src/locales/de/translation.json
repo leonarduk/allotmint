@@ -3632,10 +3632,31 @@
     "footnote": "† nur Kursrendite. Klicken Sie auf einen Zeitraum, um die besten zuerst zu sortieren.",
     "col": {
       "strategy": "Strategie",
-      "actions": "Aktionen"
+      "actions": "Aktionen",
+      "event": "Ereignis"
     },
     "rowMissing": "Keine Kursdaten für: {{missing}}",
-    "nothingCovered": "Für keine Strategie und keine Ihrer Positionen sind Kurse um den {{date}} gespeichert. Wählen Sie ein späteres Ereignis."
+    "nothingCovered": "Für keine Strategie und keine Ihrer Positionen sind Kurse um den {{date}} gespeichert. Wählen Sie ein späteres Ereignis.",
+    "factors": "Risikofaktoren",
+    "factorsHelp": "Nur Ereignisse anzeigen, die alle ausgewählten Faktoren tragen.",
+    "clearFactors": "Zurücksetzen",
+    "factor": {
+      "equity": "Aktien",
+      "rates": "Zinsen",
+      "inflation": "Inflation",
+      "fx": "Währung",
+      "credit": "Kredit",
+      "liquidity": "Liquidität",
+      "commodities": "Rohstoffe",
+      "volatility": "Volatilität"
+    },
+    "runAll": "Alle passenden ausführen ({{n}})",
+    "runningAll": "{{done}} von {{total}} wird ausgeführt…",
+    "noMatches": "Kein Ereignis trägt alle ausgewählten Faktoren.",
+    "batchTitle": "Ihr Portfolio über die passenden Ereignisse",
+    "batchFootnote": "Portfoliorendite ab jedem Ereignisdatum. „Details“ öffnet den vollständigen Strategievergleich für dieses Ereignis.",
+    "details": "Details",
+    "detailsAria": "Strategien für {{name}} anzeigen"
   },
   "assetClasses": {
     "equity": "Aktien",

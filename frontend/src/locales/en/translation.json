@@ -3625,10 +3625,31 @@
     "footnote": "† price return only. Click a horizon to sort best first.",
     "col": {
       "strategy": "Strategy",
-      "actions": "Actions"
+      "actions": "Actions",
+      "event": "Event"
     },
     "rowMissing": "No price history for: {{missing}}",
-    "nothingCovered": "None of the strategies or your holdings have stored prices around {{date}}. Choose a later event."
+    "nothingCovered": "None of the strategies or your holdings have stored prices around {{date}}. Choose a later event.",
+    "factors": "Risk factors",
+    "factorsHelp": "Show only events tagged with every selected factor.",
+    "clearFactors": "Clear",
+    "factor": {
+      "equity": "Equity",
+      "rates": "Rates",
+      "inflation": "Inflation",
+      "fx": "FX",
+      "credit": "Credit",
+      "liquidity": "Liquidity",
+      "commodities": "Commodities",
+      "volatility": "Volatility"
+    },
+    "runAll": "Run all matching ({{n}})",
+    "runningAll": "Running {{done}} of {{total}}…",
+    "noMatches": "No events carry all the selected factors.",
+    "batchTitle": "Your portfolio across matching events",
+    "batchFootnote": "Portfolio return from each event date. Details opens the full strategy comparison for that event.",
+    "details": "Details",
+    "detailsAria": "Show strategies for {{name}}"
   },
   "assetClasses": {
     "equity": "Equity",

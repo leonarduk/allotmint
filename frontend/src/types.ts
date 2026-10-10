@@ -895,6 +895,8 @@ export type Nudge = {
 export interface ScenarioEvent {
   id: string;
   name: string;
+  /** Risk factors the event exercised (e.g. "rates", "fx"); [] when untagged. */
+  risk_factors?: string[];
 }
 
 export interface ScenarioHorizonResult {

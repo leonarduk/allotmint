@@ -27,8 +27,34 @@ def _resolve_events_path() -> Path:
     return _BUNDLED_EVENTS_PATH
 
 
-def _market_event(event: dict[str, Any]) -> dict[str, str]:
-    return {"id": event["date"], "name": f"{event['date']}: {event['description']}"}
+# Risk factors an event can be tagged with (#10575); unknown tags are dropped.
+RISK_FACTORS = (
+    "equity",
+    "rates",
+    "inflation",
+    "fx",
+    "credit",
+    "liquidity",
+    "commodities",
+    "volatility",
+)
+
+
+def _risk_factors(event: dict[str, Any]) -> list[str]:
+    """Known ``risk_factors`` tags for ``event``, lower-cased, in file order, de-duplicated."""
+    raw = event.get("risk_factors")
+    if not isinstance(raw, list):
+        return []
+    tags = (str(tag).strip().lower() for tag in raw)
+    return list(dict.fromkeys(tag for tag in tags if tag in RISK_FACTORS))
+
+
+def _market_event(event: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": event["date"],
+        "name": f"{event['date']}: {event['description']}",
+        "risk_factors": _risk_factors(event),
+    }
 
 
 def _us_ticker(ticker: Any) -> str | None:
@@ -56,8 +82,8 @@ def _event_details(raw: Any) -> dict[str, dict[str, Any]]:
     }
 
 
-def _normalise_events(raw: Any) -> list[dict[str, str]]:
-    """Return ``[{id, name}]`` from either supported events file layout.
+def _normalise_events(raw: Any) -> list[dict[str, Any]]:
+    """Return ``[{id, name, risk_factors}]`` from either supported events file layout.
 
     * flat list: ``[{"id": ..., "name": ...}]`` (``data/events.json``)
     * market events: ``{"events": [{"date": ..., "description": ...}]}``
@@ -65,7 +91,7 @@ def _normalise_events(raw: Any) -> list[dict[str, str]]:
     """
     if isinstance(raw, dict):
         return [_market_event(e) for e in raw.get("events", [])]
-    return [{"id": e["id"], "name": e["name"]} for e in raw]
+    return [{"id": e["id"], "name": e["name"], "risk_factors": _risk_factors(e)} for e in raw]
 
 
 _events_path = globals().get("_events_path") or _resolve_events_path()

@@ -183,7 +183,9 @@ def test_events_route():
     data = resp.json()
     events_path = Path(__file__).resolve().parents[1] / "data" / "events.json"
     with events_path.open() as fh:
-        expected = [{"id": e["id"], "name": e["name"]} for e in json.load(fh)]
+        expected = [
+            {"id": e["id"], "name": e["name"], "risk_factors": e.get("risk_factors", [])} for e in json.load(fh)
+        ]
     assert data == expected
 
 

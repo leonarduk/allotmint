@@ -489,6 +489,7 @@
     "allPositions": "All positions",
     "contribRegion": "Region",
     "contribSector": "Sector",
+    "contribTooltipLabel": "Contribution",
     "insightCashDrag": "{{percent}} of your portfolio is in cash",
     "insightConcentration": "Top holding {{ticker}} is {{percent}} of your portfolio",
     "insightDuplication": "You hold {{ticker}} in {{accountCount}} accounts",

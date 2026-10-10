@@ -495,6 +495,7 @@
     "allPositions": "Todas as posições",
     "contribRegion": "Região",
     "contribSector": "Setor",
+    "contribTooltipLabel": "Contribuição",
     "insightCashDrag": "{{percent}} da sua carteira está em numerário",
     "insightConcentration": "A sua maior posição, {{ticker}}, representa {{percent}} da carteira",
     "insightDuplication": "Tem {{ticker}} em {{accountCount}} contas",

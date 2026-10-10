@@ -495,6 +495,7 @@
     "allPositions": "Alle Positionen",
     "contribRegion": "Region",
     "contribSector": "Sektor",
+    "contribTooltipLabel": "Beitrag",
     "insightCashDrag": "{{percent}} Ihres Portfolios liegen in Bargeld",
     "insightConcentration": "Die größte Position {{ticker}} macht {{percent}} Ihres Portfolios aus",
     "insightDuplication": "Sie halten {{ticker}} in {{accountCount}} Konten",

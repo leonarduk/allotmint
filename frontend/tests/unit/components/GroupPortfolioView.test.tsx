@@ -1821,6 +1821,52 @@ describe("GroupPortfolioView", () => {
     ).toBe(false);
   });
 
+  it("lists every contribution category, largest gain first", async () => {
+    const sectors = [
+      { sector: "Utilities", gain_gbp: -900 },
+      { sector: "Financials", gain_gbp: 3500 },
+      { sector: "Real Estate", gain_gbp: -50 },
+      { sector: "Multi-sector", gain_gbp: 41000 },
+      { sector: "Energy", gain_gbp: 1200 },
+    ];
+    vi.spyOn(api, "getOwnerSectorContributions").mockResolvedValue(sectors);
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        { owner: "alice", account_type: "isa", value_estimate_gbp: 100, holdings: [] },
+      ],
+    });
+
+    const { container } = render(
+      <MemoryRouter initialEntries={["/?owner=alice"]}>
+        <TestProvider>
+          <GroupPortfolioView slug="all" owners={ownerFixtures} />
+        </TestProvider>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Multi-sector")).toBeInTheDocument();
+    const names = new Set(sectors.map((row) => row.sector));
+    const labels = await waitFor(() => {
+      const values = Array.from(
+        container.querySelectorAll(".recharts-cartesian-axis-tick-value"),
+      )
+        .map((el) => el.textContent ?? "")
+        .filter((value) => names.has(value));
+      expect(values).toHaveLength(sectors.length);
+      return values;
+    });
+    // Category labels sit on the Y axis (horizontal bars), so none are dropped
+    // for lack of width, and the ranking reads top-to-bottom.
+    expect(labels).toEqual([
+      "Multi-sector",
+      "Financials",
+      "Energy",
+      "Real Estate",
+      "Utilities",
+    ]);
+  });
+
   it.each([
     { relative: true, tick: /%$/, hidden: /^-?[\d,]+$/ },
     { relative: false, tick: /^-?[\d,]+$/, hidden: /%$/ },

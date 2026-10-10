@@ -120,6 +120,16 @@ const CASH_DRAG_THRESHOLD_PCT = 5;
 // JSDOM has no layout engine; these give Recharts a non-zero initial size in tests.
 const TYPE_CHART_INITIAL_DIMENSION = { width: 800, height: 240 };
 const CONTRIBUTION_CHART_INITIAL_DIMENSION = { width: 800, height: 300 };
+const CONTRIB_ROW_HEIGHT_PX = 28;
+const CONTRIB_AXIS_HEIGHT_PX = 40;
+const CONTRIB_MIN_HEIGHT_PX = 160;
+
+// One fixed-height row per category so every sector/region label is shown in full.
+const contribChartHeight = (rows: number): number =>
+  Math.max(CONTRIB_MIN_HEIGHT_PX, rows * CONTRIB_ROW_HEIGHT_PX + CONTRIB_AXIS_HEIGHT_PX);
+
+const groupedNumberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+const formatGroupedNumber = (value: number): string => groupedNumberFormat.format(value);
 
 const computeDayChangePct = (value: number, delta: number): number | null => {
   if (!Number.isFinite(value) || !Number.isFinite(delta)) {
@@ -911,6 +921,16 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
   const isAllPositions = activeOwner === null;
   const activeContribTab = isAllPositions ? contribTab : "sector";
+  // Relative view plots gain as % of cost, not £ (#10022).
+  const contribValueKey = relativeViewEnabled ? "contribution_pct" : "gain_gbp";
+  // Biggest contributors first so the horizontal bars read top-to-bottom like a ranking.
+  const contribRows = useMemo<(SectorContribution | RegionContribution)[]>(
+    () =>
+      [...((activeContribTab === "sector" ? sectorContrib : regionContrib) ?? [])].sort(
+        (a, b) => (b[contribValueKey] ?? 0) - (a[contribValueKey] ?? 0),
+      ),
+    [activeContribTab, sectorContrib, regionContrib, contribValueKey],
+  );
   const hasFilteredAccounts = filteredAccounts.length > 0;
   const portfolioInsight = useMemo<PortfolioInsight>(() => {
     // Filtered owner/account slices can look spuriously concentrated, so only surface the
@@ -1302,7 +1322,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           <p style={{ color: "var(--summary-card-label)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
             {t("allocation.contributionDescription")}
           </p>
-          <div style={{ width: "100%", height: 300 }}>
+          <div style={{ width: "100%", height: contribChartHeight(contribRows.length) }}>
             <ResponsiveContainer
               width="100%"
               height="100%"
@@ -1310,36 +1330,44 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               minHeight={1}
               initialDimension={CONTRIBUTION_CHART_INITIAL_DIMENSION}
             >
-              <BarChart
-                data={
-                  (activeContribTab === "sector"
-                    ? sectorContrib || []
-                    : regionContrib || []) as (SectorContribution | RegionContribution)[]
-                }
-              >
-                <XAxis dataKey={activeContribTab === "sector" ? "sector" : "region"} />
-                {/* Relative view plots gain as % of cost, not £ (#10022). */}
-                <YAxis
+              <BarChart data={contribRows} layout="vertical" margin={{ left: 8, right: 16 }}>
+                <XAxis
+                  type="number"
                   tickFormatter={
-                    relativeViewEnabled ? (v: number) => percent(v, 1) : undefined
+                    relativeViewEnabled ? (v: number) => percent(v, 1) : formatGroupedNumber
                   }
+                  tick={{ fill: "var(--surface-muted-color)", fontSize: 12 }}
+                />
+                <YAxis
+                  type="category"
+                  dataKey={activeContribTab === "sector" ? "sector" : "region"}
+                  width="auto"
+                  interval={0}
+                  tick={{ fill: "var(--surface-card-color)", fontSize: 12 }}
                 />
                 <Tooltip
-                  formatter={(v) =>
+                  formatter={(v) => [
                     relativeViewEnabled
                       ? percent(v as number | undefined, 2)
-                      : reporting.format(v as number | undefined)
-                  }
+                      : reporting.format(v as number | undefined),
+                    t("group.contribTooltipLabel"),
+                  ]}
+                  cursor={{ fill: "rgba(128, 128, 128, 0.15)" }}
+                  contentStyle={{
+                    backgroundColor: "var(--surface-card-bg)",
+                    border: "1px solid var(--surface-card-border)",
+                    color: "var(--surface-card-color)",
+                  }}
+                  itemStyle={{ color: "var(--surface-card-color)" }}
+                  labelStyle={{ color: "var(--surface-card-color)", fontWeight: 600 }}
                 />
-                <Bar dataKey={relativeViewEnabled ? "contribution_pct" : "gain_gbp"}>
-                  {(activeContribTab === "sector" ? sectorContrib : regionContrib)?.map(
-                    (row, idx) => (
-                      <Cell
-                        key={`cell-bar-${idx}`}
-                        fill={row.gain_gbp >= 0 ? "var(--gain-positive)" : "var(--gain-negative)"}
-                      />
-                    )
-                  )}
+                <Bar dataKey={contribValueKey} barSize={18}>
+                  {contribRows.map((row, idx) => (
+                    <Cell
+                      key={`cell-bar-${idx}`}
+                      fill={row.gain_gbp >= 0 ? "var(--gain-positive)" : "var(--gain-negative)"}
+                    />
+                  ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

@@ -167,7 +167,8 @@ describe('RiskReturn page', () => {
 
     expect(input).not.toHaveAttribute('aria-invalid');
     expect(input).toHaveAttribute('placeholder', '4');
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument(); // ...and is not remembered, so the next visit follows the configured rate.
+    expect(window.localStorage.getItem('riskReturn.riskFreePct')).toBeNull();
   });
 
   it('warns that short periods are noisy, but not from 3 years', async () => {

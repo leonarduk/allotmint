@@ -78,6 +78,14 @@ function writeStorage(key: string, value: string): void {
   }
 }
 
+function removeStorage(key: string): void {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Storage blocked: nothing was stored to remove.
+  }
+}
+
 function readHidden(): Set<string> {
   try {
     const parsed: unknown = JSON.parse(readStorage(HIDDEN_KEY) ?? '[]');
@@ -379,7 +387,9 @@ export default function RiskReturn() {
 
   const changeRiskFree = (value: string) => {
     setRiskFreeInput(value);
-    writeStorage(RISK_FREE_KEY, value);
+    // A cleared box follows the configured rate again on the next visit.
+    if (value.trim()) writeStorage(RISK_FREE_KEY, value);
+    else removeStorage(RISK_FREE_KEY);
   };
 
   const submitTicker = (event: FormEvent) => {
@@ -526,9 +536,9 @@ export default function RiskReturn() {
               dataKey="y"
               name={returnLabel}
               unit="%"
-              // Keep 0% in view so a line starting at the risk-free rate is
-              // seen to start above the origin.
-              domain={[(min: number) => Math.min(0, min), 'auto']}
+              // Keep 0% and the risk-free rate in view, so the line is seen to
+              // start above (or, for a negative rate, below) the origin.
+              domain={[(min: number) => Math.min(0, min, riskFreePct), 'auto']}
               label={{ value: returnLabel, angle: -90, position: 'insideLeft' }}
             />
             <ZAxis type="number" dataKey="z" range={[260, 260]} />

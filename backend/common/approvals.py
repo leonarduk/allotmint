@@ -6,9 +6,10 @@ import json
 import logging
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 from backend.common.data_loader import resolve_owner_dir
+from backend.common.instrument_classification import is_commodity
 from backend.common.portfolio_cache import invalidate_group_portfolios
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -76,6 +77,28 @@ def is_approval_valid(approved_on: date | None, as_of: date, days: int | None = 
     valid = days or config.approval_valid_days or 0
     expiry = add_trading_days(approved_on, max(0, valid - 1))
     return as_of <= expiry
+
+
+def needs_sell_approval(
+    meta: Mapping[str, Any],
+    tickers: Iterable[str],
+    exempt_types: Iterable[str] | None,
+    exempt_tickers: Iterable[str] | None,
+) -> bool:
+    """Return ``True`` if selling the instrument described by ``meta`` needs approval.
+
+    A ticker in ``exempt_tickers`` (any spelling in ``tickers``) is always
+    exempt. Otherwise a commodity product needs approval whatever its type, so
+    exempting "ETF" or "ETC" never exempts a gold or silver fund (#10560); any
+    other instrument is exempt when its type is in ``exempt_types``.
+    """
+    exempt_ticker_set = {t.upper() for t in (exempt_tickers or [])}
+    if any(t and t.upper() in exempt_ticker_set for t in tickers):
+        return False
+    if is_commodity(meta):
+        return True
+    instr_type = str(meta.get("instrumentType") or meta.get("instrument_type") or "").strip().upper()
+    return instr_type not in {t.upper() for t in (exempt_types or [])}
 
 
 def save_approvals(owner: str, approvals: Dict[str, date], accounts_root: Path | None = None) -> None:

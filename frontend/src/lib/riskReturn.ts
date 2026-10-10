@@ -150,9 +150,10 @@ export function seriesDetails(
   indexLabel: string
 ): { name: string | null; sector: string | null } {
   const name = series.name && series.name !== series.label ? series.name : null;
-  const isIndex =
-    series.kind === 'benchmark' && series.id.startsWith(benchmarkSeriesId('^'));
-  return { name, sector: series.sector || (isIndex ? indexLabel : null) };
+  return {
+    name,
+    sector: series.sector || (isIndexSeries(series) ? indexLabel : null),
+  };
 }
 
 /** Series that can be drawn: both coordinates known. */
@@ -200,18 +201,25 @@ export function parseStoredBenchmarks(raw: string | null): Benchmark[] {
 }
 
 /**
- * Line from the origin through the mean volatility and mean return of
- * ``series`` (the plottable ones). A point above it earns more return per
- * unit of volatility than that average; below, less. ``null`` with fewer
+ * Line from the risk-free rate on the return axis, ``(0, riskFreePct)``,
+ * through the mean volatility and mean return of ``series`` (the plottable
+ * ones). Its slope is the Sharpe ratio of that average point, so a point
+ * above it has a higher Sharpe ratio than the average; below, lower. With a
+ * risk-free rate of 0 the line runs from the origin. ``null`` with fewer
  * than two points or a zero mean volatility.
  */
 export interface AverageLine {
   volatilityPct: number;
   returnPct: number;
+  /** Where the line meets the return axis: the risk-free rate, in percent. */
+  interceptPct: number;
   slope: number;
 }
 
-export function averageLine(series: ChartSeries[]): AverageLine | null {
+export function averageLine(
+  series: ChartSeries[],
+  riskFreePct = 0
+): AverageLine | null {
   const points = series.filter(plottable);
   if (points.length < 2) return null;
   const mean = (values: number[]) =>
@@ -219,7 +227,12 @@ export function averageLine(series: ChartSeries[]): AverageLine | null {
   const volatilityPct = mean(points.map((s) => s.volatilityPct as number));
   const returnPct = mean(points.map((s) => s.returnPct as number));
   if (!(volatilityPct > 0)) return null;
-  return { volatilityPct, returnPct, slope: returnPct / volatilityPct };
+  return {
+    volatilityPct,
+    returnPct,
+    interceptPct: riskFreePct,
+    slope: (returnPct - riskFreePct) / volatilityPct,
+  };
 }
 
 /** Where a (volatility, return) point sits relative to ``line``. */
@@ -228,7 +241,48 @@ export function sideOfAverage(
   volatilityPct: number,
   returnPct: number
 ): 'above' | 'below' | 'on' {
-  const diff = returnPct - line.slope * volatilityPct;
+  const diff = returnPct - (line.interceptPct + line.slope * volatilityPct);
   if (Math.abs(diff) < 1e-9) return 'on';
   return diff > 0 ? 'above' : 'below';
+}
+
+/**
+ * Sharpe ratio, ``(return - risk-free rate) / volatility``, from percent
+ * inputs. ``null`` when volatility is not positive.
+ */
+export function sharpeRatio(
+  volatilityPct: number,
+  returnPct: number,
+  riskFreePct: number
+): number | null {
+  return volatilityPct > 0 ? (returnPct - riskFreePct) / volatilityPct : null;
+}
+
+/** Bounds accepted for a typed risk-free rate, in percent a year. */
+const RISK_FREE_MIN_PCT = -5;
+const RISK_FREE_MAX_PCT = 25;
+
+/** Parse a typed risk-free rate in percent; null when blank or out of range. */
+export function parseRiskFreePct(
+  raw: string | null | undefined
+): number | null {
+  const text = (raw ?? '').trim();
+  if (!text) return null;
+  const value = Number(text);
+  return Number.isFinite(value) &&
+    value >= RISK_FREE_MIN_PCT &&
+    value <= RISK_FREE_MAX_PCT
+    ? value
+    : null;
+}
+
+/**
+ * Whether ``series`` is an index symbol (``^FTSE``...). Those are price
+ * returns in the index's own currency, unlike the total-return, sterling
+ * portfolio points, so the page labels them.
+ */
+export function isIndexSeries(series: ChartSeries): boolean {
+  return (
+    series.kind === 'benchmark' && series.id.startsWith(benchmarkSeriesId('^'))
+  );
 }

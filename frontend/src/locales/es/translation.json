@@ -3838,10 +3838,14 @@
     "invalidTicker": "Introduzca un ticker como ^FTSE o VWRL.L.",
     "methodology": "Las rentabilidades de la cartera son ponderadas en el tiempo y se reconstruyen a partir de sus transacciones, por lo que los depósitos y retiradas no cuentan como ganancias o pérdidas. La volatilidad es la desviación típica anualizada de las rentabilidades diarias. Los índices (símbolos ^) son rentabilidades de precio en su propia divisa; los demás tickers usan precios en libras. Los demás tickers deben ser instrumentos que AllotMint ya sigue.",
     "average": "Promedio",
-    "showAverage": "Mostrar línea promedio (por 0,0 y el promedio de las series mostradas)",
-    "aboveAverage": "Por encima de la línea promedio: más rentabilidad por unidad de volatilidad",
-    "belowAverage": "Por debajo de la línea promedio: menos rentabilidad por unidad de volatilidad",
-    "onAverage": "Sobre la línea promedio"
+    "showAverage": "Mostrar línea promedio (desde la tasa libre de riesgo por el promedio de las series mostradas)",
+    "aboveAverage": "Por encima de la línea promedio: ratio de Sharpe mayor que el promedio",
+    "belowAverage": "Por debajo de la línea promedio: ratio de Sharpe menor que el promedio",
+    "onAverage": "Sobre la línea promedio",
+    "riskFreeRate": "Tasa libre de riesgo",
+    "sharpe": "Ratio de Sharpe",
+    "priceReturnLocal": "rentabilidad de precio, moneda local",
+    "shortWindowNote": "En periodos de menos de 3 años, la rentabilidad, la volatilidad y el ratio de Sharpe están dominados por el ruido: las diferencias entre puntos son solo orientativas."
   },
   "cashDeployment": {
     "title": "Despliegue de efectivo",

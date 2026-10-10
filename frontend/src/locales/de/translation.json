@@ -3838,10 +3838,14 @@
     "invalidTicker": "Geben Sie einen Ticker wie ^FTSE oder VWRL.L ein.",
     "methodology": "Portfoliorenditen sind zeitgewichtet und aus Ihren Transaktionen rekonstruiert, sodass Ein- und Auszahlungen nicht als Gewinne oder Verluste zählen. Volatilität ist die annualisierte Standardabweichung der täglichen Renditen. Indizes (^-Symbole) sind Kursrenditen in ihrer eigenen Währung; andere Ticker verwenden Preise in Pfund Sterling. Andere Ticker müssen Instrumente sein, die AllotMint bereits verfolgt.",
     "average": "Durchschnitt",
-    "showAverage": "Durchschnittslinie anzeigen (durch 0,0 und den Durchschnitt der angezeigten Reihen)",
-    "aboveAverage": "Über der Durchschnittslinie: mehr Rendite je Einheit Volatilität",
-    "belowAverage": "Unter der Durchschnittslinie: weniger Rendite je Einheit Volatilität",
-    "onAverage": "Auf der Durchschnittslinie"
+    "showAverage": "Durchschnittslinie anzeigen (vom risikofreien Zins durch den Durchschnitt der angezeigten Reihen)",
+    "aboveAverage": "Über der Durchschnittslinie: höhere Sharpe-Ratio als der Durchschnitt",
+    "belowAverage": "Unter der Durchschnittslinie: niedrigere Sharpe-Ratio als der Durchschnitt",
+    "onAverage": "Auf der Durchschnittslinie",
+    "riskFreeRate": "Risikofreier Zins",
+    "sharpe": "Sharpe-Ratio",
+    "priceReturnLocal": "Kursrendite, Landeswährung",
+    "shortWindowNote": "Bei Zeiträumen unter 3 Jahren überwiegt das Rauschen bei Rendite, Volatilität und Sharpe-Ratio: Unterschiede zwischen Punkten sind nur ein Anhaltspunkt."
   },
   "cashDeployment": {
     "title": "Cash-Einsatz",

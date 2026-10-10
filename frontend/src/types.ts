@@ -1943,6 +1943,8 @@ export interface GroupRiskReturn {
   end: string;
   points: RiskReturnPoint[];
   missing_members: string[];
+  /** Configured annual risk-free rate (0.04 = 4%) the Sharpe line starts from. */
+  risk_free_rate?: number | null;
 }
 
 export interface BenchmarkRiskReturn {

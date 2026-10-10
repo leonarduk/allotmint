@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 
 from backend.common import portfolio_utils, risk_return
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
+from backend.config import config
 from backend.utils.pricing_dates import PricingDateCalculator
 
 router = APIRouter(tags=["performance"])
@@ -280,13 +281,16 @@ def group_risk_return(slug: str, days: int = 365, as_of: str | None = None):
     Feeds the "Returns vs Volatility" dashboard chart. Figures are rebuilt
     from the transaction ledgers (see ``backend.common.risk_return``);
     members without a ledger are listed in ``missing_members``.
+    ``risk_free_rate`` is the configured rate the chart's average (Sharpe)
+    line starts from, the same one the reports' Sharpe ratio uses.
     """
     slug = _validate_owner_slug(slug, "slug")
     days = _validate_risk_window(days)
     try:
-        return risk_return.compute_group_risk_return(slug, days, pricing_date=_resolve_as_of(as_of))
+        result = risk_return.compute_group_risk_return(slug, days, pricing_date=_resolve_as_of(as_of))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
+    return {**result, "risk_free_rate": config.risk_free_rate or 0.0}
 
 
 @router.get("/risk-return/benchmark")

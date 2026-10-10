@@ -127,7 +127,49 @@ describe('RiskReturn page', () => {
     );
     expect(
       screen.getByRole('checkbox', { name: 'FTSE 100' }).closest('label')
-    ).toHaveAttribute('title', 'FTSE 100\nMarket index');
+    ).toHaveAttribute(
+      'title',
+      'FTSE 100\nMarket index\nprice return, local currency'
+    );
+    expect(
+      screen.getByRole('checkbox', { name: 'FCIT.L' }).closest('label')
+    ).not.toHaveAttribute('title', expect.stringContaining('price return'));
+  });
+
+  it('starts the risk-free rate at the configured one and remembers an override', async () => {
+    groupMock.mockResolvedValue({
+      group: 'all',
+      days: 365,
+      start: '',
+      end: '',
+      missing_members: [],
+      points: [],
+      risk_free_rate: 0.04,
+    });
+    render(<RiskReturn />);
+
+    const input = screen.getByLabelText(/Risk-free rate/);
+    await waitFor(() => expect(input).toHaveValue(4));
+
+    fireEvent.change(input, { target: { value: '3.5' } });
+
+    expect(input).toHaveValue(3.5);
+    expect(window.localStorage.getItem('riskReturn.riskFreePct')).toBe('3.5');
+  });
+
+  it('warns that short periods are noisy, but not from 3 years', async () => {
+    render(<RiskReturn />);
+    await screen.findByRole('checkbox', { name: 'Entire portfolio' });
+
+    expect(screen.getByText(/shorter than 3 years/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Period'), {
+      target: { value: String(365 * 3) },
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByText(/shorter than 3 years/)).not.toBeInTheDocument()
+    );
   });
 
   it('hides a series when unticked and remembers it', async () => {

@@ -76,3 +76,12 @@ def test_credit_risk_provider_failure_is_502(monkeypatch):
 
     assert resp.status_code == 502
     assert resp.json()["detail"] == "provider request failed (HTTP 429)"
+
+
+def test_credit_risk_maps_value_errors_to_400(monkeypatch):
+    def boom(ticker=None):
+        raise ValueError("tickers must contain at most 20 entries")
+
+    monkeypatch.setattr(screener, "get_credit_risk", boom)
+
+    assert _client().get("/screener/credit-risk", params={"ticker": "X.L"}).status_code == 400

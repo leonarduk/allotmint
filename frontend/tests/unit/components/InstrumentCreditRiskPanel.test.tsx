@@ -116,6 +116,48 @@ describe('InstrumentCreditRiskPanel', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows the sector caveat for a financial company', async () => {
+    mockGetCreditRisk.mockResolvedValue(
+      verdict({
+        ticker: 'ADM.L',
+        sector: 'Financials',
+        band: 'low',
+        not_applicable: true,
+        reasons: [
+          "Altman Z and interest cover not applied to sector 'Financials'",
+        ],
+        signals: { altman_z: signal(null), current_ratio: signal(6.1) },
+      })
+    );
+
+    render(<InstrumentCreditRiskPanel ticker="ADM.L" />);
+
+    expect(await screen.findByTestId('credit-risk-band')).toHaveTextContent(
+      'Low'
+    );
+    expect(
+      screen.getByText(
+        "Altman Z and interest cover not applied to sector 'Financials'"
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('copes with a row that leaves out its lists', async () => {
+    const data = verdict();
+    delete data.result.reasons;
+    delete data.result.mitigations;
+    delete data.result.data_gaps;
+    delete data.result.signals;
+    mockGetCreditRisk.mockResolvedValue(data);
+
+    render(<InstrumentCreditRiskPanel ticker="BP.L" />);
+
+    expect(await screen.findByTestId('credit-risk-band')).toHaveTextContent(
+      'High'
+    );
+    expect(screen.queryByText('Altman Z-score')).not.toBeInTheDocument();
+  });
+
   it('hides market spreads when none are stored', async () => {
     mockGetCreditRisk.mockResolvedValue(
       verdict(

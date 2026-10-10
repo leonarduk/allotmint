@@ -125,7 +125,10 @@ export function InstrumentCreditRiskPanel({ ticker }: { ticker: string }) {
 
   const { result } = data;
   const color = BAND_COLOR[result.band] ?? BAND_COLOR.unknown;
-  const notes = [...result.reasons, ...result.mitigations];
+  // The route passes the pro row through as-is, so do not trust every list to be present.
+  const notes = [...(result.reasons ?? []), ...(result.mitigations ?? [])];
+  const dataGaps = result.data_gaps ?? [];
+  const signals = result.signals ?? {};
 
   return (
     <section
@@ -163,7 +166,7 @@ export function InstrumentCreditRiskPanel({ ticker }: { ticker: string }) {
         style={{ width: '100%', borderCollapse: 'collapse' }}
       >
         <tbody>
-          {SIGNAL_LABELS.filter(([name]) => result.signals[name]).map(
+          {SIGNAL_LABELS.filter(([name]) => signals[name]).map(
             ([name, labelKey]) => (
               <tr key={name}>
                 <th
@@ -186,7 +189,7 @@ export function InstrumentCreditRiskPanel({ ticker }: { ticker: string }) {
                 >
                   {signalValue(
                     name,
-                    result.signals[name].value,
+                    signals[name].value,
                     result.financial_currency
                   )}
                 </td>
@@ -204,8 +207,8 @@ export function InstrumentCreditRiskPanel({ ticker }: { ticker: string }) {
               date: result.statements_as_of,
             })
           : t('instrumentCreditRisk.noAccountsDate')}
-        {result.data_gaps.length > 0 &&
-          ` · ${t('instrumentCreditRisk.dataGaps', { fields: result.data_gaps.join(', ') })}`}
+        {dataGaps.length > 0 &&
+          ` · ${t('instrumentCreditRisk.dataGaps', { fields: dataGaps.join(', ') })}`}
       </p>
       <MarketContext context={data.market_context} />
       <p

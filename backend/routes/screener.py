@@ -7,7 +7,6 @@ import logging
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
-from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel
 
 from backend.common import instrument_api
@@ -46,6 +45,15 @@ except ModuleNotFoundError as exc:
     if not missing_package(exc):
         raise
     get_credit_risk = None
+
+# The pro tool reports bad input as mcp's ToolError. Guarded on its own so a
+# missing mcp install never takes the other screener routes down with it.
+try:
+    from mcp.server.mcpserver.exceptions import ToolError
+except ModuleNotFoundError as exc:
+    if not missing_package(exc, "mcp"):
+        raise
+    ToolError = ValueError  # without mcp the pro tool cannot be installed either
 
 logger = logging.getLogger(__name__)
 
@@ -461,7 +469,7 @@ def credit_risk(ticker: str = Query(..., description="Full ticker, e.g. BP.L")) 
         raise HTTPException(status_code=400, detail="No ticker supplied")
     try:
         verdict = get_credit_risk(ticker=symbol)
-    except (ToolError, ValueError) as e:  # the pro tool reports bad input as mcp's ToolError
+    except (ToolError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     if not verdict.get("results"):
         failed = verdict.get("failed") or [{}]

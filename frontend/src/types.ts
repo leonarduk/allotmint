@@ -1099,11 +1099,12 @@ export interface InstrumentCreditRisk {
     name: string | null;
     sector: string | null;
     band: CreditRiskBand;
-    reasons: string[];
-    mitigations: string[];
-    signals: Record<string, CreditRiskSignal>;
+    // Passed through from allotmint-pro unchanged, so the lists may be absent.
+    reasons?: string[];
+    mitigations?: string[];
+    signals?: Record<string, CreditRiskSignal>;
     not_applicable: boolean;
-    data_gaps: string[];
+    data_gaps?: string[];
     statements_as_of: string | null;
     financial_currency: string | null;
   };

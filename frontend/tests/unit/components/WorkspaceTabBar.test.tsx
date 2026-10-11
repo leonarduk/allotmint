@@ -99,6 +99,21 @@ describe('WorkspaceTabBar', () => {
     ]);
   });
 
+  it('opens an instrument link in its own tab', () => {
+    window.localStorage.setItem('allotmint.workspaceTabs.enabled', 'true');
+    renderShell();
+
+    fireEvent.click(screen.getByText('go to VWRL'));
+    expect(path()).toBe('/research/VWRL.L');
+    expect(screen.getByRole('button', { name: 'VWRL.L' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Group: family' }));
+    expect(path()).toBe('/?group=family');
+  });
+
   it('closing the active tab navigates to its neighbour', () => {
     window.localStorage.setItem('allotmint.workspaceTabs.enabled', 'true');
     renderShell();

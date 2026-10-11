@@ -53,6 +53,43 @@ export function syncActivePath(
   };
 }
 
+function instrumentOf(path: string): string | null {
+  const label = describeTabPath(path);
+  return label.kind === 'instrument' ? label.ticker : null;
+}
+
+/**
+ * Follow a router navigation to `path` (#10711). A tab already showing that
+ * view (or that instrument) is switched to, so back/forward lands on the tab
+ * it came from; an instrument not yet open gets its own tab, unless the
+ * active tab is a "+" copy of another one, which is navigated in place;
+ * anything else moves the active tab along.
+ */
+export function followLocation(
+  state: WorkspaceTabsState,
+  path: string
+): WorkspaceTabsState {
+  const current = activeTab(state);
+  if (current.path === path) return state;
+  const ticker = instrumentOf(path);
+  if (ticker !== null && instrumentOf(current.path) === ticker) {
+    return syncActivePath(state, path);
+  }
+  const existing = state.tabs.find((tab) =>
+    ticker === null ? tab.path === path : instrumentOf(tab.path) === ticker
+  );
+  if (existing) {
+    return syncActivePath({ ...state, activeId: existing.id }, path);
+  }
+  const isCopy = state.tabs.some(
+    (tab) => tab.id !== current.id && tab.path === current.path
+  );
+  if (ticker !== null && !isCopy && state.tabs.length < MAX_WORKSPACE_TABS) {
+    return openTab(state, path);
+  }
+  return syncActivePath(state, path);
+}
+
 /** Open `path` in a new tab just right of the active one and activate it. */
 export function openTab(
   state: WorkspaceTabsState,

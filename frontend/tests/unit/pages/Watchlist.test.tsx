@@ -566,6 +566,17 @@ describe("Watchlist page", () => {
         await waitFor(() => expect(listParam()).toBe("My watchlist"));
         expect(screen.queryByText(/No watchlist called/)).not.toBeInTheDocument();
       });
+
+      it("drops the notice once the shown list is renamed to the missing name", async () => {
+        renderAt("/watchlist?list=Nope");
+        await screen.findByText(/No watchlist called "Nope"/);
+
+        vi.spyOn(window, "prompt").mockReturnValueOnce("Nope");
+        fireEvent.click(screen.getByRole("button", { name: "Rename…" }));
+
+        await waitFor(() => expect(listParam()).toBe("Nope"));
+        expect(screen.queryByText(/No watchlist called/)).not.toBeInTheDocument();
+      });
     });
   });
 

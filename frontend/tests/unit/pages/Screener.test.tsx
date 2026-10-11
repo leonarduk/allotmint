@@ -223,8 +223,22 @@ describe("Screener", () => {
 
   it("sends credit-risk filters and shows Altman Z and net debt/EBITDA columns", async () => {
     mockGetScreener.mockResolvedValueOnce([
-      { rank: 1, ticker: "BP.L", name: "BP", altman_z: 1.3512, net_debt_to_ebitda: 0.9 },
-      { rank: 2, ticker: "BANK.L", name: "Bank", altman_z: null, net_debt_to_ebitda: null },
+      {
+        rank: 1,
+        ticker: "BP.L",
+        name: "BP",
+        altman_z: 1.3512,
+        net_debt_to_ebitda: 0.9,
+        statements_as_of: "2025-12-31",
+      },
+      {
+        rank: 2,
+        ticker: "BANK.L",
+        name: "Bank",
+        altman_z: null,
+        net_debt_to_ebitda: null,
+        statements_as_of: "2025-12-31",
+      },
     ] as never);
 
     const { container } = renderScreener();
@@ -253,6 +267,12 @@ describe("Screener", () => {
     expect(bp[ndIdx]).toBe("0.90");
     expect(bank[zIdx]).toBe("—");
     expect(bank[ndIdx]).toBe("—");
+
+    // The Altman Z cell names the accounts period behind the score; a blank
+    // score gets no tooltip even when the date is known.
+    const [bpRow, bankRow] = Array.from(container.querySelectorAll("tbody tr"));
+    expect(bpRow.querySelectorAll("td")[zIdx]).toHaveAttribute("title", "Accounts to 2025-12-31");
+    expect(bankRow.querySelectorAll("td")[zIdx]).not.toHaveAttribute("title");
   });
 
   it("sends valuation filters and shows P/B, P/S, EV/EBITDA and growth columns (#8557)", async () => {

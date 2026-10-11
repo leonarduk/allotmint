@@ -247,6 +247,26 @@ describe('StrategyStressPanel', () => {
       await screen.findByText('HTTP 404 – unknown event')
     ).toBeInTheDocument();
   });
+
+  it('shows and clears a run error that repeats the events error text', async () => {
+    const consoleError = vi.spyOn(console, 'error');
+    mockGetEvents.mockRejectedValue(new Error('Failed to fetch'));
+    mockRunStrategyStress.mockRejectedValueOnce(new Error('Failed to fetch'));
+    renderPanel('/strategy?stress_event=covid');
+    await waitFor(() =>
+      expect(screen.getAllByText('Failed to fetch')).toHaveLength(2)
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run stress test' }));
+    await screen.findByText('Your current portfolio');
+    expect(screen.getAllByText('Failed to fetch')).toHaveLength(1);
+    expect(
+      consoleError.mock.calls.filter(([msg]) =>
+        String(msg).includes('two children with the same key')
+      )
+    ).toEqual([]);
+    consoleError.mockRestore();
+  });
 });
 
 describe('StrategyStressPanel risk-factor filter (#10575)', () => {

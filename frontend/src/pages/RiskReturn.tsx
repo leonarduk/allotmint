@@ -65,6 +65,7 @@ const WINDOWS = [
   { key: '1y', days: 365 },
   { key: '3y', days: 365 * 3 },
   { key: '5y', days: 365 * 5 },
+  { key: '10y', days: 365 * 10 },
 ] as const;
 
 const BENCHMARKS_KEY = 'riskReturn.benchmarks';

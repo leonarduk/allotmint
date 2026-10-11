@@ -113,3 +113,30 @@ def test_quotes_short_circuits_when_offline_mode_enabled(monkeypatch):
     resp = client.get("/api/quotes?symbols=PFE")
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+def test_quotes_maps_app_exchange_suffixes_to_yahoo(monkeypatch):
+    """``ADBE.N``/``UNH.US`` are fetched as Yahoo's bare ``ADBE``/``UNH`` but
+    reported under the symbol the caller asked for; unmapped suffixes such as
+    ``IWDA.AS`` are passed through unchanged."""
+
+    requested = []
+
+    def fake_tickers(symbols):
+        requested.append(symbols)
+        return SimpleNamespace(
+            tickers={
+                "ADBE": FakeChartTicker({"regularMarketPrice": 400.0}),
+                "UNH": FakeChartTicker({"regularMarketPrice": 500.0}),
+                "IWDA.AS": FakeChartTicker({"regularMarketPrice": 90.0}),
+            }
+        )
+
+    monkeypatch.setattr("backend.routes.quotes.yf.Tickers", fake_tickers)
+    monkeypatch.setattr(quotes_module.config, "offline_mode", False)
+    client = _make_client()
+
+    resp = client.get("/api/quotes?symbols=ADBE.N,unh.US,IWDA.AS")
+    assert resp.status_code == 200
+    assert requested == ["ADBE UNH IWDA.AS"]
+    assert [item["symbol"] for item in resp.json()] == ["ADBE.N", "UNH.US", "IWDA.AS"]

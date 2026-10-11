@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
 /**
  * Named watchlists, stored in localStorage and shared by the Watchlist tab,
@@ -12,6 +12,11 @@ import { useCallback, useMemo, useSyncExternalStore } from "react";
  * list) is presented as the single "My watchlist". The legacy key is left in
  * place on first write so a rollback still finds the user's old list.
  *
+ * Which list is shown is per browser tab (#10735): each tab pins its own
+ * choice in sessionStorage, so switching lists in one tab doesn't switch every
+ * other open Watchlist tab. The shared `activeId` is still written, and is
+ * what a new tab opens on.
+ *
  * localStorage is a cache: lib/watchlistSync.ts keeps it in step with the
  * signed-in user's copy on the server (#10713), told of every edit here via
  * onWatchlistsEdited and writing the server's copy back with adoptWatchlists.
@@ -22,6 +27,7 @@ export const DEFAULT_WATCHLIST_SYMBOLS =
   "^FTSE,^NDX,^GSPC,^RUT,^NYA,^VIX,^GDAXI,^N225,USDGBP=X,EURGBP=X,BTC-USD,GC=F,SI=F,VUSA.L,IWDA.AS";
 export const DEFAULT_WATCHLIST_NAME = "My watchlist";
 const DEFAULT_WATCHLIST_ID = "default";
+export const TAB_ACTIVE_WATCHLIST_KEY = "watchlistActiveId";
 
 const CHANGE_EVENT = "allotmint:watchlist-change";
 
@@ -96,12 +102,45 @@ function readRaw(): string | null {
   return localStorage.getItem(WATCHLISTS_STORAGE_KEY);
 }
 
-function stateFrom(raw: string | null, legacyRaw: string | null) {
+function readTabActiveId(): string | null {
+  try {
+    return sessionStorage.getItem(TAB_ACTIVE_WATCHLIST_KEY);
+  } catch (err) {
+    console.warn("Watchlist choice for this tab unavailable:", err);
+    return null;
+  }
+}
+
+function pinTabActiveId(id: string): void {
+  try {
+    sessionStorage.setItem(TAB_ACTIVE_WATCHLIST_KEY, id);
+  } catch (err) {
+    console.warn("Could not remember this tab's watchlist:", err);
+  }
+}
+
+function storedState(raw: string | null, legacyRaw: string | null) {
   return parseWatchlists(raw) ?? legacyState(legacyRaw);
 }
 
+/** `state` showing this tab's list; `state` itself if that changes nothing. */
+function withTabActive(
+  state: WatchlistsState,
+  tabActiveId: string | null,
+): WatchlistsState {
+  return tabActiveId &&
+    tabActiveId !== state.activeId &&
+    state.lists.some((l) => l.id === tabActiveId)
+    ? { ...state, activeId: tabActiveId }
+    : state;
+}
+
+/** Every list, with `activeId` the list this tab is showing. */
 export function readWatchlists(): WatchlistsState {
-  return stateFrom(readRaw(), readLegacyRaw());
+  return withTabActive(
+    storedState(readRaw(), readLegacyRaw()),
+    readTabActiveId(),
+  );
 }
 
 const editListeners = new Set<() => void>();
@@ -120,6 +159,8 @@ function storeWatchlists(state: WatchlistsState): void {
 }
 
 function writeWatchlists(state: WatchlistsState): void {
+  // Edits here start from readWatchlists(), so activeId is this tab's list.
+  pinTabActiveId(state.activeId);
   storeWatchlists(state);
   editListeners.forEach((listener) => listener());
 }
@@ -276,7 +317,17 @@ function subscribe(onChange: () => void): () => void {
 export function useWatchlists() {
   const raw = useSyncExternalStore(subscribe, readRaw);
   const legacyRaw = useSyncExternalStore(subscribe, readLegacyRaw);
-  const state = useMemo(() => stateFrom(raw, legacyRaw), [raw, legacyRaw]);
+  const tabActiveId = useSyncExternalStore(subscribe, readTabActiveId);
+  const stored = useMemo(() => storedState(raw, legacyRaw), [raw, legacyRaw]);
+  const state = useMemo(
+    () => withTabActive(stored, tabActiveId),
+    [stored, tabActiveId],
+  );
+  // Pin the list this tab opened on, so another tab switching lists later
+  // (which rewrites the shared activeId) doesn't switch this one too.
+  useEffect(() => {
+    if (readTabActiveId() === null) pinTabActiveId(state.activeId);
+  }, [state.activeId]);
   const active = activeWatchlist(state);
   /** Lists containing the ticker (case-insensitive). */
   const listsWith = useCallback(

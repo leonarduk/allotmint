@@ -9,6 +9,7 @@ import {
   readActiveSymbols,
   readWatchlists,
   renameWatchlist,
+  setActiveWatchlist,
   setWatchlistSymbols,
   suggestCopyName,
 } from "@/lib/watchlistStore";
@@ -88,5 +89,51 @@ describe("watchlistStore", () => {
     expect(suggestCopyName(readWatchlists(), "My watchlist")).toBe(
       "My watchlist (copy 2)",
     );
+  });
+});
+
+describe("watchlistStore per-tab active list", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it("keeps this tab on its list when another tab switches lists", () => {
+    const buy = createWatchlist("To Buy")!;
+    const sell = createWatchlist("To Sell")!;
+    setActiveWatchlist(buy);
+
+    // Another tab picks "To Sell": it rewrites the shared activeId only.
+    const shared = JSON.parse(localStorage.getItem(WATCHLISTS_STORAGE_KEY)!);
+    localStorage.setItem(
+      WATCHLISTS_STORAGE_KEY,
+      JSON.stringify({ ...shared, activeId: sell }),
+    );
+
+    expect(readWatchlists().activeId).toBe(buy);
+  });
+
+  it("opens a fresh tab on the last list picked anywhere", () => {
+    createWatchlist("To Buy");
+    const sell = createWatchlist("To Sell")!;
+    sessionStorage.clear(); // a new tab has no choice of its own yet
+
+    expect(readWatchlists().activeId).toBe(sell);
+  });
+
+  it("falls back to the shared list when this tab's list was deleted", () => {
+    const buy = createWatchlist("To Buy")!;
+    const sell = createWatchlist("To Sell")!;
+    setActiveWatchlist(buy);
+    const shared = JSON.parse(localStorage.getItem(WATCHLISTS_STORAGE_KEY)!);
+    localStorage.setItem(
+      WATCHLISTS_STORAGE_KEY,
+      JSON.stringify({
+        activeId: sell,
+        lists: shared.lists.filter((l: { id: string }) => l.id !== buy),
+      }),
+    );
+
+    expect(readWatchlists().activeId).toBe(sell);
   });
 });

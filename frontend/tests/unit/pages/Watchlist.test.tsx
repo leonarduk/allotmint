@@ -493,6 +493,8 @@ describe("Watchlist page", () => {
           "watchlists",
           JSON.stringify({ ...state, activeId: state.lists[0].id }),
         );
+        // ...in a fresh tab: createWatchlist pinned the new list to this one.
+        sessionStorage.clear();
       }
 
       it("opens the list named in the URL, case-insensitively", async () => {

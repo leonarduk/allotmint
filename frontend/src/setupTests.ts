@@ -83,6 +83,10 @@ afterEach(() => cleanup());
 // fixture. Must run for every suite, not just the ones that opt into caching.
 afterEach(() => clearFetchCache());
 
+// The watchlist store pins each tab's chosen list in sessionStorage; clear it
+// so one test's choice doesn't override the next test's stored lists.
+afterEach(() => sessionStorage.clear());
+
 // Polyfill matchMedia
 if (!('matchMedia' in window)) {
   Object.defineProperty(window, 'matchMedia', {

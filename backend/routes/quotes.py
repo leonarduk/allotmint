@@ -30,6 +30,25 @@ router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
 
 
+def _yahoo_symbol(sym: str) -> str:
+    """Yahoo's spelling of an app ticker: ``ADBE.N`` -> ``ADBE``, ``VOD.LSE`` -> ``VOD.L``.
+
+    The app suffixes US listings with the exchange (``.N``, ``.US``), which
+    Yahoo doesn't use, so those symbols got no quote at all. Only suffixes the
+    timeseries layer already maps are rewritten; anything else (``IWDA.AS``,
+    ``BRK.B``) is passed through as typed.
+    """
+    from backend.timeseries.fetch_yahoo_timeseries import get_yahoo_suffix
+
+    base, dot, suffix = sym.rpartition(".")
+    if not dot or not base:
+        return sym
+    try:
+        return base + get_yahoo_suffix(suffix)
+    except ValueError:
+        return sym
+
+
 @router.get("/quotes")
 def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
     """Return quote data for the provided comma-separated ``symbols``."""
@@ -45,8 +64,9 @@ def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
         logger.info("Skipping /api/quotes live fetch: market_data.offline_mode is enabled")
         return []
 
+    yahoo_syms = {sym: _yahoo_symbol(sym) for sym in syms}
     try:
-        tickers = yf.Tickers(" ".join(syms)).tickers
+        tickers = yf.Tickers(" ".join(dict.fromkeys(yahoo_syms.values()))).tickers
     except Exception as exc:  # pragma: no cover - exercised in tests
         raise ProviderFailure(
             "Failed to fetch quotes",
@@ -60,7 +80,7 @@ def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
     failures: Dict[str, str] = {}
     for sym in syms:
-        ticker = tickers.get(sym)
+        ticker = tickers.get(yahoo_syms[sym])
         if ticker is None:
             continue
         try:

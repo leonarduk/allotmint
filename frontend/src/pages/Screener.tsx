@@ -639,7 +639,18 @@ export function Screener() {
                 <td style={right}>{r.de_ratio ?? "—"}</td>
                 <td style={right}>{r.lt_de_ratio ?? "—"}</td>
                 <td style={right}>{r.interest_coverage ?? "—"}</td>
-                <td style={right}>{twoDp(r.altman_z)}</td>
+                <td
+                  style={right}
+                  title={
+                    r.altman_z != null && r.statements_as_of
+                      ? t("instrumentCreditRisk.accountsAsOf", {
+                          date: r.statements_as_of,
+                        })
+                      : undefined
+                  }
+                >
+                  {twoDp(r.altman_z)}
+                </td>
                 <td style={right}>{twoDp(r.net_debt_to_ebitda)}</td>
                 <td style={right}>{r.current_ratio ?? "—"}</td>
                 <td style={right}>{r.quick_ratio ?? "—"}</td>

@@ -614,6 +614,7 @@
     "grouping": "Regroupement",
     "name": "Nom",
     "region": "Région",
+    "regionHint": "Région : laisser vide pour utiliser la région automatique (affichée en gris) ; en saisir une pour la remplacer.",
     "save": "Enregistrer",
     "saveError": "Erreur lors de l'enregistrement",
     "saveSuccess": "Enregistré",

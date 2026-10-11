@@ -59,7 +59,6 @@ import {
   readRouteScopeQuery,
 } from './routes/registry';
 import { useAuth } from './AuthContext';
-import type { UserProfile } from './AuthContext';
 import { isDefaultGroupSlug, normaliseGroupSlug } from './utils/groups';
 import { deriveModeFromPathname } from './pageManifest';
 import { MAX_INSTRUMENT_CATALOGUE_ROWS } from './constants/renderLimits';
@@ -70,6 +69,11 @@ import {
 } from './lib/instrumentExports';
 import { getFamilyMvpEntryPath } from './familyMvp';
 import { completeTrackedChore } from './choreCompletion';
+import { getOwnerRootRedirectPath } from './routes/ownerRootRedirect';
+
+// Re-exported for existing importers; the helper lives in its own module.
+// eslint-disable-next-line react-refresh/only-export-components
+export { getOwnerRootRedirectPath };
 
 const PerformanceDashboard = lazyWithDelay(
   () => import('./components/PerformanceDashboard')
@@ -107,29 +111,6 @@ function sameOwnerList(left: OwnerSummary[], right: OwnerSummary[]): boolean {
 function sameGroupList(left: GroupSummary[], right: GroupSummary[]): boolean {
   if (left.length !== right.length) return false;
   return left.every((entry, index) => entry.slug === right[index]?.slug);
-}
-
-// eslint-disable-next-line react-refresh/only-export-components
-export function getOwnerRootRedirectPath(
-  pathname: string,
-  selectedOwner: string,
-  owners: OwnerSummary[],
-  user?: UserProfile | null,
-  search = ''
-): string | null {
-  if (selectedOwner || owners.length === 0) return null;
-  const segs = pathname.split('/').filter(Boolean);
-  const atPortfolioRoot = segs[0] === 'portfolio' && segs.length === 1;
-  const atPerformanceRoot = segs[0] === 'performance' && segs.length === 1;
-  if (!atPortfolioRoot && !atPerformanceRoot) return null;
-  // A bare `/performance?group=<slug>` is a deliberate group-scope landing
-  // (#7228), not an unscoped root that should be forced onto an owner.
-  if (atPerformanceRoot && readRouteScopeQuery(search).group) return null;
-  const owner = findOwnerForUser(owners, user)?.owner ?? owners[0].owner;
-  const encodedOwner = encodePathSegment(owner);
-  return atPerformanceRoot
-    ? `/performance/${encodedOwner}`
-    : `/portfolio/${encodedOwner}`;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components

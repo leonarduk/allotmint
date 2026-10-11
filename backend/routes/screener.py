@@ -523,6 +523,8 @@ def risk_return(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
 @router.get("/credit-risk")
 def credit_risk(ticker: str = Query(..., description="Full ticker, e.g. BP.L")) -> Dict[str, Any]:
     """Per-company credit/distress verdict for one instrument (#10606, allotmint-pro#701).

@@ -373,7 +373,7 @@ _REGION_KEYWORD_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("Asia Pacific", re.compile(r"\bfar east\b|\basia(n)?\b|\bpacific\b", re.IGNORECASE)),
     ("Emerging Markets", re.compile(r"\bemerging\b", re.IGNORECASE)),
     (GLOBAL_REGION, re.compile(r"\ball[- ]world\b|\bworld(wide)?\b|\bglobal\b|\bACWI\b", re.IGNORECASE)),
-    ("US", re.compile(r"(?-i:\bUS\b)|\bU\.S\.|\bS&P 500\b|\bnasdaq\b|\bamerica(n)?\b", re.IGNORECASE)),
+    ("US", re.compile(r"(?-i:\bUSA?\b)|\bU\.S\.|\bS&P 500\b|\bnasdaq\b|\bamerica(n)?\b", re.IGNORECASE)),
     ("Europe", re.compile(r"\beurope(an)?\b|\beuro stoxx\b|\beurozone\b", re.IGNORECASE)),
     ("UK", re.compile(r"\bUK\b|\bFTSE (100|250|350|all[- ]share)\b|\bbritish\b|\bunited kingdom\b", re.IGNORECASE)),
 )

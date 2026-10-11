@@ -262,6 +262,11 @@ def test_exposure_sector(meta, expected) -> None:
             "Emerging Markets",
         ),
         (_meta("Vanguard S&P 500 UCITS ETF", "ETF", region="Europe"), "US"),
+        # "USA" names the US too; the ".L" listing's UK must not win.
+        (
+            _meta("State Street SPDR MSCI USA Small Cap Value Weighted UCITS ETF USD Acc", "ETF", region="UK"),
+            "US",
+        ),
         (_meta("iShares Core FTSE 100 UCITS ETF", "ETF", region="Europe"), "UK"),
         (_meta("BlackRock European Dynamic ex UK Fund", "Fund", region="UK"), "Europe"),
         # "USD" in a share-class name is not the US.

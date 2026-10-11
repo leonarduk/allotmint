@@ -9,6 +9,7 @@ import requests
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.common import instrument_groups, look_through, morningstar
+from backend.common.instrument_classification import exposure_region
 from backend.common.instruments import (
     _ORIGINAL_FETCH_METADATA,
     _fetch_metadata_from_yahoo,
@@ -21,6 +22,7 @@ from backend.common.instruments import (
 )
 from backend.common.isin import ForeignIsinError
 from backend.common.look_through_sources import LookThroughFetchError
+from backend.common.sector_labels import normalise_optional_region
 from backend.config import config
 
 router = APIRouter(
@@ -31,9 +33,17 @@ router = APIRouter(
 
 @router.get("/admin")
 def list_instrument_metadata() -> list[dict[str, Any]]:
-    """Return metadata for all instruments."""
+    """Return metadata for all instruments.
 
-    return list_instruments()
+    Each entry also carries a read-only ``effective_region``: the region the
+    holding is treated as investing in (an explicit ``exposure_region``, else
+    the fund-name rule, else the stored listing/domicile ``region``), so the
+    Research page shows the same region the allocation views use.
+    """
+
+    return [
+        {**entry, "effective_region": normalise_optional_region(exposure_region(entry))} for entry in list_instruments()
+    ]
 
 
 @router.get("/admin/groups")

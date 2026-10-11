@@ -727,6 +727,8 @@
     "save": "Speichern",
     "searchInstruments": "Instrumente suchen",
     "sectorLabel": "Sektor",
+    "regionLabel": "Region",
+    "regionPlaceholder": "Automatisch: {{region}} (leer lassen, um aus Fondsname oder Börsenplatz abzuleiten)",
     "showInstrumentSearch": "Instrumentensuche anzeigen",
     "allRegions": "Alle Regionen",
     "allSectors": "Alle Sektoren",

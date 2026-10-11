@@ -46,6 +46,7 @@ from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
+from backend.timeseries.history_freeze import drop_frozen_rows, freeze_date_for
 from backend.timeseries.outlier_guard import drop_zero_volume_spikes
 from backend.timeseries.price_adjustments import PriceAdjustment, adjustments_for, apply_price_adjustments
 from backend.timeseries.source_basis import compatible_rows
@@ -437,6 +438,34 @@ def _merge_fetched(existing: pd.DataFrame, new: pd.DataFrame) -> tuple[pd.DataFr
     return combined, not added.empty or not corrected.empty
 
 
+def _fetch_window(existing: pd.DataFrame, fetch_from: date, today: date) -> tuple[bool, Dict]:
+    """``(covered, dates)`` for a live refresh of ``existing`` over ``[fetch_from, today]``.
+
+    ``covered`` is True when the cache already spans the window. Otherwise
+    ``dates`` holds the ``start_date``/``end_date`` to fetch, or is empty when
+    neither gap rule applies (the cache ends before ``fetch_from``) and the
+    fetcher falls back to its own defaults.
+    """
+    if existing.empty:
+        return False, {"start_date": fetch_from, "end_date": today}
+    days = existing["Date"].dt.date
+    have_min, have_max = days.min(), days.max()
+    if have_min <= fetch_from and have_max >= today:
+        return True, {}
+    # Each fetch re-covers _BASIS_OVERLAP_DAYS of cached history so rows
+    # from a fallback source can be checked against the cached basis
+    # before they are merged (#8597); identical overlap rows are no-ops.
+    # Need to extend forward only
+    if have_min <= fetch_from <= have_max < today:
+        start = max(have_min, have_max - timedelta(days=_BASIS_OVERLAP_DAYS))
+        return False, {"start_date": start, "end_date": today}
+    # Need to fetch earlier window chunk
+    if fetch_from < have_min:
+        end = min(have_max, have_min + timedelta(days=_BASIS_OVERLAP_DAYS))
+        return False, {"start_date": fetch_from, "end_date": end}
+    return False, {}
+
+
 def _rolling_cache(
     fetch_func: Callable[..., pd.DataFrame],
     cache_path: str,
@@ -446,6 +475,7 @@ def _rolling_cache(
     ticker: str,
     exchange: str,
     loader: Callable[[str], pd.DataFrame] | None = None,
+    frozen_before: date | None = None,
 ) -> pd.DataFrame:
 
     logger.debug("Rolling cache: %s", cache_path)
@@ -477,29 +507,14 @@ def _rolling_cache(
         mask = (ex["Date"] >= cutoff) & (ex["Date"] <= today)
         return _ensure_schema(ex.loc[mask].reset_index(drop=True))
 
-    # live mode: update cache if needed
-    if not existing.empty:
-        ex = existing.copy()
-        ex["Date"] = ex["Date"].dt.date
-        have_min, have_max = ex["Date"].min(), ex["Date"].max()
-
-        # Already fully covered
-        if have_min <= cutoff and have_max >= today:
-            return _ensure_schema(existing[existing["Date"].dt.date >= cutoff].reset_index(drop=True))
-
-        # Each fetch re-covers _BASIS_OVERLAP_DAYS of cached history so rows
-        # from a fallback source can be checked against the cached basis
-        # before they are merged (#8597); identical overlap rows are no-ops.
-        # Need to extend forward only
-        if have_min <= cutoff <= have_max < today:
-            start = max(have_min, have_max - timedelta(days=_BASIS_OVERLAP_DAYS))
-            fetch_args.update(start_date=start, end_date=today)
-        # Need to fetch earlier window chunk
-        elif cutoff < have_min:
-            end = min(have_max, have_min + timedelta(days=_BASIS_OVERLAP_DAYS))
-            fetch_args.update(start_date=cutoff, end_date=end)
-    else:
-        fetch_args.update(start_date=cutoff, end_date=today)
+    # live mode: update cache if needed. Nothing before a declared history
+    # freeze is ever fetched (#10645), so a cache starting at the freeze date
+    # counts as covered there instead of re-fetching that range every call.
+    fetch_from = cutoff if frozen_before is None else max(cutoff, frozen_before)
+    covered, window = _fetch_window(existing, fetch_from, today)
+    if covered:
+        return _ensure_schema(existing[existing["Date"].dt.date >= cutoff].reset_index(drop=True))
+    fetch_args.update(window)
 
     try:
         new = fetch_func(**fetch_args)
@@ -528,6 +543,16 @@ def _rolling_cache(
             sanitise_log_value(ticker),
             sanitise_log_value(exchange),
         )
+    kept = drop_frozen_rows(new, frozen_before)
+    if len(kept) < len(new):
+        logger.info(
+            "Ignoring %s fetched row(s) before the %s history freeze for %s.%s",
+            sanitise_log_value(len(new) - len(kept)),
+            sanitise_log_value(frozen_before),
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+        )
+    new = kept
 
     if new.empty:
         logger.warning("No new timeseries data for %s.%s", _sanitize_for_log(ticker), _sanitize_for_log(exchange))
@@ -906,6 +931,7 @@ def _load_meta_timeseries_cached(ticker: str, exchange: str, days: int, cache_on
         ticker=ticker,
         exchange=exchange,
         loader=_load_meta_parquet_cached,
+        frozen_before=freeze_date_for(ticker, exchange),
     )
 
 

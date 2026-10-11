@@ -7,6 +7,7 @@ import {
   hasStoredWatchlists,
   onWatchlistsEdited,
   readWatchlists,
+  type NamedWatchlist,
   type WatchlistsState,
 } from "./watchlistStore";
 
@@ -90,6 +91,48 @@ function isSaved(value: unknown): value is api.SavedWatchlists {
   );
 }
 
+// Mirrors MAX_LISTS / MAX_NAME_CHARS in backend/common/watchlists.py.
+const MAX_LISTS = 50;
+const MAX_NAME_CHARS = 100;
+const BROWSER_SUFFIX = " (this browser)";
+
+function sameList(a: NamedWatchlist, b: NamedWatchlist): boolean {
+  return (
+    a.name.trim().toLowerCase() === b.name.trim().toLowerCase() &&
+    a.symbols.join(",") === b.symbols.join(",")
+  );
+}
+
+function freeName(taken: Set<string>, name: string): string {
+  if (!taken.has(name.trim().toLowerCase())) return name;
+  for (let n = 1; ; n += 1) {
+    const suffix = n === 1 ? BROWSER_SUFFIX : ` (this browser ${n})`;
+    const candidate = name.slice(0, MAX_NAME_CHARS - suffix.length) + suffix;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+}
+
+/**
+ * The saved lists plus each of this browser's lists that differs from all of
+ * them, renamed on a name clash. Returns `saved` itself when nothing is added.
+ */
+export function mergeBrowserLists(saved: WatchlistsState, browser: WatchlistsState): WatchlistsState {
+  const lists = [...saved.lists];
+  const taken = new Set(lists.map((l) => l.name.trim().toLowerCase()));
+  const extra = browser.lists.filter((b) => !saved.lists.some((l) => sameList(l, b)));
+  for (const list of extra) {
+    if (lists.length >= MAX_LISTS) {
+      console.warn(`Watchlist "${list.name}" from this browser was not kept: the ${MAX_LISTS}-list limit is reached`);
+      continue;
+    }
+    const name = freeName(taken, list.name);
+    taken.add(name.toLowerCase());
+    const id = `wl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    lists.push({ id, name, symbols: [...list.symbols] });
+  }
+  return lists.length === saved.lists.length ? saved : { ...saved, lists };
+}
+
 /** What the cache should hold, and whether it still needs saving, after loading `saved`. */
 function reconcile(saved: api.SavedWatchlists & { owner: string }, local: SyncState) {
   const synced = { owner: saved.owner, revision: saved.revision, dirty: false };
@@ -103,12 +146,11 @@ function reconcile(saved: api.SavedWatchlists & { owner: string }, local: SyncSt
   }
   if (saved.state) {
     // Only a first sync gets here dirty (the same user's edits were kept
-    // above). Keeping them would overwrite another device's saved lists, so
-    // the saved copy wins (#10713) -- said out loud, not silently.
-    if (local.dirty) {
-      console.warn("Watchlist edits made before the first sync were replaced by the saved copy");
-    }
-    return { adopt: saved.state, sync: synced };
+    // above). The saved copy wins, but this browser's edits are not thrown
+    // away: its lists that differ are added beside the saved ones (#10713).
+    if (!local.dirty) return { adopt: saved.state, sync: synced };
+    const merged = mergeBrowserLists(saved.state, readWatchlists());
+    return { adopt: merged, sync: { ...synced, dirty: merged !== saved.state } };
   }
   // Nothing on the server: a first sync uploads what this browser holds.
   const upload = local.owner === null ? hasStoredWatchlists() : local.dirty;
@@ -127,6 +169,7 @@ async function load(): Promise<void> {
   }
   if (myEpoch !== epoch) return; // signed out or switched meanwhile
   loadedEpoch = myEpoch;
+  reuploads = 0;
   serverOwner = saved.owner;
   if (saved.owner === null) return; // no identity: the lists stay local
   const { adopt, sync } = reconcile({ ...saved, owner: saved.owner }, readSync());

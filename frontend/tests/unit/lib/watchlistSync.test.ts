@@ -15,6 +15,7 @@ import {
   WATCHLISTS_SYNC_STORAGE_KEY,
   ensureWatchlistsLoaded,
   flush,
+  mergeBrowserLists,
   resetWatchlistSyncForTests,
 } from "@/lib/watchlistSync";
 
@@ -39,6 +40,47 @@ function sync() {
 function conflict(current: { revision: number; state: WatchlistsState | null }) {
   return Object.assign(new Error("conflict"), { status: 409, body: { current } });
 }
+
+describe("mergeBrowserLists", () => {
+  it("adds only the browser's lists that differ, renaming on a clash", () => {
+    const savedState: WatchlistsState = {
+      activeId: "a",
+      lists: [
+        { id: "a", name: "Tech", symbols: ["AAPL"] },
+        { id: "b", name: "Same", symbols: ["BP.L"] },
+      ],
+    };
+    const browser: WatchlistsState = {
+      activeId: "x",
+      lists: [
+        { id: "x", name: "tech", symbols: ["MSFT"] },
+        { id: "y", name: "Same", symbols: ["BP.L"] },
+        { id: "z", name: "New", symbols: [] },
+      ],
+    };
+
+    const merged = mergeBrowserLists(savedState, browser);
+
+    expect(merged.activeId).toBe("a");
+    expect(merged.lists.map((l) => l.name)).toEqual(["Tech", "Same", "tech (this browser)", "New"]);
+    expect(new Set(merged.lists.map((l) => l.id)).size).toBe(4);
+  });
+
+  it("returns the saved state itself when the browser adds nothing", () => {
+    const state = list("Same", ["BP.L"]);
+    expect(mergeBrowserLists(state, list("same", ["BP.L"], "other"))).toBe(state);
+  });
+
+  it("stops at the list limit", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const many = (prefix: string, n: number): WatchlistsState => ({
+      activeId: `${prefix}0`,
+      lists: Array.from({ length: n }, (_, i) => ({ id: `${prefix}${i}`, name: `${prefix}${i}`, symbols: [] })),
+    });
+    expect(mergeBrowserLists(many("s", 49), many("b", 3)).lists).toHaveLength(50);
+    vi.restoreAllMocks();
+  });
+});
 
 describe("watchlistSync", () => {
   beforeEach(() => {
@@ -111,7 +153,7 @@ describe("watchlistSync", () => {
     expect(api.putSavedWatchlists).not.toHaveBeenCalled();
   });
 
-  it("says so when the saved copy replaces edits made before the first sync", async () => {
+  it("keeps edits made before the first sync beside the saved lists", async () => {
     (api.getSavedWatchlists as Mock).mockRejectedValueOnce(new Error("offline"));
     await ensureWatchlistsLoaded();
     toggleInWatchlist("default", "VOD.L");
@@ -120,12 +162,13 @@ describe("watchlistSync", () => {
     (api.getSavedWatchlists as Mock).mockResolvedValue(saved(SERVER));
     await flush();
 
-    // Keeping the edit would overwrite the other device's saved lists.
-    expect(readWatchlists()).toEqual(SERVER);
-    expect(api.putSavedWatchlists).not.toHaveBeenCalled();
-    expect(console.warn).toHaveBeenCalledWith(
-      "Watchlist edits made before the first sync were replaced by the saved copy",
-    );
+    const state = readWatchlists();
+    expect(state.activeId).toBe("default");
+    expect(state.lists[0]).toEqual(SERVER.lists[0]);
+    // "My watchlist" doesn't clash with "Server", so it keeps its name.
+    expect(state.lists[1].name).toBe("My watchlist");
+    expect(state.lists[1].symbols).toContain("VOD.L");
+    expect(api.putSavedWatchlists).toHaveBeenCalledWith(state, 3);
   });
 
   it("re-uploads once if the saved copy vanishes mid-save, then gives up", async () => {

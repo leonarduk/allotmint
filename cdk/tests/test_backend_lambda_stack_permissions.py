@@ -1265,6 +1265,21 @@ def test_backend_lambda_can_delete_only_chat_history() -> None:
     assert {"StringLike": {"s3:prefix": ["chat", "chat/*"]}} in list_conditions
 
 
+def test_backend_lambda_can_read_and_write_saved_watchlists() -> None:
+    """Saved watchlists (#10713) live at watchlists/<hash>.json; ListBucket is covered above.
+
+    Get/Put come from the bucket-wide object grant, so narrowing that grant
+    must keep watchlists/* or every save in AWS fails.
+    """
+    template = _stack_template()
+    backend_role = _role_logical_id_for_lambda(template, "BackendLambda")
+    for action in ("s3:GetObject", "s3:PutObject"):
+        resources = _resources_for_s3_action(template, backend_role, action)
+        assert any(r.endswith("'/*']]}") or r.endswith("'/watchlists/*']]}") for r in resources), (
+            f"BackendLambda needs {action} on watchlists/*, got {resources}"
+        )
+
+
 def test_backend_lambda_chat_history_env_points_at_the_chat_prefix() -> None:
     template = _stack_template()
     backend_fn = next(

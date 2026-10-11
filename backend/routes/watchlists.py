@@ -11,6 +11,10 @@ read nothing saved and are refused (403) every write. So is a caller with no
 identity at all (auth disabled and no local login override): ``owner`` is null
 and the browser keeps its lists to itself. That case answers 200, not 401,
 because a 401 makes the SPA sign the user out.
+
+With the watchlist tab switched off (``tabs.watchlist``) nothing is stored
+either: ``GET`` answers like the no-identity case, so the browser keeps its
+lists local, and ``PUT`` is a 404.
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from backend.auth import get_active_user, is_demo_request
 from backend.common import watchlists
+from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
@@ -77,6 +82,11 @@ async def _parse_put(request: Request) -> WatchlistsPut:
         raise HTTPException(status_code=422, detail=exc.errors(include_url=False, include_context=False)) from exc
 
 
+def _enabled() -> bool:
+    """Read per request: the tab switches can change while the app runs."""
+    return bool(getattr(config.tabs, "watchlist", True))
+
+
 @router.get("")
 def get_watchlists(user: Optional[str] = Depends(get_active_user)):
     """The saved watchlists (``state`` is null until first saved), plus ``owner``.
@@ -86,7 +96,7 @@ def get_watchlists(user: Optional[str] = Depends(get_active_user)):
     is holding and never uploads one user's cached lists into another account.
     """
 
-    if not user:
+    if not user or not _enabled():
         return {"owner": None, "revision": 0, "state": None}
     owner = watchlists.user_key(user)
     if is_demo_request():
@@ -99,6 +109,8 @@ def get_watchlists(user: Optional[str] = Depends(get_active_user)):
 
 @router.put("")
 async def put_watchlists(request: Request, user: Optional[str] = Depends(get_active_user)):
+    if not _enabled():
+        raise HTTPException(status_code=404, detail="The watchlist feature is switched off")
     if is_demo_request():
         raise HTTPException(status_code=403, detail="Demo sessions cannot save watchlists")
     if not user:

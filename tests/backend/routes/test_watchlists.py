@@ -53,6 +53,18 @@ def test_no_identity_reads_nothing_and_cannot_write_without_a_401(app, monkeypat
     assert client.put(URL, json={"revision": 0, "state": _state()}).status_code == 403
 
 
+def test_nothing_is_stored_with_the_watchlist_tab_switched_off(app, monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client_as(app, ALICE)
+    client.put(URL, json={"revision": 0, "state": _state("Saved")})
+    monkeypatch.setattr(config.tabs, "watchlist", False)
+
+    assert client.get(URL).json() == {"owner": None, "revision": 0, "state": None}
+    assert client.put(URL, json={"revision": 1, "state": _state("x")}).status_code == 404
+
+    monkeypatch.setattr(config.tabs, "watchlist", True)
+    assert client.get(URL).json()["state"]["lists"][0]["name"] == "Saved"
+
+
 def test_get_without_saved_watchlists(app) -> None:
     resp = _client_as(app, ALICE).get(URL)
     assert resp.status_code == 200

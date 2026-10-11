@@ -111,6 +111,36 @@ describe("watchlistSync", () => {
     expect(api.putSavedWatchlists).not.toHaveBeenCalled();
   });
 
+  it("says so when the saved copy replaces edits made before the first sync", async () => {
+    (api.getSavedWatchlists as Mock).mockRejectedValueOnce(new Error("offline"));
+    await ensureWatchlistsLoaded();
+    toggleInWatchlist("default", "VOD.L");
+    expect(sync()).toEqual({ owner: null, revision: 0, dirty: true });
+
+    (api.getSavedWatchlists as Mock).mockResolvedValue(saved(SERVER));
+    await flush();
+
+    // Keeping the edit would overwrite the other device's saved lists.
+    expect(readWatchlists()).toEqual(SERVER);
+    expect(api.putSavedWatchlists).not.toHaveBeenCalled();
+    expect(console.warn).toHaveBeenCalledWith(
+      "Watchlist edits made before the first sync were replaced by the saved copy",
+    );
+  });
+
+  it("re-uploads once if the saved copy vanishes mid-save, then gives up", async () => {
+    (api.getSavedWatchlists as Mock).mockResolvedValue(saved(SERVER));
+    await ensureWatchlistsLoaded();
+    vi.useFakeTimers();
+    (api.putSavedWatchlists as Mock).mockRejectedValue(conflict({ revision: 0, state: null }));
+
+    toggleInWatchlist("default", "VOD.L");
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS * 10);
+
+    expect(api.putSavedWatchlists).toHaveBeenCalledTimes(2);
+    expect(sync().dirty).toBe(true);
+  });
+
   it("replaces a cache that belongs to another user and never uploads it", async () => {
     localStorage.setItem(WATCHLISTS_STORAGE_KEY, JSON.stringify(list("Alice's", ["AZN.L"])));
     localStorage.setItem(

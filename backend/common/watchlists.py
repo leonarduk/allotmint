@@ -50,7 +50,8 @@ logger = logging.getLogger(__name__)
 DOCUMENT_VERSION = 1
 S3_PREFIX = "watchlists"
 MAX_LISTS = 50
-MAX_SYMBOLS_PER_LIST = 2000
+# An S&P 500 copy (~500) fits twice over; see MAX_DOCUMENT_BYTES in the route.
+MAX_SYMBOLS_PER_LIST = 1000
 MAX_NAME_CHARS = 100
 MAX_SYMBOL_CHARS = 40
 # Ids the frontend makes: "default", or "wl-<time>-<random>".
@@ -343,7 +344,7 @@ def save_watchlists(
         store.write(key, body, expect_tag=stored.tag if stored else None)
     except _PreconditionFailed:
         raise WatchlistsConflict(_public(*_decode(store.read(key)))) from None
-    logger.info("Saved watchlists revision %d", revision)
+    logger.info("Saved watchlists revision %s", sanitise_log_value(revision))
     return revision
 
 

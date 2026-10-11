@@ -104,6 +104,17 @@ def test_invalid_bodies_are_422(app, body) -> None:
     assert _client_as(app, ALICE).put(URL, json=body).status_code == 422
 
 
+def test_the_largest_valid_document_fits_under_the_size_cap(app) -> None:
+    wl = routes.watchlists
+    symbols = ["X" * wl.MAX_SYMBOL_CHARS] * wl.MAX_SYMBOLS_PER_LIST
+    lists = [
+        {"id": f"l{i}", "name": f"{i:03d}" + "N" * (wl.MAX_NAME_CHARS - 3), "symbols": symbols}
+        for i in range(wl.MAX_LISTS)
+    ]
+    resp = _client_as(app, ALICE).put(URL, json={"revision": 0, "state": {"activeId": "l0", "lists": lists}})
+    assert resp.status_code == 200
+
+
 def test_oversize_body_is_413(app, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(routes, "MAX_DOCUMENT_BYTES", 50)
     resp = _client_as(app, ALICE).put(URL, json={"revision": 0, "state": _state("x" * 60)})

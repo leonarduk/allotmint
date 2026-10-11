@@ -30,8 +30,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/watchlists", tags=["watchlists"])
 
-# The largest allowed document (50 lists of 2,000 symbols) is well under this.
-MAX_DOCUMENT_BYTES = 2_000_000
+# Above the largest valid document: MAX_LISTS x MAX_SYMBOLS_PER_LIST symbols of
+# at most MAX_SYMBOL_CHARS, quoted and comma-separated, is ~2.1 MB. Still well
+# inside Lambda's 6 MB request limit.
+MAX_DOCUMENT_BYTES = 3_000_000
 
 CODE_CONFLICT = "watchlists_conflict"
 CODE_UNAVAILABLE = "watchlists_unavailable"

@@ -51,6 +51,8 @@ let serverOwner: string | null = null;
 let loading: Promise<void> | null = null;
 let saving: Promise<void> | null = null;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+// Re-uploads after the saved copy vanished mid-save; one is retried, a second gives up.
+let reuploads = 0;
 
 // Shared by every tab, like the lists themselves, so a save in one tab moves
 // the revision the others will base theirs on.
@@ -99,7 +101,15 @@ function reconcile(saved: api.SavedWatchlists & { owner: string }, local: SyncSt
     // Unsaved edits for this user: keep them and save them.
     return { adopt: null, sync: local };
   }
-  if (saved.state) return { adopt: saved.state, sync: synced };
+  if (saved.state) {
+    // Only a first sync gets here dirty (the same user's edits were kept
+    // above). Keeping them would overwrite another device's saved lists, so
+    // the saved copy wins (#10713) -- said out loud, not silently.
+    if (local.dirty) {
+      console.warn("Watchlist edits made before the first sync were replaced by the saved copy");
+    }
+    return { adopt: saved.state, sync: synced };
+  }
   // Nothing on the server: a first sync uploads what this browser holds.
   const upload = local.owner === null ? hasStoredWatchlists() : local.dirty;
   return { adopt: null, sync: { ...synced, dirty: upload } };
@@ -153,6 +163,7 @@ async function saveOnce(myEpoch: number): Promise<void> {
       JSON.parse(snapshot) as WatchlistsState,
       readSync().revision,
     );
+    reuploads = 0;
     if (myEpoch !== epoch) return;
     // Edited again while saving: stay dirty so the next save picks it up.
     const dirty = JSON.stringify(readWatchlists()) !== snapshot;
@@ -165,8 +176,12 @@ async function saveOnce(myEpoch: number): Promise<void> {
       adoptWatchlists(current.state);
       writeSync({ ...readSync(), revision: current.revision, dirty: false });
     } else {
-      // Deleted on the server meanwhile: upload this copy again.
+      // Deleted on the server meanwhile: upload this copy again, once.
       writeSync({ ...readSync(), revision: current.revision, dirty: true });
+      reuploads += 1;
+      if (reuploads > 1) {
+        throw new Error("The saved watchlists kept disappearing during saves", { cause: err });
+      }
     }
   }
 }
@@ -234,4 +249,5 @@ export function resetWatchlistSyncForTests() {
   serverOwner = null;
   loading = null;
   saving = null;
+  reuploads = 0;
 }

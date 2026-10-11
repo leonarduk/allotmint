@@ -12,6 +12,7 @@ import { useConfig } from "../ConfigContext";
 import { useReportingCurrency, type ReportingCurrency } from "../hooks/useReportingCurrency";
 import type { InstrumentPosition, TradingSignal, Transaction } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
+import { WorkspaceTabsInlineToggle } from "./WorkspaceTabsInlineToggle";
 import { CompareSeriesPanel } from "./CompareSeriesPanel";
 import { FxReturnSplitPanel } from "./FxReturnSplitPanel";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
@@ -921,7 +922,10 @@ export function InstrumentDetail({
         }}
       >
         <h2 style={{ marginBottom: 0 }}>{name}</h2>
-        <RelativeViewToggle />
+        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+          <WorkspaceTabsInlineToggle />
+          <RelativeViewToggle />
+        </div>
       </div>
       <div style={{ fontSize: "0.85rem", color: palette.muted }}>
         {ticker} • {displayCurrency} • {translateInstrumentType(t, instrument_type)} • {" "}

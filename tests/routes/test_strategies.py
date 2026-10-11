@@ -225,3 +225,13 @@ def test_risk_return_unknown_strategy_or_bad_window(client, risk_calls):
     assert client.get("/strategies/alex/permanent/risk-return?days=29").status_code == 422
     assert client.get("/strategies/alex/permanent/risk-return?days=3651").status_code == 422
     assert risk_calls == []
+
+
+def test_risk_return_is_owner_checked(client, risk_calls, monkeypatch):
+    def deny(identity, owner, root):
+        raise PermissionDeniedError("nope")
+
+    monkeypatch.setattr(strategies_route, "ensure_owner_access", deny)
+    with pytest.raises(PermissionDeniedError):
+        client.get("/strategies/alex/permanent/risk-return")
+    assert risk_calls == []

@@ -74,7 +74,8 @@ def test_daily_rebalanced_weighted_return_and_gold_is_total_return():
 
 def test_cash_accrues_the_risk_free_rate_by_calendar_day():
     cash_only = _compute({"cash": 100.0}, cash_rate=0.05)
-    assert cash_only["period_return"] == pytest.approx(0.05, abs=0.002)  # plotted at the rate, over business days
+    # The window starts on a Sunday; its accrual to Monday still counts.
+    assert cash_only["period_return"] == pytest.approx(1.05 ** ((END - AFTER).days / 365) - 1)
     assert cash_only["series"] == {}
 
     result = _compute({"equity": 50.0, "cash": 50.0}, cash_rate=0.05)
@@ -148,3 +149,17 @@ def test_stand_in_whose_prices_stop_before_the_window_end_is_skipped(monkeypatch
 
     del series["IWRD.L"]
     assert _compute({"equity": 100.0})["missing"] == ["equity"]
+
+
+def test_staggered_starts_that_cover_the_window_start_score_every_window_day():
+    """Through the whole computation: a later first close, still before AFTER, loses no in-window return."""
+    series = dict(SERIES)
+    series["PHAU.L"] = (_daily(AFTER - dt.timedelta(days=2), 0.0005), PRICE_RETURN_BASIS)  # Friday, after VWRL.L starts
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            ledger_performance,
+            "load_gbp_total_return_closes",
+            lambda ticker, start, end: series.get(ticker, (pd.Series(dtype=float), PRICE_RETURN_BASIS)),
+        )
+        result = _compute({"equity": 50.0, "gold": 50.0})
+    assert result["period_return"] == pytest.approx(1.00075 ** _days_in_window() - 1)

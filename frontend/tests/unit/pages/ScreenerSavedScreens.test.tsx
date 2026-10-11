@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  within,
+  waitFor,
+} from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Screener } from '@/pages/Screener';
 import * as api from '@/api';
@@ -6,6 +12,7 @@ import {
   SAVED_SCREENS_STORAGE_KEY,
   readSavedScreens,
 } from '@/lib/savedScreensStore';
+import { PRESET_VALUE_PREFIX, SCREEN_PRESETS } from '@/lib/screenerPresets';
 
 vi.mock('@/api');
 
@@ -141,6 +148,72 @@ describe('Screener saved screens', () => {
     localStorage.setItem(SAVED_SCREENS_STORAGE_KEY, '{not json');
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     await renderReady();
-    expect(savedSelect().options).toHaveLength(1);
+    const mine = savedSelect().querySelector('optgroup[label="My screens"]');
+    expect(mine?.querySelectorAll('option:not([disabled])')).toHaveLength(0);
   });
+
+  it('lists every preset by name', async () => {
+    await renderReady();
+    const group = savedSelect().querySelector('optgroup[label="Presets"]');
+    expect(
+      Array.from(group?.querySelectorAll('option') ?? [], (o) => o.textContent)
+    ).toEqual(SCREEN_PRESETS.map((p) => p.name));
+  });
+
+  it('loads a preset read-only and lets the user fork it', async () => {
+    const bar = await renderReady();
+    const preset = SCREEN_PRESETS.find((p) => p.id === 'deep-value')!;
+
+    fireEvent.change(savedSelect(), {
+      target: { value: PRESET_VALUE_PREFIX + 'deep-value' },
+    });
+    // Loading only fills the form; nothing runs until the user clicks Run.
+    expect(api.getScreener).not.toHaveBeenCalled();
+
+    expect((screen.getByLabelText('Max P/E') as HTMLInputElement).value).toBe(
+      preset.filters.pe_max
+    );
+    expect(bar.getByTestId('preset-description')).toHaveTextContent(
+      preset.description
+    );
+    expect(bar.getByRole('button', { name: 'Update' })).toBeDisabled();
+    expect(bar.getByRole('button', { name: 'Delete' })).toBeDisabled();
+
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('My value');
+    fireEvent.click(bar.getByRole('button', { name: 'Save as…' }));
+    expect(prompt).toHaveBeenCalledWith(expect.any(String), preset.name);
+    expect(readSavedScreens()).toEqual([
+      expect.objectContaining({
+        name: 'My value',
+        watchlist: preset.watchlist,
+        filters: expect.objectContaining(preset.filters),
+      }),
+    ]);
+  });
+
+  it.each(SCREEN_PRESETS.map((p) => [p.name, p] as const))(
+    'preset "%s" sends every one of its filters to the backend',
+    async (_name, preset) => {
+      vi.mocked(api.getScreener).mockResolvedValue([]);
+      vi.mocked(api.getScreenerRiskReturn).mockRejectedValue(
+        Object.assign(new Error('unavailable'), { status: 402 })
+      );
+      await renderReady();
+      fireEvent.change(savedSelect(), {
+        target: { value: PRESET_VALUE_PREFIX + preset.id },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /run/i }));
+
+      const expected = Object.fromEntries(
+        Object.entries(preset.filters).map(([k, v]) => [k, Number(v)])
+      );
+      await waitFor(() =>
+        expect(api.getScreener).toHaveBeenCalledWith(
+          expect.any(Array),
+          expected
+        )
+      );
+    }
+  );
 });

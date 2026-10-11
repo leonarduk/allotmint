@@ -174,6 +174,23 @@ describe("watchlistSync", () => {
     expect(sync()).toEqual({ owner: "u1", revision: 4, dirty: false });
   });
 
+  it("does not write a save's result over another tab's sign-in as someone else", async () => {
+    (api.getSavedWatchlists as Mock).mockResolvedValue(saved(SERVER));
+    await ensureWatchlistsLoaded();
+    const bobs = { owner: "bob", revision: 7, dirty: false };
+    (api.putSavedWatchlists as Mock).mockImplementationOnce(async (state, revision) => {
+      // Another tab signs in as bob while this save is out.
+      localStorage.setItem(WATCHLISTS_SYNC_STORAGE_KEY, JSON.stringify(bobs));
+      return { revision: revision + 1, state };
+    });
+
+    toggleInWatchlist("default", "VOD.L");
+    await flush();
+
+    expect(api.putSavedWatchlists).toHaveBeenCalledWith(expect.anything(), 3);
+    expect(sync()).toEqual(bobs);
+  });
+
   it("adopts the other device's copy on a conflict", async () => {
     (api.getSavedWatchlists as Mock).mockResolvedValue(saved(SERVER));
     await ensureWatchlistsLoaded();

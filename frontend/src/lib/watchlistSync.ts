@@ -158,19 +158,24 @@ function isConflict(
 
 async function saveOnce(myEpoch: number): Promise<void> {
   const snapshot = JSON.stringify(readWatchlists());
+  const base = readSync();
+  // The sync state is shared by every tab. If another tab signed in as
+  // someone else while this save was out, the state is no longer this
+  // user's, so this response must not be written into it.
+  const stillOurs = () => myEpoch === epoch && readSync().owner === base.owner;
   try {
     const { revision } = await api.putSavedWatchlists(
       JSON.parse(snapshot) as WatchlistsState,
-      readSync().revision,
+      base.revision,
     );
     reuploads = 0;
-    if (myEpoch !== epoch) return;
+    if (!stillOurs()) return;
     // Edited again while saving: stay dirty so the next save picks it up.
     const dirty = JSON.stringify(readWatchlists()) !== snapshot;
     writeSync({ ...readSync(), revision, dirty });
   } catch (err) {
     if (!isConflict(err)) throw err;
-    if (myEpoch !== epoch) return;
+    if (!stillOurs()) return;
     const { current } = err.body;
     if (current.state) {
       adoptWatchlists(current.state);

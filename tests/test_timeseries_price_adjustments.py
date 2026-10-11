@@ -96,6 +96,8 @@ def test_absent_block_is_valid_and_empty():
         ({"dividends_before": "soon"}, "dividends_before"),
         ({"rationale": "  "}, "rationale"),
         ({"reviewed": None}, "reviewed"),
+        ({"kind": "currency"}, "kind"),
+        ({"kind": None}, "kind"),
     ],
 )
 def test_invalid_entries_are_reported(change, fragment):
@@ -133,6 +135,36 @@ def test_rows_before_the_basis_change_are_restated():
     assert out["High"].tolist() == pytest.approx([44.25 * 1.01, 44.4375 * 1.01, 44.56 * 1.01])
     assert out["Volume"].tolist() == [400, 800, 900]
     pd.testing.assert_frame_equal(raw, snapshot)  # input not mutated
+
+
+def test_kind_defaults_to_split_and_split_restates_volume():
+    (default,) = pa.parse_price_adjustments(_meta(JEGI_BLOCK))
+    (explicit,) = pa.parse_price_adjustments(_meta({**JEGI_BLOCK, "kind": "split"}))
+    assert default.kind == explicit.kind == "split"
+    raw = _frame([date(2010, 12, 31), BASIS_CHANGE], [177.75, 44.56], [200, 900])
+    assert pa.apply_price_adjustments(raw, (explicit,))["Volume"].tolist() == [800, 900]
+
+
+def test_unit_change_restates_prices_but_not_volume():
+    """A pence-to-pounds switch (BCG.L) leaves the share count, so Volume, unchanged (#10734)."""
+    block = {**JEGI_BLOCK, "before": "2026-08-24", "factor": 0.01, "kind": "units"}
+    raw = _frame([date(2026, 8, 21), date(2026, 8, 24)], [203.4, 2.046], [1006102, 589194])
+
+    out = pa.apply_price_adjustments(raw, pa.parse_price_adjustments(_meta(block)))
+
+    assert out["Close"].tolist() == pytest.approx([2.034, 2.046])
+    assert out["Volume"].tolist() == [1006102, 589194]
+
+
+def test_mixed_kinds_scale_volume_only_for_splits():
+    split = {**JEGI_BLOCK, "before": "2000-01-04", "factor": 0.5}
+    units = {**JEGI_BLOCK, "factor": 100, "kind": "units"}
+    raw = _frame([date(1999, 12, 31), date(2005, 6, 1), BASIS_CHANGE], [1.0, 1.0, 100.0], [10, 10, 10])
+
+    out = pa.apply_price_adjustments(raw, pa.parse_price_adjustments(_meta(split, units)))
+
+    assert out["Close"].tolist() == pytest.approx([50.0, 100.0, 100.0])
+    assert out["Volume"].tolist() == [20, 10, 10]
 
 
 def test_entries_compound():

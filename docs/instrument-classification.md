@@ -204,6 +204,10 @@ the instrument file (`instruments/<EX>/<SYM>.json`):
   Open/High/Low/Close multiplied by `factor` and Volume divided by it.
 - `factor`: new basis ÷ old basis. Use `0.25` for a 4-for-1 split and `10` for
   a 1-for-10 consolidation. It must be a finite number > 0 and not 1.
+- `kind` (optional, defaults to `"split"`): use `"units"` when only the price
+  unit changed and the share count did not, e.g. Yahoo switching a line from
+  pence to pounds (`BCG.L`, `CLDN.L`). OHLC are still multiplied by `factor`,
+  but Volume is left as stored (#10734).
 - `dividends_before` (optional, defaults to `before`): the first stored
   dividend on the new basis. Dividends dated earlier are multiplied by `factor`
   when total return reinvests them. Stored dividends can switch basis on a

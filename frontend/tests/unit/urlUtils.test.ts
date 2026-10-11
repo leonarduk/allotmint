@@ -7,6 +7,7 @@ import {
   encodePathSegment,
   stripAuthCallbackParams,
 } from "@/utils/urlUtils";
+import { getOwnerRootRedirectPath } from "@/routes/ownerRootRedirect";
 
 describe("encodePathSegment", () => {
   it("encodes spaces as %20", () => {
@@ -65,24 +66,21 @@ describe("decodePathSegment", () => {
 });
 
 describe("getOwnerRootRedirectPath URL encoding", () => {
-  it("encodes owner names with spaces in the redirect path", async () => {
-    const { getOwnerRootRedirectPath } = await import("@/App");
+  it("encodes owner names with spaces in the redirect path", () => {
     const result = getOwnerRootRedirectPath("/portfolio", "", [
       { owner: "joe leonard", accounts: [] },
     ]);
     expect(result).toBe("/portfolio/joe%20leonard");
   });
 
-  it("uses plain slugs unchanged in the redirect path", async () => {
-    const { getOwnerRootRedirectPath } = await import("@/App");
+  it("uses plain slugs unchanged in the redirect path", () => {
     const result = getOwnerRootRedirectPath("/portfolio", "", [
       { owner: "alice", accounts: [] },
     ]);
     expect(result).toBe("/portfolio/alice");
   });
 
-  it("uses the performance redirect path for /performance root", async () => {
-    const { getOwnerRootRedirectPath } = await import("@/App");
+  it("uses the performance redirect path for /performance root", () => {
     const result = getOwnerRootRedirectPath("/performance", "", [
       { owner: "alice", accounts: [] },
     ]);

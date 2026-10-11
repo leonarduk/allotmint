@@ -242,3 +242,33 @@ def test_suffix_without_its_own_metadata_still_defers_to_metadata(monkeypatch, t
         fmt.run_all_tickers(["BA.N"], days=5)
 
     assert calls == [("BA", "L", 5)]
+
+
+def test_lowercase_suffix_resolves_like_uppercase(monkeypatch, tmp_path):
+    _listings(monkeypatch, tmp_path, ["L", "N"])
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        fmt.run_all_tickers(["ba.n"], days=5)
+
+    assert calls == [("BA", "N", 5)]
+
+
+def test_bare_symbol_with_exchange_argument_is_unchanged(monkeypatch, tmp_path):
+    """No suffix: the exchange argument still overrides the bare-symbol metadata match."""
+    _listings(monkeypatch, tmp_path, ["L", "N"])
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        fmt.run_all_tickers(["BA"], exchange="N", days=5)
+        fmt.run_all_tickers(["BA"], exchange="L", days=5)
+
+    assert calls == [("BA", "N", 5), ("BA", "L", 5)]

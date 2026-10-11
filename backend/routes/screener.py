@@ -38,6 +38,26 @@ except ModuleNotFoundError as exc:
         raise
     instrument_technicals = None
 
+# Likewise for the per-company credit-risk verdict (allotmint-pro#701).
+try:
+    from allotmint_pro.mcp_server.credit_risk_tools import get_credit_risk
+except ModuleNotFoundError as exc:
+    if not missing_package(exc):
+        raise
+    get_credit_risk = None
+
+# The pro tool reports bad input as mcp's ToolError. Guarded on its own so a
+# missing mcp install never takes the other screener routes down with it.
+try:
+    from mcp.server.mcpserver.exceptions import ToolError
+except ModuleNotFoundError as exc:
+    if not missing_package(exc, "mcp"):
+        raise
+
+    class ToolError(Exception):  # type: ignore[no-redef]
+        """Never raised: without mcp the pro tool cannot be installed either."""
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -431,3 +451,35 @@ def technicals(ticker: str = Query(..., description="Full ticker, e.g. ADBE.N"))
         return instrument_technicals(symbol).model_dump()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/credit-risk")
+def credit_risk(ticker: str = Query(..., description="Full ticker, e.g. BP.L")) -> Dict[str, Any]:
+    """Per-company credit/distress verdict for one instrument (#10606, allotmint-pro#701).
+
+    ``result`` is the pro tool's row: ``band`` (high/watch/low/unknown),
+    ``reasons``, ``mitigations``, ``signals`` (Altman Z, interest cover, net
+    debt / EBITDA, current ratio, FCF, 52-week fall) and ``data_gaps``.
+    ``market_context`` holds the latest stored credit spreads. The reasons
+    already quote each threshold crossed, and the card carries its own
+    translated caveat, so pro's ``thresholds`` and English ``note`` are not
+    passed on. The same verdict
+    backs the assistant's ``get_credit_risk`` MCP tool.
+    """
+
+    require_core(get_credit_risk, "Credit risk")
+
+    symbol = ticker.strip().upper()
+    if not symbol or symbol.startswith("."):
+        raise HTTPException(status_code=400, detail="No ticker supplied")
+    try:
+        verdict = get_credit_risk(ticker=symbol)
+    except (ToolError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if not verdict.get("results"):
+        failed = verdict.get("failed") or [{}]
+        raise HTTPException(status_code=502, detail=failed[0].get("error") or "No fundamentals for this ticker")
+    return {
+        "result": verdict["results"][0],
+        "market_context": verdict.get("market_context"),
+    }

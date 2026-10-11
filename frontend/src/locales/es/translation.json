@@ -2454,6 +2454,33 @@
     "assetClassBasis": "fondo {{assetClass}}: {{basis}}",
     "dataQuality": "Calidad de los datos"
   },
+  "instrumentCreditRisk": {
+    "loadError": "No se pudo cargar el riesgo de crédito: {{message}}",
+    "loading": "Cargando riesgo de crédito...",
+    "title": "Riesgo de crédito",
+    "signals": "Señales de riesgo de crédito",
+    "altmanZ": "Puntuación Z de Altman",
+    "interestCover": "Cobertura de intereses",
+    "netDebtToEbitda": "Deuda neta / EBITDA",
+    "currentRatio": "Ratio de liquidez",
+    "fcf": "Flujo de caja libre",
+    "below52wHigh": "Por debajo del máximo de 52 semanas",
+    "marketContext": "Diferenciales de crédito del mercado:",
+    "spreadReading": "{{label}} {{value}} pp (percentil {{percentile}})",
+    "usHighYield": "Alto rendimiento EE. UU.",
+    "euroHighYield": "Alto rendimiento euro",
+    "baa10y": "Baa – Tesoro a 10 años",
+    "accountsAsOf": "Cuentas a {{date}}",
+    "noAccountsDate": "Sin fecha de cuentas anuales",
+    "dataGaps": "Faltan: {{fields}}",
+    "disclaimer": "Señales frente a umbrales fijos, no una calificación crediticia ni una recomendación.",
+    "band": {
+      "high": "Alto",
+      "watch": "Vigilar",
+      "low": "Bajo",
+      "unknown": "Desconocido"
+    }
+  },
   "instrumentTechnicals": {
     "whatDoesMean": "¿Qué significa {{title}}?",
     "crossGolden": "Cruce dorado (50 sobre 200)",

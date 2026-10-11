@@ -80,6 +80,10 @@ export default defineConfig(({ command }) => {
       environment: 'jsdom',
       setupFiles: './src/setupTests.ts',
       include: ['tests/unit/**/*.test.ts?(x)'],
+      // Restore vi.spyOn spies between tests, so a test that fails before its
+      // own mockRestore() cannot leave a stubbed console/window/etc. behind
+      // for later tests in the file (#10689). vi.fn() mock state is untouched.
+      restoreMocks: true,
       // Per-test ceiling. MUST stay above MENU_INTERACTION_TIMEOUT_MS
       // (tests/support/menuInteractionTimeout.ts — 8000ms under CI). If it
       // drops below, vitest kills the test before an inner waitFor can spend

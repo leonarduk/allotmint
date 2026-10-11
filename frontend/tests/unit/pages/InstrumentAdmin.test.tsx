@@ -92,6 +92,27 @@ describe("InstrumentAdmin page", () => {
     expect(vi.mocked(updateInstrumentMetadata).mock.calls[0][2]).not.toHaveProperty("region");
   });
 
+  it("does not resend an unchanged exposure-region override", async () => {
+    vi.mocked(listInstrumentMetadata).mockResolvedValueOnce([
+      { ticker: "ABC.L", name: "Abc", region: "UK", exposure_region: "Europe", effective_region: "Europe" },
+    ] as any);
+    render(
+      <MemoryRouter>
+        <InstrumentAdmin />
+      </MemoryRouter>,
+    );
+    fireEvent.change(await screen.findByDisplayValue("Abc"), { target: { value: "Abc plc" } });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() =>
+      expect(updateInstrumentMetadata).toHaveBeenCalledWith(
+        "ABC",
+        "L",
+        expect.objectContaining({ name: "Abc plc" }),
+      ),
+    );
+    expect(vi.mocked(updateInstrumentMetadata).mock.calls[0][2]).not.toHaveProperty("exposure_region");
+  });
+
   it("clears the exposure-region override when the region is blanked", async () => {
     vi.mocked(listInstrumentMetadata).mockResolvedValueOnce([
       { ticker: "ABC.L", name: "Abc", region: "UK", exposure_region: "Europe", effective_region: "Europe" },

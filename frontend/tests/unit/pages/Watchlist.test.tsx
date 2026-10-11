@@ -577,6 +577,32 @@ describe("Watchlist page", () => {
         await waitFor(() => expect(listParam()).toBe("Nope"));
         expect(screen.queryByText(/No watchlist called/)).not.toBeInTheDocument();
       });
+
+      it("drops the notice once another tab creates the missing list", async () => {
+        renderAt("/watchlist?list=Nope");
+        await screen.findByText(/No watchlist called "Nope"/);
+
+        // Another tab writes straight to localStorage; this tab only hears
+        // about it through the "storage" event, without its own write.
+        const state = readWatchlists();
+        act(() => {
+          localStorage.setItem(
+            "watchlists",
+            JSON.stringify({
+              ...state,
+              lists: [...state.lists, { id: "wl-other-tab", name: "Nope", symbols: [] }],
+            }),
+          );
+          window.dispatchEvent(new StorageEvent("storage", { key: "watchlists" }));
+        });
+
+        await waitFor(() =>
+          expect(screen.queryByText(/No watchlist called/)).not.toBeInTheDocument(),
+        );
+        // It only clears the notice: this tab stays on the list it was showing.
+        expect(listSelect()).toHaveDisplayValue("My watchlist (2)");
+        expect(listParam()).toBe("My watchlist");
+      });
     });
   });
 

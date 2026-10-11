@@ -220,7 +220,7 @@ async def test_run_chat_turn_marks_a_rejected_navigation_as_failed(monkeypatch):
     assert tool_message["content"].startswith("Tool call failed: Unknown page")
 
 
-async def test_run_chat_turn_reports_failed_tool_call_to_the_model_instead_of_raising(monkeypatch):
+async def test_run_chat_turn_reports_failed_tool_call_to_the_model_instead_of_raising(monkeypatch, caplog):
     class BoomSession(FakeSession):
         async def call_tool(self, name, arguments):
             raise RuntimeError("MCP server unreachable")
@@ -237,13 +237,17 @@ async def test_run_chat_turn_reports_failed_tool_call_to_the_model_instead_of_ra
         ],
     )
 
-    reply = await openai_compat_agent.run_chat_turn(
-        "who?", [], mcp_server_url="http://localhost:8001/mcp", base_url="http://x/v1", model="m"
-    )
+    with caplog.at_level("INFO", logger="backend.chat.mcp_tools_client"):
+        reply = await openai_compat_agent.run_chat_turn(
+            "who?", [], mcp_server_url="http://localhost:8001/mcp", base_url="http://x/v1", model="m"
+        )
 
     assert reply == "I could not list owners."
     tool_message = json.loads(requests[1].content)["messages"][-1]
     assert tool_message["content"] == "Tool call failed: MCP server unreachable"
+    # A raised call is logged as an error too (#10613).
+    statuses = [record.status for record in caplog.records if getattr(record, "event", None) == "chat.tool_call"]
+    assert statuses == ["error"]
 
 
 async def test_run_chat_turn_raises_when_loop_does_not_converge(monkeypatch):

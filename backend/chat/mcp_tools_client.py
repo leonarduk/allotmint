@@ -74,11 +74,16 @@ def log_tool_call(name: str, status: str, started: float) -> None:
     """
 
     duration_ms = round((time.perf_counter() - started) * 1000, 1)
-    tool = sanitise_log_value(name)
+    # Each argument wrapped inline: the CWE-117 audit (tests/test_log_sanitization_audit.py) is syntactic.
     logger.info(
-        "chat.tool_call %s %s %.1fms",
-        tool,
-        status,
-        duration_ms,
-        extra={"event": "chat.tool_call", "tool": tool, "status": status, "duration_ms": duration_ms},
+        "chat.tool_call %s %s %sms",
+        sanitise_log_value(name),
+        sanitise_log_value(status),
+        sanitise_log_value(duration_ms),
+        extra={
+            "event": "chat.tool_call",
+            "tool": sanitise_log_value(name),
+            "status": status,
+            "duration_ms": duration_ms,
+        },
     )

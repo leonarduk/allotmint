@@ -221,6 +221,40 @@ describe("Screener", () => {
     expect(screen.getByText("1.5")).toBeInTheDocument();
   });
 
+  it("sends credit-risk filters and shows Altman Z and net debt/EBITDA columns", async () => {
+    mockGetScreener.mockResolvedValueOnce([
+      { rank: 1, ticker: "BP.L", name: "BP", altman_z: 1.3512, net_debt_to_ebitda: 0.9 },
+      { rank: 2, ticker: "BANK.L", name: "Bank", altman_z: null, net_debt_to_ebitda: null },
+    ] as never);
+
+    const { container } = renderScreener();
+    await enterCustomTickers("BP.L,BANK.L");
+    fireEvent.change(screen.getByLabelText(/Min Altman Z/i), { target: { value: "1.8" } });
+    fireEvent.change(screen.getByLabelText(/Max Net Debt\/EBITDA/i), { target: { value: "3" } });
+    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
+
+    await waitFor(() => expect(mockGetScreener).toHaveBeenCalled());
+    expect(mockGetScreener).toHaveBeenCalledWith(
+      ["BP.L", "BANK.L"],
+      expect.objectContaining({ altman_z_min: 1.8, net_debt_to_ebitda_max: 3 }),
+    );
+
+    const headers = (await screen.findAllByRole("columnheader")).map((th) =>
+      th.childNodes[0]?.textContent?.trim(),
+    );
+    const zIdx = headers.indexOf("Altman Z");
+    const ndIdx = headers.indexOf("ND/EBITDA");
+    expect(zIdx).toBeGreaterThan(-1);
+    expect(ndIdx).toBeGreaterThan(-1);
+    const [bp, bank] = Array.from(container.querySelectorAll("tbody tr")).map((tr) =>
+      Array.from(tr.querySelectorAll("td")).map((td) => td.textContent?.trim()),
+    );
+    expect(bp[zIdx]).toBe("1.35");
+    expect(bp[ndIdx]).toBe("0.90");
+    expect(bank[zIdx]).toBe("—");
+    expect(bank[ndIdx]).toBe("—");
+  });
+
   it("sends valuation filters and shows P/B, P/S, EV/EBITDA and growth columns (#8557)", async () => {
     mockGetScreener.mockResolvedValueOnce([
       {

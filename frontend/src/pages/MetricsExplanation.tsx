@@ -566,6 +566,14 @@ export default function MetricsExplanation() {
             <h3 className="font-semibold">{t("metricsExplanation.sections.screener.interestCoverage.title", "Interest coverage")}</h3>
             <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.interestCoverage.detail", "Operating earnings (EBIT) divided by interest expense — how many times over a company could pay its interest from its earnings.")}</p>
           </div>
+          <div id="altman-z">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.altmanZ.title", "Altman Z-score")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.altmanZ.detail", "Original public-company Altman Z: a weighted mix of working capital, retained earnings, EBIT and sales to total assets, plus market cap to total liabilities. Below 1.8 is the distress zone, 1.8-3.0 grey, above 3.0 safe. Not meaningful for banks, insurers or property companies.")}</p>
+          </div>
+          <div id="net-debt-to-ebitda">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.netDebtToEbitda.title", "Net debt / EBITDA")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.netDebtToEbitda.detail", "Total debt minus cash, divided by trailing EBITDA — roughly how many years of operating earnings it would take to repay net debt. Blank when EBITDA is not positive.")}</p>
+          </div>
           <div id="current-ratio">
             <h3 className="font-semibold">{t("metricsExplanation.sections.screener.currentRatio.title", "Current ratio")}</h3>
             <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.currentRatio.detail", "Current assets divided by current liabilities.")}</p>

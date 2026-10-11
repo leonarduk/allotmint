@@ -1150,6 +1150,14 @@
           "title": "Cobertura de juros",
           "detail": "Resultado operacional (EBIT) dividido pelos gastos com juros — quantas vezes uma empresa poderia pagar os seus juros com os seus lucros."
         },
+        "altmanZ": {
+          "title": "Pontuação Z de Altman",
+          "detail": "Z de Altman original para empresas cotadas: combinação ponderada de fundo de maneio, lucros retidos, EBIT e vendas sobre o ativo total, mais capitalização sobre o passivo total. Abaixo de 1,8 zona de risco, 1,8-3,0 zona cinzenta, acima de 3,0 segura. Pouco significativo para bancos, seguradoras ou imobiliárias."
+        },
+        "netDebtToEbitda": {
+          "title": "Dívida líquida / EBITDA",
+          "detail": "Dívida total menos caixa, dividida pelo EBITDA dos últimos doze meses — aproximadamente quantos anos de resultado operacional seriam precisos para pagar a dívida líquida. Em branco se o EBITDA não for positivo."
+        },
         "currentRatio": {
           "title": "Rácio de liquidez corrente",
           "detail": "Ativo corrente dividido pelo passivo corrente."
@@ -1610,6 +1618,8 @@
     "minFloatShares": "Ações flutuantes mín",
     "minGrossMargin": "Margem bruta mín",
     "minInterestCoverage": "Cobertura de juros mín",
+    "minAltmanZ": "Altman Z mín",
+    "maxNetDebtToEbitda": "Dívida líquida/EBITDA máx",
     "minMarketCap": "Capitalização de mercado mín",
     "minNetMargin": "Margem líquida mín",
     "minOperatingMargin": "Margem operacional mín",
@@ -1634,6 +1644,8 @@
       "revGrowth": "Cresc. receita",
       "epsGrowth": "Cresc. LPA",
       "intCov": "Cob. juros",
+      "altmanZ": "Altman Z",
+      "netDebtToEbitda": "DL/EBITDA",
       "curr": "Liquidez corr.",
       "quick": "Liquidez seca",
       "grossMargin": "Margem bruta",

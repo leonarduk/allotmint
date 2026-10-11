@@ -1150,6 +1150,14 @@
           "title": "Cobertura de intereses",
           "detail": "Beneficio operativo (EBIT) dividido entre los gastos por intereses: cuántas veces podría una empresa pagar sus intereses con sus beneficios."
         },
+        "altmanZ": {
+          "title": "Puntuación Z de Altman",
+          "detail": "Z de Altman original para empresas cotizadas: combinación ponderada de capital circulante, beneficios retenidos, EBIT y ventas sobre activos totales, más capitalización sobre pasivos totales. Por debajo de 1,8 zona de riesgo, 1,8-3,0 zona gris, por encima de 3,0 segura. No es significativa para bancos, aseguradoras o inmobiliarias."
+        },
+        "netDebtToEbitda": {
+          "title": "Deuda neta / EBITDA",
+          "detail": "Deuda total menos efectivo, dividida por el EBITDA de los últimos doce meses: aproximadamente cuántos años de beneficio operativo harían falta para devolver la deuda neta. En blanco si el EBITDA no es positivo."
+        },
         "currentRatio": {
           "title": "Ratio de liquidez corriente",
           "detail": "Activo corriente dividido entre pasivo corriente."
@@ -1610,6 +1618,8 @@
     "minFloatShares": "Min Float Shares",
     "minGrossMargin": "Margen bruto mín",
     "minInterestCoverage": "Min Interest Coverage",
+    "minAltmanZ": "Altman Z mín",
+    "maxNetDebtToEbitda": "Deuda neta/EBITDA máx",
     "minMarketCap": "Min Market Cap",
     "minNetMargin": "Margen neto mín",
     "minOperatingMargin": "Margen operativo mín",
@@ -1634,6 +1644,8 @@
       "revGrowth": "Crec. ingresos",
       "epsGrowth": "Crec. BPA",
       "intCov": "Cob. intereses",
+      "altmanZ": "Altman Z",
+      "netDebtToEbitda": "DN/EBITDA",
       "curr": "Liquidez",
       "quick": "Prueba ácida",
       "grossMargin": "Margen bruto",

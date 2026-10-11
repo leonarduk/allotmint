@@ -1420,6 +1420,8 @@ export const getScreener = (
     ev_ebitda_max?: number;
     revenue_growth_min?: number;
     earnings_growth_min?: number;
+    altman_z_min?: number;
+    net_debt_to_ebitda_max?: number;
   } = {},
   signal?: AbortSignal,
 ) => {
@@ -1480,6 +1482,10 @@ export const getScreener = (
     params.set("revenue_growth_min", String(criteria.revenue_growth_min));
   if (criteria.earnings_growth_min != null)
     params.set("earnings_growth_min", String(criteria.earnings_growth_min));
+  if (criteria.altman_z_min != null)
+    params.set("altman_z_min", String(criteria.altman_z_min));
+  if (criteria.net_debt_to_ebitda_max != null)
+    params.set("net_debt_to_ebitda_max", String(criteria.net_debt_to_ebitda_max));
   return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`, { signal });
 };
 

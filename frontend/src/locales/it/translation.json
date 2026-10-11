@@ -1150,6 +1150,14 @@
           "title": "Copertura degli interessi",
           "detail": "Utile operativo (EBIT) diviso per gli oneri per interessi: quante volte un'azienda potrebbe pagare i propri interessi con i suoi utili."
         },
+        "altmanZ": {
+          "title": "Z-score di Altman",
+          "detail": "Z di Altman originale per società quotate: combinazione ponderata di capitale circolante, utili non distribuiti, EBIT e ricavi sul totale attivo, più capitalizzazione sul totale passività. Sotto 1,8 zona di difficoltà, 1,8-3,0 zona grigia, sopra 3,0 sicura. Poco significativo per banche, assicurazioni o società immobiliari."
+        },
+        "netDebtToEbitda": {
+          "title": "Debito netto / EBITDA",
+          "detail": "Debito totale meno liquidità, diviso per l'EBITDA degli ultimi dodici mesi — all'incirca quanti anni di utile operativo servirebbero per rimborsare il debito netto. Vuoto se l'EBITDA non è positivo."
+        },
         "currentRatio": {
           "title": "Indice di liquidità corrente",
           "detail": "Attività correnti divise per passività correnti."
@@ -1610,6 +1618,8 @@
     "minFloatShares": "Min Float azioni",
     "minGrossMargin": "Margine lordo min",
     "minInterestCoverage": "Copertura di interesse min",
+    "minAltmanZ": "Altman Z min",
+    "maxNetDebtToEbitda": "Debito netto/EBITDA max",
     "minMarketCap": "Min Market Chap",
     "minNetMargin": "Margine netto min",
     "minOperatingMargin": "Margine operativo min",
@@ -1634,6 +1644,8 @@
       "revGrowth": "Crescita ricavi",
       "epsGrowth": "Crescita EPS",
       "intCov": "Cop. interessi",
+      "altmanZ": "Altman Z",
+      "netDebtToEbitda": "DN/EBITDA",
       "curr": "Corrente",
       "quick": "Quick",
       "grossMargin": "Margine lordo",

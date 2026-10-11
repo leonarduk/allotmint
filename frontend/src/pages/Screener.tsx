@@ -128,7 +128,7 @@ const FILTER_FIELDS: { param: FilterParam; labelKey: string; kind?: FilterKind }
   { param: "roa_min", labelKey: "minRoa", kind: "fraction" },
   { param: "roe_min", labelKey: "minRoe", kind: "fraction" },
   { param: "roi_min", labelKey: "minRoi", kind: "fraction" },
-  { param: "dividend_yield_min", labelKey: "minDividendYield" },
+  { param: "dividend_yield_min", labelKey: "minDividendYield", kind: "fraction" },
   { param: "dividend_payout_ratio_max", labelKey: "maxDividendPayoutRatio", kind: "fraction" },
   { param: "beta_max", labelKey: "maxBeta" },
   { param: "shares_outstanding_min", labelKey: "minSharesOutstanding", kind: "integer" },
@@ -143,9 +143,9 @@ type FilterValues = Partial<Record<FilterParam, string>>;
 
 // A conservative "profitable, reasonably valued, solvent" starting point.
 // Deliberately limited to metrics that are widely populated and whose scale
-// is unambiguous (trailing P/E, current ratio, ROE as a fraction); D/E and
-// dividend yield are left blank because data vendors disagree on whether
-// they are ratios or percentages.
+// is unambiguous (trailing P/E, current ratio, ROE as a fraction); D/E is
+// left blank because data vendors disagree on whether it is a ratio or a
+// percentage.
 const DEFAULT_FILTERS: FilterValues = {
   pe_max: "25",
   current_ratio_min: "1",

@@ -13,9 +13,22 @@ name: Pro-gated tests
 # Unlike the dispatch job, a missing secret is an error here: skipping quietly
 # is exactly how these tests rotted unseen.
 
+#
+# The root requirements.txt is resolved together with allotmint-pro's pins, so
+# a pin there that conflicts with pro (mangum~=0.21 vs ~=0.22, #10650) fails
+# the install step before any test runs. The push trigger below catches that
+# on the merge commit instead of overnight. There is no pull_request trigger:
+# fork and Dependabot PRs cannot read the secret.
+
 on:
   schedule:
     - cron: '41 4 * * *'
+  push:
+    branches: [main]
+    paths:
+      - requirements.txt
+      - requirements-dev.txt
+      - .github/workflows/pro-gated-tests.yml
   workflow_dispatch:
 
 permissions:

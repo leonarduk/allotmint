@@ -331,7 +331,9 @@ def _runs():
 
 
 def _assert_no_statement_values(record):
-    text = record.model_dump_json()
+    # The run id and timestamps are generated, never copied from the statement, and
+    # can contain a value by chance (run 20261011T... contains "1011" on 11 October).
+    text = record.model_dump_json(exclude={"id", "started_at", "finished_at"})
     for value in _STATEMENT_VALUES:
         assert value not in text, value
 

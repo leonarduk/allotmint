@@ -6,7 +6,7 @@ import {
   within,
 } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StrategyList, StrategyStressResult } from '@/types';
 
 const mockGetEvents = vi.hoisted(() => vi.fn());
@@ -104,6 +104,11 @@ function renderPanel(
 }
 
 describe('StrategyStressPanel', () => {
+  // Restore spies even when an assertion fails before the end of a test.
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetEvents.mockResolvedValue([{ id: 'covid', name: 'Covid crash' }]);
@@ -189,15 +194,14 @@ describe('StrategyStressPanel', () => {
     expect(confirm).toHaveBeenCalled();
     expect(mockApplyStrategy).toHaveBeenCalledWith('alex', '60_40');
     expect(onChanged).toHaveBeenCalled();
-    confirm.mockRestore();
   });
 
   it('does not apply when the replace is declined', async () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderPanel('/strategy?stress_event=covid', { hasTargets: true });
     fireEvent.click(await screen.findByRole('button', { name: 'Apply 60/40' }));
+    expect(confirm).toHaveBeenCalled();
     expect(mockApplyStrategy).not.toHaveBeenCalled();
-    confirm.mockRestore();
   });
 
   it('lists missing asset classes once per row, alphabetically by label', async () => {
@@ -265,7 +269,6 @@ describe('StrategyStressPanel', () => {
         String(msg).includes('two children with the same key')
       )
     ).toEqual([]);
-    consoleError.mockRestore();
   });
 });
 

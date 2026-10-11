@@ -2078,6 +2078,29 @@ export interface BenchmarkRiskReturn {
   sharpe_annual_return?: number | null;
 }
 
+/** Return/volatility of a strategy priced on stand-in funds per asset class. */
+export interface StrategyRiskReturn {
+  id: string;
+  name: string;
+  builtin: boolean;
+  targets: Record<string, number>;
+  days: number;
+  start: string;
+  end: string;
+  /** Sleeve -> stand-in ticker used for it; cash has none. */
+  series: Record<string, string>;
+  /** Sleeves with no stand-in covering the window; figures are null then. */
+  missing: string[];
+  /** "total" or "price" (some stand-in has no stored dividends); null when missing. */
+  return_basis: string | null;
+  /** Annual rate cash earns: the configured risk-free rate. */
+  cash_rate: number;
+  period_return: number | null;
+  annualised_return: number | null;
+  volatility: number | null;
+  sharpe_annual_return?: number | null;
+}
+
 /** An owner-chosen cash phasing schedule (#10480). Amounts are pence. */
 export interface CashDeploymentScheduleInput {
   account: string;

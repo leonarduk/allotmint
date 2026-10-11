@@ -699,6 +699,30 @@ def test_ledger_closes_stay_on_price(store, monkeypatch):
     assert closes.tolist() == pytest.approx(CLOSES)
 
 
+def test_ledger_total_return_closes_reinvest_in_gbp(store, monkeypatch):
+    """The strategy risk/return stand-ins (#10726): the factor comes from the native closes."""
+    store("PAY", "L", {EX_DATE: 2.0})
+    monkeypatch.setattr(ledger_performance, "_resolve_symbol", lambda key: ("PAY", "L"))
+    monkeypatch.setattr(
+        ts_cache, "load_meta_timeseries_range", lambda *a, **k: _frame(Close_gbp=[c / 2 for c in CLOSES])
+    )
+
+    closes, basis = ledger_performance.load_gbp_total_return_closes("PAY.L", DATES[0].date(), DATES[-1].date())
+
+    assert basis == tr.TOTAL_RETURN_BASIS
+    assert closes.tolist() == pytest.approx([level / 2 for level in TOTAL_LEVELS])
+
+
+def test_ledger_total_return_closes_without_actions_are_price(store, monkeypatch):
+    monkeypatch.setattr(ledger_performance, "_resolve_symbol", lambda key: ("NONE", "L"))
+    monkeypatch.setattr(ts_cache, "load_meta_timeseries_range", lambda *a, **k: _frame())
+
+    closes, basis = ledger_performance.load_gbp_total_return_closes("NONE.L", DATES[0].date(), DATES[-1].date())
+
+    assert basis == tr.PRICE_RETURN_BASIS
+    assert closes.tolist() == pytest.approx(CLOSES)
+
+
 def test_price_changes_stay_on_price(store, monkeypatch):
     store("PAY", "L", BIG_DIVIDEND)
     yday = dt.date.today() - dt.timedelta(days=1)

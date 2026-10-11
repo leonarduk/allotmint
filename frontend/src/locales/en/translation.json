@@ -3957,7 +3957,12 @@
     "priceReturnLocal": "price return, local currency",
     "shortWindowNote": "Over periods shorter than 3 years, return, volatility and Sharpe ratio are dominated by noise: treat differences between points as indicative only.",
     "riskFreeFallback": "Using {{rate}}% (enter -5 to 25)",
-    "sharpeBasis": "({{return}} a year over trading days − {{rate}}) ÷ volatility"
+    "sharpeBasis": "({{return}} a year over trading days − {{rate}}) ÷ volatility",
+    "strategies": "Strategies",
+    "addStrategy": "Add a strategy…",
+    "strategyStandIns": "Priced on stand-ins: {{series}}",
+    "strategyMissing": "no price history for {{sleeves}} over this period",
+    "strategyMethodology": "Strategies (from the Strategy page) are priced on one stand-in fund per asset class, such as VWRL.L for equity or PHAU.L for gold, with dividends reinvested where stored, rebalanced daily to their target weights. Cash earns the configured risk-free rate. A strategy is only plotted when every asset class has prices for the whole period."
   },
   "cashDeployment": {
     "title": "Cash deployment",

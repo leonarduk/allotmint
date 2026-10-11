@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from backend.auth import get_active_user
@@ -31,7 +31,9 @@ from backend.common.strategies import (
     list_strategies,
     update_strategy,
 )
+from backend.common.strategy_risk_return import compute_strategy_risk_return
 from backend.common.strategy_stress import stress_strategies
+from backend.config import config
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 from backend.routes.scenario import parse_horizons, resolve_event
 
@@ -188,3 +190,24 @@ def post_apply(
     except _STORE_ERRORS as exc:
         raise _http_error(exc) from exc
     return {"policy": policy.to_dict(), "active": active_strategy(owner, accounts_root)}
+
+
+@router.get("/strategies/{owner}/{strategy_id}/risk-return")
+def get_strategy_risk_return(
+    owner: str,
+    strategy_id: str,
+    request: Request,
+    days: int = Query(365, ge=30, le=3650),
+    identity: Optional[str] = Depends(get_active_user),
+) -> Dict[str, Any]:
+    """Return and volatility of a strategy on its stand-in series, for the "Returns vs Volatility" chart.
+
+    Cash earns the configured risk-free rate, the one the chart's Sharpe line
+    starts from. See :mod:`backend.common.strategy_risk_return`.
+    """
+    owner, accounts_root = _resolve_owner(request, owner, identity)
+    try:
+        strategy = get_strategy(owner, strategy_id, accounts_root)
+    except StrategyNotFoundError as exc:
+        raise _http_error(exc) from exc
+    return compute_strategy_risk_return(strategy, days, cash_rate=config.risk_free_rate or 0.0)

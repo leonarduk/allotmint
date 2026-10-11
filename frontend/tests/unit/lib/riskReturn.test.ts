@@ -2,21 +2,26 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_BENCHMARKS,
   addBenchmark,
+  addStrategy,
   averageLine,
   buildBenchmarkSeries,
   buildPortfolioSeries,
+  buildStrategySeries,
   isIndexSeries,
   normaliseTicker,
   parseRiskFreePct,
   parseStoredBenchmarks,
+  parseStoredStrategies,
   plottable,
   removeBenchmark,
+  removeStrategy,
   seriesDetails,
   sharpeRatio,
   sideOfAverage,
+  standInsText,
   type ChartSeries,
 } from '@/lib/riskReturn';
-import type { GroupRiskReturn } from '@/types';
+import type { GroupRiskReturn, StrategyRiskReturn } from '@/types';
 
 const data: GroupRiskReturn = {
   group: 'all',
@@ -294,5 +299,66 @@ describe('sharpe ratio and risk-free rate', () => {
     expect(isIndexSeries(series('benchmark:^FTSE', 'benchmark'))).toBe(true);
     expect(isIndexSeries(series('benchmark:VWRL.L', 'benchmark'))).toBe(false);
     expect(isIndexSeries(series('group', 'group'))).toBe(false);
+  });
+});
+
+describe('strategy series', () => {
+  const result: StrategyRiskReturn = {
+    id: 'permanent',
+    name: 'Permanent Portfolio',
+    builtin: true,
+    targets: { equity: 25, long_gilts: 25, cash: 25, gold: 25 },
+    days: 1095,
+    start: '',
+    end: '',
+    series: { equity: 'VWRL.L', long_gilts: 'GLTL.L', gold: 'PHAU.L' },
+    missing: [],
+    return_basis: 'total',
+    cash_rate: 0.04,
+    period_return: 0.2,
+    annualised_return: 0.063,
+    volatility: 0.07,
+    sharpe_annual_return: 0.065,
+  };
+
+  it('builds a point per strategy, annualised over a year', () => {
+    const [series, pending] = buildStrategySeries(
+      [
+        { id: 'permanent', label: 'stored label' },
+        { id: 'swensen', label: 'Swensen' },
+      ],
+      { permanent: result },
+      1095,
+      2,
+      standInsText
+    );
+    expect(series).toMatchObject({
+      id: 'strategy:permanent',
+      label: 'Permanent Portfolio',
+      kind: 'strategy',
+      name: 'equity VWRL.L, long_gilts GLTL.L, gold PHAU.L',
+    });
+    expect(series.returnPct).toBeCloseTo(6.3);
+    expect(series.volatilityPct).toBeCloseTo(7);
+    expect(series.sharpeReturnPct).toBeCloseTo(6.5);
+    expect(pending).toMatchObject({ label: 'Swensen', returnPct: null });
+    expect(plottable(pending)).toBe(false);
+  });
+
+  it('adds once, removes, and parses only valid stored strategies', () => {
+    const one = addStrategy([], { id: 'permanent', label: 'Permanent' });
+    expect(addStrategy(one, { id: 'permanent', label: 'x' })).toBe(one);
+    expect(removeStrategy(one, 'permanent')).toEqual([]);
+    expect(parseStoredStrategies(null)).toEqual([]);
+    expect(parseStoredStrategies('not json')).toEqual([]);
+    expect(
+      parseStoredStrategies(
+        JSON.stringify([
+          { id: 'user-1a2b', label: 'Mine' },
+          { id: '../x', label: 'bad' },
+          { id: 'permanent' },
+        ])
+      )
+    ).toEqual([{ id: 'user-1a2b', label: 'Mine' }]);
   });
 });

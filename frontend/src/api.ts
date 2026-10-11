@@ -54,6 +54,7 @@ import type {
   Strategy,
   StrategyInput,
   StrategyList,
+  StrategyRiskReturn,
   StrategyStressResult,
   Sleeve,
   SleeveInput,
@@ -2713,6 +2714,10 @@ const strategiesUrl = (owner: string, id?: string, action?: string) =>
 
 /** Built-in and user strategies, plus the one last applied (#9653). */
 export const getStrategies = (owner: string) => fetchJson<StrategyList>(strategiesUrl(owner));
+
+/** Return/volatility of a strategy on its stand-in series over ``days``. */
+export const getStrategyRiskReturn = (owner: string, id: string, days = 365) =>
+  fetchJson<StrategyRiskReturn>(`${strategiesUrl(owner, id, "risk-return")}?days=${days}`);
 
 /** Create a user strategy. */
 export const createStrategy = (owner: string, strategy: StrategyInput) =>

@@ -6,6 +6,8 @@ import {
   getGroupRiskReturn,
   getGroups,
   getOwners,
+  getStrategies,
+  getStrategyRiskReturn,
 } from '@/api';
 
 vi.mock('@/api', () => ({
@@ -13,10 +15,24 @@ vi.mock('@/api', () => ({
   getGroupRiskReturn: vi.fn(),
   getGroups: vi.fn(),
   getOwners: vi.fn(),
+  getStrategies: vi.fn(),
+  getStrategyRiskReturn: vi.fn(),
 }));
 
 const groupMock = getGroupRiskReturn as unknown as vi.Mock;
 const benchmarkMock = getBenchmarkRiskReturn as unknown as vi.Mock;
+const strategiesMock = getStrategies as unknown as vi.Mock;
+const strategyMock = getStrategyRiskReturn as unknown as vi.Mock;
+
+const strategy = (id: string, name: string) => ({
+  id,
+  name,
+  description: '',
+  source: '',
+  uk_mapping: '',
+  targets: {},
+  builtin: true,
+});
 
 describe('RiskReturn page', () => {
   beforeEach(() => {
@@ -53,6 +69,36 @@ describe('RiskReturn page', () => {
         },
       ],
     });
+    strategiesMock.mockResolvedValue({
+      strategies: [
+        strategy('permanent', 'Permanent Portfolio'),
+        strategy('golden_butterfly', 'Golden Butterfly'),
+        strategy('swensen', 'Swensen'),
+      ],
+      active: null,
+    });
+    strategyMock.mockImplementation(
+      (_owner: string, id: string, days: number) =>
+        Promise.resolve({
+          id,
+          name: id === 'swensen' ? 'Swensen' : 'Golden Butterfly',
+          builtin: true,
+          targets: {},
+          days,
+          start: '',
+          end: '',
+          series:
+            id === 'swensen'
+              ? { equity: 'VWRL.L' }
+              : { broad_equity: 'VWRL.L', gold: 'PHAU.L' },
+          missing: id === 'swensen' ? ['property'] : [],
+          return_basis: id === 'swensen' ? null : 'total',
+          cash_rate: 0.04,
+          period_return: id === 'swensen' ? null : 0.06,
+          annualised_return: null,
+          volatility: id === 'swensen' ? null : 0.08,
+        })
+    );
     benchmarkMock.mockImplementation((ticker: string, days: number) =>
       ticker === '^GSPC'
         ? Promise.reject(new Error('no data'))
@@ -221,6 +267,64 @@ describe('RiskReturn page', () => {
     expect(window.localStorage.getItem('riskReturn.benchmarks')).not.toContain(
       '^IXIC'
     );
+  });
+
+  it('adds strategies from the strategy library and removes them', async () => {
+    render(<RiskReturn />);
+
+    const picker = await screen.findByRole('combobox', {
+      name: 'Add a strategy…',
+    });
+    // Strategies come from the first group member with accounts.
+    expect(strategiesMock).toHaveBeenCalledWith('steve');
+
+    fireEvent.change(picker, { target: { value: 'golden_butterfly' } });
+
+    await waitFor(() =>
+      expect(strategyMock).toHaveBeenCalledWith(
+        'steve',
+        'golden_butterfly',
+        365
+      )
+    );
+    const toggle = await screen.findByRole('checkbox', {
+      name: 'Golden Butterfly',
+    });
+    expect(toggle).toBeChecked();
+    await waitFor(() =>
+      expect(toggle.closest('label')).toHaveAttribute(
+        'title',
+        'Golden Butterfly\nPriced on stand-ins: broad_equity VWRL.L, gold PHAU.L'
+      )
+    );
+    expect(
+      JSON.parse(window.localStorage.getItem('riskReturn.strategies') ?? '[]')
+    ).toEqual([{ id: 'golden_butterfly', label: 'Golden Butterfly' }]);
+    // Already on the chart, so no longer offered.
+    expect(
+      screen.queryByRole('option', { name: 'Golden Butterfly' })
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove Golden Butterfly' })
+    );
+    expect(
+      screen.queryByRole('checkbox', { name: 'Golden Butterfly' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('says which asset classes a strategy has no prices for', async () => {
+    window.localStorage.setItem(
+      'riskReturn.strategies',
+      JSON.stringify([{ id: 'swensen', label: 'Swensen' }])
+    );
+    render(<RiskReturn />);
+
+    expect(
+      await screen.findByRole('checkbox', {
+        name: /Swensen.*no price history for property/,
+      })
+    ).toBeInTheDocument();
   });
 
   it('rejects an invalid ticker', async () => {

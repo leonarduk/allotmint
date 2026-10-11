@@ -3964,7 +3964,12 @@
     "priceReturnLocal": "retorno de preço, moeda local",
     "shortWindowNote": "Em períodos inferiores a 3 anos, o retorno, a volatilidade e o índice de Sharpe são dominados pelo ruído: as diferenças entre pontos são apenas indicativas.",
     "riskFreeFallback": "A usar {{rate}}% (introduza de -5 a 25)",
-    "sharpeBasis": "({{return}} ao ano em dias úteis − {{rate}}) ÷ volatilidade"
+    "sharpeBasis": "({{return}} ao ano em dias úteis − {{rate}}) ÷ volatilidade",
+    "strategies": "Estratégias",
+    "addStrategy": "Adicionar uma estratégia…",
+    "strategyStandIns": "Avaliada com substitutos: {{series}}",
+    "strategyMissing": "sem histórico de preços para {{sleeves}} neste período",
+    "strategyMethodology": "As estratégias (da página Estratégia) são avaliadas com um fundo substituto por classe de ativo, como VWRL.L para ações ou PHAU.L para ouro, com dividendos reinvestidos quando armazenados, e rebalanceadas diariamente para os pesos-alvo. O dinheiro rende a taxa livre de risco configurada. Uma estratégia só é mostrada quando todas as classes de ativo têm preços para todo o período."
   },
   "cashDeployment": {
     "title": "Aplicação de caixa",

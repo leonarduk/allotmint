@@ -23,27 +23,40 @@ import {
   getGroupRiskReturn,
   getGroups,
   getOwners,
+  getStrategies,
+  getStrategyRiskReturn,
 } from '../api';
-import type { BenchmarkRiskReturn, GroupSummary, OwnerSummary } from '../types';
+import type {
+  GroupSummary,
+  OwnerSummary,
+  StrategyList,
+  StrategyRiskReturn,
+} from '../types';
 import { useFetch } from '../hooks/useFetch';
 import {
   PRESET_BENCHMARKS,
   addBenchmark,
+  addStrategy,
   averageLine,
   buildBenchmarkSeries,
   buildPortfolioSeries,
+  buildStrategySeries,
   isIndexSeries,
   normaliseTicker,
   parseRiskFreePct,
   parseStoredBenchmarks,
+  parseStoredStrategies,
   plottable,
   removeBenchmark,
+  removeStrategy,
   seriesDetails,
   sharpeRatio,
   sideOfAverage,
+  standInsText,
   type AverageLine,
   type Benchmark,
   type ChartSeries,
+  type StrategyChoice,
 } from '../lib/riskReturn';
 import { DEFAULT_GROUP_SLUG } from '../utils/groups';
 import { createOwnerDisplayLookup, sanitizeOwners } from '../utils/owners';
@@ -55,6 +68,7 @@ const WINDOWS = [
 ] as const;
 
 const BENCHMARKS_KEY = 'riskReturn.benchmarks';
+const STRATEGIES_KEY = 'riskReturn.strategies';
 const HIDDEN_KEY = 'riskReturn.hidden';
 const SHOW_AVERAGE_KEY = 'riskReturn.showAverage';
 const RISK_FREE_KEY = 'riskReturn.riskFreePct';
@@ -99,42 +113,60 @@ function readHidden(): Set<string> {
   }
 }
 
-type BenchmarkState = Record<string, BenchmarkRiskReturn | null>;
-
 /**
- * Per-ticker benchmark results for the window ``days``: a ticker is
- * ``undefined`` while loading, ``null`` when unavailable. Results are kept
- * per ``days:ticker`` so adding a ticker fetches only that one, and
- * switching window and back reuses what was already fetched. A failed
- * ticker is retried the next time the list or window changes (e.g. removing
- * and re-adding it).
+ * Per-key results for the window ``days``: a key is ``undefined`` while
+ * loading, ``null`` when unavailable. Results are kept per
+ * ``scope:days:key`` so adding a key fetches only that one, and switching
+ * window (or scope) and back reuses what was already fetched. A failed key is
+ * retried the next time the list or window changes (e.g. removing and
+ * re-adding it). Nothing is fetched while ``scope`` is ``null``.
  */
-function useBenchmarkResults(benchmarks: Benchmark[], days: number) {
-  const [results, setResults] = useState<BenchmarkState>({});
+function useWindowResults<T>(
+  keys: string[],
+  days: number,
+  scope: string | null,
+  fetchOne: (key: string, days: number) => Promise<T>
+) {
+  const [results, setResults] = useState<Record<string, T | null>>({});
   const requested = useRef(new Set<string>());
 
   useEffect(() => {
-    for (const { ticker } of benchmarks) {
-      const key = `${days}:${ticker}`;
-      if (requested.current.has(key)) continue;
-      requested.current.add(key);
-      setResults(({ [key]: _stale, ...rest }) => rest);
-      getBenchmarkRiskReturn(ticker, days)
-        .then((res) => setResults((prev) => ({ ...prev, [key]: res })))
+    if (scope == null) return;
+    for (const key of keys) {
+      const slot = `${scope}:${days}:${key}`;
+      if (requested.current.has(slot)) continue;
+      requested.current.add(slot);
+      setResults(({ [slot]: _stale, ...rest }) => rest);
+      fetchOne(key, days)
+        .then((res) => setResults((prev) => ({ ...prev, [slot]: res })))
         .catch(() => {
-          requested.current.delete(key);
-          setResults((prev) => ({ ...prev, [key]: null }));
+          requested.current.delete(slot);
+          setResults((prev) => ({ ...prev, [slot]: null }));
         });
     }
-  }, [benchmarks, days]);
+  }, [keys, days, scope, fetchOne]);
 
   return useMemo(
     () =>
       Object.fromEntries(
-        benchmarks.map(({ ticker }) => [ticker, results[`${days}:${ticker}`]])
-      ) as Record<string, BenchmarkRiskReturn | null | undefined>,
-    [benchmarks, days, results]
+        keys.map((key) => [key, results[`${scope}:${days}:${key}`]])
+      ) as Record<string, T | null | undefined>,
+    [keys, days, scope, results]
   );
+}
+
+/**
+ * Whose user strategies are offered: the first member of ``group`` with an
+ * account, else the first owner. Built-in strategies are the same for all.
+ */
+function strategyOwner(
+  group: string,
+  groups: GroupSummary[] | null,
+  owners: OwnerSummary[] | null
+): string | null {
+  const known = new Set((owners ?? []).map((o) => o.owner));
+  const members = groups?.find((g) => g.slug === group)?.members ?? [];
+  return members.find((m) => known.has(m)) ?? owners?.[0]?.owner ?? null;
 }
 
 function formatPct(value: number | null): string {
@@ -267,9 +299,16 @@ function SeriesToggle({
             width: 12,
             height: 12,
             background: series.color,
-            borderRadius: series.kind === 'benchmark' ? 0 : '50%',
+            borderRadius:
+              series.kind === 'benchmark' || series.kind === 'strategy'
+                ? 0
+                : '50%',
             transform:
               series.kind === 'benchmark' ? 'rotate(45deg)' : undefined,
+            clipPath:
+              series.kind === 'strategy'
+                ? 'polygon(50% 0, 100% 100%, 0 100%)'
+                : undefined,
           }}
         />
         {series.label}
@@ -303,6 +342,9 @@ export default function RiskReturn() {
   const [benchmarks, setBenchmarks] = useState<Benchmark[]>(() =>
     parseStoredBenchmarks(readStorage(BENCHMARKS_KEY))
   );
+  const [strategies, setStrategies] = useState<StrategyChoice[]>(() =>
+    parseStoredStrategies(readStorage(STRATEGIES_KEY))
+  );
   const [hidden, setHidden] = useState<Set<string>>(readHidden);
   const [showAverage, setShowAverage] = useState<boolean>(
     () => readStorage(SHOW_AVERAGE_KEY) !== 'false'
@@ -321,11 +363,43 @@ export default function RiskReturn() {
     [group, days]
   );
   const points = useFetch(fetchPoints, [fetchPoints]);
-  const benchmarkResults = useBenchmarkResults(benchmarks, days);
+  const tickers = useMemo(() => benchmarks.map((b) => b.ticker), [benchmarks]);
+  const benchmarkResults = useWindowResults(
+    tickers,
+    days,
+    '',
+    getBenchmarkRiskReturn
+  );
+  const owner = strategyOwner(group, groups.data, owners.data);
+  const fetchStrategyList = useCallback(
+    () => getStrategies(owner ?? ''),
+    [owner]
+  );
+  const strategyList = useFetch<StrategyList>(
+    fetchStrategyList,
+    [fetchStrategyList],
+    owner != null
+  );
+  const strategyIds = useMemo(() => strategies.map((s) => s.id), [strategies]);
+  const fetchStrategy = useCallback(
+    (id: string, window: number) =>
+      getStrategyRiskReturn(owner ?? '', id, window),
+    [owner]
+  );
+  const strategyResults = useWindowResults<StrategyRiskReturn>(
+    strategyIds,
+    days,
+    owner,
+    fetchStrategy
+  );
 
   useEffect(
     () => writeStorage(BENCHMARKS_KEY, JSON.stringify(benchmarks)),
     [benchmarks]
+  );
+  useEffect(
+    () => writeStorage(STRATEGIES_KEY, JSON.stringify(strategies)),
+    [strategies]
   );
   useEffect(
     () => writeStorage(SHOW_AVERAGE_KEY, String(showAverage)),
@@ -360,9 +434,34 @@ export default function RiskReturn() {
       ),
     [benchmarks, benchmarkResults, days, portfolioSeries.length]
   );
-  const visible = [...portfolioSeries, ...benchmarkSeries].filter(
-    (s) => !hidden.has(s.id) && plottable(s)
+  const strategySeries = useMemo(
+    () =>
+      buildStrategySeries(
+        strategies,
+        strategyResults,
+        days,
+        portfolioSeries.length + benchmarkSeries.length,
+        (result) =>
+          result.missing.length
+            ? null
+            : t('riskReturn.strategyStandIns', {
+                series: standInsText(result),
+              })
+      ),
+    [
+      strategies,
+      strategyResults,
+      days,
+      portfolioSeries.length,
+      benchmarkSeries.length,
+      t,
+    ]
   );
+  const visible = [
+    ...portfolioSeries,
+    ...benchmarkSeries,
+    ...strategySeries,
+  ].filter((s) => !hidden.has(s.id) && plottable(s));
   const configuredRiskFreePct = Number(
     ((points.data?.risk_free_rate ?? 0) * 100).toFixed(2)
   );
@@ -425,11 +524,23 @@ export default function RiskReturn() {
   const availablePresets = PRESET_BENCHMARKS.filter(
     (p) => !benchmarks.some((b) => b.ticker === p.ticker)
   );
+  const availableStrategies = (strategyList.data?.strategies ?? []).filter(
+    (s) => !strategies.some((chosen) => chosen.id === s.id)
+  );
 
   const unavailable = (series: ChartSeries): string | null => {
     if (series.kind === 'benchmark') {
       const ticker = series.id.slice('benchmark:'.length);
       if (benchmarkResults[ticker] === undefined) return t('common.loading');
+    }
+    if (series.kind === 'strategy') {
+      const result = strategyResults[series.id.slice('strategy:'.length)];
+      if (owner != null && result === undefined) return t('common.loading');
+      if (result?.missing.length) {
+        return t('riskReturn.strategyMissing', {
+          sleeves: result.missing.join(', '),
+        });
+      }
     }
     return plottable(series) ? null : t('riskReturn.noData');
   };
@@ -610,7 +721,13 @@ export default function RiskReturn() {
                   },
                 ]}
                 fill={s.color}
-                shape={s.kind === 'benchmark' ? 'diamond' : 'circle'}
+                shape={
+                  s.kind === 'benchmark'
+                    ? 'diamond'
+                    : s.kind === 'strategy'
+                      ? 'triangle'
+                      : 'circle'
+                }
                 isAnimationActive={false}
               />
             ))}
@@ -731,10 +848,65 @@ export default function RiskReturn() {
             </span>
           )}
         </form>
+
+        <h3>{t('riskReturn.strategies')}</h3>
+        <ul
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.5rem 1.25rem',
+            listStyle: 'none',
+            padding: 0,
+          }}
+        >
+          {strategySeries.map((s) => (
+            <SeriesToggle
+              key={s.id}
+              series={s}
+              hidden={hidden.has(s.id)}
+              onToggle={() => toggle(s.id)}
+              onRemove={() =>
+                setStrategies((list) =>
+                  removeStrategy(list, s.id.slice('strategy:'.length))
+                )
+              }
+              unavailableLabel={unavailable(s)}
+              removeLabel={t('riskReturn.remove')}
+              indexLabel={indexLabel}
+              basisLabel={basisLabel}
+            />
+          ))}
+        </ul>
+        {availableStrategies.length > 0 && (
+          <select
+            aria-label={t('riskReturn.addStrategy')}
+            value=""
+            onChange={(e) => {
+              const picked = availableStrategies.find(
+                (s) => s.id === e.target.value
+              );
+              if (picked) {
+                setStrategies((list) =>
+                  addStrategy(list, { id: picked.id, label: picked.name })
+                );
+              }
+            }}
+          >
+            <option value="">{t('riskReturn.addStrategy')}</option>
+            {availableStrategies.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        )}
       </section>
 
       <p style={{ fontSize: '0.85em', opacity: 0.8, marginTop: '1rem' }}>
         {t('riskReturn.methodology')}
+      </p>
+      <p style={{ fontSize: '0.85em', opacity: 0.8 }}>
+        {t('riskReturn.strategyMethodology')}
       </p>
     </div>
   );

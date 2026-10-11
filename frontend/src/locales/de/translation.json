@@ -3964,7 +3964,12 @@
     "priceReturnLocal": "Kursrendite, Landeswährung",
     "shortWindowNote": "Bei Zeiträumen unter 3 Jahren überwiegt das Rauschen bei Rendite, Volatilität und Sharpe-Ratio: Unterschiede zwischen Punkten sind nur ein Anhaltspunkt.",
     "riskFreeFallback": "Verwendet {{rate}} % (-5 bis 25 eingeben)",
-    "sharpeBasis": "({{return}} p. a. über Handelstage − {{rate}}) ÷ Volatilität"
+    "sharpeBasis": "({{return}} p. a. über Handelstage − {{rate}}) ÷ Volatilität",
+    "strategies": "Strategien",
+    "addStrategy": "Strategie hinzufügen…",
+    "strategyStandIns": "Bewertet über Stellvertreter: {{series}}",
+    "strategyMissing": "keine Kurshistorie für {{sleeves}} in diesem Zeitraum",
+    "strategyMethodology": "Strategien (von der Strategie-Seite) werden über einen Stellvertreter-Fonds je Anlageklasse bewertet, etwa VWRL.L für Aktien oder PHAU.L für Gold, mit wiederangelegten Dividenden, sofern gespeichert, und täglich auf ihre Zielgewichte zurückgeführt. Barmittel verzinsen sich zum konfigurierten risikofreien Zins. Eine Strategie wird nur gezeigt, wenn jede Anlageklasse Kurse für den gesamten Zeitraum hat."
   },
   "cashDeployment": {
     "title": "Cash-Einsatz",

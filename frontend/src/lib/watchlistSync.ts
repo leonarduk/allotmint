@@ -9,7 +9,7 @@ import {
   readWatchlists,
   type WatchlistsState,
 } from "./watchlistStore";
-import { mergeBrowserLists, threeWayMerge } from "./watchlistMerge";
+import { mergeBrowserLists, threeWayMerge, unionMerge } from "./watchlistMerge";
 
 // Keeps the watchlists in watchlistStore.ts (cached in localStorage) in step
 // with the signed-in user's copy on the server (#10713), so they survive
@@ -111,8 +111,8 @@ function mergeOnto(remote: WatchlistsState, owner: string | null, baseRevision: 
   if (base?.state && base.owner === owner && base.revision === baseRevision) {
     return threeWayMerge(base.state, local, remote);
   }
-  // No common ancestor kept: fall back to adding this browser's differing lists.
-  return mergeBrowserLists(remote, local);
+  // No common ancestor kept: merge by list id, losing and duplicating nothing.
+  return unionMerge(local, remote);
 }
 
 function syncEnabled(): boolean {

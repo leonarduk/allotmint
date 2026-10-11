@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { mergeBrowserLists, threeWayMerge } from "@/lib/watchlistMerge";
+import { mergeBrowserLists, threeWayMerge, unionMerge } from "@/lib/watchlistMerge";
 import type { WatchlistsState } from "@/lib/watchlistStore";
 
 const list = (name: string, symbols: string[], id = "default"): WatchlistsState => ({
@@ -122,5 +122,16 @@ describe("threeWayMerge", () => {
     const deletedHere = state("b", ["b", "Other", []]);
     const remote = state("a", ["a", "Tech", ["AAPL", "MSFT"]]);
     expect(threeWayMerge(one, deletedHere, remote).lists.map((l) => l.id)).toEqual(["b"]);
+  });
+});
+
+describe("unionMerge", () => {
+  it("matches lists by id, keeps the saved names and adds this browser's symbols and lists", () => {
+    const local = state("a", ["a", "Tech here", ["AAPL", "NVDA"]], ["x", "Mine", ["BP.L"]]);
+    const remote = state("a", ["a", "Tech", ["AAPL", "GOOG"]], ["b", "Banks", []]);
+
+    expect(unionMerge(local, remote)).toEqual(
+      state("a", ["a", "Tech", ["AAPL", "GOOG", "NVDA"]], ["b", "Banks", []], ["x", "Mine", ["BP.L"]]),
+    );
   });
 });

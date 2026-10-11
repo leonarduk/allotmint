@@ -57,6 +57,27 @@ export function mergeBrowserLists(saved: WatchlistsState, browser: WatchlistsSta
   return { ...saved, lists: tidy([...saved.lists, ...extra]) };
 }
 
+/**
+ * A conflict with no common ancestor kept (e.g. it was cleared): match lists
+ * by id, keep the saved copy's names and order, add this browser's symbols to
+ * the same list and append its lists the saved copy doesn't have. Nothing is
+ * lost or duplicated; without a base a list deleted elsewhere can't be told
+ * from one left alone here, so it comes back rather than being lost.
+ */
+export function unionMerge(local: WatchlistsState, remote: WatchlistsState): WatchlistsState {
+  const localById = new Map(local.lists.map((l) => [l.id, l]));
+  const remoteIds = new Set(remote.lists.map((l) => l.id));
+  const lists = remote.lists.map((r) => {
+    const l = localById.get(r.id);
+    if (!l) return r;
+    const have = new Set(r.symbols.map(symbolKey));
+    const extra = l.symbols.filter((s) => !have.has(symbolKey(s)));
+    return extra.length ? { ...r, symbols: [...r.symbols, ...extra] } : r;
+  });
+  lists.push(...local.lists.filter((l) => !remoteIds.has(l.id)));
+  return { activeId: remote.activeId, lists: tidy(lists) };
+}
+
 /** One list edited on both sides: this side's name change wins; symbol adds and removes from both apply. */
 function mergeList(base: NamedWatchlist, local: NamedWatchlist, remote: NamedWatchlist): NamedWatchlist {
   const baseKeys = new Set(base.symbols.map(symbolKey));

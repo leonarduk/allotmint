@@ -37,6 +37,10 @@ function sync() {
   return JSON.parse(localStorage.getItem(WATCHLISTS_SYNC_STORAGE_KEY) ?? "null");
 }
 
+function writeBaseFixture(base: { owner: string; revision: number; state: WatchlistsState }) {
+  localStorage.setItem(WATCHLISTS_BASE_STORAGE_KEY, JSON.stringify(base));
+}
+
 function conflict(current: { revision: number; state: WatchlistsState | null }) {
   return Object.assign(new Error("conflict"), { status: 409, body: { current } });
 }
@@ -233,7 +237,7 @@ describe("watchlistSync", () => {
     expect(readWatchlists().lists[1].symbols).toEqual(["Y", "Z"]);
   });
 
-  it("falls back to adding this browser's lists when it holds no common base", async () => {
+  it("merges by list id, without duplicates, when it holds no common base", async () => {
     (api.getSavedWatchlists as Mock).mockResolvedValue(saved(SERVER));
     await ensureWatchlistsLoaded();
     localStorage.removeItem(WATCHLISTS_BASE_STORAGE_KEY);
@@ -243,7 +247,25 @@ describe("watchlistSync", () => {
     toggleInWatchlist("default", "VOD.L");
     await flush();
 
-    expect(readWatchlists().lists.map((l) => l.name)).toEqual(["Other device", "Server"]);
+    // Same list on both sides: one list, the saved name, both sides' symbols.
+    expect(readWatchlists()).toEqual(list("Other device", ["SHEL.L", "BP.L", "VOD.L"]));
+  });
+
+  it("keeps the base that unsaved edits started from, so a later conflict still merges three ways", async () => {
+    // Saved at revision 3 with BP.L; then edited here (added VOD.L) but not yet saved.
+    writeBaseFixture({ owner: "u1", revision: 3, state: SERVER });
+    localStorage.setItem(WATCHLISTS_STORAGE_KEY, JSON.stringify(list("Server", ["BP.L", "VOD.L"])));
+    localStorage.setItem(WATCHLISTS_SYNC_STORAGE_KEY, JSON.stringify({ owner: "u1", revision: 3, dirty: true }));
+    // Meanwhile another device removed BP.L (revision 4).
+    const elsewhere = list("Server", []);
+    (api.getSavedWatchlists as Mock).mockResolvedValue(saved(elsewhere, 4));
+    (api.putSavedWatchlists as Mock).mockRejectedValueOnce(conflict({ revision: 4, state: elsewhere }));
+
+    await ensureWatchlistsLoaded();
+
+    // The load kept the revision-3 base, so the conflict merged three ways:
+    // BP.L stays removed, VOD.L is kept. (A union would have brought BP.L back.)
+    expect(readWatchlists()).toEqual(list("Server", ["VOD.L"]));
   });
 
   it("keeps unsaved edits across a reload and saves them", async () => {

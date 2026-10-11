@@ -109,6 +109,8 @@ def test_non_list_block_and_duplicate_dates_are_reported():
     assert pa.validate_price_adjustments({"price_adjustments": JEGI_BLOCK}) == ["price_adjustments must be a JSON list"]
     assert pa.validate_price_adjustments(_meta(JEGI_BLOCK, "x")) == ["price_adjustments[1] must be a JSON object"]
     assert "share a before date" in pa.validate_price_adjustments(_meta(JEGI_BLOCK, {**JEGI_BLOCK, "factor": 2}))[0]
+    respelled = {**JEGI_BLOCK, "before": "20110104", "factor": 2}
+    assert "share a before date" in pa.validate_price_adjustments(_meta(JEGI_BLOCK, respelled))[0]
 
 
 def test_invalid_block_is_ignored_with_a_warning(declare, caplog):

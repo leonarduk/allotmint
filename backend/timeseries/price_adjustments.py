@@ -135,7 +135,8 @@ def validate_price_adjustments(meta: Mapping[str, Any] | None) -> list[str]:
     for index, entry in enumerate(raw):
         problems.extend(_entry_problems(index, entry))
     if not problems:
-        befores = [entry["before"].strip() for entry in raw]
+        # Compare parsed dates: fromisoformat accepts several spellings of one day.
+        befores = [_iso_date(entry["before"]) for entry in raw]
         if len(set(befores)) != len(befores):
             problems.append(f"{PRICE_ADJUSTMENTS_KEY}: two entries share a before date")
     return problems

@@ -109,6 +109,7 @@ from backend.common.portfolio_utils import (
     list_all_unique_tickers,
     refresh_snapshot_in_memory,
 )
+from backend.common.refresh_extra import extra_refresh_tickers
 
 # ──────────────────────────────────────────────────────────────
 # Local imports
@@ -387,10 +388,11 @@ def get_price_gbp(ticker: str) -> Optional[float]:
 def refresh_universe() -> List[str]:
     """Return every ticker the scheduled price refresh keeps fresh.
 
-    That is held tickers (real and virtual portfolios) plus tickers watched by
-    an enabled price trigger. A cached series outside this set is never
-    refreshed, which the Data Quality report uses to tell a failing refresh
-    apart from an orphaned cache file (#8599).
+    That is held tickers (real and virtual portfolios), tickers watched by an
+    enabled price trigger, and any extra tickers listed for the refresh
+    (:mod:`backend.common.refresh_extra`, #10624). A cached series outside this
+    set is never refreshed, which the Data Quality report uses to tell a
+    failing refresh apart from an orphaned cache file (#8599).
     """
     tickers: List[str] = list_all_unique_tickers()
     try:
@@ -398,7 +400,8 @@ def refresh_universe() -> List[str]:
         tickers = sorted(set(tickers) | set(price_triggers.watched_tickers()))
     except Exception as exc:  # trigger problems must not fail the price refresh
         logger.error("Could not load price trigger tickers: %s", sanitise_log_value(exc))
-    return tickers
+    # Never raises: an unreadable or malformed list means no extras.
+    return sorted(set(tickers) | set(extra_refresh_tickers()))
 
 
 def put_empty_snapshot_if_absent(client, bucket: str) -> bool:

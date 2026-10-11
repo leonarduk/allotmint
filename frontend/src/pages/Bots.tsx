@@ -273,16 +273,15 @@ function SettingsForm({
   onSaved: (bot: BotDetail) => void;
 }) {
   const { t } = useTranslation();
-  const [values, setValues] = useState<Record<string, unknown>>(bot.settings);
+  // Only unsaved edits live in state; with none, the form shows the server's
+  // values. Unsaved edits survive the panel re-fetching (e.g. after a run
+  // finishes). Syncing bot.settings into state from an effect instead lost
+  // the first edit when it landed before that effect ran (#10552).
+  const [edits, setEdits] = useState<Record<string, unknown> | null>(null);
+  const values = edits ?? bot.settings;
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  // Unsaved edits survive the panel re-fetching (e.g. after a run finishes);
-  // the form only follows the server's values while it has none.
-  const [dirty, setDirty] = useState(false);
-  useEffect(() => {
-    if (!dirty) setValues(bot.settings);
-  }, [bot.settings, dirty]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -291,7 +290,7 @@ function SettingsForm({
     setSaved(false);
     try {
       onSaved(await updateBotSettings(bot.id, values));
-      setDirty(false);
+      setEdits(null);
       setSaved(true);
     } catch (err) {
       setErrors(validationMessages(err));
@@ -314,10 +313,9 @@ function SettingsForm({
           prop={prop}
           value={values[name]}
           disabled={!bot.can_manage || saving}
-          onChange={(value) => {
-            setDirty(true);
-            setValues((prev) => ({ ...prev, [name]: value }));
-          }}
+          onChange={(value) =>
+            setEdits((prev) => ({ ...(prev ?? bot.settings), [name]: value }))
+          }
         />
       ))}
       {errors.map((message) => (

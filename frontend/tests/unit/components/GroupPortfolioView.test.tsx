@@ -6,7 +6,8 @@ import i18n from "@/i18n";
 import { configContext, type AppConfig } from "@/ConfigContext";
 import { useState } from "react";
 import * as api from "@/api";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
+import { WorkspaceTabsContext } from "@/contexts/workspaceTabs";
 import type { OwnerSummary } from "@/types";
 import { buildPortfolioCsv } from "@/lib/portfolioExport";
 vi.mock("@/components/TopMoversSummary", () => ({
@@ -1730,6 +1731,56 @@ describe("GroupPortfolioView", () => {
     expect(screen.getByTestId("location-display")).toHaveTextContent("/portfolio/all");
 
     await user.click(screen.getByRole("button", { name: "Close instrument details" }));
+    expect(screen.queryByText("Details for ZZZ")).not.toBeInTheDocument();
+  });
+
+  it("opens the research page instead of the drawer when workspace tabs are on", async () => {
+    const user = userEvent.setup();
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 60,
+          holdings: [{ ticker: "ZZZ", units: 1, market_value_gbp: 60 }],
+        },
+      ],
+    });
+
+    // setupTests.ts swaps useNavigate for one shared mock; grab it here.
+    let navigate: ReturnType<typeof useNavigate> | undefined;
+    const NavigateProbe = () => {
+      navigate = useNavigate();
+      return null;
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio/all"]}>
+        <WorkspaceTabsContext.Provider
+          value={{
+            enabled: true,
+            setEnabled: () => {},
+            tabs: [],
+            activeId: "",
+            openCurrentInNewTab: () => {},
+            selectTab: () => {},
+            closeTab: () => {},
+            refreshActive: () => {},
+            refreshNonce: 0,
+          }}
+        >
+          <TestProvider>
+            <GroupPortfolioView slug="all" owners={ownerFixtures} />
+          </TestProvider>
+        </WorkspaceTabsContext.Provider>
+        <NavigateProbe />
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "ZZZ" }));
+
+    expect(navigate).toHaveBeenCalledWith("/research/ZZZ");
     expect(screen.queryByText("Details for ZZZ")).not.toBeInTheDocument();
   });
 

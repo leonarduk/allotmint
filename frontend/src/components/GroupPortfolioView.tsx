@@ -31,6 +31,7 @@ import {
 import * as api from "../api";
 import { HoldingsTable } from "./HoldingsTable";
 import { useLiveQuotes } from "../hooks/useLiveQuotes";
+import { useInstrumentSelection } from "../hooks/useInstrumentSelection";
 import { applyLiveQuotes } from "../lib/liveValuation";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { TopMoversSummary } from "./TopMoversSummary";
@@ -398,11 +399,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     "flat" | "rollup" | "category" | "sector"
   >("rollup");
   const displayMode = familyMvpEnabled ? "flat" : requestedDisplayMode;
-  const [selectedInstrument, setSelectedInstrument] = useState<{
-    ticker: string;
-    name: string;
-    instrumentType?: string | null;
-  } | null>(null);
+  const {
+    selected: selectedInstrument,
+    select: selectInstrument,
+    clear: clearSelectedInstrument,
+  } = useInstrumentSelection();
   const [groupDefinitions, setGroupDefinitions] = useState<
     InstrumentGroupDefinition[]
   >([]);
@@ -1647,9 +1648,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               displayMode === "category" || displayMode === "sector" ? displayMode : "flat"
             }
             categoryDefinitions={groupDefinitions}
-            onSelectInstrument={(ticker, name, instrumentType) =>
-              setSelectedInstrument({ ticker, name, instrumentType })
-            }
+            onSelectInstrument={selectInstrument}
             selectedTicker={selectedInstrument?.ticker}
             liveQuotes={liveQuotes}
           />
@@ -1669,7 +1668,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               resolveOwnerName={(owner) =>
                 getOwnerDisplayName(ownerLookup, owner, owner)
               }
-              onClose={() => setSelectedInstrument(null)}
+              onClose={clearSelectedInstrument}
             />
           )}
         </div>

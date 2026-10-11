@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   MAX_WORKSPACE_TABS,
+  activeTab,
   closeTab,
   createInitialState,
   describeTabPath,
+  followLocation,
   loadTabsEnabled,
   loadTabsState,
   openTab,
@@ -49,6 +51,69 @@ describe('workspace tab state', () => {
       '/research/VWRL.L',
     ]);
     expect(syncActivePath(state, '/research/VWRL.L')).toBe(state);
+  });
+
+  describe('followLocation', () => {
+    it('opens an instrument in a new tab and leaves the overview intact', () => {
+      const state = followLocation(
+        createInitialState('/?group=family'),
+        '/research/VWRL.L'
+      );
+      expect(state.tabs.map((t) => t.path)).toEqual([
+        '/?group=family',
+        '/research/VWRL.L',
+      ]);
+      expect(state.activeId).toBe('t2');
+    });
+
+    it('switches to the tab already showing that instrument', () => {
+      let state = createInitialState('/?group=family');
+      state = followLocation(state, '/research/VWRL.L');
+      state = selectTab(state, 't1');
+      state = followLocation(state, '/research/VWRL.L?range=1y');
+
+      expect(state.tabs.map((t) => t.path)).toEqual([
+        '/?group=family',
+        '/research/VWRL.L?range=1y',
+      ]);
+      expect(state.activeId).toBe('t2');
+    });
+
+    it('stays in the tab when moving within the same instrument', () => {
+      let state = followLocation(createInitialState('/'), '/research/VWRL.L');
+      state = followLocation(state, '/research/VWRL.L?range=1y');
+      expect(state.tabs).toHaveLength(2);
+      expect(activeTab(state).path).toBe('/research/VWRL.L?range=1y');
+    });
+
+    it('goes back to the tab the instrument was opened from', () => {
+      let state = followLocation(createInitialState('/'), '/research/VWRL.L');
+      state = followLocation(state, '/');
+      expect(state.tabs.map((t) => t.path)).toEqual(['/', '/research/VWRL.L']);
+      expect(state.activeId).toBe('t1');
+    });
+
+    it('moves the active tab along for non-instrument pages', () => {
+      const state = followLocation(createInitialState('/'), '/movers');
+      expect(state.tabs.map((t) => t.path)).toEqual(['/movers']);
+    });
+
+    it('navigates a "+" copy in place instead of opening another tab', () => {
+      let state = openTab(createInitialState('/'), '/');
+      state = followLocation(state, '/research/VWRL.L');
+      expect(state.tabs.map((t) => t.path)).toEqual(['/', '/research/VWRL.L']);
+      expect(state.activeId).toBe('t2');
+    });
+
+    it('updates the active tab once the tab limit is reached', () => {
+      let state = createInitialState('/');
+      for (let i = 1; i < MAX_WORKSPACE_TABS; i += 1) {
+        state = openTab(state, `/page${i}`);
+      }
+      const full = followLocation(state, '/research/VWRL.L');
+      expect(full.tabs).toHaveLength(MAX_WORKSPACE_TABS);
+      expect(activeTab(full).path).toBe('/research/VWRL.L');
+    });
   });
 
   it('never closes the last tab', () => {

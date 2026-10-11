@@ -49,8 +49,10 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
   `25 × L × (L − 1)`, so L2 is 50 XP, L3 is 150 and L4 is 300.
 - **Streak** — from the same endpoint: consecutive days with every daily
   chore finished.
-- **Seed packets** — the `watchlistSymbols` localStorage key (the same list
-  the classic Watchlist page reads) priced via `GET /api/quotes`.
+- **Seed packets** — the active watchlist (the same list the classic
+  Watchlist page shows, from `frontend/src/lib/watchlistStore.ts`, cached in
+  localStorage and saved per user via `GET`/`PUT /watchlists`) priced via
+  `GET /api/quotes`.
 - **Propagator** — holdings still inside their minimum holding period, from
   the backend's own `sell_eligible`, `days_until_eligible` and
   `next_eligible_sell_date` (derived from the configured `hold_days_min`).

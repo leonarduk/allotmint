@@ -154,6 +154,12 @@ def isolate_instrument_notes(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolate_watchlists(tmp_path, monkeypatch):
+    """Keep saved watchlists (#10713) off ``data/`` and off any faked S3 bucket."""
+    monkeypatch.setenv("WATCHLISTS_STORAGE_URI", str(tmp_path / "watchlists"))
+
+
+@pytest.fixture(autouse=True)
 def isolate_trend_watch(tmp_path, monkeypatch):
     """Keep trend-watch reports, state and mutes off ``data/`` and off any faked S3 bucket."""
     monkeypatch.setenv("TREND_WATCH_URI", f"file://{tmp_path / 'trend_watch'}")

@@ -43,6 +43,8 @@ BACKEND_LIST_PREFIXES = (
     "transactions",
     # Trend-watch reports, state and mutes (#10476).
     "trend_watch",
+    # Saved watchlists (#10713): missing-vs-denied for backend/common/watchlists.py.
+    "watchlists",
     # Writable per-owner account documents (manual holdings / transactions);
     # separate from the read-only accounts/ demo prefix (issue #4275).
     WRITABLE_ACCOUNTS_PREFIX,

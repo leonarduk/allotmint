@@ -496,6 +496,12 @@ class BackendLambdaStack(Stack):
                 # ListBucket lets backend/common/storage.py tell a not-yet-written
                 # trend_watch/<owner>/latest.json (404) from denied access (403).
                 "trend_watch",
+                # Saved watchlists (#10713, backend/common/watchlists.py):
+                # without ListBucket a user's not-yet-saved
+                # watchlists/<hash>.json is a 403, which the store must treat
+                # as unavailable rather than "nothing saved", so no one could
+                # ever save their first copy.
+                "watchlists",
                 # Writable, per-owner account documents (manual holdings and
                 # transaction writes) live under a dedicated prefix that is
                 # separate from the read-only ``accounts/`` demo dataset so

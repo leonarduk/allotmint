@@ -11,6 +11,10 @@ import { useCallback, useMemo, useSyncExternalStore } from "react";
  * the new key is absent that legacy list (or, if never edited, the default
  * list) is presented as the single "My watchlist". The legacy key is left in
  * place on first write so a rollback still finds the user's old list.
+ *
+ * localStorage is a cache: lib/watchlistSync.ts keeps it in step with the
+ * signed-in user's copy on the server (#10713), told of every edit here via
+ * onWatchlistsEdited and writing the server's copy back with adoptWatchlists.
  */
 export const WATCHLISTS_STORAGE_KEY = "watchlists";
 export const LEGACY_WATCHLIST_STORAGE_KEY = "watchlistSymbols";
@@ -100,9 +104,39 @@ export function readWatchlists(): WatchlistsState {
   return stateFrom(readRaw(), readLegacyRaw());
 }
 
-function writeWatchlists(state: WatchlistsState): void {
+const editListeners = new Set<() => void>();
+
+/** Call `listener` after every edit made in this tab (not on adoptWatchlists). */
+export function onWatchlistsEdited(listener: () => void): () => void {
+  editListeners.add(listener);
+  return () => {
+    editListeners.delete(listener);
+  };
+}
+
+function storeWatchlists(state: WatchlistsState): void {
   localStorage.setItem(WATCHLISTS_STORAGE_KEY, JSON.stringify(state));
   window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
+function writeWatchlists(state: WatchlistsState): void {
+  storeWatchlists(state);
+  editListeners.forEach((listener) => listener());
+}
+
+/** True once this browser holds lists of its own (edited, or the legacy list). */
+export function hasStoredWatchlists(): boolean {
+  return readRaw() !== null || readLegacyRaw() !== null;
+}
+
+/** Replace the cached lists with a copy from the server; not an edit. */
+export function adoptWatchlists(state: WatchlistsState): void {
+  storeWatchlists(state);
+}
+
+/** The lists a browser with nothing stored shows: the default list alone. */
+export function defaultWatchlists(): WatchlistsState {
+  return legacyState(null);
 }
 
 export function activeWatchlist(state: WatchlistsState): NamedWatchlist {

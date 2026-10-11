@@ -70,6 +70,7 @@ import {
 } from './lib/instrumentExports';
 import { getFamilyMvpEntryPath } from './familyMvp';
 import { completeTrackedChore } from './choreCompletion';
+import { ensureWatchlistsLoaded } from './lib/watchlistSync';
 
 const PerformanceDashboard = lazyWithDelay(
   () => import('./components/PerformanceDashboard')
@@ -393,6 +394,13 @@ export default function App({ onLogout }: AppProps) {
     navigate,
     user,
   ]);
+
+  // Bring the watchlists cached in this browser in step with the signed-in
+  // user's saved copy (#10713); watchlistSync reloads on its own after a
+  // change of identity.
+  useEffect(() => {
+    void ensureWatchlistsLoaded();
+  }, []);
 
   useEffect(() => {
     if (!ownersReq.data) return;

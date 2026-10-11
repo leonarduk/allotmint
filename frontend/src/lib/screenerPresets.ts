@@ -4,9 +4,11 @@ import type { SavedScreen } from './savedScreensStore';
  * Built-in starting-point screens, listed alongside the user's own saved
  * screens. Read-only: "Save as…" copies one into the user's list to tweak.
  *
- * Thresholds deliberately avoid dividend yield and D/E: data vendors
- * disagree on whether those are ratios or percentages, so a fixed number
- * would silently filter everything out for one of the two scales. Fraction
+ * Thresholds deliberately avoid real dividend-yield and D/E cut-offs: data
+ * vendors disagree on whether those are ratios or percentages, so a fixed
+ * number would silently filter everything out for one of the two scales.
+ * The income screen's yield floor of 0.01 is ≥1% or ≥0.01% depending on
+ * scale; either way it only means "pays a dividend". Fraction
  * fields (growth, margins, returns, payout) use 0.10 = 10%. FCF is in
  * reporting currency, so "1" just means "positive".
  */
@@ -65,10 +67,11 @@ export const SCREEN_PRESETS: readonly ScreenPreset[] = [
     id: 'income',
     name: 'Sustainable income',
     description:
-      'Dividend covered by earnings and cash flow, with serviceable debt. Sort by Div% to rank by yield.',
+      'Dividend payers whose dividend is covered by earnings and cash flow, with serviceable debt. Sort by Div% to rank by yield.',
     watchlist: 'FTSE 100',
     tickers: '',
     filters: {
+      dividend_yield_min: '0.01',
       dividend_payout_ratio_max: '0.75',
       fcf_min: '1',
       interest_coverage_min: '4',
@@ -133,7 +136,9 @@ export const SCREEN_PRESETS: readonly ScreenPreset[] = [
   },
 ];
 
-export const PRESET_VALUE_PREFIX = 'preset:';
+// Saved-screen names are trimmed on save, so none can start with a space:
+// this prefix can never collide with a user's own screen name.
+export const PRESET_VALUE_PREFIX = ' preset:';
 
 export function findPreset(value: string): ScreenPreset | undefined {
   if (!value.startsWith(PRESET_VALUE_PREFIX)) return undefined;

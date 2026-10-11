@@ -12,7 +12,7 @@ import {
   SAVED_SCREENS_STORAGE_KEY,
   readSavedScreens,
 } from '@/lib/savedScreensStore';
-import { SCREEN_PRESETS } from '@/lib/screenerPresets';
+import { PRESET_VALUE_PREFIX, SCREEN_PRESETS } from '@/lib/screenerPresets';
 
 vi.mock('@/api');
 
@@ -152,11 +152,23 @@ describe('Screener saved screens', () => {
     expect(mine?.querySelectorAll('option:not([disabled])')).toHaveLength(0);
   });
 
+  it('lists every preset by name', async () => {
+    await renderReady();
+    const group = savedSelect().querySelector('optgroup[label="Presets"]');
+    expect(
+      Array.from(group?.querySelectorAll('option') ?? [], (o) => o.textContent)
+    ).toEqual(SCREEN_PRESETS.map((p) => p.name));
+  });
+
   it('loads a preset read-only and lets the user fork it', async () => {
     const bar = await renderReady();
     const preset = SCREEN_PRESETS.find((p) => p.id === 'deep-value')!;
 
-    fireEvent.change(savedSelect(), { target: { value: 'preset:deep-value' } });
+    fireEvent.change(savedSelect(), {
+      target: { value: PRESET_VALUE_PREFIX + 'deep-value' },
+    });
+    // Loading only fills the form; nothing runs until the user clicks Run.
+    expect(api.getScreener).not.toHaveBeenCalled();
 
     expect((screen.getByLabelText('Max P/E') as HTMLInputElement).value).toBe(
       preset.filters.pe_max
@@ -188,7 +200,7 @@ describe('Screener saved screens', () => {
       );
       await renderReady();
       fireEvent.change(savedSelect(), {
-        target: { value: `preset:${preset.id}` },
+        target: { value: PRESET_VALUE_PREFIX + preset.id },
       });
 
       fireEvent.click(screen.getByRole('button', { name: /run/i }));

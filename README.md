@@ -81,7 +81,7 @@ flowchart LR
     ChatRoute --> LocalTools
     ChatRoute -. "MCP tools<br/>MCP_SERVER_URL" .-> MCP
     Bots -. "read-only tool allowlist" .-> MCP
-    MCP -- "imports backend<br/>in-process" --> Data
+    MCP -- "own process; uses the<br/>allotmint backend package<br/>as a library" --> Data
     McpClient -. "Streamable HTTP" .-> MCP
     McpClient -. "stdio or HTTP" .-> AltMCP
     AltMCP -- "REST<br/>ALLOTMINT_API_BASE" --> API
@@ -97,8 +97,10 @@ flowchart LR
   `scripts/bash/run-mcp-server.sh` start it locally with uvicorn on port 8001
   (`MCP_SERVER_PORT`). `GET /support/mcp-server/status`
   (`backend/routes/mcp_server_admin.py`) reports its URL and tool count. It
-  is a standard Streamable HTTP MCP endpoint, so any MCP client can use it;
-  this repo ships no Claude Desktop config.
+  runs as its own process but imports this repo's `backend` package to read
+  data, rather than calling the REST API. It is a standard Streamable HTTP MCP
+  endpoint, so any MCP client can use it; this repo ships no Claude Desktop
+  config.
 - **allotmint-mcp** is a separate public repo: a standalone Java MCP server
   that calls this backend's REST API. It is an alternative to the Python MCP
   server in `allotmint-pro`, not a dependency of this app.
@@ -217,11 +219,11 @@ flowchart LR
 
 `/health`, `GET /config`, `POST /token`, `POST /token/google`, `/signup/*` and `OPTIONS` preflights bypass the gateway authorizer (public or self-authenticating routes). Every other route goes through `GatewayAuthorizerLambda` (`backend/lambda_api/demo_authorizer.py`). It admits either a valid Cognito ID token or a scoped read-only demo-link token, and its result caching is disabled so token expiry is rechecked on every request. This replaced the native Cognito `HttpUserPoolAuthorizer` in [#7522](https://github.com/leonarduk/allotmint/issues/7522), which used to reject demo-link tokens at the gateway. See [docs/AUTH.md § Deployed-gateway auth](docs/AUTH.md#deployed-gateway-auth-the-democognito-lambda-authorizer-7522).
 
-Every Lambda above is a container image built from `backend/Dockerfile.lambda`, each with its own entry-point `cmd`, and pushed to the CDK bootstrap ECR repository. The image contains only `backend/requirements.txt`, so `allotmint-pro` is not installed in it. These stacks also don't give the backend Lambda an MCP server URL or a Bedrock grant. The assistant's MCP tools are wired in local runs, or in deployments that set `MCP_SERVER_URL` some other way.
+Every Lambda above is a container image built from `backend/Dockerfile.lambda`, each with its own entry-point `cmd`, and pushed to the CDK bootstrap ECR repository. The image contains only `backend/requirements.txt`, so `allotmint-pro` is not installed in it. Only `DataStewardLambda` and `PlanBriefLambda` take an MCP server URL (optional CDK context `mcp_server_url` / `plan_brief_mcp_server_url`) and a Bedrock grant. `BackendLambda` gets neither, so the assistant's MCP tools are wired only in local runs or in deployments that set `MCP_SERVER_URL` some other way.
 
 ### CDK deployment pipeline
 
-Deploys run from `.github/workflows/deploy-lambda.yml` on a `v*` tag push (or manual dispatch), gated on a `ci.yml` run passing first. The gate resolves the same ref the deploy job checks out (`inputs.ref || github.ref`) to a commit SHA and waits for `ci.yml` on that exact commit, so a manual dispatch with `inputs.ref` can't deploy a commit whose CI wasn't checked.
+Deploys run from `.github/workflows/deploy-lambda.yml` on a `v*` tag push (or manual dispatch), gated on a `ci.yml` run passing first. The `check-ci` job resolves the same ref the deploy job checks out (`inputs.ref || github.ref`) to a commit SHA and waits for `ci.yml` on that exact commit, so a manual dispatch with `inputs.ref` can't deploy a commit whose CI wasn't checked.
 
 ```mermaid
 flowchart TD

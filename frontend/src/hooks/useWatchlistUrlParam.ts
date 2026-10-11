@@ -32,10 +32,8 @@ export function useWatchlistUrlParam(): string | null {
     if (requested !== null && requested !== lastSeen.current) {
       lastSeen.current = requested;
       const target = findWatchlist(state, requested);
-      if (!target) {
-        setMissing({ ref: requested, shownId: active.id });
-      } else if (target.id !== active.id) {
-        setMissing(null);
+      setMissing(target ? null : { ref: requested, shownId: active.id });
+      if (target && target.id !== active.id) {
         setActiveWatchlist(target.id);
         return; // the URL is re-synced once the switch re-renders
       }

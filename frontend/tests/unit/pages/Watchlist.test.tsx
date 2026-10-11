@@ -505,6 +505,15 @@ describe("Watchlist page", () => {
         await waitFor(() => expect(listParam()).toBe("To Sell or Buy"));
       });
 
+      it("also accepts a list id, then shows the name in the URL", async () => {
+        addSecondList();
+        const id = readWatchlists().lists[1].id;
+        renderAt(`/watchlist?list=${id}`);
+
+        expect(await screen.findByLabelText("Remove SGLN.L")).toBeInTheDocument();
+        await waitFor(() => expect(listParam()).toBe("To Sell or Buy"));
+      });
+
       it("adds the active list's name when the URL has none", async () => {
         renderAt("/watchlist");
         await waitFor(() => expect(listParam()).toBe("My watchlist"));

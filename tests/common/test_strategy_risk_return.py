@@ -73,8 +73,9 @@ def test_daily_rebalanced_weighted_return_and_gold_is_total_return():
 
 
 def test_cash_accrues_the_risk_free_rate_by_calendar_day():
-    result = _compute({"cash": 100.0}, cash_rate=0.0)
-    assert result["period_return"] is None  # nothing priced: no dates to accrue over
+    cash_only = _compute({"cash": 100.0}, cash_rate=0.05)
+    assert cash_only["period_return"] == pytest.approx(0.05, abs=0.002)  # plotted at the rate, over business days
+    assert cash_only["series"] == {}
 
     result = _compute({"equity": 50.0, "cash": 50.0}, cash_rate=0.05)
     flat = _compute({"equity": 50.0, "cash": 50.0}, cash_rate=0.0)
@@ -119,3 +120,16 @@ def test_market_holidays_count_the_move_on_the_next_close():
     assert len(returns) == 4
     assert returns.iloc[0] == pytest.approx(0.5 * 0.01)  # US shut: no move that day
     assert returns.iloc[1] == pytest.approx(0.5 * (102 / 101 - 1) + 0.5 * 0.10)  # its move lands on its next close
+
+
+def test_staggered_stand_in_starts_do_not_touch_the_window():
+    """A sleeve whose first close falls between another's and the window start only lacks pre-window returns."""
+    days = pd.bdate_range("2024-01-01", "2024-01-10")
+    early = pd.Series(range(100, 108), index=days[:8], dtype=float)
+    late = pd.Series([50.0, 51.0, 52.0, 53.0, 54.0], index=days[3:8])
+    returns = strategy_risk_return.strategy_daily_returns(
+        {"equity": 50.0, "gold": 50.0}, {"equity": early, "gold": late}, 0.0
+    )
+    window = returns[returns.index > days[3]]  # window starts on the later sleeve's first close
+    assert window.iloc[0] == pytest.approx(0.5 * (104 / 103 - 1) + 0.5 * (51 / 50 - 1))
+    assert len(window) == 4

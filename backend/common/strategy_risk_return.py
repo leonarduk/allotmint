@@ -66,7 +66,7 @@ def strategy_daily_returns(
 
     ``closes`` covers every target outside :data:`HELD_FLAT`; weights are
     normalised, so targets need not sum to exactly 100. Empty when no sleeve
-    is priced: all-cash targets have no trading days to accrue over.
+    is priced: the closes give no trading days to accrue cash over.
     """
     if not closes:
         return pd.Series(dtype=float)
@@ -103,7 +103,12 @@ def compute_strategy_risk_return(
             bases.add(basis)
     stats = _EMPTY_STATS
     if not missing:
-        returns = strategy_daily_returns(strategy.targets, closes, cash_rate)
+        # Nothing priced means all cash: accrue it over business days instead.
+        returns = (
+            strategy_daily_returns(strategy.targets, closes, cash_rate)
+            if closes
+            else _cash_returns(pd.bdate_range(after, end), cash_rate).iloc[1:]
+        )
         if not returns.empty:
             stats = stats_from_returns(returns, after, end)
     return {

@@ -10,6 +10,10 @@ import {
 } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { InstrumentSummary, Portfolio } from "@/types";
+// Load App's module graph once while the file is collected, so the cold
+// transform of App's eager imports isn't charged to whichever test first
+// re-imports App after vi.resetModules() (see App.familyMvpRedirect.test.tsx).
+import "@/App";
 
 const mockTradingSignals = vi.fn();
 const mockComplianceWarnings = vi.fn();

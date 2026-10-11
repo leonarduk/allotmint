@@ -103,6 +103,17 @@ def test_demo_sessions_read_nothing_and_cannot_write(app) -> None:
     assert demo.put(URL, json={"revision": 1, "state": _state("x")}).status_code == 403
 
 
+def test_a_real_demo_token_cannot_write(app, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # No dependency overrides: the real demo-token path, end to end.
+    monkeypatch.setenv("TESTING", "1")
+    token = auth.create_demo_access_token("demo")
+    resp = TestClient(app).put(
+        URL, json={"revision": 0, "state": _state()}, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert resp.status_code == 403
+    assert not (tmp_path / "watchlists").exists()
+
+
 @pytest.mark.parametrize(
     "body",
     [

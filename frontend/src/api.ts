@@ -31,6 +31,7 @@ import type {
   ScreenerRiskReturn,
   InstrumentValuation,
   InstrumentTechnicals,
+  InstrumentCreditRisk,
   VirtualPortfolio,
   CustomQuery,
   SavedQuery,
@@ -1493,6 +1494,13 @@ export const getInstrumentValuation = (ticker: string, signal?: AbortSignal) =>
 export const getInstrumentTechnicals = (ticker: string, signal?: AbortSignal) =>
   fetchJson<InstrumentTechnicals>(
     `${API_BASE}/screener/technicals?${new URLSearchParams({ ticker }).toString()}`,
+    { signal },
+  );
+
+/** Per-company credit/distress verdict (band, reasons, solvency signals, market spreads) for one ticker. */
+export const getInstrumentCreditRisk = (ticker: string, signal?: AbortSignal) =>
+  fetchJson<InstrumentCreditRisk>(
+    `${API_BASE}/screener/credit-risk?${new URLSearchParams({ ticker }).toString()}`,
     { signal },
   );
 

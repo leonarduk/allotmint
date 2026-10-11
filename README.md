@@ -64,7 +64,10 @@ flowchart LR
         DeepSeek["DeepSeek<br/>opt-in via CHAT_PROVIDER"]
     end
 
-    Data[("Portfolio data<br/>local: data_root, e.g. private<br/>allotmint-data checkout<br/>AWS: S3 DATA_BUCKET")]
+    subgraph Data["Portfolio data: backend/config.py"]
+        LocalData[("Local: data_root / DATA_ROOT<br/>e.g. private allotmint-data<br/>checkout, or data/ fixtures")]
+        S3Data[("AWS: S3 bucket<br/>DATA_BUCKET")]
+    end
 
     AltMCP["allotmint-mcp: public<br/>standalone Java/Spring Boot<br/>MCP server"]
 
@@ -166,7 +169,7 @@ or AI agent's default language.
 
 ## AWS architecture
 
-Two independent CDK stacks (`cdk/stacks/static_site_stack.py`, `cdk/stacks/backend_lambda_stack.py`, wired up in `cdk/app.py`) make up the deployed system. The frontend is served by CloudFront directly from S3; the backend is a separate, CloudFront-less HTTP API. Cognito issues the ID token the browser sends as a bearer token. A Lambda authorizer on API Gateway checks that token, or a demo-link token, before the backend Lambda runs.
+Two independent CDK stacks (`cdk/stacks/static_site_stack.py`, `cdk/stacks/backend_lambda_stack.py`, wired up in `cdk/app.py`) make up the deployed system. The other modules in `cdk/stacks/` create no resources of their own: `moneyhub_token_store.py` scopes the SSM grant shown below, `prod_env.py` fails a `-c prod=true` synth when required environment variables are missing, and `exports.py` names the stack exports. The frontend is served by CloudFront directly from S3; the backend is a separate, CloudFront-less HTTP API. Cognito issues the ID token the browser sends as a bearer token. A Lambda authorizer on API Gateway checks that token, or a demo-link token, before the backend Lambda runs.
 
 **Which CDK copy deploys:** `.github/workflows/deploy-lambda.yml` in this repo runs `cdk deploy` against this repo's `cdk/`, so that copy is what reaches AWS today. `allotmint-pro` has its own `cdk/`, which already differs from this one (it adds an MCP server Lambda and a monitoring dashboard). Moving the deploy there is tracked in [#6796](https://github.com/leonarduk/allotmint/issues/6796): [#6806](https://github.com/leonarduk/allotmint/issues/6806) adds the deploy workflow to `allotmint-pro`, and [#6808](https://github.com/leonarduk/allotmint/issues/6808) deletes `cdk/` here. Both are open. The diagrams below show this repo's copy.
 

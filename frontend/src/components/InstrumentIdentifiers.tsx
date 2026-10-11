@@ -38,7 +38,7 @@ export function InstrumentIdentifiers({ ticker, exchange, isin, morningstarId, e
   const optional: [string, string | null][] = [
     ["morningstarId", text(morningstarId)],
     ["assetClass", text(entry?.asset_class)],
-    ["region", text(entry?.region)],
+    ["region", text(entry?.effective_region) ?? text(entry?.region)],
     ["industry", text(entry?.industry)],
     ["grouping", text(entry?.grouping)],
     ["priceSource", priceSourceSymbol(entry)],

@@ -21,7 +21,28 @@ def test_list_instrument_metadata(monkeypatch):
     client = make_client()
     resp = client.get("/instrument/admin")
     assert resp.status_code == 200
-    assert resp.json() == [{"ticker": "ABC.L", "grouping": "Income"}]
+    assert resp.json() == [{"ticker": "ABC.L", "grouping": "Income", "effective_region": None}]
+
+
+def test_list_instrument_metadata_adds_effective_region(monkeypatch):
+    stored = [
+        {"ticker": "USSC.L", "name": "SPDR MSCI USA Small Cap UCITS ETF", "instrument_type": "ETF", "region": "UK"},
+        {
+            "ticker": "ABC.L",
+            "name": "Abc plc",
+            "instrument_type": "Equity",
+            "region": "UK",
+            "exposure_region": "Europe",
+        },
+        {"ticker": "DEF.L", "name": "Def plc", "instrument_type": "Equity", "region": "UK"},
+    ]
+    monkeypatch.setattr(instrument_admin, "list_instruments", lambda: stored)
+    resp = make_client().get("/instrument/admin")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [entry["effective_region"] for entry in body] == ["US", "Europe", "United Kingdom"]
+    # The stored region is returned untouched alongside the derived one.
+    assert [entry["region"] for entry in body] == ["UK", "UK", "UK"]
 
 
 def test_list_group_labels_merges_catalogue(monkeypatch):

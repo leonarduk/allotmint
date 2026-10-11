@@ -124,6 +124,20 @@ function addInstrumentTypeOption(options: string[], value: string) {
   );
 }
 
+/** Distinct region labels already used in the catalogue, for the region picker. */
+function collectRegionOptions(catalogue: InstrumentMetadata[]) {
+  const regions = new Map<string, string>();
+  for (const entry of catalogue) {
+    for (const value of [entry?.exposure_region, entry?.effective_region, entry?.region]) {
+      const label = normaliseOptional(value);
+      if (label && !regions.has(label.toLowerCase())) regions.set(label.toLowerCase(), label);
+    }
+  }
+  return Array.from(regions.values()).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" }),
+  );
+}
+
 function sortNewsByPublishedAtDesc(items: NewsItem[]): NewsItem[] {
   return [...items].sort((a, b) => (b.published_at ?? "").localeCompare(a.published_at ?? ""));
 }
@@ -240,6 +254,10 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const [foreignIsinRejected, setForeignIsinRejected] = useState(false);
   const [allowForeignIsin, setAllowForeignIsin] = useState(false);
   const [catalogueEntry, setCatalogueEntry] = useState<InstrumentMetadata | null>(null);
+  // Exposure-region override, edited alongside the other metadata. Blank
+  // means "derive it" (fund name, then the listing's region).
+  const [regionInput, setRegionInput] = useState("");
+  const [regionOptions, setRegionOptions] = useState<string[]>([]);
   type MetadataState = {
     name: string;
     sector: string;
@@ -359,6 +377,8 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     setForeignIsinRejected(false);
     setAllowForeignIsin(false);
     setCatalogueEntry(null);
+    setRegionInput("");
+    setRegionOptions([]);
     setIsEditingMetadata(false);
     setMetadataSaving(false);
     setMetadataStatus(null);
@@ -482,6 +502,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             }
           }
         }
+        setRegionOptions(collectRegionOptions(catalogue ?? []));
         setSectorOptions(
           Array.from(sectors).sort((a, b) =>
             a.localeCompare(b, undefined, { sensitivity: "base" }),
@@ -495,6 +516,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         if (matched) {
           setInstrumentIsin(normaliseUppercase(matched.isin) ?? "");
           setCatalogueEntry(matched);
+          setRegionInput(normaliseOptional(matched.exposure_region) ?? "");
           const name = normaliseOptional(matched.name) ?? matched.name;
           const sector = normaliseOptional(matched.sector);
           const currency = normaliseUppercase(matched.currency);
@@ -573,6 +595,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     setIsinInput(instrumentIsin);
     setForeignIsinRejected(false);
     setAllowForeignIsin(false);
+    setRegionInput(normaliseOptional(catalogueEntry?.exposure_region) ?? "");
   };
 
   const handleStartEditing = () => {
@@ -759,6 +782,18 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     return true;
   };
 
+  // The effective region is derived server-side (override, fund name, then
+  // listing), so re-read the catalogue entry after the override changes.
+  const reloadCatalogueEntry = async (fullTicker: string) => {
+    try {
+      const catalogue = await listInstrumentMetadata();
+      const fresh = catalogue.find((entry) => entry?.ticker?.toUpperCase() === fullTicker);
+      if (fresh) setCatalogueEntry(fresh);
+    } catch (err) {
+      console.warn("Unable to reload instrument metadata after saving region:", err);
+    }
+  };
+
   const handleSaveMetadata = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!isEditingMetadata) return;
@@ -796,7 +831,26 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       // load (blank instrumentIsin) can't wipe a stored one.
       const isinChanged = isin !== instrumentIsin;
       if (isinChanged) payload.isin = isin || null;
+      // Same for the region override: only send it when it changed.
+      const region = regionInput.trim();
+      const regionChanged =
+        region !== (normaliseOptional(catalogueEntry?.exposure_region) ?? "");
+      if (regionChanged) payload.exposure_region = region || null;
       const created = await persistMetadata(exchange, payload);
+      if (regionChanged) {
+        setCatalogueEntry((prev) =>
+          prev
+            ? {
+                ...prev,
+                exposure_region: region || null,
+                // Cleared: the derived region is unknown until the reload
+                // lands, so fall back to the stored one, never the old override.
+                effective_region: region || null,
+              }
+            : prev,
+        );
+        void reloadCatalogueEntry(`${baseTicker}.${exchange}`.toUpperCase());
+      }
       setInstrumentIsin(isin);
       setForeignIsinRejected(false);
       setAllowForeignIsin(false);
@@ -1509,6 +1563,27 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
               </span>
             )}
           </li>
+          {isEditingMetadata && (
+            <li style={{ marginBottom: "0.5rem" }}>
+              <label htmlFor="instrument-region" style={{ display: "block" }}>
+                {t("instrumentDetail.regionLabel")}
+                <input
+                  id="instrument-region"
+                  list="instrument-region-options"
+                  value={regionInput}
+                  onChange={(e) => {
+                    setRegionInput(e.target.value);
+                    setMetadataStatus((prev) => (prev?.kind === "error" ? null : prev));
+                  }}
+                  placeholder={t("instrumentDetail.regionPlaceholder", {
+                    region: catalogueEntry?.effective_region ?? catalogueEntry?.region ?? "—",
+                  })}
+                  style={{ display: "block", marginTop: "0.25rem", width: "100%" }}
+                  disabled={metadataInputsDisabled}
+                />
+              </label>
+            </li>
+          )}
           <li style={{ marginBottom: "0.5rem" }}>
             {isEditingMetadata ? (
               <label htmlFor="instrument-type" style={{ display: "block" }}>
@@ -1586,11 +1661,18 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           </li>
         </ul>
         {isEditingMetadata && (
-          <datalist id="instrument-sector-options">
-            {sectorOptions.map((sector) => (
-              <option key={sector} value={sector} />
-            ))}
-          </datalist>
+          <>
+            <datalist id="instrument-sector-options">
+              {sectorOptions.map((sector) => (
+                <option key={sector} value={sector} />
+              ))}
+            </datalist>
+            <datalist id="instrument-region-options">
+              {regionOptions.map((region) => (
+                <option key={region} value={region} />
+              ))}
+            </datalist>
+          </>
         )}
       </form>
       <div

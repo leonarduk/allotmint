@@ -727,6 +727,8 @@
     "save": "Guardar",
     "searchInstruments": "Buscar instrumentos",
     "sectorLabel": "Sector",
+    "regionLabel": "Región",
+    "regionPlaceholder": "Automática: {{region}} (déjelo en blanco para derivarla del nombre del fondo o la cotización)",
     "showInstrumentSearch": "Mostrar búsqueda de instrumentos",
     "allRegions": "Todas las regiones",
     "allSectors": "Todos los sectores",

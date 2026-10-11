@@ -836,7 +836,15 @@ export interface InstrumentMetadata {
   ticker: string;
   exchange?: string | null;
   name: string;
+  /** Listing/domicile region, e.g. derived from the exchange on refresh. */
   region?: string | null;
+  /** User override for where the money is invested; wins over `region` (#9296). */
+  exposure_region?: string | null;
+  /**
+   * Read-only, from `GET /instrument/admin`: the region allocation views use
+   * (`exposure_region`, else the fund-name rule, else `region`). Never sent back.
+   */
+  effective_region?: string | null;
   sector?: string | null;
   grouping?: string | null;
   currency?: string | null;

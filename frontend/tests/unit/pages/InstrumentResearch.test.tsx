@@ -1239,12 +1239,77 @@ describe("InstrumentResearch page", () => {
     );
     // An unchanged (blank) ISIN is left out so it can't overwrite a stored one.
     expect(mockUpdateInstrumentMetadata.mock.calls[0][2]).not.toHaveProperty("isin");
+    expect(mockUpdateInstrumentMetadata.mock.calls[0][2]).not.toHaveProperty("exposure_region");
     expect(mockCreateInstrumentMetadata).not.toHaveBeenCalled();
     expect(screen.getByText(/Name:/)).toHaveTextContent("Name: Acme Updated");
     expect(screen.getByText(/Sector:/)).toHaveTextContent("Sector: Healthcare");
     expect(
       screen.getByText(/Declared currency \(metadata\):/),
     ).toHaveTextContent("Declared currency (metadata): EUR");
+  });
+
+  it("shows the effective region rather than the listing's region", async () => {
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ticker: "AAA.L", exchange: "L", name: "Acme USA ETF", region: "UK", effective_region: "US" },
+    ] as any);
+    renderPage();
+
+    expect(await screen.findByText("Region: US")).toBeInTheDocument();
+    expect(screen.queryByText("Region: UK")).toBeNull();
+  });
+
+  it("saves an edited region as the exposure-region override", async () => {
+    const stored = { ticker: "AAA.L", exchange: "L", name: "Acme ETF", currency: "GBP", region: "UK" };
+    mockListInstrumentMetadata.mockResolvedValue([{ ...stored, effective_region: "UK" }] as any);
+    renderPage();
+    expect(await screen.findByText("Region: UK")).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Edit/i }));
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ...stored, exposure_region: "US", effective_region: "US" },
+    ] as any);
+    const regionInput = screen.getByLabelText(/^Region/);
+    expect(regionInput).toHaveValue("");
+    await userEvent.type(regionInput, "US");
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(await screen.findByText("Instrument details updated.")).toBeInTheDocument();
+    expect(mockUpdateInstrumentMetadata).toHaveBeenCalledWith(
+      "AAA",
+      "L",
+      expect.objectContaining({ exposure_region: "US" }),
+      false,
+    );
+    expect(await screen.findByText("Region: US")).toBeInTheDocument();
+  });
+
+  it("clears the exposure-region override when the region is blanked", async () => {
+    const stored = { ticker: "AAA.L", exchange: "L", name: "Acme ETF", currency: "GBP", region: "UK" };
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ...stored, exposure_region: "Europe", effective_region: "Europe" },
+    ] as any);
+    renderPage();
+    expect(await screen.findByText("Region: Europe")).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Edit/i }));
+    // The reload after saving fails: the old override must not linger.
+    mockListInstrumentMetadata.mockRejectedValue(new Error("offline"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const regionInput = screen.getByLabelText(/^Region/);
+    expect(regionInput).toHaveValue("Europe");
+    await userEvent.clear(regionInput);
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(await screen.findByText("Instrument details updated.")).toBeInTheDocument();
+    expect(mockUpdateInstrumentMetadata).toHaveBeenCalledWith(
+      "AAA",
+      "L",
+      expect.objectContaining({ exposure_region: null }),
+      false,
+    );
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(screen.getByText("Region: UK")).toBeInTheDocument();
+    warn.mockRestore();
   });
 
   it("validates currency before saving metadata", async () => {

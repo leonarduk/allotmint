@@ -721,6 +721,8 @@
     "save": "Save",
     "searchInstruments": "Search instruments",
     "sectorLabel": "Sector",
+    "regionLabel": "Region",
+    "regionPlaceholder": "Automatic: {{region}} (leave blank to derive from the fund name or listing)",
     "showInstrumentSearch": "Show instrument search",
     "allRegions": "All regions",
     "allSectors": "All sectors",

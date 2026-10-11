@@ -1229,6 +1229,10 @@
         "avgVolume": {
           "title": "Volume moyen",
           "detail": "Le nombre moyen d'actions échangées par jour sur une période récente."
+        },
+        "riskReturn": {
+          "title": "Risque et rendement (Screener)",
+          "detail": "Les colonnes Sharpe, rendement, volatilité et pire baisse du Screener couvrent les 3, 5 et 10 dernières années jusqu'à la date de référence. Le rendement est annualisé ; la volatilité est l'écart type annualisé des rendements hebdomadaires (hebdomadaires, pour que le décalage quotidien des devises ne la gonfle pas) ; le Sharpe est le rendement moins le taux sans risque — le taux directeur moyen de la Banque d'Angleterre sur la même période — divisé par la volatilité. Les chiffres sont en GBP ou dans la devise de cotation et incluent les dividendes lorsqu'ils sont enregistrés (total), seulement sur une partie de l'historique (partiel) ou pas du tout (prix seul). Le Sharpe min. est le plus bas des trois périodes : une valeur élevée signifie des rendements ajustés du risque constamment bons. Les chiffres passés ne sont pas une prévision."
         }
       },
       "movers": {
@@ -1647,6 +1651,40 @@
     },
     "tips": {
       "infoLabel": "Que signifie {{column}} ?"
+    },
+    "risk": {
+      "controlsLabel": "Risque/rendement",
+      "currency": "Devise",
+      "currencyGbp": "GBP",
+      "currencyLocal": "Devise locale",
+      "period": "Période",
+      "periodOption": "{{years}} a",
+      "minSharpe": "Sharpe min.",
+      "sharpeScope": "Période du Sharpe",
+      "scopeAll": "Les trois",
+      "maxDrawdown": "Pire baisse max.",
+      "col": {
+        "sharpe": "Sharpe {{years}} a",
+        "minSharpe": "Sharpe min.",
+        "return": "Rendement/an {{years}} a",
+        "volatility": "Volatilité {{years}} a",
+        "worstFall": "Pire baisse {{years}} a",
+        "basis": "Devise · base"
+      },
+      "basis": {
+        "total": "total",
+        "partial": "dividendes partiels",
+        "price": "prix seul"
+      },
+      "pending": "Chargement des chiffres risque/rendement",
+      "loading": "Chargement des chiffres risque/rendement…",
+      "error": "Impossible de charger les chiffres risque/rendement : {{error}}",
+      "summary": "Risque/rendement au {{date}}, en {{currency}}. Taux sans risque (taux directeur moyen) : {{rates}}. Les chiffres passés ne sont pas une prévision.",
+      "missing": "{{count}} ticker(s) n'ont aucun historique de prix enregistré ; leurs cellules risque/rendement sont vides.",
+      "filteredOut": "{{count}} ligne(s) masquée(s) par les filtres risque/rendement.",
+      "noHistory": "Aucun historique de prix enregistré pour ce ticker",
+      "shortHistory": "L'historique de prix couvre moins de {{years}} ans",
+      "notReturned": "Aucun chiffre risque/rendement pour ce ticker"
     },
     "saved": {
       "label": "Filtres enregistrés",

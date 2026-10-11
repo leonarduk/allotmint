@@ -1229,6 +1229,10 @@
         "avgVolume": {
           "title": "Durchschnittliches Volumen",
           "detail": "Die durchschnittliche Zahl der pro Tag gehandelten Aktien über einen jüngeren Zeitraum."
+        },
+        "riskReturn": {
+          "title": "Risiko und Rendite (Screener)",
+          "detail": "Die Screener-Spalten für Sharpe, Rendite, Volatilität und größten Rückgang decken die letzten 3, 5 und 10 Jahre bis zum Stichtag ab. Die Rendite ist annualisiert; die Volatilität ist die annualisierte Standardabweichung der Wochenrenditen (wöchentlich, damit tägliche Währungseffekte sie nicht aufblähen); Sharpe ist die Rendite abzüglich des risikofreien Zinses – des durchschnittlichen Leitzinses der Bank of England im selben Zeitraum – geteilt durch die Volatilität. Die Werte sind in GBP oder in der Handelswährung angegeben und enthalten Dividenden, soweit erfasst (gesamt), nur für einen Teil der Historie (teilweise) oder gar nicht (nur Kurs). Min. Sharpe ist der niedrigste der drei Zeiträume; ein hoher Wert bedeutet durchgehend gute risikobereinigte Renditen. Vergangene Werte sind keine Prognose."
         }
       },
       "movers": {
@@ -1647,6 +1651,40 @@
     },
     "tips": {
       "infoLabel": "Was bedeutet {{column}}?"
+    },
+    "risk": {
+      "controlsLabel": "Risiko/Rendite",
+      "currency": "Währung",
+      "currencyGbp": "GBP",
+      "currencyLocal": "Handelswährung",
+      "period": "Zeitraum",
+      "periodOption": "{{years}} J.",
+      "minSharpe": "Min. Sharpe",
+      "sharpeScope": "Sharpe-Zeitraum",
+      "scopeAll": "Alle drei",
+      "maxDrawdown": "Max. größter Rückgang",
+      "col": {
+        "sharpe": "Sharpe {{years}} J.",
+        "minSharpe": "Min. Sharpe",
+        "return": "Rendite p. a. {{years}} J.",
+        "volatility": "Volatilität {{years}} J.",
+        "worstFall": "Größter Rückgang {{years}} J.",
+        "basis": "Währ. · Basis"
+      },
+      "basis": {
+        "total": "gesamt",
+        "partial": "teilw. Dividenden",
+        "price": "nur Kurs"
+      },
+      "pending": "Risiko/Rendite-Werte werden geladen",
+      "loading": "Risiko/Rendite-Werte werden geladen…",
+      "error": "Risiko/Rendite-Werte konnten nicht geladen werden: {{error}}",
+      "summary": "Risiko/Rendite zum {{date}}, in {{currency}}. Risikofreier Zins (durchschnittlicher Leitzins): {{rates}}. Vergangene Werte sind keine Prognose.",
+      "missing": "Für {{count}} Ticker sind keine Kursdaten gespeichert; ihre Risiko/Rendite-Zellen bleiben leer.",
+      "filteredOut": "{{count}} Zeile(n) durch die Risiko/Rendite-Filter ausgeblendet.",
+      "noHistory": "Keine gespeicherten Kursdaten für diesen Ticker",
+      "shortHistory": "Kurshistorie kürzer als {{years}} Jahre",
+      "notReturned": "Keine Risiko/Rendite-Werte für diesen Ticker"
     },
     "saved": {
       "label": "Gespeicherte Screens",

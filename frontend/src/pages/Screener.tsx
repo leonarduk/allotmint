@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { checkScreenerAvailable, getScreener } from "../api";
@@ -11,6 +11,23 @@ import SavedScreensBar from "../components/SavedScreensBar";
 import type { SavedScreen } from "../lib/savedScreensStore";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import i18n from "../i18n";
+import { useScreenerRiskReturn } from "../hooks/useScreenerRiskReturn";
+import {
+  DEFAULT_RISK_FILTERS,
+  hasRiskFilters,
+  mergeRiskReturn,
+  passesRiskFilters,
+  type RiskCurrency,
+  type RiskFilters,
+  type RiskPeriod,
+  type ScreenerRow,
+} from "../lib/screenerRiskReturn";
+import {
+  RiskReturnCells,
+  RiskReturnControls,
+  RiskReturnHeaders,
+  RiskReturnSummary,
+} from "../components/ScreenerRiskReturn";
 
 const RATIO_COLUMN_TIPS: Record<
   string,
@@ -177,6 +194,14 @@ export function Screener() {
     null,
   );
   const { t } = useTranslation();
+  // Risk/return figures load alongside, never in front of, the fundamentals
+  // (allotmint#10607); their filters apply client-side to the merged rows.
+  const risk = useScreenerRiskReturn();
+  const [riskFilters, setRiskFilters] = useState<RiskFilters>(DEFAULT_RISK_FILTERS);
+  const [riskCurrency, setRiskCurrency] = useState<RiskCurrency>("gbp");
+  const [riskPeriod, setRiskPeriod] = useState<RiskPeriod>("10");
+  const showRisk = risk.status === "loading" || risk.status === "ready";
+  const riskLoading = risk.status === "loading";
 
   useEffect(() => {
     let cancelled = false;
@@ -190,7 +215,19 @@ export function Screener() {
     };
   }, []);
 
-  const { sorted, handleSort } = useSortableTable(rows, "rank");
+  const merged = useMemo(
+    () => mergeRiskReturn(rows, risk.data, riskCurrency, riskPeriod),
+    [rows, risk.data, riskCurrency, riskPeriod],
+  );
+  // Risk filters only bite once the figures have arrived.
+  const visibleRows = useMemo(
+    () =>
+      risk.status === "ready" && hasRiskFilters(riskFilters)
+        ? merged.filter((r) => passesRiskFilters(r, riskFilters))
+        : merged,
+    [merged, risk.status, riskFilters],
+  );
+  const { sorted, handleSort } = useSortableTable<ScreenerRow>(visibleRows, "rank");
 
   const cell = { padding: "4px 6px" } as const;
   const right = { ...cell, textAlign: "right", cursor: "pointer" } as const;
@@ -213,6 +250,8 @@ export function Screener() {
 
     setLoading(true);
     setError(null);
+    // Not awaited: the fundamentals request below must not wait on it.
+    risk.load(symbols);
     try {
       const data = await getScreener(symbols, toCriteria(filters));
       setRows(data);
@@ -375,6 +414,24 @@ export function Screener() {
         </p>
       )}
 
+      {screenerAvailable === true && showRisk && (
+        <RiskReturnControls
+          filters={riskFilters}
+          onFilters={setRiskFilters}
+          currency={riskCurrency}
+          onCurrency={setRiskCurrency}
+          period={riskPeriod}
+          onPeriod={setRiskPeriod}
+        />
+      )}
+      {hasRun && !loading && (
+        <RiskReturnSummary
+          state={risk}
+          currency={riskCurrency}
+          hiddenByFilters={merged.length - visibleRows.length}
+        />
+      )}
+
       {rows.length > 0 && !loading && (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -388,6 +445,9 @@ export function Screener() {
               >
                 {t("common.ticker")}
               </th>
+              {showRisk && (
+                <RiskReturnHeaders period={riskPeriod} onSort={handleSort} />
+              )}
               <th style={right} onClick={() => handleSort("peg_ratio")}>
                 PEG
                 <RatioHeaderInfoTip column="PEG" />
@@ -548,6 +608,9 @@ export function Screener() {
                   </Link>
                   <WatchlistToggle ticker={r.ticker} />
                 </td>
+                {showRisk && (
+                  <RiskReturnCells row={r} loading={riskLoading} period={riskPeriod} />
+                )}
                 <td style={right}>{r.peg_ratio ?? "—"}</td>
                 <td style={right}>{r.pe_ratio ?? "—"}</td>
                 <td style={right}>{r.pb_ratio ?? "—"}</td>

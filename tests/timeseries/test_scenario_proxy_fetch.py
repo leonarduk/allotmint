@@ -27,19 +27,37 @@ _BUNDLED_INSTRUMENTS = Path(__file__).resolve().parents[2] / "data" / "instrumen
 _USD_GBP = 0.5
 
 
-# Weekdays on which the stub closes at 100, one per test (the one nearest the
-# window start is used). Prices are a function of the date, not of its
-# position in the fetched window: the window's start comes from
-# ``_weekday_range(today - 1, days_needed)``, so it shifts with the weekday the
-# suite runs on.
-_PRICE_ANCHORS = (dt.date(2008, 9, 8), dt.date(2020, 3, 16))
+# Each test's window opens on one of these weekdays at close 100. Closes are fixed per
+# date, not per fetch: the backend may ask for a few days' slack before the window,
+# and how much depends on today's date, so numbering from ``start`` made the expected
+# closes shift with the calendar.
+_WINDOW_OPENS = (dt.date(2008, 9, 8), dt.date(2020, 3, 16))
+
+
+def _window_open(start: dt.date) -> dt.date:
+    """The first window opening on or after the fetch start.
+
+    Fetches run from a little before a window opens up to today, so the range can
+    contain later openings too; the slack is only ever before the window.
+    """
+    later = [opens for opens in _WINDOW_OPENS if opens >= start]
+    if not later:
+        raise AssertionError(f"fetch from {start} starts after every window opening {_WINDOW_OPENS}")
+    return min(later)
+
+
+def _close_on(day: dt.date, opens: dt.date) -> float:
+    """100 on ``opens``, falling 1.0 per weekday after it (rising before it)."""
+    if day >= opens:
+        return 100.0 - int(np.busday_count(opens, day))
+    return 100.0 + int(np.busday_count(day, opens))
 
 
 def _spy_prices(full_ticker: str, start: dt.date, end: dt.date) -> pd.DataFrame:
-    """Every weekday in the window; the close falls 1.0 per weekday from 100 at the anchor."""
+    """Every weekday in the fetch range, with closes fixed per date (see ``_close_on``)."""
+    opens = _window_open(start)
     dates = pd.bdate_range(start, end)
-    anchor = min(_PRICE_ANCHORS, key=lambda a: abs((a - start).days))
-    closes = [100.0 - float(np.busday_count(anchor, d.date())) for d in dates]
+    closes = [_close_on(day, opens) for day in dates.date]
     return pd.DataFrame(
         {
             "Date": dates.date,
@@ -135,7 +153,7 @@ def test_holding_without_history_follows_spy_proxy(live_pipeline):
     )
 
     # Fixed, hand-derived expectation (not recomputed from the fixture): the
-    # stub closes at 100 on Mon 2008-09-08, falling 1.0 per weekday.
+    # window opens Mon 2008-09-08 at close 100, falling 1.0 per weekday.
     # Base = last close before the event, Fri 2008-09-12 (4th weekday) = 96.
     # Target = first close on/after event + 30d, Wed 2008-10-15 (27th) = 73.
     expected_delta = 1000.0 * (73.0 - 96.0) / 96.0  # -239.58

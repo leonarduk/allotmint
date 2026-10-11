@@ -57,6 +57,7 @@ describe("MetricsExplanation", () => {
       "rsi",
       "moving-average",
       "sharpe-ratio",
+      "screener-risk-return",
       "debt-equity",
       "volatility",
       "checks-skipped",

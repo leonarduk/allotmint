@@ -34,7 +34,9 @@ def test_bare_list_is_accepted(data_root):
     assert extra_refresh_tickers() == ["SMH.N"]
 
 
-@pytest.mark.parametrize("payload", [{"tickers": "SPY.N"}, {"other": []}, "SPY.N"])
+@pytest.mark.parametrize(
+    "payload", [{"tickers": "SPY.N"}, {"tickers": None}, {"tickers": 5}, {"other": []}, "SPY.N", 5]
+)
 def test_wrong_shape_is_ignored_with_a_warning(data_root, payload, caplog):
     _write(data_root, payload)
     with caplog.at_level(logging.WARNING):

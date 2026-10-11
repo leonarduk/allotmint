@@ -272,3 +272,23 @@ def test_bare_symbol_with_exchange_argument_is_unchanged(monkeypatch, tmp_path):
         fmt.run_all_tickers(["BA"], exchange="L", days=5)
 
     assert calls == [("BA", "N", 5), ("BA", "L", 5)]
+
+
+def test_suffix_wins_over_a_conflicting_exchange_argument(monkeypatch, tmp_path):
+    """BA.N with exchange="L": the explicit suffix still decides, as before this fix."""
+    _listings(monkeypatch, tmp_path, ["L", "N"])
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        fmt.run_all_tickers(["BA.N"], exchange="L", days=5)
+
+    assert calls == [("BA", "N", 5)]
+
+
+def test_metadata_exchange_normalises_the_suffix(monkeypatch, tmp_path):
+    _listings(monkeypatch, tmp_path, ["L", "N"])
+    assert fmt._metadata_exchange("BA", " n ") == "N"

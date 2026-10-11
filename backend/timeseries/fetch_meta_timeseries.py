@@ -277,8 +277,9 @@ def _metadata_exchange(symbol: str, suffix: str) -> str:
     exchange directory it reads first (#10618). Without metadata under the
     suffix, the bare-symbol search still decides, as before.
     """
+    suffix = suffix.strip().upper()
     if suffix and _metadata_entry_exists(symbol, suffix, tuple(str(path) for path in _instrument_dirs())):
-        return suffix.upper()
+        return suffix
     return _resolve_exchange_from_metadata(symbol).upper()
 
 

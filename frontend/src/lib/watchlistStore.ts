@@ -118,6 +118,20 @@ function sameName(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
+/**
+ * Resolve a list from a bookmarkable reference: its id, else its name
+ * (case-insensitive). Names are unique, so at most one list matches.
+ */
+export function findWatchlist(
+  state: WatchlistsState,
+  ref: string,
+): NamedWatchlist | undefined {
+  return (
+    state.lists.find((l) => l.id === ref) ??
+    state.lists.find((l) => sameName(l.name, ref))
+  );
+}
+
 function nameTaken(state: WatchlistsState, name: string, exceptId?: string) {
   return state.lists.some((l) => l.id !== exceptId && sameName(l.name, name));
 }

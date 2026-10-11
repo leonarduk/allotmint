@@ -2121,7 +2121,8 @@
     "promptCopy": "Nome della copia:",
     "confirmDelete": "Eliminare la lista di osservazione «{{name}}»?",
     "nameTaken": "Esiste già una lista di osservazione chiamata «{{name}}».",
-    "cannotDeleteLast": "Serve almeno una lista di osservazione."
+    "cannotDeleteLast": "Serve almeno una lista di osservazione.",
+    "listNotFound": "Nessuna watchlist chiamata \"{{name}}\" in questo browser: viene mostrata \"{{shown}}\"."
   },
   "scenarioFx": {
     "title": "Shock valutario",

@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { act } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation, useNavigationType } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("@/api", () => ({
@@ -11,6 +11,7 @@ import { Watchlist } from "@/pages/Watchlist";
 import WatchlistToggle from "@/components/WatchlistToggle";
 import { getQuotes } from "@/api";
 import {
+  createWatchlist,
   readActiveSymbols,
   readWatchlists,
   toggleInWatchlist,
@@ -456,6 +457,115 @@ describe("Watchlist page", () => {
       expect(confirm).toHaveBeenCalledWith('Delete the watchlist "Doomed"?');
       expect(listSelect()).toHaveDisplayValue("My watchlist (2)");
       expect(listSelect().querySelectorAll("option")).toHaveLength(1);
+    });
+
+    describe("bookmarkable ?list= param", () => {
+      function LocationProbe() {
+        const { search } = useLocation();
+        const navType = useNavigationType();
+        return (
+          <output data-testid="search" data-nav-type={navType}>
+            {search}
+          </output>
+        );
+      }
+
+      function renderAt(url: string) {
+        return render(
+          <MemoryRouter initialEntries={[url]}>
+            <Watchlist />
+            <LocationProbe />
+          </MemoryRouter>,
+        );
+      }
+
+      function listParam() {
+        return new URLSearchParams(
+          screen.getByTestId("search").textContent ?? "",
+        ).get("list");
+      }
+
+      function addSecondList() {
+        createWatchlist("To Sell or Buy", ["SGLN.L"]);
+        // createWatchlist activates the new list; start from the original.
+        const state = readWatchlists();
+        localStorage.setItem(
+          "watchlists",
+          JSON.stringify({ ...state, activeId: state.lists[0].id }),
+        );
+      }
+
+      it("opens the list named in the URL, case-insensitively", async () => {
+        addSecondList();
+        renderAt("/watchlist?list=to%20sell%20or%20buy");
+
+        expect(await screen.findByLabelText("Remove SGLN.L")).toBeInTheDocument();
+        expect(listSelect()).toHaveDisplayValue("To Sell or Buy (1)");
+        expect(readActiveSymbols()).toEqual(["SGLN.L"]);
+        await waitFor(() => expect(listParam()).toBe("To Sell or Buy"));
+      });
+
+      it("also accepts a list id, then shows the name in the URL", async () => {
+        addSecondList();
+        const id = readWatchlists().lists[1].id;
+        renderAt(`/watchlist?list=${id}`);
+
+        expect(await screen.findByLabelText("Remove SGLN.L")).toBeInTheDocument();
+        await waitFor(() => expect(listParam()).toBe("To Sell or Buy"));
+      });
+
+      it("adds the active list's name when the URL has none", async () => {
+        renderAt("/watchlist");
+        await waitFor(() => expect(listParam()).toBe("My watchlist"));
+      });
+
+      it("follows list switches and renames", async () => {
+        addSecondList();
+        renderAt("/watchlist");
+        await waitFor(() => expect(listParam()).toBe("My watchlist"));
+
+        const other = Array.from(listSelect().querySelectorAll("option")).find(
+          (o) => o.textContent === "To Sell or Buy (1)",
+        )!;
+        fireEvent.change(listSelect(), { target: { value: other.value } });
+        await waitFor(() => expect(listParam()).toBe("To Sell or Buy"));
+        // Replaced, not pushed: switching lists mustn't pile up history.
+        expect(screen.getByTestId("search")).toHaveAttribute(
+          "data-nav-type",
+          "REPLACE",
+        );
+
+        vi.spyOn(window, "prompt").mockReturnValueOnce("Gold");
+        fireEvent.click(screen.getByRole("button", { name: "Rename…" }));
+        await waitFor(() => expect(listParam()).toBe("Gold"));
+        expect(listSelect()).toHaveDisplayValue("Gold (1)");
+      });
+
+      it("explains when the bookmarked list doesn't exist in this browser", async () => {
+        renderAt("/watchlist?list=Nope");
+
+        expect(
+          await screen.findByText(
+            'No watchlist called "Nope" in this browser — showing "My watchlist" instead.',
+          ),
+        ).toHaveAttribute("role", "status");
+        expect(listSelect()).toHaveDisplayValue("My watchlist (2)");
+        // The URL now names the list actually shown...
+        await waitFor(() => expect(listParam()).toBe("My watchlist"));
+        // ...and the notice goes once the user picks a list themselves.
+        act(() => {
+          createWatchlist("Other");
+        });
+        await waitFor(() => expect(listParam()).toBe("Other"));
+        expect(screen.queryByText(/No watchlist called/)).not.toBeInTheDocument();
+        // ...and stays gone when they return to the fallback list.
+        const fallback = Array.from(listSelect().querySelectorAll("option")).find(
+          (o) => o.textContent === "My watchlist (2)",
+        )!;
+        fireEvent.change(listSelect(), { target: { value: fallback.value } });
+        await waitFor(() => expect(listParam()).toBe("My watchlist"));
+        expect(screen.queryByText(/No watchlist called/)).not.toBeInTheDocument();
+      });
     });
   });
 

@@ -2121,7 +2121,8 @@
     "promptCopy": "Nombre de la copia:",
     "confirmDelete": "¿Eliminar la lista de seguimiento «{{name}}»?",
     "nameTaken": "Ya existe una lista de seguimiento llamada «{{name}}».",
-    "cannotDeleteLast": "Necesitas al menos una lista de seguimiento."
+    "cannotDeleteLast": "Necesitas al menos una lista de seguimiento.",
+    "listNotFound": "No hay ninguna lista llamada \"{{name}}\" en este navegador; se muestra \"{{shown}}\"."
   },
   "scenarioFx": {
     "title": "Shock de divisa",

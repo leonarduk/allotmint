@@ -104,6 +104,9 @@ type RouteConfig = {
   path: string;
   assertion: ModeAssertion | HeadingAssertion | TextAssertion | TestIdAssertion;
   setup?: (page: Page, target: URL) => Promise<void> | void;
+  // Search string the page settles on when it adds its own state to the
+  // URL (e.g. /watchlist appends ?list=<active list>, #10676).
+  settledSearch?: string;
   extraAssertions?: (page: Page, target: URL) => Promise<void> | void;
 };
 
@@ -123,7 +126,11 @@ const ROUTES: RouteConfig[] = [
   { path: '/query', assertion: { kind: 'mode', mode: 'query' } },
   { path: '/settings', assertion: { kind: 'mode', mode: 'settings' } },
   { path: '/timeseries', assertion: { kind: 'mode', mode: 'timeseries' } },
-  { path: '/watchlist', assertion: { kind: 'mode', mode: 'watchlist' } },
+  {
+    path: '/watchlist',
+    assertion: { kind: 'mode', mode: 'watchlist' },
+    settledSearch: '?list=My+watchlist',
+  },
   { path: '/market', assertion: { kind: 'mode', mode: 'market' } },
   { path: '/allocation', assertion: { kind: 'mode', mode: 'allocation' } },
   { path: '/strategy', assertion: { kind: 'mode', mode: 'rebalance' } },
@@ -480,7 +487,9 @@ test.describe('public route smoke coverage', () => {
         return;
       }
 
-      await expect(page).toHaveURL(target.href);
+      const expectedUrl = new URL(target.href);
+      if (route.settledSearch !== undefined) expectedUrl.search = route.settledSearch;
+      await expect(page).toHaveURL(expectedUrl.href);
 
       if (route.assertion.kind === 'mode') {
         const marker = getActiveRouteMarker(page);

@@ -2121,7 +2121,8 @@
     "promptCopy": "Nom de la copie :",
     "confirmDelete": "Supprimer la liste de suivi « {{name}} » ?",
     "nameTaken": "Une liste de suivi nommée « {{name}} » existe déjà.",
-    "cannotDeleteLast": "Il faut au moins une liste de suivi."
+    "cannotDeleteLast": "Il faut au moins une liste de suivi.",
+    "listNotFound": "Aucune liste de suivi nommée « {{name}} » dans ce navigateur — affichage de « {{shown}} »."
   },
   "scenarioFx": {
     "title": "Choc de change",

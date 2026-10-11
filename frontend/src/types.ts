@@ -983,6 +983,13 @@ export interface ScreenerResult {
   revenue?: number | null;
   revenue_growth?: number | null;
   earnings_growth?: number | null;
+  ebitda?: number | null;
+  /** Net debt / trailing EBITDA; null unless EBITDA is positive. */
+  net_debt_to_ebitda?: number | null;
+  /** Original public-company Altman Z: below 1.8 distress, above 3 safe. */
+  altman_z?: number | null;
+  /** Fiscal period end of the annual statements behind `altman_z`. */
+  statements_as_of?: string | null;
   instrument_type?: string | null;
 }
 

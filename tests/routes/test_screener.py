@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 
 import pytest
 from fastapi import BackgroundTasks, FastAPI
@@ -207,7 +208,9 @@ def test_background_tasks_scheduled(monkeypatch):
 
     # The route is a plain ``def`` (#7687) so FastAPI runs it in the threadpool;
     # call it directly. Only ``BackgroundTasks.__call__`` below is async.
-    result = screener.screener(bt, tickers="ABC")
+    # Called outside FastAPI, route-side filters would see their ``Query``
+    # default objects rather than None, so pass them explicitly.
+    result = screener.screener(bt, tickers="ABC", altman_z_min=None, net_debt_to_ebitda_max=None)
     assert result[0]["ticker"] == "ABC"
     assert len(bt.tasks) == 1
     task = bt.tasks[0]
@@ -256,3 +259,40 @@ def test_screener_forwards_valuation_filters_and_returns_new_fields(monkeypatch)
     assert row["ps_ratio"] is None
     assert row["ev_ebitda"] == 7.5
     assert row["revenue_growth"] == 0.05
+
+
+def test_credit_filters_drop_failing_and_missing_rows(monkeypatch):
+    client = _client()
+    monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
+    monkeypatch.setattr(page_cache, "is_stale", lambda p, ttl: True)
+    monkeypatch.setattr(page_cache, "load_cache", lambda p: None)
+    monkeypatch.setattr(page_cache, "save_cache", lambda p, d: None)
+    rows = [
+        Fundamentals(ticker="SAFE", altman_z=3.5, net_debt_to_ebitda=1.0),
+        Fundamentals(ticker="DISTRESS", altman_z=1.35, net_debt_to_ebitda=0.9),
+        Fundamentals(ticker="GEARED", altman_z=3.2, net_debt_to_ebitda=4.0),
+        Fundamentals(ticker="NODATA"),
+    ]
+    monkeypatch.setattr(screener, "screen", lambda symbols, **k: list(rows))
+
+    resp = client.get(
+        "/screener",
+        params={"tickers": "SAFE,DISTRESS,GEARED,NODATA", "altman_z_min": 1.8, "net_debt_to_ebitda_max": 3},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [r["ticker"] for r in body] == ["SAFE"]
+    assert body[0]["altman_z"] == 3.5
+    assert body[0]["net_debt_to_ebitda"] == 1.0
+
+    unfiltered = client.get("/screener", params={"tickers": "SAFE,DISTRESS,GEARED,NODATA"}).json()
+    assert {r["ticker"] for r in unfiltered} == {"SAFE", "DISTRESS", "GEARED", "NODATA"}
+
+
+def test_credit_filters_change_cache_key():
+    params = list(inspect.signature(screener._hash_params).parameters.values())[1:]
+    kwargs = {p.name: None for p in params if p.default is inspect.Parameter.empty}
+    page1, _ = screener._hash_params(["AAA"], **kwargs)
+    page2, _ = screener._hash_params(["AAA"], **kwargs, altman_z_min=1.8)
+    page3, _ = screener._hash_params(["AAA"], **kwargs, net_debt_to_ebitda_max=3.0)
+    assert len({page1, page2, page3}) == 3

@@ -13,15 +13,139 @@ the free portfolio-management routes without any private dependency. The paid
 engine is distributed separately as the private
 [`allotmint-pro`](https://github.com/leonarduk/allotmint-pro) package.
 
-| Public application | Optional `allotmint-pro` engine |
+| Public application (this repo) | Private `allotmint-pro` package |
 | --- | --- |
-| FastAPI and React application, portfolio data and reports, authentication, and local/demo workflows | Fundamental screener, VaR and Sharpe calculations, compliance rules, tax allowances, and anomaly repair |
+| FastAPI and React application, portfolio data and reports, authentication, and local/demo workflows | Fundamental screener engine |
+| Built-in assistant (chat panel, `/chat` route, LLM provider selection, MCP client) | **MCP server** (`allotmint_pro/mcp_server/`) that the assistant and other MCP clients query for tools |
+| Strategy stress tests using ETF stand-in sleeves (`backend/common/strategy_stress.py`) | **Strategy stress-test sleeve returns** (`strategy_stress`) that extend history past where the free ETF stand-ins start |
+| | Risk (VaR and Sharpe) calculations, compliance rules, tax allowances, and anomaly repair |
+| AWS CDK stacks in `cdk/`: the copy the deploy workflow runs today | A diverging copy of the CDK stacks, not yet used for deploys; the move is tracked in [#6796](https://github.com/leonarduk/allotmint/issues/6796) (see [AWS architecture](#aws-architecture)) |
 
 Premium endpoints remain present in the public API contract. When
 `allotmint-pro` is not installed, they return HTTP `402 Payment Required` with
 an upgrade pointer instead of preventing the application from starting. Users
 with access to the private package can install the integration extra with
-`python -m pip install '.[pro]'`.
+`python -m pip install '.[pro]'`. The assistant also runs without it, but
+there's no bundled MCP server then. It uses only its in-process tools unless
+`MCP_SERVER_URL` points at another MCP server.
+
+Real portfolio data is kept out of this repo. Locally the backend reads JSON
+from `data_root` (`config.yaml`, overridable with `DATA_ROOT`). That can be a
+checkout of the private `allotmint-data` repo or the demo fixtures under
+`data/`. In AWS it reads the S3 data bucket (`DATA_BUCKET`).
+
+## System overview
+
+How the repos and runtime pieces fit together. Dashed lines are optional or
+need configuration.
+
+```mermaid
+flowchart LR
+    Browser(["Browser"])
+    McpClient(["Other MCP clients<br/>e.g. Claude Desktop"])
+
+    subgraph Public["allotmint: public, this repo"]
+        SPA["React/TypeScript SPA<br/>frontend/"]
+        API["FastAPI backend<br/>backend.app:create_app"]
+        ChatRoute["Assistant: POST /chat<br/>backend/chat/"]
+        LocalTools["In-process tools<br/>backend/chat/local_tools.py"]
+        Gate["Premium routes<br/>HTTP 402 without pro<br/>backend/common/core_optional.py"]
+        Bots["Bots, incl. nightly data steward<br/>backend/bots/, backend/data_steward/"]
+    end
+
+    subgraph Pro["allotmint-pro: private"]
+        Engine["Engine modules<br/>screener, risk, strategy stress,<br/>compliance, allowances, anomaly repair"]
+        MCP["MCP server<br/>allotmint_pro/mcp_server/<br/>Streamable HTTP, localhost:8001/mcp"]
+    end
+
+    subgraph LLM["LLM provider: backend/chat/providers.py"]
+        Ollama["Ollama<br/>default when app_env = local"]
+        Bedrock["Amazon Bedrock<br/>default otherwise"]
+        DeepSeek["DeepSeek<br/>opt-in via CHAT_PROVIDER"]
+    end
+
+    subgraph Data["Portfolio data: backend/config.py"]
+        LocalData[("Local: data_root / DATA_ROOT<br/>e.g. private allotmint-data<br/>checkout, or data/ fixtures")]
+        S3Data[("AWS: S3 bucket<br/>DATA_BUCKET")]
+    end
+
+    AltMCP["allotmint-mcp: public<br/>standalone Java/Spring Boot<br/>MCP server"]
+
+    Browser --> SPA
+    SPA -- "REST + chat panel" --> API
+    API --> ChatRoute
+    API --> Gate
+    API --> Data
+    Gate -. "pip install '.[pro]'" .-> Engine
+    ChatRoute --> LLM
+    ChatRoute --> LocalTools
+    ChatRoute -. "MCP tools<br/>MCP_SERVER_URL" .-> MCP
+    Bots -. "data steward, trend watch,<br/>plan brief: MCP tools" .-> MCP
+    MCP -- "own process; uses the<br/>allotmint backend package<br/>as a library" --> Data
+    McpClient -. "Streamable HTTP" .-> MCP
+    McpClient -. "stdio or HTTP" .-> AltMCP
+    AltMCP -- "REST<br/>ALLOTMINT_API_BASE" --> API
+```
+
+- **Built-in assistant**: `frontend/src/components/ChatPanel.tsx` posts to
+  `/chat` (`backend/routes/chat.py`). The turn runs against the configured LLM
+  provider, with MCP tools from `MCP_SERVER_URL`
+  (`backend/chat/mcp_tools_client.py`, SigV4-signed for non-localhost Lambda
+  Function URLs) merged with in-process tools such as page navigation and file
+  export.
+- **MCP server**: `scripts/run-mcp-server.ps1` and
+  `scripts/bash/run-mcp-server.sh` start it locally with uvicorn on port 8001
+  (`MCP_SERVER_PORT`). `GET /support/mcp-server/status`
+  (`backend/routes/mcp_server_admin.py`) reports its URL and tool count. It
+  runs as its own process but imports this repo's `backend` package to read
+  data, rather than calling the REST API. It is a standard Streamable HTTP MCP
+  endpoint, so any MCP client can use it; this repo ships no Claude Desktop
+  config.
+- **allotmint-mcp** is a separate public repo: a standalone Java MCP server
+  that calls this backend's REST API. It is an alternative to the Python MCP
+  server in `allotmint-pro`, not a dependency of this app.
+
+## How it's built
+
+Most changes are written by AI coding agents working from issues. The repo is
+set up so an agent can pick up an issue, work on it in isolation, and get
+checked by CI before anything merges.
+
+```mermaid
+flowchart TD
+    Issue["Issue from template<br/>.github/ISSUE_TEMPLATE/<br/>What / Why / How, LLM tier,<br/>Success / Failure, FILES: / DONE:"]
+    Lint["issue-lint.yml<br/>checks the template headers"]
+    Session["Agent session, e.g. Claude Code<br/>own branch + git worktree<br/>guided by AGENTS.md / CLAUDE.md"]
+    Worm["issue-worm.yml<br/>opt-in: label issue-worm<br/>automated coder opens a PR"]
+    LocalChecks["Local checks<br/>cicaid run-ci-checks<br/>.cicaid-checks.toml"]
+    PR["Pull request<br/>body has Closes #NNNN"]
+    Board["project-status-in-review.yml<br/>linked issue to In review"]
+    Checks["Required checks on main<br/>CI tests + lint, CDK tests,<br/>require-issue-reference,<br/>merge-conflict check,<br/>DeepSeek AI code review"]
+    Merge["Merge to main"]
+    PostMerge["Advisory post-merge reviews<br/>Claude PR Review, GPT PR Review"]
+    ProTests["notify-allotmint-pro.yml<br/>runs allotmint-pro tests<br/>against new backend code"]
+
+    Issue --> Lint
+    Issue --> Session
+    Issue -.-> Worm
+    Session --> LocalChecks --> PR
+    Worm -.-> PR
+    PR --> Board
+    PR --> Checks --> Merge
+    Merge --> PostMerge
+    Merge --> ProTests
+```
+
+- Branch, worktree and PR rules: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#branch-and-pr-policy).
+  Parallel agent sessions each get their own worktree, so they don't share a
+  dirty checkout.
+- The required checks are listed in
+  `.github/rulesets/default-branch-protection.json`. `require-issue-reference`
+  is in `.github/workflows/pr-lint.yml`, and the DeepSeek review is
+  `.github/workflows/deepseek-pr-review.yml`.
+- The nightly **data steward** (`backend/data_steward/`) is an agent too. It
+  triages data-quality issues through the MCP server's read-only tools and
+  writes a ranked report, shown in the app's data-quality pages.
 
 ## Screenshots
 
@@ -47,70 +171,98 @@ or AI agent's default language.
 
 ## AWS architecture
 
-Two independent CDK stacks (`cdk/stacks/static_site_stack.py`, `cdk/stacks/backend_lambda_stack.py`) make up the deployed system. The frontend is served by CloudFront directly from S3; the backend is a separate, CloudFront-less HTTP API. Cognito issues the ID token the browser sends as a bearer token; API Gateway verifies it before Lambda ever runs.
+Two independent CDK stacks (`cdk/stacks/static_site_stack.py`, `cdk/stacks/backend_lambda_stack.py`, wired up in `cdk/app.py`) make up the deployed system. The other modules in `cdk/stacks/` create no resources of their own: `moneyhub_token_store.py` scopes the SSM grant shown below, `prod_env.py` fails a `-c prod=true` synth when required environment variables are missing, and `exports.py` names the stack exports. The frontend is served by CloudFront directly from S3; the backend is a separate, CloudFront-less HTTP API. Cognito issues the ID token the browser sends as a bearer token. A Lambda authorizer on API Gateway checks that token, or a demo-link token, before the backend Lambda runs.
+
+**Which CDK copy deploys:** `.github/workflows/deploy-lambda.yml` in this repo runs `cdk deploy` against this repo's `cdk/`, so that copy is what reaches AWS today. `allotmint-pro` has its own `cdk/`, which already differs from this one (it adds an MCP server Lambda and a monitoring dashboard). Moving the deploy there is tracked in [#6796](https://github.com/leonarduk/allotmint/issues/6796): [#6806](https://github.com/leonarduk/allotmint/issues/6806) adds the deploy workflow to `allotmint-pro`, and [#6808](https://github.com/leonarduk/allotmint/issues/6808) deletes `cdk/` here. Both are open. The diagrams below show this repo's copy.
 
 ```mermaid
-flowchart TD
+flowchart LR
     Browser(["Browser"])
 
     subgraph StaticSiteStack["StaticSiteStack"]
-        CF["CloudFront Distribution"]
-        S3Static[("S3: StaticSiteBucket")]
-        Cognito["Cognito User Pool\n(Hosted UI, PKCE)"]
+        CF["CloudFront distribution"]
+        S3Static[("S3: StaticSiteBucket<br/>SPA + config.json")]
+        Cognito["Cognito user pool<br/>Hosted UI, PKCE"]
     end
 
     subgraph BackendLambdaStack["BackendLambdaStack"]
         APIGW["API Gateway HTTP API"]
-        Authorizer["HttpUserPoolAuthorizer"]
-        Lambda["BackendLambda\n(FastAPI via Mangum)"]
-        S3Data[("S3: PortfolioDataBucket\naccounts/ prices/ transactions/ ...")]
-        PriceLambda["PriceRefreshLambda"]
-        TradingLambda["TradingAgentLambda"]
-        RuleA(["EventBridge: DailyPriceRefresh\ncron 00:00 UTC"])
-        RuleB(["EventBridge: DailyTradingAgentRun\ncron 01:00 UTC"])
+        Authorizer["GatewayAuthorizerLambda<br/>Cognito ID token<br/>or demo-link token"]
+        Lambda["BackendLambda<br/>FastAPI via Mangum"]
+        Scheduled["Scheduled Lambdas, EventBridge UTC<br/>PriceRefresh: daily 00:00<br/>TradingAgent: daily 01:00<br/>DataSteward: daily 02:00<br/>DividendRefresh: daily 06:00<br/>TrendWatch: Sat 06:00<br/>PensionReport: weekly or monthly<br/>PlanBrief: 1st of month 08:00"]
+        S3Data[("S3: PortfolioDataBucket<br/>accounts/ prices/ timeseries/ ...")]
+        SSM[("SSM Parameter Store<br/>Moneyhub OAuth tokens")]
+        SES["SES<br/>signup + report emails"]
+        Ops["CloudWatch alarms to SNS topic<br/>monthly AWS Budget"]
     end
 
-    ECR[("ECR (CDK bootstrap repo)\nbackend/Dockerfile.lambda image")]
+    McpExt["allotmint-pro MCP server<br/>Function URL: optional,<br/>not created by these stacks"]
+    Bedrock["Amazon Bedrock"]
 
     Browser -- "HTTPS" --> CF
-    CF -- "default + /assets/*" --> S3Static
+    CF -- "default + assets/*" --> S3Static
     Browser -- "Hosted UI redirect" --> Cognito
     Cognito -- "ID token" --> Browser
-    Browser -- "HTTPS + Bearer ID token" --> APIGW
-    APIGW --> Authorizer
+    Browser -- "HTTPS + Bearer token" --> APIGW
+    APIGW -- "ANY /, /{proxy+}" --> Authorizer
     Authorizer -- "verifies JWT against" --> Cognito
-    APIGW -- "ANY /, /{proxy+}" --> Lambda
+    APIGW --> Lambda
     Lambda --> S3Data
-    RuleA --> PriceLambda
-    RuleB --> TradingLambda
-    PriceLambda --> S3Data
-    TradingLambda --> S3Data
-    Lambda -.image.-> ECR
-    PriceLambda -.image.-> ECR
-    TradingLambda -.image.-> ECR
+    Lambda --> SSM
+    Lambda --> SES
+    Lambda -- "async invoke: Run now<br/>on the Bots page, all but PlanBrief" --> Scheduled
+    Scheduled -- "read, scoped writes" --> S3Data
+    Scheduled -- "pension report,<br/>plan brief" --> SES
+    Scheduled -. "data steward, plan brief:<br/>MCP tools" .-> McpExt
+    Scheduled -. "data steward, plan brief:<br/>LLM step" .-> Bedrock
 ```
 
-`/health`, `/config` (GET), `/token/google`, and `/signup/*` bypass the Cognito authorizer (public or self-authenticating routes); every other route requires a valid Cognito ID token. A separate, additive scoped read-only "demo link" also exists for sharing a read-only view without Cognito sign-in — but neither `/demo-link` nor the routes it's used against are in this bypass list, so it is only reachable where API Gateway's Cognito authorizer isn't in front of the backend (see [docs/AUTH.md § Demo link (scoped read-only token)](docs/AUTH.md#demo-link-scoped-read-only-token) for the flow and this known caveat).
+`/health`, `GET /config`, `POST /token`, `POST /token/google`, `/signup/*` and `OPTIONS` preflights bypass the gateway authorizer (public or self-authenticating routes; each is an `add_routes(..., authorizer=apigwv2.HttpNoneAuthorizer())` call in `cdk/stacks/backend_lambda_stack.py`). Every other route goes through `GatewayAuthorizerLambda` (`backend/lambda_api/demo_authorizer.py`). It admits either a valid Cognito ID token or a scoped read-only demo-link token, and its result caching is disabled so token expiry is rechecked on every request. This replaced the native Cognito `HttpUserPoolAuthorizer` in [#7522](https://github.com/leonarduk/allotmint/issues/7522), which used to reject demo-link tokens at the gateway. See [docs/AUTH.md § Deployed-gateway auth](docs/AUTH.md#deployed-gateway-auth-the-democognito-lambda-authorizer-7522).
+
+Every Lambda above is a container image built from `backend/Dockerfile.lambda`, each with its own entry-point `cmd`, and pushed to the CDK bootstrap ECR repository. The image contains only `backend/requirements.txt`, so `allotmint-pro` is not installed in it. Only `DataStewardLambda` and `PlanBriefLambda` take an MCP server URL (optional CDK context `mcp_server_url` / `plan_brief_mcp_server_url`) and a Bedrock grant. `BackendLambda` gets neither, so the assistant's MCP tools are wired only in local runs or in deployments that set `MCP_SERVER_URL` some other way.
 
 ### CDK deployment pipeline
 
-Deploys run from `.github/workflows/deploy-lambda.yml` on a `v*` tag push (or manual dispatch), gated on a `ci.yml` run passing first. That gate checks `ci.yml` for `github.sha` — the commit that triggered the workflow run — while the later checkout step uses `inputs.ref || github.ref` (`.github/workflows/deploy-lambda.yml` lines 30-31, 134-137). For a plain tag push these are the same commit, but a manual `workflow_dispatch` that sets `inputs.ref` to a different tag/branch/SHA than the one the dispatch itself ran from will deploy a commit whose CI status was never checked by this gate.
+Deploys run from `.github/workflows/deploy-lambda.yml` on a `v*` tag push (or manual dispatch), gated on a `ci.yml` run passing first. The `check-ci` job resolves the same ref the deploy job checks out (`inputs.ref || github.ref`) to a commit SHA and waits for `ci.yml` on that exact commit, so a manual dispatch with `inputs.ref` can't deploy a commit whose CI wasn't checked. This closed the earlier gap where the gate checked `github.sha` but the deploy checked out `inputs.ref` (fixed in [#4892](https://github.com/leonarduk/allotmint/pull/4892); see the `TARGET_REF` env of the `check-ci` step).
 
 ```mermaid
 flowchart TD
-    A["Tag push v* / workflow_dispatch"] --> B["Wait for ci.yml to pass on github.sha\n(NOT necessarily inputs.ref)"]
+    A["Tag push v* / workflow_dispatch"] --> B["check-ci: resolve inputs.ref or github.ref<br/>to a SHA, wait for ci.yml to pass on it"]
     B --> C["Build frontend + install backend deps"]
-    C --> D["Assume AWS role via OIDC + IAM policy simulation"]
-    D --> E["cdk deploy StaticSiteStack\n(Cognito, CloudFront, S3 site bucket)"]
+    C --> D["Assume AWS role via OIDC<br/>+ IAM policy simulation"]
+    D --> S["Sync data bucket into data/<br/>for the Lambda image build"]
+    S --> E["cdk deploy StaticSiteStack<br/>Cognito, CloudFront, S3 site bucket"]
     E --> F["Read Cognito outputs from CloudFormation"]
-    F --> G["cdk deploy BackendLambdaStack\n(Lambda, API Gateway, EventBridge)\nusing Cognito params"]
-    G --> H["Warm price snapshot (manual Lambda invoke)"]
-    H --> I["Redeploy StaticSiteStack\nwith BackendApiUrl -> refreshes config.json"]
+    F --> G["cdk deploy BackendLambdaStack<br/>Lambdas, API Gateway, EventBridge<br/>using Cognito params"]
+    G --> H["Warm price snapshot<br/>invoke PriceRefreshLambda"]
+    H --> I["Redeploy StaticSiteStack with BackendApiUrl<br/>refreshes config.json"]
     I --> J["Reconcile Cognito app client OAuth settings"]
-    J --> K["Smoke checks (/health, /api-console 401) + Lighthouse CI"]
+    J --> K["Validate endpoints: /health 200, /api-console 401<br/>+ Lighthouse CI"]
+    K --> L["smoke-test job: backend + Playwright smoke tests<br/>verify-smoke-tests gate"]
 ```
 
-Both diagrams above are authored directly as Mermaid code blocks in this README and render natively on GitHub — edit them in place, there's no separate source file or regeneration step.
+All diagrams in this README are Mermaid code blocks that render natively on GitHub. Edit them in place; there's no separate source file or regeneration step.
+
+<details>
+<summary>Diagram sources: re-check these when updating the diagrams</summary>
+
+- **System overview:**
+  - `backend/app.py`, `backend/common/core_optional.py`, `pyproject.toml` (`pro` extra)
+  - `backend/routes/chat.py`, `backend/chat/providers.py`, `backend/chat/mcp_tools_client.py` (SigV4 for non-localhost URLs), `backend/chat/local_tools.py`
+  - `backend/routes/mcp_server_admin.py`, `scripts/run-mcp-server.ps1`
+  - `backend/chat/tool_switches.py` (data steward read-only allowlist), `backend/data_steward/`, `backend/bots/`
+  - `backend/config.py` (`data_root` / `DATA_ROOT`), `config.yaml`, `config.lambda.yaml`
+  - the `allotmint-pro` and `allotmint-mcp` READMEs
+- **How it's built:**
+  - `.github/ISSUE_TEMPLATE/`, `AGENTS.md`, `docs/CONTRIBUTING.md`, `.cicaid-checks.toml`
+  - `.github/rulesets/default-branch-protection.json` (required checks)
+  - `.github/workflows/`: `issue-lint.yml`, `issue-worm.yml`, `pr-lint.yml` (`require-issue-reference`), `deepseek-pr-review.yml`, `claude-pr-review.yml`, `gpt-pr-review.yml`, `project-status-in-review.yml`, `notify-allotmint-pro.yml`
+- **AWS architecture:**
+  - `cdk/app.py`, `cdk/stacks/*.py`
+  - `backend/lambda_api/demo_authorizer.py`, `backend/Dockerfile.lambda`, `docs/AUTH.md`
+- **Deployment pipeline:** `.github/workflows/deploy-lambda.yml` (the `check-ci`, `deploy`, `smoke-test` and `verify-smoke-tests` jobs)
+
+</details>
 
 ## Design decisions
 

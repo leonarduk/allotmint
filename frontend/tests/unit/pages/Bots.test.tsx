@@ -195,6 +195,36 @@ describe('Bots page', () => {
     ).toHaveValue(27);
   });
 
+  it('updates untouched fields from a re-fetch while keeping edited ones', async () => {
+    api.runBotNow.mockResolvedValue({
+      ...lastRun,
+      id: 'r5',
+      bot_id: 'trading-agent',
+      status: 'running',
+    });
+    const panel = await openTradingAgent();
+    fireEvent.change(
+      within(panel).getByLabelText('RSI at or below which to BUY'),
+      { target: { value: '27' } }
+    );
+
+    api.getBot.mockResolvedValue(
+      detail({
+        settings: { ...detail().settings, rsi_buy: 40, rsi_window: 21 },
+      })
+    );
+    fireEvent.click(within(panel).getByRole('button', { name: 'Run now' }));
+
+    await waitFor(() =>
+      expect(within(panel).getByLabelText('RSI look-back (days)')).toHaveValue(
+        21
+      )
+    );
+    expect(
+      within(panel).getByLabelText('RSI at or below which to BUY')
+    ).toHaveValue(27);
+  });
+
   it('shows validation errors from a 422', async () => {
     const err = Object.assign(new Error('HTTP 422'), {
       status: 422,

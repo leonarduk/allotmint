@@ -273,16 +273,16 @@ function SettingsForm({
   onSaved: (bot: BotDetail) => void;
 }) {
   const { t } = useTranslation();
-  const [values, setValues] = useState<Record<string, unknown>>(bot.settings);
+  // Only the fields the user has changed are held locally and layered over the
+  // server's settings at render time, so unsaved edits survive the panel
+  // re-fetching (e.g. after a run finishes). There is deliberately no effect
+  // syncing state from bot.settings: a deferred effect could run after an
+  // edit was queued and overwrite it (#10552).
+  const [edits, setEdits] = useState<Record<string, unknown>>({});
+  const values = { ...bot.settings, ...edits };
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  // Unsaved edits survive the panel re-fetching (e.g. after a run finishes);
-  // the form only follows the server's values while it has none.
-  const [dirty, setDirty] = useState(false);
-  useEffect(() => {
-    if (!dirty) setValues(bot.settings);
-  }, [bot.settings, dirty]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -291,7 +291,7 @@ function SettingsForm({
     setSaved(false);
     try {
       onSaved(await updateBotSettings(bot.id, values));
-      setDirty(false);
+      setEdits({});
       setSaved(true);
     } catch (err) {
       setErrors(validationMessages(err));
@@ -314,10 +314,7 @@ function SettingsForm({
           prop={prop}
           value={values[name]}
           disabled={!bot.can_manage || saving}
-          onChange={(value) => {
-            setDirty(true);
-            setValues((prev) => ({ ...prev, [name]: value }));
-          }}
+          onChange={(value) => setEdits((prev) => ({ ...prev, [name]: value }))}
         />
       ))}
       {errors.map((message) => (

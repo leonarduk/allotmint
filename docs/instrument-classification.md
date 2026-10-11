@@ -180,6 +180,52 @@ months. Stamp duty and FX charges count only where the import puts them in
 and trades with no recorded fee are listed as not included, never counted as
 £0.
 
+## Declared price adjustments (unrecorded splits)
+
+Sometimes a provider changes the share basis without reporting a split. The
+stored history then shows a fake crash. `JEGI.L` is an example: Yahoo's raw
+closes step from 177.75 (2010-12-31) to 44.56 (2011-01-04), about 1/4, and
+`Ticker.splits` is empty (#10024, #10040). To fix it, declare the event in
+the instrument file (`instruments/<EX>/<SYM>.json`):
+
+```json
+"price_adjustments": [
+  {
+    "before": "2011-01-04",
+    "factor": 0.25,
+    "dividends_before": "2021-06-01",
+    "rationale": "4-for-1 sub-division Yahoo never recorded (RNS ...)",
+    "reviewed": "2026-10-11"
+  }
+]
+```
+
+- `before`: the first date on the new basis. Rows dated earlier have
+  Open/High/Low/Close multiplied by `factor` and Volume divided by it.
+- `factor`: new basis ÷ old basis. Use `0.25` for a 4-for-1 split and `10` for
+  a 1-for-10 consolidation. It must be a finite number > 0 and not 1.
+- `dividends_before` (optional, defaults to `before`): the first stored
+  dividend on the new basis. Dividends dated earlier are multiplied by `factor`
+  when total return reinvests them. Stored dividends can switch basis on a
+  different date from the closes, so check the RNS rather than assuming.
+- `rationale` and `reviewed` (an ISO date) are required. Entries compound.
+
+An invalid block is logged and ignored, never partly applied.
+
+The adjustment is applied when prices are **read**
+(`backend/timeseries/price_adjustments.py`, called from `cache.py`). The
+stored parquet stays raw provider data. This is deliberate, because a
+data-only repair does not survive an all-history refresh. That refresh
+refetches the raw rows, and either re-adds truncated dates or overwrites
+rescaled ones as corrections. Leaving the store raw means a refetch compares
+raw with raw, so the restated series is the same after every refresh. The
+raw diagnostics and edit routes (`load_cached_meta_timeseries_full`, the
+timeseries edit endpoints) still see the stored rows.
+
+Never declare an adjustment from the shape of the price chart alone, because
+a real 75% one-day fall is possible. Confirm the event date and ratio from an
+RNS first. Instrument entries live in allotmint-data.
+
 ## Gaps
 
 The data-quality page (`/data-quality`, Issues and Holdings tabs) reports a

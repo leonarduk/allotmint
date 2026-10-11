@@ -47,6 +47,7 @@ from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
 from backend.timeseries.outlier_guard import drop_zero_volume_spikes
+from backend.timeseries.price_adjustments import PriceAdjustment, adjustments_for, apply_price_adjustments
 from backend.timeseries.source_basis import compatible_rows
 from backend.utils.fx_rates import (
     fallback_fx_rate_range,
@@ -927,8 +928,11 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
 
     _invalidate_meta_caches_if_stale(ticker, exchange)
     df = _load_meta_timeseries_cached(ticker, exchange, days, _CACHE_ONLY.get())
-    # Filter isolated zero-volume spikes from mixed-source parquets (#7816);
-    # read-time only, the cached frame and stored parquet are left as-is.
+    # Restate declared unrecorded splits (#10040), then filter isolated
+    # zero-volume spikes from mixed-source parquets (#7816) on the continuous
+    # series; both read-time only, the cached frame and stored parquet are
+    # left as-is so a refetch always compares raw with raw.
+    df = apply_price_adjustments(df, adjustments_for(ticker, exchange))
     return drop_zero_volume_spikes(df, ticker=ticker, exchange=exchange).copy()
 
 
@@ -954,33 +958,39 @@ _MIN_CACHE_WINDOW_DAYS = 60
 
 
 # Spike-guarded copy of each warm ``_load_meta_parquet_cached`` frame, keyed by
-# path and stored with the source frame it was computed from (#8105). Bounded
+# path and stored with the source frame and declared price adjustments it was
+# computed from (#8105, #10040). Bounded
 # to the warm cache's own size (least recently used evicted first) so it never
 # keeps alive frames that ``_load_meta_parquet_cached`` has already evicted.
 _GUARDED_META_FRAMES_MAX = 512
-_GUARDED_META_FRAMES: OrderedDict[str, tuple[pd.DataFrame, pd.DataFrame]] = OrderedDict()
+_GUARDED_META_FRAMES: OrderedDict[str, tuple[pd.DataFrame, tuple[PriceAdjustment, ...], pd.DataFrame]] = OrderedDict()
 _GUARDED_META_FRAMES_LOCK = threading.Lock()
 
 
 def _guarded_meta_frame(existing: pd.DataFrame, path: str, ticker: str, exchange: str) -> pd.DataFrame:
     """``existing`` minus pre-epoch rows (#10024) and spikes (#7816), once per warm-cache frame (#8105).
 
-    The guard scans the ticker's full history (it needs each row's
-    neighbours, so it can't run on the requested slice instead); running it
-    on every distinct (ticker, range) lookup was half the remaining cost of
-    the sector/region pages. The entry is reused only while ``existing`` is
-    the very object it was computed from, so anything that refreshes
-    ``_load_meta_parquet_cached`` (the #7877 mtime invalidation included)
-    recomputes it -- no separate invalidation rule to keep in step.
+    Declared unrecorded splits (#10040) are restated before the spike guard,
+    so it sees the continuous series. The guard scans the ticker's full
+    history (it needs each row's neighbours, so it can't run on the requested
+    slice instead); running it on every distinct (ticker, range) lookup was
+    half the remaining cost of the sector/region pages. The entry is reused
+    only while ``existing`` is the very object it was computed from and the
+    declared adjustments are unchanged, so anything that refreshes
+    ``_load_meta_parquet_cached`` (the #7877 mtime invalidation included) or
+    the instrument metadata recomputes it -- no separate invalidation rule to
+    keep in step.
     """
+    adjustments = adjustments_for(ticker, exchange)
     with _GUARDED_META_FRAMES_LOCK:
         hit = _GUARDED_META_FRAMES.get(path)
-        if hit is not None and hit[0] is existing:
+        if hit is not None and hit[0] is existing and hit[1] == adjustments:
             _GUARDED_META_FRAMES.move_to_end(path)
-            return hit[1]
-    guarded = drop_zero_volume_spikes(_without_pre_epoch_rows(existing), ticker=ticker, exchange=exchange)
+            return hit[2]
+    adjusted = apply_price_adjustments(_without_pre_epoch_rows(existing), adjustments)
+    guarded = drop_zero_volume_spikes(adjusted, ticker=ticker, exchange=exchange)
     with _GUARDED_META_FRAMES_LOCK:
-        _GUARDED_META_FRAMES[path] = (existing, guarded)
+        _GUARDED_META_FRAMES[path] = (existing, adjustments, guarded)
         _GUARDED_META_FRAMES.move_to_end(path)
         while len(_GUARDED_META_FRAMES) > _GUARDED_META_FRAMES_MAX:
             _GUARDED_META_FRAMES.popitem(last=False)

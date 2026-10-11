@@ -8,7 +8,9 @@ import { InstrumentDetail } from "../components/InstrumentDetail";
 import InfoTip from "../components/InfoTip";
 import WatchlistToggle from "../components/WatchlistToggle";
 import SavedScreensBar from "../components/SavedScreensBar";
+import ScreenPresetButtons from "../components/ScreenPresetButtons";
 import type { SavedScreen } from "../lib/savedScreensStore";
+import { presetMatching } from "../lib/screenerPresets";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import i18n from "../i18n";
 import { useScreenerRiskReturn } from "../hooks/useScreenerRiskReturn";
@@ -239,6 +241,15 @@ export function Screener() {
   );
   const { sorted, handleSort } = useSortableTable<ScreenerRow>(visibleRows, "rank");
 
+  const activePreset = presetMatching(watchlist, filters);
+
+  function loadScreen(screen: SavedScreen) {
+    const form = screenToForm(screen);
+    setWatchlist(form.watchlist);
+    setTickers(screen.tickers);
+    setFilters(form.filters);
+  }
+
   const cell = { padding: "4px 6px" } as const;
   const right = { ...cell, textAlign: "right", cursor: "pointer" } as const;
 
@@ -322,15 +333,14 @@ export function Screener() {
       </p>
 
       {screenerAvailable === true && (
-        <SavedScreensBar
-          current={{ watchlist, tickers, filters: filters as Record<string, string> }}
-          onLoad={(screen) => {
-            const form = screenToForm(screen);
-            setWatchlist(form.watchlist);
-            setTickers(screen.tickers);
-            setFilters(form.filters);
-          }}
-        />
+        <>
+          <ScreenPresetButtons activeId={activePreset?.id} onPick={loadScreen} />
+          <SavedScreensBar
+            current={{ watchlist, tickers, filters: filters as Record<string, string> }}
+            onLoad={loadScreen}
+            suggestedName={activePreset?.name}
+          />
+        </>
       )}
 
       {screenerAvailable === true && (

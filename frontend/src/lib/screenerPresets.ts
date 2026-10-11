@@ -1,8 +1,8 @@
 import type { SavedScreen } from './savedScreensStore';
 
 /**
- * Built-in starting-point screens, listed alongside the user's own saved
- * screens. Read-only: "Save as…" copies one into the user's list to tweak.
+ * Built-in starting-point screens, shown as buttons above the screener
+ * form. Read-only: "Save as…" copies one into the user's list to tweak.
  *
  * Thresholds deliberately avoid real dividend-yield and D/E cut-offs: data
  * vendors disagree on whether those are ratios or percentages, so a fixed
@@ -136,12 +136,23 @@ export const SCREEN_PRESETS: readonly ScreenPreset[] = [
   },
 ];
 
-// Saved-screen names are trimmed on save, so none can start with a space:
-// this prefix can never collide with a user's own screen name.
-export const PRESET_VALUE_PREFIX = ' preset:';
+function nonEmpty(filters: Record<string, string | undefined>) {
+  return Object.entries(filters).filter(([, v]) => v?.trim());
+}
 
-export function findPreset(value: string): ScreenPreset | undefined {
-  if (!value.startsWith(PRESET_VALUE_PREFIX)) return undefined;
-  const id = value.slice(PRESET_VALUE_PREFIX.length);
-  return SCREEN_PRESETS.find((p) => p.id === id);
+/**
+ * The preset the form currently matches exactly, if any. Derived rather than
+ * stored, so editing any field after picking a preset deselects it.
+ */
+export function presetMatching(
+  watchlist: string,
+  filters: Record<string, string | undefined>
+): ScreenPreset | undefined {
+  const current = nonEmpty(filters);
+  return SCREEN_PRESETS.find(
+    (p) =>
+      p.watchlist === watchlist &&
+      current.length === Object.keys(p.filters).length &&
+      current.every(([k, v]) => Number(v) === Number(p.filters[k]))
+  );
 }

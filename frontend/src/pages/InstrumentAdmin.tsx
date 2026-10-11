@@ -6,13 +6,17 @@ import {
   updateInstrumentMetadata,
 } from "../api";
 import { useFilterableTable, type Filter } from "../hooks/useFilterableTable";
+import type { InstrumentMetadata } from "../types";
 import { FundUpkeepProposals } from "../components/FundUpkeepProposals";
 
 interface Row {
   ticker: string;
   exchange: string;
   name: string;
-  region?: string | null;
+  /** Editable exposure-region override; blank means derive it (#10666). */
+  exposureRegion: string;
+  /** Read-only region the allocation views use, shown when there is no override. */
+  effectiveRegion: string;
   sector?: string | null;
   grouping?: string | null;
   isNew?: boolean;
@@ -20,7 +24,28 @@ interface Row {
   _newKey?: string;
   _originalTicker?: string;
   _originalExchange?: string;
+  _originalExposureRegion?: string;
 }
+
+// The stored `region` is the listing/domicile region and is never edited
+// here; the Region column edits `exposure_region`, which always wins (#10666).
+const toRow = (r: any): Row => {
+  const [sym, exch] = String(r.ticker ?? "").split(".");
+  const exchange = r.exchange ?? exch ?? "";
+  const exposureRegion = r.exposure_region ?? "";
+  return {
+    ticker: sym ?? "",
+    exchange,
+    name: r.name ?? "",
+    exposureRegion,
+    effectiveRegion: r.effective_region ?? r.region ?? "",
+    sector: r.sector ?? "",
+    grouping: r.grouping ?? "",
+    _originalTicker: sym ?? "",
+    _originalExchange: exchange,
+    _originalExposureRegion: exposureRegion,
+  };
+};
 
 // Unsaved rows stay pinned to the top regardless of sort order, so editing the
 // ticker of a new row doesn't make it jump to its alphabetical position.
@@ -49,7 +74,7 @@ export default function InstrumentAdmin() {
           row.ticker,
           row.exchange,
           row.name,
-          row.region ?? "",
+          row.exposureRegion || row.effectiveRegion,
           row.sector ?? "",
           row.grouping ?? "",
         ]
@@ -74,22 +99,7 @@ export default function InstrumentAdmin() {
                 { ticker: 'BBB.N', name: 'Beta', region: 'US', sector: 'Finance', grouping: 'GIA' },
               ]
             : [];
-        setRows(
-          source.map((r: any) => {
-            const [sym, exch] = String(r.ticker ?? "").split(".");
-            const exchange = r.exchange ?? exch ?? "";
-            return {
-              ticker: sym ?? "",
-              exchange,
-              name: r.name ?? "",
-              region: r.region ?? "",
-              sector: r.sector ?? "",
-              grouping: r.grouping ?? "",
-              _originalTicker: sym ?? "",
-              _originalExchange: exchange,
-            } as Row;
-          }),
-        );
+        setRows(source.map(toRow));
       } catch (err) {
         if (!cancelled) setError(String(err));
       }
@@ -116,7 +126,8 @@ export default function InstrumentAdmin() {
         ticker: "",
         exchange: "",
         name: "",
-        region: "",
+        exposureRegion: "",
+        effectiveRegion: "",
         sector: "",
         grouping: "",
         isNew: true,
@@ -135,14 +146,19 @@ export default function InstrumentAdmin() {
       return;
     }
     try {
-      const payload = {
+      const payload: InstrumentMetadata = {
         ticker: `${row.ticker}.${row.exchange}`,
         exchange: row.exchange,
         name: row.name,
-        region: row.region,
         sector: row.sector,
         grouping: row.grouping,
       };
+      // Only send the override when it changed, so saving another field
+      // never writes an empty exposure_region into the metadata.
+      const exposureRegion = row.exposureRegion.trim();
+      if (exposureRegion !== (row._originalExposureRegion ?? "")) {
+        payload.exposure_region = exposureRegion || null;
+      }
       if (row.isNew) {
         await createInstrumentMetadata(row.ticker, row.exchange, payload);
       } else {
@@ -150,22 +166,7 @@ export default function InstrumentAdmin() {
       }
       setMessage(t("instrumentadmin.saveSuccess"));
       const fresh = await listInstrumentMetadata();
-      setRows(
-        fresh.map((r: any) => {
-          const [sym, exch] = String(r.ticker ?? "").split(".");
-          const exchange = r.exchange ?? exch ?? "";
-          return {
-            ticker: sym ?? "",
-            exchange,
-            name: r.name ?? "",
-            region: r.region ?? "",
-            sector: r.sector ?? "",
-            grouping: r.grouping ?? "",
-            _originalTicker: sym ?? "",
-            _originalExchange: exchange,
-          } as Row;
-        }),
-      );
+      setRows(fresh.map(toRow));
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       setMessage(`${t("instrumentadmin.saveError")}: ${detail}`);
@@ -189,6 +190,9 @@ export default function InstrumentAdmin() {
         onChange={(e) => setFilter("search", e.target.value)}
         style={{ marginBottom: "0.5rem", display: "block" }}
       />
+      <p style={{ marginBottom: "0.5rem", fontSize: "0.85rem" }}>
+        {t("instrumentadmin.regionHint")}
+      </p>
       <button
         type="button"
         onClick={handleAdd}
@@ -239,8 +243,10 @@ export default function InstrumentAdmin() {
               </td>
               <td>
                 <input
-                  value={r.region ?? ""}
-                  onChange={(e) => handleChange(r, "region", e.target.value)}
+                  value={r.exposureRegion}
+                  placeholder={r.effectiveRegion}
+                  aria-label={t("instrumentadmin.region")}
+                  onChange={(e) => handleChange(r, "exposureRegion", e.target.value)}
                 />
               </td>
               <td>

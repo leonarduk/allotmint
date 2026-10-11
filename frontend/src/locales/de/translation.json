@@ -614,6 +614,7 @@
     "grouping": "Gruppierung",
     "name": "Name",
     "region": "Region",
+    "regionHint": "Region: leer lassen für die automatische Region (grau angezeigt); eine eingeben, um sie zu überschreiben.",
     "save": "Speichern",
     "saveError": "Fehler beim Speichern",
     "saveSuccess": "Gespeichert",

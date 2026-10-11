@@ -608,6 +608,7 @@
     "grouping": "Grouping",
     "name": "Name",
     "region": "Region",
+    "regionHint": "Region: leave blank to use the automatic region (shown greyed out); type one to override it.",
     "save": "Save",
     "saveError": "Error saving",
     "saveSuccess": "Saved",

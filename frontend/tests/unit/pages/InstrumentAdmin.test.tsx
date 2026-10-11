@@ -56,6 +56,81 @@ describe("InstrumentAdmin page", () => {
         expect.objectContaining({ grouping: "ISA+" }),
       ),
     );
+    // Neither region field is touched when only the grouping changed.
+    const payload = vi.mocked(updateInstrumentMetadata).mock.calls[0][2];
+    expect(payload).not.toHaveProperty("region");
+    expect(payload).not.toHaveProperty("exposure_region");
+  });
+
+  it("shows the effective region and saves an edit as the exposure-region override", async () => {
+    vi.mocked(listInstrumentMetadata).mockResolvedValueOnce([
+      { ticker: "USSC.L", name: "SPDR MSCI USA Small Cap", region: "UK", effective_region: "US" },
+      { ticker: "ABC.L", name: "Abc", region: "UK", exposure_region: "Europe", effective_region: "Europe" },
+    ] as any);
+    render(
+      <MemoryRouter>
+        <InstrumentAdmin />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByDisplayValue("USSC")).toBeInTheDocument();
+    // Rows sort by ticker: ABC first, then USSC.
+    const [abcRegion, usscRegion] = screen.getAllByRole("textbox", { name: "Region" });
+    // No override: blank, with the derived region as the hint.
+    expect(usscRegion).toHaveValue("");
+    expect(usscRegion).toHaveAttribute("placeholder", "US");
+    expect(abcRegion).toHaveValue("Europe");
+
+    fireEvent.change(usscRegion, { target: { value: "North America" } });
+    fireEvent.click(within(usscRegion.closest("tr")!).getByRole("button", { name: /save/i }));
+    await waitFor(() =>
+      expect(updateInstrumentMetadata).toHaveBeenCalledWith(
+        "USSC",
+        "L",
+        expect.objectContaining({ exposure_region: "North America" }),
+      ),
+    );
+    expect(vi.mocked(updateInstrumentMetadata).mock.calls[0][2]).not.toHaveProperty("region");
+  });
+
+  it("does not resend an unchanged exposure-region override", async () => {
+    vi.mocked(listInstrumentMetadata).mockResolvedValueOnce([
+      { ticker: "ABC.L", name: "Abc", region: "UK", exposure_region: "Europe", effective_region: "Europe" },
+    ] as any);
+    render(
+      <MemoryRouter>
+        <InstrumentAdmin />
+      </MemoryRouter>,
+    );
+    fireEvent.change(await screen.findByDisplayValue("Abc"), { target: { value: "Abc plc" } });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() =>
+      expect(updateInstrumentMetadata).toHaveBeenCalledWith(
+        "ABC",
+        "L",
+        expect.objectContaining({ name: "Abc plc" }),
+      ),
+    );
+    expect(vi.mocked(updateInstrumentMetadata).mock.calls[0][2]).not.toHaveProperty("exposure_region");
+  });
+
+  it("clears the exposure-region override when the region is blanked", async () => {
+    vi.mocked(listInstrumentMetadata).mockResolvedValueOnce([
+      { ticker: "ABC.L", name: "Abc", region: "UK", exposure_region: "Europe", effective_region: "Europe" },
+    ] as any);
+    render(
+      <MemoryRouter>
+        <InstrumentAdmin />
+      </MemoryRouter>,
+    );
+    fireEvent.change(await screen.findByDisplayValue("Europe"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() =>
+      expect(updateInstrumentMetadata).toHaveBeenCalledWith(
+        "ABC",
+        "L",
+        expect.objectContaining({ exposure_region: null }),
+      ),
+    );
   });
 
   it("filters rows based on search", async () => {
@@ -135,7 +210,7 @@ describe("InstrumentAdmin page", () => {
       expect(createInstrumentMetadata).toHaveBeenCalledWith(
         "CCC",
         "L",
-        expect.objectContaining({ grouping: "Income" }),
+        expect.objectContaining({ grouping: "Income", exposure_region: "UK" }),
       ),
     );
 

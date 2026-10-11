@@ -614,6 +614,7 @@
     "grouping": "Raggruppamento",
     "name": "Nome",
     "region": "Regione",
+    "regionHint": "Regione: lascia vuoto per usare la regione automatica (in grigio); inseriscine una per sostituirla.",
     "save": "Salva",
     "saveError": "Errore durante il salvataggio",
     "saveSuccess": "Salvato",

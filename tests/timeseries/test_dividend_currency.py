@@ -63,6 +63,12 @@ def test_no_block_or_same_currency_returns_the_series_itself(declare):
     assert dc.convert_dividends(stored, "BCG", "L") is stored
 
 
+@pytest.mark.parametrize("currency", ["", "pounds", None])
+def test_unknown_instrument_currency_refuses_to_pass_foreign_dividends_through(declare, currency):
+    declare(currency=currency)
+    assert dc.convert_dividends(_dividends(), "BCG", "L") is None
+
+
 def test_missing_rate_refuses_to_guess(declare):
     declare()
     late = pd.Series([0.03], index=pd.to_datetime(["2026-09-10"]))  # > 5 days after the last stored rate

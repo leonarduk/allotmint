@@ -156,8 +156,18 @@ def convert_dividends(dividends: pd.Series, ticker: str, exchange: str) -> pd.Se
     price_code = str(meta.get("currency") or "").strip().upper()
     pence = price_code in _PENCE_CODES
     price_currency = _GBP if pence else _iso_currency(price_code)
-    if declared is None or price_currency is None or declared.currency == price_code:
+    if declared is None or declared.currency == price_code:
         return dividends
+    if price_currency is None:
+        # The dividends are declared foreign, so passing them through would
+        # reinvest them unconverted; refuse rather than guess the price currency.
+        logger.warning(
+            "Cannot convert %s dividends of %s: instrument currency %s is not supported",
+            sanitise_log_value(declared.currency),
+            sanitise_log_value(full),
+            sanitise_log_value(price_code or None),
+        )
+        return None
     dates = dividends.index
     ratio = _gbp_per_unit(declared.currency, dates) / _gbp_per_unit(price_currency, dates)
     if ratio.isna().any():

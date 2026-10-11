@@ -19,7 +19,7 @@ engine is distributed separately as the private
 | Built-in assistant (chat panel, `/chat` route, LLM provider selection, MCP client) | **MCP server** (`allotmint_pro/mcp_server/`) that the assistant and other MCP clients query for tools |
 | Strategy stress tests using ETF stand-in sleeves (`backend/common/strategy_stress.py`) | **Strategy stress-test sleeve returns** (`strategy_stress`) that extend history past where the free ETF stand-ins start |
 | | Risk (VaR and Sharpe) calculations, compliance rules, tax allowances, and anomaly repair |
-| AWS CDK stacks in `cdk/`: the copy the deploy workflow runs today | A copy of the CDK stacks, being moved there under [#6796](https://github.com/leonarduk/allotmint/issues/6796) (see [AWS architecture](#aws-architecture)) |
+| AWS CDK stacks in `cdk/`: the copy the deploy workflow runs today | A diverging copy of the CDK stacks, not yet used for deploys; the move is tracked in [#6796](https://github.com/leonarduk/allotmint/issues/6796) (see [AWS architecture](#aws-architecture)) |
 
 Premium endpoints remain present in the public API contract. When
 `allotmint-pro` is not installed, they return HTTP `402 Payment Required` with

@@ -280,3 +280,84 @@ async def test_run_chat_turn_prepends_system_prompt(monkeypatch):
     messages = json.loads(requests[0].content)["messages"]
     assert messages[0] == {"role": "system", "content": "on /research/ARG.TO"}
     assert messages[-1] == {"role": "user", "content": "buy?"}
+
+
+PLAN_RESULT = '{"owner": "steve", "plan_recorded": true, "drift": {"total_value_gbp": 123456.78}}'
+
+
+def _tool_call_records(caplog):
+    return [record for record in caplog.records if getattr(record, "event", None) == "chat.tool_call"]
+
+
+def _plan_call_completions(answer):
+    plan_call = _tool_call("call-1", "get_investment_plan", '{"owner": "steve"}')
+    return [
+        _completion({"role": "assistant", "content": None, "tool_calls": [plan_call]}),
+        _completion({"role": "assistant", "content": answer}),
+    ]
+
+
+async def test_run_chat_turn_logs_each_tool_call_without_arguments_or_results(monkeypatch, caplog):
+    # #10613: the logs could not show which tools a chat turn called.
+    session = FakeSession(
+        tools=[FakeTool("get_investment_plan")],
+        tool_results={"get_investment_plan": FakeCallToolResult(PLAN_RESULT)},
+    )
+    monkeypatch.setattr(openai_compat_agent, "mcp_session", _fake_mcp_session_factory(session))
+    _patch_http(monkeypatch, _plan_call_completions("Drift is small."))
+
+    with caplog.at_level("INFO", logger="backend.chat.mcp_tools_client"):
+        await openai_compat_agent.run_chat_turn(
+            "how far am I from my plan?",
+            [],
+            mcp_server_url="http://localhost:8001/mcp",
+            base_url="http://x/v1",
+            model="m",
+        )
+
+    records = _tool_call_records(caplog)
+    assert [(record.tool, record.status, record.levelname) for record in records] == [
+        ("get_investment_plan", "ok", "INFO")
+    ]
+    assert records[0].duration_ms >= 0
+    assert "123456.78" not in caplog.text and "steve" not in caplog.text
+
+
+async def test_run_chat_turn_flags_a_plan_tool_error_as_failed_not_as_no_plan(monkeypatch, caplog):
+    # #10613: an MCP error result reached the model as plain text, indistinguishable
+    # from an answer, so "couldn't read the plan" could come back as "no plan recorded".
+    error_text = "get_investment_plan failed: could not read the investment plan for steve"
+    session = FakeSession(
+        tools=[FakeTool("get_investment_plan")],
+        tool_results={"get_investment_plan": FakeCallToolResult(error_text, is_error=True)},
+    )
+    monkeypatch.setattr(openai_compat_agent, "mcp_session", _fake_mcp_session_factory(session))
+    requests = _patch_http(monkeypatch, _plan_call_completions("I could not read the plan."))
+
+    with caplog.at_level("INFO", logger="backend.chat.mcp_tools_client"):
+        await openai_compat_agent.run_chat_turn(
+            "drift?", [], mcp_server_url="http://localhost:8001/mcp", base_url="http://x/v1", model="m"
+        )
+
+    tool_message = json.loads(requests[1].content)["messages"][-1]
+    assert tool_message["content"] == f"Tool call failed: {error_text}"
+    assert [record.status for record in _tool_call_records(caplog)] == ["error"]
+    assert "could not read" not in caplog.text
+
+
+async def test_run_chat_turn_logs_a_switched_off_tool_as_refused(monkeypatch, caplog):
+    session = FakeSession(tools=[])
+    monkeypatch.setattr(openai_compat_agent, "mcp_session", _fake_mcp_session_factory(session))
+    monkeypatch.setattr(openai_compat_agent, "call_refusal", lambda name, policy: f"{name} is switched off")
+    requests = _patch_http(monkeypatch, _plan_call_completions("I could not read the plan."))
+
+    with caplog.at_level("INFO", logger="backend.chat.mcp_tools_client"):
+        await openai_compat_agent.run_chat_turn(
+            "drift?", [], mcp_server_url="http://localhost:8001/mcp", base_url="http://x/v1", model="m"
+        )
+
+    assert session.calls == []
+    assert json.loads(requests[1].content)["messages"][-1]["content"].startswith("Tool call failed: ")
+    assert [(record.tool, record.status) for record in _tool_call_records(caplog)] == [
+        ("get_investment_plan", "refused")
+    ]

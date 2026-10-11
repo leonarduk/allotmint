@@ -241,6 +241,27 @@ flowchart TD
 
 All diagrams in this README are Mermaid code blocks that render natively on GitHub. Edit them in place; there's no separate source file or regeneration step.
 
+<details>
+<summary>Diagram sources: re-check these when updating the diagrams</summary>
+
+- **System overview:**
+  - `backend/app.py`, `backend/common/core_optional.py`, `pyproject.toml` (`pro` extra)
+  - `backend/routes/chat.py`, `backend/chat/providers.py`, `backend/chat/mcp_tools_client.py` (SigV4 for non-localhost URLs), `backend/chat/local_tools.py`
+  - `backend/routes/mcp_server_admin.py`, `scripts/run-mcp-server.ps1`
+  - `backend/chat/tool_switches.py` (data steward read-only allowlist), `backend/data_steward/`, `backend/bots/`
+  - `backend/config.py` (`data_root` / `DATA_ROOT`), `config.yaml`, `config.lambda.yaml`
+  - the `allotmint-pro` and `allotmint-mcp` READMEs
+- **How it's built:**
+  - `.github/ISSUE_TEMPLATE/`, `AGENTS.md`, `docs/CONTRIBUTING.md`, `.cicaid-checks.toml`
+  - `.github/rulesets/default-branch-protection.json` (required checks)
+  - `.github/workflows/`: `issue-lint.yml`, `issue-worm.yml`, `pr-lint.yml` (`require-issue-reference`), `deepseek-pr-review.yml`, `claude-pr-review.yml`, `gpt-pr-review.yml`, `project-status-in-review.yml`, `notify-allotmint-pro.yml`
+- **AWS architecture:**
+  - `cdk/app.py`, `cdk/stacks/*.py`
+  - `backend/lambda_api/demo_authorizer.py`, `backend/Dockerfile.lambda`, `docs/AUTH.md`
+- **Deployment pipeline:** `.github/workflows/deploy-lambda.yml` (the `check-ci`, `deploy`, `smoke-test` and `verify-smoke-tests` jobs)
+
+</details>
+
 ## Design decisions
 
 Key architectural tradeoffs made in this project:

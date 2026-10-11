@@ -27,6 +27,11 @@ an optional top-level ``price_adjustments`` list::
     ``0.25``; a 1-for-10 consolidation is ``10``. ``Open``/``High``/``Low``/
     ``Close`` are multiplied by it and ``Volume`` divided by it, so turnover
     (price x volume) is unchanged.
+``kind`` (optional)
+    ``"split"`` (the default) for a change in the share basis, as above.
+    ``"units"`` for a change in the price unit with the share count unchanged,
+    e.g. Yahoo switching a line from pence to pounds (BCG.L, CLDN.L): OHLC are
+    multiplied by ``factor`` and ``Volume`` is left as stored (#10734).
 ``dividends_before`` (optional)
     ISO date of the first stored dividend on the new basis; defaults to
     ``before``. Stored dividends can switch basis on a different date from
@@ -77,6 +82,11 @@ PRICE_ADJUSTMENTS_KEY = "price_adjustments"
 _PRICE_COLUMNS = ("Open", "High", "Low", "Close")
 _VOLUME_COLUMN = "Volume"
 
+# ``kind`` values: a share-basis change restates Volume, a unit change does not.
+KIND_SPLIT = "split"
+KIND_UNITS = "units"
+ADJUSTMENT_KINDS = (KIND_SPLIT, KIND_UNITS)
+
 
 @dataclass(frozen=True)
 class PriceAdjustment:
@@ -87,6 +97,7 @@ class PriceAdjustment:
     dividends_before: date
     rationale: str
     reviewed: date
+    kind: str = KIND_SPLIT
 
 
 def _iso_date(value: Any) -> date | None:
@@ -116,6 +127,8 @@ def _entry_problems(index: int, entry: Any) -> list[str]:
         problems.append(f"{where}: factor {entry.get('factor')!r} must be a finite number > 0 and != 1")
     if "dividends_before" in entry and _iso_date(entry.get("dividends_before")) is None:
         problems.append(f"{where}: dividends_before {entry.get('dividends_before')!r} is not an ISO date")
+    if "kind" in entry and entry.get("kind") not in ADJUSTMENT_KINDS:
+        problems.append(f"{where}: kind {entry.get('kind')!r} is not one of {', '.join(ADJUSTMENT_KINDS)}")
     rationale = entry.get("rationale")
     if not isinstance(rationale, str) or not rationale.strip():
         problems.append(f"{where}: rationale is required")
@@ -158,6 +171,7 @@ def parse_price_adjustments(meta: Mapping[str, Any] | None) -> tuple[PriceAdjust
                 dividends_before=dividends_before,
                 rationale=entry["rationale"].strip(),
                 reviewed=date.fromisoformat(entry["reviewed"].strip()),
+                kind=entry.get("kind", KIND_SPLIT),
             )
         )
     return tuple(sorted(parsed, key=lambda adj: adj.before))
@@ -199,7 +213,7 @@ def cumulative_factors(dates: Any, cutoffs: Iterable[tuple[date, float]]) -> np.
 
 
 def apply_price_adjustments(df: pd.DataFrame, adjustments: Sequence[PriceAdjustment]) -> pd.DataFrame:
-    """``df`` with OHLC (and ``Volume``) restated onto the latest share basis.
+    """``df`` with OHLC (and, for ``"split"`` entries, ``Volume``) restated onto the latest basis.
 
     Returns ``df`` itself when there is nothing to adjust (no adjustments, an
     empty frame, no ``Date`` column, or no row before any ``before`` date), so
@@ -215,8 +229,13 @@ def apply_price_adjustments(df: pd.DataFrame, adjustments: Sequence[PriceAdjustm
     for column in _PRICE_COLUMNS:
         if column in out.columns:
             out[column] = pd.to_numeric(out[column], errors="coerce").to_numpy(dtype=float) * factors
-    if _VOLUME_COLUMN in out.columns:
-        out[_VOLUME_COLUMN] = pd.to_numeric(out[_VOLUME_COLUMN], errors="coerce").to_numpy(dtype=float) / factors
+    splits = [adj for adj in adjustments if adj.kind == KIND_SPLIT]
+    if splits and _VOLUME_COLUMN in out.columns:
+        volume_factors = cumulative_factors(df["Date"], ((adj.before, adj.factor) for adj in splits))
+        if not np.all(volume_factors == 1.0):
+            out[_VOLUME_COLUMN] = (
+                pd.to_numeric(out[_VOLUME_COLUMN], errors="coerce").to_numpy(dtype=float) / volume_factors
+            )
     return out
 
 

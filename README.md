@@ -80,7 +80,7 @@ flowchart LR
     ChatRoute --> LLM
     ChatRoute --> LocalTools
     ChatRoute -. "MCP tools<br/>MCP_SERVER_URL" .-> MCP
-    Bots -. "read-only tool allowlist" .-> MCP
+    Bots -. "data steward, trend watch,<br/>plan brief: MCP tools" .-> MCP
     MCP -- "own process; uses the<br/>allotmint backend package<br/>as a library" --> Data
     McpClient -. "Streamable HTTP" .-> MCP
     McpClient -. "stdio or HTTP" .-> AltMCP
@@ -210,7 +210,7 @@ flowchart LR
     Lambda --> S3Data
     Lambda --> SSM
     Lambda --> SES
-    Lambda -- "async invoke:<br/>Run now on the Bots page" --> Scheduled
+    Lambda -- "async invoke: Run now<br/>on the Bots page, all but PlanBrief" --> Scheduled
     Scheduled -- "read, scoped writes" --> S3Data
     Scheduled -- "pension report,<br/>plan brief" --> SES
     Scheduled -. "data steward, plan brief:<br/>MCP tools" .-> McpExt

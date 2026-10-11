@@ -2121,7 +2121,8 @@
     "promptCopy": "Nome da cópia:",
     "confirmDelete": "Excluir a lista de observação \"{{name}}\"?",
     "nameTaken": "Já existe uma lista de observação chamada \"{{name}}\".",
-    "cannotDeleteLast": "É necessária pelo menos uma lista de observação."
+    "cannotDeleteLast": "É necessária pelo menos uma lista de observação.",
+    "listNotFound": "Nenhuma lista chamada \"{{name}}\" neste navegador — a mostrar \"{{shown}}\"."
   },
   "scenarioFx": {
     "title": "Choque cambial",

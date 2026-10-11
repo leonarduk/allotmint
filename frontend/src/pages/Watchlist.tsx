@@ -6,6 +6,7 @@ import type { QuoteRow } from "../types";
 import { priceDecimals } from "../utils/priceFormatting";
 import { setWatchlistSymbols, useWatchlists } from "../lib/watchlistStore";
 import WatchlistBar from "../components/WatchlistBar";
+import { useWatchlistUrlParam } from "../hooks/useWatchlistUrlParam";
 import TableRowsSkeleton from "../components/skeletons/TableRowsSkeleton";
 
 const WATCHLIST_COLUMN_COUNT = 11;
@@ -140,6 +141,7 @@ function isLinkableSymbol(symbol: string): boolean {
 export function Watchlist() {
   const { t } = useTranslation();
   const { active } = useWatchlists();
+  const missingList = useWatchlistUrlParam();
   const activeId = active.id;
   const symbolList = active.symbols;
   const [newSymbol, setNewSymbol] = useState("");
@@ -294,6 +296,14 @@ export function Watchlist() {
         {t("watchlist.title", { defaultValue: "Watchlist" })}
       </h1>
       <WatchlistBar />
+      {missingList && (
+        <div role="status" className="mb-2 text-amber-700 dark:text-amber-300">
+          {t("watchlist.listNotFound", {
+            name: missingList,
+            shown: active.name,
+          })}
+        </div>
+      )}
       <div className="mb-2">
         <label htmlFor="watchlist-symbol-input" className="mb-1 block">
           {t("watchlist.symbolsLabel", { defaultValue: "Watched tickers" })}

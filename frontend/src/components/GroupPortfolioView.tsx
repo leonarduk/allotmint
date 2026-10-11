@@ -58,6 +58,7 @@ import { useConfig } from "../ConfigContext";
 import { useReportingCurrency } from "../hooks/useReportingCurrency";
 import { getGroupDisplayName } from "../utils/groups";
 import { RelativeViewToggle } from "./RelativeViewToggle";
+import { WorkspaceTabsInlineToggle } from "./WorkspaceTabsInlineToggle";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { isCashInstrument } from "../lib/instruments";
 import { formatDateISO } from "../lib/date";
@@ -1122,7 +1123,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               )}
             </div>
           </div>
-          <RelativeViewToggle />
+          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+            <WorkspaceTabsInlineToggle />
+            <RelativeViewToggle />
+          </div>
         </div>
       </div>
 

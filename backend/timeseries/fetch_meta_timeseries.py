@@ -268,6 +268,20 @@ def _metadata_entry_exists(symbol: str, exchange: str, directories: tuple[str, .
     return False
 
 
+def _metadata_exchange(symbol: str, suffix: str) -> str:
+    """Exchange of the instrument metadata for *symbol*, preferring the ticker's own suffix.
+
+    A symbol can be listed on several exchanges (``BA.L`` BAE Systems and
+    ``BA.N`` Boeing). When the explicit suffix has its own metadata file, that
+    listing is the instrument meant; a bare-symbol search returns whichever
+    exchange directory it reads first (#10618). Without metadata under the
+    suffix, the bare-symbol search still decides, as before.
+    """
+    if suffix and _metadata_entry_exists(symbol, suffix, tuple(str(path) for path in _instrument_dirs())):
+        return suffix.upper()
+    return _resolve_exchange_from_metadata(symbol).upper()
+
+
 def _resolve_symbol_exchange_details(ticker: str, exchange: str | None) -> Tuple[str, str, str]:
     """Return symbol, resolved exchange and metadata exchange."""
 
@@ -283,7 +297,7 @@ def _resolve_symbol_exchange_details(ticker: str, exchange: str | None) -> Tuple
         )
     resolved = suffix or provided
 
-    meta_ex = _resolve_exchange_from_metadata(sym).upper()
+    meta_ex = _metadata_exchange(sym, suffix)
     ex = resolved
     if not ex and meta_ex:
         ex = meta_ex

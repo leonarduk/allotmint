@@ -6,7 +6,7 @@ import { getQuotes } from '../../api';
 import type { QuoteRow } from '../../types';
 import { usePlotData } from '../PlotDataContext';
 import { formatPct } from '../plotModel';
-import { readActiveSymbols } from '../../lib/watchlistStore';
+import { useWatchlists } from '../../lib/watchlistStore';
 
 /** Seed packets: watchlist symbols you could sow, priced from live quotes. */
 export default function SeedCatalogue({ basePath }: { basePath: string }) {
@@ -17,8 +17,9 @@ export default function SeedCatalogue({ basePath }: { basePath: string }) {
   const [loading, setLoading] = useState(true);
   const [retryToken, setRetryToken] = useState(0);
   // The list currently selected on the classic Watchlist tab, so the two
-  // views show the same symbols rather than drifting apart.
-  const symbols = useMemo(readActiveSymbols, []);
+  // views show the same symbols rather than drifting apart. Subscribed, so
+  // switching or editing that list re-quotes here without a remount.
+  const symbols = useWatchlists().active.symbols;
   const retry = () => setRetryToken((token) => token + 1);
 
   useEffect(() => {
@@ -26,6 +27,8 @@ export default function SeedCatalogue({ basePath }: { basePath: string }) {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    // Don't show the previous list's packets (or count) for the new one.
+    setRows([]);
     if (symbols.length === 0) {
       setLoading(false);
       return () => controller.abort();

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Portfolio } from '@/types';
@@ -30,6 +30,9 @@ vi.mock('@/api', () => mocks);
 
 // Imported after the mock so the module graph picks up the stubbed api.
 const { default: PlotApp } = await import('@/gamified/PlotApp');
+const { createWatchlist, setActiveWatchlist, readWatchlists } = await import(
+  '@/lib/watchlistStore'
+);
 
 function renderSeeds() {
   return render(
@@ -67,6 +70,45 @@ beforeEach(() => {
 });
 
 describe('Seed catalogue', () => {
+  it('re-quotes when the active watchlist changes, without a remount', async () => {
+    mocks.getQuotes.mockImplementation(async (symbols: string[]) =>
+      symbols.map((symbol) => ({
+        symbol,
+        name: `${symbol} name`,
+        last: 1,
+        open: 1,
+        high: 1,
+        low: 1,
+        change: 0,
+        changePct: 0,
+        volume: 0,
+        marketTime: null,
+        marketState: 'REGULAR',
+      }))
+    );
+    window.localStorage.setItem('watchlistSymbols', 'VUSA.L');
+    renderSeeds();
+    expect(await screen.findByText('VUSA.L')).toBeInTheDocument();
+
+    const firstId = readWatchlists().activeId;
+    // Creating a list also makes it active.
+    act(() => {
+      createWatchlist('Miners', ['RIO.L']);
+    });
+    expect(await screen.findByText('RIO.L')).toBeInTheDocument();
+    expect(screen.queryByText('VUSA.L')).toBeNull();
+    expect(mocks.getQuotes).toHaveBeenLastCalledWith(
+      ['RIO.L'],
+      expect.anything()
+    );
+
+    act(() => {
+      setActiveWatchlist(firstId);
+    });
+    expect(await screen.findByText('VUSA.L')).toBeInTheDocument();
+    expect(screen.queryByText('RIO.L')).toBeNull();
+  });
+
   it('actually issues a request and renders real watchlist quotes', async () => {
     mocks.getQuotes.mockResolvedValue([
       {

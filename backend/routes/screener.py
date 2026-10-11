@@ -465,6 +465,8 @@ def technicals(ticker: str = Query(..., description="Full ticker, e.g. ADBE.N"))
 RISK_RETURN_DEFAULT_YEARS = "3,5,10"
 RISK_RETURN_MAX_YEARS = 30
 RISK_RETURN_MAX_FETCH = 25
+# The largest watchlist (S&P 500) is ~500 tickers; this bounds one request's work.
+RISK_RETURN_MAX_TICKERS = 1000
 
 
 def _parse_symbols(tickers: str) -> List[str]:
@@ -473,6 +475,11 @@ def _parse_symbols(tickers: str) -> List[str]:
     symbols = list(dict.fromkeys(t.strip().upper() for t in tickers.split(",") if t.strip()))
     if not symbols:
         raise HTTPException(status_code=400, detail="No tickers supplied")
+    if len(symbols) > RISK_RETURN_MAX_TICKERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"At most {RISK_RETURN_MAX_TICKERS} tickers per request, got {len(symbols)}",
+        )
     return symbols
 
 

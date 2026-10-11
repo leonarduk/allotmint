@@ -158,8 +158,12 @@ export function RiskReturnCells({
     value == null
       ? (rowReason ?? t('screener.risk.shortHistory', { years }))
       : undefined;
-  const longest = RISK_PERIODS[RISK_PERIODS.length - 1];
   const sharpes = [row.sharpe_3y, row.sharpe_5y, row.sharpe_10y];
+  // Min Sharpe is blank when any period is: name the shortest one missing,
+  // since history shorter than it is why every longer one is missing too.
+  const shortestMissing =
+    RISK_PERIODS.find((_, i) => sharpes[i] == null) ??
+    RISK_PERIODS[RISK_PERIODS.length - 1];
   const basis = row.risk_basis
     ? t(`screener.risk.basis.${row.risk_basis}`)
     : null;
@@ -170,7 +174,7 @@ export function RiskReturnCells({
           {ratio(sharpes[i])}
         </td>
       ))}
-      <td style={right} title={reason(row.min_sharpe, longest)}>
+      <td style={right} title={reason(row.min_sharpe, shortestMissing)}>
         {ratio(row.min_sharpe)}
       </td>
       <td style={right} title={reason(row.risk_return, period)}>

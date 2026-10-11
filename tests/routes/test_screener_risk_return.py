@@ -110,6 +110,15 @@ def test_rejects_a_blank_ticker_list(calls):
     assert calls == []
 
 
+def test_caps_the_number_of_tickers(calls):
+    tickers = ",".join(f"T{i}.N" for i in range(screener.RISK_RETURN_MAX_TICKERS + 1))
+    resp = _client().get("/screener/risk-return", params={"tickers": tickers})
+
+    assert resp.status_code == 400
+    assert "At most" in resp.json()["detail"]
+    assert calls == []
+
+
 def test_caps_max_fetch(calls):
     resp = _client().get("/screener/risk-return", params={"tickers": "SPY", "max_fetch": 26})
 

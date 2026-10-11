@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter, Route, Routes, useParams } from "react-router-dom";
 import { Screener } from "@/pages/Screener";
-import { RISK_COLUMN_COUNT } from "@/components/ScreenerRiskReturn";
+import { RISK_COLUMN_COUNT, RiskReturnCells } from "@/components/ScreenerRiskReturn";
 import * as api from "@/api";
 
 vi.mock("@/api");
@@ -758,6 +758,23 @@ describe("Screener risk/return columns (#10607)", () => {
       "title",
       "No stored price history for this ticker",
     );
+  });
+
+  it("names the shortest missing period on a blank min Sharpe", () => {
+    // Three years of history only: 5y and 10y are blank, so min Sharpe is too.
+    const row = { rank: 1, ticker: "NEW.L", sharpe_3y: 1.2, sharpe_5y: null, sharpe_10y: null, min_sharpe: null, risk_status: "short" as const };
+    const { container } = render(
+      <table>
+        <tbody>
+          <tr>
+            <RiskReturnCells row={row} loading={false} period="10" />
+          </tr>
+        </tbody>
+      </table>,
+    );
+    const cells = Array.from(container.querySelectorAll("td"));
+    expect(cells[3]).toHaveAttribute("title", "Price history is shorter than 5 years");
+    expect(cells[0]).not.toHaveAttribute("title");
   });
 
   it("sorts by min Sharpe", async () => {

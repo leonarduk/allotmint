@@ -53,6 +53,9 @@ export function useWatchlistUrlParam(): string | null {
     }
   }, [requested, state, active.id, active.name, setSearchParams]);
 
-  // Only explain the fallback while the fallback list is still on screen.
+  // Only explain the fallback while the fallback list is still on screen:
+  // the URL is rewritten to that list straight away (with lastSeen updated
+  // first, so the rewrite isn't mistaken for a new request), but the notice
+  // stays until the user picks another list.
   return missing && missing.shownId === active.id ? missing.ref : null;
 }

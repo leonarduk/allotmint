@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { act } from "react";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { MemoryRouter, useLocation, useNavigationType } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("@/api", () => ({
@@ -462,7 +462,12 @@ describe("Watchlist page", () => {
     describe("bookmarkable ?list= param", () => {
       function LocationProbe() {
         const { search } = useLocation();
-        return <output data-testid="search">{search}</output>;
+        const navType = useNavigationType();
+        return (
+          <output data-testid="search" data-nav-type={navType}>
+            {search}
+          </output>
+        );
       }
 
       function renderAt(url: string) {
@@ -515,6 +520,11 @@ describe("Watchlist page", () => {
         )!;
         fireEvent.change(listSelect(), { target: { value: other.value } });
         await waitFor(() => expect(listParam()).toBe("To Sell or Buy"));
+        // Replaced, not pushed: switching lists mustn't pile up history.
+        expect(screen.getByTestId("search")).toHaveAttribute(
+          "data-nav-type",
+          "REPLACE",
+        );
 
         vi.spyOn(window, "prompt").mockReturnValueOnce("Gold");
         fireEvent.click(screen.getByRole("button", { name: "Rename…" }));
@@ -531,6 +541,14 @@ describe("Watchlist page", () => {
           ),
         ).toHaveAttribute("role", "status");
         expect(listSelect()).toHaveDisplayValue("My watchlist (2)");
+        // The URL now names the list actually shown...
+        await waitFor(() => expect(listParam()).toBe("My watchlist"));
+        // ...and the notice goes once the user picks a list themselves.
+        act(() => {
+          createWatchlist("Other");
+        });
+        await waitFor(() => expect(listParam()).toBe("Other"));
+        expect(screen.queryByText(/No watchlist called/)).not.toBeInTheDocument();
       });
     });
   });

@@ -726,7 +726,7 @@ export default function Strategy() {
       )}
       {strategies.data && selectedOwner && (
         <StrategyStressPanel
-          key={selectedOwner}
+          key={`stress-${selectedOwner}`}
           owner={selectedOwner}
           data={strategies.data}
           hasTargets={hasPolicy}
@@ -778,7 +778,10 @@ export default function Strategy() {
         </>
       )}
       {selectedOwner && (
-        <DecisionJournal key={selectedOwner} owner={selectedOwner} />
+        <DecisionJournal
+          key={`journal-${selectedOwner}`}
+          owner={selectedOwner}
+        />
       )}
     </div>
   );

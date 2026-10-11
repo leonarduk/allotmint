@@ -270,6 +270,25 @@ describe('Strategy page', () => {
     expect(select).toHaveValue('alex');
   });
 
+  it('keeps a single stress test panel when the owner changes', async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: 'alex', accounts: [] },
+      { owner: 'joe', accounts: [] },
+    ]);
+    await renderPage();
+    await screen.findByRole('region', { name: 'Stress test' });
+    const select = screen.getByLabelText('Portfolio owner');
+    for (const owner of ['joe', 'alex', 'joe']) {
+      fireEvent.change(select, { target: { value: owner } });
+      await waitFor(() =>
+        expect(mockGetRebalancePlan).toHaveBeenCalledWith(owner)
+      );
+    }
+    expect(screen.getAllByRole('region', { name: 'Stress test' })).toHaveLength(
+      1
+    );
+  });
+
   it('shows currency and percent unit affordances (#7824)', async () => {
     await renderPage();
     const drift = await screen.findByRole('region', {

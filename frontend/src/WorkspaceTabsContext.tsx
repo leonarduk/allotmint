@@ -16,13 +16,13 @@ import {
 import {
   activeTab,
   closeTab as closeTabState,
+  followLocation,
   loadTabsEnabled,
   loadTabsState,
   openTab,
   saveTabsEnabled,
   saveTabsState,
   selectTab as selectTabState,
-  syncActivePath,
 } from './lib/workspaceTabs';
 import { CHAT_WINDOW_PATH } from './utils/chatWindow';
 import { clearFetchCache } from './utils/fetchCache';
@@ -47,8 +47,9 @@ export function WorkspaceTabsProvider({ children }: { children: ReactNode }) {
   // navigate(), so the new active tab is committed no later than the new
   // URL (same batch, or before it when the router navigates in a
   // transition) -- this never writes a tab's path into its neighbour.
+  // Navigating to an instrument opens it in its own tab (#10711).
   useEffect(() => {
-    if (tracking) setState((s) => syncActivePath(s, currentPath));
+    if (tracking) setState((s) => followLocation(s, currentPath));
   }, [currentPath, tracking]);
 
   useEffect(() => {

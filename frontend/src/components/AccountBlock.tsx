@@ -2,11 +2,11 @@
  *  AccountBlock.tsx   ─ merged, consolidated version
  * ------------------------------------------------------------------ */
 
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Account } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
+import { useInstrumentSelection } from "../hooks/useInstrumentSelection";
 import { formatDateISO } from "../lib/date";
 import {
   useReportingCurrency,
@@ -48,11 +48,11 @@ export function AccountBlock({
   showForward30d = false,
   onAddPosition,
 }: Props) {
-  const [selectedInstrument, setSelectedInstrument] = useState<{
-    ticker: string;
-    name: string;
-    instrumentType?: string | null;
-  } | null>(null);
+  const {
+    selected: selectedInstrument,
+    select: selectInstrument,
+    clear: clearSelectedInstrument,
+  } = useInstrumentSelection();
   const reporting = useReportingCurrency();
   const { t } = useTranslation();
 
@@ -89,9 +89,7 @@ export function AccountBlock({
 
           <HoldingsTable
             holdings={account.holdings}
-            onSelectInstrument={(ticker, name, instrumentType) =>
-              setSelectedInstrument({ ticker, name, instrumentType })
-            }
+            onSelectInstrument={selectInstrument}
             showForward7d={showForward7d}
             showForward30d={showForward30d}
             onAddPosition={onAddPosition}
@@ -102,7 +100,7 @@ export function AccountBlock({
               ticker={selectedInstrument.ticker}
               name={selectedInstrument.name}
               instrument_type={selectedInstrument.instrumentType}
-              onClose={() => setSelectedInstrument(null)}
+              onClose={clearSelectedInstrument}
             />
           )}
         </>

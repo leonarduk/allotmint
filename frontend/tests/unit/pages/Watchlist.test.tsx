@@ -558,6 +558,13 @@ describe("Watchlist page", () => {
         });
         await waitFor(() => expect(listParam()).toBe("Other"));
         expect(screen.queryByText(/No watchlist called/)).not.toBeInTheDocument();
+        // ...and stays gone when they return to the fallback list.
+        const fallback = Array.from(listSelect().querySelectorAll("option")).find(
+          (o) => o.textContent === "My watchlist (2)",
+        )!;
+        fireEvent.change(listSelect(), { target: { value: fallback.value } });
+        await waitFor(() => expect(listParam()).toBe("My watchlist"));
+        expect(screen.queryByText(/No watchlist called/)).not.toBeInTheDocument();
       });
     });
   });

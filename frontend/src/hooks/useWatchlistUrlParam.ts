@@ -51,9 +51,13 @@ export function useWatchlistUrlParam(): string | null {
     }
   }, [requested, state, active.id, active.name, setSearchParams]);
 
-  // Only explain the fallback while the fallback list is still on screen:
-  // the URL is rewritten to that list straight away (with lastSeen updated
-  // first, so the rewrite isn't mistaken for a new request), but the notice
-  // stays until the user picks another list.
+  // The URL is rewritten to the fallback list straight away (with lastSeen
+  // updated first, so the rewrite isn't mistaken for a new request), but the
+  // notice stays until the user picks another list. Picking one dismisses it
+  // for good, so returning to the fallback list doesn't bring it back.
+  useEffect(() => {
+    if (missing && missing.shownId !== active.id) setMissing(null);
+  }, [missing, active.id]);
+
   return missing && missing.shownId === active.id ? missing.ref : null;
 }

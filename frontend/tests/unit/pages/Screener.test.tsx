@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter, Route, Routes, useParams } from "react-router-dom";
 import { Screener } from "@/pages/Screener";
+import { RISK_COLUMN_COUNT } from "@/components/ScreenerRiskReturn";
 import * as api from "@/api";
 
 vi.mock("@/api");
@@ -720,7 +721,7 @@ describe("Screener risk/return columns (#10607)", () => {
     expect(screen.getByText("Loading risk/return figures…")).toBeInTheDocument();
     expect(screen.getByText("Sharpe 10y")).toBeInTheDocument();
     const cells = Array.from(container.querySelectorAll("tbody td")).map((td) => td.textContent);
-    expect(cells.filter((c) => c === "…")).toHaveLength(8);
+    expect(cells.filter((c) => c === "…")).toHaveLength(RISK_COLUMN_COUNT);
   });
 
   it("merges Sharpe, min Sharpe and selected-period figures by ticker", async () => {
@@ -749,6 +750,10 @@ describe("Screener risk/return columns (#10607)", () => {
     const minCell = rowCells(container, 3)[headers.indexOf("Min Sharpe")];
     expect(minCell.textContent).toBe("—");
     expect(minCell).toHaveAttribute("title", "Price history is shorter than 10 years");
+    // A cell that has a value carries no blank-reason tooltip.
+    const shortRow = rowCells(container, 3);
+    expect(shortRow[headers.indexOf("Sharpe 3y")].textContent).not.toBe("—");
+    expect(shortRow[headers.indexOf("Sharpe 3y")]).not.toHaveAttribute("title");
     expect(rowCells(container, 4)[headers.indexOf("Sharpe 3y")]).toHaveAttribute(
       "title",
       "No stored price history for this ticker",

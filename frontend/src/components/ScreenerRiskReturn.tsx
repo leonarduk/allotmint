@@ -121,6 +121,9 @@ export function RiskReturnHeaders({
   );
 }
 
+/** One header and one cell per Sharpe period, plus min Sharpe, return, volatility, worst fall and basis. */
+export const RISK_COLUMN_COUNT = RISK_PERIODS.length + 5;
+
 export function RiskReturnCells({
   row,
   loading,
@@ -135,7 +138,7 @@ export function RiskReturnCells({
     const pending = t('screener.risk.pending');
     return (
       <>
-        {Array.from({ length: 8 }, (_, i) => (
+        {Array.from({ length: RISK_COLUMN_COUNT }, (_, i) => (
           <td key={i} style={right} title={pending}>
             …
           </td>
@@ -143,41 +146,43 @@ export function RiskReturnCells({
       </>
     );
   }
-  const blankReason =
+  // A blank cell says why; a cell with a value carries no reason, so a 3y
+  // Sharpe never claims the history is too short for 10 years.
+  const rowReason =
     row.risk_status === 'missing'
       ? t('screener.risk.noHistory')
-      : row.risk_status === 'short'
-        ? t('screener.risk.shortHistory', { years: period })
-        : row.risk_status === 'absent'
-          ? t('screener.risk.notReturned')
-          : undefined;
+      : row.risk_status === 'absent'
+        ? t('screener.risk.notReturned')
+        : undefined;
+  const reason = (value: number | null | undefined, years: string) =>
+    value == null
+      ? (rowReason ?? t('screener.risk.shortHistory', { years }))
+      : undefined;
+  const longest = RISK_PERIODS[RISK_PERIODS.length - 1];
+  const sharpes = [row.sharpe_3y, row.sharpe_5y, row.sharpe_10y];
   const basis = row.risk_basis
     ? t(`screener.risk.basis.${row.risk_basis}`)
     : null;
   return (
     <>
-      <td style={right} title={blankReason}>
-        {ratio(row.sharpe_3y)}
-      </td>
-      <td style={right} title={blankReason}>
-        {ratio(row.sharpe_5y)}
-      </td>
-      <td style={right} title={blankReason}>
-        {ratio(row.sharpe_10y)}
-      </td>
-      <td style={right} title={blankReason}>
+      {RISK_PERIODS.map((p, i) => (
+        <td key={p} style={right} title={reason(sharpes[i], p)}>
+          {ratio(sharpes[i])}
+        </td>
+      ))}
+      <td style={right} title={reason(row.min_sharpe, longest)}>
         {ratio(row.min_sharpe)}
       </td>
-      <td style={right} title={blankReason}>
+      <td style={right} title={reason(row.risk_return, period)}>
         {pct(row.risk_return)}
       </td>
-      <td style={right} title={blankReason}>
+      <td style={right} title={reason(row.risk_volatility, period)}>
         {pct(row.risk_volatility)}
       </td>
-      <td style={right} title={blankReason}>
+      <td style={right} title={reason(row.risk_max_drawdown, period)}>
         {pct(row.risk_max_drawdown)}
       </td>
-      <td style={{ ...cell, whiteSpace: 'nowrap' }} title={blankReason}>
+      <td style={{ ...cell, whiteSpace: 'nowrap' }} title={rowReason}>
         {row.risk_currency && basis ? `${row.risk_currency} · ${basis}` : '—'}
       </td>
     </>

@@ -1150,6 +1150,14 @@
           "title": "Zinsdeckung",
           "detail": "Operatives Ergebnis (EBIT) geteilt durch den Zinsaufwand – wie oft ein Unternehmen seine Zinsen aus seinem Ergebnis bezahlen könnte."
         },
+        "altmanZ": {
+          "title": "Altman-Z-Score",
+          "detail": "Ursprünglicher Altman-Z-Wert für börsennotierte Unternehmen: gewichtete Kombination aus Working Capital, Gewinnrücklagen, EBIT und Umsatz zur Bilanzsumme sowie Marktkapitalisierung zu Gesamtverbindlichkeiten. Unter 1,8 Gefahrenzone, 1,8-3,0 Grauzone, über 3,0 sicher. Für Banken, Versicherer und Immobiliengesellschaften nicht aussagekräftig."
+        },
+        "netDebtToEbitda": {
+          "title": "Nettoverschuldung / EBITDA",
+          "detail": "Gesamtschulden abzüglich Barmittel, geteilt durch das EBITDA der letzten zwölf Monate — grob, wie viele Jahre operativer Ertrag zur Tilgung der Nettoschulden nötig wären. Leer, wenn das EBITDA nicht positiv ist."
+        },
         "currentRatio": {
           "title": "Liquidität 3. Grades",
           "detail": "Umlaufvermögen geteilt durch kurzfristige Verbindlichkeiten."
@@ -1610,6 +1618,8 @@
     "minFloatShares": "Min Float Shares",
     "minGrossMargin": "Min. Bruttomarge",
     "minInterestCoverage": "Min Interest Coverage",
+    "minAltmanZ": "Min. Altman Z",
+    "maxNetDebtToEbitda": "Max. Nettoverschuldung/EBITDA",
     "minMarketCap": "Min Market Cap",
     "minNetMargin": "Min. Nettomarge",
     "minOperatingMargin": "Min. operative Marge",
@@ -1634,6 +1644,8 @@
       "revGrowth": "Umsatzwachstum",
       "epsGrowth": "EPS-Wachstum",
       "intCov": "Zinsdeckung",
+      "altmanZ": "Altman Z",
+      "netDebtToEbitda": "NV/EBITDA",
       "curr": "Liquidität 3. Grades",
       "quick": "Liquidität 2. Grades",
       "grossMargin": "Bruttomarge",

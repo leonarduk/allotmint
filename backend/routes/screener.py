@@ -135,6 +135,20 @@ class RankedFundamentals(BaseModel):
     revenue: int | None = None
     revenue_growth: float | None = None
     earnings_growth: float | None = None
+    # Trailing EBITDA and net debt / EBITDA (null unless EBITDA is positive).
+    ebitda: int | None = None
+    net_debt_to_ebitda: float | None = None
+    # From the latest annual statements, in ``financial_currency``, for the
+    # fiscal period ending ``statements_as_of``.
+    ebit: int | None = None
+    total_assets: int | None = None
+    total_liabilities: int | None = None
+    retained_earnings: int | None = None
+    working_capital: int | None = None
+    statements_as_of: str | None = None
+    # Original public-company Altman Z (below 1.8 distress, above 3 safe).
+    altman_z: float | None = None
+    market_cap_fx_rate: float | None = None
     rank: int
     # Route-only: not present on allotmint_pro.screener.Fundamentals.
     # Populated here (not by the screener engine) from portfolio holdings
@@ -183,6 +197,8 @@ def _hash_params(
     ev_ebitda_max: float | None,
     revenue_growth_min: float | None,
     earnings_growth_min: float | None,
+    altman_z_min: float | None = None,
+    net_debt_to_ebitda_max: float | None = None,
 ):
     params = "|".join(
         [
@@ -219,6 +235,8 @@ def _hash_params(
             str(ev_ebitda_max),
             str(revenue_growth_min),
             str(earnings_growth_min),
+            str(altman_z_min),
+            str(net_debt_to_ebitda_max),
         ]
     )
     page = "screener_" + hashlib.sha1(params.encode()).hexdigest()
@@ -260,11 +278,34 @@ def _hash_params(
                 earnings_growth_min=earnings_growth_min,
             )
         ]
+        rows = _apply_credit_filters(rows, altman_z_min, net_debt_to_ebitda_max)
         _apply_instrument_type(rows)
         _apply_instrument_meta(rows)
         return rows
 
     return page, _call
+
+
+def _apply_credit_filters(
+    rows: List[dict],
+    altman_z_min: float | None,
+    net_debt_to_ebitda_max: float | None,
+) -> List[dict]:
+    """Drop rows failing the credit-risk thresholds; a missing value fails a set threshold.
+
+    Applied here rather than in ``screen()`` so the route works against an
+    allotmint-pro whose ``screen()`` predates these thresholds: the values
+    are already on every row it returns.
+    """
+    if altman_z_min is not None:
+        rows = [r for r in rows if r.get("altman_z") is not None and r["altman_z"] >= altman_z_min]
+    if net_debt_to_ebitda_max is not None:
+        rows = [
+            r
+            for r in rows
+            if r.get("net_debt_to_ebitda") is not None and r["net_debt_to_ebitda"] <= net_debt_to_ebitda_max
+        ]
+    return rows
 
 
 def _apply_instrument_type(rows: List[dict]) -> None:
@@ -337,6 +378,8 @@ def screener(
     ev_ebitda_max: float | None = Query(None),
     revenue_growth_min: float | None = Query(None, description="Fraction, e.g. 0.1 for 10%"),
     earnings_growth_min: float | None = Query(None, description="Fraction, e.g. 0.1 for 10%"),
+    altman_z_min: float | None = Query(None, description="Altman Z-score; below 1.8 is the distress zone"),
+    net_debt_to_ebitda_max: float | None = Query(None, description="Net debt / trailing EBITDA"),
 ):
     """Return tickers that meet the supplied screening criteria."""
 
@@ -378,6 +421,8 @@ def screener(
         ev_ebitda_max=ev_ebitda_max,
         revenue_growth_min=revenue_growth_min,
         earnings_growth_min=earnings_growth_min,
+        altman_z_min=altman_z_min,
+        net_debt_to_ebitda_max=net_debt_to_ebitda_max,
     )
 
     page_cache.schedule_refresh(page, SCREENER_TTL, call)

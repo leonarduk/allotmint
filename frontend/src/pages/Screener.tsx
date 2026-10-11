@@ -38,6 +38,8 @@ const RATIO_COLUMN_TIPS: Record<
   "D/E": { key: "de", defaultText: "Total debt divided by shareholders' equity — a measure of financial leverage.", anchor: "debt-equity" },
   "LT D/E": { key: "ltDe", defaultText: "Long-term debt divided by shareholders' equity.", anchor: "lt-debt-equity" },
   IntCov: { key: "interestCoverage", defaultText: "Operating earnings (EBIT) divided by interest expense.", anchor: "interest-coverage" },
+  "Altman Z": { key: "altmanZ", defaultText: "Altman Z-score from the latest annual accounts: below 1.8 is the distress zone, above 3.0 safe.", anchor: "altman-z" },
+  "ND/EBITDA": { key: "netDebtToEbitda", defaultText: "Net debt (total debt minus cash) divided by trailing EBITDA.", anchor: "net-debt-to-ebitda" },
   Curr: { key: "currentRatio", defaultText: "Current assets divided by current liabilities.", anchor: "current-ratio" },
   Quick: { key: "quickRatio", defaultText: "Liquid assets, excluding inventory, divided by current liabilities.", anchor: "quick-ratio" },
   FCF: { key: "fcf", defaultText: "Cash generated from operations minus capital expenditure.", anchor: "free-cash-flow" },
@@ -79,6 +81,12 @@ function RatioHeaderInfoTip({ column }: { column: string }) {
   );
 }
 
+// Scores derived from statements carry spurious precision (Altman Z is
+// computed to 4dp); two decimals is what the research page shows.
+function twoDp(value: number | null | undefined): string {
+  return value != null ? value.toFixed(2) : "—";
+}
+
 // Hover text for the ticker cell: "Name — Sector", or whichever is known.
 function tickerTooltip(r: ScreenerResult): string | undefined {
   const parts = [r.name, r.sector].filter((p): p is string => Boolean(p));
@@ -105,6 +113,8 @@ const FILTER_FIELDS: { param: FilterParam; labelKey: string; kind?: FilterKind }
   { param: "de_max", labelKey: "maxDe" },
   { param: "lt_de_max", labelKey: "maxLtDe" },
   { param: "interest_coverage_min", labelKey: "minInterestCoverage" },
+  { param: "altman_z_min", labelKey: "minAltmanZ" },
+  { param: "net_debt_to_ebitda_max", labelKey: "maxNetDebtToEbitda" },
   { param: "current_ratio_min", labelKey: "minCurrentRatio" },
   { param: "quick_ratio_min", labelKey: "minQuickRatio" },
   { param: "fcf_min", labelKey: "minFcf" },
@@ -488,6 +498,14 @@ export function Screener() {
                 {t("screener.col.intCov")}
                 <RatioHeaderInfoTip column="IntCov" />
               </th>
+              <th style={right} onClick={() => handleSort("altman_z")}>
+                {t("screener.col.altmanZ", "Altman Z")}
+                <RatioHeaderInfoTip column="Altman Z" />
+              </th>
+              <th style={right} onClick={() => handleSort("net_debt_to_ebitda")}>
+                {t("screener.col.netDebtToEbitda", "ND/EBITDA")}
+                <RatioHeaderInfoTip column="ND/EBITDA" />
+              </th>
               <th style={right} onClick={() => handleSort("current_ratio")}>
                 {t("screener.col.curr")}
                 <RatioHeaderInfoTip column="Curr" />
@@ -621,6 +639,8 @@ export function Screener() {
                 <td style={right}>{r.de_ratio ?? "—"}</td>
                 <td style={right}>{r.lt_de_ratio ?? "—"}</td>
                 <td style={right}>{r.interest_coverage ?? "—"}</td>
+                <td style={right}>{twoDp(r.altman_z)}</td>
+                <td style={right}>{twoDp(r.net_debt_to_ebitda)}</td>
                 <td style={right}>{r.current_ratio ?? "—"}</td>
                 <td style={right}>{r.quick_ratio ?? "—"}</td>
                 <td style={right}>

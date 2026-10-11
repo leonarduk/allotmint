@@ -1150,6 +1150,14 @@
           "title": "Couverture des intérêts",
           "detail": "Résultat d'exploitation (EBIT) divisé par les charges d'intérêts — combien de fois une entreprise pourrait payer ses intérêts avec ses bénéfices."
         },
+        "altmanZ": {
+          "title": "Score Z d'Altman",
+          "detail": "Z d'Altman d'origine pour les sociétés cotées : combinaison pondérée du fonds de roulement, des bénéfices non distribués, de l'EBIT et du chiffre d'affaires rapportés à l'actif total, plus la capitalisation rapportée au passif total. Sous 1,8 zone de détresse, 1,8-3,0 zone grise, au-dessus de 3,0 sûr. Peu pertinent pour les banques, assureurs ou foncières."
+        },
+        "netDebtToEbitda": {
+          "title": "Dette nette / EBITDA",
+          "detail": "Dette totale moins trésorerie, divisée par l'EBITDA des douze derniers mois — en gros, combien d'années de résultat opérationnel il faudrait pour rembourser la dette nette. Vide si l'EBITDA n'est pas positif."
+        },
         "currentRatio": {
           "title": "Ratio de liquidité générale",
           "detail": "Actifs courants divisés par les passifs courants."
@@ -1610,6 +1618,8 @@
     "minFloatShares": "Actions flottantes min",
     "minGrossMargin": "Marge brute min",
     "minInterestCoverage": "Couverture des intérêts min",
+    "minAltmanZ": "Altman Z min",
+    "maxNetDebtToEbitda": "Dette nette/EBITDA max",
     "minMarketCap": "Capitalisation boursière min",
     "minNetMargin": "Marge nette min",
     "minOperatingMargin": "Marge opérationnelle min",
@@ -1634,6 +1644,8 @@
       "revGrowth": "Croiss. CA",
       "epsGrowth": "Croiss. BPA",
       "intCov": "Couv. intérêts",
+      "altmanZ": "Altman Z",
+      "netDebtToEbitda": "DN/EBITDA",
       "curr": "Liq. gén.",
       "quick": "Liq. réd.",
       "grossMargin": "Marge brute",

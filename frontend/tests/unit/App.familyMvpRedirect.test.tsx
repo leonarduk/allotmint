@@ -1,6 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+// Load App's module graph once while the file is collected. Each test below
+// re-imports App after vi.resetModules(), which is cheap once Vite has
+// transformed the graph — but the first cold transform of App's eager imports
+// can exceed the per-test timeout on a loaded machine, failing whichever test
+// happens to run first. Paying it here keeps it out of every test body.
+import "@/App";
 
 const baseConfig = {
   relativeViewEnabled: false,

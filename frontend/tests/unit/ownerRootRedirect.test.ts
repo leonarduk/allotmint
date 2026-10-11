@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getOwnerRootRedirectPath } from "@/App";
+import { getOwnerRootRedirectPath } from "@/routes/ownerRootRedirect";
 
 describe("getOwnerRootRedirectPath", () => {
   const owners = [{ owner: "alice", accounts: [] }];

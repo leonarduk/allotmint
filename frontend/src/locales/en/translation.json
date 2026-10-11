@@ -3928,7 +3928,8 @@
     "windows": {
       "1y": "1 year",
       "3y": "3 years",
-      "5y": "5 years"
+      "5y": "5 years",
+      "10y": "10 years"
     },
     "entirePortfolio": "Entire portfolio",
     "ownerTotal": "{{owner}} (all accounts)",

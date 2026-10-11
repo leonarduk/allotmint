@@ -355,6 +355,34 @@ describe('RiskReturn page', () => {
     );
     expect(screen.getAllByText('Annualised return').length).toBeGreaterThan(0);
   });
+
+  it('offers a 10-year window and fetches every series over it', async () => {
+    window.localStorage.setItem(
+      'riskReturn.strategies',
+      JSON.stringify([{ id: 'golden_butterfly', label: 'Golden Butterfly' }])
+    );
+    render(<RiskReturn />);
+    await screen.findByRole('checkbox', { name: 'Entire portfolio' });
+
+    fireEvent.change(screen.getByLabelText('Period'), {
+      target: { value: String(365 * 10) },
+    });
+
+    expect(
+      screen.getByRole('option', { name: '10 years' })
+    ).toBeInTheDocument();
+    await waitFor(() => expect(groupMock).toHaveBeenCalledWith('all', 3650));
+    await waitFor(() =>
+      expect(benchmarkMock).toHaveBeenCalledWith('^FTSE', 3650)
+    );
+    await waitFor(() =>
+      expect(strategyMock).toHaveBeenCalledWith(
+        'steve',
+        'golden_butterfly',
+        3650
+      )
+    );
+  });
 });
 
 describe('RiskReturn benchmark retry', () => {

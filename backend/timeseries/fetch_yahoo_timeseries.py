@@ -7,9 +7,11 @@ import yfinance as yf
 
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.corporate_actions import (
+    CONFIRMED_FROM,
     actions_from_history,
     record_corporate_actions,
 )
+from backend.timeseries.history_freeze import drop_frozen_rows, freeze_date_for
 from backend.timeseries.ticker_validator import (
     is_valid_ticker,
     record_skipped_ticker,
@@ -160,15 +162,33 @@ def _store_symbol(ticker: str, exchange: str) -> str:
     return ticker
 
 
+def _without_frozen_actions(symbol: str, exchange: str, actions: pd.DataFrame) -> pd.DataFrame:
+    """``actions`` minus events before a declared history freeze (#10645).
+
+    The fetch then only confirms completeness from the freeze date, so the
+    store's own ``confirmed_from`` keeps governing the frozen range.
+    """
+    before = freeze_date_for(symbol, exchange)
+    if before is None:
+        return actions
+    kept = drop_frozen_rows(actions, before)
+    confirmed = kept.attrs.get(CONFIRMED_FROM)
+    if confirmed is not None and str(confirmed) < before.isoformat():
+        kept = kept.copy() if kept is actions else kept
+        kept.attrs = {**kept.attrs, CONFIRMED_FROM: before.isoformat()}
+    return kept
+
+
 def _store_actions(ticker: str, exchange: str, actions: pd.DataFrame) -> None:
     """Persist fetched dividends/splits; a failure here must not lose the prices.
 
     An empty frame from a successful fetch still records that the window was
     checked and none were paid (#9567); ``record_corporate_actions`` decides.
+    Events before a declared history freeze (#10645) are never recorded.
     """
     symbol = _store_symbol(ticker, exchange)
     try:
-        record_corporate_actions(symbol, exchange, actions)
+        record_corporate_actions(symbol, exchange, _without_frozen_actions(symbol, exchange, actions))
     except Exception as exc:
         logger.warning(
             "Could not store corporate actions for %s.%s: %s",

@@ -639,10 +639,11 @@ export default function StrategyStressPanel({
           {t('strategyStress.noMatches')}
         </p>
       )}
+      {/* Keyed by slot: two sources can fail with the same text. */}
       {[eventsError, error, applyError].map(
-        (message) =>
+        (message, slot) =>
           message && (
-            <p key={message} className="mb-2 break-words text-sm text-red-600">
+            <p key={slot} className="mb-2 break-words text-sm text-red-600">
               {message}
             </p>
           )

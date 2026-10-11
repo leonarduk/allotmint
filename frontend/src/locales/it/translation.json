@@ -3964,7 +3964,12 @@
     "priceReturnLocal": "rendimento di prezzo, valuta locale",
     "shortWindowNote": "Su periodi inferiori a 3 anni, rendimento, volatilità e indice di Sharpe sono dominati dal rumore: le differenze tra i punti sono solo indicative.",
     "riskFreeFallback": "In uso {{rate}}% (inserire da -5 a 25)",
-    "sharpeBasis": "({{return}} annuo su giorni di borsa − {{rate}}) ÷ volatilità"
+    "sharpeBasis": "({{return}} annuo su giorni di borsa − {{rate}}) ÷ volatilità",
+    "strategies": "Strategie",
+    "addStrategy": "Aggiungi una strategia…",
+    "strategyStandIns": "Valutata con sostituti: {{series}}",
+    "strategyMissing": "nessuno storico prezzi per {{sleeves}} in questo periodo",
+    "strategyMethodology": "Le strategie (dalla pagina Strategia) sono valutate con un fondo sostitutivo per classe di attivo, come VWRL.L per le azioni o PHAU.L per l'oro, con dividendi reinvestiti se memorizzati, e ribilanciate ogni giorno ai pesi obiettivo. La liquidità rende il tasso privo di rischio configurato. Una strategia viene mostrata solo se ogni classe di attivo ha prezzi per l'intero periodo."
   },
   "cashDeployment": {
     "title": "Impiego della liquidità",

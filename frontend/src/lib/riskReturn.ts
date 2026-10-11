@@ -1,9 +1,11 @@
 // Series building for the "Returns vs Volatility" page: the group, each owner,
-// each owner's account and any benchmark indices, as one point per series.
+// each owner's account, any benchmark indices and any strategies, as one
+// point per series.
 import type {
   BenchmarkRiskReturn,
   GroupRiskReturn,
   RiskReturnPoint,
+  StrategyRiskReturn,
 } from '../types';
 
 export interface Benchmark {
@@ -27,7 +29,7 @@ export const PRESET_BENCHMARKS: Benchmark[] = [
   { ticker: '^N225', label: 'Nikkei 225' },
 ];
 
-export type SeriesKind = RiskReturnPoint['kind'] | 'benchmark';
+export type SeriesKind = RiskReturnPoint['kind'] | 'benchmark' | 'strategy';
 
 export interface ChartSeries {
   id: string;
@@ -42,7 +44,10 @@ export interface ChartSeries {
    * is measured from so it matches the reports' figure.
    */
   sharpeReturnPct?: number | null;
-  /** Instrument name and sector, known for listed benchmark tickers. */
+  /**
+   * Instrument name and sector, known for listed benchmark tickers; for a
+   * strategy, the stand-in series it was priced on.
+   */
   name?: string | null;
   sector?: string | null;
 }
@@ -143,6 +148,81 @@ export function buildBenchmarkSeries(
       sharpeReturnPct: result ? pct(result.sharpe_annual_return) : null,
       name: result?.name ?? null,
       sector: result?.sector ?? null,
+    };
+  });
+}
+
+/** A strategy picked for the chart; the label is kept so it shows before the list loads. */
+export interface StrategyChoice {
+  id: string;
+  label: string;
+}
+
+export function strategySeriesId(id: string): string {
+  return `strategy:${id}`;
+}
+
+/** Built-in ids (``golden_butterfly``) and user ids (``user-<uuid>``). */
+const STRATEGY_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** Add a strategy unless already present. */
+export function addStrategy(
+  list: StrategyChoice[],
+  choice: StrategyChoice
+): StrategyChoice[] {
+  return list.some((s) => s.id === choice.id) ? list : [...list, choice];
+}
+
+export function removeStrategy(
+  list: StrategyChoice[],
+  id: string
+): StrategyChoice[] {
+  return list.filter((s) => s.id !== id);
+}
+
+/** Parse a stored strategy list; none by default. */
+export function parseStoredStrategies(raw: string | null): StrategyChoice[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (s): s is StrategyChoice =>
+        typeof s?.id === 'string' &&
+        typeof s?.label === 'string' &&
+        STRATEGY_ID.test(s.id)
+    );
+  } catch {
+    return [];
+  }
+}
+
+/** "equity VWRL.L, gold PHAU.L": the stand-in each sleeve was priced on. */
+export function standInsText(result: StrategyRiskReturn): string {
+  return Object.entries(result.series)
+    .map(([sleeve, ticker]) => `${sleeve} ${ticker}`)
+    .join(', ');
+}
+
+export function buildStrategySeries(
+  strategies: StrategyChoice[],
+  results: Record<string, StrategyRiskReturn | null | undefined>,
+  days: number,
+  colorOffset: number,
+  describe: (result: StrategyRiskReturn) => string | null
+): ChartSeries[] {
+  return strategies.map((strategy, index) => {
+    const result = results[strategy.id];
+    return {
+      id: strategySeriesId(strategy.id),
+      label: result?.name ?? strategy.label,
+      kind: 'strategy',
+      color: seriesColor(colorOffset + index),
+      returnPct: result ? returnPct(result, days) : null,
+      volatilityPct: result ? pct(result.volatility) : null,
+      sharpeReturnPct: result ? pct(result.sharpe_annual_return) : null,
+      name: result ? describe(result) : null,
+      sector: null,
     };
   });
 }

@@ -3964,7 +3964,12 @@
     "priceReturnLocal": "rentabilidad de precio, moneda local",
     "shortWindowNote": "En periodos de menos de 3 años, la rentabilidad, la volatilidad y el ratio de Sharpe están dominados por el ruido: las diferencias entre puntos son solo orientativas.",
     "riskFreeFallback": "Se usa {{rate}} % (introduzca de -5 a 25)",
-    "sharpeBasis": "({{return}} anual en días hábiles − {{rate}}) ÷ volatilidad"
+    "sharpeBasis": "({{return}} anual en días hábiles − {{rate}}) ÷ volatilidad",
+    "strategies": "Estrategias",
+    "addStrategy": "Añadir una estrategia…",
+    "strategyStandIns": "Valorada con sustitutos: {{series}}",
+    "strategyMissing": "sin historial de precios para {{sleeves}} en este periodo",
+    "strategyMethodology": "Las estrategias (de la página Estrategia) se valoran con un fondo sustituto por clase de activo, como VWRL.L para renta variable o PHAU.L para oro, con dividendos reinvertidos cuando están guardados, y se reequilibran a diario a sus pesos objetivo. El efectivo rinde el tipo libre de riesgo configurado. Una estrategia solo se muestra cuando todas sus clases de activo tienen precios para todo el periodo."
   },
   "cashDeployment": {
     "title": "Despliegue de efectivo",

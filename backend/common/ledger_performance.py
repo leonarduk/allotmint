@@ -197,14 +197,41 @@ def load_gbp_closes(key: str, start: date, end: date) -> pd.Series:
     convert at all has no closes. Either way the result's
     ``attrs[UNCONVERTED_ATTR]`` describes the dates without a rate.
     """
-    from backend.timeseries.cache import load_meta_timeseries_range, needs_fx_conversion
-    from backend.utils.timeseries_helpers import get_scaling_override
+    from backend.timeseries.cache import load_meta_timeseries_range
 
     resolved = _resolve_symbol(key)
     if resolved is None:
         return pd.Series(dtype=float)
     symbol, exchange = resolved
+    return _frame_gbp_closes(load_meta_timeseries_range(symbol, exchange, start, end), symbol, exchange)
+
+
+def load_gbp_total_return_closes(key: str, start: date, end: date) -> tuple[pd.Series, str]:
+    """:func:`load_gbp_closes` with dividends reinvested, and the ``return_basis`` used.
+
+    The reinvestment factor comes from the native closes, so it is right for
+    GBX and FX-converted instruments alike; without stored dividends the
+    closes are plain prices and the basis is ``"price"``.
+    """
+    from backend.timeseries.cache import load_meta_timeseries_range
+    from backend.timeseries.total_return import PRICE_RETURN_BASIS, total_return_frame
+
+    resolved = _resolve_symbol(key)
+    if resolved is None:
+        return pd.Series(dtype=float), PRICE_RETURN_BASIS
+    symbol, exchange = resolved
     df = load_meta_timeseries_range(symbol, exchange, start, end)
+    if df is None or df.empty:
+        return pd.Series(dtype=float), PRICE_RETURN_BASIS
+    df, basis = total_return_frame(df, symbol, exchange)
+    return _frame_gbp_closes(df, symbol, exchange), basis
+
+
+def _frame_gbp_closes(df: pd.DataFrame | None, symbol: str, exchange: str) -> pd.Series:
+    """The GBP closes of a timeseries frame, as :func:`load_gbp_closes` describes."""
+    from backend.timeseries.cache import needs_fx_conversion
+    from backend.utils.timeseries_helpers import get_scaling_override
+
     if df is None or df.empty or "Date" not in df.columns:
         return pd.Series(dtype=float)
     columns = {str(column).lower(): column for column in df.columns}

@@ -195,3 +195,33 @@ def test_stress_is_owner_checked(client, stress_calls, monkeypatch):
     with pytest.raises(PermissionDeniedError):
         client.post("/strategies/alex/stress", json={"date": "2020-02-19"})
     assert stress_calls == []
+
+
+@pytest.fixture()
+def risk_calls(monkeypatch):
+    calls = []
+
+    def fake(strategy, days, *, cash_rate=0.0, pricing_date=None):
+        calls.append((strategy.id, days, cash_rate))
+        return {"id": strategy.id, "days": days, "volatility": 0.1}
+
+    monkeypatch.setattr(strategies_route, "compute_strategy_risk_return", fake)
+    return calls
+
+
+def test_risk_return_for_builtin_and_user_strategies(client, risk_calls, monkeypatch):
+    monkeypatch.setattr(strategies_route.config, "risk_free_rate", 0.04)
+    resp = client.get("/strategies/alex/golden_butterfly/risk-return?days=1095")
+    assert resp.status_code == 200, resp.text
+    assert risk_calls[-1] == ("golden_butterfly", 1095, 0.04)
+
+    created = _create(client)
+    assert client.get(f"/strategies/alex/{created['id']}/risk-return").status_code == 200
+    assert risk_calls[-1][:2] == (created["id"], 365)
+
+
+def test_risk_return_unknown_strategy_or_bad_window(client, risk_calls):
+    assert client.get("/strategies/alex/user-nope/risk-return").status_code == 404
+    assert client.get("/strategies/alex/permanent/risk-return?days=29").status_code == 422
+    assert client.get("/strategies/alex/permanent/risk-return?days=3651").status_code == 422
+    assert risk_calls == []

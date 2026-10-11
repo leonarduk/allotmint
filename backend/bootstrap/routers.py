@@ -73,6 +73,7 @@ from backend.routes.transactions import router as transactions_router
 from backend.routes.trend_watch import router as trend_watch_router
 from backend.routes.user_config import router as user_config_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
+from backend.routes.watchlists import router as watchlists_router
 
 
 def register_routers(app: FastAPI, cfg: Config) -> None:
@@ -109,6 +110,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(trail_router, dependencies=protected)
     app.include_router(create_chat_router(app.state.limiter, cfg.chat_rate_limit), dependencies=protected)
     app.include_router(chat_history_router, dependencies=protected)
+    app.include_router(watchlists_router, dependencies=protected)
     app.include_router(compliance_router)
     app.include_router(screener_router)
     app.include_router(create_signup_router(app.state.limiter, cfg.signup_rate_limit))

@@ -116,6 +116,7 @@ import {
 } from "./contracts/apiContracts";
 import { clearFetchCache } from "./utils/fetchCache";
 import { emitAuthChange } from "./authEvents";
+import type { WatchlistsState } from "./lib/watchlistStore";
 
 const cleanOptionalString = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
@@ -2216,6 +2217,35 @@ export const deletePriceTrigger = (user: string, id: string) =>
   fetchJson<{ status: string; trigger: PriceTrigger }>(
     `${API_BASE}/price-triggers/${encodeURIComponent(user)}/${encodeURIComponent(id)}`,
     { method: "DELETE" },
+  );
+
+// Saved watchlists (#10713): one copy per user on the server, so they follow
+// the user across browsers and devices. lib/watchlistSync.ts does the syncing.
+
+export type SavedWatchlists = {
+  /** Opaque id of the signed-in user (a hash, never the email); null with no identity. */
+  owner: string | null;
+  /** 0 when nothing is saved; a save must name the revision it was based on. */
+  revision: number;
+  /** Null until the user's lists are first saved. */
+  state: WatchlistsState | null;
+};
+
+export const getSavedWatchlists = (): Promise<SavedWatchlists> =>
+  fetchJson<SavedWatchlists>(`${API_BASE}/watchlists`);
+
+/**
+ * Replace the saved watchlists. Rejects with status 409 when `revision` is no
+ * longer current (another tab or device saved first); the error's
+ * `body.current` then holds the saved `{ revision, state }`.
+ */
+export const putSavedWatchlists = (
+  state: WatchlistsState,
+  revision: number,
+): Promise<{ revision: number; state: WatchlistsState }> =>
+  fetchJson<{ revision: number; state: WatchlistsState }>(
+    `${API_BASE}/watchlists`,
+    jsonInit("PUT", { revision, state }),
   );
 
 export type InstrumentNoteStance = "bullish" | "bearish" | "neutral";

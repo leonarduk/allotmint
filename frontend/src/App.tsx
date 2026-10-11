@@ -69,6 +69,7 @@ import {
 } from './lib/instrumentExports';
 import { getFamilyMvpEntryPath } from './familyMvp';
 import { completeTrackedChore } from './choreCompletion';
+import { ensureWatchlistsLoaded } from './lib/watchlistSync';
 import { getOwnerRootRedirectPath } from './routes/ownerRootRedirect';
 
 // Re-exported for existing importers; the helper lives in its own module.
@@ -374,6 +375,13 @@ export default function App({ onLogout }: AppProps) {
     navigate,
     user,
   ]);
+
+  // Bring the watchlists cached in this browser in step with the signed-in
+  // user's saved copy (#10713); watchlistSync reloads on its own after a
+  // change of identity.
+  useEffect(() => {
+    void ensureWatchlistsLoaded();
+  }, []);
 
   useEffect(() => {
     if (!ownersReq.data) return;

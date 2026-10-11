@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("@/api", () => ({
   getQuotes: vi.fn(),
@@ -10,6 +10,11 @@ vi.mock("@/api", () => ({
 import { Watchlist } from "@/pages/Watchlist";
 import WatchlistToggle from "@/components/WatchlistToggle";
 import { getQuotes } from "@/api";
+import {
+  readActiveSymbols,
+  readWatchlists,
+  toggleInWatchlist,
+} from "@/lib/watchlistStore";
 import type { QuoteRow } from "@/types";
 
 // Watchlist rows link to /research/:symbol (#7218), so every render needs
@@ -50,6 +55,11 @@ const sampleRows: QuoteRow[] = [
     marketState: "REGULAR",
   },
 ];
+
+// The page now persists to the multi-list store; read back the active list.
+function storedSymbols() {
+  return readActiveSymbols().join(",");
+}
 
 async function flushPromises() {
   await Promise.resolve();
@@ -275,7 +285,7 @@ describe("Watchlist page", () => {
 
       expect(input.value).toBe("");
       expect(screen.getByLabelText("Remove CCC")).toBeInTheDocument();
-      expect(localStorage.getItem("watchlistSymbols")).toBe("AAA,BBB,CCC");
+      expect(storedSymbols()).toBe("AAA,BBB,CCC");
     });
 
     it("keeps a mounted watchlist star in sync with chip edits", async () => {
@@ -298,7 +308,7 @@ describe("Watchlist page", () => {
       fireEvent.click(await screen.findByLabelText("Remove AAA"));
 
       expect(screen.queryByLabelText("Remove AAA")).not.toBeInTheDocument();
-      expect(localStorage.getItem("watchlistSymbols")).toBe("BBB");
+      expect(storedSymbols()).toBe("BBB");
     });
 
     it("ignores a duplicate regardless of case", async () => {
@@ -311,7 +321,7 @@ describe("Watchlist page", () => {
       fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
       expect(input.value).toBe("");
-      expect(localStorage.getItem("watchlistSymbols")).toBe("AAA,BBB");
+      expect(storedSymbols()).toBe("AAA,BBB");
     });
 
     it("splits a pasted comma-separated list instead of storing it as one symbol", async () => {
@@ -323,9 +333,129 @@ describe("Watchlist page", () => {
       fireEvent.change(input, { target: { value: "CCC, DDD ,AAA" } });
       fireEvent.keyDown(input, { key: "Enter" });
 
-      expect(localStorage.getItem("watchlistSymbols")).toBe("AAA,BBB,CCC,DDD");
+      expect(storedSymbols()).toBe("AAA,BBB,CCC,DDD");
       expect(screen.getByLabelText("Remove CCC")).toBeInTheDocument();
       expect(screen.getByLabelText("Remove DDD")).toBeInTheDocument();
+    });
+  });
+
+  describe("multiple watchlists", () => {
+    beforeEach(() => {
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      localStorage.setItem("watchlistSymbols", "AAA,BBB");
+    });
+
+    afterEach(() => vi.restoreAllMocks());
+
+    function listSelect() {
+      return screen.getByRole("combobox", { name: "Watchlist" });
+    }
+
+    it("presents an existing single list as 'My watchlist'", async () => {
+      renderWatchlist();
+
+      expect(await screen.findByLabelText("Remove AAA")).toBeInTheDocument();
+      expect(listSelect()).toHaveDisplayValue("My watchlist (2)");
+      expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+    });
+
+    it("creates an empty list, switches to it, and quotes only its symbols", async () => {
+      vi.spyOn(window, "prompt").mockReturnValue("Miners");
+      renderWatchlist();
+
+      fireEvent.click(await screen.findByRole("button", { name: "New…" }));
+
+      expect(listSelect()).toHaveDisplayValue("Miners (0)");
+      expect(screen.queryByLabelText("Remove AAA")).not.toBeInTheDocument();
+
+      const input = screen.getByLabelText("Watched tickers");
+      fireEvent.change(input, { target: { value: "rio.l" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      await waitFor(() =>
+        expect(getQuotes).toHaveBeenLastCalledWith(["RIO.L"]),
+      );
+      expect(storedSymbols()).toBe("RIO.L");
+    });
+
+    it("switches between lists via the selector", async () => {
+      vi.spyOn(window, "prompt").mockReturnValue("Empty");
+      renderWatchlist();
+      fireEvent.click(await screen.findByRole("button", { name: "New…" }));
+
+      const original = Array.from(
+        listSelect().querySelectorAll("option"),
+      ).find((o) => o.textContent === "My watchlist (2)")!;
+      fireEvent.change(listSelect(), { target: { value: original.value } });
+
+      expect(await screen.findByLabelText("Remove AAA")).toBeInTheDocument();
+    });
+
+    it("renames the selected list and rejects a duplicate name", async () => {
+      const prompt = vi.spyOn(window, "prompt");
+      const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+      renderWatchlist();
+
+      prompt.mockReturnValueOnce("Second");
+      fireEvent.click(await screen.findByRole("button", { name: "New…" }));
+      prompt.mockReturnValueOnce("my WATCHLIST");
+      fireEvent.click(screen.getByRole("button", { name: "Rename…" }));
+
+      expect(alert).toHaveBeenCalledWith(
+        'A watchlist called "my WATCHLIST" already exists.',
+      );
+      expect(listSelect()).toHaveDisplayValue("Second (0)");
+
+      prompt.mockReturnValueOnce("Renamed");
+      fireEvent.click(screen.getByRole("button", { name: "Rename…" }));
+      expect(listSelect()).toHaveDisplayValue("Renamed (0)");
+    });
+
+    it("copies the selected list under a suggested name", async () => {
+      const prompt = vi
+        .spyOn(window, "prompt")
+        .mockImplementation((_msg, initial) => initial ?? null);
+      renderWatchlist();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Copy…" }));
+
+      expect(prompt).toHaveBeenCalledWith(
+        "Name for the copy:",
+        "My watchlist (copy)",
+      );
+      expect(listSelect()).toHaveDisplayValue("My watchlist (copy) (2)");
+      // Editing the copy leaves the original alone.
+      fireEvent.click(screen.getByLabelText("Remove AAA"));
+      expect(storedSymbols()).toBe("BBB");
+      expect(
+        Array.from(listSelect().querySelectorAll("option")).map(
+          (o) => o.textContent,
+        ),
+      ).toEqual(["My watchlist (2)", "My watchlist (copy) (1)"]);
+    });
+
+    it("reflects store changes made elsewhere without a remount (#9908)", async () => {
+      renderWatchlist();
+      await screen.findByLabelText("Remove AAA");
+
+      act(() => {
+        toggleInWatchlist(readWatchlists().activeId, "CCC");
+      });
+
+      expect(await screen.findByLabelText("Remove CCC")).toBeInTheDocument();
+    });
+
+    it("deletes the selected list after confirming", async () => {
+      vi.spyOn(window, "prompt").mockReturnValue("Doomed");
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+      renderWatchlist();
+      fireEvent.click(await screen.findByRole("button", { name: "New…" }));
+
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+      expect(confirm).toHaveBeenCalledWith('Delete the watchlist "Doomed"?');
+      expect(listSelect()).toHaveDisplayValue("My watchlist (2)");
+      expect(listSelect().querySelectorAll("option")).toHaveLength(1);
     });
   });
 

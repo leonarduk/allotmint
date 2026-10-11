@@ -1283,6 +1283,35 @@ describe("InstrumentResearch page", () => {
     expect(await screen.findByText("Region: US")).toBeInTheDocument();
   });
 
+  it("clears the exposure-region override when the region is blanked", async () => {
+    const stored = { ticker: "AAA.L", exchange: "L", name: "Acme ETF", currency: "GBP", region: "UK" };
+    mockListInstrumentMetadata.mockResolvedValue([
+      { ...stored, exposure_region: "Europe", effective_region: "Europe" },
+    ] as any);
+    renderPage();
+    expect(await screen.findByText("Region: Europe")).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Edit/i }));
+    // The reload after saving fails: the old override must not linger.
+    mockListInstrumentMetadata.mockRejectedValue(new Error("offline"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const regionInput = screen.getByLabelText(/^Region/);
+    expect(regionInput).toHaveValue("Europe");
+    await userEvent.clear(regionInput);
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(await screen.findByText("Instrument details updated.")).toBeInTheDocument();
+    expect(mockUpdateInstrumentMetadata).toHaveBeenCalledWith(
+      "AAA",
+      "L",
+      expect.objectContaining({ exposure_region: null }),
+      false,
+    );
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(screen.getByText("Region: UK")).toBeInTheDocument();
+    warn.mockRestore();
+  });
+
   it("validates currency before saving metadata", async () => {
     renderPage();
 

@@ -849,7 +849,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             ? {
                 ...prev,
                 exposure_region: region || null,
-                effective_region: region || prev.effective_region,
+                // Cleared: the derived region is unknown until the reload
+                // lands, so fall back to the stored one, never the old override.
+                effective_region: region || null,
               }
             : prev,
         );

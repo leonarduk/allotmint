@@ -6,23 +6,7 @@ import { getQuotes } from '../../api';
 import type { QuoteRow } from '../../types';
 import { usePlotData } from '../PlotDataContext';
 import { formatPct } from '../plotModel';
-
-/**
- * The same localStorage key the classic Watchlist page uses, so the seed
- * catalogue and the watchlist are two views of one list rather than two
- * lists that drift apart.
- */
-const WATCHLIST_KEY = 'watchlistSymbols';
-const DEFAULT_SYMBOLS = '^FTSE,^NDX,^GSPC,VUSA.L,IWDA.AS';
-
-function readWatchlist(): string[] {
-  if (typeof window === 'undefined') return DEFAULT_SYMBOLS.split(',');
-  const stored = window.localStorage.getItem(WATCHLIST_KEY) || DEFAULT_SYMBOLS;
-  return stored
-    .split(',')
-    .map((symbol) => symbol.trim())
-    .filter(Boolean);
-}
+import { readActiveSymbols } from '../../lib/watchlistStore';
 
 /** Seed packets: watchlist symbols you could sow, priced from live quotes. */
 export default function SeedCatalogue({ basePath }: { basePath: string }) {
@@ -32,7 +16,9 @@ export default function SeedCatalogue({ basePath }: { basePath: string }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [retryToken, setRetryToken] = useState(0);
-  const symbols = useMemo(readWatchlist, []);
+  // The list currently selected on the classic Watchlist tab, so the two
+  // views show the same symbols rather than drifting apart.
+  const symbols = useMemo(readActiveSymbols, []);
   const retry = () => setRetryToken((token) => token + 1);
 
   useEffect(() => {

@@ -31,6 +31,7 @@ import { DeleteSeriesButton } from "../components/DeleteSeriesButton";
 import { RefreshPricesButton } from "../components/RefreshPricesButton";
 import InstrumentAlertsSection from "../components/InstrumentAlertsSection";
 import InstrumentNotesSection from "../components/InstrumentNotesSection";
+import WatchlistToggle from "../components/WatchlistToggle";
 import { useInstrumentAlertCount } from "../hooks/useInstrumentAlertCount";
 import { useInstrumentNoteCount } from "../hooks/useInstrumentNoteCount";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
@@ -291,13 +292,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const [instrumentTypeOptions, setInstrumentTypeOptions] = useState<string[]>(
     DEFAULT_INSTRUMENT_TYPES,
   );
-  const [inWatchlist, setInWatchlist] = useState(() => {
-    const list = (localStorage.getItem("watchlistSymbols") || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    return !!tkr && list.includes(tkr);
-  });
   const [searchParams, setSearchParams] = useSearchParams();
   const compareTickers = useMemo(
     () => parseCompareParam(searchParams.get("compare"), tkr),
@@ -896,14 +890,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   }, [tkr]);
 
   useEffect(() => {
-    const list = (localStorage.getItem("watchlistSymbols") || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    setInWatchlist(!!tkr && list.includes(tkr));
-  }, [tkr]);
-
-  useEffect(() => {
     if (!tkr || activeTab !== "fundamentals") return;
     const controller = new AbortController();
     let cancelled = false;
@@ -957,23 +943,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       controller.abort();
     };
   }, [tkr, activeTab, t]);
-
-  function toggleWatchlist() {
-    const list = (localStorage.getItem("watchlistSymbols") || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (!tkr) return;
-    if (list.includes(tkr)) {
-      const updated = list.filter((s) => s !== tkr);
-      localStorage.setItem("watchlistSymbols", updated.join(","));
-      setInWatchlist(false);
-    } else {
-      list.push(tkr);
-      localStorage.setItem("watchlistSymbols", list.join(","));
-      setInWatchlist(true);
-    }
-  }
 
   const fallbackSector = detail ? normaliseOptional(detail.sector) : undefined;
   const fallbackCurrency = detail
@@ -1236,11 +1205,11 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         {tabs.watchlist && !(disabledTabs ?? []).includes("watchlist") && (
           <Link to="/watchlist">{t("instrumentDetail.research.watchlist")}</Link>
         )}
-        <button onClick={toggleWatchlist} style={{ marginLeft: "1rem" }}>
-          {inWatchlist
-            ? t("instrumentDetail.research.removeFromWatchlist")
-            : t("instrumentDetail.research.addToWatchlist")}
-        </button>
+        {tkr && (
+          <span style={{ marginLeft: "1rem" }}>
+            <WatchlistToggle ticker={tkr} variant="button" />
+          </span>
+        )}
         <button
           type="button"
           onClick={() => setActiveTab("alerts")}

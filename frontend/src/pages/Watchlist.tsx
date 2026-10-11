@@ -1,10 +1,11 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { getQuotes } from "../api";
 import type { QuoteRow } from "../types";
 import { priceDecimals } from "../utils/priceFormatting";
-import { readWatchlistRaw, writeWatchlist } from "../lib/watchlistStore";
+import { setWatchlistSymbols, useWatchlists } from "../lib/watchlistStore";
+import WatchlistBar from "../components/WatchlistBar";
 import TableRowsSkeleton from "../components/skeletons/TableRowsSkeleton";
 
 const WATCHLIST_COLUMN_COUNT = 11;
@@ -138,7 +139,9 @@ function isLinkableSymbol(symbol: string): boolean {
 
 export function Watchlist() {
   const { t } = useTranslation();
-  const [symbols, setSymbols] = useState(readWatchlistRaw);
+  const { active } = useWatchlists();
+  const activeId = active.id;
+  const symbolList = active.symbols;
   const [newSymbol, setNewSymbol] = useState("");
   const [intervalMs, setIntervalMs] = useState(60000);
   const [rows, setRows] = useState<QuoteRow[]>([]);
@@ -151,11 +154,6 @@ export function Watchlist() {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [sortKey, setSortKey] = useState<keyof QuoteRow>("symbol");
   const [asc, setAsc] = useState(true);
-
-  const symbolList = useMemo(
-    () => symbols.split(",").map((s) => s.trim()).filter(Boolean),
-    [symbols],
-  );
 
   const addSymbol = useCallback(() => {
     // Accept a comma-separated paste as well as a single ticker: the field
@@ -173,25 +171,42 @@ export function Watchlist() {
     const seen = new Set(symbolList.map((s) => s.toUpperCase()));
     const additions = candidates.filter((c) => !seen.has(c) && seen.add(c));
     if (additions.length) {
-      setSymbols([...symbolList, ...additions].join(","));
+      setWatchlistSymbols(activeId, [...symbolList, ...additions]);
     }
     setNewSymbol("");
-  }, [newSymbol, symbolList]);
+  }, [newSymbol, symbolList, activeId]);
 
   const removeSymbol = useCallback(
     (symbol: string) => {
-      setSymbols(symbolList.filter((s) => s !== symbol).join(","));
+      setWatchlistSymbols(
+        activeId,
+        symbolList.filter((s) => s !== symbol),
+      );
     },
-    [symbolList],
+    [symbolList, activeId],
   );
 
+  // Switching lists: drop the previous list's rows and show the loading
+  // skeleton rather than briefly mixing two lists' quotes.
+  useEffect(() => {
+    setRows([]);
+    setHasLoaded(false);
+    setAllClosed(false);
+  }, [activeId]);
+
+  // Only the latest request may update the table, so a slow response for
+  // a list the user has since switched away from can't overwrite it.
+  const requestSeq = useRef(0);
+
   const fetchData = useCallback(async () => {
+    const seq = ++requestSeq.current;
     if (!symbolList.length) {
       setRows([]);
       return;
     }
     try {
       const data = (await getQuotes(symbolList)) as QuoteRow[];
+      if (seq !== requestSeq.current) return;
       setRows(data);
       setError(null);
 
@@ -212,20 +227,16 @@ export function Watchlist() {
         return false;
       });
     } catch (e) {
+      if (seq !== requestSeq.current) return;
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setHasLoaded(true);
+      if (seq === requestSeq.current) setHasLoaded(true);
     }
   }, [symbolList]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // Persist through the shared store so the Signals/Screen stars see edits.
-  useEffect(() => {
-    writeWatchlist(symbolList);
-  }, [symbolList]);
 
   useEffect(() => {
     if (intervalMs <= 0 || auto) return;
@@ -282,6 +293,7 @@ export function Watchlist() {
       <h1 className="mb-4 text-2xl md:text-4xl">
         {t("watchlist.title", { defaultValue: "Watchlist" })}
       </h1>
+      <WatchlistBar />
       <div className="mb-2">
         <label htmlFor="watchlist-symbol-input" className="mb-1 block">
           {t("watchlist.symbolsLabel", { defaultValue: "Watched tickers" })}

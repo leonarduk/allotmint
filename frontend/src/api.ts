@@ -1386,6 +1386,13 @@ export const getGroupPerformance = (
 };
 
 /** Run a simple fundamentals screen across a list of tickers. */
+/**
+ * A screen's first run for a given watchlist + filters fetches fundamentals
+ * for every ticker (350 for the FTSE 350), which can take minutes; repeat runs
+ * hit the backend's cache. The default 30s timeout aborted those first runs.
+ */
+const SCREENER_TIMEOUT_MS = 180_000;
+
 export const getScreener = (
   tickers: string[],
   criteria: {
@@ -1486,7 +1493,11 @@ export const getScreener = (
     params.set("altman_z_min", String(criteria.altman_z_min));
   if (criteria.net_debt_to_ebitda_max != null)
     params.set("net_debt_to_ebitda_max", String(criteria.net_debt_to_ebitda_max));
-  return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`, { signal });
+  return fetchJson<ScreenerResult[]>(
+    `${API_BASE}/screener?${params.toString()}`,
+    { signal },
+    SCREENER_TIMEOUT_MS,
+  );
 };
 
 /** Valuation profile (NAV, premium/discount, income, gearing, benchmark, risk) for one ticker. */

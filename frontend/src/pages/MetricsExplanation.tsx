@@ -646,6 +646,10 @@ export default function MetricsExplanation() {
             <h3 className="font-semibold">{t("metricsExplanation.sections.screener.avgVolume.title", "Average volume")}</h3>
             <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.avgVolume.detail", "The average number of shares traded per day over a recent period.")}</p>
           </div>
+          <div id="screener-risk-return" className="sm:col-span-2">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.riskReturn.title", "Risk and return (Screener)")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.riskReturn.detail")}</p>
+          </div>
         </div>
       </section>
 

@@ -866,12 +866,37 @@ export const SP500 = [
 ];
 
 
+// Widely held ETFs for risk/return screening (allotmint#10607): US listings
+// (bare tickers, as in SP500 above) then London listings (.L).
+export const CORE_ETFS = [
+  "SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "VT", "VEA", "VWO", "EFA",
+  "EEM", "IEMG", "ACWI", "IOO", "MTUM", "QUAL", "USMV", "SPLV", "VLUE", "SCHD",
+  "VIG", "DGRO", "NOBL", "VYM", "HDV", "RSP", "XLK", "XLV", "XLF", "XLE",
+  "XLI", "XLP", "XLU", "XLY", "XLB", "XLRE", "XLC", "SMH", "SOXX", "IGV",
+  "IBB", "XBI", "ITA", "KRE", "GDX", "GDXJ", "SLV", "GLD", "IAU", "DBC",
+  "PDBC", "USO", "TLT", "IEF", "SHY", "AGG", "BND", "LQD", "HYG", "TIP",
+  "VNQ", "IJH", "IJR", "IJS", "MDY", "VBR", "VUG", "VTV", "IWF", "IWD",
+  "AVUV", "EWJ", "EWG", "EWU", "EWZ", "INDA", "FXI", "MCHI", "EWT", "EWY",
+  "JEPI", "JEPQ", "COWZ", "SPHQ", "DBMF", "KMLM", "CTA", "BTAL",
+  "VWRL.L", "VWRP.L", "VUSA.L", "VUAG.L", "CSP1.L", "ISF.L", "VUKE.L", "VMID.L",
+  "VFEM.L", "EIMI.L", "IWRD.L", "SWDA.L", "HMWO.L", "XDWD.L", "SSAC.L", "IUSA.L",
+  "CSPX.L", "EQQQ.L", "CNDX.L", "IUIT.L", "XDWT.L", "IUHC.L", "IUFS.L", "IUES.L",
+  "WQDV.L", "MINV.L", "XDEB.L", "IWFQ.L", "IWFM.L", "IWFV.L", "IEFV.L", "IEFM.L",
+  "WSML.L", "VHYL.L", "IUKD.L", "ISPY.L", "HEAL.L", "INRG.L", "RBOT.L", "ECAR.L",
+  "SGLN.L", "PHAU.L", "PHGP.L", "SGLD.L", "SSLN.L", "PHSP.L", "SPGP.L", "GDGB.L",
+  "CMOP.L", "BCOG.L", "IGLT.L", "VGOV.L", "IGLS.L", "INXG.L", "SLXX.L", "VUCP.L",
+  "IHYG.L", "SEMB.L", "EMIM.L", "HMCH.L", "IJPN.L", "VJPN.L", "VERX.L", "VEUR.L",
+  "IUKP.L", "IMEU.L", "XLKS.L", "XLES.L", "JPGL.L", "JGGI.L", "VAPX.L", "IAPD.L",
+  "XDEM.L", "XDEV.L", "XDEQ.L", "GBDV.L", "TDIV.L", "FUSD.L", "FGQI.L",
+];
+
 export const WATCHLISTS = {
   "FTSE 100": FTSE100,
   "FTSE 250": FTSE250,
   "FTSE 350": FTSE350,
   "FTSE All-Share": FTSEAllShare,
   "S&P 500": SP500,
+  "Core ETFs": CORE_ETFS,
 } as const;
 
 export type WatchlistName = keyof typeof WATCHLISTS;

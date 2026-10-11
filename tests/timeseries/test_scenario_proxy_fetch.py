@@ -34,18 +34,30 @@ _USD_GBP = 0.5
 _WINDOW_OPENS = (dt.date(2008, 9, 8), dt.date(2020, 3, 16))
 
 
-def _close_on(day: dt.date) -> float:
-    """100 on the nearest window opening, falling 1.0 per weekday after it (rising before)."""
-    anchor = min(_WINDOW_OPENS, key=lambda opens: abs((opens - day).days))
-    if day >= anchor:
-        return 100.0 - int(np.busday_count(anchor, day))
-    return 100.0 + int(np.busday_count(day, anchor))
+def _window_open(start: dt.date) -> dt.date:
+    """The first window opening on or after the fetch start.
+
+    Fetches run from a little before a window opens up to today, so the range can
+    contain later openings too; the slack is only ever before the window.
+    """
+    later = [opens for opens in _WINDOW_OPENS if opens >= start]
+    if not later:
+        raise AssertionError(f"fetch from {start} starts after every window opening {_WINDOW_OPENS}")
+    return min(later)
+
+
+def _close_on(day: dt.date, opens: dt.date) -> float:
+    """100 on ``opens``, falling 1.0 per weekday after it (rising before it)."""
+    if day >= opens:
+        return 100.0 - int(np.busday_count(opens, day))
+    return 100.0 + int(np.busday_count(day, opens))
 
 
 def _spy_prices(full_ticker: str, start: dt.date, end: dt.date) -> pd.DataFrame:
-    """Every weekday in the fetch window, with closes fixed per date (see ``_close_on``)."""
+    """Every weekday in the fetch range, with closes fixed per date (see ``_close_on``)."""
+    opens = _window_open(start)
     dates = pd.bdate_range(start, end)
-    closes = [_close_on(day) for day in dates.date]
+    closes = [_close_on(day, opens) for day in dates.date]
     return pd.DataFrame(
         {
             "Date": dates.date,

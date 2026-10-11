@@ -202,3 +202,93 @@ def test_load_timeseries_data_drops_cached_exchange_when_metadata_blank():
             fmt.load_timeseries_data(["AAA"], days=5)
 
     assert calls == [("AAA", "", 5)]
+
+
+def _listings(monkeypatch, tmp_path, exchanges):
+    """Instrument metadata for ``BA`` under each of ``exchanges`` (e.g. BAE on L, Boeing on N)."""
+    monkeypatch.setattr(fmt, "INSTRUMENTS_DIR", tmp_path / "instruments")
+    for exchange in exchanges:
+        (fmt.INSTRUMENTS_DIR / exchange).mkdir(parents=True)
+        (fmt.INSTRUMENTS_DIR / exchange / "BA.json").write_text("{}", encoding="utf-8")
+    fmt._resolve_exchange_from_metadata_cached.cache_clear()
+
+
+def test_run_all_tickers_explicit_suffix_beats_other_listings_metadata(monkeypatch, tmp_path):
+    """BA.N must load Boeing even though BA.L (BAE) metadata is found first (#10618)."""
+    _listings(monkeypatch, tmp_path, ["L", "N"])
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        assert fmt.run_all_tickers(["BA.N", "BA.L"], days=5) == ["BA.N", "BA.L"]
+        fmt.load_timeseries_data(["BA.N"], days=5)
+
+    assert calls == [("BA", "N", 5), ("BA", "L", 5), ("BA", "N", 5)]
+
+
+def test_suffix_without_its_own_metadata_still_defers_to_metadata(monkeypatch, tmp_path):
+    """Only BA.L metadata exists: a BA.N request keeps the existing metadata-wins fallback."""
+    _listings(monkeypatch, tmp_path, ["L"])
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        fmt.run_all_tickers(["BA.N"], days=5)
+
+    assert calls == [("BA", "L", 5)]
+
+
+def test_lowercase_suffix_resolves_like_uppercase(monkeypatch, tmp_path):
+    _listings(monkeypatch, tmp_path, ["L", "N"])
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        fmt.run_all_tickers(["ba.n"], days=5)
+
+    assert calls == [("BA", "N", 5)]
+
+
+def test_bare_symbol_with_exchange_argument_is_unchanged(monkeypatch, tmp_path):
+    """No suffix: the exchange argument still overrides the bare-symbol metadata match."""
+    _listings(monkeypatch, tmp_path, ["L", "N"])
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        fmt.run_all_tickers(["BA"], exchange="N", days=5)
+        fmt.run_all_tickers(["BA"], exchange="L", days=5)
+
+    assert calls == [("BA", "N", 5), ("BA", "L", 5)]
+
+
+def test_suffix_wins_over_a_conflicting_exchange_argument(monkeypatch, tmp_path):
+    """BA.N with exchange="L": the explicit suffix still decides, as before this fix."""
+    _listings(monkeypatch, tmp_path, ["L", "N"])
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        fmt.run_all_tickers(["BA.N"], exchange="L", days=5)
+
+    assert calls == [("BA", "N", 5)]
+
+
+def test_metadata_exchange_normalises_the_suffix(monkeypatch, tmp_path):
+    _listings(monkeypatch, tmp_path, ["L", "N"])
+    assert fmt._metadata_exchange("BA", " n ") == "N"

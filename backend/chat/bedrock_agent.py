@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import time
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
@@ -15,7 +16,7 @@ from botocore.exceptions import ConnectionError as BotocoreConnectionError
 from mcp.types import CallToolResult, Tool
 
 from backend.chat.local_tools import LocalTools, merge_tool_lists
-from backend.chat.mcp_tools_client import mcp_session
+from backend.chat.mcp_tools_client import log_tool_call, mcp_session
 from backend.chat.tool_switches import ToolPolicy, call_refusal
 from backend.chat.turn_limits import TurnLimits, not_allowed_message
 from backend.logging_setup import sanitise_log_value
@@ -209,6 +210,7 @@ async def run_chat_turn(
 
             tool_result_content = []
             for tool_use in tool_uses:
+                started = time.perf_counter()
                 refusal = call_refusal(tool_use["name"], tool_policy)
                 if refusal is None and limits is not None and not limits.allows(tool_use["name"]):
                     refusal = not_allowed_message(tool_use["name"])
@@ -216,6 +218,7 @@ async def run_chat_turn(
                     # Logged in the turn limits; not recorded in the policy, so it does not use up its cap.
                     if limits is not None:
                         limits.record_call(tool_use["name"], tool_use.get("input") or {}, refusal, True)
+                    log_tool_call(tool_use["name"], "refused", started)
                     tool_result_content.append(
                         {
                             "toolResult": {
@@ -228,6 +231,7 @@ async def run_chat_turn(
                     continue
                 if local_tools is not None and local_tools.handles(tool_use["name"]):
                     text, is_error = local_tools.call(tool_use["name"], tool_use.get("input") or {})
+                    log_tool_call(tool_use["name"], "error" if is_error else "ok", started)
                     if tool_policy is not None:
                         tool_policy.record(tool_use["name"], tool_use.get("input") or {}, text, is_error)
                     if limits is not None:
@@ -254,6 +258,7 @@ async def run_chat_turn(
                     )
                     content = [{"text": f"Tool call failed: {exc}"}]
                     status = "error"
+                log_tool_call(tool_use["name"], "ok" if status == "success" else "error", started)
                 if tool_policy is not None:
                     tool_policy.record(
                         tool_use["name"], tool_use.get("input") or {}, content[0]["text"], status == "error"

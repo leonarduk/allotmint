@@ -5,10 +5,14 @@ request with SigV4 (see ``sigv4_auth.py``) since that Function URL uses
 ``AWS_IAM`` auth. A server on localhost (``uvicorn
 allotmint_pro.mcp_server.app:app``) is unauthenticated by design, so it is
 called unsigned -- local development then needs no AWS credentials.
+
+``log_tool_call`` is the chat agents' one INFO line per tool call (#10613).
 """
 
 from __future__ import annotations
 
+import logging
+import time
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 from urllib.parse import urlparse
@@ -18,6 +22,9 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 from backend.chat.sigv4_auth import LambdaFunctionUrlSigV4Auth
+from backend.logging_setup import sanitise_log_value
+
+logger = logging.getLogger(__name__)
 
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
@@ -56,3 +63,27 @@ async def mcp_session(mcp_server_url: str) -> AsyncIterator[ClientSession]:
             async with ClientSession(read_stream, write_stream) as session:
                 await session.initialize()
                 yield session
+
+
+def log_tool_call(name: str, status: str, started: float) -> None:
+    """Log one chat tool call at INFO: its name, ``ok``/``error``/``refused`` and duration.
+
+    Names and status only: arguments and results carry portfolio values and
+    owner names, so they never reach the log (#10613). ``started`` is a
+    ``time.perf_counter()`` reading taken before the call.
+    """
+
+    duration_ms = round((time.perf_counter() - started) * 1000, 1)
+    # Each argument wrapped inline: the CWE-117 audit (tests/test_log_sanitization_audit.py) is syntactic.
+    logger.info(
+        "chat.tool_call %s %s %sms",
+        sanitise_log_value(name),
+        sanitise_log_value(status),
+        sanitise_log_value(duration_ms),
+        extra={
+            "event": "chat.tool_call",
+            "tool": sanitise_log_value(name),
+            "status": status,
+            "duration_ms": duration_ms,
+        },
+    )

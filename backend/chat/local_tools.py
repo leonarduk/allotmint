@@ -170,7 +170,29 @@ PORTFOLIO_REVIEW_GUIDANCE = (
     "regulated financial adviser."
 )
 
-BASE_SYSTEM_PROMPT = f"{CORE_SYSTEM_PROMPT}\n\n{PORTFOLIO_REVIEW_GUIDANCE}"
+# The owner's stored plan (#10613). Two fresh chats asking the same drift question
+# disagreed on whether a plan existed: one used it, the other said none was
+# recorded. The tool is named because the rule is about that one record, and an
+# earlier answer in the history is never a substitute: the plan can change.
+INVESTMENT_PLAN_GUIDANCE = (
+    "Before you compare an owner's allocation with any target or model mix (60/40, "
+    "Golden Butterfly, All Weather, Permanent Portfolio and so on), or answer a question "
+    "about drift, rebalancing, targets, a portfolio review or whether they are on track, "
+    "call get_investment_plan for that owner in this turn, even if an earlier reply "
+    "mentioned their plan. Then:\n"
+    "- If it returns a plan, say so and report the plan's own target and drift. If the "
+    "user named a different model mix, show the plan target and the named mix as separate, "
+    "labelled comparisons.\n"
+    "- Say the owner has no investment plan only when get_investment_plan returned "
+    "plan_recorded false in this turn.\n"
+    "- If the call failed, was refused, or you have no get_investment_plan tool, say that "
+    "you could not read the owner's plan, and give the reason if you have one; do not say "
+    "that no plan is recorded.\n"
+    "When you compare with a named model mix, state its weights once and use exactly those "
+    "weights in any table."
+)
+
+BASE_SYSTEM_PROMPT = f"{CORE_SYSTEM_PROMPT}\n\n{INVESTMENT_PLAN_GUIDANCE}\n\n{PORTFOLIO_REVIEW_GUIDANCE}"
 
 
 def build_system_prompt(context: Mapping[str, Any] | None) -> str:

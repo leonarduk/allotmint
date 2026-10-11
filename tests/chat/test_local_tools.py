@@ -108,3 +108,17 @@ def test_review_playbook_is_decision_support_not_advice():
     assert "do not assume" in PORTFOLIO_REVIEW_GUIDANCE
     assert "say which steps you could not do" in PORTFOLIO_REVIEW_GUIDANCE
     assert "screen_portfolio" not in PORTFOLIO_REVIEW_GUIDANCE
+
+
+def test_base_system_prompt_makes_the_plan_consulted_and_tells_errors_from_no_plan():
+    # #10613: one chat used the owner's plan, the next said none was recorded.
+    from backend.chat.local_tools import BASE_SYSTEM_PROMPT, INVESTMENT_PLAN_GUIDANCE
+
+    assert INVESTMENT_PLAN_GUIDANCE in BASE_SYSTEM_PROMPT
+    assert "call get_investment_plan for that owner in this turn" in INVESTMENT_PLAN_GUIDANCE
+    for trigger in ("model mix", "Golden Butterfly", "drift", "rebalancing", "on track"):
+        assert trigger in INVESTMENT_PLAN_GUIDANCE
+    # "No plan" only on plan_recorded false; a failed or missing tool is "could not read".
+    assert "only when get_investment_plan returned plan_recorded false" in INVESTMENT_PLAN_GUIDANCE
+    assert "could not read the owner's plan" in INVESTMENT_PLAN_GUIDANCE
+    assert "do not say that no plan is recorded" in INVESTMENT_PLAN_GUIDANCE

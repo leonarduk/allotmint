@@ -455,3 +455,69 @@ async def test_run_chat_turn_limits_restrict_tools_cap_tokens_and_log_calls(monk
         ("create_issue", True),
     ]
     assert limits.usage == {"input_tokens": 150, "output_tokens": 25}
+
+
+async def test_run_chat_turn_logs_each_tool_call_without_arguments_or_results(monkeypatch, caplog):
+    # #10613: names and ok/error only; plan and allocation results carry portfolio values.
+    session = FakeSession(
+        tools=[FakeTool("get_investment_plan"), FakeTool("get_allocation")],
+        tool_results={
+            "get_investment_plan": FakeCallToolResult("could not read the investment plan for steve", is_error=True),
+            "get_allocation": FakeCallToolResult('{"total_value_gbp": 123456.78}'),
+        },
+    )
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    responses = [
+        _assistant_tool_use("tool-1", "get_investment_plan", {"owner": "steve"}),
+        _assistant_tool_use("tool-2", "get_allocation", {"owner": "steve"}),
+        _assistant_text("I could not read the plan."),
+    ]
+    seen = []
+
+    class FakeBedrock:
+        def converse(self, **kwargs):
+            seen.append(copy.deepcopy(kwargs))
+            return responses[len(seen) - 1]
+
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: FakeBedrock())
+
+    with caplog.at_level("INFO", logger="backend.chat.mcp_tools_client"):
+        await bedrock_agent.run_chat_turn(
+            "drift?", [], mcp_server_url="https://example.com/mcp", bedrock_model_id="amazon.nova-lite-v1:0"
+        )
+
+    records = [record for record in caplog.records if getattr(record, "event", None) == "chat.tool_call"]
+    assert [(record.tool, record.status, record.levelname) for record in records] == [
+        ("get_investment_plan", "error", "INFO"),
+        ("get_allocation", "ok", "INFO"),
+    ]
+    assert "123456.78" not in caplog.text and "steve" not in caplog.text
+    # The failed plan call reaches the model flagged as an error, not as an empty plan.
+    assert seen[1]["messages"][-1]["content"][0]["toolResult"]["status"] == "error"
+
+
+async def test_run_chat_turn_logs_a_rejected_local_tool_call_as_error(monkeypatch, caplog):
+    session = FakeSession(tools=[])
+    monkeypatch.setattr(bedrock_agent, "mcp_session", _fake_mcp_session_factory(session))
+    responses = [
+        _assistant_tool_use("tool-1", NAVIGATE_TOOL_NAME, {"path": "/admin"}),
+        _assistant_text("That page isn't available."),
+    ]
+    seen = []
+
+    class FakeBedrock:
+        def converse(self, **kwargs):
+            seen.append(copy.deepcopy(kwargs))
+            return responses[len(seen) - 1]
+
+    monkeypatch.setattr(bedrock_agent, "_bedrock_client", lambda: FakeBedrock())
+    local = LocalTools(pages=[ChatPage("/transactions", "Transactions")])
+
+    with caplog.at_level("INFO", logger="backend.chat.mcp_tools_client"):
+        await bedrock_agent.run_chat_turn(
+            "go to admin", [], mcp_server_url="https://example.com/mcp", bedrock_model_id="m", local_tools=local
+        )
+
+    records = [record for record in caplog.records if getattr(record, "event", None) == "chat.tool_call"]
+    assert [(record.tool, record.status) for record in records] == [(NAVIGATE_TOOL_NAME, "error")]
+    assert "/admin" not in caplog.text

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -23,7 +24,7 @@ from backend.chat.bedrock_agent import (
     _validate_message_alternation,
 )
 from backend.chat.local_tools import LocalTools, merge_tool_lists
-from backend.chat.mcp_tools_client import mcp_session
+from backend.chat.mcp_tools_client import log_tool_call, mcp_session
 from backend.chat.tool_switches import ToolPolicy, call_refusal
 from backend.chat.turn_limits import TurnLimits, not_allowed_message
 from backend.logging_setup import sanitise_log_value
@@ -136,6 +137,7 @@ async def run_chat_turn(
 
             for tool_call in tool_calls:
                 name = tool_call["function"]["name"]
+                started = time.perf_counter()
                 raw_arguments: Any = tool_call["function"].get("arguments")
                 refusal = call_refusal(name, tool_policy)
                 if refusal is None and limits is not None and not limits.allows(name):
@@ -145,6 +147,7 @@ async def run_chat_turn(
                     content = f"Tool call failed: {refusal}"
                     if limits is not None:
                         limits.record_call(name, raw_arguments, content, True)
+                    log_tool_call(name, "refused", started)
                     messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": content})
                     continue
                 arguments: Any = raw_arguments
@@ -163,6 +166,11 @@ async def run_chat_turn(
                         result = await session.call_tool(name, arguments)
                         content = _tool_result_to_bedrock_content(result)[0]["text"]
                         failed = bool(getattr(result, "is_error", False))
+                        # Flagged like the local-tool case: unflagged, an MCP error
+                        # (e.g. get_investment_plan failing) reads like an ordinary
+                        # answer, and the model reported "no plan recorded" (#10613).
+                        if failed:
+                            content = f"Tool call failed: {content}"
                 except Exception as exc:  # noqa: BLE001 - surfaced to the model, not swallowed
                     logger.warning(
                         "MCP tool call %s failed: %s",
@@ -170,6 +178,7 @@ async def run_chat_turn(
                         sanitise_log_value(exc),
                     )
                     content = f"Tool call failed: {exc}"
+                log_tool_call(name, "error" if failed else "ok", started)
                 if tool_policy is not None:
                     tool_policy.record(name, parsed, content, failed)
                 if limits is not None:

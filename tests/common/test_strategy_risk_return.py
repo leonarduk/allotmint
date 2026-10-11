@@ -133,3 +133,18 @@ def test_staggered_stand_in_starts_do_not_touch_the_window():
     window = returns[returns.index > days[3]]  # window starts on the later sleeve's first close
     assert window.iloc[0] == pytest.approx(0.5 * (104 / 103 - 1) + 0.5 * (51 / 50 - 1))
     assert len(window) == 4
+
+
+def test_stand_in_whose_prices_stop_before_the_window_end_is_skipped(monkeypatch):
+    stale = SERIES["VWRL.L"][0]
+    stale = stale[stale.index <= pd.Timestamp(END - dt.timedelta(days=30))]
+    series = {"VWRL.L": (stale, TOTAL_RETURN_BASIS), "IWRD.L": SERIES["VWRL.L"]}
+    monkeypatch.setattr(
+        ledger_performance,
+        "load_gbp_total_return_closes",
+        lambda ticker, start, end: series.get(ticker, (pd.Series(dtype=float), PRICE_RETURN_BASIS)),
+    )
+    assert _compute({"equity": 100.0})["series"] == {"equity": "IWRD.L"}
+
+    del series["IWRD.L"]
+    assert _compute({"equity": 100.0})["missing"] == ["equity"]

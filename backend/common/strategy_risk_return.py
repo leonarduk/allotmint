@@ -3,8 +3,9 @@
 A strategy is a set of asset-class weights, not tickers, so each class
 ("sleeve") is priced on the stand-in series the strategy stress test uses
 (:data:`backend.common.strategy_stress.STAND_INS`): the first stand-in with a
-GBP close on or before the window start (within a week, for holidays) is
-used, so every sleeve covers the whole window. Closes have dividends
+GBP close on or before the window start (within a week, for holidays) and a
+close within a week of its end is used, so every sleeve covers the whole
+window rather than being carried flat past a stale cache. Closes have dividends
 reinvested where they are stored; a physical gold stand-in pays none, so its
 price return is its total return.
 
@@ -36,8 +37,10 @@ from backend.timeseries.cache import cache_only
 from backend.timeseries.total_return import PRICE_RETURN_BASIS, TOTAL_RETURN_BASIS
 from backend.utils.pricing_dates import PricingDateCalculator
 
-#: A stand-in must have a close this close to (on or before) the window start.
+#: A stand-in must have a close this close to (on or before) the window start,
+#: and its last close this close to the window end.
 START_SLACK_DAYS = 7
+END_SLACK_DAYS = 7
 
 _EMPTY_STATS = RiskReturn(None, None, None, None)
 
@@ -47,7 +50,11 @@ def _stand_in_closes(sleeve: str, after: date, end: date) -> Optional[tuple[str,
     start = after - timedelta(days=START_SLACK_DAYS)
     for ticker in STAND_INS.get(sleeve, ()):
         closes, basis = ledger_performance.load_gbp_total_return_closes(ticker, start, end)
-        if closes.empty or closes.index[0] > pd.Timestamp(after):
+        if (
+            closes.empty
+            or closes.index[0] > pd.Timestamp(after)
+            or closes.index[-1] < pd.Timestamp(end - timedelta(days=END_SLACK_DAYS))
+        ):
             continue
         return ticker, closes, TOTAL_RETURN_BASIS if ticker in NO_INCOME_STAND_INS else basis
     return None

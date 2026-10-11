@@ -12,10 +12,10 @@ import {
 } from "@/lib/watchlistStore";
 import {
   SAVE_DEBOUNCE_MS,
+  WATCHLISTS_BASE_STORAGE_KEY,
   WATCHLISTS_SYNC_STORAGE_KEY,
   ensureWatchlistsLoaded,
   flush,
-  mergeBrowserLists,
   resetWatchlistSyncForTests,
 } from "@/lib/watchlistSync";
 
@@ -40,47 +40,6 @@ function sync() {
 function conflict(current: { revision: number; state: WatchlistsState | null }) {
   return Object.assign(new Error("conflict"), { status: 409, body: { current } });
 }
-
-describe("mergeBrowserLists", () => {
-  it("adds only the browser's lists that differ, renaming on a clash", () => {
-    const savedState: WatchlistsState = {
-      activeId: "a",
-      lists: [
-        { id: "a", name: "Tech", symbols: ["AAPL"] },
-        { id: "b", name: "Same", symbols: ["BP.L"] },
-      ],
-    };
-    const browser: WatchlistsState = {
-      activeId: "x",
-      lists: [
-        { id: "x", name: "tech", symbols: ["MSFT"] },
-        { id: "y", name: "Same", symbols: ["BP.L"] },
-        { id: "z", name: "New", symbols: [] },
-      ],
-    };
-
-    const merged = mergeBrowserLists(savedState, browser);
-
-    expect(merged.activeId).toBe("a");
-    expect(merged.lists.map((l) => l.name)).toEqual(["Tech", "Same", "tech (this browser)", "New"]);
-    expect(new Set(merged.lists.map((l) => l.id)).size).toBe(4);
-  });
-
-  it("returns the saved state itself when the browser adds nothing", () => {
-    const state = list("Same", ["BP.L"]);
-    expect(mergeBrowserLists(state, list("same", ["BP.L"], "other"))).toBe(state);
-  });
-
-  it("stops at the list limit", () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
-    const many = (prefix: string, n: number): WatchlistsState => ({
-      activeId: `${prefix}0`,
-      lists: Array.from({ length: n }, (_, i) => ({ id: `${prefix}${i}`, name: `${prefix}${i}`, symbols: [] })),
-    });
-    expect(mergeBrowserLists(many("s", 49), many("b", 3)).lists).toHaveLength(50);
-    vi.restoreAllMocks();
-  });
-});
 
 describe("watchlistSync", () => {
   beforeEach(() => {
@@ -234,17 +193,57 @@ describe("watchlistSync", () => {
     expect(sync()).toEqual(bobs);
   });
 
-  it("adopts the other device's copy on a conflict", async () => {
+  it("merges this browser's edit onto the other device's copy on a conflict, then saves", async () => {
     (api.getSavedWatchlists as Mock).mockResolvedValue(saved(SERVER));
     await ensureWatchlistsLoaded();
+    // Elsewhere, since revision 3: renamed the list and swapped BP.L for SHEL.L.
     const other = list("Other device", ["SHEL.L"]);
     (api.putSavedWatchlists as Mock).mockRejectedValueOnce(conflict({ revision: 5, state: other }));
 
     toggleInWatchlist("default", "VOD.L");
     await flush();
 
-    expect(readWatchlists()).toEqual(other);
-    expect(sync()).toEqual({ owner: "u1", revision: 5, dirty: false });
+    const merged = list("Other device", ["SHEL.L", "VOD.L"]);
+    expect(readWatchlists()).toEqual(merged);
+    expect(sync()).toEqual({ owner: "u1", revision: 5, dirty: true });
+
+    await flush();
+    expect(api.putSavedWatchlists).toHaveBeenLastCalledWith(merged, 5);
+    expect(sync()).toEqual({ owner: "u1", revision: 6, dirty: false });
+  });
+
+  it("keeps a list deleted elsewhere deleted, unless it was edited here", async () => {
+    const base: WatchlistsState = {
+      activeId: "a",
+      lists: [
+        { id: "a", name: "Keep", symbols: [] },
+        { id: "b", name: "Gone", symbols: ["X"] },
+        { id: "c", name: "Edited here", symbols: ["Y"] },
+      ],
+    };
+    (api.getSavedWatchlists as Mock).mockResolvedValue(saved(base));
+    await ensureWatchlistsLoaded();
+    const remote: WatchlistsState = { activeId: "a", lists: [{ id: "a", name: "Keep", symbols: [] }] };
+    (api.putSavedWatchlists as Mock).mockRejectedValueOnce(conflict({ revision: 4, state: remote }));
+
+    toggleInWatchlist("c", "Z");
+    await flush();
+
+    expect(readWatchlists().lists.map((l) => l.name)).toEqual(["Keep", "Edited here"]);
+    expect(readWatchlists().lists[1].symbols).toEqual(["Y", "Z"]);
+  });
+
+  it("falls back to adding this browser's lists when it holds no common base", async () => {
+    (api.getSavedWatchlists as Mock).mockResolvedValue(saved(SERVER));
+    await ensureWatchlistsLoaded();
+    localStorage.removeItem(WATCHLISTS_BASE_STORAGE_KEY);
+    const other = list("Other device", ["SHEL.L"]);
+    (api.putSavedWatchlists as Mock).mockRejectedValueOnce(conflict({ revision: 5, state: other }));
+
+    toggleInWatchlist("default", "VOD.L");
+    await flush();
+
+    expect(readWatchlists().lists.map((l) => l.name)).toEqual(["Other device", "Server"]);
   });
 
   it("keeps unsaved edits across a reload and saves them", async () => {

@@ -7,9 +7,9 @@ import {
   hasStoredWatchlists,
   onWatchlistsEdited,
   readWatchlists,
-  type NamedWatchlist,
   type WatchlistsState,
 } from "./watchlistStore";
+import { mergeBrowserLists, threeWayMerge } from "./watchlistMerge";
 
 // Keeps the watchlists in watchlistStore.ts (cached in localStorage) in step
 // with the signed-in user's copy on the server (#10713), so they survive
@@ -24,7 +24,9 @@ import {
 //   them. A cache belonging to a different user is replaced, never uploaded.
 // - Save: each edit is saved after a short debounce, as a PUT naming the
 //   revision it was based on. A 409 means another tab or device saved first:
-//   the saved copy is adopted (last writer loses).
+//   this browser's edits are merged three ways onto the saved copy (against
+//   the last copy both sides shared, see watchlistMerge.ts) and saved again,
+//   so neither side's edits are lost.
 // - Failures never break the watchlists: they carry on locally, the failure
 //   is logged, and the next edit retries.
 //
@@ -77,6 +79,42 @@ function writeSync(next: SyncState): void {
   localStorage.setItem(WATCHLISTS_SYNC_STORAGE_KEY, JSON.stringify(next));
 }
 
+export const WATCHLISTS_BASE_STORAGE_KEY = "watchlistsBase";
+
+/** The server's copy at `revision`: the common ancestor a conflict is merged against. */
+interface SyncBase {
+  owner: string;
+  revision: number;
+  state: WatchlistsState | null;
+}
+
+function readBase(): SyncBase | null {
+  try {
+    const raw = localStorage.getItem(WATCHLISTS_BASE_STORAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Partial<SyncBase>) : null;
+    if (!parsed || typeof parsed.owner !== "string" || typeof parsed.revision !== "number") return null;
+    return { owner: parsed.owner, revision: parsed.revision, state: parsed.state ?? null };
+  } catch (err) {
+    console.warn("Ignoring unreadable watchlist sync base:", err);
+    return null;
+  }
+}
+
+function writeBase(next: SyncBase): void {
+  localStorage.setItem(WATCHLISTS_BASE_STORAGE_KEY, JSON.stringify(next));
+}
+
+/** This browser's lists merged onto `remote`, given the base the edits started from. */
+function mergeOnto(remote: WatchlistsState, owner: string | null, baseRevision: number): WatchlistsState {
+  const base = readBase();
+  const local = readWatchlists();
+  if (base?.state && base.owner === owner && base.revision === baseRevision) {
+    return threeWayMerge(base.state, local, remote);
+  }
+  // No common ancestor kept: fall back to adding this browser's differing lists.
+  return mergeBrowserLists(remote, local);
+}
+
 function syncEnabled(): boolean {
   return !isDemoSession();
 }
@@ -89,48 +127,6 @@ function isSaved(value: unknown): value is api.SavedWatchlists {
     typeof v.revision === "number" &&
     (v.state === null || typeof v.state === "object")
   );
-}
-
-// Mirrors MAX_LISTS / MAX_NAME_CHARS in backend/common/watchlists.py.
-const MAX_LISTS = 50;
-const MAX_NAME_CHARS = 100;
-const BROWSER_SUFFIX = " (this browser)";
-
-function sameList(a: NamedWatchlist, b: NamedWatchlist): boolean {
-  return (
-    a.name.trim().toLowerCase() === b.name.trim().toLowerCase() &&
-    a.symbols.join(",") === b.symbols.join(",")
-  );
-}
-
-function freeName(taken: Set<string>, name: string): string {
-  if (!taken.has(name.trim().toLowerCase())) return name;
-  for (let n = 1; ; n += 1) {
-    const suffix = n === 1 ? BROWSER_SUFFIX : ` (this browser ${n})`;
-    const candidate = name.slice(0, MAX_NAME_CHARS - suffix.length) + suffix;
-    if (!taken.has(candidate.toLowerCase())) return candidate;
-  }
-}
-
-/**
- * The saved lists plus each of this browser's lists that differs from all of
- * them, renamed on a name clash. Returns `saved` itself when nothing is added.
- */
-export function mergeBrowserLists(saved: WatchlistsState, browser: WatchlistsState): WatchlistsState {
-  const lists = [...saved.lists];
-  const taken = new Set(lists.map((l) => l.name.trim().toLowerCase()));
-  const extra = browser.lists.filter((b) => !saved.lists.some((l) => sameList(l, b)));
-  for (const list of extra) {
-    if (lists.length >= MAX_LISTS) {
-      console.warn(`Watchlist "${list.name}" from this browser was not kept: the ${MAX_LISTS}-list limit is reached`);
-      continue;
-    }
-    const name = freeName(taken, list.name);
-    taken.add(name.toLowerCase());
-    const id = `wl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    lists.push({ id, name, symbols: [...list.symbols] });
-  }
-  return lists.length === saved.lists.length ? saved : { ...saved, lists };
 }
 
 /** What the cache should hold, and whether it still needs saving, after loading `saved`. */
@@ -174,6 +170,11 @@ async function load(): Promise<void> {
   if (saved.owner === null) return; // no identity: the lists stay local
   const { adopt, sync } = reconcile({ ...saved, owner: saved.owner }, readSync());
   if (adopt) adoptWatchlists(adopt);
+  // The base is the server copy at the revision the cache is now based on;
+  // unsaved edits kept from an older revision keep the base they started from.
+  if (sync.revision === saved.revision) {
+    writeBase({ owner: saved.owner, revision: saved.revision, state: saved.state });
+  }
   writeSync(sync);
 }
 
@@ -215,14 +216,24 @@ async function saveOnce(myEpoch: number): Promise<void> {
     if (!stillOurs()) return;
     // Edited again while saving: stay dirty so the next save picks it up.
     const dirty = JSON.stringify(readWatchlists()) !== snapshot;
+    if (base.owner) {
+      writeBase({ owner: base.owner, revision, state: JSON.parse(snapshot) as WatchlistsState });
+    }
     writeSync({ ...readSync(), revision, dirty });
   } catch (err) {
     if (!isConflict(err)) throw err;
     if (!stillOurs()) return;
     const { current } = err.body;
     if (current.state) {
-      adoptWatchlists(current.state);
-      writeSync({ ...readSync(), revision: current.revision, dirty: false });
+      // Saved elsewhere first: merge this browser's edits onto that copy and
+      // save the result, rather than dropping them (last writer no longer loses).
+      const merged = mergeOnto(current.state, base.owner, base.revision);
+      adoptWatchlists(merged);
+      if (base.owner) {
+        writeBase({ owner: base.owner, revision: current.revision, state: current.state });
+      }
+      const dirty = JSON.stringify(merged) !== JSON.stringify(current.state);
+      writeSync({ ...readSync(), revision: current.revision, dirty });
     } else {
       // Deleted on the server meanwhile: upload this copy again, once.
       writeSync({ ...readSync(), revision: current.revision, dirty: true });
@@ -283,6 +294,7 @@ onAuthChange((change) => {
   epoch += 1;
   loadedEpoch = null;
   serverOwner = null;
+  reuploads = 0;
   // After a logout there is no one to load for; the next sign-in loads.
   if (requested && !isLogout(change)) void ensureWatchlistsLoaded();
 });

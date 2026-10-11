@@ -14,6 +14,7 @@ import datetime as dt
 import importlib
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -26,10 +27,19 @@ _BUNDLED_INSTRUMENTS = Path(__file__).resolve().parents[2] / "data" / "instrumen
 _USD_GBP = 0.5
 
 
+# Weekdays on which the stub closes at 100, one per test (the one nearest the
+# window start is used). Prices are a function of the date, not of its
+# position in the fetched window: the window's start comes from
+# ``_weekday_range(today - 1, days_needed)``, so it shifts with the weekday the
+# suite runs on.
+_PRICE_ANCHORS = (dt.date(2008, 9, 8), dt.date(2020, 3, 16))
+
+
 def _spy_prices(full_ticker: str, start: dt.date, end: dt.date) -> pd.DataFrame:
-    """Every weekday in the window; the close falls 1.0 per day from 100."""
+    """Every weekday in the window; the close falls 1.0 per weekday from 100 at the anchor."""
     dates = pd.bdate_range(start, end)
-    closes = [100.0 - i for i in range(len(dates))]
+    anchor = min(_PRICE_ANCHORS, key=lambda a: abs((a - start).days))
+    closes = [100.0 - float(np.busday_count(anchor, d.date())) for d in dates]
     return pd.DataFrame(
         {
             "Date": dates.date,
@@ -125,7 +135,7 @@ def test_holding_without_history_follows_spy_proxy(live_pipeline):
     )
 
     # Fixed, hand-derived expectation (not recomputed from the fixture): the
-    # fetch window opens Mon 2008-09-08 at close 100, falling 1.0 per weekday.
+    # stub closes at 100 on Mon 2008-09-08, falling 1.0 per weekday.
     # Base = last close before the event, Fri 2008-09-12 (4th weekday) = 96.
     # Target = first close on/after event + 30d, Wed 2008-10-15 (27th) = 73.
     expected_delta = 1000.0 * (73.0 - 96.0) / 96.0  # -239.58

@@ -230,6 +230,29 @@ Never declare an adjustment from the shape of the price chart alone, because
 a real 75% one-day fall is possible. Confirm the event date and ratio from an
 RNS first. Instrument entries live in allotmint-data.
 
+## Declared dividend currency
+
+Total return adds each stored dividend to the closes, which only works when
+the dividend is in the closes' currency. Some companies declare dividends in a
+different currency from the one their listing trades in. `BCG.L` trades in
+sterling, but its dividends are stored as EUR amounts (#10742). Yahoo's own
+`Currency` tag can't settle this, because it labels BCG.L `EUR` even for rows
+when the closes were in pence. Declare the currency instead:
+
+```json
+"dividend_currency": {
+  "currency": "EUR",
+  "rationale": "Dividends declared in euro cents; the LSE line trades in GBP",
+  "reviewed": "2026-10-11"
+}
+```
+
+Total return converts each dividend into the instrument's `currency` at the
+stored FX rate in force on its ex-date (`GBX` gets pence). It uses the same
+gap-fill rule as historical prices. If any dividend has no rate, that
+instrument falls back to price return rather than using a guessed amount. An
+invalid block is logged and ignored.
+
 ## Gaps
 
 The data-quality page (`/data-quality`, Issues and Holdings tabs) reports a

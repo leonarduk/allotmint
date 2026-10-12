@@ -30,6 +30,7 @@ import pandas as pd
 from backend.common.ticker_utils import split_ticker
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.corporate_actions import CONFIRMED_FROM, stored_dividends
+from backend.timeseries.dividend_currency import convert_dividends
 from backend.timeseries.price_adjustments import adjust_dividends
 
 logger = logging.getLogger(__name__)
@@ -181,7 +182,9 @@ def _dividends_for(
     but is only confirmed from after ``first_close`` (``attrs[CONFIRMED_FROM]``).
     ``load_dividends`` defaults to :func:`stored_dividends`, looked up at call time.
     Declared ``price_adjustments`` restate dividends paid on an old share basis
-    (:func:`backend.timeseries.price_adjustments.adjust_dividends`).
+    (:func:`backend.timeseries.price_adjustments.adjust_dividends`), and a
+    declared ``dividend_currency`` converts them into the price currency
+    (:func:`backend.timeseries.dividend_currency.convert_dividends`).
     """
     loader = load_dividends or stored_dividends
     try:
@@ -198,8 +201,12 @@ def _dividends_for(
             day = pd.Timestamp(confirmed).date().isoformat()
             _report_price_fallback(ticker, exchange, f"no dividends stored, but only confirmed from {day}")
             return None
-    # Same share basis as the closes the reads serve (#10040).
-    return adjust_dividends(dividends, ticker, exchange)
+    # Same price currency (#10742) and share basis (#10040) as the closes the reads serve.
+    converted = convert_dividends(dividends, ticker, exchange)
+    if converted is None:
+        _report_price_fallback(ticker, exchange, "no FX rate to convert its declared dividend currency")
+        return None
+    return adjust_dividends(converted, ticker, exchange)
 
 
 def _first_close(closes: pd.Series) -> pd.Timestamp | None:

@@ -155,13 +155,15 @@ const PERIOD_CHANGES = [
   { key: "1y", field: "change_1y_gbp" },
 ] as const;
 type PeriodKey = (typeof PERIOD_CHANGES)[number]["key"];
-type PeriodTotals = Record<PeriodKey, { change: number; base: number; known: boolean }>;
+// ``value`` is the current market value of the holdings with a known change;
+// the % is over their start-of-window value, ``value - change``.
+type PeriodTotals = Record<PeriodKey, { change: number; value: number; known: boolean }>;
 type PeriodChange = { key: PeriodKey; change: number | null; pct: number | null };
 
 const emptyPeriodTotals = (): PeriodTotals => ({
-  "1w": { change: 0, base: 0, known: false },
-  "1m": { change: 0, base: 0, known: false },
-  "1y": { change: 0, base: 0, known: false },
+  "1w": { change: 0, value: 0, known: false },
+  "1m": { change: 0, value: 0, known: false },
+  "1y": { change: 0, value: 0, known: false },
 });
 
 // Only holdings with a known change count toward the % base, so a holding
@@ -171,16 +173,16 @@ const addPeriodChanges = (totals: PeriodTotals, holding: Holding, market: number
     const change = holding[field];
     if (typeof change !== "number" || !Number.isFinite(change)) continue;
     totals[key].change += change;
-    totals[key].base += market;
+    totals[key].value += market;
     totals[key].known = true;
   }
 };
 
 const summarisePeriodChanges = (totals: PeriodTotals): PeriodChange[] =>
   PERIOD_CHANGES.map(({ key }) => {
-    const { change, base, known } = totals[key];
+    const { change, value, known } = totals[key];
     return known
-      ? { key, change, pct: computeDayChangePct(base, change) }
+      ? { key, change, pct: computeDayChangePct(value, change) } // change / (value - change)
       : { key, change: null, pct: null };
   });
 

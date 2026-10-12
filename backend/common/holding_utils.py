@@ -1039,7 +1039,8 @@ def enrich_holding(
         out["unrealized_gain_gbp"] = 0.0
         out["gain_pct"] = None
         out["day_change_gbp"] = 0.0
-        out.update(dict.fromkeys(PERIOD_CHANGE_WINDOWS, 0.0))
+        # No position: no period change to report (left out of the % base).
+        out.update(dict.fromkeys(PERIOD_CHANGE_WINDOWS))
         out["days_held"] = None
         out["sell_eligible"] = False
         out["eligible_on"] = None

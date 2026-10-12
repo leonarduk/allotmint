@@ -171,7 +171,7 @@ const emptyPeriodTotals = (): PeriodTotals => ({
 const addPeriodChanges = (totals: PeriodTotals, holding: Holding, market: number): void => {
   for (const { key, field } of PERIOD_CHANGES) {
     const change = holding[field];
-    if (typeof change !== "number" || !Number.isFinite(change)) continue;
+    if (typeof change !== "number" || !Number.isFinite(change) || !Number.isFinite(market)) continue;
     totals[key].change += change;
     totals[key].value += market;
     totals[key].known = true;

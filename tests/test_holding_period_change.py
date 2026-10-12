@@ -83,6 +83,13 @@ def test_bought_on_the_pricing_date_has_zero_change(closes):
     assert seen == []
 
 
+def test_closed_position_reports_no_period_change():
+    out = holding_utils.enrich_holding({"ticker": "VOD.L", "units": 0}, dt.date(2026, 10, 12), price_cache={})
+    assert {k: out[k] for k in holding_utils.PERIOD_CHANGE_WINDOWS} == dict.fromkeys(
+        holding_utils.PERIOD_CHANGE_WINDOWS
+    )
+
+
 @pytest.mark.parametrize("px, units", [(None, 10), (10.0, 0)])
 def test_unpriced_or_empty_holding_has_no_change(closes, px, units):
     out = holding_utils._period_changes("VOD", "L", units, px, PRICING_DATE, None, CALC)

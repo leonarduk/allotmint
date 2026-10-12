@@ -393,7 +393,7 @@ describe("GroupPortfolioView", () => {
         {
           owner: "alice",
           account_type: "isa",
-          value_estimate_gbp: 150,
+          value_estimate_gbp: 200,
           holdings: [
             {
               units: 1,
@@ -413,6 +413,17 @@ describe("GroupPortfolioView", () => {
               change_1w_gbp: null,
               change_1m_gbp: null,
               change_1y_gbp: null,
+            },
+            {
+              // Cash: a known 0 change, so its value is in the % base.
+              ticker: "CASH.GBP",
+              instrument_type: "cash",
+              units: 50,
+              market_value_gbp: 50,
+              day_change_gbp: 0,
+              change_1w_gbp: 0,
+              change_1m_gbp: 0,
+              change_1y_gbp: 0,
             },
           ],
         },
@@ -443,10 +454,21 @@ describe("GroupPortfolioView", () => {
     const cells = within(ownerRow!)
       .getAllByRole("cell")
       .map((cell) => cell.textContent?.trim());
-    // 10 on a start value of 90; -20 on 120; no 1Y history.
-    expect(cells[6]).toBe("£10.00 (11.11%)");
-    expect(cells[7]).toBe("-£20.00 (-16.67%)");
-    expect(cells[8]).toBe("—");
+    // Base = £100 holding + £50 cash: 10 on a start value of 140; -20 on 170.
+    // 1Y: only the cash has a known change, so £0 (0%).
+    expect(cells[6]).toBe("£10.00 (7.14%)");
+    expect(cells[7]).toBe("-£20.00 (-11.76%)");
+    expect(cells[8]).toBe("£0.00 (0.00%)");
+
+    await userEvent.click(screen.getAllByLabelText("Relative view")[0]);
+    const relativeRow = within(ownerTable!)
+      .getAllByRole("row")
+      .find((row) => within(row).queryByText("Alice Example"));
+    // Relative view hides the £ Day Change column and the £ amounts.
+    const relativeCells = within(relativeRow!)
+      .getAllByRole("cell")
+      .map((cell) => cell.textContent?.trim());
+    expect(relativeCells.slice(5, 8)).toEqual(["7.14%", "-11.76%", "0.00%"]);
   });
 
   it("renders the pricing as-of date", async () => {

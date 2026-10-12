@@ -401,6 +401,24 @@
                           "null"
                         ]
                       },
+                      "change_1w_gbp": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "change_1m_gbp": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "change_1y_gbp": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
                       "instrument_type": {
                         "type": [
                           "string",
@@ -802,6 +820,24 @@
                       "day_change_currency": {
                         "type": [
                           "string",
+                          "null"
+                        ]
+                      },
+                      "change_1w_gbp": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "change_1m_gbp": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "change_1y_gbp": {
+                        "type": [
+                          "number",
                           "null"
                         ]
                       },

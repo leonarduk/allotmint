@@ -508,8 +508,13 @@
       "cashValue": "Valore liquidità",
       "dayChange": "Variazione giornaliera",
       "dayChangePct": "Variazione giornaliera %",
-      "totalGain": "Guadagno totale",
-      "totalGainPct": "Guadagno totale %"
+      "totalGain": "Guadagno dall'acquisto",
+      "totalGainPct": "Guadagno dall'acquisto %",
+      "totalGainHelp": "Guadagno non realizzato sulle posizioni attuali: valore attuale meno il prezzo pagato. Copre l'intero periodo di detenzione di ogni posizione, quindi non è un rendimento su un periodo fisso, ed esclude i proventi ricevuti e i guadagni già realizzati.",
+      "change_1w": "Variazione 1S",
+      "change_1m": "Variazione 1M",
+      "change_1y": "Variazione 1A",
+      "periodChangeHelp": "Variazione di prezzo sulle quote detenute ora negli ultimi 7 / 30 / 365 giorni (dalla data di acquisto per acquisti nel periodo). Non è un rendimento ponderato nel tempo: versamenti, operazioni e proventi nel periodo sono ignorati. — indica storico prezzi insufficiente."
     }
   },
   "holdingsTable": {

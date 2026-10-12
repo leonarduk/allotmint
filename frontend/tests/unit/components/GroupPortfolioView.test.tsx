@@ -386,6 +386,69 @@ describe("GroupPortfolioView", () => {
     expect(screen.queryByText("Total Value")).toBeNull();
   });
 
+  it("shows 1W/1M/1Y changes over holdings with known history (#10746)", async () => {
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 150,
+          holdings: [
+            {
+              units: 1,
+              cost_basis_gbp: 80,
+              market_value_gbp: 100,
+              day_change_gbp: 1,
+              change_1w_gbp: 10,
+              change_1m_gbp: -20,
+              change_1y_gbp: null,
+            },
+            {
+              // No history for any window: left out of the totals and the % base.
+              units: 1,
+              cost_basis_gbp: 50,
+              market_value_gbp: 50,
+              day_change_gbp: 0,
+              change_1w_gbp: null,
+              change_1m_gbp: null,
+              change_1y_gbp: null,
+            },
+          ],
+        },
+      ],
+    };
+
+    mockAllFetches(mockPortfolio);
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await waitFor(() =>
+      expect(screen.getAllByText("Alice Example").length).toBeGreaterThan(0),
+    );
+
+    const ownerTable = screen
+      .getAllByRole("table")
+      .find((table) => within(table).queryByText("Owner"));
+    expect(ownerTable).toBeTruthy();
+    expect(within(ownerTable!).getByText("1W Change")).toBeInTheDocument();
+    expect(within(ownerTable!).getByText("Gain Since Purchase")).toHaveAttribute(
+      "title",
+      expect.stringContaining("not a return for any fixed period"),
+    );
+
+    const ownerRow = within(ownerTable!)
+      .getAllByRole("row")
+      .find((row) => within(row).queryByText("Alice Example"));
+    const cells = within(ownerRow!)
+      .getAllByRole("cell")
+      .map((cell) => cell.textContent?.trim());
+    // 10 on a start value of 90; -20 on 120; no 1Y history.
+    expect(cells[6]).toBe("£10.00 (11.11%)");
+    expect(cells[7]).toBe("-£20.00 (-16.67%)");
+    expect(cells[8]).toBe("—");
+  });
+
   it("renders the pricing as-of date", async () => {
     const mockPortfolio = {
       name: "At a glance",

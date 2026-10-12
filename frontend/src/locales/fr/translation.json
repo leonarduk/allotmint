@@ -508,8 +508,13 @@
       "cashValue": "Valeur des liquidités",
       "dayChange": "Variation du jour",
       "dayChangePct": "Variation du jour %",
-      "totalGain": "Gain total",
-      "totalGainPct": "Gain total %"
+      "totalGain": "Gain depuis l'achat",
+      "totalGainPct": "Gain depuis l'achat %",
+      "totalGainHelp": "Plus-value latente des positions actuelles : valeur actuelle moins le prix payé. Elle couvre toute la durée de détention de chaque position ; ce n'est donc pas un rendement sur une période fixe, et elle exclut les revenus perçus et les gains déjà réalisés.",
+      "change_1w": "Variation 1S",
+      "change_1m": "Variation 1M",
+      "change_1y": "Variation 1A",
+      "periodChangeHelp": "Variation de prix sur les parts détenues actuellement au cours des 7 / 30 / 365 derniers jours (depuis la date d'achat pour un achat dans la période). Pas un rendement pondéré dans le temps : versements, transactions et revenus de la période sont ignorés. — signifie historique de prix insuffisant."
     }
   },
   "holdingsTable": {

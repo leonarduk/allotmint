@@ -3,6 +3,11 @@ import type { Account, Holding } from '../types';
 import { isCashInstrument } from './instruments';
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
+const PERIOD_CHANGE_FIELDS = [
+  'change_1w_gbp',
+  'change_1m_gbp',
+  'change_1y_gbp',
+] as const;
 const isNum = (v: unknown): v is number =>
   typeof v === 'number' && Number.isFinite(v);
 
@@ -15,7 +20,9 @@ const isNum = (v: unknown): v is number =>
  * - gain_pct over cost_for_gain (= old market value - old gain);
  * - total_return_pct over the invested amount backed out of the old pair;
  * - day change = units x (price - previous close), the previous close taken
- *   in GBP at the live quote's own FX (price_gbp / (1 + change_pct)).
+ *   in GBP at the live quote's own FX (price_gbp / (1 + change_pct));
+ * - 1W/1M/1Y changes move by the same delta: their start close is fixed and
+ *   only the end price is now live (#10746).
  *
  * Holdings with no stored market value (unpriced, e.g. a missing FX rate)
  * are left alone: their gain has no cost to move from.
@@ -64,6 +71,11 @@ function revalue(
       next.total_return_pct = (total / invested) * 100;
     }
     next.total_return_gbp = round2(total);
+  }
+
+  for (const field of PERIOD_CHANGE_FIELDS) {
+    const change = h[field];
+    if (isNum(change)) next[field] = round2(change + delta);
   }
 
   if (isNum(quote.change_pct) && quote.change_pct > -100) {

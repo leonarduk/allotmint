@@ -181,6 +181,12 @@ def test_owner_metrics_success(
             ("missing", 365),
             {"pricing_date": None},
         ),
+        (
+            "/performance/missing/total-return",
+            "compute_total_return",
+            ("missing", 365),
+            {"pricing_date": None},
+        ),
     ],
 )
 def test_owner_metrics_not_found(path, func_name, expected_args, expected_kwargs, monkeypatch, caplog):
@@ -202,6 +208,32 @@ def test_owner_metrics_not_found(path, func_name, expected_args, expected_kwargs
     assert record.error_category == "client"
     assert record.status_code == 404
     assert record.path == path.rsplit("?", 1)[0]
+
+
+@pytest.mark.parametrize(
+    "result, expected_gbp, expected_pct",
+    [
+        ({"total_return_gbp": 30.0, "total_return_pct": 0.03}, 30.0, 0.03),
+        (None, None, None),  # no transaction ledger
+    ],
+)
+def test_owner_total_return(result, expected_gbp, expected_pct, monkeypatch):
+    def fake(owner, days, *, pricing_date):
+        assert (owner, days, pricing_date) == ("alice", 90, None)
+        return result
+
+    monkeypatch.setattr(portfolio_utils, "compute_total_return", fake)
+    client = _auth_client()
+
+    resp = client.get("/performance/alice/total-return?days=90")
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "owner": "alice",
+        "days": 90,
+        "total_return_gbp": expected_gbp,
+        "total_return_pct": expected_pct,
+    }
 
 
 def test_owner_metrics_with_as_of(monkeypatch):

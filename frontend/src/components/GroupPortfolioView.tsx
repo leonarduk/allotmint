@@ -18,6 +18,7 @@ import type {
   OwnerSummary,
   AllInCost,
   Holding,
+  OwnerTotalReturn,
 } from "../types";
 import {
   getGroupPortfolio,
@@ -467,6 +468,42 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   useEffect(() => {
     setAsOfOverride(null);
   }, [slug]);
+
+  // 1Y total return per owner slug (#10763): absent while loading, null when
+  // unavailable (no transaction ledger, or the request failed).
+  const [totalReturns, setTotalReturns] = useState<Record<string, OwnerTotalReturn | null>>({});
+  const ownerSlugsKey = useMemo(
+    () =>
+      Array.from(new Set((portfolio?.accounts ?? []).map((acct) => acct.owner)))
+        .filter((owner): owner is string => Boolean(owner))
+        .sort()
+        .join(","),
+    [portfolio],
+  );
+  useEffect(() => {
+    setTotalReturns({});
+    if (!ownerSlugsKey) return;
+    let cancelled = false;
+    const ownerSlugs = ownerSlugsKey.split(",");
+    Promise.allSettled(
+      ownerSlugs.map((owner) => api.getOwnerTotalReturn(owner, 365, { asOf: asOfOverride })),
+    ).then((results) => {
+      if (cancelled) return;
+      const next: Record<string, OwnerTotalReturn | null> = {};
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          next[ownerSlugs[index]] = result.value;
+          return;
+        }
+        console.warn(`1Y total return unavailable for ${ownerSlugs[index]}`, result.reason);
+        next[ownerSlugs[index]] = null;
+      });
+      setTotalReturns(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ownerSlugsKey, asOfOverride]);
 
   const handleOwnerChange = useCallback(
     (owner: string | null, options?: { replace?: boolean }) => {
@@ -1040,6 +1077,27 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       </td>
     ));
 
+  // ``undefined`` while the owner's figure loads, ``null`` when there is none
+  // (e.g. an account row: total return is only computed per owner).
+  const renderTotalReturnCells = (entry: OwnerTotalReturn | null | undefined) => {
+    const placeholder = entry === undefined ? "…" : "—";
+    const gbp = entry?.total_return_gbp ?? null;
+    const pct = entry?.total_return_pct ?? null;
+    const color = changeColor(gbp ?? pct);
+    return (
+      <>
+        {!relativeViewEnabled && (
+          <td className={`${tableStyles.cell} ${tableStyles.right}`} style={{ color }}>
+            {gbp === null ? placeholder : reporting.format(gbp)}
+          </td>
+        )}
+        <td className={`${tableStyles.cell} ${tableStyles.right}`} style={{ color }}>
+          {pct === null ? placeholder : percent(pct * 100)}
+        </td>
+      </>
+    );
+  };
+
   const pricingDate = portfolio?.as_of
     ? formatDateISO(new Date(portfolio.as_of))
     : null;
@@ -1491,6 +1549,20 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               {!relativeViewEnabled && (
                 <th
                   className={`${tableStyles.cell} ${tableStyles.right}`}
+                  title={t("group.ownerTable.totalReturnHelp")}
+                >
+                  {t("group.ownerTable.totalReturn1y")}
+                </th>
+              )}
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                title={t("group.ownerTable.totalReturnHelp")}
+              >
+                {t("group.ownerTable.totalReturn1yPct")}
+              </th>
+              {!relativeViewEnabled && (
+                <th
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
                   title={t("group.ownerTable.totalGainHelp")}
                 >
                   {t("group.ownerTable.totalGain")}
@@ -1556,6 +1628,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                       {percent(row.dayChangePct)}
                     </td>
                     {renderPeriodCells(row.periodChanges)}
+                    {renderTotalReturnCells(totalReturns[row.owner])}
                     {!relativeViewEnabled && (
                       <td
                         className={`${tableStyles.cell} ${tableStyles.right}`}
@@ -1614,6 +1687,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                           {percent(acct.dayChangePct)}
                         </td>
                         {renderPeriodCells(acct.periodChanges)}
+                        {renderTotalReturnCells(null)}
                         {!relativeViewEnabled && (
                           <td
                             className={`${tableStyles.cell} ${tableStyles.right}`}

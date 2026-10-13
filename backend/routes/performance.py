@@ -143,6 +143,26 @@ def owner_twr(owner: str, days: int = 365, as_of: str | None = None):
         raise_owner_not_found(owner)
 
 
+@router.get("/performance/{owner}/total-return")
+@handle_owner_not_found
+def owner_total_return(owner: str, days: int = 365, as_of: str | None = None):
+    """Return ``owner``'s total return (price plus income, net of deposits) over ``days`` (#10763).
+
+    Both figures are ``None`` when the owner has no transaction ledger.
+    """
+    owner = _validate_owner_slug(owner, "owner")
+    try:
+        result = portfolio_utils.compute_total_return(owner, days, pricing_date=_resolve_as_of(as_of))
+    except FileNotFoundError:
+        raise_owner_not_found(owner)
+    return {
+        "owner": owner,
+        "days": days,
+        "total_return_gbp": result["total_return_gbp"] if result else None,
+        "total_return_pct": result["total_return_pct"] if result else None,
+    }
+
+
 @router.get("/performance/{owner}/xirr")
 @handle_owner_not_found
 def owner_xirr(owner: str, days: int = 365, as_of: str | None = None):

@@ -514,7 +514,10 @@
       "change_1w": "Variação 1S",
       "change_1m": "Variação 1M",
       "change_1y": "Variação 1A",
-      "periodChangeHelp": "Variação de preço nas unidades detidas agora nos últimos 7 / 30 / 365 dias (desde a data de compra para compras dentro do período). Não é um retorno ponderado no tempo: aportes, operações e rendimentos no período são ignorados. — indica histórico de preços insuficiente."
+      "periodChangeHelp": "Variação de preço nas unidades detidas agora nos últimos 7 / 30 / 365 dias (desde a data de compra para compras dentro do período). Não é um retorno ponderado no tempo: aportes, operações e rendimentos no período são ignorados. — indica histórico de preços insuficiente.",
+      "totalReturn1y": "Retorno total 1A",
+      "totalReturn1yPct": "Retorno total 1A %",
+      "totalReturnHelp": "Retorno dos últimos 365 dias incluindo dividendos e juros, a partir do histórico de transações: variações de preço mais rendimentos, excluindo aportes e resgates. O % é ponderado no tempo (o valor 1A da página de desempenho). Apenas por titular; — indica que não há histórico de transações."
     }
   },
   "holdingsTable": {

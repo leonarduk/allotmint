@@ -54,7 +54,7 @@ export const HELP_PAGES: HelpPageEntry[] = [
     titleKey: 'app.modes.instrument',
     titleDefault: 'Sector Analysis',
     descriptionKey: 'help.pages.instrument',
-    descriptionDefault: 'Detail and price history for a single instrument.',
+    descriptionDefault: 'Every holding grouped by sector, with totals and returns over several periods.',
   },
   {
     path: '/performance',

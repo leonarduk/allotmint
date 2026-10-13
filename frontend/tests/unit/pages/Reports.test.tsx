@@ -185,6 +185,134 @@ describe("Reports page", () => {
     expect(builtinRadio).not.toBeChecked();
   });
 
+  it("defaults to the signed-in user's owner rather than owners[0] (#10753)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", email: "alex@example.com", accounts: [] },
+      { owner: "steve", email: "steve@example.com", accounts: [] },
+    ]);
+    const { AuthContext } = await import("@/AuthContext");
+    const { default: Reports } = await import("@/pages/Reports");
+    render(
+      <AuthContext.Provider
+        value={{
+          user: { email: "steve@example.com" },
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <MemoryRouter>
+          <Reports />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+
+    const csvLink = await screen.findByRole("link", { name: /Download CSV/i });
+    expect(csvLink.getAttribute("href")).toContain("/reports/steve/");
+    expect(screen.getByLabelText(/Owner/i)).toHaveValue("steve");
+  });
+
+  it("lets the app-selected route owner win over the signed-in user (#10753)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", email: "alex@example.com", accounts: [] },
+      { owner: "steve", email: "steve@example.com", accounts: [] },
+    ]);
+    const { AuthContext } = await import("@/AuthContext");
+    const { RouteContext } = await import("@/contexts/route");
+    const { default: Reports } = await import("@/pages/Reports");
+    render(
+      <AuthContext.Provider
+        value={{
+          user: { email: "steve@example.com" },
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <RouteContext.Provider
+          value={{
+            mode: "reports",
+            setMode: () => {},
+            selectedOwner: "alex",
+            setSelectedOwner: () => {},
+            selectedGroup: "",
+            setSelectedGroup: () => {},
+          }}
+        >
+          <MemoryRouter>
+            <Reports />
+          </MemoryRouter>
+        </RouteContext.Provider>
+      </AuthContext.Provider>,
+    );
+
+    const csvLink = await screen.findByRole("link", { name: /Download CSV/i });
+    expect(csvLink.getAttribute("href")).toContain("/reports/alex/");
+  });
+
+  it("routes a picker choice through the app-level owner (#10753)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", accounts: [] },
+      { owner: "steve", accounts: [] },
+    ]);
+    const setSelectedOwner = vi.fn();
+    const { RouteContext } = await import("@/contexts/route");
+    const { default: Reports } = await import("@/pages/Reports");
+    render(
+      <RouteContext.Provider
+        value={{
+          mode: "reports",
+          setMode: () => {},
+          selectedOwner: "alex",
+          setSelectedOwner,
+          selectedGroup: "",
+          setSelectedGroup: () => {},
+        }}
+      >
+        <MemoryRouter>
+          <Reports />
+        </MemoryRouter>
+      </RouteContext.Provider>,
+    );
+
+    const ownerSelect = await screen.findByLabelText(/Owner/i);
+    await screen.findByRole("option", { name: "steve" });
+    fireEvent.change(ownerSelect, { target: { value: "steve" } });
+    expect(setSelectedOwner).toHaveBeenCalledWith("steve");
+  });
+
+  it("falls back to owners[0] when the signed-in user matches no owner", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", email: "alex@example.com", accounts: [] },
+      { owner: "steve", email: "steve@example.com", accounts: [] },
+    ]);
+    const { AuthContext } = await import("@/AuthContext");
+    const { default: Reports } = await import("@/pages/Reports");
+    render(
+      <AuthContext.Provider
+        value={{
+          user: { email: "visitor@example.com" },
+          setUser: () => {},
+          logout: null,
+          setLogout: () => {},
+          demoReadOnly: false,
+          setDemoReadOnly: () => {},
+        }}
+      >
+        <MemoryRouter>
+          <Reports />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+
+    const csvLink = await screen.findByRole("link", { name: /Download CSV/i });
+    expect(csvLink.getAttribute("href")).toContain("/reports/alex/");
+  });
+
   it("includes the chosen template ID in download links", async () => {
     await renderReports();
 

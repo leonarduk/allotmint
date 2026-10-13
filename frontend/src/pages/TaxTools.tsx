@@ -12,6 +12,7 @@ import i18n from "../i18n";
 import { useRoute } from "../RouteContext";
 import type { Holding, OwnerSummary, Portfolio } from "../types";
 import { sanitizeOwners } from "../utils/owners";
+import { useDefaultOwner } from "../hooks/useDefaultOwner";
 import { isTaxShelteredAccount } from "../utils/accountTypes";
 import LoadingStatus from "../components/skeletons/LoadingStatus";
 import TableSkeleton from "../components/skeletons/TableSkeleton";
@@ -706,14 +707,13 @@ export default function TaxTools() {
     error: ownersError,
   } = useOwnersList();
 
+  // Route owner wins when valid, else the signed-in user's owner, else
+  // owners[0] (#10753). An invalid route owner is replaced by the default.
+  const defaultOwner = useDefaultOwner(owners, selectedOwner);
   useEffect(() => {
-    if (!selectedOwner) return;
-    if (!owners.length) return;
-    const isValid = owners.some((owner) => owner.owner === selectedOwner);
-    if (!isValid) {
-      setSelectedOwner("");
-    }
-  }, [owners, selectedOwner, setSelectedOwner]);
+    if (!defaultOwner || defaultOwner === selectedOwner) return;
+    setSelectedOwner(defaultOwner);
+  }, [defaultOwner, selectedOwner, setSelectedOwner]);
 
   const ownerSelectValue = useMemo(() => {
     if (!selectedOwner) return "";
@@ -754,10 +754,13 @@ export default function TaxTools() {
               onChange={handleOwnerChange}
               disabled={ownerSelectDisabled}
             >
-              <option value="">{t("taxTools.selectOwner")}</option>
+              {/* Placeholder only until the default owner applies (#10753). */}
+              {!ownerSelectValue && (
+                <option value="">{t("taxTools.selectOwner")}</option>
+              )}
               {owners.map((owner) => (
                 <option key={owner.owner} value={owner.owner}>
-                  {owner.owner}
+                  {owner.full_name?.trim() || owner.owner}
                 </option>
               ))}
             </select>

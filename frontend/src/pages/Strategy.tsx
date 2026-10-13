@@ -33,6 +33,7 @@ import {
   sanitizeOwners,
 } from '../utils/owners';
 import { useRoute } from '../RouteContext';
+import { useDefaultOwner } from '../hooks/useDefaultOwner';
 import {
   currentWeights,
   draftFromCurrent,
@@ -76,15 +77,12 @@ function useOwnerSelection() {
     };
   }, []);
 
+  // Route owner wins, else the signed-in user's owner, else owners[0] (#10753).
+  const preferred = useDefaultOwner(owners, route.selectedOwner);
   useEffect(() => {
-    if (!owners.length) return;
-    const routeOwner = route.selectedOwner?.trim();
-    const preferred =
-      routeOwner && owners.some((o) => o.owner === routeOwner)
-        ? routeOwner
-        : owners[0].owner;
+    if (!preferred) return;
     setSelectedOwner((current) => current || preferred);
-  }, [owners, route.selectedOwner]);
+  }, [preferred]);
 
   const selectOwner = (owner: string) => {
     setSelectedOwner(owner);

@@ -53,3 +53,19 @@ export function findOwnerForUser(
   if (!email) return undefined;
   return owners.find((owner) => owner.email?.trim().toLowerCase() === email);
 }
+
+/**
+ * Resolve which owner an owner-scoped page should open on (#10753):
+ * an explicit `preferred` owner (route segment / `?owner=`) wins when it is
+ * one of `owners`; otherwise the signed-in user's own owner; otherwise
+ * owners[0] (demo/no-auth mode). Returns "" when there are no owners.
+ */
+export function pickDefaultOwner(
+  owners: OwnerSummary[],
+  user: { email?: string | null } | null | undefined,
+  preferred?: string | null,
+): string {
+  const wanted = preferred?.trim();
+  if (wanted && owners.some((o) => o.owner === wanted)) return wanted;
+  return findOwnerForUser(owners, user)?.owner ?? owners[0]?.owner ?? "";
+}

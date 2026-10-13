@@ -328,6 +328,26 @@ describe("TaxTools", () => {
       expect(screen.queryByText(/no clear loss candidates/i)).not.toBeInTheDocument();
     });
 
+    it("keeps the generic empty state for a taxable portfolio with no losses", async () => {
+      portfolioMock.mockResolvedValue(
+        portfolioWith([
+          {
+            account_type: "gia",
+            holdings: [
+              { ...losingHolding("WINX"), market_value_gbp: 1200, gain_gbp: 200 },
+            ],
+          },
+        ]),
+      );
+
+      render(<TaxTools />);
+
+      expect(
+        await screen.findByText(/no clear loss candidates/i),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/outside capital gains tax/i)).not.toBeInTheDocument();
+    });
+
     it("uses the effective cost basis when the raw cost basis is zero", async () => {
       portfolioMock.mockResolvedValue(
         portfolioWith([

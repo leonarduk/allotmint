@@ -188,6 +188,13 @@ export const transactionContractSchema = z.object({
   // receiving a boolean without needing to handle undefined.
   synthetic: z.boolean().default(false),
   instrument_name: nullableString.optional(),
+  // Realised-gain fields the backend attaches to SELL rows.  They must be
+  // declared here or Zod strips them, and the transactions summary then
+  // always reports £0.00 realised gain/loss (#10752).
+  realised_gain_gbp: nullableNumber.optional(),
+  cost_basis_gbp: nullableNumber.optional(),
+  proceeds_gbp: nullableNumber.optional(),
+  unmatched_units: nullableNumber.optional(),
 });
 
 export const transactionsContractSchema = z.array(transactionContractSchema);

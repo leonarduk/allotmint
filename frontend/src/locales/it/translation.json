@@ -2868,6 +2868,7 @@
         "loss": "Perdita"
       },
       "noCandidates": "Nessun candidato chiaro in perdita trovato.",
+      "allSheltered": "Tutte le tue posizioni sono in ISA o pensioni (es. SIPP), i cui guadagni e perdite sono esclusi dall'imposta sulle plusvalenze, quindi non c'è nulla da raccogliere.",
       "advancedToggle": "Avanzate: aggiungi posizione manuale",
       "basis": "Base",
       "run": "Esegui realizzo",

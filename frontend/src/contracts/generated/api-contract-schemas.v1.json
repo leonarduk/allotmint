@@ -1099,6 +1099,30 @@
                 "string",
                 "null"
               ]
+            },
+            "realised_gain_gbp": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "cost_basis_gbp": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "proceeds_gbp": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "unmatched_units": {
+              "type": [
+                "number",
+                "null"
+              ]
             }
           },
           "required": [

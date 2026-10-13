@@ -2868,6 +2868,7 @@
         "loss": "Perte"
       },
       "noCandidates": "Aucun candidat clair en moins-value trouvé.",
+      "allSheltered": "Toutes vos positions sont dans des ISA ou des retraites (p. ex. SIPP), dont les plus et moins-values échappent à l'impôt sur les plus-values : il n'y a donc rien à récolter.",
       "advancedToggle": "Avancé : ajouter une position manuelle",
       "basis": "Base",
       "run": "Lancer la réalisation",

@@ -52,7 +52,7 @@ describe("TaxTools", () => {
       total_value_estimate_gbp: 0,
       accounts: [
         {
-          account_type: "isa",
+          account_type: "gia",
           currency: "GBP",
           value_estimate_gbp: 0,
           holdings: [
@@ -339,5 +339,105 @@ describe("TaxTools", () => {
       await screen.findByText(/select a position or enter one manually/i),
     ).toBeInTheDocument();
     expect(harvestMock).not.toHaveBeenCalled();
+  });
+
+  describe("tax wrappers and cost basis (#10760)", () => {
+    const losingHolding = (ticker: string) => ({
+      ticker,
+      name: `${ticker} Fund`,
+      units: 10,
+      cost_basis_gbp: 1000,
+      market_value_gbp: 800,
+      gain_gbp: -200,
+      current_price_gbp: 80,
+      acquired_date: "2023-01-01",
+    });
+
+    const portfolioWith = (
+      accounts: { account_type: string; holdings: Record<string, unknown>[] }[],
+    ) => ({
+      owner: "alice",
+      as_of: "2024-01-01",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 0,
+      accounts: accounts.map((account) => ({
+        currency: "GBP",
+        value_estimate_gbp: 0,
+        ...account,
+      })),
+    });
+
+    it("excludes ISA/SIPP holdings but keeps GIA losses", async () => {
+      portfolioMock.mockResolvedValue(
+        portfolioWith([
+          { account_type: "isa", holdings: [losingHolding("ISAX")] },
+          { account_type: "sipp", holdings: [losingHolding("SIPX")] },
+          { account_type: "gia", holdings: [losingHolding("GIAX")] },
+        ]),
+      );
+
+      render(<TaxTools />);
+
+      await screen.findByRole("checkbox", { name: /giax/i });
+      expect(screen.queryByRole("checkbox", { name: /isax/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("checkbox", { name: /sipx/i })).not.toBeInTheDocument();
+    });
+
+    it("shows the all-sheltered empty state when every account is an ISA/SIPP", async () => {
+      portfolioMock.mockResolvedValue(
+        portfolioWith([
+          { account_type: "isa", holdings: [losingHolding("ISAX")] },
+          { account_type: "sipp", holdings: [losingHolding("SIPX")] },
+        ]),
+      );
+
+      render(<TaxTools />);
+
+      expect(
+        await screen.findByText(/outside capital gains tax/i),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("checkbox", { name: /isax|sipx/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(/no clear loss candidates/i)).not.toBeInTheDocument();
+    });
+
+    it("uses the effective cost basis when the raw cost basis is zero", async () => {
+      portfolioMock.mockResolvedValue(
+        portfolioWith([
+          {
+            account_type: "gia",
+            holdings: [
+              {
+                ticker: "ISXF.L",
+                name: "iShares Fund",
+                units: 100,
+                cost_basis_gbp: 0,
+                effective_cost_basis_gbp: 3681.18,
+                market_value_gbp: 2690.14,
+                gain_gbp: -991.04,
+                current_price_gbp: 26.9014,
+                acquired_date: "2023-01-01",
+              },
+            ],
+          },
+        ]),
+      );
+
+      render(<TaxTools />);
+
+      const checkbox = await screen.findByRole("checkbox", { name: /isxf\.l/i });
+      const row = checkbox.closest("tr")!;
+      expect(row).toHaveTextContent("£3,681.18");
+      expect(row).toHaveTextContent("-£991.04");
+      expect(row).toHaveTextContent("-26.92%");
+
+      fireEvent.click(checkbox);
+      fireEvent.click(screen.getByRole("button", { name: /run harvest/i }));
+      await screen.findByText(/no trades qualify/i);
+      expect(harvestMock).toHaveBeenCalledWith(
+        [{ ticker: "ISXF.L", basis: 36.8118, price: 26.9014 }],
+        0,
+      );
+    });
   });
 });

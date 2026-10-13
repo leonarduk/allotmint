@@ -48,6 +48,7 @@ class ChatContextIn(BaseModel):
     ticker: Optional[str] = Field(default=None, pattern=r"^[A-Za-z0-9._\-]{1,30}$")
     # The owner or group selected in the app, so "this portfolio" resolves (#10813).
     # Prompt context only: it never decides which data the user may read.
+    # frontend/src/utils/chatPages.ts SCOPE_SLUG mirrors this pattern; change both together.
     owner: Optional[str] = Field(default=None, pattern=r"^[A-Za-z0-9._\-]{1,64}$")
     group: Optional[str] = Field(default=None, pattern=r"^[A-Za-z0-9._\-]{1,64}$")
 
